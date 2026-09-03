@@ -82,6 +82,8 @@ export class Entity {
   indoors = false;
   attackCooldown = 0;
   hp: number;
+  /** Rig parts to leave undrawn, by tag: a helm replaces the hero's own hat. */
+  readonly hiddenTags = new Set<string>();
   /** Counts down after a hit; the renderer flashes the creature white while it is positive. */
   hurt = 0;
   dead = false;

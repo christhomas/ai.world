@@ -22,6 +22,7 @@ import { SeasonTintMaterials } from './render/seasontint';
 import { FISHING, Fishing } from './game/fishing';
 import { Journal } from './ui/journal';
 import { Clock } from './ui/clock';
+import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
 import { TerrainSampler } from './world/terrain';
@@ -96,6 +97,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const fishing = new Fishing();
   const journal = new Journal();
   const clock = new Clock();
+  const heroGear = new HeroGear(rig.scene);
   const castbar = el('castbar');
   chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
@@ -214,7 +216,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   if (url.searchParams.get('cam') === 'free') player.mode = 'free';
   const places = new Places({
     seed, manifest, state, props, rig, iso, player,
-    overworld: chunks, overworldRenderer: entityRenderer,
+    overworld: chunks, overworldRenderer: entityRenderer, heroGear,
     minimapCanvas: $('minimapCanvas') as HTMLCanvasElement,
     rng: lineRng,
     flash: (message) => hud.flash(message),
@@ -537,6 +539,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__doors = structures.doors;
     debug.__player = player;
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
+    (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
     debug.__standAtCounter = () => {
       const spot = places.indoors?.world.map.keeper;
       if (spot) player.teleport(spot[0] + 0.5, spot[1] + 1.6);
@@ -564,6 +567,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
       // indoors: a fixed view of the room, the hero and whoever keeps the place
       places.indoors.renderer.update();
+      heroGear.update(state, player.entity);
       updateHud(dt, places.indoors.title);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${places.indoors!.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
@@ -582,6 +586,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       places.underground.scene.heroLight.intensity = state.can('light') ? 9 : 3;
       places.underground.monsters.update(dt, player.x, player.z, false, onAttack);
       places.underground.renderer.update();
+      heroGear.update(state, player.entity);
       places.underground.map.reveal(player.x, player.z);
       places.underground.map.draw(player.x, player.z, state.opened, (i) => places.underground!.world.chestId(i), places.underground!.world.unlocked);
       updateHud(dt, `${places.underground.poi.name} Depths`);
@@ -635,6 +640,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     entityRenderer.update();
+    heroGear.update(state, player.entity);
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
     areaLabel = areaName();

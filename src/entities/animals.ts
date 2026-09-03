@@ -22,6 +22,8 @@ export interface PartDef {
   anim?: AnimRole;
   /** Rotation pivot relative to root; defaults to the part's top centre for legs, its centre otherwise. */
   pivot?: [number, number, number];
+  /** Named so it can be hidden: the hero's own hat gives way to a helm. */
+  tag?: string;
   rot?: [number, number, number];
 }
 
@@ -507,10 +509,10 @@ export const KINDS: Record<string, AnimalKind> = {
     parts: [
       ...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x4a3a2a }),
       // hat, brim, belt, cape: a silhouette you can find in a crowd of villagers
-      cone(0.22, 0.5, [0, 1.78, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.16, 0] }),
-      box([0.42, 0.05, 0.42], [0, 1.6, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.16, 0] }),
+      cone(0.22, 0.5, [0, 1.78, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.16, 0], tag: 'hat' }),
+      box([0.42, 0.05, 0.42], [0, 1.6, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.16, 0], tag: 'hat' }),
       box([0.24, 0.07, 0.38], [0, 0.74, 0], 0x5a3a1a),
-      box([0.05, 0.62, 0.36], [-0.14, 0.86, 0], 0xc0392b, { anim: 'cape', pivot: [-0.12, 1.16, 0] }),
+      box([0.05, 0.62, 0.36], [-0.14, 0.86, 0], 0xc0392b, { anim: 'cape', pivot: [-0.12, 1.16, 0], tag: 'cape' }),
     ],
   },
 };

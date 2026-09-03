@@ -12,6 +12,8 @@ const SHADOW_VOLUME = 0.012;
 /** Leg swing amplitude at full walk, radians. */
 const WALK_SWING = 0.6;
 const HURT_COLOR = new THREE.Color(0xffffff);
+/** A zero-scale matrix: the shape is still in the buffer but covers no pixels. */
+const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /** Euler angles (x, y, z) for an animated part given the entity's current animation state. */
 function partRotation(role: AnimRole | undefined, e: Entity, swing: number): [number, number, number] {
@@ -177,6 +179,11 @@ export class EntityRenderer {
         const swing = Math.sin(e.phase) * WALK_SWING * e.walk;
         for (const part of p.parts) {
           const d = part.def;
+          if (d.tag && e.hiddenTags.has(d.tag)) {
+            // hidden parts are scaled away rather than removed, so the pool stays a flat array
+            part.mesh.setMatrixAt(i, HIDDEN);
+            continue;
+          }
           const [ax, ay, az] = partRotation(d.anim, e, swing);
           this.m.copy(this.root);
           if (ax !== 0 || ay !== 0 || az !== 0) {

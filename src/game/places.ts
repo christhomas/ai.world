@@ -20,6 +20,7 @@ import type { Player } from '../entities/player';
 import { DungeonMinimap } from '../ui/dungeonmap';
 import { ITEMS } from './items';
 import type { GameState } from './state';
+import type { HeroGear } from '../render/herogear';
 
 /** Everything a place needs to swap the world out from under the hero. */
 export interface PlaceContext {
@@ -33,6 +34,8 @@ export interface PlaceContext {
   /** The outdoor world and the renderer the hero belongs to when above ground. */
   overworld: ChunkManager;
   overworldRenderer: EntityRenderer;
+  /** Follows the hero between scenes so worn gear is drawn wherever they are. */
+  heroGear: HeroGear;
   minimapCanvas: HTMLCanvasElement;
   rng: Rng;
   flash: (message: string) => void;
@@ -93,6 +96,7 @@ export class Places {
     const renderer = new EntityRenderer(scene.scene);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
+    this.ctx.heroGear.attachTo(scene.scene);
     player.setWorld(world);
 
     const [ex, ez] = world.map.entrance;
@@ -116,6 +120,7 @@ export class Places {
     visit.renderer.dispose();
     visit.scene.dispose();
     overworldRenderer.add(player.entity);
+    this.ctx.heroGear.attachTo(this.ctx.rig.scene);
     player.setWorld(overworld);
     player.teleport(visit.poi.x + 2.5, visit.poi.z + 0.5);
     iso.target.set(visit.poi.x + 2.5, 0.5, visit.poi.z + 0.5);
@@ -181,6 +186,7 @@ export class Places {
     const renderer = new EntityRenderer(scene.scene);
     overworldRenderer.remove(player.entity);
     renderer.add(player.entity);
+    this.ctx.heroGear.attachTo(scene.scene);
     player.setWorld(world);
     player.teleport(map.entry[0] + 0.5, map.entry[1] + 0.5);
 
@@ -217,6 +223,7 @@ export class Places {
     visit.renderer.dispose();
     visit.scene.dispose();
     overworldRenderer.add(player.entity);
+    this.ctx.heroGear.attachTo(this.ctx.rig.scene);
     player.setWorld(overworld);
     player.teleport(visit.exit[0], visit.exit[1] + 1);
     iso.zoom = this.outdoorZoom;
