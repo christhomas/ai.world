@@ -76,6 +76,10 @@ export class Entity {
   readonly name: string;
   role: EntityRole = 'none';
   shop: ShopType | null = null;
+  /** Door tile villagers walk back to at dusk; they vanish inside on arrival. */
+  home: [number, number] | null = null;
+  /** Hidden indoors: not drawn, not interactive, until morning. */
+  indoors = false;
   attackCooldown = 0;
   hp: number;
   /** Counts down after a hit; the renderer flashes the creature white while it is positive. */
@@ -153,6 +157,8 @@ export interface Ctx {
   rng: Rng;
   playerX: number;
   playerZ: number;
+  /** Fraction of the day; villagers go home when it gets late. */
+  time?: number;
   /** Hero carries a sword: predators keep away instead of biting. */
   playerArmed: boolean;
   onAttack: (e: Entity, damage: number) => void;
@@ -233,10 +239,36 @@ function chooseIdleAction(e: Entity, ctx: Ctx): void {
   }
 }
 
+/** Villagers are out between these times; outside them they head home and stay in. */
+export const AWAKE = [0.27, 0.82] as const;
+
+export function isDaytime(time: number): boolean {
+  return time >= AWAKE[0] && time < AWAKE[1];
+}
+
 export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   const k = e.kind;
   const { world } = ctx;
   e.timer -= dt;
+
+  // townsfolk keep hours: home at dusk, back out after dawn
+  if (e.home && ctx.time !== undefined) {
+    const day = isDaytime(ctx.time);
+    if (!day) {
+      if (e.indoors) return;
+      const dx = e.home[0] - e.x, dz = e.home[1] - e.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.6) { e.indoors = true; e.walk = 0; return; }
+      e.yaw = yawFor(dx, dz);
+      e.walk += (1 - e.walk) * Math.min(1, dt * 10);
+      e.phase += dt * 8;
+      tryMove(world, e, (dx / dist) * k.speed * dt, (dz / dist) * k.speed * dt);
+      const gy = groundY(world, k, e.x, e.z);
+      if (gy !== null) e.y += (gy - e.y) * Math.min(1, dt * 12);
+      return;
+    }
+    if (e.indoors) { e.indoors = false; e.state = 'idle'; e.timer = ctx.rng(); }
+  }
 
   if (k.behaviour === 'fly') {
     updateFlier(e, dt, ctx);

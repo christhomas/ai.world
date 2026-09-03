@@ -1,5 +1,5 @@
 import type { Rng } from '../core/rng';
-import type { Entity } from '../entities/entity';
+import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueNode } from '../ui/dialogue';
 import { ITEMS, SHOP_DEFS } from './shops';
 import type { GameState } from './state';
@@ -7,6 +7,8 @@ import type { Quest } from './quests';
 
 export interface TalkCtx {
   state: GameState;
+  /** Fraction of the day; shops keep hours. */
+  time: number;
   rng: Rng;
   /** Quest offered by each village, keyed by village name. */
   quests: Map<string, Quest>;
@@ -94,6 +96,10 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   const speaker = `${e.name}, ${def.title}`;
   const emoji = e.kind.emoji;
   const village = e.herd.tag || 'town';
+
+  if (!isDaytime(ctx.time)) {
+    return { speaker, emoji, pages: [`The ${def.name.toLowerCase()} is shut for the night. Come back after dawn.`] };
+  }
 
   const root = (): DialogueNode => ({
     speaker, emoji,

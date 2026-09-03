@@ -169,7 +169,8 @@ export class EntityRenderer {
       for (let i = 0; i < n; i++) {
         const e = p.entities[i];
         const s = e.kind.scale;
-        this.pos.set(e.x, e.y + e.bobY, e.z);
+        // indoors: park the rig far below so it is neither seen nor clickable
+        this.pos.set(e.x, e.indoors ? -999 : e.y + e.bobY, e.z);
         this.quat.setFromAxisAngle(this.up, e.yaw);
         this.scl.set(s, s, s);
         this.root.compose(this.pos, this.quat, this.scl);

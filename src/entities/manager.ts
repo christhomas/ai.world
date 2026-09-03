@@ -70,7 +70,7 @@ export class EntityManager {
 
   get count(): number { return this.renderer.count; }
 
-  update(dt: number, playerX: number, playerZ: number, playerArmed = false, onAttack: (e: Entity, damage: number) => void = () => {}): void {
+  update(dt: number, playerX: number, playerZ: number, playerArmed = false, onAttack: (e: Entity, damage: number) => void = () => {}, time?: number): void {
     const CS = WORLD.CHUNK_SIZE;
     const cx = Math.floor(playerX / CS), cz = Math.floor(playerZ / CS);
     if (cx !== this.focusCx || cz !== this.focusCz) {
@@ -91,7 +91,7 @@ export class EntityManager {
       }
     }
 
-    const ctx = { world: this.world, rng: this.rng, playerX, playerZ, playerArmed, onAttack };
+    const ctx = { world: this.world, rng: this.rng, playerX, playerZ, playerArmed, onAttack, time };
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
     for (const list of this.spawned.values()) {
@@ -103,11 +103,12 @@ export class EntityManager {
     }
   }
 
-  /** Closest creature within `r` tiles of a point. */
+  /** Closest creature within `r` tiles of a point. Anyone indoors is not there to talk to. */
   nearest(x: number, z: number, r: number): Entity | null {
     let best: Entity | null = null, bestD = r * r;
     for (const list of this.spawned.values()) {
       for (const e of list) {
+        if (e.indoors) continue;
         const d = (e.x - x) ** 2 + (e.z - z) ** 2;
         if (d < bestD) { bestD = d; best = e; }
       }
@@ -242,6 +243,11 @@ export class EntityManager {
         const herd = this.place(ctx, 'villager', [v.x, v.z], 2 + Math.floor(ctx.rng() * 3), Math.max(8, v.radius * 0.7));
         herd.tag = v.name;
         if (herd.members.length > 0) herd.members[0].role = 'elder';
+        // each villager keeps a house to go home to at dusk
+        herd.members.forEach((e, i) => {
+          const house = v.houses[i % Math.max(1, v.houses.length)];
+          if (house) e.home = doorTileOf(house);
+        });
       }
       if (v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
         const herd = this.place(ctx, 'villager', [v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5], 3 + Math.floor(ctx.rng() * 2), SPAWN.CONGREGATION_LEASH);
@@ -252,7 +258,7 @@ export class EntityManager {
         if (!inChunk(shop.doorX + 0.5, shop.doorZ + 0.5)) continue;
         const herd = this.place(ctx, 'shopkeeper', [shop.doorX + 0.5, shop.doorZ + 0.5], 1, SPAWN.SHOPKEEPER_LEASH);
         herd.tag = v.name;
-        for (const e of herd.members) { e.role = 'shopkeeper'; e.shop = shop.type; }
+        for (const e of herd.members) { e.role = 'shopkeeper'; e.shop = shop.type; e.home = [shop.doorX + 0.5, shop.doorZ + 0.5]; }
       }
     }
   }
@@ -306,6 +312,13 @@ function sortTiles(tiles: ChunkTiles): SortedTiles {
   let biome = 0 as Biome, best = -1;
   for (const [b, n] of biomeCount) if (n > best) { best = n; biome = b as Biome; }
   return { land, water, road, biome };
+}
+
+/** The tile just outside a building's door, where its owner goes in. */
+function doorTileOf(house: { tx: number; tz: number; rot: number; path: Array<[number, number]> }): [number, number] {
+  const first = house.path[0];
+  if (first) return [first[0] + 0.5, first[1] + 0.5];
+  return [house.tx + Math.round(Math.cos(house.rot)) * 2 + 0.5, house.tz + Math.round(Math.sin(house.rot)) * 2 + 0.5];
 }
 
 function tileCentre(tiles: ChunkTiles, i: number): [number, number] {

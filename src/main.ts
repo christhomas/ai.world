@@ -257,7 +257,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   // --- talking ---
   const talkCtx = {
-    state, rng: lineRng, quests,
+    state, rng: lineRng, quests, time: state.time,
     onInventoryChange: () => { sound.chime(); persist(); },
     onQuestChange: (q: { village: string }, status: 'active' | 'done') => {
       if (status === 'done') { sound.fanfare(); hud.flash(`Quest complete for ${q.village}!`); } else sound.select();
@@ -265,6 +265,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     },
   };
   const startTalk = (e: Entity) => {
+    talkCtx.time = state.time;
     e.yaw = yawFor(player.x - e.x, player.z - e.z);
     e.state = 'idle';
     e.timer = 1e9;
@@ -552,7 +553,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.has('lantern'), season: tint, wet: weatherStrength });
-    entities.update(dt, player.x, player.z, state.armed, onAttack);
+    entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     entityRenderer.update();
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) minimap.reveal(state.explored);

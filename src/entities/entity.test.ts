@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
-import { BEHAVIOUR, Entity, Herd, STEP_LIMIT, canStand, tryMove, updateEntity, yawFor, type TileWorld } from './entity';
+import { BEHAVIOUR, Entity, Herd, STEP_LIMIT, canStand, isDaytime, tryMove, updateEntity, yawFor, type TileWorld } from './entity';
 
 /** Flat 20x20 world at height 1, with a cliff (height 2) for x >= 10 and a tree at (5,5). */
 const world: TileWorld = {
@@ -58,5 +58,27 @@ describe('entity movement', () => {
     wolf2.y = 1;
     updateEntity(wolf2, 0.1, armed);
     expect(wolf2.state).toBe('flee');
+  });
+});
+
+describe('villager hours', () => {
+  it('walk home at dusk, vanish inside, and come back out after dawn', () => {
+    const herd = new Herd(KINDS.villager, 10, 10, 10, 10, 6);
+    const e = new Entity(KINDS.villager, 10, 10, herd, 'k', mulberry32(4));
+    e.y = 1;
+    e.home = [6, 10];
+    const ctx = { world, rng: mulberry32(5), playerX: 100, playerZ: 100, playerArmed: false, onAttack: () => {}, time: 0.95 };
+    for (let t = 0; t < 20 && !e.indoors; t += 0.1) updateEntity(e, 0.1, ctx);
+    expect(e.indoors).toBe(true);
+    expect(Math.hypot(e.x - 6, e.z - 10)).toBeLessThan(1);
+    // still indoors while it is dark
+    updateEntity(e, 0.1, ctx);
+    expect(e.indoors).toBe(true);
+    // morning: back out and wandering
+    updateEntity(e, 0.1, { ...ctx, time: 0.5 });
+    expect(e.indoors).toBe(false);
+    expect(isDaytime(0.5)).toBe(true);
+    expect(isDaytime(0.95)).toBe(false);
+    expect(isDaytime(0.1)).toBe(false);
   });
 });

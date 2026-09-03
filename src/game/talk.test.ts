@@ -16,7 +16,7 @@ describe('shop dialogue', () => {
     const state = new GameState();
     const inventory = state.inventory;
     let changes = 0;
-    const ctx = { state, rng, quests: new Map(), onInventoryChange: () => changes++, onQuestChange: () => {} };
+    const ctx = { state, rng, time: 0.5, quests: new Map(), onInventoryChange: () => changes++, onQuestChange: () => {} };
 
     const root = dialogueFor(e, ctx);
     expect(root.choices?.map((c) => c.label)).toEqual(['Buy', 'Chat', 'Leave']);
@@ -43,6 +43,21 @@ describe('shop dialogue', () => {
     const line = v.line(() => 0);
     expect(line).toContain('Testford');
   });
+
+  it('shops are shut at night', () => {
+    const rng = mulberry32(9);
+    const herd = new Herd(KINDS.shopkeeper, 0, 0, 0, 0, 1);
+    herd.tag = 'Nightfall';
+    const keeper = new Entity(KINDS.shopkeeper, 0, 0, herd, 'k', rng);
+    keeper.role = 'shopkeeper';
+    keeper.shop = 'smith';
+    const state = new GameState();
+    const night = dialogueFor(keeper, { state, rng, time: 0.95, quests: new Map(), onInventoryChange: () => {}, onQuestChange: () => {} });
+    expect(night.choices).toBeUndefined();
+    expect(night.pages[0]).toContain('shut for the night');
+    const day = dialogueFor(keeper, { state, rng, time: 0.5, quests: new Map(), onInventoryChange: () => {}, onQuestChange: () => {} });
+    expect(day.choices?.map((c) => c.label)).toContain('Buy');
+  });
 });
 
 describe('quests', () => {
@@ -66,7 +81,7 @@ describe('quests', () => {
     const elder = new Entity(KINDS.villager, 0, 0, herd, 'k', rng);
     elder.role = 'elder';
     const changes: string[] = [];
-    const ctx = { state, rng, quests: new Map(a.map((q) => [q.village, q])), onInventoryChange: () => {}, onQuestChange: (_q: unknown, s: string) => changes.push(s) };
+    const ctx = { state, rng, time: 0.5, quests: new Map(a.map((q) => [q.village, q])), onInventoryChange: () => {}, onQuestChange: (_q: unknown, s: string) => changes.push(s) };
 
     const offer = dialogueFor(elder, ctx);
     expect(offer.choices?.[0].label).toBe('Accept');
