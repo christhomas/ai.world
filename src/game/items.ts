@@ -98,6 +98,14 @@ const list: Item[] = [
   { id: 'rope', name: 'Climbing Rope', emoji: '🪢', price: 12, desc: 'Twenty feet of good hemp. Coiled on your belt.', slot: 'trinket', ability: 'climb' },
   { id: 'charm', name: 'Luck Charm', emoji: '🍀', price: 70, desc: 'A pressed clover in glass. It cannot hurt.', slot: 'trinket', hearts: 2 },
 
+  // --- seeds and crops ---
+  { id: 'wheatseed', name: 'Wheat Seeds', emoji: '🌱', price: 6, desc: 'Sow on bare earth beside a village. Three days to ripen, spring or summer.' },
+  { id: 'turnipseed', name: 'Turnip Seeds', emoji: '🌱', price: 4, desc: 'Two days in the ground, spring or autumn.' },
+  { id: 'pumpkinseed', name: 'Pumpkin Seeds', emoji: '🌱', price: 12, desc: 'Five days, summer or autumn, and worth the wait.' },
+  { id: 'wheat', name: 'Wheat', emoji: '🌾', price: 14, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 2 }, loot: true },
+  { id: 'turnip', name: 'Turnip', emoji: '🥔', price: 10, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 2 }, loot: true },
+  { id: 'pumpkin', name: 'Pumpkin', emoji: '🎃', price: 29, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 3 }, loot: true },
+
   // --- catch and salvage ---
   { id: 'minnow', name: 'Minnow', emoji: '🐟', price: 4, desc: 'Small, bony, and everywhere.', effect: { type: 'heal', amount: 1 }, loot: true },
   { id: 'perch', name: 'Perch', emoji: '🐠', price: 12, desc: 'A decent fish. The inn will buy it.', effect: { type: 'heal', amount: 2 }, loot: true },

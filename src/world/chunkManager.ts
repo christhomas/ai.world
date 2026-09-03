@@ -184,6 +184,15 @@ export class ChunkManager implements TileWorld, ChunkSource {
     return hit ? hit.t.blocked[hit.i] === 1 : true;
   }
 
+  /** Plain ground: grass or sand, no road, no floor, nothing already growing on it. */
+  isPlantable(x: number, z: number): boolean {
+    const hit = this.tileAt(x, z);
+    if (!hit) return false;
+    const type = hit.t.types[hit.i];
+    if (hit.t.blocked[hit.i]) return false;
+    return type === TileType.Ground || type === TileType.GroundAlt || type === TileType.Sand;
+  }
+
   isRoad(x: number, z: number): boolean {
     const hit = this.tileAt(x, z);
     if (!hit) return false;

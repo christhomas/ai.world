@@ -25,6 +25,8 @@ import { Clock } from './ui/clock';
 import { Compass, type CompassTarget } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { HORSE, Mount } from './game/mount';
+import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
+import { CropField } from './render/crops';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
@@ -107,6 +109,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
   const mount = Mount.from(saved?.state?.horse ?? null, lineRng);
+  const plots = new Plots(saved?.state?.plots);
+  const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
 
   // --- state ---
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
@@ -287,7 +291,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON() },
       manifest: manifest.toJSON(),
     });
   };
@@ -459,6 +463,59 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return true;
   };
 
+  /**
+   * Enter on bare earth near a village: sow a seed you are carrying, or lift a ripe crop.
+   * Ground must be plain grass or sand within reach of a settlement, so fields stay near homes.
+   */
+  const tryFarm = (): boolean => {
+    const tx = Math.floor(player.x), tz = Math.floor(player.z);
+    const standing = plots.at(tx, tz);
+    if (standing) {
+      if (!isRipe(standing, state.day)) {
+        const crop = CROPS[standing.crop];
+        const left = Math.max(1, Math.ceil(crop.days - (state.day - standing.planted)));
+        hud.flash(`${crop.name} coming along: about ${left} day${left === 1 ? '' : 's'} to go (${Math.round(ripeness(standing, state.day) * 100)}%).`);
+        return true;
+      }
+      const lifted = plots.harvest(tx, tz, state.day)!;
+      state.give(lifted.crop.id, lifted.amount);
+      sound.jingle();
+      hud.flash(`Harvested ${lifted.amount}× ${lifted.crop.name} ${lifted.crop.emoji}`);
+      persist();
+      return true;
+    }
+
+    const seeds = Object.keys(SEED_TO_CROP).filter((id) => state.count(id) > 0);
+    if (seeds.length === 0) return false;
+    const village = villageAt(structures.villages, player.x, player.z);
+    const nearVillage = village !== null || structures.villages.some((v) => Math.hypot(v.x - player.x, v.z - player.z) < v.radius + 25);
+    if (!nearVillage) { hud.flash('Too far from any village to break ground here.'); return true; }
+    if (!chunks.isPlantable(player.x, player.z)) { hud.flash('Nothing will grow on this ground.'); return true; }
+
+    dialogue.start({
+      speaker: 'Bare Earth', emoji: '🌱',
+      pages: ['Turned soil, and no one using it. What goes in?'],
+      choices: [
+        ...seeds.map((id) => {
+          const crop = SEED_TO_CROP[id];
+          const ok = canPlant(crop, state.day);
+          const wait = ok ? '' : ` — wrong season, ${daysUntilSeason(crop, state.day)}d`;
+          return { label: `${crop.emoji} ${crop.name} (${state.count(id)})${wait}`, next: () => {
+            if (!ok) return { speaker: 'Bare Earth', emoji: '🌱', pages: [`${crop.name} will not take now. Wait about ${daysUntilSeason(crop, state.day)} days.`] };
+            state.take(id, 1);
+            plots.plant(tx, tz, crop.id, state.day);
+            sound.select();
+            hud.flash(`${crop.name} sown. Ripe in ${crop.days} days.`);
+            persist();
+            return null;
+          } };
+        }),
+        { label: 'Leave it', next: () => null },
+      ],
+    });
+    return true;
+  };
+
   const talkNearest = () => {
     if (places.indoors) {
       const inside = places.interactIndoors();
@@ -478,6 +535,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       return;
     }
     if (tryHorse()) return;
+    if (tryFarm()) return;
     if (tryBoard()) return;
     if (tryDoor()) return;
     if (tryShrine()) return;
@@ -793,6 +851,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     mount.update(player, chunks);
+    cropField.update(plots, state.day, player.x, player.z, (x, z) => chunks.heightAt(x, z));
     entityRenderer.update();
     heroGear.update(state, player.entity);
 

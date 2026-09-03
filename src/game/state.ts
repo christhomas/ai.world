@@ -2,6 +2,7 @@ import { ITEMS, Inventory, type InventoryJson } from './shops';
 import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippable } from './items';
 import { chunkKey } from '../world/spatial';
 import type { HorseSave } from './mount';
+import type { PlotJson } from './farming';
 
 /**
  * Everything about the player that is not position: health, gold and items, time of day,
@@ -25,6 +26,8 @@ export interface GameStateJson {
   keys: string[];
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
+  /** What is planted where. */
+  plots?: PlotJson;
 }
 
 export const BASE_MAX_HP = 10;

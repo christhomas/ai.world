@@ -22,7 +22,7 @@ const isCatch = (item: Item) => item.loot === true;
 export const SHOP_DEFS: Record<ShopType, ShopDef> = {
   store: {
     name: 'General Store', title: 'the Storekeeper',
-    items: ['apple', 'bread', 'tunic', 'boots', 'stick', 'rope', 'lantern', 'map', 'rod'],
+    items: ['apple', 'bread', 'wheatseed', 'turnipseed', 'pumpkinseed', 'tunic', 'boots', 'stick', 'rope', 'lantern', 'map', 'rod'],
     // the general store will take anything off your hands
     buys: () => true,
     greetings: ['Welcome to the general store! Need supplies for the road?', 'Come in, come in. Everything a traveller could want.'],

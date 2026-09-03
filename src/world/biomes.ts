@@ -58,6 +58,9 @@ export const enum PropKind {
   Door = 54,
   Signpost = 55,
   NoticeBoard = 58,
+  Seedling = 80,
+  CropYoung = 81,
+  CropRipe = 82,
   CaveMouth = 56,
   Shipwreck = 57,
   // interior furniture

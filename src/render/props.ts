@@ -346,6 +346,25 @@ export class PropLibrary {
       part(new THREE.IcosahedronGeometry(0.3, 0), 0x8a8a8a, [2.2, 0.15, 0.7]),
     ]));
 
+    // three stages of growth, shown on any planted square
+    this.geometries.set(PropKind.Seedling, merge([
+      part(new THREE.BoxGeometry(0.9, 0.06, 0.9), 0x6b4a2b, [0, 0.03, 0]),
+      part(new THREE.ConeGeometry(0.05, 0.16, 4), 0x7fc04a, [-0.2, 0.1, -0.2]),
+      part(new THREE.ConeGeometry(0.05, 0.16, 4), 0x7fc04a, [0.2, 0.1, 0.15]),
+      part(new THREE.ConeGeometry(0.05, 0.16, 4), 0x7fc04a, [0.05, 0.1, -0.05]),
+    ]));
+    this.geometries.set(PropKind.CropYoung, merge([
+      part(new THREE.BoxGeometry(0.9, 0.06, 0.9), 0x6b4a2b, [0, 0.03, 0]),
+      ...[[-0.22, -0.2], [0.22, 0.16], [0.02, -0.04], [-0.18, 0.22]].map(([x, z]) =>
+        part(new THREE.ConeGeometry(0.09, 0.4, 5), 0x66b23f, [x, 0.22, z])),
+    ]));
+    this.geometries.set(PropKind.CropRipe, merge([
+      part(new THREE.BoxGeometry(0.9, 0.06, 0.9), 0x6b4a2b, [0, 0.03, 0]),
+      ...[[-0.22, -0.2], [0.22, 0.16], [0.02, -0.04], [-0.18, 0.22]].map(([x, z]) =>
+        part(new THREE.ConeGeometry(0.12, 0.7, 5), 0xd8b73a, [x, 0.38, z])),
+      part(new THREE.IcosahedronGeometry(0.13, 0), 0xe8c94a, [0.02, 0.74, -0.04]),
+    ]));
+
     this.geometries.set(PropKind.NoticeBoard, merge([
       part(new THREE.BoxGeometry(0.12, 1.3, 0.12), 0x6b4a2b, [0, 0.65, -0.6]),
       part(new THREE.BoxGeometry(0.12, 1.3, 0.12), 0x6b4a2b, [0, 0.65, 0.6]),
