@@ -19,6 +19,8 @@ A procedurally generated low-poly isometric world that runs in the browser. Ever
 | **F** | Free camera (WASD / drag pans the camera instead of walking) |
 | **N** | New world (new seed) |
 | **O** | Options panel |
+| **X** | Swing (two damage with the iron sword, one bare-handed) |
+| **J** | Journal: errands, what you carry, places found, ferry times, map key |
 | **Click an item** | Use it (food and potions heal, a night's rest skips to dawn) |
 | **1 / 2 / 3** | Pick a save slot on the title screen |
 | **Escape** | Close dialogue/options |
@@ -39,8 +41,14 @@ URL parameters (skip the title screen, play in a scratch slot): `?seed=123` load
 - **Day and night.** Eight real minutes per day. The sun orbits, the sky goes orange then deep blue, windows glow, owls replace birds.
 - **Sound.** Everything is synthesised in Web Audio: footsteps, biome ambience (birds, frogs, wind, eagles), dialogue blips, shop chimes, discovery jingles. Volume in the options panel.
 - **Three save slots** on the title screen. The minimap keeps fog of war until you have explored (or bought the map).
+- **Fighting.** Wolves and bears stalk you by day; after dark packs of them, and bats, come out. Cave rats, bats, slimes and skeletons live underground. Swing with X: an arc in front of you, kills pay gold. A sword makes animal predators keep their distance, a shield halves damage, a helm adds two hearts.
 - **Islands and ferries.** Four islands lie past the mainland's reach, each its own biome with a harbour town and its own little road web. Piers on both shores; a ferry runs on a fixed timetable. Stand at the dock and press Enter to board (or read the timetable if the boat is away); you step off when it ties up.
-- **Dungeons under shrines.** Every shrine hides a way down: rooms, corridors, torch-lit walls, pools, chests. The big chest in the farthest room holds gold and a piece of gear. Chest state is remembered; the stairs bring you back up.
+- **Dungeons under shrines.** Every shrine hides a way down: rooms, corridors, torch-lit walls, pools, chests, and monsters in every room but the one you arrive in. The corridors into the treasure room are locked; one chest holds the key. The big chest at the far end pays gold and gear. Chest and key state is remembered; the stairs bring you back up, and being knocked out drags you up minus some gold.
+- **Caves and shipwrecks.** Cave mouths in the cliffs lead to cramped winding caves with no locked doors. Wrecks on the beaches can be searched once for salvage. Both are their own anchors in the seed tree, so both are stable and both can be extended later.
+- **Seasons and weather.** A week per season, four to a year: spring green, summer gold, autumn rust, winter blended toward snow. Rain and snow fall where the season and biome say they should, deterministically per day. Fish rise in the rain.
+- **Fishing, camps and fingerposts.** Buy a rod, stand by water, cast with Enter and strike when it bites; four fish, and the inn buys the catch. Campfires can be slept at. Fingerposts at junctions name the nearest towns with direction and distance.
+- **Villagers keep hours.** At dusk they walk home and go inside; shops shut until dawn. Nights are dark but walkable, and a lantern helps.
+- **A soundtrack.** A wandering arpeggio over a drone, mode and tempo by biome, slower and lower at night, different underground. Synthesised like everything else.
 
 ## Development
 
@@ -68,6 +76,10 @@ The original single-file prototype is kept at `legacy/index.html` for reference.
 **Mesh** (`src/world/mesher.ts`). Each 16×16 chunk becomes one flat-shaded, vertex-coloured mesh: a top quad per tile and cliff walls wherever a neighbour is lower. Road tiles carry per-corner heights so slopes are true ramps. No textures anywhere. Props (trees, rocks, cacti…) are primitive-built geometries drawn with `InstancedMesh`, one draw call per kind per chunk.
 
 **Hydrology and structures** (`src/world/rivers.ts`, `src/world/structures.ts`). Both are generated once from the road graph inside the terrain sampler, so every worker and the main thread agree. Structures are stamped onto chunks after raw sampling: yards flattened, door paths laid, the building placed as an instanced prop with a fixed rotation.
+
+**Combat and hours** (`src/game/combat.ts`, `src/entities/entity.ts`). A swing tests an arc in front of the hero; hits stagger, flash and knock back; kills pay out and despawn. Creatures with `hp` can be fought, creatures with `dangerous` bite back, and `hunt` behaviour chases. Villagers carry a home door and an awake window, so dusk empties the streets.
+
+**Seasons, weather and sound** (`src/game/seasons.ts`, `src/render/weather.ts`, `src/game/music.ts`). Seasons tint terrain and props through one shared shader patch, weather is a camera-following Points cloud, and both the effects and the soundtrack are Web Audio synthesis with no asset files.
 
 **Creatures** (`src/entities/`). Every animal and character is a handful of primitive parts. Each (kind, part) pair is one `InstancedMesh`; animation rewrites instance matrices, so forty sheep cost the same draw calls as one. Herds spawn per chunk from the seed and despawn when you leave. The hero is just another entity driven by the keyboard.
 
@@ -105,7 +117,8 @@ src/
 4. ~~Towns, villages, churches, shops, dialogue, points of interest, discovery.~~
 5. ~~Biome blending, hearts and predators, item effects, quests, day/night, sound, save slots.~~
 6. ~~Seed manifest, islands with harbour towns, ferries on a timetable, dungeons under shrines.~~
-7. Ideas: dungeon monsters and keys, fishing, seasons, a proper soundtrack, more anchor kinds (caves, shipwrecks).
+7. ~~Monsters, combat, keys and locked doors; seasons, weather and a soundtrack; fishing, camps, fingerposts and a journal; villager hours; caves and shipwrecks.~~
+8. Ideas: free sailing rather than fixed ferries, blacksmith weapon tiers, deeper dungeon floors, boss rooms.
 
 ## Technology
 
