@@ -27,6 +27,7 @@ import { PhotoMode } from './ui/photo';
 import { HORSE, Mount } from './game/mount';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
 import { CropField } from './render/crops';
+import { BOAT, Sailing } from './game/sailing';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
@@ -110,6 +111,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
   const mount = Mount.from(saved?.state?.horse ?? null, lineRng);
   const plots = new Plots(saved?.state?.plots);
+  const sailing = Sailing.from(saved?.state?.boat ?? null);
+  const ownBoat = buildBoat();
+  ownBoat.visible = false;
+  rig.scene.add(ownBoat);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
 
   // --- state ---
@@ -291,7 +296,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON() },
       manifest: manifest.toJSON(),
     });
   };
@@ -516,6 +521,48 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return true;
   };
 
+  /** Enter at a pier or beside your own boat: buy one, cast off, or step ashore. */
+  const tryBoat = (): boolean => {
+    if (sailing.sailing) {
+      const spot = sailing.land(chunks);
+      if (!spot) { hud.flash('No shore within reach. Steer closer to land.'); return true; }
+      player.teleport(spot[0], spot[1]);
+      hud.flash('You step ashore and haul the boat up.');
+      sound.select();
+      persist();
+      return true;
+    }
+    if (sailing.near(player.x, player.z)) {
+      sailing.board();
+      hud.flash('You cast off. W and S to row, A and D to steer, Enter to land.');
+      sound.chime();
+      return true;
+    }
+    // a pier is where boats are sold
+    const pier = structures.piers.find((p) => Math.hypot(p.dockX + 0.5 - player.x, p.dockZ + 0.5 - player.z) < 4);
+    if (!pier || sailing.bought) return false;
+    dialogue.start({
+      speaker: 'Boatwright', emoji: '🛶',
+      pages: [`A little sailing boat, sound enough for these waters. ${BOAT.PRICE} gold and she is yours to take anywhere.`],
+      choices: [
+        { label: `Buy the boat (${BOAT.PRICE}g)`, next: () => {
+          if (state.inventory.gold < BOAT.PRICE) {
+            return { speaker: 'Boatwright', emoji: '🛶', pages: [`Come back with ${BOAT.PRICE} gold.`] };
+          }
+          state.inventory.gold -= BOAT.PRICE;
+          state.version++;
+          sailing.buy(pier.dockX + 0.5 + pier.dx, pier.dockZ + 0.5 + pier.dz, Math.atan2(-pier.dz, pier.dx));
+          sound.jingle();
+          hud.flash('The boat is yours, moored at the end of the pier.');
+          persist();
+          return null;
+        } },
+        { label: 'Another time', next: () => null },
+      ],
+    });
+    return true;
+  };
+
   const talkNearest = () => {
     if (places.indoors) {
       const inside = places.interactIndoors();
@@ -534,6 +581,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       } else if (below === null) hud.flash('Nothing here');
       return;
     }
+    if (tryBoat()) return;
     if (tryHorse()) return;
     if (tryFarm()) return;
     if (tryBoard()) return;
@@ -743,6 +791,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__state = state;
     debug.__doors = structures.doors;
     (debug as { __villages?: unknown }).__villages = structures.villages;
+    (debug as { __piers?: unknown }).__piers = structures.piers;
     (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
       entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
     (debug as { __entities?: () => unknown }).__entities = () =>
@@ -768,7 +817,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     iso.update(input, dt, player.mode === 'free' && !talking && !places.indoors);
     player.climb = state.climb;
     player.speedScale = mount.riding ? HORSE.SPEED : 1;
-    player.update(input, iso, dt, talking, places.indoors !== null);
+    if (sailing.sailing && !talking) {
+      sailing.update(dt, {
+        forward: (input.isDown('w', 'arrowup') ? 1 : 0) - (input.isDown('s', 'arrowdown') ? 1 : 0),
+        turn: (input.isDown('a', 'arrowleft') ? 1 : 0) - (input.isDown('d', 'arrowright') ? 1 : 0),
+      }, chunks, player);
+      iso.target.x += (sailing.x - iso.target.x) * Math.min(1, dt * 6);
+      iso.target.z += (sailing.z - iso.target.z) * Math.min(1, dt * 6);
+    }
+    player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) state.tick(dt);
@@ -851,6 +908,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     mount.update(player, chunks);
+    ownBoat.visible = sailing.bought && places.outdoors;
+    if (ownBoat.visible) {
+      ownBoat.position.set(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z);
+      ownBoat.rotation.y = sailing.yaw;
+    }
     cropField.update(plots, state.day, player.x, player.z, (x, z) => chunks.heightAt(x, z));
     entityRenderer.update();
     heroGear.update(state, player.entity);
