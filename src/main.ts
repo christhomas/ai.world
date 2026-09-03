@@ -22,6 +22,9 @@ import { DungeonMinimap } from './ui/dungeonmap';
 import { SEASON_NAMES, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
+import { FISHING, Fishing } from './game/fishing';
+import { Journal } from './ui/journal';
+import { $ as el } from './ui/dom';
 
 /** Interaction reach underground, and where the hero stands when arriving (offsets from the stairs). */
 const DUNGEON_UI = { CHEST_RANGE: 1.8, DOOR_RANGE: 2.0, STAIRS_RANGE: 1.4 } as const;
@@ -90,6 +93,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const sound = new Sound();
   const weather = new Weather(rig.scene);
   const seasonTintMaterials = new SeasonTintMaterials();
+  const fishing = new Fishing();
+  const journal = new Journal();
+  const castbar = el('castbar');
   chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
 
@@ -103,7 +109,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const quests = new Map(questList.map((q) => [q.village, q]));
 
   // --- ferries ---
-  const ferries = makeFerryLines(structures, structures.villages).map((line) => {
+  const ferries = makeFerryLines(structures, structures.villages, graph.islands).map((line) => {
     const mesh = buildBoat();
     rig.scene.add(mesh);
     return { line, mesh };
@@ -294,10 +300,71 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     }
     return false;
   };
+  /** Water within reach of the hero, or null. */
+  const waterNearby = (): [number, number] | null => {
+    for (let r = 1; r <= FISHING.REACH; r += 0.6) {
+      for (let a = 0; a < 12; a++) {
+        const ang = (a / 12) * Math.PI * 2;
+        const x = player.x + Math.cos(ang) * r, z = player.z + Math.sin(ang) * r;
+        if (chunks.waterAt(x, z) !== null || (!chunks.heightAt(x, z) && sampler.probe(x, z).land === false && Math.hypot(x, z) < GRAPH.RADIUS + 40)) {
+          if (chunks.waterAt(x, z) !== null) return [x, z];
+        }
+      }
+    }
+    return null;
+  };
+  const tryFish = (): boolean => {
+    if (fishing.active) {
+      const caught = fishing.strike();
+      if (caught) {
+        state.inventory.items.set(caught.id, state.count(caught.id) + 1);
+        state.version++;
+        sound.jingle();
+        hud.flash(`Caught a ${caught.name}! ${caught.emoji}`);
+        persist();
+      } else {
+        sound.select();
+        hud.flash('The line goes slack.');
+      }
+      return true;
+    }
+    if (!state.has('rod')) return false;
+    const spot = waterNearby();
+    if (!spot) return false;
+    fishing.cast(spot[0], spot[1], sampler.probe(player.x, player.z).biome, seed, state.day);
+    sound.select();
+    return true;
+  };
+  /** Rest at a campfire: sleep to dawn, fully healed. */
+  const tryCampfire = (): boolean => {
+    for (const poi of structures.pois) {
+      if (poi.kind !== StructureKind.Campfire || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
+      dialogue.start({ speaker: poi.name, emoji: '🔥', pages: ['The embers are still warm. Rest here until dawn?'], choices: [
+        { label: 'Rest', next: () => { state.rest(); sound.chime(); hud.flash('You sleep by the fire and wake at dawn.'); persist(); return null; } },
+        { label: 'Move on', next: () => null },
+      ] });
+      return true;
+    }
+    return false;
+  };
+  /** Read a fingerpost: names and distances of the nearest settlements. */
+  const trySignpost = (): boolean => {
+    for (const post of structures.signposts) {
+      if (Math.hypot(post.x - player.x, post.z - player.z) > 2.4) continue;
+      const lines = post.directions.map((d) => `${d.name} — ${d.dir}, ${d.tiles} tiles`);
+      dialogue.start({ speaker: 'Fingerpost', emoji: '🪧', pages: [lines.join('\n')] });
+      return true;
+    }
+    return false;
+  };
+
   const talkNearest = () => {
     if (dungeon) { if (!dungeonInteract(dungeon)) hud.flash('Nothing here'); return; }
     if (tryShrine()) return;
+    if (tryCampfire()) return;
+    if (trySignpost()) return;
     if (tryFerry()) return;
+    if (tryFish()) return;
     const e = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
     if (e) startTalk(e); else hud.flash('No one close enough to talk to');
   };
@@ -325,7 +392,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
   input.onKey('x', attack);
   input.onKey('n', toTitle);
-  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); });
+  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); });
+  const journalInput = () => ({
+    state, quests: questList, villages: structures.villages, pois: structures.pois,
+    ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
+    playerX: player.x, playerZ: player.z,
+  });
+  input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
   for (const key of ['enter', ' ']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.advance(); else talkNearest(); });
   for (const key of ['arrowup', 'w']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(-1); });
   for (const key of ['arrowdown', 's']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(1); });
@@ -363,10 +436,27 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     persist();
   };
 
-  const markers = () => [
-    ...structures.villages.map((v) => ({ x: v.x, z: v.z, color: '#ffffff' })),
-    ...structures.pois.filter((p) => discovered.has(p.name)).map((p) => ({ x: p.x, z: p.z, color: '#f1c40f' })),
-  ];
+  const markers = () => {
+    const out = [
+      ...structures.villages.map((v) => ({ x: v.x, z: v.z, color: '#ffffff' })),
+      ...structures.pois.filter((p) => discovered.has(p.name)).map((p) => ({ x: p.x, z: p.z, color: '#f1c40f' })),
+      ...ferries.map(({ line }) => {
+        const st = ferryStateAt(line, worldSeconds(state.day, state.time));
+        return { x: st.x, z: st.z, color: '#6fd3ff' };
+      }),
+    ];
+    // active quest targets stand out in green
+    for (const q of questList) {
+      if (state.quests.get(q.id) !== 'active') continue;
+      const village = structures.villages.find((v) => v.name === q.village);
+      if (village) out.push({ x: village.x, z: village.z, color: '#2ecc71' });
+      if (q.kind === 'visit') {
+        const poi = structures.pois.find((p) => p.name === q.target);
+        if (poi) out.push({ x: poi.x, z: poi.z, color: '#2ecc71' });
+      }
+    }
+    return out;
+  };
 
   /** POI > village > biome; discovering a POI flashes a toast. */
   const areaName = (): string => {
@@ -470,6 +560,16 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     hud.setClock(`${state.clock()} · ${SEASON_NAMES[season]}${weatherStrength > 0.4 ? (season === 3 ? ' ❄' : ' 🌧') : ''}`);
     hud.setQuests(questList, state);
     hud.setArea(areaName());
+    if (fishing.active) {
+      const ev = fishing.update(dt);
+      if (ev === 'bite') sound.chime();
+      if (ev === 'missed') hud.flash('It got away.');
+      castbar.className = fishing.phase === 'bite' ? 'show bite' : fishing.phase === 'waiting' ? 'show' : '';
+      castbar.textContent = fishing.phase === 'bite' ? 'A bite! Press Enter!' : 'Fishing… wait for the bite';
+    } else if (castbar.className !== '') {
+      castbar.className = '';
+    }
+    journal.refresh(journalInput);
     hud.tick(dt);
     sound.setScene(here.biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));

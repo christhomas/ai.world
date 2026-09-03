@@ -31,6 +31,11 @@ export const ITEMS: Record<string, Item> = {
   ale: { id: 'ale', name: 'Mug of Ale', emoji: '🍺', price: 6, desc: 'The house brew. Strong.', effect: { type: 'heal', amount: 1 } },
   room: { id: 'room', name: "Night's Rest", emoji: '🛏️', price: 10, desc: 'A warm bed and a quiet night. Use it to sleep until dawn, fully healed.', effect: { type: 'rest' } },
   stew: { id: 'stew', name: 'Hearty Stew', emoji: '🍲', price: 9, desc: 'Whatever was in the pot today.', effect: { type: 'heal', amount: 3 } },
+  rod: { id: 'rod', name: 'Fishing Rod', emoji: '🎣', price: 28, desc: 'Cane, line and a hook. Stand at the water and cast.', effect: { type: 'passive', note: 'lets you fish' } },
+  minnow: { id: 'minnow', name: 'Minnow', emoji: '🐟', price: 4, desc: 'Small, bony, and everywhere.', effect: { type: 'heal', amount: 1 } },
+  perch: { id: 'perch', name: 'Perch', emoji: '🐠', price: 12, desc: 'A decent fish. The inn will buy it.', effect: { type: 'heal', amount: 2 } },
+  pike: { id: 'pike', name: 'Pike', emoji: '🦈', price: 30, desc: 'All teeth and temper. Worth good coin.', effect: { type: 'heal', amount: 4 } },
+  eel: { id: 'eel', name: 'Eel', emoji: '🪱', price: 22, desc: 'It is still moving. Best cook it soon.', effect: { type: 'heal', amount: 3 } },
 };
 
 export interface ShopDef {
@@ -43,7 +48,7 @@ export interface ShopDef {
 export const SHOP_DEFS: Record<ShopType, ShopDef> = {
   store: {
     name: 'General Store', title: 'the Storekeeper',
-    items: ['apple', 'bread', 'rope', 'lantern', 'map'],
+    items: ['apple', 'bread', 'rope', 'lantern', 'map', 'rod'],
     greetings: ['Welcome to the general store! Need supplies for the road?', 'Come in, come in. Everything a traveller could want.'],
   },
   smith: {

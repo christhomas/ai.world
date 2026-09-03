@@ -100,6 +100,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     pages: [pick(ctx.rng, def.greetings)],
     choices: [
       { label: 'Buy', next: buyMenu },
+      ...(e.shop === 'inn' ? [{ label: 'Sell fish', next: sellFish }] : []),
       { label: 'Chat', next: chat },
       { label: 'Leave', next: () => null },
     ],
@@ -132,6 +133,30 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
       speaker, emoji,
       pages: [`That's ${item.price} gold, friend. You've only got ${ctx.state.inventory.gold}.`],
       choices: [{ label: 'Back', next: buyMenu }, { label: 'Leave', next: () => null }],
+    };
+  };
+
+  /** The inn buys anything you have caught, at the item's listed price. */
+  const sellFish = (): DialogueNode => {
+    const fish = ['minnow', 'perch', 'pike', 'eel'].filter((id) => ctx.state.count(id) > 0);
+    if (fish.length === 0) {
+      return { speaker, emoji, pages: ['Bring me a fish and we will talk.'], choices: [{ label: 'Back', next: root }] };
+    }
+    const total = fish.reduce((sum, id) => sum + ITEMS[id].price * ctx.state.count(id), 0);
+    const list = fish.map((id) => `${ctx.state.count(id)}× ${ITEMS[id].name}`).join(', ');
+    return {
+      speaker, emoji,
+      pages: [`${list}. I will give you ${total} gold for the lot.`],
+      choices: [
+        { label: `Sell (${total}g)`, next: () => {
+          for (const id of fish) ctx.state.inventory.items.delete(id);
+          ctx.state.inventory.gold += total;
+          ctx.state.version++;
+          ctx.onInventoryChange();
+          return { speaker, emoji, pages: ['Fresh fish for the pot. Pleasure doing business.'] };
+        } },
+        { label: 'Keep them', next: root },
+      ],
     };
   };
 

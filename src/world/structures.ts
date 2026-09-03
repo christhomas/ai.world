@@ -23,6 +23,7 @@ export const enum StructureKind {
   Sign = 10,
   Church = 11,
   Pier = 12,   // wooden jetty; tiles listed in `path`
+  Signpost = 13, // fingerpost at a junction, naming the nearest settlements
 }
 
 export interface Pier {
@@ -88,11 +89,19 @@ export interface Poi {
   structure: Structure;
 }
 
+export interface Signpost {
+  x: number;
+  z: number;
+  /** Nearest settlements, closest first. */
+  directions: Array<{ name: string; dir: string; tiles: number }>;
+}
+
 export interface Structures {
   villages: Village[];
   pois: Poi[];
   all: Structure[];
   piers: Pier[];
+  signposts: Signpost[];
 }
 
 export const VILLAGES = 16;
@@ -151,6 +160,7 @@ export function generateStructures(sampler: TerrainSampler): Structures {
   const pois: Poi[] = [];
   const all: Structure[] = [];
   const piers: Pier[] = [];
+  const signposts: Signpost[] = [];
   const usedNames = new Set<string>();
   const sample: TileSample = sampler.newSample();
 
@@ -396,7 +406,40 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     }
   }
 
-  return { villages, pois, all, piers };
+  // --- signposts: at junction nodes between settlements, naming the way ---
+  const junctions = graph.nodes
+    .map((n, i) => ({ n, i, degree: graph.edges.filter((e) => e.a === i || e.b === i).length }))
+    .filter(({ n, degree }) => degree >= 3 && villages.every((v) => Math.hypot(v.x - n.x, v.z - n.z) > v.radius));
+  shuffle(rng, junctions);
+  for (const { n } of junctions) {
+    if (signposts.length >= SIGNPOSTS) break;
+    if (signposts.some((s) => Math.hypot(s.x - n.x, s.z - n.z) < SIGNPOST_SPACING)) continue;
+    const probe = sampler.landProbe(n.x, n.z);
+    if (!probe || !probe.land) continue;
+    const side = rng() < 0.5 ? -1 : 1;
+    const off = probe.roadWidth + 1.4;
+    const tx = Math.floor(n.x - probe.uz * off * side), tz = Math.floor(n.z + probe.ux * off * side);
+    const level = footprintOk(tx, tz, 0, 0, null);
+    if (level === null) continue;
+    const near = villages
+      .map((v) => ({ name: v.name, d: Math.hypot(v.x - n.x, v.z - n.z), dir: compassDir(v.x - n.x, v.z - n.z) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 3)
+      .map((v) => ({ name: v.name, dir: v.dir, tiles: Math.round(v.d) }));
+    if (near.length === 0) continue;
+    all.push({ kind: StructureKind.Signpost, tx, tz, hw: 0, hd: 0, level, rot: Math.atan2(-(n.z - tz), n.x - tx), biome: sampler.biomeOf(tx, tz), path: [] });
+    signposts.push({ x: tx + 0.5, z: tz + 0.5, directions: near });
+  }
+
+  return { villages, pois, all, piers, signposts };
+}
+
+export const SIGNPOSTS = 22;
+const SIGNPOST_SPACING = 90;
+
+const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
+export function compassDir(dx: number, dz: number): string {
+  return COMPASS[Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) & 7];
 }
 
 const PIER_LENGTH = 6;

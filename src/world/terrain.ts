@@ -466,7 +466,8 @@ export class TerrainSampler {
       switch (s.kind) {
         case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
         case StructureKind.Sign:
-        case StructureKind.Stall: stampSingleProp(chunk, ox, oz, s); break;
+        case StructureKind.Stall:
+        case StructureKind.Signpost: stampSingleProp(chunk, ox, oz, s); break;
         case StructureKind.Pier: stampPier(chunk, ox, oz, s); break;
         default:
           stampFootprint(chunk, ox, oz, s);
@@ -616,5 +617,6 @@ export function structureProp(s: Structure): PropKind {
     case StructureKind.Sign: return PropKind.Sign;
     case StructureKind.Plaza: return PropKind.None;
     case StructureKind.Pier: return PropKind.None;
+    case StructureKind.Signpost: return PropKind.Signpost;
   }
 }

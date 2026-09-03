@@ -46,7 +46,13 @@ export function worldSeconds(day: number, time: number): number {
   return (day - 1 + time) * DAY_LENGTH;
 }
 
-export function makeFerryLines(structures: Structures, villages: Village[]): FerryLine[] {
+/**
+ * @param islands centres and radii, so the mainland end of a crossing is named after a mainland
+ * village rather than the island town that happens to be nearest to both piers.
+ */
+export function makeFerryLines(structures: Structures, villages: Village[], islands: Array<{ x: number; z: number; radius: number }> = []): FerryLine[] {
+  const onIsland = (v: Village) => islands.some((i) => Math.hypot(i.x - v.x, i.z - v.z) < i.radius + 20);
+  const mainlandVillages = villages.filter((v) => !onIsland(v));
   const lines: FerryLine[] = [];
   const islands = new Set(structures.piers.map((p) => p.island));
   for (const islandId of islands) {
@@ -58,7 +64,7 @@ export function makeFerryLines(structures: Structures, villages: Village[]): Fer
     const raw = 2 * travel + 2 * FERRY.DWELL;
     const period = Math.max(FERRY.MIN_PERIOD, Math.ceil(raw / 60) * 60);
     const town = nearestVillage(villages, toPier.dockX, toPier.dockZ);
-    const shore = nearestVillage(villages, fromPier.dockX, fromPier.dockZ);
+    const shore = nearestVillage(mainlandVillages, fromPier.dockX, fromPier.dockZ);
     lines.push({
       id: `ferry:${islandId}`, islandId,
       fromName: shore ? `${shore.name} shore` : 'the mainland',

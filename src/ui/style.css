@@ -125,3 +125,25 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #slots button:hover { filter: brightness(1.15); }
 #slots button.danger { background: #7a2a2a; margin-left: auto; font-weight: normal; }
+#journal {
+  display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(620px, 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
+  background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418;
+  border: 3px solid #8a6a3d; border-radius: 8px; padding: 18px 22px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+#journal.show { display: block; animation: popIn 0.2s ease-out; }
+#journal h2 { color: #6b3f1d; margin-bottom: 8px; }
+#journal h3 { color: #6b3f1d; margin: 14px 0 4px; font-size: 14px; border-bottom: 1px solid #c9b58a; }
+#journal ul { list-style: none; }
+#journal li { padding: 2px 0; font-size: 13px; line-height: 1.5; }
+#journal .j-line { font-size: 13px; color: #4a3a24; }
+#journal .j-empty { font-size: 13px; color: #7a6a4a; font-style: italic; }
+#journal .j-hint { text-align: center; color: #8a7a5a; font-size: 11px; margin-top: 14px; }
+#castbar {
+  display: none; position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%);
+  background: rgba(0,0,0,0.75); border: 2px solid #6fd3ff; border-radius: 8px;
+  padding: 8px 20px; color: #cfefff; font-size: 14px; z-index: 1000; white-space: nowrap;
+}
+#castbar.show { display: block; }
+#castbar.bite { border-color: #f1c40f; color: #ffe38a; animation: bob 0.25s infinite alternate; }

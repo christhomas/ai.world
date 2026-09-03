@@ -36,6 +36,7 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
+ * Last updated deliberately when signposts were added to the structure list (2026-09-03).
  * Pins the generated world for two seeds. Refactors of the generators must keep these identical;
  * an intentional tuning change updates the constants (and changes every saved world's layout).
  */
@@ -47,6 +48,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'ec1fa56d', chunks: '173568fd', quests: '6cac07c5' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: 'e923d31d', chunks: 'df0eb157', quests: '53c0ecd6' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'f22a2937', chunks: '173568fd', quests: '6cac07c5' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '52d66358', chunks: 'df0eb157', quests: '53c0ecd6' },
 };
