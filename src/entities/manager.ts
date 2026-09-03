@@ -3,10 +3,10 @@ import { WORLD } from '../core/config';
 import { hash3, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
-import type { Biome } from '../world/biomes';
+import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
-import { Entity, Herd, canStand, updateEntity, updateHerd, type TileWorld } from './entity';
+import { Entity, Herd, canStand, isDaytime, updateEntity, updateHerd, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import type { Village } from '../world/structures';
 
@@ -29,6 +29,16 @@ const SPAWN_RADIUS = 4;      // chunks around the player that get creatures
 const ACTIVE_RANGE = 44;     // tiles; beyond this creatures freeze
 
 /** Spawn odds and sizes. Chances are per chunk, leashes in tiles. */
+/** Extra packs that only come out after dark, per biome. */
+const NIGHT_PREDATORS: Record<Biome, string[]> = {
+  [Biome.Plains]: ['wolf'],
+  [Biome.Forest]: ['wolf', 'bear'],
+  [Biome.Desert]: ['bat'],
+  [Biome.Swamp]: ['bat', 'wolf'],
+  [Biome.Mountain]: ['wolf'],
+  [Biome.Snow]: ['wolf'],
+};
+
 const SPAWN = {
   MIN_LAND_TILES: 30,
   HERD_CHANCE: 0.6,
@@ -45,6 +55,8 @@ const SPAWN = {
   PLACE_ATTEMPTS: 8,
   SCATTER: 2.2,          // members land within this radius of the anchor
   FLIER_RING: 4,
+  NIGHT_PACK_CHANCE: 0.35,
+  NIGHT_LEASH: 16,
 } as const;
 
 /**
@@ -57,6 +69,8 @@ export class EntityManager {
   private readonly rng: Rng;
   private focusCx = Number.NaN;
   private focusCz = Number.NaN;
+  /** Chunks spawned during the night carry predators; the flag flips at dusk and dawn. */
+  private night = false;
 
   constructor(
     private readonly renderer: EntityRenderer,
@@ -72,7 +86,13 @@ export class EntityManager {
 
   update(dt: number, playerX: number, playerZ: number, playerArmed = false, onAttack: (e: Entity, damage: number) => void = () => {}, time?: number): void {
     const CS = WORLD.CHUNK_SIZE;
+    const wasNight = this.night;
+    if (time !== undefined) this.night = !isDaytime(time);
     const cx = Math.floor(playerX / CS), cz = Math.floor(playerZ / CS);
+    if (this.night !== wasNight) {
+      // day flipped: let chunks respawn so the night shift can arrive (or go home)
+      for (const [key, list] of this.spawned) if (key !== 'dungeon') this.despawn(key, list);
+    }
     if (cx !== this.focusCx || cz !== this.focusCz) {
       this.focusCx = cx; this.focusCz = cz;
       for (const [key, list] of this.spawned) {
@@ -209,6 +229,12 @@ export class EntityManager {
     const ctx: SpawnCtx = { tiles, key, rng, out };
 
     this.spawnVillageFolk(ctx);
+    // after dark, something else is out on the land
+    if (this.night && sorted.land.length >= SPAWN.MIN_LAND_TILES && rng() < SPAWN.NIGHT_PACK_CHANCE) {
+      const table = NIGHT_PREDATORS[sorted.biome];
+      const kindId = table[Math.floor(rng() * table.length)];
+      this.spawnHerd(ctx, kindId, tileCentre(tiles, sorted.land[Math.floor(rng() * sorted.land.length)]), SPAWN.NIGHT_LEASH);
+    }
     if (sorted.land.length >= SPAWN.MIN_LAND_TILES) {
       const rolls = rng() < SPAWN.HERD_CHANCE ? (rng() < SPAWN.SECOND_HERD_CHANCE ? 2 : 1) : 0;
       for (let h = 0; h < rolls; h++) {

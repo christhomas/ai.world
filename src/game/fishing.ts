@@ -13,6 +13,9 @@ export const FISHING = {
   /** Seconds before the bite, and how long the window to strike lasts. */
   WAIT: [1.6, 4.5],
   STRIKE_WINDOW: 1.1,
+  /** Rain shortens the wait and widens the window: fish rise in wet weather. */
+  RAIN_WAIT: 0.6,
+  RAIN_WINDOW: 1.45,
 } as const;
 
 const CATCH: Record<Biome, string[]> = {
@@ -32,17 +35,20 @@ export class Fishing {
   private spot: [number, number] = [0, 0];
   private biome: Biome = Biome.Plains;
   private catchId = 'minnow';
+  private window: number = FISHING.STRIKE_WINDOW;
 
   get active(): boolean { return this.phase !== 'idle'; }
 
   /** Begin a cast. `nibble` is the deterministic roll for this spot and day. */
-  cast(x: number, z: number, biome: Biome, seed: number, day: number): void {
+  cast(x: number, z: number, biome: Biome, seed: number, day: number, raining = false): void {
     this.spot = [x, z];
     this.biome = biome;
     const rng = mulberry32((seed ^ Math.floor(x) * 73856093 ^ Math.floor(z) * 19349663 ^ day * 83492791) >>> 0);
     const table = CATCH[biome];
     this.catchId = table[Math.floor(rng() * table.length)];
-    this.timer = FISHING.WAIT[0] + rng() * (FISHING.WAIT[1] - FISHING.WAIT[0]);
+    const wait = FISHING.WAIT[0] + rng() * (FISHING.WAIT[1] - FISHING.WAIT[0]);
+    this.timer = raining ? wait * FISHING.RAIN_WAIT : wait;
+    this.window = raining ? FISHING.STRIKE_WINDOW * FISHING.RAIN_WINDOW : FISHING.STRIKE_WINDOW;
     this.phase = 'waiting';
   }
 
@@ -55,7 +61,7 @@ export class Fishing {
     if (this.timer > 0) return null;
     if (this.phase === 'waiting') {
       this.phase = 'bite';
-      this.timer = FISHING.STRIKE_WINDOW;
+      this.timer = this.window;
       return 'bite';
     }
     this.phase = 'idle';

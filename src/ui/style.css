@@ -147,3 +147,6 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #castbar.show { display: block; }
 #castbar.bite { border-color: #f1c40f; color: #ffe38a; animation: bob 0.25s infinite alternate; }
+#journal ul.j-key { display: flex; flex-wrap: wrap; gap: 10px; }
+#journal ul.j-key li { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+#journal .sw { width: 10px; height: 10px; border: 1px solid #6b3f1d; display: inline-block; }

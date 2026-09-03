@@ -78,15 +78,16 @@ export class DayCycle {
       18 + Math.max(0.1, sunH) * 62,
       focusZ + 26,
     );
-    sun.intensity = this.daySunIntensity * (0.1 + 0.9 * day) * (1 - wet * 0.45);
+    // the night floor is moonlight: dark enough to want a lantern, bright enough to walk by
+    sun.intensity = this.daySunIntensity * (0.22 + 0.78 * day) * (1 - wet * 0.45);
     this.tmp.copy(DAY_SUN).lerp(DUSK_SUN, dusk).lerp(NIGHT_SUN, night);
     this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));
     sun.color.copy(this.tmp);
 
-    hemi.intensity = this.dayHemiIntensity * (0.4 + 0.6 * day) * (1 - wet * 0.2);
+    hemi.intensity = this.dayHemiIntensity * (0.55 + 0.45 * day) * (1 - wet * 0.2);
     hemi.color.copy(this.tmp.copy(DAY_HEMI_SKY).lerp(NIGHT_HEMI_SKY, night));
     hemi.groundColor.copy(this.tmp.copy(DAY_HEMI_GROUND).lerp(NIGHT_HEMI_GROUND, night));
-    ambient.intensity = this.dayAmbientIntensity * (0.5 + 0.5 * day);
+    ambient.intensity = this.dayAmbientIntensity * (0.62 + 0.38 * day);
     ambient.color.copy(this.tmp.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night));
 
     this.tmp.copy(DAY_SKY).lerp(DUSK_SKY, dusk).lerp(NIGHT_SKY, night);
@@ -97,8 +98,9 @@ export class DayCycle {
     // windows warm up as the light fades
     this.glowMaterial.color.copy(this.tmp2.copy(WINDOW_DAY).lerp(WINDOW_NIGHT, smoothstep(0.3, 0.8, night)));
 
+    // a faint glow follows the hero after dark even without a lantern, so you are never lost
     this.lantern.position.set(heroX, heroY + 1.4, heroZ);
-    this.lantern.intensity = lanternOn ? 14 * smoothstep(0.2, 0.7, night) : 0;
+    this.lantern.intensity = (lanternOn ? 14 : 3.5) * smoothstep(0.2, 0.7, night);
     return night;
   }
 }

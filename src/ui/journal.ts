@@ -85,7 +85,17 @@ export class Journal {
       ${section('Carried', carried, 'Empty-handed.')}
       ${section('Places found', found, 'Nothing yet. Follow the roads.')}
       ${section('Ferries', boats, 'No crossings known.')}
-      <div class="j-hint">J or Escape to close</div>`;
+      <h3>Map key</h3>
+      <ul class="j-key">
+        <li><span class="sw" style="background:#ff4d4d"></span>you</li>
+        <li><span class="sw" style="background:#ffffff"></span>town</li>
+        <li><span class="sw" style="background:#2ecc71"></span>errand</li>
+        <li><span class="sw" style="background:#f1c40f"></span>landmark</li>
+        <li><span class="sw" style="background:#b07fd6"></span>cave</li>
+        <li><span class="sw" style="background:#d68f5a"></span>wreck</li>
+        <li><span class="sw" style="background:#6fd3ff"></span>ferry</li>
+      </ul>
+      <div class="j-hint">Enter talks, opens, boards and casts · X swings · M map · J or Escape to close</div>`;
   }
 }
 

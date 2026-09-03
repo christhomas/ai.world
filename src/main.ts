@@ -386,7 +386,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (!state.has('rod')) return false;
     const spot = waterNearby();
     if (!spot) return false;
-    fishing.cast(spot[0], spot[1], sampler.probe(player.x, player.z).biome, seed, state.day);
+    fishing.cast(spot[0], spot[1], sampler.probe(player.x, player.z).biome, seed, state.day, raining);
     sound.select();
     return true;
   };
@@ -532,7 +532,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-  let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0;
+  let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
 
   // debug handle so headless screenshots can jump the calendar
   (window as unknown as { __state?: unknown }).__state = state;
@@ -603,6 +603,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const tint = seasonTint(season);
     const wetHere = isWet(seed, state.day, here.biome) ? 1 : 0;
     weatherStrength += (wetHere - weatherStrength) * Math.min(1, dt * 0.4);
+    raining = weatherStrength > 0.5;
     if (seasonAffects(here.biome)) seasonTintMaterials.set(tint.ground, tint.frost);
     else seasonTintMaterials.set([1, 1, 1], 0);
     weather.set(weatherStrength, season);
@@ -621,7 +622,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (ev === 'bite') sound.chime();
       if (ev === 'missed') hud.flash('It got away.');
       castbar.className = fishing.phase === 'bite' ? 'show bite' : fishing.phase === 'waiting' ? 'show' : '';
-      castbar.textContent = fishing.phase === 'bite' ? 'A bite! Press Enter!' : 'Fishing… wait for the bite';
+      castbar.textContent = fishing.phase === 'bite' ? 'A bite! Press Enter!' : raining ? 'Fishing in the rain… they are rising' : 'Fishing… wait for the bite';
     } else if (castbar.className !== '') {
       castbar.className = '';
     }

@@ -45,3 +45,31 @@ describe('fishing', () => {
     expect(swampCatches.size).toBeGreaterThan(1);
   });
 });
+
+describe('fishing in the rain', () => {
+  it('bites sooner and gives a longer window', () => {
+    const wait = (raining: boolean) => {
+      const f = new Fishing();
+      f.cast(9, 9, Biome.Forest, 5, 3, raining);
+      let t = 0;
+      while (t < 12) { t += 0.05; if (f.update(0.05) === 'bite') return t; }
+      return Infinity;
+    };
+    const dryWait = wait(false), wetWait = wait(true);
+    expect(wetWait).toBeLessThan(dryWait);
+
+    const windowOf = (raining: boolean) => {
+      const f = new Fishing();
+      f.cast(9, 9, Biome.Forest, 5, 3, raining);
+      let t = 0, biteAt = 0;
+      while (t < 15) {
+        t += 0.05;
+        const ev = f.update(0.05);
+        if (ev === 'bite') biteAt = t;
+        if (ev === 'missed') return t - biteAt;
+      }
+      return 0;
+    };
+    expect(windowOf(true)).toBeGreaterThan(windowOf(false));
+  });
+});
