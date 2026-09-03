@@ -7,7 +7,7 @@ export class Minimap {
   /** Tiles visible across the corner map. */
   localTiles = 110;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly base: MapBase, private readonly fog: Fog) {
+  constructor(canvas: HTMLCanvasElement, private readonly base: MapBase, private readonly fog: Fog) {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('minimap 2d context');
     this.ctx = ctx;

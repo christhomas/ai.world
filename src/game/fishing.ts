@@ -33,7 +33,6 @@ export class Fishing {
   phase: FishingPhase = 'idle';
   private timer = 0;
   private spot: [number, number] = [0, 0];
-  private biome: Biome = Biome.Plains;
   private catchId = 'minnow';
   private window: number = FISHING.STRIKE_WINDOW;
 
@@ -42,7 +41,6 @@ export class Fishing {
   /** Begin a cast. `nibble` is the deterministic roll for this spot and day. */
   cast(x: number, z: number, biome: Biome, seed: number, day: number, raining = false): void {
     this.spot = [x, z];
-    this.biome = biome;
     const rng = mulberry32((seed ^ Math.floor(x) * 73856093 ^ Math.floor(z) * 19349663 ^ day * 83492791) >>> 0);
     const table = CATCH[biome];
     this.catchId = table[Math.floor(rng() * table.length)];

@@ -17,6 +17,14 @@ const PHASES: Record<Phase, PhaseLook> = {
 /** Boundaries of the day, as fractions: dawn, full day, dusk, night. */
 const DAWN = 0.22, MORNING = 0.32, EVENING = 0.72, NIGHTFALL = 0.82;
 
+/** The day bar's colours, built from the same boundaries the phases use. */
+export function dayBarGradient(): string {
+  const stop = (t: number) => `${(t * 100).toFixed(0)}%`;
+  return `linear-gradient(90deg, ${PHASES.night.colour} 0%, ${PHASES.night.colour} ${stop(DAWN)},`
+    + ` ${PHASES.dawn.colour} ${stop(MORNING)}, ${PHASES.day.colour} 50%,`
+    + ` ${PHASES.dusk.colour} ${stop(EVENING)}, ${PHASES.night.colour} ${stop(NIGHTFALL)}, ${PHASES.night.colour} 100%)`;
+}
+
 export function phaseAt(time: number): Phase {
   if (time < DAWN || time >= NIGHTFALL) return 'night';
   if (time < MORNING) return 'dawn';
@@ -32,11 +40,14 @@ export class Clock {
   private readonly timeEl = $('clockTime');
   private readonly dateEl = $('clockDate');
   private readonly iconEl = $('clockIcon');
-  private readonly barEl = $('clockBar');
   private readonly markerEl = $('clockMarker');
   private readonly weatherEl = $('clockWeather');
   private lastMinute = -1;
   private lastPhase: Phase | null = null;
+
+  constructor() {
+    $('clockBar').style.background = dayBarGradient();
+  }
 
   /** Cheap enough to call every frame: the DOM is only touched when the minute or phase changes. */
   update(state: GameState): void {
@@ -57,7 +68,6 @@ export class Clock {
     this.iconEl.textContent = look.icon;
     this.iconEl.title = look.name;
     this.timeEl.style.color = look.colour;
-    this.barEl.style.background = `linear-gradient(90deg, #2a3560 0%, #2a3560 ${DAWN * 100}%, #e8a05a ${MORNING * 100}%, #ffd76a 50%, #e8785a ${EVENING * 100}%, #2a3560 ${NIGHTFALL * 100}%, #2a3560 100%)`;
   }
 
   /** A rain or snow glyph beside the phase icon, or nothing at all. */

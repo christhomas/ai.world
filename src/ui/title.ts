@@ -37,7 +37,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       resolve(choice);
     };
     const render = () => {
-      list.innerHTML = SLOT_KEYS.map((key, i) => {
+      list.innerHTML = SLOT_KEYS.map((_key, i) => {
         const s = saves[i];
         const st = s?.state;
         const summary = s

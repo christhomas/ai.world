@@ -31,7 +31,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #clockBar {
   position: relative; height: 5px; margin: 0 2px 5px; border-radius: 3px;
   border: 1px solid rgba(255,255,255,0.25);
-  background: linear-gradient(90deg, #2a3560 0%, #2a3560 22%, #e8a05a 32%, #ffd76a 50%, #e8785a 72%, #2a3560 82%, #2a3560 100%);
+  background: #2a3560;   /* the phase gradient is painted from src/ui/clock.ts */
 }
 #clockMarker {
   position: absolute; top: -3px; width: 3px; height: 11px; margin-left: -1px;

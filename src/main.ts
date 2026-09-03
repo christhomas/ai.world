@@ -12,13 +12,9 @@ import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
-import { generateDungeon } from './dungeon/generate';
-import { DungeonWorld } from './dungeon/world';
-import { DungeonScene } from './dungeon/scene';
-import { StructureKind, type Poi, type Site } from './world/structures';
+import { StructureKind } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
-import { DungeonMinimap } from './ui/dungeonmap';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { Weather } from './render/weather';
@@ -28,10 +24,6 @@ import { Journal } from './ui/journal';
 import { Clock } from './ui/clock';
 import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
-
-/** Interaction reach underground, and where the hero stands when arriving (offsets from the stairs). */
-const DUNGEON_UI = { CHEST_RANGE: 1.8, DOOR_RANGE: 2.0, STAIRS_RANGE: 1.4 } as const;
-const STAIRS_CLEARANCE_OFFSETS: Array<[number, number]> = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, -2], [1, 0]];
 import { TerrainSampler } from './world/terrain';
 import { BIOMES, HUB_NAME, SEA_NAME } from './world/biomes';
 import { villageAt } from './world/structures';
@@ -499,7 +491,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     playerX: player.x,
     playerZ: player.z,
     fog: !state.can('map'),
-    title: places.underground ? `${places.underground.poi.name} Depths` : `${areaLabel} · Day ${state.day} · ${state.explored.size} cells walked`,
+    title: places.underground
+      ? `${places.underground.poi.name} Depths`
+      : `${areaLabel} · ${state.clock()} · ${SEASON_NAMES[seasonOf(state.day)]}`,
   });
 
   let areaLabel = 'The Crossroads';
@@ -533,15 +527,21 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
 
   // debug handle so headless screenshots can jump the calendar
-  const debug = window as unknown as { __state?: unknown; __doors?: unknown; __player?: unknown; __teleport?: (x: number, z: number) => void };
-  debug.__state = state;
-  debug.__doors = structures.doors;
-  debug.__player = player;
-  debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
-  (debug as { __standAtCounter?: () => void }).__standAtCounter = () => {
-    const k = places.indoors?.world.map.keeper;
-    if (k) player.teleport(k[0] + 0.5, k[1] + 1.6);
-  };
+  // headless screenshot hooks; stripped from production builds
+  if (import.meta.env.DEV) {
+    const debug = window as unknown as {
+      __state?: unknown; __doors?: unknown; __player?: unknown;
+      __teleport?: (x: number, z: number) => void; __standAtCounter?: () => void;
+    };
+    debug.__state = state;
+    debug.__doors = structures.doors;
+    debug.__player = player;
+    debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
+    debug.__standAtCounter = () => {
+      const spot = places.indoors?.world.map.keeper;
+      if (spot) player.teleport(spot[0] + 0.5, spot[1] + 1.6);
+    };
+  }
 
   const loop = new GameLoop((dt, time) => {
     // the full-screen map pauses the world the way a conversation does
