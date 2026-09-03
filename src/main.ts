@@ -26,7 +26,7 @@ import { Clock } from './ui/clock';
 import { Compass, type CompassTarget } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { HORSE, Mount } from './game/mount';
-import { Online, applyTrade, tradableItems, type Presence, type TradeOffer } from './game/online';
+import { Online, applyTrade, tradableItems, type TradeOffer } from './game/online';
 import { OtherPlayers } from './render/others';
 import { Chat } from './ui/chat';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
