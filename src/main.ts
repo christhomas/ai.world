@@ -19,6 +19,9 @@ import { StructureKind, type Poi } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
 import { DungeonMinimap } from './ui/dungeonmap';
+import { SEASON_NAMES, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
+import { Weather } from './render/weather';
+import { SeasonTintMaterials } from './render/seasontint';
 
 /** Interaction reach underground, and where the hero stands when arriving (offsets from the stairs). */
 const DUNGEON_UI = { CHEST_RANGE: 1.8, DOOR_RANGE: 2.0, STAIRS_RANGE: 1.4 } as const;
@@ -85,6 +88,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const entities = new EntityManager(entityRenderer, chunks, chunks, seed, structures.villages);
   const dialogue = new DialogueBox();
   const sound = new Sound();
+  const weather = new Weather(rig.scene);
+  const seasonTintMaterials = new SeasonTintMaterials();
+  chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
 
   // --- state ---
@@ -380,7 +386,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-  let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0;
+  let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0;
+
+  // debug handle so headless screenshots can jump the calendar
+  (window as unknown as { __state?: unknown }).__state = state;
 
   const loop = new GameLoop((dt, time) => {
     const talking = dialogue.isOpen;
@@ -442,17 +451,27 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const { x, z } = iso.target;
     chunks.update(x, z);
     rig.follow(x, z, iso.zoom);
-    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.has('lantern') });
+    // season and weather: both derived from the day counter and the biome underfoot
+    const here = sampler.probe(player.x, player.z);
+    const season = seasonOf(state.day);
+    const tint = seasonTint(season);
+    const wetHere = isWet(seed, state.day, here.biome) ? 1 : 0;
+    weatherStrength += (wetHere - weatherStrength) * Math.min(1, dt * 0.4);
+    if (seasonAffects(here.biome)) seasonTintMaterials.set(tint.ground, tint.frost);
+    else seasonTintMaterials.set([1, 1, 1], 0);
+    weather.set(weatherStrength, season);
+    weather.update(dt, x, z, iso.camera.position.y * 0.35);
+    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.has('lantern'), season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack);
     entityRenderer.update();
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) minimap.reveal(state.explored);
     hud.syncState(state);
-    hud.setClock(state.clock());
+    hud.setClock(`${state.clock()} · ${SEASON_NAMES[season]}${weatherStrength > 0.4 ? (season === 3 ? ' ❄' : ' 🌧') : ''}`);
     hud.setQuests(questList, state);
     hud.setArea(areaName());
     hud.tick(dt);
-    sound.setScene(sampler.probe(player.x, player.z).biome, state.night);
+    sound.setScene(here.biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
 
     swingCooldown = Math.max(0, swingCooldown - dt);

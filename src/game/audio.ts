@@ -1,4 +1,5 @@
 import { Biome } from '../world/biomes';
+import { Music } from './music';
 
 /**
  * All sound is synthesised with Web Audio: no sample files, in keeping with the no-textures rule.
@@ -16,6 +17,7 @@ export class Sound {
   /** Underground: drips instead of birds, no wind. */
   cave = false;
   volume: number;
+  readonly music = new Music();
 
   constructor() {
     let v = 0.6;
@@ -29,6 +31,7 @@ export class Sound {
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v));
     if (this.master) this.master.gain.value = this.volume;
+    this.music.setVolume(this.volume);
     try { localStorage.setItem('ai.world/volume', String(this.volume)); } catch { /* ignore */ }
   }
 
@@ -60,6 +63,8 @@ export class Sound {
       lfo.connect(lfoGain).connect(filter.frequency);
       lfo.start();
       this.wind = { gain, filter };
+      this.music.attach(ctx, this.master);
+      this.music.setVolume(this.volume);
       return ctx;
     } catch {
       return null;
@@ -107,11 +112,16 @@ export class Sound {
   thud(): void { this.tone(140, 0.22, 'sine', 0.3, 0, 55); this.burst(0.12, 300, 0.8, 0.2); }
   select(): void { this.tone(1200, 0.03, 'square', 0.03); }
 
-  setScene(biome: Biome, night: number): void { this.biome = biome; this.night = night; }
+  setScene(biome: Biome, night: number): void {
+    this.biome = biome;
+    this.night = night;
+    this.music.setScene(biome, night, this.cave);
+  }
 
   /** Per frame: footsteps while walking, ambient wind + wildlife for the current biome. */
   update(dt: number, walking: boolean, onRoad: boolean): void {
     if (!this.ctx || !this.wind) return;
+    this.music.update();
     this.stepTimer -= dt;
     if (walking && this.stepTimer <= 0) { this.stepTimer = 0.27; this.footstep(onRoad); }
     const windy = this.biome === Biome.Desert || this.biome === Biome.Snow || this.biome === Biome.Mountain;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SceneRig } from './scene';
 import { smoothstep } from '../game/state';
+import type { SeasonTint } from '../game/seasons';
 
 const DAY_SKY = new THREE.Color(0x8fc1e6);
 const DUSK_SKY = new THREE.Color(0xe89a6a);
@@ -18,6 +19,10 @@ const WINDOW_DAY = new THREE.Color(0x9fd4ef);
 const WINDOW_NIGHT = new THREE.Color(0xffc45a);
 
 export interface DayCycleInput {
+  /** Season tint applied to sky and sun. */
+  season: SeasonTint;
+  /** 0 = clear, 1 = heavy rain or snow: dims and greys the light. */
+  wet: number;
   /** Fraction of the day: 0 midnight, 0.5 noon. */
   time: number;
   /** Camera target, so the sun keeps orbiting the view. */
@@ -58,7 +63,7 @@ export class DayCycle {
   }
 
   /** Returns the night factor in [0,1]. */
-  apply({ time, focusX, focusZ, heroX, heroY, heroZ, lanternOn }: DayCycleInput): number {
+  apply({ time, focusX, focusZ, heroX, heroY, heroZ, lanternOn, season, wet }: DayCycleInput): number {
     const ang = (time - 0.25) * Math.PI * 2;
     const sunH = Math.sin(ang);
     const day = smoothstep(-0.12, 0.25, sunH);
@@ -73,17 +78,20 @@ export class DayCycle {
       18 + Math.max(0.1, sunH) * 62,
       focusZ + 26,
     );
-    sun.intensity = this.daySunIntensity * (0.1 + 0.9 * day);
+    sun.intensity = this.daySunIntensity * (0.1 + 0.9 * day) * (1 - wet * 0.45);
     this.tmp.copy(DAY_SUN).lerp(DUSK_SUN, dusk).lerp(NIGHT_SUN, night);
+    this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));
     sun.color.copy(this.tmp);
 
-    hemi.intensity = this.dayHemiIntensity * (0.4 + 0.6 * day);
+    hemi.intensity = this.dayHemiIntensity * (0.4 + 0.6 * day) * (1 - wet * 0.2);
     hemi.color.copy(this.tmp.copy(DAY_HEMI_SKY).lerp(NIGHT_HEMI_SKY, night));
     hemi.groundColor.copy(this.tmp.copy(DAY_HEMI_GROUND).lerp(NIGHT_HEMI_GROUND, night));
     ambient.intensity = this.dayAmbientIntensity * (0.5 + 0.5 * day);
     ambient.color.copy(this.tmp.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night));
 
     this.tmp.copy(DAY_SKY).lerp(DUSK_SKY, dusk).lerp(NIGHT_SKY, night);
+    this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));
+    if (wet > 0) this.tmp.lerp(this.tmp2.setHex(0x6a7480), wet * 0.55 * day);
     (scene.background as THREE.Color).copy(this.tmp);
 
     // windows warm up as the light fades

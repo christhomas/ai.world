@@ -8,6 +8,7 @@ import type { TileWorld } from '../entities/entity';
 import type { ChunkSource, ChunkTiles } from '../entities/manager';
 import type { TerrainSampler } from './terrain';
 import { chunkKey } from './spatial';
+import type { SeasonTintMaterials } from '../render/seasontint';
 
 interface LoadedChunk {
   cx: number;
@@ -31,6 +32,12 @@ export class ChunkManager implements TileWorld, ChunkSource {
   private focusCz = Number.NaN;
   private readonly offsets: Array<{ dx: number; dz: number }> = [];
   private readonly terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+  /** Season tint: multiplied into every vertex colour of terrain and props. */
+  /** Let a season tint drive the terrain and prop materials. */
+  useSeasonTint(tint: SeasonTintMaterials): void {
+    tint.attach(this.terrainMaterial);
+    tint.attach(this.props.material);
+  }
   private ready = 0;
   onFirstChunk: (() => void) | null = null;
   private firstChunkSeen = false;
