@@ -61,7 +61,7 @@ export class Player {
     return true;
   }
 
-  update(input: Input, iso: IsoCamera, dt: number, frozen = false): void {
+  update(input: Input, iso: IsoCamera, dt: number, frozen = false, fixedCamera = false): void {
     const e = this.entity;
     if (this.riding) {
       e.walk += (0 - e.walk) * Math.min(1, dt * 10); e.phase += dt * 1.5; e.bobY = 0;
@@ -107,6 +107,8 @@ export class Player {
     } else {
       e.bobY += (0 - e.bobY) * Math.min(1, dt * 12);
     }
+
+    if (fixedCamera) return;   // indoors the room stays put and the hero moves within it
 
     // camera trails the hero, with a faint bob while walking
     const k = Math.min(1, dt * 7);

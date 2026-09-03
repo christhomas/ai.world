@@ -8,7 +8,7 @@ import { TileType } from '../world/terrain';
 import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
 import { Entity, Herd, canStand, isDaytime, updateEntity, updateHerd, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
-import type { Village } from '../world/structures';
+import { doorTile, type Village } from '../world/structures';
 
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
 export interface ChunkTiles {
@@ -272,7 +272,7 @@ export class EntityManager {
         // each villager keeps a house to go home to at dusk
         herd.members.forEach((e, i) => {
           const house = v.houses[i % Math.max(1, v.houses.length)];
-          if (house) e.home = doorTileOf(house);
+          if (house) { const [dx, dz] = doorTile(house); e.home = [dx + 0.5, dz + 0.5]; }
         });
       }
       if (v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
@@ -280,12 +280,7 @@ export class EntityManager {
         herd.tag = v.name;
         for (const e of herd.members) e.role = 'congregation';
       }
-      for (const shop of v.shops) {
-        if (!inChunk(shop.doorX + 0.5, shop.doorZ + 0.5)) continue;
-        const herd = this.place(ctx, 'shopkeeper', [shop.doorX + 0.5, shop.doorZ + 0.5], 1, SPAWN.SHOPKEEPER_LEASH);
-        herd.tag = v.name;
-        for (const e of herd.members) { e.role = 'shopkeeper'; e.shop = shop.type; e.home = [shop.doorX + 0.5, shop.doorZ + 0.5]; }
-      }
+      // shopkeepers are inside their shops; the street outside is for villagers
     }
   }
 
@@ -338,13 +333,6 @@ function sortTiles(tiles: ChunkTiles): SortedTiles {
   let biome = 0 as Biome, best = -1;
   for (const [b, n] of biomeCount) if (n > best) { best = n; biome = b as Biome; }
   return { land, water, road, biome };
-}
-
-/** The tile just outside a building's door, where its owner goes in. */
-function doorTileOf(house: { tx: number; tz: number; rot: number; path: Array<[number, number]> }): [number, number] {
-  const first = house.path[0];
-  if (first) return [first[0] + 0.5, first[1] + 0.5];
-  return [house.tx + Math.round(Math.cos(house.rot)) * 2 + 0.5, house.tz + Math.round(Math.sin(house.rot)) * 2 + 0.5];
 }
 
 function tileCentre(tiles: ChunkTiles, i: number): [number, number] {

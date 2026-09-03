@@ -20,6 +20,7 @@ export const SALT = {
   FERRY: 0xfe44,
   CAVE: 0xca7e,
   WRECK: 0x0e3c,
+  INTERIOR: 0x1de5,
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

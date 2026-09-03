@@ -69,6 +69,18 @@ export interface Structure {
   radius?: number;
 }
 
+/** A doorway you can walk through, and what waits on the other side. */
+export interface Doorway {
+  /** Tile just outside the door. */
+  x: number;
+  z: number;
+  kind: 'house' | 'church' | ShopType;
+  village: string;
+  /** Building position, which seeds its interior. */
+  bx: number;
+  bz: number;
+}
+
 export interface Village {
   name: string;
   x: number;
@@ -107,6 +119,7 @@ export interface Site {
 }
 
 export interface Structures {
+  doors: Doorway[];
   villages: Village[];
   pois: Poi[];
   all: Structure[];
@@ -175,6 +188,7 @@ export function generateStructures(sampler: TerrainSampler): Structures {
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
+  const doors: Doorway[] = [];
   const usedNames = new Set<string>();
   const sample: TileSample = sampler.newSample();
 
@@ -477,7 +491,27 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     }
   }
 
-  return { villages, pois, all, piers, signposts, caves, wrecks };
+  // --- doorways: every house, shop and chapel can be walked into ---
+  for (const v of villages) {
+    const shopOf = new Map(v.shops.map((s) => [s.house, s.type]));
+    for (const house of v.houses) {
+      const [dx, dz] = doorTile(house);
+      doors.push({ x: dx + 0.5, z: dz + 0.5, kind: shopOf.get(house) ?? 'house', village: v.name, bx: house.tx, bz: house.tz });
+    }
+    if (v.church && v.churchDoor) {
+      doors.push({ x: v.churchDoor[0] + 0.5, z: v.churchDoor[1] + 0.5, kind: 'church', village: v.name, bx: v.church.tx, bz: v.church.tz });
+    }
+  }
+
+  return { doors, villages, pois, all, piers, signposts, caves, wrecks };
+}
+
+/** The tile just outside a building's door. */
+export function doorTile(s: Structure): [number, number] {
+  const first = s.path[0];
+  if (first) return first;
+  const fx = Math.round(Math.cos(s.rot)), fz = Math.round(Math.sin(s.rot));
+  return [s.tx + fx * 2, s.tz + fz * 2];
 }
 
 export const CAVES = 10;

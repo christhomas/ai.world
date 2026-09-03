@@ -59,6 +59,22 @@ export const enum PropKind {
   Signpost = 55,
   CaveMouth = 56,
   Shipwreck = 57,
+  // interior furniture
+  Bed = 60,
+  Table = 61,
+  Chair = 62,
+  Hearth = 63,
+  Shelf = 64,
+  Barrel = 65,
+  Crate = 66,
+  Forge = 67,
+  Anvil = 68,
+  WeaponRack = 69,
+  Cauldron = 70,
+  Altar = 71,
+  Pew = 72,
+  Candle = 73,
+  Rug = 74,
 }
 
 export interface PropWeight { kind: PropKind; weight: number }

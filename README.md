@@ -32,7 +32,7 @@ URL parameters (skip the title screen, play in a scratch slot): `?seed=123` load
 - **Six biomes** in warped sectors around the hub: meadows, woods, dunes, marsh, highlands, snow. Each has its own palette, terrace roughness, foliage table (oaks, pines, cacti, palms, reeds, flowers, mushrooms, lilies…) and house style.
 - **Rivers and lakes.** Rivers start beside highland roads, follow the corridor downstream, and only ever step down, so every terrace they cross is a waterfall. Roads cross them on bridges. Rivers that run out of land end in lakes.
 - **Animals in groups.** Cows, sheep, horses and chickens in the meadows; deer, rabbits, foxes and bears in the woods; camels, lizards and vultures in the dunes; frogs, ducks and herons in the marsh; goats, eagles and wolves in the highlands; hares, wolves and elk in the snow. Prey flee from you, fliers circle, ducks stay on water.
-- **Towns and villages.** Nine towns act as secondary hubs with their own road webs; smaller villages sit on wide branches. Every settlement has a square with a well and market stalls, a church with a congregation, houses with door paths, and two to four shops (general store, blacksmith, inn, apothecary) with a keeper at the door.
+- **Towns you can walk into.** Nine towns act as secondary hubs with their own road webs; smaller villages sit on wide branches. Every settlement has a square with a well and market stalls, a chapel, houses with door paths, and two to four shops. **Every door opens**: press Enter at one and the view cuts to a fixed top-down room with its own furniture, laid out from that building's seed, so a house always has its own bed and hearth and a forge always has its own anvil. Shopkeepers stand behind their counters; the priest waits by the altar. Enter at the door steps back out.
 - **Talking and trading.** An RPG-style dialogue box with typewriter text and choices. Shopkeepers sell items for gold (you start with 50); gold and inventory persist with the save.
 - **Points of interest.** Shrines, ruins, watchtowers, campsites and giant trees off the road. Walking up to one names it, flashes a discovery banner, and marks it on the minimap.
 - **Hearts, wolves and bears.** You have ten hearts. Wolves and bears stalk and bite; a sword makes them keep their distance, a shield halves the damage, a helm adds two hearts. Knocked out, you wake in the nearest town a little poorer.
@@ -79,6 +79,8 @@ The original single-file prototype is kept at `legacy/index.html` for reference.
 
 **Hydrology and structures** (`src/world/rivers.ts`, `src/world/structures.ts`). Both are generated once from the road graph inside the terrain sampler, so every worker and the main thread agree. Structures are stamped onto chunks after raw sampling: yards flattened, door paths laid, the building placed as an instanced prop with a fixed rotation.
 
+**Interiors** (`src/interior/`). A building's inside is generated from a seed made of the world seed and the building's tile, so it never changes. Rooms are walled, furnished per trade (beds and hearths, counters and shelves, forge and anvil, bar and tables, cauldron and jars, altar and pews) and rendered as one vertex-coloured mesh with instanced furniture. Indoors the camera holds still and frames the whole room; the hero walks around inside it.
+
 **Combat and hours** (`src/game/combat.ts`, `src/entities/entity.ts`). A swing tests an arc in front of the hero; hits stagger, flash and knock back; kills pay out and despawn. Creatures with `hp` can be fought, creatures with `dangerous` bite back, and `hunt` behaviour chases. Villagers carry a home door and an awake window, so dusk empties the streets.
 
 **Seasons, weather and sound** (`src/game/seasons.ts`, `src/render/weather.ts`, `src/game/music.ts`). Seasons tint terrain and props through one shared shader patch, weather is a camera-following Points cloud, and both the effects and the soundtrack are Web Audio synthesis with no asset files.
@@ -98,6 +100,7 @@ src/
   core/        config, seeded rng, game loop, input
   world/       noise, biomes, road graph + islands, seed manifest, rivers, structures, terrain sampler, mesher, chunk manager
   dungeon/     room/corridor generator, dungeon walkability + chunks, dungeon scene
+  interior/    per-building room layouts, interior walkability, interior scene
   workers/     chunk generation worker
   render/      scene rig (lights, shadows), day/night cycle, water material, isometric camera, prop + building geometry
   entities/    animal/character rigs, instanced renderer, behaviours, spawning, player
@@ -121,7 +124,8 @@ src/
 6. ~~Seed manifest, islands with harbour towns, ferries on a timetable, dungeons under shrines.~~
 7. ~~Monsters, combat, keys and locked doors; seasons, weather and a soundtrack; fishing, camps, fingerposts and a journal; villager hours; caves and shipwrecks.~~
 8. ~~Rucksack with equipment slots, gear tiers, buying and selling at every shop.~~
-9. Ideas: free sailing rather than fixed ferries, deeper dungeon floors, boss rooms, gear the hero visibly wears.
+9. ~~Full-screen map; enterable houses, shops and chapels with their own interiors.~~
+10. Ideas: free sailing rather than fixed ferries, deeper dungeon floors, boss rooms, gear the hero visibly wears.
 
 ## Technology
 

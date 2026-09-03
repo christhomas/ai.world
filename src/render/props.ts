@@ -221,6 +221,113 @@ export class PropLibrary {
       part(new THREE.BoxGeometry(0.1, 1.4, 0.1), 0x4a3a2a, [0.65, 0.7, 0.2]),
     ]));
 
+    // --- interior furniture ---
+    this.geometries.set(PropKind.Bed, merge([
+      part(new THREE.BoxGeometry(0.9, 0.3, 1.9), 0x6b4a2b, [0, 0.25, 0]),
+      part(new THREE.BoxGeometry(0.94, 0.22, 1.5), 0xe8e0cc, [0, 0.5, 0.15]),
+      part(new THREE.BoxGeometry(0.9, 0.14, 0.45), 0xc0392b, [0, 0.6, 0.5]),
+      part(new THREE.BoxGeometry(0.7, 0.16, 0.3), 0xf4f0e6, [0, 0.6, -0.65]),
+      part(new THREE.BoxGeometry(0.94, 0.7, 0.12), 0x5a3f28, [0, 0.5, -0.95]),
+    ]));
+    this.geometries.set(PropKind.Table, merge([
+      part(new THREE.BoxGeometry(1.3, 0.12, 1.0), 0x8a6a3d, [0, 0.7, 0]),
+      ...[[-0.55, -0.4], [0.55, -0.4], [-0.55, 0.4], [0.55, 0.4]].map(([x, z]) =>
+        part(new THREE.BoxGeometry(0.12, 0.7, 0.12), 0x6b4a2b, [x, 0.35, z])),
+    ]));
+    this.geometries.set(PropKind.Chair, merge([
+      part(new THREE.BoxGeometry(0.5, 0.1, 0.5), 0x8a6a3d, [0, 0.45, 0]),
+      part(new THREE.BoxGeometry(0.12, 0.7, 0.5), 0x6b4a2b, [-0.2, 0.7, 0]),
+      ...[[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]].map(([x, z]) =>
+        part(new THREE.BoxGeometry(0.08, 0.45, 0.08), 0x6b4a2b, [x, 0.22, z])),
+    ]));
+    this.geometries.set(PropKind.Hearth, merge([
+      part(new THREE.BoxGeometry(1.5, 1.4, 0.7), 0x8a8a8a, [0, 0.7, -0.15]),
+      part(new THREE.BoxGeometry(0.9, 0.8, 0.5), 0x2a2118, [0, 0.4, 0.16]),
+      part(new THREE.ConeGeometry(0.24, 0.5, 5), 0xff7a1a, [0, 0.35, 0.2]),
+      part(new THREE.ConeGeometry(0.14, 0.35, 5), 0xffd23a, [0.06, 0.4, 0.24]),
+      part(new THREE.BoxGeometry(1.7, 0.16, 0.85), 0x9a9a9a, [0, 1.45, -0.15]),
+    ]));
+    this.glows.set(PropKind.Hearth, merge([
+      part(new THREE.IcosahedronGeometry(0.22, 0), 0xffffff, [0, 0.4, 0.22], [1, 1.3, 1]),
+    ]));
+    this.geometries.set(PropKind.Shelf, merge([
+      part(new THREE.BoxGeometry(0.9, 0.08, 0.35), 0x8a6a3d, [0, 0.5, 0]),
+      part(new THREE.BoxGeometry(0.9, 0.08, 0.35), 0x8a6a3d, [0, 1.0, 0]),
+      part(new THREE.BoxGeometry(0.9, 0.08, 0.35), 0x8a6a3d, [0, 1.5, 0]),
+      part(new THREE.BoxGeometry(0.1, 1.6, 0.35), 0x6b4a2b, [-0.44, 0.8, 0]),
+      part(new THREE.BoxGeometry(0.1, 1.6, 0.35), 0x6b4a2b, [0.44, 0.8, 0]),
+      part(new THREE.BoxGeometry(0.16, 0.24, 0.16), 0x6fae4b, [-0.25, 0.66, 0]),
+      part(new THREE.BoxGeometry(0.16, 0.24, 0.16), 0xd23f3f, [0.05, 1.16, 0]),
+      part(new THREE.BoxGeometry(0.16, 0.2, 0.16), 0xf5c542, [0.28, 1.62, 0]),
+    ]));
+    this.geometries.set(PropKind.Barrel, merge([
+      part(new THREE.CylinderGeometry(0.34, 0.3, 0.8, 8), 0x8a6a3d, [0, 0.4, 0]),
+      part(new THREE.CylinderGeometry(0.36, 0.36, 0.08, 8), 0x5a4632, [0, 0.6, 0]),
+      part(new THREE.CylinderGeometry(0.36, 0.36, 0.08, 8), 0x5a4632, [0, 0.2, 0]),
+      part(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 8), 0x6b4a2b, [0, 0.83, 0]),
+    ]));
+    this.geometries.set(PropKind.Crate, merge([
+      part(new THREE.BoxGeometry(0.7, 0.7, 0.7), 0x9a7a4d, [0, 0.35, 0]),
+      part(new THREE.BoxGeometry(0.74, 0.08, 0.08), 0x6b4a2b, [0, 0.55, 0.34]),
+      part(new THREE.BoxGeometry(0.74, 0.08, 0.08), 0x6b4a2b, [0, 0.15, 0.34]),
+    ]));
+    this.geometries.set(PropKind.Forge, merge([
+      part(new THREE.BoxGeometry(1.4, 1.0, 1.0), 0x6e6e6e, [0, 0.5, 0]),
+      part(new THREE.BoxGeometry(0.9, 0.5, 0.7), 0x2a2118, [0, 0.75, 0.2]),
+      part(new THREE.ConeGeometry(0.3, 0.6, 5), 0xff5a1a, [0, 0.9, 0.2]),
+      part(new THREE.CylinderGeometry(0.24, 0.3, 1.6, 6), 0x555555, [0, 1.8, -0.2]),
+    ]));
+    this.glows.set(PropKind.Forge, merge([
+      part(new THREE.IcosahedronGeometry(0.26, 0), 0xffffff, [0, 0.95, 0.2], [1, 1.2, 1]),
+    ]));
+    this.geometries.set(PropKind.Anvil, merge([
+      part(new THREE.BoxGeometry(0.5, 0.4, 0.5), 0x5a3f28, [0, 0.2, 0]),
+      part(new THREE.BoxGeometry(0.75, 0.22, 0.34), 0x4a4a52, [0, 0.5, 0]),
+      part(new THREE.BoxGeometry(0.3, 0.16, 0.3), 0x4a4a52, [0, 0.34, 0]),
+      part(new THREE.ConeGeometry(0.14, 0.36, 4), 0x4a4a52, [0.45, 0.5, 0], [1, 1, 1], [0, 0, -Math.PI / 2]),
+    ]));
+    this.geometries.set(PropKind.WeaponRack, merge([
+      part(new THREE.BoxGeometry(0.16, 1.6, 0.16), 0x6b4a2b, [-0.5, 0.8, 0]),
+      part(new THREE.BoxGeometry(0.16, 1.6, 0.16), 0x6b4a2b, [0.5, 0.8, 0]),
+      part(new THREE.BoxGeometry(1.2, 0.12, 0.16), 0x6b4a2b, [0, 1.5, 0]),
+      part(new THREE.BoxGeometry(0.1, 1.0, 0.1), 0xb8b8c0, [-0.28, 0.9, 0.06]),
+      part(new THREE.BoxGeometry(0.28, 0.1, 0.1), 0x8a6a3d, [-0.28, 1.3, 0.06]),
+      part(new THREE.BoxGeometry(0.1, 1.1, 0.1), 0xb8b8c0, [0.1, 0.95, 0.06]),
+      part(new THREE.BoxGeometry(0.5, 0.5, 0.08), 0x8a6a3d, [0.38, 0.9, 0.06]),
+    ]));
+    this.geometries.set(PropKind.Cauldron, merge([
+      part(new THREE.CylinderGeometry(0.42, 0.32, 0.5, 8), 0x3a3a42, [0, 0.45, 0]),
+      part(new THREE.CylinderGeometry(0.36, 0.36, 0.06, 8), 0x6fae4b, [0, 0.68, 0]),
+      ...[0, 2.1, 4.2].map((a) => part(new THREE.BoxGeometry(0.08, 0.3, 0.08), 0x3a3a42, [Math.cos(a) * 0.3, 0.15, Math.sin(a) * 0.3])),
+      part(new THREE.ConeGeometry(0.2, 0.3, 5), 0xff7a1a, [0, 0.15, 0]),
+    ]));
+    this.glows.set(PropKind.Cauldron, merge([
+      part(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 8), 0xffffff, [0, 0.7, 0]),
+    ]));
+    this.geometries.set(PropKind.Altar, merge([
+      part(new THREE.BoxGeometry(1.6, 0.9, 0.8), 0xd8d2c0, [0, 0.45, 0]),
+      part(new THREE.BoxGeometry(1.8, 0.14, 0.94), 0xefe9d8, [0, 0.95, 0]),
+      part(new THREE.BoxGeometry(0.12, 0.7, 0.12), 0xf1c40f, [0, 1.35, 0]),
+      part(new THREE.BoxGeometry(0.5, 0.12, 0.12), 0xf1c40f, [0, 1.45, 0]),
+    ]));
+    this.geometries.set(PropKind.Pew, merge([
+      part(new THREE.BoxGeometry(1.8, 0.14, 0.4), 0x8a6a3d, [0, 0.45, 0]),
+      part(new THREE.BoxGeometry(1.8, 0.6, 0.12), 0x6b4a2b, [0, 0.7, -0.2]),
+      part(new THREE.BoxGeometry(0.14, 0.45, 0.4), 0x6b4a2b, [-0.8, 0.22, 0]),
+      part(new THREE.BoxGeometry(0.14, 0.45, 0.4), 0x6b4a2b, [0.8, 0.22, 0]),
+    ]));
+    this.geometries.set(PropKind.Candle, merge([
+      part(new THREE.CylinderGeometry(0.12, 0.16, 0.9, 6), 0xb8a878, [0, 0.45, 0]),
+      part(new THREE.CylinderGeometry(0.08, 0.08, 0.3, 6), 0xf4efdc, [0, 1.05, 0]),
+    ]));
+    this.glows.set(PropKind.Candle, merge([
+      part(new THREE.IcosahedronGeometry(0.1, 0), 0xffffff, [0, 1.28, 0], [0.7, 1.4, 0.7]),
+    ]));
+    this.geometries.set(PropKind.Rug, merge([
+      part(new THREE.BoxGeometry(1.9, 0.04, 1.2), 0x8a3a3a, [0, 0.02, 0]),
+      part(new THREE.BoxGeometry(1.6, 0.05, 0.9), 0xc0603a, [0, 0.03, 0]),
+    ]));
+
     this.geometries.set(PropKind.CaveMouth, merge([
       part(new THREE.DodecahedronGeometry(1.5, 0), 0x6e6e6e, [-0.5, 0.7, 0], [1, 1.1, 1.3]),
       part(new THREE.DodecahedronGeometry(1.1, 0), 0x7a7a7a, [0.1, 0.5, 1.3], [1, 1, 1]),

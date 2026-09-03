@@ -19,6 +19,11 @@ import { StructureKind, type Poi, type Site } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
 import { DungeonMinimap } from './ui/dungeonmap';
+import { generateInterior, interiorSeed, interiorTitle, type InteriorKind } from './interior/generate';
+import { InteriorWorld } from './interior/world';
+import { InteriorScene } from './interior/scene';
+import { KINDS } from './entities/animals';
+import { Entity as Creature, Herd } from './entities/entity';
 import { SEASON_NAMES, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
@@ -273,6 +278,86 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return false;
   };
 
+  // --- building interiors ---
+  interface Visit {
+    world: InteriorWorld;
+    scene: InteriorScene;
+    renderer: EntityRenderer;
+    keeper: Creature | null;
+    exit: [number, number];
+    title: string;
+    kind: InteriorKind;
+    village: string;
+  }
+  let interior: Visit | null = null;
+  /** Camera zoom to restore when stepping back outside. */
+  let outdoorZoom = iso.zoom;
+
+  const enterBuilding = (door: { x: number; z: number; kind: InteriorKind; village: string; bx: number; bz: number }) => {
+    const map = generateInterior(interiorSeed(seed, door.bx, door.bz), door.kind, door.village);
+    const world = new InteriorWorld(map);
+    const scene = new InteriorScene(map, props);
+    const renderer = new EntityRenderer(scene.scene);
+    entityRenderer.remove(player.entity);
+    renderer.add(player.entity);
+    player.setWorld(world);
+    player.teleport(map.entry[0] + 0.5, map.entry[1] + 0.5);
+    // frame the whole room: the camera holds still and the hero moves inside it
+    outdoorZoom = iso.zoom;
+    iso.zoom = Math.max(map.w, map.h) * 1.35;
+    iso.resize();
+    iso.target.set(map.w / 2, 0.5, map.h / 2);
+
+    // the shopkeeper, priest or resident is waiting inside
+    let keeper: Creature | null = null;
+    if (map.keeper) {
+      const kindId = door.kind === 'house' ? 'villager' : door.kind === 'church' ? 'villager' : 'shopkeeper';
+      const herd = new Herd(KINDS[kindId], map.keeper[0], map.keeper[1], map.keeper[0], map.keeper[1], 0);
+      herd.tag = door.village;
+      keeper = new Creature(KINDS[kindId], map.keeper[0] + 0.5, map.keeper[1] + 0.5, herd, 'interior', lineRng);
+      keeper.y = 0.5;
+      keeper.yaw = Math.PI / 2;   // facing the door
+      if (door.kind !== 'house' && door.kind !== 'church') { keeper.role = 'shopkeeper'; keeper.shop = door.kind; }
+      else keeper.role = door.kind === 'church' ? 'congregation' : 'villager';
+      renderer.add(keeper);
+    }
+    interior = { world, scene, renderer, keeper, exit: [door.x, door.z], title: interiorTitle(door.kind, door.village), kind: door.kind, village: door.village };
+    sound.chime();
+  };
+
+  const leaveBuilding = () => {
+    if (!interior) return;
+    const { renderer, scene, exit } = interior;
+    renderer.remove(player.entity);
+    renderer.dispose();
+    scene.dispose();
+    entityRenderer.add(player.entity);
+    player.setWorld(chunks);
+    player.teleport(exit[0], exit[1] + 1);
+    iso.zoom = outdoorZoom;
+    iso.resize();
+    iso.target.set(exit[0], 0.5, exit[1] + 1);
+    interior = null;
+    persist();
+  };
+
+  /** Enter/Space at a doorway steps inside. */
+  const tryDoor = (): boolean => {
+    for (const door of structures.doors) {
+      if (Math.hypot(door.x - player.x, door.z - player.z) > 1.6) continue;
+      enterBuilding(door);
+      return true;
+    }
+    return false;
+  };
+
+  /** Enter/Space indoors: talk to whoever is here, or step back out. */
+  const interiorInteract = (visit: Visit): boolean => {
+    if (visit.keeper && visit.world.nearKeeper(player.x, player.z)) { startTalk(visit.keeper); return true; }
+    if (visit.world.atDoor(player.x, player.z)) { leaveBuilding(); return true; }
+    return false;
+  };
+
   const dockTile = (line: FerryLine, end: 'from' | 'to'): [number, number] => {
     const pier = end === 'from' ? line.fromPier : line.toPier;
     const [x, z] = pier.tiles[pier.tiles.length - 1];
@@ -426,7 +511,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
 
   const talkNearest = () => {
+    if (interior) {
+      if (!interiorInteract(interior)) hud.flash('Stand at the door to leave, or at the counter to talk.');
+      return;
+    }
     if (dungeon) { if (!dungeonInteract(dungeon)) hud.flash('Nothing here'); return; }
+    if (tryDoor()) return;
     if (tryShrine()) return;
     if (tryWreck()) return;
     if (tryCampfire()) return;
@@ -566,7 +656,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
 
   // debug handle so headless screenshots can jump the calendar
-  (window as unknown as { __state?: unknown }).__state = state;
+  const debug = window as unknown as { __state?: unknown; __doors?: unknown; __player?: unknown; __teleport?: (x: number, z: number) => void };
+  debug.__state = state;
+  debug.__doors = structures.doors;
+  debug.__player = player;
+  debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
+  (debug as { __standAtCounter?: () => void }).__standAtCounter = () => {
+    const k = interior?.world.map.keeper;
+    if (k) player.teleport(k[0] + 0.5, k[1] + 1.6);
+  };
 
   const loop = new GameLoop((dt, time) => {
     // the full-screen map pauses the world the way a conversation does
@@ -577,12 +675,32 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       worldMap.draw(mapInput());
     }
     const talking = dialogue.isOpen || worldMap.isOpen;
-    iso.update(input, dt, player.mode === 'free' && !talking);
+    iso.update(input, dt, player.mode === 'free' && !talking && !interior);
     player.climb = state.climb;
-    player.update(input, iso, dt, talking);
+    player.update(input, iso, dt, talking, interior !== null);
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) state.tick(dt);
+
+    if (interior) {
+      frames++; fpsAccum += dt;
+      if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
+      // indoors: a fixed view of the room, the hero and whoever keeps the place
+      interior.renderer.update();
+      hud.syncState(state);
+      hud.setClock(`${state.clock()} · ${SEASON_NAMES[seasonOf(state.day)]}`);
+      hud.setQuests(questList, state);
+      hud.setArea(interior.title);
+      hud.tick(dt);
+      rucksack.refresh();
+      sound.update(dt, player.entity.walk > 0.3 && !talking, true);
+      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${interior!.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
+      rig.renderer.render(interior.scene.scene, iso.camera);
+      input.endFrame();
+      saveTimer += dt;
+      if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }
+      return;
+    }
 
     if (dungeon) {
       frames++; fpsAccum += dt;
