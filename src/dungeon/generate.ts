@@ -5,12 +5,19 @@ import { mulberry32, type Rng } from '../core/rng';
  * nearest-first order so the whole thing is connected, stairs in the first room, the big chest in
  * the room farthest from the stairs, torches along the walls, a pool or two.
  */
-export const enum DTile { Rock = 0, Floor = 1, Water = 2, Stairs = 3, Door = 4 }
+export const enum DTile { Rock = 0, Floor = 1, Water = 2, Stairs = 3, Door = 4, Descent = 5 }
 
 export interface Room { x: number; z: number; w: number; h: number }
 export interface Chest { x: number; z: number; big: boolean; key?: boolean }
 export interface Door { x: number; z: number }
 export interface Torch { x: number; z: number; /** yaw so the bracket faces into the room */ rot: number }
+
+/** How deep a vault goes, and what waits at the bottom. */
+export const DEPTH = {
+  FLOORS: 3,
+  /** Monsters per room rise with depth. */
+  EXTRA_PACKS_PER_FLOOR: 1,
+} as const;
 
 export interface DungeonMap {
   size: number;
@@ -23,6 +30,12 @@ export interface DungeonMap {
   doors: Door[];
   /** Room centres where monsters wait. */
   monsterSpots: Array<[number, number]>;
+  /** Which floor this is, counting from one at the entrance. */
+  floor: number;
+  /** Stairs further down, on every floor but the last. */
+  descent: [number, number] | null;
+  /** The boss stands here on the final floor. */
+  boss: [number, number] | null;
 }
 
 export const DUNGEON = {
@@ -45,8 +58,8 @@ export const DUNGEON = {
 /** Shrine vaults are roomy and locked; caves are cramped, winding and open. */
 export type DungeonStyle = 'vault' | 'cave';
 
-export function generateDungeon(seed: number, style: DungeonStyle = 'vault'): DungeonMap {
-  const rng = mulberry32(seed);
+export function generateDungeon(seed: number, style: DungeonStyle = 'vault', floor = 1): DungeonMap {
+  const rng = mulberry32(seed + floor * 7919);
   const cave = style === 'cave';
   const size = DUNGEON.SIZE;
   const tiles = new Uint8Array(size * size); // Rock
@@ -140,9 +153,24 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault'): Du
   for (const r of rooms) {
     if (r === rooms[0]) continue;
     if (rng() < DUNGEON.MONSTER_ROOM_CHANCE) monsterSpots.push(centre(r));
+    // deeper floors are busier
+    for (let extra = 1; extra < floor; extra++) {
+      if (rng() < DUNGEON.MONSTER_ROOM_CHANCE * 0.6) monsterSpots.push([centre(r)[0] + 1, centre(r)[1] + 1]);
+    }
   }
 
-  return { size, tiles, rooms, entrance, chests, torches, doors: doors.filter((d) => tiles[idx(d.x, d.z)] === DTile.Door), monsterSpots };
+  // the way down sits in the treasure room; the last floor has a boss instead
+  const deepest = style === 'cave' ? 1 : DEPTH.FLOORS;
+  const isLast = floor >= deepest;
+  const descent: [number, number] | null = isLast ? null : [centre(far)[0] + 1, centre(far)[1]];
+  if (descent && tiles[idx(descent[0], descent[1])] === DTile.Floor) tiles[idx(descent[0], descent[1])] = DTile.Descent;
+  const boss: [number, number] | null = isLast && style === 'vault' ? [centre(far)[0] - 1, centre(far)[1]] : null;
+
+  return {
+    size, tiles, rooms, entrance, chests, torches,
+    doors: doors.filter((d) => tiles[idx(d.x, d.z)] === DTile.Door),
+    monsterSpots, floor, descent, boss,
+  };
 }
 
 /** Floor tiles on the room's boundary ring that lead out of it: the corridor mouths. */

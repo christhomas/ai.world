@@ -175,6 +175,17 @@ export class EntityManager {
     return herd;
   }
 
+  /** Put one named creature somewhere: a dungeon boss, say. */
+  spawnOne(kindId: string, x: number, z: number, seed: number): Entity | null {
+    const rng = mulberry32(seed);
+    const out: Entity[] = [];
+    const herd = this.spawnHerdAt(kindId, x, z, rng, 'dungeon', out);
+    let list = this.spawned.get('dungeon');
+    if (!list) { list = []; this.spawned.set('dungeon', list); }
+    list.push(...out);
+    return herd.members[0] ?? null;
+  }
+
   /** Drop a dead creature from the world. */
   despawnEntity(e: Entity): void {
     this.renderer.remove(e);

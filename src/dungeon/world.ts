@@ -31,7 +31,13 @@ export class DungeonWorld implements TileWorld {
   heightAt(x: number, z: number): number | null {
     const t = this.tile(x, z);
     if (t === DTile.Door) return this.unlocked ? FLOOR_Y : null;
-    return t === DTile.Floor || t === DTile.Stairs ? FLOOR_Y : null;
+    return t === DTile.Floor || t === DTile.Stairs || t === DTile.Descent ? FLOOR_Y : null;
+  }
+
+  /** Standing on the stairs down? */
+  nearDescent(x: number, z: number, range: number): boolean {
+    const d = this.map.descent;
+    return d !== null && Math.hypot(d[0] + 0.5 - x, d[1] + 0.5 - z) < range;
   }
 
   /** Is (x,z) a still-locked door? Used to explain why the way is barred. */
@@ -76,6 +82,7 @@ export class DungeonWorld implements TileWorld {
           case DTile.Rock: chunk.type[i] = TileType.High; chunk.height[i] = WALL_Y; break;
           case DTile.Water: chunk.type[i] = TileType.Water; chunk.height[i] = 0; chunk.water[i] = WORLD.WATER_Y; break;
           case DTile.Door: chunk.type[i] = TileType.Plaza; chunk.height[i] = FLOOR_Y; break;
+          case DTile.Descent: chunk.type[i] = TileType.Plaza; chunk.height[i] = FLOOR_Y; break;
           default: chunk.type[i] = TileType.Plaza; chunk.height[i] = FLOOR_Y;
         }
       }
@@ -95,6 +102,7 @@ export class DungeonWorld implements TileWorld {
       }
     }
     out.push({ kind: PropKind.Stairs, x: this.map.entrance[0] + 0.5, y: FLOOR_Y, z: this.map.entrance[1] + 0.5, rot: 0 });
+    if (this.map.descent) out.push({ kind: PropKind.Descent, x: this.map.descent[0] + 0.5, y: FLOOR_Y, z: this.map.descent[1] + 0.5, rot: Math.PI });
     this.map.chests.forEach((c, i) => {
       out.push({ kind: opened.has(this.chestId(i)) ? PropKind.ChestOpen : PropKind.Chest, x: c.x + 0.5, y: FLOOR_Y, z: c.z + 0.5, rot: 0 });
     });

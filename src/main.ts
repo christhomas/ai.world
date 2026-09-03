@@ -573,6 +573,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (places.underground) {
       const below = places.interactUnderground();
       if (below === 'locked') hud.flash('The door is locked. A key must be down here somewhere.');
+      else if (below === 'descent') {
+        dialogue.start({ speaker: 'Stairs Down', emoji: '🕳️', pages: ['The steps go further down, into colder air. Follow them?'], choices: [
+          { label: 'Go deeper', next: () => { places.descend(); return null; } },
+          { label: 'Not yet', next: () => null },
+        ] });
+      }
       else if (below === 'stairs') {
         dialogue.start({ speaker: 'Stairs', emoji: '🪜', pages: ['Climb back up to the daylight?'], choices: [
           { label: 'Climb out', next: () => { places.exitDungeon(); return null; } },
@@ -792,6 +798,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__doors = structures.doors;
     (debug as { __villages?: unknown }).__villages = structures.villages;
     (debug as { __piers?: unknown }).__piers = structures.piers;
+    (debug as { __descent?: () => unknown }).__descent = () => places.underground?.world.map.descent ?? null;
+    (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
+    (debug as { __descend?: () => void }).__descend = () => places.descend();
+    (debug as { __shrines?: unknown }).__shrines = structures.pois.filter((p) => p.kind === StructureKind.Shrine).map((p) => ({ name: p.name, x: p.x, z: p.z }));
     (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
       entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
     (debug as { __entities?: () => unknown }).__entities = () =>
@@ -830,40 +840,44 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     rig.water.update(time);
     if (!talking) state.tick(dt);
 
-    if (places.indoors) {
+    // hold the place for this frame: a bite can end it half way through
+    const indoors = places.indoors;
+    if (indoors) {
       frames++; fpsAccum += dt;
       if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
       // indoors: a fixed view of the room, the hero and whoever keeps the place
-      places.indoors.renderer.update();
+      indoors.renderer.update();
       heroGear.update(state, player.entity);
-      updateHud(dt, places.indoors.title);
+      updateHud(dt, indoors.title);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
-      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${places.indoors!.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      rig.renderer.render(places.indoors.scene.scene, iso.camera);
+      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
+      rig.renderer.render(indoors.scene.scene, iso.camera);
       input.endFrame();
       saveTimer += dt;
       if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }
       return;
     }
 
-    if (places.underground) {
+    const below = places.underground;
+    if (below) {
       frames++; fpsAccum += dt;
       if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
       // underground: the hero, the monsters, the lights and the HUD tick
-      places.underground.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
-      places.underground.scene.heroLight.intensity = state.can('light') ? 9 : 3;
-      places.underground.monsters.update(dt, player.x, player.z, false, onAttack);
-      places.underground.renderer.update();
+      below.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
+      below.scene.heroLight.intensity = state.can('light') ? 9 : 3;
+      below.monsters.update(dt, player.x, player.z, false, onAttack);
+      if (places.underground !== below) { input.endFrame(); return; }
+      below.renderer.update();
       heroGear.update(state, player.entity);
-      places.underground.map.reveal(player.x, player.z);
-      places.underground.map.draw(player.x, player.z, state.opened, (i) => places.underground!.world.chestId(i), places.underground!.world.unlocked);
-      updateHud(dt, `${places.underground.poi.name} Depths`);
+      below.map.reveal(player.x, player.z);
+      below.map.draw(player.x, player.z, state.opened, (i) => below.world.chestId(i), below.world.unlocked);
+      updateHud(dt, below.floor > 1 ? `${below.poi.name} Depths · floor ${below.floor}` : `${below.poi.name} Depths`);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () =>
-        `${fps.toFixed(0)} fps  ${places.underground!.poi.name} depths\n` +
-        `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, places.underground!.monsters.count - 1)}\n` +
-        `rooms ${places.underground!.world.map.rooms.length}  doors ${places.underground!.world.map.doors.length}  ${places.underground!.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      rig.renderer.render(places.underground.scene.scene, iso.camera);
+        `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
+        `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
+        `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
+      rig.renderer.render(below.scene.scene, iso.camera);
       input.endFrame();
       saveTimer += dt;
       if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }

@@ -49,6 +49,10 @@ export interface Underground { name: string; x: number; z: number }
 
 export interface DungeonVisit {
   world: DungeonWorld;
+  /** Which floor we are on, and how we got here, so climbing out returns to daylight. */
+  floor: number;
+  style: 'dungeon' | 'cave';
+  anchorId: string;
   scene: DungeonScene;
   renderer: EntityRenderer;
   monsters: EntityManager;
@@ -87,10 +91,10 @@ export class Places {
 
   // --- underground ---
 
-  enterDungeon(poi: Underground, kind: 'dungeon' | 'cave' = 'dungeon', anchorId = `dungeon:${poi.name}`): void {
+  enterDungeon(poi: Underground, kind: 'dungeon' | 'cave' = 'dungeon', anchorId = `dungeon:${poi.name}`, floor = 1): void {
     const { manifest, state, props, rig, iso, player, overworldRenderer, minimapCanvas } = this.ctx;
     const anchor = manifest.ensure(anchorId, kind, poi.x, poi.z);
-    const world = new DungeonWorld(generateDungeon(anchor.seed, kind === 'cave' ? 'cave' : 'vault'), anchor.id);
+    const world = new DungeonWorld(generateDungeon(anchor.seed, kind === 'cave' ? 'cave' : 'vault', floor), `${anchor.id}:${floor}`);
     world.unlocked = state.keys.has(anchor.id);
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
     const renderer = new EntityRenderer(scene.scene);
@@ -104,11 +108,16 @@ export class Places {
     player.teleport(ex + dx + 0.5, ez + dz + 0.5);
     iso.target.set(ex + dx + 0.5, 0.5, ez + dz + 0.5);
 
-    const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed);
-    monsters.spawnMonsters(world.map.monsterSpots, anchor.seed);
-    this.underground = { world, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
+    const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed + floor);
+    monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor);
+    if (world.map.boss) {
+      const [bx, bz] = world.map.boss;
+      monsters.spawnOne('troll', bx + 0.5, bz + 0.5, anchor.seed + 99);
+    }
+    this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
     this.ctx.setCaveAmbience(true);
-    this.ctx.flash(kind === 'cave' ? `You squeeze into the ${poi.name}` : `You descend into the ${poi.name}`);
+    const depth = floor > 1 ? ` — floor ${floor}` : '';
+    this.ctx.flash(kind === 'cave' ? `You squeeze into the ${poi.name}` : `You descend into the ${poi.name}${depth}`);
     this.ctx.persist();
   }
 
@@ -164,16 +173,36 @@ export class Places {
     this.ctx.persist();
   }
 
-  /** Enter/Space underground: a chest, a locked door, or the way out. Returns what happened. */
-  interactUnderground(): 'chest' | 'locked' | 'stairs' | null {
+  /** Enter/Space underground: a chest, a locked door, deeper stairs, or the way out. */
+  interactUnderground(): 'chest' | 'locked' | 'stairs' | 'descent' | null {
     const visit = this.underground;
     if (!visit) return null;
     const { player, state } = this.ctx;
     const chest = visit.world.chestNear(player.x, player.z, REACH.CHEST, state.opened);
     if (chest >= 0) { this.openChest(chest); return 'chest'; }
     if (visit.world.lockedDoorAt(player.x, player.z, REACH.DOOR)) return 'locked';
+    if (visit.world.nearDescent(player.x, player.z, REACH.STAIRS)) return 'descent';
     if (visit.world.nearStairs(player.x, player.z, REACH.STAIRS)) return 'stairs';
     return null;
+  }
+
+  /** Take the stairs down to the next floor of the same vault. */
+  descend(): void {
+    const visit = this.underground;
+    if (!visit) return;
+    const { poi, style, anchorId, floor } = visit;
+    this.closeUnderground();
+    this.enterDungeon(poi, style, anchorId, floor + 1);
+  }
+
+  /** Tear down the current floor without putting the hero back outside. */
+  private closeUnderground(): void {
+    const visit = this.underground;
+    if (!visit) return;
+    visit.renderer.remove(this.ctx.player.entity);
+    visit.renderer.dispose();
+    visit.scene.dispose();
+    this.underground = null;
   }
 
   // --- indoors ---

@@ -56,6 +56,7 @@ export const enum PropKind {
   ChestOpen = 52,
   Stairs = 53,
   Door = 54,
+  Descent = 59,
   Signpost = 55,
   NoticeBoard = 58,
   Seedling = 80,

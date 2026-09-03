@@ -384,6 +384,17 @@ export class PropLibrary {
       part(new THREE.IcosahedronGeometry(0.12, 0), 0x8a6a3d, [0, 2.05, 0]),
     ]));
 
+    // a hole in the floor with steps going down: the way deeper in
+    this.geometries.set(PropKind.Descent, merge([
+      part(new THREE.BoxGeometry(1.5, 0.16, 1.5), 0x4a4a52, [0, 0.08, 0]),
+      part(new THREE.BoxGeometry(1.1, 0.5, 1.1), 0x07070c, [0, -0.2, 0]),
+      part(new THREE.BoxGeometry(1.0, 0.1, 0.3), 0x8f8f8f, [0, -0.02, 0.4]),
+      part(new THREE.BoxGeometry(1.0, 0.1, 0.3), 0x7f7f7f, [0, -0.16, 0.1]),
+      part(new THREE.BoxGeometry(1.0, 0.1, 0.3), 0x6f6f6f, [0, -0.3, -0.2]),
+      part(new THREE.BoxGeometry(0.12, 0.9, 0.12), 0x5a4632, [-0.65, 0.5, 0.6]),
+      part(new THREE.BoxGeometry(0.12, 0.9, 0.12), 0x5a4632, [0.65, 0.5, 0.6]),
+    ]));
+
     this.geometries.set(PropKind.Door, merge([
       part(new THREE.BoxGeometry(0.2, 2.2, 0.2), 0x5a4632, [0, 1.1, 0.6]),
       part(new THREE.BoxGeometry(0.2, 2.2, 0.2), 0x5a4632, [0, 1.1, -0.6]),
