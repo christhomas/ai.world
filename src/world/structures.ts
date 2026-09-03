@@ -24,6 +24,8 @@ export const enum StructureKind {
   Church = 11,
   Pier = 12,   // wooden jetty; tiles listed in `path`
   Signpost = 13, // fingerpost at a junction, naming the nearest settlements
+  CaveMouth = 14, // way into a cave anchor
+  Shipwreck = 15, // broken hull on a beach with one hold to loot
 }
 
 export interface Pier {
@@ -96,12 +98,22 @@ export interface Signpost {
   directions: Array<{ name: string; dir: string; tiles: number }>;
 }
 
+/** A discoverable place attached to its own manifest anchor. */
+export interface Site {
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+}
+
 export interface Structures {
   villages: Village[];
   pois: Poi[];
   all: Structure[];
   piers: Pier[];
   signposts: Signpost[];
+  caves: Site[];
+  wrecks: Site[];
 }
 
 export const VILLAGES = 16;
@@ -161,6 +173,8 @@ export function generateStructures(sampler: TerrainSampler): Structures {
   const all: Structure[] = [];
   const piers: Pier[] = [];
   const signposts: Signpost[] = [];
+  const caves: Site[] = [];
+  const wrecks: Site[] = [];
   const usedNames = new Set<string>();
   const sample: TileSample = sampler.newSample();
 
@@ -431,8 +445,46 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     signposts.push({ x: tx + 0.5, z: tz + 0.5, directions: near });
   }
 
-  return { villages, pois, all, piers, signposts };
+  // --- caves in the high ground, wrecks on the beaches ---
+  const siteNodes = graph.nodes.map((n, i) => ({ n, i })).filter(({ n }) => n.depth >= 2);
+  shuffle(rng, siteNodes);
+  for (const { n } of siteNodes) {
+    if (caves.length >= CAVES && wrecks.length >= WRECKS) break;
+    const probe = sampler.landProbe(n.x, n.z);
+    if (!probe) continue;
+    const side = rng() < 0.5 ? -1 : 1;
+    // walk outward from the road looking for a cliff face (cave) or a beach (wreck)
+    for (let lat = probe.roadWidth + 3; lat < probe.landWidth + 8; lat += 1.5) {
+      const x = Math.floor(n.x - probe.uz * lat * side), z = Math.floor(n.z + probe.ux * lat * side);
+      if (all.some((s) => Math.abs(s.tx - x) <= s.hw + 3 && Math.abs(s.tz - z) <= s.hd + 3)) continue;
+      if (villages.some((v) => Math.hypot(v.x - x, v.z - z) < v.radius)) break;
+      sampler.sampleTile(x, z, sample);
+      const level = sample.level;
+      if (sample.type === TileType.High && caves.length < CAVES) {
+        if (caves.some((c) => Math.hypot(c.x - x, c.z - z) < SITE_SPACING)) continue;
+        const biome = sampler.biomeOf(x, z);
+        all.push({ kind: StructureKind.CaveMouth, tx: x, tz: z, hw: 1, hd: 1, level, rot: Math.atan2(-(n.z - z), n.x - x), biome, path: [] });
+        caves.push({ id: `cave:${x},${z}`, name: `${CAVE_NAMES[caves.length % CAVE_NAMES.length]}`, x: x + 0.5, z: z + 0.5 });
+        break;
+      }
+      if (sample.type === TileType.Sand && level <= 1 && wrecks.length < WRECKS) {
+        if (wrecks.some((w) => Math.hypot(w.x - x, w.z - z) < SITE_SPACING)) continue;
+        const biome = sampler.biomeOf(x, z);
+        all.push({ kind: StructureKind.Shipwreck, tx: x, tz: z, hw: 2, hd: 1, level, rot: rng() * Math.PI * 2, biome, path: [] });
+        wrecks.push({ id: `wreck:${x},${z}`, name: `${WRECK_NAMES[wrecks.length % WRECK_NAMES.length]}`, x: x + 0.5, z: z + 0.5 });
+        break;
+      }
+    }
+  }
+
+  return { villages, pois, all, piers, signposts, caves, wrecks };
 }
+
+export const CAVES = 10;
+export const WRECKS = 8;
+const SITE_SPACING = 60;
+const CAVE_NAMES = ['Weeping Cave', 'Bat Hollow', 'Deep Crack', 'Smugglers\' Cave', 'Blackmouth Cave', 'Echo Cave', 'Cold Crawl', 'Miner\'s Fault', 'Rattling Cave', 'Hermit\'s Cave'];
+const WRECK_NAMES = ['Wreck of the Marigold', 'Broken Keel', 'Wreck of the Tern', 'Salt Bones', 'Wreck of the Gull', 'Old Hull', 'Wreck of the Wren', 'Storm\'s Toll'];
 
 export const SIGNPOSTS = 22;
 const SIGNPOST_SPACING = 90;

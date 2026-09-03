@@ -60,3 +60,45 @@ describe('islands', () => {
     }
   });
 });
+
+describe('caves and wrecks', () => {
+  it('are placed on cliffs and beaches, kept apart, and named uniquely', async () => {
+    const { CAVES, WRECKS } = await import('./structures');
+    const { TileType } = await import('./terrain');
+    const g = generateRoadGraph(11);
+    const sampler = new TerrainSampler(g);
+    const { caves, wrecks } = sampler.structures;
+    expect(caves.length).toBe(CAVES);
+    // beaches are scarcer than cliffs, so a mainland-only world may not fill every wreck slot
+    expect(wrecks.length).toBeGreaterThan(0);
+    expect(wrecks.length).toBeLessThanOrEqual(WRECKS);
+    const names = new Set([...caves, ...wrecks].map((s) => s.name));
+    expect(names.size).toBe(caves.length + wrecks.length);
+    const sample = sampler.newSample();
+    for (const c of caves) {
+      sampler.sampleTile(Math.floor(c.x), Math.floor(c.z), sample);
+      expect(sample.type).not.toBe(TileType.Skip);
+    }
+    for (const w of wrecks) {
+      sampler.sampleTile(Math.floor(w.x), Math.floor(w.z), sample);
+      expect(sample.level).toBeLessThanOrEqual(1);
+    }
+    // sites keep their distance from each other
+    const all = [...caves, ...wrecks];
+    for (let i = 0; i < all.length; i++) {
+      for (let j = i + 1; j < all.length; j++) {
+        expect(Math.hypot(all[i].x - all[j].x, all[i].z - all[j].z)).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it('cave layouts are open and cramped, vaults are roomy and locked', async () => {
+    const { generateDungeon } = await import('../dungeon/generate');
+    const cave = generateDungeon(4242, 'cave');
+    const vault = generateDungeon(4242, 'vault');
+    expect(cave.doors.length).toBe(0);
+    expect(cave.rooms.length).toBeGreaterThanOrEqual(vault.rooms.length);
+    const area = (m: typeof cave) => m.rooms.reduce((s, r) => s + r.w * r.h, 0) / m.rooms.length;
+    expect(area(cave)).toBeLessThan(area(vault));
+  });
+});

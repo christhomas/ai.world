@@ -13,7 +13,7 @@ const BLOCKING = new Set<number>([
   PropKind.Oak, PropKind.Pine, PropKind.SnowPine, PropKind.Willow, PropKind.Palm,
   PropKind.Cactus, PropKind.Boulder, PropKind.DeadTree,
   PropKind.Well, PropKind.Shrine, PropKind.Ruins, PropKind.Tower, PropKind.Campfire, PropKind.GiantTree,
-  PropKind.Stall, PropKind.Sign, PropKind.Signpost,
+  PropKind.Stall, PropKind.Sign, PropKind.Signpost, PropKind.CaveMouth, PropKind.Shipwreck,
 ]);
 
 const post = (msg: WorkerResponse, transfer: Transferable[] = []) =>

@@ -18,6 +18,8 @@ export const SALT = {
   ISLAND: 0x15a4d,           // island anchors and their road trees
   DUNGEON: 0xd4e6,           // dungeon anchors and their layouts
   FERRY: 0xfe44,
+  CAVE: 0xca7e,
+  WRECK: 0x0e3c,
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

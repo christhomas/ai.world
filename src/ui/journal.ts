@@ -2,7 +2,7 @@ import { $ } from './dom';
 import { ITEMS } from '../game/shops';
 import type { GameState } from '../game/state';
 import type { Quest } from '../game/quests';
-import type { Poi, Village } from '../world/structures';
+import type { Poi, Site, Village } from '../world/structures';
 import type { FerryLine } from '../game/ferry';
 import { formatCountdown, ferryStateAt } from '../game/ferry';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
@@ -12,6 +12,8 @@ export interface JournalInput {
   quests: Quest[];
   villages: Village[];
   pois: Poi[];
+  /** Caves and wrecks: named once found, like points of interest. */
+  sites: Site[];
   ferries: FerryLine[];
   seconds: number;
   playerX: number;
@@ -58,8 +60,11 @@ export class Journal {
       return `<li>${done ? '✅' : '📜'} ${what}${where}</li>`;
     });
 
-    const found = d.pois.filter((p) => state.discovered.has(p.name))
-      .map((p) => `<li>⭐ ${p.name} — ${dist(p.x, p.z)} tiles ${bearing(p.x, p.z)}</li>`);
+    const found = [
+      ...d.pois.filter((p) => state.discovered.has(p.name)).map((p) => ({ name: p.name, x: p.x, z: p.z, icon: '⭐' })),
+      ...d.sites.filter((s) => state.discovered.has(s.name)).map((s) => ({ name: s.name, x: s.x, z: s.z, icon: s.id.startsWith('cave') ? '🕳️' : '🚢' })),
+    ].sort((a, b) => Math.hypot(a.x - d.playerX, a.z - d.playerZ) - Math.hypot(b.x - d.playerX, b.z - d.playerZ))
+      .map((p) => `<li>${p.icon} ${p.name} — ${dist(p.x, p.z)} tiles ${bearing(p.x, p.z)}</li>`);
 
     const boats = d.ferries.map((line) => {
       const st = ferryStateAt(line, d.seconds);

@@ -38,16 +38,22 @@ export const DUNGEON = {
   TORCH_SPACING: 4,
   PILLAR_ROOM_SIZE: 7,   // rooms at least this big on both sides get four pillars
   MONSTER_ROOM_CHANCE: 0.75,
+  CAVE_ROOM_MAX: 6,
+  CAVE_ROOMS_MAX: 16,
 } as const;
 
-export function generateDungeon(seed: number): DungeonMap {
+/** Shrine vaults are roomy and locked; caves are cramped, winding and open. */
+export type DungeonStyle = 'vault' | 'cave';
+
+export function generateDungeon(seed: number, style: DungeonStyle = 'vault'): DungeonMap {
   const rng = mulberry32(seed);
+  const cave = style === 'cave';
   const size = DUNGEON.SIZE;
   const tiles = new Uint8Array(size * size); // Rock
   const idx = (x: number, z: number) => z * size + x;
   const inside = (x: number, z: number) => x >= 0 && z >= 0 && x < size && z < size;
 
-  const rooms = placeRooms(rng);
+  const rooms = placeRooms(rng, cave);
   for (const r of rooms) carve(tiles, size, r);
 
   // connect each room to the nearest already-connected one
@@ -62,7 +68,7 @@ export function generateDungeon(seed: number): DungeonMap {
       }
     }
     const from = centre(connected[bj]), to = centre(pending[bi]);
-    corridor(tiles, size, from, to, rng() < DUNGEON.WIDE_CORRIDOR_CHANCE, rng() < 0.5);
+    corridor(tiles, size, from, to, !cave && rng() < DUNGEON.WIDE_CORRIDOR_CHANCE, rng() < 0.5);
     connected.push(pending.splice(bi, 1)[0]);
   }
 
@@ -83,8 +89,8 @@ export function generateDungeon(seed: number): DungeonMap {
     if (d > farD) { farD = d; far = r; }
   }
   const chests: Chest[] = [{ x: centre(far)[0], z: centre(far)[1], big: true }];
-  // the corridor mouths into the treasure room become locked doors
-  const doors: Door[] = doorwaysOf(tiles, size, far);
+  // vaults seal the treasure room behind locked doors; caves are open all through
+  const doors: Door[] = cave ? [] : doorwaysOf(tiles, size, far);
   for (const d of doors) tiles[idx(d.x, d.z)] = DTile.Door;
   const pools: Room[] = [];
   for (const r of rooms) {
@@ -154,12 +160,14 @@ function doorwaysOf(tiles: Uint8Array, size: number, r: Room): Door[] {
   return out;
 }
 
-function placeRooms(rng: Rng): Room[] {
+function placeRooms(rng: Rng, cave: boolean): Room[] {
   const size = DUNGEON.SIZE, m = DUNGEON.MARGIN;
   const rooms: Room[] = [];
-  for (let attempt = 0; attempt < DUNGEON.ROOM_ATTEMPTS && rooms.length < DUNGEON.ROOMS_MAX; attempt++) {
-    const w = DUNGEON.ROOM_MIN + Math.floor(rng() * (DUNGEON.ROOM_MAX - DUNGEON.ROOM_MIN + 1));
-    const h = DUNGEON.ROOM_MIN + Math.floor(rng() * (DUNGEON.ROOM_MAX - DUNGEON.ROOM_MIN + 1));
+  const maxSide = cave ? DUNGEON.CAVE_ROOM_MAX : DUNGEON.ROOM_MAX;
+  const maxRooms = cave ? DUNGEON.CAVE_ROOMS_MAX : DUNGEON.ROOMS_MAX;
+  for (let attempt = 0; attempt < DUNGEON.ROOM_ATTEMPTS && rooms.length < maxRooms; attempt++) {
+    const w = DUNGEON.ROOM_MIN + Math.floor(rng() * (maxSide - DUNGEON.ROOM_MIN + 1));
+    const h = DUNGEON.ROOM_MIN + Math.floor(rng() * (maxSide - DUNGEON.ROOM_MIN + 1));
     const x = m + Math.floor(rng() * (size - w - 2 * m));
     const z = m + Math.floor(rng() * (size - h - 2 * m));
     const r = { x, z, w, h };

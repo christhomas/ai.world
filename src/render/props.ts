@@ -221,6 +221,24 @@ export class PropLibrary {
       part(new THREE.BoxGeometry(0.1, 1.4, 0.1), 0x4a3a2a, [0.65, 0.7, 0.2]),
     ]));
 
+    this.geometries.set(PropKind.CaveMouth, merge([
+      part(new THREE.DodecahedronGeometry(1.5, 0), 0x6e6e6e, [-0.5, 0.7, 0], [1, 1.1, 1.3]),
+      part(new THREE.DodecahedronGeometry(1.1, 0), 0x7a7a7a, [0.1, 0.5, 1.3], [1, 1, 1]),
+      part(new THREE.DodecahedronGeometry(1.1, 0), 0x7a7a7a, [0.1, 0.5, -1.3], [1, 1, 1]),
+      part(new THREE.BoxGeometry(0.9, 1.5, 1.5), 0x0a0a10, [0.85, 0.75, 0]),
+      part(new THREE.IcosahedronGeometry(0.35, 0), 0x8a8a8a, [1.3, 0.2, 1.0]),
+      part(new THREE.IcosahedronGeometry(0.28, 0), 0x8a8a8a, [1.4, 0.16, -0.8]),
+    ]));
+    this.geometries.set(PropKind.Shipwreck, merge([
+      part(new THREE.BoxGeometry(4.2, 0.9, 1.8), 0x5a3f28, [0, 0.45, 0], [1, 1, 1], [0.18, 0, 0.12]),
+      part(new THREE.BoxGeometry(1.4, 1.1, 1.5), 0x6b4a2b, [-1.8, 0.7, 0], [1, 1, 1], [0, 0, 0.3]),
+      part(new THREE.BoxGeometry(0.16, 0.9, 1.7), 0x4a3222, [1.6, 0.9, 0]),
+      part(new THREE.BoxGeometry(0.14, 0.8, 1.6), 0x4a3222, [0.4, 1.0, 0], [1, 1, 1], [0, 0, -0.2]),
+      part(new THREE.CylinderGeometry(0.12, 0.16, 3.4, 6), 0x5a3f28, [-0.4, 1.6, 0], [1, 1, 1], [0, 0, 0.7]),
+      part(new THREE.BoxGeometry(0.06, 1.2, 1.1), 0xd8d0bc, [-1.4, 1.9, 0], [1, 1, 1], [0, 0, 0.7]),
+      part(new THREE.IcosahedronGeometry(0.3, 0), 0x8a8a8a, [2.2, 0.15, 0.7]),
+    ]));
+
     this.geometries.set(PropKind.Signpost, merge([
       part(new THREE.CylinderGeometry(0.09, 0.11, 2.0, 6), 0x6b4a2b, [0, 1.0, 0]),
       part(new THREE.BoxGeometry(0.9, 0.22, 0.06), 0xd9b57c, [0.35, 1.72, 0], [1, 1, 1], [0, 0, 0.04]),

@@ -15,7 +15,7 @@ import { buildBoat } from './render/boat';
 import { generateDungeon } from './dungeon/generate';
 import { DungeonWorld } from './dungeon/world';
 import { DungeonScene } from './dungeon/scene';
-import { StructureKind, type Poi } from './world/structures';
+import { StructureKind, type Poi, type Site } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
 import { DungeonMinimap } from './ui/dungeonmap';
@@ -116,11 +116,22 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
   let riding: { line: FerryLine; dest: 'from' | 'to' } | null = null;
   // --- dungeons ---
-  interface DungeonVisit { world: DungeonWorld; scene: DungeonScene; renderer: EntityRenderer; poi: Poi; monsters: EntityManager; map: DungeonMinimap }
+  /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
+  const discover = (name: string): void => {
+    if (discovered.has(name)) return;
+    discovered.add(name);
+    state.version++;
+    hud.flash(`Discovered: ${name}`);
+    sound.jingle();
+    persist();
+  };
+
+  interface Underground { name: string; x: number; z: number }
+  interface DungeonVisit { world: DungeonWorld; scene: DungeonScene; renderer: EntityRenderer; poi: Underground; monsters: EntityManager; map: DungeonMinimap }
   let dungeon: DungeonVisit | null = null;
-  const enterDungeon = (poi: Poi) => {
-    const anchor = manifest.ensure(`dungeon:${poi.name}`, 'dungeon', poi.x, poi.z);
-    const world = new DungeonWorld(generateDungeon(anchor.seed), anchor.id);
+  const enterDungeon = (poi: Underground, kind: 'dungeon' | 'cave' = 'dungeon', anchorId = `dungeon:${poi.name}`) => {
+    const anchor = manifest.ensure(anchorId, kind, poi.x, poi.z);
+    const world = new DungeonWorld(generateDungeon(anchor.seed, kind === 'cave' ? 'cave' : 'vault'), anchor.id);
     world.unlocked = state.keys.has(anchor.id);
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
     const renderer = new EntityRenderer(scene.scene);
@@ -138,7 +149,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const map = new DungeonMinimap($('minimapCanvas') as HTMLCanvasElement, world.map);
     dungeon = { world, scene, renderer, poi, monsters, map };
     sound.cave = true;
-    hud.flash(`You descend into the ${poi.name}`);
+    hud.flash(kind === 'cave' ? `You squeeze into the ${poi.name}` : `You descend into the ${poi.name}`);
     persist();
   };
   const exitDungeon = () => {
@@ -199,13 +210,56 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     }
     return false;
   };
-  /** Enter/Space at a shrine in the overworld offers the way down. */
+  /** Enter/Space at a shrine or a cave mouth offers the way underground. */
   const tryShrine = (): boolean => {
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.Shrine || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
       dialogue.start({ speaker: poi.name, emoji: '⛩️', pages: ['Worn steps lead down beneath the stones. Descend?'], choices: [
         { label: 'Descend', next: () => { enterDungeon(poi); return null; } },
         { label: 'Not now', next: () => null },
+      ] });
+      return true;
+    }
+    for (const cave of structures.caves) {
+      if (Math.hypot(cave.x - player.x, cave.z - player.z) > 3.2) continue;
+      discover(cave.name);
+      dialogue.start({ speaker: cave.name, emoji: '🕳️', pages: ['A cold draught comes out of the dark. Go in?'], choices: [
+        { label: 'Go in', next: () => { enterDungeon(cave, 'cave', `cave:${cave.id}`); return null; } },
+        { label: 'Not now', next: () => null },
+      ] });
+      return true;
+    }
+    return false;
+  };
+
+  /** A wreck's hold can be looted once; the anchor remembers it. */
+  const tryWreck = (): boolean => {
+    for (const wreck of structures.wrecks) {
+      if (Math.hypot(wreck.x - player.x, wreck.z - player.z) > 3.4) continue;
+      discover(wreck.name);
+      const anchor = manifest.ensure(`wreck:${wreck.id}`, 'wreck', wreck.x, wreck.z);
+      const lootId = `${anchor.id}:hold`;
+      if (state.opened.has(lootId)) {
+        dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['Picked clean. Only sand and barnacles now.'] });
+        return true;
+      }
+      dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['The hold is half buried, but the hatch still gives. Search it?'], choices: [
+        { label: 'Search', next: () => {
+          const roll = mulberry32(anchor.seed);
+          const gold = 25 + Math.floor(roll() * 60);
+          state.inventory.gold += gold;
+          const prizes = ['rod', 'rope', 'lantern', 'map', 'potion'].filter((p) => !state.has(p) || p === 'potion');
+          const prize = prizes[Math.floor(roll() * prizes.length)];
+          let extra = '';
+          if (prize) { state.inventory.items.set(prize, state.count(prize) + 1); extra = ` and ${ITEMS[prize].emoji} ${ITEMS[prize].name}`; }
+          state.opened.add(lootId);
+          state.version++;
+          sound.chime();
+          hud.flash(`Salvaged ${gold} gold${extra}`);
+          persist();
+          return null;
+        } },
+        { label: 'Leave it', next: () => null },
       ] });
       return true;
     }
@@ -362,6 +416,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const talkNearest = () => {
     if (dungeon) { if (!dungeonInteract(dungeon)) hud.flash('Nothing here'); return; }
     if (tryShrine()) return;
+    if (tryWreck()) return;
     if (tryCampfire()) return;
     if (trySignpost()) return;
     if (tryFerry()) return;
@@ -397,6 +452,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
+    sites: [...structures.caves, ...structures.wrecks],
     playerX: player.x, playerZ: player.z,
   });
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
@@ -441,6 +497,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const out = [
       ...structures.villages.map((v) => ({ x: v.x, z: v.z, color: '#ffffff' })),
       ...structures.pois.filter((p) => discovered.has(p.name)).map((p) => ({ x: p.x, z: p.z, color: '#f1c40f' })),
+      ...structures.caves.filter((c) => discovered.has(c.name)).map((c) => ({ x: c.x, z: c.z, color: '#b07fd6' })),
+      ...structures.wrecks.filter((w) => discovered.has(w.name)).map((w) => ({ x: w.x, z: w.z, color: '#d68f5a' })),
       ...ferries.map(({ line }) => {
         const st = ferryStateAt(line, worldSeconds(state.day, state.time));
         return { x: st.x, z: st.z, color: '#6fd3ff' };
@@ -463,10 +521,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const areaName = (): string => {
     for (const poi of structures.pois) {
       if (Math.hypot(poi.x - player.x, poi.z - player.z) >= GAMEPLAY.POI_DISCOVER_RADIUS) continue;
-      if (!discovered.has(poi.name)) {
-        discovered.add(poi.name); state.version++;
-        hud.flash(`Discovered: ${poi.name}`); sound.jingle(); persist();
-      }
+      discover(poi.name);
       return poi.name;
     }
     const v = villageAt(structures.villages, player.x, player.z);
