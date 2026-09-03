@@ -3,14 +3,16 @@ import { DTile, type DungeonMap } from '../dungeon/generate';
 /** Top-down dungeon map: rock stays dark, visited floor lights up, chests and stairs are marked. */
 export class DungeonMinimap {
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly scale: number;
   private readonly seen: Uint8Array;
+  private player: [number, number] = [0, 0];
+  private opened = new Set<string>();
+  private chestIdFn: (i: number) => string = () => '';
+  private unlocked = false;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly map: DungeonMap) {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('minimap 2d context');
     this.ctx = ctx;
-    this.scale = canvas.width / map.size;
     this.seen = new Uint8Array(map.size * map.size);
   }
 
@@ -29,10 +31,30 @@ export class DungeonMinimap {
   }
 
   draw(playerX: number, playerZ: number, opened: Set<string>, chestId: (i: number) => string, unlocked: boolean): void {
-    const { ctx, scale } = this;
+    this.player = [playerX, playerZ];
+    this.opened = opened;
+    this.chestIdFn = chestId;
+    this.unlocked = unlocked;
+    this.paint(this.ctx, this.canvas.width, this.canvas.height);
+  }
+
+  /** Same picture at any size: used by the full-screen map. */
+  drawInto(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+    this.paint(ctx, width, height);
+  }
+
+  private paint(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+    const scale = Math.min(width, height) / this.map.size;
+    const offX = (width - scale * this.map.size) / 2;
+    const offY = (height - scale * this.map.size) / 2;
+    const [playerX, playerZ] = this.player;
+    const { opened, unlocked } = this;
+    const chestId = this.chestIdFn;
     const { size, tiles } = this.map;
     ctx.fillStyle = '#05060c';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.fillRect(0, 0, width, height);
+    ctx.save();
+    ctx.translate(offX, offY);
     for (let z = 0; z < size; z++) {
       for (let x = 0; x < size; x++) {
         const i = z * size + x;
@@ -56,7 +78,8 @@ export class DungeonMinimap {
     });
     ctx.fillStyle = '#ff4d4d';
     ctx.beginPath();
-    ctx.arc(playerX * scale, playerZ * scale, 2.5, 0, Math.PI * 2);
+    ctx.arc(playerX * scale, playerZ * scale, Math.max(2.5, scale * 0.6), 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 }

@@ -16,6 +16,22 @@
   <div id="quests"></div>
   <div id="journal"></div>
   <div id="rucksack"></div>
+  <div id="worldmap">
+    <div class="wm-bar">
+      <div id="worldmapTitle">Map</div>
+      <div class="wm-keys">drag or WASD to pan · scroll or +/- to zoom · C centres on you · M or Escape closes</div>
+    </div>
+    <canvas id="worldmapCanvas"></canvas>
+    <div class="wm-legend">
+      <span><i style="background:#ff4d4d"></i>you</span>
+      <span><i style="background:#ffffff"></i>town</span>
+      <span><i style="background:#2ecc71"></i>errand</span>
+      <span><i style="background:#f1c40f"></i>landmark</span>
+      <span><i style="background:#b07fd6"></i>cave</span>
+      <span><i style="background:#d68f5a"></i>wreck</span>
+      <span><i style="background:#6fd3ff"></i>ferry</span>
+    </div>
+  </div>
   <div id="castbar"></div>
   <div id="hurt"></div>
   <div id="controls">
@@ -25,7 +41,7 @@
     <div>Scroll - Zoom</div>
     <div>Enter / Space - Talk, open, board</div>
     <div>X - Swing sword</div>
-    <div>M - Toggle map zoom</div>
+    <div>M - Open the map</div>
     <div>I - Rucksack (wear and use)</div>
     <div>J - Journal</div>
     <div>F - Free camera (drag to pan)</div>

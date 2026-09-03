@@ -15,7 +15,7 @@ A procedurally generated low-poly isometric world that runs in the browser. Ever
 | **Up / Down, Enter** | Move through and pick dialogue choices |
 | **Q / E** | Rotate camera |
 | **Scroll Wheel** | Zoom in/out |
-| **M** | Toggle minimap between local zoom and whole world |
+| **M** | Open the full-screen map (drag or WASD to pan, scroll or +/- to zoom, C centres on you) |
 | **F** | Free camera (WASD / drag pans the camera instead of walking) |
 | **N** | New world (new seed) |
 | **O** | Options panel |

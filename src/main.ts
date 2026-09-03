@@ -35,6 +35,8 @@ import { BIOMES, HUB_NAME, SEA_NAME } from './world/biomes';
 import { villageAt } from './world/structures';
 import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
+import { Fog, renderMapBase, type MapMarker } from './ui/mapbase';
+import { WorldMap } from './ui/worldmap';
 import { DialogueBox } from './ui/dialogue';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
@@ -87,7 +89,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const chunks = new ChunkManager(rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial);
   const hud = new Hud(rig, seed);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
-  const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, graph);
+  const mapBase = renderMapBase(graph);
+  const fog = new Fog(mapBase);
+  const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
+  const worldMap = new WorldMap(mapBase, fog);
   const entityRenderer = new EntityRenderer(rig.scene);
   const entities = new EntityManager(entityRenderer, chunks, chunks, seed, structures.villages);
   const dialogue = new DialogueBox();
@@ -105,7 +110,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const discovered = state.discovered;
   const urlTime = url.searchParams.get('t');
   if (urlTime !== null) state.time = Math.max(0, Math.min(0.999, Number(urlTime) || 0));
-  minimap.reveal(state.explored);
+  fog.reveal(state.explored);
   const questList = generateQuests(structures, seed);
   const quests = new Map(questList.map((q) => [q.village, q]));
 
@@ -435,7 +440,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- keys ---
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
-  input.onKey('m', () => minimap.toggle());
+  input.onKey('m', () => {
+    worldMap.dungeon = dungeon ? dungeon.map : null;
+    worldMap.toggle(mapInput());
+  });
+  input.onKey('c', () => { if (worldMap.isOpen) worldMap.centre(player.x, player.z); });
+  input.onKey('+', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
+  input.onKey('=', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
+  input.onKey('-', () => { if (worldMap.isOpen) worldMap.zoomBy(0.8); });
   let swingCooldown = 0;
   const attack = () => {
     if (dialogue.isOpen || swingCooldown > 0) return;
@@ -456,7 +468,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
   input.onKey('x', attack);
   input.onKey('n', toTitle);
-  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); });
+  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); });
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
@@ -502,29 +514,39 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     persist();
   };
 
-  const markers = () => {
-    const out = [
-      ...structures.villages.map((v) => ({ x: v.x, z: v.z, color: '#ffffff' })),
-      ...structures.pois.filter((p) => discovered.has(p.name)).map((p) => ({ x: p.x, z: p.z, color: '#f1c40f' })),
-      ...structures.caves.filter((c) => discovered.has(c.name)).map((c) => ({ x: c.x, z: c.z, color: '#b07fd6' })),
-      ...structures.wrecks.filter((w) => discovered.has(w.name)).map((w) => ({ x: w.x, z: w.z, color: '#d68f5a' })),
+  const markers = (): MapMarker[] => {
+    const out: MapMarker[] = [
+      ...structures.villages.map((v) => ({ x: v.x, z: v.z, color: '#ffffff', label: v.name })),
+      ...structures.pois.filter((p) => discovered.has(p.name)).map((p) => ({ x: p.x, z: p.z, color: '#f1c40f', label: p.name })),
+      ...structures.caves.filter((c) => discovered.has(c.name)).map((c) => ({ x: c.x, z: c.z, color: '#b07fd6', label: c.name })),
+      ...structures.wrecks.filter((w) => discovered.has(w.name)).map((w) => ({ x: w.x, z: w.z, color: '#d68f5a', label: w.name })),
       ...ferries.map(({ line }) => {
         const st = ferryStateAt(line, worldSeconds(state.day, state.time));
-        return { x: st.x, z: st.z, color: '#6fd3ff' };
+        return { x: st.x, z: st.z, color: '#6fd3ff', label: st.docked ? 'ferry (docked)' : 'ferry' };
       }),
     ];
-    // active quest targets stand out in green
+    // active quest targets stand out in green, ringed on the big map
     for (const q of questList) {
       if (state.quests.get(q.id) !== 'active') continue;
       const village = structures.villages.find((v) => v.name === q.village);
-      if (village) out.push({ x: village.x, z: village.z, color: '#2ecc71' });
+      if (village) out.push({ x: village.x, z: village.z, color: '#2ecc71', label: `${q.village} (errand)`, emphasis: true });
       if (q.kind === 'visit') {
         const poi = structures.pois.find((p) => p.name === q.target);
-        if (poi) out.push({ x: poi.x, z: poi.z, color: '#2ecc71' });
+        if (poi) out.push({ x: poi.x, z: poi.z, color: '#2ecc71', label: `${q.target} (errand)`, emphasis: true });
       }
     }
     return out;
   };
+
+  const mapInput = () => ({
+    markers: markers(),
+    playerX: player.x,
+    playerZ: player.z,
+    fog: !state.can('map'),
+    title: dungeon ? `${dungeon.poi.name} Depths` : `${areaLabel} · Day ${state.day} · ${state.explored.size} cells walked`,
+  });
+
+  let areaLabel = 'The Crossroads';
 
   /** POI > village > biome; discovering a POI flashes a toast. */
   const areaName = (): string => {
@@ -547,7 +569,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   (window as unknown as { __state?: unknown }).__state = state;
 
   const loop = new GameLoop((dt, time) => {
-    const talking = dialogue.isOpen;
+    // the full-screen map pauses the world the way a conversation does
+    if (worldMap.isOpen) {
+      const panX = (input.isDown('d', 'arrowright') ? 1 : 0) - (input.isDown('a', 'arrowleft') ? 1 : 0);
+      const panZ = (input.isDown('s', 'arrowdown') ? 1 : 0) - (input.isDown('w', 'arrowup') ? 1 : 0);
+      worldMap.pan(panX, panZ, dt);
+      worldMap.draw(mapInput());
+    }
+    const talking = dialogue.isOpen || worldMap.isOpen;
     iso.update(input, dt, player.mode === 'free' && !talking);
     player.climb = state.climb;
     player.update(input, iso, dt, talking);
@@ -621,11 +650,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     entityRenderer.update();
 
-    if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) minimap.reveal(state.explored);
+    if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
     hud.syncState(state);
     hud.setClock(`${state.clock()} · ${SEASON_NAMES[season]}${weatherStrength > 0.4 ? (season === 3 ? ' ❄' : ' 🌧') : ''}`);
     hud.setQuests(questList, state);
-    hud.setArea(areaName());
+    areaLabel = areaName();
+    hud.setArea(areaLabel);
     if (fishing.active) {
       const ev = fishing.update(dt);
       if (ev === 'bite') sound.chime();

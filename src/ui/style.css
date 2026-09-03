@@ -182,3 +182,21 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #rucksack .r-hint { text-align: center; color: #8a7a5a; font-size: 11px; margin-top: 14px; }
 #inventory .hud-stats { color: #cfd6ff; font-size: 11px; }
 #inventory { cursor: pointer; }
+#worldmap {
+  display: none; position: fixed; inset: 0; z-index: 1600;
+  background: #060a16; color: #e8eeff; flex-direction: column;
+}
+#worldmap.show { display: flex; }
+#worldmap .wm-bar {
+  display: flex; align-items: baseline; gap: 16px; padding: 10px 18px;
+  background: linear-gradient(180deg, #16224e 0%, #0b1230 100%); border-bottom: 2px solid #6c5ce7;
+}
+#worldmapTitle { color: #ffd76a; font-weight: bold; font-size: 16px; }
+#worldmap .wm-keys { color: #8f9dc9; font-size: 11px; }
+#worldmapCanvas { flex: 1; display: block; cursor: grab; }
+#worldmap .wm-legend {
+  display: flex; flex-wrap: wrap; gap: 14px; padding: 8px 18px;
+  background: #0b1230; border-top: 2px solid #2a3aa0; font-size: 11px; color: #cfd6ff;
+}
+#worldmap .wm-legend span { display: flex; align-items: center; gap: 5px; }
+#worldmap .wm-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
