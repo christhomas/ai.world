@@ -269,6 +269,8 @@ export class EntityManager {
         const herd = this.place(ctx, 'villager', [v.x, v.z], 2 + Math.floor(ctx.rng() * 3), Math.max(8, v.radius * 0.7));
         herd.tag = v.name;
         if (herd.members.length > 0) herd.members[0].role = 'elder';
+        // one of them keeps the horses
+        if (herd.members.length > 1) herd.members[1].role = 'stablehand';
         // each villager keeps a house to go home to at dusk
         herd.members.forEach((e, i) => {
           const house = v.houses[i % Math.max(1, v.houses.length)];

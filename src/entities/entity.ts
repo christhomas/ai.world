@@ -2,7 +2,7 @@ import type { Rng } from '../core/rng';
 import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
 
-export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder';
+export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder' | 'mount' | 'stablehand';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
 export interface TileWorld {
@@ -251,6 +251,7 @@ export function isDaytime(time: number): boolean {
 export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   const k = e.kind;
   const { world } = ctx;
+  if (e.role === 'mount') return;   // your horse waits where you left it
   e.timer -= dt;
 
   // townsfolk keep hours: home at dusk, back out after dawn

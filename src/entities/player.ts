@@ -15,6 +15,8 @@ export class Player {
   private static readonly HOP_TIME = 0.28;
   /** While true the hero is carried (ferry): no walking, no ground snapping, camera still follows. */
   riding = false;
+  /** Multiplier on walking pace: a horse carries you faster. */
+  speedScale = 1;
 
   constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
     const kind = KINDS.hero;
@@ -84,7 +86,7 @@ export class Player {
     let moved = false;
     if (len > 0) {
       dx /= len; dz /= len;
-      const step = e.kind.speed * dt;
+      const step = e.kind.speed * this.speedScale * dt;
       e.yaw = yawFor(dx, dz);
       moved = tryMove(this.world, e, dx * step, dz * step);
     }

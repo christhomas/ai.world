@@ -24,6 +24,7 @@ import { Journal } from './ui/journal';
 import { Clock } from './ui/clock';
 import { Compass, type CompassTarget } from './ui/compass';
 import { PhotoMode } from './ui/photo';
+import { HORSE, Mount } from './game/mount';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
@@ -105,6 +106,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const castbar = el('castbar');
   chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
+  const mount = Mount.from(saved?.state?.horse ?? null, lineRng);
 
   // --- state ---
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
@@ -275,14 +277,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     persist: () => persist(),
   });
 
-  chunks.onFirstChunk = () => hud.hideLoading();
+  chunks.onFirstChunk = () => {
+    hud.hideLoading();
+    mount.restore(chunks, entityRenderer);
+  };
 
   const persist = () => {
     void store.save<SessionSave>(slotKey, {
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: state.toJSON(),
+      state: { ...state.toJSON(), horse: mount.toJSON() },
       manifest: manifest.toJSON(),
     });
   };
@@ -408,6 +413,52 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return false;
   };
 
+  /** Enter near a horse: buy a wild one, or get on and off your own. */
+  const tryHorse = (): boolean => {
+    if (mount.riding) {
+      mount.dismount(player, chunks);
+      hud.flash(`You dismount and tie up ${mount.name}.`);
+      sound.select();
+      persist();
+      return true;
+    }
+    if (mount.near(player.x, player.z)) {
+      mount.mount(player);
+      hud.flash(`You swing up onto ${mount.name}.`);
+      sound.chime();
+      return true;
+    }
+    // horses in the field are half wild; the one you can buy is the stablehand's
+    const hand = entities.within(player.x, player.z, GAMEPLAY.TALK_RANGE).find((e) => e.role === 'stablehand');
+    if (!hand) return false;
+    const price = HORSE.PRICE;
+    const village = hand.herd.tag || 'the village';
+    if (mount.owned) {
+      dialogue.start({ speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`${mount.name} is a good horse. Mind the shoes.`] });
+      return true;
+    }
+    dialogue.start({
+      speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾',
+      pages: [`I have ${mount.offer()} out back, saddle and all. ${price} gold and the halter is yours.`],
+      choices: [
+        { label: `Buy the horse (${price}g)`, next: () => {
+          if (state.inventory.gold < price) {
+            return { speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`Come back with ${price} gold.`] };
+          }
+          state.inventory.gold -= price;
+          state.version++;
+          const horse = mount.buy(hand.x + 1.5, hand.z, chunks, entityRenderer);
+          sound.jingle();
+          hud.flash(`${horse} is yours, stabled in ${village}. Press Enter beside them to ride.`);
+          persist();
+          return null;
+        } },
+        { label: 'Not today', next: () => null },
+      ],
+    });
+    return true;
+  };
+
   const talkNearest = () => {
     if (places.indoors) {
       const inside = places.interactIndoors();
@@ -426,6 +477,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       } else if (below === null) hud.flash('Nothing here');
       return;
     }
+    if (tryHorse()) return;
     if (tryBoard()) return;
     if (tryDoor()) return;
     if (tryShrine()) return;
@@ -633,6 +685,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__state = state;
     debug.__doors = structures.doors;
     (debug as { __villages?: unknown }).__villages = structures.villages;
+    (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
+      entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
+    (debug as { __entities?: () => unknown }).__entities = () =>
+      entities.within(player.x, player.z, 60).map((e) => ({ kind: e.kind.id, name: e.name, x: e.x, z: e.z }));
     debug.__player = player;
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
@@ -653,6 +709,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const talking = dialogue.isOpen || worldMap.isOpen;
     iso.update(input, dt, player.mode === 'free' && !talking && !places.indoors);
     player.climb = state.climb;
+    player.speedScale = mount.riding ? HORSE.SPEED : 1;
     player.update(input, iso, dt, talking, places.indoors !== null);
     dialogue.update(dt);
     rig.water.update(time);
@@ -735,6 +792,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
+    mount.update(player, chunks);
     entityRenderer.update();
     heroGear.update(state, player.entity);
 

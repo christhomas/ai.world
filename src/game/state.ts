@@ -1,6 +1,7 @@
 import { ITEMS, Inventory, type InventoryJson } from './shops';
 import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippable } from './items';
 import { chunkKey } from '../world/spatial';
+import type { HorseSave } from './mount';
 
 /**
  * Everything about the player that is not position: health, gold and items, time of day,
@@ -22,6 +23,8 @@ export interface GameStateJson {
   opened: string[];
   /** Anchor ids whose locked doors have been opened. */
   keys: string[];
+  /** The horse you bought, and where it is tied up. */
+  horse?: HorseSave | null;
 }
 
 export const BASE_MAX_HP = 10;
