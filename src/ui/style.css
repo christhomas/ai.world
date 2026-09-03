@@ -229,3 +229,27 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   border-radius: 20px; z-index: 200; pointer-events: none;
 }
 #photoHint.show { display: block; }
+#chatPanel {
+  display: none; position: fixed; left: 20px; bottom: 380px; width: 340px; z-index: 300;
+}
+#chatPanel.show { display: block; }
+#chatLog {
+  max-height: 190px; overflow-y: auto; background: rgba(0,0,0,0.6); border-radius: 6px;
+  padding: 6px 10px; color: #dfe6ff; font-size: 12px; line-height: 1.5;
+}
+#chatLog .sys { color: #8fa0d8; font-style: italic; }
+#chatInput {
+  display: none; width: 100%; margin-top: 5px; padding: 5px 8px; font-family: inherit; font-size: 12px;
+  background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #6c5ce7; border-radius: 6px;
+}
+#chatInput.show { display: block; }
+#nameplates { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
+.nameplate {
+  position: absolute; transform: translate(-50%, -100%);
+  background: rgba(0,0,0,0.55); color: #cfe6ff; font-size: 11px; padding: 1px 6px; border-radius: 8px;
+  white-space: nowrap;
+}
+#optionsPanel input[type="text"] {
+  width: 100%; margin-bottom: 6px; padding: 5px 8px; font-family: inherit; font-size: 12px;
+  background: #14142a; color: #fff; border: 1px solid #6c5ce7; border-radius: 6px;
+}

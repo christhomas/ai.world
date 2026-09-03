@@ -17,6 +17,7 @@ import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
+import { SLOTS } from './game/items';
 import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
 import { FISHING, Fishing } from './game/fishing';
@@ -25,6 +26,9 @@ import { Clock } from './ui/clock';
 import { Compass, type CompassTarget } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { HORSE, Mount } from './game/mount';
+import { Online, applyTrade, tradableItems, type Presence, type TradeOffer } from './game/online';
+import { OtherPlayers } from './render/others';
+import { Chat } from './ui/chat';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
 import { CropField } from './render/crops';
 import { BOAT, Sailing } from './game/sailing';
@@ -110,6 +114,56 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
   const mount = Mount.from(saved?.state?.horse ?? null, lineRng);
+
+  // --- other people ---
+  const chat = new Chat();
+  const online = new Online({
+    onChat: (line) => chat.line(line),
+    onSystem: (line) => { chat.line(line, 'sys'); hud.flash(line); },
+    onOffer: (offer, fromName) => showOffer(offer, fromName),
+    onTradeResult: ({ accepted, offer, iSent }) => {
+      if (!accepted) { chat.line('The trade was declined.', 'sys'); return; }
+      const what = applyTrade(state, offer, iSent);
+      chat.line(iSent ? `You handed over ${what}.` : `You received ${what}.`, 'sys');
+      hud.flash(iSent ? `Gave ${what}` : `Received ${what}`);
+      persist();
+    },
+  });
+  const others = new OtherPlayers(entityRenderer);
+  chat.onSend = (text) => online.say(text);
+
+  /** Somebody has offered you something: show it and let the player answer. */
+  const showOffer = (offer: TradeOffer, fromName: string): void => {
+    const parts = [offer.gold > 0 ? `${offer.gold} gold` : '', ...offer.items.map(([id, n]) => `${n}× ${ITEMS[id]?.name ?? id}`)].filter(Boolean);
+    dialogue.start({
+      speaker: fromName, emoji: '🤝',
+      pages: [`${fromName} offers you ${parts.join(', ') || 'nothing at all'}.`],
+      choices: [
+        { label: 'Accept', next: () => { online.answer(offer.from, true); return null; } },
+        { label: 'Decline', next: () => { online.answer(offer.from, false); return null; } },
+      ],
+    });
+  };
+
+  /** Offer the nearest player some of what you carry. */
+  const offerTrade = (): void => {
+    if (!online.connected) { hud.flash('Join a server first: options, then join this world online.'); return; }
+    const target = online.nearest(player.x, player.z, 6);
+    if (!target) { hud.flash('Nobody close enough to trade with.'); return; }
+    const goods = tradableItems(state).slice(0, 5);
+    dialogue.start({
+      speaker: `Trade with ${target.name}`, emoji: '🤝',
+      pages: [`You have ${state.inventory.gold} gold and ${goods.length} kind${goods.length === 1 ? '' : 's'} of goods to hand.`],
+      choices: [
+        ...(state.inventory.gold >= 25 ? [{ label: 'Offer 25 gold', next: () => { online.offer(target.id, 25, []); chat.line(`You offered ${target.name} 25 gold.`, 'sys'); return null; } }] : []),
+        ...goods.map(([id, n]) => ({
+          label: `Offer ${ITEMS[id].emoji} ${ITEMS[id].name}${n > 1 ? ` (of ${n})` : ''}`,
+          next: () => { online.offer(target.id, 0, [[id, 1]]); chat.line(`You offered ${target.name} a ${ITEMS[id].name}.`, 'sys'); return null; },
+        })),
+        { label: 'Never mind', next: () => null },
+      ],
+    });
+  };
   const plots = new Plots(saved?.state?.plots);
   const sailing = Sailing.from(saved?.state?.boat ?? null);
   const ownBoat = buildBoat();
@@ -605,6 +659,20 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- keys ---
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
+  const serverInput = el('serverInput') as HTMLInputElement;
+  const nameInput = el('nameInput') as HTMLInputElement;
+  const onlineStatus = el('onlineStatus');
+  nameInput.value = localStorage.getItem('ai.world/name') ?? '';
+  el('connectButton').addEventListener('click', () => {
+    if (online.connected) { online.disconnect(); others.clear(); chat.hide(); return; }
+    localStorage.setItem('ai.world/name', nameInput.value);
+    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller');
+    chat.show();
+  });
+
+  input.onKey('t', () => { if (online.connected && !dialogue.isOpen && !chat.isTyping) chat.open(); });
+  input.onKey('g', () => { if (!dialogue.isOpen && !chat.isTyping) offerTrade(); });
+
   input.onKey('p', () => {
     const on = photo.toggle();
     player.mode = on ? 'free' : 'follow';
@@ -648,6 +716,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
   input.onKey('i', () => { if (!dialogue.isOpen) rucksack.toggle(); });
   for (const key of ['enter', ' ']) input.onKey(key, () => {
+    if (chat.isTyping) return;
     if (photo.active) {
       // draw one more frame so the buffer holds exactly what is on screen, then read it back
       rig.renderer.render(rig.scene, iso.camera);
@@ -922,6 +991,20 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     mount.update(player, chunks);
+
+    // tell the server where we are, and draw whoever else is here
+    const placeName = places.underground
+      ? `${places.underground.poi.name}:${places.underground.floor}`
+      : places.indoors ? places.indoors.title : 'surface';
+    online.update(dt, {
+      x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,
+      place: placeName, riding: sailing.sailing ? 'boat' : mount.riding ? 'horse' : 'foot',
+      gear: SLOTS.map((slot) => state.worn(slot)?.id ?? '').filter(Boolean),
+    });
+    others.sync(online.players.values(), placeName);
+    others.settle((x, z) => chunks.heightAt(x, z));
+    others.project(iso.camera, window.innerWidth, window.innerHeight);
+    onlineStatus.textContent = online.connected ? `online · ${online.count + 1} here` : online.status;
     ownBoat.visible = sailing.bought && places.outdoors;
     if (ownBoat.visible) {
       ownBoat.position.set(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z);

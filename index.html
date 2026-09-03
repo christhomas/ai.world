@@ -11,6 +11,10 @@
   <div id="gameContainer"></div>
   <div id="areaName">The Crossroads</div>
   <div id="compass"></div>
+  <div id="chatPanel">
+    <div id="chatLog"></div>
+    <input id="chatInput" type="text" maxlength="160" placeholder="Say something, then Enter" />
+  </div>
   <div id="photoHint">Photo mode · drag or WASD to move the camera · Space takes the picture · P leaves</div>
   <div id="minimap">
     <div id="clockPanel">
@@ -58,6 +62,8 @@
     <div>F - Free camera (drag to pan)</div>
     <div>N - Save &amp; return to title</div>
     <div>P - Photo mode</div>
+    <div>T - Chat (online)</div>
+    <div>G - Offer a trade (online)</div>
     <div>O - Options</div>
   </div>
   <div id="optionsPanel">
@@ -80,6 +86,13 @@
     <div class="slider-group">
       <label>Seed</label>
       <div class="value-display" id="seedValue">-</div>
+    </div>
+    <div class="slider-group">
+      <label>Multiplayer server</label>
+      <input type="text" id="serverInput" value="ws://localhost:8787" />
+      <input type="text" id="nameInput" placeholder="Your name" />
+      <button id="connectButton" class="wide">Join this world online</button>
+      <div class="value-display" id="onlineStatus">offline</div>
     </div>
     <div class="slider-group"><button id="titleButton" class="wide">Save &amp; return to title</button></div>
     <div class="close-hint">Press ESC or O to close</div>
