@@ -24,6 +24,7 @@ export const enum StructureKind {
   Church = 11,
   Pier = 12,   // wooden jetty; tiles listed in `path`
   Signpost = 13, // fingerpost at a junction, naming the nearest settlements
+  NoticeBoard = 16, // village board: errands posted where anyone can read them
   CaveMouth = 14, // way into a cave anchor
   Shipwreck = 15, // broken hull on a beach with one hold to loot
 }
@@ -83,6 +84,8 @@ export interface Doorway {
 
 export interface Village {
   name: string;
+  /** Where the notice board stands, if the square had room for one. */
+  board: [number, number] | null;
   x: number;
   z: number;
   radius: number;
@@ -355,10 +358,20 @@ export function generateStructures(sampler: TerrainSampler): Structures {
       plazaR = 0;
       return null;
     }
+    // a notice board at the edge of the square, facing the well
+    let board: [number, number] | null = null;
+    for (let attempt = 0; attempt < 8 && !board; attempt++) {
+      const a = rng() * Math.PI * 2;
+      const bx = Math.floor(plazaX + Math.cos(a) * (squareR - 0.8)), bz = Math.floor(plazaZ + Math.sin(a) * (squareR - 0.8));
+      if (all.some((s) => s.tx === bx && s.tz === bz)) continue;
+      all.push({ kind: StructureKind.NoticeBoard, tx: bx, tz: bz, hw: 0, hd: 0, level, rot: a + Math.PI, biome, path: [] });
+      board = [bx + 0.5, bz + 0.5];
+    }
+
     placeStalls(squareR, level, biome);
     const shops = assignShops(houses, biome);
     plazaR = 0;
-    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, church, churchDoor };
+    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, church, churchDoor, board };
   };
 
   // --- hub town ---

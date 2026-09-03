@@ -467,7 +467,8 @@ export class TerrainSampler {
         case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
         case StructureKind.Sign:
         case StructureKind.Stall:
-        case StructureKind.Signpost: stampSingleProp(chunk, ox, oz, s); break;
+        case StructureKind.Signpost:
+        case StructureKind.NoticeBoard: stampSingleProp(chunk, ox, oz, s); break;
         case StructureKind.CaveMouth:
         case StructureKind.Shipwreck:
           stampFootprint(chunk, ox, oz, s);
@@ -623,6 +624,7 @@ export function structureProp(s: Structure): PropKind {
     case StructureKind.Plaza: return PropKind.None;
     case StructureKind.Pier: return PropKind.None;
     case StructureKind.Signpost: return PropKind.Signpost;
+    case StructureKind.NoticeBoard: return PropKind.NoticeBoard;
     case StructureKind.CaveMouth: return PropKind.CaveMouth;
     case StructureKind.Shipwreck: return PropKind.Shipwreck;
   }

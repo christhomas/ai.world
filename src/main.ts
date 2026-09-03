@@ -12,7 +12,7 @@ import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
-import { StructureKind } from './world/structures';
+import { StructureKind, compassDir } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
 import { Places, REACH } from './game/places';
@@ -113,6 +113,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   if (urlTime !== null) state.time = Math.max(0, Math.min(0.999, Number(urlTime) || 0));
   fog.reveal(state.explored);
   const questList = generateQuests(structures, seed);
+  /** One line describing what an errand asks for. */
+  const questLine = (q: { kind: string; target: string; count: number }): string =>
+    q.kind === 'visit' ? `find the ${q.target}` : `bring ${q.count}× ${ITEMS[q.target]?.name ?? q.target}`;
   const quests = new Map(questList.map((q) => [q.village, q]));
 
   // --- ferries ---
@@ -184,6 +187,49 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         } },
         { label: 'Leave it', next: () => null },
       ] });
+      return true;
+    }
+    return false;
+  };
+
+  /**
+   * Reading the village board: the errand posted here, taken or not, and what the village knows
+   * about places nearby. Accepting from the board saves hunting for the elder.
+   */
+  const tryBoard = (): boolean => {
+    for (const village of structures.villages) {
+      if (!village.board) continue;
+      if (Math.hypot(village.board[0] - player.x, village.board[1] - player.z) > 2.2) continue;
+      const quest = quests.get(village.name);
+      const status = quest ? state.quests.get(quest.id) : undefined;
+      const nearby = [...structures.pois, ...structures.caves, ...structures.wrecks]
+        .map((p) => ({ name: p.name, d: Math.hypot(p.x - village.x, p.z - village.z), x: p.x, z: p.z }))
+        .filter((p) => p.d < 120)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 3)
+        .map((p) => `${state.discovered.has(p.name) ? p.name : 'somewhere unnamed'} — ${compassDir(p.x - village.x, p.z - village.z)}, ${Math.round(p.d)} tiles`);
+
+      const pages = [`Notices of ${village.name}.`];
+      if (!quest) pages.push('Nothing posted but old nails and older paper.');
+      else if (status === 'done') pages.push(`The elder's notice has been struck through: ${questLine(quest)}. Settled.`);
+      else if (status === 'active') pages.push(`Posted: ${questLine(quest)}. You have taken this on.`);
+      else pages.push(`Posted by the elder: ${questLine(quest)}. Reward ${quest.reward} gold.`);
+      if (nearby.length) pages.push(`Roads from here:\n${nearby.join('\n')}`);
+
+      const choices = quest && status === undefined
+        ? [
+            { label: `Take the errand (${quest.reward}g)`, next: () => {
+              state.quests.set(quest.id, 'active');
+              state.version++;
+              sound.select();
+              hud.flash(`Errand taken: ${questLine(quest)}`);
+              persist();
+              return null;
+            } },
+            { label: 'Leave it', next: () => null },
+          ]
+        : undefined;
+      dialogue.start({ speaker: 'Notice Board', emoji: '📜', pages, choices });
       return true;
     }
     return false;
@@ -380,6 +426,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       } else if (below === null) hud.flash('Nothing here');
       return;
     }
+    if (tryBoard()) return;
     if (tryDoor()) return;
     if (tryShrine()) return;
     if (tryWreck()) return;
@@ -585,6 +632,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     };
     debug.__state = state;
     debug.__doors = structures.doors;
+    (debug as { __villages?: unknown }).__villages = structures.villages;
     debug.__player = player;
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
