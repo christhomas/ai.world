@@ -1,7 +1,7 @@
 import type { Rng } from '../core/rng';
 import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueNode } from '../ui/dialogue';
-import { ITEMS, SHOP_DEFS } from './shops';
+import { ITEMS, SHOP_DEFS, itemSummary, sellPrice, sellableAt } from './shops';
 import type { GameState } from './state';
 import type { Quest } from './quests';
 
@@ -101,12 +101,14 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     return { speaker, emoji, pages: [`The ${def.name.toLowerCase()} is shut for the night. Come back after dawn.`] };
   }
 
+  const purse = () => `You have ${ctx.state.inventory.gold} gold.`;
+
   const root = (): DialogueNode => ({
     speaker, emoji,
     pages: [pick(ctx.rng, def.greetings)],
     choices: [
       { label: 'Buy', next: buyMenu },
-      ...(e.shop === 'inn' ? [{ label: 'Sell fish', next: sellFish }] : []),
+      { label: 'Sell', next: sellMenu },
       { label: 'Chat', next: chat },
       { label: 'Leave', next: () => null },
     ],
@@ -114,55 +116,88 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
 
   const buyMenu = (): DialogueNode => ({
     speaker, emoji,
-    pages: [`Here's what I've got. You have ${ctx.state.inventory.gold} gold.`],
+    pages: [`Here's the stock. ${purse()}`],
     choices: [
       ...def.items.map((id) => {
         const item = ITEMS[id];
-        return { label: `${item.emoji} ${item.name} — ${item.price}g`, next: () => purchase(item.id) };
+        const owned = ctx.state.owns(id) ? ' ✓' : '';
+        return { label: `${item.emoji} ${item.name} — ${item.price}g${owned}`, next: () => buy(item.id) };
       }),
       { label: 'Back', next: root },
     ],
   });
 
-  const purchase = (id: string): DialogueNode => {
+  /** Purchases go into the rucksack; wearing them is the player's business. */
+  const buy = (id: string): DialogueNode => {
     const item = ITEMS[id];
-    if (ctx.state.inventory.buy(item)) {
-      ctx.state.version++;
-      ctx.onInventoryChange();
+    if (!ctx.state.inventory.canAfford(item)) {
       return {
         speaker, emoji,
-        pages: [`${item.name}, good choice. That's ${item.price} gold.`, item.desc],
-        choices: [{ label: 'Buy more', next: buyMenu }, { label: 'Done', next: () => null }],
+        pages: [`That's ${item.price} gold, friend. You've only got ${ctx.state.inventory.gold}.`],
+        choices: [{ label: 'Back', next: buyMenu }, { label: 'Leave', next: () => null }],
       };
     }
+    ctx.state.inventory.gold -= item.price;
+    ctx.state.give(item.id, 1);
+    ctx.onInventoryChange();
+    const note = itemSummary(item);
     return {
       speaker, emoji,
-      pages: [`That's ${item.price} gold, friend. You've only got ${ctx.state.inventory.gold}.`],
-      choices: [{ label: 'Back', next: buyMenu }, { label: 'Leave', next: () => null }],
+      pages: [`${item.name}, good choice. That's ${item.price} gold.`, `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`],
+      choices: [{ label: 'Buy more', next: buyMenu }, { label: 'Sell something', next: sellMenu }, { label: 'Done', next: () => null }],
     };
   };
 
-  /** The inn buys anything you have caught, at the item's listed price. */
-  const sellFish = (): DialogueNode => {
-    const fish = ['minnow', 'perch', 'pike', 'eel'].filter((id) => ctx.state.count(id) > 0);
-    if (fish.length === 0) {
-      return { speaker, emoji, pages: ['Bring me a fish and we will talk.'], choices: [{ label: 'Back', next: root }] };
+  const sellMenu = (): DialogueNode => {
+    const stock = sellableAt(def, ctx.state.inventory.items.entries());
+    if (stock.length === 0) {
+      return {
+        speaker, emoji,
+        pages: [`Nothing in that pack I can use. ${def.name === 'Inn' ? 'Fish and food, mind.' : ''}`.trim()],
+        choices: [{ label: 'Back', next: root }],
+      };
     }
-    const total = fish.reduce((sum, id) => sum + ITEMS[id].price * ctx.state.count(id), 0);
-    const list = fish.map((id) => `${ctx.state.count(id)}× ${ITEMS[id].name}`).join(', ');
+    const all = stock.reduce((sum, s) => sum + s.price * s.count, 0);
     return {
       speaker, emoji,
-      pages: [`${list}. I will give you ${total} gold for the lot.`],
+      pages: [`Let's see what you've got. ${purse()}`],
       choices: [
-        { label: `Sell (${total}g)`, next: () => {
-          for (const id of fish) ctx.state.inventory.items.delete(id);
-          ctx.state.inventory.gold += total;
-          ctx.state.version++;
-          ctx.onInventoryChange();
-          return { speaker, emoji, pages: ['Fresh fish for the pot. Pleasure doing business.'] };
-        } },
-        { label: 'Keep them', next: root },
+        ...stock.map(({ item, count, price }) => ({
+          label: `${item.emoji} ${item.name}${count > 1 ? ` ×${count}` : ''} — ${price}g each`,
+          next: () => sell(item.id, 1),
+        })),
+        ...(stock.length > 1 || stock[0].count > 1 ? [{ label: `Sell the lot (${all}g)`, next: () => sellAll(stock) }] : []),
+        { label: 'Back', next: root },
       ],
+    };
+  };
+
+  const sell = (id: string, n: number): DialogueNode => {
+    const item = ITEMS[id];
+    const sold = ctx.state.take(id, n);
+    if (sold === 0) return sellMenu();
+    const paid = sellPrice(item) * sold;
+    ctx.state.inventory.gold += paid;
+    ctx.onInventoryChange();
+    return {
+      speaker, emoji,
+      pages: [`${sold > 1 ? `${sold} ${item.name}` : item.name} for ${paid} gold. Done.`],
+      choices: [{ label: 'Sell more', next: sellMenu }, { label: 'Buy something', next: buyMenu }, { label: 'Done', next: () => null }],
+    };
+  };
+
+  const sellAll = (stock: ReturnType<typeof sellableAt>): DialogueNode => {
+    let paid = 0;
+    for (const { item, count } of stock) {
+      const sold = ctx.state.take(item.id, count);
+      paid += sellPrice(item) * sold;
+    }
+    ctx.state.inventory.gold += paid;
+    ctx.onInventoryChange();
+    return {
+      speaker, emoji,
+      pages: [`The lot for ${paid} gold. Pleasure doing business.`],
+      choices: [{ label: 'Buy something', next: buyMenu }, { label: 'Done', next: () => null }],
     };
   };
 
@@ -173,4 +208,8 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   });
 
   return root();
+}
+
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

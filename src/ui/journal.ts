@@ -1,11 +1,12 @@
 import { $ } from './dom';
-import { ITEMS } from '../game/shops';
+import { ITEMS, itemSummary } from '../game/items';
 import type { GameState } from '../game/state';
 import type { Quest } from '../game/quests';
 import type { Poi, Site, Village } from '../world/structures';
 import type { FerryLine } from '../game/ferry';
 import { formatCountdown, ferryStateAt } from '../game/ferry';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
+import { SLOTS } from '../game/items';
 
 export interface JournalInput {
   state: GameState;
@@ -72,16 +73,19 @@ export class Journal {
       return `<li>⛵ ${line.fromName} ↔ ${line.toName} — ${where}, next arrival ${formatCountdown(Math.min(st.arrivesIn.from, st.arrivesIn.to))}</li>`;
     });
 
+    const wornList = SLOTS.map((slot) => state.worn(slot)).filter((i) => i !== null)
+      .map((i) => `<li>${i!.emoji} ${i!.name} — ${itemSummary(i!) || i!.desc}</li>`);
     const carried = [...state.inventory.items.entries()]
-      .map(([id, n]) => { const item = ITEMS[id]; return item ? `<li>${item.emoji} ${item.name}${n > 1 ? ` ×${n}` : ''} — ${item.effect?.type === 'passive' ? item.effect.note : item.desc}</li>` : ''; })
+      .map(([id, n]) => { const item = ITEMS[id]; return item ? `<li>${item.emoji} ${item.name}${n > 1 ? ` ×${n}` : ''} — ${itemSummary(item) || item.desc}</li>` : ''; })
       .filter(Boolean);
 
     const done = d.quests.filter((q) => state.quests.get(q.id) === 'done').length;
     this.el.innerHTML = `
       <h2>Journal</h2>
-      <div class="j-line">Day ${state.day}, ${SEASON_NAMES[seasonOf(state.day)]} · ${state.hp}/${state.maxHpTotal} hearts · 💰 ${state.inventory.gold} gold</div>
+      <div class="j-line">Day ${state.day}, ${SEASON_NAMES[seasonOf(state.day)]} · ${state.hp}/${state.maxHpTotal} hearts · ⚔ ${state.attack} · 🛡 ${state.defence} · 💰 ${state.inventory.gold} gold</div>
       <div class="j-line">${state.discovered.size} places found · ${done} errands finished · ${state.explored.size} map cells walked</div>
       ${section('Errands', quests, 'Nothing promised. Village elders stand near their wells.')}
+      ${section('Worn', wornList, 'Nothing but your own clothes.')}
       ${section('Carried', carried, 'Empty-handed.')}
       ${section('Places found', found, 'Nothing yet. Follow the roads.')}
       ${section('Ferries', boats, 'No crossings known.')}

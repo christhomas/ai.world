@@ -52,6 +52,8 @@ export interface AnimalKind {
   hp?: number;
   /** Gold dropped when killed. */
   gold?: [number, number];
+  /** Something to carry home, and how often it drops. */
+  drop?: { id: string; chance: number };
 }
 
 type P = PartDef;
@@ -226,7 +228,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   bear: {
-    id: 'bear', label: 'Bear', emoji: '🐻', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2, hp: 6, gold: [15, 40],
+    id: 'bear', label: 'Bear', emoji: '🐻', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2, hp: 6, gold: [15, 40], drop: { id: 'fang', chance: 0.45 },
     palettes: [[0x5a3a22, 0x8a6a4a], [0x2b2b2b, 0x5a5a5a]],
     names: ['Bruno', 'Grizz', 'Mabel', 'Kodiak', 'Honey'],
     lines: ['*low growl*', '*sniffs*', '*scratches tree*', '*yawns hugely*'],
@@ -374,7 +376,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   wolf: {
-    id: 'wolf', label: 'Wolf', emoji: '🐺', scale: 0.95, speed: 1.5, runSpeed: 5.5, herd: [2, 4], behaviour: 'prowl', timid: false, dangerous: 1, hp: 3, gold: [8, 20],
+    id: 'wolf', label: 'Wolf', emoji: '🐺', scale: 0.95, speed: 1.5, runSpeed: 5.5, herd: [2, 4], behaviour: 'prowl', timid: false, dangerous: 1, hp: 3, gold: [8, 20], drop: { id: 'pelt', chance: 0.5 },
     palettes: [[0x8a8a8a, 0xd8d8d8], [0x5a5a5a, 0xa8a8a8], [0xe8e8e8, 0xffffff]],
     names: ['Fang', 'Luna', 'Ghost', 'Ash', 'Howl'],
     lines: ['*low growl*', '*howls*', '*watches you*', '*pads silently*'],
@@ -460,7 +462,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   slime: {
-    id: 'slime', label: 'Slime', emoji: '🟢', scale: 0.8, speed: 1.0, runSpeed: 2.2, herd: [1, 3], behaviour: 'hunt', timid: false, dangerous: 1, hp: 3, gold: [4, 12],
+    id: 'slime', label: 'Slime', emoji: '🟢', scale: 0.8, speed: 1.0, runSpeed: 2.2, herd: [1, 3], behaviour: 'hunt', timid: false, dangerous: 1, hp: 3, gold: [4, 12], drop: { id: 'gem', chance: 0.08 },
     palettes: [[0x4fbf6f], [0x4f8fbf], [0xbf5f8f]],
     names: ['Blob', 'Squish', 'Ooze', 'Gel'],
     lines: ['*squelch*', '*wobbles*'],
@@ -471,7 +473,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   skeleton: {
-    id: 'skeleton', label: 'Skeleton', emoji: '💀', scale: 1.0, speed: 1.5, runSpeed: 3.0, herd: [1, 2], behaviour: 'hunt', timid: false, dangerous: 2, hp: 4, gold: [10, 25],
+    id: 'skeleton', label: 'Skeleton', emoji: '💀', scale: 1.0, speed: 1.5, runSpeed: 3.0, herd: [1, 2], behaviour: 'hunt', timid: false, dangerous: 2, hp: 4, gold: [10, 25], drop: { id: 'bone', chance: 0.6 },
     palettes: [[0xe8e4d8, 0x5a4632]],
     names: ['Bones', 'Rattle', 'Marrow', 'Grim'],
     lines: ['*clatters*', '*jaw creaks*'],

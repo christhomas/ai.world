@@ -1,5 +1,5 @@
 import type { SceneRig } from '../render/scene';
-import { ITEMS } from '../game/shops';
+import { ITEMS, SLOTS } from '../game/items';
 import type { GameState } from '../game/state';
 import type { Quest } from '../game/quests';
 
@@ -25,8 +25,8 @@ export class Hud {
   private readonly hurtEl = $('hurt');
   private hurtTimer = 0;
   private shownVersion = -1;
-  /** Set by main: called with an item id when the player clicks it in the inventory. */
-  onUseItem: ((id: string) => void) | null = null;
+  /** Clicking the pouch opens the rucksack. */
+  onOpenRucksack: (() => void) | null = null;
   /** Options sliders moved: (sun, hemisphere) daytime intensities. */
   onLightChange: ((sun: number, hemi: number) => void) | null = null;
 
@@ -47,13 +47,10 @@ export class Hud {
     vol.addEventListener('input', () => { volV.textContent = `${Math.round(+vol.value * 100)}%`; this.onVolumeChange?.(+vol.value); });
     this.setVolume = (v: number) => { vol.value = String(v); volV.textContent = `${Math.round(v * 100)}%`; };
     $('titleButton').addEventListener('click', () => this.onReturnToTitle?.());
-    this.invEl.addEventListener('click', (e) => {
-      const id = (e.target as HTMLElement).closest<HTMLElement>('[data-item]')?.dataset.item;
-      if (id) this.onUseItem?.(id);
-    });
+    this.invEl.addEventListener('click', () => this.onOpenRucksack?.());
   }
 
-  /** Redraw hearts + inventory when the state version changed. */
+  /** Redraw hearts and the carried summary when the state version changed. */
   syncState(state: GameState): void {
     if (state.version === this.shownVersion) return;
     this.shownVersion = state.version;
@@ -61,25 +58,20 @@ export class Hud {
     let hearts = '';
     for (let i = 0; i < max; i++) hearts += i < state.hp ? '♥' : '♡';
     this.heartsEl.textContent = hearts;
-    const inv = state.inventory;
-    const lines = [`<div>💰 ${inv.gold} gold</div>`];
-    for (const [id, n] of inv.items) {
-      const item = ITEMS[id];
-      if (!item) continue;
-      const usable = item.effect && item.effect.type !== 'passive';
-      const cls = usable ? ' class="usable" title="Click to use"' : ` title="${item.effect?.type === 'passive' ? item.effect.note : ''}"`;
-      lines.push(`<div data-item="${id}"${cls}>${item.emoji} ${item.name}${n > 1 ? ` ×${n}` : ''}</div>`);
-    }
+    const worn = SLOTS.map((slot) => state.worn(slot)).filter((i) => i !== null);
+    const lines = [`<div>💰 ${state.inventory.gold} gold</div>`];
+    if (worn.length > 0) lines.push(`<div>${worn.map((i) => i!.emoji).join(' ')}</div>`);
+    lines.push(`<div class="hud-stats">⚔ ${state.attack} · 🛡 ${state.defence} · 🎒 ${state.inventory.items.size}</div>`);
     this.invEl.innerHTML = lines.join('');
   }
 
   setVolume: (v: number) => void = () => {};
 
+  /** Active errands, ticked when their condition is met. */
   setQuests(quests: Quest[], state: GameState): void {
     const lines: string[] = [];
     for (const q of quests) {
-      const st = state.quests.get(q.id);
-      if (st !== 'active') continue;
+      if (state.quests.get(q.id) !== 'active') continue;
       const complete = q.kind === 'visit' ? state.discovered.has(q.target) : state.count(q.target) >= q.count;
       const what = q.kind === 'visit' ? `Visit the ${q.target}` : `Bring ${q.count}× ${ITEMS[q.target]?.name ?? q.target}`;
       lines.push(`<div>${complete ? '✅' : '📜'} ${what} → ${q.village}</div>`);

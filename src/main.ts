@@ -24,6 +24,7 @@ import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
 import { FISHING, Fishing } from './game/fishing';
 import { Journal } from './ui/journal';
+import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
 
 /** Interaction reach underground, and where the hero stands when arriving (offsets from the stairs). */
@@ -180,9 +181,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       extra = ' and a heavy iron key';
     }
     if (chest.big) {
-      const prizes = ['potion', 'sword', 'shield', 'helm', 'lantern', 'rope', 'map'].filter((p) => !state.has(p) || p === 'potion');
+      const prizes = ['potion', 'steelsword', 'ironshield', 'helm', 'jerkin', 'mail', 'greaves', 'charm', 'lantern', 'rope', 'map', 'gem']
+        .filter((p) => !state.owns(p) || p === 'potion' || p === 'gem');
       const prize = prizes[Math.floor(roll() * prizes.length)];
-      state.inventory.items.set(prize, state.count(prize) + 1);
+      state.give(prize, 1);
       extra = ` and ${ITEMS[prize].emoji} ${ITEMS[prize].name}`;
     }
     state.opened.add(id);
@@ -248,10 +250,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
           const roll = mulberry32(anchor.seed);
           const gold = 25 + Math.floor(roll() * 60);
           state.inventory.gold += gold;
-          const prizes = ['rod', 'rope', 'lantern', 'map', 'potion'].filter((p) => !state.has(p) || p === 'potion');
+          const prizes = ['rod', 'rope', 'lantern', 'map', 'potion', 'gem', 'cap'].filter((p) => !state.owns(p) || p === 'potion' || p === 'gem');
           const prize = prizes[Math.floor(roll() * prizes.length)];
           let extra = '';
-          if (prize) { state.inventory.items.set(prize, state.count(prize) + 1); extra = ` and ${ITEMS[prize].emoji} ${ITEMS[prize].name}`; }
+          if (prize) { state.give(prize, 1); extra = ` and ${ITEMS[prize].emoji} ${ITEMS[prize].name}`; }
           state.opened.add(lootId);
           state.version++;
           sound.chime();
@@ -302,10 +304,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   hud.setVolume(sound.volume);
   hud.onVolumeChange = (v) => sound.setVolume(v);
   hud.onReturnToTitle = toTitle;
-  hud.onUseItem = (id) => {
-    const msg = state.use(id);
-    if (msg) { hud.flash(msg); sound.select(); persist(); }
-  };
+  const rucksack = new Rucksack(state);
+  rucksack.onChange = (message) => { hud.flash(message); sound.select(); persist(); };
+  hud.onOpenRucksack = () => rucksack.toggle();
   dialogue.onType = () => sound.blip();
   dialogue.onMove = () => sound.select();
 
@@ -369,11 +370,18 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return null;
   };
   const tryFish = (): boolean => {
+    if (!fishing.active && !state.can('fish')) {
+      // carrying a rod is not the same as holding one
+      if (state.has('rod') && waterNearby()) {
+        hud.flash('Hold the fishing rod in your off hand to cast (I).');
+        return true;
+      }
+      return false;
+    }
     if (fishing.active) {
       const caught = fishing.strike();
       if (caught) {
-        state.inventory.items.set(caught.id, state.count(caught.id) + 1);
-        state.version++;
+        state.give(caught.id, 1);
         sound.jingle();
         hud.flash(`Caught a ${caught.name}! ${caught.emoji}`);
         persist();
@@ -383,7 +391,6 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       }
       return true;
     }
-    if (!state.has('rod')) return false;
     const spot = waterNearby();
     if (!spot) return false;
     fishing.cast(spot[0], spot[1], sampler.probe(player.x, player.z).biome, seed, state.day, raining);
@@ -442,13 +449,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (res.killed.length > 0) {
       sound.chime();
       const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
-      hud.flash(res.gold > 0 ? `Defeated ${names} (+${res.gold} gold)` : `Defeated ${names}`);
+      const spoils = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
+      hud.flash(spoils.length ? `Defeated ${names} (+${spoils.join(', ')})` : `Defeated ${names}`);
       persist();
     }
   };
   input.onKey('x', attack);
   input.onKey('n', toTitle);
-  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); });
+  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); });
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
@@ -456,6 +464,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     playerX: player.x, playerZ: player.z,
   });
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
+  input.onKey('i', () => { if (!dialogue.isOpen) rucksack.toggle(); });
   for (const key of ['enter', ' ']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.advance(); else talkNearest(); });
   for (const key of ['arrowup', 'w']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(-1); });
   for (const key of ['arrowdown', 's']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(1); });
@@ -551,7 +560,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
       // underground: the hero, the monsters, the lights and the HUD tick
       dungeon.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
-      dungeon.scene.heroLight.intensity = state.has('lantern') ? 9 : 3;
+      dungeon.scene.heroLight.intensity = state.can('light') ? 9 : 3;
       dungeon.monsters.update(dt, player.x, player.z, false, onAttack);
       dungeon.renderer.update();
       dungeon.map.reveal(player.x, player.z);
@@ -608,7 +617,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     else seasonTintMaterials.set([1, 1, 1], 0);
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
-    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.has('lantern'), season: tint, wet: weatherStrength });
+    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     entityRenderer.update();
 
@@ -627,6 +636,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       castbar.className = '';
     }
     journal.refresh(journalInput);
+    rucksack.refresh();
     hud.tick(dt);
     sound.setScene(here.biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
@@ -649,7 +659,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  creatures ${entities.count}\n` +
       `roads ${graph.edges.length}  radius ${GRAPH.RADIUS}  pos ${x.toFixed(0)},${z.toFixed(0)}`);
 
-    minimap.draw(x, z, iso.zoom, window.innerWidth / window.innerHeight, iso.rotation, markers(), player.x, player.z, !state.has('map'));
+    minimap.draw(x, z, iso.zoom, window.innerWidth / window.innerHeight, iso.rotation, markers(), player.x, player.z, !state.can('map'));
     rig.renderer.render(rig.scene, iso.camera);
     input.endFrame();
 

@@ -150,3 +150,35 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #journal ul.j-key { display: flex; flex-wrap: wrap; gap: 10px; }
 #journal ul.j-key li { display: flex; align-items: center; gap: 5px; font-size: 12px; }
 #journal .sw { width: 10px; height: 10px; border: 1px solid #6b3f1d; display: inline-block; }
+#rucksack {
+  display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(760px, 94vw); max-height: 84vh; overflow-y: auto; z-index: 1400;
+  background: linear-gradient(180deg, #f6efdc 0%, #e6d9ba 100%); color: #2a2418;
+  border: 3px solid #8a6a3d; border-radius: 8px; padding: 18px 22px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+#rucksack.show { display: block; animation: popIn 0.2s ease-out; }
+#rucksack h2 { color: #6b3f1d; margin-bottom: 6px; }
+#rucksack h3 { color: #6b3f1d; font-size: 13px; margin-bottom: 6px; border-bottom: 1px solid #c9b58a; }
+#rucksack .r-stats { font-size: 13px; color: #4a3a24; margin-bottom: 12px; }
+#rucksack .r-columns { display: flex; gap: 18px; align-items: flex-start; }
+#rucksack .r-worn { flex: 0 0 220px; }
+#rucksack .r-bag { flex: 1; min-width: 0; }
+#rucksack .r-slot { margin-bottom: 6px; }
+#rucksack .r-slot-name { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #8a7a5a; }
+#rucksack .r-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+#rucksack .r-item {
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px;
+  background: rgba(255,255,255,0.5); border: 1px solid #c9b58a; font-size: 13px;
+}
+#rucksack .r-item.worn { background: #ffe9b8; border-color: #8a6a3d; cursor: pointer; }
+#rucksack .r-item.empty { color: #9a8a6a; font-style: italic; }
+#rucksack .r-item.wear, #rucksack .r-item.use, #rucksack .r-item.look { cursor: pointer; }
+#rucksack .r-item.wear:hover, #rucksack .r-item.use:hover, #rucksack .r-item.look:hover, #rucksack .r-item.worn:hover { background: #fff6dd; }
+#rucksack .r-emoji { font-size: 18px; }
+#rucksack .r-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#rucksack .r-note { font-size: 11px; color: #8a7a5a; }
+#rucksack .r-empty { font-size: 13px; color: #7a6a4a; font-style: italic; }
+#rucksack .r-hint { text-align: center; color: #8a7a5a; font-size: 11px; margin-top: 14px; }
+#inventory .hud-stats { color: #cfd6ff; font-size: 11px; }
+#inventory { cursor: pointer; }

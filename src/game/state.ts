@@ -1,4 +1,5 @@
 import { ITEMS, Inventory, type InventoryJson } from './shops';
+import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippable } from './items';
 import { chunkKey } from '../world/spatial';
 
 /**
@@ -24,6 +25,8 @@ export interface GameStateJson {
 }
 
 export const BASE_MAX_HP = 10;
+/** What a new hero sets out with: worn clothes, a stick, and something to eat. */
+export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { apple: 2, bread: 1 } } as const;
 /** Real seconds per in-game day. */
 export const DAY_LENGTH = 480;
 /** Time of day at which you wake after resting: 07:12. */
@@ -36,6 +39,8 @@ export class GameState {
   time = 0.34;
   day = 1;
   readonly inventory = new Inventory();
+  /** What is worn where. Items here are not in the rucksack. */
+  readonly equipped: Partial<Record<EquipSlot, string>> = {};
   readonly explored = new Set<string>();
   readonly quests = new Map<string, QuestStatus>();
   readonly discovered = new Set<string>();
@@ -44,13 +49,93 @@ export class GameState {
   /** Bumped whenever something the HUD shows changed. */
   version = 0;
 
+  /** Is the item in the rucksack? Worn gear is not in the rucksack. */
   has(id: string): boolean { return (this.inventory.items.get(id) ?? 0) > 0; }
   count(id: string): number { return this.inventory.items.get(id) ?? 0; }
 
-  get maxHpTotal(): number { return this.maxHp + (this.has('helm') ? 2 : 0); }
-  get armed(): boolean { return this.has('sword'); }
-  /** Height the hero can step across: one terrace, two with a rope. */
-  get climb(): number { return this.has('rope') ? 1.06 : 0.56; }
+  /** Item worn in a slot, or null. */
+  worn(slot: EquipSlot): Item | null {
+    const id = this.equipped[slot];
+    return id ? ITEMS[id] ?? null : null;
+  }
+
+  /** Is this item worn in any slot? */
+  isWorn(id: string): boolean {
+    return SLOTS.some((slot) => this.equipped[slot] === id);
+  }
+
+  /** Carried or worn. */
+  owns(id: string): boolean { return this.has(id) || this.isWorn(id); }
+
+  private sumWorn(pick: (item: Item) => number | undefined): number {
+    let total = 0;
+    for (const slot of SLOTS) {
+      const item = this.worn(slot);
+      if (item) total += pick(item) ?? 0;
+    }
+    return total;
+  }
+
+  /** Damage a swing deals: bare hands plus whatever is in your hand. */
+  get attack(): number { return 1 + this.sumWorn((i) => i.attack); }
+  /** Armour: every two points turns one heart of a bite aside. */
+  get defence(): number { return this.sumWorn((i) => i.defence); }
+  get maxHpTotal(): number { return this.maxHp + this.sumWorn((i) => i.hearts); }
+  /** A weapon in hand keeps animal predators at bay. */
+  get armed(): boolean { return (this.worn('hand')?.attack ?? 0) >= 2; }
+
+  /** Does any worn item grant this ability? */
+  can(ability: Ability): boolean {
+    return SLOTS.some((slot) => this.worn(slot)?.ability === ability);
+  }
+
+  /** Height the hero can step across: one terrace, two with a rope on the belt. */
+  get climb(): number { return this.can('climb') ? 1.06 : 0.56; }
+
+  /**
+   * Put an item from the rucksack on the body. Whatever was in that slot goes back in the
+   * rucksack, so nothing is ever lost. Returns the item now worn, or null if it could not be worn.
+   */
+  equip(id: string): Item | null {
+    const item = ITEMS[id];
+    if (!item || !isEquippable(item) || !this.has(id)) return null;
+    const slot = item.slot!;
+    const previous = this.equipped[slot];
+    this.take(id, 1);
+    if (previous) this.give(previous, 1);
+    this.equipped[slot] = id;
+    this.hp = Math.min(this.hp, this.maxHpTotal);
+    this.version++;
+    return item;
+  }
+
+  /** Take the item off and put it back in the rucksack. */
+  unequip(slot: EquipSlot): Item | null {
+    const id = this.equipped[slot];
+    if (!id) return null;
+    delete this.equipped[slot];
+    this.give(id, 1);
+    this.hp = Math.min(this.hp, this.maxHpTotal);
+    this.version++;
+    return ITEMS[id] ?? null;
+  }
+
+  /** Add to the rucksack. */
+  give(id: string, n = 1): void {
+    this.inventory.items.set(id, this.count(id) + n);
+    this.version++;
+  }
+
+  /** Remove from the rucksack. Returns how many were actually removed. */
+  take(id: string, n = 1): number {
+    const have = this.count(id);
+    const removed = Math.min(have, n);
+    if (removed <= 0) return 0;
+    if (have - removed <= 0) this.inventory.items.delete(id);
+    else this.inventory.items.set(id, have - removed);
+    this.version++;
+    return removed;
+  }
 
   get night(): number {
     // sun height: sin curve, above the horizon from 0.25 to 0.75
@@ -74,9 +159,9 @@ export class GameState {
     this.version++;
   }
 
-  /** Apply damage (shield halves it). Returns true if the hero dropped to zero. */
+  /** Apply damage, softened by armour but never below one heart. Returns true if it dropped you. */
   damage(n: number): boolean {
-    const dealt = this.has('shield') ? Math.ceil(n / 2) : n;
+    const dealt = Math.max(1, n - Math.floor(this.defence / 2));
     this.hp = Math.max(0, this.hp - dealt);
     this.version++;
     return this.hp === 0;
@@ -90,23 +175,19 @@ export class GameState {
     this.version++;
   }
 
-  /** Use a consumable from the inventory. Returns a message, or null if nothing happened. */
+  /** Eat or drink something from the rucksack. Returns a message, or null if nothing happened. */
   use(id: string): string | null {
     const item = ITEMS[id];
-    if (!item || !this.has(id) || !item.effect) return null;
-    if (item.effect.type === 'heal') {
-      if (this.hp >= this.maxHpTotal) return `You are already at full health.`;
-      this.inventory.items.set(id, this.count(id) - 1);
-      if (this.count(id) === 0) this.inventory.items.delete(id);
-      this.heal(item.effect.amount);
-      return `${item.name}: +${item.effect.amount} health.`;
+    if (!item || !this.has(id) || !isConsumable(item)) return null;
+    if (item.effect!.type === 'heal') {
+      if (this.hp >= this.maxHpTotal) return 'You are already at full health.';
+      this.take(id, 1);
+      this.heal(item.effect!.amount);
+      return `${item.name}: +${item.effect!.amount} hearts.`;
     }
-    if (item.effect.type === 'rest') {
-      this.inventory.items.delete(id);
-      this.rest();
-      return 'You sleep soundly and wake at dawn, fully rested.';
-    }
-    return null;
+    this.take(id, 1);
+    this.rest();
+    return 'You sleep soundly and wake at dawn, fully rested.';
   }
 
   markExplored(cx: number, cz: number): boolean {
@@ -121,7 +202,7 @@ export class GameState {
   toJSON(): GameStateJson {
     return {
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
-      inventory: this.inventory.toJSON(),
+      inventory: { ...this.inventory.toJSON(), equipped: { ...this.equipped } },
       explored: [...this.explored],
       quests: Object.fromEntries(this.quests),
       discovered: [...this.discovered],
@@ -130,9 +211,18 @@ export class GameState {
     };
   }
 
-  static from(json: Partial<GameStateJson> | undefined): GameState {
+  /** A fresh hero: starting kit already on the body. */
+  static fresh(): GameState {
     const g = new GameState();
-    if (!json) return g;
+    for (const [id, n] of Object.entries(STARTING_KIT.carried)) g.give(id, n);
+    for (const id of STARTING_KIT.worn) { g.give(id, 1); g.equip(id); }
+    g.version = 0;
+    return g;
+  }
+
+  static from(json: Partial<GameStateJson> | undefined): GameState {
+    if (!json) return GameState.fresh();
+    const g = new GameState();
     if (typeof json.hp === 'number') g.hp = json.hp;
     if (typeof json.maxHp === 'number') g.maxHp = json.maxHp;
     if (typeof json.time === 'number') g.time = json.time;
@@ -141,6 +231,9 @@ export class GameState {
       const inv = Inventory.from(json.inventory);
       g.inventory.gold = inv.gold;
       for (const [k, v] of inv.items) g.inventory.items.set(k, v);
+      for (const [slot, id] of Object.entries(json.inventory.equipped ?? {})) {
+        if (ITEMS[id] && ITEMS[id].slot === slot) g.equipped[slot as EquipSlot] = id;
+      }
     }
     for (const k of json.explored ?? []) g.explored.add(k);
     for (const [k, v] of Object.entries(json.quests ?? {})) g.quests.set(k, v);

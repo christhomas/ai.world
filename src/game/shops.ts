@@ -1,74 +1,69 @@
 import type { ShopType } from '../world/structures';
 
 /** Things for sale. Effects are flavour for now; later phases can hang mechanics on ids. */
-export type ItemEffect =
-  | { type: 'heal'; amount: number }
-  | { type: 'rest' }
-  | { type: 'passive'; note: string };
-
-export interface Item {
-  id: string;
-  name: string;
-  emoji: string;
-  price: number;
-  desc: string;
-  /** What using/owning it does. Consumables are used from the inventory panel. */
-  effect?: ItemEffect;
-}
-
-export const ITEMS: Record<string, Item> = {
-  apple: { id: 'apple', name: 'Apple', emoji: '🍎', price: 5, desc: 'Crisp and sweet. Keeps well on the road.', effect: { type: 'heal', amount: 1 } },
-  bread: { id: 'bread', name: 'Bread', emoji: '🍞', price: 8, desc: 'Still warm from the oven.', effect: { type: 'heal', amount: 2 } },
-  rope: { id: 'rope', name: 'Rope', emoji: '🪢', price: 12, desc: 'Twenty feet of good hemp rope. Lets you climb two terraces at once.', effect: { type: 'passive', note: 'climb two terraces' } },
-  lantern: { id: 'lantern', name: 'Lantern', emoji: '🏮', price: 30, desc: 'Lights your way at night.', effect: { type: 'passive', note: 'light at night' } },
-  map: { id: 'map', name: 'Region Map', emoji: '🗺️', price: 25, desc: 'Hand-drawn. Reveals the whole minimap.', effect: { type: 'passive', note: 'reveals the map' } },
-  sword: { id: 'sword', name: 'Iron Sword', emoji: '🗡️', price: 60, desc: 'Plain, sharp, dependable. Wolves and bears keep their distance.', effect: { type: 'passive', note: 'predators flee' } },
-  shield: { id: 'shield', name: 'Wooden Shield', emoji: '🛡️', price: 45, desc: 'Oak planks bound with iron. Halves the damage you take.', effect: { type: 'passive', note: 'halves damage' } },
-  helm: { id: 'helm', name: 'Leather Helm', emoji: '🪖', price: 35, desc: 'Better than nothing. Two extra hearts.', effect: { type: 'passive', note: '+2 max health' } },
-  potion: { id: 'potion', name: 'Red Potion', emoji: '🧪', price: 15, desc: 'Tastes of cherries and regret.', effect: { type: 'heal', amount: 5 } },
-  herbs: { id: 'herbs', name: 'Healing Herbs', emoji: '🌿', price: 8, desc: 'Chew slowly. Do not ask what is in it.', effect: { type: 'heal', amount: 2 } },
-  antidote: { id: 'antidote', name: 'Antidote', emoji: '💊', price: 12, desc: 'For swamp bites and bad decisions.', effect: { type: 'heal', amount: 3 } },
-  ale: { id: 'ale', name: 'Mug of Ale', emoji: '🍺', price: 6, desc: 'The house brew. Strong.', effect: { type: 'heal', amount: 1 } },
-  room: { id: 'room', name: "Night's Rest", emoji: '🛏️', price: 10, desc: 'A warm bed and a quiet night. Use it to sleep until dawn, fully healed.', effect: { type: 'rest' } },
-  stew: { id: 'stew', name: 'Hearty Stew', emoji: '🍲', price: 9, desc: 'Whatever was in the pot today.', effect: { type: 'heal', amount: 3 } },
-  rod: { id: 'rod', name: 'Fishing Rod', emoji: '🎣', price: 28, desc: 'Cane, line and a hook. Stand at the water and cast.', effect: { type: 'passive', note: 'lets you fish' } },
-  minnow: { id: 'minnow', name: 'Minnow', emoji: '🐟', price: 4, desc: 'Small, bony, and everywhere.', effect: { type: 'heal', amount: 1 } },
-  perch: { id: 'perch', name: 'Perch', emoji: '🐠', price: 12, desc: 'A decent fish. The inn will buy it.', effect: { type: 'heal', amount: 2 } },
-  pike: { id: 'pike', name: 'Pike', emoji: '🦈', price: 30, desc: 'All teeth and temper. Worth good coin.', effect: { type: 'heal', amount: 4 } },
-  eel: { id: 'eel', name: 'Eel', emoji: '🪱', price: 22, desc: 'It is still moving. Best cook it soon.', effect: { type: 'heal', amount: 3 } },
-};
+export { ITEMS, SELL_SHARE, SLOTS, SLOT_ICONS, SLOT_NAMES, isConsumable, isEquippable, itemSummary, sellPrice } from './items';
+export type { Ability, EquipSlot, Item, ItemEffect } from './items';
+import { ITEMS, type Item, sellPrice } from './items';
 
 export interface ShopDef {
   name: string;
   title: string;
+  /** Stock, in the order it is offered. */
   items: string[];
+  /** What this shop is willing to buy from you. */
+  buys: (item: Item) => boolean;
   greetings: string[];
 }
+
+const isGear = (item: Item) => item.slot === 'hand' || item.slot === 'head' || item.slot === 'body' || item.slot === 'offhand' || item.slot === 'feet';
+const isFood = (item: Item) => item.effect !== undefined && item.slot === undefined;
+const isCatch = (item: Item) => item.loot === true;
 
 export const SHOP_DEFS: Record<ShopType, ShopDef> = {
   store: {
     name: 'General Store', title: 'the Storekeeper',
-    items: ['apple', 'bread', 'rope', 'lantern', 'map', 'rod'],
+    items: ['apple', 'bread', 'tunic', 'boots', 'stick', 'rope', 'lantern', 'map', 'rod'],
+    // the general store will take anything off your hands
+    buys: () => true,
     greetings: ['Welcome to the general store! Need supplies for the road?', 'Come in, come in. Everything a traveller could want.'],
   },
   smith: {
     name: 'Blacksmith', title: 'the Smith',
-    items: ['sword', 'shield', 'helm'],
+    items: ['sword', 'steelsword', 'axe', 'cap', 'helm', 'jerkin', 'mail', 'shield', 'ironshield', 'greaves'],
+    buys: (item) => isGear(item) || item.id === 'gem' || item.id === 'bone',
     greetings: ['*wipes soot from brow* Looking for steel?', 'Forge is hot today. What do you need?'],
   },
   inn: {
     name: 'Inn', title: 'the Innkeeper',
     items: ['ale', 'stew', 'room'],
+    buys: (item) => isFood(item) || isCatch(item),
     greetings: ['Welcome to the inn, stranger. Sit, sit!', 'A room, a meal, or just the gossip?'],
   },
   apothecary: {
     name: 'Apothecary', title: 'the Apothecary',
-    items: ['potion', 'herbs', 'antidote'],
+    items: ['potion', 'herbs', 'antidote', 'elixir', 'charm'],
+    buys: (item) => isFood(item) || isCatch(item) || item.id === 'charm',
     greetings: ['*peers over spectacles* Ah, a customer. Mind the jars.', 'Tonics, cures and curiosities. What ails you?'],
   },
 };
 
-export interface InventoryJson { gold: number; items: Record<string, number> }
+/** What a shop will pay for each carried item it is willing to buy. */
+export function sellableAt(def: ShopDef, carried: Iterable<[string, number]>): Array<{ item: Item; count: number; price: number }> {
+  const out: Array<{ item: Item; count: number; price: number }> = [];
+  for (const [id, count] of carried) {
+    const item = ITEMS[id];
+    if (!item || count <= 0 || !def.buys(item)) continue;
+    out.push({ item, count, price: sellPrice(item) });
+  }
+  return out.sort((a, b) => b.price * b.count - a.price * a.count);
+}
+
+export interface InventoryJson {
+  gold: number;
+  items: Record<string, number>;
+  /** Item id per equipment slot. */
+  equipped?: Record<string, string>;
+}
 
 export class Inventory {
   gold = 50;
