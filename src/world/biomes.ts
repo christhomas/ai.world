@@ -151,7 +151,3 @@ export function pickWeighted(list: readonly PropWeight[], r: number): PropKind {
   }
   return list[list.length - 1].kind;
 }
-
-export function pickProp(def: BiomeDef, r: number): PropKind {
-  return pickWeighted(def.props, r);
-}

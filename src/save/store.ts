@@ -22,12 +22,15 @@ export class IndexedDbStore implements SaveStore {
   }
 }
 
+import type { GameStateJson } from '../game/state';
+
 export interface SessionSave {
   seed: number;
   cam: { x: number; z: number; rot: number; zoom: number };
   player?: { x: number; z: number };
+  state?: Partial<GameStateJson>;
+  /** Legacy fields from saves before GameState existed. */
   discovered?: string[];
   inventory?: { gold: number; items: Record<string, number> };
 }
 
-export const SESSION_KEY = 'ai.world/session';

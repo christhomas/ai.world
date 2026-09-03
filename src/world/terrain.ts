@@ -1,5 +1,6 @@
 import { GRAPH, HYDRO, WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
+import { SALT, TILE_SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import { biomeAt, segDist2, type RoadGraph } from './graph';
 import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
@@ -49,6 +50,8 @@ export interface ChunkData {
 export interface TileSample {
   type: TileType;
   level: number;
+  /** Terrace the road sits on here; High ground is measured from it. */
+  base: number;
   height: number;
   water: number;
   shore: number;
@@ -65,7 +68,6 @@ export interface Probe {
   /** Distance to nearest road centreline, Infinity if no road is anywhere near. */
   roadDist: number;
   hub: boolean;
-  water: boolean;
 }
 
 interface RiverSeg { ax: number; az: number; bx: number; bz: number; la: number; lb: number; wa: number; wb: number }
@@ -75,6 +77,17 @@ const EDGE_MARGIN = GRAPH.MAX_WIDTH * 1.45 + WORLD.SEABED_RANGE + 2;
 const RIVER_MARGIN = HYDRO.RIVER_MAX_WIDTH + HYDRO.BANK + 8;
 const LAKE_MARGIN = HYDRO.BANK + 8;
 const HUB_PLAZA = 5;
+/** Share of ground tiles that use the alternate ground colour. */
+const GROUND_ALT_CHANCE = 0.35;
+/** Neighbours (of 8) that must agree before the de-speckle filter overrides a tile's level. */
+const DESPECKLE_MAJORITY = 5;
+/** Tiles beyond the road edge kept free of props. */
+const ROAD_SHOULDER = 1.2;
+const HIGH_ROCK_DENSITY = 0.06;
+/** Coast sand gets this fraction of the bank prop density. */
+const COAST_PROP_FACTOR = 0.25;
+/** Bridge decks sit this far above the river surface. */
+export const BRIDGE_DECK_LIFT = 0.14;
 
 /** Samples the world at tile resolution. Pure function of (seed, graph, x, z): safe to run in any worker. */
 export class TerrainSampler {
@@ -88,10 +101,10 @@ export class TerrainSampler {
   readonly structures: Structures;
   readonly seed: number;
 
-  constructor(readonly graph: RoadGraph) {
+  constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
     this.seed = graph.seed;
-    this.noise = new Simplex2D((graph.seed ^ 0x3333) >>> 0);
-    this.biomeNoise = new Simplex2D((graph.seed ^ 0x7e7e) >>> 0);
+    this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
+    this.biomeNoise = new Simplex2D(derive(graph.seed, SALT.BIOME));
 
     this.edgeIndex = new CellIndex(CELL, graph.edges.length);
     graph.edges.forEach((e, i) => {
@@ -101,7 +114,7 @@ export class TerrainSampler {
         Math.max(a.x, b.x) + EDGE_MARGIN, Math.max(a.z, b.z) + EDGE_MARGIN);
     });
 
-    this.hydro = generateHydrology(graph, (x, z) => this.landProbe(x, z));
+    this.hydro = prebuilt ? prebuilt.hydro : generateHydrology(graph, (x, z) => this.landProbe(x, z));
     for (const river of this.hydro.rivers) {
       for (let i = 0; i + 1 < river.length; i++) {
         const a = river[i], b = river[i + 1];
@@ -121,7 +134,7 @@ export class TerrainSampler {
     });
 
     // structures sample raw terrain, so they come last
-    this.structures = generateStructures(this);
+    this.structures = prebuilt ? prebuilt.structures : generateStructures(this);
     this.structIndex = new CellIndex(CELL, this.structures.all.length);
     this.structures.all.forEach((s, i) => {
       const b = structureBounds(s);
@@ -130,7 +143,7 @@ export class TerrainSampler {
   }
 
   newSample(): TileSample {
-    return { type: TileType.Skip, level: 0, height: 0, water: 0, shore: 0, biome: 0 as Biome, bank: false, roadDist: Infinity, roadWidth: 0, corners: [0, 0, 0, 0] };
+    return { type: TileType.Skip, level: 0, base: 0, height: 0, water: 0, shore: 0, biome: 0 as Biome, bank: false, roadDist: Infinity, roadWidth: 0, corners: [0, 0, 0, 0] };
   }
 
   biomeOf(x: number, z: number): Biome {
@@ -161,9 +174,8 @@ export class TerrainSampler {
     const lp = this.landProbe(x, z);
     const biome = this.biomeOf(x, z);
     const hub = Math.hypot(x, z) < GRAPH.HUB_RADIUS * 1.15;
-    if (!lp) return { land: false, biome, roadDist: Infinity, hub, water: false };
-    const w = this.waterAt(x, z, this.riverIndex.query(x - 1, z - 1, x + 1, z + 1));
-    return { land: lp.land, biome, roadDist: lp.roadDist, hub, water: !!w && w.wd < 0 };
+    if (!lp) return { land: false, biome, roadDist: Infinity, hub };
+    return { land: lp.land, biome, roadDist: lp.roadDist, hub };
   }
 
   private nearest(px: number, pz: number, cands: number[]): { edge: number; d: number; t: number } | null {
@@ -227,7 +239,7 @@ export class TerrainSampler {
   sampleTile(tx: number, tz: number, out: TileSample, cands?: number[], riverCands?: number[]): void {
     const px = tx + 0.5, pz = tz + 0.5;
     out.type = TileType.Skip;
-    out.water = 0; out.shore = 0; out.bank = false; out.level = 0; out.height = 0;
+    out.water = 0; out.shore = 0; out.bank = false; out.level = 0; out.height = 0; out.base = 0;
     out.roadDist = Infinity; out.roadWidth = 0;
     if (!cands) cands = this.edgeIndex.query(px - 1, pz - 1, px + 1, pz + 1);
     const hit = this.nearest(px, pz, cands);
@@ -270,7 +282,7 @@ export class TerrainSampler {
         out.type = TileType.Bridge;
         const surface = (Math.max(1, water.level) - 1) * STEP + WORLD.WATER_Y;
         out.water = surface;
-        const deck = surface + 0.14;
+        const deck = surface + BRIDGE_DECK_LIFT;
         for (let k = 0; k < 4; k++) out.corners[k] = Math.max(out.corners[k], deck);
         out.height = Math.max(out.height, deck);
       }
@@ -278,6 +290,7 @@ export class TerrainSampler {
     }
 
     const baseLevel = Math.max(1, Math.round(roadLevel));
+    out.base = baseLevel;
     const td = (d - e.roadWidth) / (W - e.roadWidth);
     const hills = this.noise.fbm(px * 0.04, pz * 0.04, 2);
     let rise = Math.floor(td * (0.75 + hills) * def.roughness);
@@ -292,7 +305,7 @@ export class TerrainSampler {
     } else if (level - baseLevel >= def.highAt) {
       type = TileType.High;
     } else {
-      type = rand2(this.seed, tx, tz, 3) < 0.35 ? TileType.GroundAlt : TileType.Ground;
+      type = rand2(this.seed, tx, tz, TILE_SALT.GROUND_VARIANT) < GROUND_ALT_CHANCE ? TileType.GroundAlt : TileType.Ground;
     }
 
     if (water) {
@@ -335,134 +348,241 @@ export class TerrainSampler {
       water: new Float32Array(n),
       empty: true,
     };
-    const ox = cx * CS - 1, oz = cz * CS - 1;
-    const cands = this.edgeIndex.query(ox, oz, ox + size, oz + size);
-    if (cands.length === 0) return chunk;
-    const riverCands = this.riverIndex.query(ox, oz, ox + size, oz + size);
-    const seed = this.seed;
-    const s = this.newSample();
-    let drawn = 0;
+    const grid = this.sampleGrid(cx, cz);
+    if (!grid) return chunk;
 
+    let drawn = 0;
     for (let lz = 0; lz < size; lz++) {
       for (let lx = 0; lx < size; lx++) {
+        // output tile (lx,lz) is grid tile (lx+1, lz+1): the grid carries one extra ring for the filter
+        const gi = (lz + 1) * grid.G + (lx + 1);
         const idx = lz * size + lx;
-        const tx = ox + lx, tz = oz + lz;
-        this.sampleTile(tx, tz, s, cands, riverCands);
-        if (s.type === TileType.Skip) continue;
+        if (grid.type[gi] === TileType.Skip) continue;
         drawn++;
-        chunk.type[idx] = s.type;
-        chunk.biome[idx] = s.biome;
-        chunk.height[idx] = s.height;
-        chunk.water[idx] = s.water;
-        chunk.shore[idx] = s.shore;
-        if (s.type === TileType.Road || s.type === TileType.Bridge) {
-          chunk.corners.set(s.corners, idx * 4);
+        const { type, level } = this.despeckle(grid, gi);
+        chunk.type[idx] = type;
+        chunk.biome[idx] = grid.biome[gi];
+        chunk.water[idx] = grid.water[gi];
+        chunk.shore[idx] = grid.shore[gi];
+        if (type === TileType.Road || type === TileType.Bridge) {
+          chunk.height[idx] = grid.height[gi];
+          chunk.corners.set(grid.corners.subarray(gi * 4, gi * 4 + 4), idx * 4);
           continue;
         }
-        if (s.type === TileType.Seabed) continue;
-
-        // --- props ---
-        const def = BIOMES[s.biome];
-        const r = rand2(seed, tx, tz, 7);
-        const r2 = rand2(seed, tx, tz, 8);
-        const type = s.type;
-        if (type === TileType.Water) {
-          if (r < def.waterDensity) chunk.prop[idx] = pickWeighted(def.water, r2);
-          continue;
-        }
-        if (s.bank) {
-          if (r < def.bankDensity) chunk.prop[idx] = pickWeighted(def.bank, r2);
-          continue;
-        }
-        if (s.roadDist < s.roadWidth + 1.2) continue; // keep the road shoulder clear
-        if (type === TileType.High) {
-          if (r < 0.06) chunk.prop[idx] = r2 < 0.5 ? PropKind.Rock : PropKind.Boulder;
-        } else if (type === TileType.Ground || type === TileType.GroundAlt) {
-          if (r < def.propDensity) chunk.prop[idx] = pickWeighted(def.props, r2);
-        } else if (type === TileType.Sand) {
-          if (r < def.bankDensity * 0.25) chunk.prop[idx] = pickWeighted(def.bank, r2);
-        }
+        chunk.height[idx] = level * WORLD.STEP;
+        if (type !== TileType.Seabed) chunk.prop[idx] = this.rollProp(grid, gi, type);
       }
     }
 
     chunk.empty = drawn === 0;
-    if (!chunk.empty) this.stampStructures(chunk, ox, oz);
+    if (!chunk.empty) this.stampStructures(chunk, cx * CS - 1, cz * CS - 1);
     return chunk;
   }
 
-  /** Flatten yards, lay door paths, and drop the building prop on its centre tile. */
+  /**
+   * Raw samples for the chunk plus a two-tile apron, so every output tile (including the mesher's
+   * one-tile apron) has all eight neighbours available for the de-speckle filter. Null if the whole
+   * area is open sea.
+   */
+  private sampleGrid(cx: number, cz: number): SampleGrid | null {
+    const CS = WORLD.CHUNK_SIZE;
+    const G = CS + 4;
+    const x0 = cx * CS - 2, z0 = cz * CS - 2;
+    const cands = this.edgeIndex.query(x0, z0, x0 + G, z0 + G);
+    if (cands.length === 0) return null;
+    const riverCands = this.riverIndex.query(x0, z0, x0 + G, z0 + G);
+    const n = G * G;
+    const grid: SampleGrid = {
+      G, x0, z0,
+      type: new Uint8Array(n), biome: new Uint8Array(n), bank: new Uint8Array(n),
+      level: new Float32Array(n), height: new Float32Array(n), water: new Float32Array(n), shore: new Float32Array(n),
+      roadDist: new Float32Array(n), roadWidth: new Float32Array(n), base: new Int16Array(n),
+      corners: new Float32Array(n * 4),
+    };
+    const s = this.newSample();
+    for (let gz = 0; gz < G; gz++) {
+      for (let gx = 0; gx < G; gx++) {
+        const gi = gz * G + gx;
+        this.sampleTile(x0 + gx, z0 + gz, s, cands, riverCands);
+        grid.type[gi] = s.type;
+        if (s.type === TileType.Skip) continue;
+        grid.biome[gi] = s.biome; grid.bank[gi] = s.bank ? 1 : 0;
+        grid.level[gi] = s.level; grid.height[gi] = s.height; grid.water[gi] = s.water; grid.shore[gi] = s.shore;
+        grid.roadDist[gi] = s.roadDist; grid.roadWidth[gi] = s.roadWidth; grid.base[gi] = s.base;
+        if (s.type === TileType.Road || s.type === TileType.Bridge) grid.corners.set(s.corners, gi * 4);
+      }
+    }
+    return grid;
+  }
+
+  /** Majority filter: a lone tile a terrace off from its neighbourhood joins the crowd. */
+  private despeckle(grid: SampleGrid, gi: number): { type: TileType; level: number } {
+    let type = grid.type[gi] as TileType;
+    let level = grid.level[gi];
+    if (!isFlatLand(type) || grid.bank[gi] || type === TileType.Sand) return { type, level };
+    const counts = new Map<number, number>();
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dz === 0) continue;
+      const ni = gi + dz * grid.G + dx;
+      if (!isFlatLand(grid.type[ni] as TileType)) continue;
+      counts.set(grid.level[ni], (counts.get(grid.level[ni]) ?? 0) + 1);
+    }
+    let mode = level, modeN = 0;
+    for (const [l, cnt] of counts) if (cnt > modeN) { modeN = cnt; mode = l; }
+    if (modeN < DESPECKLE_MAJORITY || mode === level) return { type, level };
+    level = mode;
+    const def = BIOMES[grid.biome[gi]];
+    const tx = grid.x0 + (gi % grid.G), tz = grid.z0 + Math.floor(gi / grid.G);
+    if (level - grid.base[gi] >= def.highAt) type = TileType.High;
+    else if (type === TileType.High) type = rand2(this.seed, tx, tz, TILE_SALT.GROUND_VARIANT) < GROUND_ALT_CHANCE ? TileType.GroundAlt : TileType.Ground;
+    return { type, level };
+  }
+
+  /** Which prop (if any) grows on a land tile. Roads keep a clear shoulder; banks and water have their own tables. */
+  private rollProp(grid: SampleGrid, gi: number, type: TileType): PropKind {
+    const tx = grid.x0 + (gi % grid.G), tz = grid.z0 + Math.floor(gi / grid.G);
+    const def = BIOMES[grid.biome[gi]];
+    const r = rand2(this.seed, tx, tz, TILE_SALT.PROP_ROLL);
+    const kindRoll = rand2(this.seed, tx, tz, TILE_SALT.PROP_KIND);
+    if (type === TileType.Water) return r < def.waterDensity ? pickWeighted(def.water, kindRoll) : PropKind.None;
+    if (grid.bank[gi]) return r < def.bankDensity ? pickWeighted(def.bank, kindRoll) : PropKind.None;
+    if (grid.roadDist[gi] < grid.roadWidth[gi] + ROAD_SHOULDER) return PropKind.None;
+    switch (type) {
+      case TileType.High: return r < HIGH_ROCK_DENSITY ? (kindRoll < 0.5 ? PropKind.Rock : PropKind.Boulder) : PropKind.None;
+      case TileType.Ground:
+      case TileType.GroundAlt: return r < def.propDensity ? pickWeighted(def.props, kindRoll) : PropKind.None;
+      case TileType.Sand: return r < def.bankDensity * COAST_PROP_FACTOR ? pickWeighted(def.bank, kindRoll) : PropKind.None;
+      default: return PropKind.None;
+    }
+  }
+
+  /** Flatten yards, lay door paths, and drop each building prop on its centre tile. */
   private stampStructures(chunk: ChunkData, ox: number, oz: number): void {
     if (!this.structIndex) return;
-    const size = chunk.size;
-    const CS = WORLD.CHUNK_SIZE;
-    const hits = this.structIndex.query(ox, oz, ox + size, oz + size);
-    const isLand = (t: number) =>
-      t !== TileType.Skip && t !== TileType.Seabed && t !== TileType.Water && t !== TileType.Bridge;
-
+    const hits = this.structIndex.query(ox, oz, ox + chunk.size, oz + chunk.size);
     for (const si of hits) {
       const s = this.structures.all[si];
-      const h = s.level * WORLD.STEP;
-      const house = s.kind === StructureKind.House || s.kind === StructureKind.Church;
-      if (s.kind === StructureKind.Plaza) {
-        const r = s.radius ?? 4;
-        for (let dz = -s.hd; dz <= s.hd; dz++) {
-          for (let dx = -s.hw; dx <= s.hw; dx++) {
-            if (Math.hypot(dx, dz) > r) continue;
-            const lx = s.tx + dx - ox, lz = s.tz + dz - oz;
-            if (lx < 0 || lz < 0 || lx >= size || lz >= size) continue;
-            const idx = lz * size + lx;
-            if (!isLand(chunk.type[idx])) continue;
-            chunk.type[idx] = TileType.Plaza;
-            chunk.height[idx] = h;
-            chunk.prop[idx] = PropKind.None;
-          }
-        }
-        continue;
-      }
-      if (s.kind === StructureKind.Sign || s.kind === StructureKind.Stall) {
-        // single-tile props: no yard, just the prop itself
-        const lx = s.tx - ox, lz = s.tz - oz;
-        if (lx >= 1 && lz >= 1 && lx <= CS && lz <= CS) {
-          const idx = lz * size + lx;
-          if (isLand(chunk.type[idx]) && chunk.type[idx] !== TileType.Floor) {
-            chunk.prop[idx] = structureProp(s);
-            chunk.propRot[idx] = s.rot;
-          }
-        }
-        continue;
-      }
-      for (let dz = -s.hd - 1; dz <= s.hd + 1; dz++) {
-        for (let dx = -s.hw - 1; dx <= s.hw + 1; dx++) {
-          const lx = s.tx + dx - ox, lz = s.tz + dz - oz;
-          if (lx < 0 || lz < 0 || lx >= size || lz >= size) continue;
-          const idx = lz * size + lx;
-          const t = chunk.type[idx];
-          if (!isLand(t) || t === TileType.Road) continue;
-          const inner = Math.abs(dx) <= s.hw && Math.abs(dz) <= s.hd;
-          chunk.height[idx] = h;
-          chunk.prop[idx] = PropKind.None;
-          if (inner && house) chunk.type[idx] = TileType.Floor;
-          else if (t === TileType.High) chunk.type[idx] = TileType.Ground;
-        }
-      }
-      for (const [x, z] of s.path) {
-        const lx = x - ox, lz = z - oz;
-        if (lx < 0 || lz < 0 || lx >= size || lz >= size) continue;
-        const idx = lz * size + lx;
-        if (!isLand(chunk.type[idx]) || chunk.type[idx] === TileType.Plaza || chunk.type[idx] === TileType.Floor) continue;
-        chunk.type[idx] = TileType.Road;
-        chunk.height[idx] = h;
-        chunk.corners.fill(h, idx * 4, idx * 4 + 4);
-        chunk.prop[idx] = PropKind.None;
-      }
-      const lx = s.tx - ox, lz = s.tz - oz;
-      if (lx >= 1 && lz >= 1 && lx <= CS && lz <= CS) {
-        const idx = lz * size + lx;
-        chunk.prop[idx] = structureProp(s);
-        chunk.propRot[idx] = s.rot;
+      switch (s.kind) {
+        case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
+        case StructureKind.Sign:
+        case StructureKind.Stall: stampSingleProp(chunk, ox, oz, s); break;
+        default:
+          stampFootprint(chunk, ox, oz, s);
+          stampPath(chunk, ox, oz, s);
+          stampCentreProp(chunk, ox, oz, s);
       }
     }
   }
+}
+
+/** One sampled grid with a two-tile apron; indices are gz * G + gx. */
+interface SampleGrid {
+  G: number;
+  x0: number;
+  z0: number;
+  type: Uint8Array;
+  biome: Uint8Array;
+  bank: Uint8Array;
+  level: Float32Array;
+  height: Float32Array;
+  water: Float32Array;
+  shore: Float32Array;
+  roadDist: Float32Array;
+  roadWidth: Float32Array;
+  base: Int16Array;
+  corners: Float32Array;
+}
+
+/** Tiles whose level the de-speckle filter may compare and adjust. */
+function isFlatLand(t: TileType): boolean {
+  return t === TileType.Ground || t === TileType.GroundAlt || t === TileType.High || t === TileType.Sand;
+}
+
+/** Tiles a structure may sit on or flatten (never water, sea or bridges). */
+function isStampable(t: number): boolean {
+  return t !== TileType.Skip && t !== TileType.Seabed && t !== TileType.Water && t !== TileType.Bridge;
+}
+
+/** Local index of a world tile inside the chunk arrays, or -1 when outside. */
+function localIndex(chunk: ChunkData, ox: number, oz: number, tx: number, tz: number): number {
+  const lx = tx - ox, lz = tz - oz;
+  if (lx < 0 || lz < 0 || lx >= chunk.size || lz >= chunk.size) return -1;
+  return lz * chunk.size + lx;
+}
+
+/** Town square: a flattened disc of cobbles, trees cleared. */
+function stampPlaza(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const r = s.radius ?? 4;
+  const h = s.level * WORLD.STEP;
+  for (let dz = -s.hd; dz <= s.hd; dz++) {
+    for (let dx = -s.hw; dx <= s.hw; dx++) {
+      if (Math.hypot(dx, dz) > r) continue;
+      const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
+      if (idx < 0 || !isStampable(chunk.type[idx])) continue;
+      chunk.type[idx] = TileType.Plaza;
+      chunk.height[idx] = h;
+      chunk.prop[idx] = PropKind.None;
+    }
+  }
+}
+
+/** Yard ring flattened to the building's level; the footprint itself becomes Floor for houses and churches. */
+function stampFootprint(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const h = s.level * WORLD.STEP;
+  const building = s.kind === StructureKind.House || s.kind === StructureKind.Church;
+  for (let dz = -s.hd - 1; dz <= s.hd + 1; dz++) {
+    for (let dx = -s.hw - 1; dx <= s.hw + 1; dx++) {
+      const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
+      if (idx < 0) continue;
+      const t = chunk.type[idx];
+      if (!isStampable(t) || t === TileType.Road) continue;
+      const inner = Math.abs(dx) <= s.hw && Math.abs(dz) <= s.hd;
+      chunk.height[idx] = h;
+      chunk.prop[idx] = PropKind.None;
+      if (inner && building) chunk.type[idx] = TileType.Floor;
+      else if (t === TileType.High) chunk.type[idx] = TileType.Ground;
+    }
+  }
+}
+
+/** Door path tiles become flat road at the building's level; squares and floors are left alone. */
+function stampPath(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const h = s.level * WORLD.STEP;
+  for (const [x, z] of s.path) {
+    const idx = localIndex(chunk, ox, oz, x, z);
+    if (idx < 0) continue;
+    const t = chunk.type[idx];
+    if (!isStampable(t) || t === TileType.Plaza || t === TileType.Floor) continue;
+    chunk.type[idx] = TileType.Road;
+    chunk.height[idx] = h;
+    chunk.corners.fill(h, idx * 4, idx * 4 + 4);
+    chunk.prop[idx] = PropKind.None;
+  }
+}
+
+/** The building prop goes on the centre tile, but only when that tile is in the chunk interior (props are emitted once). */
+function stampCentreProp(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const idx = interiorIndex(chunk, ox, oz, s.tx, s.tz);
+  if (idx < 0) return;
+  chunk.prop[idx] = structureProp(s);
+  chunk.propRot[idx] = s.rot;
+}
+
+/** Signs and stalls: no yard, just the prop on its tile if the ground allows. */
+function stampSingleProp(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const idx = interiorIndex(chunk, ox, oz, s.tx, s.tz);
+  if (idx < 0) return;
+  if (!isStampable(chunk.type[idx]) || chunk.type[idx] === TileType.Floor) return;
+  chunk.prop[idx] = structureProp(s);
+  chunk.propRot[idx] = s.rot;
+}
+
+/** Like localIndex but excludes the apron ring. */
+function interiorIndex(chunk: ChunkData, ox: number, oz: number, tx: number, tz: number): number {
+  const lx = tx - ox, lz = tz - oz;
+  const CS = WORLD.CHUNK_SIZE;
+  if (lx < 1 || lz < 1 || lx > CS || lz > CS) return -1;
+  return lz * chunk.size + lx;
 }
 
 export function structureProp(s: Structure): PropKind {

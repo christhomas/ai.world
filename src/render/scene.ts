@@ -11,6 +11,8 @@ export interface SceneRig {
   hemi: THREE.HemisphereLight;
   ambient: THREE.AmbientLight;
   water: WaterMaterial;
+  /** Set true once a DayCycle positions the sun, so follow() stops overriding it. */
+  sunDriven: boolean;
   /** Call every frame with the camera target so light, shadows and water travel with the view. */
   follow(x: number, z: number, zoom: number): void;
   resize(): void;
@@ -71,10 +73,10 @@ export function createSceneRig(container: HTMLElement): SceneRig {
   const SUN_OFFSET = new THREE.Vector3(38, 72, 22);
 
   return {
-    renderer, scene, sun, hemi, ambient, water: waterMat,
+    renderer, scene, sun, hemi, ambient, water: waterMat, sunDriven: false,
     follow(x, z, zoom) {
       sun.target.position.set(x, 0, z);
-      sun.position.set(x + SUN_OFFSET.x, SUN_OFFSET.y, z + SUN_OFFSET.z);
+      if (!this.sunDriven) sun.position.set(x + SUN_OFFSET.x, SUN_OFFSET.y, z + SUN_OFFSET.z);
       const half = zoom * 1.1;
       const cam = sun.shadow.camera;
       if (cam.right !== half) {

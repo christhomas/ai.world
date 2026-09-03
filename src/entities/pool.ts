@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { AnimalKind, PartDef } from './animals';
+import type { AnimRole, AnimalKind, PartDef } from './animals';
 import type { Entity } from './entity';
 
 /**
@@ -8,6 +8,34 @@ import type { Entity } from './entity';
  */
 
 const CAPACITY = 320;
+const SHADOW_VOLUME = 0.012;
+/** Leg swing amplitude at full walk, radians. */
+const WALK_SWING = 0.6;
+
+/** Euler angles (x, y, z) for an animated part given the entity's current animation state. */
+function partRotation(role: AnimRole | undefined, e: Entity, swing: number): [number, number, number] {
+  switch (role) {
+    case 'legL': return [0, 0, swing];
+    case 'legR': return [0, 0, -swing];
+    case 'armL': return [0, 0, -swing * 0.8];
+    case 'armR': return [0, 0, swing * 0.8];
+    case 'tail': return [0, Math.sin(e.phase * 0.6 + 1) * 0.35, 0];
+    case 'head': return [0, 0, e.headPitch + Math.sin(e.phase * 2) * 0.05 * e.walk];
+    case 'wingL': return [Math.sin(e.phase) * 0.55 * e.flap, 0, 0];
+    case 'wingR': return [-Math.sin(e.phase) * 0.55 * e.flap, 0, 0];
+    case 'cape': return [0, 0, -0.12 - e.walk * 0.35 + Math.sin(e.phase * 0.5) * 0.06];
+    default: return [0, 0, 0];
+  }
+}
+
+function partVolume(p: PartDef): number {
+  switch (p.shape) {
+    case 'box': return p.size[0] * p.size[1] * p.size[2];
+    case 'cyl': return Math.PI * p.size[0] * p.size[0] * p.size[1];
+    case 'cone': return Math.PI * p.size[2] * p.size[2] * p.size[1] / 3;
+    case 'ico': return (4 / 3) * Math.PI * p.size[0] ** 3;
+  }
+}
 
 interface PartRuntime {
   def: PartDef;
@@ -28,7 +56,8 @@ class KindPool {
       const mat = new THREE.MeshLambertMaterial({ color: def.tint === undefined ? def.color : 0xffffff });
       const mesh = new THREE.InstancedMesh(geo, mat, CAPACITY);
       mesh.count = 0;
-      mesh.castShadow = true;
+      // only chunky parts cast shadows; legs, ears and beaks are not worth a shadow-pass draw call
+      mesh.castShadow = partVolume(def) >= SHADOW_VOLUME;
       mesh.receiveShadow = true;
       mesh.frustumCulled = false;
       mesh.userData.pool = this;
@@ -139,20 +168,10 @@ export class EntityRenderer {
         this.quat.setFromAxisAngle(this.up, e.yaw);
         this.scl.set(s, s, s);
         this.root.compose(this.pos, this.quat, this.scl);
-        const swing = Math.sin(e.phase) * 0.6 * e.walk;
+        const swing = Math.sin(e.phase) * WALK_SWING * e.walk;
         for (const part of p.parts) {
           const d = part.def;
-          let ax = 0, ay = 0, az = 0;
-          switch (d.anim) {
-            case 'legL': az = swing; break;
-            case 'legR': az = -swing; break;
-            case 'armL': az = -swing * 0.8; break;
-            case 'armR': az = swing * 0.8; break;
-            case 'tail': ay = Math.sin(e.phase * 0.6 + 1) * 0.35; break;
-            case 'head': az = e.headPitch + Math.sin(e.phase * 2) * 0.05 * e.walk; break;
-            case 'wingL': ax = Math.sin(e.phase) * 0.55 * e.flap; break;
-            case 'wingR': ax = -Math.sin(e.phase) * 0.55 * e.flap; break;
-          }
+          const [ax, ay, az] = partRotation(d.anim, e, swing);
           this.m.copy(this.root);
           if (ax !== 0 || ay !== 0 || az !== 0) {
             this.t.makeTranslation(part.pivot.x, part.pivot.y, part.pivot.z);

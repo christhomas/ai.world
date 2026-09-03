@@ -1,6 +1,6 @@
 import { WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
-import { generateRoadGraph } from '../world/graph';
+import { TILE_SALT } from '../core/salts';
 import { TerrainSampler, TileType } from '../world/terrain';
 import { buildChunkMesh } from '../world/mesher';
 import { PropKind } from '../world/biomes';
@@ -22,7 +22,7 @@ const post = (msg: WorkerResponse, transfer: Transferable[] = []) =>
 self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const msg = e.data;
   if (msg.type === 'init') {
-    sampler = new TerrainSampler(generateRoadGraph(msg.seed));
+    sampler = new TerrainSampler(msg.graph, { hydro: msg.hydro, structures: msg.structures });
     post({ type: 'ready' });
     return;
   }
@@ -60,11 +60,11 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       if (Number.isNaN(fixedRot)) {
         props.push(
           kind,
-          wx + 0.25 + rand2(sampler.seed, wx, wz, 21) * 0.5,
+          wx + 0.25 + rand2(sampler.seed, wx, wz, TILE_SALT.PROP_X) * 0.5,
           y,
-          wz + 0.25 + rand2(sampler.seed, wx, wz, 22) * 0.5,
-          rand2(sampler.seed, wx, wz, 23) * Math.PI * 2,
-          0.8 + rand2(sampler.seed, wx, wz, 24) * 0.45,
+          wz + 0.25 + rand2(sampler.seed, wx, wz, TILE_SALT.PROP_Z) * 0.5,
+          rand2(sampler.seed, wx, wz, TILE_SALT.PROP_ROT) * Math.PI * 2,
+          0.8 + rand2(sampler.seed, wx, wz, TILE_SALT.PROP_SCALE) * 0.45,
         );
       } else {
         // structures sit exactly on their tile centre, unscaled, facing their door direction

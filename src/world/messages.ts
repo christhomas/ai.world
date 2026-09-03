@@ -1,8 +1,11 @@
 import type { MeshData } from './mesher';
+import type { RoadGraph } from './graph';
+import type { Hydrology } from './rivers';
+import type { Structures } from './structures';
 
-/** Main thread → worker. */
+/** Main thread → worker. Graph, rivers and structures are computed once on the main thread and shared. */
 export type WorkerRequest =
-  | { type: 'init'; seed: number }
+  | { type: 'init'; seed: number; graph: RoadGraph; hydro: Hydrology; structures: Structures }
   | { type: 'gen'; id: number; cx: number; cz: number };
 
 /** Worker → main thread. */

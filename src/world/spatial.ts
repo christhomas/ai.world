@@ -1,3 +1,18 @@
+/** Integer key for a 2D cell; both coordinates must fit in a signed 16-bit range. */
+export function cellKey(cx: number, cz: number): number {
+  return (cx + 32768) * 65536 + (cz + 32768);
+}
+
+/** String key for a chunk, used wherever chunks are stored in Maps/Sets or saved. */
+export function chunkKey(cx: number, cz: number): string {
+  return `${cx},${cz}`;
+}
+
+export function parseChunkKey(key: string): [number, number] {
+  const [cx, cz] = key.split(',').map(Number);
+  return [cx, cz];
+}
+
 /** Uniform-grid index over axis-aligned boxes. Query returns de-duplicated item ids. */
 export class CellIndex {
   private readonly cells = new Map<number, number[]>();
@@ -16,7 +31,7 @@ export class CellIndex {
     }
     for (let cz = Math.floor(minZ / this.cell); cz <= Math.floor(maxZ / this.cell); cz++) {
       for (let cx = Math.floor(minX / this.cell); cx <= Math.floor(maxX / this.cell); cx++) {
-        const k = (cx + 32768) * 65536 + (cz + 32768);
+        const k = cellKey(cx, cz);
         let list = this.cells.get(k);
         if (!list) { list = []; this.cells.set(k, list); }
         list.push(id);
@@ -29,7 +44,7 @@ export class CellIndex {
     const out: number[] = [];
     for (let cz = Math.floor(minZ / this.cell); cz <= Math.floor(maxZ / this.cell); cz++) {
       for (let cx = Math.floor(minX / this.cell); cx <= Math.floor(maxX / this.cell); cx++) {
-        const list = this.cells.get((cx + 32768) * 65536 + (cz + 32768));
+        const list = this.cells.get(cellKey(cx, cz));
         if (!list) continue;
         for (const i of list) {
           if (this.stamp[i] !== gen) { this.stamp[i] = gen; out.push(i); }

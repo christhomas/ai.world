@@ -8,7 +8,7 @@ import { Biome } from '../world/biomes';
  */
 
 export type PartShape = 'box' | 'cyl' | 'cone' | 'ico';
-export type AnimRole = 'legL' | 'legR' | 'armL' | 'armR' | 'tail' | 'head' | 'wingL' | 'wingR';
+export type AnimRole = 'legL' | 'legR' | 'armL' | 'armR' | 'tail' | 'head' | 'wingL' | 'wingR' | 'cape';
 
 export interface PartDef {
   shape: PartShape;
@@ -44,6 +44,10 @@ export interface AnimalKind {
   altitude?: number;   // fliers
   /** Prey flee from the player; predators do not. */
   timid: boolean;
+  /** Max height difference this kind can step across (default STEP_LIMIT). The hero climbs a full terrace. */
+  climb?: number;
+  /** Damage per bite for predators that attack the hero. */
+  dangerous?: number;
 }
 
 type P = PartDef;
@@ -218,7 +222,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   bear: {
-    id: 'bear', label: 'Bear', emoji: '🐻', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false,
+    id: 'bear', label: 'Bear', emoji: '🐻', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2,
     palettes: [[0x5a3a22, 0x8a6a4a], [0x2b2b2b, 0x5a5a5a]],
     names: ['Bruno', 'Grizz', 'Mabel', 'Kodiak', 'Honey'],
     lines: ['*low growl*', '*sniffs*', '*scratches tree*', '*yawns hugely*'],
@@ -366,7 +370,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   wolf: {
-    id: 'wolf', label: 'Wolf', emoji: '🐺', scale: 0.95, speed: 1.5, runSpeed: 5.5, herd: [2, 4], behaviour: 'prowl', timid: false,
+    id: 'wolf', label: 'Wolf', emoji: '🐺', scale: 0.95, speed: 1.5, runSpeed: 5.5, herd: [2, 4], behaviour: 'prowl', timid: false, dangerous: 1,
     palettes: [[0x8a8a8a, 0xd8d8d8], [0x5a5a5a, 0xa8a8a8], [0xe8e8e8, 0xffffff]],
     names: ['Fang', 'Luna', 'Ghost', 'Ash', 'Howl'],
     lines: ['*low growl*', '*howls*', '*watches you*', '*pads silently*'],
@@ -433,13 +437,17 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   hero: {
-    id: 'hero', label: 'You', emoji: '🧝', scale: 1.0, speed: 5.5, runSpeed: 5.5, herd: [1, 1], behaviour: 'wander', timid: false,
-    palettes: [[0x3f8f3a, 0xf0d060]],
+    id: 'hero', label: 'You', emoji: '🧝', scale: 1.06, speed: 5.5, runSpeed: 5.5, herd: [1, 1], behaviour: 'wander', timid: false, climb: 0.56,
+    palettes: [[0x2fb36a, 0xf2d15c]],
     names: ['You'],
     lines: ['...'],
     parts: [
       ...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x4a3a2a }),
-      cone(0.2, 0.45, [0, 1.72, 0], 0x3f8f3a, { anim: 'head', pivot: [0, 1.16, 0] }),
+      // hat, brim, belt, cape: a silhouette you can find in a crowd of villagers
+      cone(0.22, 0.5, [0, 1.78, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.16, 0] }),
+      box([0.42, 0.05, 0.42], [0, 1.6, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.16, 0] }),
+      box([0.24, 0.07, 0.38], [0, 0.74, 0], 0x5a3a1a),
+      box([0.05, 0.62, 0.36], [-0.14, 0.86, 0], 0xc0392b, { anim: 'cape', pivot: [-0.12, 1.16, 0] }),
     ],
   },
 };

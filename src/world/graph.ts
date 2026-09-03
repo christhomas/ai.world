@@ -1,5 +1,7 @@
 import { GRAPH } from '../core/config';
-import { mulberry32, shuffle } from '../core/rng';
+import { mulberry32, rand2, shuffle, type Rng } from '../core/rng';
+import { SALT, TILE_SALT, derive } from '../core/salts';
+import { cellKey } from './spatial';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
 
@@ -47,7 +49,7 @@ class NodeGrid {
   private readonly cells = new Map<number, number[]>();
   constructor(private readonly cell: number) {}
   private key(x: number, z: number): number {
-    return (Math.floor(x / this.cell) + 32768) * 65536 + (Math.floor(z / this.cell) + 32768);
+    return cellKey(Math.floor(x / this.cell), Math.floor(z / this.cell));
   }
   add(i: number, p: Pt): void {
     const k = this.key(p.x, p.z);
@@ -61,157 +63,213 @@ class NodeGrid {
     const cz = Math.floor(p.z / this.cell);
     for (let dz = -1; dz <= 1; dz++) {
       for (let dx = -1; dx <= 1; dx++) {
-        const list = this.cells.get((cx + dx + 32768) * 65536 + (cz + dz + 32768));
+        const list = this.cells.get(cellKey(cx + dx, cz + dz));
         if (list) for (const i of list) visit(i);
       }
     }
   }
 }
 
-export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
-  const rng = mulberry32((seed ^ 0xa5a5a5a5) >>> 0);
-  const noise = new Simplex2D((seed ^ 0x51ed) >>> 0);
-  const R = cfg.RADIUS;
+/** Growth tuning that is not worth a config knob but deserves a name. */
+const GROWTH = {
+  ATTRACTOR_JITTER: 0.9,        // fraction of the grid spacing an attractor may wander
+  MASK_SCALE: 0.011,            // noise frequency for empty bays
+  MASK_THRESHOLD_HUB: -0.3,     // noise must exceed this near the hub…
+  MASK_THRESHOLD_RIM: 0.25,     // …and this at the rim (denser centre, patchy edge)
+  HUB_SPOKES: [5, 7],           // initial spokes out of the hub
+  SPOKE_JITTER: 0.4,
+  HEADING_JITTER: 0.5,          // radians of wobble per growth step
+  STALL_EPSILON: 0.05,          // pull vectors shorter than this count as cancelled out
+  TOWN_BAND: [0.28, 0.85],      // towns sit between these fractions of the radius
+  TOWN_MIN_DEPTH: 5,
+  TOWN_STEP: 0.7,               // town webs grow with shorter, denser steps
+  TOWN_INFLUENCE: 0.5,
+  TOWN_KILL: 0.6,
+  TOWN_ITER: 80,
+  TOWN_ATTRACTOR_JITTER: 0.8,
+  TOWN_CLEARING: 5,             // no attractors right on top of the town centre
+  TOWN_ROAD_WIDTH: 1.3,
+  LEVEL_NOISE_SCALE: 0.006,
+  LEVEL_RANGE: 3,               // terraces of variation from noise
+  WIDTH_PER_LOG_SIZE: 2.4,      // land half-width grows with log2(subtree size)
+  ROAD_WIDTH_BASE: 0.9,
+  ROAD_WIDTH_PER_LOG_SIZE: 0.13,
+  ROAD_WIDTH_MAX: 1.7,
+  LOOP_MIN_STEP_FRACTION: 0.8,  // loops must be longer than most of a growth step
+} as const;
 
-  // --- attractors: jittered grid on a disc, thinned by noise so the map has empty bays ---
-  let attractors: Pt[] = [];
+interface Growth {
+  nodes: RoadNode[];
+  grid: NodeGrid;
+  rng: Rng;
+  R: number;
+}
+
+export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
+  const rng = mulberry32(derive(seed, SALT.ROAD_RNG));
+  const noise = new Simplex2D(derive(seed, SALT.ROAD_MASK));
+  const g: Growth = { nodes: [], grid: new NodeGrid(cfg.INFLUENCE), rng, R: cfg.RADIUS };
+
+  const attractors = scatterAttractors(rng, noise, cfg);
+  seedHub(g, cfg);
+  grow(g, attractors, cfg.STEP, cfg.INFLUENCE, cfg.KILL, cfg.MAX_ITER);
+  const towns = pickTowns(g, cfg);
+  growTownWebs(g, towns, cfg);
+  accumulateSubtreeSizes(g.nodes);
+
+  const sectors = shuffle(rng, [Biome.Plains, Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow]);
+  const sectorOffset = rng() * Math.PI * 2;
+  const graph: RoadGraph = { seed, radius: cfg.RADIUS, nodes: g.nodes, edges: [], sectors, sectorOffset, towns };
+
+  assignLevels(graph, seed, cfg);
+  buildEdges(graph, cfg);
+  addLoops(graph, rng, cfg);
+  return graph;
+}
+
+/** Jittered grid on a disc, thinned by noise so the map has empty bays. */
+function scatterAttractors(rng: Rng, noise: Simplex2D, cfg: typeof GRAPH): Pt[] {
+  const R = cfg.RADIUS;
+  const attractors: Pt[] = [];
   const sp = cfg.ATTRACTOR_SPACING;
   for (let gx = -R; gx <= R; gx += sp) {
     for (let gz = -R; gz <= R; gz += sp) {
-      const x = gx + (rng() - 0.5) * sp * 0.9;
-      const z = gz + (rng() - 0.5) * sp * 0.9;
+      const x = gx + (rng() - 0.5) * sp * GROWTH.ATTRACTOR_JITTER;
+      const z = gz + (rng() - 0.5) * sp * GROWTH.ATTRACTOR_JITTER;
       const r = Math.hypot(x, z);
       if (r > R || r < cfg.HUB_RADIUS * 0.6) continue;
-      const n = noise.fbm(x * 0.011, z * 0.011, 3);
-      // denser near the hub, thinner and patchier toward the rim
-      const threshold = -0.3 + (r / R) * 0.55;
+      const n = noise.fbm(x * GROWTH.MASK_SCALE, z * GROWTH.MASK_SCALE, 3);
+      const threshold = GROWTH.MASK_THRESHOLD_HUB + (r / R) * (GROWTH.MASK_THRESHOLD_RIM - GROWTH.MASK_THRESHOLD_HUB);
       if (n > threshold) attractors.push({ x, z });
     }
   }
+  return attractors;
+}
 
-  // --- grow ---
-  const nodes: RoadNode[] = [{ x: 0, z: 0, parent: -1, depth: 0, level: 1, size: 1 }];
-  const grid = new NodeGrid(cfg.INFLUENCE);
-  grid.add(0, nodes[0]);
-  // Seed the hub with a ring of spokes so the trunk does not start as a single line.
-  const spokes = 5 + Math.floor(rng() * 3);
-  const spokeOffset = rng() * Math.PI * 2;
+/** Hub node plus a ring of spokes, so the trunk does not start as a single line. */
+function seedHub(g: Growth, cfg: typeof GRAPH): void {
+  const addNode = (n: RoadNode) => { g.grid.add(g.nodes.length, n); g.nodes.push(n); };
+  addNode({ x: 0, z: 0, parent: -1, depth: 0, level: 1, size: 1 });
+  const [minSpokes, maxSpokes] = GROWTH.HUB_SPOKES;
+  const spokes = minSpokes + Math.floor(g.rng() * (maxSpokes - minSpokes + 1));
+  const spokeOffset = g.rng() * Math.PI * 2;
   for (let s = 0; s < spokes; s++) {
-    const a = spokeOffset + (s / spokes) * Math.PI * 2 + (rng() - 0.5) * 0.4;
-    const n: RoadNode = { x: Math.cos(a) * cfg.STEP, z: Math.sin(a) * cfg.STEP, parent: 0, depth: 1, level: 1, size: 1 };
-    grid.add(nodes.length, n);
-    nodes.push(n);
+    const a = spokeOffset + (s / spokes) * Math.PI * 2 + (g.rng() - 0.5) * GROWTH.SPOKE_JITTER;
+    addNode({ x: Math.cos(a) * cfg.STEP, z: Math.sin(a) * cfg.STEP, parent: 0, depth: 1, level: 1, size: 1 });
   }
+}
 
-  const grow = (targets: Pt[], step: number, influence: number, kill: number, maxIter: number): void => {
-    const infl2 = influence * influence;
-    const kill2 = kill * kill;
-    for (let iter = 0; iter < maxIter && targets.length > 0; iter++) {
-      const pull = new Map<number, { dx: number; dz: number }>();
-      for (const a of targets) {
-        let best = -1, bestD = infl2;
-        grid.near(a, (i) => {
-          const n = nodes[i];
-          const d = (n.x - a.x) ** 2 + (n.z - a.z) ** 2;
-          if (d < bestD) { bestD = d; best = i; }
-        });
-        if (best < 0) continue;
-        const n = nodes[best];
-        const len = Math.sqrt(bestD) || 1;
-        let p = pull.get(best);
-        if (!p) { p = { dx: 0, dz: 0 }; pull.set(best, p); }
-        p.dx += (a.x - n.x) / len;
-        p.dz += (a.z - n.z) / len;
-      }
-      if (pull.size === 0) break;
-
-      const born: number[] = [];
-      for (const [i, p] of pull) {
-        const parent = nodes[i];
-        let dx = p.dx, dz = p.dz;
-        let len = Math.hypot(dx, dz);
-        if (len < 0.05) {
-          // opposing pulls cancel: pick a random heading so growth never stalls
-          const a = rng() * Math.PI * 2;
-          dx = Math.cos(a); dz = Math.sin(a); len = 1;
-        }
-        // small heading jitter keeps roads from being ruler-straight
-        const jitter = (rng() - 0.5) * 0.5;
-        const cos = Math.cos(jitter), sin = Math.sin(jitter);
-        const jx = (dx * cos - dz * sin) / len;
-        const jz = (dx * sin + dz * cos) / len;
-        const n: RoadNode = {
-          x: parent.x + jx * step,
-          z: parent.z + jz * step,
-          parent: i,
-          depth: parent.depth + 1,
-          level: 1,
-          size: 1,
-        };
-        if (Math.hypot(n.x, n.z) > R) continue;
-        born.push(nodes.length);
-        grid.add(nodes.length, n);
-        nodes.push(n);
-      }
-      if (born.length === 0) break;
-
-      targets = targets.filter((a) => {
-        for (const i of born) {
-          const n = nodes[i];
-          if ((n.x - a.x) ** 2 + (n.z - a.z) ** 2 < kill2) return false;
-        }
-        return true;
+/**
+ * Space colonisation: every attractor pulls its nearest node within `influence`; each pulled node
+ * grows one child of length `step` toward the summed pull; attractors within `kill` of a new node die.
+ */
+function grow(g: Growth, targets: Pt[], step: number, influence: number, kill: number, maxIter: number): void {
+  const { nodes, grid, rng, R } = g;
+  const infl2 = influence * influence;
+  const kill2 = kill * kill;
+  for (let iter = 0; iter < maxIter && targets.length > 0; iter++) {
+    const pull = new Map<number, { dx: number; dz: number }>();
+    for (const a of targets) {
+      let best = -1, bestD = infl2;
+      grid.near(a, (i) => {
+        const n = nodes[i];
+        const d = (n.x - a.x) ** 2 + (n.z - a.z) ** 2;
+        if (d < bestD) { bestD = d; best = i; }
       });
+      if (best < 0) continue;
+      const n = nodes[best];
+      const len = Math.sqrt(bestD) || 1;
+      let p = pull.get(best);
+      if (!p) { p = { dx: 0, dz: 0 }; pull.set(best, p); }
+      p.dx += (a.x - n.x) / len;
+      p.dz += (a.z - n.z) / len;
     }
-  };
-  grow(attractors, cfg.STEP, cfg.INFLUENCE, cfg.KILL, cfg.MAX_ITER);
+    if (pull.size === 0) break;
 
-  // --- towns: pick well-spread nodes deep in the tree and grow a dense local web around each ---
-  const towns: number[] = [];
-  {
-    const order = nodes.map((n, i) => ({ n, i })).filter(({ n }) => {
-      const r = Math.hypot(n.x, n.z);
-      return n.depth >= 5 && r > R * 0.28 && r < R * 0.85;
-    });
-    shuffle(rng, order);
-    for (const { n, i } of order) {
-      if (towns.length >= cfg.TOWNS) break;
-      if (towns.some((t) => Math.hypot(nodes[t].x - n.x, nodes[t].z - n.z) < cfg.TOWN_SPACING)) continue;
-      towns.push(i);
+    const born: number[] = [];
+    for (const [i, p] of pull) {
+      const child = sprout(nodes[i], i, p, step, rng);
+      if (Math.hypot(child.x, child.z) > R) continue;
+      born.push(nodes.length);
+      grid.add(nodes.length, child);
+      nodes.push(child);
     }
-    for (const t of towns) {
-      const c = nodes[t];
-      const local: Pt[] = [];
-      const sp = cfg.TOWN_ATTRACTOR_SPACING;
-      for (let gx = -cfg.TOWN_RADIUS; gx <= cfg.TOWN_RADIUS; gx += sp) {
-        for (let gz = -cfg.TOWN_RADIUS; gz <= cfg.TOWN_RADIUS; gz += sp) {
-          const x = c.x + gx + (rng() - 0.5) * sp * 0.8;
-          const z = c.z + gz + (rng() - 0.5) * sp * 0.8;
-          const r = Math.hypot(x - c.x, z - c.z);
-          if (r > cfg.TOWN_RADIUS || r < 5 || Math.hypot(x, z) > R) continue;
-          local.push({ x, z });
-        }
-      }
-      grow(local, cfg.STEP * 0.7, cfg.INFLUENCE * 0.5, cfg.KILL * 0.6, 80);
-    }
+    if (born.length === 0) break;
+
+    targets = targets.filter((a) => born.every((i) => (nodes[i].x - a.x) ** 2 + (nodes[i].z - a.z) ** 2 >= kill2));
   }
+}
 
-  // --- subtree sizes (children always have larger indices than parents) ---
+/** One new node `step` away from `parent` along the (jittered) pull direction. */
+function sprout(parent: RoadNode, parentIdx: number, pull: { dx: number; dz: number }, step: number, rng: Rng): RoadNode {
+  let { dx, dz } = pull;
+  let len = Math.hypot(dx, dz);
+  if (len < GROWTH.STALL_EPSILON) {
+    // opposing pulls cancel: pick a random heading so growth never stalls
+    const a = rng() * Math.PI * 2;
+    dx = Math.cos(a); dz = Math.sin(a); len = 1;
+  }
+  // small heading jitter keeps roads from being ruler-straight
+  const jitter = (rng() - 0.5) * GROWTH.HEADING_JITTER;
+  const cos = Math.cos(jitter), sin = Math.sin(jitter);
+  const jx = (dx * cos - dz * sin) / len;
+  const jz = (dx * sin + dz * cos) / len;
+  return { x: parent.x + jx * step, z: parent.z + jz * step, parent: parentIdx, depth: parent.depth + 1, level: 1, size: 1 };
+}
+
+/** Well-spread nodes deep in the tree that become town centres. */
+function pickTowns(g: Growth, cfg: typeof GRAPH): number[] {
+  const { nodes, rng, R } = g;
+  const [lo, hi] = GROWTH.TOWN_BAND;
+  const order = nodes.map((n, i) => ({ n, i })).filter(({ n }) => {
+    const r = Math.hypot(n.x, n.z);
+    return n.depth >= GROWTH.TOWN_MIN_DEPTH && r > R * lo && r < R * hi;
+  });
+  shuffle(rng, order);
+  const towns: number[] = [];
+  for (const { n, i } of order) {
+    if (towns.length >= cfg.TOWNS) break;
+    if (towns.some((t) => Math.hypot(nodes[t].x - n.x, nodes[t].z - n.z) < cfg.TOWN_SPACING)) continue;
+    towns.push(i);
+  }
+  return towns;
+}
+
+/** Each town grows a dense local web from attractors scattered around it. */
+function growTownWebs(g: Growth, towns: number[], cfg: typeof GRAPH): void {
+  const { nodes, rng, R } = g;
+  const sp = cfg.TOWN_ATTRACTOR_SPACING;
+  for (const t of towns) {
+    const c = nodes[t];
+    const local: Pt[] = [];
+    for (let gx = -cfg.TOWN_RADIUS; gx <= cfg.TOWN_RADIUS; gx += sp) {
+      for (let gz = -cfg.TOWN_RADIUS; gz <= cfg.TOWN_RADIUS; gz += sp) {
+        const x = c.x + gx + (rng() - 0.5) * sp * GROWTH.TOWN_ATTRACTOR_JITTER;
+        const z = c.z + gz + (rng() - 0.5) * sp * GROWTH.TOWN_ATTRACTOR_JITTER;
+        const r = Math.hypot(x - c.x, z - c.z);
+        if (r > cfg.TOWN_RADIUS || r < GROWTH.TOWN_CLEARING || Math.hypot(x, z) > R) continue;
+        local.push({ x, z });
+      }
+    }
+    grow(g, local, cfg.STEP * GROWTH.TOWN_STEP, cfg.INFLUENCE * GROWTH.TOWN_INFLUENCE, cfg.KILL * GROWTH.TOWN_KILL, GROWTH.TOWN_ITER);
+  }
+}
+
+/** Children always have larger indices than parents, so one reverse pass sums subtrees. */
+function accumulateSubtreeSizes(nodes: RoadNode[]): void {
   for (let i = nodes.length - 1; i > 0; i--) nodes[nodes[i].parent].size += nodes[i].size;
+}
 
-  // --- biome sectors: six warped wedges around the hub, order shuffled by seed ---
-  const sectors = shuffle(rng, [Biome.Plains, Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow]);
-  const sectorOffset = rng() * Math.PI * 2;
-  const graph: RoadGraph = { seed, radius: R, nodes, edges: [], sectors, sectorOffset, towns };
-
-  // --- road levels: noise + biome base, then clamp so adjacent nodes differ by at most one terrace ---
-  const levelNoise = new Simplex2D((seed ^ 0x7e7e) >>> 0);
+/** Road levels: noise + biome base, clamped so adjacent nodes differ by at most one terrace. */
+function assignLevels(graph: RoadGraph, seed: number, cfg: typeof GRAPH): void {
+  const { nodes } = graph;
+  const levelNoise = new Simplex2D(derive(seed, SALT.BIOME));
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     const biome = biomeAt(graph, levelNoise, n.x, n.z);
     const base = BIOME_BASE[biome];
-    const h = (levelNoise.fbm(n.x * 0.006, n.z * 0.006, 3) + 1) * 0.5; // [0,1]
-    let level = 1 + base + Math.round(h * 3);
+    const h = (levelNoise.fbm(n.x * GROWTH.LEVEL_NOISE_SCALE, n.z * GROWTH.LEVEL_NOISE_SCALE, 3) + 1) * 0.5; // [0,1]
+    let level = 1 + base + Math.round(h * GROWTH.LEVEL_RANGE);
     if (Math.hypot(n.x, n.z) < cfg.HUB_RADIUS) level = 1;
     if (n.parent >= 0) {
       const pl = nodes[n.parent].level;
@@ -219,11 +277,19 @@ export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
     }
     n.level = Math.max(1, level);
   }
+}
 
-  // --- edges ---
-  const widthFor = (size: number) =>
-    Math.min(cfg.MAX_WIDTH, cfg.MIN_WIDTH + 2.4 * Math.log2(size + 1));
-  const roadWidthFor = (size: number) => Math.min(1.7, 0.9 + 0.13 * Math.log2(size + 1));
+function landWidthFor(size: number, cfg: typeof GRAPH): number {
+  return Math.min(cfg.MAX_WIDTH, cfg.MIN_WIDTH + GROWTH.WIDTH_PER_LOG_SIZE * Math.log2(size + 1));
+}
+
+function roadWidthFor(size: number): number {
+  return Math.min(GROWTH.ROAD_WIDTH_MAX, GROWTH.ROAD_WIDTH_BASE + GROWTH.ROAD_WIDTH_PER_LOG_SIZE * Math.log2(size + 1));
+}
+
+/** One edge per parent link; land near towns is widened so squares and houses fit. */
+function buildEdges(graph: RoadGraph, cfg: typeof GRAPH): void {
+  const { nodes, towns } = graph;
   const nearTown = (n: RoadNode): boolean =>
     towns.some((t) => Math.hypot(nodes[t].x - n.x, nodes[t].z - n.z) < cfg.TOWN_RADIUS + 6);
   for (let i = 1; i < nodes.length; i++) {
@@ -231,16 +297,20 @@ export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
     const wide = nearTown(n);
     graph.edges.push({
       a: n.parent, b: i,
-      width: wide ? Math.max(widthFor(n.size), cfg.TOWN_LAND_WIDTH) : widthFor(n.size),
-      roadWidth: wide ? Math.max(roadWidthFor(n.size), 1.3) : roadWidthFor(n.size),
+      width: wide ? Math.max(landWidthFor(n.size, cfg), cfg.TOWN_LAND_WIDTH) : landWidthFor(n.size, cfg),
+      roadWidth: wide ? Math.max(roadWidthFor(n.size), GROWTH.TOWN_ROAD_WIDTH) : roadWidthFor(n.size),
       loop: false,
     });
   }
+}
 
-  // --- loops: join nearby nodes from different branches ---
+/** Join nearby nodes from different branches so the map is not a pure tree. */
+function addLoops(graph: RoadGraph, rng: Rng, cfg: typeof GRAPH): void {
+  const { nodes } = graph;
   const loopGrid = new NodeGrid(cfg.LOOP_DIST);
   nodes.forEach((n, i) => loopGrid.add(i, n));
   const loop2 = cfg.LOOP_DIST * cfg.LOOP_DIST;
+  const minLen2 = (cfg.STEP * GROWTH.LOOP_MIN_STEP_FRACTION) ** 2;
   const looped = new Set<number>();
   for (let i = 1; i < nodes.length; i++) {
     if (looped.has(i)) continue;
@@ -251,34 +321,71 @@ export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
       const m = nodes[j];
       if (m.parent === i || n.parent === j || m.parent === n.parent) return;
       const d = (m.x - n.x) ** 2 + (m.z - n.z) ** 2;
-      if (d < bestD && d > (cfg.STEP * 0.8) ** 2) { bestD = d; best = j; }
+      if (d < bestD && d > minLen2) { bestD = d; best = j; }
     });
     if (best >= 0 && rng() < cfg.LOOP_CHANCE && Math.abs(nodes[best].level - n.level) <= 1) {
       const size = Math.min(n.size, nodes[best].size);
-      graph.edges.push({ a: i, b: best, width: widthFor(size), roadWidth: roadWidthFor(size), loop: true });
+      graph.edges.push({ a: i, b: best, width: landWidthFor(size, cfg), roadWidth: roadWidthFor(size), loop: true });
       looped.add(i); looped.add(best);
     }
   }
-
-  return graph;
 }
 
 const BIOME_BASE: Record<Biome, number> = {
   [Biome.Plains]: 0, [Biome.Forest]: 0, [Biome.Desert]: 0, [Biome.Swamp]: 0, [Biome.Mountain]: 3, [Biome.Snow]: 2,
 };
 
-/** Biome for a world position: plains inside the hub clearing, otherwise a noise-warped angular sector. */
-export function biomeAt(graph: RoadGraph, noise: Simplex2D, x: number, z: number): Biome {
+export interface SectorMix {
+  biome: Biome;
+  /** Neighbouring biome bleeding in, and its weight in [0, 0.5]. */
+  other: Biome;
+  t: number;
+}
+
+const TAU = Math.PI * 2;
+/** Width of the dithered transition between biomes, in tiles. */
+export const BLEND_TILES = 10;
+
+/**
+ * Sector lookup with blend weights: plains inside the hub clearing, otherwise a noise-warped
+ * angular wedge. Near a wedge edge (or the clearing edge) `other`/`t` describe the neighbour
+ * bleeding in, so callers can dither tiles or lerp colours instead of drawing a hard line.
+ */
+export function sectorMix(graph: RoadGraph, noise: Simplex2D, x: number, z: number): SectorMix {
   const r = Math.hypot(x, z);
-  if (r < GRAPH.HUB_RADIUS * 1.15) return Biome.Plains;
-  // warp the angle so sector borders wander instead of being straight spokes
+  const K = graph.sectors.length;
   const warp = noise.fbm(x * 0.008, z * 0.008, 2) * 0.55;
-  // near the clearing the warp is damped so the hub stays cleanly plains
-  const damp = Math.min(1, (r - GRAPH.HUB_RADIUS) / 60);
+  const damp = Math.min(1, Math.max(0, (r - GRAPH.HUB_RADIUS) / 60));
   let a = Math.atan2(z, x) + warp * damp - graph.sectorOffset;
-  a = ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  const idx = Math.floor((a / (Math.PI * 2)) * graph.sectors.length) % graph.sectors.length;
-  return graph.sectors[idx];
+  a = ((a % TAU) + TAU) % TAU;
+  const f = (a / TAU) * K;
+  const idx = Math.floor(f) % K;
+  const frac = f - Math.floor(f);
+  const sector = graph.sectors[idx];
+
+  // angular band: BLEND_TILES wide regardless of radius
+  const arc = Math.max(1, r) * (TAU / K);
+  const w = Math.min(0.45, BLEND_TILES / arc);
+  let other = sector, t = 0;
+  if (frac < w) { other = graph.sectors[(idx + K - 1) % K]; t = 0.5 * (1 - frac / w); }
+  else if (frac > 1 - w) { other = graph.sectors[(idx + 1) % K]; t = 0.5 * (1 - (1 - frac) / w); }
+
+  // hub clearing ring
+  const R0 = GRAPH.HUB_RADIUS * 1.15;
+  if (r < R0) {
+    const tr = 0.5 * (1 - Math.min(1, (R0 - r) / BLEND_TILES));
+    return { biome: Biome.Plains, other: sector, t: tr };
+  }
+  const tr = 0.5 * (1 - Math.min(1, (r - R0) / BLEND_TILES));
+  if (tr > t) { other = Biome.Plains; t = tr; }
+  return { biome: sector, other, t };
+}
+
+/** Biome for a world position, dithered per tile across blend bands. */
+export function biomeAt(graph: RoadGraph, noise: Simplex2D, x: number, z: number): Biome {
+  const m = sectorMix(graph, noise, x, z);
+  if (m.t <= 0) return m.biome;
+  return rand2(graph.seed, Math.floor(x), Math.floor(z), TILE_SALT.BIOME_DITHER) < m.t ? m.other : m.biome;
 }
 
 /** Squared distance from p to segment ab, plus the parameter t of the closest point. */

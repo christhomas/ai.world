@@ -6,6 +6,8 @@ import type { WorkerRequest, WorkerResponse } from './messages';
 import { TileType } from './terrain';
 import type { TileWorld } from '../entities/entity';
 import type { ChunkSource, ChunkTiles } from '../entities/manager';
+import type { TerrainSampler } from './terrain';
+import { chunkKey } from './spatial';
 
 interface LoadedChunk {
   cx: number;
@@ -37,9 +39,10 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   constructor(
     private readonly scene: THREE.Scene,
-    private readonly seed: number,
+    sampler: TerrainSampler,
     private readonly props: PropLibrary,
     private readonly waterMaterial: THREE.Material,
+    private readonly glowMaterial: THREE.Material,
   ) {
     const R = WORLD.VIEW_RADIUS;
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) this.offsets.push({ dx, dz });
@@ -49,12 +52,12 @@ export class ChunkManager implements TileWorld, ChunkSource {
     for (let i = 0; i < n; i++) {
       const w = new Worker(new URL('../workers/chunkgen.worker.ts', import.meta.url), { type: 'module' });
       w.onmessage = (e: MessageEvent<WorkerResponse>) => this.onMessage(w, e.data);
-      w.postMessage({ type: 'init', seed } satisfies WorkerRequest);
+      w.postMessage({
+        type: 'init', seed: sampler.seed, graph: sampler.graph, hydro: sampler.hydro, structures: sampler.structures,
+      } satisfies WorkerRequest);
       this.workers.push(w);
     }
   }
-
-  private key(cx: number, cz: number): string { return `${cx},${cz}`; }
 
   update(x: number, z: number): void {
     const cx = Math.floor(x / WORLD.CHUNK_SIZE);
@@ -72,7 +75,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     const { focusCx: cx, focusCz: cz } = this;
     this.queue.length = 0;
     for (const { dx, dz } of this.offsets) {
-      const k = this.key(cx + dx, cz + dz);
+      const k = chunkKey(cx + dx, cz + dz);
       if (!this.loaded.has(k) && !this.pending.has(k)) this.queue.push({ cx: cx + dx, cz: cz + dz });
     }
     for (const [k, c] of this.loaded) {
@@ -87,7 +90,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       const job = this.queue.shift()!;
       const w = this.idle.pop()!;
       const id = this.nextId++;
-      this.pending.set(this.key(job.cx, job.cz), id);
+      this.pending.set(chunkKey(job.cx, job.cz), id);
       w.postMessage({ type: 'gen', id, cx: job.cx, cz: job.cz } satisfies WorkerRequest);
     }
   }
@@ -100,7 +103,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       return;
     }
     this.idle.push(w);
-    const k = this.key(msg.cx, msg.cz);
+    const k = chunkKey(msg.cx, msg.cz);
     if (this.pending.get(k) !== msg.id) { this.pump(); return; } // stale
     this.pending.delete(k);
     const far = Math.max(Math.abs(msg.cx - this.focusCx), Math.abs(msg.cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
@@ -171,6 +174,14 @@ export class ChunkManager implements TileWorld, ChunkSource {
       inst.receiveShadow = true;
       inst.computeBoundingSphere();
       group.add(inst);
+      const glowGeo = this.props.glows.get(kind);
+      if (glowGeo) {
+        const glow = new THREE.InstancedMesh(glowGeo, this.glowMaterial, list.length);
+        glow.instanceMatrix.copy(inst.instanceMatrix);
+        glow.instanceMatrix.needsUpdate = true;
+        glow.computeBoundingSphere();
+        group.add(glow);
+      }
     }
   }
 
@@ -189,7 +200,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
   private tileAt(x: number, z: number): { t: ChunkTiles; i: number } | null {
     const CS = WORLD.CHUNK_SIZE;
     const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
-    const c = this.loaded.get(this.key(cx, cz));
+    const c = this.loaded.get(chunkKey(cx, cz));
     if (!c || !c.tiles) return null;
     const lx = Math.floor(x - cx * CS), lz = Math.floor(z - cz * CS);
     return { t: c.tiles, i: lz * CS + lx };
@@ -223,7 +234,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
   }
 
   getTiles(cx: number, cz: number): ChunkTiles | null {
-    const c = this.loaded.get(this.key(cx, cz));
+    const c = this.loaded.get(chunkKey(cx, cz));
     return c ? c.tiles : null;
   }
 

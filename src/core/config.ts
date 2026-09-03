@@ -44,6 +44,14 @@ export const HYDRO = {
   BANK: 1.4,              // width of the flat bank ring around water
 } as const;
 
+export const GAMEPLAY = {
+  TALK_RANGE: 2.8,          // Enter/Space talks to anyone this close (tiles)
+  CLICK_TALK_RANGE: 4.5,    // clicking a creature works from a bit further
+  POI_DISCOVER_RADIUS: 7,   // walking this close to a point of interest discovers it
+  AUTOSAVE_SECONDS: 3,
+  KO_GOLD_LOSS: 10,         // gold dropped when knocked out
+} as const;
+
 export const CAMERA = {
   SPEED: 24,        // world units per second
   ROT_SPEED: 1.7,   // radians per second

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
-import { Inventory } from './shops';
+import { GameState } from './state';
 import { dialogueFor } from './talk';
 
 describe('shop dialogue', () => {
@@ -13,9 +13,10 @@ describe('shop dialogue', () => {
     const e = new Entity(KINDS.shopkeeper, 0, 0, herd, 'k', rng);
     e.role = 'shopkeeper';
     e.shop = 'store';
-    const inventory = new Inventory();
+    const state = new GameState();
+    const inventory = state.inventory;
     let changes = 0;
-    const ctx = { inventory, rng, onInventoryChange: () => changes++ };
+    const ctx = { state, rng, quests: new Map(), onInventoryChange: () => changes++, onQuestChange: () => {} };
 
     const root = dialogueFor(e, ctx);
     expect(root.choices?.map((c) => c.label)).toEqual(['Buy', 'Chat', 'Leave']);
@@ -41,5 +42,44 @@ describe('shop dialogue', () => {
     const v = new Entity(KINDS.villager, 0, 0, herd, 'k', rng);
     const line = v.line(() => 0);
     expect(line).toContain('Testford');
+  });
+});
+
+describe('quests', () => {
+  it('generates one quest per village deterministically and the elder flow pays out', async () => {
+    const { generateRoadGraph } = await import('../world/graph');
+    const { TerrainSampler } = await import('../world/terrain');
+    const { generateQuests } = await import('./quests');
+    const sampler = new TerrainSampler(generateRoadGraph(3));
+    const a = generateQuests(sampler.structures, 3);
+    const b = generateQuests(sampler.structures, 3);
+    expect(a.length).toBeGreaterThan(3);
+    expect(a.map((q) => q.id)).toEqual(b.map((q) => q.id));
+    const fetch = a.find((q) => q.kind === 'fetch');
+    const visit = a.find((q) => q.kind === 'visit');
+    expect(fetch && visit).toBeTruthy();
+
+    const rng = mulberry32(1);
+    const state = new GameState();
+    const herd = new Herd(KINDS.villager, 0, 0, 0, 0, 1);
+    herd.tag = visit!.village;
+    const elder = new Entity(KINDS.villager, 0, 0, herd, 'k', rng);
+    elder.role = 'elder';
+    const changes: string[] = [];
+    const ctx = { state, rng, quests: new Map(a.map((q) => [q.village, q])), onInventoryChange: () => {}, onQuestChange: (_q: unknown, s: string) => changes.push(s) };
+
+    const offer = dialogueFor(elder, ctx);
+    expect(offer.choices?.[0].label).toBe('Accept');
+    offer.choices![0].next();
+    expect(state.quests.get(visit!.id)).toBe('active');
+    expect(dialogueFor(elder, ctx).pages[0]).toBe(visit!.reminder);
+    state.discovered.add(visit!.target);
+    const turnIn = dialogueFor(elder, ctx);
+    expect(turnIn.choices?.[0].label).toContain(String(visit!.reward));
+    const gold = state.inventory.gold;
+    turnIn.choices![0].next();
+    expect(state.inventory.gold).toBe(gold + visit!.reward);
+    expect(state.quests.get(visit!.id)).toBe('done');
+    expect(changes).toEqual(['active', 'done']);
   });
 });

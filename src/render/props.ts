@@ -8,6 +8,8 @@ import { PropKind } from '../world/biomes';
  */
 export class PropLibrary {
   readonly geometries = new Map<PropKind, THREE.BufferGeometry>();
+  /** Window-only geometry per building kind, drawn unlit so it can glow at night. */
+  readonly glows = new Map<PropKind, THREE.BufferGeometry>();
   readonly material = new THREE.MeshLambertMaterial({ vertexColors: true });
 
   constructor() {
@@ -95,8 +97,13 @@ export class PropLibrary {
       [PropKind.HouseMountain, { wall: 0x8f8f8f, roof: 0x4f5a66, trim: 0x6e6e6e, roofType: 'steep' }],
       [PropKind.HouseSnow, { wall: 0x5a4632, roof: 0xf0f4f8, trim: 0x3a2a1a, roofType: 'steep' }],
     ];
-    for (const [kind, style] of houseStyles) this.geometries.set(kind, house(style));
-    for (const [kind, style] of houseStyles) this.geometries.set(kind + (PropKind.ChurchPlains - PropKind.HousePlains), church(style));
+    for (const [kind, style] of houseStyles) {
+      this.geometries.set(kind, house(style));
+      this.glows.set(kind, merge(HOUSE_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos))));
+      const churchKind = kind + (PropKind.ChurchPlains - PropKind.HousePlains);
+      this.geometries.set(churchKind, church(style));
+      this.glows.set(churchKind, merge(CHURCH_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos))));
+    }
 
     this.geometries.set(PropKind.Well, merge([
       part(new THREE.CylinderGeometry(0.62, 0.66, 0.7, 8), 0x8a8a8a, [0, 0.35, 0]),
@@ -193,9 +200,26 @@ export class PropLibrary {
 
   dispose(): void {
     for (const g of this.geometries.values()) g.dispose();
+    for (const g of this.glows.values()) g.dispose();
     this.material.dispose();
   }
 }
+
+type WindowSpec = [[number, number, number], [number, number, number]];
+const HOUSE_WINDOWS: WindowSpec[] = [
+  [[0.08, 0.42, 0.42], [1.22, 1.15, 0.75]],
+  [[0.08, 0.42, 0.42], [1.22, 1.15, -0.75]],
+  [[0.42, 0.42, 0.08], [0, 1.15, 1.22]],
+  [[0.42, 0.42, 0.08], [-0.4, 1.15, -1.22]],
+];
+const CHURCH_WINDOWS: WindowSpec[] = [
+  [[0.08, 0.9, 0.3], [1.32, 1.8, 0.6]],
+  [[0.08, 0.9, 0.3], [1.32, 1.8, -0.6]],
+  [[0.3, 0.9, 0.08], [0.4, 1.5, 1.12]],
+  [[0.3, 0.9, 0.08], [-0.4, 1.5, 1.12]],
+  [[0.3, 0.9, 0.08], [0.4, 1.5, -1.12]],
+  [[0.3, 0.9, 0.08], [-0.4, 1.5, -1.12]],
+];
 
 interface HouseStyle { wall: number; roof: number; trim: number; roofType: 'gable' | 'flat' | 'steep' }
 
@@ -205,10 +229,7 @@ function house(st: HouseStyle): THREE.BufferGeometry {
     part(new THREE.BoxGeometry(2.6, 0.2, 2.6), st.trim, [0, 0.1, 0]),
     part(new THREE.BoxGeometry(2.4, 1.5, 2.4), st.wall, [0, 0.95, 0]),
     part(new THREE.BoxGeometry(0.08, 0.95, 0.62), 0x3a2a1a, [1.22, 0.68, 0]),
-    part(new THREE.BoxGeometry(0.08, 0.42, 0.42), 0x9fd4ef, [1.22, 1.15, 0.75]),
-    part(new THREE.BoxGeometry(0.08, 0.42, 0.42), 0x9fd4ef, [1.22, 1.15, -0.75]),
-    part(new THREE.BoxGeometry(0.42, 0.42, 0.08), 0x9fd4ef, [0, 1.15, 1.22]),
-    part(new THREE.BoxGeometry(0.42, 0.42, 0.08), 0x9fd4ef, [-0.4, 1.15, -1.22]),
+    ...HOUSE_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(...size), 0x9fd4ef, pos)),
     part(new THREE.BoxGeometry(0.55, 0.16, 0.9), st.trim, [1.5, 0.08, 0]),
   ];
   if (st.roofType === 'flat') {
@@ -230,12 +251,7 @@ function church(st: HouseStyle): THREE.BufferGeometry {
     part(new THREE.BoxGeometry(2.7, 0.2, 2.7), st.trim, [0, 0.1, 0]),
     part(new THREE.BoxGeometry(2.5, 2.1, 2.2), st.wall, [0.05, 1.25, 0]),
     part(new THREE.BoxGeometry(0.08, 1.3, 0.8), 0x3a2a1a, [1.32, 0.85, 0]),
-    part(new THREE.BoxGeometry(0.08, 0.9, 0.3), 0x9fd4ef, [1.32, 1.8, 0.6]),
-    part(new THREE.BoxGeometry(0.08, 0.9, 0.3), 0x9fd4ef, [1.32, 1.8, -0.6]),
-    part(new THREE.BoxGeometry(0.3, 0.9, 0.08), 0x9fd4ef, [0.4, 1.5, 1.12]),
-    part(new THREE.BoxGeometry(0.3, 0.9, 0.08), 0x9fd4ef, [-0.4, 1.5, 1.12]),
-    part(new THREE.BoxGeometry(0.3, 0.9, 0.08), 0x9fd4ef, [0.4, 1.5, -1.12]),
-    part(new THREE.BoxGeometry(0.3, 0.9, 0.08), 0x9fd4ef, [-0.4, 1.5, -1.12]),
+    ...CHURCH_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(...size), 0x9fd4ef, pos)),
     part(new THREE.BoxGeometry(0.7, 0.16, 1.1), st.trim, [1.6, 0.08, 0]),
     // steeple at the back
     part(new THREE.BoxGeometry(1.0, 4.2, 1.0), st.wall, [-0.9, 2.1, 0]),

@@ -19,9 +19,11 @@ A procedurally generated low-poly isometric world that runs in the browser. Ever
 | **F** | Free camera (WASD / drag pans the camera instead of walking) |
 | **N** | New world (new seed) |
 | **O** | Options panel |
+| **Click an item** | Use it (food and potions heal, a night's rest skips to dawn) |
+| **1 / 2 / 3** | Pick a save slot on the title screen |
 | **Escape** | Close dialogue/options |
 
-URL parameters: `?seed=123` loads a specific world, `&x=100&z=-50` starts the hero at a world position, `&cam=free` starts in free-camera mode.
+URL parameters (skip the title screen, play in a scratch slot): `?seed=123` loads a specific world, `&x=100&z=-50` starts the hero at a world position, `&t=0.9` sets the time of day, `&cam=free` starts in free-camera mode.
 
 ## What's in the world
 
@@ -31,15 +33,23 @@ URL parameters: `?seed=123` loads a specific world, `&x=100&z=-50` starts the he
 - **Towns and villages.** Nine towns act as secondary hubs with their own road webs; smaller villages sit on wide branches. Every settlement has a square with a well and market stalls, a church with a congregation, houses with door paths, and two to four shops (general store, blacksmith, inn, apothecary) with a keeper at the door.
 - **Talking and trading.** An RPG-style dialogue box with typewriter text and choices. Shopkeepers sell items for gold (you start with 50); gold and inventory persist with the save.
 - **Points of interest.** Shrines, ruins, watchtowers, campsites and giant trees off the road. Walking up to one names it, flashes a discovery banner, and marks it on the minimap.
+- **Hearts, wolves and bears.** You have ten hearts. Wolves and bears stalk and bite; a sword makes them keep their distance, a shield halves the damage, a helm adds two hearts. Knocked out, you wake in the nearest town a little poorer.
+- **Items that do things.** Food and potions heal, a lantern lights the night around you, the region map lifts the minimap fog, a rope lets you climb two terraces at once, a night at the inn heals fully and skips to dawn.
+- **Quests.** Every village elder has one errand: go and find a named point of interest in a given direction, or bring items the village's own shops do not sell. Gold on completion; a quest log sits under the inventory.
+- **Day and night.** Eight real minutes per day. The sun orbits, the sky goes orange then deep blue, windows glow, owls replace birds.
+- **Sound.** Everything is synthesised in Web Audio: footsteps, biome ambience (birds, frogs, wind, eagles), dialogue blips, shop chimes, discovery jingles. Volume in the options panel.
+- **Three save slots** on the title screen. The minimap keeps fog of war until you have explored (or bought the map).
 
 ## Development
 
 ```sh
 pnpm install
 pnpm dev        # http://localhost:5173
-pnpm test       # vitest: rng, noise, road graph, terrain, mesher
+pnpm test       # vitest: rng, noise, road graph, terrain, hydrology, structures, entities, shops, quests
 pnpm build      # typecheck + production build into dist/
 ```
+
+`src/world/golden.test.ts` pins a fingerprint of the generated world for two seeds. Refactors must keep it; a deliberate tuning change updates the constants (and changes every saved world's layout). See `docs/human-code-report-2026-09-03.md` for the readability pass.
 
 Deployment is a GitHub Action (`.github/workflows/deploy.yml`) that builds `dist/` on every push to `main` and publishes it to GitHub Pages. The repository's Pages source must be set to **GitHub Actions**.
 
@@ -59,6 +69,8 @@ The original single-file prototype is kept at `legacy/index.html` for reference.
 
 **Creatures** (`src/entities/`). Every animal and character is a handful of primitive parts. Each (kind, part) pair is one `InstancedMesh`; animation rewrites instance matrices, so forty sheep cost the same draw calls as one. Herds spawn per chunk from the seed and despawn when you leave. The hero is just another entity driven by the keyboard.
 
+**Game state** (`src/game/`). `GameState` holds hearts, gold, items, time of day, explored cells, quest progress and discoveries, and serialises into the save slot. `shops.ts` is the item table with effects, `quests.ts` builds one errand per village from the seed, `talk.ts` turns an entity into a dialogue tree, `audio.ts` is the synthesiser. `core/salts.ts` names every random stream so none of them collide.
+
 **Streaming** (`src/world/chunkManager.ts`). Chunks within a radius of the camera are generated in a Web Worker pool (`src/workers/chunkgen.worker.ts`) and uploaded as ready; chunks far from the camera are disposed. Chunks with no land are skipped before any mesh work, so cost tracks the walkable area rather than the map's bounding box.
 
 ### Layout
@@ -68,10 +80,10 @@ src/
   core/        config, seeded rng, game loop, input
   world/       noise, biomes, road graph, rivers, structures, terrain sampler, mesher, chunk manager
   workers/     chunk generation worker
-  render/      scene rig (lights, shadows), water material, isometric camera, prop + building geometry
+  render/      scene rig (lights, shadows), day/night cycle, water material, isometric camera, prop + building geometry
   entities/    animal/character rigs, instanced renderer, behaviours, spawning, player
-  game/        shops, inventory, dialogue trees
-  ui/          hud, dialogue box, minimap, styles
+  game/        game state, shops + items, quests, dialogue trees, synthesised audio
+  ui/          hud, dialogue box, title/slots, minimap, styles
   save/        persistence interface + IndexedDB implementation
   main.ts      bootstrap
 ```
@@ -86,7 +98,8 @@ src/
 2. ~~Rivers, lakes, waterfalls, animated water, richer foliage.~~
 3. ~~Animals in herds, player avatar with follow camera.~~
 4. ~~Towns, villages, churches, shops, dialogue, points of interest, discovery.~~
-5. Next: smoother biome borders, quests and items that do something, day/night, sound.
+5. ~~Biome blending, hearts and predators, item effects, quests, day/night, sound, save slots.~~
+6. Ideas: dungeons under the shrines, boats, fishing, seasons, a proper soundtrack.
 
 ## Technology
 

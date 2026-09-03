@@ -1,5 +1,6 @@
 import { GRAPH, HYDRO } from '../core/config';
 import { mulberry32, shuffle } from '../core/rng';
+import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import type { RoadGraph } from './graph';
 
@@ -29,8 +30,8 @@ export interface LandProbe {
 }
 
 export function generateHydrology(graph: RoadGraph, probe: (x: number, z: number) => LandProbe | null, cfg = HYDRO): Hydrology {
-  const rng = mulberry32((graph.seed ^ 0x8ebe) >>> 0);
-  const noise = new Simplex2D((graph.seed ^ 0x2222) >>> 0);
+  const rng = mulberry32(derive(graph.seed, SALT.RIVER_RNG));
+  const noise = new Simplex2D(derive(graph.seed, SALT.RIVER_MEANDER));
   const rivers: RiverNode[][] = [];
   const lakes: Lake[] = [];
 

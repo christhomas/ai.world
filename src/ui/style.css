@@ -47,12 +47,27 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #toast.show { opacity: 1; }
 
-#inventory {
+#status {
   position: fixed; top: 20px; left: 20px;
+  background: rgba(0,0,0,0.7); border: 2px solid #e74c3c; border-radius: 8px;
+  padding: 6px 12px; color: #fff; z-index: 100; min-width: 160px;
+}
+#hearts { color: #ff5c5c; font-size: 18px; letter-spacing: 1px; line-height: 1.2; }
+#clock { color: #cfd6ff; font-size: 12px; margin-top: 2px; }
+#hurt {
+  position: fixed; inset: 0; pointer-events: none; z-index: 1100;
+  background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(200,0,0,0.55) 100%);
+  opacity: 0; transition: opacity 0.15s;
+}
+#hurt.show { opacity: 1; }
+#inventory {
+  position: fixed; top: 84px; left: 20px;
   background: rgba(0,0,0,0.7); border: 2px solid #f1c40f; border-radius: 8px;
   padding: 8px 12px; color: #fff; font-size: 13px; z-index: 100; min-width: 120px;
 }
 #inventory div { line-height: 1.5; }
+#inventory div.usable { cursor: pointer; }
+#inventory div.usable:hover { color: #f1c40f; }
 #dialogue {
   display: none; position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
   width: min(720px, 92vw); z-index: 1200;
@@ -74,3 +89,39 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); border-radius: 4px; }
 #dialogue .dlg-hint { position: absolute; right: 4px; bottom: -4px; color: #ffd76a; animation: bob 0.8s infinite alternate; }
 @keyframes bob { from { transform: translateY(0); } to { transform: translateY(4px); } }
+#quests {
+  display: none; position: fixed; top: 84px; left: 200px; max-width: 280px;
+  background: rgba(0,0,0,0.7); border: 2px solid #8fa0ff; border-radius: 8px;
+  padding: 8px 12px; color: #fff; font-size: 12px; z-index: 100;
+}
+#quests .title { color: #8fa0ff; font-weight: bold; margin-bottom: 4px; }
+#quests div { line-height: 1.5; }
+#optionsPanel button.wide {
+  width: 100%; padding: 8px; background: #2d2d44; color: #fff; border: 2px solid #6c5ce7;
+  border-radius: 6px; cursor: pointer; font-family: inherit;
+}
+#optionsPanel button.wide:hover { background: #3d3d5c; }
+#title {
+  display: none; position: fixed; inset: 0; z-index: 3000;
+  background: radial-gradient(ellipse at top, #24406b 0%, #0b1230 70%);
+  align-items: center; justify-content: center; color: #fff;
+}
+#title.show { display: flex; }
+#title .title-card { text-align: center; width: min(560px, 92vw); }
+#title h1 { font-size: 56px; letter-spacing: 4px; color: #ffd76a; text-shadow: 0 4px 0 #6c5ce7, 0 8px 24px rgba(0,0,0,0.6); margin-bottom: 6px; }
+#title .tagline { color: #cfd6ff; margin-bottom: 22px; }
+#title .hint { color: #7f8bb3; font-size: 12px; margin-top: 18px; }
+#slots { display: flex; flex-direction: column; gap: 12px; }
+#slots .slot {
+  background: linear-gradient(180deg, #1c2a6b 0%, #0d1540 100%); border: 2px solid #8fa0ff; border-radius: 8px;
+  padding: 12px 16px; text-align: left;
+}
+#slots .slot-head { font-weight: bold; color: #ffd76a; }
+#slots .slot-key { color: #7f8bb3; font-weight: normal; font-size: 12px; }
+#slots .slot-summary { color: #cfd6ff; font-size: 13px; margin: 4px 0 10px; }
+#slots .slot-actions { display: flex; gap: 8px; }
+#slots button {
+  padding: 6px 14px; background: #2fb36a; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: bold;
+}
+#slots button:hover { filter: brightness(1.15); }
+#slots button.danger { background: #7a2a2a; margin-left: auto; font-weight: normal; }

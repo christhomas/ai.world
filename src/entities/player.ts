@@ -11,12 +11,22 @@ export class Player {
   /** 'follow' = WASD moves the hero and the camera tracks; 'free' = the old fly-around camera. */
   mode: 'follow' | 'free' = 'follow';
   private placed = false;
+  private hop = 0;
+  private static readonly HOP_TIME = 0.28;
 
   constructor(private readonly world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
     const kind = KINDS.hero;
     const herd = new Herd(kind, x, z, x, z, 0);
     this.entity = new Entity(kind, x, z, herd, 'player', mulberry32(1));
     renderer.add(this.entity);
+  }
+
+  /** Height the hero can step across; the rope item raises it. */
+  set climb(v: number) { (this.entity.kind as { climb?: number }).climb = v; }
+
+  teleport(x: number, z: number): void {
+    this.entity.x = x; this.entity.z = z;
+    this.placed = false;
   }
 
   get x(): number { return this.entity.x; }
@@ -72,12 +82,22 @@ export class Player {
       e.phase += dt * 1.5;
     }
     const h = this.world.heightAt(e.x, e.z);
-    if (h !== null) e.y += (h - e.y) * Math.min(1, dt * 14);
+    if (h !== null) {
+      // a full terrace step triggers a little hop; ramps just glide
+      if (this.hop <= 0 && Math.abs(h - e.y) > 0.3) this.hop = Player.HOP_TIME;
+      e.y += (h - e.y) * Math.min(1, dt * (this.hop > 0 ? 22 : 14));
+    }
+    if (this.hop > 0) {
+      this.hop -= dt;
+      e.bobY = Math.sin(Math.PI * (1 - Math.max(0, this.hop) / Player.HOP_TIME)) * 0.3;
+    } else {
+      e.bobY += (0 - e.bobY) * Math.min(1, dt * 12);
+    }
 
-    // camera trails the hero
+    // camera trails the hero, with a faint bob while walking
     const k = Math.min(1, dt * 7);
     iso.target.x += (e.x - iso.target.x) * k;
     iso.target.z += (e.z - iso.target.z) * k;
-    iso.target.y += (e.y - iso.target.y) * k;
+    iso.target.y += (e.y + Math.abs(Math.sin(e.phase * 0.5)) * 0.05 * e.walk - iso.target.y) * k;
   }
 }

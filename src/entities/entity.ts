@@ -1,8 +1,8 @@
 import type { Rng } from '../core/rng';
-import type { AnimalKind } from './animals';
+import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
 
-export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper';
+export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
 export interface TileWorld {
@@ -19,6 +19,20 @@ export type EntityState = 'idle' | 'walk' | 'graze' | 'flee' | 'hop' | 'fly' | '
 
 /** Max height difference a walker can step across; terrace steps (0.5) are walls, ramps are fine. */
 export const STEP_LIMIT = 0.32;
+
+/** Behaviour tuning shared by every creature. Distances in tiles, times in seconds. */
+export const BEHAVIOUR = {
+  FLEE_RADIUS: 3.5,        // prey bolt when the hero is this close
+  FLEE_TIME: [1.5, 3],     // how long a flee lasts
+  STALK_RADIUS: 7,         // predators walk at the hero from here
+  BITE_RANGE: 1.4,
+  BITE_COOLDOWN: 1.6,
+  ARRIVE_DISTANCE: 0.25,   // close enough to a target to stop
+  HERD_DRIFT: 5,           // how far a herd anchor wanders per move
+  PROWL_DRIFT: 9,
+  HERD_DRIFT_TIME: [8, 18],
+  TURN_RATE: 8,            // radians per second toward the travel direction
+} as const;
 
 export class Herd {
   members: Entity[] = [];
@@ -59,6 +73,7 @@ export class Entity {
   readonly name: string;
   role: EntityRole = 'none';
   shop: ShopType | null = null;
+  attackCooldown = 0;
 
   constructor(
     readonly kind: AnimalKind,
@@ -89,7 +104,7 @@ export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: numbe
   const h = world.heightAt(x, z);
   if (h === null || world.blocked(x, z)) return false;
   if (kind.behaviour === 'travel' && !world.isRoad(x, z)) return false;
-  if (fromY !== undefined && Math.abs(h - fromY) > STEP_LIMIT) return false;
+  if (fromY !== undefined && Math.abs(h - fromY) > (kind.climb ?? STEP_LIMIT)) return false;
   return true;
 }
 
@@ -125,7 +140,15 @@ export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number): bo
   return false;
 }
 
-interface Ctx { world: TileWorld; rng: Rng; playerX: number; playerZ: number; }
+export interface Ctx {
+  world: TileWorld;
+  rng: Rng;
+  playerX: number;
+  playerZ: number;
+  /** Hero carries a sword: predators keep away instead of biting. */
+  playerArmed: boolean;
+  onAttack: (e: Entity, damage: number) => void;
+}
 
 function pickTarget(e: Entity, ctx: Ctx, radius: number): boolean {
   const h = e.herd;
@@ -144,8 +167,8 @@ function pickTarget(e: Entity, ctx: Ctx, radius: number): boolean {
 export function updateHerd(h: Herd, dt: number, ctx: Ctx): void {
   h.timer -= dt;
   if (h.timer > 0) return;
-  h.timer = 8 + ctx.rng() * 10;
-  const wander = h.kind.behaviour === 'prowl' ? 9 : 5;
+  h.timer = BEHAVIOUR.HERD_DRIFT_TIME[0] + ctx.rng() * (BEHAVIOUR.HERD_DRIFT_TIME[1] - BEHAVIOUR.HERD_DRIFT_TIME[0]);
+  const wander = h.kind.behaviour === 'prowl' ? BEHAVIOUR.PROWL_DRIFT : BEHAVIOUR.HERD_DRIFT;
   for (let i = 0; i < 6; i++) {
     const a = ctx.rng() * Math.PI * 2;
     const nx = h.ax + Math.cos(a) * wander, nz = h.az + Math.sin(a) * wander;
@@ -153,6 +176,37 @@ export function updateHerd(h: Herd, dt: number, ctx: Ctx): void {
     if (!canStand(ctx.world, h.kind, nx, nz)) continue;
     h.ax = nx; h.az = nz;
     return;
+  }
+}
+
+/** Turn tail: run directly away from the player for a short while. */
+function startFlee(e: Entity, awayX: number, awayZ: number, rng: Rng): void {
+  e.state = 'flee';
+  e.timer = BEHAVIOUR.FLEE_TIME[0] + rng() * (BEHAVIOUR.FLEE_TIME[1] - BEHAVIOUR.FLEE_TIME[0]);
+  const len = Math.hypot(awayX, awayZ) || 1;
+  e.fleeX = awayX / len; e.fleeZ = awayZ / len;
+  e.headPitch = 0;
+}
+
+/** Wander radius per behaviour when picking a new target. */
+const WANDER_RADIUS: Record<Behaviour, number> = {
+  graze: 4, wander: 4, swim: 4, fly: 4, prowl: 8, travel: 7, hop: 2.5,
+};
+
+/** After standing around: graze, dabble, or pick somewhere to go. */
+function chooseIdleAction(e: Entity, ctx: Ctx): void {
+  const k = e.kind;
+  const hopper = k.behaviour === 'hop';
+  const r = ctx.rng();
+  if (k.behaviour === 'graze' && r < 0.45) {
+    e.state = 'graze'; e.timer = 2 + ctx.rng() * 4;
+  } else if (k.behaviour === 'swim' && r < 0.3) {
+    e.state = 'graze'; e.timer = 1 + ctx.rng() * 2;
+  } else if (pickTarget(e, ctx, WANDER_RADIUS[k.behaviour])) {
+    e.state = hopper ? 'hop' : 'walk';
+    e.timer = hopper ? 0.5 : 6;
+  } else {
+    e.timer = 1 + ctx.rng() * 2;
   }
 }
 
@@ -166,15 +220,24 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
     return;
   }
 
-  // prey run from the player
+  // prey run from the player; armed heroes scare predators off too
   const pdx = e.x - ctx.playerX, pdz = e.z - ctx.playerZ;
   const pd2 = pdx * pdx + pdz * pdz;
-  if (k.timid && e.state !== 'flee' && pd2 < 3.5 * 3.5) {
-    e.state = 'flee';
-    e.timer = 1.5 + ctx.rng() * 1.5;
-    const len = Math.sqrt(pd2) || 1;
-    e.fleeX = pdx / len; e.fleeZ = pdz / len;
-    e.headPitch = 0;
+  const scared = k.timid || (k.dangerous && ctx.playerArmed);
+  if (scared && e.state !== 'flee' && pd2 < BEHAVIOUR.FLEE_RADIUS ** 2) startFlee(e, pdx, pdz, ctx.rng);
+  // predators bite when they get close
+  e.attackCooldown -= dt;
+  if (k.dangerous && !ctx.playerArmed) {
+    if (pd2 < BEHAVIOUR.STALK_RADIUS ** 2 && e.state !== 'flee') {
+      // stalk: walk straight at the player
+      e.tx = ctx.playerX; e.tz = ctx.playerZ;
+      if (e.state !== 'walk') { e.state = 'walk'; e.timer = 4; }
+    }
+    if (pd2 < BEHAVIOUR.BITE_RANGE ** 2 && e.attackCooldown <= 0) {
+      e.attackCooldown = BEHAVIOUR.BITE_COOLDOWN;
+      e.yaw = yawFor(-pdx, -pdz);
+      ctx.onAttack(e, k.dangerous);
+    }
   }
 
   const hopper = k.behaviour === 'hop';
@@ -185,22 +248,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
     case 'idle':
       e.walk = 0;
       e.headPitch += (0 - e.headPitch) * Math.min(1, dt * 6);
-      if (e.timer <= 0) {
-        const r = ctx.rng();
-        if (k.behaviour === 'graze' && r < 0.45) {
-          e.state = 'graze'; e.timer = 2 + ctx.rng() * 4;
-        } else if (k.behaviour === 'swim' && r < 0.3) {
-          e.state = 'graze'; e.timer = 1 + ctx.rng() * 2;
-        } else {
-          const radius = k.behaviour === 'prowl' ? 8 : k.behaviour === 'travel' ? 7 : hopper ? 2.5 : 4;
-          if (pickTarget(e, ctx, radius)) {
-            e.state = hopper ? 'hop' : 'walk';
-            e.timer = hopper ? 0.5 : 6;
-          } else {
-            e.timer = 1 + ctx.rng() * 2;
-          }
-        }
-      }
+      if (e.timer <= 0) chooseIdleAction(e, ctx);
       break;
 
     case 'graze':
@@ -219,7 +267,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       } else {
         dx = e.tx - e.x; dz = e.tz - e.z;
         const dist = Math.hypot(dx, dz);
-        if (dist < 0.25 || e.timer <= 0) {
+        if (dist < BEHAVIOUR.ARRIVE_DISTANCE || e.timer <= 0) {
           e.state = 'idle'; e.timer = hopper ? 0.4 + ctx.rng() * 1.5 : 1 + ctx.rng() * 3;
           e.bobY = 0;
           break;
@@ -229,7 +277,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       }
       const stepLen = speed * dt;
       const desiredYaw = yawFor(dx, dz);
-      e.yaw = turnToward(e.yaw, desiredYaw, dt * 8);
+      e.yaw = turnToward(e.yaw, desiredYaw, dt * BEHAVIOUR.TURN_RATE);
       moving = tryMove(world, e, dx * stepLen, dz * stepLen);
       if (!moving) {
         if (e.state === 'flee') {

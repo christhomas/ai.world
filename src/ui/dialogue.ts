@@ -30,6 +30,10 @@ export class DialogueBox {
   private acc = 0;
   private choice = 0;
   private onClose: (() => void) | null = null;
+  /** Fires as characters appear (for a typewriter blip) and when a choice moves. */
+  onType: (() => void) | null = null;
+  onMove: (() => void) | null = null;
+  private typedSinceBlip = 0;
 
   constructor() {
     this.el = document.createElement('div');
@@ -90,6 +94,8 @@ export class DialogueBox {
     if (n > 0) {
       this.acc -= n;
       this.typed = Math.min(full, this.typed + n);
+      this.typedSinceBlip += n;
+      if (this.typedSinceBlip >= 3) { this.typedSinceBlip = 0; this.onType?.(); }
       this.render();
     }
   }
@@ -111,6 +117,7 @@ export class DialogueBox {
     if (!this.node?.choices || !this.atChoices()) return;
     const n = this.node.choices.length;
     this.choice = (this.choice + dir + n) % n;
+    this.onMove?.();
     this.render();
   }
 
