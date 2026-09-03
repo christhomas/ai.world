@@ -8,6 +8,7 @@ import type { TileWorld } from '../entities/entity';
 import type { ChunkSource, ChunkTiles } from '../entities/manager';
 import type { TerrainSampler } from './terrain';
 import { chunkKey } from './spatial';
+import { addPropInstances, disposeInstances, meshFromData, type PropInstance } from '../render/instancing';
 import type { SeasonTintMaterials } from '../render/seasontint';
 
 interface LoadedChunk {
@@ -120,30 +121,17 @@ export class ChunkManager implements TileWorld, ChunkSource {
       this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null });
     } else {
       const group = new THREE.Group();
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(msg.mesh.positions, 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(msg.mesh.normals, 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(msg.mesh.colors, 3));
-      geo.setIndex(new THREE.BufferAttribute(msg.mesh.indices, 1));
-      geo.computeBoundingSphere();
-      const mesh = new THREE.Mesh(geo, this.terrainMaterial);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
+      const land = meshFromData(msg.mesh, this.terrainMaterial);
+      land.castShadow = true;
+      land.receiveShadow = true;
+      group.add(land);
       if (msg.water) {
-        const wgeo = new THREE.BufferGeometry();
-        wgeo.setAttribute('position', new THREE.BufferAttribute(msg.water.positions, 3));
-        wgeo.setAttribute('normal', new THREE.BufferAttribute(msg.water.normals, 3));
-        wgeo.setAttribute('color', new THREE.BufferAttribute(msg.water.colors, 3));
-        if (msg.water.flow) wgeo.setAttribute('flow', new THREE.BufferAttribute(msg.water.flow, 1));
-        wgeo.setIndex(new THREE.BufferAttribute(msg.water.indices, 1));
-        wgeo.computeBoundingSphere();
-        const wmesh = new THREE.Mesh(wgeo, this.waterMaterial);
-        wmesh.receiveShadow = true;
-        wmesh.renderOrder = 2;
-        group.add(wmesh);
+        const water = meshFromData(msg.water, this.waterMaterial);
+        water.receiveShadow = true;
+        water.renderOrder = 2;
+        group.add(water);
       }
-      this.addProps(group, msg.props);
+      addPropInstances(group, this.props, readPropStream(msg.props), this.glowMaterial);
       this.scene.add(group);
       this.loaded.set(k, {
         cx: msg.cx, cz: msg.cz, group,
@@ -155,50 +143,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
     this.pump();
   }
 
-  private addProps(group: THREE.Group, data: Float32Array): void {
-    const byKind = new Map<PropKind, number[]>();
-    for (let i = 0; i < data.length; i += 6) {
-      const kind = data[i] as PropKind;
-      let list = byKind.get(kind);
-      if (!list) { list = []; byKind.set(kind, list); }
-      list.push(i);
-    }
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const up = new THREE.Vector3(0, 1, 0);
-    for (const [kind, list] of byKind) {
-      const geo = this.props.geometries.get(kind);
-      if (!geo) continue;
-      const inst = new THREE.InstancedMesh(geo, this.props.material, list.length);
-      list.forEach((i, n) => {
-        q.setFromAxisAngle(up, data[i + 4]);
-        const s = data[i + 5];
-        m.compose(new THREE.Vector3(data[i + 1], data[i + 2], data[i + 3]), q, new THREE.Vector3(s, s, s));
-        inst.setMatrixAt(n, m);
-      });
-      inst.instanceMatrix.needsUpdate = true;
-      inst.castShadow = true;
-      inst.receiveShadow = true;
-      inst.computeBoundingSphere();
-      group.add(inst);
-      const glowGeo = this.props.glows.get(kind);
-      if (glowGeo) {
-        const glow = new THREE.InstancedMesh(glowGeo, this.glowMaterial, list.length);
-        glow.instanceMatrix.copy(inst.instanceMatrix);
-        glow.instanceMatrix.needsUpdate = true;
-        glow.computeBoundingSphere();
-        group.add(glow);
-      }
-    }
-  }
-
   private unload(k: string, c: LoadedChunk): void {
     if (c.group) {
       this.scene.remove(c.group);
       c.group.traverse((o) => {
         if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) o.geometry.dispose();
-        if (o instanceof THREE.InstancedMesh) o.dispose();
       });
+      disposeInstances(c.group);
       this.stats.drawn--;
     }
     this.loaded.delete(k);
@@ -249,5 +200,12 @@ export class ChunkManager implements TileWorld, ChunkSource {
     for (const [k, c] of this.loaded) this.unload(k, c);
     for (const w of this.workers) w.terminate();
     this.terrainMaterial.dispose();
+  }
+}
+
+/** The worker sends props as a flat [kind, x, y, z, rot, scale] stream; walk it as instances. */
+function* readPropStream(data: Float32Array): Generator<PropInstance> {
+  for (let i = 0; i < data.length; i += 6) {
+    yield { kind: data[i] as PropKind, x: data[i + 1], y: data[i + 2], z: data[i + 3], rot: data[i + 4], scale: data[i + 5] };
   }
 }

@@ -19,11 +19,7 @@ import { StructureKind, type Poi, type Site } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
 import { DungeonMinimap } from './ui/dungeonmap';
-import { generateInterior, interiorSeed, interiorTitle, type InteriorKind } from './interior/generate';
-import { InteriorWorld } from './interior/world';
-import { InteriorScene } from './interior/scene';
-import { KINDS } from './entities/animals';
-import { Entity as Creature, Herd } from './entities/entity';
+import { Places, REACH } from './game/places';
 import { SEASON_NAMES, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
@@ -137,97 +133,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     persist();
   };
 
-  interface Underground { name: string; x: number; z: number }
-  interface DungeonVisit { world: DungeonWorld; scene: DungeonScene; renderer: EntityRenderer; poi: Underground; monsters: EntityManager; map: DungeonMinimap }
-  let dungeon: DungeonVisit | null = null;
-  const enterDungeon = (poi: Underground, kind: 'dungeon' | 'cave' = 'dungeon', anchorId = `dungeon:${poi.name}`) => {
-    const anchor = manifest.ensure(anchorId, kind, poi.x, poi.z);
-    const world = new DungeonWorld(generateDungeon(anchor.seed, kind === 'cave' ? 'cave' : 'vault'), anchor.id);
-    world.unlocked = state.keys.has(anchor.id);
-    const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
-    const renderer = new EntityRenderer(scene.scene);
-    entityRenderer.remove(player.entity);
-    renderer.add(player.entity);
-    player.setWorld(world);
-    // stand clear of the stairs so the way-out prompt does not fire the moment you arrive
-    const [ex, ez] = world.map.entrance;
-    const startTile = STAIRS_CLEARANCE_OFFSETS.find(([dx, dz]) => world.heightAt(ex + dx + 0.5, ez + dz + 0.5) !== null) ?? [0, 0];
-    const sx = ex + startTile[0] + 0.5, sz = ez + startTile[1] + 0.5;
-    player.teleport(sx, sz);
-    iso.target.set(sx, 0.5, sz);
-    const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed);
-    monsters.spawnMonsters(world.map.monsterSpots, anchor.seed);
-    const map = new DungeonMinimap($('minimapCanvas') as HTMLCanvasElement, world.map);
-    dungeon = { world, scene, renderer, poi, monsters, map };
-    sound.cave = true;
-    hud.flash(kind === 'cave' ? `You squeeze into the ${poi.name}` : `You descend into the ${poi.name}`);
-    persist();
-  };
-  const exitDungeon = () => {
-    if (!dungeon) return;
-    const { poi, scene, renderer } = dungeon;
-    renderer.remove(player.entity);
-    renderer.dispose();
-    scene.dispose();
-    entityRenderer.add(player.entity);
-    player.setWorld(chunks);
-    player.teleport(poi.x + 2.5, poi.z + 0.5);
-    iso.target.set(poi.x + 2.5, 0.5, poi.z + 0.5);
-    dungeon = null;
-    sound.cave = false;
-    persist();
-  };
-  /** Chest loot: gold always, a useful item from the big chest. */
-  const openChest = (visit: DungeonVisit, index: number) => {
-    const chest = visit.world.map.chests[index];
-    const id = visit.world.chestId(index);
-    const roll = mulberry32(derive(manifest.get(visit.world.anchorId)!.seed, index + 1));
-    const gold = chest.big ? 80 + Math.floor(roll() * 70) : 12 + Math.floor(roll() * 30);
-    state.inventory.gold += gold;
-    let extra = '';
-    if (chest.key) {
-      state.keys.add(visit.world.anchorId);
-      visit.world.unlocked = true;
-      extra = ' and a heavy iron key';
-    }
-    if (chest.big) {
-      const prizes = ['potion', 'steelsword', 'ironshield', 'helm', 'jerkin', 'mail', 'greaves', 'charm', 'lantern', 'rope', 'map', 'gem']
-        .filter((p) => !state.owns(p) || p === 'potion' || p === 'gem');
-      const prize = prizes[Math.floor(roll() * prizes.length)];
-      state.give(prize, 1);
-      extra = ` and ${ITEMS[prize].emoji} ${ITEMS[prize].name}`;
-    }
-    state.opened.add(id);
-    state.version++;
-    visit.scene.rebuildProps(state.opened);
-    if (chest.key) hud.flash('The doors to the treasure room unlock');
-    sound.chime();
-    hud.flash(`Found ${gold} gold${extra}!`);
-    persist();
-  };
-  /** Enter/Space inside a dungeon: chests and the way out. */
-  const dungeonInteract = (visit: DungeonVisit): boolean => {
-    const chest = visit.world.chestNear(player.x, player.z, DUNGEON_UI.CHEST_RANGE, state.opened);
-    if (chest >= 0) { openChest(visit, chest); return true; }
-    if (visit.world.lockedDoorAt(player.x, player.z, DUNGEON_UI.DOOR_RANGE)) {
-      hud.flash('The door is locked. A key must be down here somewhere.');
-      return true;
-    }
-    if (visit.world.nearStairs(player.x, player.z, DUNGEON_UI.STAIRS_RANGE)) {
-      dialogue.start({ speaker: 'Stairs', emoji: '🪜', pages: ['Climb back up to the daylight?'], choices: [
-        { label: 'Climb out', next: () => { exitDungeon(); return null; } },
-        { label: 'Stay', next: () => null },
-      ] });
-      return true;
-    }
-    return false;
-  };
   /** Enter/Space at a shrine or a cave mouth offers the way underground. */
   const tryShrine = (): boolean => {
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.Shrine || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
       dialogue.start({ speaker: poi.name, emoji: '⛩️', pages: ['Worn steps lead down beneath the stones. Descend?'], choices: [
-        { label: 'Descend', next: () => { enterDungeon(poi); return null; } },
+        { label: 'Descend', next: () => { places.enterDungeon(poi); return null; } },
         { label: 'Not now', next: () => null },
       ] });
       return true;
@@ -236,7 +147,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (Math.hypot(cave.x - player.x, cave.z - player.z) > 3.2) continue;
       discover(cave.name);
       dialogue.start({ speaker: cave.name, emoji: '🕳️', pages: ['A cold draught comes out of the dark. Go in?'], choices: [
-        { label: 'Go in', next: () => { enterDungeon(cave, 'cave', `cave:${cave.id}`); return null; } },
+        { label: 'Go in', next: () => { places.enterDungeon(cave, 'cave', `cave:${cave.id}`); return null; } },
         { label: 'Not now', next: () => null },
       ] });
       return true;
@@ -278,83 +189,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return false;
   };
 
-  // --- building interiors ---
-  interface Visit {
-    world: InteriorWorld;
-    scene: InteriorScene;
-    renderer: EntityRenderer;
-    keeper: Creature | null;
-    exit: [number, number];
-    title: string;
-    kind: InteriorKind;
-    village: string;
-  }
-  let interior: Visit | null = null;
-  /** Camera zoom to restore when stepping back outside. */
-  let outdoorZoom = iso.zoom;
-
-  const enterBuilding = (door: { x: number; z: number; kind: InteriorKind; village: string; bx: number; bz: number }) => {
-    const map = generateInterior(interiorSeed(seed, door.bx, door.bz), door.kind, door.village);
-    const world = new InteriorWorld(map);
-    const scene = new InteriorScene(map, props);
-    const renderer = new EntityRenderer(scene.scene);
-    entityRenderer.remove(player.entity);
-    renderer.add(player.entity);
-    player.setWorld(world);
-    player.teleport(map.entry[0] + 0.5, map.entry[1] + 0.5);
-    // frame the whole room: the camera holds still and the hero moves inside it
-    outdoorZoom = iso.zoom;
-    iso.zoom = Math.max(map.w, map.h) * 1.35;
-    iso.resize();
-    iso.target.set(map.w / 2, 0.5, map.h / 2);
-
-    // the shopkeeper, priest or resident is waiting inside
-    let keeper: Creature | null = null;
-    if (map.keeper) {
-      const kindId = door.kind === 'house' ? 'villager' : door.kind === 'church' ? 'villager' : 'shopkeeper';
-      const herd = new Herd(KINDS[kindId], map.keeper[0], map.keeper[1], map.keeper[0], map.keeper[1], 0);
-      herd.tag = door.village;
-      keeper = new Creature(KINDS[kindId], map.keeper[0] + 0.5, map.keeper[1] + 0.5, herd, 'interior', lineRng);
-      keeper.y = 0.5;
-      keeper.yaw = Math.PI / 2;   // facing the door
-      if (door.kind !== 'house' && door.kind !== 'church') { keeper.role = 'shopkeeper'; keeper.shop = door.kind; }
-      else keeper.role = door.kind === 'church' ? 'congregation' : 'villager';
-      renderer.add(keeper);
-    }
-    interior = { world, scene, renderer, keeper, exit: [door.x, door.z], title: interiorTitle(door.kind, door.village), kind: door.kind, village: door.village };
-    sound.chime();
-  };
-
-  const leaveBuilding = () => {
-    if (!interior) return;
-    const { renderer, scene, exit } = interior;
-    renderer.remove(player.entity);
-    renderer.dispose();
-    scene.dispose();
-    entityRenderer.add(player.entity);
-    player.setWorld(chunks);
-    player.teleport(exit[0], exit[1] + 1);
-    iso.zoom = outdoorZoom;
-    iso.resize();
-    iso.target.set(exit[0], 0.5, exit[1] + 1);
-    interior = null;
-    persist();
-  };
-
   /** Enter/Space at a doorway steps inside. */
   const tryDoor = (): boolean => {
     for (const door of structures.doors) {
-      if (Math.hypot(door.x - player.x, door.z - player.z) > 1.6) continue;
-      enterBuilding(door);
+      if (Math.hypot(door.x - player.x, door.z - player.z) > REACH.BUILDING_DOOR) continue;
+      places.enterBuilding(door);
       return true;
     }
-    return false;
-  };
-
-  /** Enter/Space indoors: talk to whoever is here, or step back out. */
-  const interiorInteract = (visit: Visit): boolean => {
-    if (visit.keeper && visit.world.nearKeeper(player.x, player.z)) { startTalk(visit.keeper); return true; }
-    if (visit.world.atDoor(player.x, player.z)) { leaveBuilding(); return true; }
     return false;
   };
 
@@ -377,6 +218,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const player = new Player(chunks, entityRenderer, startX, startZ);
   iso.target.set(startX, 0, startZ);
   if (url.searchParams.get('cam') === 'free') player.mode = 'free';
+  const places = new Places({
+    seed, manifest, state, props, rig, iso, player,
+    overworld: chunks, overworldRenderer: entityRenderer,
+    minimapCanvas: $('minimapCanvas') as HTMLCanvasElement,
+    rng: lineRng,
+    flash: (message) => hud.flash(message),
+    chime: () => sound.chime(),
+    setCaveAmbience: (on) => { sound.cave = on; },
+    persist: () => persist(),
+  });
+
   chunks.onFirstChunk = () => hud.hideLoading();
 
   const persist = () => {
@@ -511,11 +363,23 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
 
   const talkNearest = () => {
-    if (interior) {
-      if (!interiorInteract(interior)) hud.flash('Stand at the door to leave, or at the counter to talk.');
+    if (places.indoors) {
+      const inside = places.interactIndoors();
+      if (inside === 'keeper') startTalk(places.indoors.keeper!);
+      else if (inside === null) hud.flash('Stand at the door to leave, or at the counter to talk.');
       return;
     }
-    if (dungeon) { if (!dungeonInteract(dungeon)) hud.flash('Nothing here'); return; }
+    if (places.underground) {
+      const below = places.interactUnderground();
+      if (below === 'locked') hud.flash('The door is locked. A key must be down here somewhere.');
+      else if (below === 'stairs') {
+        dialogue.start({ speaker: 'Stairs', emoji: '🪜', pages: ['Climb back up to the daylight?'], choices: [
+          { label: 'Climb out', next: () => { places.exitDungeon(); return null; } },
+          { label: 'Stay', next: () => null },
+        ] });
+      } else if (below === null) hud.flash('Nothing here');
+      return;
+    }
     if (tryDoor()) return;
     if (tryShrine()) return;
     if (tryWreck()) return;
@@ -531,7 +395,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
   input.onKey('m', () => {
-    worldMap.dungeon = dungeon ? dungeon.map : null;
+    worldMap.dungeon = places.underground?.map ?? null;
     worldMap.toggle(mapInput());
   });
   input.onKey('c', () => { if (worldMap.isOpen) worldMap.centre(player.x, player.z); });
@@ -543,8 +407,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (dialogue.isOpen || swingCooldown > 0) return;
     swingCooldown = COMBAT.COOLDOWN;
     player.entity.attackCooldown = 0.45;
-    const world = dungeon ? dungeon.world : chunks;
-    const manager = dungeon ? dungeon.monsters : entities;
+    const world = places.underground?.world ?? chunks;
+    const manager = places.underground?.monsters ?? entities;
     const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed);
     if (res.hit.length === 0) { sound.select(); return; }
     sound.thud();
@@ -578,14 +442,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     hud.hurt();
     sound.thud();
     if (!state.damage(dmg)) return;
-    if (dungeon) {
+    if (places.underground) {
       // knocked out underground: dragged back to the surface, minus some gold
       const lostBelow = Math.min(GAMEPLAY.KO_GOLD_LOSS, state.inventory.gold);
       state.inventory.gold -= lostBelow;
       state.hp = state.maxHpTotal;
       state.version++;
-      const name = dungeon.poi.name;
-      exitDungeon();
+      const name = places.underground.poi.name;
+      places.exitDungeon();
       hud.flash(`${attacker.kind.label} got you. You crawl out of the ${name}${lostBelow ? `, ${lostBelow} gold lighter` : ''}.`);
       persist();
       return;
@@ -633,7 +497,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     playerX: player.x,
     playerZ: player.z,
     fog: !state.can('map'),
-    title: dungeon ? `${dungeon.poi.name} Depths` : `${areaLabel} · Day ${state.day} · ${state.explored.size} cells walked`,
+    title: places.underground ? `${places.underground.poi.name} Depths` : `${areaLabel} · Day ${state.day} · ${state.explored.size} cells walked`,
   });
 
   let areaLabel = 'The Crossroads';
@@ -651,6 +515,16 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return p.hub ? HUB_NAME : p.land ? BIOMES[p.biome].name : SEA_NAME;
   };
 
+  /** The panels that follow the hero everywhere: hearts, clock, errands, area and toasts. */
+  const updateHud = (dt: number, area: string, weatherNote = ''): void => {
+    hud.syncState(state);
+    hud.setClock(`${state.clock()}${weatherNote ? ` · ${weatherNote}` : ` · ${SEASON_NAMES[seasonOf(state.day)]}`}`);
+    hud.setQuests(questList, state);
+    hud.setArea(area);
+    hud.tick(dt);
+    rucksack.refresh();
+  };
+
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
@@ -662,7 +536,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   debug.__player = player;
   debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
   (debug as { __standAtCounter?: () => void }).__standAtCounter = () => {
-    const k = interior?.world.map.keeper;
+    const k = places.indoors?.world.map.keeper;
     if (k) player.teleport(k[0] + 0.5, k[1] + 1.6);
   };
 
@@ -675,54 +549,45 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       worldMap.draw(mapInput());
     }
     const talking = dialogue.isOpen || worldMap.isOpen;
-    iso.update(input, dt, player.mode === 'free' && !talking && !interior);
+    iso.update(input, dt, player.mode === 'free' && !talking && !places.indoors);
     player.climb = state.climb;
-    player.update(input, iso, dt, talking, interior !== null);
+    player.update(input, iso, dt, talking, places.indoors !== null);
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) state.tick(dt);
 
-    if (interior) {
+    if (places.indoors) {
       frames++; fpsAccum += dt;
       if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
       // indoors: a fixed view of the room, the hero and whoever keeps the place
-      interior.renderer.update();
-      hud.syncState(state);
-      hud.setClock(`${state.clock()} · ${SEASON_NAMES[seasonOf(state.day)]}`);
-      hud.setQuests(questList, state);
-      hud.setArea(interior.title);
-      hud.tick(dt);
-      rucksack.refresh();
+      places.indoors.renderer.update();
+      updateHud(dt, places.indoors.title);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
-      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${interior!.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      rig.renderer.render(interior.scene.scene, iso.camera);
+      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${places.indoors!.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
+      rig.renderer.render(places.indoors.scene.scene, iso.camera);
       input.endFrame();
       saveTimer += dt;
       if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }
       return;
     }
 
-    if (dungeon) {
+    if (places.underground) {
       frames++; fpsAccum += dt;
       if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
       // underground: the hero, the monsters, the lights and the HUD tick
-      dungeon.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
-      dungeon.scene.heroLight.intensity = state.can('light') ? 9 : 3;
-      dungeon.monsters.update(dt, player.x, player.z, false, onAttack);
-      dungeon.renderer.update();
-      dungeon.map.reveal(player.x, player.z);
-      dungeon.map.draw(player.x, player.z, state.opened, (i) => dungeon!.world.chestId(i), dungeon!.world.unlocked);
-      hud.syncState(state);
-      hud.setClock(state.clock());
-      hud.setQuests(questList, state);
-      hud.setArea(`${dungeon.poi.name} Depths`);
-      hud.tick(dt);
+      places.underground.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
+      places.underground.scene.heroLight.intensity = state.can('light') ? 9 : 3;
+      places.underground.monsters.update(dt, player.x, player.z, false, onAttack);
+      places.underground.renderer.update();
+      places.underground.map.reveal(player.x, player.z);
+      places.underground.map.draw(player.x, player.z, state.opened, (i) => places.underground!.world.chestId(i), places.underground!.world.unlocked);
+      updateHud(dt, `${places.underground.poi.name} Depths`);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () =>
-        `${fps.toFixed(0)} fps  ${dungeon!.poi.name} depths\n` +
-        `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, dungeon!.monsters.count - 1)}\n` +
-        `rooms ${dungeon!.world.map.rooms.length}  doors ${dungeon!.world.map.doors.length}  ${dungeon!.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      rig.renderer.render(dungeon.scene.scene, iso.camera);
+        `${fps.toFixed(0)} fps  ${places.underground!.poi.name} depths\n` +
+        `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, places.underground!.monsters.count - 1)}\n` +
+        `rooms ${places.underground!.world.map.rooms.length}  doors ${places.underground!.world.map.doors.length}  ${places.underground!.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
+      rig.renderer.render(places.underground.scene.scene, iso.camera);
       input.endFrame();
       saveTimer += dt;
       if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }
@@ -784,7 +649,6 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       castbar.className = '';
     }
     journal.refresh(journalInput);
-    rucksack.refresh();
     hud.tick(dt);
     sound.setScene(here.biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));

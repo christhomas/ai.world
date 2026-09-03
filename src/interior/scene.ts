@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import { hexToLinear } from '../world/mesher';
 import type { PropLibrary } from '../render/props';
+import { addPropInstances, disposeInstances } from '../render/instancing';
 import { ITile, type InteriorMap } from './generate';
 import { FLOOR_Y, WALL_HEIGHT } from './world';
 
@@ -44,37 +45,15 @@ export class InteriorScene {
     this.geometries.push(geo);
     this.materials.push(mat);
 
-    // furniture, instanced per kind
-    const byKind = new Map<number, typeof map.furniture>();
-    for (const f of map.furniture) {
-      let list = byKind.get(f.kind);
-      if (!list) { list = []; byKind.set(f.kind, list); }
-      list.push(f);
-    }
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
-    for (const [kind, list] of byKind) {
-      const g = props.geometries.get(kind);
-      if (!g) continue;
-      const inst = new THREE.InstancedMesh(g, props.material, list.length);
-      list.forEach((f, i) => {
-        q.setFromAxisAngle(up, f.rot);
-        m.compose(new THREE.Vector3(f.x + 0.5, FLOOR_Y, f.z + 0.5), q, one);
-        inst.setMatrixAt(i, m);
-      });
-      inst.instanceMatrix.needsUpdate = true;
-      inst.castShadow = true;
-      this.scene.add(inst);
-      const glowGeo = props.glows.get(kind);
-      if (glowGeo) {
-        const glow = new THREE.InstancedMesh(glowGeo, this.glowMaterial, list.length);
-        glow.instanceMatrix.copy(inst.instanceMatrix);
-        glow.instanceMatrix.needsUpdate = true;
-        this.scene.add(glow);
-      }
-    }
+    addPropInstances(
+      this.scene, props,
+      map.furniture.map((f) => ({ kind: f.kind, x: f.x + 0.5, y: FLOOR_Y, z: f.z + 0.5, rot: f.rot })),
+      this.glowMaterial,
+    );
   }
 
   dispose(): void {
+    disposeInstances(this.scene);
     for (const g of this.geometries) g.dispose();
     for (const m of this.materials) m.dispose();
     this.glowMaterial.dispose();

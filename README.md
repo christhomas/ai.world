@@ -61,7 +61,7 @@ pnpm test       # vitest: rng, noise, road graph, terrain, hydrology, structures
 pnpm build      # typecheck + production build into dist/
 ```
 
-`src/world/golden.test.ts` pins a fingerprint of the generated world for two seeds. Refactors must keep it; a deliberate tuning change updates the constants (and changes every saved world's layout). See `docs/human-code-report-2026-09-03.md` for the readability pass.
+`src/world/golden.test.ts` pins a fingerprint of the generated world for two seeds. Refactors must keep it; a deliberate tuning change updates the constants (and changes every saved world's layout). See `docs/human-code-report-2026-09-03.md` and `docs/human-code-report-2026-09-03-pass2.md` for the readability passes.
 
 Deployment is a GitHub Action (`.github/workflows/deploy.yml`) that builds `dist/` on every push to `main` and publishes it to GitHub Pages. The repository's Pages source must be set to **GitHub Actions**.
 
