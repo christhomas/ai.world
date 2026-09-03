@@ -20,11 +20,12 @@ import { ITEMS } from './game/shops';
 import { COMBAT, swing } from './game/combat';
 import { DungeonMinimap } from './ui/dungeonmap';
 import { Places, REACH } from './game/places';
-import { SEASON_NAMES, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
+import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
 import { FISHING, Fishing } from './game/fishing';
 import { Journal } from './ui/journal';
+import { Clock } from './ui/clock';
 import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
 
@@ -102,6 +103,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const seasonTintMaterials = new SeasonTintMaterials();
   const fishing = new Fishing();
   const journal = new Journal();
+  const clock = new Clock();
   const castbar = el('castbar');
   chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
@@ -516,9 +518,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
 
   /** The panels that follow the hero everywhere: hearts, clock, errands, area and toasts. */
-  const updateHud = (dt: number, area: string, weatherNote = ''): void => {
+  const updateHud = (dt: number, area: string, weatherGlyph = ''): void => {
     hud.syncState(state);
-    hud.setClock(`${state.clock()}${weatherNote ? ` · ${weatherNote}` : ` · ${SEASON_NAMES[seasonOf(state.day)]}`}`);
+    clock.update(state);
+    clock.setWeather(weatherGlyph);
     hud.setQuests(questList, state);
     hud.setArea(area);
     hud.tick(dt);
@@ -634,11 +637,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     entityRenderer.update();
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
-    hud.syncState(state);
-    hud.setClock(`${state.clock()} · ${SEASON_NAMES[season]}${weatherStrength > 0.4 ? (season === 3 ? ' ❄' : ' 🌧') : ''}`);
-    hud.setQuests(questList, state);
     areaLabel = areaName();
-    hud.setArea(areaLabel);
+    updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');
     if (fishing.active) {
       const ev = fishing.update(dt);
       if (ev === 'bite') sound.chime();

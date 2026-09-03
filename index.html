@@ -10,8 +10,17 @@
   <div id="loading">Generating World...</div>
   <div id="gameContainer"></div>
   <div id="areaName">The Crossroads</div>
-  <div id="minimap"><canvas id="minimapCanvas" width="180" height="180"></canvas></div>
-  <div id="status"><div id="hearts">♥♥♥♥♥♥♥♥♥♥</div><div id="clock"></div></div>
+  <div id="minimap">
+    <div id="clockPanel">
+      <span id="clockIcon">☀️</span>
+      <span id="clockWeather"></span>
+      <span id="clockTime">08:00</span>
+      <span id="clockDate">Day 1 · Spring</span>
+    </div>
+    <div id="clockBar"><div id="clockMarker"></div></div>
+    <canvas id="minimapCanvas" width="180" height="180"></canvas>
+  </div>
+  <div id="status"><div id="hearts">♥♥♥♥♥♥♥♥♥♥</div></div>
   <div id="inventory"></div>
   <div id="quests"></div>
   <div id="journal"></div>

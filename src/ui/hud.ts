@@ -21,7 +21,6 @@ export class Hud {
   private readonly toast = $('toast');
   private toastTimer = 0;
   private readonly heartsEl = $('hearts');
-  private readonly clockEl = $('clock');
   private readonly hurtEl = $('hurt');
   private hurtTimer = 0;
   private shownVersion = -1;
@@ -79,10 +78,6 @@ export class Hud {
     const html = lines.length ? `<div class="title">Quests</div>${lines.join('')}` : '';
     if (this.questEl.innerHTML !== html) this.questEl.innerHTML = html;
     this.questEl.style.display = lines.length ? 'block' : 'none';
-  }
-
-  setClock(text: string): void {
-    if (this.clockEl.textContent !== text) this.clockEl.textContent = text;
   }
 
   hurt(): void {

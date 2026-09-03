@@ -20,6 +20,23 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   border-radius: 8px; padding: 5px; z-index: 100;
 }
 #minimapCanvas { display: block; }
+#clockPanel {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 2px 4px 4px; color: #cfd6ff; font-size: 11px; white-space: nowrap;
+}
+#clockIcon { font-size: 15px; }
+#clockWeather { font-size: 13px; }
+#clockTime { font-size: 17px; font-weight: bold; color: #ffd76a; letter-spacing: 1px; }
+#clockDate { margin-left: auto; color: #8f9dc9; }
+#clockBar {
+  position: relative; height: 5px; margin: 0 2px 5px; border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: linear-gradient(90deg, #2a3560 0%, #2a3560 22%, #e8a05a 32%, #ffd76a 50%, #e8785a 72%, #2a3560 82%, #2a3560 100%);
+}
+#clockMarker {
+  position: absolute; top: -3px; width: 3px; height: 11px; margin-left: -1px;
+  background: #ffffff; border-radius: 2px; box-shadow: 0 0 4px rgba(0,0,0,0.8);
+}
 #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #a29bfe; font-size: 24px; z-index: 2000; }
 #debug {
   position: fixed; bottom: 20px; right: 20px; color: #8f8fb0; font-size: 11px;
@@ -53,7 +70,6 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   padding: 6px 12px; color: #fff; z-index: 100; min-width: 160px;
 }
 #hearts { color: #ff5c5c; font-size: 18px; letter-spacing: 1px; line-height: 1.2; }
-#clock { color: #cfd6ff; font-size: 12px; margin-top: 2px; }
 #hurt {
   position: fixed; inset: 0; pointer-events: none; z-index: 1100;
   background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(200,0,0,0.55) 100%);
