@@ -39,6 +39,8 @@ URL parameters (skip the title screen, play in a scratch slot): `?seed=123` load
 - **Day and night.** Eight real minutes per day. The sun orbits, the sky goes orange then deep blue, windows glow, owls replace birds.
 - **Sound.** Everything is synthesised in Web Audio: footsteps, biome ambience (birds, frogs, wind, eagles), dialogue blips, shop chimes, discovery jingles. Volume in the options panel.
 - **Three save slots** on the title screen. The minimap keeps fog of war until you have explored (or bought the map).
+- **Islands and ferries.** Four islands lie past the mainland's reach, each its own biome with a harbour town and its own little road web. Piers on both shores; a ferry runs on a fixed timetable. Stand at the dock and press Enter to board (or read the timetable if the boat is away); you step off when it ties up.
+- **Dungeons under shrines.** Every shrine hides a way down: rooms, corridors, torch-lit walls, pools, chests. The big chest in the farthest room holds gold and a piece of gear. Chest state is remembered; the stairs bring you back up.
 
 ## Development
 
@@ -69,6 +71,8 @@ The original single-file prototype is kept at `legacy/index.html` for reference.
 
 **Creatures** (`src/entities/`). Every animal and character is a handful of primitive parts. Each (kind, part) pair is one `InstancedMesh`; animation rewrites instance matrices, so forty sheep cost the same draw calls as one. Herds spawn per chunk from the seed and despawn when you leave. The hero is just another entity driven by the keyboard.
 
+**Seed tree** (`src/world/manifest.ts`). The root seed makes the mainland; every expansion (an island, a dungeon) is an *anchor* with its own seed attached at a location. Seeds derive from the parent by default so the tree is reproducible from the root, but the manifest is saved with the slot: an anchor can be overridden by hand, keeps its generator version, and new kinds can be appended later without disturbing what is already there. Islands (`graph.ts: planIslands/attachIslands`) grow their own road trees and are merged into the mainland graph; dungeons (`src/dungeon/`) are generated on entry from their anchor seed. Ferries (`src/game/ferry.ts`) are a pure function of world time, so nothing about them is saved.
+
 **Game state** (`src/game/`). `GameState` holds hearts, gold, items, time of day, explored cells, quest progress and discoveries, and serialises into the save slot. `shops.ts` is the item table with effects, `quests.ts` builds one errand per village from the seed, `talk.ts` turns an entity into a dialogue tree, `audio.ts` is the synthesiser. `core/salts.ts` names every random stream so none of them collide.
 
 **Streaming** (`src/world/chunkManager.ts`). Chunks within a radius of the camera are generated in a Web Worker pool (`src/workers/chunkgen.worker.ts`) and uploaded as ready; chunks far from the camera are disposed. Chunks with no land are skipped before any mesh work, so cost tracks the walkable area rather than the map's bounding box.
@@ -78,11 +82,12 @@ The original single-file prototype is kept at `legacy/index.html` for reference.
 ```
 src/
   core/        config, seeded rng, game loop, input
-  world/       noise, biomes, road graph, rivers, structures, terrain sampler, mesher, chunk manager
+  world/       noise, biomes, road graph + islands, seed manifest, rivers, structures, terrain sampler, mesher, chunk manager
+  dungeon/     room/corridor generator, dungeon walkability + chunks, dungeon scene
   workers/     chunk generation worker
   render/      scene rig (lights, shadows), day/night cycle, water material, isometric camera, prop + building geometry
   entities/    animal/character rigs, instanced renderer, behaviours, spawning, player
-  game/        game state, shops + items, quests, dialogue trees, synthesised audio
+  game/        game state, shops + items, quests, ferries, dialogue trees, synthesised audio
   ui/          hud, dialogue box, title/slots, minimap, styles
   save/        persistence interface + IndexedDB implementation
   main.ts      bootstrap
@@ -99,7 +104,8 @@ src/
 3. ~~Animals in herds, player avatar with follow camera.~~
 4. ~~Towns, villages, churches, shops, dialogue, points of interest, discovery.~~
 5. ~~Biome blending, hearts and predators, item effects, quests, day/night, sound, save slots.~~
-6. Ideas: dungeons under the shrines, boats, fishing, seasons, a proper soundtrack.
+6. ~~Seed manifest, islands with harbour towns, ferries on a timetable, dungeons under shrines.~~
+7. Ideas: dungeon monsters and keys, fishing, seasons, a proper soundtrack, more anchor kinds (caves, shipwrecks).
 
 ## Technology
 

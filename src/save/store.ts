@@ -23,12 +23,15 @@ export class IndexedDbStore implements SaveStore {
 }
 
 import type { GameStateJson } from '../game/state';
+import type { ManifestJson } from '../world/manifest';
 
 export interface SessionSave {
   seed: number;
   cam: { x: number; z: number; rot: number; zoom: number };
   player?: { x: number; z: number };
   state?: Partial<GameStateJson>;
+  /** Seed tree: islands, dungeons and other expansions attached to this world. */
+  manifest?: ManifestJson;
   /** Legacy fields from saves before GameState existed. */
   discovered?: string[];
   inventory?: { gold: number; items: Record<string, number> };

@@ -21,6 +21,7 @@ export const enum TileType {
   Bridge = 8,  // road over water
   Floor = 9,   // under a building; blocked for walkers
   Plaza = 10,  // town square cobbles; walkable, flat
+  Pier = 11,   // wooden deck over water; walkable, flat
 }
 
 /**
@@ -466,6 +467,7 @@ export class TerrainSampler {
         case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
         case StructureKind.Sign:
         case StructureKind.Stall: stampSingleProp(chunk, ox, oz, s); break;
+        case StructureKind.Pier: stampPier(chunk, ox, oz, s); break;
         default:
           stampFootprint(chunk, ox, oz, s);
           stampPath(chunk, ox, oz, s);
@@ -577,6 +579,21 @@ function stampSingleProp(chunk: ChunkData, ox: number, oz: number, s: Structure)
   chunk.propRot[idx] = s.rot;
 }
 
+/** Jetty planks: flat wooden deck at the shore's level, laid over sea, sand or shallow water. */
+function stampPier(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const h = s.level * WORLD.STEP;
+  for (const [x, z] of s.path) {
+    const idx = localIndex(chunk, ox, oz, x, z);
+    if (idx < 0) continue;
+    const t = chunk.type[idx];
+    if (t === TileType.Bridge || t === TileType.Road || t === TileType.Floor) continue;
+    chunk.type[idx] = TileType.Pier;
+    chunk.height[idx] = h;
+    chunk.water[idx] = 0;
+    chunk.prop[idx] = PropKind.None;
+  }
+}
+
 /** Like localIndex but excludes the apron ring. */
 function interiorIndex(chunk: ChunkData, ox: number, oz: number, tx: number, tz: number): number {
   const lx = tx - ox, lz = tz - oz;
@@ -598,5 +615,6 @@ export function structureProp(s: Structure): PropKind {
     case StructureKind.Stall: return PropKind.Stall;
     case StructureKind.Sign: return PropKind.Sign;
     case StructureKind.Plaza: return PropKind.None;
+    case StructureKind.Pier: return PropKind.None;
   }
 }

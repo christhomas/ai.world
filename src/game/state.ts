@@ -17,6 +17,8 @@ export interface GameStateJson {
   explored: string[];
   quests: Record<string, QuestStatus>;
   discovered: string[];
+  /** Ids of opened dungeon chests. */
+  opened: string[];
 }
 
 export const BASE_MAX_HP = 10;
@@ -35,6 +37,7 @@ export class GameState {
   readonly explored = new Set<string>();
   readonly quests = new Map<string, QuestStatus>();
   readonly discovered = new Set<string>();
+  readonly opened = new Set<string>();
   /** Bumped whenever something the HUD shows changed. */
   version = 0;
 
@@ -119,6 +122,7 @@ export class GameState {
       explored: [...this.explored],
       quests: Object.fromEntries(this.quests),
       discovered: [...this.discovered],
+      opened: [...this.opened],
     };
   }
 
@@ -137,6 +141,7 @@ export class GameState {
     for (const k of json.explored ?? []) g.explored.add(k);
     for (const [k, v] of Object.entries(json.quests ?? {})) g.quests.set(k, v);
     for (const k of json.discovered ?? []) g.discovered.add(k);
+    for (const k of json.opened ?? []) g.opened.add(k);
     g.hp = Math.min(g.hp, g.maxHpTotal);
     return g;
   }

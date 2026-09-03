@@ -13,8 +13,10 @@ export class Player {
   private placed = false;
   private hop = 0;
   private static readonly HOP_TIME = 0.28;
+  /** While true the hero is carried (ferry): no walking, no ground snapping, camera still follows. */
+  riding = false;
 
-  constructor(private readonly world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
+  constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
     const kind = KINDS.hero;
     const herd = new Herd(kind, x, z, x, z, 0);
     this.entity = new Entity(kind, x, z, herd, 'player', mulberry32(1));
@@ -24,9 +26,13 @@ export class Player {
   /** Height the hero can step across; the rope item raises it. */
   set climb(v: number) { (this.entity.kind as { climb?: number }).climb = v; }
 
+  /** Swap the ground the hero walks on (overworld ↔ dungeon). */
+  setWorld(world: TileWorld): void { this.world = world; this.placed = false; }
+
   teleport(x: number, z: number): void {
     this.entity.x = x; this.entity.z = z;
     this.placed = false;
+    this.riding = false;
   }
 
   get x(): number { return this.entity.x; }
@@ -57,6 +63,14 @@ export class Player {
 
   update(input: Input, iso: IsoCamera, dt: number, frozen = false): void {
     const e = this.entity;
+    if (this.riding) {
+      e.walk += (0 - e.walk) * Math.min(1, dt * 10); e.phase += dt * 1.5; e.bobY = 0;
+      const k = Math.min(1, dt * 7);
+      iso.target.x += (e.x - iso.target.x) * k;
+      iso.target.z += (e.z - iso.target.z) * k;
+      iso.target.y += (e.y - iso.target.y) * k;
+      return;
+    }
     if (!this.settle()) return;
     if (this.mode !== 'follow' || frozen) { e.walk += (0 - e.walk) * Math.min(1, dt * 10); e.phase += dt * 1.5; return; }
 

@@ -191,6 +191,36 @@ export class PropLibrary {
       part(new THREE.BoxGeometry(0.35, 0.05, 0.08), 0x8a2a2a, [0, 1.18, 0]),
     ]));
 
+    // dungeon furniture: torch hangs from the wall top and reaches into the room (+x)
+    this.geometries.set(PropKind.Torch, merge([
+      part(new THREE.BoxGeometry(0.12, 0.5, 0.12), 0x4a3a2a, [0.5, -1.35, 0]),
+      part(new THREE.BoxGeometry(0.5, 0.08, 0.08), 0x4a3a2a, [0.3, -1.1, 0]),
+      part(new THREE.CylinderGeometry(0.05, 0.07, 0.5, 5), 0x6b4a2b, [0.62, -0.95, 0]),
+    ]));
+    this.glows.set(PropKind.Torch, merge([
+      part(new THREE.IcosahedronGeometry(0.16, 0), 0xffffff, [0.62, -0.62, 0], [0.8, 1.4, 0.8]),
+    ]));
+    this.geometries.set(PropKind.Chest, merge([
+      part(new THREE.BoxGeometry(0.8, 0.45, 0.6), 0x7a4a24, [0, 0.225, 0]),
+      part(new THREE.BoxGeometry(0.84, 0.2, 0.64), 0x8a5a2e, [0, 0.55, 0]),
+      part(new THREE.BoxGeometry(0.86, 0.06, 0.66), 0xc9a24a, [0, 0.46, 0]),
+      part(new THREE.BoxGeometry(0.12, 0.14, 0.06), 0xc9a24a, [0, 0.5, 0.33]),
+    ]));
+    this.geometries.set(PropKind.ChestOpen, merge([
+      part(new THREE.BoxGeometry(0.8, 0.45, 0.6), 0x7a4a24, [0, 0.225, 0]),
+      part(new THREE.BoxGeometry(0.84, 0.2, 0.64), 0x8a5a2e, [0, 0.72, -0.42], [1, 1, 1], [-1.6, 0, 0]),
+      part(new THREE.BoxGeometry(0.7, 0.1, 0.5), 0xf1c40f, [0, 0.45, 0]),
+      part(new THREE.IcosahedronGeometry(0.1, 0), 0xffe066, [0.1, 0.55, 0.05]),
+    ]));
+    this.geometries.set(PropKind.Stairs, merge([
+      part(new THREE.BoxGeometry(1.2, 1.2, 1.2), 0x2a2a34, [0, 0.6, -0.7]),
+      part(new THREE.BoxGeometry(1.0, 0.25, 0.4), 0x8f8f8f, [0, 0.125, 0.4]),
+      part(new THREE.BoxGeometry(1.0, 0.5, 0.4), 0x8f8f8f, [0, 0.25, 0.0]),
+      part(new THREE.BoxGeometry(1.0, 0.75, 0.4), 0x8f8f8f, [0, 0.375, -0.4]),
+      part(new THREE.BoxGeometry(0.1, 1.4, 0.1), 0x4a3a2a, [-0.65, 0.7, 0.2]),
+      part(new THREE.BoxGeometry(0.1, 1.4, 0.1), 0x4a3a2a, [0.65, 0.7, 0.2]),
+    ]));
+
     this.geometries.set(PropKind.Willow, merge([
       part(new THREE.CylinderGeometry(0.15, 0.23, 1.2, 6), 0x5a4632, [0, 0.6, 0]),
       part(new THREE.IcosahedronGeometry(1.05, 1), 0x6a9a3c, [0, 1.45, 0], [1, 0.55, 1]),

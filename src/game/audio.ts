@@ -13,6 +13,8 @@ export class Sound {
   private chirpTimer = 3;
   private biome: Biome = Biome.Plains;
   private night = 0;
+  /** Underground: drips instead of birds, no wind. */
+  cave = false;
   volume: number;
 
   constructor() {
@@ -113,13 +115,16 @@ export class Sound {
     this.stepTimer -= dt;
     if (walking && this.stepTimer <= 0) { this.stepTimer = 0.27; this.footstep(onRoad); }
     const windy = this.biome === Biome.Desert || this.biome === Biome.Snow || this.biome === Biome.Mountain;
-    const target = (windy ? 0.07 : 0.025) * (1 - this.night * 0.4);
+    const target = this.cave ? 0.012 : (windy ? 0.07 : 0.025) * (1 - this.night * 0.4);
     this.wind.gain.gain.value += (target - this.wind.gain.gain.value) * Math.min(1, dt * 0.5);
 
     this.chirpTimer -= dt;
     if (this.chirpTimer <= 0) {
       this.chirpTimer = 2 + Math.random() * 7;
-      if (this.night > 0.6) {
+      if (this.cave) {
+        this.chirpTimer = 1 + Math.random() * 4;
+        this.tone(1800 + Math.random() * 1200, 0.08, 'sine', 0.05, 0, 900); // drip
+      } else if (this.night > 0.6) {
         if (Math.random() < 0.35) { this.tone(420, 0.25, 'sine', 0.06); this.tone(350, 0.35, 'sine', 0.06, 0.3); } // owl
       } else if (this.biome === Biome.Swamp) {
         this.tone(130, 0.12, 'sawtooth', 0.05); this.tone(120, 0.14, 'sawtooth', 0.05, 0.16); // frog

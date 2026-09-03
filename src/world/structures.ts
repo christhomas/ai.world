@@ -22,6 +22,21 @@ export const enum StructureKind {
   Stall = 9,
   Sign = 10,
   Church = 11,
+  Pier = 12,   // wooden jetty; tiles listed in `path`
+}
+
+export interface Pier {
+  island: string;
+  side: 'mainland' | 'island';
+  /** Deck tiles from the shore outward. */
+  tiles: Array<[number, number]>;
+  /** Unit direction the pier points (axis-aligned). */
+  dx: number;
+  dz: number;
+  level: number;
+  /** Tile where a boat docks: one past the last deck tile. */
+  dockX: number;
+  dockZ: number;
 }
 
 export type ShopType = 'store' | 'smith' | 'inn' | 'apothecary';
@@ -77,6 +92,7 @@ export interface Structures {
   villages: Village[];
   pois: Poi[];
   all: Structure[];
+  piers: Pier[];
 }
 
 export const VILLAGES = 16;
@@ -134,6 +150,7 @@ export function generateStructures(sampler: TerrainSampler): Structures {
   const villages: Village[] = [];
   const pois: Poi[] = [];
   const all: Structure[] = [];
+  const piers: Pier[] = [];
   const usedNames = new Set<string>();
   const sample: TileSample = sampler.newSample();
 
@@ -358,7 +375,58 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     pois.push({ name, kind, x: tx + 0.5, z: tz + 0.5, structure: s });
   }
 
-  return { villages, pois, all };
+  // --- piers: one on each shore per island, pointing at each other ---
+  for (const isl of graph.islands) {
+    let nearest = 0, nearestD = Infinity;
+    for (let n = 0; n < graph.mainlandNodes; n++) {
+      const d = Math.hypot(graph.nodes[n].x - isl.x, graph.nodes[n].z - isl.z);
+      if (d < nearestD) { nearestD = d; nearest = n; }
+    }
+    const m = graph.nodes[nearest];
+    const islandPier = planPier(sampler, sample, isl.id, 'island', isl.x, isl.z, m.x - isl.x, m.z - isl.z);
+    const mainPier = planPier(sampler, sample, isl.id, 'mainland', m.x, m.z, isl.x - m.x, isl.z - m.z);
+    for (const pier of [islandPier, mainPier]) {
+      if (!pier) continue;
+      piers.push(pier);
+      const [sx, sz] = pier.tiles[0];
+      all.push({ kind: StructureKind.Pier, tx: sx, tz: sz, hw: 0, hd: 0, level: pier.level, rot: Math.atan2(-pier.dz, pier.dx), biome: 0 as Biome, path: pier.tiles });
+      // schedule sign on the shore beside the first plank
+      const signX = sx - pier.dx + (pier.dz !== 0 ? 1 : 0), signZ = sz - pier.dz + (pier.dx !== 0 ? 1 : 0);
+      all.push({ kind: StructureKind.Sign, tx: signX, tz: signZ, hw: 0, hd: 0, level: pier.level, rot: Math.atan2(-pier.dz, pier.dx), biome: 0 as Biome, path: [] });
+    }
+  }
+
+  return { villages, pois, all, piers };
+}
+
+const PIER_LENGTH = 6;
+const PIER_WALK_MAX = 260;
+
+/**
+ * Walk from a start point toward a direction (snapped to an axis) until the land ends, then lay
+ * PIER_LENGTH deck tiles into the sea. Null if the walk never reaches a coast.
+ */
+function planPier(
+  sampler: TerrainSampler, sample: TileSample, island: string, side: Pier['side'],
+  fromX: number, fromZ: number, dirX: number, dirZ: number,
+): Pier | null {
+  const dx = Math.abs(dirX) >= Math.abs(dirZ) ? Math.sign(dirX) : 0;
+  const dz = dx === 0 ? Math.sign(dirZ) || 1 : 0;
+  let x = Math.floor(fromX), z = Math.floor(fromZ);
+  let lastLandLevel = 1;
+  for (let i = 0; i < PIER_WALK_MAX; i++) {
+    sampler.sampleTile(x, z, sample);
+    const land = sample.type !== TileType.Skip && sample.type !== TileType.Seabed;
+    if (!land) {
+      if (i === 0) return null;
+      const tiles: Array<[number, number]> = [];
+      for (let k = 0; k < PIER_LENGTH; k++) tiles.push([x + dx * k, z + dz * k]);
+      return { island, side, tiles, dx, dz, level: lastLandLevel, dockX: x + dx * PIER_LENGTH, dockZ: z + dz * PIER_LENGTH };
+    }
+    if (sample.type !== TileType.Water && sample.type !== TileType.Bridge) lastLandLevel = Math.max(1, Math.round(sample.level));
+    x += dx; z += dz;
+  }
+  return null;
 }
 
 export function structureBounds(s: Structure): { minX: number; minZ: number; maxX: number; maxZ: number } {

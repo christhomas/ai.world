@@ -1,4 +1,6 @@
 import { GRAPH } from '../core/config';
+import type { Anchor } from './manifest';
+import { hash3 } from '../core/rng';
 import { mulberry32, rand2, shuffle, type Rng } from '../core/rng';
 import { SALT, TILE_SALT, derive } from '../core/salts';
 import { cellKey } from './spatial';
@@ -30,6 +32,22 @@ export interface RoadEdge {
   loop: boolean;
 }
 
+/** Mutable copy of the GRAPH tuning, so islands can grow with their own settings. */
+export type RoadConfig = { -readonly [K in keyof typeof GRAPH]: number };
+
+export interface IslandInfo {
+  id: string;
+  seed: number;
+  x: number;
+  z: number;
+  radius: number;
+  biome: Biome;
+  /** Node index of the island's hub (its harbour town). */
+  hub: number;
+  /** First node index belonging to this island (nodes are appended per island). */
+  firstNode: number;
+}
+
 export interface RoadGraph {
   seed: number;
   radius: number;
@@ -37,6 +55,10 @@ export interface RoadGraph {
   edges: RoadEdge[];
   /** Node indices of town centres: each grew its own local road web, like a small hub. */
   towns: number[];
+  /** Islands attached by `attachIslands`; empty for a bare mainland. */
+  islands: IslandInfo[];
+  /** Number of nodes that belong to the mainland (islands are appended after). */
+  mainlandNodes: number;
   /** Biome order by angular sector, index 0 starting at `sectorOffset` radians. */
   sectors: Biome[];
   sectorOffset: number;
@@ -105,7 +127,7 @@ interface Growth {
   R: number;
 }
 
-export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
+export function generateRoadGraph(seed: number, cfg: RoadConfig = GRAPH): RoadGraph {
   const rng = mulberry32(derive(seed, SALT.ROAD_RNG));
   const noise = new Simplex2D(derive(seed, SALT.ROAD_MASK));
   const g: Growth = { nodes: [], grid: new NodeGrid(cfg.INFLUENCE), rng, R: cfg.RADIUS };
@@ -119,7 +141,7 @@ export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
 
   const sectors = shuffle(rng, [Biome.Plains, Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow]);
   const sectorOffset = rng() * Math.PI * 2;
-  const graph: RoadGraph = { seed, radius: cfg.RADIUS, nodes: g.nodes, edges: [], sectors, sectorOffset, towns };
+  const graph: RoadGraph = { seed, radius: cfg.RADIUS, nodes: g.nodes, edges: [], sectors, sectorOffset, towns, islands: [], mainlandNodes: g.nodes.length };
 
   assignLevels(graph, seed, cfg);
   buildEdges(graph, cfg);
@@ -128,7 +150,7 @@ export function generateRoadGraph(seed: number, cfg = GRAPH): RoadGraph {
 }
 
 /** Jittered grid on a disc, thinned by noise so the map has empty bays. */
-function scatterAttractors(rng: Rng, noise: Simplex2D, cfg: typeof GRAPH): Pt[] {
+function scatterAttractors(rng: Rng, noise: Simplex2D, cfg: RoadConfig): Pt[] {
   const R = cfg.RADIUS;
   const attractors: Pt[] = [];
   const sp = cfg.ATTRACTOR_SPACING;
@@ -147,7 +169,7 @@ function scatterAttractors(rng: Rng, noise: Simplex2D, cfg: typeof GRAPH): Pt[] 
 }
 
 /** Hub node plus a ring of spokes, so the trunk does not start as a single line. */
-function seedHub(g: Growth, cfg: typeof GRAPH): void {
+function seedHub(g: Growth, cfg: RoadConfig): void {
   const addNode = (n: RoadNode) => { g.grid.add(g.nodes.length, n); g.nodes.push(n); };
   addNode({ x: 0, z: 0, parent: -1, depth: 0, level: 1, size: 1 });
   const [minSpokes, maxSpokes] = GROWTH.HUB_SPOKES;
@@ -218,7 +240,7 @@ function sprout(parent: RoadNode, parentIdx: number, pull: { dx: number; dz: num
 }
 
 /** Well-spread nodes deep in the tree that become town centres. */
-function pickTowns(g: Growth, cfg: typeof GRAPH): number[] {
+function pickTowns(g: Growth, cfg: RoadConfig): number[] {
   const { nodes, rng, R } = g;
   const [lo, hi] = GROWTH.TOWN_BAND;
   const order = nodes.map((n, i) => ({ n, i })).filter(({ n }) => {
@@ -236,7 +258,7 @@ function pickTowns(g: Growth, cfg: typeof GRAPH): number[] {
 }
 
 /** Each town grows a dense local web from attractors scattered around it. */
-function growTownWebs(g: Growth, towns: number[], cfg: typeof GRAPH): void {
+function growTownWebs(g: Growth, towns: number[], cfg: RoadConfig): void {
   const { nodes, rng, R } = g;
   const sp = cfg.TOWN_ATTRACTOR_SPACING;
   for (const t of towns) {
@@ -261,7 +283,7 @@ function accumulateSubtreeSizes(nodes: RoadNode[]): void {
 }
 
 /** Road levels: noise + biome base, clamped so adjacent nodes differ by at most one terrace. */
-function assignLevels(graph: RoadGraph, seed: number, cfg: typeof GRAPH): void {
+function assignLevels(graph: RoadGraph, seed: number, cfg: RoadConfig): void {
   const { nodes } = graph;
   const levelNoise = new Simplex2D(derive(seed, SALT.BIOME));
   for (let i = 0; i < nodes.length; i++) {
@@ -279,7 +301,7 @@ function assignLevels(graph: RoadGraph, seed: number, cfg: typeof GRAPH): void {
   }
 }
 
-function landWidthFor(size: number, cfg: typeof GRAPH): number {
+function landWidthFor(size: number, cfg: RoadConfig): number {
   return Math.min(cfg.MAX_WIDTH, cfg.MIN_WIDTH + GROWTH.WIDTH_PER_LOG_SIZE * Math.log2(size + 1));
 }
 
@@ -288,7 +310,7 @@ function roadWidthFor(size: number): number {
 }
 
 /** One edge per parent link; land near towns is widened so squares and houses fit. */
-function buildEdges(graph: RoadGraph, cfg: typeof GRAPH): void {
+function buildEdges(graph: RoadGraph, cfg: RoadConfig): void {
   const { nodes, towns } = graph;
   const nearTown = (n: RoadNode): boolean =>
     towns.some((t) => Math.hypot(nodes[t].x - n.x, nodes[t].z - n.z) < cfg.TOWN_RADIUS + 6);
@@ -305,7 +327,7 @@ function buildEdges(graph: RoadGraph, cfg: typeof GRAPH): void {
 }
 
 /** Join nearby nodes from different branches so the map is not a pure tree. */
-function addLoops(graph: RoadGraph, rng: Rng, cfg: typeof GRAPH): void {
+function addLoops(graph: RoadGraph, rng: Rng, cfg: RoadConfig): void {
   const { nodes } = graph;
   const loopGrid = new NodeGrid(cfg.LOOP_DIST);
   nodes.forEach((n, i) => loopGrid.add(i, n));
@@ -343,6 +365,8 @@ export interface SectorMix {
 }
 
 const TAU = Math.PI * 2;
+/** Island biome extends this far past the island's nominal radius (covers its coast). */
+const ISLAND_BIOME_MARGIN = 40;
 /** Width of the dithered transition between biomes, in tiles. */
 export const BLEND_TILES = 10;
 
@@ -352,6 +376,10 @@ export const BLEND_TILES = 10;
  * bleeding in, so callers can dither tiles or lerp colours instead of drawing a hard line.
  */
 export function sectorMix(graph: RoadGraph, noise: Simplex2D, x: number, z: number): SectorMix {
+  // islands are one biome each, surrounded by sea, so no blending is needed
+  for (const isl of graph.islands) {
+    if (Math.hypot(x - isl.x, z - isl.z) < isl.radius + ISLAND_BIOME_MARGIN) return { biome: isl.biome, other: isl.biome, t: 0 };
+  }
   const r = Math.hypot(x, z);
   const K = graph.sectors.length;
   const warp = noise.fbm(x * 0.008, z * 0.008, 2) * 0.55;
@@ -398,4 +426,116 @@ export function segDist2(px: number, pz: number, ax: number, az: number, bx: num
   const dx = ax + vx * t - px;
   const dz = az + vz * t - pz;
   return [dx * dx + dz * dz, t];
+}
+
+/** Island sizing and placement. Distances in tiles. */
+export const ISLANDS = {
+  COUNT: 4,
+  RADIUS_MIN: 70,
+  RADIUS_RANGE: 40,
+  GAP: 60,              // open sea between the mainland's reach and the island's edge
+  SPACING: 40,          // sea between islands
+  SECTOR_HALF_ANGLE: 0.35,
+  HUB_FLAT_RADIUS: 25,  // island nodes this close to the harbour town stay at level 1 so piers connect
+  BIOMES: [Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow, Biome.Plains],
+} as const;
+
+/** Road tuning for an island of the given radius: smaller, denser, no secondary towns. */
+export function islandConfig(radius: number): RoadConfig {
+  return {
+    ...GRAPH,
+    RADIUS: radius, TOWNS: 0, HUB_RADIUS: 14, ATTRACTOR_SPACING: 14, INFLUENCE: 40, KILL: 11, STEP: 6,
+    LOOP_DIST: 16, MAX_ITER: 300, MAX_WIDTH: 18,
+  };
+}
+
+/** Radius and biome an island gets from its own seed. */
+export function islandTraits(seed: number): { radius: number; biome: Biome } {
+  const rng = mulberry32(seed);
+  const radius = ISLANDS.RADIUS_MIN + Math.floor(rng() * ISLANDS.RADIUS_RANGE);
+  const biome = ISLANDS.BIOMES[Math.floor(rng() * ISLANDS.BIOMES.length)];
+  return { radius, biome };
+}
+
+/**
+ * Default island anchors for a mainland: spread around the compass, each just past the mainland's
+ * reach in that direction. Only used when the manifest has no island anchors yet.
+ */
+export function planIslands(mainland: RoadGraph, rootSeed: number): Array<{ id: string; x: number; z: number; seed: number }> {
+  const rng = mulberry32(hash3(rootSeed, 0, 0, SALT.ISLAND));
+  const out: Array<{ id: string; x: number; z: number; seed: number; radius: number }> = [];
+  const baseAngle = rng() * TAU;
+  for (let i = 0; i < ISLANDS.COUNT; i++) {
+    const id = `island:${i}`;
+    const seed = hash3(rootSeed, hashStringLite(id), 0, SALT.ISLAND);
+    const { radius } = islandTraits(seed);
+    const angle = baseAngle + (i / ISLANDS.COUNT) * TAU + (rng() - 0.5) * 0.5;
+    // how far the mainland reaches in this direction
+    let reach = mainland.radius * 0.5;
+    for (let n = 0; n < mainland.mainlandNodes; n++) {
+      const node = mainland.nodes[n];
+      const a = Math.atan2(node.z, node.x);
+      const da = Math.atan2(Math.sin(a - angle), Math.cos(a - angle));
+      if (Math.abs(da) < ISLANDS.SECTOR_HALF_ANGLE) reach = Math.max(reach, Math.hypot(node.x, node.z));
+    }
+    let dist = reach + ISLANDS.GAP + radius;
+    const x0 = Math.cos(angle), z0 = Math.sin(angle);
+    // push outward until clear of islands already placed
+    for (let tries = 0; tries < 20; tries++) {
+      const x = x0 * dist, z = z0 * dist;
+      if (out.every((o) => Math.hypot(o.x - x, o.z - z) > o.radius + radius + ISLANDS.SPACING)) break;
+      dist += 20;
+    }
+    out.push({ id, x: Math.round(x0 * dist), z: Math.round(z0 * dist), seed, radius });
+  }
+  return out.map(({ id, x, z, seed }) => ({ id, x, z, seed }));
+}
+
+/** Same string hash the manifest uses for ids, kept local to avoid a circular import. */
+function hashStringLite(str: string): number {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/**
+ * Grow each island's own road tree from its anchor seed and append it to the mainland graph:
+ * nodes translated to the anchor, indices re-based, the island hub registered as a town.
+ */
+export function attachIslands(graph: RoadGraph, anchors: Anchor[]): void {
+  for (const a of anchors) {
+    const { radius, biome } = islandTraits(a.seed);
+    const sub = generateRoadGraph(a.seed, islandConfig(radius));
+    const base = graph.nodes.length;
+    for (const n of sub.nodes) {
+      graph.nodes.push({ x: n.x + a.x, z: n.z + a.z, parent: n.parent < 0 ? -1 : n.parent + base, depth: n.depth, level: n.level, size: n.size });
+    }
+    for (const e of sub.edges) graph.edges.push({ ...e, a: e.a + base, b: e.b + base });
+    graph.towns.push(base);
+    graph.islands.push({ id: a.id, seed: a.seed, x: a.x, z: a.z, radius, biome, hub: base, firstNode: base });
+    relevelIsland(graph, base, a.x, a.z, biome, a.seed);
+  }
+}
+
+/** Island levels follow the island's own biome; the harbour area stays low so a pier can meet the shore. */
+function relevelIsland(graph: RoadGraph, firstNode: number, cx: number, cz: number, biome: Biome, seed: number): void {
+  const { nodes } = graph;
+  const noise = new Simplex2D(derive(seed, SALT.BIOME));
+  const baseLevel = BIOME_BASE[biome];
+  for (let i = firstNode; i < nodes.length; i++) {
+    const n = nodes[i];
+    const h = (noise.fbm(n.x * GROWTH.LEVEL_NOISE_SCALE, n.z * GROWTH.LEVEL_NOISE_SCALE, 3) + 1) * 0.5;
+    let level = 1 + baseLevel + Math.round(h * GROWTH.LEVEL_RANGE);
+    if (Math.hypot(n.x - cx, n.z - cz) < ISLANDS.HUB_FLAT_RADIUS) level = 1;
+    if (n.parent >= 0) {
+      const pl = nodes[n.parent].level;
+      level = Math.max(pl - 1, Math.min(pl + 1, level));
+    }
+    n.level = Math.max(1, level);
+  }
 }

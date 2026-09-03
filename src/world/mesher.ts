@@ -164,6 +164,7 @@ function topColor(c: ChunkData, i: number, type: TileType): RGB {
     case TileType.Water: hex = def.sand; break;
     case TileType.Floor: hex = FLOOR; break;
     case TileType.Plaza: hex = PLAZA; break;
+    case TileType.Pier: hex = BRIDGE_TOP; break;
     default: hex = def.ground;
   }
   const [r, g, b] = hexToLinear(hex);
@@ -213,7 +214,7 @@ export function buildChunkMesh(chunk: ChunkData, seed: number): ChunkMeshes {
       land.quad([wx, me[0], wz], [wx, me[3], wz + 1], [wx + 1, me[2], wz + 1], [wx + 1, me[1], wz], nx, ny, nz, top);
 
       // cliff walls toward any lower neighbour; edge endpoints use corner heights so ramps stay watertight
-      const isBridge = type === TileType.Bridge;
+      const isBridge = type === TileType.Bridge || type === TileType.Pier;
       const cliff = hexToLinear(isBridge ? BRIDGE_SIDE : def.cliff);
       const lip: RGB = [top[0] * LIP_DARKEN, top[1] * LIP_DARKEN, top[2] * LIP_DARKEN];
       for (const side of SIDES) {

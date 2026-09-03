@@ -15,6 +15,9 @@ export const SALT = {
   HERDS: 0xbeef,             // creature behaviour randomness
   HERD_CHUNK: 4242,          // per-chunk herd spawn rolls (hash3 salt)
   DIALOGUE: 0x1eaf,
+  ISLAND: 0x15a4d,           // island anchors and their road trees
+  DUNGEON: 0xd4e6,           // dungeon anchors and their layouts
+  FERRY: 0xfe44,
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

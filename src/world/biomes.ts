@@ -50,6 +50,11 @@ export const enum PropKind {
   ChurchSwamp = 43,
   ChurchMountain = 44,
   ChurchSnow = 45,
+  // dungeon furniture
+  Torch = 50,
+  Chest = 51,
+  ChestOpen = 52,
+  Stairs = 53,
 }
 
 export interface PropWeight { kind: PropKind; weight: number }
