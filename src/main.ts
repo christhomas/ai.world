@@ -22,6 +22,8 @@ import { SeasonTintMaterials } from './render/seasontint';
 import { FISHING, Fishing } from './game/fishing';
 import { Journal } from './ui/journal';
 import { Clock } from './ui/clock';
+import { Compass, type CompassTarget } from './ui/compass';
+import { PhotoMode } from './ui/photo';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { $ as el } from './ui/dom';
@@ -97,6 +99,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const fishing = new Fishing();
   const journal = new Journal();
   const clock = new Clock();
+  const compass = new Compass();
+  const photo = new PhotoMode();
   const heroGear = new HeroGear(rig.scene);
   const castbar = el('castbar');
   chunks.useSeasonTint(seasonTintMaterials);
@@ -390,6 +394,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- keys ---
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
+  input.onKey('p', () => {
+    const on = photo.toggle();
+    player.mode = on ? 'free' : 'follow';
+    if (!on) hud.flash('Photo mode off');
+  });
   input.onKey('m', () => {
     worldMap.dungeon = places.underground?.map ?? null;
     worldMap.toggle(mapInput());
@@ -427,7 +436,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
   input.onKey('i', () => { if (!dialogue.isOpen) rucksack.toggle(); });
-  for (const key of ['enter', ' ']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.advance(); else talkNearest(); });
+  for (const key of ['enter', ' ']) input.onKey(key, () => {
+    if (photo.active) {
+      // draw one more frame so the buffer holds exactly what is on screen, then read it back
+      rig.renderer.render(rig.scene, iso.camera);
+      const name = photo.save(rig.renderer.domElement, seed);
+      sound.chime();
+      window.setTimeout(() => hud.flash(`Saved ${name}`), 50);
+      return;
+    }
+    if (dialogue.isOpen) dialogue.advance(); else talkNearest();
+  });
   for (const key of ['arrowup', 'w']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(-1); });
   for (const key of ['arrowdown', 's']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(1); });
   window.addEventListener('resize', () => { rig.resize(); iso.resize(); });
@@ -513,6 +532,33 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     return p.hub ? HUB_NAME : p.land ? BIOMES[p.biome].name : SEA_NAME;
   };
 
+  /** What the compass points at: the errand first, then the nearest town. */
+  const compassTargets = (): CompassTarget[] => {
+    const targets: CompassTarget[] = [];
+    for (const q of questList) {
+      if (state.quests.get(q.id) !== 'active') continue;
+      const done = q.kind === 'visit' ? state.discovered.has(q.target) : state.count(q.target) >= q.count;
+      const village = structures.villages.find((v) => v.name === q.village);
+      if (done) {
+        if (village) targets.push({ label: `${q.village} (reward)`, x: village.x, z: village.z, primary: true });
+      } else if (q.kind === 'visit') {
+        const poi = structures.pois.find((p) => p.name === q.target);
+        if (poi) targets.push({ label: q.target, x: poi.x, z: poi.z, primary: true });
+      } else if (village) {
+        targets.push({ label: `${q.village} (errand)`, x: village.x, z: village.z, primary: true });
+      }
+      if (targets.length >= 2) break;
+    }
+    let nearest = structures.villages[0];
+    for (const v of structures.villages) {
+      if (Math.hypot(v.x - player.x, v.z - player.z) < Math.hypot(nearest.x - player.x, nearest.z - player.z)) nearest = v;
+    }
+    if (nearest && !targets.some((t) => t.label.startsWith(nearest.name))) {
+      targets.push({ label: nearest.name, x: nearest.x, z: nearest.z });
+    }
+    return targets;
+  };
+
   /** The panels that follow the hero everywhere: hearts, clock, errands, area and toasts. */
   const updateHud = (dt: number, area: string, weatherGlyph = ''): void => {
     hud.syncState(state);
@@ -522,6 +568,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     hud.setArea(area);
     hud.tick(dt);
     rucksack.refresh();
+    if (places.outdoors) compass.update(player.x, player.z, compassTargets());
+    else compass.update(0, 0, []);
   };
 
   const raycaster = new THREE.Raycaster();

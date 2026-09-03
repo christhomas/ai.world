@@ -19,7 +19,8 @@ export interface SceneRig {
 }
 
 export function createSceneRig(container: HTMLElement): SceneRig {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // preserveDrawingBuffer lets photo mode read the canvas back after a frame
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;

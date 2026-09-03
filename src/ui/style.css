@@ -216,3 +216,16 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #worldmap .wm-legend span { display: flex; align-items: center; gap: 5px; }
 #worldmap .wm-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+#compass {
+  display: none; position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+  gap: 14px; background: rgba(0,0,0,0.66); border: 1px solid #4a5a9a; border-radius: 6px;
+  padding: 4px 14px; color: #9fb0e0; font-size: 12px; z-index: 100; white-space: nowrap;
+}
+#compass .c-primary { color: #7fe0a0; font-weight: bold; }
+.photo-hidden { display: none !important; }
+#photoHint {
+  display: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.55); color: #cfd6ff; font-size: 12px; padding: 5px 16px;
+  border-radius: 20px; z-index: 200; pointer-events: none;
+}
+#photoHint.show { display: block; }
