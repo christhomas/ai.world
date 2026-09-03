@@ -54,8 +54,8 @@ export function makeFerryLines(structures: Structures, villages: Village[], isla
   const onIsland = (v: Village) => islands.some((i) => Math.hypot(i.x - v.x, i.z - v.z) < i.radius + 20);
   const mainlandVillages = villages.filter((v) => !onIsland(v));
   const lines: FerryLine[] = [];
-  const islands = new Set(structures.piers.map((p) => p.island));
-  for (const islandId of islands) {
+  const islandIds = new Set(structures.piers.map((p) => p.island));
+  for (const islandId of islandIds) {
     const fromPier = structures.piers.find((p) => p.island === islandId && p.side === 'mainland');
     const toPier = structures.piers.find((p) => p.island === islandId && p.side === 'island');
     if (!fromPier || !toPier) continue;
