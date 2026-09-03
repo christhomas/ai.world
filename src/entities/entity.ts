@@ -78,6 +78,10 @@ export class Entity {
   shop: ShopType | null = null;
   /** Door tile villagers walk back to at dusk; they vanish inside on arrival. */
   home: [number, number] | null = null;
+  /** Where this villager spends the working day, and where the village gathers of an evening. */
+  work: [number, number] | null = null;
+  square: [number, number] | null = null;
+  inn: [number, number] | null = null;
   /** Hidden indoors: not drawn, not interactive, until morning. */
   indoors = false;
   attackCooldown = 0;
@@ -195,6 +199,20 @@ export function updateHerd(h: Herd, dt: number, ctx: Ctx): void {
   }
 }
 
+/** Step towards a spot; true once you are standing on it. */
+function walkTowards(e: Entity, target: [number, number], dt: number, world: TileWorld): boolean {
+  const dx = target[0] - e.x, dz = target[1] - e.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.6) return true;
+  e.yaw = yawFor(dx, dz);
+  e.walk += (1 - e.walk) * Math.min(1, dt * 10);
+  e.phase += dt * 8;
+  tryMove(world, e, (dx / dist) * e.kind.speed * dt, (dz / dist) * e.kind.speed * dt);
+  const gy = groundY(world, e.kind, e.x, e.z);
+  if (gy !== null) e.y += (gy - e.y) * Math.min(1, dt * 12);
+  return false;
+}
+
 /** Turn tail: run directly away from the player for a short while. */
 function startFlee(e: Entity, awayX: number, awayZ: number, rng: Rng): void {
   e.state = 'flee';
@@ -248,29 +266,38 @@ export function isDaytime(time: number): boolean {
   return time >= AWAKE[0] && time < AWAKE[1];
 }
 
+/** Where a villager should be at a given hour. */
+export type Routine = 'home' | 'work' | 'square' | 'inn';
+
+/** The village day: out to work at dawn, the square at noon, the inn in the evening, bed at night. */
+export function routineAt(time: number): Routine {
+  if (time < AWAKE[0] || time >= AWAKE[1]) return 'home';
+  if (time < 0.42) return 'work';
+  if (time < 0.62) return 'square';
+  return 'inn';
+}
+
 export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   const k = e.kind;
   const { world } = ctx;
   if (e.role === 'mount') return;   // your horse waits where you left it
   e.timer -= dt;
 
-  // townsfolk keep hours: home at dusk, back out after dawn
+  // townsfolk keep a routine: field in the morning, square at noon, inn in the evening, bed at night
   if (e.home && ctx.time !== undefined) {
-    const day = isDaytime(ctx.time);
-    if (!day) {
+    const routine = routineAt(ctx.time);
+    if (routine === 'home') {
       if (e.indoors) return;
-      const dx = e.home[0] - e.x, dz = e.home[1] - e.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist < 0.6) { e.indoors = true; e.walk = 0; return; }
-      e.yaw = yawFor(dx, dz);
-      e.walk += (1 - e.walk) * Math.min(1, dt * 10);
-      e.phase += dt * 8;
-      tryMove(world, e, (dx / dist) * k.speed * dt, (dz / dist) * k.speed * dt);
-      const gy = groundY(world, k, e.x, e.z);
-      if (gy !== null) e.y += (gy - e.y) * Math.min(1, dt * 12);
+      if (walkTowards(e, e.home, dt, world)) { e.indoors = true; e.walk = 0; }
       return;
     }
     if (e.indoors) { e.indoors = false; e.state = 'idle'; e.timer = ctx.rng(); }
+    const post = routine === 'work' ? e.work : routine === 'inn' ? e.inn : e.square;
+    if (post) {
+      // drift to where the day says you should be, then potter about there
+      const away = Math.hypot(post[0] - e.herd.ax, post[1] - e.herd.az);
+      if (away > 1) { e.herd.ax = post[0]; e.herd.az = post[1]; }
+    }
   }
 
   if (k.behaviour === 'fly') {

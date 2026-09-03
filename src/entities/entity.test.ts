@@ -82,3 +82,31 @@ describe('villager hours', () => {
     expect(isDaytime(0.1)).toBe(false);
   });
 });
+
+describe('the village day', () => {
+  it('sends people to work, to the square, to the inn, then home', async () => {
+    const { routineAt } = await import('./entity');
+    expect(routineAt(0.1)).toBe('home');    // small hours
+    expect(routineAt(0.35)).toBe('work');   // morning
+    expect(routineAt(0.5)).toBe('square');  // noon
+    expect(routineAt(0.7)).toBe('inn');     // evening
+    expect(routineAt(0.9)).toBe('home');    // night
+  });
+
+  it('moves the herd anchor to the post the hour calls for', () => {
+    const herd = new Herd(KINDS.villager, 10, 10, 10, 10, 8);
+    const e = new Entity(KINDS.villager, 10, 10, herd, 'k', mulberry32(6));
+    e.y = 1;
+    e.home = [6, 10];
+    e.work = [14, 12];
+    e.square = [10, 10];
+    e.inn = [8, 14];
+    const tick = (time: number) => updateEntity(e, 0.1, { world, rng: mulberry32(2), playerX: 99, playerZ: 99, playerArmed: false, onAttack: () => {}, time });
+    tick(0.35);
+    expect([herd.ax, herd.az]).toEqual([14, 12]);
+    tick(0.7);
+    expect([herd.ax, herd.az]).toEqual([8, 14]);
+    tick(0.5);
+    expect([herd.ax, herd.az]).toEqual([10, 10]);
+  });
+});

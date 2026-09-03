@@ -272,9 +272,15 @@ export class EntityManager {
         // one of them keeps the horses
         if (herd.members.length > 1) herd.members[1].role = 'stablehand';
         // each villager keeps a house to go home to at dusk
+        const innShop = v.shops.find((s) => s.type === 'inn');
         herd.members.forEach((e, i) => {
           const house = v.houses[i % Math.max(1, v.houses.length)];
           if (house) { const [dx, dz] = doorTile(house); e.home = [dx + 0.5, dz + 0.5]; }
+          // a field or yard to work, the square at noon, the inn door of an evening
+          const angle = (i / Math.max(1, herd.members.length)) * Math.PI * 2;
+          e.work = [v.x + Math.cos(angle) * (v.radius * 0.55), v.z + Math.sin(angle) * (v.radius * 0.55)];
+          e.square = [v.x, v.z];
+          e.inn = innShop ? [innShop.doorX + 0.5, innShop.doorZ + 0.5] : [v.x, v.z];
         });
       }
       if (v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
