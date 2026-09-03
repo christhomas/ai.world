@@ -5,7 +5,7 @@ import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
 import type { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
-import { BIOME_ANIMALS, KINDS, WATER_ANIMALS, pickKind } from './animals';
+import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
 import { Entity, Herd, canStand, updateEntity, updateHerd, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import type { Village } from '../world/structures';
@@ -113,6 +113,70 @@ export class EntityManager {
       }
     }
     return best;
+  }
+
+  /** Spawn monsters directly (used by dungeons, which have their own tile world). */
+  spawnMonsters(anchors: Array<[number, number]>, seed: number): Entity[] {
+    const rng = mulberry32(seed);
+    const out: Entity[] = [];
+    const key = 'dungeon';
+    let list = this.spawned.get(key);
+    if (!list) { list = []; this.spawned.set(key, list); }
+    for (const [x, z] of anchors) {
+      const kindId = pickKind(DUNGEON_MONSTERS, rng());
+      if (!kindId) continue;
+      const herd = this.spawnHerdAt(kindId, x, z, rng, key, out);
+      if (herd.members.length === 0) continue;
+    }
+    list.push(...out);
+    return out;
+  }
+
+  private spawnHerdAt(kindId: string, x: number, z: number, rng: Rng, key: string, out: Entity[]): Herd {
+    const kind = KINDS[kindId];
+    const size = kind.herd[0] + Math.floor(rng() * (kind.herd[1] - kind.herd[0] + 1));
+    const herd = new Herd(kind, x, z, x, z, SPAWN.HERD_LEASH);
+    for (let n = 0; n < size; n++) {
+      for (let attempt = 0; attempt < SPAWN.PLACE_ATTEMPTS; attempt++) {
+        const a = rng() * Math.PI * 2, r = rng() * SPAWN.SCATTER;
+        const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+        if (!canStand(this.world, kind, px, pz)) continue;
+        const e = new Entity(kind, px, pz, herd, key, rng);
+        e.y = kind.behaviour === 'fly' ? (this.world.heightAt(px, pz) ?? 0) + (kind.altitude ?? 2) : (this.world.heightAt(px, pz) ?? 0);
+        e.yaw = rng() * Math.PI * 2;
+        if (!this.renderer.add(e)) break;
+        herd.members.push(e);
+        out.push(e);
+        break;
+      }
+    }
+    if (herd.members.length > 0) this.herds.add(herd);
+    return herd;
+  }
+
+  /** Drop a dead creature from the world. */
+  despawnEntity(e: Entity): void {
+    this.renderer.remove(e);
+    const h = e.herd;
+    const i = h.members.indexOf(e);
+    if (i >= 0) h.members.splice(i, 1);
+    if (h.members.length === 0) this.herds.delete(h);
+    for (const list of this.spawned.values()) {
+      const j = list.indexOf(e);
+      if (j >= 0) { list.splice(j, 1); return; }
+    }
+  }
+
+  /** Every live creature within `r` tiles, nearest first. */
+  within(x: number, z: number, r: number): Entity[] {
+    const hits: Array<{ e: Entity; d: number }> = [];
+    for (const list of this.spawned.values()) {
+      for (const e of list) {
+        const d = Math.hypot(e.x - x, e.z - z);
+        if (d <= r) hits.push({ e, d });
+      }
+    }
+    return hits.sort((a, b) => a.d - b.d).map((h) => h.e);
   }
 
   pick(raycaster: THREE.Raycaster): Entity | null {

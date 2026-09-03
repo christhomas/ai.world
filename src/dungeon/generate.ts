@@ -5,10 +5,11 @@ import { mulberry32, type Rng } from '../core/rng';
  * nearest-first order so the whole thing is connected, stairs in the first room, the big chest in
  * the room farthest from the stairs, torches along the walls, a pool or two.
  */
-export const enum DTile { Rock = 0, Floor = 1, Water = 2, Stairs = 3 }
+export const enum DTile { Rock = 0, Floor = 1, Water = 2, Stairs = 3, Door = 4 }
 
 export interface Room { x: number; z: number; w: number; h: number }
-export interface Chest { x: number; z: number; big: boolean }
+export interface Chest { x: number; z: number; big: boolean; key?: boolean }
+export interface Door { x: number; z: number }
 export interface Torch { x: number; z: number; /** yaw so the bracket faces into the room */ rot: number }
 
 export interface DungeonMap {
@@ -18,6 +19,10 @@ export interface DungeonMap {
   entrance: [number, number];
   chests: Chest[];
   torches: Torch[];
+  /** Locked doors sealing the treasure room; opened by the key chest's key. */
+  doors: Door[];
+  /** Room centres where monsters wait. */
+  monsterSpots: Array<[number, number]>;
 }
 
 export const DUNGEON = {
@@ -32,6 +37,7 @@ export const DUNGEON = {
   POOLS: 2,
   TORCH_SPACING: 4,
   PILLAR_ROOM_SIZE: 7,   // rooms at least this big on both sides get four pillars
+  MONSTER_ROOM_CHANCE: 0.75,
 } as const;
 
 export function generateDungeon(seed: number): DungeonMap {
@@ -77,6 +83,9 @@ export function generateDungeon(seed: number): DungeonMap {
     if (d > farD) { farD = d; far = r; }
   }
   const chests: Chest[] = [{ x: centre(far)[0], z: centre(far)[1], big: true }];
+  // the corridor mouths into the treasure room become locked doors
+  const doors: Door[] = doorwaysOf(tiles, size, far);
+  for (const d of doors) tiles[idx(d.x, d.z)] = DTile.Door;
   const pools: Room[] = [];
   for (const r of rooms) {
     if (r === rooms[0] || r === far) continue;
@@ -108,7 +117,41 @@ export function generateDungeon(seed: number): DungeonMap {
     }
   }
 
-  return { size, tiles, rooms, entrance, chests, torches };
+  // one small chest away from the stairs holds the key; if there are none, put a key chest in
+  if (doors.length > 0) {
+    const small = chests.filter((c) => !c.big);
+    let keyChest = small[small.length - 1];
+    if (!keyChest) {
+      const mid = rooms.find((r) => r !== rooms[0] && r !== far);
+      if (mid) { keyChest = { x: centre(mid)[0], z: centre(mid)[1], big: false }; chests.push(keyChest); }
+    }
+    if (keyChest) keyChest.key = true;
+    else for (const d of doors) tiles[idx(d.x, d.z)] = DTile.Floor; // no way to hold a key: unlock
+  }
+
+  // monsters in every room except the one you arrive in
+  const monsterSpots: Array<[number, number]> = [];
+  for (const r of rooms) {
+    if (r === rooms[0]) continue;
+    if (rng() < DUNGEON.MONSTER_ROOM_CHANCE) monsterSpots.push(centre(r));
+  }
+
+  return { size, tiles, rooms, entrance, chests, torches, doors: doors.filter((d) => tiles[idx(d.x, d.z)] === DTile.Door), monsterSpots };
+}
+
+/** Floor tiles on the room's boundary ring that lead out of it: the corridor mouths. */
+function doorwaysOf(tiles: Uint8Array, size: number, r: Room): Door[] {
+  const out: Door[] = [];
+  const at = (x: number, z: number) => (x < 0 || z < 0 || x >= size || z >= size ? DTile.Rock : (tiles[z * size + x] as DTile));
+  for (let x = r.x; x < r.x + r.w; x++) {
+    if (at(x, r.z - 1) === DTile.Floor) out.push({ x, z: r.z - 1 });
+    if (at(x, r.z + r.h) === DTile.Floor) out.push({ x, z: r.z + r.h });
+  }
+  for (let z = r.z; z < r.z + r.h; z++) {
+    if (at(r.x - 1, z) === DTile.Floor) out.push({ x: r.x - 1, z });
+    if (at(r.x + r.w, z) === DTile.Floor) out.push({ x: r.x + r.w, z });
+  }
+  return out;
 }
 
 function placeRooms(rng: Rng): Room[] {
@@ -165,7 +208,7 @@ export function fullyConnected(map: DungeonMap): boolean {
       const nx = x + dx, nz = z + dz;
       if (nx < 0 || nz < 0 || nx >= size || nz >= size) continue;
       const j = nz * size + nx;
-      if (seen[j] || tiles[j] === DTile.Rock) continue;
+      if (seen[j] || tiles[j] === DTile.Rock) continue;   // doors count as passable: the key is always reachable first
       seen[j] = 1; stack.push(j);
     }
   }

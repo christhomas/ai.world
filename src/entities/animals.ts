@@ -25,7 +25,7 @@ export interface PartDef {
   rot?: [number, number, number];
 }
 
-export type Behaviour = 'graze' | 'wander' | 'prowl' | 'fly' | 'swim' | 'hop' | 'travel';
+export type Behaviour = 'graze' | 'wander' | 'prowl' | 'fly' | 'swim' | 'hop' | 'travel' | 'hunt';
 
 export interface AnimalKind {
   id: string;
@@ -48,6 +48,10 @@ export interface AnimalKind {
   climb?: number;
   /** Damage per bite for predators that attack the hero. */
   dangerous?: number;
+  /** Hit points; creatures with hp can be killed by the hero. */
+  hp?: number;
+  /** Gold dropped when killed. */
+  gold?: [number, number];
 }
 
 type P = PartDef;
@@ -222,7 +226,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   bear: {
-    id: 'bear', label: 'Bear', emoji: '🐻', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2,
+    id: 'bear', label: 'Bear', emoji: '🐻', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2, hp: 6, gold: [15, 40],
     palettes: [[0x5a3a22, 0x8a6a4a], [0x2b2b2b, 0x5a5a5a]],
     names: ['Bruno', 'Grizz', 'Mabel', 'Kodiak', 'Honey'],
     lines: ['*low growl*', '*sniffs*', '*scratches tree*', '*yawns hugely*'],
@@ -370,7 +374,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   wolf: {
-    id: 'wolf', label: 'Wolf', emoji: '🐺', scale: 0.95, speed: 1.5, runSpeed: 5.5, herd: [2, 4], behaviour: 'prowl', timid: false, dangerous: 1,
+    id: 'wolf', label: 'Wolf', emoji: '🐺', scale: 0.95, speed: 1.5, runSpeed: 5.5, herd: [2, 4], behaviour: 'prowl', timid: false, dangerous: 1, hp: 3, gold: [8, 20],
     palettes: [[0x8a8a8a, 0xd8d8d8], [0x5a5a5a, 0xa8a8a8], [0xe8e8e8, 0xffffff]],
     names: ['Fang', 'Luna', 'Ghost', 'Ash', 'Howl'],
     lines: ['*low growl*', '*howls*', '*watches you*', '*pads silently*'],
@@ -426,6 +430,63 @@ export const KINDS: Record<string, AnimalKind> = {
     lines: ['Welcome to {village}!', 'Not much happens in {village}, and we like it that way.', 'The well water here is the sweetest around.', 'Watch the road at night.', 'Lovely weather for it.', 'Have you seen the old ruins?', '{village} has stood here for generations.'],
     parts: biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x4a3a2a }),
   },
+  rat: {
+    id: 'rat', label: 'Cave Rat', emoji: '🐀', scale: 0.6, speed: 1.6, runSpeed: 3.4, herd: [2, 4], behaviour: 'hunt', timid: false, dangerous: 1, hp: 2, gold: [2, 8],
+    palettes: [[0x6a5a4a, 0xd8b8a8], [0x4a4a4a, 0xb8b8b8]],
+    names: ['Gnasher', 'Scritch', 'Whisker', 'Nibbler'],
+    lines: ['*hisses*', '*scurries*'],
+    parts: quadruped({
+      body: [0.5, 0.22, 0.22], bodyY: 0.26, legH: 0.14, legW: 0.06, head: [0.22, 0.18, 0.18], headOffset: [0.34, 0.32, 0],
+      bodyColor: W, bodyTint: 0,
+      tail: { size: [0.5, 0.05, 0.05], offset: [-0.5, 0.24, 0], color: W, tint: 1, rot: [0, 0, 0.2] },
+      extras: [
+        box([0.08, 0.1, 0.03], [0.28, 0.44, 0.08], W, { tint: 1, anim: 'head', pivot: [0.23, 0.32, 0] }),
+        box([0.08, 0.1, 0.03], [0.28, 0.44, -0.08], W, { tint: 1, anim: 'head', pivot: [0.23, 0.32, 0] }),
+        box([0.1, 0.06, 0.08], [0.46, 0.28, 0], W, { tint: 1, anim: 'head', pivot: [0.23, 0.32, 0] }),
+      ],
+    }),
+  },
+  bat: {
+    id: 'bat', label: 'Bat', emoji: '🦇', scale: 0.7, speed: 3.2, runSpeed: 3.2, herd: [2, 4], behaviour: 'fly', timid: false, dangerous: 1, hp: 1, gold: [1, 5], altitude: 2.4,
+    palettes: [[0x3a2a3a, 0x7a5a7a]],
+    names: ['Flitter', 'Dusk', 'Screech'],
+    lines: ['*screeches*'],
+    parts: [
+      ico(0.16, [0, 0, 0], W, { tint: 0 }),
+      box([0.08, 0.12, 0.04], [0.02, 0.16, 0.06], W, { tint: 0 }),
+      box([0.08, 0.12, 0.04], [0.02, 0.16, -0.06], W, { tint: 0 }),
+      box([0.3, 0.03, 0.55], [0, 0.04, 0.34], W, { tint: 1, anim: 'wingL', pivot: [0, 0.04, 0.08] }),
+      box([0.3, 0.03, 0.55], [0, 0.04, -0.34], W, { tint: 1, anim: 'wingR', pivot: [0, 0.04, -0.08] }),
+    ],
+  },
+  slime: {
+    id: 'slime', label: 'Slime', emoji: '🟢', scale: 0.8, speed: 1.0, runSpeed: 2.2, herd: [1, 3], behaviour: 'hunt', timid: false, dangerous: 1, hp: 3, gold: [4, 12],
+    palettes: [[0x4fbf6f], [0x4f8fbf], [0xbf5f8f]],
+    names: ['Blob', 'Squish', 'Ooze', 'Gel'],
+    lines: ['*squelch*', '*wobbles*'],
+    parts: [
+      ico(0.42, [0, 0.32, 0], W, { tint: 0, anim: 'head', pivot: [0, 0, 0] }),
+      ico(0.16, [0.22, 0.42, 0.14], 0x111111, { anim: 'head', pivot: [0, 0, 0] }),
+      ico(0.16, [0.22, 0.42, -0.14], 0x111111, { anim: 'head', pivot: [0, 0, 0] }),
+    ],
+  },
+  skeleton: {
+    id: 'skeleton', label: 'Skeleton', emoji: '💀', scale: 1.0, speed: 1.5, runSpeed: 3.0, herd: [1, 2], behaviour: 'hunt', timid: false, dangerous: 2, hp: 4, gold: [10, 25],
+    palettes: [[0xe8e4d8, 0x5a4632]],
+    names: ['Bones', 'Rattle', 'Marrow', 'Grim'],
+    lines: ['*clatters*', '*jaw creaks*'],
+    parts: [
+      box([0.28, 0.3, 0.28], [0, 1.3, 0], W, { tint: 0, anim: 'head', pivot: [0, 1.12, 0] }),
+      box([0.07, 0.07, 0.05], [0.15, 1.34, 0.07], 0x111111, { anim: 'head', pivot: [0, 1.12, 0] }),
+      box([0.07, 0.07, 0.05], [0.15, 1.34, -0.07], 0x111111, { anim: 'head', pivot: [0, 1.12, 0] }),
+      box([0.16, 0.42, 0.3], [0, 0.92, 0], W, { tint: 0 }),
+      box([0.08, 0.4, 0.08], [0, 0.94, 0.22], W, { tint: 0, anim: 'armL', pivot: [0, 1.12, 0.22] }),
+      box([0.08, 0.4, 0.08], [0, 0.94, -0.22], W, { tint: 0, anim: 'armR', pivot: [0, 1.12, -0.22] }),
+      box([0.1, 0.44, 0.1], [0, 0.48, 0.08], W, { tint: 0, anim: 'legL', pivot: [0, 0.7, 0.08] }),
+      box([0.1, 0.44, 0.1], [0, 0.48, -0.08], W, { tint: 0, anim: 'legR', pivot: [0, 0.7, -0.08] }),
+      box([0.06, 0.7, 0.06], [0.1, 0.85, 0.3], W, { tint: 1, anim: 'armL', pivot: [0, 1.12, 0.22], rot: [0, 0, 0.3] }),
+    ],
+  },
   shopkeeper: {
     id: 'shopkeeper', label: 'Shopkeeper', emoji: '🧑‍🍳', scale: 1.0, speed: 0.6, runSpeed: 0.6, herd: [1, 1], behaviour: 'wander', timid: false,
     palettes: [[0xffffff, 0x2c1810], [0xf5deb3, 0x8b4513], [0xdcdcdc, 0x4a2a10], [0xe8e0c8, 0x6c5ce7]],
@@ -463,6 +524,11 @@ export const BIOME_ANIMALS: Record<Biome, SpawnWeight[]> = {
   [Biome.Mountain]: [{ kind: 'goat', weight: 5 }, { kind: 'eagle', weight: 2 }, { kind: 'wolf', weight: 1 }],
   [Biome.Snow]: [{ kind: 'hare', weight: 4 }, { kind: 'wolf', weight: 2 }, { kind: 'elk', weight: 3 }],
 };
+
+/** Monsters per dungeon depth band; deeper rooms get nastier things. */
+export const DUNGEON_MONSTERS: SpawnWeight[] = [
+  { kind: 'rat', weight: 5 }, { kind: 'bat', weight: 4 }, { kind: 'slime', weight: 3 }, { kind: 'skeleton', weight: 2 },
+];
 
 /** Kinds that spawn on water tiles instead of land. */
 export const WATER_ANIMALS: Record<Biome, SpawnWeight[]> = {

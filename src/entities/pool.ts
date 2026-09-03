@@ -11,6 +11,7 @@ const CAPACITY = 320;
 const SHADOW_VOLUME = 0.012;
 /** Leg swing amplitude at full walk, radians. */
 const WALK_SWING = 0.6;
+const HURT_COLOR = new THREE.Color(0xffffff);
 
 /** Euler angles (x, y, z) for an animated part given the entity's current animation state. */
 function partRotation(role: AnimRole | undefined, e: Entity, swing: number): [number, number, number] {
@@ -49,6 +50,7 @@ class KindPool {
   readonly parts: PartRuntime[] = [];
   readonly entities: Entity[] = [];
   colorsDirty = false;
+  hurtDirty = false;
 
   constructor(readonly kind: AnimalKind, scene: THREE.Scene) {
     for (const def of kind.parts) {
@@ -147,18 +149,21 @@ export class EntityRenderer {
   update(): void {
     for (const p of this.pools.values()) {
       const n = p.entities.length;
-      if (p.colorsDirty) {
+      if (p.hurtDirty || p.colorsDirty) {
         for (const part of p.parts) {
           if (part.def.tint === undefined) continue;
           for (let i = 0; i < n; i++) {
-            const tints = p.entities[i].tints;
-            this.color.setHex(tints[Math.min(part.def.tint, tints.length - 1)]);
+            const e = p.entities[i];
+            this.color.setHex(e.tints[Math.min(part.def.tint, e.tints.length - 1)]);
+            if (e.hurt > 0) this.color.lerp(HURT_COLOR, 0.7);
             part.mesh.setColorAt(i, this.color);
           }
           if (part.mesh.instanceColor) part.mesh.instanceColor.needsUpdate = true;
         }
         p.colorsDirty = false;
+        p.hurtDirty = p.entities.some((e) => e.hurt > 0);
       }
+      if (!p.hurtDirty && p.entities.some((e) => e.hurt > 0)) p.hurtDirty = true;
       for (const part of p.parts) part.mesh.count = n;
       if (n === 0) continue;
       for (let i = 0; i < n; i++) {

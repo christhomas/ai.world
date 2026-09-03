@@ -17,6 +17,12 @@ import { DungeonWorld } from './dungeon/world';
 import { DungeonScene } from './dungeon/scene';
 import { StructureKind, type Poi } from './world/structures';
 import { ITEMS } from './game/shops';
+import { COMBAT, swing } from './game/combat';
+import { DungeonMinimap } from './ui/dungeonmap';
+
+/** Interaction reach underground, and where the hero stands when arriving (offsets from the stairs). */
+const DUNGEON_UI = { CHEST_RANGE: 1.8, DOOR_RANGE: 2.0, STAIRS_RANGE: 1.4 } as const;
+const STAIRS_CLEARANCE_OFFSETS: Array<[number, number]> = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, -2], [1, 0]];
 import { TerrainSampler } from './world/terrain';
 import { BIOMES, HUB_NAME, SEA_NAME } from './world/biomes';
 import { villageAt } from './world/structures';
@@ -98,20 +104,27 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
   let riding: { line: FerryLine; dest: 'from' | 'to' } | null = null;
   // --- dungeons ---
-  interface DungeonVisit { world: DungeonWorld; scene: DungeonScene; renderer: EntityRenderer; poi: Poi }
+  interface DungeonVisit { world: DungeonWorld; scene: DungeonScene; renderer: EntityRenderer; poi: Poi; monsters: EntityManager; map: DungeonMinimap }
   let dungeon: DungeonVisit | null = null;
   const enterDungeon = (poi: Poi) => {
     const anchor = manifest.ensure(`dungeon:${poi.name}`, 'dungeon', poi.x, poi.z);
     const world = new DungeonWorld(generateDungeon(anchor.seed), anchor.id);
+    world.unlocked = state.keys.has(anchor.id);
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
     const renderer = new EntityRenderer(scene.scene);
     entityRenderer.remove(player.entity);
     renderer.add(player.entity);
     player.setWorld(world);
+    // stand clear of the stairs so the way-out prompt does not fire the moment you arrive
     const [ex, ez] = world.map.entrance;
-    player.teleport(ex + 1.5, ez + 0.5);
-    iso.target.set(ex + 1.5, 0.5, ez + 0.5);
-    dungeon = { world, scene, renderer, poi };
+    const startTile = STAIRS_CLEARANCE_OFFSETS.find(([dx, dz]) => world.heightAt(ex + dx + 0.5, ez + dz + 0.5) !== null) ?? [0, 0];
+    const sx = ex + startTile[0] + 0.5, sz = ez + startTile[1] + 0.5;
+    player.teleport(sx, sz);
+    iso.target.set(sx, 0.5, sz);
+    const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed);
+    monsters.spawnMonsters(world.map.monsterSpots, anchor.seed);
+    const map = new DungeonMinimap($('minimapCanvas') as HTMLCanvasElement, world.map);
+    dungeon = { world, scene, renderer, poi, monsters, map };
     sound.cave = true;
     hud.flash(`You descend into the ${poi.name}`);
     persist();
@@ -138,6 +151,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const gold = chest.big ? 80 + Math.floor(roll() * 70) : 12 + Math.floor(roll() * 30);
     state.inventory.gold += gold;
     let extra = '';
+    if (chest.key) {
+      state.keys.add(visit.world.anchorId);
+      visit.world.unlocked = true;
+      extra = ' and a heavy iron key';
+    }
     if (chest.big) {
       const prizes = ['potion', 'sword', 'shield', 'helm', 'lantern', 'rope', 'map'].filter((p) => !state.has(p) || p === 'potion');
       const prize = prizes[Math.floor(roll() * prizes.length)];
@@ -147,15 +165,20 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     state.opened.add(id);
     state.version++;
     visit.scene.rebuildProps(state.opened);
+    if (chest.key) hud.flash('The doors to the treasure room unlock');
     sound.chime();
     hud.flash(`Found ${gold} gold${extra}!`);
     persist();
   };
   /** Enter/Space inside a dungeon: chests and the way out. */
   const dungeonInteract = (visit: DungeonVisit): boolean => {
-    const chest = visit.world.chestNear(player.x, player.z, 1.8, state.opened);
+    const chest = visit.world.chestNear(player.x, player.z, DUNGEON_UI.CHEST_RANGE, state.opened);
     if (chest >= 0) { openChest(visit, chest); return true; }
-    if (visit.world.nearStairs(player.x, player.z, 1.8)) {
+    if (visit.world.lockedDoorAt(player.x, player.z, DUNGEON_UI.DOOR_RANGE)) {
+      hud.flash('The door is locked. A key must be down here somewhere.');
+      return true;
+    }
+    if (visit.world.nearStairs(player.x, player.z, DUNGEON_UI.STAIRS_RANGE)) {
       dialogue.start({ speaker: 'Stairs', emoji: '🪜', pages: ['Climb back up to the daylight?'], choices: [
         { label: 'Climb out', next: () => { exitDungeon(); return null; } },
         { label: 'Stay', next: () => null },
@@ -277,6 +300,24 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
   input.onKey('m', () => minimap.toggle());
+  let swingCooldown = 0;
+  const attack = () => {
+    if (dialogue.isOpen || swingCooldown > 0) return;
+    swingCooldown = COMBAT.COOLDOWN;
+    player.entity.attackCooldown = 0.45;
+    const world = dungeon ? dungeon.world : chunks;
+    const manager = dungeon ? dungeon.monsters : entities;
+    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed);
+    if (res.hit.length === 0) { sound.select(); return; }
+    sound.thud();
+    if (res.killed.length > 0) {
+      sound.chime();
+      const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
+      hud.flash(res.gold > 0 ? `Defeated ${names} (+${res.gold} gold)` : `Defeated ${names}`);
+      persist();
+    }
+  };
+  input.onKey('x', attack);
   input.onKey('n', toTitle);
   input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); });
   for (const key of ['enter', ' ']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.advance(); else talkNearest(); });
@@ -290,6 +331,18 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     hud.hurt();
     sound.thud();
     if (!state.damage(dmg)) return;
+    if (dungeon) {
+      // knocked out underground: dragged back to the surface, minus some gold
+      const lostBelow = Math.min(GAMEPLAY.KO_GOLD_LOSS, state.inventory.gold);
+      state.inventory.gold -= lostBelow;
+      state.hp = state.maxHpTotal;
+      state.version++;
+      const name = dungeon.poi.name;
+      exitDungeon();
+      hud.flash(`${attacker.kind.label} got you. You crawl out of the ${name}${lostBelow ? `, ${lostBelow} gold lighter` : ''}.`);
+      persist();
+      return;
+    }
     // knocked out: wake in the nearest town, lighter in the purse
     let home = structures.villages[0];
     for (const v of structures.villages) {
@@ -339,16 +392,25 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (!talking) state.tick(dt);
 
     if (dungeon) {
-      // underground: only the hero, the lights and the HUD tick
+      frames++; fpsAccum += dt;
+      if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
+      // underground: the hero, the monsters, the lights and the HUD tick
       dungeon.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
       dungeon.scene.heroLight.intensity = state.has('lantern') ? 9 : 3;
+      dungeon.monsters.update(dt, player.x, player.z, false, onAttack);
       dungeon.renderer.update();
+      dungeon.map.reveal(player.x, player.z);
+      dungeon.map.draw(player.x, player.z, state.opened, (i) => dungeon!.world.chestId(i), dungeon!.world.unlocked);
       hud.syncState(state);
       hud.setClock(state.clock());
       hud.setQuests(questList, state);
       hud.setArea(`${dungeon.poi.name} Depths`);
       hud.tick(dt);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
+      hud.setDebug(dt, () =>
+        `${fps.toFixed(0)} fps  ${dungeon!.poi.name} depths\n` +
+        `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, dungeon!.monsters.count - 1)}\n` +
+        `rooms ${dungeon!.world.map.rooms.length}  doors ${dungeon!.world.map.doors.length}  ${dungeon!.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
       rig.renderer.render(dungeon.scene.scene, iso.camera);
       input.endFrame();
       saveTimer += dt;
@@ -393,6 +455,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.setScene(sampler.probe(player.x, player.z).biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
 
+    swingCooldown = Math.max(0, swingCooldown - dt);
     if (input.clicked && !talking) {
       mouse.set((input.clickX / window.innerWidth) * 2 - 1, -(input.clickY / window.innerHeight) * 2 + 1);
       raycaster.setFromCamera(mouse, iso.camera);

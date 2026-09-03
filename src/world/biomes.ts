@@ -55,6 +55,7 @@ export const enum PropKind {
   Chest = 51,
   ChestOpen = 52,
   Stairs = 53,
+  Door = 54,
 }
 
 export interface PropWeight { kind: PropKind; weight: number }

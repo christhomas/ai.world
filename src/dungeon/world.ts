@@ -13,9 +13,13 @@ const WALL_Y = DUNGEON_WALL_LEVEL * WORLD.STEP;
 /** Walkability + chunk data for one dungeon; the same shape the overworld hands the hero. */
 export class DungeonWorld implements TileWorld {
   private readonly chestTiles = new Set<number>();
+  private readonly doorTiles = new Set<number>();
+  /** Set once the hero finds the key; doors then open. */
+  unlocked = false;
 
   constructor(readonly map: DungeonMap, readonly anchorId: string) {
     for (const c of map.chests) this.chestTiles.add(c.z * map.size + c.x);
+    for (const d of map.doors) this.doorTiles.add(d.z * map.size + d.x);
   }
 
   tile(x: number, z: number): DTile | null {
@@ -26,7 +30,15 @@ export class DungeonWorld implements TileWorld {
 
   heightAt(x: number, z: number): number | null {
     const t = this.tile(x, z);
+    if (t === DTile.Door) return this.unlocked ? FLOOR_Y : null;
     return t === DTile.Floor || t === DTile.Stairs ? FLOOR_Y : null;
+  }
+
+  /** Is (x,z) a still-locked door? Used to explain why the way is barred. */
+  lockedDoorAt(x: number, z: number, range: number): boolean {
+    if (this.unlocked) return false;
+    for (const d of this.map.doors) if (Math.hypot(d.x + 0.5 - x, d.z + 0.5 - z) < range) return true;
+    return false;
   }
 
   waterAt(x: number, z: number): number | null {
@@ -63,6 +75,7 @@ export class DungeonWorld implements TileWorld {
         switch (t) {
           case DTile.Rock: chunk.type[i] = TileType.High; chunk.height[i] = WALL_Y; break;
           case DTile.Water: chunk.type[i] = TileType.Water; chunk.height[i] = 0; chunk.water[i] = WORLD.WATER_Y; break;
+          case DTile.Door: chunk.type[i] = TileType.Plaza; chunk.height[i] = FLOOR_Y; break;
           default: chunk.type[i] = TileType.Plaza; chunk.height[i] = FLOOR_Y;
         }
       }
@@ -74,6 +87,13 @@ export class DungeonWorld implements TileWorld {
   props(opened: Set<string>): Array<{ kind: PropKind; x: number; y: number; z: number; rot: number }> {
     const out: Array<{ kind: PropKind; x: number; y: number; z: number; rot: number }> = [];
     for (const t of this.map.torches) out.push({ kind: PropKind.Torch, x: t.x + 0.5, y: WALL_Y, z: t.z + 0.5, rot: t.rot });
+    if (!this.unlocked) {
+      for (const d of this.map.doors) {
+        // a door frame across the corridor: turn it to face along the gap
+        const horizontal = this.tile(d.x + 1, d.z) === DTile.Rock || this.tile(d.x - 1, d.z) === DTile.Rock;
+        out.push({ kind: PropKind.Door, x: d.x + 0.5, y: FLOOR_Y, z: d.z + 0.5, rot: horizontal ? 0 : Math.PI / 2 });
+      }
+    }
     out.push({ kind: PropKind.Stairs, x: this.map.entrance[0] + 0.5, y: FLOOR_Y, z: this.map.entrance[1] + 0.5, rot: 0 });
     this.map.chests.forEach((c, i) => {
       out.push({ kind: opened.has(this.chestId(i)) ? PropKind.ChestOpen : PropKind.Chest, x: c.x + 0.5, y: FLOOR_Y, z: c.z + 0.5, rot: 0 });
@@ -82,6 +102,12 @@ export class DungeonWorld implements TileWorld {
   }
 
   chestId(i: number): string { return `${this.anchorId}:chest:${i}`; }
+
+  /** True when the chest holding the key has already been opened. */
+  keyTaken(opened: Set<string>): boolean {
+    const i = this.map.chests.findIndex((c) => c.key);
+    return i >= 0 && opened.has(this.chestId(i));
+  }
 
   /** Index of an unopened chest within reach, or -1. */
   chestNear(x: number, z: number, range: number, opened: Set<string>): number {

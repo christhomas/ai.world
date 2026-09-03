@@ -221,6 +221,16 @@ export class PropLibrary {
       part(new THREE.BoxGeometry(0.1, 1.4, 0.1), 0x4a3a2a, [0.65, 0.7, 0.2]),
     ]));
 
+    this.geometries.set(PropKind.Door, merge([
+      part(new THREE.BoxGeometry(0.2, 2.2, 0.2), 0x5a4632, [0, 1.1, 0.6]),
+      part(new THREE.BoxGeometry(0.2, 2.2, 0.2), 0x5a4632, [0, 1.1, -0.6]),
+      part(new THREE.BoxGeometry(0.24, 0.2, 1.4), 0x5a4632, [0, 2.1, 0]),
+      part(new THREE.BoxGeometry(0.14, 1.9, 1.0), 0x6b4a2b, [0, 0.95, 0]),
+      part(new THREE.BoxGeometry(0.18, 0.12, 1.0), 0x9a8a6a, [0, 1.5, 0]),
+      part(new THREE.BoxGeometry(0.18, 0.12, 1.0), 0x9a8a6a, [0, 0.6, 0]),
+      part(new THREE.IcosahedronGeometry(0.12, 0), 0xf1c40f, [0.1, 1.05, 0]),
+    ]));
+
     this.geometries.set(PropKind.Willow, merge([
       part(new THREE.CylinderGeometry(0.15, 0.23, 1.2, 6), 0x5a4632, [0, 0.6, 0]),
       part(new THREE.IcosahedronGeometry(1.05, 1), 0x6a9a3c, [0, 1.45, 0], [1, 0.55, 1]),

@@ -15,8 +15,8 @@ export class DungeonScene {
 
   constructor(private readonly world: DungeonWorld, private readonly props: PropLibrary, waterMaterial: THREE.Material, seed: number, opened: Set<string>) {
     this.scene.background = new THREE.Color(0x05060c);
-    this.scene.add(new THREE.AmbientLight(0x3a4260, 0.55));
-    const hemi = new THREE.HemisphereLight(0x303850, 0x101018, 0.5);
+    this.scene.add(new THREE.AmbientLight(0x3a4260, 0.75));
+    const hemi = new THREE.HemisphereLight(0x384060, 0x14141c, 0.7);
     this.scene.add(hemi);
     this.scene.add(this.heroLight);
 
