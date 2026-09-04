@@ -65,6 +65,25 @@ export interface Room {
 /** How often a villager brings up Old Nettle unprompted. Rare, so it stays a thing people say. */
 const WORD_OF_HIM = 0.22;
 
+/** Below this much gold, somebody will tell you how people here get by. */
+const POOR = 60;   // a hero starts with fifty, so the first person they meet tells them
+
+/**
+ * How to make a living, said by the people who make one.
+ *
+ * A world full of things to do teaches nobody anything if none of them is ever mentioned. These
+ * are said only to somebody visibly short of money, and they name a thing that can be done with
+ * what a beginner already has rather than with the tools they cannot afford yet.
+ */
+const HOW_PEOPLE_GET_BY = [
+  'Anybody can eat who can catch a rabbit. The store buys meat, and the hide off it too if you have a knife.',
+  'There are deer in the open country. Slow work with a stick, but a hide is a hide.',
+  'The herbs on the wet ground by the water are worth picking. The apothecary takes them, or grind them yourself if you have the bowl.',
+  'Wolves pay better than deer, and cost more too. Wait until you have a proper blade.',
+  'Ask the elder if there is anything wants doing. There generally is, and it pays.',
+  'Whatever you take, carry it to a village that has none of it. That is the whole of trade.',
+];
+
 /** What a doctor asks, and what waiting instead costs you. */
 export const DOCTOR = {
   /** Gold a heart's worth of mending costs, which is less than a salve and much less than dying. */
@@ -165,6 +184,9 @@ function residentPages(e: Entity, ctx: TalkCtx, fallback: string): string[] {
   // It has to be small talk and it has to come BEFORE he first gets away, or his escaping reads
   // as the game cheating rather than as the one thing everybody already knew about him.
   const small = ctx.wordOfHim && ctx.rng() < WORD_OF_HIM ? [...talk.small, ctx.wordOfHim(person)] : talk.small;
+  // somebody plainly down to their last few coins gets told how people here get by, because a
+  // world full of things to do teaches nobody anything if none of them is ever mentioned
+  if (ctx.state.inventory.gold < POOR) return [pick(ctx.rng, HOW_PEOPLE_GET_BY)];
   const aside = small.length > 0 ? pick(ctx.rng, small) : fallback;
   return talk.news ? [talk.news, aside] : [aside];
 }

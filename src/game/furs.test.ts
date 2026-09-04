@@ -33,9 +33,20 @@ describe('taking the fur off what you killed', () => {
 
   it('leaves the creatures nobody skins alone', () => {
     const roll = mulberry32(2);
-    for (const kind of ['deer', 'skeleton', 'villager', 'chicken', 'troll']) {
+    // livestock belongs to somebody, the dead have nothing to take, and no one skins a person
+    for (const kind of ['skeleton', 'villager', 'chicken', 'cow', 'troll']) {
       expect(hideOf(kind)).toBeNull();
       expect(skin(kind, true, roll)).toBeNull();
+    }
+  });
+
+  it('gives a beginner something to skin that does not fight back', () => {
+    const roll = mulberry32(3);
+    // the whole on-ramp: game a new player can take with a stick, and a hide worth carrying in
+    for (const kind of ['deer', 'elk', 'hare', 'rabbit', 'goat', 'fox']) {
+      expect(KINDS[kind].hp, `${kind} must be killable to be huntable`).toBeGreaterThan(0);
+      expect(KINDS[kind].dangerous ?? 0, `${kind} must not fight back`).toBe(0);
+      expect(skin(kind, true, roll), `${kind} must give a hide`).not.toBeNull();
     }
   });
 

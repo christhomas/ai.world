@@ -143,6 +143,8 @@ const list: Item[] = [
   { id: 'wood', name: 'Cut Wood', emoji: '🪵', price: 5, desc: 'Green and heavy. A market that gathers enough of it starts thinking about carts.', loot: true },
   { id: 'meat', name: 'Raw Meat', emoji: '🥩', price: 7, desc: 'It wants a fire before it wants your mouth.', effect: { type: 'heal', amount: 1 }, loot: true },
   { id: 'roast', name: 'Roast Meat', emoji: '🍖', price: 20, desc: 'Cooked over your own fire, which is most of why it is worth eating.', effect: { type: 'heal', amount: 5 }, loot: true },
+  { id: 'hide', name: 'Deer Hide', emoji: '🟠', price: 18, desc: 'Taken off whole. The first thing most people here ever sell.', loot: true },
+  { id: 'foxfur', name: 'Fox Fur', emoji: '🦊', price: 34, desc: 'Small, bright, and worth more than the meat ever was.', loot: true },
   { id: 'bearpelt', name: 'Bear Pelt', emoji: '🟫', price: 70, desc: 'Heavy, warm, and worth a great deal further south.', loot: true },
   { id: 'herb', name: 'Bitter Herb', emoji: '🌿', price: 4, desc: 'Grows where the ground is damp. On its own it is a leaf.', loot: true },
   { id: 'salve', name: 'Salve', emoji: '🧪', price: 32, desc: 'Ground herb and clean water. Drink it and the worst of it goes.', effect: { type: 'heal', amount: 8 } },

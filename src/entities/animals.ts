@@ -181,7 +181,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   deer: {
-    id: 'deer', label: 'Deer', emoji: '🦌', scale: 1.1, speed: 1.2, runSpeed: 5.5, herd: [2, 5], behaviour: 'graze', timid: true,
+    id: 'deer', label: 'Deer', emoji: '🦌', scale: 1.1, speed: 1.2, runSpeed: 5.5, herd: [2, 5], behaviour: 'graze', timid: true, hp: 3, drop: { id: 'meat', chance: 0.8 },
     palettes: [[0xa87a4a, 0xe8d8c0], [0x8a6238, 0xe0d0b8]],
     names: ['Fawn', 'Bramble', 'Hazel', 'Rowan', 'Thistle'],
     lines: ['*ears twitch*', '*freezes*', '*nibbles leaves*', '*bounds away*'],
@@ -200,7 +200,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   rabbit: {
-    id: 'rabbit', label: 'Rabbit', emoji: '🐇', scale: 0.6, speed: 1.5, runSpeed: 4.5, herd: [2, 5], behaviour: 'hop', timid: true,
+    id: 'rabbit', label: 'Rabbit', emoji: '🐇', scale: 0.6, speed: 1.5, runSpeed: 4.5, herd: [2, 5], behaviour: 'hop', timid: true, hp: 1, drop: { id: 'meat', chance: 0.9 },
     palettes: [[0xb08a5a], [0x8a8a8a], [0xf2f2f2], [0x5a4a3a]],
     names: ['Thumper', 'Clover', 'Nibbles', 'Hazel', 'Flopsy'],
     lines: ['*twitches nose*', '*thumps*', '*nibbles*', '*hops off*'],
@@ -217,7 +217,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   fox: {
-    id: 'fox', label: 'Fox', emoji: '🦊', scale: 0.75, speed: 1.6, runSpeed: 5, herd: [1, 2], behaviour: 'prowl', timid: false,
+    id: 'fox', label: 'Fox', emoji: '🦊', scale: 0.75, speed: 1.6, runSpeed: 5, herd: [1, 2], behaviour: 'prowl', timid: false, hp: 2, drop: { id: 'meat', chance: 0.7 },
     palettes: [[0xe0702a, 0xf4ede0]],
     names: ['Rusty', 'Ember', 'Vixen', 'Sly', 'Cinder'],
     lines: ['*yips*', '*sniffs the air*', '*watches you*', '*pounces at nothing*'],
@@ -308,7 +308,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   duck: {
-    id: 'duck', label: 'Duck', emoji: '🦆', scale: 0.6, speed: 0.8, runSpeed: 2, herd: [2, 5], behaviour: 'swim', timid: true,
+    id: 'duck', label: 'Duck', emoji: '🦆', scale: 0.6, speed: 0.8, runSpeed: 2, herd: [2, 5], behaviour: 'swim', timid: true, hp: 1, drop: { id: 'meat', chance: 0.9 },
     palettes: [[0x4a6a3a, 0x7a5a3a], [0xf4f0e0, 0xf4f0e0], [0x6a4a2a, 0x8a6a4a]],
     names: ['Quackers', 'Puddles', 'Mallard', 'Waddles', 'Splash'],
     lines: ['Quack!', '*paddles*', '*dabbles*', '*preens*'],
@@ -356,7 +356,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   heron: {
-    id: 'heron', label: 'Heron', emoji: '🪶', scale: 1.0, speed: 0.6, runSpeed: 2, herd: [1, 2], behaviour: 'wander', timid: true,
+    id: 'heron', label: 'Heron', emoji: '🪶', scale: 1.0, speed: 0.6, runSpeed: 2, herd: [1, 2], behaviour: 'wander', timid: true, hp: 1, drop: { id: 'meat', chance: 0.8 },
     palettes: [[0x9aa8b4, 0xe8eef2]],
     names: ['Stilt', 'Grey', 'Reed', 'Patience'],
     lines: ['*stands perfectly still*', '*stalks*', '*strikes at a fish*'],
@@ -371,7 +371,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   goat: {
-    id: 'goat', label: 'Goat', emoji: '🐐', scale: 0.9, speed: 1.1, runSpeed: 4, herd: [2, 5], behaviour: 'graze', timid: true,
+    id: 'goat', label: 'Goat', emoji: '🐐', scale: 0.9, speed: 1.1, runSpeed: 4, herd: [2, 5], behaviour: 'graze', timid: true, hp: 3, drop: { id: 'meat', chance: 0.7 },
     palettes: [[0xe8e0d0], [0x8a8a8a], [0x5a4a3a], [0xd8c8a8]],
     names: ['Billy', 'Nanny', 'Crag', 'Pebble', 'Scramble'],
     lines: ['*bleats*', '*chews*', '*headbutts rock*', 'Meh-eh-eh'],
@@ -402,7 +402,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   hare: {
-    id: 'hare', label: 'Snow Hare', emoji: '🐇', scale: 0.65, speed: 1.6, runSpeed: 5, herd: [2, 4], behaviour: 'hop', timid: true,
+    id: 'hare', label: 'Snow Hare', emoji: '🐇', scale: 0.65, speed: 1.6, runSpeed: 5, herd: [2, 4], behaviour: 'hop', timid: true, hp: 1, drop: { id: 'meat', chance: 0.9 },
     palettes: [[0xf6f6f6], [0xe8e8f0]],
     names: ['Frost', 'Flurry', 'Drift', 'Powder'],
     lines: ['*twitches*', '*sniffs snow*', '*bounds off*'],
@@ -435,7 +435,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   elk: {
-    id: 'elk', label: 'Elk', emoji: '🦌', scale: 1.35, speed: 1.1, runSpeed: 5, herd: [2, 4], behaviour: 'graze', timid: true,
+    id: 'elk', label: 'Elk', emoji: '🦌', scale: 1.35, speed: 1.1, runSpeed: 5, herd: [2, 4], behaviour: 'graze', timid: true, hp: 5, drop: { id: 'meat', chance: 0.9 },
     palettes: [[0x5a4232, 0xd8c8b0], [0x6a5040, 0xe0d0b8]],
     names: ['Antler', 'Bram', 'Tundra', 'Moss'],
     lines: ['*snorts steam*', '*bellows*', '*paws the snow*'],

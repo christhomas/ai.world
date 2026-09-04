@@ -76,6 +76,7 @@ import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
 import { goingOf, paceOf, stableAt, type Going } from './game/stables';
 import { haulPace } from './game/woodcraft';
 import { canBeCut } from './entities/monsters';
+import { PEOPLE as PEOPLE_KINDS } from './entities/manager';
 import { CampField } from './render/wildcamps';
 import type { WildCamp } from './game/wildcamps';
 import { remember } from './world/people';
@@ -721,8 +722,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       sound.select();
       // a blade that finds nothing where something plainly stands has to say why, or the rule
       // that a sword is no answer to a wight reads as a broken game rather than as the point
-      const ghost = entities.within(player.x, player.z, COMBAT.RANGE).some((e) => !canBeCut(e.kind));
-      if (ghost) hud.flash('Your blade passes through it.');
+      // a swing that finds nothing where something plainly stands has to say why, or a rule
+      // reads as a broken game. Two rules look the same from behind a sword and are not.
+      const near = entities.within(player.x, player.z, COMBAT.RANGE);
+      if (near.some((e) => !canBeCut(e.kind))) hud.flash('Your blade passes through it.');
+      else if (near.some((e) => !e.kind.hp && !PEOPLE_KINDS.has(e.kind.id))) {
+        hud.flash('It is somebody\'s livestock. You have no quarrel with it.');
+      }
       return;
     }
     sound.thud();
@@ -954,6 +960,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       ));
       return { asked: n, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
     };
+    (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
     (debug as { __warband?: () => unknown }).__warband = () => ({
       active: warband.active, opponent: warband.opponentName, muster: warband.muster, readout: warband.readout(),
     });

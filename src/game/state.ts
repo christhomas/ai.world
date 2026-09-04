@@ -49,7 +49,15 @@ export interface GameStateJson {
 
 export const BASE_MAX_HP = 10;
 /** What a new hero sets out with: worn clothes, a stick, and something to eat. */
-export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { apple: 2, bread: 1 } } as const;
+/**
+ * What a hero starts with.
+ *
+ * The knife is the important one. Without it a beginner can kill a rabbit and come away with
+ * sevenpence of meat, which does not read as a living; with it the same rabbit is a hide as well,
+ * and the first hour of the game has an obvious thing to do in it. It is the cheapest possible
+ * answer to "how am I supposed to make any money".
+ */
+export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { apple: 2, bread: 1, knife: 1 } } as const;
 import { DAY_LENGTH } from '../../server/protocol';
 import type { Bond } from './gifts';
 import type { JailSave } from './jail';

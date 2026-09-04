@@ -40,6 +40,14 @@ export const FUR = {
 const HIDES: Record<string, string> = {
   wolf: 'pelt',
   bear: 'bearpelt',
+  fox: 'foxfur',
+  // the game a beginner can actually take: nothing here fights back, and a hide is the first
+  // thing most people ever sell
+  deer: 'hide',
+  elk: 'hide',
+  goat: 'hide',
+  hare: 'hide',
+  rabbit: 'hide',
 };
 
 /** The ids the fur trade deals in, which is what makes their price local rather than fixed. */
