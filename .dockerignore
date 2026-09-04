@@ -1,0 +1,12 @@
+# The image builds from the lockfile and server/ alone: the page, the docs and the screenshots
+# are none of the server's business, and leaving them out keeps the build context small enough
+# that a build is not preceded by a file copy.
+*
+!package.json
+!pnpm-lock.yaml
+!tsconfig.json
+!server
+
+# Worlds belong to whoever is running the server, not to the image.
+server/data
+server/dist

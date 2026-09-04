@@ -1,0 +1,53 @@
+# The world server on Fly.io, which is where it goes to have a name and a certificate.
+#
+# The page is published to GitHub Pages over https, and a browser will not open a plain ws://
+# socket from an https page — it is mixed content and is blocked before it leaves. So the server
+# has to answer over wss://, which means it has to be somewhere with TLS. Fly terminates TLS at
+# its edge and hands this container a plain HTTP connection, upgrade header and all; the server
+# needs nothing special for that, and in particular never reads X-Forwarded-For, because it does
+# not care where a player is dialling from.
+#
+# First time:   fly launch --no-deploy --copy-config
+#               fly volumes create ai_world_data --size 1 --region lhr
+#               fly deploy          (or `chore deploy`)
+# Afterwards:   chore deploy
+#
+# Then put wss://<app>.fly.dev in the game's options, or hand somebody an invite link.
+
+app = 'ai-world'
+primary_region = 'lhr'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  # The volume below is mounted here: one JSON file per seed, and the only state that outlives a
+  # deploy. PORT is left to the Dockerfile, which is where the number is named.
+  DATA_DIR = '/data'
+
+[http_service]
+  internal_port = 8787
+  # Fly answers http and https on the same name; without this a player who typed the address
+  # without a scheme is quietly served over http, and then their ws:// works and their friend's
+  # wss:// does not, which is a confusing afternoon.
+  force_https = true
+  # A world is one machine's memory: the clock it keeps, who is in it, and the file on its
+  # volume. Two machines under one name would be two different worlds taking turns.
+  min_machines_running = 1
+  # Stopping or suspending a machine drops every socket on it and takes the room down with them.
+  # A world server is not a request handler; it is somewhere people are.
+  auto_stop_machines = 'off'
+  auto_start_machines = false
+
+  [http_service.concurrency]
+    # Connections, not requests: everybody here is holding one socket open for as long as they
+    # play, so the thing worth counting is people rather than traffic.
+    type = 'connections'
+    soft_limit = 60
+    hard_limit = 80
+
+[[vm]]
+  # The server grows no terrain and simulates nothing. It holds a roster, a clock and a small
+  # JSON file per world, so this is a generous size rather than a tight one.
+  size = 'shared-cpu-1x'
+  memory = '256mb'

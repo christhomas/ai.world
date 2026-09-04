@@ -170,6 +170,13 @@ anyone on the same seed shares your world: you see each other walk, wearing your
 name plates over your heads. **T** chats, **G** offers the nearest traveller gold or an item from
 your pack, and they accept or decline.
 
+Joining somebody's world is a link rather than an instruction. **Copy an invite link** in the
+options puts this world and this server into one address and copies it to the clipboard; whoever
+opens it arrives on the same seed, talking to the same server, without touching the options at
+all. If the page is on https and the address in the link is a plain `ws://`, the button says so
+instead of handing out a link that a browser will refuse to open — see
+[a server other people can reach](#a-server-other-people-can-reach).
+
 ![Two travellers in one world](docs/screenshots/multiplayer.png)
 
 Everyone in a world keeps the same clock, so dawn breaks for all of you at once, and the few
@@ -236,6 +243,11 @@ chore build        # typecheck and a production build into dist/
 chore worlds       # what the server has kept: day, changes, stalls, parcels, who has visited
 chore forget 1     # forget world 1's shared state; the world itself is still in the seed
 chore ping         # ask a running server how it is
+
+chore up           # the world server in a container, its worlds on a volume that outlives it
+chore down         # stop that container, keeping every world it kept
+chore bundle       # roll the server into the single file the image ships
+chore deploy       # publish that server to Fly.io, where it answers over wss://
 ```
 
 `chore` reads `chores.yml`; `chore --list` shows every task and `chore <task> --help` describes
@@ -250,6 +262,59 @@ else the machine that served the page. Playing with somebody on your network is
 Deployment is a GitHub Action that builds `dist/` on every push to `main` and publishes it to
 GitHub Pages; the repository's Pages source must be set to **GitHub Actions**. The original
 single-file prototype is kept at `legacy/index.html`.
+
+### A server other people can reach
+
+The page is served over https, and a browser will not open a plain `ws://` socket from an https
+page: it is mixed content, and it is blocked before it leaves the machine. So `chore world` on
+your laptop is enough for the people on your own network and nobody else. A server strangers can
+play on has to answer over `wss://`, which means it has to be somewhere holding a certificate.
+
+**In a container, on your own machine.** `chore up` builds the image and runs it, with the worlds
+on a Docker volume that outlives the container:
+
+```sh
+chore up           # foreground, Ctrl-C stops it; `chore up -- -d` leaves it running
+chore ping         # the same status page the container's own health check reads
+chore down         # stop it; the volume, and every world on it, stays
+```
+
+The image is two stages. The first installs the toolchain and rolls `server/` into one 32 kB
+module with `pnpm vite build --config server/build.config.ts`; the second is node, that module,
+and `ws` — which is the server's only runtime dependency and has none of its own. Nothing that
+compiles anything survives into the image that faces the internet, and it starts in the time node
+takes to read one file. Two knobs, both set for you by the compose file and by `fly.toml`:
+`PORT` (8787) and `DATA_DIR` (`/data`, where the one JSON file per seed lives).
+
+**On Fly.io.** `fly.toml` is written; it wants an app name and a region of your own:
+
+```sh
+fly launch --no-deploy --copy-config              # claim a name, keep this config
+fly volumes create ai_world_data --size 1         # the worlds, kept across deploys
+chore deploy                                      # fly deploy
+fly scale count 1                                 # one machine, and only one
+curl https://<app>.fly.dev/                       # worlds: 0, players: 0
+```
+
+Then `wss://<app>.fly.dev` goes in the options, or into an invite link. Note the two things that
+are easy to get wrong:
+
+- **One machine.** A world is one machine's memory — the clock it keeps, who is in it, the file on
+  its volume — so two machines under one name are two different worlds taking turns. `fly.toml`
+  asks for one and turns off the automatic stopping and starting, because suspending a machine
+  drops every socket on it.
+- **`wss://`, not `ws://`.** Fly answers both schemes on the same name. `force_https` sends a
+  browser that asked for http to https, but a websocket that asked for `ws://` is not a browser
+  navigation and will not be redirected: it just fails.
+
+**Behind your own proxy.** Nothing about the server changes. It terminates no TLS, reads no
+`X-Forwarded-For` — it never asks where anybody is dialling from — and reads no
+`X-Forwarded-Proto`, because whether the player's half of the journey was encrypted is not its
+business. All it needs is that the HTTP upgrade is relayed rather than answered, which for nginx
+is `proxy_set_header Upgrade $http_upgrade;` with `Connection "upgrade"`, and a
+`proxy_read_timeout` longer than a quiet moment in a world. `server/proxy.test.ts` puts exactly
+that relay in front of a real server and joins through it, so a change that breaks the upgrade
+fails the suite rather than the deployment.
 
 ---
 
@@ -346,6 +411,9 @@ src/
 server/        wire protocol, the WebSocket server, and the world file it keeps per seed
 behaviours/    what every creature decides, as data: one tree per kind, in the game's own verbs
 chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
+Dockerfile     the world server as an image: one bundled module, `ws`, node, and nothing else
+docker-compose.yml   that image with its worlds on a volume, which is what `chore up` runs
+fly.toml       where the server goes to have a name and a certificate
 ```
 
 ### Tunables

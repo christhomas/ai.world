@@ -1,0 +1,23 @@
+# `docker compose up` runs the world server the way it runs in production: the same image, the
+# same port, and its worlds on a volume that outlives the container.
+#
+# The page is not here. It is a static site — `chore web`, or GitHub Pages — and it talks to
+# whatever address you put in its options, which is the point of the server being separable.
+
+services:
+  world:
+    build: .
+    image: ai-world-server
+    # A world server that is not listening is a world nobody can reach; come back after a crash.
+    restart: unless-stopped
+    ports:
+      - '8787:8787'
+    volumes:
+      # One JSON file per seed. A named volume rather than a bind mount because Docker gives it
+      # the image's own ownership, so the unprivileged user in the container can write to it on
+      # any host. To read the worlds from the host instead, swap this for `./server/data:/data`
+      # and `chore worlds` will see them.
+      - world-data:/data
+
+volumes:
+  world-data:

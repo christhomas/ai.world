@@ -99,3 +99,25 @@ tasks:
         desc: port to ask
     cmds:
       - 'curl -s -m 3 http://localhost:{{.PORT}}/ || echo "Nothing answering on {{.PORT}}."'
+
+  # Somewhere to put the server so that other people can reach it. The page is published to
+  # GitHub Pages over https, and a browser refuses to open a plain ws:// socket from an https
+  # page, so a server anybody outside your own network can play on has to answer over wss://.
+  # That means a container behind something holding a certificate: `chore up` locally, `chore
+  # deploy` for the real one.
+
+  bundle:
+    desc: Roll the world server into one file, the way the image ships it
+    cmds: ['pnpm vite build --config server/build.config.ts']
+
+  up:
+    desc: The world server in a container, its worlds on a volume that outlives it
+    cmds: ['docker compose up --build {{.CLI_ARGS}}']
+
+  down:
+    desc: Stop that container, keeping every world it has kept
+    cmds: ['docker compose down']
+
+  deploy:
+    desc: Publish the world server to Fly.io, where it answers over wss://
+    cmds: ['fly deploy']
