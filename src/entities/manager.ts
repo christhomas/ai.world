@@ -12,7 +12,7 @@ import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
 import { postsOf } from './villagers';
 import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
-import { blowOf } from './blows';
+import { blowOf } from './motion';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
 

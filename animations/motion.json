@@ -1,0 +1,26 @@
+{
+  "note": "How everything in the game moves. Numbers only: the maths that reads them is in src/entities/motion.ts, and the shapes they drive are the same for every creature. Angles are radians. Edit freely; a value out of its stated range fails loudly at load rather than looking odd in play.",
+
+  "walking": {
+    "note": "The cycle every creature runs on. 'of' says what drives it: 'walk' fades in with the pace, 'flap' with the wings, 'always' runs whether or not anything is moving. 'swing' is how far a limb travels at full pace; 'wave' with 'rate' is a constant sway; 'axis' is x, y or z, and z is the one legs walk on.",
+    "legL":  { "of": "walk", "swing": 0.6 },
+    "legR":  { "of": "walk", "swing": -0.6 },
+    "armL":  { "of": "walk", "swing": -0.48 },
+    "armR":  { "of": "walk", "swing": 0.48 },
+    "tail":  { "of": "always", "wave": 0.35, "rate": 0.6, "offset": 1, "axis": "y" },
+    "head":  { "of": "walk", "wave": 0.05, "rate": 2, "pitch": true },
+    "wingL": { "of": "flap", "wave": 0.55, "rate": 1, "axis": "x" },
+    "wingR": { "of": "flap", "wave": -0.55, "rate": 1, "axis": "x" },
+    "cape":  { "of": "always", "rest": -0.12, "lean": -0.35, "wave": 0.06, "rate": 0.5 }
+  },
+
+  "blows": {
+    "note": "What a creature does when it hits something. 'lasts' is seconds; 'wind' is the share of that spent going back before it comes forward. 'turn' is how far each limb travels at the furthest point, and 'lean' tips the whole body instead, which is how a bear reads as a bear. A creature throws the blow its kind names, or punches if it has arms and bites if it has not.",
+    "swing": { "lasts": 0.42, "wind": 0.3, "turn": { "armR": 2.4 }, "mirrors": true },
+    "punch": { "lasts": 0.42, "wind": 0.3, "turn": { "armR": 1.9 }, "mirrors": true },
+    "kick":  { "lasts": 0.42, "wind": 0.3, "turn": { "legR": 1.5 }, "mirrors": true },
+    "bite":  { "lasts": 0.42, "wind": 0.3, "turn": { "head": 0.9 } },
+    "rear":  { "lasts": 0.55, "wind": 0.32, "turn": { "armL": -1.2, "armR": -1.2, "head": 0.54 }, "lean": -0.85 },
+    "lunge": { "lasts": 0.42, "wind": 0.3, "lean": 0.5 }
+  }
+}

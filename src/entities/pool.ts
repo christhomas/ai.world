@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { AnimRole, AnimalKind, PartDef } from './animals';
 import type { Entity } from './entity';
-import { bodyLean, limbTurn, strikeAt } from './blows';
+import { bodyLean, cycleTurn, limbTurn, strikeAt } from './motion';
 
 /**
  * Draws every creature through per-part InstancedMesh pools: one pool per (kind, part).
@@ -10,42 +10,21 @@ import { bodyLean, limbTurn, strikeAt } from './blows';
 
 const CAPACITY = 320;
 const SHADOW_VOLUME = 0.012;
-/** Leg swing amplitude at full walk, radians. */
-const WALK_SWING = 0.6;
 const HURT_COLOR = new THREE.Color(0xffffff);
 /** A zero-scale matrix: the shape is still in the buffer but covers no pixels. */
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
-/** Euler angles (x, y, z) for an animated part given the entity's current animation state. */
-function partRotation(role: AnimRole | undefined, e: Entity, swing: number): [number, number, number] {
-  // a blow is added to whatever the walk cycle was already doing, so somebody who swings while
-  // running does both rather than snapping out of their stride to hit something
-  const at = strikeAt(e.strike);
-  const thrown = at > 0 ? limbTurn(role, e.blow, at, e.offhandBlow) : null;
-  if (thrown !== null) return [0, 0, thrown + swingOf(role, swing)];
-  switch (role) {
-    case 'legL': return [0, 0, swing];
-    case 'legR': return [0, 0, -swing];
-    case 'armL': return [0, 0, -swing * 0.8];
-    case 'armR': return [0, 0, swing * 0.8];
-    case 'tail': return [0, Math.sin(e.phase * 0.6 + 1) * 0.35, 0];
-    case 'head': return [0, 0, e.headPitch + Math.sin(e.phase * 2) * 0.05 * e.walk];
-    case 'wingL': return [Math.sin(e.phase) * 0.55 * e.flap, 0, 0];
-    case 'wingR': return [-Math.sin(e.phase) * 0.55 * e.flap, 0, 0];
-    case 'cape': return [0, 0, -0.12 - e.walk * 0.35 + Math.sin(e.phase * 0.5) * 0.06];
-    default: return [0, 0, 0];
-  }
-}
-
-/** What the walk cycle alone was doing to a limb, so a blow can be laid over the top of it. */
-function swingOf(role: AnimRole | undefined, swing: number): number {
-  switch (role) {
-    case 'legL': return swing;
-    case 'legR': return -swing;
-    case 'armL': return -swing * 0.8;
-    case 'armR': return swing * 0.8;
-    default: return 0;
-  }
+/**
+ * Euler angles for an animated part: the walk cycle, with whatever blow is being thrown laid over
+ * the top of it, so somebody who swings while running does both rather than snapping out of their
+ * stride to hit something. Both come from animations/motion.json.
+ */
+function partRotation(role: AnimRole | undefined, e: Entity): [number, number, number] {
+  const cycle = cycleTurn(role, e);
+  const at = strikeAt(e.blow, e.strike);
+  if (at === 0) return cycle;
+  const thrown = limbTurn(role, e.blow, at, e.offhandBlow);
+  return thrown === null ? cycle : [cycle[0], cycle[1], cycle[2] + thrown];
 }
 
 function partVolume(p: PartDef): number {
@@ -196,14 +175,13 @@ export class EntityRenderer {
         this.quat.setFromAxisAngle(this.up, e.yaw);
         // one blow moves the whole body rather than a limb: a bear that only waved a paw would
         // not read as a bear
-        const lean = e.strike > 0 ? bodyLean(e.blow, strikeAt(e.strike)) : 0;
+        const lean = e.strike > 0 ? bodyLean(e.blow, strikeAt(e.blow, e.strike)) : 0;
         if (lean !== 0) {
           this.tilt.setFromAxisAngle(this.side, lean);
           this.quat.multiply(this.tilt);
         }
         this.scl.set(s, s, s);
         this.root.compose(this.pos, this.quat, this.scl);
-        const swing = Math.sin(e.phase) * WALK_SWING * e.walk;
         for (const part of p.parts) {
           const d = part.def;
           if (d.tag && e.hiddenTags.has(d.tag)) {
@@ -211,7 +189,7 @@ export class EntityRenderer {
             part.mesh.setMatrixAt(i, HIDDEN);
             continue;
           }
-          const [ax, ay, az] = partRotation(d.anim, e, swing);
+          const [ax, ay, az] = partRotation(d.anim, e);
           this.m.copy(this.root);
           if (ax !== 0 || ay !== 0 || az !== 0) {
             this.t.makeTranslation(part.pivot.x, part.pivot.y, part.pivot.z);

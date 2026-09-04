@@ -1,7 +1,7 @@
 import { act, type Node, type Tick } from '../core/behaviour';
 import type { Params, Vocabulary } from '../core/behaviourFile';
 import { BEHAVIOUR, canStand, throwBlow, yawFor, type Entity, type Post, type TileWorld } from './entity';
-import { blowOf } from './blows';
+import { blowOf } from './motion';
 import type { Rng } from '../core/rng';
 
 /**

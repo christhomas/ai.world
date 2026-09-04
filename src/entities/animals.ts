@@ -1,5 +1,5 @@
 import { Biome } from '../world/biomes';
-import type { Blow } from './blows';
+import type { Blow } from './motion';
 import { MONSTER_KINDS } from './monsters';
 import { VILLAIN_KINDS } from './villain';
 

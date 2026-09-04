@@ -4,7 +4,7 @@ import type { Mind } from './verbs';
 import type { Rng } from '../core/rng';
 import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
-import { STRIKE, type Blow } from './blows';
+import { lastsFor, mirrors, type Blow } from './motion';
 
 export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder' | 'mount' | 'stablehand';
 
@@ -311,8 +311,8 @@ function walkTowards(e: Entity, target: [number, number], dt: number, world: Til
  */
 export function throwBlow(e: Entity, blow: Blow): void {
   e.blow = blow;
-  e.strike = STRIKE.LASTS;
-  if (blow === 'punch' || blow === 'kick') e.offhandBlow = !e.offhandBlow;
+  e.strike = lastsFor(blow);
+  if (mirrors(blow)) e.offhandBlow = !e.offhandBlow;
 }
 
 /** Turn tail: run directly away from the player for a short while. */

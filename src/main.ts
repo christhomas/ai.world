@@ -63,7 +63,7 @@ import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { throwBlow } from './entities/entity';
-import type { Blow } from './entities/blows';
+import type { Blow } from './entities/motion';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
 import { Standing } from './game/standing';
