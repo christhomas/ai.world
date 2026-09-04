@@ -1,11 +1,11 @@
 import {
   PROTOCOL_VERSION, cleanChat, cleanName,
-  type ClientMessage, type Presence, type ServerMessage, type TradeOffer,
+  type ClientMessage, type Clock, type Presence, type ServerMessage, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
-export type { Presence, TradeOffer };
+export type { Clock, Presence, TradeOffer, WorldDelta };
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
@@ -13,6 +13,10 @@ const MOVE_INTERVAL = 0.12;
 export interface OnlineEvents {
   onChat: (line: string) => void;
   onSystem: (line: string) => void;
+  /** The world's own time, which everyone in it shares. */
+  onClock: (clock: Clock) => void;
+  /** Something another player changed about the world, or the backlog of it on joining. */
+  onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
   /** Somebody has offered you goods; answering is up to the player. */
   onOffer: (offer: TradeOffer, fromName: string) => void;
   /** A trade you were part of finished: apply it to your own purse. */
@@ -40,7 +44,7 @@ export class Online {
   get count(): number { return this.players.size; }
 
   /** Join the world of this seed on the server given. */
-  connect(url: string, seed: number, name: string): void {
+  connect(url: string, seed: number, name: string, clock: Clock): void {
     this.disconnect();
     this.url = url;
     this.name = cleanName(name);
@@ -55,7 +59,7 @@ export class Online {
     }
     this.socket = socket;
     socket.onopen = () => {
-      this.send({ type: 'join', seed, name: this.name, version: PROTOCOL_VERSION });
+      this.send({ type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time });
     };
     socket.onmessage = (event) => this.receive(String(event.data));
     socket.onclose = () => {
@@ -89,7 +93,16 @@ export class Online {
         this.id = message.id;
         this.status = 'online';
         for (const p of message.players) this.players.set(p.id, p);
-        this.events.onSystem(`Joined world ${message.seed} as ${this.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here.`);
+        this.events.onClock(message.clock);
+        // catch up on everything that happened here before we arrived
+        for (const delta of message.deltas) this.events.onDelta(delta, true);
+        this.events.onSystem(`Joined world ${message.seed} as ${this.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
+        break;
+      case 'clock':
+        this.events.onClock(message.clock);
+        break;
+      case 'delta':
+        this.events.onDelta(message.delta, false);
         break;
       case 'joined':
         this.players.set(message.player.id, message.player);
@@ -135,6 +148,11 @@ export class Online {
     if (this.sinceMove < MOVE_INTERVAL) return;
     this.sinceMove = 0;
     this.send({ type: 'move', ...me });
+  }
+
+  /** Tell everyone about something we changed in the world. */
+  report(delta: WorldDelta): void {
+    if (this.connected) this.send({ type: 'delta', delta });
   }
 
   say(text: string): void {

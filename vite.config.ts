@@ -5,5 +5,5 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/ai.world/' : '/',
   worker: { format: 'es' },
   build: { target: 'es2022', sourcemap: true },
-  test: { include: ['src/**/*.test.ts'] },
+  test: { include: ['src/**/*.test.ts', 'server/**/*.test.ts'] },
 }));

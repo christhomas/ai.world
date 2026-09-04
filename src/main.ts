@@ -26,7 +26,7 @@ import { Clock } from './ui/clock';
 import { Compass, type CompassTarget } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { HORSE, Mount } from './game/mount';
-import { Online, applyTrade, tradableItems, type TradeOffer } from './game/online';
+import { Online, applyTrade, tradableItems, type TradeOffer, type WorldDelta } from './game/online';
 import { OtherPlayers } from './render/others';
 import { Chat } from './ui/chat';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
@@ -120,6 +120,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const online = new Online({
     onChat: (line) => chat.line(line),
     onSystem: (line) => { chat.line(line, 'sys'); hud.flash(line); },
+    // the world's own time wins while you are in it, so everyone shares a dawn
+    onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
+    onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
     onOffer: (offer, fromName) => showOffer(offer, fromName),
     onTradeResult: ({ accepted, offer, iSent }) => {
       if (!accepted) { chat.line('The trade was declined.', 'sys'); return; }
@@ -130,6 +133,39 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     },
   });
   const others = new OtherPlayers(entityRenderer);
+
+  /**
+   * Something a player changed about the world: a chest opened, a vault unlocked, a crop sown or
+   * lifted, a place named. Applying it locally is all it takes, because the rest of the world is
+   * identical on every client.
+   */
+  const applyWorldDelta = (delta: WorldDelta, catchingUp: boolean): void => {
+    switch (delta.kind) {
+      case 'chest':
+        state.opened.add(delta.id);
+        places.underground?.scene.rebuildProps(state.opened);
+        break;
+      case 'key':
+        state.keys.add(delta.id);
+        if (places.underground?.world.anchorId.startsWith(delta.id)) places.underground.world.unlocked = true;
+        break;
+      case 'sow': {
+        const [tx, tz] = delta.tile.split(',').map(Number);
+        plots.plant(tx, tz, delta.crop, delta.day);
+        break;
+      }
+      case 'reap': {
+        const [tx, tz] = delta.tile.split(',').map(Number);
+        plots.harvest(tx, tz, Number.MAX_SAFE_INTEGER);
+        break;
+      }
+      case 'found':
+        discovered.add(delta.name);
+        break;
+    }
+    state.version++;
+    if (!catchingUp) persist();
+  };
   chat.onSend = (text) => online.say(text);
 
   /** Somebody has offered you something: show it and let the player answer. */
@@ -195,6 +231,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
     discovered.add(name);
+    online.report({ kind: 'found', name });
     state.version++;
     hud.flash(`Discovered: ${name}`);
     sound.jingle();
@@ -338,6 +375,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     chime: () => sound.chime(),
     setCaveAmbience: (on) => { sound.cave = on; },
     persist: () => persist(),
+    report: (delta) => online.report(delta),
   });
 
   chunks.onFirstChunk = () => {
@@ -537,6 +575,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         return true;
       }
       const lifted = plots.harvest(tx, tz, state.day)!;
+      online.report({ kind: 'reap', tile: `${tx},${tz}` });
       state.give(lifted.crop.id, lifted.amount);
       sound.jingle();
       hud.flash(`Harvested ${lifted.amount}× ${lifted.crop.name} ${lifted.crop.emoji}`);
@@ -563,6 +602,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
             if (!ok) return { speaker: 'Bare Earth', emoji: '🌱', pages: [`${crop.name} will not take now. Wait about ${daysUntilSeason(crop, state.day)} days.`] };
             state.take(id, 1);
             plots.plant(tx, tz, crop.id, state.day);
+            online.report({ kind: 'sow', tile: `${tx},${tz}`, crop: crop.id, day: state.day });
             sound.select();
             hud.flash(`${crop.name} sown. Ripe in ${crop.days} days.`);
             persist();
@@ -666,7 +706,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   el('connectButton').addEventListener('click', () => {
     if (online.connected) { online.disconnect(); others.clear(); chat.hide(); return; }
     localStorage.setItem('ai.world/name', nameInput.value);
-    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller');
+    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
     chat.show();
   });
 
@@ -870,6 +910,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __descent?: () => unknown }).__descent = () => places.underground?.world.map.descent ?? null;
     (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
     (debug as { __descend?: () => void }).__descend = () => places.descend();
+    (debug as { __plots?: () => unknown }).__plots = () => plots.count;
+    (debug as { __sow?: (x: number, z: number) => void }).__sow = (x, z) => {
+      plots.plant(x, z, 'wheat', state.day);
+      online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
+      state.version++;
+    };
+    (debug as { __discover?: (n: string) => void }).__discover = (n) => discover(n);
+    (debug as { __reportChest?: (id: string) => void }).__reportChest = (id) => { state.opened.add(id); online.report({ kind: 'chest', id }); state.version++; };
     (debug as { __shrines?: unknown }).__shrines = structures.pois.filter((p) => p.kind === StructureKind.Shrine).map((p) => ({ name: p.name, x: p.x, z: p.z }));
     (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
       entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));

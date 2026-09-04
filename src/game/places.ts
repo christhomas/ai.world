@@ -42,6 +42,8 @@ export interface PlaceContext {
   chime: () => void;
   setCaveAmbience: (on: boolean) => void;
   persist: () => void;
+  /** Tell anyone else in this world about a chest opened or a vault unlocked. */
+  report: (delta: { kind: 'chest'; id: string } | { kind: 'key'; id: string }) => void;
 }
 
 /** A named spot with a way down: a shrine, or a cave mouth. */
@@ -154,6 +156,7 @@ export class Places {
     if (chest.key) {
       state.keys.add(visit.world.anchorId);
       visit.world.unlocked = true;
+      this.ctx.report({ kind: 'key', id: visit.world.anchorId });
       extra = ' and a heavy iron key';
     }
     if (chest.big) {
@@ -165,6 +168,7 @@ export class Places {
       }
     }
     state.opened.add(id);
+    this.ctx.report({ kind: 'chest', id });
     state.version++;
     visit.scene.rebuildProps(state.opened);
     if (chest.key) this.ctx.flash('The doors to the treasure room unlock');
