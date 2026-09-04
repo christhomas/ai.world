@@ -6,8 +6,13 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   position: fixed; bottom: 20px; left: 20px;
   background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px;
   color: #fff; font-size: 12px; z-index: 100;
+  /* it grows upward from the bottom corner, and what is up there is the message log. Capped so a
+     longer key list scrolls inside its own box rather than climbing over what the village is
+     telling you. */
+  max-height: 46vh; overflow-y: auto;
 }
 #controls h4 { color: #a29bfe; margin-bottom: 8px; }
+#controls h4 ~ h4 { margin-top: 12px; }
 /* the conversation takes the bottom of the screen, so the key list gets out of its way */
 body:has(#dialogue.show) #controls { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
 #areaName {
