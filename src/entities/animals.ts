@@ -1,5 +1,6 @@
 import { Biome } from '../world/biomes';
 import { MONSTER_KINDS } from './monsters';
+import { VILLAIN_KINDS } from './villain';
 
 /**
  * Animal and character definitions. Every creature is a handful of primitive parts with baked
@@ -121,6 +122,7 @@ const W = 0xffffff;
 export const KINDS: Record<string, AnimalKind> = {
   // the things that are not wildlife, kept in their own file because they are not animals
   ...MONSTER_KINDS,
+  ...VILLAIN_KINDS,
   cow: {
     id: 'cow', label: 'Cow', emoji: '🐄', scale: 1.15, speed: 0.9, runSpeed: 3, herd: [3, 6], behaviour: 'graze', timid: true,
     palettes: [[0xf2f2f2], [0x6b4a2b], [0x2b2b2b], [0xd9c3a3]],

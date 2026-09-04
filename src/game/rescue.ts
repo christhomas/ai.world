@@ -1,7 +1,7 @@
 import { hashString, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { KINDS } from '../entities/animals';
-import { grownFolk, saidOf, type Fortune } from '../world/fortunes';
+import { canRecover, grownFolk, saidOf, type Fortune } from '../world/fortunes';
 import { LIFE, type Person } from '../world/people';
 import { compassDir, type Structures, type Village } from '../world/structures';
 import { huntersOf } from './camp';
@@ -50,10 +50,20 @@ export const RESCUE = {
   /** Nights out of ten that whatever it is comes down to the houses at all. */
   NIGHTS: 0.6,
   /**
-   * And how many it takes when it comes. More than a village replaces in a day on purpose: one
-   * that can out-breed its trouble has no trouble, and waiting would be an answer.
+   * What it takes when it comes, as a share of who is left rather than a flat count.
+   *
+   * A flat count is a death sentence with a date on it: below the line where a village stops
+   * replacing its dead, three a night takes a place from thriving to empty in three weeks
+   * whatever anybody does, and there is no drama in a foregone conclusion. A share falls away as
+   * the village does, so the decline is steep enough to notice within a session and then flattens
+   * into a remnant clinging on. That is the shape the whole task wanted: somebody can arrive too
+   * late to save everybody and still not be too late.
    */
-  TAKES: 3,
+  TAKES_SHARE: 0.14,
+  /** Never fewer than this when it comes at all, or a small village would be safe by being small. */
+  TAKES_LEAST: 1,
+  /** And never more, however big the place: a raid is a raid, not a massacre. */
+  TAKES_MOST: 3,
   /** What the poorest village still standing can scrape together for the work, in gold. */
   PURSE_LEAST: 20,
   /** And what a town with a market and a pub can put up for it. */
@@ -68,6 +78,8 @@ export const RESCUE = {
   CONSCIENCE_MOST: 30,
   /** How much of its own a village puts by for you, where putting things by is all it has. */
   SHARE: 3,
+  /** And what its word is worth on the scale, for one with nothing at all to put by. */
+  WORD: 3,
 } as const;
 
 /** As much of a village as a contract depends on: where it stands, and what it has. */
@@ -139,7 +151,7 @@ export interface Kept {
  * rolls from ever being the same roll.
  */
 function streamFor(seed: number, about: string): Rng {
-  return mulberry32(derive(seed, SALT.HAUNT) ^ hashString(about));
+  return mulberry32(derive(seed, SALT.RESCUE) ^ hashString(about));
 }
 
 /**
@@ -253,7 +265,15 @@ function welcomeFrom(village: Asking): Kindness {
   if (has.has('inn')) return { kind: 'lodging', words: 'keeps a bed and a bowl for you here, and there will never be a bill.' };
   if (has.has('apothecary')) return { kind: 'mend', words: 'will not take your coin for a mending in this village again.' };
   if (has.has('store')) return { kind: 'goods', item: 'bread', count: RESCUE.SHARE, words: 'puts food by for you off the shelf, whenever you come.' };
-  return { kind: 'word', standing: RESCUE.SHARE, words: 'will say your name well in every village it can reach.' };
+  return { kind: 'word', standing: RESCUE.WORD, words: 'will say your name well in every village it can reach.' };
+}
+
+/**
+ * How a village talks about what is out there. A pack and a single thing take different verbs,
+ * and getting that wrong is the fastest way to make a line read as generated.
+ */
+function agrees(trouble: Trouble): { is: string; comes: string } {
+  return trouble.needed > 1 ? { is: 'are', comes: 'They come' } : { is: 'is', comes: 'It comes' };
 }
 
 /** How the offer reads in a line, which is the only form of it anybody is shown. */
@@ -291,6 +311,7 @@ export function contractFor(seed: number, village: Asking, structures: Structure
   const gold = raised >= RESCUE.IN_KIND_BELOW ? raised : 0;
   const welcome = gold > 0 ? null : welcomeFrom(village);
   const offer = wordsFor({ gold, welcome });
+  const { is, comes } = agrees(trouble);
 
   return {
     village: village.name,
@@ -300,10 +321,10 @@ export function contractFor(seed: number, village: Asking, structures: Structure
     goodwill: goodwillFor(gold),
     intro: [
       saidOf(fortune, village.name),
-      `It is ${trouble.said}. They come out of ${trouble.place}, ${trouble.dir} of here, some ${trouble.tiles} tiles. Everyone we have lost, we lost that way.`,
+      `It is ${trouble.said}. ${comes} out of ${trouble.place}, ${trouble.dir} of here, some ${trouble.tiles} tiles. Everyone we have lost, we lost that way.`,
       `Go out there and finish it, and you shall have ${offer}.`,
     ],
-    reminder: `${trouble.said.charAt(0).toUpperCase()}${trouble.said.slice(1)} is still out at ${trouble.place}, ${trouble.dir} of here. We have not stopped burying.`,
+    reminder: `${trouble.said.charAt(0).toUpperCase()}${trouble.said.slice(1)} ${is} still out at ${trouble.place}, ${trouble.dir} of here. We have not stopped burying.`,
     done: [
       'You went out there. You went out there, and you came back.',
       recoveryWords(fortune, village.name),
@@ -328,15 +349,26 @@ export function counts(trouble: Trouble, kind: string, x: number, z: number): bo
  * It takes the grown, who are the ones out at the fold and the wood pile. Where a village has run
  * down to children there is nobody else left to take, and it takes them.
  */
-export function takenTonight(seed: number, trouble: Trouble, living: readonly Person[], day: number): string[] {
+export function takenTonight(
+  seed: number, trouble: Trouble, living: readonly Person[], day: number, fortune: Fortune = 'well',
+): string[] {
   if (living.length === 0) return [];
+  // A village already past saving is not raided further. What is left of it is barricaded in the
+  // middle with nothing on the outskirts worth coming down for, and more to the point: a place
+  // that is quietly finished off by a background number is a place nobody was ever given the
+  // chance to save. It should sit there failing, and wait for somebody.
+  if (!canRecover(fortune)) return [];
   const roll = streamFor(seed, `raid:${trouble.village}:${day}`);
   if (roll() >= RESCUE.NIGHTS) return [];
 
   const grown = grownFolk(living, day, LIFE.CHILD_UNTIL);
   const out = grown.length > 0 ? grown : [...living];
+  const wanted = Math.max(
+    RESCUE.TAKES_LEAST,
+    Math.min(RESCUE.TAKES_MOST, Math.round(living.length * RESCUE.TAKES_SHARE)),
+  );
   const taken: string[] = [];
-  for (let n = 0; n < RESCUE.TAKES && out.length > 0; n++) {
+  for (let n = 0; n < wanted && out.length > 0; n++) {
     taken.push(out.splice(Math.floor(roll() * out.length), 1)[0].id);
   }
   return taken;

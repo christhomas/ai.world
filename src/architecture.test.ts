@@ -38,9 +38,10 @@ const ALLOWED: Record<string, number> = {
   'render->game': 8,
   // a conversation's shape is written by the game and drawn by the ui; the type lives in the ui
   'game->ui': 12,
-  // a save is a picture of the game's state and of what its world had grown, so storage knows
-  // those two types and nothing else
-  'save->game': 1,
+  // A save is a picture of the game's state and of what its world had grown, so storage knows
+  // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
+  // world rather than to the hero, because he is in a cell or he is abroad whoever is playing.
+  'save->game': 2,
   'save->world': 1,
 };
 

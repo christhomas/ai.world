@@ -10,6 +10,8 @@ import { jailInteractions } from './jail';
 import { wildCampInteractions } from './wildcamps';
 import { hireInteractions } from './hire';
 import { giftInteractions } from './gifts';
+import { rescueInteractions } from './rescue';
+import { nemesisInteractions } from './nemesis';
 import type { Surroundings } from './context';
 
 export type { Surroundings } from './context';
@@ -34,9 +36,13 @@ export function createInteractions(ctx: Surroundings) {
   const wildcamps = wildCampInteractions(ctx);
   const hire = hireInteractions(ctx);
   const gifts = giftInteractions(ctx);
+  const rescue = rescueInteractions(ctx);
+  const nettle = nemesisInteractions(ctx);
   const { player, places, dialogue, hud, entities, startTalk } = ctx;
 
   const talkNearest = () => {
+    // the choice outranks every door in the game: there is a clock on it and people in the water
+    if (nettle.tryChoice()) return;
     if (places.indoors) {
       const inside = places.interactIndoors();
       if (inside === 'keeper') startTalk(places.indoors.keeper!);
@@ -64,6 +70,7 @@ export function createInteractions(ctx: Surroundings) {
     if (village.tryHorse()) return;
     if (wild.tryFarm()) return;
     if (village.tryStall()) return;
+    if (nettle.tryScheme()) return;
     if (village.tryBoard()) return;
     if (jail.tryCell()) return;   // the station door is a grille to look through, not a way in
     if (village.tryDoor()) return;
@@ -85,6 +92,7 @@ export function createInteractions(ctx: Surroundings) {
     if (herbs.tryPick()) return;
     if (herbs.tryGrind()) return;
     if (camp.tryCamp()) return;
+    if (rescue.tryRescue()) return;   // an elder burying too many asks before anything else does
     if (hire.tryHire()) return;
     const e = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
     if (e) startTalk(e); else hud.flash('No one close enough to talk to');
@@ -102,6 +110,12 @@ export function createInteractions(ctx: Surroundings) {
     hireMenu: hire.hireMenu,
     // deliberately not in the Enter chain: giving would swallow every press meant for a hello
     tryGive: gifts.tryGive,
+    runClock: nettle.runClock,
+    heWentDown: nettle.heWentDown,
+    wordOfHim: nettle.wordOfHim,
+    troubleKilled: rescue.onKill,
+    villageNights: rescue.nightfall,
+    villageWelcome: rescue.welcomeAt,
     onVisitor: camp.onVisitor,
     ageCamps: camp.age,
     carcasses: camp.bodies,

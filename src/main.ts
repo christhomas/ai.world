@@ -66,7 +66,9 @@ import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
 import { Standing } from './game/standing';
 import { Jail, clockAt, toldOnWaking, windOn } from './game/jail';
-import { Gifts } from './game/gifts';
+import { Gifts, type Kindness } from './game/gifts';
+import { Rescues } from './game/rescue';
+import { Nemesis, type Realm } from './game/nemesis';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
@@ -233,6 +235,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const jail = Jail.from(saved?.state?.jail ?? null);
   /** Who the hero has been good to, and what each of them has decided about it. */
   const gifts = new Gifts(saved?.state?.gifts);
+  /** Which villages somebody agreed to save, and what each of them owes them for it. */
+  const rescues = new Rescues(saved?.state?.rescues);
+  /** Where Old Nettle is up to: what he is doing, whether he is held, and when he is next abroad. */
+  const nemesis = Nemesis.from(seed, saved?.nemesis);
+  /** Everything his cycle needs to reach into, gathered when it is asked for rather than held. */
+  const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name });
   /** The soldiers walking with somebody, and what was agreed with each. */
   const hires = new Hires();
   const discovered = state.discovered;
@@ -313,8 +321,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save() },
       manifest: manifest.toJSON(),
+      nemesis: nemesis.toJSON(),
     });
   };
 
@@ -322,6 +331,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // interaction layer below owns and hands back once it exists
   /** Late-bound the way the offer is: places is built before the interactions that split coin. */
   let splitTakings: (gold: number) => void = () => {};
+  /** What a village you saved does for you, filled in once the interactions exist. */
+  let villageWelcome: (village: string) => Kindness | null = () => null;
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   const multiplayer = createMultiplayer({
     register,
@@ -384,6 +395,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- talking ---
   const talkCtx: TalkCtx = {
     state, rng: lineRng, quests, time: state.time, register, day: state.day,
+    wordOfHim: (person) => interactions.wordOfHim(person),
     onInventoryChange: () => { sound.chime(); persist(); },
     onQuestChange: (q: { village: string; id?: string }, status: 'active' | 'done') => {
       if (status === 'done') {
@@ -402,7 +414,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // that is the difference between a favour and a discount, and it is why generosity is worth
     // more than the gold it costs
     const host = e.person !== '' ? register.find(e.person) : undefined;
-    const welcome = host ? gifts.favourFrom(host) : null;
+    const welcome = (host ? gifts.favourFrom(host) : null) ?? villageWelcome(e.herd.tag);
     const bed = welcome?.kind === 'lodging' ? 0 : ITEMS.room.price;
     // a doctor will see to you either way: coin buys the quick way, and everybody else waits.
     // Somebody who has been good to them is not charged at all, and is told so.
@@ -554,12 +566,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     player, state, discovered,
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
-    gifts, hires, standing,
+    gifts, hires, standing, rescues, nemesis,
     dialogue, hud, chat, sound,
     raining: () => raining, discover, persist, startTalk, questLine,
   });
   const { atHand: talkNearest, offerTrade, partyMenu, noticeStall, takeShare, musterHires, hireFallen, hireMenu, tryGive } = interactions;
   splitTakings = takeShare;
+  villageWelcome = interactions.villageWelcome;
   // something that comes to a camp in the night has to be put in the world by somebody who can
   interactions.onVisitor((kind, x, z) => {
     entities.spawnOne(kind, x, z, seed ^ Math.floor(x * 131 + z * 977));
@@ -661,6 +674,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         return;
       }
     }
+    // Old Nettle is beaten rather than killed: the blow that would finish him raises the choice
+    // instead, which is the whole design. He must never reach nought.
+    const cornered = entities.within(player.x, player.z, COMBAT.RANGE)
+      .some((e) => e.kind.id === 'nettle' && !e.dead && e.hp <= state.attack);
+    if (cornered && interactions.heWentDown()) { sound.thud(); return; }
+
     const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing);
     // the ledger moves on every deed, not only on the ones that change what people call you
     state.standing = standing.value;
@@ -676,7 +695,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.thud();
     if (res.killed.length > 0) {
       sound.chime();
-      for (const e of res.killed) interactions.fell(e.kind.id, e.x, e.z);
+      for (const e of res.killed) { interactions.fell(e.kind.id, e.x, e.z); interactions.troubleKilled(e.kind.id, e.x, e.z); }
       const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
       const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
       hud.flash(won.length ? `Defeated ${names} (+${won.join(', ')})` : `Defeated ${names}`);
@@ -709,7 +728,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.thud();
     if (res.killed.length > 0) {
       sound.chime();
-      for (const e of res.killed) interactions.fell(e.kind.id, e.x, e.z);
+      for (const e of res.killed) { interactions.fell(e.kind.id, e.x, e.z); interactions.troubleKilled(e.kind.id, e.x, e.z); }
       const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
       const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
       hud.flash(won.length ? `Shot ${names} (+${won.join(', ')})` : `Shot ${names}`);
@@ -734,7 +753,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.killed.length > 0) {
-      for (const e of res.killed) interactions.fell(e.kind.id, e.x, e.z);
+      for (const e of res.killed) { interactions.fell(e.kind.id, e.x, e.z); interactions.troubleKilled(e.kind.id, e.x, e.z); }
       hud.flash(`Withered ${res.killed.map((e: Entity) => e.kind.label).join(', ')}`);
       persist();
     }
@@ -886,6 +905,18 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
         slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
       }));
+    (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => {
+      const doomed = [...register.living(village)].slice(0, n);
+      for (const person of doomed) register.bury(person.id, state.day);
+      return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
+    };
+    (debug as { __nettle?: () => unknown }).__nettle = () => ({
+      where: nemesis.whereabouts,
+      scheme: nemesis.scheme,
+      standing: nettleAbout ? { x: Math.round(nettleAbout.x), z: Math.round(nettleAbout.z), hp: nettleAbout.hp } : null,
+    });
+    (debug as { __fortunes?: () => unknown }).__fortunes = () =>
+      structures.villages.map((v) => ({ village: v.name, living: register.living(v.name).length, fortune: register.fortune(v.name) }));
     (debug as { __stables?: () => unknown }).__stables = () =>
       structures.villages.map((v) => {
         const stable = stableAt(v, seed);
@@ -973,11 +1004,30 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
 
   // --- what keeps the old places ---
+  /** How near the hero has to be for Old Nettle to be worth putting in the world at all. */
+  const NETTLE_WITHIN = 70;
   const haunts = hauntsOf(seed, structures);
   /** The one keeper standing in the world, and the place it came out of. You are only ever in one. */
   let keeper: { haunt: Haunt; entity: Entity } | null = null;
   /** Places already spoken of, so one visit is one warning rather than a warning a second. */
   const warned = new Set<string>();
+
+  /** The one of him standing in the world, and nothing while he is in a cell or between schemes. */
+  let nettleAbout: Entity | null = null;
+  const watchNettle = (): void => {
+    const abroad = nemesis.whereabouts === 'abroad' || nemesis.whereabouts === 'choosing';
+    const where = nemesis.scheme;
+    if (!abroad || !where) {
+      if (nettleAbout) { entities.despawnEntity(nettleAbout); nettleAbout = null; }
+      return;
+    }
+    if (nettleAbout && !nettleAbout.dead) return;
+    const village = structures.villages.find((v) => v.name === where.village);
+    if (!village) return;
+    // only once the hero is near enough to see it happen: he is rare, and being rare is the point
+    if (Math.hypot(village.x - player.x, village.z - player.z) > NETTLE_WITHIN) return;
+    nettleAbout = entities.spawnOne('nettle', village.x + 3, village.z + 3, seed ^ hashString(where.village));
+  };
 
   const watchHaunts = (): void => {
     if (keeper) {
@@ -1064,7 +1114,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     rig.water.update(time);
     if (!talking) { state.tick(dt); magic.tick(dt); }
     // a day turning over is a day in the villages too: lives run out, and children are born
-    for (const change of register.advance(state.day)) {
+    for (const word of nemesis.advance(clockAt(state), realm())) chat.line(word.said, 'sys');
+    for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
         chat.line(`Word from ${change.village}: ${change.name} has died.`, 'sys');
       }
@@ -1127,9 +1178,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     interactions.sailFerries(clockNow, time);
     watchWhales(clockNow, dt);
     watchHaunts();
+    watchNettle();
     watchCamps();
     remains.age(dt);
     interactions.ageCamps(dt);
+    interactions.runClock(dt);
     packField.update([...remains.all, ...interactions.carcasses()], (x, z) => chunks.heightAt(x, z));
     // something takes an interest in a boat that has been in deep water a while
     const arrived = seaHunt.update(dt, sailing.sailing, player.x, player.z, sampler, entities);

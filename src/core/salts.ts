@@ -30,6 +30,8 @@ export const SALT = {
   CAMP: 0xca43,             // whether a night in the open passes quietly
   CAMPSITE: 0x7c11,         // where somebody else pitched a camp, and whether it survived
   HIRE: 0x51de,             // which soldiers are for hire, and what they ask
+  RESCUE: 0x7e5c,           // what is emptying a village, and who it takes each night
+  NEMESIS: 0x4e37,          // where Old Nettle goes next, and who it costs
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

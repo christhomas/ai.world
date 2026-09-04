@@ -5,7 +5,7 @@ import { ITEMS, SHOP_DEFS, itemSummary, sellPrice, sellableAt } from './shops';
 import type { GameState } from './state';
 import type { Quest } from './quests';
 import { gossipFor } from './gossip';
-import { stageOf } from '../world/people';
+import { stageOf, type Person } from '../world/people';
 import type { Register } from '../world/register';
 
 export interface TalkCtx {
@@ -29,6 +29,8 @@ export interface TalkCtx {
   register?: Register;
   /** The day it is, which is how long ago something was. */
   day?: number;
+  /** What this villager has heard about Old Nettle, for the rare occasion they bring him up. */
+  wordOfHim?: (person: Person) => string;
 }
 
 /**
@@ -59,6 +61,9 @@ export interface Room {
   /** Take the room. Returns what to say about it. */
   take: () => string;
 }
+
+/** How often a villager brings up Old Nettle unprompted. Rare, so it stays a thing people say. */
+const WORD_OF_HIM = 0.22;
 
 /** What a doctor asks, and what waiting instead costs you. */
 export const DOCTOR = {
@@ -156,7 +161,11 @@ function residentPages(e: Entity, ctx: TalkCtx, fallback: string): string[] {
   if (!person) return [fallback];
 
   const talk = gossipFor(person, ctx.register, ctx.day ?? 1, ctx.rng);
-  const aside = talk.small.length > 0 ? pick(ctx.rng, talk.small) : fallback;
+  // one villager in a few has heard about Old Nettle, and says it the way they say anything else.
+  // It has to be small talk and it has to come BEFORE he first gets away, or his escaping reads
+  // as the game cheating rather than as the one thing everybody already knew about him.
+  const small = ctx.wordOfHim && ctx.rng() < WORD_OF_HIM ? [...talk.small, ctx.wordOfHim(person)] : talk.small;
+  const aside = small.length > 0 ? pick(ctx.rng, small) : fallback;
   return talk.news ? [talk.news, aside] : [aside];
 }
 

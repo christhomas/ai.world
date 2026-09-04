@@ -24,6 +24,7 @@ export class IndexedDbStore implements SaveStore {
 
 import type { GameStateJson } from '../game/state';
 import type { ManifestJson } from '../world/manifest';
+import type { NemesisSave } from '../game/nemesis';
 
 export interface SessionSave {
   seed: number;
@@ -32,6 +33,11 @@ export interface SessionSave {
   state?: Partial<GameStateJson>;
   /** Seed tree: islands, dungeons and other expansions attached to this world. */
   manifest?: ManifestJson;
+  /**
+   * Where Old Nettle is up to. On the world rather than on the hero because he is a fact about
+   * the place: he is in a cell, or he is abroad, whoever happens to be playing.
+   */
+  nemesis?: NemesisSave;
   /** Legacy fields from saves before GameState existed. */
   discovered?: string[];
   inventory?: { gold: number; items: Record<string, number> };

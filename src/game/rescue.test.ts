@@ -193,6 +193,17 @@ describe('what a village will pay', () => {
     expect(offer(place(HIRE.RICHEST, 2, true)).welcome).toBeNull();
   });
 
+  it('has no coin at all once it has stopped replacing its dead, however grand it was', () => {
+    // the ceiling on a failing purse is under what anybody would call money, which is the whole
+    // design in one line: the villages nearest to going out are the ones with least to hand you
+    for (const village of [place(1), place(5), place(HIRE.RICHEST, 2, true, ['inn'])]) {
+      const contract = offer(village, 'failing');
+      expect(contract.gold).toBe(0);
+      expect(contract.welcome).not.toBeNull();
+      expect(contract.goodwill).toBe(RESCUE.CONSCIENCE_MOST);
+    }
+  });
+
   it('is worth more to the country the less the village could pay', () => {
     const poorest = offer(place(1));
     const richest = offer(place(HIRE.RICHEST, 2, true));
@@ -208,6 +219,33 @@ describe('what a village will pay', () => {
     paid.gave(richest.goodwill);
     expect(kind.value).toBeGreaterThan(paid.value);
     expect(kind.words).not.toBe(new Standing(0).words);
+  });
+});
+
+describe('what the elder says', () => {
+  const { seed } = preyedOn();
+
+  it('promises children where the register can still make them, and does not where it cannot', () => {
+    const struggling = contractFor(seed, place(4), STONES, 'struggling')!;
+    const failing = contractFor(seed, place(4), STONES, 'failing')!;
+
+    expect(struggling.done.join(' ')).toContain('children in Ashford');
+    // past that line the register stops filling gaps, and promising otherwise would be a lie
+    expect(failing.done.join(' ')).not.toContain('children');
+    expect(failing.done.join(' ')).toContain('still be here');
+  });
+
+  it('talks about a pack and about one of a thing differently', () => {
+    const pack = contractFor(seed, place(4), STONES, 'struggling')!;
+    expect(pack.trouble.needed).toBe(RESCUE.CULL);
+    expect(pack.intro.join(' ')).toContain('They come out of');
+    expect(pack.reminder).toContain('are still out at');
+
+    const kept = keptNearby();
+    const one = contractFor(kept.seed, place(4), kept.structures, 'struggling')!;
+    expect(one.trouble.needed).toBe(1);
+    expect(one.intro.join(' ')).toContain('It comes out of');
+    expect(one.reminder).toContain('is still out at');
   });
 });
 
@@ -266,6 +304,32 @@ describe('doing something about it', () => {
  * that somebody helps fills its houses again by itself, because that is what the register does
  * with a place below the size it was founded at.
  */
+describe('what a raid takes', () => {
+  const trouble = { village: 'Ashford', kind: 'wolf', place: 'Deep Wood', x: 10, z: 10, needed: 3 };
+  const folk = (n: number) => Array.from({ length: n }, (_, i) => ({
+    id: `p${i}`, name: `Person ${i}`, village: 'Ashford', trade: 'farmer',
+    born: -30, lives: 80, mother: '', father: '', knows: [] as string[], memories: [],
+  }));
+
+  it('eases off as the village empties, so a place is never quietly finished off', () => {
+    // over many nights, because whether it comes down at all is a roll
+    const worst = (n: number, fortune: 'well' | 'struggling') => Math.max(
+      ...Array.from({ length: 40 }, (_, day) => takenTonight(1, trouble, folk(n), day + 2, fortune).length),
+    );
+    expect(worst(22, 'well')).toBeGreaterThan(worst(5, 'struggling'));
+    expect(worst(22, 'well')).toBeLessThanOrEqual(RESCUE.TAKES_MOST);
+    expect(worst(5, 'struggling')).toBeGreaterThanOrEqual(RESCUE.TAKES_LEAST);
+  });
+
+  it('leaves a village that is already past saving entirely alone', () => {
+    // whatever the night rolls: a place nobody can save any more is not to be finished off by a
+    // background number, it is to sit there failing and wait for somebody
+    for (let day = 2; day < 60; day++) {
+      expect(takenTonight(1, trouble, folk(4), day, 'failing')).toEqual([]);
+    }
+  });
+});
+
 describe('what comes of it', () => {
   const HOUSES = 4;
   const { seed, trouble } = preyedOn();
@@ -356,7 +420,7 @@ describe('what comes of it', () => {
     }
     // quiet nights and bad ones, and never more than a village could lose in one
     expect(new Set(nights).size).toBeGreaterThan(2);
-    expect(Math.max(...nights.map((n) => (n === '' ? 0 : n.split(',').length)))).toBeLessThanOrEqual(RESCUE.TAKES);
+    expect(Math.max(...nights.map((n) => (n === '' ? 0 : n.split(',').length)))).toBeLessThanOrEqual(RESCUE.TAKES_MOST);
     expect(nights.filter((n) => n === '').length).toBeGreaterThan(0);
   });
 });

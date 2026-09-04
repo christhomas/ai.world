@@ -1,6 +1,7 @@
 import creatures from '../../behaviours/creatures.json';
 import villagers from '../../behaviours/villagers.json';
 import monsters from '../../behaviours/monsters.json';
+import villain from '../../behaviours/villain.json';
 import { compileAll, type BehaviourFile } from '../core/behaviourFile';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
 import type { Node } from '../core/behaviour';
@@ -19,6 +20,7 @@ const TREES: Record<string, Node<Mind>> = {
   ...compileAll(creatures as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
   ...compileAll(villagers as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
   ...compileAll(monsters as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
+  ...compileAll(villain as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds),
 };
 
 /** Which behaviour kind is driven by which tree. Every kind of creature has one. */

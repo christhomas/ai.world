@@ -37,6 +37,8 @@ export interface GameStateJson {
    * prisoner who walks free every time you reload is not a prisoner.
    */
   jail?: JailSave;
+  /** Which villages somebody agreed to clear the trouble from. Written by main.ts, like `gifts`. */
+  rescues?: Record<string, Kept>;
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
   /** What is planted where. */
@@ -51,6 +53,7 @@ export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { appl
 import { DAY_LENGTH } from '../../server/protocol';
 import type { Bond } from './gifts';
 import type { JailSave } from './jail';
+import type { Kept } from './rescue';
 
 /** Real seconds per in-game day, shared with the server so both keep the same time. */
 export { DAY_LENGTH };

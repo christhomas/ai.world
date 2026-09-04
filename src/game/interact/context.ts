@@ -15,6 +15,8 @@ import type { Register } from '../../world/register';
 import type { Jail } from '../jail';
 import type { Gifts } from '../gifts';
 import type { Hires } from '../hire';
+import type { Rescues } from '../rescue';
+import type { Nemesis } from '../nemesis';
 import type { Standing } from '../standing';
 import type { Places } from '../places';
 import type { Market } from '../market';
@@ -57,6 +59,10 @@ export interface Surroundings {
   gifts: Gifts;
   /** The soldiers walking with somebody, and what was agreed with each. */
   hires: Hires;
+  /** Which villages somebody agreed to save, how far they got, and what each owes them for it. */
+  rescues: Rescues;
+  /** Where Old Nettle is up to, and the one question he ever asks. */
+  nemesis: Nemesis;
   /** What the country makes of you, which generosity nudges towards good. */
   standing: Standing;
   entityRenderer: EntityRenderer;

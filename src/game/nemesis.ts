@@ -212,7 +212,7 @@ export function planFor(seed: number, villages: readonly string[], n: number): P
  * when it is true. He has hit points because the fight has to be winnable; what he does not have
  * anywhere in the game is a death, and this is the line where that is kept.
  */
-export function knocked(hp: number, full = VILLAIN.HP): boolean {
+export function knocked(hp: number, full: number = VILLAIN.HP): boolean {
   return hp <= full * NEMESIS.BEATEN_AT;
 }
 
@@ -293,7 +293,7 @@ export class Nemesis {
   /** Ids of the people in the water, kept apart from their names so a choice cannot bury a stranger. */
   private stakes: string[] = [];
   /** The earliest day the next scheme may begin. */
-  private next = NEMESIS.FIRST;
+  private next: number = NEMESIS.FIRST;
   /** How many schemes have started, which is what the seed rolls the next one from. */
   private ran = 0;
   /** The day the last toll was taken, so a client arriving late takes exactly the ones it missed. */

@@ -63,12 +63,13 @@ export function rescueInteractions(ctx: Surroundings & { rescues: Rescues }) {
     if (!settled) return;
     state.inventory.gold += settled.gold;
     state.version++;
-    // a village that could pay nothing has done the largest good in the game a favour, and the
-    // scale is the only place that can say so out loud
-    if (standing.gave(settled.goodwill)) hud.flash(`The country has changed its mind about you: ${standing.words}.`);
-    state.standing = standing.value;
     sound.jingle();
     hud.flash(settled.words);
+    // said last so it is the line left on the screen: saving a village that could pay nothing is
+    // the largest single good the scale has, and it is the larger piece of news either way
+    const moved = standing.gave(settled.goodwill);
+    state.standing = standing.value;
+    if (moved) hud.flash(`People are beginning to call you ${standing.words}.`);
     persist();
   };
 
@@ -152,7 +153,7 @@ export function rescueInteractions(ctx: Surroundings & { rescues: Rescues }) {
         const village = villageNamed(name);
         const trouble = village ? troubleNear(seed, village, structures) : null;
         if (!trouble) continue;
-        for (const who of takenTonight(seed, trouble, register.living(name), lastNight)) {
+        for (const who of takenTonight(seed, trouble, register.living(name), lastNight, register.fortune(name))) {
           const death = register.bury(who, lastNight);
           if (!death) continue;
           changes.push(death);
