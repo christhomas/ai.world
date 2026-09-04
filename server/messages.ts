@@ -1,5 +1,5 @@
 import {
-  EMOTES, PARTY_LIMIT, cleanChat, cleanDelta, cleanLetter, cleanStallItem,
+  EMOTES, LIMITS, PARTY_LIMIT, clamp, cleanChat, cleanDelta, cleanLetter, cleanStallItem,
   type ClientMessage, type TradeOffer,
 } from './protocol';
 import type { Client, Party, Room, Rooms } from './rooms';
@@ -47,9 +47,9 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
     case 'move': {
       const p = me.presence;
       p.x = message.x; p.z = message.z; p.yaw = message.yaw; p.walk = message.walk;
-      p.place = String(message.place).slice(0, 60);
+      p.place = String(message.place).slice(0, LIMITS.PLACE);
       p.riding = message.riding;
-      p.gear = message.gear.slice(0, 4).map((id) => String(id).slice(0, 24));
+      p.gear = message.gear.slice(0, LIMITS.GEAR).map((id) => String(id).slice(0, LIMITS.ITEM_ID));
       return;
     }
     case 'say': {
@@ -61,7 +61,7 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
       return;
     }
     case 'emote': {
-      const kind = String(message.kind).slice(0, 12);
+      const kind = String(message.kind).slice(0, LIMITS.EMOTE);
       if (!EMOTES[kind]) return;
       rooms.broadcast(me.seed, { type: 'emoted', id: me.presence.id, name: me.presence.name, kind });
       return;
@@ -91,18 +91,18 @@ function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessag
   if (message.type !== 'monsters' && message.type !== 'hit') return;
 
   // a pure relay, and only to the floor it concerns: the clients agree among themselves who owns it
-  const place = String(message.place).slice(0, 60);
+  const place = String(message.place).slice(0, LIMITS.PLACE);
   for (const other of room.clients) {
     if (other === me || other.presence.place !== place) continue;
     rooms.send(other, message.type === 'monsters'
-      ? { type: 'monsters', place, snap: message.snap.slice(0, 64), gone: message.gone.slice(0, 64), from: me.presence.id }
+      ? { type: 'monsters', place, snap: message.snap.slice(0, LIMITS.MONSTERS), gone: message.gone.slice(0, LIMITS.MONSTERS), from: me.presence.id }
       : { type: 'hit', place, index: Math.floor(message.index), damage: Math.max(0, Math.floor(message.damage)), from: me.presence.id });
   }
 }
 
 /** Market pitches: rented, stocked, bought from, collected, given up. */
 function market(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
-  const id = String((message as { stall: string }).stall).slice(0, 80);
+  const id = String((message as { stall: string }).stall).slice(0, LIMITS.THING_ID);
   const request = stallRequest(message, id);
   if (!request) { rooms.send(me, { type: 'stall-refused', stall: id, reason: 'There is nothing to put out.' }); return; }
 
@@ -119,7 +119,7 @@ function market(rooms: Rooms, me: Client, room: Room, message: ClientMessage): v
 /** Turn a stall message into the request the world understands, dropping anything misshapen. */
 function stallRequest(message: ClientMessage, id: string): Parameters<SharedWorld['stall']>[1] | null {
   switch (message.type) {
-    case 'stall-rent': return { do: 'rent', id, village: String(message.village).slice(0, 40) };
+    case 'stall-rent': return { do: 'rent', id, village: String(message.village).slice(0, LIMITS.VILLAGE) };
     case 'stall-stock': {
       const item = cleanStallItem(message.item);
       return item ? { do: 'stock', id, item } : null;
@@ -186,7 +186,7 @@ function fellowship(rooms: Rooms, me: Client, room: Room, message: ClientMessage
       return;
     }
     case 'party-deed': {
-      const quest = String(message.quest).slice(0, 60);
+      const quest = String(message.quest).slice(0, LIMITS.THING_ID);
       for (const mate of me.party ?? []) {
         if (mate !== me) rooms.send(mate, { type: 'party-deed', quest, from: me.presence.name });
       }
@@ -223,7 +223,7 @@ function bout(rooms: Rooms, me: Client, room: Room, message: ClientMessage): voi
       if (!me.duel) return;
       rooms.send(me.duel, {
         type: 'duel-struck',
-        damage: Math.max(0, Math.min(99, Math.floor(message.damage))),
+        damage: clamp(Math.floor(message.damage), 0, LIMITS.DAMAGE),
         from: me.presence.id,
       });
       return;
@@ -244,7 +244,7 @@ function trade(rooms: Rooms, me: Client, room: Room, message: ClientMessage): vo
       from: me.presence.id,
       to: message.to,
       gold: Math.max(0, Math.floor(message.gold)),
-      items: message.items.slice(0, 12).map(([id, n]) => [String(id).slice(0, 24), Math.max(1, Math.floor(n))] as [string, number]),
+      items: message.items.slice(0, LIMITS.TRADE_ITEMS).map(([id, n]) => [String(id).slice(0, LIMITS.ITEM_ID), Math.max(1, Math.floor(n))] as [string, number]),
     };
     me.offers.set(target.presence.id, offer);
     rooms.send(target, { type: 'trade-offered', offer, fromName: me.presence.name });

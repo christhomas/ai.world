@@ -1,6 +1,5 @@
 import { PING_LIFE } from '../../server/protocol';
-import { SLOTS } from './items';
-import { ITEMS } from './shops';
+import { ITEMS, SLOTS } from './items';
 import { spoils } from './combat';
 import { Online, applyTrade, type Presence, type TradeOffer, type WorldDelta } from './online';
 import { Coop } from './coop';

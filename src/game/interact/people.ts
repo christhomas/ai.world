@@ -1,6 +1,6 @@
 import { ITEMS } from '../items';
 import { tradableItems, type TradeOffer } from '../online';
-import { PARTY_LIMIT } from '../party';
+import { PARTY_LIMIT } from '../../../server/protocol';
 import { GAMEPLAY } from '../../core/config';
 import type { Surroundings } from './context';
 

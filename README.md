@@ -262,8 +262,8 @@ road-graph density, world radius, town count, river and lake counts, and camera 
 palettes and prop tables live in `src/world/biomes.ts`, creature rigs and spawn tables in
 `src/entities/animals.ts`, items in `src/game/items.ts`, shop stock in `src/game/shops.ts`.
 
-Two readability passes are written up in `docs/human-code-report-2026-09-03.md` and
-`docs/human-code-report-2026-09-03-pass2.md`.
+Three readability passes are written up in `docs/human-code-report-2026-09-03.md`,
+`docs/human-code-report-2026-09-03-pass2.md` and `docs/human-code-report-2026-09-04.md`.
 
 ## Built with
 

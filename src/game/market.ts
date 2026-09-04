@@ -1,4 +1,4 @@
-import { STALL_RENT, type Stall, type StallItem } from '../../server/protocol';
+import { type Stall, type StallItem } from '../../server/protocol';
 import { ITEMS } from './items';
 import type { Village } from '../world/structures';
 
@@ -78,6 +78,3 @@ export function lotLine(lot: StallItem): string {
   const item = ITEMS[lot.id];
   return `${item?.emoji ?? '📦'} ${item?.name ?? lot.id}${lot.count > 1 ? ` ×${lot.count}` : ''} — ${lot.price}g`;
 }
-
-/** What renting a pitch costs, named here so the dialogue and the tests agree. */
-export const RENT = STALL_RENT;

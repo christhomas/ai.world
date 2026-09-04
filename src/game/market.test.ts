@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Market, RENT, askingPrice, lotLine, pitchId } from './market';
+import { Market, askingPrice, lotLine, pitchId } from './market';
+import { STALL_RENT } from '../../server/protocol';
 import type { Stall } from '../../server/protocol';
 import type { Village } from '../world/structures';
 
@@ -40,6 +41,6 @@ describe('the market', () => {
     expect(askingPrice('apple')).toBeGreaterThan(0);
     expect(lotLine({ id: 'apple', price: 15, count: 3 })).toContain('×3');
     expect(lotLine({ id: 'apple', price: 15, count: 3 })).toContain('15g');
-    expect(RENT).toBeGreaterThan(0);
+    expect(STALL_RENT).toBeGreaterThan(0);
   });
 });

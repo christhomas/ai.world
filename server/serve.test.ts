@@ -90,19 +90,27 @@ class Player {
   close(): void { this.socket.close(); }
 }
 
-describe('the world server', () => {
-  let dir = '';
-  let server: RunningServer;
-
+/**
+ * A server of its own for each test, on a port the operating system picks and a data directory
+ * that is thrown away afterwards, so tests never see each other's worlds.
+ */
+function aServer(label: string) {
+  const held = { port: 0, dir: '' };
+  let running: RunningServer;
   beforeEach(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'aiworld-serve-'));
-    server = await startServer({ port: 0, dataDir: dir, quiet: true });
+    held.dir = mkdtempSync(join(tmpdir(), `aiworld-${label}-`));
+    running = await startServer({ port: 0, dataDir: held.dir, quiet: true });
+    held.port = running.port;
   });
-
   afterEach(async () => {
-    await server.close();
-    rmSync(dir, { recursive: true, force: true });
+    await running.close();
+    rmSync(held.dir, { recursive: true, force: true });
   });
+  return held;
+}
+
+describe('the world server', () => {
+  const server = aServer('serve');
 
   const two = async () => {
     const rowan = await Player.join(server.port, 'Rowan');
@@ -175,17 +183,7 @@ describe('the world server', () => {
 });
 
 describe('the market, over the wire', () => {
-  let dir = '';
-  let server: RunningServer;
-
-  beforeEach(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'aiworld-market-'));
-    server = await startServer({ port: 0, dataDir: dir, quiet: true });
-  });
-  afterEach(async () => {
-    await server.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const server = aServer('market');
 
   it('rents a pitch, stocks it, sells from it, and pays the trader', async () => {
     const rowan = await Player.join(server.port, 'Rowan');
@@ -234,17 +232,7 @@ describe('the market, over the wire', () => {
 });
 
 describe('the post shelf, over the wire', () => {
-  let dir = '';
-  let server: RunningServer;
-
-  beforeEach(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'aiworld-post-'));
-    server = await startServer({ port: 0, dataDir: dir, quiet: true });
-  });
-  afterEach(async () => {
-    await server.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const server = aServer('post');
 
   it('carries a parcel to somebody who is here, and to somebody who is not', async () => {
     const rowan = await Player.join(server.port, 'Rowan');
@@ -282,17 +270,7 @@ describe('the post shelf, over the wire', () => {
 });
 
 describe('parties and bouts, over the wire', () => {
-  let dir = '';
-  let server: RunningServer;
-
-  beforeEach(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'aiworld-party-'));
-    server = await startServer({ port: 0, dataDir: dir, quiet: true });
-  });
-  afterEach(async () => {
-    await server.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const server = aServer('party');
 
   const pair = async () => {
     const rowan = await Player.join(server.port, 'Rowan');

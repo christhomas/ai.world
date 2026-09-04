@@ -1,7 +1,7 @@
 import { ITEMS } from '../items';
-import { RENT, askingPrice, lotLine } from '../market';
+import { askingPrice, lotLine, type Pitch } from '../market';
 import { tradableItems } from '../online';
-import { STALL_DAYS } from '../../../server/protocol';
+import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
 import { HORSE } from '../mount';
 import { compassDir } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
@@ -69,72 +69,72 @@ export function villageInteractions(ctx: Surroundings) {
     return false;
   };
 
-  /**
-   * A market pitch in a village square. Anyone online can rent one, put goods out at their own
-   * price, and come back for the money; the goods stay out while the trader is away.
-   */
-  const tryStall = (): boolean => {
-    const pitch = market.nearest(structures.villages, player.x, player.z);
-    if (!pitch) return false;
-    const speaker = 'Market Pitch';
-    const emoji = '🏪';
-    if (!online.connected) {
-      dialogue.start({ speaker, emoji, pages: ['A trestle and a striped awning, waiting for a trader. Join a world online to take it on.'] });
-      return true;
-    }
-    const stall = pitch.stall;
+  /** How many kinds of goods a trader is offered at once when stocking a pitch. */
+  const STOCK_CHOICES = 8;
+  /** How many lots a shopper is shown on one stall. */
+  const LOTS_SHOWN = 6;
+  const STALL = { speaker: 'Market Pitch', emoji: '🏪' };
 
-    if (!stall) {
-      dialogue.start({ speaker, emoji, pages: [`An empty pitch in ${pitch.village}. ${RENT} gold holds it for ${STALL_DAYS} days.`], choices: [
-        { label: `Rent it (${RENT}g)`, next: () => {
-          if (state.inventory.gold < RENT) { hud.flash(`You need ${RENT} gold for the pitch.`); return null; }
-          handover.offer(state, null, RENT);
-          online.rentStall(pitch.id, pitch.village);
-          hud.flash('The pitch is yours. Put something out.');
-          return null;
-        } },
-        { label: 'Leave it', next: () => null },
-      ] });
-      return true;
-    }
+  /** An empty pitch, waiting for somebody to take it on. */
+  const emptyPitch = (pitch: Pitch): DialogueNode => ({
+    ...STALL,
+    pages: [`An empty pitch in ${pitch.village}. ${STALL_RENT} gold holds it for ${STALL_DAYS} days.`],
+    choices: [
+      { label: `Rent it (${STALL_RENT}g)`, next: () => {
+        if (state.inventory.gold < STALL_RENT) { hud.flash(`You need ${STALL_RENT} gold for the pitch.`); return null; }
+        handover.offer(state, null, STALL_RENT);
+        online.rentStall(pitch.id, pitch.village);
+        hud.flash('The pitch is yours. Put something out.');
+        return null;
+      } },
+      { label: 'Leave it', next: () => null },
+    ],
+  });
 
-    if (stall.owner === online.name) {
-      const stockMenu = (): DialogueNode => {
-        const carried = tradableItems(state).filter(([id]) => ITEMS[id]);
-        return {
-          speaker, emoji,
-          pages: carried.length ? ['What goes out on the trestle?'] : ['Your pack is empty of anything worth selling.'],
-          choices: [
-            ...carried.slice(0, 8).map(([id]) => ({
-              label: `${ITEMS[id].emoji} ${ITEMS[id].name} — ask ${askingPrice(id)}g`,
-              next: () => {
-                handover.offer(state, id);
-                online.stockStall(stall.id, { id, price: askingPrice(id), count: 1 });
-                hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);
-                return null;
-              },
-            })),
-            { label: 'Never mind', next: () => null },
-          ],
-        };
-      };
-      const lots = stall.items.length ? stall.items.map(lotLine).join('\n') : 'Nothing out yet.';
-      dialogue.start({ speaker: `Your stall in ${stall.village}`, emoji, pages: [
-        `Rent paid until day ${stall.until}. Takings: ${stall.takings} gold.`,
-        lots,
-      ], choices: [
-        { label: 'Put something out', next: stockMenu },
-        { label: `Take the takings (${stall.takings}g)`, next: () => { online.collectStall(stall.id); return null; } },
-        { label: 'Pack up the stall', next: () => { online.closeStall(stall.id); hud.flash('The pitch is free again.'); return null; } },
-        { label: 'Leave it be', next: () => null },
-      ] });
-      return true;
-    }
+  /** What to put out on a pitch of your own, and what it is worth. */
+  const stockMenu = (stall: Stall): DialogueNode => {
+    const carried = tradableItems(state).filter(([id]) => ITEMS[id]);
+    return {
+      ...STALL,
+      pages: carried.length ? ['What goes out on the trestle?'] : ['Your pack is empty of anything worth selling.'],
+      choices: [
+        ...carried.slice(0, STOCK_CHOICES).map(([id]) => ({
+          label: `${ITEMS[id].emoji} ${ITEMS[id].name} — ask ${askingPrice(id)}g`,
+          next: () => {
+            handover.offer(state, id);
+            online.stockStall(stall.id, { id, price: askingPrice(id), count: 1 });
+            hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);
+            return null;
+          },
+        })),
+        { label: 'Never mind', next: () => null },
+      ],
+    };
+  };
 
-    dialogue.start({ speaker: `${stall.owner}'s stall`, emoji, pages: [
-      stall.items.length ? 'Take your pick.' : 'The trestle is bare. Come back when the trader has been by.',
-    ], choices: [
-      ...stall.items.slice(0, 6).map((lot, index) => ({
+  /** Your own pitch: what is out, what it has earned, and whether to keep it. */
+  const myStall = (stall: Stall): DialogueNode => ({
+    speaker: `Your stall in ${stall.village}`,
+    emoji: STALL.emoji,
+    pages: [
+      `Rent paid until day ${stall.until}. Takings: ${stall.takings} gold.`,
+      stall.items.length ? stall.items.map(lotLine).join('\n') : 'Nothing out yet.',
+    ],
+    choices: [
+      { label: 'Put something out', next: () => stockMenu(stall) },
+      { label: `Take the takings (${stall.takings}g)`, next: () => { online.collectStall(stall.id); return null; } },
+      { label: 'Pack up the stall', next: () => { online.closeStall(stall.id); hud.flash('The pitch is free again.'); return null; } },
+      { label: 'Leave it be', next: () => null },
+    ],
+  });
+
+  /** Somebody else's pitch: buy a lot, or walk on. */
+  const theirStall = (stall: Stall): DialogueNode => ({
+    speaker: `${stall.owner}'s stall`,
+    emoji: STALL.emoji,
+    pages: [stall.items.length ? 'Take your pick.' : 'The trestle is bare. Come back when the trader has been by.'],
+    choices: [
+      ...stall.items.slice(0, LOTS_SHOWN).map((lot, index) => ({
         label: lotLine(lot),
         next: () => {
           if (state.inventory.gold < lot.price) { hud.flash(`That costs ${lot.price} gold.`); return null; }
@@ -143,7 +143,23 @@ export function villageInteractions(ctx: Surroundings) {
         },
       })),
       { label: 'Walk on', next: () => null },
-    ] });
+    ],
+  });
+
+  /**
+   * A market pitch in a village square. Anyone online can rent one, put goods out at their own
+   * price, and come back for the money; the goods stay out while the trader is away. Which of the
+   * three conversations you get depends only on who holds the pitch.
+   */
+  const tryStall = (): boolean => {
+    const pitch = market.nearest(structures.villages, player.x, player.z);
+    if (!pitch) return false;
+    if (!online.connected) {
+      dialogue.start({ ...STALL, pages: ['A trestle and a striped awning, waiting for a trader. Join a world online to take it on.'] });
+      return true;
+    }
+    const stall = pitch.stall;
+    dialogue.start(!stall ? emptyPitch(pitch) : stall.owner === online.name ? myStall(stall) : theirStall(stall));
     return true;
   };
 

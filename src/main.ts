@@ -18,7 +18,6 @@ import { COMBAT, swing } from './game/combat';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
-import { PARTY_LIMIT } from './game/party';
 import { PING_LIFE } from '../server/protocol';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';

@@ -1,7 +1,5 @@
 import { DUEL_RANGE, type Presence } from '../../server/protocol';
 
-export { DUEL_RANGE };
-
 /**
  * A friendly bout between two players. Nothing real is at stake: each side keeps a separate pool
  * of duel health, so a hero who loses walks away with the same hearts, gear and gold they came

@@ -229,13 +229,18 @@ export function ownerOfPlace(ids: string[]): string | null {
   return sorted[0] ?? null;
 }
 
+/** Keep a number inside the range the game can deal with. */
+export function clamp(value: number, low: number, high: number): number {
+  return Math.max(low, Math.min(high, value));
+}
+
 /** Guard a lot off the wire: an item id, a sane price, and a stack somebody could actually carry. */
 export function cleanStallItem(item: StallItem): StallItem | null {
-  const id = String(item?.id ?? '').slice(0, 24);
+  const id = String(item?.id ?? '').slice(0, LIMITS.ITEM_ID);
   const price = Math.floor(Number(item?.price));
   const count = Math.floor(Number(item?.count));
   if (!id || !Number.isFinite(price) || !Number.isFinite(count)) return null;
-  return { id, price: Math.max(1, Math.min(9999, price)), count: Math.max(1, Math.min(99, count)) };
+  return { id, price: clamp(price, 1, LIMITS.PRICE), count: clamp(count, 1, LIMITS.STACK) };
 }
 
 /** Guard a parcel off the wire: a real recipient, sane gold, and a handful of items at most. */
@@ -244,24 +249,57 @@ export function cleanLetter(letter: Letter): Letter | null {
   const gold = Math.floor(Number(letter?.gold));
   if (!Number.isFinite(gold)) return null;
   const items = (Array.isArray(letter?.items) ? letter.items : [])
-    .slice(0, 8)
-    .map(([id, n]) => [String(id).slice(0, 24), Math.max(1, Math.min(99, Math.floor(Number(n)) || 1))] as [string, number])
+    .slice(0, LIMITS.PARCEL_ITEMS)
+    .map(([id, n]) => [String(id).slice(0, LIMITS.ITEM_ID), clamp(Math.floor(Number(n)) || 1, 1, LIMITS.STACK)] as [string, number])
     .filter(([id]) => id);
   if (gold <= 0 && items.length === 0) return null;
-  return { from: String(letter.from ?? '').slice(0, 18), to, gold: Math.max(0, gold), items, day: Math.max(1, Math.floor(Number(letter.day)) || 1) };
+  return { from: String(letter.from ?? '').slice(0, LIMITS.NAME), to, gold: Math.max(0, gold), items, day: Math.max(1, Math.floor(Number(letter.day)) || 1) };
 }
 
+/**
+ * How much of anything the server will accept. Every one of these is a defence against a client
+ * sending something enormous or strange, so they live together: a reader can see the whole shape
+ * of what may cross the wire without hunting through the handlers.
+ */
+export const LIMITS = {
+  /** A line of chat. */
+  CHAT: 160,
+  /** A player's name. */
+  NAME: 18,
+  /** An item id, which is a short word like `apple`. */
+  ITEM_ID: 24,
+  /** The name of a world you can be standing in, like `Shrine of Echoes:1`. */
+  PLACE: 60,
+  /** A stall's id, a delta's id, an errand's id: anything naming a thing in the world. */
+  THING_ID: 80,
+  /** A village name. */
+  VILLAGE: 40,
+  /** The name of a gesture, like `wave`. */
+  EMOTE: 12,
+  /** Pieces of gear drawn on a remote hero: hand, off hand, head, body. */
+  GEAR: 4,
+  /** Lots in one parcel, and items in one trade offer. */
+  PARCEL_ITEMS: 8,
+  TRADE_ITEMS: 12,
+  /** Monsters described in one snapshot of a dungeon floor. */
+  MONSTERS: 64,
+  /** How many of one thing can sit in a stack, on a stall or in a parcel. */
+  STACK: 99,
+  /** The most anybody may ask for something, and the hardest blow anybody may claim to land. */
+  PRICE: 9999,
+  DAMAGE: 99,
+} as const;
+
 /** Chat is short and plain; anything longer or stranger is cut here rather than downstream. */
-export const MAX_CHAT = 160;
 
 export function cleanChat(text: string): string {
   // strip control characters, collapse the rest, and keep it short
-  return [...text].filter((ch) => ch >= ' ' && ch !== '').join('').trim().slice(0, MAX_CHAT);
+  return [...text].filter((ch) => ch >= ' ' && ch !== '').join('').trim().slice(0, LIMITS.CHAT);
 }
 
 /** Names are how people find each other, so they are short, plain and never empty. */
 export function cleanName(name: string): string {
-  const cleaned = name.replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 18);
+  const cleaned = name.replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, LIMITS.NAME);
   return cleaned.length > 0 ? cleaned : 'Traveller';
 }
 
@@ -278,7 +316,7 @@ export function deltaKey(delta: WorldDelta): string {
 
 /** Guard against a client sending something misshapen. */
 export function cleanDelta(delta: WorldDelta): WorldDelta | null {
-  const id = (value: unknown) => String(value ?? '').slice(0, 80);
+  const id = (value: unknown) => String(value ?? '').slice(0, LIMITS.THING_ID);
   switch (delta?.kind) {
     case 'chest': return { kind: 'chest', id: id(delta.id) };
     case 'key': return { kind: 'key', id: id(delta.id) };

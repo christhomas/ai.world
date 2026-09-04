@@ -1,6 +1,5 @@
-import { PARTY_LIMIT, type PartyMember, type Presence } from '../../server/protocol';
+import type { PartyMember, Presence } from '../../server/protocol';
 
-export { PARTY_LIMIT };
 export type { PartyMember };
 
 /**
