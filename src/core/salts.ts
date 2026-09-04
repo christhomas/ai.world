@@ -24,6 +24,10 @@ export const SALT = {
   HUNT: 0x5aa4,
   INTERIOR: 0x1de5,
   PEOPLE: 0x9e0b,           // the families a village is founded with
+  FOREST: 0x2f00,           // which trees are worth felling, and what a stand grows back to
+  HERBS: 0x8e2b,            // where the plants a draught needs are growing
+  HAUNT: 0xd0a7,            // where the things that are not animals keep to
+  CAMP: 0xca43,             // whether a night in the open passes quietly
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

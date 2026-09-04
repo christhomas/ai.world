@@ -108,3 +108,37 @@ describe('equipment', () => {
     expect(patched.worn('body')).toBeNull();
   });
 });
+
+/**
+ * A tool works for being carried; worn kit works for being worn. The line matters because it is
+ * what stops nine tools taking turns in one hand, and what stops a lantern lighting the way from
+ * the bottom of a rucksack.
+ */
+describe('a tool in the pack', () => {
+  it('works without being held, however many of them there are', () => {
+    const s = GameState.fresh();
+    expect(s.can('dig')).toBe(false);
+    for (const tool of ['shovel', 'saw', 'knife', 'rod', 'tent', 'mortar']) s.give(tool, 1);
+
+    for (const ability of ['dig', 'fell', 'skin', 'fish', 'camp', 'grind'] as const) {
+      expect(s.can(ability), ability).toBe(true);
+    }
+    expect(s.equipped.offhand, 'a tool should not have taken the offhand').toBeUndefined();
+  });
+
+  it('stops working once it is out of the pack', () => {
+    const s = GameState.fresh();
+    s.give('saw', 1);
+    expect(s.can('fell')).toBe(true);
+    s.take('saw', 1);
+    expect(s.can('fell')).toBe(false);
+  });
+
+  it('will not let a lantern light the way from inside the pack', () => {
+    const s = GameState.fresh();
+    s.give('lantern', 1);
+    expect(s.can('light'), 'a lantern has to be held up').toBe(false);
+    s.equip('lantern');
+    expect(s.can('light')).toBe(true);
+  });
+});

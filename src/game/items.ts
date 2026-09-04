@@ -20,7 +20,7 @@ export type ItemEffect =
   | { type: 'rest' };
 
 /** Something an item does while it is equipped. */
-export type Ability = 'light' | 'map' | 'climb' | 'fish' | 'dig';
+export type Ability = 'light' | 'map' | 'climb' | 'fish' | 'dig' | 'fell' | 'kindle' | 'skin' | 'hew' | 'grind' | 'camp';
 
 export const ABILITY_NOTES: Record<Ability, string> = {
   light: 'lights your way at night',
@@ -28,6 +28,12 @@ export const ABILITY_NOTES: Record<Ability, string> = {
   climb: 'climb two terraces at once',
   fish: 'lets you fish at the water',
   dig: 'turn over the ground for metal',
+  fell: 'bring a tree down for its wood',
+  kindle: 'get a fire going',
+  skin: 'take the fur off what you killed',
+  hew: 'work ore out of rock a spade rings off',
+  grind: 'reduce what you gather to something you can drink',
+  camp: 'make a bed wherever you are standing',
 };
 
 export interface Item {
@@ -44,6 +50,15 @@ export interface Item {
   /** Extra maximum hearts while worn. */
   hearts?: number;
   ability?: Ability;
+  /**
+   * A tool works from inside the pack rather than from a hand.
+   *
+   * There are too many of them for the offhand: with a saw, a shovel, a knife, a pick and a
+   * mortar all wanting the same slot, you end up digging in the dark because the lantern lost,
+   * and swapping gear becomes the main thing you do. The offhand keeps what is about staying
+   * alive; a tool is about doing a job, and doing a job only requires having brought it.
+   */
+  tool?: boolean;
   /** Consumables only. */
   effect?: ItemEffect;
   /** Fish and other things shops buy but do not sell. */
@@ -88,8 +103,14 @@ const list: Item[] = [
   { id: 'shield', name: 'Wooden Shield', emoji: '🛡️', price: 45, desc: 'Oak planks bound with iron.', slot: 'offhand', defence: 2 },
   { id: 'ironshield', name: 'Iron Shield', emoji: '🛡️', price: 120, desc: 'Dents instead of splitting.', slot: 'offhand', defence: 4 },
   { id: 'lantern', name: 'Lantern', emoji: '🏮', price: 30, desc: 'Hold it up and the night gives way.', slot: 'offhand', ability: 'light' },
-  { id: 'rod', name: 'Fishing Rod', emoji: '🎣', price: 28, desc: 'Cane, line and a hook. Hold it by the water and cast.', slot: 'offhand', ability: 'fish' },
-  { id: 'shovel', name: 'Shovel', emoji: '⛏️', price: 34, desc: 'Ash handle, iron blade. Hold it on a hillside and see what the hill has been keeping.', slot: 'offhand', ability: 'dig' },
+  { id: 'rod', name: 'Fishing Rod', emoji: '🎣', price: 28, desc: 'Cane, line and a hook. Carry it to the water and cast.', tool: true, ability: 'fish' },
+  { id: 'shovel', name: 'Shovel', emoji: '⛏️', price: 34, desc: 'Ash handle, iron blade. Stand on a hillside with it and see what the hill has been keeping.', tool: true, ability: 'dig' },
+  { id: 'saw', name: 'Felling Saw', emoji: '🪚', price: 42, desc: 'Two handles and a long tooth. Takes a while, and then the tree is firewood.', tool: true, ability: 'fell' },
+  { id: 'firerocks', name: 'Fire Rocks', emoji: '🪨', price: 9, desc: 'Strike them together over dry tinder and step back.', tool: true, ability: 'kindle' },
+  { id: 'knife', name: 'Skinning Knife', emoji: '🔪', price: 26, desc: 'Short, curved, and kept sharper than any sword. A pelt is worth nothing torn.', tool: true, ability: 'skin' },
+  { id: 'pick', name: 'Pickaxe', emoji: '⚒️', price: 48, desc: 'For the rock a spade only rings off.', tool: true, ability: 'hew' },
+  { id: 'mortar', name: 'Mortar and Pestle', emoji: '🥣', price: 38, desc: 'Stone bowl, stone club. What you grind in it stops being a leaf.', tool: true, ability: 'grind' },
+  { id: 'tent', name: 'Canvas Tent', emoji: '⛺', price: 55, desc: 'Rolled on your back all day so that you have somewhere to be at night.', tool: true, ability: 'camp' },
 
   // --- feet ---
   { id: 'boots', name: 'Walking Boots', emoji: '🥾', price: 26, desc: 'Broken in by someone else.', slot: 'feet', defence: 1 },
@@ -119,6 +140,15 @@ const list: Item[] = [
   { id: 'gem', name: 'Cave Gem', emoji: '💎', price: 120, desc: 'Cut by nothing but water and time.', loot: true },
 
   // --- dug out of the ground ---
+  { id: 'wood', name: 'Cut Wood', emoji: '🪵', price: 5, desc: 'Green and heavy. A market that gathers enough of it starts thinking about carts.', loot: true },
+  { id: 'meat', name: 'Raw Meat', emoji: '🥩', price: 7, desc: 'It wants a fire before it wants your mouth.', effect: { type: 'heal', amount: 1 }, loot: true },
+  { id: 'roast', name: 'Roast Meat', emoji: '🍖', price: 20, desc: 'Cooked over your own fire, which is most of why it is worth eating.', effect: { type: 'heal', amount: 5 }, loot: true },
+  { id: 'bearpelt', name: 'Bear Pelt', emoji: '🟫', price: 70, desc: 'Heavy, warm, and worth a great deal further south.', loot: true },
+  { id: 'herb', name: 'Bitter Herb', emoji: '🌿', price: 4, desc: 'Grows where the ground is damp. On its own it is a leaf.', loot: true },
+  { id: 'salve', name: 'Salve', emoji: '🧪', price: 32, desc: 'Ground herb and clean water. Drink it and the worst of it goes.', effect: { type: 'heal', amount: 8 } },
+  { id: 'ward', name: 'Warding Draught', emoji: '🔮', price: 60, desc: 'Turns aside what is coming for a little while. Long enough to get away, if you go now.' },
+  { id: 'bow', name: 'Hunting Bow', emoji: '🏹', price: 90, desc: 'Yew and gut. The only thing here that reaches something in the air.', slot: 'hand', attack: 2 },
+  { id: 'arrow', name: 'Arrows', emoji: '🎯', price: 2, desc: 'Goose-fletched. You get most of them back, if you look.' },
   { id: 'nugget', name: 'Gold Nugget', emoji: '🪙', price: 95, desc: 'Heavy for its size, and the colour of a good year.', loot: true },
   { id: 'silverore', name: 'Silver Ore', emoji: '🪨', price: 34, desc: 'Grey rock with a bright vein through it. A smith knows what to do with it.', loot: true },
 ];

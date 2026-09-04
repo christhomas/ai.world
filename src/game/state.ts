@@ -104,8 +104,21 @@ export class GameState {
   get armed(): boolean { return (this.worn('hand')?.attack ?? 0) >= 2; }
 
   /** Does any worn item grant this ability? */
+  /**
+   * Whether the hero can do a thing right now.
+   *
+   * Worn kit counts because holding it is the point: a lantern lights nothing from inside a pack.
+   * A tool counts merely for being carried, because there are far too many of them to take turns
+   * in the offhand, and a game where the main decision is which tool to leave behind is a game
+   * about menus.
+   */
   can(ability: Ability): boolean {
-    return SLOTS.some((slot) => this.worn(slot)?.ability === ability);
+    if (SLOTS.some((slot) => this.worn(slot)?.ability === ability)) return true;
+    for (const id of this.inventory.items.keys()) {
+      const item = ITEMS[id];
+      if (item?.tool && item.ability === ability) return true;
+    }
+    return false;
   }
 
   /** Height the hero can step across: one terrace, two with a rope on the belt. */
