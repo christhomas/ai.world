@@ -12,6 +12,10 @@ import type { Chat } from '../../ui/chat';
 import type { Sound } from '../audio';
 import type { GameState } from '../state';
 import type { Register } from '../../world/register';
+import type { Jail } from '../jail';
+import type { Gifts } from '../gifts';
+import type { Hires } from '../hire';
+import type { Standing } from '../standing';
 import type { Places } from '../places';
 import type { Market } from '../market';
 import type { Party } from '../party';
@@ -47,6 +51,14 @@ export interface Surroundings {
   entities: EntityManager;
   /** Who lives in the villages, so somebody you meet in the street has the face they always had. */
   register: Register;
+  /** The cells in the country's police stations, and which stations are still standing. */
+  jail: Jail;
+  /** Who you have been good to, and what they have decided about you for it. */
+  gifts: Gifts;
+  /** The soldiers walking with somebody, and what was agreed with each. */
+  hires: Hires;
+  /** What the country makes of you, which generosity nudges towards good. */
+  standing: Standing;
   entityRenderer: EntityRenderer;
   places: Places;
   seed: number;

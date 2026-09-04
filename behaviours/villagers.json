@@ -114,6 +114,22 @@
     ]
   },
 
+  "hired": {
+    "note": "Bought and paid for. Keep at the shoulder of whoever is paying, and put down whatever goes for anybody near them. The gate can wait until the bargain is done.",
+    "first": [
+      {
+        "note": "Something with teeth on somebody is the whole of what a sword arm is for.",
+        "steps": [
+          { "do": "markTrouble", "with": { "within": 16 } },
+          { "do": "stalk" },
+          { "anyway": { "do": "bite", "with": { "damage": 3, "cooldown": 1.1, "tiles": 1.6 } } }
+        ]
+      },
+      { "do": "forget" },
+      { "note": "Nothing to fight: an unmarked stalk walks at the hero, which is what following is.", "do": "stalk" }
+    ]
+  },
+
   "sailor": {
     "note": "Down at the water when there is water to be down at, and in the inn when there is not.",
     "first": [

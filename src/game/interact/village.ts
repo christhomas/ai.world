@@ -10,6 +10,8 @@ import { REACH } from '../places';
 import { errandDone, pubTalk } from '../pub';
 import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
+import { stableAt } from '../stables';
+import { KINDS } from '../../entities/animals';
 
 /**
  * What Enter does inside a settlement: step through a door, read the board, deal at a market
@@ -164,6 +166,7 @@ export function villageInteractions(ctx: Surroundings) {
           next: () => {
             handover.offer(state, id);
             online.stockStall(stall.id, { id, price: askingPrice(id), count: 1 });
+            market.took(stall.village, id, 1);
             hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);
             return null;
           },
@@ -253,28 +256,39 @@ export function villageInteractions(ctx: Surroundings) {
     // horses in the field are half wild; the one you can buy is the stablehand's
     const hand = entities.within(player.x, player.z, GAMEPLAY.TALK_RANGE).find((e) => e.role === 'stablehand');
     if (!hand) return false;
-    const price = HORSE.PRICE;
     const village = hand.herd.tag || 'the village';
+    const home = structures.villages.find((v) => v.name === hand.herd.tag);
+    const stable = home ? stableAt(home, seed) : null;
     if (mount.owned) {
-      dialogue.start({ speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }), pages: [`${mount.name} is a good horse. Mind the shoes.`] });
+      dialogue.start({ speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }), pages: [`${mount.name} is a good ${mount.breed.label.toLowerCase()}. Mind the shoes.`] });
+      return true;
+    }
+    if (!stable) {
+      dialogue.start({
+        speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }),
+        pages: ['No stalls here worth the name. Try a bigger village.'],
+      });
       return true;
     }
     dialogue.start({
       speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }),
-      pages: [`I have ${mount.offer()} out back, saddle and all. ${price} gold and the halter is yours.`],
+      pages: [`Saddle and all, out back.\n${stable.stock.map((b) => `${b.label}: ${b.note}`).join('\n')}`],
       choices: [
-        { label: `Buy the horse (${price}g)`, next: () => {
-          if (state.inventory.gold < price) {
-            return { speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }), pages: [`Come back with ${price} gold.`] };
-          }
-          state.inventory.gold -= price;
-          state.version++;
-          const horse = mount.buy(hand.x + 1.5, hand.z, chunks, entityRenderer);
-          sound.jingle();
-          hud.flash(`${horse} is yours, stabled in ${village}. Press Enter beside them to ride.`);
-          persist();
-          return null;
-        } },
+        ...stable.stock.map((breed) => ({
+          label: `${KINDS[breed.id]?.emoji ?? '🐴'} ${breed.label} (${breed.price}g)`,
+          next: () => {
+            if (state.inventory.gold < breed.price) {
+              return { speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`Come back with ${breed.price} gold.`] };
+            }
+            state.inventory.gold -= breed.price;
+            state.version++;
+            const named = mount.buy(hand.x + 1.5, hand.z, chunks, entityRenderer, breed);
+            sound.jingle();
+            hud.flash(`${named} is yours, stabled in ${village}. Press Enter beside them to ride.`);
+            persist();
+            return null;
+          },
+        })),
         { label: 'Not today', next: () => null },
       ],
     });

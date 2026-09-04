@@ -19,7 +19,7 @@ import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, typ
 import { buildBoat } from './render/boat';
 import { StructureKind, compassDir } from './world/structures';
 import { ITEMS } from './game/shops';
-import { COMBAT, swing } from './game/combat';
+import { COMBAT, struck, swing } from './game/combat';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
@@ -65,6 +65,19 @@ import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
 import { Standing } from './game/standing';
+import { Jail, clockAt, toldOnWaking, windOn } from './game/jail';
+import { Gifts } from './game/gifts';
+import { HIRE, Hires } from './game/hire';
+import { Magic, type SpellId } from './game/magic';
+import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
+import { goingOf, paceOf, stableAt, type Going } from './game/stables';
+import { haulPace } from './game/woodcraft';
+import { canBeCut } from './entities/monsters';
+import { CampField } from './render/wildcamps';
+import type { WildCamp } from './game/wildcamps';
+import { remember } from './world/people';
+import { gone, hauntsOf, toRaise, warningFor, type Haunt } from './game/haunts';
+import { hashString } from './core/rng';
 
 
 /** The world server's own port, which `chore world` also uses. */
@@ -145,6 +158,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (id) => ITEMS[id]?.price ?? 4,
     (who) => fallen(who),
     register,
+    (village) => structures.villages.some((v) => v.name === village && stableAt(v, seed) !== null),
     () => standing.guilt,
     (by) => arrested(by),
   );
@@ -207,6 +221,20 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * killing is worth and one place that remembers.
    */
   const standing = new Standing(state.standing);
+  /**
+   * Breath, and whatever a spell is currently turning aside. Not saved: it refills in ten seconds,
+   * so a save that remembered it would be remembering nothing.
+   */
+  const magic = new Magic();
+  /**
+   * The cells in the country's police stations: who is in them, and which of them are heaps of
+   * timber. Not saved yet, so a reopened world finds every cell cold and every station standing.
+   */
+  const jail = new Jail();
+  /** Who the hero has been good to, and what each of them has decided about it. */
+  const gifts = new Gifts(saved?.state?.gifts);
+  /** The soldiers walking with somebody, and what was agreed with each. */
+  const hires = new Hires();
   const discovered = state.discovered;
   const urlTime = url.searchParams.get('t');
   if (urlTime !== null) state.time = Math.max(0, Math.min(0.999, Number(urlTime) || 0));
@@ -267,6 +295,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     overworld: chunks, overworldRenderer: entityRenderer, heroGear,
     minimapCanvas: $('minimapCanvas') as HTMLCanvasElement,
     rng: lineRng,
+    takeShare: (gold) => splitTakings(gold),
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     setCaveAmbience: (on) => { sound.cave = on; },
@@ -284,13 +313,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save() },
       manifest: manifest.toJSON(),
     });
   };
 
   // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the
   // interaction layer below owns and hands back once it exists
+  /** Late-bound the way the offer is: places is built before the interactions that split coin. */
+  let splitTakings: (gold: number) => void = () => {};
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   const multiplayer = createMultiplayer({
     register,
@@ -419,16 +450,49 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * moves on without you, villagers age and the market changes while you are inside. That is the
    * cost of being wanted, and it is more of a punishment than any number would be.
    */
+  /**
+   * What is underfoot, for deciding how fast a mount travels over it.
+   *
+   * Sampled when the hero crosses into a new tile rather than every frame: the going cannot change
+   * without the tile changing, and terrain sampling is not free.
+   */
+  let goingTile = '';
+  let going: Going = 'open';
+  const goingUnderfoot = (): Going => {
+    const tx = Math.floor(player.x), tz = Math.floor(player.z);
+    const key = `${tx},${tz}`;
+    if (key === goingTile) return going;
+    goingTile = key;
+    const tile = sampler.newSample();
+    sampler.sampleTile(tx, tz, tile);
+    going = goingOf(tile);
+    return going;
+  };
+
+  /**
+   * A constable has caught up with you, and now there is somewhere to put you.
+   *
+   * The sentence is served rather than skipped: the clock is wound forward, so the world moves on
+   * without you, villagers age and the market changes while you are inside. That is more of a
+   * punishment than any number would be. Where no station will take you the old arrangement
+   * stands and you lose the hours in the square.
+   */
   const arrested = (by: Entity): void => {
     const hours = standing.sentence();
     standing.served();
     state.standing = standing.value;
-    state.time = (state.time + hours / 24) % 1;
-    const cell = by.posts.square ?? [by.x, by.z];
+    const held = jail.take(structures.villages, by.x, by.z, 'you', hours, clockAt(state), state.day, state.inventory.gold);
+    windOn(state, hours);
+    register.advance(state.day);            // the village grew older while you were not watching
+    // your own hours are served the moment the clock jumps, so the cell is empty behind you
+    if (held) { state.inventory.gold -= held.fine; jail.release(held.village); }
+    const cell = held ? [held.x, held.z] : (by.posts.square ?? [by.x, by.z]);
     player.teleport(cell[0], cell[1]);
     iso.target.set(cell[0], 0.5, cell[1]);
     state.version++;
-    hud.flash(`${by.name} takes you in. You come round ${Math.round(hours)} hours later.`);
+    hud.flash(held
+      ? `${by.name} takes you in. ${toldOnWaking(held)}`
+      : `${by.name} takes you in. You come round in the square ${Math.round(hours)} hours later.`);
     sound.thud();
     persist();
   };
@@ -438,27 +502,46 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * happened within sight you are told, because a scream in the middle distance is the point.
    */
   const fallen = (who: Entity): void => {
+    // a hired man dies like any other villager: all that ends here is what he was owed
+    const bargain = who.person !== '' ? hireFallen(who.person) : null;
     // a villager killed by something is off the register for good, and the people who knew them
     // are the only record of it left
     if (who.person !== '') {
       const death = register.bury(who.person, state.day);
       if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
     }
-    remains.leave(who.name, who.trade, who.x, who.z, who.purse, who.carrying?.id ?? null, seed ^ Math.floor(who.x * 131 + who.z * 977));
+    // what he leaves is a soldier's pack: being in your pay was an arrangement, not a trade
+    const trade = who.trade === HIRE.TREE ? HIRE.TRADE : who.trade;
+    remains.leave(who.name, trade, who.x, who.z, who.purse, who.carrying?.id ?? null, seed ^ Math.floor(who.x * 131 + who.z * 977));
     if (Math.hypot(who.x - player.x, who.z - player.z) < GAMEPLAY.POI_DISCOVER_RADIUS * 6) {
       hud.flash(`${who.name} was killed. Their pack is where they fell.`);
       sound.thud();
     }
+    if (bargain) hud.flash(`${bargain.name}, who you hired, is dead.`);
   };
 
   const interactions = createInteractions({
     player, state, discovered,
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
-    market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register,
+    market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
+    gifts, hires, standing,
     dialogue, hud, chat, sound,
     raining: () => raining, discover, persist, startTalk, questLine,
   });
-  const { atHand: talkNearest, offerTrade, partyMenu, noticeStall } = interactions;
+  const { atHand: talkNearest, offerTrade, partyMenu, noticeStall, takeShare, musterHires, hireFallen, hireMenu, tryGive } = interactions;
+  splitTakings = takeShare;
+  // something that comes to a camp in the night has to be put in the world by somebody who can
+  interactions.onVisitor((kind, x, z) => {
+    entities.spawnOne(kind, x, z, seed ^ Math.floor(x * 131 + z * 977));
+  });
+  // a camp its owner was coming back to has been gone through, and the nearest village hears of it
+  interactions.onTheft((camp) => {
+    const near = structures.villages.reduce((best, v) =>
+      Math.hypot(v.x - camp.x, v.z - camp.z) < Math.hypot(best.x - camp.x, best.z - camp.z) ? v : best);
+    const folk = register.living(near.name);
+    if (folk.length === 0) return;
+    remember(folk[Math.floor(lineRng() * folk.length)], { what: 'robbed', who: camp.who, day: state.day });
+  });
   putOfferToPlayer = interactions.showOffer;
 
   input.onKey('k', () => { if (!dialogue.isOpen && !chat.isTyping) partyMenu(); });
@@ -512,7 +595,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
 
   input.onKey('t', () => { if (online.connected && !dialogue.isOpen && !chat.isTyping) chat.open(); });
-  input.onKey('g', () => { if (!dialogue.isOpen && !chat.isTyping) offerTrade(); });
+  // the same gesture either way: hand something over. A villager takes precedence because they
+  // are the one standing in front of you; a player offer is what it falls back to.
+  input.onKey('g', () => { if (!dialogue.isOpen && !chat.isTyping && !tryGive()) offerTrade(); });
+  input.onKey('y', () => { if (!dialogue.isOpen && !chat.isTyping) hireMenu(); });
 
   input.onKey('p', () => {
     const on = photo.toggle();
@@ -528,6 +614,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   input.onKey('=', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
   input.onKey('-', () => { if (worldMap.isOpen) worldMap.zoomBy(0.8); });
   let swingCooldown = 0;
+  /** A hired man is re-marked now and then, because the world streams him out and back. */
+  let musterIn = 0;
   const attack = () => {
     if (dialogue.isOpen || swingCooldown > 0) return;
     swingCooldown = COMBAT.COOLDOWN;
@@ -547,10 +635,18 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // the ledger moves on every deed, not only on the ones that change what people call you
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
-    if (res.hit.length === 0) { sound.select(); return; }
+    if (res.hit.length === 0) {
+      sound.select();
+      // a blade that finds nothing where something plainly stands has to say why, or the rule
+      // that a sword is no answer to a wight reads as a broken game rather than as the point
+      const ghost = entities.within(player.x, player.z, COMBAT.RANGE).some((e) => !canBeCut(e.kind));
+      if (ghost) hud.flash('Your blade passes through it.');
+      return;
+    }
     sound.thud();
     if (res.killed.length > 0) {
       sound.chime();
+      for (const e of res.killed) interactions.fell(e.kind.id, e.x, e.z);
       const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
       const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
       hud.flash(won.length ? `Defeated ${names} (+${won.join(', ')})` : `Defeated ${names}`);
@@ -560,7 +656,69 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // important of the two things that just happened
     if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
   };
+  let drawCooldown = 0;
+  /**
+   * Loose an arrow. A shot reaches things a swing cannot, because it measures its range as a
+   * slant rather than along the ground: an eagle nine tiles up is nine tiles away to a bow and
+   * out of the world to a sword.
+   */
+  const loose = (): void => {
+    if (dialogue.isOpen || drawCooldown > 0) return;
+    if (!canShoot(state)) {
+      hud.flash(bowInHand(state) ? 'Your quiver is empty.' : 'You need a bow in your hand for that.');
+      return;
+    }
+    drawCooldown = BOW.COOLDOWN;
+    player.entity.attackCooldown = BOW.COOLDOWN;
+    const world = places.underground?.world ?? chunks;
+    const manager = places.underground?.monsters ?? entities;
+    const res = shoot(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing);
+    state.standing = standing.value;
+    for (const { index, damage } of res.reported) coop.reportHit(index, damage);
+    if (res.hit.length === 0) { sound.select(); hud.flash(`Missed. ${quiver(state)} arrows left.`); return; }
+    sound.thud();
+    if (res.killed.length > 0) {
+      sound.chime();
+      for (const e of res.killed) interactions.fell(e.kind.id, e.x, e.z);
+      const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
+      const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
+      hud.flash(won.length ? `Shot ${names} (+${won.join(', ')})` : `Shot ${names}`);
+      persist();
+    }
+    if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
+  };
+
+  /** Say a spell, and put whatever came of it on the screen. */
+  const conjure = (id: SpellId): void => {
+    if (dialogue.isOpen || chat.isTyping) return;
+    const cast = magic.cast(id, state);
+    hud.flash(cast.words);
+    if (!cast.spell) { sound.select(); return; }
+    sound.chime();
+    if (!cast.blow) return;
+    // a spell that strikes is a swing with a longer arm: same arc, same loot, same ledger, so
+    // nothing about killing a thing depends on what killed it
+    const world = places.underground?.world ?? chunks;
+    const manager = places.underground?.monsters ?? entities;
+    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing, cast.blow);
+    state.standing = standing.value;
+    for (const { index, damage } of res.reported) coop.reportHit(index, damage);
+    if (res.killed.length > 0) {
+      for (const e of res.killed) interactions.fell(e.kind.id, e.x, e.z);
+      hud.flash(`Withered ${res.killed.map((e: Entity) => e.kind.label).join(', ')}`);
+      persist();
+    }
+    if (res.gold > 0) takeShare(res.gold);
+    if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
+  };
+
   input.onKey('x', attack);
+  // q and e are held down to turn the camera, so no spell may live on them
+  input.onKey('z', loose);
+  input.onKey('b', () => conjure('ward'));
+  input.onKey('h', () => conjure('blight'));
+  input.onKey('u', () => conjure('light'));
+  input.onKey('v', () => conjure('draught'));
   input.onKey('n', toTitle);
   input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close(); });
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
@@ -592,7 +750,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       sound.splash();
       hud.flash(`${attacker.kind.label} hits the boat. You are in the water.`);
     }
-    if (!state.damage(dmg)) return;
+    if (!struck(state, dmg, magic.ward)) return;
     if (places.underground) {
       // knocked out underground: dragged back to the surface, minus some gold
       const lostBelow = Math.min(GAMEPLAY.KO_GOLD_LOSS, state.inventory.gold);
@@ -696,8 +854,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       entities.within(player.x, player.z, 60).map((e) => ({
         kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
         x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
-        slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person,
+        slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
       }));
+    (debug as { __stables?: () => unknown }).__stables = () =>
+      structures.villages.map((v) => {
+        const stable = stableAt(v, seed);
+        return { village: v.name, houses: v.houses.length, stock: stable?.stock.map((b) => b.id) ?? null };
+      });
     (debug as { __pass?: (days: number) => unknown }).__pass = (days) => {
       state.day += Math.max(1, Math.floor(days));
       const changes = register.advance(state.day);
@@ -764,6 +927,49 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * a word when a display begins within sight, and a soaking for anybody whose boat is under one
    * when it comes down.
    */
+  // --- camps somebody else pitched ---
+  const campField = new CampField(rig.scene);
+  /** Camps in the country round the hero, worked out when they cross into a new chunk. */
+  let campChunk = '';
+  let campsNear: WildCamp[] = [];
+  const watchCamps = (): void => {
+    const key = `${Math.floor(player.x / WORLD.CHUNK_SIZE)},${Math.floor(player.z / WORLD.CHUNK_SIZE)}`;
+    if (key !== campChunk) {
+      campChunk = key;
+      const span = WORLD.CHUNK_SIZE * 2;   // a chunk either side of the one they are standing in
+      campsNear = interactions.campsAround(player.x - span, player.z - span, player.x + span, player.z + span);
+    }
+    campField.update(campsNear, interactions.campEmptied, (x, z) => chunks.heightAt(x, z));
+  };
+
+  // --- what keeps the old places ---
+  const haunts = hauntsOf(seed, structures);
+  /** The one keeper standing in the world, and the place it came out of. You are only ever in one. */
+  let keeper: { haunt: Haunt; entity: Entity } | null = null;
+  /** Places already spoken of, so one visit is one warning rather than a warning a second. */
+  const warned = new Set<string>();
+
+  const watchHaunts = (): void => {
+    if (keeper) {
+      const { haunt, entity } = keeper;
+      if (entity.dead || gone(haunt, player.x, player.z, state.time)) {
+        if (!entity.dead) entities.despawnEntity(entity);
+        keeper = null;
+        warned.delete(haunt.id);
+      }
+      return;
+    }
+    const rising = toRaise(haunts, player.x, player.z, state.time);
+    if (!rising) return;
+    const entity = entities.spawnOne(rising.kind, rising.x, rising.z, seed ^ hashString(rising.id));
+    if (!entity) return;
+    keeper = { haunt: rising, entity };
+    if (warned.has(rising.id)) return;
+    warned.add(rising.id);
+    sound.thud();
+    hud.flash(warningFor(rising));
+  };
+
   const watchWhales = (now: number, dt: number): void => {
     const near = podsWithin(pods, player.x, player.z, WHALE.WATCH);
     const splashes = school.update(near, now, dt);
@@ -810,7 +1016,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const talking = dialogue.isOpen || worldMap.isOpen;
     iso.update(input, dt, player.mode === 'free' && !talking && !places.indoors);
     player.climb = state.climb;
-    player.speedScale = mount.riding ? HORSE.SPEED : 1;
+    player.speedScale = haulPace(
+      mount.riding ? paceOf(mount.breed, goingUnderfoot()) : 1,
+      mount.riding,
+      state.count('cart') > 0,
+    );
     if (sailing.sailing && !talking) {
       sailing.update(dt, {
         forward: (input.isDown('w', 'arrowup') ? 1 : 0) - (input.isDown('s', 'arrowdown') ? 1 : 0),
@@ -822,7 +1032,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
     dialogue.update(dt);
     rig.water.update(time);
-    if (!talking) state.tick(dt);
+    if (!talking) { state.tick(dt); magic.tick(dt); }
     // a day turning over is a day in the villages too: lives run out, and children are born
     for (const change of register.advance(state.day)) {
       if (change.kind === 'died' && discovered.has(change.village)) {
@@ -855,7 +1065,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
       // underground: the hero, the monsters, the lights and the HUD tick
       below.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
-      below.scene.heroLight.intensity = state.can('light') ? 9 : 3;
+      below.scene.heroLight.intensity = state.can('light') || magic.lit ? 9 : 3;
       // one player runs the monsters on a shared floor; everyone else mirrors what they are told
       coop.survey(online.id, placeName(), online.players.values());
       coop.age(dt);
@@ -884,8 +1094,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const clockNow = worldSeconds(state.day, state.time);
     interactions.sailFerries(clockNow, time);
     watchWhales(clockNow, dt);
+    watchHaunts();
+    watchCamps();
     remains.age(dt);
-    packField.update(remains.all, (x, z) => chunks.heightAt(x, z));
+    interactions.ageCamps(dt);
+    packField.update([...remains.all, ...interactions.carcasses()], (x, z) => chunks.heightAt(x, z));
     // something takes an interest in a boat that has been in deep water a while
     const arrived = seaHunt.update(dt, sailing.sailing, player.x, player.z, sampler, entities);
     if (arrived) {
@@ -906,7 +1119,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     else seasonTintMaterials.set([1, 1, 1], 0);
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
-    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
+    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light') || magic.lit, season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time, sailing.sailing);
     mount.update(player, chunks);
 
@@ -939,6 +1152,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
 
     swingCooldown = Math.max(0, swingCooldown - dt);
+    musterIn -= dt;
+    if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
+    drawCooldown = Math.max(0, drawCooldown - dt);
     if (input.clicked && !talking) {
       mouse.set((input.clickX / window.innerWidth) * 2 - 1, -(input.clickY / window.innerHeight) * 2 + 1);
       raycaster.setFromCamera(mouse, iso.camera);

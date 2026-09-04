@@ -4,6 +4,8 @@ import { PEOPLE, type EntityManager } from '../entities/manager';
 import { mulberry32 } from '../core/rng';
 import type { GameState } from './state';
 import type { Deed, Standing } from './standing';
+import { isFur } from './furs';
+import { turnedAside, type Blow } from './magic';
 
 export const COMBAT = {
   /** Reach of a swing, in tiles. */
@@ -50,8 +52,23 @@ export function spoils(state: GameState, e: Entity, seed: number): { gold: numbe
   const gold = lo + Math.floor(roll() * (hi - lo + 1));
   const loot: string[] = [];
   const drop = e.kind.drop;
-  if (drop && roll() < drop.chance) { state.give(drop.id, 1); loot.push(drop.id); }
+  // the hide is not in the loot: it stays on the body until somebody kneels with a knife, which
+  // is the whole of what makes a skinning knife worth carrying rather than a tax on carrying one
+  if (drop && !isFur(drop.id) && roll() < drop.chance) { state.give(drop.id, 1); loot.push(drop.id); }
   return { gold, loot };
+}
+
+/**
+ * A blow arriving at the hero, with whatever a ward is turning aside taken off it first.
+ *
+ * The ward comes in as a plain share for the same reason the standing comes in as an object:
+ * combat keeps nothing of its own, and a spell that has lapsed is a share of nought.
+ *
+ * @param ward how much of a blow is being turned aside now, 0 for anybody who is not warded
+ * @returns true when it dropped the hero
+ */
+export function struck(state: GameState, damage: number, ward = 0): boolean {
+  return state.damage(turnedAside(damage, ward));
 }
 
 /** Swing at everything in the arc the hero faces. Kills are removed and their gold banked. */
@@ -65,12 +82,14 @@ export function swing(
   state: GameState, entities: EntityManager, world: TileWorld,
   x: number, z: number, yaw: number, seed: number, authoritative = true,
   standing: Standing | null = null,
+  /** What a spell is throwing instead of the hero's arm: how hard, and how far. Null for a swing. */
+  blow: Blow | null = null,
 ): SwingResult {
-  const damage = state.attack;
+  const damage = blow?.damage ?? state.attack;
   // yaw is a +x-facing rig's heading: forward is (cos yaw, -sin yaw)
   const fx = Math.cos(yaw), fz = -Math.sin(yaw);
   const out: SwingResult = { hit: [], killed: [], gold: 0, loot: [], reported: [], regard: null };
-  for (const e of entities.within(x, z, COMBAT.RANGE)) {
+  for (const e of entities.within(x, z, blow?.range ?? COMBAT.RANGE)) {
     if (!e.kind.hp || e.dead) continue;
     const dx = e.x - x, dz = e.z - z;
     const len = Math.hypot(dx, dz) || 1;

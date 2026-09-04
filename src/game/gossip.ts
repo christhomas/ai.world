@@ -45,6 +45,7 @@ function newsOf(what: string, who: string, daysAgo: number, hardWeek: boolean): 
     case 'born': return `${who} was born ${when}. Loudest thing in the village, that one.`;
     case 'saved': return `${who} pulled me out of trouble ${when}. I owe them for it.`;
     case 'robbed': return `${who} was robbed on the road ${when}. Keep your purse close.`;
+    case 'given': return `${who} gave me something I had need of ${when}. Not many stop to.`;
     default: return `Something happened with ${who} ${when}.`;
   }
 }

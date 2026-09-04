@@ -11,7 +11,7 @@ const house = (n: number): Structure => ({
 
 /** A village on paper: a name, a country, and however many roofs the test wants it to have. */
 const village = (name: string, biome = Biome.Plains, houses = STABLE.HOUSES): Village => ({
-  name, board: null, x: 0, z: 0, radius: 20, level: 0, biome,
+  name, board: null, station: null, x: 0, z: 0, radius: 20, level: 0, biome,
   houses: Array.from({ length: houses }, (_, n) => house(n)),
   shops: [], pub: null, church: null, churchDoor: null, stalls: [],
 });

@@ -27,6 +27,11 @@ export interface GameStateJson {
   keys: string[];
   /** Where the hero stands between good and evil, as one number. */
   standing?: number;
+  /**
+   * Who the hero has given things to, and what each of them made of it. Written by main.ts at
+   * save time the way `standing` is: the state itself has no reason to know what a bond is.
+   */
+  gifts?: Record<string, Bond>;
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
   /** What is planted where. */
@@ -39,6 +44,7 @@ export const BASE_MAX_HP = 10;
 /** What a new hero sets out with: worn clothes, a stick, and something to eat. */
 export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { apple: 2, bread: 1 } } as const;
 import { DAY_LENGTH } from '../../server/protocol';
+import type { Bond } from './gifts';
 
 /** Real seconds per in-game day, shared with the server so both keep the same time. */
 export { DAY_LENGTH };

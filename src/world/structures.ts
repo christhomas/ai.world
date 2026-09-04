@@ -64,6 +64,19 @@ export interface Pub {
   doorZ: number;
 }
 
+/**
+ * The village police station, with the cell at the back of it. Like the pub it is one of the
+ * ordinary houses, because a village does not raise a gaol out of nothing: it gives the law a
+ * roof off its own street and hangs a sign on it, and the sign is the only thing that tells the
+ * building from a home. What goes on behind the door is the game layer's business.
+ */
+export interface Station {
+  house: Structure;
+  /** The doorway: where anybody is brought in, turned out, and looked in on (tile coords). */
+  doorX: number;
+  doorZ: number;
+}
+
 export interface Structure {
   kind: StructureKind;
   /** Footprint centre tile (integer tile coords of the centre tile). */
@@ -106,6 +119,8 @@ export interface Village {
   shops: Shop[];
   /** The pub, if the village runs to one. */
   pub: Pub | null;
+  /** The police station, if the village is big enough to be worth keeping law in. */
+  station: Station | null;
   church: Structure | null;
   /** Tile in front of the church door where the congregation gathers. */
   churchDoor: [number, number] | null;
@@ -159,6 +174,7 @@ const LAYOUT = {
   CHURCH_PATH_MAX: 6,
   HOUSE_ATTEMPTS: 80,
   PUB_HOUSES: 4,               // houses a village needs before one of them is the pub
+  STATION_HOUSES: 6,           // and before the law is worth a building of its own
   HOUSE_LATERAL_MIN: 2.5,      // beyond the road edge
   HOUSE_LATERAL_RANGE: 6,
   STALLS: 2,
@@ -362,6 +378,20 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     return { house, doorX, doorZ };
   };
 
+  /**
+   * The station takes the house after the pub's, so the law stands on the same street as the
+   * trade and the drink, which is where it is wanted on a Friday night. A village of a few
+   * cottages never gets one: everybody there knows who did it, and a cell that is never filled is
+   * a cell nobody would have built.
+   */
+  const assignStation = (houses: Structure[], biome: Biome): Station | null => {
+    if (houses.length < LAYOUT.STATION_HOUSES) return null;
+    const house = houses[shopCount(houses.length) + 1];
+    if (!house) return null;
+    const [doorX, doorZ] = signedDoor(house, biome);
+    return { house, doorX, doorZ };
+  };
+
   const buildVillage = (nodeIdx: number, spread: number, maxHouses: number, minHouses: number, squareR: number): Village | null => {
     const n = graph.nodes[nodeIdx];
     const probe = sampler.landProbe(n.x, n.z);
@@ -407,8 +437,9 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     const stalls = placeStalls(squareR, level, biome);
     const shops = assignShops(houses, biome);
     const pub = assignPub(houses, biome);
+    const station = assignStation(houses, biome);
     plazaR = 0;
-    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub, church, churchDoor, board, stalls };
+    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub, station, church, churchDoor, board, stalls };
   };
 
   // --- hub town ---

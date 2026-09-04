@@ -24,6 +24,8 @@ import type { HeroGear } from '../render/herogear';
 
 /** Everything a place needs to swap the world out from under the hero. */
 export interface PlaceContext {
+  /** Whoever is walking with you takes their share of any coin that comes in. */
+  takeShare: (gold: number) => void;
   seed: number;
   manifest: Manifest;
   state: GameState;
@@ -151,6 +153,7 @@ export class Places {
     const roll = mulberry32(seed + index + 1);
     const gold = chest.big ? 80 + Math.floor(roll() * 70) : 12 + Math.floor(roll() * 30);
     state.inventory.gold += gold;
+    this.ctx.takeShare(gold);
 
     let extra = '';
     if (chest.key) {

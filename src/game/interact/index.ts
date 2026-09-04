@@ -3,6 +3,13 @@ import { villageInteractions } from './village';
 import { wildInteractions } from './wild';
 import { travelInteractions } from './travel';
 import { peopleInteractions } from './people';
+import { craftInteractions } from './craft';
+import { campInteractions } from './camp';
+import { herbInteractions } from './herbs';
+import { jailInteractions } from './jail';
+import { wildCampInteractions } from './wildcamps';
+import { hireInteractions } from './hire';
+import { giftInteractions } from './gifts';
 import type { Surroundings } from './context';
 
 export type { Surroundings } from './context';
@@ -20,6 +27,13 @@ export function createInteractions(ctx: Surroundings) {
   const wild = wildInteractions(ctx);
   const travel = travelInteractions(ctx);
   const people = peopleInteractions(ctx);
+  const craft = craftInteractions(ctx);
+  const camp = campInteractions(ctx);
+  const herbs = herbInteractions(ctx);
+  const jail = jailInteractions(ctx);
+  const wildcamps = wildCampInteractions(ctx);
+  const hire = hireInteractions(ctx);
+  const gifts = giftInteractions(ctx);
   const { player, places, dialogue, hud, entities, startTalk } = ctx;
 
   const talkNearest = () => {
@@ -51,23 +65,46 @@ export function createInteractions(ctx: Surroundings) {
     if (wild.tryFarm()) return;
     if (village.tryStall()) return;
     if (village.tryBoard()) return;
+    if (jail.tryCell()) return;   // the station door is a grille to look through, not a way in
     if (village.tryDoor()) return;
     if (wild.tryShrine()) return;
+    if (camp.trySkin()) return;
     if (wild.tryRemains()) return;
     if (wild.tryWreck()) return;
+    if (wildcamps.tryWildCamp()) return;   // somebody else's camp: banked fire, or torn open
     if (wild.tryCampfire()) return;
+    if (craft.tryCook()) return;
+    if (craft.tryKindle()) return;
     if (village.trySignpost()) return;
     if (travel.tryFerry()) return;
     if (wild.tryFish()) return;
     // digging comes last of the ground-level things: a shovel in the pack should never swallow an
     // Enter press meant for a person, a door or a line in the water
     if (wild.tryDig()) return;
+    if (craft.tryFell()) return;
+    if (herbs.tryPick()) return;
+    if (herbs.tryGrind()) return;
+    if (camp.tryCamp()) return;
+    if (hire.tryHire()) return;
     const e = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
     if (e) startTalk(e); else hud.flash('No one close enough to talk to');
   };
 
   return {
     atHand: talkNearest,
+    fell: camp.fell,
+    onTheft: wildcamps.onTheft,
+    campsAround: wildcamps.campsAround,
+    campEmptied: wildcamps.emptied,
+    takeShare: hire.takeShare,
+    musterHires: hire.muster,
+    hireFallen: hire.fallen,
+    hireMenu: hire.hireMenu,
+    // deliberately not in the Enter chain: giving would swallow every press meant for a hello
+    tryGive: gifts.tryGive,
+    onVisitor: camp.onVisitor,
+    ageCamps: camp.age,
+    carcasses: camp.bodies,
     noticeStall: village.noticeStall,
     sailFerries: travel.sailFerries,
     aboard: travel.aboard,

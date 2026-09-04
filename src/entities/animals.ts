@@ -1,4 +1,5 @@
 import { Biome } from '../world/biomes';
+import { MONSTER_KINDS } from './monsters';
 
 /**
  * Animal and character definitions. Every creature is a handful of primitive parts with baked
@@ -118,6 +119,8 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
 const W = 0xffffff;
 
 export const KINDS: Record<string, AnimalKind> = {
+  // the things that are not wildlife, kept in their own file because they are not animals
+  ...MONSTER_KINDS,
   cow: {
     id: 'cow', label: 'Cow', emoji: '🐄', scale: 1.15, speed: 0.9, runSpeed: 3, herd: [3, 6], behaviour: 'graze', timid: true,
     palettes: [[0xf2f2f2], [0x6b4a2b], [0x2b2b2b], [0xd9c3a3]],
@@ -274,7 +277,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   vulture: {
-    id: 'vulture', label: 'Vulture', emoji: '🦅', scale: 0.9, speed: 2.5, runSpeed: 2.5, herd: [1, 3], behaviour: 'fly', timid: false, altitude: 7,
+    id: 'vulture', label: 'Vulture', emoji: '🦅', scale: 0.9, speed: 2.5, runSpeed: 2.5, herd: [1, 3], behaviour: 'fly', timid: false, altitude: 7, hp: 2, gold: [4, 12], drop: { id: 'bone', chance: 0.3 },
     palettes: [[0x3a3a3a, 0xe0a0a0]],
     names: ['Scavenger', 'Gloom', 'Vulpecula', 'Carrion'],
     lines: ['*circles*', '*screeches*', '*eyes you hungrily*'],
@@ -383,7 +386,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   eagle: {
-    id: 'eagle', label: 'Eagle', emoji: '🦅', scale: 1.0, speed: 3, runSpeed: 3, herd: [1, 2], behaviour: 'fly', timid: false, altitude: 9,
+    id: 'eagle', label: 'Eagle', emoji: '🦅', scale: 1.0, speed: 3, runSpeed: 3, herd: [1, 2], behaviour: 'fly', timid: false, altitude: 9, hp: 2, gold: [6, 18], drop: { id: 'fang', chance: 0.2 },
     palettes: [[0x5a3a22, 0xf4f0e8]],
     names: ['Talon', 'Skye', 'Aquila', 'Summit'],
     lines: ['*soars*', '*cries out*', '*scans the ground*'],

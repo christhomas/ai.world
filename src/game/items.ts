@@ -148,6 +148,7 @@ const list: Item[] = [
   { id: 'salve', name: 'Salve', emoji: '🧪', price: 32, desc: 'Ground herb and clean water. Drink it and the worst of it goes.', effect: { type: 'heal', amount: 8 } },
   { id: 'ward', name: 'Warding Draught', emoji: '🔮', price: 60, desc: 'Turns aside what is coming for a little while. Long enough to get away, if you go now.' },
   { id: 'bow', name: 'Hunting Bow', emoji: '🏹', price: 90, desc: 'Yew and gut. The only thing here that reaches something in the air.', slot: 'hand', attack: 2 },
+  { id: 'cart', name: 'Horse Cart', emoji: '🛒', price: 120, desc: 'Built by a village wright out of wood you carried in. Hauls more, and faster, behind a horse.' },
   { id: 'arrow', name: 'Arrows', emoji: '🎯', price: 2, desc: 'Goose-fletched. You get most of them back, if you look.' },
   { id: 'nugget', name: 'Gold Nugget', emoji: '🪙', price: 95, desc: 'Heavy for its size, and the colour of a good year.', loot: true },
   { id: 'silverore', name: 'Silver Ore', emoji: '🪨', price: 34, desc: 'Grey rock with a bright vein through it. A smith knows what to do with it.', loot: true },

@@ -37,7 +37,7 @@ export type Stage = 'baby' | 'child' | 'adult';
 
 /** Something that happened, worth carrying about. Named, so it outlives whoever it is about. */
 export interface Memory {
-  what: 'died' | 'born' | 'saved' | 'robbed';
+  what: 'died' | 'born' | 'saved' | 'robbed' | 'given';
   /** The name of the person it happened to. */
   who: string;
   day: number;

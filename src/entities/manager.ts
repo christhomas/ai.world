@@ -11,7 +11,7 @@ import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
 import { postsOf } from './villagers';
-import { Entity, Herd, canStand, damageEntity, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
+import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
 
@@ -101,6 +101,9 @@ export class EntityManager {
   private night = false;
   /** The register's day as of the last time the villagers on the street were checked against it. */
   private registerDay = -1;
+  /** Where the hero was standing this tick, for deciding whether a creature is on them. */
+  private heroX = 0;
+  private heroZ = 0;
   /** Whether the law was already after the hero last time we looked. */
   private lawWasOut = false;
 
@@ -127,6 +130,11 @@ export class EntityManager {
      */
     private readonly register: Register | null = null,
     /**
+     * Whether a village keeps a stable. Handed in because which animals a place can sell is the
+     * game's business, and a village with no stalls has no business having somebody to mind them.
+     */
+    private readonly hasStable: (village: string) => boolean = () => true,
+    /**
      * How badly the law wants the hero: nought for somebody it has no interest in, one for the
      * worst there is. Handed in because guilt is the game's book-keeping, and this layer only
      * knows that a man in a helmet has decided to do something about it.
@@ -151,6 +159,8 @@ export class EntityManager {
     onAttack: (e: Entity, damage: number) => void = () => {}, time?: number, afloat = false,
   ): void {
     const CS = WORLD.CHUNK_SIZE;
+    this.heroX = playerX;
+    this.heroZ = playerZ;
     const wasNight = this.night;
     if (time !== undefined) this.night = !isDaytime(time);
     const cx = Math.floor(playerX / CS), cz = Math.floor(playerZ / CS);
@@ -376,7 +386,13 @@ export class EntityManager {
     let bestAway = within;
     for (const e of this.within(from.x, from.z, within)) {
       if (e === from || e.dead || !(e.kind.dangerous ?? 0)) continue;
-      if (!e.target || e.target.dead || !PEOPLE.has(e.target.kind.id)) continue;
+      // a creature with nothing marked is coming for the hero, which is markPrey's convention.
+      // Without this clause the only fight anybody ever breaks up is one they are not in, so a
+      // hired sword walks past a wolf that is on you and a constable does the same.
+      const onSomebody = e.target
+        ? !e.target.dead && PEOPLE.has(e.target.kind.id)
+        : Math.hypot(e.x - this.heroX, e.z - this.heroZ) <= BEHAVIOUR.STALK_RADIUS;
+      if (!onSomebody) continue;
       const away = Math.hypot(e.x - from.x, e.z - from.z);
       if (away < bestAway) { bestAway = away; best = e; }
     }
@@ -502,8 +518,8 @@ export class EntityManager {
         const herd = this.place(ctx, 'villager', [v.x, v.z], 2 + Math.floor(ctx.rng() * 3), Math.max(8, v.radius * 0.7));
         herd.tag = v.name;
         if (herd.members.length > 0) herd.members[0].role = 'elder';
-        // one of them keeps the horses
-        if (herd.members.length > 1) herd.members[1].role = 'stablehand';
+        // one of them keeps the horses, in the villages that have any
+        if (herd.members.length > 1 && this.hasStable(v.name)) herd.members[1].role = 'stablehand';
         // everybody gets a house, a trade, and the places that trade takes them
         const posts = postsOf(v, this.world);
         const residents = this.residentsFor(v, posts, herd.members.length);

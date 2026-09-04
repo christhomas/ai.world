@@ -29,8 +29,8 @@ export const SHOP_DEFS: Record<ShopType, ShopDef> = {
   },
   smith: {
     name: 'Blacksmith', title: 'the Smith',
-    items: ['sword', 'steelsword', 'axe', 'cap', 'helm', 'jerkin', 'mail', 'shield', 'ironshield', 'greaves'],
-    buys: (item) => isGear(item) || item.id === 'gem' || item.id === 'bone',
+    items: ['sword', 'steelsword', 'axe', 'bow', 'arrow', 'cap', 'helm', 'jerkin', 'mail', 'shield', 'ironshield', 'greaves'],
+    buys: (item) => isGear(item) || item.id === 'arrow' || item.id === 'gem' || item.id === 'bone',
     greetings: ['*wipes soot from brow* Looking for steel?', 'Forge is hot today. What do you need?'],
   },
   inn: {

@@ -28,6 +28,8 @@ export const SALT = {
   HERBS: 0x8e2b,            // where the plants a draught needs are growing
   HAUNT: 0xd0a7,            // where the things that are not animals keep to
   CAMP: 0xca43,             // whether a night in the open passes quietly
+  CAMPSITE: 0x7c11,         // where somebody else pitched a camp, and whether it survived
+  HIRE: 0x51de,             // which soldiers are for hire, and what they ask
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

@@ -3,6 +3,7 @@ import { KINDS } from '../entities/animals';
 import { Entity, Herd, canStand, yawFor, type TileWorld } from '../entities/entity';
 import type { EntityRenderer } from '../entities/pool';
 import type { Player } from '../entities/player';
+import { breedOf, type Breed } from './stables';
 
 /** What a horse is worth, and how much faster it carries you. */
 export const HORSE = {
@@ -19,6 +20,8 @@ export interface HorseSave {
   x: number;
   z: number;
   palette: number;
+  /** Which animal it is. Absent on saves written before there was a choice, which means a horse. */
+  breed?: string;
 }
 
 /**
@@ -35,13 +38,15 @@ export class Mount {
 
   get name(): string { return this.entity?.name ?? this.saved?.name ?? 'your horse'; }
   get owned(): boolean { return this.saved !== null; }
+  /** What you bought. A save from before there were camels and goats is a horse, as it always was. */
+  get breed(): Breed { return breedOf(this.saved?.breed); }
 
   /** Buy a horse: it appears saddled and waiting at the spot given. */
-  buy(x: number, z: number, world: TileWorld, renderer: EntityRenderer): string {
-    const kind = KINDS.horse;
+  buy(x: number, z: number, world: TileWorld, renderer: EntityRenderer, breed: Breed = breedOf('horse')): string {
+    const kind = KINDS[breed.id] ?? KINDS.horse;
     const names = kind.names;
     const name = names[Math.floor(this.rng() * names.length)];
-    this.saved = { name, x, z, palette: Math.floor(this.rng() * 0xffffff) };
+    this.saved = { name, x, z, palette: Math.floor(this.rng() * 0xffffff), breed: breed.id };
     this.entity = null;
     this.restore(world, renderer);
     return name;
@@ -50,7 +55,7 @@ export class Mount {
   /** Put the horse back in the world after a load, or when the hero returns outdoors. */
   restore(world: TileWorld, renderer: EntityRenderer): void {
     if (!this.saved || this.entity) return;
-    const kind = KINDS.horse;
+    const kind = KINDS[this.saved.breed ?? 'horse'] ?? KINDS.horse;
     const herd = new Herd(kind, this.saved.x, this.saved.z, this.saved.x, this.saved.z, 0);
     // the palette seeds the rig, so the same horse always comes back the same colour
     const horse = new Entity(kind, this.saved.x, this.saved.z, herd, 'mount', mulberry32(this.saved.palette));
@@ -84,7 +89,7 @@ export class Mount {
   mount(player: Player): void {
     if (!this.entity) return;
     this.riding = true;
-    player.entity.y = this.entity.y + HORSE.SADDLE;
+    player.entity.y = this.entity.y + this.breed.saddle;
   }
 
   dismount(player: Player, world: TileWorld): void {
@@ -116,7 +121,7 @@ export class Mount {
     horse.yaw = player.entity.yaw;
     horse.walk = player.entity.walk;
     horse.phase = player.entity.phase * 0.6;
-    player.entity.y = horse.y + HORSE.SADDLE;
+    player.entity.y = horse.y + this.breed.saddle;
     player.entity.bobY = 0;
   }
 

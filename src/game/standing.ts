@@ -100,6 +100,19 @@ export class Standing {
     return this.words !== before;
   }
 
+  /**
+   * Something was given away, which is worth what it answered rather than what it cost: see
+   * gifts.ts. Generosity comes in amounts rather than in deeds, which is why it does not go
+   * through `did` and why `Deed` stays a short, fixed list.
+   *
+   * @returns true when the words changed, exactly as `did` does
+   */
+  gave(by: number): boolean {
+    const before = this.words;
+    this.score = held(this.score + by);
+    return this.words !== before;
+  }
+
   /** The village has run out of patience, and the constables are coming. */
   get wanted(): boolean { return this.score < LAW.WANTED_AT; }
 

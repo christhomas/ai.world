@@ -26,6 +26,23 @@ export interface Pitch {
  */
 export class Market {
   private readonly stalls = new Map<string, Stall>();
+  /**
+   * Wood a village's market has taken in, which is what its wright eventually builds a cart out
+   * of. Kept here rather than in woodcraft because a market is the thing that counts what came
+   * through it, and kept per village because a cart is built where the timber was landed.
+   */
+  private readonly woodIn = new Map<string, number>();
+
+  /** Somebody has handed goods over a counter here. */
+  took(village: string, id: string, count = 1): void {
+    if (id !== 'wood') return;
+    this.woodIn.set(village, (this.woodIn.get(village) ?? 0) + count);
+  }
+
+  /** How much wood this village's market has gathered so far. */
+  woodAt(village: string): number {
+    return this.woodIn.get(village) ?? 0;
+  }
 
   /** Take the server's description of the market, replacing whatever we thought it was. */
   receive(stalls: Stall[]): void {
