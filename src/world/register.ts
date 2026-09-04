@@ -1,6 +1,7 @@
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Person } from './people';
+import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
 
 /**
  * The living population of the world's villages: who is here today, and who has been born or died
@@ -17,7 +18,7 @@ import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, reme
 
 /** Something that happened to the population, worth telling the player and worth logging. */
 export interface Change {
-  kind: 'born' | 'died';
+  kind: 'born' | 'died' | 'lost' | 'resettled';
   id: string;
   name: string;
   village: string;
@@ -29,6 +30,8 @@ export interface Change {
 /** A village the register has been told about, so it knows how big to keep it. */
 interface Settlement {
   people: Person[];
+  /** The day the last of them died, for a place that has been emptied. */
+  emptied?: number;
   /** The size it was founded at. Births aim to hold it near this. */
   founded: number;
   houses: number;
@@ -67,7 +70,7 @@ export class Register {
    * people who have never aged, and two players who arrived on different days would disagree
    * about who lives there.
    */
-  settle(village: string, houses: number, trades: string[]): Person[] {
+  settle(village: string, houses: number, trades: string[]): readonly Person[] {
     const known = this.villages.get(village);
     if (known) return known.people;
 
@@ -81,13 +84,67 @@ export class Register {
   /** The day the register has caught up to. */
   get today(): number { return this.day; }
 
-  /** Everybody alive in a village, or an empty list for a village nobody has settled. */
-  living(village: string): Person[] {
+  /**
+   * Everybody alive in a village, or an empty list for a village nobody has settled.
+   *
+   * Readonly on purpose, and not merely as a manner of speaking: this is the register's own list,
+   * and burying people while walking it will skip half of them. Take a copy before you change
+   * anything about who is alive.
+   */
+  living(village: string): readonly Person[] {
     return this.villages.get(village)?.people ?? [];
   }
 
-  /** Everybody alive anywhere. */
-  everybody(): Person[] {
+  /** How a village is doing, which is a subtraction rather than a system. */
+  fortune(village: string): Fortune {
+    const here = this.villages.get(village);
+    if (!here) return 'well';
+    return fortuneOf(here.people.length, here.founded);
+  }
+
+  /** The day a village emptied, or null for one that still has somebody in it. */
+  emptiedOn(village: string): number | null {
+    return this.villages.get(village)?.emptied ?? null;
+  }
+
+  /** Every village this register has been told about, whatever state it is in. */
+  settled(): string[] {
+    return [...this.villages.keys()];
+  }
+
+  /**
+   * Move spare grown people from one village into an empty one.
+   *
+   * A ruin does not repopulate itself: somebody has to walk there. So this is the only way a lost
+   * village comes back, and it costs the neighbour the people it sends, which is what stops a
+   * region quietly healing everything at once while the player is elsewhere.
+   */
+  resettle(lost: string, from: string, day: number): Change[] {
+    const ruin = this.villages.get(lost);
+    const neighbour = this.villages.get(from);
+    if (!ruin || !neighbour || ruin.people.length > 0) return [];
+    if (day - (ruin.emptied ?? day) < FORTUNE.RESETTLE_AFTER) return [];
+
+    const grown = grownFolk(neighbour.people, day, LIFE.CHILD_UNTIL);
+    const spare = Math.floor(neighbour.people.length - neighbour.founded * FORTUNE.SPARE_ABOVE);
+    const sending = Math.min(spare, Math.max(0, grown.length - 2), Math.ceil(ruin.founded / 3));
+    if (sending <= 0) return [];
+
+    const changes: Change[] = [];
+    for (const settler of grown.slice(0, sending)) {
+      neighbour.people.splice(neighbour.people.indexOf(settler), 1);
+      // they keep their name and their memories: this is the same person, in a new place
+      settler.village = lost;
+      settler.knows = [];
+      ruin.people.push(settler);
+      changes.push({ kind: 'resettled', id: settler.id, name: settler.name, village: lost, day });
+    }
+    ruin.emptied = undefined;
+    return changes;
+  }
+
+  /** Everybody alive anywhere. See `living` about holding on to it. */
+  everybody(): readonly Person[] {
     return [...this.villages.values()].flatMap((v) => v.people);
   }
 
@@ -134,12 +191,20 @@ export class Register {
    * same place as the village that watched it happen. The gap is filled the following morning.
    */
   private liveADay(name: string, village: Settlement, day: number): Change[] {
-    return [
+    const changes = [
       ...this.buryTheOld(village, day),
       ...this.fillTheGaps(name, village, day),
       ...this.growUp(name, village, day),
       ...this.takeTheKilled(village, day),
     ];
+    // A village losing its last soul is worth saying out loud, once. It is noticed here rather
+    // than counted at the top of the day because the killing that emptied it may have happened
+    // hours ago, out in the world, with nobody keeping score.
+    if (village.people.length === 0 && village.emptied === undefined) {
+      village.emptied = day;
+      changes.push({ kind: 'lost', id: name, name, village: name, day });
+    }
+    return changes;
   }
 
   /** The ones something with teeth got to, on the day it got to them. */
@@ -193,6 +258,10 @@ export class Register {
   private fillTheGaps(name: string, village: Settlement, day: number): Change[] {
     const missing = village.founded - village.people.length;
     if (missing <= 0) return [];
+    // a village past saving does not save itself. That is what makes arriving in time matter:
+    // below the line there are not enough hands to keep the place going, and no amount of waiting
+    // will change it, only somebody dealing with whatever is doing the killing
+    if (!canRecover(fortuneOf(village.people.length, village.founded))) return [];
 
     const rng = this.streamFor(name, day);
     const wanted = Math.min(missing, Math.max(1, Math.round(village.founded * BIRTH_RATE)));

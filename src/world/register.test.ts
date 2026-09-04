@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from './register';
 import { LIFE, ageOf, firstNameOf, stageOf, surnameOf, type Person } from './people';
+import { FORTUNE } from './fortunes';
 
 const TRADES = ['farmer', 'hunter', 'seller'];
-const settle = (register: Register, houses = 6): Person[] => register.settle('Ashford', houses, TRADES);
+const settle = (register: Register, houses = 6): readonly Person[] => register.settle('Ashford', houses, TRADES);
 
 /**
  * The two things worth pinning are the ones the rest of the game leans on: two players who have
@@ -187,6 +188,72 @@ describe('the village register', () => {
       if (stageOf(orphan, 300) === 'baby') continue;
       expect(orphan.knows.length).toBeGreaterThan(0);
     }
+  });
+
+  it('knows the difference between a village in trouble and one that is finished', () => {
+    const register = new Register(60);
+    const village = settle(register);
+    expect(register.fortune('Ashford')).toBe('well');
+
+    const kill = (n: number): void => {
+      for (const victim of [...register.living('Ashford')].slice(0, n)) register.bury(victim.id, 1);
+    };
+    kill(Math.ceil(village.length * 0.4));
+    expect(register.fortune('Ashford')).toBe('struggling');
+    kill(Math.ceil(register.living('Ashford').length * 0.6));
+    expect(register.fortune('Ashford')).toBe('failing');
+  });
+
+  it('will not refill a village that is past saving, however long it is left', () => {
+    const register = new Register(61);
+    const village = settle(register);
+    for (const victim of [...village].slice(0, village.length - 1)) register.bury(victim.id, 1);
+    expect(register.fortune('Ashford')).toBe('failing');
+
+    register.advance(60);
+    expect(register.living('Ashford').length, 'a failing village must not heal itself').toBeLessThan(3);
+  });
+
+  it('says so, once, on the day a village loses its last soul', () => {
+    const register = new Register(62);
+    const village = settle(register);
+    for (const victim of [...village]) register.bury(victim.id, 1);
+
+    const lost = register.advance(3).filter((c) => c.kind === 'lost');
+    expect(lost.map((c) => c.village)).toEqual(['Ashford']);
+    expect(register.fortune('Ashford')).toBe('lost');
+    expect(register.advance(20).filter((c) => c.kind === 'lost')).toEqual([]);
+  });
+
+  it('lets a neighbour put people back into a ruin, but not straight away', () => {
+    const register = new Register(63);
+    settle(register);
+    register.settle('Fernmoor', 9, TRADES);           // a bigger place, with people to spare
+    for (const victim of [...register.living('Ashford')]) register.bury(victim.id, 1);
+    register.advance(3);
+
+    expect(register.resettle('Ashford', 'Fernmoor', 5), 'too soon').toEqual([]);
+    const moved = register.resettle('Ashford', 'Fernmoor', 3 + FORTUNE.RESETTLE_AFTER);
+    expect(moved.length).toBeGreaterThan(0);
+    expect(register.living('Ashford').length).toBe(moved.length);
+    expect(register.fortune('Ashford')).not.toBe('lost');
+    // and it cost the neighbour the people it sent, so a region does not quietly heal itself
+    for (const settler of moved) {
+      expect(register.living('Fernmoor').some((p) => p.id === settler.id)).toBe(false);
+    }
+  });
+
+  it('will not let a neighbour beggar itself to resettle a ruin', () => {
+    const register = new Register(64);
+    settle(register);
+    register.settle('Thinby', 4, TRADES);
+    for (const victim of [...register.living('Ashford')]) register.bury(victim.id, 1);
+    // thin the neighbour out until it has nobody spare
+    const thin = register.living('Thinby');
+    for (const person of [...thin].slice(0, Math.floor(thin.length / 2))) register.bury(person.id, 1);
+    register.advance(3);
+
+    expect(register.resettle('Ashford', 'Thinby', 3 + FORTUNE.RESETTLE_AFTER)).toEqual([]);
   });
 
   it('holds only the living, so what is saved cannot grow without bound', () => {
