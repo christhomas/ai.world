@@ -52,6 +52,12 @@ export interface AnimalKind {
   climb?: number;
   /** Damage per bite for predators that attack the hero. */
   dangerous?: number;
+  /**
+   * Somebody's property. It can be killed like anything else, and the village will find out.
+   * Kept on the kind rather than worked out from where it is standing, because a cow that has
+   * wandered off is still a cow that belongs to whoever it wandered off from.
+   */
+  owned?: boolean;
   /** Hit points; creatures with hp can be killed by the hero. */
   hp?: number;
   /** Gold dropped when killed. */
@@ -124,7 +130,7 @@ export const KINDS: Record<string, AnimalKind> = {
   ...MONSTER_KINDS,
   ...VILLAIN_KINDS,
   cow: {
-    id: 'cow', label: 'Cow', emoji: '🐄', scale: 1.15, speed: 0.9, runSpeed: 3, herd: [3, 6], behaviour: 'graze', timid: true,
+    id: 'cow', label: 'Cow', emoji: '🐄', scale: 1.15, speed: 0.9, runSpeed: 3, herd: [3, 6], behaviour: 'graze', timid: true, hp: 6, owned: true, drop: { id: 'meat', chance: 1 },
     palettes: [[0xf2f2f2], [0x6b4a2b], [0x2b2b2b], [0xd9c3a3]],
     names: ['Bessie', 'Daisy', 'Clover', 'Buttercup', 'Maple', 'Moo'],
     lines: ['Moooo~', 'Got hay?', '*chews cud*', '*swishes tail*'],
@@ -142,7 +148,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   sheep: {
-    id: 'sheep', label: 'Sheep', emoji: '🐑', scale: 0.85, speed: 0.9, runSpeed: 3.2, herd: [4, 8], behaviour: 'graze', timid: true,
+    id: 'sheep', label: 'Sheep', emoji: '🐑', scale: 0.85, speed: 0.9, runSpeed: 3.2, herd: [4, 8], behaviour: 'graze', timid: true, hp: 4, owned: true, drop: { id: 'meat', chance: 1 },
     palettes: [[0xf4f1e6], [0xe8e0cc], [0x3a3a3a]],
     names: ['Dolly', 'Woolly', 'Shaun', 'Baa', 'Fluff', 'Nimbus'],
     lines: ['Baaa.', '*nibbles*', '*stares blankly*', 'Baa?'],
@@ -153,7 +159,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   horse: {
-    id: 'horse', label: 'Horse', emoji: '🐴', scale: 1.25, speed: 1.4, runSpeed: 5, herd: [2, 4], behaviour: 'graze', timid: true,
+    id: 'horse', label: 'Horse', emoji: '🐴', scale: 1.25, speed: 1.4, runSpeed: 5, herd: [2, 4], behaviour: 'graze', timid: true, hp: 8, owned: true, drop: { id: 'meat', chance: 1 },
     palettes: [[0x7a4a2a, 0x2b1a10], [0x2b2b2b, 0x111111], [0xe8e0d0, 0xcfc4b0], [0xb5652f, 0xf0e8d8]],
     names: ['Epona', 'Storm', 'Chestnut', 'Willow', 'Comet', 'Dusty'],
     lines: ['*neighs*', '*snorts*', '*stamps hoof*', 'Nicker~'],
@@ -166,7 +172,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   chicken: {
-    id: 'chicken', label: 'Chicken', emoji: '🐔', scale: 0.75, speed: 1.2, runSpeed: 3.5, herd: [3, 6], behaviour: 'hop', timid: true,
+    id: 'chicken', label: 'Chicken', emoji: '🐔', scale: 0.75, speed: 1.2, runSpeed: 3.5, herd: [3, 6], behaviour: 'hop', timid: true, hp: 1, owned: true, drop: { id: 'meat', chance: 1 },
     palettes: [[0xffffff], [0xc9803a], [0x3a3a3a]],
     names: ['Nugget', 'Clucky', 'Pecky', 'Henrietta', 'Bawk'],
     lines: ['Bawk!', '*pecks*', 'Cluck~', 'BUG!'],
@@ -251,7 +257,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   camel: {
-    id: 'camel', label: 'Camel', emoji: '🐪', scale: 1.3, speed: 1.0, runSpeed: 3.5, herd: [2, 4], behaviour: 'graze', timid: true,
+    id: 'camel', label: 'Camel', emoji: '🐪', scale: 1.3, speed: 1.0, runSpeed: 3.5, herd: [2, 4], behaviour: 'graze', timid: true, hp: 8, owned: true, drop: { id: 'meat', chance: 1 },
     palettes: [[0xc9a26a], [0xb08a50], [0xd8bb8a]],
     names: ['Sahara', 'Dune', 'Sirocco', 'Mirage', 'Amber'],
     lines: ['*chews slowly*', '*spits*', '*hums*', '*blinks lazily*'],

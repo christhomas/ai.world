@@ -37,6 +37,10 @@ export interface SwingResult {
  */
 export function deedOf(killed: Entity): Deed | null {
   if (PEOPLE.has(killed.kind.id)) return 'murder';
+  // somebody's cow is a year of their work, and killing it for the meat is a thing you did to
+  // them. Most of what it costs is local and is held by the village itself; this is only the
+  // part the whole country ever hears about
+  if (killed.kind.owned === true) return 'rustling';
   const saved = killed.target;
   if (saved && !saved.dead && PEOPLE.has(saved.kind.id)) return 'rescue';
   return null;

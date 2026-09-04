@@ -39,6 +39,8 @@ export interface GameStateJson {
   jail?: JailSave;
   /** Which villages somebody agreed to clear the trouble from. Written by main.ts, like `gifts`. */
   rescues?: Record<string, Kept>;
+  /** What each village holds against them, which fades from the day it was earned. */
+  grudges?: Record<string, Held>;
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
   /** What is planted where. */
@@ -62,6 +64,7 @@ import { DAY_LENGTH } from '../../server/protocol';
 import type { Bond } from './gifts';
 import type { JailSave } from './jail';
 import type { Kept } from './rescue';
+import type { Held } from './grudge';
 
 /** Real seconds per in-game day, shared with the server so both keep the same time. */
 export { DAY_LENGTH };

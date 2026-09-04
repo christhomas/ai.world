@@ -68,6 +68,7 @@ import { Standing } from './game/standing';
 import { Jail, clockAt, toldOnWaking, windOn } from './game/jail';
 import { Gifts, type Kindness } from './game/gifts';
 import { Rescues } from './game/rescue';
+import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
 import { Nemesis, type Realm } from './game/nemesis';
 import { Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band } from './game/roaming';
 import { HIRE, Hires } from './game/hire';
@@ -239,6 +240,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const gifts = new Gifts(saved?.state?.gifts);
   /** Which villages somebody agreed to save, and what each of them owes them for it. */
   const rescues = new Rescues(saved?.state?.rescues);
+  /**
+   * What each village holds against the hero. Kept apart from the good and evil scale because
+   * killing a man's cow is that village's business and not the whole country's.
+   */
+  const grudges = new Grudges(saved?.state?.grudges);
   /** Where Old Nettle is up to: what he is doing, whether he is held, and when he is next abroad. */
   const nemesis = Nemesis.from(seed, saved?.nemesis);
   /** Everything his cycle needs to reach into, gathered when it is asked for rather than held. */
@@ -331,7 +337,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save() },
       manifest: manifest.toJSON(),
       nemesis: nemesis.toJSON(),
       roaming: roaming.save(),
@@ -421,6 +427,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     talkCtx.time = state.time;
     talkCtx.day = state.day;
     heroFace();                                 // in case they have put a helmet on since last time
+    // a shopkeeper who has heard what you did to somebody's animals takes their opinion out of
+    // your purse, whether or not they were the one who owned them
+    talkCtx.markup = grudges.markup(e.herd.tag, state.day);
     // an innkeeper you have been good to stops charging you, and does not go back to charging:
     // that is the difference between a favour and a discount, and it is why generosity is worth
     // more than the gold it costs
@@ -520,6 +529,25 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sampler.sampleTile(tx, tz, tile);
     going = goingOf(tile);
     return going;
+  };
+
+  /**
+   * Somebody's animal has been killed for the meat, and the village it belonged to finds out.
+   *
+   * The village nearest where it fell is the one that owns it, which is not a rule so much as an
+   * observation: a cow does not wander far. Word travels because a village here is twenty people
+   * who carry each other's news, so it lands in the memories of whoever is alive to hold it, and
+   * they will say so when you next stop to talk.
+   */
+  const rustled = (beast: Entity): string => {
+    const near = structures.villages.reduce((best, v) =>
+      Math.hypot(v.x - beast.x, v.z - beast.z) < Math.hypot(best.x - beast.x, best.z - beast.z) ? v : best);
+    grudges.slighted(near.name, state.day);
+    for (const person of [...register.living(near.name)].slice(0, GRUDGE.WORD_REACHES)) {
+      remember(person, { what: 'robbed', who: `${beast.kind.label} of ${near.name}`, day: state.day });
+    }
+    persist();
+    return saidOfRegard(grudges.regard(near.name, state.day), near.name);
   };
 
   /**
@@ -734,10 +762,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.thud();
     if (res.killed.length > 0) {
       sound.chime();
-      for (const e of res.killed) { interactions.fell(e.kind.id, e.x, e.z); interactions.troubleKilled(e.kind.id, e.x, e.z); }
+      const rustling: string[] = [];
+      for (const e of res.killed) {
+        interactions.fell(e.kind.id, e.x, e.z);
+        interactions.troubleKilled(e.kind.id, e.x, e.z);
+        if (e.kind.owned === true) rustling.push(rustled(e));
+      }
       const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
       const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
       hud.flash(won.length ? `Defeated ${names} (+${won.join(', ')})` : `Defeated ${names}`);
+      // said after the kill, because what the village now thinks of you outlasts the meat
+      if (rustling.length > 0) hud.flash(rustling[rustling.length - 1]);
       persist();
     }
     // said last so it is the line left on the screen: crossing into a worse standing is the more
@@ -767,10 +802,16 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.thud();
     if (res.killed.length > 0) {
       sound.chime();
-      for (const e of res.killed) { interactions.fell(e.kind.id, e.x, e.z); interactions.troubleKilled(e.kind.id, e.x, e.z); }
+      const rustling: string[] = [];
+      for (const e of res.killed) {
+        interactions.fell(e.kind.id, e.x, e.z);
+        interactions.troubleKilled(e.kind.id, e.x, e.z);
+        if (e.kind.owned === true) rustling.push(rustled(e));
+      }
       const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
       const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
       hud.flash(won.length ? `Shot ${names} (+${won.join(', ')})` : `Shot ${names}`);
+      if (rustling.length > 0) hud.flash(rustling[rustling.length - 1]);
       persist();
     }
     if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
@@ -792,8 +833,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.killed.length > 0) {
-      for (const e of res.killed) { interactions.fell(e.kind.id, e.x, e.z); interactions.troubleKilled(e.kind.id, e.x, e.z); }
+      const rustling: string[] = [];
+      for (const e of res.killed) {
+        interactions.fell(e.kind.id, e.x, e.z);
+        interactions.troubleKilled(e.kind.id, e.x, e.z);
+        if (e.kind.owned === true) rustling.push(rustled(e));
+      }
       hud.flash(`Withered ${res.killed.map((e: Entity) => e.kind.label).join(', ')}`);
+      if (rustling.length > 0) hud.flash(rustling[rustling.length - 1]);
       persist();
     }
     if (res.gold > 0) takeShare(res.gold);

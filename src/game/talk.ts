@@ -23,6 +23,11 @@ export interface TalkCtx {
   post?: Post;
   /** Taking a room for the night, which only an innkeeper can offer. */
   room?: Room;
+  /**
+   * What this village adds to a price for the look of you, as a share. A shopkeeper who has heard
+   * what you did to somebody's animals takes their opinion out of your purse.
+   */
+  markup?: number;
   /** Being patched up, which only a doctor can offer. */
   mending?: Mending;
   /** Who lives in the villages, so a resident can talk about their family and their losses. */
@@ -372,14 +377,19 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     };
   };
 
+  /** What they are asking today, which is the price plus whatever they think of you. */
+  const asking = (item: { price: number }): number => Math.round(item.price * (1 + (ctx.markup ?? 0)));
+
   const buyMenu = (): DialogueNode => ({
     speaker, emoji, face,
-    pages: [`Here's the stock. ${purse()}`],
+    pages: [(ctx.markup ?? 0) > 0
+      ? `Here's the stock, and my prices are my prices. ${purse()}`
+      : `Here's the stock. ${purse()}`],
     choices: [
       ...def.items.map((id) => {
         const item = ITEMS[id];
         const owned = ctx.state.owns(id) ? ' ✓' : '';
-        return { label: `${item.emoji} ${item.name} — ${item.price}g${owned}`, next: () => buy(item.id) };
+        return { label: `${item.emoji} ${item.name} — ${asking(item)}g${owned}`, next: () => buy(item.id) };
       }),
       { label: 'Back', next: root },
     ],
@@ -388,20 +398,21 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   /** Purchases go into the rucksack; wearing them is the player's business. */
   const buy = (id: string): DialogueNode => {
     const item = ITEMS[id];
-    if (!ctx.state.inventory.canAfford(item)) {
+    const price = asking(item);
+    if (ctx.state.inventory.gold < price) {
       return {
         speaker, emoji, face,
-        pages: [`That's ${item.price} gold, friend. You've only got ${ctx.state.inventory.gold}.`],
+        pages: [`That's ${price} gold, friend. You've only got ${ctx.state.inventory.gold}.`],
         choices: [{ label: 'Back', next: buyMenu }, { label: 'Leave', next: () => null }],
       };
     }
-    ctx.state.inventory.gold -= item.price;
+    ctx.state.inventory.gold -= price;
     ctx.state.give(item.id, 1);
     ctx.onInventoryChange();
     const note = itemSummary(item);
     return {
       speaker, emoji, face,
-      pages: [`${item.name}, good choice. That's ${item.price} gold.`, `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`],
+      pages: [`${item.name}, good choice. That's ${price} gold.`, `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`],
       choices: [{ label: 'Buy more', next: buyMenu }, { label: 'Sell something', next: sellMenu }, { label: 'Done', next: () => null }],
     };
   };

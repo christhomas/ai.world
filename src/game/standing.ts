@@ -28,6 +28,12 @@ export const LAW = {
    * where three dead wolves buy a dead farmer is a country with a price list rather than a law.
    */
   RESCUE: 12,
+  /**
+   * Killing somebody's animal for the meat. A fraction of a murder, because it is: a beast is a
+   * year of somebody's work rather than their life. Most of what it costs is local, and that is
+   * held by the village in grudge.ts rather than by the country here.
+   */
+  RUSTLING: -9,
   /** And carrying the wounded to the doctor, which is worth more because it costs you the walk. */
   MERCY: 20,
   /**
@@ -42,11 +48,12 @@ export const LAW = {
 } as const;
 
 /** Something you did that the country has an opinion about. */
-export type Deed = 'murder' | 'rescue' | 'mercy';
+export type Deed = 'murder' | 'rustling' | 'rescue' | 'mercy';
 
 /** What each deed moves the scale by. */
 const WEIGHT: Record<Deed, number> = {
   murder: LAW.MURDER,
+  rustling: LAW.RUSTLING,
   rescue: LAW.RESCUE,
   mercy: LAW.MERCY,
 };
