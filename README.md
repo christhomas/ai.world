@@ -295,6 +295,36 @@ keeps one small JSON file per seed: the time of day, the short list of things pl
 the market, the post shelf, and every name it has met. Everything else — who is where, what they
 said, which monster moved — passes through and is gone.
 
+### Behaviour lives in files
+
+Every creature's mind is written in `behaviours/creatures.json`, in verbs the game declares:
+
+```json
+"prowler": {
+  "note": "Wolves, bears, foxes. They will take on somebody unarmed; a drawn sword changes their mind.",
+  "first": [
+    { "when": { "ask": "armed" },
+      "then": { "when": { "ask": "within", "with": { "tiles": 3.5 } },
+                "then": { "do": "flee", "with": { "seconds": 2 } } } },
+    { "when": { "not": { "ask": "armed" } },
+      "then": { "when": { "ask": "within", "with": { "tiles": 7 } },
+                "then": { "all": [{ "do": "stalk" }, { "anyway": { "do": "bite" } }] } } },
+    { "when": { "ask": "idle" }, "then": { "do": "wander", "with": { "tiles": 8 } } }
+  ]
+}
+```
+
+`src/core/behaviour.ts` is the algebra those files are built from — eight ways of combining
+decisions, of which the two that matter are `latch` (a selector that goes back to the branch still
+running, so a charge is seen through) and `steps` (a sequence that resumes where it got to, so a
+guard is asked once at the start of an action rather than on every tick of it).
+
+`src/entities/verbs.ts` declares the vocabulary: what `circle`, `charge`, `stalk`, `bite`, `graze`,
+`wander`, `patrol`, `dive` and `flee` actually mean, and what `within`, `armed`, `afloat`,
+`dangerous`, `wounded` and `chance` actually ask. A file may only use those words; asking for one
+that does not exist fails at load with the path to the node that asked and a list of what it could
+have said instead, and the tests compile every shipped file so that lands in the build.
+
 ### Layout
 
 ```
@@ -305,7 +335,8 @@ src/
   workers/     chunk generation worker
   dungeon/     room and corridor generator, walkability, dungeon scene
   interior/    per-building room layouts, walkability, interior scene
-  entities/    animal and character rigs, instanced renderer, behaviour, spawning, the player
+  entities/    animal and character rigs, instanced renderer, movement, spawning, the player
+               (what a creature decides lives in behaviours/, not here)
   game/        state and equipment, items, shops, quests, combat, fishing, farming,
                ferries, sailing, mounts, seasons, dialogue, audio, and the shared-world
                systems: online client, co-op floors, market, parties, duels
@@ -313,6 +344,7 @@ src/
   ui/          hud, rucksack, journal, map, dialogue, chat, player list, title, styles
   save/        persistence interface and IndexedDB implementation
 server/        wire protocol, the WebSocket server, and the world file it keeps per seed
+behaviours/    what every creature decides, as data: one tree per kind, in the game's own verbs
 chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
 ```
 
