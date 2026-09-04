@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /** Where somebody is and what they look like, sent several times a second. */
 export interface Presence {
@@ -142,6 +142,9 @@ export const EMOTES: Record<string, string> = {
 /** How long a rally point stands on everyone's map, in seconds. */
 export const PING_LIFE = 90;
 
+/** A duel is a friendly bout: nobody loses gear, gold or a life over it. */
+export const DUEL_RANGE = 2.4;
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -166,7 +169,13 @@ export type ClientMessage =
   | { type: 'party-deed'; quest: string }
   | { type: 'emote'; kind: string }
   /** A rally point dropped where you stand: your party sees it, or the whole world if you have none. */
-  | { type: 'ping'; x: number; z: number };
+  | { type: 'ping'; x: number; z: number }
+  | { type: 'duel-challenge'; to: string }
+  | { type: 'duel-answer'; from: string; yes: boolean }
+  /** A blow landed on the person you are dueling; they decide what it does to them. */
+  | { type: 'duel-hit'; damage: number }
+  /** Called off, or lost: either way the bout is over. */
+  | { type: 'duel-yield' };
 
 export type ServerMessage =
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
@@ -202,6 +211,11 @@ export type ServerMessage =
   /** Somebody would rather travel alone. */
   | { type: 'party-declined'; name: string }
   | { type: 'party-deed'; quest: string; from: string }
+  | { type: 'duel-challenged'; from: string; fromName: string }
+  | { type: 'duel-begun'; withId: string; withName: string }
+  | { type: 'duel-struck'; damage: number; from: string }
+  /** The bout is over: `winner` is the id of whoever was left standing, or empty if called off. */
+  | { type: 'duel-over'; winner: string; name: string }
   | { type: 'emoted'; id: string; name: string; kind: string }
   | { type: 'pinged'; x: number; z: number; name: string }
   | { type: 'error'; reason: string };

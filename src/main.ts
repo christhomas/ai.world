@@ -18,6 +18,7 @@ import { COMBAT, spoils, swing } from './game/combat';
 import { Market, RENT, askingPrice, lotLine } from './game/market';
 import { PARTY_LIMIT, Party } from './game/party';
 import { PlayerList } from './ui/players';
+import { Duel } from './game/duel';
 import { PING_LIFE, STALL_DAYS } from '../server/protocol';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
@@ -192,6 +193,35 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       state.version++;
       hud.flash(reason);
     },
+    onDuelWord: (line, challenge) => {
+      if (!challenge) { chat.line(line, 'sys'); hud.flash(line); return; }
+      dialogue.start({ speaker: challenge.name, emoji: '⚔️', pages: [line, 'Nothing is at stake but the bragging.'], choices: [
+        { label: 'Draw your sword', next: () => { online.answerChallenge(challenge.from, true); return null; } },
+        { label: 'Decline', next: () => { online.answerChallenge(challenge.from, false); return null; } },
+      ] });
+    },
+    onDuelBegun: (withId, withName) => {
+      duel.begin(withId, withName, state.maxHpTotal);
+      sound.chime();
+      chat.line(`A bout with ${withName} begins. First to run out of breath loses.`, 'sys');
+      hud.flash(`Duel with ${withName}!`);
+    },
+    onDuelStruck: (damage) => {
+      if (!duel.struck(damage)) { sound.thud(); hud.flash(duel.readout()); return; }
+      // out of breath: say so, and the server tells both sides it is over
+      online.yieldDuel();
+      hud.flash(`${duel.opponentName} wins the bout.`);
+    },
+    onDuelOver: (winner, name) => {
+      // `name` is whoever gave it up, which is you when you were the one who ran out of breath
+      const opponent = duel.opponentName || 'your opponent';
+      const line = winner === '' ? `${name} would rather not fight.`
+        : winner === online.id ? `${name} yields. The bout is yours.`
+        : `You yield. ${opponent} takes the bout.`;
+      duel.end();
+      chat.line(line, 'sys');
+      hud.flash(line);
+    },
     onEmote: (id, name, emoji, kind) => {
       others.emote(id, emoji);
       chat.line(`${name} ${kind}s. ${emoji}`, 'sys');
@@ -236,6 +266,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
   const market = new Market();
   const party = new Party();
+  const duel = new Duel();
   /** Rally points people have dropped, each fading in its own time. */
   const rally: Array<{ x: number; z: number; name: string; left: number }> = [];
   const playerList = new PlayerList();
@@ -364,9 +395,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (!target) { hud.flash('Nobody close enough to trade with.'); return; }
     const goods = tradableItems(state).slice(0, 5);
     dialogue.start({
-      speaker: `Trade with ${target.name}`, emoji: '🤝',
+      speaker: target.name, emoji: '🤝',
       pages: [`You have ${state.inventory.gold} gold and ${goods.length} kind${goods.length === 1 ? '' : 's'} of goods to hand.`],
       choices: [
+        ...(duel.active ? [] : [{ label: 'Challenge to a friendly bout', next: () => {
+          online.challenge(target.id);
+          hud.flash(`Challenged ${target.name} to a duel.`);
+          return null;
+        } }]),
         ...(state.inventory.gold >= 25 ? [{ label: 'Offer 25 gold', next: () => { online.offer(target.id, 25, []); chat.line(`You offered ${target.name} 25 gold.`, 'sys'); return null; } }] : []),
         ...goods.map(([id, n]) => ({
           label: `Offer ${ITEMS[id].emoji} ${ITEMS[id].name}${n > 1 ? ` (of ${n})` : ''}`,
@@ -1037,6 +1073,16 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     player.entity.attackCooldown = 0.45;
     const world = places.underground?.world ?? chunks;
     const manager = places.underground?.monsters ?? entities;
+    if (duel.active) {
+      const them = online.players.get(duel.opponent);
+      if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
+        duel.landed(state.attack);
+        online.duelHit(state.attack);
+        sound.thud();
+        hud.flash(duel.readout());
+        return;
+      }
+    }
     const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring);
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.hit.length === 0) { sound.select(); return; }

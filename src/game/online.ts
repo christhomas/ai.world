@@ -36,6 +36,14 @@ export interface OnlineEvents {
   onMail: (letters: Letter[]) => void;
   /** Word from the post shelf: something waiting, your parcel away, or your parcel turned down. */
   onMailWord: (line: string, kind: 'waiting' | 'sent' | 'refused') => void;
+  /** Somebody would like a friendly bout, or has answered your own asking. */
+  onDuelWord: (line: string, challenge: { from: string; name: string } | null) => void;
+  /** The bout has begun against this person. */
+  onDuelBegun: (withId: string, withName: string) => void;
+  /** A blow landed on you in the ring. */
+  onDuelStruck: (damage: number) => void;
+  /** The bout is over: the winner's id, empty when it was called off. */
+  onDuelOver: (winner: string, name: string) => void;
   /** Somebody made a gesture: show it over their head. */
   onEmote: (id: string, name: string, emoji: string, kind: string) => void;
   /** A rally point somebody dropped, to stand on the map for a while. */
@@ -197,6 +205,18 @@ export class Online {
       case 'party-deed':
         this.events.onPartyDeed(message.quest, message.from);
         break;
+      case 'duel-challenged':
+        this.events.onDuelWord(`${message.fromName} challenges you to a friendly bout.`, { from: message.from, name: message.fromName });
+        break;
+      case 'duel-begun':
+        this.events.onDuelBegun(message.withId, message.withName);
+        break;
+      case 'duel-struck':
+        this.events.onDuelStruck(message.damage);
+        break;
+      case 'duel-over':
+        this.events.onDuelOver(message.winner, message.name);
+        break;
       case 'emoted':
         this.events.onEmote(message.id, message.name, EMOTES[message.kind] ?? '❔', message.kind);
         break;
@@ -310,6 +330,23 @@ export class Online {
   /** Drop a rally point where you stand. */
   ping(x: number, z: number): void {
     if (this.connected) this.send({ type: 'ping', x, z });
+  }
+
+  /** Ask somebody for a friendly bout, answer their asking, land a blow, or give it up. */
+  challenge(to: string): void {
+    if (this.connected) this.send({ type: 'duel-challenge', to });
+  }
+
+  answerChallenge(from: string, yes: boolean): void {
+    if (this.connected) this.send({ type: 'duel-answer', from, yes });
+  }
+
+  duelHit(damage: number): void {
+    if (this.connected) this.send({ type: 'duel-hit', damage });
+  }
+
+  yieldDuel(): void {
+    if (this.connected) this.send({ type: 'duel-yield' });
   }
 
   say(text: string): void {

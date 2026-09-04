@@ -29,6 +29,9 @@ interface Client {
   party: Party | null;
   /** Ids this client has asked to travel with, so an answer can be trusted. */
   invited: Set<string>;
+  /** Who this client has challenged to a duel, and who they are dueling now. */
+  challenged: Set<string>;
+  duel: Client | null;
 }
 
 /** A handful of players travelling together. Parties live only as long as the people in them. */
@@ -98,6 +101,15 @@ const leaveParty = (client: Client): void => {
   tellParty(party);
 };
 
+/** Close a bout for both sides, naming whoever was left standing. */
+const endDuel = (client: Client, winner: string, loserName: string): void => {
+  const other = client.duel;
+  client.duel = null;
+  if (other) other.duel = null;
+  send(client, { type: 'duel-over', winner, name: loserName });
+  if (other) send(other, { type: 'duel-over', winner, name: loserName });
+};
+
 const server = createServer((_req, res) => {
   const players = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
   res.writeHead(200, { 'content-type': 'text/plain' });
@@ -125,6 +137,7 @@ wss.on('connection', (socket) => {
       const id = `p${nextId++}`;
       const joining: Client = {
         socket, seed, lastSeen: Date.now(), offers: new Map(), party: null, invited: new Set(),
+        challenged: new Set(), duel: null,
         presence: {
           id, name: cleanName(message.name), x: 0, z: 0, yaw: 0, walk: 0,
           gear: [], place: 'surface', riding: 'foot',
@@ -271,6 +284,33 @@ wss.on('connection', (socket) => {
         for (const other of audience) if (other !== me) send(other, note);
         break;
       }
+      case 'duel-challenge': {
+        const target = [...room.clients].find((c) => c.presence.id === message.to);
+        if (!target || target === me || me.duel || target.duel) break;
+        me.challenged.add(target.presence.id);
+        send(target, { type: 'duel-challenged', from: me.presence.id, fromName: me.presence.name });
+        break;
+      }
+      case 'duel-answer': {
+        const challenger = [...room.clients].find((c) => c.presence.id === message.from);
+        if (!challenger || !challenger.challenged.delete(me.presence.id)) break;
+        if (!message.yes) { send(challenger, { type: 'duel-over', winner: '', name: me.presence.name }); break; }
+        if (challenger.duel || me.duel) break;
+        challenger.duel = me;
+        me.duel = challenger;
+        send(challenger, { type: 'duel-begun', withId: me.presence.id, withName: me.presence.name });
+        send(me, { type: 'duel-begun', withId: challenger.presence.id, withName: challenger.presence.name });
+        break;
+      }
+      case 'duel-hit': {
+        if (!me.duel) break;
+        send(me.duel, { type: 'duel-struck', damage: Math.max(0, Math.min(99, Math.floor(message.damage))), from: me.presence.id });
+        break;
+      }
+      case 'duel-yield': {
+        endDuel(me, me.duel ? me.duel.presence.id : '', me.presence.name);
+        break;
+      }
       case 'trade-offer': {
         const target = [...room.clients].find((c) => c.presence.id === message.to);
         if (!target) break;
@@ -306,6 +346,7 @@ wss.on('connection', (socket) => {
     client = null;
     if (!room) return;
     room.clients.delete(leaving);
+    if (leaving.duel) endDuel(leaving, leaving.duel.presence.id, leaving.presence.name);
     leaveParty(leaving);
     broadcast(leaving.seed, { type: 'left', id: leaving.presence.id });
     if (room.clients.size === 0) {
