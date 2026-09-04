@@ -86,6 +86,15 @@
       <div class="value-display" id="hemisphereValue">1.0</div>
     </div>
     <div class="slider-group">
+      <label>Graphics</label>
+      <select id="qualitySelect">
+        <option value="high">High — everything, full resolution</option>
+        <option value="medium">Medium — shadows, some sharpening</option>
+        <option value="low">Low — no shadows, plain resolution</option>
+      </select>
+      <div class="value-display" id="gpuName">-</div>
+    </div>
+    <div class="slider-group">
       <label>Volume</label>
       <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.6" />
       <div class="value-display" id="volumeValue">60%</div>

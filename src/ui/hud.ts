@@ -1,4 +1,4 @@
-import type { SceneRig } from '../render/scene';
+import { describeGpu, type Quality, type SceneRig } from '../render/scene';
 import { ITEMS, SLOTS } from '../game/items';
 import type { GameState } from '../game/state';
 import type { Quest } from '../game/quests';
@@ -28,6 +28,8 @@ export class Hud {
   onOpenRucksack: (() => void) | null = null;
   /** Options sliders moved: (sun, hemisphere) daytime intensities. */
   onLightChange: ((sun: number, hemi: number) => void) | null = null;
+  /** How hard the renderer should work per frame. */
+  onQualityChange: ((level: Quality) => void) | null = null;
 
   constructor(rig: SceneRig, seed: number) {
     const sun = $<HTMLInputElement>('sunlightSlider');
@@ -45,6 +47,20 @@ export class Hud {
     const volV = $('volumeValue');
     vol.addEventListener('input', () => { volV.textContent = `${Math.round(+vol.value * 100)}%`; this.onVolumeChange?.(+vol.value); });
     this.setVolume = (v: number) => { vol.value = String(v); volV.textContent = `${Math.round(v * 100)}%`; };
+    const quality = $<HTMLSelectElement>('qualitySelect');
+    quality.value = rig.quality;
+    quality.addEventListener('change', () => this.onQualityChange?.(quality.value as Quality));
+
+    // say what is really drawing this: a browser quietly rendering in software looks like a slow
+    // computer, and nobody can tell the difference from inside the game
+    const gpu = describeGpu(rig.renderer);
+    const gpuEl = $('gpuName');
+    gpuEl.textContent = gpu.accelerated ? gpu.name : `${gpu.name} — hardware acceleration is off`;
+    gpuEl.classList.toggle('software', !gpu.accelerated);
+    gpuEl.title = gpu.accelerated
+      ? 'The graphics chip drawing this world'
+      : 'Your browser is drawing this world on the processor. Turn hardware acceleration on in its settings for a much faster game.';
+
     $('titleButton').addEventListener('click', () => this.onReturnToTitle?.());
     this.invEl.addEventListener('click', () => this.onOpenRucksack?.());
   }

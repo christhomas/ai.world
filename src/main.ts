@@ -3,7 +3,7 @@ import { GAMEPLAY, GRAPH, WORLD } from './core/config';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
-import { createSceneRig } from './render/scene';
+import { QUALITY, createSceneRig } from './render/scene';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
 import { DayCycle } from './render/daycycle';
@@ -98,6 +98,7 @@ async function boot(): Promise<void> {
 
 function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number, url: URL): void {
   const rig = createSceneRig($('gameContainer'));
+  rig.setQuality(rig.quality);
   const iso = new IsoCamera();
   const input = new Input(rig.renderer.domElement);
   const props = new PropLibrary();
@@ -112,6 +113,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const chunks = new ChunkManager(rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial);
   const hud = new Hud(rig, seed);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
+  hud.onQualityChange = (level) => { rig.setQuality(level); hud.flash(`Graphics: ${QUALITY[level].label}`); };
   const mapBase = renderMapBase(graph);
   const fog = new Fog(mapBase);
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);

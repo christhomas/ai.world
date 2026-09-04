@@ -31,7 +31,7 @@ synthesised as you play.
 | **F** | Free camera |
 | **P** | Photo mode: the interface steps aside, Space takes the picture |
 | **N** | Save and return to the title, which puts the whole world away rather than leaving it running |
-| **O** | Options: light, volume, multiplayer, seed |
+| **O** | Options: light, graphics, volume, multiplayer, seed |
 
 Three save slots on the title screen. `?seed=123` opens a particular world, and `&x=100&z=-50`
 starts you somewhere in it.
@@ -228,6 +228,12 @@ one draw call per kind.
 **Rivers that only fall.** Rivers start beside highland roads and follow the road corridor
 downhill, their level never rising, so every terrace they cross becomes a waterfall. Roads cross
 them on bridges.
+
+**The graphics chip, and what it is asked for.** The options panel names the chip actually
+drawing the world, and says so plainly when a browser has quietly fallen back to software
+rendering — that looks exactly like a slow computer from the inside, and it is worth knowing the
+difference. Three quality levels change the two things that cost: the shadow pass, and how many
+pixels a Retina display is asked for.
 
 **Frames cost what they cost.** A frame is mostly the shadow pass: it was 46% of the draw calls
 and 64% of the triangles until props smaller than half a cubic tile stopped casting — a flower's
