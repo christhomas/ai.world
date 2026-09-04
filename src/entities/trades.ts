@@ -49,6 +49,14 @@ export const TRADES: Trade[] = [
     lines: ['I am only back for supplies.', 'There is a shrine four days east that nobody has opened.'],
   },
   {
+    id: 'constable', label: 'Constable', weight: 2, needs: ['square'],
+    lines: ['Keep it peaceful and we shall get along.', 'Wolves at the field again. I earn my keep.'],
+  },
+  {
+    id: 'doctor', label: 'Doctor', weight: 1, needs: ['doctor'],
+    lines: ['Sit down and let me see it.', 'I will take what you can spare. If you can spare nothing, sit longer.'],
+  },
+  {
     id: 'innkeeper', label: 'Innkeeper', weight: 1, needs: ['inn'],
     lines: ['Beds are made, whatever the hour.', 'You look like a person who has walked a long way.'],
   },

@@ -8,7 +8,7 @@ import type { ShopType } from '../world/structures';
 export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder' | 'mount' | 'stablehand';
 
 /** Places a villager's working day sends them, named so a behaviour file can say where. */
-export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods';
+export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods' | 'doctor';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
 export interface TileWorld {
@@ -118,6 +118,11 @@ export class Entity {
   purse = 0;
   /** What they are carrying to market, if anything. */
   carrying: { id: string; count: number } | null = null;
+  /**
+   * Who this creature is presently interested in: prey it has picked out, or trouble it means to
+   * break up. Null means the hero, who is everybody's default business.
+   */
+  target: Entity | null = null;
   shop: ShopType | null = null;
   /** Door tile villagers walk back to at dusk; they vanish inside on arrival. */
   /** Hidden indoors: not drawn, not interactive, until morning. */
@@ -221,6 +226,12 @@ export interface Ctx {
   quarry?: (from: Entity, within: number) => Entity | null;
   /** Take a creature out of the world: a hunter's catch. */
   removeEntity?: (prey: Entity) => void;
+  /** The nearest person to somebody: what a wolf is really looking for. */
+  nearestPerson?: (from: Entity, within: number) => Entity | null;
+  /** The nearest creature attacking somebody, for anybody whose job is to stop that. */
+  nearestTrouble?: (from: Entity, within: number) => Entity | null;
+  /** One creature hurting another, with nobody's hearts involved. */
+  strike?: (attacker: Entity, victim: Entity, damage: number) => void;
   onAttack: (e: Entity, damage: number) => void;
 }
 
@@ -329,6 +340,9 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         time: ctx.time ?? 0.5,
         quarry: ctx.quarry ?? (() => null),
         remove: ctx.removeEntity ?? (() => {}),
+        nearestPerson: ctx.nearestPerson ?? (() => null),
+        nearestTrouble: ctx.nearestTrouble ?? (() => null),
+        strike: ctx.strike ?? (() => {}),
       },
   });
 

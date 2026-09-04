@@ -8,7 +8,7 @@ import { TileType } from '../world/terrain';
 import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
 import { treeFor } from './behaviours';
 import { pickTrade } from './trades';
-import { Entity, Herd, canStand, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
+import { Entity, Herd, canStand, damageEntity, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
 
@@ -28,6 +28,16 @@ export interface ChunkSource {
 }
 
 const SPAWN_RADIUS = 4;      // chunks around the player that get creatures
+/**
+ * What the law is paid. A constable takes the whole bounty for putting down something that was
+ * attacking somebody; anybody else who does it — a hunter, a passing farmer — takes a share, which
+ * is the difference between doing the job and helping out.
+ */
+const BOUNTY = { RESCUE_SHARE: 0.3 } as const;
+
+/** Kinds that count as people: what a predator prefers, and what a constable protects. */
+const PEOPLE = new Set(['villager', 'traveller', 'shopkeeper', 'hero']);
+
 const ACTIVE_RANGE = 44;     // tiles; beyond this creatures freeze
 
 /** Spawn odds and sizes. Chances are per chunk, leashes in tiles. */
@@ -125,6 +135,11 @@ export class EntityManager {
     const ctx = {
       world: this.world, rng: this.rng, playerX, playerZ, playerArmed,
       playerAfloat: afloat, onAttack, time, treeFor,
+      quarry: (from: Entity, within: number) => this.nearestQuarry(from, within),
+      removeEntity: (prey: Entity) => this.despawnEntity(prey),
+      nearestPerson: (from: Entity, within: number) => this.nearestPerson(from, within),
+      nearestTrouble: (from: Entity, within: number) => this.nearestTrouble(from, within),
+      strike: (attacker: Entity, victim: Entity, damage: number) => this.strike(attacker, victim, damage),
     };
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
@@ -266,6 +281,66 @@ export class EntityManager {
     return this.roster.find((e) => e.rosterIndex === index) ?? null;
   }
 
+  /**
+   * The nearest wild animal worth a hunter's arrow: something that can be killed, is not a person,
+   * and is not something that would rather kill them.
+   */
+  private nearestQuarry(from: Entity, within: number): Entity | null {
+    let best: Entity | null = null;
+    let bestAway = within;
+    for (const e of this.within(from.x, from.z, within)) {
+      if (e === from || e.dead || !e.kind.hp) continue;
+      if (PEOPLE.has(e.kind.id) || (e.kind.dangerous ?? 0) > 0) continue;
+      const away = Math.hypot(e.x - from.x, e.z - from.z);
+      if (away < bestAway) { bestAway = away; best = e; }
+    }
+    return best;
+  }
+
+  /** The nearest person: somebody a wolf would rather have than a rabbit. */
+  private nearestPerson(from: Entity, within: number): Entity | null {
+    let best: Entity | null = null;
+    let bestAway = within;
+    for (const e of this.within(from.x, from.z, within)) {
+      if (e === from || e.dead || e.indoors || !PEOPLE.has(e.kind.id)) continue;
+      const away = Math.hypot(e.x - from.x, e.z - from.z);
+      if (away < bestAway) { bestAway = away; best = e; }
+    }
+    return best;
+  }
+
+  /** The nearest creature presently going for somebody: what a constable comes running about. */
+  private nearestTrouble(from: Entity, within: number): Entity | null {
+    let best: Entity | null = null;
+    let bestAway = within;
+    for (const e of this.within(from.x, from.z, within)) {
+      if (e === from || e.dead || !(e.kind.dangerous ?? 0)) continue;
+      if (!e.target || e.target.dead || !PEOPLE.has(e.target.kind.id)) continue;
+      const away = Math.hypot(e.x - from.x, e.z - from.z);
+      if (away < bestAway) { bestAway = away; best = e; }
+    }
+    return best;
+  }
+
+  /**
+   * One creature hurting another. The victim fights back or runs, and anything killed leaves the
+   * world; the hero's own hearts are handled elsewhere, because they have a HUD and a save.
+   */
+  private strike(attacker: Entity, victim: Entity, damage: number): void {
+    if (damageEntity(victim, damage, attacker.x, attacker.z, this.world)) {
+      // what a killed animal is worth to whoever killed it: a constable's bounty, a hunter's pelt
+      const bounty = victim.kind.gold?.[0] ?? 0;
+      if (bounty > 0 && PEOPLE.has(attacker.kind.id)) {
+        attacker.purse += attacker.trade === 'constable' ? bounty : Math.round(bounty * BOUNTY.RESCUE_SHARE);
+      }
+      this.despawnEntity(victim);
+      attacker.target = null;
+      return;
+    }
+    // being bitten is a good reason to notice who is biting you
+    if ((victim.kind.dangerous ?? 0) > 0) victim.target = attacker;
+  }
+
   /** Every live creature within `r` tiles, nearest first. */
   within(x: number, z: number, r: number): Entity[] {
     const hits: Array<{ e: Entity; d: number }> = [];
@@ -397,6 +472,15 @@ export class EntityManager {
     const shop = v.shops.find((s) => s.type === 'smith') ?? v.shops.find((s) => s.type === 'store') ?? inn;
     if (shop) posts.shop = [shop.doorX + 0.5, shop.doorZ + 0.5];
     if (v.stalls.length) posts.market = v.stalls[0];
+    // the surgery is the house furthest from the market: quiet, and nobody treated in a crowd
+    let quietest: [number, number] | null = null;
+    let quietestAway = -1;
+    for (const house of v.houses) {
+      const [dx, dz] = doorTile(house);
+      const away = Math.hypot(dx - v.x, dz - v.z);
+      if (away > quietestAway) { quietestAway = away; quietest = [dx + 0.5, dz + 0.5]; }
+    }
+    if (quietest) posts.doctor = quietest;
 
     // walk a ring round the village and see what is out there
     let bestHeight = -Infinity;

@@ -450,7 +450,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   traveller: {
-    id: 'traveller', label: 'Traveller', emoji: '🧑', scale: 1.0, speed: 1.3, runSpeed: 1.3, herd: [1, 2], behaviour: 'travel', timid: false,
+    id: 'traveller', label: 'Traveller', emoji: '🧑', scale: 1.0, speed: 1.3, runSpeed: 1.3, herd: [1, 2], behaviour: 'travel', timid: false, hp: 5,
     palettes: [
       [0xe74c3c, 0x2c1810], [0x3498db, 0x8b4513], [0x2ecc71, 0xffd700], [0x9b59b6, 0x6c5ce7], [0xf39c12, 0x00ced1],
       [0x1abc9c, 0xff69b4], [0xe91e63, 0x2c1810], [0x00bcd4, 0xff4500],
@@ -460,7 +460,7 @@ export const KINDS: Record<string, AnimalKind> = {
     parts: biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x334466 }),
   },
   villager: {
-    id: 'villager', label: 'Villager', emoji: '🧑‍🌾', scale: 1.0, speed: 1.1, runSpeed: 1.1, herd: [2, 4], behaviour: 'wander', timid: false,
+    id: 'villager', label: 'Villager', emoji: '🧑‍🌾', scale: 1.0, speed: 1.1, runSpeed: 1.1, herd: [2, 4], behaviour: 'wander', timid: false, hp: 6,
     palettes: [
       [0xc0392b, 0x2c1810], [0x2980b9, 0x8b4513], [0x27ae60, 0xffd700], [0x8e44ad, 0x6c5ce7], [0xd35400, 0x00ced1],
       [0x16a085, 0xff69b4], [0x7f8c8d, 0x2c1810], [0xf1c40f, 0x4a2a10],

@@ -10,6 +10,7 @@
   "seller": {
     "note": "A market pitch from dawn until the light goes, then the inn. Buys what hunters and farmers bring in.",
     "first": [
+      { "when": { "ask": "wounded", "with": { "share": 0.5 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "doctor", "within": 2 } }, { "do": "beHealed" }] } },
       { "when": { "ask": "hourBetween", "with": { "from": 0.26, "to": 0.74 } }, "then": { "do": "goTo", "with": { "post": "market" } } },
       { "when": { "ask": "hourBetween", "with": { "from": 0.74, "to": 0.86 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
       { "do": "goTo", "with": { "post": "home", "enter": true } }
@@ -17,8 +18,9 @@
   },
 
   "farmer": {
-    "note": "Out to the field early, back through the square at noon, the inn of an evening.",
+    "note": "Out to the field early, back through the square at noon, the inn of an evening. Badly hurt, the surgery comes first.",
     "first": [
+      { "when": { "ask": "wounded", "with": { "share": 0.5 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "doctor", "within": 2 } }, { "do": "beHealed" }] } },
       { "when": { "ask": "hourBetween", "with": { "from": 0.25, "to": 0.5 } }, "then": { "do": "goTo", "with": { "post": "field" } } },
       { "when": { "ask": "hourBetween", "with": { "from": 0.5, "to": 0.58 } }, "then": { "do": "goTo", "with": { "post": "square" } } },
       { "when": { "ask": "hourBetween", "with": { "from": 0.58, "to": 0.78 } }, "then": { "do": "goTo", "with": { "post": "field" } } },
@@ -28,8 +30,9 @@
   },
 
   "hunter": {
-    "note": "The whole trade in one branch: out to the woods, take something, carry it in, sell it, and spend what it fetched.",
+    "note": "The whole trade in one branch: out to the woods, take something, carry it in, sell it, and spend what it fetched. A mauling sends them to the surgery first.",
     "first": [
+      { "when": { "ask": "wounded", "with": { "share": 0.5 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "doctor", "within": 2 } }, { "do": "beHealed" }] } },
       {
         "note": "Carrying a kill? Then the market, whatever hour it is — meat does not keep.",
         "when": { "ask": "carrying" },
@@ -59,6 +62,33 @@
           ]
         }
       },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "constable": {
+    "note": "Trouble first, whatever the hour: an animal on a villager is what the job is for. Otherwise the square, the gate, and the inn.",
+    "first": [
+      {
+        "note": "Somebody being savaged outranks everything else in the day.",
+        "steps": [
+          { "do": "markTrouble", "with": { "within": 16 } },
+          { "do": "stalk" },
+          { "anyway": { "do": "bite", "with": { "damage": 2, "cooldown": 1.1, "tiles": 1.6 } } }
+        ]
+      },
+      { "do": "forget" },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.6 } }, "then": { "do": "goTo", "with": { "post": "square" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.6, "to": 0.84 } }, "then": { "do": "goTo", "with": { "post": "gate" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.84, "to": 0.95 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "doctor": {
+    "note": "In the surgery all day. Anybody who comes in gets seen, whether or not they can pay.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.86 } }, "then": { "do": "goTo", "with": { "post": "doctor" } } },
       { "do": "goTo", "with": { "post": "home", "enter": true } }
     ]
   },

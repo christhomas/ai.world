@@ -82,17 +82,12 @@
         }
       },
       {
-        "note": "Unarmed and within stalking distance: come on, and bite when you arrive.",
-        "when": { "not": { "ask": "armed" } },
-        "then": {
-          "when": { "ask": "within", "with": { "tiles": 7 } },
-          "then": {
-            "all": [
-              { "do": "stalk" },
-              { "anyway": { "do": "bite" } }
-            ]
-          }
-        }
+        "note": "A villager is worth taking whether or not the hero is armed: the sword only frightens them off themselves. Mark somebody, then come on.",
+        "steps": [
+          { "do": "markPrey", "with": { "within": 9 } },
+          { "when": { "ask": "within", "with": { "tiles": 9 } },
+            "then": { "all": [{ "do": "stalk" }, { "anyway": { "do": "bite" } }] } }
+        ]
       },
       { "when": { "ask": "idle" }, "then": { "do": "wander", "with": { "tiles": 8 } } }
     ]
@@ -102,13 +97,11 @@
     "note": "Rats, slimes, skeletons and the troll below. Nothing frightens them, sword or no sword.",
     "first": [
       {
-        "when": { "ask": "within", "with": { "tiles": 12 } },
-        "then": {
-          "all": [
-            { "do": "stalk" },
-            { "anyway": { "do": "bite" } }
-          ]
-        }
+        "steps": [
+          { "do": "markPrey", "with": { "within": 12 } },
+          { "when": { "ask": "within", "with": { "tiles": 12 } },
+            "then": { "all": [{ "do": "stalk" }, { "anyway": { "do": "bite" } }] } }
+        ]
       },
       { "when": { "ask": "idle" }, "then": { "do": "wander", "with": { "tiles": 6 } } }
     ]

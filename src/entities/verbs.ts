@@ -35,6 +35,19 @@ export interface Mind {
   quarry: (from: Entity, within: number) => Entity | null;
   /** Take a creature out of the world: a hunter's catch, and nothing else. */
   remove: (prey: Entity) => void;
+  /** The nearest person — villager, traveller, anybody with a life to lose — to a point. */
+  nearestPerson: (from: Entity, within: number) => Entity | null;
+  /** The nearest creature attacking somebody, for anybody whose job is to stop that. */
+  nearestTrouble: (from: Entity, within: number) => Entity | null;
+  /** Hurt a creature rather than the hero: a wolf on a farmer, a constable on the wolf. */
+  strike: (attacker: Entity, victim: Entity, damage: number) => void;
+}
+
+/** Where this creature's attention is: whatever it has marked, or the hero if it has marked nothing. */
+function aimOf(mind: Mind): { x: number; z: number; who: Entity | null } {
+  const marked = mind.self.target;
+  if (marked && !marked.dead) return { x: marked.x, z: marked.z, who: marked };
+  return { x: mind.playerX, z: mind.playerZ, who: null };
 }
 
 /** Somewhere this creature could stand, within `radius` of its herd's patch. */
@@ -58,10 +71,10 @@ type CreatureNode = Node<Mind>;
 const number = (params: Params, key: string, fallback: number): number =>
   (typeof params[key] === 'number' ? params[key] : fallback);
 
-/** How far the hero is, squared, which is what every question about distance really wants. */
+/** How far off whatever this creature is interested in is. */
 function rangeTo(tick: Tick<Mind>): number {
-  const { self, playerX, playerZ } = tick.world;
-  return Math.hypot(self.x - playerX, self.z - playerZ);
+  const aim = aimOf(tick.world);
+  return Math.hypot(tick.world.self.x - aim.x, tick.world.self.z - aim.z);
 }
 
 export const CREATURE_VERBS: Vocabulary<Mind> = {
@@ -89,6 +102,9 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       return from <= to ? now >= from && now < to : now >= from || now < to;
     },
 
+    /** Is somebody nearby being attacked by something? */
+    troubleNearby: (params) => (tick) => tick.world.nearestTrouble(tick.world.self, number(params, 'within', 14)) !== null,
+
     /** Is this villager carrying something to market? */
     carrying: () => (tick) => tick.world.self.carrying !== null,
 
@@ -115,11 +131,12 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
      * it, and the swimming itself becomes the orbit.
      */
     circle: (params) => act(({ world }) => {
-      const { self, playerX, playerZ } = world;
+      const { self } = world;
+      const aim = aimOf(world);
       const ring = number(params, 'tiles', 6);
-      const ahead = Math.atan2(self.z - playerZ, self.x - playerX) + number(params, 'lead', 0.7);
-      self.tx = playerX + Math.cos(ahead) * ring;
-      self.tz = playerZ + Math.sin(ahead) * ring;
+      const ahead = Math.atan2(self.z - aim.z, self.x - aim.x) + number(params, 'lead', 0.7);
+      self.tx = aim.x + Math.cos(ahead) * ring;
+      self.tz = aim.z + Math.sin(ahead) * ring;
       // steering is done once per tick, not over time: succeed, so a latch above does not hold on
       // to us and never reconsider what else might be worth doing
       self.state = 'walk';
@@ -134,10 +151,11 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       const key = Symbol('charge');
       const seconds = number(params, 'seconds', 2.6);
       return (tick) => {
-        const { self, playerX, playerZ } = tick.world;
+        const { self } = tick.world;
+        const aim = aimOf(tick.world);
         const left = tick.memory.get(key, seconds) - tick.dt;
-        self.tx = playerX;
-        self.tz = playerZ;
+        self.tx = aim.x;
+        self.tz = aim.z;
         self.charging = Math.max(0, left);
         if (self.state !== 'walk') { self.state = 'walk'; self.timer = seconds; }
         if (left > 0) { tick.memory.set(key, left); return 'running'; }
@@ -149,12 +167,15 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
 
     /** Bite, if the hero is close enough to bite. Fails when they are not. */
     bite: (params) => (tick) => {
-      const { self, playerX, playerZ, bite } = tick.world;
+      const { self, bite, strike } = tick.world;
+      const aim = aimOf(tick.world);
       const reach = number(params, 'tiles', BEHAVIOUR.BITE_RANGE);
       if (rangeTo(tick) > reach || self.attackCooldown > 0) return 'failure';
       self.attackCooldown = number(params, 'cooldown', BEHAVIOUR.BITE_COOLDOWN);
-      self.yaw = yawFor(playerX - self.x, playerZ - self.z);
-      bite(self, self.kind.dangerous ?? 1);
+      self.yaw = yawFor(aim.x - self.x, aim.z - self.z);
+      const damage = number(params, 'damage', self.kind.dangerous ?? 1);
+      // the hero has hearts and a HUD; anybody else is just another creature to be hurt
+      if (aim.who) strike(self, aim.who, damage); else bite(self, damage);
       return 'success';
     },
 
@@ -213,9 +234,10 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
 
     /** Walk straight at the hero. What a predator does before it is close enough to bite. */
     stalk: () => act(({ world }) => {
-      const { self, playerX, playerZ } = world;
-      self.tx = playerX;
-      self.tz = playerZ;
+      const { self } = world;
+      const aim = aimOf(world);
+      self.tx = aim.x;
+      self.tz = aim.z;
       if (self.state !== 'walk') { self.state = 'walk'; self.timer = 4; }
     }),
 
@@ -243,8 +265,9 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
 
     /** Straight down at the hero, wings going: a hostile bird's whole plan. */
     dive: (params) => act(({ world, dt }) => {
-      const { self, playerX, playerZ, ground } = world;
-      const dx = playerX - self.x, dz = playerZ - self.z;
+      const { self, ground } = world;
+      const aim = aimOf(world);
+      const dx = aim.x - self.x, dz = aim.z - self.z;
       const away = Math.hypot(dx, dz) || 1;
       const step = Math.min(away, self.kind.speed * dt);
       self.x += (dx / away) * step;
@@ -350,6 +373,61 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       self.state = 'idle';
       self.timer = 2;
       return 'success';
+    },
+
+    /**
+     * Pick out somebody to go after: the nearest person, or the hero if they are nearer. Fails
+     * when there is nobody about, which is how a tree says "carry on as you were".
+     *
+     * Everything that acts on a target — stalk, bite, charge, circle — works on whatever was
+     * marked here, so one small vocabulary covers a wolf on a farmer and a wolf on the hero.
+     */
+    markPrey: (params) => (tick) => {
+      const { self, nearestPerson, playerX, playerZ } = tick.world;
+      const reach = number(params, 'within', 10);
+      const person = nearestPerson(self, reach);
+      const toPlayer = Math.hypot(self.x - playerX, self.z - playerZ);
+      if (person && Math.hypot(self.x - person.x, self.z - person.z) < Math.min(reach, toPlayer)) {
+        self.target = person;
+        return 'success';
+      }
+      self.target = null;
+      return toPlayer <= reach ? 'success' : 'failure';
+    },
+
+    /** Look for somebody being attacked, and make them your business. What a constable is for. */
+    markTrouble: (params) => (tick) => {
+      const { self, nearestTrouble } = tick.world;
+      const culprit = nearestTrouble(self, number(params, 'within', 14));
+      if (!culprit) return 'failure';
+      self.target = culprit;
+      return 'success';
+    },
+
+    /** Forget whoever was marked, and go back to minding the hero like everything else. */
+    forget: () => act(({ world }) => { world.self.target = null; }),
+
+    /**
+     * Sit still and mend. Paid care is quick; the free kind takes three times as long, which is
+     * the whole of the doctor's economy — nobody who asks for help dies, but money buys getting
+     * back to work today rather than tomorrow.
+     */
+    beHealed: (params) => {
+      const key = Symbol('healing');
+      return (tick) => {
+        const { self } = tick.world;
+        const fee = number(params, 'fee', 8);
+        const paying = self.purse >= fee;
+        const takes = number(params, 'seconds', 6) * (paying ? 1 : number(params, 'freeShare', 3));
+        const left = tick.memory.get(key, takes) - tick.dt;
+        self.state = 'idle';
+        self.timer = 1;
+        if (left > 0) { tick.memory.set(key, left); return 'running'; }
+        tick.memory.clear(key);
+        if (paying) self.purse -= fee;
+        self.hp = self.kind.hp ?? self.hp;
+        return 'success';
+      };
     },
 
     /** Nothing in particular: whatever this creature does when nothing is happening. */
