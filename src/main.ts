@@ -40,7 +40,7 @@ import { CropField } from './render/crops';
 import { BOAT, Sailing } from './game/sailing';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
-import { $ as el } from './ui/dom';
+import { $ } from './ui/dom';
 import { TerrainSampler } from './world/terrain';
 import { BIOMES, HUB_NAME, SEA_NAME } from './world/biomes';
 import { villageAt } from './world/structures';
@@ -59,7 +59,6 @@ import { damageEntity, yawFor, type Entity } from './entities/entity';
 import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
-import { $ } from './ui/dom';
 import { SALT, derive } from './core/salts';
 
 
@@ -116,7 +115,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const compass = new Compass();
   const photo = new PhotoMode();
   const heroGear = new HeroGear(rig.scene);
-  const castbar = el('castbar');
+  const castbar = $('castbar');
   chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
   const mount = Mount.from(saved?.state?.horse ?? null, lineRng);
@@ -207,7 +206,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       hud.flash(`Duel with ${withName}!`);
     },
     onDuelStruck: (damage) => {
-      if (!duel.struck(damage)) { sound.thud(); hud.flash(duel.readout()); return; }
+      // the bout's standing is on screen the whole time, so a blow only needs to be heard
+      if (!duel.struck(damage)) { sound.thud(); return; }
       // out of breath: say so, and the server tells both sides it is over
       online.yieldDuel();
       hud.flash(`${duel.opponentName} wins the bout.`);
@@ -267,6 +267,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const market = new Market();
   const party = new Party();
   const duel = new Duel();
+  const duelBar = $('duelbar');
+  /** Keep the bout's standing in front of the fighters while it lasts. */
+  const showDuel = (): void => {
+    duelBar.classList.toggle('show', duel.active);
+    if (duel.active) duelBar.textContent = duel.readout();
+  };
   /** Rally points people have dropped, each fading in its own time. */
   const rally: Array<{ x: number; z: number; name: string; left: number }> = [];
   const playerList = new PlayerList();
@@ -312,6 +318,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    */
   const syncOnline = (dt: number, heightAt: (x: number, z: number) => number | null): void => {
     others.age(dt);
+    showDuel();
     for (let i = rally.length - 1; i >= 0; i--) {
       rally[i].left -= dt;
       if (rally[i].left <= 0) rally.splice(i, 1);
@@ -1039,11 +1046,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
-  const serverInput = el('serverInput') as HTMLInputElement;
-  const nameInput = el('nameInput') as HTMLInputElement;
-  const onlineStatus = el('onlineStatus');
+  const serverInput = $('serverInput') as HTMLInputElement;
+  const nameInput = $('nameInput') as HTMLInputElement;
+  const onlineStatus = $('onlineStatus');
   nameInput.value = localStorage.getItem('ai.world/name') ?? '';
-  el('connectButton').addEventListener('click', () => {
+  $('connectButton').addEventListener('click', () => {
     if (online.connected) { online.disconnect(); others.clear(); chat.hide(); return; }
     localStorage.setItem('ai.world/name', nameInput.value);
     online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
@@ -1079,7 +1086,6 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         duel.landed(state.attack);
         online.duelHit(state.attack);
         sound.thud();
-        hud.flash(duel.readout());
         return;
       }
     }
@@ -1172,10 +1178,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     ];
     // companions are worth finding across a wide world, so they are always on the map
     for (const mate of party.companions(online.players.values(), online.id)) {
-      out.push({ x: mate.x, z: mate.z, color: '#7fd6ff', label: mate.name, emphasis: true });
+      out.push({ x: mate.x, z: mate.z, color: '#ff5ec4', label: mate.name, emphasis: true });
     }
     for (const point of rally) {
-      out.push({ x: point.x, z: point.z, color: '#ff9f43', label: `${point.name}'s rally`, emphasis: true });
+      out.push({ x: point.x, z: point.z, color: '#ff7a1a', label: `${point.name}'s rally`, emphasis: true });
     }
     // active quest targets stand out in green, ringed on the big map
     for (const q of questList) {

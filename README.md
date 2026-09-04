@@ -25,7 +25,8 @@ synthesised as you play.
 | **I** | Rucksack: wear gear, stow it, eat food |
 | **J** | Journal: errands, what you carry, places found, ferry times |
 | **M** | The map, full screen. Drag or WASD to pan, scroll or +/- to zoom, C to centre on you |
-| **T** / **G** | Chat and offer a trade, when you are online |
+| **T** / **G** | Chat, and deal with the nearest traveller: goods, or a friendly bout |
+| **K** / **L** / **R** | Your party, who else is in this world, and a rally point where you stand |
 | **Q / E**, scroll | Turn the camera, zoom |
 | **F** | Free camera |
 | **P** | Photo mode: the interface steps aside, Space takes the picture |
@@ -117,13 +118,61 @@ buy the region map.
 
 `pnpm server` runs a small WebSocket server. Put its address in the options, pick a name, and
 anyone on the same seed shares your world: you see each other walk, wearing your own gear, with
-name plates over your heads. **T** chats, **G** offers the nearest player gold or an item from
+name plates over your heads. **T** chats, **G** offers the nearest traveller gold or an item from
 your pack, and they accept or decline.
 
 ![Two travellers in one world](docs/screenshots/multiplayer.png)
 
-The server holds no world state at all. Every client grows the same world from the same seed, so
-the only things that ever cross the wire are people, words and goods.
+Everyone in a world keeps the same clock, so dawn breaks for all of you at once, and the few
+things players change about the world are shared: a chest opened stays opened, a vault unlocked
+stays unlocked, a crop sown grows in everyone's field, and a place one of you names appears on
+everyone's map.
+
+**Underground together.** Two people on the same dungeon floor grew the same rooms from the same
+anchor seed, so only the monsters need agreeing. The lowest player id on a floor runs them and
+describes them ten times a second; everyone else mirrors that and reports their blows for the
+owner to resolve, which is what stops the same rat dying twice. A blow you struck in the last few
+seconds makes that monster's fall yours, spoils and all.
+
+### A market run by players
+
+![Renting a market pitch](docs/screenshots/stall.png)
+
+Every village square lays out its stalls. Twenty gold rents a pitch for three days, and you put
+goods out at your own asking price. A pitch belongs to a name rather than a connection, so the
+goods stay out while you sleep, somebody can buy an apple from a trader who is not online, and
+the takings wait on the stall until you come back for them.
+
+![Buying from another player's stall](docs/screenshots/market.png)
+
+Inns keep a post shelf for the same reason. Hand the innkeeper something with a little gold for
+the carriage, address it to anyone the world has met, and any inn in the land hands it over
+whenever they next walk in.
+
+### Companions, gestures and bouts
+
+![Who else is in this world](docs/screenshots/players.png)
+
+**K** asks the nearest traveller to come along. Companions are drawn on both maps at any
+distance, and an errand one of you finishes counts for everyone who had taken it on: the reward
+is paid to each of them where they stand. **L** lists everyone in the world, nearest first, and
+**R** drops a rally point that stands on your companions' maps for a minute and a half.
+
+![A companion and a rally point on the map](docs/screenshots/partymap.png)
+
+A line typed as `/wave`, `/bow`, `/cheer`, `/laugh`, `/thanks` or `/help` is a gesture rather than
+words, and floats over your head for a few seconds.
+
+![A duel in the town square](docs/screenshots/duel.png)
+
+**G** also offers a friendly bout. Both sides must agree, and nothing real is at stake: the duel
+runs on its own pool of health, so the loser walks away with the same hearts, gear and gold they
+came with.
+
+The server grows no terrain and knows no villages. Every client builds the same world from the
+same seed, so what crosses the wire is only people, words, goods, the time of day, and the short
+list of things players have changed. A name is how you are known, which means anyone can claim
+any name: this is a game to play with people you know, not a hardened service.
 
 ---
 
@@ -168,6 +217,11 @@ one draw call per kind.
 downhill, their level never rising, so every terrace they cross becomes a waterfall. Roads cross
 them on bridges.
 
+**A server that knows almost nothing.** Because every client grows the same world, the server
+keeps one small JSON file per seed: the time of day, the short list of things players changed,
+the market, the post shelf, and every name it has met. Everything else — who is where, what they
+said, which monster moved — passes through and is gone.
+
 ### Layout
 
 ```
@@ -180,11 +234,12 @@ src/
   interior/    per-building room layouts, walkability, interior scene
   entities/    animal and character rigs, instanced renderer, behaviour, spawning, the player
   game/        state and equipment, items, shops, quests, combat, fishing, farming,
-               ferries, sailing, mounts, seasons, dialogue, audio, multiplayer
+               ferries, sailing, mounts, seasons, dialogue, audio, and the shared-world
+               systems: online client, co-op floors, market, parties, duels
   render/      scene rig, day cycle, weather, water, camera, geometry and props, hero gear
-  ui/          hud, rucksack, journal, map, dialogue, chat, title, styles
+  ui/          hud, rucksack, journal, map, dialogue, chat, player list, title, styles
   save/        persistence interface and IndexedDB implementation
-server/        multiplayer protocol and WebSocket server
+server/        wire protocol, the WebSocket server, and the world file it keeps per seed
 ```
 
 ### Tunables

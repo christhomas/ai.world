@@ -156,6 +156,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #journal .j-line { font-size: 13px; color: #4a3a24; }
 #journal .j-empty { font-size: 13px; color: #7a6a4a; font-style: italic; }
 #journal .j-hint { text-align: center; color: #8a7a5a; font-size: 11px; margin-top: 14px; }
+#duelbar {
+  display: none; position: fixed; left: 50%; top: 96px; transform: translateX(-50%);
+  background: rgba(30,8,8,0.82); border: 2px solid #d95d5d; border-radius: 8px;
+  padding: 6px 18px; color: #ffd9d9; font-size: 14px; z-index: 1200; white-space: nowrap;
+}
+#duelbar.show { display: block; }
 #players {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(480px, 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
