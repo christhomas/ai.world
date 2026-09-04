@@ -32,6 +32,11 @@ export interface GameStateJson {
    * save time the way `standing` is: the state itself has no reason to know what a bond is.
    */
   gifts?: Record<string, Bond>;
+  /**
+   * Who is in which cell, and which police stations are still heaps of timber. Saved because a
+   * prisoner who walks free every time you reload is not a prisoner.
+   */
+  jail?: JailSave;
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
   /** What is planted where. */
@@ -45,6 +50,7 @@ export const BASE_MAX_HP = 10;
 export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { apple: 2, bread: 1 } } as const;
 import { DAY_LENGTH } from '../../server/protocol';
 import type { Bond } from './gifts';
+import type { JailSave } from './jail';
 
 /** Real seconds per in-game day, shared with the server so both keep the same time. */
 export { DAY_LENGTH };

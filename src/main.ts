@@ -230,7 +230,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * The cells in the country's police stations: who is in them, and which of them are heaps of
    * timber. Not saved yet, so a reopened world finds every cell cold and every station standing.
    */
-  const jail = new Jail();
+  const jail = Jail.from(saved?.state?.jail ?? null);
   /** Who the hero has been good to, and what each of them has decided about it. */
   const gifts = new Gifts(saved?.state?.gifts);
   /** The soldiers walking with somebody, and what was agreed with each. */
@@ -313,7 +313,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON() },
       manifest: manifest.toJSON(),
     });
   };
