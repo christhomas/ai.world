@@ -248,8 +248,16 @@ export const KINDS: Record<string, AnimalKind> = {
       ],
     }),
   },
+  /**
+   * One bear, and it takes a beating and gives one.
+   *
+   * It had a cow's hit points and a rat's bite, which made the largest animal in the world three
+   * swings of a stick and twenty-five gold: a payday, not a bad idea. Solitary, hitting for a
+   * fifth of a fresh hero and standing up to twenty points of stick, it now costs a beginner more
+   * than half of themselves; and it ambles at 0.8, so the answer is always allowed to be "no".
+   */
   bear: {
-    id: 'bear', label: 'Bear', emoji: '🐻', blow: 'rear', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2, hp: 6, gold: [15, 40], drop: { id: 'fang', chance: 0.45 },
+    id: 'bear', label: 'Bear', emoji: '🐻', blow: 'rear', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 1], behaviour: 'prowl', timid: false, dangerous: 3, hp: 20, gold: [15, 40], drop: { id: 'fang', chance: 0.45 },
     palettes: [[0x5a3a22, 0x8a6a4a], [0x2b2b2b, 0x5a5a5a]],
     names: ['Bruno', 'Grizz', 'Mabel', 'Kodiak', 'Honey'],
     lines: ['*low growl*', '*sniffs*', '*scratches tree*', '*yawns hugely*'],
@@ -504,8 +512,15 @@ export const KINDS: Record<string, AnimalKind> = {
       ],
     }),
   },
+  /**
+   * A roost you disturbed rather than a hunting pack, and slower than the hero by more than half.
+   *
+   * A diving bat is the one thing in the game that ignores the ground: it comes at you through
+   * the rock a corridor is made of, so no corner and no doorway is ever between you and it.
+   * Everything else you escape by using the world; a bat you escape only by being faster.
+   */
   bat: {
-    id: 'bat', label: 'Bat', emoji: '🦇', scale: 0.7, speed: 3.2, runSpeed: 3.2, herd: [2, 4], behaviour: 'fly', timid: false, dangerous: 1, hp: 1, gold: [1, 5], altitude: 2.4,
+    id: 'bat', label: 'Bat', emoji: '🦇', scale: 0.7, speed: 2.6, runSpeed: 2.6, herd: [1, 3], behaviour: 'fly', timid: false, dangerous: 1, hp: 1, gold: [1, 5], altitude: 2.4,
     palettes: [[0x3a2a3a, 0x7a5a7a]],
     names: ['Flitter', 'Dusk', 'Screech'],
     lines: ['*screeches*'],
@@ -545,9 +560,17 @@ export const KINDS: Record<string, AnimalKind> = {
       box([0.06, 0.7, 0.06], [0.1, 0.85, 0.3], W, { tint: 1, anim: 'armL', pivot: [0, 1.12, 0.22], rot: [0, 0, 0.3] }),
     ],
   },
+  /**
+   * The thing at the bottom of a vault, and it hits like it.
+   *
+   * At three points a blow and twenty-two hit points a stick beat it, so the boss of three floors
+   * lost to the weapon you are given for free while paying better than the ogre that is harder
+   * than it. Four points a blow and hit points just under the ogre's put it back where its purse
+   * says it belongs: a stick loses, an iron sword wins on its last heart, steel wins properly.
+   */
   troll: {
     id: 'troll', label: 'Cave Troll', emoji: '👹', blow: 'swing', scale: 1.9, speed: 1.2, runSpeed: 3.6, herd: [1, 1], behaviour: 'hunt', timid: false,
-    dangerous: 3, hp: 22, gold: [200, 320], drop: { id: 'gem', chance: 1 },
+    dangerous: 4, hp: 28, gold: [200, 320], drop: { id: 'gem', chance: 1 },
     palettes: [[0x6a7a5a, 0x3a4a32], [0x7a6a5a, 0x4a3a2a]],
     names: ['Grumthar', 'Old Stonejaw', 'The Warden', 'Bruk'],
     lines: ['*roars*', '*the floor shakes*'],
@@ -602,10 +625,29 @@ export const BIOME_ANIMALS: Record<Biome, SpawnWeight[]> = {
   [Biome.Snow]: [{ kind: 'hare', weight: 4 }, { kind: 'wolf', weight: 2 }, { kind: 'elk', weight: 3 }],
 };
 
-/** Monsters per dungeon depth band; deeper rooms get nastier things. */
-export const DUNGEON_MONSTERS: SpawnWeight[] = [
-  { kind: 'rat', weight: 5 }, { kind: 'bat', weight: 4 }, { kind: 'slime', weight: 3 }, { kind: 'skeleton', weight: 2 },
+/**
+ * What waits underground, by how far down you are. One entry per floor, counting from one.
+ *
+ * A cave mouth on the road out of the first village and the bottom of a three-floor vault were
+ * the same table, so an hour-one cave was a third bats and had skeletons in it. A cave is always
+ * floor one, so moving the skeletons into the second band is most of the fix: the first hour is
+ * rats and the odd roost, and what hits twice as hard starts below the first stair, which is a
+ * village and a shop away.
+ */
+const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> = [
+  [{ kind: 'rat', weight: 6 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 3 }],
+  [{ kind: 'rat', weight: 4 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 4 }, { kind: 'skeleton', weight: 3 }],
+  [{ kind: 'rat', weight: 2 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 4 }, { kind: 'skeleton', weight: 5 }],
 ];
+
+/** What lives on a floor. Anything deeper than the table goes holds whatever the bottom holds. */
+export function dungeonMonsters(floor: number): readonly SpawnWeight[] {
+  const band = Math.min(Math.max(1, Math.floor(floor)), DUNGEON_BANDS.length);
+  return DUNGEON_BANDS[band - 1];
+}
+
+/** The shallow band: every cave, and the floor of a vault you arrive on. */
+export const DUNGEON_MONSTERS: readonly SpawnWeight[] = dungeonMonsters(1);
 
 /** Kinds that spawn on water tiles instead of land. */
 export const WATER_ANIMALS: Record<Biome, SpawnWeight[]> = {

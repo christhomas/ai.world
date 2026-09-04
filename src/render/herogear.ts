@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SLOTS, type EquipSlot, type Item } from '../game/items';
 import type { GameState } from '../game/state';
 import type { Entity } from '../entities/entity';
+import { bodyMotion } from '../entities/motion';
 import { merge, part } from './geometry';
 
 /**
@@ -135,7 +136,7 @@ export class HeroGear {
       const cos = Math.cos(hero.yaw), sin = Math.sin(hero.yaw);
       worn.mesh.position.set(
         hero.x + (x * cos + z * sin) * scale,
-        hero.y + hero.bobY + y * scale,
+        hero.y + hero.bobY + (y + bodyMotion(hero).bob) * scale,
         hero.z + (-x * sin + z * cos) * scale,
       );
       worn.mesh.rotation.y = hero.yaw;

@@ -438,7 +438,10 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
           break;
         }
         dx /= dist; dz /= dist;
-        speed = hopper ? k.runSpeed * 0.8 : k.speed;
+        // only set a pace if the chase above did not already: this line used to run
+        // unconditionally and threw the chase away, so nothing in the game had ever pursued
+        // anything at its running speed, and a wolf could be walked away from
+        if (speed === 0) speed = hopper ? k.runSpeed * 0.8 : k.speed;
       }
       const stepLen = speed * dt;
       const desiredYaw = yawFor(dx, dz);

@@ -1361,7 +1361,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       // one player runs the monsters on a shared floor; everyone else mirrors what they are told
       coop.survey(online.id, placeName(), online.players.values());
       coop.age(dt);
-      if (!coop.mirroring) below.monsters.update(dt, player.x, player.z, false, onAttack);
+      if (!coop.mirroring) below.monsters.update(dt, player.x, player.z, state.armed, onAttack);
       coop.publish(dt, below.monsters);
       if (places.underground !== below) { input.endFrame(); return; }
       below.renderer.update();

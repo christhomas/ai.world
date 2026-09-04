@@ -1,8 +1,8 @@
 {
-  "note": "How everything in the game moves. Numbers only: the maths that reads them is in src/entities/motion.ts, and the shapes they drive are the same for every creature. Angles are radians. Edit freely; a value out of its stated range fails loudly at load rather than looking odd in play.",
+  "note": "How everything in the game moves. Numbers only: the maths that reads them is in src/entities/motion.ts, and the shapes they drive are the same for every creature. Angles are radians, heights are in the units the creature is built in, and a value out of its stated range fails loudly at load rather than looking odd in play. Signs follow the body: an arm, a leg, a tail and a cape hang below their pivot, so a positive turn swings them forward, while a head and the body itself stand above theirs, so a positive turn tips them back. That is why a grazing head is a negative pitch and a trailing cape is a negative lean.",
 
   "walking": {
-    "note": "The cycle every creature runs on. 'of' says what drives it: 'walk' fades in with the pace, 'flap' with the wings, 'always' runs whether or not anything is moving. 'swing' is how far a limb travels at full pace; 'wave' with 'rate' is a constant sway; 'axis' is x, y or z, and z is the one legs walk on.",
+    "note": "The cycle every creature runs on. 'of' says what drives it: 'walk' fades in with the pace, 'flap' with the wings, 'always' runs whether or not anything is moving. 'swing' is how far a limb travels at full pace and is the only field that opens up into a run; 'wave' with 'rate' is a constant sway; 'axis' is x, y or z, and z is the one legs walk on.",
     "legL":  { "of": "walk", "swing": 0.6 },
     "legR":  { "of": "walk", "swing": -0.6 },
     "armL":  { "of": "walk", "swing": -0.48 },
@@ -14,13 +14,51 @@
     "cape":  { "of": "always", "rest": -0.12, "lean": -0.35, "wave": 0.06, "rate": 0.5 }
   },
 
+  "idling": {
+    "note": "What those same parts do when nothing is walking, faded in as the walk fades out, so a creature standing about is never a statue. The fields are the walk's, less 'of' and 'swing': a swing is a stride and a thing standing still has none, and what drives these is the standing itself. A part turns on the axis its walk uses. Keep them small and slow: past about 0.1, or a rate above about 0.5, this stops reading as a body breathing and starts reading as a twitch. Wings are in here because a bat has nothing else, having no legs to swing and no tail to sway, and without a line for them it would be the one creature in the game carved from stone.",
+    "head":  { "wave": 0.045, "rate": 0.31, "offset": 0.7 },
+    "armL":  { "wave": 0.03, "rate": 0.27 },
+    "armR":  { "wave": -0.03, "rate": 0.27, "offset": 0.4 },
+    "tail":  { "wave": 0.12, "rate": 0.19, "axis": "y" },
+    "wingL": { "wave": 0.06, "rate": 0.24, "axis": "x" },
+    "wingR": { "wave": -0.06, "rate": 0.24, "offset": 0.5, "axis": "x" }
+  },
+
+  "body": {
+    "note": "The weight the whole creature carries, which no single limb can show. Walking: 'bounce' is how far it rises and falls, twice a stride, because a body is tallest with its legs together and lowest at full reach; 'sway' rolls it onto each foot in turn; 'lean' tips it into the walk, negative being forward, the same way a cape trails on a negative lean. Standing: 'breath' is how far the chest rises at 'breathRate', and 'settle' how far the weight shifts from foot to foot at 'settleRate'. Rates are against the same phase the walk uses, and while stood still that phase turns slowly, so 0.9 is about a breath every five seconds.",
+    "bounce": 0.04,
+    "sway": 0.03,
+    "lean": -0.05,
+    "breath": 0.014,
+    "breathRate": 0.9,
+    "settle": 0.028,
+    "settleRate": 0.22
+  },
+
+  "running": {
+    "note": "A creature at full pace is not an ambler in a hurry. 'from' is the pace, out of one, at which the run starts to take over, so anything below it is still a walk. 'stride' multiplies how far every limb swings, 'bounce' how far the body rises, and 'lean' is the tip forward added on top of the walk's.",
+    "from": 0.55,
+    "stride": 1.4,
+    "bounce": 1.55,
+    "lean": -0.14
+  },
+
+  "flinch": {
+    "note": "What being hit does to a body, over the stagger the game gives a hurt creature. 'lasts' should match that stagger: longer and the recoil is still settling when the next blow lands. 'snap' is the share spent recoiling before it starts coming back, and it is small because nothing flinches slowly. 'lean' tips the body away from the blow and 'drop' sinks it, both positive to fold away and down. 'turn' throws whichever parts are worth throwing, on the axis each of them walks on.",
+    "lasts": 0.35,
+    "snap": 0.18,
+    "lean": 0.26,
+    "drop": 0.06,
+    "turn": { "head": 0.5, "armL": -0.4, "armR": -0.4, "tail": 0.6 }
+  },
+
   "blows": {
-    "note": "What a creature does when it hits something. 'lasts' is seconds; 'wind' is the share of that spent going back before it comes forward. 'turn' is how far each limb travels at the furthest point, and 'lean' tips the whole body instead, which is how a bear reads as a bear. A creature throws the blow its kind names, or punches if it has arms and bites if it has not.",
+    "note": "What a creature does when it hits something. 'lasts' is seconds; 'wind' is the share of that spent going back before it comes forward, and the load is shallower than the blow because nobody draws back as far as they follow through. 'turn' is how far each limb travels at the furthest point, and 'lean' tips the whole body instead, which is how a bear reads as a bear. A creature throws the blow its kind names, or punches if it has arms and bites if it has not.",
     "swing": { "lasts": 0.42, "wind": 0.3, "turn": { "armR": 2.4 }, "mirrors": true },
     "punch": { "lasts": 0.42, "wind": 0.3, "turn": { "armR": 1.9 }, "mirrors": true },
     "kick":  { "lasts": 0.42, "wind": 0.3, "turn": { "legR": 1.5 }, "mirrors": true },
-    "bite":  { "lasts": 0.42, "wind": 0.3, "turn": { "head": 0.9 } },
-    "rear":  { "lasts": 0.55, "wind": 0.32, "turn": { "armL": -1.2, "armR": -1.2, "head": 0.54 }, "lean": -0.85 },
-    "lunge": { "lasts": 0.42, "wind": 0.3, "lean": 0.5 }
+    "bite":  { "lasts": 0.42, "wind": 0.3, "turn": { "head": -0.9 } },
+    "rear":  { "lasts": 0.55, "wind": 0.32, "turn": { "armL": 1.2, "armR": 1.2, "head": -0.54 }, "lean": 0.85 },
+    "lunge": { "lasts": 0.42, "wind": 0.3, "lean": -0.5 }
   }
 }

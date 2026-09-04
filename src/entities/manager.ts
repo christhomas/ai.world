@@ -5,7 +5,7 @@ import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
-import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
+import { BIOME_ANIMALS, KINDS, WATER_ANIMALS, dungeonMonsters, pickKind } from './animals';
 import { treeFor } from './behaviours';
 import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
@@ -243,14 +243,14 @@ export class EntityManager {
   private enrolled = 0;
 
   /** Spawn monsters directly (used by dungeons, which have their own tile world). */
-  spawnMonsters(anchors: Array<[number, number]>, seed: number): Entity[] {
+  spawnMonsters(anchors: Array<[number, number]>, seed: number, floor = 1): Entity[] {
     const rng = mulberry32(seed);
     const out: Entity[] = [];
     const key = 'dungeon';
     let list = this.spawned.get(key);
     if (!list) { list = []; this.spawned.set(key, list); }
     for (const [x, z] of anchors) {
-      const kindId = pickKind(DUNGEON_MONSTERS, rng());
+      const kindId = pickKind(dungeonMonsters(floor), rng());
       if (!kindId) continue;
       const herd = this.spawnHerdAt(kindId, x, z, rng, key, out);
       if (herd.members.length === 0) continue;

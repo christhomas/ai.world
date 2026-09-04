@@ -37,28 +37,50 @@ export function keepApart(
   tryMove(world, e, nx * push, nz * push);
 }
 
+/** How far from the hero bodies are held apart from each other as well as from him. */
+const ELBOWS_OUT = 14;
+
+/** Room two of these need between them, which is bigger the bigger they are. */
+function elbowRoom(a: Entity, b: Entity): number {
+  return BEHAVIOUR.ELBOW * (a.kind.scale + b.kind.scale);
+}
+
 /**
  * Give the hero their room, and creatures theirs.
  *
- * The hero is checked against every active creature, which is one cheap pass over a list that is
- * already limited to what is near them. Creatures are only checked against their own herd,
- * because a herd is at most a handful and checking every creature against every other one is the
- * whole frame's budget spent on something nobody would see.
+ * Three passes, cheapest first. The hero is checked against every active creature. Then everything
+ * close enough to the hero to be looked at is checked against everything else that close, whatever
+ * it belongs to: a wolf pack and a bear are different herds, and separating each herd within itself
+ * left the two of them standing in the same square, which is the overlap the player could see. That
+ * pass is square in the number of bodies, so it is fenced to the fourteen tiles around the hero —
+ * about twenty bodies and two hundred pairs, once a frame, which is nothing.
+ *
+ * Herds keep their own spacing out beyond that, where the pass above does not reach and nobody is
+ * watching closely enough to mind a little overlap.
  */
 export function keepBodiesApart(
   crowds: Iterable<Entity[]>, herds: Iterable<Herd>,
   playerX: number, playerZ: number, range: number, dt: number, world: TileWorld,
 ): void {
-  const r2 = range * range;
+  const r2 = range * range, seen2 = ELBOWS_OUT * ELBOWS_OUT;
+  const inSight: Entity[] = [];
   for (const list of crowds) {
     for (const e of list) {
       const dx = e.x - playerX, dz = e.z - playerZ;
-      if (dx * dx + dz * dz > r2 || e.indoors || e.dead) continue;
+      const away = dx * dx + dz * dz;
+      if (away > r2 || e.indoors || e.dead) continue;
       // a mount is meant to be stood on, and nothing else the hero owns should shove them about
       if (e.role === 'mount') continue;
       // scaled up by big things and never down by small ones: the room the hero needs is the
       // hero's, and a bat being small is no reason to let it stand on their head
       keepApart(e, playerX, playerZ, BEHAVIOUR.PERSONAL * Math.max(1, e.kind.scale), dt, world);
+      if (away <= seen2) inSight.push(e);
+    }
+  }
+  for (let i = 0; i < inSight.length; i++) {
+    for (let j = i + 1; j < inSight.length; j++) {
+      const a = inSight[i], b = inSight[j];
+      keepApart(a, b.x, b.z, elbowRoom(a, b), dt, world);
     }
   }
   for (const herd of herds) {
@@ -67,7 +89,10 @@ export function keepBodiesApart(
       for (let j = i + 1; j < near.length; j++) {
         const a = near[i], b = near[j];
         if (a.dead || b.dead || a.indoors || b.indoors) continue;
-        keepApart(a, b.x, b.z, BEHAVIOUR.ELBOW * (a.kind.scale + b.kind.scale), dt, world);
+        // already elbowed apart above, and pushing twice in a frame makes them jitter
+        const dx = a.x - playerX, dz = a.z - playerZ;
+        if (dx * dx + dz * dz <= seen2) continue;
+        keepApart(a, b.x, b.z, elbowRoom(a, b), dt, world);
       }
     }
   }

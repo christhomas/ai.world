@@ -111,14 +111,14 @@
     "note": "Eagles and vultures ride their circle; a bat comes down at you.",
     "first": [
       {
-        "note": "Only the dangerous ones dive, and only when you are worth the trip.",
+        "note": "Only the dangerous ones dive, and only when you are worth the trip. Seven tiles rather than twelve, because a bat is roused by somebody walking under its roost rather than hunting the whole cavern: leaving the chamber has to be an answer to it. And a slower bite than a rat's, because it is the one thing you cannot put a wall between yourself and.",
         "when": { "ask": "dangerous" },
         "then": {
-          "when": { "ask": "within", "with": { "tiles": 12 } },
+          "when": { "ask": "within", "with": { "tiles": 7 } },
           "then": {
             "all": [
               { "do": "dive", "with": { "drop": 2 } },
-              { "anyway": { "do": "bite" } }
+              { "anyway": { "do": "bite", "with": { "cooldown": 2.4 } } }
             ]
           }
         }

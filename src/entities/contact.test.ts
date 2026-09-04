@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BEHAVIOUR, Entity, Herd, type TileWorld } from './entity';
-import { keepApart } from './contact';
+import { keepApart, keepBodiesApart } from './contact';
 import { KINDS } from './animals';
 import { mulberry32 } from '../core/rng';
 
@@ -70,6 +70,24 @@ describe('bodies taking up room', () => {
         expect(apart, 'two of them share a square').toBeGreaterThan(BEHAVIOUR.ELBOW * 0.5);
       }
     }
+  });
+
+  it('holds two different packs apart, not just each pack within itself', () => {
+    // found by playing: separation ran herd by herd, so a wolf pack and a bear arriving from
+    // different directions stood in the same square and drew as one animal. Two herds, one spot.
+    const pack = new Herd(KINDS.wolf, 3, 0, 3, 0, 0);
+    const other = new Herd(KINDS.wolf, 3, 0, 3, 0, 1);
+    const mine = (h: Herd, dx: number): Entity => {
+      const e = new Entity(KINDS.wolf, 3 + dx, 0, h, 'test', mulberry32(2));
+      h.members.push(e);
+      return e;
+    };
+    const a = mine(pack, 0), b = mine(other, 0.02);
+    for (let n = 0; n < 60; n++) {
+      keepBodiesApart([[a, b]], [pack, other], 0, 0, 40, 1 / 60, flat);
+    }
+    const apart = Math.hypot(a.x - b.x, a.z - b.z);
+    expect(apart, 'two herds still sharing a square').toBeGreaterThan(BEHAVIOUR.ELBOW);
   });
 
   it('will not shove anything that walks through a wall', () => {

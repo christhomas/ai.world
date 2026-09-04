@@ -113,7 +113,7 @@ export class Places {
     iso.target.set(ex + dx + 0.5, 0.5, ez + dz + 0.5);
 
     const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed + floor);
-    monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor);
+    monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor);
     if (world.map.boss) {
       const [bx, bz] = world.map.boss;
       monsters.spawnOne('troll', bx + 0.5, bz + 0.5, anchor.seed + 99);
