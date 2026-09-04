@@ -1,4 +1,5 @@
 import { Biome } from '../world/biomes';
+import type { Blow } from './blows';
 import { MONSTER_KINDS } from './monsters';
 import { VILLAIN_KINDS } from './villain';
 
@@ -52,6 +53,13 @@ export interface AnimalKind {
   climb?: number;
   /** Damage per bite for predators that attack the hero. */
   dangerous?: number;
+  /**
+   * The shape this creature throws when it attacks. Left out for most of them: anything with an
+   * arm punches and anything without bites, which covers the whole bestiary without a table. Set
+   * it only where a creature fights in a way worth watching, like a bear going up on its hind
+   * legs, and it applies everywhere that creature ever swings at anything.
+   */
+  blow?: Blow;
   /**
    * Somebody's property. It can be killed like anything else, and the village will find out.
    * Kept on the kind rather than worked out from where it is standing, because a cow that has
@@ -241,7 +249,7 @@ export const KINDS: Record<string, AnimalKind> = {
     }),
   },
   bear: {
-    id: 'bear', label: 'Bear', emoji: '🐻', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2, hp: 6, gold: [15, 40], drop: { id: 'fang', chance: 0.45 },
+    id: 'bear', label: 'Bear', emoji: '🐻', blow: 'rear', scale: 1.5, speed: 0.8, runSpeed: 4, herd: [1, 2], behaviour: 'prowl', timid: false, dangerous: 2, hp: 6, gold: [15, 40], drop: { id: 'fang', chance: 0.45 },
     palettes: [[0x5a3a22, 0x8a6a4a], [0x2b2b2b, 0x5a5a5a]],
     names: ['Bruno', 'Grizz', 'Mabel', 'Kodiak', 'Honey'],
     lines: ['*low growl*', '*sniffs*', '*scratches tree*', '*yawns hugely*'],
@@ -538,7 +546,7 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
   troll: {
-    id: 'troll', label: 'Cave Troll', emoji: '👹', scale: 1.9, speed: 1.2, runSpeed: 3.6, herd: [1, 1], behaviour: 'hunt', timid: false,
+    id: 'troll', label: 'Cave Troll', emoji: '👹', blow: 'swing', scale: 1.9, speed: 1.2, runSpeed: 3.6, herd: [1, 1], behaviour: 'hunt', timid: false,
     dangerous: 3, hp: 22, gold: [200, 320], drop: { id: 'gem', chance: 1 },
     palettes: [[0x6a7a5a, 0x3a4a32], [0x7a6a5a, 0x4a3a2a]],
     names: ['Grumthar', 'Old Stonejaw', 'The Warden', 'Bruk'],

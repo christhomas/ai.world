@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { AnimRole, AnimalKind, PartDef } from './animals';
 import type { Entity } from './entity';
+import { bodyLean, limbTurn, strikeAt } from './blows';
 
 /**
  * Draws every creature through per-part InstancedMesh pools: one pool per (kind, part).
@@ -17,6 +18,11 @@ const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /** Euler angles (x, y, z) for an animated part given the entity's current animation state. */
 function partRotation(role: AnimRole | undefined, e: Entity, swing: number): [number, number, number] {
+  // a blow is added to whatever the walk cycle was already doing, so somebody who swings while
+  // running does both rather than snapping out of their stride to hit something
+  const at = strikeAt(e.strike);
+  const thrown = at > 0 ? limbTurn(role, e.blow, at, e.offhandBlow) : null;
+  if (thrown !== null) return [0, 0, thrown + swingOf(role, swing)];
   switch (role) {
     case 'legL': return [0, 0, swing];
     case 'legR': return [0, 0, -swing];
@@ -28,6 +34,17 @@ function partRotation(role: AnimRole | undefined, e: Entity, swing: number): [nu
     case 'wingR': return [-Math.sin(e.phase) * 0.55 * e.flap, 0, 0];
     case 'cape': return [0, 0, -0.12 - e.walk * 0.35 + Math.sin(e.phase * 0.5) * 0.06];
     default: return [0, 0, 0];
+  }
+}
+
+/** What the walk cycle alone was doing to a limb, so a blow can be laid over the top of it. */
+function swingOf(role: AnimRole | undefined, swing: number): number {
+  switch (role) {
+    case 'legL': return swing;
+    case 'legR': return -swing;
+    case 'armL': return -swing * 0.8;
+    case 'armR': return swing * 0.8;
+    default: return 0;
   }
 }
 
@@ -101,6 +118,9 @@ export class EntityRenderer {
   private readonly quat = new THREE.Quaternion();
   private readonly scl = new THREE.Vector3();
   private readonly up = new THREE.Vector3(0, 1, 0);
+  /** The axis a body pitches about, which is the one the legs already swing on. */
+  private readonly side = new THREE.Vector3(0, 0, 1);
+  private readonly tilt = new THREE.Quaternion();
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -174,6 +194,13 @@ export class EntityRenderer {
         // indoors: park the rig far below so it is neither seen nor clickable
         this.pos.set(e.x, e.indoors ? -999 : e.y + e.bobY, e.z);
         this.quat.setFromAxisAngle(this.up, e.yaw);
+        // one blow moves the whole body rather than a limb: a bear that only waved a paw would
+        // not read as a bear
+        const lean = e.strike > 0 ? bodyLean(e.blow, strikeAt(e.strike)) : 0;
+        if (lean !== 0) {
+          this.tilt.setFromAxisAngle(this.side, lean);
+          this.quat.multiply(this.tilt);
+        }
         this.scl.set(s, s, s);
         this.root.compose(this.pos, this.quat, this.scl);
         const swing = Math.sin(e.phase) * WALK_SWING * e.walk;

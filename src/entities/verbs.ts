@@ -1,6 +1,7 @@
 import { act, type Node, type Tick } from '../core/behaviour';
 import type { Params, Vocabulary } from '../core/behaviourFile';
-import { BEHAVIOUR, canStand, yawFor, type Entity, type Post, type TileWorld } from './entity';
+import { BEHAVIOUR, canStand, throwBlow, yawFor, type Entity, type Post, type TileWorld } from './entity';
+import { blowOf } from './blows';
 import type { Rng } from '../core/rng';
 
 /**
@@ -184,6 +185,9 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       if (rangeTo(tick) > reach || self.attackCooldown > 0) return 'failure';
       self.attackCooldown = number(params, 'cooldown', BEHAVIOUR.BITE_COOLDOWN);
       self.yaw = yawFor(aim.x - self.x, aim.z - self.z);
+      // every creature in the game attacks through this one verb, so it is the only place a blow
+      // has to be thrown for wolves, bears, constables and hired swords all to swing at things
+      throwBlow(self, blowOf(self.kind));
       const damage = number(params, 'damage', self.kind.dangerous ?? 1);
       // the hero has hearts and a HUD; anybody else is just another creature to be hurt
       if (aim.who) strike(self, aim.who, damage); else bite(self, damage);
@@ -425,6 +429,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       if (self.attackCooldown > 0) return 'failure';
       if (Math.hypot(self.x - playerX, self.z - playerZ) > number(params, 'tiles', 1.8)) return 'failure';
       self.attackCooldown = number(params, 'cooldown', 3);
+      throwBlow(self, blowOf(self.kind));
       self.yaw = yawFor(playerX - self.x, playerZ - self.z);
       arrest(self);
       return 'success';

@@ -11,7 +11,8 @@ import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
 import { postsOf } from './villagers';
-import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
+import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
+import { blowOf } from './blows';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
 
@@ -424,6 +425,7 @@ export class EntityManager {
    * world; the hero's own hearts are handled elsewhere, because they have a HUD and a save.
    */
   private strike(attacker: Entity, victim: Entity, damage: number): void {
+    throwBlow(attacker, blowOf(attacker.kind));
     if (damageEntity(victim, damage, attacker.x, attacker.z, this.world)) {
       if (PEOPLE.has(victim.kind.id)) this.onFallen(victim);
       // what a killed animal is worth to whoever killed it: a constable's bounty, a hunter's pelt

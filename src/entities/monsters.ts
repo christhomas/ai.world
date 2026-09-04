@@ -69,7 +69,7 @@ const W = 0xffffff;
  */
 export const MONSTER_KINDS: Record<MonsterId, AnimalKind> = {
   ogre: {
-    id: 'ogre', label: 'Ogre', emoji: '🧌', scale: 2.2, herd: [1, 1], behaviour: 'hunt', timid: false,
+    id: 'ogre', label: 'Ogre', emoji: '🧌', blow: 'swing', scale: 2.2, herd: [1, 1], behaviour: 'hunt', timid: false,
     speed: MONSTER.OGRE_PACE, runSpeed: MONSTER.OGRE_PACE,
     hp: MONSTER.OGRE_HP, dangerous: MONSTER.OGRE_HIT,
     gold: [MONSTER.OGRE_GOLD_LOW, MONSTER.OGRE_GOLD_HIGH],

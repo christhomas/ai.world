@@ -4,6 +4,7 @@ import type { Mind } from './verbs';
 import type { Rng } from '../core/rng';
 import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
+import { STRIKE, type Blow } from './blows';
 
 export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder' | 'mount' | 'stablehand';
 
@@ -137,6 +138,15 @@ export class Entity {
   /** Hidden indoors: not drawn, not interactive, until morning. */
   indoors = false;
   attackCooldown = 0;
+  /**
+   * Seconds left of the blow being thrown, and which shape it is. A countdown rather than a flag,
+   * because the drawing needs to know how far through it is, and because it ends by itself if
+   * whatever started it walks away or dies half way through the swing.
+   */
+  strike = 0;
+  blow: Blow = 'punch';
+  /** Blows alternate hands, so a flurry of punches is not the same arm four times. */
+  offhandBlow = false;
   /** Seconds left of a charge at the player; the movement code reads it to pick a speed. */
   charging = 0;
   /** Whatever this creature's behaviour is part way through. Its own, and nobody else's. */
@@ -293,6 +303,18 @@ function walkTowards(e: Entity, target: [number, number], dt: number, world: Til
   return false;
 }
 
+/**
+ * Throw a blow: whatever shape it is, it starts now.
+ *
+ * Called from wherever an attack actually lands rather than from the drawing, so a creature that
+ * swings and misses still swings, and a blow that kills something still finishes.
+ */
+export function throwBlow(e: Entity, blow: Blow): void {
+  e.blow = blow;
+  e.strike = STRIKE.LASTS;
+  if (blow === 'punch' || blow === 'kick') e.offhandBlow = !e.offhandBlow;
+}
+
 /** Turn tail: run directly away from the player for a short while. */
 function startFlee(e: Entity, awayX: number, awayZ: number, rng: Rng): void {
   e.state = 'flee';
@@ -338,6 +360,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   e.timer -= dt;
 
   if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
+  if (e.strike > 0) e.strike = Math.max(0, e.strike - dt);
   e.attackCooldown -= dt;
 
   // what this creature does next is decided in behaviours/, by kind or by trade

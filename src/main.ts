@@ -62,6 +62,8 @@ import { damageEntity, yawFor, type Entity } from './entities/entity';
 import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
+import { throwBlow } from './entities/entity';
+import type { Blow } from './entities/blows';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
 import { Standing } from './game/standing';
@@ -257,6 +259,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const roaming = Roaming.from(seed, structures, saved?.roaming, state.day);
   /** Which bands have people standing in the world for them right now. */
   const bandsOut = new Map<string, Band>();
+  /** The last thing each village was heard to say about its trouble, so it is not said twice. */
+  const pressSaid = new Map<string, string>();
   /** The soldiers walking with somebody, and what was agreed with each. */
   const hires = new Hires();
   const discovered = state.discovered;
@@ -714,6 +718,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (dialogue.isOpen || swingCooldown > 0) return;
     swingCooldown = COMBAT.COOLDOWN;
     player.entity.attackCooldown = 0.45;
+    // what the hero throws: a blade is swung, and a bare hand alternates fist and boot so a
+    // flurry is not the same arm four times
+    const held = state.worn('hand');
+    const blow: Blow = held && (held.attack ?? 0) > 0
+      ? 'swing'
+      : (player.entity.offhandBlow ? 'kick' : 'punch');
+    throwBlow(player.entity, blow);
+
     const world = places.underground?.world ?? chunks;
     const manager = places.underground?.monsters ?? entities;
     if (duel.active) {
@@ -1007,6 +1019,16 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       ));
       return { asked: n, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
     };
+    (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => {
+      const e = entities.spawnOne(kind, player.x + away, player.z, seed ^ Date.now());
+      return e ? { kind: e.kind.id, x: Math.round(e.x), z: Math.round(e.z), hp: e.hp } : null;
+    };
+    (debug as { __blow?: () => unknown }).__blow = () => ({
+      hero: { blow: player.entity.blow, strike: Math.round(player.entity.strike * 100) / 100 },
+      others: entities.within(player.x, player.z, 30)
+        .filter((e) => e.strike > 0)
+        .map((e) => `${e.kind.id}: ${e.blow} ${Math.round(e.strike * 100) / 100}`),
+    });
     (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
     (debug as { __warband?: () => unknown }).__warband = () => ({
       active: warband.active, opponent: warband.opponentName, muster: warband.muster, readout: warband.readout(),
@@ -1257,7 +1279,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         const death = register.bury(taken.id, state.day);
         if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
       }
-      if (press.pressure >= 0.25) chat.line(press.said, 'sys');
+      // a village under the same band says so once, not every morning until it is dealt with:
+      // news repeated daily stops being news and starts being wallpaper
+      if (press.pressure >= 0.25 && pressSaid.get(press.village) !== press.said) {
+        pressSaid.set(press.village, press.said);
+        chat.line(press.said, 'sys');
+      }
     }
     for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
