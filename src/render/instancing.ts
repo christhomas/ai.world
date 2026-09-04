@@ -20,6 +20,22 @@ const scale = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
 /**
+ * How big a prop has to be, in cubic tiles of its bounding box, before its shadow is worth a
+ * draw call. A tree or a boulder plainly casts one; a flower, a tuft of grass or a pebble drops
+ * a shadow nobody can see, and the shadow pass is the most expensive half of a frame.
+ *
+ * The same rule creatures use for their parts, in `entities/pool.ts`, at their own scale.
+ */
+const SHADOW_VOLUME = 0.5;
+
+const worthAShadow = (geometry: THREE.BufferGeometry): boolean => {
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (!box) return true;
+  return (box.max.x - box.min.x) * (box.max.y - box.min.y) * (box.max.z - box.min.z) >= SHADOW_VOLUME;
+};
+
+/**
  * Draw a batch of props as one InstancedMesh per kind, plus a matching unlit mesh for any kind
  * that has a glow (lit windows, torch flames, a forge). Used by chunks, dungeons and interiors,
  * which all draw the same prop library in the same way.
@@ -50,7 +66,7 @@ export function addPropInstances(
       mesh.setMatrixAt(i, matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
-    mesh.castShadow = shadows;
+    mesh.castShadow = shadows && worthAShadow(geometry);
     mesh.receiveShadow = shadows;
     mesh.computeBoundingSphere();
     parent.add(mesh);

@@ -50,6 +50,12 @@ export const GAMEPLAY = {
   POI_DISCOVER_RADIUS: 7,   // walking this close to a point of interest discovers it
   AUTOSAVE_SECONDS: 3,
   KO_GOLD_LOSS: 10,         // gold dropped when knocked out
+  /**
+   * Frames a second to aim for. A 120Hz display would otherwise draw this world twice as often
+   * as anybody can see, at twice the cost; the game is not fast enough for that to be worth it.
+   * Raise it if you are on hardware that laughs at this.
+   */
+  MAX_FPS: 60,
 } as const;
 
 export const CAMERA = {

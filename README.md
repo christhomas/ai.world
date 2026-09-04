@@ -229,6 +229,12 @@ one draw call per kind.
 downhill, their level never rising, so every terrace they cross becomes a waterfall. Roads cross
 them on bridges.
 
+**Frames cost what they cost.** A frame is mostly the shadow pass: it was 46% of the draw calls
+and 64% of the triangles until props smaller than half a cubic tile stopped casting — a flower's
+shadow is not worth a draw call, a tree's is. The loop also declines frames a fast display offers
+beyond `GAMEPLAY.MAX_FPS`, because drawing this world 120 times a second costs twice as much and
+looks the same.
+
 **A server that knows almost nothing.** Because every client grows the same world, the server
 keeps one small JSON file per seed: the time of day, the short list of things players changed,
 the market, the post shelf, and every name it has met. Everything else — who is where, what they
