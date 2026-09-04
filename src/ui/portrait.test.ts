@@ -46,9 +46,9 @@ describe('a drawn face', () => {
     const seen = new Set<string>();
     for (let i = 0; i < 200; i++) {
       const p = paletteFor(faceOf(`villager-${i}`, '', 'adult'));
-      seen.add([p.skin, p.hair, p.eye, p.fringe, p.length, p.brow, p.wider].join('|'));
+      seen.add([p.skin, p.hair, p.eye, p.head, p.eyes, p.eyeH, p.spacing, p.hair2, p.fringe, p.volume, p.mood].join('|'));
     }
-    expect(seen.size).toBeGreaterThan(150);
+    expect(seen.size).toBeGreaterThan(190);
   });
 
   it('gives a trade its own hat, and no trade none', () => {

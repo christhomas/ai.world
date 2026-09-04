@@ -6,12 +6,19 @@
  body { background:#232d63; margin:0; padding:16px; font:12px system-ui; color:#dfe4ff; }
  .row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
  figure { margin:0; text-align:center; }
- canvas { width:96px; height:112px; image-rendering:pixelated;
+ canvas { width:var(--w,96px); height:var(--h,112px); image-rendering:pixelated;
    background:linear-gradient(180deg,#46538f,#232d63); border:2px solid #8fa0ff; border-radius:5px; }
  figcaption { color:#ffd76a; margin-top:2px; }
  h2 { color:#fff; font-size:13px; margin:8px 0 6px; }
 </style>
 <div id=out></div>
+<script>
+ // ?big shows fewer faces much larger, which is the only way to judge the actual pixels
+ const big = new URLSearchParams(location.search).has('big');
+ if (big) document.documentElement.style.setProperty('--w', '192px');
+ if (big) document.documentElement.style.setProperty('--h', '224px');
+ window.__big = big;
+</script>
 <script type="module">
  import { drawFace, faceOf } from '/src/ui/portrait.ts';
  const TRADES = ['farmer','hunter','constable','doctor','soldier','sailor','seller','innkeeper','climber','explorer'];
@@ -29,7 +36,7 @@
    out.append(row);
  };
  section('one of each trade', TRADES.map((t) => [t, faceOf('Ashford-' + t, t, 'adult')]));
- section('ten villagers, no trade', Array.from({length:10}, (_, i) => ['#' + i, faceOf('Ashford-' + i, '', 'adult')]));
- section('children', Array.from({length:6}, (_, i) => ['child ' + i, faceOf('kid-' + i, '', 'child')]));
+ section(window.__big ? 'twelve villagers' : 'thirty villagers', Array.from({length: window.__big ? 12 : 30}, (_, i) => ['#' + i, faceOf('Ashford-' + i, '', 'adult')]));
+ section('children', Array.from({length:10}, (_, i) => ['child ' + i, faceOf('kid-' + i, '', 'child')]));
  section('talking', TRADES.slice(0,5).map((t) => [t, faceOf('Ashford-' + t, t, 'adult', true)]));
 </script>
