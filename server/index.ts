@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
-  PROTOCOL_VERSION, cleanChat, cleanDelta, cleanLetter, cleanName, cleanStallItem,
+  PARTY_LIMIT, PROTOCOL_VERSION, cleanChat, cleanDelta, cleanLetter, cleanName, cleanStallItem,
   type ClientMessage, type Presence, type ServerMessage, type TradeOffer,
 } from './protocol';
 import { CLOCK_INTERVAL, SharedWorld, worldPath } from './world';
@@ -25,7 +25,14 @@ interface Client {
   lastSeen: number;
   /** Offers this client has made, keyed by the id they were made to. */
   offers: Map<string, TradeOffer>;
+  /** The party this client travels with, if any. */
+  party: Party | null;
+  /** Ids this client has asked to travel with, so an answer can be trusted. */
+  invited: Set<string>;
 }
+
+/** A handful of players travelling together. Parties live only as long as the people in them. */
+type Party = Set<Client>;
 
 interface Room {
   clients: Set<Client>;
@@ -71,6 +78,26 @@ Parameters<SharedWorld['stall']>[1] | null => {
   }
 };
 
+/** Tell everyone in a party who is in it now. */
+const tellParty = (party: Party): void => {
+  const members = [...party].map((c) => ({ id: c.presence.id, name: c.presence.name }));
+  for (const member of party) send(member, { type: 'party', members });
+};
+
+/** Take somebody out of their party, dissolving it if that leaves one person standing. */
+const leaveParty = (client: Client): void => {
+  const party = client.party;
+  if (!party) return;
+  party.delete(client);
+  client.party = null;
+  if (party.size <= 1) {
+    for (const last of party) { last.party = null; send(last, { type: 'party', members: [] }); }
+    party.clear();
+    return;
+  }
+  tellParty(party);
+};
+
 const server = createServer((_req, res) => {
   const players = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
   res.writeHead(200, { 'content-type': 'text/plain' });
@@ -97,7 +124,7 @@ wss.on('connection', (socket) => {
       const room = roomFor(seed, { day: Math.max(1, Math.floor(message.day) || 1), time: Number(message.time) || 0.3 });
       const id = `p${nextId++}`;
       const joining: Client = {
-        socket, seed, lastSeen: Date.now(), offers: new Map(),
+        socket, seed, lastSeen: Date.now(), offers: new Map(), party: null, invited: new Set(),
         presence: {
           id, name: cleanName(message.name), x: 0, z: 0, yaw: 0, walk: 0,
           gear: [], place: 'surface', riding: 'foot',
@@ -196,6 +223,39 @@ wss.on('connection', (socket) => {
         send(me, { type: 'mail', letters: room.world.collect(me.presence.name) });
         break;
       }
+      case 'party-invite': {
+        const target = [...room.clients].find((c) => c.presence.id === message.to);
+        if (!target || target === me) break;
+        if ((me.party?.size ?? 1) >= PARTY_LIMIT) { send(me, { type: 'error', reason: 'Your party is full.' }); break; }
+        me.invited.add(target.presence.id);
+        send(target, { type: 'party-invited', from: me.presence.id, fromName: me.presence.name });
+        break;
+      }
+      case 'party-answer': {
+        const host = [...room.clients].find((c) => c.presence.id === message.from);
+        if (!host || !host.invited.delete(me.presence.id)) break;
+        if (!message.yes) { send(host, { type: 'party-declined', name: me.presence.name }); break; }
+        leaveParty(me);
+        const party: Party = host.party ?? new Set([host]);
+        if ((party.size ?? 0) >= PARTY_LIMIT) { send(me, { type: 'error', reason: 'That party is full.' }); break; }
+        host.party = party;
+        party.add(me);
+        me.party = party;
+        tellParty(party);
+        break;
+      }
+      case 'party-leave': {
+        leaveParty(me);
+        send(me, { type: 'party', members: [] });
+        break;
+      }
+      case 'party-deed': {
+        const quest = String(message.quest).slice(0, 60);
+        for (const mate of me.party ?? []) {
+          if (mate !== me) send(mate, { type: 'party-deed', quest, from: me.presence.name });
+        }
+        break;
+      }
       case 'trade-offer': {
         const target = [...room.clients].find((c) => c.presence.id === message.to);
         if (!target) break;
@@ -231,6 +291,7 @@ wss.on('connection', (socket) => {
     client = null;
     if (!room) return;
     room.clients.delete(leaving);
+    leaveParty(leaving);
     broadcast(leaving.seed, { type: 'left', id: leaving.presence.id });
     if (room.clients.size === 0) {
       // hold the world on disk, then let it go: it will be read back when somebody returns
@@ -249,7 +310,7 @@ setInterval(() => {
 
   for (const [seed, room] of rooms) {
     for (const client of room.clients) {
-      if (now - client.lastSeen > TIMEOUT) { client.socket.close(); room.clients.delete(client); }
+      if (now - client.lastSeen > TIMEOUT) { client.socket.close(); leaveParty(client); room.clients.delete(client); }
     }
     if (room.clients.size === 0) { room.world.save(); rooms.delete(seed); continue; }
 

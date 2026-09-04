@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** Where somebody is and what they look like, sent several times a second. */
 export interface Presence {
@@ -117,6 +117,15 @@ export interface Letter {
 /** No more parcels than this wait in one world, oldest thrown out first. */
 export const MAIL_LIMIT = 500;
 
+/** One traveller in a party, as everyone else in it sees them. */
+export interface PartyMember {
+  id: string;
+  name: string;
+}
+
+/** A party is small on purpose: enough to travel together, not enough to fill a dungeon. */
+export const PARTY_LIMIT = 6;
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -133,7 +142,12 @@ export type ClientMessage =
   | { type: 'stall-collect'; stall: string }
   | { type: 'stall-close'; stall: string }
   | { type: 'mail-send'; to: string; gold: number; items: Array<[string, number]> }
-  | { type: 'mail-fetch' };
+  | { type: 'mail-fetch' }
+  | { type: 'party-invite'; to: string }
+  | { type: 'party-answer'; from: string; yes: boolean }
+  | { type: 'party-leave' }
+  /** An errand one member finished, which counts for the whole party. */
+  | { type: 'party-deed'; quest: string };
 
 export type ServerMessage =
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
@@ -163,6 +177,12 @@ export type ServerMessage =
   /** Your parcel is on the shelf, waiting for whoever it is addressed to. */
   | { type: 'mail-sent'; to: string }
   | { type: 'mail-refused'; reason: string }
+  /** Who is in your party now; empty when you are travelling alone again. */
+  | { type: 'party'; members: PartyMember[] }
+  | { type: 'party-invited'; from: string; fromName: string }
+  /** Somebody would rather travel alone. */
+  | { type: 'party-declined'; name: string }
+  | { type: 'party-deed'; quest: string; from: string }
   | { type: 'error'; reason: string };
 
 /**

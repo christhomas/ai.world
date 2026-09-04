@@ -1,12 +1,12 @@
 import {
   PROTOCOL_VERSION, cleanChat, cleanName,
   type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage,
-  type Letter, type Stall, type StallItem, type TradeOffer, type WorldDelta,
+  type Letter, type PartyMember, type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
-export type { Clock, Letter, MonsterSnap, Presence, Stall, StallItem, TradeOffer, WorldDelta };
+export type { Clock, Letter, MonsterSnap, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
@@ -36,6 +36,12 @@ export interface OnlineEvents {
   onMail: (letters: Letter[]) => void;
   /** Word from the post shelf: something waiting, your parcel away, or your parcel turned down. */
   onMailWord: (line: string, kind: 'waiting' | 'sent' | 'refused') => void;
+  /** Who you are travelling with now. */
+  onParty: (members: PartyMember[]) => void;
+  /** Somebody would like you to travel with them, or has answered your own asking. */
+  onPartyWord: (line: string, invite: { from: string; name: string } | null) => void;
+  /** An errand a companion finished, which counts for you too. */
+  onPartyDeed: (quest: string, from: string) => void;
   /** Somebody has offered you goods; answering is up to the player. */
   onOffer: (offer: TradeOffer, fromName: string) => void;
   /** A trade you were part of finished: apply it to your own purse. */
@@ -175,6 +181,18 @@ export class Online {
       case 'mail-refused':
         this.events.onMailWord(message.reason, 'refused');
         break;
+      case 'party':
+        this.events.onParty(message.members);
+        break;
+      case 'party-invited':
+        this.events.onPartyWord(`${message.fromName} asks you to travel together.`, { from: message.from, name: message.fromName });
+        break;
+      case 'party-declined':
+        this.events.onPartyWord(`${message.name} would rather travel alone.`, null);
+        break;
+      case 'party-deed':
+        this.events.onPartyDeed(message.quest, message.from);
+        break;
       case 'said':
         this.events.onChat(`${message.name}: ${message.text}`);
         break;
@@ -249,6 +267,24 @@ export class Online {
   /** Ask the innkeeper for whatever is waiting under your name. */
   fetchMail(): void {
     if (this.connected) this.send({ type: 'mail-fetch' });
+  }
+
+  /** Ask somebody to travel with you, answer their asking, or go your own way. */
+  invite(to: string): void {
+    if (this.connected) this.send({ type: 'party-invite', to });
+  }
+
+  answerInvite(from: string, yes: boolean): void {
+    if (this.connected) this.send({ type: 'party-answer', from, yes });
+  }
+
+  leaveParty(): void {
+    if (this.connected) this.send({ type: 'party-leave' });
+  }
+
+  /** Tell your companions you finished an errand, so it counts for them as well. */
+  shareDeed(quest: string): void {
+    if (this.connected) this.send({ type: 'party-deed', quest });
   }
 
   say(text: string): void {

@@ -16,6 +16,7 @@ import { StructureKind, compassDir } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, spoils, swing } from './game/combat';
 import { Market, RENT, askingPrice, lotLine } from './game/market';
+import { PARTY_LIMIT, Party } from './game/party';
 import { STALL_DAYS } from '../server/protocol';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
@@ -190,6 +191,30 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       state.version++;
       hud.flash(reason);
     },
+    onParty: (members) => {
+      party.receive(members);
+      chat.line(members.length ? `Party: ${members.map((m) => m.name).join(', ')}.` : 'You are travelling alone again.', 'sys');
+      hud.flash(members.length ? `Travelling ${party.describe(online.id)}` : 'The party has broken up');
+    },
+    onPartyWord: (line, invite) => {
+      if (!invite) { chat.line(line, 'sys'); hud.flash(line); return; }
+      dialogue.start({ speaker: invite.name, emoji: '🧭', pages: [line], choices: [
+        { label: 'Travel together', next: () => { online.answerInvite(invite.from, true); return null; } },
+        { label: 'Not today', next: () => { online.answerInvite(invite.from, false); return null; } },
+      ] });
+    },
+    onPartyDeed: (quest, from) => {
+      // an errand a companion finished counts for us, if we had taken it on as well
+      if (state.quests.get(quest) !== 'active') return;
+      const errand = questList.find((q) => q.id === quest);
+      if (!errand) return;
+      state.quests.set(quest, 'done');
+      state.inventory.gold += errand.reward;
+      state.version++;
+      sound.fanfare();
+      hud.flash(`${from} finished the errand for ${errand.village} (+${errand.reward}g)`);
+      persist();
+    },
     onOffer: (offer, fromName) => showOffer(offer, fromName),
     onTradeResult: ({ accepted, offer, iSent }) => {
       if (!accepted) { chat.line('The trade was declined.', 'sys'); return; }
@@ -200,6 +225,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     },
   });
   const market = new Market();
+  const party = new Party();
   /** The pitch we last walked up to, so the same stall is only announced once. */
   let noticedPitch = '';
   /** Say whose stall this is as you come to it: a bare awning looks the same as a busy one. */
@@ -250,7 +276,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     others.sync(online.players.values(), standingIn);
     others.settle(heightAt);
     others.project(iso.camera, window.innerWidth, window.innerHeight);
-    onlineStatus.textContent = online.connected ? `online · ${online.count + 1} here` : online.status;
+    onlineStatus.textContent = online.connected
+      ? `online · ${online.count + 1} here${party.size ? ` · party of ${party.size}` : ''}`
+      : online.status;
   };
 
   /** The world the hero is standing in: the surface, a dungeon floor, or a building. */
@@ -614,8 +642,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const talkCtx: TalkCtx = {
     state, rng: lineRng, quests, time: state.time,
     onInventoryChange: () => { sound.chime(); persist(); },
-    onQuestChange: (q: { village: string }, status: 'active' | 'done') => {
-      if (status === 'done') { sound.fanfare(); hud.flash(`Quest complete for ${q.village}!`); } else sound.select();
+    onQuestChange: (q: { village: string; id?: string }, status: 'active' | 'done') => {
+      if (status === 'done') {
+        sound.fanfare();
+        hud.flash(`Quest complete for ${q.village}!`);
+        if (q.id) online.shareDeed(q.id);
+      } else sound.select();
       persist();
     },
   };
@@ -917,6 +949,22 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
 
   // --- keys ---
+  /** The party menu: ask the nearest traveller along, see who is with you, or go your own way. */
+  const partyMenu = (): void => {
+    if (!online.connected) { hud.flash('Join a world online to travel with other people.'); return; }
+    const near = online.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE * 3);
+    const askable = near && !party.has(near.id) ? near : null;
+    const pages = [party.size ? `You are travelling ${party.describe(online.id)}.` : 'You are travelling alone.'];
+    if (askable) pages.push(`${askable.name} is close by.`);
+    dialogue.start({ speaker: 'Your Party', emoji: '🧭', pages, choices: [
+      ...(askable && party.size < PARTY_LIMIT
+        ? [{ label: `Ask ${askable.name} along`, next: () => { online.invite(askable.id); hud.flash(`Asked ${askable.name} to travel with you.`); return null; } }]
+        : []),
+      ...(party.size ? [{ label: 'Go your own way', next: () => { online.leaveParty(); return null; } }] : []),
+      { label: 'Close', next: () => null },
+    ] });
+  };
+  input.onKey('k', () => { if (!dialogue.isOpen && !chat.isTyping) partyMenu(); });
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
   const serverInput = el('serverInput') as HTMLInputElement;
@@ -1035,6 +1083,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         return { x: st.x, z: st.z, color: '#6fd3ff', label: st.docked ? 'ferry (docked)' : 'ferry' };
       }),
     ];
+    // companions are worth finding across a wide world, so they are always on the map
+    for (const mate of party.companions(online.players.values(), online.id)) {
+      out.push({ x: mate.x, z: mate.z, color: '#7fd6ff', label: mate.name, emphasis: true });
+    }
     // active quest targets stand out in green, ringed on the big map
     for (const q of questList) {
       if (state.quests.get(q.id) !== 'active') continue;
@@ -1168,6 +1220,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__player = player;
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
+    (debug as { __quests?: () => unknown }).__quests = () => questList;
+    (debug as { __finishQuest?: (id: string) => void }).__finishQuest = (id) => {
+      const errand = questList.find((q) => q.id === id);
+      if (!errand) return;
+      state.quests.set(id, 'done');
+      state.inventory.gold += errand.reward;
+      state.version++;
+      talkCtx.onQuestChange(errand, 'done');
+    };
     (debug as { __enterInn?: () => string | null }).__enterInn = () => {
       for (const village of structures.villages) {
         const inn = village.shops.find((shop) => shop.type === 'inn');
