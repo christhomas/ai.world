@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -158,6 +158,12 @@ export const PING_LIFE = 90;
 /** A duel is a friendly bout: nobody loses gear, gold or a life over it. */
 export const DUEL_RANGE = 2.4;
 
+/**
+ * A fight with sides is a duel with the men you have already paid for standing in front of you.
+ * Nothing is at stake but the bragging, and nobody is in one who has not agreed to be.
+ */
+export const WARBAND_RANGE = DUEL_RANGE;
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -188,7 +194,19 @@ export type ClientMessage =
   /** A blow landed on the person you are dueling; they decide what it does to them. */
   | { type: 'duel-hit'; damage: number }
   /** Called off, or lost: either way the bout is over. */
-  | { type: 'duel-yield' };
+  | { type: 'duel-yield' }
+  /**
+   * A fight with sides. The asking carries the muster, so the other player can see what he would
+   * be agreeing to before he agrees to it.
+   */
+  | { type: 'warband-challenge'; to: string; swords: number }
+  | { type: 'warband-answer'; from: string; yes: boolean; swords: number }
+  /** A blow my side landed. `sword` is true when a hired man threw it rather than me. */
+  | { type: 'warband-hit'; damage: number; sword: boolean }
+  /** How many of my men are still standing, sent only when that number changes. */
+  | { type: 'warband-muster'; swords: number }
+  /** Called off, or lost: either way the fight is over. */
+  | { type: 'warband-yield' };
 
 export type ServerMessage =
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
@@ -229,6 +247,12 @@ export type ServerMessage =
   | { type: 'duel-struck'; damage: number; from: string }
   /** The bout is over: `winner` is the id of whoever was left standing, or empty if called off. */
   | { type: 'duel-over'; winner: string; name: string }
+  | { type: 'warband-challenged'; from: string; fromName: string; swords: number }
+  | { type: 'warband-begun'; withId: string; withName: string; swords: number }
+  | { type: 'warband-struck'; damage: number; sword: boolean; from: string }
+  | { type: 'warband-muster'; swords: number; from: string }
+  /** Over: `winner` is whoever was left standing, or empty when it was called off. */
+  | { type: 'warband-over'; winner: string; name: string }
   | { type: 'emoted'; id: string; name: string; kind: string }
   | { type: 'pinged'; x: number; z: number; name: string }
   | { type: 'error'; reason: string };
@@ -275,6 +299,8 @@ export function cleanLetter(letter: Letter): Letter | null {
  * of what may cross the wire without hunting through the handlers.
  */
 export const LIMITS = {
+  /** Hired men one side may bring to a fight. Must match HIRE.MOST in src/game/hire.ts. */
+  SWORDS: 2,
   /** A line of chat. */
   CHAT: 160,
   /** A player's name. */
@@ -326,6 +352,28 @@ export function deltaKey(delta: WorldDelta): string {
     case 'found': return `found:${delta.name}`;
     case 'died': return `died:${delta.who}`;
   }
+}
+
+/**
+ * Guard a muster off the wire. Nobody may claim more men than anybody is allowed to hire, and
+ * anything that is not a number is nobody at all.
+ */
+export function cleanSwords(count: unknown): number {
+  const many = Math.floor(Number(count));
+  if (!Number.isFinite(many)) return 0;
+  return clamp(many, 0, LIMITS.SWORDS);
+}
+
+/**
+ * Guard a blow off the wire: no harder than anybody may claim to hit, and no softer than a blow.
+ * A blow of nothing is turned away rather than clamped up, because a hero's hide lets one through
+ * for a heart all the same, and a stream of them is a way of winning without swinging.
+ */
+export function cleanSwing(swing: unknown): { damage: number; sword: boolean } | null {
+  const sent = swing as { damage?: unknown; sword?: unknown } | null | undefined;
+  const damage = Math.floor(Number(sent?.damage));
+  if (!Number.isFinite(damage) || damage < 1) return null;
+  return { damage: clamp(damage, 1, LIMITS.DAMAGE), sword: sent?.sword === true };
 }
 
 /** Guard against a client sending something misshapen. */

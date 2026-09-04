@@ -27,6 +27,10 @@ import type { Chat } from '../ui/chat';
 import type { Sound } from './audio';
 import type { MapMarker } from '../ui/mapbase';
 import type { Register } from '../world/register';
+import { HIRE, type Hires } from './hire';
+import {
+  WARBAND, Warband, fighterOf, reckon, sideOf, strangers, swordsOf, type Fighter,
+} from './warband';
 
 /**
  * Everything that happens because other people are in your world: the connection, the market, the
@@ -58,6 +62,8 @@ export interface MultiplayerContext {
    * somebody else's screen is news, and arrives here as a delta.
    */
   register: Register;
+  /** The soldiers walking with you, whose side they are on, and what was agreed with each. */
+  hires: Hires;
   seed: number;
   /** Which world the hero is standing in: the surface, a dungeon floor, or a building. */
   placeName: () => string;
@@ -74,7 +80,7 @@ export interface MultiplayerContext {
 export function createMultiplayer(ctx: MultiplayerContext) {
   const {
     player, state, places, plots, mount, sailing, entityRenderer, camera,
-    dialogue, hud, chat, sound, questList, discovered, register, seed, placeName, persist, showOffer,
+    dialogue, hud, chat, sound, questList, discovered, register, hires, seed, placeName, persist, showOffer,
   } = ctx;
   const onlineStatus = $('onlineStatus');
   const duelBar = $('duelbar');
@@ -87,6 +93,22 @@ export function createMultiplayer(ctx: MultiplayerContext) {
   const playerList = new PlayerList();
   /** Rally points people have dropped, each fading in its own time. */
   const rally: Array<{ x: number; z: number; name: string; left: number }> = [];
+
+  /** A fight with sides, and the men already paid for who stand in it. */
+  const warband = new Warband();
+  /** How many of your own are on their feet, which is all the far side is ever told. */
+  const mySwords = (): number => hires.roster(online.id).length;
+
+  /** What another player's gear comes to, worked out from the item ids already on the wire. */
+  const theirFighter = (them: { gear: string[] }, swords: number): Fighter => {
+    const worn = them.gear.map((id) => ITEMS[id]).filter(Boolean);
+    return {
+      attack: 1 + worn.reduce((n, i) => n + (i.attack ?? 0), 0),
+      guard: worn.reduce((n, i) => n + (i.defence ?? 0), 0),
+      hearts: 10 + worn.reduce((n, i) => n + (i.hearts ?? 0), 0),
+      swords,
+    };
+  };
 
   const online = new Online({
     onChat: (line) => chat.line(line),
@@ -179,6 +201,65 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         : winner === online.id ? `${name} yields. The bout is yours.`
         : `You yield. ${opponent} takes the bout.`;
       duel.end();
+      chat.line(line, 'sys');
+      hud.flash(line);
+    },
+    onWarbandWord: (line, challenge) => {
+      if (!challenge) { chat.line(line, 'sys'); hud.flash(line); return; }
+      const them = online.players.get(challenge.from);
+      // what he is bringing is already on the wire as worn item ids, so the odds cost nothing
+      const odds = them ? reckon(fighterOf(state, mySwords()), theirFighter(them, challenge.swords)) : null;
+      dialogue.start({
+        speaker: challenge.name, emoji: '⚔️',
+        pages: [line, odds?.words ?? '', 'Nothing is at stake but the bragging.'].filter(Boolean),
+        choices: [
+          { label: 'Stand and fight', next: () => {
+            warband.asked(challenge.from);
+            online.answerMuster(challenge.from, true, mySwords());
+            return null;
+          } },
+          { label: 'Decline', next: () => {
+            warband.forget(challenge.from);
+            online.answerMuster(challenge.from, false, 0);
+            return null;
+          } },
+        ],
+      });
+    },
+    onWarbandBegun: (withId, withName, swords) => {
+      const them = online.players.get(withId);
+      const theirs = them ? theirFighter(them, swords).hearts : state.maxHpTotal;
+      const began = warband.begin(
+        sideOf({ who: online.id, name: online.name, hearts: state.maxHpTotal, guard: state.defence }, swordsOf(hires, online.id)),
+        sideOf({ who: withId, name: withName, hearts: theirs, guard: 0 }, strangers(swords)),
+      );
+      if (!began) return;                    // nobody on this machine agreed to this
+      sound.chime();
+      chat.line(`A fight with ${withName} begins. ${warband.readout()}`, 'sys');
+    },
+    onWarbandStruck: (damage, sword) => {
+      const landing = warband.struck({ damage, sword });
+      if (!landing) return;
+      sound.thud();
+      if (landing.sword) {
+        // out of this fight is not out of your pay: nothing here is at stake
+        if (landing.felled) {
+          online.warbandMuster(warband.muster);
+          hud.flash(`${landing.name} is out of the fight.`);
+        }
+        return;
+      }
+      if (!landing.over) return;
+      online.yieldWarband();
+      hud.flash(`${warband.opponentName} has the better of it.`);
+    },
+    onWarbandMuster: (swords) => warband.theirs(swords),
+    onWarbandOver: (winner, name) => {
+      const opponent = warband.opponentName || 'they';
+      const line = winner === '' ? `${name} would rather not fight.`
+        : winner === online.id ? `${name} yields. The field is yours.`
+        : `You yield. ${opponent} take the field.`;
+      warband.end();
       chat.line(line, 'sys');
       hud.flash(line);
     },
@@ -288,9 +369,37 @@ export function createMultiplayer(ctx: MultiplayerContext) {
    * Everything the server needs from us this frame, and everyone else drawn where they say they
    * are. It runs in every branch of the loop, because people underground are still people.
    */
+  /** Ask somebody for a fight, with whatever you have already paid for standing behind you. */
+  const callOut = (to: string): void => {
+    warband.ask(to);
+    online.muster(to, mySwords());
+  };
+
+  /**
+   * Our men throw their blows on the cadence their own behaviour tree gives them.
+   *
+   * They swing here rather than through the entity that is walking about, because the man on the
+   * far client is not simulated at all: only the blow travels, exactly as the hero's own does.
+   */
+  let sinceBite = 0;
+  const swingSwords = (dt: number): void => {
+    if (!warband.active) return;
+    sinceBite += dt;
+    if (sinceBite < WARBAND.SWORD_EVERY) return;
+    sinceBite = 0;
+    const them = online.players.get(warband.opponent);
+    if (!them || Math.hypot(them.x - player.x, them.z - player.z) > HIRE.EARSHOT) return;
+    for (const man of hires.roster(online.id)) {
+      if (!warband.mayStrike(man.who, warband.opponent, hires)) continue;
+      warband.landed({ damage: WARBAND.SWORD_BLOW, sword: true });
+      online.warbandHit(WARBAND.SWORD_BLOW, true);
+    }
+  };
+
   const syncOnline = (dt: number, heightAt: (x: number, z: number) => number | null): void => {
     others.age(dt);
     showDuel();
+    swingSwords(dt);
     for (let i = rally.length - 1; i >= 0; i--) {
       rally[i].left -= dt;
       if (rally[i].left <= 0) rally.splice(i, 1);
@@ -329,7 +438,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
   };
 
   return {
-    online, market, party, duel, coop, others, handover, rally,
+    online, market, party, duel, coop, others, handover, rally, warband, callOut,
     playerList, playerListInput, markers,
     sync: syncOnline,
     applyDelta: applyWorldDelta,

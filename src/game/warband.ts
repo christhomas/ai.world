@@ -48,6 +48,12 @@ export const WARBAND = {
   TICK: 0.01,
   /** How long it watches two people who cannot hurt each other before calling it neither's. */
   LONGEST: 120,
+  /**
+   * How much longer the men have to keep somebody on his feet before the reckoning says so out
+   * loud. A twentieth is under half a swing, and a line telling you your money bought you half a
+   * swing is worse than no line.
+   */
+  WORTH_SAYING: 1.05,
 } as const;
 
 /** One hired man as he stands in a fight: what is left of him, and nothing about his wages. */
@@ -242,7 +248,7 @@ export function reckon(us: Fighter, them: Fighter): Reckoning {
   const win = theirs < ours;
   const alone = stood(unaided[1]) < stood(unaided[0]);
   const bought = lastedAlone > 0 ? lasted / lastedAlone : 1;
-  const held = bought > 1.05
+  const held = bought > WARBAND.WORTH_SAYING
     ? ` Your swords keep you on your feet ${bought.toFixed(1)} times as long as going alone would.`
     : '';
   return {

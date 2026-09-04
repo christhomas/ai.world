@@ -44,6 +44,16 @@ export interface OnlineEvents {
   onDuelStruck: (damage: number) => void;
   /** The bout is over: the winner's id, empty when it was called off. */
   onDuelOver: (winner: string, name: string) => void;
+  /** Somebody would fight you with sides, or has answered your own asking. */
+  onWarbandWord: (line: string, challenge: { from: string; name: string; swords: number } | null) => void;
+  /** The fight has begun against this person, with this many swords behind him. */
+  onWarbandBegun: (withId: string, withName: string, swords: number) => void;
+  /** A blow landed on your side. Where it goes is yours to say. */
+  onWarbandStruck: (damage: number, sword: boolean) => void;
+  /** How many of their men are still on their feet. */
+  onWarbandMuster: (swords: number) => void;
+  /** The fight is over: the winner's id, empty when it was called off. */
+  onWarbandOver: (winner: string, name: string) => void;
   /** Somebody made a gesture: show it over their head. */
   onEmote: (id: string, name: string, emoji: string, kind: string) => void;
   /** A rally point somebody dropped, to stand on the map for a while. */
@@ -214,6 +224,24 @@ export class Online {
       case 'duel-struck':
         this.events.onDuelStruck(message.damage);
         break;
+      case 'warband-challenged':
+        this.events.onWarbandWord(
+          `${message.fromName} would fight you, with ${message.swords} sword${message.swords === 1 ? '' : 's'} behind him.`,
+          { from: message.from, name: message.fromName, swords: message.swords },
+        );
+        break;
+      case 'warband-begun':
+        this.events.onWarbandBegun(message.withId, message.withName, message.swords);
+        break;
+      case 'warband-struck':
+        this.events.onWarbandStruck(message.damage, message.sword);
+        break;
+      case 'warband-muster':
+        this.events.onWarbandMuster(message.swords);
+        break;
+      case 'warband-over':
+        this.events.onWarbandOver(message.winner, message.name);
+        break;
       case 'duel-over':
         this.events.onDuelOver(message.winner, message.name);
         break;
@@ -347,6 +375,31 @@ export class Online {
 
   yieldDuel(): void {
     if (this.connected) this.send({ type: 'duel-yield' });
+  }
+
+  /** Ask somebody for a fight with sides, with whatever you have already paid for behind you. */
+  muster(to: string, swords: number): void {
+    if (this.connected) this.send({ type: 'warband-challenge', to, swords });
+  }
+
+  /** Answer an asking, saying how many of your own you would bring. */
+  answerMuster(from: string, yes: boolean, swords: number): void {
+    if (this.connected) this.send({ type: 'warband-answer', from, yes, swords });
+  }
+
+  /** A blow landed by you or by one of your men. */
+  warbandHit(damage: number, sword: boolean): void {
+    if (this.connected) this.send({ type: 'warband-hit', damage, sword });
+  }
+
+  /** How many of yours are still standing, said only when that changes. */
+  warbandMuster(swords: number): void {
+    if (this.connected) this.send({ type: 'warband-muster', swords });
+  }
+
+  /** Give it up. */
+  yieldWarband(): void {
+    if (this.connected) this.send({ type: 'warband-yield' });
   }
 
   say(text: string): void {

@@ -6,7 +6,7 @@ import type { Surroundings } from './context';
 
 /** Dealing with another player standing beside you: goods, company, or a friendly bout. */
 export function peopleInteractions(ctx: Surroundings) {
-  const { player, state, dialogue, hud, chat, online, party, duel } = ctx;
+  const { player, state, dialogue, hud, chat, online, party, duel, hires, callOut } = ctx;
 
   /** Somebody has offered you something: show it and let the player answer. */
   const showOffer = (offer: TradeOffer, fromName: string): void => {
@@ -36,6 +36,16 @@ export function peopleInteractions(ctx: Surroundings) {
           hud.flash(`Challenged ${target.name} to a duel.`);
           return null;
         } }]),
+        // the same fight, but with whoever you have paid for standing in front of you. It is the
+        // weaker player's answer to a stronger one, and it is why anybody hires a sword at all
+        ...(duel.active || hires.roster(online.id).length === 0 ? [] : [{
+          label: `Call them out, with your ${hires.roster(online.id).length} sword${hires.roster(online.id).length === 1 ? '' : 's'}`,
+          next: () => {
+            callOut(target.id);
+            hud.flash(`Called ${target.name} out.`);
+            return null;
+          },
+        }]),
         ...(state.inventory.gold >= 25 ? [{ label: 'Offer 25 gold', next: () => { online.offer(target.id, 25, []); chat.line(`You offered ${target.name} 25 gold.`, 'sys'); return null; } }] : []),
         ...goods.map(([id, n]) => ({
           label: `Offer ${ITEMS[id].emoji} ${ITEMS[id].name}${n > 1 ? ` (of ${n})` : ''}`,

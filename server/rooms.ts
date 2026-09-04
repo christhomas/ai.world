@@ -25,6 +25,12 @@ export interface Client {
   invited: Set<string>;
   /** Ids this client has challenged to a bout, for the same reason. */
   challenged: Set<string>;
+  /** Ids this client has asked to a fight with sides, so an answer can be trusted. */
+  mustered: Set<string>;
+  /** Who they are fighting with sides now. */
+  warband: Client | null;
+  /** How many hired men they say are behind them, which is all the far side is ever told. */
+  swords: number;
   /** Who they are dueling now. */
   duel: Client | null;
 }
@@ -71,7 +77,7 @@ export class Rooms {
   admit(socket: WebSocket, room: Room, seed: number, name: string): Client {
     const client: Client = {
       socket, seed, lastSeen: Date.now(), offers: new Map(), party: null,
-      invited: new Set(), challenged: new Set(), duel: null,
+      invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);
@@ -133,6 +139,18 @@ export class Rooms {
     if (other) this.send(other, { type: 'duel-over', winner, name: loserName });
   }
 
+  // --- fights with sides ---
+
+  /** Close a fight for both sides, naming whoever gave it up. */
+  endWarband(client: Client, winner: string, loserName: string): void {
+    const other = client.warband;
+    client.warband = null;
+    client.swords = 0;
+    if (other) { other.warband = null; other.swords = 0; }
+    this.send(client, { type: 'warband-over', winner, name: loserName });
+    if (other) this.send(other, { type: 'warband-over', winner, name: loserName });
+  }
+
   // --- leaving ---
 
   /**
@@ -143,6 +161,7 @@ export class Rooms {
     const room = this.rooms.get(client.seed);
     if (!room || !room.clients.delete(client)) return;
     if (client.duel) this.endDuel(client, client.duel.presence.id, client.presence.name);
+    if (client.warband) this.endWarband(client, client.warband.presence.id, client.presence.name);
     this.leaveParty(client);
     this.broadcast(client.seed, { type: 'left', id: client.presence.id });
     if (room.clients.size === 0) this.close(client.seed);

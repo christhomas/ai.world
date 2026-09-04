@@ -1,5 +1,5 @@
 import {
-  EMOTES, LIMITS, PARTY_LIMIT, clamp, cleanChat, cleanDelta, cleanLetter, cleanStallItem,
+  EMOTES, LIMITS, PARTY_LIMIT, clamp, cleanChat, cleanDelta, cleanLetter, cleanStallItem, cleanSwing, cleanSwords,
   type ClientMessage, type TradeOffer,
 } from './protocol';
 import type { Client, Party, Room, Rooms } from './rooms';
@@ -32,6 +32,10 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'duel-challenge': case 'duel-answer': case 'duel-hit': case 'duel-yield':
       bout(rooms, me, room, message);
+      return;
+    case 'warband-challenge': case 'warband-answer': case 'warband-hit':
+    case 'warband-muster': case 'warband-yield':
+      field(rooms, me, room, message);
       return;
     case 'trade-offer': case 'trade-accept': case 'trade-decline':
       trade(rooms, me, room, message);
@@ -259,4 +263,62 @@ function trade(rooms: Rooms, me: Client, room: Room, message: ClientMessage): vo
   const accepted = message.type === 'trade-accept';
   rooms.send(other, { type: 'trade-result', with: me.presence.id, accepted, offer });
   rooms.send(me, { type: 'trade-result', with: other.presence.id, accepted, offer });
+}
+
+/**
+ * A fight with sides. The server does what it does for a bout: introduces the two of them,
+ * carries the blows, and holds nobody's hearts. What it adds is a count of men, and the rule that
+ * neither side is in one without the other having asked first.
+ */
+function field(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  switch (message.type) {
+    case 'warband-challenge': {
+      const target = rooms.byId(room, message.to);
+      if (!target || target === me || me.warband || target.warband) return;
+      me.swords = cleanSwords(message.swords);
+      me.mustered.add(target.presence.id);
+      rooms.send(target, {
+        type: 'warband-challenged', from: me.presence.id, fromName: me.presence.name, swords: me.swords,
+      });
+      return;
+    }
+    case 'warband-answer': {
+      const challenger = rooms.byId(room, message.from);
+      // the asking has to be outstanding, so a forged answer puts nobody in a fight
+      if (!challenger || !challenger.mustered.delete(me.presence.id)) return;
+      if (!message.yes) {
+        rooms.send(challenger, { type: 'warband-over', winner: '', name: me.presence.name });
+        return;
+      }
+      if (challenger.warband || me.warband) return;
+      me.swords = cleanSwords(message.swords);
+      challenger.warband = me;
+      me.warband = challenger;
+      rooms.send(challenger, {
+        type: 'warband-begun', withId: me.presence.id, withName: me.presence.name, swords: me.swords,
+      });
+      rooms.send(me, {
+        type: 'warband-begun', withId: challenger.presence.id, withName: challenger.presence.name, swords: challenger.swords,
+      });
+      return;
+    }
+    case 'warband-hit': {
+      const swing = cleanSwing(message);
+      if (!me.warband || !swing) return;
+      rooms.send(me.warband, {
+        type: 'warband-struck', damage: swing.damage, sword: swing.sword, from: me.presence.id,
+      });
+      return;
+    }
+    case 'warband-muster': {
+      if (!me.warband) return;
+      me.swords = cleanSwords(message.swords);
+      rooms.send(me.warband, { type: 'warband-muster', swords: me.swords, from: me.presence.id });
+      return;
+    }
+    case 'warband-yield': {
+      rooms.endWarband(me, me.warband ? me.warband.presence.id : '', me.presence.name);
+      return;
+    }
+  }
 }

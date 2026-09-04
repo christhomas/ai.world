@@ -345,12 +345,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   let villageWelcome: (village: string) => Kindness | null = () => null;
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   const multiplayer = createMultiplayer({
-    register,
+    register, hires,
     player, state, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
     dialogue, hud, chat, sound, questList, discovered, seed,
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
-  const { online, market, party, duel, coop, others, handover, rally, playerList } = multiplayer;
+  const { online, market, party, duel, warband, coop, others, handover, rally, playerList } = multiplayer;
   /**
    * Put the world away. The simulation is expensive — chunk workers, a webgl context, an audio
    * graph, a socket — and none of it should outlive the moment you leave for the title screen.
@@ -588,6 +588,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
     gifts, hires, standing, rescues, nemesis,
+    callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
     raining: () => raining, discover, persist, startTalk, questLine,
   });
@@ -691,6 +692,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
         duel.landed(state.attack);
         online.duelHit(state.attack);
+        sound.thud();
+        return;
+      }
+    }
+    // a fight with sides lands the same way, except that whatever they have paid for is in front
+    // of them and takes it first
+    if (warband.active && warband.mayStrike(online.id, warband.opponent, hires)) {
+      const them = online.players.get(warband.opponent);
+      if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
+        warband.landed({ damage: state.attack, sword: false });
+        online.warbandHit(state.attack, false);
         sound.thud();
         return;
       }
@@ -931,6 +943,20 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       for (const person of doomed) register.bury(person.id, state.day);
       return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
     };
+    (debug as { __callOut?: (id: string) => void }).__callOut = (id) => multiplayer.callOut(id);
+    (debug as { __hire?: (n: number) => unknown }).__hire = (n) => {
+      // stand somebody's own soldiers up without walking a village: for trying a fight out
+      const folk = structures.villages.flatMap((v) => [...register.living(v.name)]).filter((p) => p.trade === 'soldier');
+      const side = online.id || 'alone';
+      const taken = folk.slice(0, n).map((p) => hires.strike(
+        { who: p.id, name: p.name, asking: 0, terms: [{ fee: 0, share: 0.2 }] },
+        { fee: 0, share: 0.2 }, 999, side,
+      ));
+      return { asked: n, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
+    };
+    (debug as { __warband?: () => unknown }).__warband = () => ({
+      active: warband.active, opponent: warband.opponentName, muster: warband.muster, readout: warband.readout(),
+    });
     (debug as { __bands?: () => unknown }).__bands = () => {
       const abroad = roaming.abroad();
       return {

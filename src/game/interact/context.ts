@@ -73,6 +73,8 @@ export interface Surroundings {
   market: Market;
   party: Party;
   duel: Duel;
+  /** Ask another player for a fight with sides, bringing whoever you have already paid for. */
+  callOut: (to: string) => void;
   mount: Mount;
   sailing: Sailing;
   plots: Plots;
