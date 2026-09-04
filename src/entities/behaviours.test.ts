@@ -3,7 +3,7 @@ import creatures from '../../behaviours/creatures.json';
 import { Memory } from '../core/behaviour';
 import { BehaviourError, compile, compileAll, type BehaviourFile, type Spec } from '../core/behaviourFile';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
-import { allTrees, treeFor } from './behaviours';
+import { allTrees, tradeTree, treeFor } from './behaviours';
 
 /**
  * The files are data, so nothing stops somebody writing nonsense in one. What stops it reaching a
@@ -19,11 +19,22 @@ describe('the behaviour files', () => {
 
   it('cover every kind of creature the game has', () => {
     for (const behaviour of ['graze', 'wander', 'travel', 'hop', 'swim', 'prowl', 'hunt', 'fly', 'circle'] as const) {
-      expect(treeFor(behaviour), `nothing decides for a ${behaviour} creature`).not.toBeNull();
+      expect(treeFor({ kind: { behaviour } }), `nothing decides for a ${behaviour} creature`).not.toBeNull();
     }
-    expect(Object.keys(allTrees()).sort()).toEqual(
-      ['flier', 'grazer', 'hopper', 'monster', 'prowler', 'seaHunter', 'swimmer', 'traveller', 'wanderer'],
-    );
+  });
+
+  it('cover every trade a villager can have', () => {
+    for (const trade of ['innkeeper', 'seller', 'farmer', 'hunter', 'soldier', 'sailor', 'climber', 'explorer']) {
+      expect(tradeTree(trade), `nobody knows how to be a ${trade}`).not.toBeNull();
+    }
+  });
+
+  it('let a trade outrank a species: a hunter is a hunter before they are a villager', () => {
+    const villager = { kind: { behaviour: 'wander' as const } };
+    expect(treeFor(villager)).toBe(tradeTree('wanderer'));
+    expect(treeFor({ ...villager, trade: 'hunter' })).toBe(tradeTree('hunter'));
+    // and a trade nobody has written a day for falls back to the species
+    expect(treeFor({ ...villager, trade: 'astronaut' })).toBe(tradeTree('wanderer'));
   });
 
   it('carry their notes, so a reader is told why rather than only what', () => {

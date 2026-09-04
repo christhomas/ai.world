@@ -567,7 +567,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
     (debug as { __entities?: () => unknown }).__entities = () =>
       entities.within(player.x, player.z, 60).map((e) => ({
-        kind: e.kind.id, name: e.name,
+        kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
         x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
         slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10,
       }));

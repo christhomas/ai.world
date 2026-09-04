@@ -7,6 +7,9 @@ import type { ShopType } from '../world/structures';
 
 export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder' | 'mount' | 'stablehand';
 
+/** Places a villager's working day sends them, named so a behaviour file can say where. */
+export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods';
+
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
 export interface TileWorld {
   /** Walkable ground height at (x,z); null when unloaded, sea, or river/lake. */
@@ -104,13 +107,19 @@ export class Entity {
   readonly tints: number[];
   readonly name: string;
   role: EntityRole = 'none';
+  /**
+   * What this villager does for a living, which decides their whole day. The name of a tree in
+   * behaviours/villagers.json; empty for anything that is not a working person.
+   */
+  trade = '';
+  /** Where their day takes them, filled in when they are spawned into a village. */
+  posts: Partial<Record<Post, [number, number]>> = {};
+  /** What they have earned and not yet spent. */
+  purse = 0;
+  /** What they are carrying to market, if anything. */
+  carrying: { id: string; count: number } | null = null;
   shop: ShopType | null = null;
   /** Door tile villagers walk back to at dusk; they vanish inside on arrival. */
-  home: [number, number] | null = null;
-  /** Where this villager spends the working day, and where the village gathers of an evening. */
-  work: [number, number] | null = null;
-  square: [number, number] | null = null;
-  inn: [number, number] | null = null;
   /** Hidden indoors: not drawn, not interactive, until morning. */
   indoors = false;
   attackCooldown = 0;
@@ -203,11 +212,15 @@ export interface Ctx {
   /** Hero is in the water or on a boat, which is what sea hunters are interested in. */
   playerAfloat?: boolean;
   /**
-   * The behaviour tree that decides for a kind of creature, when one does. Handed in rather than
-   * imported: this file is the mechanism, the trees are the content, and the content is allowed
-   * to know about the mechanism but not the other way about.
+   * The behaviour tree that decides for a creature. Handed in rather than imported: this file is
+   * the mechanism, the trees are the content, and the content is allowed to know about the
+   * mechanism but not the other way about.
    */
-  treeFor?: (behaviour: Behaviour) => Node<Mind> | null;
+  treeFor?: (e: Entity) => Node<Mind> | null;
+  /** The nearest wild animal to somebody, for a villager whose trade is hunting. */
+  quarry?: (from: Entity, within: number) => Entity | null;
+  /** Take a creature out of the world: a hunter's catch. */
+  removeEntity?: (prey: Entity) => void;
   onAttack: (e: Entity, damage: number) => void;
 }
 
@@ -292,45 +305,17 @@ export function isDaytime(time: number): boolean {
   return time >= AWAKE[0] && time < AWAKE[1];
 }
 
-/** Where a villager should be at a given hour. */
-export type Routine = 'home' | 'work' | 'square' | 'inn';
-
-/** The village day: out to work at dawn, the square at noon, the inn in the evening, bed at night. */
-export function routineAt(time: number): Routine {
-  if (time < AWAKE[0] || time >= AWAKE[1]) return 'home';
-  if (time < 0.42) return 'work';
-  if (time < 0.62) return 'square';
-  return 'inn';
-}
-
 export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   const k = e.kind;
   const { world } = ctx;
   if (e.role === 'mount') return;   // your horse waits where you left it
   e.timer -= dt;
 
-  // townsfolk keep a routine: field in the morning, square at noon, inn in the evening, bed at night
-  if (e.home && ctx.time !== undefined) {
-    const routine = routineAt(ctx.time);
-    if (routine === 'home') {
-      if (e.indoors) return;
-      if (walkTowards(e, e.home, dt, world)) { e.indoors = true; e.walk = 0; }
-      return;
-    }
-    if (e.indoors) { e.indoors = false; e.state = 'idle'; e.timer = ctx.rng(); }
-    const post = routine === 'work' ? e.work : routine === 'inn' ? e.inn : e.square;
-    if (post) {
-      // drift to where the day says you should be, then potter about there
-      const away = Math.hypot(post[0] - e.herd.ax, post[1] - e.herd.az);
-      if (away > 1) { e.herd.ax = post[0]; e.herd.az = post[1]; }
-    }
-  }
-
   if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
   e.attackCooldown -= dt;
 
-  // what this creature does next is decided in behaviours/creatures.json
-  ctx.treeFor?.(k.behaviour)?.({
+  // what this creature does next is decided in behaviours/, by kind or by trade
+  ctx.treeFor?.(e)?.({
       dt,
       memory: e.mind,
       world: {
@@ -341,9 +326,15 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         playerArmed: ctx.playerArmed,
         rng: ctx.rng,
         bite: ctx.onAttack,
+        time: ctx.time ?? 0.5,
+        quarry: ctx.quarry ?? (() => null),
+        remove: ctx.removeEntity ?? (() => {}),
       },
   });
 
+
+  // somebody who has gone inside for the night is not on the street to be moved about
+  if (e.indoors) { e.walk = 0; return; }
 
   const hopper = k.behaviour === 'hop';
   let moving = false;

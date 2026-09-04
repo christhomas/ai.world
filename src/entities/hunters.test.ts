@@ -29,7 +29,7 @@ function swimFor(e: Entity, seconds: number, ctx: { playerX: number; playerZ: nu
     updateEntity(e, step, {
       world: sea, rng: mulberry32(Math.floor(t * 1000) + 1),
       playerX: ctx.playerX, playerZ: ctx.playerZ,
-      playerArmed: false, playerAfloat: ctx.afloat, treeFor,
+      playerArmed: false, playerAfloat: ctx.afloat, treeFor, time: 0.5,
       onAttack: (_e, damage) => bites.push(damage),
     });
     ranges.push(Math.hypot(e.x - ctx.playerX, e.z - ctx.playerZ));

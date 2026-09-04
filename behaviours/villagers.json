@@ -1,0 +1,102 @@
+{
+  "innkeeper": {
+    "note": "Behind the bar all day and half the night. The one trade with somewhere to be after dark.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.95 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "seller": {
+    "note": "A market pitch from dawn until the light goes, then the inn. Buys what hunters and farmers bring in.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.26, "to": 0.74 } }, "then": { "do": "goTo", "with": { "post": "market" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.74, "to": 0.86 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "farmer": {
+    "note": "Out to the field early, back through the square at noon, the inn of an evening.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.25, "to": 0.5 } }, "then": { "do": "goTo", "with": { "post": "field" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.5, "to": 0.58 } }, "then": { "do": "goTo", "with": { "post": "square" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.58, "to": 0.78 } }, "then": { "do": "goTo", "with": { "post": "field" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.78, "to": 0.88 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "hunter": {
+    "note": "The whole trade in one branch: out to the woods, take something, carry it in, sell it, and spend what it fetched.",
+    "first": [
+      {
+        "note": "Carrying a kill? Then the market, whatever hour it is — meat does not keep.",
+        "when": { "ask": "carrying" },
+        "then": {
+          "steps": [
+            { "do": "goTo", "with": { "post": "market", "within": 2.5 } },
+            { "do": "sell" }
+          ]
+        }
+      },
+      {
+        "note": "Coin in the purse and evening drawing in: eat, drink, and buy tomorrow's arrows.",
+        "when": { "ask": "hourBetween", "with": { "from": 0.7, "to": 0.9 } },
+        "then": {
+          "first": [
+            { "when": { "ask": "purse", "with": { "atLeast": 40 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "shop", "within": 2.5 } }, { "do": "spend", "with": { "on": "gear" } }] } },
+            { "steps": [{ "do": "goTo", "with": { "post": "inn", "within": 2.5 } }, { "do": "spend", "with": { "on": "food" } }] }
+          ]
+        }
+      },
+      {
+        "note": "Daylight and nothing on the shoulder: find something.",
+        "when": { "ask": "hourBetween", "with": { "from": 0.25, "to": 0.7 } },
+        "then": {
+          "latch": [
+            { "steps": [{ "do": "goTo", "with": { "post": "woods" } }, { "do": "stalkQuarry" }, { "do": "take" }] }
+          ]
+        }
+      },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "soldier": {
+    "note": "The road in and the road out, all day. Somebody has to watch them.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.22, "to": 0.55 } }, "then": { "do": "goTo", "with": { "post": "gate" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.55, "to": 0.82 } }, "then": { "do": "goTo", "with": { "post": "square" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.82, "to": 0.94 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "sailor": {
+    "note": "Down at the water when there is water to be down at, and in the inn when there is not.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.26, "to": 0.72 } }, "then": { "do": "goTo", "with": { "post": "shore" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.72, "to": 0.92 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "climber": {
+    "note": "Up before anybody, on the high ground all day, and back down for supper.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.2, "to": 0.7 } }, "then": { "do": "goTo", "with": { "post": "heights" } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.7, "to": 0.86 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  },
+
+  "explorer": {
+    "note": "Never in the same place twice. Ranges further than anybody and comes back with stories.",
+    "first": [
+      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.76 } }, "then": { "do": "roam", "with": { "tiles": 26 } } },
+      { "when": { "ask": "hourBetween", "with": { "from": 0.76, "to": 0.9 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
+      { "do": "goTo", "with": { "post": "home", "enter": true } }
+    ]
+  }
+}

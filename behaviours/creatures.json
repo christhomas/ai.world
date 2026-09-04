@@ -21,9 +21,14 @@
   },
 
   "wanderer": {
-    "note": "Villagers, shopkeepers, herons, lizards: about their business, wary of nobody.",
-    "when": { "ask": "idle" },
-    "then": { "do": "wander", "with": { "tiles": 4 } }
+    "note": "Villagers, shopkeepers, herons, lizards: about their business, wary of nobody. Anybody with a house in the village is behind its door after dark; a heron has no house, so the branch simply fails and it carries on.",
+    "first": [
+      {
+        "when": { "ask": "hourBetween", "with": { "from": 0.82, "to": 0.27 } },
+        "then": { "do": "goTo", "with": { "post": "home", "enter": true } }
+      },
+      { "when": { "ask": "idle" }, "then": { "do": "wander", "with": { "tiles": 4 } } }
+    ]
   },
 
   "traveller": {

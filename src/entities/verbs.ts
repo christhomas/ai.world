@@ -1,6 +1,7 @@
 import { act, type Node, type Tick } from '../core/behaviour';
 import type { Params, Vocabulary } from '../core/behaviourFile';
-import { BEHAVIOUR, canStand, yawFor, type Entity, type TileWorld } from './entity';
+import { BEHAVIOUR, canStand, yawFor, type Entity, type Post, type TileWorld } from './entity';
+import { ITEMS } from '../game/items';
 import type { Rng } from '../core/rng';
 
 /**
@@ -28,6 +29,12 @@ export interface Mind {
   rng: Rng;
   /** Bite the hero for this creature's usual damage. */
   bite: (e: Entity, damage: number) => void;
+  /** Fraction of the day, for anybody whose work has hours. */
+  time: number;
+  /** The nearest wild animal worth taking, for somebody who hunts for a living. */
+  quarry: (from: Entity, within: number) => Entity | null;
+  /** Take a creature out of the world: a hunter's catch, and nothing else. */
+  remove: (prey: Entity) => void;
 }
 
 /** Somewhere this creature could stand, within `radius` of its herd's patch. */
@@ -73,6 +80,20 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
 
     /** Is this creature standing about with nothing to do? */
     idle: () => (tick) => tick.world.self.state === 'idle',
+
+    /** Is it between these two times of day? Fractions of a day, so 0.5 is noon. */
+    hourBetween: (params) => (tick) => {
+      const from = number(params, 'from', 0);
+      const to = number(params, 'to', 1);
+      const now = tick.world.time;
+      return from <= to ? now >= from && now < to : now >= from || now < to;
+    },
+
+    /** Is this villager carrying something to market? */
+    carrying: () => (tick) => tick.world.self.carrying !== null,
+
+    /** Has this villager earned at least this much and not yet spent it? */
+    purse: (params) => (tick) => tick.world.self.purse >= number(params, 'atLeast', 1),
 
     /** Does this kind of creature attack at all? */
     dangerous: () => (tick) => (tick.world.self.kind.dangerous ?? 0) > 0,
@@ -163,6 +184,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
      */
     wander: (params) => act(({ world }) => {
       const { self } = world;
+      self.indoors = false;
       if (self.state === 'walk' || self.state === 'hop') return;
       const hopping = params.gait === 'hop';
       if (!somewhereNear(world, number(params, 'tiles', 5))) {
@@ -236,6 +258,99 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       const want = under + (self.kind.altitude ?? 2) * (close ? 0.45 : 1);
       self.y += (want - self.y) * Math.min(1, dt * 4);
     }),
+
+    /**
+     * Head for one of the places this villager's day sends them. Running while they are still
+     * walking, success once they are there, failure if their trade has no such place — a village
+     * with no shore has no shore for a sailor to stand on.
+     */
+    goTo: (params) => (tick) => {
+      const { self } = tick.world;
+      const post = self.posts[String(params.post ?? 'square') as Post];
+      if (!post) return 'failure';
+      // the herd anchor is where somebody potters about, so moving it moves their whole day
+      self.herd.ax = post[0];
+      self.herd.az = post[1];
+      // somebody going through their own front door has to reach it; standing about at a post is
+      // near enough at a few paces
+      const close = number(params, 'within', params.enter === true ? 1.2 : 3);
+      const away = Math.hypot(self.x - post[0], self.z - post[1]);
+      if (away > close) {
+        self.indoors = false;
+        self.tx = post[0];
+        self.tz = post[1];
+        if (self.state !== 'walk') { self.state = 'walk'; self.timer = 8; }
+        return 'running';
+      }
+      // arrived. `enter` is what takes somebody off the street and through their own front door:
+      // they step onto the threshold itself, since the next thing they do is stop being drawn
+      if (params.enter === true) {
+        self.x = post[0];
+        self.z = post[1];
+        self.indoors = true;
+        self.walk = 0;
+        // indoors and doing nothing, which is what lets the morning's branch pick them up again
+        self.state = 'idle';
+        self.timer = 0;
+      }
+      return 'success';
+    },
+
+    /** Range further than anybody sensible would, and keep ranging. */
+    roam: (params) => act(({ world }) => {
+      const { self } = world;
+      self.indoors = false;
+      if (self.state === 'walk') return;
+      somewhereNear(world, number(params, 'tiles', 20));
+      self.state = 'walk';
+      self.timer = 12;
+    }),
+
+    /** Close on the nearest wild animal. Fails when there is nothing about worth taking. */
+    stalkQuarry: (params) => (tick) => {
+      const { self, quarry } = tick.world;
+      const prey = quarry(self, number(params, 'within', 30));
+      if (!prey) return 'failure';
+      self.tx = prey.x;
+      self.tz = prey.z;
+      if (self.state !== 'walk') { self.state = 'walk'; self.timer = 10; }
+      return Math.hypot(self.x - prey.x, self.z - prey.z) <= number(params, 'reach', 1.6) ? 'success' : 'running';
+    },
+
+    /** Take what has been run down: it leaves the world, and goes on the hunter's shoulder. */
+    take: (params) => (tick) => {
+      const { self, quarry, remove } = tick.world;
+      const prey = quarry(self, number(params, 'reach', 1.8));
+      if (!prey) return 'failure';
+      remove(prey);
+      self.carrying = { id: prey.kind.drop?.id ?? 'meat', count: 1 };
+      self.state = 'idle';
+      self.timer = 1;
+      return 'success';
+    },
+
+    /** Hand over what is being carried, and take the coin for it. */
+    sell: () => (tick) => {
+      const { self } = tick.world;
+      if (!self.carrying) return 'failure';
+      const worth = ITEMS[self.carrying.id]?.price ?? 4;
+      self.purse += worth * self.carrying.count;
+      self.carrying = null;
+      self.state = 'idle';
+      self.timer = 1.5;
+      return 'success';
+    },
+
+    /** Spend some of what is in the purse, on whatever this trade spends money on. */
+    spend: (params) => (tick) => {
+      const { self } = tick.world;
+      const cost = number(params, 'cost', params.on === 'gear' ? 40 : 6);
+      if (self.purse < cost) return 'failure';
+      self.purse -= cost;
+      self.state = 'idle';
+      self.timer = 2;
+      return 'success';
+    },
 
     /** Nothing in particular: whatever this creature does when nothing is happening. */
     idle: () => act(({ world }) => {

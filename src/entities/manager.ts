@@ -7,7 +7,8 @@ import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
 import { treeFor } from './behaviours';
-import { Entity, Herd, canStand, isDaytime, updateEntity, updateHerd, type TileWorld } from './entity';
+import { pickTrade } from './trades';
+import { Entity, Herd, canStand, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
 
@@ -353,16 +354,25 @@ export class EntityManager {
         if (herd.members.length > 0) herd.members[0].role = 'elder';
         // one of them keeps the horses
         if (herd.members.length > 1) herd.members[1].role = 'stablehand';
-        // each villager keeps a house to go home to at dusk
-        const innShop = v.shops.find((s) => s.type === 'inn');
+        // everybody gets a house, a trade, and the places that trade takes them
+        const posts = this.postsOf(v);
         herd.members.forEach((e, i) => {
           const house = v.houses[i % Math.max(1, v.houses.length)];
-          if (house) { const [dx, dz] = doorTile(house); e.home = [dx + 0.5, dz + 0.5]; }
-          // a field or yard to work, the square at noon, the inn door of an evening
+          const home: [number, number] = house
+            ? [doorTile(house)[0] + 0.5, doorTile(house)[1] + 0.5]
+            : [v.x, v.z];
           const angle = (i / Math.max(1, herd.members.length)) * Math.PI * 2;
-          e.work = [v.x + Math.cos(angle) * (v.radius * 0.55), v.z + Math.sin(angle) * (v.radius * 0.55)];
-          e.square = [v.x, v.z];
-          e.inn = innShop ? [innShop.doorX + 0.5, innShop.doorZ + 0.5] : [v.x, v.z];
+          e.posts = {
+            ...posts,
+            home,
+            work: [v.x + Math.cos(angle) * (v.radius * 0.55), v.z + Math.sin(angle) * (v.radius * 0.55)],
+          };
+          // the elder and the stablehand have their own reasons to be where they are; everybody
+          // else in the village keeps a trade, and their trade keeps their day
+          if (e.role === 'none') {
+            e.role = 'villager';
+            e.trade = pickTrade(posts, ctx.rng);
+          }
         });
       }
       if (v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
@@ -372,6 +382,40 @@ export class EntityManager {
       }
       // shopkeepers are inside their shops; the street outside is for villagers
     }
+  }
+
+  /**
+   * The places a village's working day can send somebody. Whatever the land nearby actually
+   * offers: a shore only where there is water, heights only where the ground climbs, and the
+   * square as the fallback for everything, because a village always has a middle.
+   */
+  private postsOf(v: Village): Partial<Record<Post, [number, number]>> {
+    const middle: [number, number] = [v.x, v.z];
+    const posts: Partial<Record<Post, [number, number]>> = { square: middle };
+    const inn = v.shops.find((shop) => shop.type === 'inn') ?? v.shops[0];
+    if (inn) posts.inn = [inn.doorX + 0.5, inn.doorZ + 0.5];
+    const shop = v.shops.find((s) => s.type === 'smith') ?? v.shops.find((s) => s.type === 'store') ?? inn;
+    if (shop) posts.shop = [shop.doorX + 0.5, shop.doorZ + 0.5];
+    if (v.stalls.length) posts.market = v.stalls[0];
+
+    // walk a ring round the village and see what is out there
+    let bestHeight = -Infinity;
+    for (let step = 0; step < 24; step++) {
+      const angle = (step / 24) * Math.PI * 2;
+      for (const reach of [v.radius * 0.8, v.radius * 1.3, v.radius * 1.9]) {
+        const x = v.x + Math.cos(angle) * reach, z = v.z + Math.sin(angle) * reach;
+        const ground = this.world.heightAt(x, z);
+        if (ground === null) {
+          if (!posts.shore && this.world.waterAt(x, z) !== null) posts.shore = [v.x + Math.cos(angle) * (reach - 2), v.z + Math.sin(angle) * (reach - 2)];
+          continue;
+        }
+        if (!posts.field && reach < v.radius * 1.4) posts.field = [x, z];
+        if (!posts.woods && reach > v.radius * 1.5) posts.woods = [x, z];
+        if (!posts.gate && this.world.isRoad(x, z)) posts.gate = [x, z];
+        if (ground > bestHeight) { bestHeight = ground; posts.heights = [x, z]; }
+      }
+    }
+    return posts;
   }
 
   /** Create `count` entities of a kind scattered around `anchor`, registered with the renderer. */

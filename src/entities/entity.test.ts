@@ -40,7 +40,7 @@ describe('entity movement', () => {
     const rng = mulberry32(2);
     const bites: number[] = [];
     // decisions live in behaviours/creatures.json now, so the trees have to be handed in
-    const ctx = { world, rng, playerX: 3, playerZ: 3, playerArmed: false, treeFor, onAttack: (_e: Entity, d: number) => bites.push(d) };
+    const ctx = { world, rng, playerX: 3, playerZ: 3, playerArmed: false, treeFor, time: 0.5, onAttack: (_e: Entity, d: number) => bites.push(d) };
     const sheep = new Entity(KINDS.sheep, 3.5, 3, new Herd(KINDS.sheep, 3, 3, 3, 3, 5), 'k', rng);
     sheep.y = 1;
     updateEntity(sheep, 0.1, ctx);
@@ -68,8 +68,8 @@ describe('villager hours', () => {
     const herd = new Herd(KINDS.villager, 10, 10, 10, 10, 6);
     const e = new Entity(KINDS.villager, 10, 10, herd, 'k', mulberry32(4));
     e.y = 1;
-    e.home = [6, 10];
-    const ctx = { world, rng: mulberry32(5), playerX: 100, playerZ: 100, playerArmed: false, onAttack: () => {}, time: 0.95 };
+    e.posts = { home: [6, 10], square: [10, 10] };
+    const ctx = { world, rng: mulberry32(5), playerX: 100, playerZ: 100, playerArmed: false, treeFor, onAttack: () => {}, time: 0.95 };
     for (let t = 0; t < 20 && !e.indoors; t += 0.1) updateEntity(e, 0.1, ctx);
     expect(e.indoors).toBe(true);
     expect(Math.hypot(e.x - 6, e.z - 10)).toBeLessThan(1);
@@ -85,30 +85,48 @@ describe('villager hours', () => {
   });
 });
 
-describe('the village day', () => {
-  it('sends people to work, to the square, to the inn, then home', async () => {
-    const { routineAt } = await import('./entity');
-    expect(routineAt(0.1)).toBe('home');    // small hours
-    expect(routineAt(0.35)).toBe('work');   // morning
-    expect(routineAt(0.5)).toBe('square');  // noon
-    expect(routineAt(0.7)).toBe('inn');     // evening
-    expect(routineAt(0.9)).toBe('home');    // night
-  });
-
-  it('moves the herd anchor to the post the hour calls for', () => {
+describe('a villager\'s working day', () => {
+  /** A farmer with somewhere to farm, somewhere to drink, and somewhere to sleep. */
+  const farmer = () => {
     const herd = new Herd(KINDS.villager, 10, 10, 10, 10, 8);
     const e = new Entity(KINDS.villager, 10, 10, herd, 'k', mulberry32(6));
     e.y = 1;
-    e.home = [6, 10];
-    e.work = [14, 12];
-    e.square = [10, 10];
-    e.inn = [8, 14];
-    const tick = (time: number) => updateEntity(e, 0.1, { world, rng: mulberry32(2), playerX: 99, playerZ: 99, playerArmed: false, onAttack: () => {}, time });
-    tick(0.35);
-    expect([herd.ax, herd.az]).toEqual([14, 12]);
-    tick(0.7);
-    expect([herd.ax, herd.az]).toEqual([8, 14]);
-    tick(0.5);
-    expect([herd.ax, herd.az]).toEqual([10, 10]);
+    e.trade = 'farmer';
+    e.posts = { home: [6, 10], field: [14, 12], square: [10, 10], inn: [8, 14] };
+    return e;
+  };
+
+  const tick = (e: Entity, time: number) =>
+    updateEntity(e, 0.1, { world, rng: mulberry32(2), playerX: 99, playerZ: 99, playerArmed: false, treeFor, onAttack: () => {}, time });
+
+  it('is read out of behaviours/villagers.json, hour by hour', () => {
+    const e = farmer();
+    tick(e, 0.35);
+    expect([e.herd.ax, e.herd.az]).toEqual([14, 12]);   // morning: the field
+    tick(e, 0.54);
+    expect([e.herd.ax, e.herd.az]).toEqual([10, 10]);   // noon: the square
+    tick(e, 0.8);
+    expect([e.herd.ax, e.herd.az]).toEqual([8, 14]);    // evening: the inn
+    tick(e, 0.95);
+    expect([e.herd.ax, e.herd.az]).toEqual([6, 10]);    // night: home
+  });
+
+  it('walks home at dusk, goes inside, and comes back out in the morning', () => {
+    const e = farmer();
+    for (let t = 0; t < 40 && !e.indoors; t += 0.1) tick(e, 0.95);
+    expect(e.indoors).toBe(true);
+    expect(Math.hypot(e.x - 6, e.z - 10)).toBeLessThan(3.1);
+
+    tick(e, 0.95);
+    expect(e.indoors).toBe(true);            // still in there while it is dark
+    tick(e, 0.35);
+    expect(e.indoors).toBe(false);           // and out again for the morning
+  });
+
+  it('falls back to its own kind when a trade has nowhere to go', () => {
+    const e = farmer();
+    e.posts = { square: [10, 10] };          // no field, no inn, no house
+    tick(e, 0.35);
+    expect(e.indoors).toBe(false);           // nothing to send them indoors, so they potter
   });
 });
