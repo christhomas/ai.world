@@ -40,6 +40,10 @@ export interface Mind {
   nearestTrouble: (from: Entity, within: number) => Entity | null;
   /** Hurt a creature rather than the hero: a wolf on a farmer, a constable on the wolf. */
   strike: (attacker: Entity, victim: Entity, damage: number) => void;
+  /** The law wants the hero: somebody has been killed, and the village has had enough of it. */
+  wanted: boolean;
+  /** Take the hero in. Where they wake and how long they are held is the game's business. */
+  arrest: (constable: Entity) => void;
   /**
    * What something fetches at market. Handed in rather than looked up: what a pelt is worth is
    * the game's business, and a creature's vocabulary has no reason to know the item catalogue.
@@ -108,6 +112,9 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
 
     /** Is somebody nearby being attacked by something? */
     troubleNearby: (params) => (tick) => tick.world.nearestTrouble(tick.world.self, number(params, 'within', 14)) !== null,
+
+    /** Is the hero wanted badly enough for the law to leave its post over? */
+    wanted: () => (tick) => tick.world.wanted,
 
     /** Is this villager carrying something to market? */
     carrying: () => (tick) => tick.world.self.carrying !== null,
@@ -404,6 +411,22 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       const culprit = nearestTrouble(self, number(params, 'within', 14));
       if (!culprit) return 'failure';
       self.target = culprit;
+      return 'success';
+    },
+
+    /**
+     * Lay hands on the hero. Fails while they are out of reach, which is this file's way of
+     * saying keep coming. Measured to the hero rather than to whatever is marked, because an
+     * arrest is only ever of the hero, and the cooldown is what stops one constable taking them
+     * in twice over while the game is still deciding what that means.
+     */
+    arrest: (params) => (tick) => {
+      const { self, playerX, playerZ, arrest } = tick.world;
+      if (self.attackCooldown > 0) return 'failure';
+      if (Math.hypot(self.x - playerX, self.z - playerZ) > number(params, 'tiles', 1.8)) return 'failure';
+      self.attackCooldown = number(params, 'cooldown', 3);
+      self.yaw = yawFor(playerX - self.x, playerZ - self.z);
+      arrest(self);
       return 'success';
     },
 

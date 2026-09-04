@@ -36,8 +36,10 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when birch, fir and blossom trees joined the biome tables, changing
- * which prop stands on which tile (2026-09-04). Before that: signposts in the structure list.
+ * Last updated deliberately when villages of four houses or more gained a pub, which hangs a sign
+ * beside its door and so adds one structure per village (2026-09-04). Only the structure list
+ * moved: the pub takes a house that was already there and draws nothing from the random stream.
+ * Before that: birch, fir and blossom trees in the biome tables, and signposts before them.
  * Pins the generated world for two seeds. Refactors of the generators must keep these identical;
  * an intentional tuning change updates the constants (and changes every saved world's layout).
  */
@@ -49,6 +51,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '07f401ef', chunks: 'df174a4a', quests: '74df0249' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: '62c6d782', chunks: 'e4f6e69f', quests: '10885860' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'c6588be9', chunks: 'df174a4a', quests: '74df0249' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '939641c5', chunks: 'e4f6e69f', quests: '10885860' },
 };

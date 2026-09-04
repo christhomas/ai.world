@@ -56,6 +56,7 @@ import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
 import { GameState } from './game/state';
 import { dialogueFor, type TalkCtx } from './game/talk';
 import { generateQuests } from './game/quests';
+import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
 import { damageEntity, yawFor, type Entity } from './entities/entity';
 import { EntityRenderer } from './entities/pool';
@@ -63,6 +64,7 @@ import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
+import { Standing } from './game/standing';
 
 
 /** The world server's own port, which `chore world` also uses. */
@@ -143,6 +145,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (id) => ITEMS[id]?.price ?? 4,
     (who) => fallen(who),
     register,
+    () => standing.guilt,
+    (by) => arrested(by),
   );
   const dialogue = new DialogueBox();
   /**
@@ -197,15 +201,28 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
   register.advance(state.day);                // a world reopened after a week finds a village changed
   heroFace();                                 // the face on the right of every conversation
+  /**
+   * Where the hero stands between good and evil. The number lives on the save; this reads it,
+   * and writes it back whenever a deed moves it, so there is one place that decides what a
+   * killing is worth and one place that remembers.
+   */
+  const standing = new Standing(state.standing);
   const discovered = state.discovered;
   const urlTime = url.searchParams.get('t');
   if (urlTime !== null) state.time = Math.max(0, Math.min(0.999, Number(urlTime) || 0));
   fog.reveal(state.explored);
-  const questList = generateQuests(structures, seed);
+  const elderErrands = generateQuests(structures, seed);
+  // the elder's errand and the pub's, in one list: the journal, the map and the compass all read
+  // it, so anything not in here is a job the player has taken on and cannot then find again
+  const questList = [
+    ...elderErrands,
+    ...structures.villages.flatMap((v) => pubTalk(v, structures, seed)?.errand ?? []),
+  ];
   /** One line describing what an errand asks for. */
   const questLine = (q: { kind: string; target: string; count: number }): string =>
     q.kind === 'visit' ? `find the ${q.target}` : `bring ${q.count}× ${ITEMS[q.target]?.name ?? q.target}`;
-  const quests = new Map(questList.map((q) => [q.village, q]));
+  // the elder has one errand to give, and it is theirs: the pub keeps its own
+  const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
   // --- ferries ---
   const ferries = makeFerryLines(structures, structures.villages, graph.islands).map((line) => {
@@ -396,6 +413,27 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const packField = new PackField(rig.scene);
 
   /**
+   * A constable has caught up with you.
+   *
+   * The sentence is served rather than skipped: the clock is wound forward, which means the world
+   * moves on without you, villagers age and the market changes while you are inside. That is the
+   * cost of being wanted, and it is more of a punishment than any number would be.
+   */
+  const arrested = (by: Entity): void => {
+    const hours = standing.sentence();
+    standing.served();
+    state.standing = standing.value;
+    state.time = (state.time + hours / 24) % 1;
+    const cell = by.posts.square ?? [by.x, by.z];
+    player.teleport(cell[0], cell[1]);
+    iso.target.set(cell[0], 0.5, cell[1]);
+    state.version++;
+    hud.flash(`${by.name} takes you in. You come round ${Math.round(hours)} hours later.`);
+    sound.thud();
+    persist();
+  };
+
+  /**
    * Somebody has been killed by something. They leave what they had where they fell, and if it
    * happened within sight you are told, because a scream in the middle distance is the point.
    */
@@ -505,7 +543,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         return;
       }
     }
-    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring);
+    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing);
+    // the ledger moves on every deed, not only on the ones that change what people call you
+    state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.hit.length === 0) { sound.select(); return; }
     sound.thud();
@@ -516,6 +556,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       hud.flash(won.length ? `Defeated ${names} (+${won.join(', ')})` : `Defeated ${names}`);
       persist();
     }
+    // said last so it is the line left on the screen: crossing into a worse standing is the more
+    // important of the two things that just happened
+    if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
   };
   input.onKey('x', attack);
   input.onKey('n', toTitle);

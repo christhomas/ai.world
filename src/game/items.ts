@@ -20,13 +20,14 @@ export type ItemEffect =
   | { type: 'rest' };
 
 /** Something an item does while it is equipped. */
-export type Ability = 'light' | 'map' | 'climb' | 'fish';
+export type Ability = 'light' | 'map' | 'climb' | 'fish' | 'dig';
 
 export const ABILITY_NOTES: Record<Ability, string> = {
   light: 'lights your way at night',
   map: 'reveals the whole map',
   climb: 'climb two terraces at once',
   fish: 'lets you fish at the water',
+  dig: 'turn over the ground for metal',
 };
 
 export interface Item {
@@ -88,6 +89,7 @@ const list: Item[] = [
   { id: 'ironshield', name: 'Iron Shield', emoji: '🛡️', price: 120, desc: 'Dents instead of splitting.', slot: 'offhand', defence: 4 },
   { id: 'lantern', name: 'Lantern', emoji: '🏮', price: 30, desc: 'Hold it up and the night gives way.', slot: 'offhand', ability: 'light' },
   { id: 'rod', name: 'Fishing Rod', emoji: '🎣', price: 28, desc: 'Cane, line and a hook. Hold it by the water and cast.', slot: 'offhand', ability: 'fish' },
+  { id: 'shovel', name: 'Shovel', emoji: '⛏️', price: 34, desc: 'Ash handle, iron blade. Hold it on a hillside and see what the hill has been keeping.', slot: 'offhand', ability: 'dig' },
 
   // --- feet ---
   { id: 'boots', name: 'Walking Boots', emoji: '🥾', price: 26, desc: 'Broken in by someone else.', slot: 'feet', defence: 1 },
@@ -115,6 +117,10 @@ const list: Item[] = [
   { id: 'fang', name: 'Bear Fang', emoji: '🦷', price: 45, desc: 'As long as your thumb.', loot: true },
   { id: 'bone', name: 'Old Bone', emoji: '🦴', price: 8, desc: 'From something that used to walk down here.', loot: true },
   { id: 'gem', name: 'Cave Gem', emoji: '💎', price: 120, desc: 'Cut by nothing but water and time.', loot: true },
+
+  // --- dug out of the ground ---
+  { id: 'nugget', name: 'Gold Nugget', emoji: '🪙', price: 95, desc: 'Heavy for its size, and the colour of a good year.', loot: true },
+  { id: 'silverore', name: 'Silver Ore', emoji: '🪨', price: 34, desc: 'Grey rock with a bright vein through it. A smith knows what to do with it.', loot: true },
 ];
 
 export const ITEMS: Record<string, Item> = Object.fromEntries(list.map((i) => [i.id, i]));

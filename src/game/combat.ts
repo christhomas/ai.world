@@ -1,8 +1,9 @@
 import type { Entity } from '../entities/entity';
 import { damageEntity, type TileWorld } from '../entities/entity';
-import type { EntityManager } from '../entities/manager';
+import { PEOPLE, type EntityManager } from '../entities/manager';
 import { mulberry32 } from '../core/rng';
 import type { GameState } from './state';
+import type { Deed, Standing } from './standing';
 
 export const COMBAT = {
   /** Reach of a swing, in tiles. */
@@ -20,6 +21,23 @@ export interface SwingResult {
   loot: string[];
   /** Indices of creatures we struck but did not resolve, because somebody else owns the floor. */
   reported: Array<{ index: number; damage: number }>;
+  /**
+   * How the country now speaks of you, when this swing changed its mind. Null the rest of the
+   * time, which is nearly always: most of what anybody kills is nobody's business.
+   */
+  regard: string | null;
+}
+
+/**
+ * What a kill counts as. Cutting down a person is murder whoever they were and whatever they were
+ * doing; killing something that had marked a person is a rescue, because the one it had marked is
+ * now walking home. Everything else is hunting, and nobody has an opinion about hunting.
+ */
+export function deedOf(killed: Entity): Deed | null {
+  if (PEOPLE.has(killed.kind.id)) return 'murder';
+  const saved = killed.target;
+  if (saved && !saved.dead && PEOPLE.has(saved.kind.id)) return 'rescue';
+  return null;
 }
 
 /**
@@ -40,15 +58,18 @@ export function spoils(state: GameState, e: Entity, seed: number): { gold: numbe
 /**
  * @param authoritative false when another player is simulating these creatures: we then report our
  * hits rather than resolving them, so two clients can never kill the same monster twice.
+ * @param standing the ledger of what the country makes of you, when there is one to keep. A swing
+ * is where most good and most evil actually happens, so it is where the ledger is written.
  */
 export function swing(
   state: GameState, entities: EntityManager, world: TileWorld,
   x: number, z: number, yaw: number, seed: number, authoritative = true,
+  standing: Standing | null = null,
 ): SwingResult {
   const damage = state.attack;
   // yaw is a +x-facing rig's heading: forward is (cos yaw, -sin yaw)
   const fx = Math.cos(yaw), fz = -Math.sin(yaw);
-  const out: SwingResult = { hit: [], killed: [], gold: 0, loot: [], reported: [] };
+  const out: SwingResult = { hit: [], killed: [], gold: 0, loot: [], reported: [], regard: null };
   for (const e of entities.within(x, z, COMBAT.RANGE)) {
     if (!e.kind.hp || e.dead) continue;
     const dx = e.x - x, dz = e.z - z;
@@ -63,6 +84,10 @@ export function swing(
     }
     if (!damageEntity(e, damage, x, z, world)) continue;
     out.killed.push(e);
+    // judged here rather than after the sweep, because what a creature had marked is what says
+    // whether this was a rescue, and a creature taken out of the world has stopped marking anybody
+    const deed = standing ? deedOf(e) : null;
+    if (standing && deed && standing.did(deed)) out.regard = standing.words;
     const won = spoils(state, e, seed);
     out.gold += won.gold;
     out.loot.push(...won.loot);

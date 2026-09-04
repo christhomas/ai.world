@@ -10,6 +10,7 @@ import { treeFor } from './behaviours';
 import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
+import { postsOf } from './villagers';
 import { Entity, Herd, canStand, damageEntity, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
@@ -33,12 +34,22 @@ const SPAWN_RADIUS = 4;      // chunks around the player that get creatures
 /**
  * What the law is paid. A constable takes the whole bounty for putting down something that was
  * attacking somebody; anybody else who does it — a hunter, a passing farmer — takes a share, which
- * is the difference between doing the job and helping out.
+ * is the difference between doing the job and helping out. Taking in somebody the law wants is the
+ * same job on the same purse, priced by how badly it wants them.
  */
-const BOUNTY = { RESCUE_SHARE: 0.3 } as const;
+const BOUNTY = {
+  RESCUE_SHARE: 0.3,
+  /** What taking in anybody the law wants pays, before their crimes are counted. */
+  ARREST: 15,
+  /** And what the worst of them is worth on top: a constable's own reason to come for you. */
+  ARREST_WORST: 45,
+} as const;
 
-/** Kinds that count as people: what a predator prefers, and what a constable protects. */
-const PEOPLE = new Set(['villager', 'traveller', 'shopkeeper', 'hero']);
+/**
+ * Kinds that count as people: what a predator prefers, what a constable protects, and what it is
+ * murder rather than hunting to kill.
+ */
+export const PEOPLE = new Set(['villager', 'traveller', 'shopkeeper', 'hero']);
 
 const ACTIVE_RANGE = 44;     // tiles; beyond this creatures freeze
 
@@ -90,6 +101,8 @@ export class EntityManager {
   private night = false;
   /** The register's day as of the last time the villagers on the street were checked against it. */
   private registerDay = -1;
+  /** Whether the law was already after the hero last time we looked. */
+  private lawWasOut = false;
 
   constructor(
     private readonly renderer: EntityRenderer,
@@ -113,6 +126,17 @@ export class EntityManager {
      * somebody else will use, and a death worth mentioning.
      */
     private readonly register: Register | null = null,
+    /**
+     * How badly the law wants the hero: nought for somebody it has no interest in, one for the
+     * worst there is. Handed in because guilt is the game's book-keeping, and this layer only
+     * knows that a man in a helmet has decided to do something about it.
+     */
+    private readonly guiltOf: () => number = () => 0,
+    /**
+     * A constable has laid hands on the hero. Where they wake and how long they are held is the
+     * game's business; all that happens here is that somebody was paid for it.
+     */
+    private readonly onArrest: (by: Entity) => void = () => {},
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -161,10 +185,22 @@ export class EntityManager {
       nearestTrouble: (from: Entity, within: number) => this.nearestTrouble(from, within),
       strike: (attacker: Entity, victim: Entity, damage: number) => this.strike(attacker, victim, damage),
       worth: this.priceOf,
+      // asked once a tick and handed to everybody, because a village's constables all heard the
+      // same news about the same person on the same morning
+      wanted: this.guiltOf() > 0,
+      arrest: (constable: Entity) => this.takeIn(constable),
     };
     if (this.register && this.register.today !== this.registerDay) {
       this.registerDay = this.register.today;
       this.reseat();
+    }
+    // the moment the law wants somebody, the village turns a constable out into the street. A
+    // village shows only a handful of its people at once, so without this the police force is
+    // usually indoors when it is needed, which reads as no police force at all.
+    const lawOut = this.guiltOf() > 0;
+    if (lawOut !== this.lawWasOut) {
+      this.lawWasOut = lawOut;
+      if (lawOut) this.callOutTheLaw();
     }
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
@@ -348,6 +384,19 @@ export class EntityManager {
   }
 
   /**
+   * A constable has caught up with somebody the law wants, and taken them in.
+   *
+   * The pay is the law's own, on the same purse as every other bounty: putting down the wolf that
+   * was on a farmer and putting away the man who was is the same job, and a worse criminal is
+   * worth more of it. What being taken in actually costs the hero is the game's business.
+   */
+  private takeIn(constable: Entity): void {
+    const guilt = Math.max(0, Math.min(1, this.guiltOf()));
+    constable.purse += Math.round(BOUNTY.ARREST + guilt * BOUNTY.ARREST_WORST);
+    this.onArrest(constable);
+  }
+
+  /**
    * One creature hurting another. The victim fights back or runs, and anything killed leaves the
    * world; the hero's own hearts are handled elsewhere, because they have a HUD and a save.
    */
@@ -456,7 +505,7 @@ export class EntityManager {
         // one of them keeps the horses
         if (herd.members.length > 1) herd.members[1].role = 'stablehand';
         // everybody gets a house, a trade, and the places that trade takes them
-        const posts = this.postsOf(v);
+        const posts = postsOf(v, this.world);
         const residents = this.residentsFor(v, posts, herd.members.length);
         herd.members.forEach((e, i) => {
           const house = v.houses[i % Math.max(1, v.houses.length)];
@@ -520,6 +569,26 @@ export class EntityManager {
     }
   }
 
+  /** Put a constable on the street in every village that has one and is not already showing it. */
+  private callOutTheLaw(): void {
+    if (!this.register) return;
+    for (const herd of this.herds) {
+      if (herd.tag === '' || herd.members.length === 0) continue;
+      if (herd.members.some((e) => e.trade === 'constable')) continue;
+
+      const shown = new Set(herd.members.map((e) => e.person));
+      const law = this.register.living(herd.tag).find((p) => p.trade === 'constable' && !shown.has(p.id));
+      if (!law) continue;
+
+      // the villager furthest from their own doorstep is the one with least to do
+      const spare = herd.members.find((e) => e.person !== '' && e.role === 'villager');
+      if (!spare) continue;
+      spare.person = law.id;
+      spare.name = law.name;
+      spare.trade = law.trade;
+    }
+  }
+
   /**
    * Which of a village's residents are out on the street right now.
    *
@@ -532,52 +601,16 @@ export class EntityManager {
     const trades = tradesFor(posts).map((t) => t.id);
     const out = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
 
-    return this.register.settle(v.name, v.houses.length, trades)
-      .filter((p) => !out.has(p.id) && stageOf(p, this.register!.today) !== 'baby')
-      .slice(0, wanted);
-  }
+    const here = this.register.settle(v.name, v.houses.length, trades)
+      .filter((p) => !out.has(p.id) && stageOf(p, this.register!.today) !== 'baby');
 
-  /**
-   * The places a village's working day can send somebody. Whatever the land nearby actually
-   * offers: a shore only where there is water, heights only where the ground climbs, and the
-   * square as the fallback for everything, because a village always has a middle.
-   */
-  private postsOf(v: Village): Partial<Record<Post, [number, number]>> {
-    const middle: [number, number] = [v.x, v.z];
-    const posts: Partial<Record<Post, [number, number]>> = { square: middle };
-    const inn = v.shops.find((shop) => shop.type === 'inn') ?? v.shops[0];
-    if (inn) posts.inn = [inn.doorX + 0.5, inn.doorZ + 0.5];
-    const shop = v.shops.find((s) => s.type === 'smith') ?? v.shops.find((s) => s.type === 'store') ?? inn;
-    if (shop) posts.shop = [shop.doorX + 0.5, shop.doorZ + 0.5];
-    if (v.stalls.length) posts.market = v.stalls[0];
-    // the surgery is the house furthest from the market: quiet, and nobody treated in a crowd
-    let quietest: [number, number] | null = null;
-    let quietestAway = -1;
-    for (const house of v.houses) {
-      const [dx, dz] = doorTile(house);
-      const away = Math.hypot(dx - v.x, dz - v.z);
-      if (away > quietestAway) { quietestAway = away; quietest = [dx + 0.5, dz + 0.5]; }
+    // a village shows only a handful of its people at once, so who those are matters. When the
+    // law wants somebody, the constable is one of them: a police force that is statistically
+    // unlikely to be outdoors is not a police force.
+    if (this.guiltOf() > 0) {
+      here.sort((a, b) => Number(b.trade === 'constable') - Number(a.trade === 'constable'));
     }
-    if (quietest) posts.doctor = quietest;
-
-    // walk a ring round the village and see what is out there
-    let bestHeight = -Infinity;
-    for (let step = 0; step < 24; step++) {
-      const angle = (step / 24) * Math.PI * 2;
-      for (const reach of [v.radius * 0.8, v.radius * 1.3, v.radius * 1.9]) {
-        const x = v.x + Math.cos(angle) * reach, z = v.z + Math.sin(angle) * reach;
-        const ground = this.world.heightAt(x, z);
-        if (ground === null) {
-          if (!posts.shore && this.world.waterAt(x, z) !== null) posts.shore = [v.x + Math.cos(angle) * (reach - 2), v.z + Math.sin(angle) * (reach - 2)];
-          continue;
-        }
-        if (!posts.field && reach < v.radius * 1.4) posts.field = [x, z];
-        if (!posts.woods && reach > v.radius * 1.5) posts.woods = [x, z];
-        if (!posts.gate && this.world.isRoad(x, z)) posts.gate = [x, z];
-        if (ground > bestHeight) { bestHeight = ground; posts.heights = [x, z]; }
-      }
-    }
-    return posts;
+    return here.slice(0, wanted);
   }
 
   /** Create `count` entities of a kind scattered around `anchor`, registered with the renderer. */

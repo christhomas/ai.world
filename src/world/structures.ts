@@ -53,6 +53,17 @@ export interface Shop {
   doorZ: number;
 }
 
+/**
+ * The village pub. It is one of the houses, like a shop is, but it is not a shop: nothing on its
+ * shelves is why you go in. What it holds is the room's talk, which lives in the game layer.
+ */
+export interface Pub {
+  house: Structure;
+  /** Where the doorway is, and where the talk happens (tile coords). */
+  doorX: number;
+  doorZ: number;
+}
+
 export interface Structure {
   kind: StructureKind;
   /** Footprint centre tile (integer tile coords of the centre tile). */
@@ -93,6 +104,8 @@ export interface Village {
   biome: Biome;
   houses: Structure[];
   shops: Shop[];
+  /** The pub, if the village runs to one. */
+  pub: Pub | null;
   church: Structure | null;
   /** Tile in front of the church door where the congregation gathers. */
   churchDoor: [number, number] | null;
@@ -145,6 +158,7 @@ const LAYOUT = {
   CHURCH_OFFSET: 2.6,          // beyond the square's edge
   CHURCH_PATH_MAX: 6,
   HOUSE_ATTEMPTS: 80,
+  PUB_HOUSES: 4,               // houses a village needs before one of them is the pub
   HOUSE_LATERAL_MIN: 2.5,      // beyond the road edge
   HOUSE_LATERAL_RANGE: 6,
   STALLS: 2,
@@ -316,19 +330,36 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     return pitches;
   };
 
+  /** A house's door tile, with a sign raised one tile beside it along the wall. */
+  const signedDoor = (h: Structure, biome: Biome): [number, number] => {
+    const fx = Math.round(Math.cos(h.rot)), fz = Math.round(Math.sin(h.rot));
+    const door = h.path[0] ?? [h.tx + fx * 2, h.tz + fz * 2];
+    const sx = h.tx + fx * 2 + (fz !== 0 ? 1 : 0), sz = h.tz + fz * 2 + (fx !== 0 ? 1 : 0);
+    all.push({ kind: StructureKind.Sign, tx: sx, tz: sz, hw: 0, hd: 0, level: h.level, rot: h.rot, biome, path: [] });
+    return [door[0], door[1]];
+  };
+
   /** The first few houses become shops (store, smith, inn, apothecary in turn); a sign stands beside each door. */
   const assignShops = (houses: Structure[], biome: Biome): Shop[] => {
     const shops: Shop[] = [];
     for (let i = 0; i < shopCount(houses.length); i++) {
-      const h = houses[i];
-      const fx = Math.round(Math.cos(h.rot)), fz = Math.round(Math.sin(h.rot));
-      const door = h.path[0] ?? [h.tx + fx * 2, h.tz + fz * 2];
-      // sign one tile beside the door, along the wall
-      const sx = h.tx + fx * 2 + (fz !== 0 ? 1 : 0), sz = h.tz + fz * 2 + (fx !== 0 ? 1 : 0);
-      all.push({ kind: StructureKind.Sign, tx: sx, tz: sz, hw: 0, hd: 0, level: h.level, rot: h.rot, biome, path: [] });
-      shops.push({ type: SHOP_ORDER[i % SHOP_ORDER.length], house: h, doorX: door[0], doorZ: door[1] });
+      const [doorX, doorZ] = signedDoor(houses[i], biome);
+      shops.push({ type: SHOP_ORDER[i % SHOP_ORDER.length], house: houses[i], doorX, doorZ });
     }
     return shops;
+  };
+
+  /**
+   * The pub takes the first house the shops did not, so a village that is big enough to keep one
+   * always has it on the same street as its trade. It hangs a sign like a shop does, because from
+   * the road that is the only way to tell either of them from a home.
+   */
+  const assignPub = (houses: Structure[], biome: Biome): Pub | null => {
+    if (houses.length < LAYOUT.PUB_HOUSES) return null;
+    const house = houses[shopCount(houses.length)];
+    if (!house) return null;
+    const [doorX, doorZ] = signedDoor(house, biome);
+    return { house, doorX, doorZ };
   };
 
   const buildVillage = (nodeIdx: number, spread: number, maxHouses: number, minHouses: number, squareR: number): Village | null => {
@@ -375,8 +406,9 @@ export function generateStructures(sampler: TerrainSampler): Structures {
 
     const stalls = placeStalls(squareR, level, biome);
     const shops = assignShops(houses, biome);
+    const pub = assignPub(houses, biome);
     plazaR = 0;
-    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, church, churchDoor, board, stalls };
+    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub, church, churchDoor, board, stalls };
   };
 
   // --- hub town ---
@@ -514,7 +546,9 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     const shopOf = new Map(v.shops.map((s) => [s.house, s.type]));
     for (const house of v.houses) {
       const [dx, dz] = doorTile(house);
-      doors.push({ x: dx + 0.5, z: dz + 0.5, kind: shopOf.get(house) ?? 'house', village: v.name, bx: house.tx, bz: house.tz });
+      // the room behind the pub's door is an inn's room: a bar, and somebody stood behind it
+      const kind = shopOf.get(house) ?? (house === v.pub?.house ? 'inn' : 'house');
+      doors.push({ x: dx + 0.5, z: dz + 0.5, kind, village: v.name, bx: house.tx, bz: house.tz });
     }
     if (v.church && v.churchDoor) {
       doors.push({ x: v.churchDoor[0] + 0.5, z: v.churchDoor[1] + 0.5, kind: 'church', village: v.name, bx: v.church.tx, bz: v.church.tz });

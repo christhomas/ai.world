@@ -38,6 +38,7 @@ const runVerb = (
     rng: mulberry32(9), bite: () => {}, time: 0.5,
     quarry: () => null, remove: () => {}, nearestPerson: () => null, nearestTrouble: () => null,
     strike: () => {}, worth: (id) => (id === 'pelt' ? 26 : 4),
+    wanted: false, arrest: () => {},
     ...over,
   };
   // stop at the first answer that is not "still going", the way a tree above it would: a verb

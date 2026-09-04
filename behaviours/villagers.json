@@ -67,8 +67,19 @@
   },
 
   "constable": {
-    "note": "Trouble first, whatever the hour: an animal on a villager is what the job is for. Otherwise the square, the gate, and the inn.",
+    "note": "Trouble first, whatever the hour: an animal on a villager is what the job is for, and somebody the law wants is worse. Otherwise the square, the gate, and the inn.",
     "first": [
+      {
+        "note": "A killer the village has had enough of outranks even a wolf: the wolf is only hungry. Forget whatever was marked, walk them down, and take them in once close enough.",
+        "when": { "ask": "wanted" },
+        "then": {
+          "steps": [
+            { "do": "forget" },
+            { "do": "stalk" },
+            { "anyway": { "do": "arrest", "with": { "tiles": 1.8 } } }
+          ]
+        }
+      },
       {
         "note": "Somebody being savaged outranks everything else in the day.",
         "steps": [

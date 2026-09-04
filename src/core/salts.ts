@@ -40,6 +40,7 @@ export const TILE_SALT = {
   PROP_STRETCH: 25,
   PROP_LEAN: 26,
   PROP_TINT: 27,
+  DIG_SEAM: 31,        // what a tile of ground holds for anybody who digs it
 } as const;
 
 /** Seed for a named stream. */

@@ -7,7 +7,8 @@ import { compassDir } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
 import { faceFor } from '../talk';
 import { REACH } from '../places';
-import type { DialogueNode } from '../../ui/dialogue';
+import { errandDone, pubTalk } from '../pub';
+import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
 
 /**
@@ -15,10 +16,69 @@ import type { Surroundings } from './context';
  * pitch, read a fingerpost, buy or mount a horse.
  */
 export function villageInteractions(ctx: Surroundings) {
-  const { player, state, structures, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, questLine, quests, handover, discovered } = ctx;
+  const { player, state, structures, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, questLine, quests, handover, discovered, seed } = ctx;
 
-  /** Enter/Space at a doorway steps inside. */
+  /**
+   * The pub. At its door you get the room before you get the doorway: what the regulars are
+   * saying, and the one errand somebody in there wants doing. The errand is also settled here,
+   * because whoever asked for it is the person still sitting inside.
+   */
+  const tryPub = (): boolean => {
+    for (const village of structures.villages) {
+      const pub = village.pub;
+      if (!pub) continue;
+      if (Math.hypot(pub.doorX + 0.5 - player.x, pub.doorZ + 0.5 - player.z) > REACH.BUILDING_DOOR) continue;
+      const talk = pubTalk(village, structures, seed);
+      if (!talk) continue;
+      const errand = talk.errand;
+      const status = errand ? state.quests.get(errand.id) : undefined;
+      const settled = errand !== null && status === 'active' && errandDone(errand, state.discovered, (id) => state.count(id));
+
+      const pages = [`${talk.name}, ${village.name}. ${talk.room}`, talk.rumours.join('\n')];
+      if (!errand) pages.push('Nobody in here wants anything from you tonight.');
+      else if (status === 'done') pages.push('Your errand here is long settled, and the room remembers it.');
+      else if (status === 'active') pages.push(settled ? errand.done[0] : errand.reminder);
+      else pages.push(...errand.intro);
+
+      const choices: DialogueChoice[] = [];
+      if (errand && status === undefined) {
+        choices.push({ label: `Take it on (${errand.reward}g)`, next: () => {
+          state.quests.set(errand.id, 'active');
+          state.version++;
+          sound.select();
+          hud.flash(`Errand taken: ${questLine(errand)}`);
+          persist();
+          return null;
+        } });
+      }
+      if (errand && settled) {
+        choices.push({ label: `Collect ${errand.reward} gold`, next: () => {
+          if (errand.kind === 'fetch') {
+            const left = state.count(errand.target) - errand.count;
+            if (left > 0) state.inventory.items.set(errand.target, left); else state.inventory.items.delete(errand.target);
+          }
+          state.inventory.gold += errand.reward;
+          state.quests.set(errand.id, 'done');
+          state.version++;
+          sound.jingle();
+          hud.flash(`${errand.reward} gold from ${talk.name}.`);
+          persist();
+          return null;
+        } });
+      }
+      const door = structures.doors.find((d) => d.village === village.name && d.bx === pub.house.tx && d.bz === pub.house.tz);
+      if (door) choices.push({ label: 'Get a drink', next: () => { places.enterBuilding(door); return null; } });
+      choices.push({ label: 'Walk on', next: () => null });
+
+      dialogue.start({ speaker: talk.name, emoji: '🍺', pages, choices });
+      return true;
+    }
+    return false;
+  };
+
+  /** Enter/Space at a doorway steps inside. The pub answers first: its door is a conversation. */
   const tryDoor = (): boolean => {
+    if (tryPub()) return true;
     for (const door of structures.doors) {
       if (Math.hypot(door.x - player.x, door.z - player.z) > REACH.BUILDING_DOOR) continue;
       places.enterBuilding(door);

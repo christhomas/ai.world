@@ -25,6 +25,8 @@ export interface GameStateJson {
   opened: string[];
   /** Anchor ids whose locked doors have been opened. */
   keys: string[];
+  /** Where the hero stands between good and evil, as one number. */
+  standing?: number;
   /** The horse you bought, and where it is tied up. */
   horse?: HorseSave | null;
   /** What is planted where. */
@@ -57,6 +59,12 @@ export class GameState {
   readonly discovered = new Set<string>();
   readonly opened = new Set<string>();
   readonly keys = new Set<string>();
+  /**
+   * Where the hero stands between good and evil. Kept here as a plain number rather than as the
+   * Standing object that interprets it, because a save is a picture of the game's state and has
+   * no business knowing what the number means.
+   */
+  standing = 0;
   /** Bumped whenever something the HUD shows changed. */
   version = 0;
 
@@ -219,6 +227,7 @@ export class GameState {
       discovered: [...this.discovered],
       opened: [...this.opened],
       keys: [...this.keys],
+      standing: this.standing,
     };
   }
 
@@ -246,6 +255,7 @@ export class GameState {
         if (ITEMS[id] && ITEMS[id].slot === slot) g.equipped[slot as EquipSlot] = id;
       }
     }
+    if (typeof json.standing === 'number') g.standing = json.standing;
     for (const k of json.explored ?? []) g.explored.add(k);
     for (const [k, v] of Object.entries(json.quests ?? {})) g.quests.set(k, v);
     for (const k of json.discovered ?? []) g.discovered.add(k);

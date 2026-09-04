@@ -59,6 +59,9 @@ export function createInteractions(ctx: Surroundings) {
     if (village.trySignpost()) return;
     if (travel.tryFerry()) return;
     if (wild.tryFish()) return;
+    // digging comes last of the ground-level things: a shovel in the pack should never swallow an
+    // Enter press meant for a person, a door or a line in the water
+    if (wild.tryDig()) return;
     const e = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
     if (e) startTalk(e); else hud.flash('No one close enough to talk to');
   };

@@ -3,19 +3,27 @@ import { ITEMS } from '../items';
 import { StructureKind } from '../../world/structures';
 import { CROPS, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from '../farming';
 import { FISHING } from '../fishing';
+import { Digging, groundOf, seamAt, type Ground } from '../digging';
 import { GRAPH } from '../../core/config';
 import { villageAt } from '../../world/structures';
 import type { Surroundings } from './context';
 
 /**
  * What Enter does out in the country: the way underground, a wreck's hold, a campfire to sleep
- * by, a line cast into water, and a furrow to sow or reap.
+ * by, a line cast into water, a furrow to sow or reap, and a hole dug in a hillside.
  */
 export function wildInteractions(ctx: Surroundings) {
   const {
     player, state, structures, sampler, chunks, manifest, places, remains,
     dialogue, hud, sound, fishing, plots, online, seed, raining, discover, persist,
   } = ctx;
+
+  /**
+   * The holes dug this sitting. It lives here rather than in the world because what a tile holds
+   * is derivable from the seed: every player works it out for themselves, and nobody has to be
+   * told about anybody else's hole.
+   */
+  const digging = new Digging();
 
   /** Enter/Space at a shrine or a cave mouth offers the way underground. */
   const tryShrine = (): boolean => {
@@ -160,6 +168,38 @@ export function wildInteractions(ctx: Surroundings) {
     return true;
   };
 
+  /** The ground under the hero's feet, read the way somebody holding a shovel would read it. */
+  const underfoot = (): Ground => {
+    const tile = sampler.newSample();
+    sampler.sampleTile(Math.floor(player.x), Math.floor(player.z), tile);
+    return groundOf(tile);
+  };
+
+  /**
+   * Enter with a shovel in hand: turn over the tile you are standing on. Highlands and hillsides
+   * keep metal, meadows mostly keep stones, and a tile gives up what it had only once.
+   */
+  const tryDig = (): boolean => {
+    const tx = Math.floor(player.x), tz = Math.floor(player.z);
+    if (!state.can('dig')) {
+      // carrying a spade is not the same as holding one, but the reminder only comes where it
+      // would have paid, so that a shovel in the pack does not answer every press out in the country
+      if (state.has('shovel') && seamAt(seed, tx, tz, underfoot())) {
+        hud.flash('The gravel here is loose. Hold the shovel in your off hand to dig (I).');
+        return true;
+      }
+      return false;
+    }
+    const found = digging.dig(seed, tx, tz, underfoot());
+    if (!found) return false;
+    const item = ITEMS[found.item];
+    state.give(item.id, found.count);
+    sound.jingle();
+    hud.flash(`Dug up ${found.count > 1 ? `${found.count}× ` : ''}${item.name} ${item.emoji}`);
+    persist();
+    return true;
+  };
+
   /**
    * Enter on bare earth near a village: sow a seed you are carrying, or lift a ripe crop.
    * Ground must be plain grass or sand within reach of a settlement, so fields stay near homes.
@@ -226,5 +266,5 @@ export function wildInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryShrine, tryWreck, tryCampfire, tryFish, tryFarm, tryRemains };
+  return { tryShrine, tryWreck, tryCampfire, tryFish, tryDig, tryFarm, tryRemains };
 }
