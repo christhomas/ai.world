@@ -14,17 +14,13 @@ import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, typ
 import { buildBoat } from './render/boat';
 import { StructureKind, compassDir } from './world/structures';
 import { ITEMS } from './game/shops';
-import { COMBAT, spoils, swing } from './game/combat';
-import { Market } from './game/market';
-import { Handover } from './game/handover';
+import { COMBAT, swing } from './game/combat';
 import { createInteractions } from './game/interact';
-import { PARTY_LIMIT, Party } from './game/party';
-import { PlayerList } from './ui/players';
-import { Duel } from './game/duel';
-import { PING_LIFE, STALL_DAYS } from '../server/protocol';
+import { createMultiplayer } from './game/multiplayer';
+import { PARTY_LIMIT } from './game/party';
+import { PING_LIFE } from '../server/protocol';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
-import { SLOTS } from './game/items';
 import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
 import { FISHING, Fishing } from './game/fishing';
@@ -33,9 +29,7 @@ import { Clock } from './ui/clock';
 import { Compass, type CompassTarget } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { HORSE, Mount } from './game/mount';
-import { Online, applyTrade, tradableItems, type TradeOffer, type WorldDelta } from './game/online';
-import { Coop } from './game/coop';
-import { OtherPlayers } from './render/others';
+import { Online, tradableItems, type TradeOffer, type WorldDelta } from './game/online';
 import { Chat } from './ui/chat';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
 import { CropField } from './render/crops';
@@ -141,236 +135,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   // --- other people ---
   const chat = new Chat();
-  const online = new Online({
-    onChat: (line) => chat.line(line),
-    onSystem: (line) => { chat.line(line, 'sys'); hud.flash(line); },
-    // the world's own time wins while you are in it, so everyone shares a dawn
-    onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
-    onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
-    onMonsters: (place, snap, gone) => {
-      const floor = places.underground;
-      if (!floor) return;
-      const mine = coop.applySnap(place, snap, gone, floor.monsters, (m) => floor.monsters.despawnEntity(m));
-      // the floor's owner resolved the blow, so the spoils are handed out here instead
-      for (const fallen of mine) creditKill(fallen);
-    },
-    onHit: (place, index, damage) => {
-      // we own this floor, so a blow reported by somebody else is resolved here
-      const floor = places.underground;
-      if (!floor || !coop.hosting || place !== placeName()) return;
-      const monster = floor.monsters.onRoster(index);
-      if (!monster || monster.dead) return;
-      if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.despawnEntity(monster);
-    },
-    onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
-    onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },
-    onMail: (letters) => {
-      if (letters.length === 0) { hud.flash('Nothing on the shelf for you.'); return; }
-      const named: string[] = [];
-      for (const letter of letters) {
-        state.inventory.gold += letter.gold;
-        for (const [id, n] of letter.items) { state.give(id, n); named.push(`${n}× ${ITEMS[id]?.name ?? id}`); }
-        if (letter.gold > 0) named.push(`${letter.gold} gold`);
-        chat.line(`Parcel from ${letter.from}, posted on day ${letter.day}.`, 'sys');
-      }
-      state.version++;
-      sound.jingle();
-      hud.flash(`Collected ${named.join(', ')}`);
-      persist();
-    },
-    onMailWord: (line, kind) => {
-      // a parcel that could not be left comes back into your hands
-      if (kind === 'refused') handover.giveBack(state);
-      if (kind === 'sent') handover.settle();
-      chat.line(line, 'sys');
-      hud.flash(line);
-    },
-    onBought: (_stall, item, cost) => {
-      state.inventory.gold = Math.max(0, state.inventory.gold - cost);
-      state.give(item.id, item.count);
-      state.version++;
-      sound.jingle();
-      hud.flash(`Bought ${ITEMS[item.id]?.name ?? item.id} for ${cost} gold`);
-      persist();
-    },
-    onTakings: (_stall, gold) => {
-      state.inventory.gold += gold;
-      state.version++;
-      if (gold > 0) sound.jingle();
-      hud.flash(gold > 0 ? `Took ${gold} gold from the stall` : 'Nothing sold yet');
-      persist();
-    },
-    onStallRefused: (_stall, reason) => {
-      // put back whatever we handed over in hope: the stall would not take it
-      handover.giveBack(state);
-      hud.flash(reason);
-    },
-    onDuelWord: (line, challenge) => {
-      if (!challenge) { chat.line(line, 'sys'); hud.flash(line); return; }
-      dialogue.start({ speaker: challenge.name, emoji: '⚔️', pages: [line, 'Nothing is at stake but the bragging.'], choices: [
-        { label: 'Draw your sword', next: () => { online.answerChallenge(challenge.from, true); return null; } },
-        { label: 'Decline', next: () => { online.answerChallenge(challenge.from, false); return null; } },
-      ] });
-    },
-    onDuelBegun: (withId, withName) => {
-      duel.begin(withId, withName, state.maxHpTotal);
-      sound.chime();
-      chat.line(`A bout with ${withName} begins. First to run out of breath loses.`, 'sys');
-      hud.flash(`Duel with ${withName}!`);
-    },
-    onDuelStruck: (damage) => {
-      // the bout's standing is on screen the whole time, so a blow only needs to be heard
-      if (!duel.struck(damage)) { sound.thud(); return; }
-      // out of breath: say so, and the server tells both sides it is over
-      online.yieldDuel();
-      hud.flash(`${duel.opponentName} wins the bout.`);
-    },
-    onDuelOver: (winner, name) => {
-      // `name` is whoever gave it up, which is you when you were the one who ran out of breath
-      const opponent = duel.opponentName || 'your opponent';
-      const line = winner === '' ? `${name} would rather not fight.`
-        : winner === online.id ? `${name} yields. The bout is yours.`
-        : `You yield. ${opponent} takes the bout.`;
-      duel.end();
-      chat.line(line, 'sys');
-      hud.flash(line);
-    },
-    onEmote: (id, name, emoji, kind) => {
-      others.emote(id, emoji);
-      chat.line(`${name} ${kind}s. ${emoji}`, 'sys');
-    },
-    onPing: (x, z, name) => {
-      rally.push({ x, z, name, left: PING_LIFE });
-      sound.select();
-      hud.flash(`${name} marked a rally point — ${compassDir(x - player.x, z - player.z)}, ${Math.round(Math.hypot(x - player.x, z - player.z))} tiles`);
-    },
-    onParty: (members) => {
-      party.receive(members);
-      chat.line(members.length ? `Party: ${members.map((m) => m.name).join(', ')}.` : 'You are travelling alone again.', 'sys');
-      hud.flash(members.length ? `Travelling ${party.describe(online.id)}` : 'The party has broken up');
-    },
-    onPartyWord: (line, invite) => {
-      if (!invite) { chat.line(line, 'sys'); hud.flash(line); return; }
-      dialogue.start({ speaker: invite.name, emoji: '🧭', pages: [line], choices: [
-        { label: 'Travel together', next: () => { online.answerInvite(invite.from, true); return null; } },
-        { label: 'Not today', next: () => { online.answerInvite(invite.from, false); return null; } },
-      ] });
-    },
-    onPartyDeed: (quest, from) => {
-      // an errand a companion finished counts for us, if we had taken it on as well
-      if (state.quests.get(quest) !== 'active') return;
-      const errand = questList.find((q) => q.id === quest);
-      if (!errand) return;
-      state.quests.set(quest, 'done');
-      state.inventory.gold += errand.reward;
-      state.version++;
-      sound.fanfare();
-      hud.flash(`${from} finished the errand for ${errand.village} (+${errand.reward}g)`);
-      persist();
-    },
-    onOffer: (offer, fromName) => showOffer(offer, fromName),
-    onTradeResult: ({ accepted, offer, iSent }) => {
-      if (!accepted) { chat.line('The trade was declined.', 'sys'); return; }
-      const what = applyTrade(state, offer, iSent);
-      chat.line(iSent ? `You handed over ${what}.` : `You received ${what}.`, 'sys');
-      hud.flash(iSent ? `Gave ${what}` : `Received ${what}`);
-      persist();
-    },
-  });
-  const market = new Market();
-  const party = new Party();
-  const duel = new Duel();
-  const duelBar = $('duelbar');
-  /** Keep the bout's standing in front of the fighters while it lasts. */
-  const showDuel = (): void => {
-    duelBar.classList.toggle('show', duel.active);
-    if (duel.active) duelBar.textContent = duel.readout();
-  };
-  /** Rally points people have dropped, each fading in its own time. */
-  const rally: Array<{ x: number; z: number; name: string; left: number }> = [];
-  const playerList = new PlayerList();
-  /** Goods and gold handed over but not yet answered for, wherever they were handed over. */
-  const handover = new Handover();
 
-  /** Bank what a monster somebody else resolved for us left behind. */
-  const creditKill = (fallen: Entity): void => {
-    const won = spoils(state, fallen, seed);
-    state.inventory.gold += won.gold;
-    state.version++;
-    sound.chime();
-    const spoilsText = [won.gold > 0 ? `${won.gold} gold` : '', ...won.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
-    hud.flash(spoilsText.length ? `Defeated ${fallen.kind.label} (+${spoilsText.join(', ')})` : `Defeated ${fallen.kind.label}`);
-    persist();
-  };
-  const others = new OtherPlayers(entityRenderer);
-  const coop = new Coop({
-    sendSnap: (place, snap, gone) => online.monsters(place, snap, gone),
-    sendHit: (place, index, damage) => online.hit(place, index, damage),
-  });
 
-  /**
-   * Everything the server needs from us this frame, and everyone else drawn where they say they
-   * are. It runs in every branch of the loop, because people underground are still people.
-   */
-  const syncOnline = (dt: number, heightAt: (x: number, z: number) => number | null): void => {
-    others.age(dt);
-    showDuel();
-    for (let i = rally.length - 1; i >= 0; i--) {
-      rally[i].left -= dt;
-      if (rally[i].left <= 0) rally.splice(i, 1);
-    }
-    playerList.refresh(playerListInput);
-    const standingIn = placeName();
-    online.update(dt, {
-      x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,
-      place: standingIn, riding: sailing.sailing ? 'boat' : mount.riding ? 'horse' : 'foot',
-      gear: SLOTS.map((slot) => state.worn(slot)?.id ?? '').filter(Boolean),
-    });
-    others.sync(online.players.values(), standingIn);
-    others.settle(heightAt);
-    others.project(iso.camera, window.innerWidth, window.innerHeight);
-    onlineStatus.textContent = online.connected
-      ? `online · ${online.count + 1} here${party.size ? ` · party of ${party.size}` : ''}`
-      : online.status;
-  };
 
   /** The world the hero is standing in: the surface, a dungeon floor, or a building. */
   const placeName = (): string => places.underground
     ? `${places.underground.poi.name}:${places.underground.floor}`
     : places.indoors ? places.indoors.title : 'surface';
 
-  /**
-   * Something a player changed about the world: a chest opened, a vault unlocked, a crop sown or
-   * lifted, a place named. Applying it locally is all it takes, because the rest of the world is
-   * identical on every client.
-   */
-  const applyWorldDelta = (delta: WorldDelta, catchingUp: boolean): void => {
-    switch (delta.kind) {
-      case 'chest':
-        state.opened.add(delta.id);
-        places.underground?.scene.rebuildProps(state.opened);
-        break;
-      case 'key':
-        state.keys.add(delta.id);
-        if (places.underground?.world.anchorId.startsWith(delta.id)) places.underground.world.unlocked = true;
-        break;
-      case 'sow': {
-        const [tx, tz] = delta.tile.split(',').map(Number);
-        plots.plant(tx, tz, delta.crop, delta.day);
-        break;
-      }
-      case 'reap': {
-        const [tx, tz] = delta.tile.split(',').map(Number);
-        plots.harvest(tx, tz, Number.MAX_SAFE_INTEGER);
-        break;
-      }
-      case 'found':
-        discovered.add(delta.name);
-        break;
-    }
-    state.version++;
-    if (!catchingUp) persist();
-  };
   chat.onSend = (text) => {
     // a line beginning with a slash is a gesture, if it names one anybody knows
     const gesture = text.startsWith('/') ? text.slice(1).trim().toLowerCase() : '';
@@ -462,6 +234,16 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       manifest: manifest.toJSON(),
     });
   };
+
+  // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the
+  // interaction layer below owns and hands back once it exists
+  let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
+  const multiplayer = createMultiplayer({
+    player, state, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
+    dialogue, hud, chat, sound, questList, discovered, seed,
+    placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
+  });
+  const { online, market, party, duel, coop, others, handover, rally, playerList } = multiplayer;
   /**
    * Put the world away. The simulation is expensive — chunk workers, a webgl context, an audio
    * graph, a socket — and none of it should outlive the moment you leave for the title screen.
@@ -553,13 +335,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     dialogue, hud, chat, sound,
     raining: () => raining, discover, persist, startTalk, questLine,
   });
-  const { atHand: talkNearest, offerTrade, showOffer, partyMenu, noticeStall } = interactions;
+  const { atHand: talkNearest, offerTrade, partyMenu, noticeStall } = interactions;
+  putOfferToPlayer = interactions.showOffer;
 
   input.onKey('k', () => { if (!dialogue.isOpen && !chat.isTyping) partyMenu(); });
   input.onKey('l', () => {
     if (dialogue.isOpen || chat.isTyping) return;
     if (!online.connected) { hud.flash('Join a world online to see who else is about.'); return; }
-    playerList.toggle(playerListInput);
+    playerList.toggle(multiplayer.playerListInput);
   });
   input.onKey('r', () => {
     if (dialogue.isOpen || chat.isTyping) return;
@@ -623,19 +406,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (res.killed.length > 0) {
       sound.chime();
       const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
-      const spoils = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
-      hud.flash(spoils.length ? `Defeated ${names} (+${spoils.join(', ')})` : `Defeated ${names}`);
+      const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
+      hud.flash(won.length ? `Defeated ${names} (+${won.join(', ')})` : `Defeated ${names}`);
       persist();
     }
   };
   input.onKey('x', attack);
   input.onKey('n', toTitle);
   input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close(); });
-  const playerListInput = () => ({
-    players: [...online.players.values()],
-    party: new Set(party.roster.map((m) => m.id)),
-    x: player.x, z: player.z, place: placeName(), me: online.name,
-  });
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
@@ -903,7 +681,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       // indoors: a fixed view of the room, the hero and whoever keeps the place
       indoors.renderer.update();
       heroGear.update(state, player.entity);
-      syncOnline(dt, () => 0.5);
+      multiplayer.sync(dt, () => 0.5);
       updateHud(dt, indoors.title);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
@@ -929,7 +707,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (places.underground !== below) { input.endFrame(); return; }
       below.renderer.update();
       heroGear.update(state, player.entity);
-      syncOnline(dt, (x, z) => below.world.heightAt(x, z));
+      multiplayer.sync(dt, (x, z) => below.world.heightAt(x, z));
       below.map.reveal(player.x, player.z);
       below.map.draw(player.x, player.z, state.opened, (i) => below.world.chestId(i), below.world.unlocked);
       updateHud(dt, below.floor > 1 ? `${below.poi.name} Depths · floor ${below.floor}` : `${below.poi.name} Depths`);
@@ -965,7 +743,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     mount.update(player, chunks);
 
-    syncOnline(dt, (x, z) => chunks.heightAt(x, z));
+    multiplayer.sync(dt, (x, z) => chunks.heightAt(x, z));
     noticeStall();
     ownBoat.visible = sailing.bought && places.outdoors;
     if (ownBoat.visible) {
