@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
-  MAIL_LIMIT, STALL_DAYS, STALL_LOTS, deltaKey,
+  DAY_LENGTH, MAIL_LIMIT, STALL_DAYS, STALL_LOTS, deltaKey,
   type Clock, type Letter, type Stall, type StallItem, type WorldDelta,
 } from './protocol';
 
@@ -14,8 +14,7 @@ import {
  * worse than a few reopened chests.
  */
 
-/** Real seconds in a game day, matching the client. */
-export const DAY_LENGTH = 480;
+export { DAY_LENGTH } from './protocol';
 /** How often the clock goes out to everyone, in milliseconds. */
 export const CLOCK_INTERVAL = 5_000;
 /** Deltas are written to disk no more often than this. */

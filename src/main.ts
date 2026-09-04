@@ -536,7 +536,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100, hp: m.hp,
       }));
     (debug as { __sow?: (x: number, z: number) => void }).__sow = (x, z) => {
-      plots.plant(x, z, 'wheat', state.day);
+      plots.plant(x, z, 'wheat', state.day + state.time);
       online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
       state.version++;
     };
@@ -738,7 +738,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       ownBoat.position.set(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z);
       ownBoat.rotation.y = sailing.yaw;
     }
-    cropField.update(plots, state.day, player.x, player.z, (x, z) => chunks.heightAt(x, z));
+    cropField.update(plots, state.day + state.time, player.x, player.z, (x, z) => chunks.heightAt(x, z));
     entityRenderer.update();
     heroGear.update(state, player.entity);
 

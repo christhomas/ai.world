@@ -53,6 +53,11 @@ Shopkeepers stand behind their counters and buy as well as sell, at half price, 
 in their own line. Villagers keep a day: out to the fields at dawn, the square at noon, the inn in
 the evening, home to bed at night, when the shops shut and the windows light up.
 
+A day of the world takes an hour of real time, so an hour of it is two and a half minutes. That is
+the unit everything timed is measured in: when a pod breaches, when a shop shuts, when a crop
+comes on. Both the game and the server read that one number from the protocol, because a clock
+that two halves of a program each define separately is a clock that will disagree one day.
+
 ![The same square after dark](docs/screenshots/night.png)
 
 ### A rucksack, and gear you can see

@@ -38,7 +38,12 @@ export interface Planting {
 
 export type PlotJson = Record<string, Planting>;
 
-/** How far along a planting is, 0 to 1. */
+/**
+ * How far along a planting is, 0 to 1.
+ *
+ * `day` may carry a fraction — the world's clock does, and a day is an hour of real time, so a
+ * crop that only moved at midnight would sit unchanged through most of a sitting.
+ */
 export function ripeness(planting: Planting, day: number): number {
   const crop = CROPS[planting.crop];
   if (!crop) return 0;
@@ -86,6 +91,7 @@ export class Plots {
     });
   }
 
+  /** @param day the world day, fraction and all, so growth starts the moment the seed goes in. */
   plant(x: number, z: number, cropId: string, day: number): boolean {
     const key = Plots.key(x, z);
     if (this.planted.has(key)) return false;

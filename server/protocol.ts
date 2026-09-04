@@ -6,6 +6,17 @@
 
 export const PROTOCOL_VERSION = 8;
 
+/**
+ * Real seconds in one day of the world. An hour of it is therefore two and a half minutes, which
+ * is the unit everything timed is measured against: when a pod of whales breaches, when a shop
+ * shuts, when a crop comes on. It was eight minutes a day early on, and everything happened at
+ * once — a night lasted less than three minutes and a season went by in under an hour.
+ *
+ * Both halves of the game read it from here. They were separate constants once, which is exactly
+ * the sort of thing that agrees until the day somebody changes one.
+ */
+export const DAY_LENGTH = 3600;
+
 /** Where somebody is and what they look like, sent several times a second. */
 export interface Presence {
   id: string;

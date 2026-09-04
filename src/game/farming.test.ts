@@ -50,3 +50,25 @@ describe('farming', () => {
     }
   });
 });
+
+describe('growing by the hour', () => {
+  it('advances a crop through the day rather than only at midnight', () => {
+    const plots = new Plots();
+    // sown at midday on day 3; wheat takes three days
+    plots.plant(4, 4, 'wheat', 3.5);
+    const planting = plots.at(4, 4)!;
+
+    expect(ripeness(planting, 3.5)).toBe(0);
+    expect(ripeness(planting, 4.0)).toBeCloseTo(1 / 6, 3);     // half a day on
+    expect(ripeness(planting, 5.0)).toBeCloseTo(0.5, 3);
+    expect(isRipe(planting, 6.4)).toBe(false);
+    expect(isRipe(planting, 6.5)).toBe(true);                  // three days to the hour
+  });
+
+  it('is not fooled by a save from when crops were planted on whole days', () => {
+    const plots = new Plots({ '2,2': { crop: 'turnip', planted: 4 } });
+    const planting = plots.at(2, 2)!;
+    expect(ripeness(planting, 4)).toBe(0);
+    expect(isRipe(planting, 6)).toBe(true);                    // turnips take two days
+  });
+});

@@ -133,17 +133,28 @@ export function wildInteractions(ctx: Surroundings) {
    * Enter on bare earth near a village: sow a seed you are carrying, or lift a ripe crop.
    * Ground must be plain grass or sand within reach of a settlement, so fields stay near homes.
    */
+  /** The world day with its fraction, which is what a growing thing actually measures. */
+  const growingDay = (): number => state.day + state.time;
+
+  /** How long a planting has left, said the way somebody waiting for it would say it. */
+  const untilRipe = (crop: { days: number }, planting: { planted: number }): string => {
+    const daysLeft = crop.days - (growingDay() - planting.planted);
+    if (daysLeft <= 0) return 'ready now';
+    if (daysLeft >= 1) return `about ${Math.ceil(daysLeft)} day${Math.ceil(daysLeft) === 1 ? '' : 's'} to go`;
+    const hours = Math.max(1, Math.round(daysLeft * 24));
+    return `about ${hours} hour${hours === 1 ? '' : 's'} to go`;
+  };
+
   const tryFarm = (): boolean => {
     const tx = Math.floor(player.x), tz = Math.floor(player.z);
     const standing = plots.at(tx, tz);
     if (standing) {
-      if (!isRipe(standing, state.day)) {
+      if (!isRipe(standing, growingDay())) {
         const crop = CROPS[standing.crop];
-        const left = Math.max(1, Math.ceil(crop.days - (state.day - standing.planted)));
-        hud.flash(`${crop.name} coming along: about ${left} day${left === 1 ? '' : 's'} to go (${Math.round(ripeness(standing, state.day) * 100)}%).`);
+        hud.flash(`${crop.name} coming along: ${untilRipe(crop, standing)} (${Math.round(ripeness(standing, growingDay()) * 100)}%).`);
         return true;
       }
-      const lifted = plots.harvest(tx, tz, state.day)!;
+      const lifted = plots.harvest(tx, tz, growingDay())!;
       online.report({ kind: 'reap', tile: `${tx},${tz}` });
       state.give(lifted.crop.id, lifted.amount);
       sound.jingle();
@@ -170,7 +181,7 @@ export function wildInteractions(ctx: Surroundings) {
           return { label: `${crop.emoji} ${crop.name} (${state.count(id)})${wait}`, next: () => {
             if (!ok) return { speaker: 'Bare Earth', emoji: '🌱', pages: [`${crop.name} will not take now. Wait about ${daysUntilSeason(crop, state.day)} days.`] };
             state.take(id, 1);
-            plots.plant(tx, tz, crop.id, state.day);
+            plots.plant(tx, tz, crop.id, growingDay());
             online.report({ kind: 'sow', tile: `${tx},${tz}`, crop: crop.id, day: state.day });
             sound.select();
             hud.flash(`${crop.name} sown. Ripe in ${crop.days} days.`);

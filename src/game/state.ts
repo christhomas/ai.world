@@ -36,8 +36,10 @@ export interface GameStateJson {
 export const BASE_MAX_HP = 10;
 /** What a new hero sets out with: worn clothes, a stick, and something to eat. */
 export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { apple: 2, bread: 1 } } as const;
-/** Real seconds per in-game day. */
-export const DAY_LENGTH = 480;
+import { DAY_LENGTH } from '../../server/protocol';
+
+/** Real seconds per in-game day, shared with the server so both keep the same time. */
+export { DAY_LENGTH };
 /** Time of day at which you wake after resting: 07:12. */
 export const MORNING = 0.3;
 
