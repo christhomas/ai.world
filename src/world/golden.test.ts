@@ -36,7 +36,8 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when signposts were added to the structure list (2026-09-03).
+ * Last updated deliberately when birch, fir and blossom trees joined the biome tables, changing
+ * which prop stands on which tile (2026-09-04). Before that: signposts in the structure list.
  * Pins the generated world for two seeds. Refactors of the generators must keep these identical;
  * an intentional tuning change updates the constants (and changes every saved world's layout).
  */
@@ -48,6 +49,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '07f401ef', chunks: '173568fd', quests: '74df0249' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: '62c6d782', chunks: 'e6f2ba14', quests: '10885860' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '07f401ef', chunks: 'df174a4a', quests: '74df0249' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '62c6d782', chunks: 'e4f6e69f', quests: '10885860' },
 };

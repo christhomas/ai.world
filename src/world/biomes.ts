@@ -29,6 +29,9 @@ export const enum PropKind {
   Mushroom = 13,
   Palm = 14,
   Lily = 15,
+  Birch = 16,
+  Fir = 17,
+  Blossom = 18,
   // structures (HousePlains + biome id = that biome's house)
   HousePlains = 20,
   HouseForest = 21,
@@ -82,6 +85,25 @@ export const enum PropKind {
   Rug = 74,
 }
 
+/**
+ * Props a walker cannot pass through. Trees, rocks big enough to matter, and anything built.
+ * It lives here, beside the catalogue, because whether a thing blocks the way is a fact about
+ * what it is — the chunk worker only reads the list.
+ */
+export const BLOCKS_WALKING: ReadonlySet<PropKind> = new Set<PropKind>([
+  PropKind.Oak, PropKind.Pine, PropKind.SnowPine, PropKind.Willow, PropKind.Palm,
+  PropKind.Birch, PropKind.Fir, PropKind.Blossom,
+  PropKind.Cactus, PropKind.Boulder, PropKind.DeadTree,
+  PropKind.Well, PropKind.Shrine, PropKind.Ruins, PropKind.Tower, PropKind.Campfire, PropKind.GiantTree,
+  PropKind.Stall, PropKind.Sign, PropKind.Signpost, PropKind.CaveMouth, PropKind.Shipwreck, PropKind.NoticeBoard,
+]);
+
+/** Anything with a trunk: the kinds a wood is made of. */
+export const TREES: readonly PropKind[] = [
+  PropKind.Oak, PropKind.Pine, PropKind.SnowPine, PropKind.Willow, PropKind.Palm,
+  PropKind.Birch, PropKind.Fir, PropKind.Blossom, PropKind.DeadTree,
+];
+
 export interface PropWeight { kind: PropKind; weight: number }
 
 export interface BiomeDef {
@@ -121,7 +143,7 @@ export const BIOMES: readonly BiomeDef[] = [
     id: Biome.Plains, name: 'Heartland Meadows',
     ground: 0x72b04c, groundAlt: 0x80bc58, cliff: 0x8b6b4a, road: 0xc7a56b, sand: 0xdcc78e, high: 0x9a9a8a,
     baseLevel: 0, roughness: 1.4, highAt: 4,
-    propDensity: 0.1, props: [w(PropKind.Oak, 4), w(PropKind.Bush, 3), w(PropKind.Flower, 5), w(PropKind.Tuft, 4), w(PropKind.Rock, 1)],
+    propDensity: 0.1, props: [w(PropKind.Oak, 3), w(PropKind.Birch, 2), w(PropKind.Blossom, 0.6), w(PropKind.Bush, 3), w(PropKind.Flower, 5), w(PropKind.Tuft, 4), w(PropKind.Rock, 1)],
     bankDensity: 0.3, bank: [w(PropKind.Reed, 5), w(PropKind.Tuft, 2)],
     waterDensity: 0.03, water: [w(PropKind.Lily, 1)],
   },
@@ -129,7 +151,7 @@ export const BIOMES: readonly BiomeDef[] = [
     id: Biome.Forest, name: 'Whispering Woods',
     ground: 0x3f8c3a, groundAlt: 0x377d33, cliff: 0x6b5238, road: 0x9c7d55, sand: 0xc9b98a, high: 0x7f8a70,
     baseLevel: 0, roughness: 1.8, highAt: 5,
-    propDensity: 0.36, props: [w(PropKind.Oak, 6), w(PropKind.Pine, 4), w(PropKind.Bush, 2), w(PropKind.Mushroom, 1.5), w(PropKind.Tuft, 1), w(PropKind.Rock, 1)],
+    propDensity: 0.36, props: [w(PropKind.Oak, 5), w(PropKind.Pine, 3), w(PropKind.Birch, 3), w(PropKind.Fir, 1.5), w(PropKind.Blossom, 0.8), w(PropKind.Bush, 2), w(PropKind.Mushroom, 1.5), w(PropKind.Tuft, 1), w(PropKind.Rock, 1)],
     bankDensity: 0.28, bank: [w(PropKind.Reed, 4), w(PropKind.Mushroom, 1), w(PropKind.Bush, 1)],
     waterDensity: 0.04, water: [w(PropKind.Lily, 1)],
   },
@@ -153,7 +175,7 @@ export const BIOMES: readonly BiomeDef[] = [
     id: Biome.Mountain, name: 'Stonecrown Highlands',
     ground: 0x7f9468, groundAlt: 0x8ba072, cliff: 0x6e6e6e, road: 0xa39a86, sand: 0xa8a48f, high: 0x8f8f8f,
     baseLevel: 3, roughness: 3.4, highAt: 3,
-    propDensity: 0.11, props: [w(PropKind.Pine, 5), w(PropKind.Boulder, 3), w(PropKind.Rock, 3), w(PropKind.Tuft, 1)],
+    propDensity: 0.11, props: [w(PropKind.Pine, 3), w(PropKind.Fir, 3), w(PropKind.Boulder, 3), w(PropKind.Rock, 3), w(PropKind.Tuft, 1)],
     bankDensity: 0.18, bank: [w(PropKind.Rock, 3), w(PropKind.Reed, 2)],
     waterDensity: 0, water: [],
   },
@@ -161,7 +183,7 @@ export const BIOMES: readonly BiomeDef[] = [
     id: Biome.Snow, name: 'Frostveil Reach',
     ground: 0xeef2f5, groundAlt: 0xdfe6ec, cliff: 0x9aa5b0, road: 0xc9cfd6, sand: 0xd5dde3, high: 0xffffff,
     baseLevel: 2, roughness: 2.6, highAt: 2,
-    propDensity: 0.14, props: [w(PropKind.SnowPine, 6), w(PropKind.Rock, 2), w(PropKind.DeadTree, 1)],
+    propDensity: 0.14, props: [w(PropKind.SnowPine, 5), w(PropKind.Fir, 2), w(PropKind.Birch, 1.5), w(PropKind.Rock, 2), w(PropKind.DeadTree, 1)],
     bankDensity: 0.12, bank: [w(PropKind.Rock, 3), w(PropKind.DeadTree, 1)],
     waterDensity: 0, water: [],
   },

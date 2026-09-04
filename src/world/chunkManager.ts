@@ -225,9 +225,20 @@ export class ChunkManager implements TileWorld, ChunkSource {
   }
 }
 
-/** The worker sends props as a flat [kind, x, y, z, rot, scale] stream; walk it as instances. */
+/**
+ * The worker sends props as a flat stream of nine numbers each: what it is, where it stands, which
+ * way it faces, how big, how tall for its width, how far off upright, and how light or dark.
+ * Walk it as instances.
+ */
+const PROP_STRIDE = 9;
+
 function* readPropStream(data: Float32Array): Generator<PropInstance> {
-  for (let i = 0; i < data.length; i += 6) {
-    yield { kind: data[i] as PropKind, x: data[i + 1], y: data[i + 2], z: data[i + 3], rot: data[i + 4], scale: data[i + 5] };
+  for (let i = 0; i < data.length; i += PROP_STRIDE) {
+    yield {
+      kind: data[i] as PropKind,
+      x: data[i + 1], y: data[i + 2], z: data[i + 3],
+      rot: data[i + 4], scale: data[i + 5],
+      stretch: data[i + 6], lean: data[i + 7], tint: data[i + 8],
+    };
   }
 }

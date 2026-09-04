@@ -34,6 +34,9 @@ export const TILE_SALT = {
   PROP_Z: 22,
   PROP_ROT: 23,
   PROP_SCALE: 24,
+  PROP_STRETCH: 25,
+  PROP_LEAN: 26,
+  PROP_TINT: 27,
 } as const;
 
 /** Seed for a named stream. */

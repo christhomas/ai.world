@@ -66,6 +66,16 @@ the pack lights nothing and the rope must share a pocket with the map.
 
 Whatever you wear, you wear visibly.
 
+### A wood, not one tree stamped four hundred times
+
+![Mixed woodland](docs/screenshots/woodland.png)
+
+Eighteen kinds of scenery grow according to the biome underfoot — oak, birch, pine, fir, willow,
+palm, cactus, blossom and the rest — and no two of anything are quite alike. Every prop is rolled
+from its own tile's hash for height against width, a slight lean off upright, and how light or
+dark it stands against its neighbour. It costs nothing to draw: one shape, one material, and a
+matrix per placement.
+
 ### Seasons, weather and a calendar that matters
 
 A week to a season, four to a year. Autumn turns the meadows to rust; winter blends the whole

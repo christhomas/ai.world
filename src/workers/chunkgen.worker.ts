@@ -3,18 +3,10 @@ import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
 import { TerrainSampler, TileType } from '../world/terrain';
 import { buildChunkMesh } from '../world/mesher';
-import { PropKind } from '../world/biomes';
+import { BLOCKS_WALKING, PropKind } from '../world/biomes';
 import type { WorkerRequest, WorkerResponse } from '../world/messages';
 
 let sampler: TerrainSampler | null = null;
-
-/** Props a walker cannot pass through. */
-const BLOCKING = new Set<number>([
-  PropKind.Oak, PropKind.Pine, PropKind.SnowPine, PropKind.Willow, PropKind.Palm,
-  PropKind.Cactus, PropKind.Boulder, PropKind.DeadTree,
-  PropKind.Well, PropKind.Shrine, PropKind.Ruins, PropKind.Tower, PropKind.Campfire, PropKind.GiantTree,
-  PropKind.Stall, PropKind.Sign, PropKind.Signpost, PropKind.CaveMouth, PropKind.Shipwreck, PropKind.NoticeBoard,
-]);
 
 const post = (msg: WorkerResponse, transfer: Transferable[] = []) =>
   (self as unknown as Worker).postMessage(msg, transfer);
@@ -53,7 +45,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       if (chunk.type[i] === TileType.Floor) blocked[lz * CS + lx] = 1;
       const kind = chunk.prop[i];
       if (kind === 0) continue;
-      if (BLOCKING.has(kind)) blocked[lz * CS + lx] = 1;
+      if (BLOCKS_WALKING.has(kind)) blocked[lz * CS + lx] = 1;
       const wx = cx * CS + lx, wz = cz * CS + lz;
       const y = kind === PropKind.Lily ? chunk.water[i] : chunk.height[i];
       const fixedRot = chunk.propRot[i];
@@ -65,10 +57,14 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           wz + 0.25 + rand2(sampler.seed, wx, wz, TILE_SALT.PROP_Z) * 0.5,
           rand2(sampler.seed, wx, wz, TILE_SALT.PROP_ROT) * Math.PI * 2,
           0.8 + rand2(sampler.seed, wx, wz, TILE_SALT.PROP_SCALE) * 0.45,
+          // no two of anything are quite the same height, upright, or shade
+          0.82 + rand2(sampler.seed, wx, wz, TILE_SALT.PROP_STRETCH) * 0.42,
+          rand2(sampler.seed, wx, wz, TILE_SALT.PROP_LEAN),
+          rand2(sampler.seed, wx, wz, TILE_SALT.PROP_TINT),
         );
       } else {
-        // structures sit exactly on their tile centre, unscaled, facing their door direction
-        props.push(kind, wx + 0.5, y, wz + 0.5, -fixedRot, 1);
+        // structures sit exactly on their tile centre: unscaled, upright, untinted, facing their door
+        props.push(kind, wx + 0.5, y, wz + 0.5, -fixedRot, 1, 1, 0.5, 0.5);
       }
     }
   }

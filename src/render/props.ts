@@ -30,6 +30,29 @@ export class PropLibrary {
       part(new THREE.ConeGeometry(0.65, 0.95, 7), 0x7fa792, [0, 1.6, 0]),
       part(new THREE.ConeGeometry(0.42, 0.85, 7), 0xe4edf2, [0, 2.15, 0]),
     ]));
+    // a slim pale trunk with dark flecks, and a light airy crown: reads as birch at any distance
+    this.geometries.set(PropKind.Birch, merge([
+      part(new THREE.CylinderGeometry(0.07, 0.1, 1.6, 6), 0xe8e4d8, [0, 0.8, 0]),
+      part(new THREE.BoxGeometry(0.11, 0.05, 0.11), 0x4a4438, [0, 1.0, 0]),
+      part(new THREE.BoxGeometry(0.11, 0.04, 0.11), 0x4a4438, [0, 0.55, 0]),
+      part(new THREE.IcosahedronGeometry(0.52, 1), 0x7ab84e, [0, 1.85, 0], [1, 0.9, 1]),
+      part(new THREE.IcosahedronGeometry(0.34, 1), 0x8cc75c, [0.26, 1.62, 0.18]),
+    ]));
+    // taller and narrower than a pine, and darker: a mountain conifer
+    this.geometries.set(PropKind.Fir, merge([
+      part(new THREE.CylinderGeometry(0.09, 0.14, 0.6, 6), 0x4a3527, [0, 0.3, 0]),
+      part(new THREE.ConeGeometry(0.62, 1.15, 7), 0x24512c, [0, 1.0, 0]),
+      part(new THREE.ConeGeometry(0.48, 1.0, 7), 0x2a5c32, [0, 1.65, 0]),
+      part(new THREE.ConeGeometry(0.34, 0.9, 7), 0x316838, [0, 2.25, 0]),
+      part(new THREE.ConeGeometry(0.2, 0.7, 7), 0x387340, [0, 2.8, 0]),
+    ]));
+    // the one tree in a wood that stops you: blossom instead of leaves
+    this.geometries.set(PropKind.Blossom, merge([
+      part(new THREE.CylinderGeometry(0.12, 0.18, 0.9, 6), 0x6b4a2b, [0, 0.45, 0]),
+      part(new THREE.IcosahedronGeometry(0.78, 1), 0xf0a8c4, [0, 1.4, 0], [1, 0.85, 1]),
+      part(new THREE.IcosahedronGeometry(0.46, 1), 0xf7c0d6, [0.38, 1.18, 0.22]),
+      part(new THREE.IcosahedronGeometry(0.32, 1), 0xe894b4, [-0.3, 1.55, -0.2]),
+    ]));
     this.geometries.set(PropKind.Cactus, merge([
       part(new THREE.CylinderGeometry(0.2, 0.23, 1.5, 7), 0x4f9b47, [0, 0.75, 0]),
       part(new THREE.BoxGeometry(0.42, 0.16, 0.16), 0x4f9b47, [0.3, 0.9, 0]),
