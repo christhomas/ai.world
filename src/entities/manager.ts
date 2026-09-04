@@ -12,6 +12,7 @@ import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
 import { postsOf } from './villagers';
 import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
+import { keepBodiesApart } from './contact';
 import { blowOf } from './motion';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
@@ -222,6 +223,7 @@ export class EntityManager {
         updateEntity(e, dt, ctx);
       }
     }
+    keepBodiesApart(this.spawned.values(), this.herds, playerX, playerZ, ACTIVE_RANGE, dt, this.world);
   }
 
   /** Closest creature within `r` tiles of a point. Anyone indoors is not there to talk to. */

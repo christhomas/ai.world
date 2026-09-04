@@ -31,6 +31,21 @@ export class Player {
   /** Swap the ground the hero walks on (overworld ↔ dungeon). */
   setWorld(world: TileWorld): void { this.world = world; this.placed = false; }
 
+  /**
+   * Shove the hero, for a blow that lands on them.
+   *
+   * It goes through the same walkability check as walking does, so being knocked back never puts
+   * you through a wall or off a terrace you could not have stepped off yourself.
+   */
+  shove(dx: number, dz: number): void {
+    const e = this.entity;
+    const nx = e.x + dx, nz = e.z + dz;
+    if (!canStand(this.world, e.kind, nx, nz, e.y)) return;
+    e.x = nx;
+    e.z = nz;
+    this.placed = false;                 // let the ground be found again under the new spot
+  }
+
   teleport(x: number, z: number): void {
     this.entity.x = x; this.entity.z = z;
     this.placed = false;

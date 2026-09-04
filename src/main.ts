@@ -62,7 +62,7 @@ import { damageEntity, yawFor, type Entity } from './entities/entity';
 import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
-import { throwBlow } from './entities/entity';
+import { BEHAVIOUR, throwBlow } from './entities/entity';
 import type { Blow } from './entities/motion';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
@@ -887,8 +887,24 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   window.addEventListener('resize', () => { rig.resize(); iso.resize(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 
+  /** Seconds left of the moment after a blow in which nothing else can land on the hero. */
+  let reeling = 0;
+
   const onAttack = (attacker: Entity, dmg: number) => {
     if (dialogue.isOpen) return;
+    // A blow buys you a moment. Without it a swarm lands every one of its hits in the same
+    // instant and a full-health hero dies before the screen has finished flashing, which is
+    // not a fight, it is an announcement.
+    if (reeling > 0) return;
+    reeling = GAMEPLAY.REELING;
+
+    // and it knocks you back, which is the space you get to react in
+    const dx = player.x - attacker.x, dz = player.z - attacker.z;
+    const len = Math.hypot(dx, dz) || 1;
+    player.shove((dx / len) * GAMEPLAY.KNOCKED_BACK, (dz / len) * GAMEPLAY.KNOCKED_BACK);
+    throwBlow(player.entity, player.entity.blow);   // the hero flinches with everything else
+    player.entity.hurt = BEHAVIOUR.HURT_TIME;
+
     hud.hurt();
     sound.thud();
     if (sailing.sailing && !sailing.overboard && attacker.kind.behaviour === 'circle') {
@@ -1433,6 +1449,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
 
     swingCooldown = Math.max(0, swingCooldown - dt);
+    reeling = Math.max(0, reeling - dt);
     musterIn -= dt;
     if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
     drawCooldown = Math.max(0, drawCooldown - dt);

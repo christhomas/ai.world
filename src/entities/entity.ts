@@ -38,6 +38,18 @@ export const BEHAVIOUR = {
   HUNT_RADIUS: 12,         // dungeon monsters come after the hero from here
   HURT_TIME: 0.35,         // stagger after taking a hit
   KNOCKBACK: 0.7,          // tiles pushed per hit
+  /**
+   * How close anything may get to the hero before it is pushed out again, in tiles.
+   *
+   * Without this a swarm stands inside you: three bats occupy the same square as your head, every
+   * one of them in reach, and there is no space to react in because there is no space at all. It
+   * is the difference between a fight and being deleted.
+   */
+  PERSONAL: 0.95,
+  /** And how close two creatures may get to each other. Less, because a herd should still huddle. */
+  ELBOW: 0.6,
+  /** How hard bodies push apart, in tiles a second. Firm enough to be immediate, not a bounce. */
+  SHOVE: 7,
   HERD_DRIFT: 5,           // how far a herd anchor wanders per move
   PROWL_DRIFT: 9,
   HERD_DRIFT_TIME: [8, 18],

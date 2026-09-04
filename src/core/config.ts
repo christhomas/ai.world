@@ -51,6 +51,17 @@ export const GAMEPLAY = {
   AUTOSAVE_SECONDS: 3,
   KO_GOLD_LOSS: 10,         // gold dropped when knocked out
   /**
+   * Seconds after a blow lands on the hero in which nothing else can.
+   *
+   * A swarm otherwise lands every one of its hits in the same instant, and a hero at full health
+   * dies before the screen has finished flashing. That is not a fight, it is an announcement.
+   * Long enough to see what hit you and start moving; short enough that standing in a wolf pack
+   * is still a way to die.
+   */
+  REELING: 0.55,
+  /** And how far a blow throws the hero, in tiles. The space you get to react in. */
+  KNOCKED_BACK: 0.9,
+  /**
    * Frames a second to aim for. A 120Hz display would otherwise draw this world twice as often
    * as anybody can see, at twice the cost; the game is not fast enough for that to be worth it.
    * Raise it if you are on hardware that laughs at this.
