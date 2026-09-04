@@ -15,7 +15,9 @@ import { buildBoat } from './render/boat';
 import { StructureKind, compassDir } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, spoils, swing } from './game/combat';
-import { Market, RENT, askingPrice, lotLine } from './game/market';
+import { Market } from './game/market';
+import { Handover } from './game/handover';
+import { createInteractions } from './game/interact';
 import { PARTY_LIMIT, Party } from './game/party';
 import { PlayerList } from './ui/players';
 import { Duel } from './game/duel';
@@ -160,7 +162,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (!monster || monster.dead) return;
       if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.despawnEntity(monster);
     },
-    onStalls: (stalls) => { market.receive(stalls); pendingCost = 0; pendingStock = null; },
+    onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
     onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },
     onMail: (letters) => {
       if (letters.length === 0) { hud.flash('Nothing on the shelf for you.'); return; }
@@ -178,12 +180,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     },
     onMailWord: (line, kind) => {
       // a parcel that could not be left comes back into your hands
-      if (kind === 'refused' && parcelSent) {
-        state.give(parcelSent.id, 1);
-        state.inventory.gold += parcelSent.gold;
-        state.version++;
-      }
-      if (kind !== 'waiting') parcelSent = null;
+      if (kind === 'refused') handover.giveBack(state);
+      if (kind === 'sent') handover.settle();
       chat.line(line, 'sys');
       hud.flash(line);
     },
@@ -204,9 +202,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     },
     onStallRefused: (_stall, reason) => {
       // put back whatever we handed over in hope: the stall would not take it
-      if (pendingStock) { state.give(pendingStock, 1); pendingStock = null; }
-      if (pendingCost) { state.inventory.gold += pendingCost; pendingCost = 0; }
-      state.version++;
+      handover.giveBack(state);
       hud.flash(reason);
     },
     onDuelWord: (line, challenge) => {
@@ -293,25 +289,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   /** Rally points people have dropped, each fading in its own time. */
   const rally: Array<{ x: number; z: number; name: string; left: number }> = [];
   const playerList = new PlayerList();
-  /** The pitch we last walked up to, so the same stall is only announced once. */
-  let noticedPitch = '';
-  /** Say whose stall this is as you come to it: a bare awning looks the same as a busy one. */
-  const noticeStall = (): void => {
-    const pitch = market.nearest(structures.villages, player.x, player.z);
-    if (!pitch || !pitch.stall) { noticedPitch = pitch ? noticedPitch : ''; return; }
-    if (pitch.id === noticedPitch) return;
-    noticedPitch = pitch.id;
-    const stall = pitch.stall;
-    const lots = stall.items.length;
-    hud.flash(stall.owner === online.name
-      ? `Your stall — ${stall.takings} gold taken`
-      : `${stall.owner}'s stall — ${lots ? `${lots} lot${lots === 1 ? '' : 's'} out` : 'nothing out'}`);
-  };
-  /** A parcel handed over the counter but not yet accepted, so a refusal can put it back. */
-  let parcelSent: { id: string; gold: number } | null = null;
-  /** Goods and gold sent to a stall that has not been answered for yet, so a refusal can undo them. */
-  let pendingStock: string | null = null;
-  let pendingCost = 0;
+  /** Goods and gold handed over but not yet answered for, wherever they were handed over. */
+  const handover = new Handover();
 
   /** Bank what a monster somebody else resolved for us left behind. */
   const creditKill = (fallen: Entity): void => {
@@ -399,43 +378,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     online.say(text);
   };
 
-  /** Somebody has offered you something: show it and let the player answer. */
-  const showOffer = (offer: TradeOffer, fromName: string): void => {
-    const parts = [offer.gold > 0 ? `${offer.gold} gold` : '', ...offer.items.map(([id, n]) => `${n}× ${ITEMS[id]?.name ?? id}`)].filter(Boolean);
-    dialogue.start({
-      speaker: fromName, emoji: '🤝',
-      pages: [`${fromName} offers you ${parts.join(', ') || 'nothing at all'}.`],
-      choices: [
-        { label: 'Accept', next: () => { online.answer(offer.from, true); return null; } },
-        { label: 'Decline', next: () => { online.answer(offer.from, false); return null; } },
-      ],
-    });
-  };
 
-  /** Offer the nearest player some of what you carry. */
-  const offerTrade = (): void => {
-    if (!online.connected) { hud.flash('Join a server first: options, then join this world online.'); return; }
-    const target = online.nearest(player.x, player.z, 6);
-    if (!target) { hud.flash('Nobody close enough to trade with.'); return; }
-    const goods = tradableItems(state).slice(0, 5);
-    dialogue.start({
-      speaker: target.name, emoji: '🤝',
-      pages: [`You have ${state.inventory.gold} gold and ${goods.length} kind${goods.length === 1 ? '' : 's'} of goods to hand.`],
-      choices: [
-        ...(duel.active ? [] : [{ label: 'Challenge to a friendly bout', next: () => {
-          online.challenge(target.id);
-          hud.flash(`Challenged ${target.name} to a duel.`);
-          return null;
-        } }]),
-        ...(state.inventory.gold >= 25 ? [{ label: 'Offer 25 gold', next: () => { online.offer(target.id, 25, []); chat.line(`You offered ${target.name} 25 gold.`, 'sys'); return null; } }] : []),
-        ...goods.map(([id, n]) => ({
-          label: `Offer ${ITEMS[id].emoji} ${ITEMS[id].name}${n > 1 ? ` (of ${n})` : ''}`,
-          next: () => { online.offer(target.id, 0, [[id, 1]]); chat.line(`You offered ${target.name} a ${ITEMS[id].name}.`, 'sys'); return null; },
-        })),
-        { label: 'Never mind', next: () => null },
-      ],
-    });
-  };
   const plots = new Plots(saved?.state?.plots);
   const sailing = Sailing.from(saved?.state?.boat ?? null);
   const ownBoat = buildBoat();
@@ -474,202 +417,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     persist();
   };
 
-  /** Enter/Space at a shrine or a cave mouth offers the way underground. */
-  const tryShrine = (): boolean => {
-    for (const poi of structures.pois) {
-      if (poi.kind !== StructureKind.Shrine || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
-      dialogue.start({ speaker: poi.name, emoji: '⛩️', pages: ['Worn steps lead down beneath the stones. Descend?'], choices: [
-        { label: 'Descend', next: () => { places.enterDungeon(poi); return null; } },
-        { label: 'Not now', next: () => null },
-      ] });
-      return true;
-    }
-    for (const cave of structures.caves) {
-      if (Math.hypot(cave.x - player.x, cave.z - player.z) > 3.2) continue;
-      discover(cave.name);
-      dialogue.start({ speaker: cave.name, emoji: '🕳️', pages: ['A cold draught comes out of the dark. Go in?'], choices: [
-        { label: 'Go in', next: () => { places.enterDungeon(cave, 'cave', `cave:${cave.id}`); return null; } },
-        { label: 'Not now', next: () => null },
-      ] });
-      return true;
-    }
-    return false;
-  };
 
-  /** A wreck's hold can be looted once; the anchor remembers it. */
-  const tryWreck = (): boolean => {
-    for (const wreck of structures.wrecks) {
-      if (Math.hypot(wreck.x - player.x, wreck.z - player.z) > 3.4) continue;
-      discover(wreck.name);
-      const anchor = manifest.ensure(`wreck:${wreck.id}`, 'wreck', wreck.x, wreck.z);
-      const lootId = `${anchor.id}:hold`;
-      if (state.opened.has(lootId)) {
-        dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['Picked clean. Only sand and barnacles now.'] });
-        return true;
-      }
-      dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['The hold is half buried, but the hatch still gives. Search it?'], choices: [
-        { label: 'Search', next: () => {
-          const roll = mulberry32(anchor.seed);
-          const gold = 25 + Math.floor(roll() * 60);
-          state.inventory.gold += gold;
-          const prizes = ['rod', 'rope', 'lantern', 'map', 'potion', 'gem', 'cap'].filter((p) => !state.owns(p) || p === 'potion' || p === 'gem');
-          const prize = prizes[Math.floor(roll() * prizes.length)];
-          let extra = '';
-          if (prize) { state.give(prize, 1); extra = ` and ${ITEMS[prize].emoji} ${ITEMS[prize].name}`; }
-          state.opened.add(lootId);
-          state.version++;
-          sound.chime();
-          hud.flash(`Salvaged ${gold} gold${extra}`);
-          persist();
-          return null;
-        } },
-        { label: 'Leave it', next: () => null },
-      ] });
-      return true;
-    }
-    return false;
-  };
 
-  /**
-   * A market pitch in a village square. Anyone online can rent one, put goods out at their own
-   * price, and come back for the money; the goods stay out while the trader is away.
-   */
-  const tryStall = (): boolean => {
-    const pitch = market.nearest(structures.villages, player.x, player.z);
-    if (!pitch) return false;
-    const speaker = 'Market Pitch';
-    const emoji = '🏪';
-    if (!online.connected) {
-      dialogue.start({ speaker, emoji, pages: ['A trestle and a striped awning, waiting for a trader. Join a world online to take it on.'] });
-      return true;
-    }
-    const stall = pitch.stall;
 
-    if (!stall) {
-      dialogue.start({ speaker, emoji, pages: [`An empty pitch in ${pitch.village}. ${RENT} gold holds it for ${STALL_DAYS} days.`], choices: [
-        { label: `Rent it (${RENT}g)`, next: () => {
-          if (state.inventory.gold < RENT) { hud.flash(`You need ${RENT} gold for the pitch.`); return null; }
-          state.inventory.gold -= RENT;
-          pendingCost = RENT;
-          state.version++;
-          online.rentStall(pitch.id, pitch.village);
-          hud.flash('The pitch is yours. Put something out.');
-          return null;
-        } },
-        { label: 'Leave it', next: () => null },
-      ] });
-      return true;
-    }
 
-    if (stall.owner === online.name) {
-      const stockMenu = (): DialogueNode => {
-        const carried = tradableItems(state).filter(([id]) => ITEMS[id]);
-        return {
-          speaker, emoji,
-          pages: carried.length ? ['What goes out on the trestle?'] : ['Your pack is empty of anything worth selling.'],
-          choices: [
-            ...carried.slice(0, 8).map(([id]) => ({
-              label: `${ITEMS[id].emoji} ${ITEMS[id].name} — ask ${askingPrice(id)}g`,
-              next: () => {
-                state.take(id, 1);
-                pendingStock = id;
-                state.version++;
-                online.stockStall(stall.id, { id, price: askingPrice(id), count: 1 });
-                hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);
-                return null;
-              },
-            })),
-            { label: 'Never mind', next: () => null },
-          ],
-        };
-      };
-      const lots = stall.items.length ? stall.items.map(lotLine).join('\n') : 'Nothing out yet.';
-      dialogue.start({ speaker: `Your stall in ${stall.village}`, emoji, pages: [
-        `Rent paid until day ${stall.until}. Takings: ${stall.takings} gold.`,
-        lots,
-      ], choices: [
-        { label: 'Put something out', next: stockMenu },
-        { label: `Take the takings (${stall.takings}g)`, next: () => { online.collectStall(stall.id); return null; } },
-        { label: 'Pack up the stall', next: () => { online.closeStall(stall.id); hud.flash('The pitch is free again.'); return null; } },
-        { label: 'Leave it be', next: () => null },
-      ] });
-      return true;
-    }
 
-    dialogue.start({ speaker: `${stall.owner}'s stall`, emoji, pages: [
-      stall.items.length ? 'Take your pick.' : 'The trestle is bare. Come back when the trader has been by.',
-    ], choices: [
-      ...stall.items.slice(0, 6).map((lot, index) => ({
-        label: lotLine(lot),
-        next: () => {
-          if (state.inventory.gold < lot.price) { hud.flash(`That costs ${lot.price} gold.`); return null; }
-          online.buyFromStall(stall.id, index);
-          return null;
-        },
-      })),
-      { label: 'Walk on', next: () => null },
-    ] });
-    return true;
-  };
-
-  /**
-   * Reading the village board: the errand posted here, taken or not, and what the village knows
-   * about places nearby. Accepting from the board saves hunting for the elder.
-   */
-  const tryBoard = (): boolean => {
-    for (const village of structures.villages) {
-      if (!village.board) continue;
-      if (Math.hypot(village.board[0] - player.x, village.board[1] - player.z) > 2.2) continue;
-      const quest = quests.get(village.name);
-      const status = quest ? state.quests.get(quest.id) : undefined;
-      const nearby = [...structures.pois, ...structures.caves, ...structures.wrecks]
-        .map((p) => ({ name: p.name, d: Math.hypot(p.x - village.x, p.z - village.z), x: p.x, z: p.z }))
-        .filter((p) => p.d < 120)
-        .sort((a, b) => a.d - b.d)
-        .slice(0, 3)
-        .map((p) => `${state.discovered.has(p.name) ? p.name : 'somewhere unnamed'} — ${compassDir(p.x - village.x, p.z - village.z)}, ${Math.round(p.d)} tiles`);
-
-      const pages = [`Notices of ${village.name}.`];
-      if (!quest) pages.push('Nothing posted but old nails and older paper.');
-      else if (status === 'done') pages.push(`The elder's notice has been struck through: ${questLine(quest)}. Settled.`);
-      else if (status === 'active') pages.push(`Posted: ${questLine(quest)}. You have taken this on.`);
-      else pages.push(`Posted by the elder: ${questLine(quest)}. Reward ${quest.reward} gold.`);
-      if (nearby.length) pages.push(`Roads from here:\n${nearby.join('\n')}`);
-
-      const choices = quest && status === undefined
-        ? [
-            { label: `Take the errand (${quest.reward}g)`, next: () => {
-              state.quests.set(quest.id, 'active');
-              state.version++;
-              sound.select();
-              hud.flash(`Errand taken: ${questLine(quest)}`);
-              persist();
-              return null;
-            } },
-            { label: 'Leave it', next: () => null },
-          ]
-        : undefined;
-      dialogue.start({ speaker: 'Notice Board', emoji: '📜', pages, choices });
-      return true;
-    }
-    return false;
-  };
-
-  /** Enter/Space at a doorway steps inside. */
-  const tryDoor = (): boolean => {
-    for (const door of structures.doors) {
-      if (Math.hypot(door.x - player.x, door.z - player.z) > REACH.BUILDING_DOOR) continue;
-      places.enterBuilding(door);
-      return true;
-    }
-    return false;
-  };
-
-  const dockTile = (line: FerryLine, end: 'from' | 'to'): [number, number] => {
-    const pier = end === 'from' ? line.fromPier : line.toPier;
-    const [x, z] = pier.tiles[pier.tiles.length - 1];
-    return [x + 0.5, z + 0.5];
-  };
 
   // --- hero + camera ---
   let startX = 0, startZ = 0;
@@ -778,10 +530,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       folk: online.folk,
       collect: () => online.fetchMail(),
       send: (to: string, itemId: string, gold: number) => {
-        state.take(itemId, 1);
-        state.inventory.gold -= gold;
-        state.version++;
-        parcelSent = { id: itemId, gold };
+        handover.offer(state, itemId, gold);
         online.postMail(to, gold, [[itemId, 1]]);
         persist();
       },
@@ -791,299 +540,21 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     e.timer = 1e9;
     dialogue.start(dialogueFor(e, talkCtx), () => { e.timer = 1; });
   };
-  /** Board a docked ferry, or read the timetable at a pier. Returns false if no ferry is nearby. */
-  const tryFerry = (): boolean => {
-    const now = worldSeconds(state.day, state.time);
-    for (const { line } of ferries) {
-      const st = ferryStateAt(line, now);
-      const nearBoat = Math.hypot(st.x - player.x, st.z - player.z) < FERRY.BOARD_RANGE;
-      const nearFrom = Math.hypot(line.fromPier.dockX + 0.5 - player.x, line.fromPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
-      const nearTo = Math.hypot(line.toPier.dockX + 0.5 - player.x, line.toPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
-      if (st.docked && nearBoat) {
-        const dest = st.docked === 'from' ? 'to' : 'from';
-        const destName = dest === 'to' ? line.toName : line.fromName;
-        dialogue.start({
-          speaker: 'Ferryman', emoji: '⛵',
-          pages: [`Ferry to ${destName}. We cast off in ${formatCountdown(st.departsIn)}. Coming aboard?`],
-          choices: [
-            { label: 'Board', next: () => { riding = { line, dest }; player.riding = true; sound.chime(); return null; } },
-            { label: 'Not now', next: () => null },
-          ],
-        });
-        return true;
-      }
-      if (nearFrom || nearTo) {
-        const here = nearFrom ? 'from' : 'to';
-        const destName = here === 'from' ? line.toName : line.fromName;
-        dialogue.start({ speaker: 'Timetable', emoji: '🪧', pages: [`Ferry to ${destName}: next boat in ${formatCountdown(st.arrivesIn[here])}.`] });
-        return true;
-      }
-    }
-    return false;
-  };
-  /** Water within reach of the hero, or null. */
-  const waterNearby = (): [number, number] | null => {
-    for (let r = 1; r <= FISHING.REACH; r += 0.6) {
-      for (let a = 0; a < 12; a++) {
-        const ang = (a / 12) * Math.PI * 2;
-        const x = player.x + Math.cos(ang) * r, z = player.z + Math.sin(ang) * r;
-        if (chunks.waterAt(x, z) !== null || (!chunks.heightAt(x, z) && sampler.probe(x, z).land === false && Math.hypot(x, z) < GRAPH.RADIUS + 40)) {
-          if (chunks.waterAt(x, z) !== null) return [x, z];
-        }
-      }
-    }
-    return null;
-  };
-  const tryFish = (): boolean => {
-    if (!fishing.active && !state.can('fish')) {
-      // carrying a rod is not the same as holding one
-      if (state.has('rod') && waterNearby()) {
-        hud.flash('Hold the fishing rod in your off hand to cast (I).');
-        return true;
-      }
-      return false;
-    }
-    if (fishing.active) {
-      const caught = fishing.strike();
-      if (caught) {
-        state.give(caught.id, 1);
-        sound.jingle();
-        hud.flash(`Caught a ${caught.name}! ${caught.emoji}`);
-        persist();
-      } else {
-        sound.select();
-        hud.flash('The line goes slack.');
-      }
-      return true;
-    }
-    const spot = waterNearby();
-    if (!spot) return false;
-    fishing.cast(spot[0], spot[1], sampler.probe(player.x, player.z).biome, seed, state.day, raining);
-    sound.select();
-    return true;
-  };
-  /** Rest at a campfire: sleep to dawn, fully healed. */
-  const tryCampfire = (): boolean => {
-    for (const poi of structures.pois) {
-      if (poi.kind !== StructureKind.Campfire || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
-      dialogue.start({ speaker: poi.name, emoji: '🔥', pages: ['The embers are still warm. Rest here until dawn?'], choices: [
-        { label: 'Rest', next: () => { state.rest(); sound.chime(); hud.flash('You sleep by the fire and wake at dawn.'); persist(); return null; } },
-        { label: 'Move on', next: () => null },
-      ] });
-      return true;
-    }
-    return false;
-  };
-  /** Read a fingerpost: names and distances of the nearest settlements. */
-  const trySignpost = (): boolean => {
-    for (const post of structures.signposts) {
-      if (Math.hypot(post.x - player.x, post.z - player.z) > 2.4) continue;
-      const lines = post.directions.map((d) => `${d.name} — ${d.dir}, ${d.tiles} tiles`);
-      dialogue.start({ speaker: 'Fingerpost', emoji: '🪧', pages: [lines.join('\n')] });
-      return true;
-    }
-    return false;
-  };
 
-  /** Enter near a horse: buy a wild one, or get on and off your own. */
-  const tryHorse = (): boolean => {
-    if (mount.riding) {
-      mount.dismount(player, chunks);
-      hud.flash(`You dismount and tie up ${mount.name}.`);
-      sound.select();
-      persist();
-      return true;
-    }
-    if (mount.near(player.x, player.z)) {
-      mount.mount(player);
-      hud.flash(`You swing up onto ${mount.name}.`);
-      sound.chime();
-      return true;
-    }
-    // horses in the field are half wild; the one you can buy is the stablehand's
-    const hand = entities.within(player.x, player.z, GAMEPLAY.TALK_RANGE).find((e) => e.role === 'stablehand');
-    if (!hand) return false;
-    const price = HORSE.PRICE;
-    const village = hand.herd.tag || 'the village';
-    if (mount.owned) {
-      dialogue.start({ speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`${mount.name} is a good horse. Mind the shoes.`] });
-      return true;
-    }
-    dialogue.start({
-      speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾',
-      pages: [`I have ${mount.offer()} out back, saddle and all. ${price} gold and the halter is yours.`],
-      choices: [
-        { label: `Buy the horse (${price}g)`, next: () => {
-          if (state.inventory.gold < price) {
-            return { speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`Come back with ${price} gold.`] };
-          }
-          state.inventory.gold -= price;
-          state.version++;
-          const horse = mount.buy(hand.x + 1.5, hand.z, chunks, entityRenderer);
-          sound.jingle();
-          hud.flash(`${horse} is yours, stabled in ${village}. Press Enter beside them to ride.`);
-          persist();
-          return null;
-        } },
-        { label: 'Not today', next: () => null },
-      ],
-    });
-    return true;
-  };
 
-  /**
-   * Enter on bare earth near a village: sow a seed you are carrying, or lift a ripe crop.
-   * Ground must be plain grass or sand within reach of a settlement, so fields stay near homes.
-   */
-  const tryFarm = (): boolean => {
-    const tx = Math.floor(player.x), tz = Math.floor(player.z);
-    const standing = plots.at(tx, tz);
-    if (standing) {
-      if (!isRipe(standing, state.day)) {
-        const crop = CROPS[standing.crop];
-        const left = Math.max(1, Math.ceil(crop.days - (state.day - standing.planted)));
-        hud.flash(`${crop.name} coming along: about ${left} day${left === 1 ? '' : 's'} to go (${Math.round(ripeness(standing, state.day) * 100)}%).`);
-        return true;
-      }
-      const lifted = plots.harvest(tx, tz, state.day)!;
-      online.report({ kind: 'reap', tile: `${tx},${tz}` });
-      state.give(lifted.crop.id, lifted.amount);
-      sound.jingle();
-      hud.flash(`Harvested ${lifted.amount}× ${lifted.crop.name} ${lifted.crop.emoji}`);
-      persist();
-      return true;
-    }
 
-    const seeds = Object.keys(SEED_TO_CROP).filter((id) => state.count(id) > 0);
-    if (seeds.length === 0) return false;
-    const village = villageAt(structures.villages, player.x, player.z);
-    const nearVillage = village !== null || structures.villages.some((v) => Math.hypot(v.x - player.x, v.z - player.z) < v.radius + 25);
-    if (!nearVillage) { hud.flash('Too far from any village to break ground here.'); return true; }
-    if (!chunks.isPlantable(player.x, player.z)) { hud.flash('Nothing will grow on this ground.'); return true; }
 
-    dialogue.start({
-      speaker: 'Bare Earth', emoji: '🌱',
-      pages: ['Turned soil, and no one using it. What goes in?'],
-      choices: [
-        ...seeds.map((id) => {
-          const crop = SEED_TO_CROP[id];
-          const ok = canPlant(crop, state.day);
-          const wait = ok ? '' : ` — wrong season, ${daysUntilSeason(crop, state.day)}d`;
-          return { label: `${crop.emoji} ${crop.name} (${state.count(id)})${wait}`, next: () => {
-            if (!ok) return { speaker: 'Bare Earth', emoji: '🌱', pages: [`${crop.name} will not take now. Wait about ${daysUntilSeason(crop, state.day)} days.`] };
-            state.take(id, 1);
-            plots.plant(tx, tz, crop.id, state.day);
-            online.report({ kind: 'sow', tile: `${tx},${tz}`, crop: crop.id, day: state.day });
-            sound.select();
-            hud.flash(`${crop.name} sown. Ripe in ${crop.days} days.`);
-            persist();
-            return null;
-          } };
-        }),
-        { label: 'Leave it', next: () => null },
-      ],
-    });
-    return true;
-  };
-
-  /** Enter at a pier or beside your own boat: buy one, cast off, or step ashore. */
-  const tryBoat = (): boolean => {
-    if (sailing.sailing) {
-      const spot = sailing.land(chunks);
-      if (!spot) { hud.flash('No shore within reach. Steer closer to land.'); return true; }
-      player.teleport(spot[0], spot[1]);
-      hud.flash('You step ashore and haul the boat up.');
-      sound.select();
-      persist();
-      return true;
-    }
-    if (sailing.near(player.x, player.z)) {
-      sailing.board();
-      hud.flash('You cast off. W and S to row, A and D to steer, Enter to land.');
-      sound.chime();
-      return true;
-    }
-    // a pier is where boats are sold
-    const pier = structures.piers.find((p) => Math.hypot(p.dockX + 0.5 - player.x, p.dockZ + 0.5 - player.z) < 4);
-    if (!pier || sailing.bought) return false;
-    dialogue.start({
-      speaker: 'Boatwright', emoji: '🛶',
-      pages: [`A little sailing boat, sound enough for these waters. ${BOAT.PRICE} gold and she is yours to take anywhere.`],
-      choices: [
-        { label: `Buy the boat (${BOAT.PRICE}g)`, next: () => {
-          if (state.inventory.gold < BOAT.PRICE) {
-            return { speaker: 'Boatwright', emoji: '🛶', pages: [`Come back with ${BOAT.PRICE} gold.`] };
-          }
-          state.inventory.gold -= BOAT.PRICE;
-          state.version++;
-          sailing.buy(pier.dockX + 0.5 + pier.dx, pier.dockZ + 0.5 + pier.dz, Math.atan2(-pier.dz, pier.dx));
-          sound.jingle();
-          hud.flash('The boat is yours, moored at the end of the pier.');
-          persist();
-          return null;
-        } },
-        { label: 'Another time', next: () => null },
-      ],
-    });
-    return true;
-  };
-
-  const talkNearest = () => {
-    if (places.indoors) {
-      const inside = places.interactIndoors();
-      if (inside === 'keeper') startTalk(places.indoors.keeper!);
-      else if (inside === null) hud.flash('Stand at the door to leave, or at the counter to talk.');
-      return;
-    }
-    if (places.underground) {
-      const below = places.interactUnderground();
-      if (below === 'locked') hud.flash('The door is locked. A key must be down here somewhere.');
-      else if (below === 'descent') {
-        dialogue.start({ speaker: 'Stairs Down', emoji: '🕳️', pages: ['The steps go further down, into colder air. Follow them?'], choices: [
-          { label: 'Go deeper', next: () => { places.descend(); return null; } },
-          { label: 'Not yet', next: () => null },
-        ] });
-      }
-      else if (below === 'stairs') {
-        dialogue.start({ speaker: 'Stairs', emoji: '🪜', pages: ['Climb back up to the daylight?'], choices: [
-          { label: 'Climb out', next: () => { places.exitDungeon(); return null; } },
-          { label: 'Stay', next: () => null },
-        ] });
-      } else if (below === null) hud.flash('Nothing here');
-      return;
-    }
-    if (tryBoat()) return;
-    if (tryHorse()) return;
-    if (tryFarm()) return;
-    if (tryStall()) return;
-    if (tryBoard()) return;
-    if (tryDoor()) return;
-    if (tryShrine()) return;
-    if (tryWreck()) return;
-    if (tryCampfire()) return;
-    if (trySignpost()) return;
-    if (tryFerry()) return;
-    if (tryFish()) return;
-    const e = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
-    if (e) startTalk(e); else hud.flash('No one close enough to talk to');
-  };
 
   // --- keys ---
-  /** The party menu: ask the nearest traveller along, see who is with you, or go your own way. */
-  const partyMenu = (): void => {
-    if (!online.connected) { hud.flash('Join a world online to travel with other people.'); return; }
-    const near = online.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE * 3);
-    const askable = near && !party.has(near.id) ? near : null;
-    const pages = [party.size ? `You are travelling ${party.describe(online.id)}.` : 'You are travelling alone.'];
-    if (askable) pages.push(`${askable.name} is close by.`);
-    dialogue.start({ speaker: 'Your Party', emoji: '🧭', pages, choices: [
-      ...(askable && party.size < PARTY_LIMIT
-        ? [{ label: `Ask ${askable.name} along`, next: () => { online.invite(askable.id); hud.flash(`Asked ${askable.name} to travel with you.`); return null; } }]
-        : []),
-      ...(party.size ? [{ label: 'Go your own way', next: () => { online.leaveParty(); return null; } }] : []),
-      { label: 'Close', next: () => null },
-    ] });
-  };
+  const interactions = createInteractions({
+    player, state, discovered,
+    structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
+    market, party, duel, mount, sailing, plots, fishing, online, handover, ferries, quests,
+    dialogue, hud, chat, sound,
+    raining: () => raining, discover, persist, startTalk, questLine,
+  });
+  const { atHand: talkNearest, offerTrade, showOffer, partyMenu, noticeStall } = interactions;
+
   input.onKey('k', () => { if (!dialogue.isOpen && !chat.isTyping) partyMenu(); });
   input.onKey('l', () => {
     if (dialogue.isOpen || chat.isTyping) return;
@@ -1475,26 +946,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     }
 
     // ferries follow the clock; the hero rides along and steps off when the boat ties up
-    const now = worldSeconds(state.day, state.time);
-    for (const { line, mesh } of ferries) {
-      const st = ferryStateAt(line, now);
-      mesh.position.x = st.x; mesh.position.z = st.z;
-      mesh.position.y = WORLD.WATER_Y - 0.12 + Math.sin(time * 1.3 + st.x) * 0.03;
-      mesh.rotation.y = st.yaw;
-      if (riding && riding.line === line) {
-        player.entity.x = st.x + 0.2; player.entity.z = st.z; player.entity.y = WORLD.WATER_Y + FERRY.DECK_HEIGHT;
-        player.entity.yaw = st.yaw;
-        if (st.docked === riding.dest) {
-          const [dx, dz] = dockTile(line, riding.dest);
-          riding = null;
-          player.riding = false;
-          player.teleport(dx, dz);
-          hud.flash(`Arrived at ${st.docked === 'to' ? line.toName : line.fromName}`);
-          sound.jingle();
-          persist();
-        }
-      }
-    }
+    interactions.sailFerries(worldSeconds(state.day, state.time), time);
     const { x, z } = iso.target;
     chunks.update(x, z);
     rig.follow(x, z, iso.zoom);
