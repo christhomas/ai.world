@@ -1,8 +1,53 @@
 import * as THREE from 'three';
-import { WORLD } from '../core/config';
+import { CAMERA, WORLD } from '../core/config';
 import { WaterMaterial } from './water';
 
 const SKY = 0x8fc1e6;
+
+/**
+ * Half the depth of ground the camera covers, as a fraction of the zoom. The frustum is `zoom`
+ * tall in screen space, and the camera looks down from CAMERA.HEIGHT over CAMERA.DIST, so the
+ * strip of ground it lands on is longer than the screen by one over the sine of that pitch.
+ */
+const GROUND_DEPTH = 0.5 / Math.sin(Math.atan2(CAMERA.HEIGHT, CAMERA.DIST));
+
+/**
+ * Slack added to the view radius, in tiles. Two things live just past the edge of the ground in
+ * shot and are still seen: something tall enough to show its head over it, and, when the sun is
+ * low, something whose shadow reaches back into the picture.
+ */
+const VIEW_MARGIN = 8;
+
+/**
+ * Where the camera is looking and how far from that point a thing can still be in shot. The rig
+ * writes it on the scene every frame; anything drawing into that scene can read it and skip the
+ * work of what nobody can see. Interiors and dungeons have no rig, so their scenes carry none of
+ * this and nothing there is culled.
+ */
+export interface WorldView {
+  x: number;
+  z: number;
+  /** Ground distance from (x, z) past which nothing can appear on screen. */
+  radius: number;
+}
+
+/** The view the rig last recorded on a scene, or null if no rig ever has. */
+export function worldView(scene: THREE.Object3D): WorldView | null {
+  return (scene.userData.worldView as WorldView | undefined) ?? null;
+}
+
+/**
+ * Tell a scene where the camera is looking. Written in place rather than replaced, because this
+ * happens every frame and a fresh object every frame is rubbish for the collector to sweep.
+ */
+export function setWorldView(scene: THREE.Object3D, x: number, z: number, radius: number): void {
+  const view = scene.userData.worldView as WorldView | undefined;
+  if (view) { view.x = x; view.z = z; view.radius = radius; }
+  else scene.userData.worldView = { x, z, radius } satisfies WorldView;
+}
+
+/** Scratch for reading the renderer's size, so `follow` allocates nothing per frame. */
+const viewSize = new THREE.Vector2();
 
 /**
  * How hard to work per frame. The costly parts of this world are the shadow pass and the number
@@ -166,6 +211,11 @@ export function createSceneRig(container: HTMLElement): SceneRig {
       }
       water.position.set(x, WORLD.WATER_Y, z);
       deep.position.set(x, -0.03, z);
+      // the ground in shot is a rectangle zoom*aspect across by zoom*GROUND_DEPTH*2 deep, centred
+      // on the target; nothing past its half-diagonal can be seen, so nothing there need be drawn
+      const size = renderer.getSize(viewSize);
+      const aspect = size.x / Math.max(1, size.y);
+      setWorldView(scene, x, z, Math.hypot(zoom * aspect / 2, zoom * GROUND_DEPTH) + VIEW_MARGIN);
     },
     resize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
