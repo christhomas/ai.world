@@ -307,7 +307,9 @@ describe('what comes of it', () => {
 
     expect(lost).toBeGreaterThan(1);
     expect(register.living(trouble.village)).toHaveLength(0);
-    expect(register.emptiedOn(trouble.village)).not.toBeNull();
+    // the register notices an empty place the following morning, so give it the morning
+    liveOn(register, new Rescues(), lost + 1, lost + 1);
+    expect(register.emptiedOn(trouble.village)).toBe(lost + 1);
     expect(register.settled()).toContain(trouble.village);
   });
 

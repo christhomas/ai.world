@@ -66,8 +66,13 @@ const PANEL_BUTTONS: readonly Button[] = [
  * permanent square of a phone screen.
  */
 const MORE_BUTTONS: readonly Button[] = [
+  { key: 'b', glyph: '🛡', label: 'Ward' },
+  { key: 'h', glyph: '✴', label: 'Blight' },
+  { key: 'u', glyph: '🔆', label: 'Witchlight' },
+  { key: 'v', glyph: '🔮', label: 'Drink a warding draught' },
+  { key: 'y', glyph: '🗡', label: 'Your company' },
   { key: 't', glyph: '💬', label: 'Chat' },
-  { key: 'g', glyph: '🤝', label: 'Trade or duel' },
+  { key: 'g', glyph: '🤝', label: 'Give, trade or duel' },
   { key: 'k', glyph: '🧭', label: 'Party' },
   { key: 'l', glyph: '👥', label: 'Travellers' },
   { key: 'r', glyph: '📍', label: 'Rally point' },
@@ -75,9 +80,10 @@ const MORE_BUTTONS: readonly Button[] = [
   { key: 'f', glyph: '🎥', label: 'Free camera' },
 ];
 
-/** The two that are pressed constantly, drawn big enough to hit without looking. */
-const ACT = { key: 'enter', glyph: '⏎', label: 'Talk, open, board, harvest' } as const;
+/** The three that are pressed constantly, drawn big enough to hit without looking. */
+const ACT = { key: 'enter', glyph: '⏎', label: 'Talk, open, board, harvest, dig, fell' } as const;
 const SWING = { key: 'x', glyph: '⚔', label: 'Swing' } as const;
+const LOOSE = { key: 'z', glyph: '🏹', label: 'Loose an arrow' } as const;
 const ESCAPE = { key: 'escape', glyph: '✕', label: 'Close' } as const;
 
 /** `?touch=1` forces the controls on, `?touch=0` off, for anyone whose device we guess wrong. */
@@ -215,7 +221,11 @@ export class TouchControls {
   private buildActionCluster(): HTMLElement {
     const cluster = document.createElement('div');
     cluster.id = 'touchAct';
-    cluster.append(this.button(SWING, 'touch-round touch-swing'), this.button(ACT, 'touch-round touch-do'));
+    cluster.append(
+      this.button(LOOSE, 'touch-round touch-loose'),
+      this.button(SWING, 'touch-round touch-swing'),
+      this.button(ACT, 'touch-round touch-do'),
+    );
     return cluster;
   }
 

@@ -239,7 +239,7 @@ export function bandFor(seed: number, stops: readonly Stop[], slot: number, era:
   // side of the world would make every region everybody's problem
   const others = stops.filter((s) => s !== home).sort((a, b) => away(a) - away(b));
   const near = others.filter((s) => away(s) <= ROAM.CIRCUIT);
-  const reach = near.length >= ROAM.STOPS - 1 ? near : others;
+  const reach = near.length >= ROAM.STOPS - 1 ? near : others.slice(0, ROAM.STOPS - 1);
   const sort = ROAM.SORTS[kind];
   return {
     id: `band:${slot}`,

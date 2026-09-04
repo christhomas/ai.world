@@ -372,6 +372,11 @@ body.touch #touch {
   right: calc(var(--touch-act) + 16px); bottom: 30px;
   width: var(--touch-swing); height: var(--touch-swing); font-size: 24px;
 }
+/* the bow sits above the sword: the same hand, one reach further, and out of the thumb's way */
+.touch-loose {
+  right: calc(var(--touch-act) + 22px); bottom: calc(30px + var(--touch-swing) + 8px);
+  width: var(--touch-target); height: var(--touch-target); font-size: 21px;
+}
 
 #touchMore {
   display: none; position: absolute; right: calc(var(--touch-edge) + var(--safe-right));

@@ -170,7 +170,13 @@ export interface Reckoning {
   ours: number;
   theirs: number;
   win: boolean;
-  /** How much longer the men bought us than going alone would have, and 1 when they bought nothing. */
+  /** Whether we would win it with nobody at our shoulder, so what the coin bought is plain. */
+  alone: boolean;
+  /**
+   * How much longer the men keep us on our feet than going alone would, and 1 when they change
+   * nothing. Measured as the length of the fight, because a fight ends when somebody goes down and
+   * the one still standing has been on his feet for exactly that long.
+   */
   bought: number;
   /** How it reads in a line, for somebody deciding whether to say yes. */
   words: string;
@@ -230,15 +236,20 @@ function stood(fell: number): number {
 export function reckon(us: Fighter, them: Fighter): Reckoning {
   const fought = watch(us, them);
   const ours = stood(fought[0]), theirs = stood(fought[1]);
-  const alone = stood(watch({ ...us, swords: 0 }, them)[0]);
+  const unaided = watch({ ...us, swords: 0 }, them);
+  const lasted = Math.min(ours, theirs);
+  const lastedAlone = Math.min(stood(unaided[0]), stood(unaided[1]));
   const win = theirs < ours;
-  const bought = alone > 0 ? ours / alone : 1;
-  const held = bought > 1.05 ? ` Your swords hold him off ${bought.toFixed(1)} times as long as you would alone.` : '';
+  const alone = stood(unaided[1]) < stood(unaided[0]);
+  const bought = lastedAlone > 0 ? lasted / lastedAlone : 1;
+  const held = bought > 1.05
+    ? ` Your swords keep you on your feet ${bought.toFixed(1)} times as long as going alone would.`
+    : '';
   return {
-    ours, theirs, win, bought,
-    words: win
-      ? `You would have him in about ${theirs.toFixed(1)} seconds.${held}`
-      : `He would put you down in about ${ours.toFixed(1)} seconds.${held}`,
+    ours, theirs, win, alone, bought,
+    words: !win ? `He would put you down in about ${ours.toFixed(1)} seconds.${held}`
+      : alone ? `You would have him in about ${theirs.toFixed(1)} seconds, swords or no swords.`
+      : `Your swords are the difference: he goes down in about ${theirs.toFixed(1)} seconds.`,
   };
 }
 
