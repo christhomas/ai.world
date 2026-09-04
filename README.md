@@ -33,6 +33,13 @@ synthesised as you play.
 | **N** | Save and return to the title, which puts the whole world away rather than leaving it running |
 | **O** | Options: light, graphics, volume, multiplayer, seed |
 
+On a phone or tablet the controls draw themselves: a thumb stick wherever your thumb lands, the
+action key and the sword to hand, and the panels along the side. Pinch the world to zoom, drag to
+look about. They appear for a touch screen and stay out of the way of a mouse — `?touch=1` and
+`?touch=0` settle any argument.
+
+![The game on a phone](docs/screenshots/phone.png)
+
 Three save slots on the title screen. `?seed=123` opens a particular world, and `&x=100&z=-50`
 starts you somewhere in it.
 
