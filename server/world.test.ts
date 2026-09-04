@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DAY_LENGTH, SharedWorld, worldPath } from './world';
-import { cleanDelta, cleanStallItem, deltaKey } from './protocol';
+import { cleanDelta, cleanLetter, cleanStallItem, deltaKey } from './protocol';
 
 const scratch = () => mkdtempSync(join(tmpdir(), 'aiworld-'));
 
@@ -115,6 +115,37 @@ describe('market pitches', () => {
   });
 });
 
+describe('the post shelf', () => {
+  it('holds a parcel for a name until that name asks for it', () => {
+    const w = new SharedWorld(4, worldPath(scratch(), 4), { day: 6, time: 0.2 });
+    w.meet('Rowan');
+    expect(w.meet('Rowan')).toBe(false);              // the world only meets you once
+    w.post({ from: 'Rowan', to: 'Wren', gold: 10, items: [['apple', 1]], day: 6 });
+    expect(w.waiting('Wren')).toBe(1);
+    expect(w.waiting('Rowan')).toBe(0);
+
+    const collected = w.collect('Wren');
+    expect(collected).toHaveLength(1);
+    expect(collected[0].items).toEqual([['apple', 1]]);
+    expect(w.collect('Wren')).toEqual([]);            // the shelf is empty once it is cleared
+  });
+
+  it('remembers parcels and names across a restart', () => {
+    const dir = scratch();
+    try {
+      const path = worldPath(dir, 31);
+      const first = new SharedWorld(31, path, { day: 1, time: 0.2 });
+      first.meet('Rowan');
+      first.post({ from: 'Rowan', to: 'Wren', gold: 5, items: [], day: 1 });
+      first.save();
+
+      const second = new SharedWorld(31, path, { day: 1, time: 0.2 });
+      expect(second.folk).toEqual(['Rowan']);
+      expect(second.collect('Wren')[0].gold).toBe(5);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
 describe('deltas off the wire', () => {
   it('are cleaned into something the world can trust', () => {
     expect(cleanDelta({ kind: 'chest', id: 'a'.repeat(300) })!.kind).toBe('chest');
@@ -122,6 +153,13 @@ describe('deltas off the wire', () => {
     expect(cleanDelta({ kind: 'sow', tile: '1,1', crop: 'wheat', day: -5 })).toEqual({ kind: 'sow', tile: '1,1', crop: 'wheat', day: 1 });
     expect(cleanDelta({ kind: 'sow', tile: '1,1', crop: 'wheat', day: Number.NaN })).toBeNull();
     expect(cleanDelta({ kind: 'nonsense' } as never)).toBeNull();
+  });
+
+  it('so are the parcels people leave at an inn', () => {
+    expect(cleanLetter({ from: 'Rowan', to: 'Wren', gold: 5.9, items: [['apple', 2]], day: 3 }))
+      .toEqual({ from: 'Rowan', to: 'Wren', gold: 5, items: [['apple', 2]], day: 3 });
+    expect(cleanLetter({ from: 'Rowan', to: 'Wren', gold: 0, items: [], day: 3 })).toBeNull();
+    expect(cleanLetter({ from: 'Rowan', to: '', gold: 5, items: [], day: 3 })!.to).toBe('Traveller');
   });
 
   it('so are the lots people put on a stall', () => {

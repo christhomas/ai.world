@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
-  PROTOCOL_VERSION, cleanChat, cleanDelta, cleanName, cleanStallItem,
+  PROTOCOL_VERSION, cleanChat, cleanDelta, cleanLetter, cleanName, cleanStallItem,
   type ClientMessage, type Presence, type ServerMessage, type TradeOffer,
 } from './protocol';
 import { CLOCK_INTERVAL, SharedWorld, worldPath } from './world';
@@ -112,6 +112,11 @@ wss.on('connection', (socket) => {
         deltas: room.world.log,
       });
       send(joining, { type: 'stalls', stalls: room.world.stalls });
+      const newcomer = room.world.meet(joining.presence.name);
+      send(joining, { type: 'folk', names: room.world.folk });
+      if (newcomer) broadcast(seed, { type: 'folk', names: room.world.folk }, joining);
+      const waiting = room.world.waiting(joining.presence.name);
+      if (waiting > 0) send(joining, { type: 'mail-here', from: `${waiting} parcel${waiting === 1 ? '' : 's'}` });
       broadcast(seed, { type: 'joined', player: joining.presence }, joining);
       return;
     }
@@ -171,6 +176,24 @@ wss.on('connection', (socket) => {
         // one description of the market goes to everyone, rather than a message per change
         broadcast(me.seed, { type: 'stalls', stalls: room.world.stalls });
         send(me, { type: 'stalls', stalls: room.world.stalls });
+        break;
+      }
+      case 'mail-send': {
+        const letter = cleanLetter({
+          from: me.presence.name, to: message.to, gold: message.gold,
+          items: message.items, day: room.world.clock.day,
+        });
+        if (!letter) { send(me, { type: 'mail-refused', reason: 'There is nothing in that parcel.' }); break; }
+        if (letter.to === me.presence.name) { send(me, { type: 'mail-refused', reason: 'Post it to somebody else.' }); break; }
+        if (!room.world.folk.includes(letter.to)) { send(me, { type: 'mail-refused', reason: `Nobody here has heard of ${letter.to}.` }); break; }
+        room.world.post(letter);
+        const recipient = [...room.clients].find((c) => c.presence.name === letter.to);
+        if (recipient) send(recipient, { type: 'mail-here', from: letter.from });
+        send(me, { type: 'mail-sent', to: letter.to });
+        break;
+      }
+      case 'mail-fetch': {
+        send(me, { type: 'mail', letters: room.world.collect(me.presence.name) });
         break;
       }
       case 'trade-offer': {

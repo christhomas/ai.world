@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
-  STALL_DAYS, STALL_LOTS, deltaKey,
-  type Clock, type Stall, type StallItem, type WorldDelta,
+  MAIL_LIMIT, STALL_DAYS, STALL_LOTS, deltaKey,
+  type Clock, type Letter, type Stall, type StallItem, type WorldDelta,
 } from './protocol';
 
 /**
@@ -28,6 +28,8 @@ export interface WorldFile {
   clock: Clock;
   deltas: WorldDelta[];
   stalls?: Stall[];
+  letters?: Letter[];
+  folk?: string[];
 }
 
 /** What a stall did with what it was asked, and what the asker should be told. */
@@ -43,6 +45,10 @@ export class SharedWorld {
   private readonly deltas = new Map<string, WorldDelta>();
   /** Rented market pitches, by pitch id. */
   private readonly pitches = new Map<string, Stall>();
+  /** Parcels waiting at the inns, oldest first. */
+  private letters: Letter[] = [];
+  /** Every name this world has seen, so a parcel can be addressed to somebody who is away. */
+  private readonly seen = new Set<string>();
   private saveTimer: NodeJS.Timeout | null = null;
   private dirty = false;
 
@@ -51,6 +57,45 @@ export class SharedWorld {
     this.clock = loaded?.clock ?? start;
     for (const delta of loaded?.deltas ?? []) this.deltas.set(deltaKey(delta), delta);
     for (const stall of loaded?.stalls ?? []) this.pitches.set(stall.id, stall);
+    this.letters = loaded?.letters ?? [];
+    for (const name of loaded?.folk ?? []) this.seen.add(name);
+  }
+
+  /** Everyone this world has ever seen. */
+  get folk(): string[] {
+    return [...this.seen].sort();
+  }
+
+  /**
+   * Remember a name so parcels can be addressed to it later.
+   * @returns whether this is somebody the world had not met before
+   */
+  meet(name: string): boolean {
+    if (this.seen.has(name)) return false;
+    this.seen.add(name);
+    this.scheduleSave();
+    return true;
+  }
+
+  /** Leave a parcel at the inns for somebody. */
+  post(letter: Letter): void {
+    this.letters.push(letter);
+    if (this.letters.length > MAIL_LIMIT) this.letters.shift();
+    this.scheduleSave();
+  }
+
+  /** How many parcels are waiting for this name. */
+  waiting(name: string): number {
+    return this.letters.filter((letter) => letter.to === name).length;
+  }
+
+  /** Hand over everything addressed to this name, and take it off the shelf. */
+  collect(name: string): Letter[] {
+    const theirs = this.letters.filter((letter) => letter.to === name);
+    if (theirs.length === 0) return [];
+    this.letters = this.letters.filter((letter) => letter.to !== name);
+    this.scheduleSave();
+    return theirs;
   }
 
   /** Every pitch currently rented, for a client to draw and browse. */
@@ -178,7 +223,10 @@ export class SharedWorld {
   save(): void {
     if (!this.dirty) return;
     this.dirty = false;
-    const file: WorldFile = { seed: this.seed, clock: this.clock, deltas: this.log, stalls: this.stalls };
+    const file: WorldFile = {
+      seed: this.seed, clock: this.clock, deltas: this.log,
+      stalls: this.stalls, letters: this.letters, folk: this.folk,
+    };
     try {
       mkdirSync(dirname(this.path), { recursive: true });
       writeFileSync(this.path, JSON.stringify(file, null, 2));

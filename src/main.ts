@@ -49,7 +49,7 @@ import { DialogueBox, type DialogueNode } from './ui/dialogue';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
 import { GameState } from './game/state';
-import { dialogueFor } from './game/talk';
+import { dialogueFor, type TalkCtx } from './game/talk';
 import { generateQuests } from './game/quests';
 import { Sound } from './game/audio';
 import { damageEntity, yawFor, type Entity } from './entities/entity';
@@ -142,6 +142,32 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.despawnEntity(monster);
     },
     onStalls: (stalls) => { market.receive(stalls); pendingCost = 0; pendingStock = null; },
+    onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },
+    onMail: (letters) => {
+      if (letters.length === 0) { hud.flash('Nothing on the shelf for you.'); return; }
+      const named: string[] = [];
+      for (const letter of letters) {
+        state.inventory.gold += letter.gold;
+        for (const [id, n] of letter.items) { state.give(id, n); named.push(`${n}× ${ITEMS[id]?.name ?? id}`); }
+        if (letter.gold > 0) named.push(`${letter.gold} gold`);
+        chat.line(`Parcel from ${letter.from}, posted on day ${letter.day}.`, 'sys');
+      }
+      state.version++;
+      sound.jingle();
+      hud.flash(`Collected ${named.join(', ')}`);
+      persist();
+    },
+    onMailWord: (line, kind) => {
+      // a parcel that could not be left comes back into your hands
+      if (kind === 'refused' && parcelSent) {
+        state.give(parcelSent.id, 1);
+        state.inventory.gold += parcelSent.gold;
+        state.version++;
+      }
+      if (kind !== 'waiting') parcelSent = null;
+      chat.line(line, 'sys');
+      hud.flash(line);
+    },
     onBought: (_stall, item, cost) => {
       state.inventory.gold = Math.max(0, state.inventory.gold - cost);
       state.give(item.id, item.count);
@@ -188,6 +214,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       ? `Your stall — ${stall.takings} gold taken`
       : `${stall.owner}'s stall — ${lots ? `${lots} lot${lots === 1 ? '' : 's'} out` : 'nothing out'}`);
   };
+  /** A parcel handed over the counter but not yet accepted, so a refusal can put it back. */
+  let parcelSent: { id: string; gold: number } | null = null;
   /** Goods and gold sent to a stall that has not been answered for yet, so a refusal can undo them. */
   let pendingStock: string | null = null;
   let pendingCost = 0;
@@ -583,7 +611,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   dialogue.onMove = () => sound.select();
 
   // --- talking ---
-  const talkCtx = {
+  const talkCtx: TalkCtx = {
     state, rng: lineRng, quests, time: state.time,
     onInventoryChange: () => { sound.chime(); persist(); },
     onQuestChange: (q: { village: string }, status: 'active' | 'done') => {
@@ -593,6 +621,19 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
   const startTalk = (e: Entity) => {
     talkCtx.time = state.time;
+    // the post shelf only exists in a shared world, and only knows the names that world has seen
+    talkCtx.post = online.connected ? {
+      folk: online.folk,
+      collect: () => online.fetchMail(),
+      send: (to: string, itemId: string, gold: number) => {
+        state.take(itemId, 1);
+        state.inventory.gold -= gold;
+        state.version++;
+        parcelSent = { id: itemId, gold };
+        online.postMail(to, gold, [[itemId, 1]]);
+        persist();
+      },
+    } : undefined;
     e.yaw = yawFor(player.x - e.x, player.z - e.z);
     e.state = 'idle';
     e.timer = 1e9;
@@ -1084,6 +1125,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       __teleport?: (x: number, z: number) => void; __standAtCounter?: () => void;
     };
     debug.__state = state;
+    (debug as { __online?: unknown }).__online = online;
     debug.__doors = structures.doors;
     (debug as { __villages?: unknown }).__villages = structures.villages;
     (debug as { __piers?: unknown }).__piers = structures.piers;
@@ -1126,6 +1168,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__player = player;
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
+    (debug as { __enterInn?: () => string | null }).__enterInn = () => {
+      for (const village of structures.villages) {
+        const inn = village.shops.find((shop) => shop.type === 'inn');
+        if (!inn) continue;
+        const door = structures.doors.find((d) => d.bx === inn.house.tx && d.bz === inn.house.tz);
+        if (!door) continue;
+        places.enterBuilding(door);
+        return village.name;
+      }
+      return null;
+    };
     debug.__standAtCounter = () => {
       const spot = places.indoors?.world.map.keeper;
       if (spot) player.teleport(spot[0] + 0.5, spot[1] + 1.6);

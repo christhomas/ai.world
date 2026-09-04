@@ -1,12 +1,12 @@
 import {
   PROTOCOL_VERSION, cleanChat, cleanName,
   type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage,
-  type Stall, type StallItem, type TradeOffer, type WorldDelta,
+  type Letter, type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
-export type { Clock, MonsterSnap, Presence, Stall, StallItem, TradeOffer, WorldDelta };
+export type { Clock, Letter, MonsterSnap, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
@@ -30,6 +30,12 @@ export interface OnlineEvents {
   onTakings: (stall: string, gold: number) => void;
   /** A stall would not do what you asked, and why. */
   onStallRefused: (stall: string, reason: string) => void;
+  /** Everyone this world has seen, so a parcel can be addressed to somebody who is away. */
+  onFolk: (names: string[]) => void;
+  /** Parcels handed over at the inn: take what is in them. */
+  onMail: (letters: Letter[]) => void;
+  /** Word from the post shelf: something waiting, your parcel away, or your parcel turned down. */
+  onMailWord: (line: string, kind: 'waiting' | 'sent' | 'refused') => void;
   /** Somebody has offered you goods; answering is up to the player. */
   onOffer: (offer: TradeOffer, fromName: string) => void;
   /** A trade you were part of finished: apply it to your own purse. */
@@ -49,6 +55,8 @@ export class Online {
   readonly players = new Map<string, Presence>();
   id = '';
   name = 'Traveller';
+  /** Everyone else this world has seen, whether or not they are here now. */
+  folk: string[] = [];
   status: 'offline' | 'connecting' | 'online' = 'offline';
 
   constructor(private readonly events: OnlineEvents) {}
@@ -151,6 +159,22 @@ export class Online {
       case 'stall-refused':
         this.events.onStallRefused(message.stall, message.reason);
         break;
+      case 'folk':
+        this.folk = message.names.filter((name) => name !== this.name);
+        this.events.onFolk(message.names);
+        break;
+      case 'mail':
+        this.events.onMail(message.letters);
+        break;
+      case 'mail-here':
+        this.events.onMailWord(`${message.from} left something for you at the inn.`, 'waiting');
+        break;
+      case 'mail-sent':
+        this.events.onMailWord(`Your parcel waits at the inn for ${message.to}.`, 'sent');
+        break;
+      case 'mail-refused':
+        this.events.onMailWord(message.reason, 'refused');
+        break;
       case 'said':
         this.events.onChat(`${message.name}: ${message.text}`);
         break;
@@ -215,6 +239,16 @@ export class Online {
 
   closeStall(stall: string): void {
     if (this.connected) this.send({ type: 'stall-close', stall });
+  }
+
+  /** Leave a parcel at the inns for somebody, here or not. */
+  postMail(to: string, gold: number, items: Array<[string, number]>): void {
+    if (this.connected) this.send({ type: 'mail-send', to, gold, items });
+  }
+
+  /** Ask the innkeeper for whatever is waiting under your name. */
+  fetchMail(): void {
+    if (this.connected) this.send({ type: 'mail-fetch' });
   }
 
   say(text: string): void {

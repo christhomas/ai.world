@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 /** Where somebody is and what they look like, sent several times a second. */
 export interface Presence {
@@ -101,6 +101,22 @@ export const STALL_DAYS = 3;
 /** A trader may not stack more than this many lots on one pitch. */
 export const STALL_LOTS = 6;
 
+/**
+ * A parcel left at an inn for somebody who is not here. Like a stall, it is addressed to a name
+ * rather than a connection, so it waits however long it has to.
+ */
+export interface Letter {
+  from: string;
+  to: string;
+  gold: number;
+  items: Array<[string, number]>;
+  /** The world day it was posted, so the inn can say how long it has sat there. */
+  day: number;
+}
+
+/** No more parcels than this wait in one world, oldest thrown out first. */
+export const MAIL_LIMIT = 500;
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -115,7 +131,9 @@ export type ClientMessage =
   | { type: 'stall-stock'; stall: string; item: StallItem }
   | { type: 'stall-buy'; stall: string; index: number }
   | { type: 'stall-collect'; stall: string }
-  | { type: 'stall-close'; stall: string };
+  | { type: 'stall-close'; stall: string }
+  | { type: 'mail-send'; to: string; gold: number; items: Array<[string, number]> }
+  | { type: 'mail-fetch' };
 
 export type ServerMessage =
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
@@ -136,6 +154,15 @@ export type ServerMessage =
   | { type: 'stall-takings'; stall: string; gold: number }
   /** Something you asked of a stall could not be done. */
   | { type: 'stall-refused'; stall: string; reason: string }
+  /** Everyone this world has ever seen, so a parcel can be addressed to somebody who is away. */
+  | { type: 'folk'; names: string[] }
+  /** The parcels waiting for you, now yours: take what is in them. */
+  | { type: 'mail'; letters: Letter[] }
+  /** Somebody has left something for you at the inn. */
+  | { type: 'mail-here'; from: string }
+  /** Your parcel is on the shelf, waiting for whoever it is addressed to. */
+  | { type: 'mail-sent'; to: string }
+  | { type: 'mail-refused'; reason: string }
   | { type: 'error'; reason: string };
 
 /**
@@ -154,6 +181,19 @@ export function cleanStallItem(item: StallItem): StallItem | null {
   const count = Math.floor(Number(item?.count));
   if (!id || !Number.isFinite(price) || !Number.isFinite(count)) return null;
   return { id, price: Math.max(1, Math.min(9999, price)), count: Math.max(1, Math.min(99, count)) };
+}
+
+/** Guard a parcel off the wire: a real recipient, sane gold, and a handful of items at most. */
+export function cleanLetter(letter: Letter): Letter | null {
+  const to = cleanName(String(letter?.to ?? ''));
+  const gold = Math.floor(Number(letter?.gold));
+  if (!Number.isFinite(gold)) return null;
+  const items = (Array.isArray(letter?.items) ? letter.items : [])
+    .slice(0, 8)
+    .map(([id, n]) => [String(id).slice(0, 24), Math.max(1, Math.min(99, Math.floor(Number(n)) || 1))] as [string, number])
+    .filter(([id]) => id);
+  if (gold <= 0 && items.length === 0) return null;
+  return { from: String(letter.from ?? '').slice(0, 18), to, gold: Math.max(0, gold), items, day: Math.max(1, Math.floor(Number(letter.day)) || 1) };
 }
 
 /** Chat is short and plain; anything longer or stranger is cut here rather than downstream. */

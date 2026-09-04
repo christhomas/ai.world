@@ -16,7 +16,25 @@ export interface TalkCtx {
   onInventoryChange: () => void;
   /** Called when a quest is accepted or completed. */
   onQuestChange: (quest: Quest, status: 'active' | 'done') => void;
+  /** The inn's post shelf, when this world is shared with other people. */
+  post?: Post;
 }
+
+/**
+ * Inns keep a shelf of parcels. Anything left there is addressed to a name, so it waits for
+ * somebody who is not online, and any inn in the world will hand it over.
+ */
+export interface Post {
+  /** Everyone this world has seen, minus you. */
+  folk: string[];
+  /** Ask for whatever is under your name. */
+  collect: () => void;
+  /** Leave one of something, with a little gold if you like, for somebody. */
+  send: (to: string, itemId: string, gold: number) => void;
+}
+
+/** Gold that rides along with a parcel, so a gift can be more than a thing. */
+export const PARCEL_GOLD = 10;
 
 const CONGREGATION_LINES = [
   'We gather here most mornings. It is quieter than the square.',
@@ -109,10 +127,56 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     choices: [
       { label: 'Buy', next: buyMenu },
       { label: 'Sell', next: sellMenu },
+      ...(e.shop === 'inn' && ctx.post ? [{ label: 'The post shelf', next: postMenu }] : []),
       { label: 'Chat', next: chat },
       { label: 'Leave', next: () => null },
     ],
   });
+
+  /** The inn's shelf: take what is addressed to you, or leave something for somebody else. */
+  const postMenu = (): DialogueNode => {
+    const post = ctx.post!;
+    return {
+      speaker, emoji,
+      pages: ['Parcels go on the shelf behind me. Anything left is handed over at any inn in the land.'],
+      choices: [
+        { label: 'Anything for me?', next: () => { post.collect(); return null; } },
+        { label: 'Leave a parcel', next: parcelMenu },
+        { label: 'Back', next: root },
+      ],
+    };
+  };
+
+  const parcelMenu = (): DialogueNode => {
+    const post = ctx.post!;
+    const carried = [...ctx.state.inventory.items.entries()].filter(([id]) => ITEMS[id]);
+    if (carried.length === 0 || post.folk.length === 0) {
+      return {
+        speaker, emoji,
+        pages: [carried.length === 0 ? 'You have nothing to send.' : 'No one else has passed through this world yet.'],
+        choices: [{ label: 'Back', next: postMenu }],
+      };
+    }
+    const forWhom = (itemId: string): DialogueNode => ({
+      speaker, emoji,
+      pages: [`${ITEMS[itemId].name}, and ${PARCEL_GOLD} gold for the carriage. Who is it for?`],
+      choices: [
+        ...post.folk.slice(0, 8).map((name) => ({
+          label: name,
+          next: () => { post.send(name, itemId, ctx.state.inventory.gold >= PARCEL_GOLD ? PARCEL_GOLD : 0); return null; },
+        })),
+        { label: 'Never mind', next: postMenu },
+      ],
+    });
+    return {
+      speaker, emoji,
+      pages: ['What are you sending?'],
+      choices: [
+        ...carried.slice(0, 8).map(([id]) => ({ label: `${ITEMS[id].emoji} ${ITEMS[id].name}`, next: () => forWhom(id) })),
+        { label: 'Back', next: postMenu },
+      ],
+    };
+  };
 
   const buyMenu = (): DialogueNode => ({
     speaker, emoji,
