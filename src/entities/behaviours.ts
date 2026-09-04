@@ -10,13 +10,21 @@ import type { Behaviour } from './animals';
  * the node that is wrong — and `behaviours.test.ts` loads the same files, so it lands in the
  * build rather than in somebody's game.
  *
- * Not every kind of creature has a tree yet. The ones that do not still run the older code in
- * entity.ts; both can live at once, and the rest move over one at a time.
+ * Every kind of creature is driven from the file now. What is left in entity.ts is movement,
+ * animation and the consequences of being hit: mechanism, not decisions.
  */
-const TREES: Record<string, Node<Mind>> = compileAll(creatures as BehaviourFile, CREATURE_VERBS, rollSeconds);
+const TREES: Record<string, Node<Mind>> = compileAll(creatures as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds);
 
-/** Which behaviour kind is driven by which tree. */
-const DRIVEN_BY: Partial<Record<Behaviour, string>> = {
+/** Which behaviour kind is driven by which tree. Every kind of creature has one. */
+const DRIVEN_BY: Record<Behaviour, string> = {
+  graze: 'grazer',
+  wander: 'wanderer',
+  travel: 'traveller',
+  hop: 'hopper',
+  swim: 'swimmer',
+  prowl: 'prowler',
+  hunt: 'monster',
+  fly: 'flier',
   circle: 'seaHunter',
 };
 

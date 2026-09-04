@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
+import { treeFor } from './behaviours';
 import { BEHAVIOUR, Entity, Herd, STEP_LIMIT, canStand, isDaytime, tryMove, updateEntity, yawFor, type TileWorld } from './entity';
 
 /** Flat 20x20 world at height 1, with a cliff (height 2) for x >= 10 and a tree at (5,5). */
@@ -38,7 +39,8 @@ describe('entity movement', () => {
   it('prey flee from the hero; predators bite when close', () => {
     const rng = mulberry32(2);
     const bites: number[] = [];
-    const ctx = { world, rng, playerX: 3, playerZ: 3, playerArmed: false, onAttack: (_e: Entity, d: number) => bites.push(d) };
+    // decisions live in behaviours/creatures.json now, so the trees have to be handed in
+    const ctx = { world, rng, playerX: 3, playerZ: 3, playerArmed: false, treeFor, onAttack: (_e: Entity, d: number) => bites.push(d) };
     const sheep = new Entity(KINDS.sheep, 3.5, 3, new Herd(KINDS.sheep, 3, 3, 3, 3, 5), 'k', rng);
     sheep.y = 1;
     updateEntity(sheep, 0.1, ctx);

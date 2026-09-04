@@ -12,15 +12,18 @@ import { allTrees, treeFor } from './behaviours';
  */
 describe('the behaviour files', () => {
   it('all compile against the verbs the game declares', () => {
-    const trees = compileAll(creatures as BehaviourFile, CREATURE_VERBS, rollSeconds);
+    const trees = compileAll(creatures as unknown as BehaviourFile, CREATURE_VERBS, rollSeconds);
     expect(Object.keys(trees).length).toBeGreaterThan(0);
     for (const tree of Object.values(trees)) expect(typeof tree).toBe('function');
   });
 
-  it('are reachable from the behaviours the creatures declare', () => {
-    expect(treeFor('circle')).not.toBeNull();
-    expect(treeFor('graze')).toBeNull();          // still runs the older path, and that is allowed
-    expect(Object.keys(allTrees())).toContain('seaHunter');
+  it('cover every kind of creature the game has', () => {
+    for (const behaviour of ['graze', 'wander', 'travel', 'hop', 'swim', 'prowl', 'hunt', 'fly', 'circle'] as const) {
+      expect(treeFor(behaviour), `nothing decides for a ${behaviour} creature`).not.toBeNull();
+    }
+    expect(Object.keys(allTrees()).sort()).toEqual(
+      ['flier', 'grazer', 'hopper', 'monster', 'prowler', 'seaHunter', 'swimmer', 'traveller', 'wanderer'],
+    );
   });
 
   it('carry their notes, so a reader is told why rather than only what', () => {

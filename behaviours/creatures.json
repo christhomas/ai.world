@@ -1,4 +1,134 @@
 {
+  "grazer": {
+    "note": "Cows, sheep, horses, deer, goats, elk, camels. Heads down, and gone the moment you come near.",
+    "first": [
+      {
+        "note": "Prey bolt first and think later.",
+        "when": { "ask": "within", "with": { "tiles": 3.5 } },
+        "then": { "do": "flee", "with": { "seconds": 1.5 } }
+      },
+      {
+        "note": "Otherwise: mostly grazing, sometimes ambling somewhere new.",
+        "when": { "ask": "idle" },
+        "then": {
+          "first": [
+            { "when": { "ask": "chance", "with": { "p": 0.45 } }, "then": { "do": "graze", "with": { "seconds": 2, "spread": 4 } } },
+            { "do": "wander", "with": { "tiles": 4 } }
+          ]
+        }
+      }
+    ]
+  },
+
+  "wanderer": {
+    "note": "Villagers, shopkeepers, herons, lizards: about their business, wary of nobody.",
+    "when": { "ask": "idle" },
+    "then": { "do": "wander", "with": { "tiles": 4 } }
+  },
+
+  "traveller": {
+    "note": "People on the road, who keep to it. Their footing decides that; this only sets how far they range.",
+    "when": { "ask": "idle" },
+    "then": { "do": "wander", "with": { "tiles": 7 } }
+  },
+
+  "hopper": {
+    "note": "Chickens, rabbits, hares, frogs. Short bursts, and a fright at the least excuse.",
+    "first": [
+      {
+        "when": { "ask": "within", "with": { "tiles": 3.5 } },
+        "then": { "do": "flee", "with": { "seconds": 1.5 } }
+      },
+      {
+        "when": { "ask": "idle" },
+        "then": { "do": "wander", "with": { "tiles": 2.5, "gait": "hop" } }
+      }
+    ]
+  },
+
+  "swimmer": {
+    "note": "Ducks. Dabbling is a duck's grazing.",
+    "first": [
+      {
+        "when": { "ask": "within", "with": { "tiles": 3.5 } },
+        "then": { "do": "flee", "with": { "seconds": 1.5 } }
+      },
+      {
+        "when": { "ask": "idle" },
+        "then": {
+          "first": [
+            { "when": { "ask": "chance", "with": { "p": 0.3 } }, "then": { "do": "graze", "with": { "seconds": 1, "spread": 2 } } },
+            { "do": "wander", "with": { "tiles": 4 } }
+          ]
+        }
+      }
+    ]
+  },
+
+  "prowler": {
+    "note": "Wolves, bears, foxes. They will take on somebody unarmed; a drawn sword changes their mind.",
+    "first": [
+      {
+        "note": "An armed hero this close is not worth it.",
+        "when": { "ask": "armed" },
+        "then": {
+          "when": { "ask": "within", "with": { "tiles": 3.5 } },
+          "then": { "do": "flee", "with": { "seconds": 2 } }
+        }
+      },
+      {
+        "note": "Unarmed and within stalking distance: come on, and bite when you arrive.",
+        "when": { "not": { "ask": "armed" } },
+        "then": {
+          "when": { "ask": "within", "with": { "tiles": 7 } },
+          "then": {
+            "all": [
+              { "do": "stalk" },
+              { "anyway": { "do": "bite" } }
+            ]
+          }
+        }
+      },
+      { "when": { "ask": "idle" }, "then": { "do": "wander", "with": { "tiles": 8 } } }
+    ]
+  },
+
+  "monster": {
+    "note": "Rats, slimes, skeletons and the troll below. Nothing frightens them, sword or no sword.",
+    "first": [
+      {
+        "when": { "ask": "within", "with": { "tiles": 12 } },
+        "then": {
+          "all": [
+            { "do": "stalk" },
+            { "anyway": { "do": "bite" } }
+          ]
+        }
+      },
+      { "when": { "ask": "idle" }, "then": { "do": "wander", "with": { "tiles": 6 } } }
+    ]
+  },
+
+  "flier": {
+    "note": "Eagles and vultures ride their circle; a bat comes down at you.",
+    "first": [
+      {
+        "note": "Only the dangerous ones dive, and only when you are worth the trip.",
+        "when": { "ask": "dangerous" },
+        "then": {
+          "when": { "ask": "within", "with": { "tiles": 12 } },
+          "then": {
+            "all": [
+              { "do": "dive", "with": { "drop": 2 } },
+              { "anyway": { "do": "bite" } }
+            ]
+          }
+        }
+      },
+      { "do": "patrol", "with": { "tiles": 4 } }
+    ]
+  },
+
   "seaHunter": {
     "note": "Sharks and orcas. They want a boat; on dry land you are somebody else's problem.",
     "first": [

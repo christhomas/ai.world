@@ -285,23 +285,6 @@ export function damageEntity(e: Entity, damage: number, fromX: number, fromZ: nu
   return false;
 }
 
-/** After standing around: graze, dabble, or pick somewhere to go. */
-function chooseIdleAction(e: Entity, ctx: Ctx): void {
-  const k = e.kind;
-  const hopper = k.behaviour === 'hop';
-  const r = ctx.rng();
-  if (k.behaviour === 'graze' && r < 0.45) {
-    e.state = 'graze'; e.timer = 2 + ctx.rng() * 4;
-  } else if (k.behaviour === 'swim' && r < 0.3) {
-    e.state = 'graze'; e.timer = 1 + ctx.rng() * 2;
-  } else if (pickTarget(e, ctx, WANDER_RADIUS[k.behaviour])) {
-    e.state = hopper ? 'hop' : 'walk';
-    e.timer = hopper ? 0.5 : 6;
-  } else {
-    e.timer = 1 + ctx.rng() * 2;
-  }
-}
-
 /** Villagers are out between these times; outside them they head home and stay in. */
 export const AWAKE = [0.27, 0.82] as const;
 
@@ -343,51 +326,23 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
     }
   }
 
-  if (k.behaviour === 'fly') {
-    updateFlier(e, dt, ctx);
-    return;
-  }
-
   if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
+  e.attackCooldown -= dt;
 
-  const tree = ctx.treeFor?.(k.behaviour) ?? null;
-  if (tree) {
-    tree({
+  // what this creature does next is decided in behaviours/creatures.json
+  ctx.treeFor?.(k.behaviour)?.({
       dt,
       memory: e.mind,
       world: {
         self: e,
+        ground: world,
         playerX: ctx.playerX, playerZ: ctx.playerZ,
         playerAfloat: ctx.playerAfloat === true,
         playerArmed: ctx.playerArmed,
         rng: ctx.rng,
         bite: ctx.onAttack,
       },
-    });
-  }
-
-  // prey run from the player; armed heroes scare *animal* predators off, monsters attack regardless
-  const pdx = e.x - ctx.playerX, pdz = e.z - ctx.playerZ;
-  const pd2 = pdx * pdx + pdz * pdz;
-  const monster = k.behaviour === 'hunt';
-  const scared = k.timid || (k.dangerous && ctx.playerArmed && !monster);
-  if (scared && e.state !== 'flee' && pd2 < BEHAVIOUR.FLEE_RADIUS ** 2) startFlee(e, pdx, pdz, ctx.rng);
-  // predators bite when they get close
-  e.attackCooldown -= dt;
-  // creatures with a tree do their own biting, in the file that says when
-  if (k.dangerous && !tree && (monster || !ctx.playerArmed)) {
-    const chase = monster ? BEHAVIOUR.HUNT_RADIUS : BEHAVIOUR.STALK_RADIUS;
-    if (pd2 < chase ** 2 && e.state !== 'flee') {
-      // stalk: walk straight at the player
-      e.tx = ctx.playerX; e.tz = ctx.playerZ;
-      if (e.state !== 'walk') { e.state = 'walk'; e.timer = 4; }
-    }
-    if (pd2 < BEHAVIOUR.BITE_RANGE ** 2 && e.attackCooldown <= 0) {
-      e.attackCooldown = BEHAVIOUR.BITE_COOLDOWN;
-      e.yaw = yawFor(-pdx, -pdz);
-      ctx.onAttack(e, k.dangerous);
-    }
-  }
+  });
 
 
   const hopper = k.behaviour === 'hop';
@@ -398,7 +353,6 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
     case 'idle':
       e.walk = 0;
       e.headPitch += (0 - e.headPitch) * Math.min(1, dt * 6);
-      if (e.timer <= 0) chooseIdleAction(e, ctx);
       break;
 
     case 'graze':
@@ -417,7 +371,9 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       } else {
         dx = e.tx - e.x; dz = e.tz - e.z;
         const dist = Math.hypot(dx, dz);
-        if ((monster || e.charging > 0) && dist > BEHAVIOUR.ARRIVE_DISTANCE) speed = k.runSpeed;
+        // a creature bearing down on somebody moves at its running speed, not its ambling one
+        const chasing = k.behaviour === 'hunt' || e.charging > 0;
+        if (chasing && dist > BEHAVIOUR.ARRIVE_DISTANCE) speed = k.runSpeed;
         if (dist < BEHAVIOUR.ARRIVE_DISTANCE || e.timer <= 0) {
           e.state = 'idle'; e.timer = hopper ? 0.4 + ctx.rng() * 1.5 : 1 + ctx.rng() * 3;
           e.bobY = 0;
@@ -443,6 +399,10 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       if (e.state === 'flee' && e.timer <= 0) { e.state = 'idle'; e.timer = 1 + ctx.rng(); e.bobY = 0; }
       break;
     }
+    case 'fly':
+      // a flier's whole movement is done by its own verbs; the ground-walking rules do not apply
+      break;
+
     default:
       e.state = 'idle';
   }
@@ -462,45 +422,3 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   if (gy !== null) e.y += (gy - e.y) * Math.min(1, dt * 12);
 }
 
-function updateFlier(e: Entity, dt: number, ctx: Ctx): void {
-  const h = e.herd;
-  const k = e.kind;
-  if (k.dangerous) {
-    // hostile fliers dive at the hero instead of circling a fixed point
-    const dx = ctx.playerX - e.x, dz = ctx.playerZ - e.z;
-    const dist = Math.hypot(dx, dz) || 1;
-    if (dist < BEHAVIOUR.HUNT_RADIUS) {
-      const step = Math.min(dist, k.speed * dt);
-      e.x += (dx / dist) * step;
-      e.z += (dz / dist) * step;
-      e.yaw = yawFor(dx, dz);
-      e.phase += dt * 12;
-      e.flap = 1;
-      const ground = ctx.world.heightAt(e.x, e.z) ?? h.baseY;
-      const target = ground + (k.altitude ?? 2) * (dist < 2 ? 0.45 : 1);
-      e.y += (target - e.y) * Math.min(1, dt * 4);
-      e.attackCooldown -= dt;
-      if (dist < BEHAVIOUR.BITE_RANGE && e.attackCooldown <= 0) {
-        e.attackCooldown = BEHAVIOUR.BITE_COOLDOWN;
-        ctx.onAttack(e, k.dangerous);
-      }
-      e.state = 'fly';
-      return;
-    }
-  }
-  const radius = 4 + (e.slot % 3) * 1.5;
-  h.angle += dt * (k.speed / radius);
-  const a = h.angle + (e.slot % 3) * 2.1;
-  const nx = h.ax + Math.cos(a) * radius, nz = h.az + Math.sin(a) * radius;
-  const vx = nx - e.x, vz = nz - e.z;
-  e.x = nx; e.z = nz;
-  e.yaw = yawFor(vx, vz);
-  e.phase += dt * 5;
-  e.flap = 1;
-  e.walk = 0;
-  const ground = ctx.world.heightAt(h.ax, h.az);
-  if (ground !== null) h.baseY = ground;
-  const target = h.baseY + (k.altitude ?? 7) + Math.sin(e.phase * 0.3) * 0.4;
-  e.y += (target - e.y) * Math.min(1, dt * 2);
-  e.state = 'fly';
-}
