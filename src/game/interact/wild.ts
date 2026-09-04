@@ -13,7 +13,7 @@ import type { Surroundings } from './context';
  */
 export function wildInteractions(ctx: Surroundings) {
   const {
-    player, state, structures, sampler, chunks, manifest, places,
+    player, state, structures, sampler, chunks, manifest, places, remains,
     dialogue, hud, sound, fishing, plots, online, seed, raining, discover, persist,
   } = ctx;
 
@@ -37,6 +37,37 @@ export function wildInteractions(ctx: Surroundings) {
       return true;
     }
     return false;
+  };
+
+  /**
+   * A pack lying in the grass where somebody was killed. Going through it is a small, grubby
+   * decision the game does not moralise about — though something else might, later.
+   */
+  const tryRemains = (): boolean => {
+    const pack = remains.nearest(player.x, player.z);
+    if (!pack) return false;
+    const named = pack.items.map((id) => ITEMS[id]?.name ?? id);
+    const worth = [pack.gold > 0 ? `${pack.gold} gold` : '', ...named].filter(Boolean);
+    dialogue.start({
+      speaker: `${pack.who}'s pack`,
+      emoji: '🎒',
+      pages: [
+        `Whatever took ${pack.who} did not want the pack. ${worth.length ? `There is ${worth.join(', ')} in it.` : 'It is empty.'}`,
+      ],
+      choices: [
+        { label: worth.length ? 'Take it' : 'Leave it', next: () => {
+          const took = remains.take(pack);
+          state.inventory.gold += took.gold;
+          for (const id of took.items) state.give(id, 1);
+          state.version++;
+          if (worth.length) { sound.chime(); hud.flash(`Took ${worth.join(', ')} from ${pack.who}'s pack`); }
+          persist();
+          return null;
+        } },
+        { label: 'Leave it be', next: () => null },
+      ],
+    });
+    return true;
   };
 
   /** A wreck's hold can be looted once; the anchor remembers it. */
@@ -195,5 +226,5 @@ export function wildInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryShrine, tryWreck, tryCampfire, tryFish, tryFarm };
+  return { tryShrine, tryWreck, tryCampfire, tryFish, tryFarm, tryRemains };
 }

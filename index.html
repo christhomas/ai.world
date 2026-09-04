@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>AI World</title>
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
@@ -15,7 +15,10 @@
     <div id="chatLog"></div>
     <input id="chatInput" type="text" maxlength="160" placeholder="Say something, then Enter" />
   </div>
-  <div id="photoHint">Photo mode · drag or WASD to move the camera · Space takes the picture · P leaves</div>
+  <div id="photoHint">
+    <span class="on-keys">Photo mode · drag or WASD to move the camera · Space takes the picture · P leaves</span>
+    <span class="on-touch">Photo mode · drag to move the camera · ⏎ takes the picture · ⋯ then Photo mode leaves</span>
+  </div>
   <div id="minimap">
     <div id="clockPanel">
       <span id="clockIcon">☀️</span>
@@ -108,6 +111,7 @@
       <input type="text" id="serverInput" placeholder="ws://host:8787" />
       <input type="text" id="nameInput" placeholder="Your name" />
       <button id="connectButton" class="wide">Join this world online</button>
+      <button id="inviteButton" class="wide">Copy an invite link</button>
       <div class="value-display" id="onlineStatus">offline</div>
     </div>
     <div class="slider-group"><button id="titleButton" class="wide">Save &amp; return to title</button></div>

@@ -98,6 +98,11 @@ export class EntityManager {
      * item catalogue, and this layer has no business knowing it.
      */
     private readonly priceOf: (id: string) => number = () => 4,
+    /**
+     * Somebody has been killed. The game decides what that means — a pack left in the grass, a
+     * line in the chat — because this layer only knows that a creature stopped moving.
+     */
+    private readonly onFallen: (who: Entity) => void = () => {},
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -334,6 +339,7 @@ export class EntityManager {
    */
   private strike(attacker: Entity, victim: Entity, damage: number): void {
     if (damageEntity(victim, damage, attacker.x, attacker.z, this.world)) {
+      if (PEOPLE.has(victim.kind.id)) this.onFallen(victim);
       // what a killed animal is worth to whoever killed it: a constable's bounty, a hunter's pelt
       const bounty = victim.kind.gold?.[0] ?? 0;
       if (bounty > 0 && PEOPLE.has(attacker.kind.id)) {

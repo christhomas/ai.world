@@ -21,6 +21,7 @@ import type { Plots } from '../farming';
 import type { Fishing } from '../fishing';
 import type { Online } from '../online';
 import type { Handover } from '../handover';
+import type { Remains } from '../remains';
 import type { FerryLine } from '../ferry';
 import type { Quest } from '../quests';
 import type * as THREE from 'three';
@@ -58,6 +59,8 @@ export interface Surroundings {
   online: Online;
   /** Goods handed over but not yet answered for, so a refusal can put them back. */
   handover: Handover;
+  /** Packs left where people fell, for anybody willing to go through them. */
+  remains: Remains;
   ferries: Array<{ line: FerryLine; mesh: THREE.Object3D }>;
   quests: Map<string, Quest>;
 

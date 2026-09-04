@@ -4,6 +4,8 @@ import type { DungeonMinimap } from './dungeonmap';
 
 const ZOOM = { MIN: 0.35, MAX: 5, STEP: 1.25, START: 1.6 } as const;
 const PAN_KEY_SPEED = 700; // screen pixels per second
+/** The bar and the legend, before the page has laid them out and they can be measured. */
+const MAP_CHROME_GUESS = 96;
 
 export interface WorldMapInput {
   markers: MapMarker[];
@@ -32,6 +34,10 @@ export class WorldMap {
   private dragging = false;
   private lastX = 0;
   private lastY = 0;
+  /** Distance between two pinching fingers last frame, in CSS pixels; 0 when nobody is pinching. */
+  private pinchGap = 0;
+  /** Backing-store pixels per CSS pixel, so a drag keeps up with the finger on a sharp screen. */
+  private dpr = 1;
   /** Set while a dungeon is open, so M shows the dungeon full screen. */
   dungeon: DungeonMinimap | null = null;
 
@@ -53,26 +59,71 @@ export class WorldMap {
     this.canvas.addEventListener('mouseleave', stop);
     this.canvas.addEventListener('mousemove', (e) => {
       if (!this.dragging) return;
-      this.cx -= (e.clientX - this.lastX) / this.pixelsPerTile;
-      this.cz -= (e.clientY - this.lastY) / this.pixelsPerTile;
+      this.cx -= (e.clientX - this.lastX) / this.cssPixelsPerTile;
+      this.cz -= (e.clientY - this.lastY) / this.cssPixelsPerTile;
       this.lastX = e.clientX;
       this.lastY = e.clientY;
     });
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       // zoom toward the cursor so the tile under it stays put
-      const rect = this.canvas.getBoundingClientRect();
-      const before = this.toWorld(e.clientX - rect.left, e.clientY - rect.top);
-      this.zoomBy(e.deltaY < 0 ? ZOOM.STEP : 1 / ZOOM.STEP);
-      const after = this.toWorld(e.clientX - rect.left, e.clientY - rect.top);
-      this.cx += before.x - after.x;
-      this.cz += before.z - after.z;
+      this.zoomAbout(e.clientX, e.clientY, e.deltaY < 0 ? ZOOM.STEP : 1 / ZOOM.STEP);
     }, { passive: false });
+
+    // A map is the one screen everybody already knows how to work with their hands: one finger
+    // drags it, two pinch it, and the tile between the fingers stays where it is.
+    this.canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        this.dragging = true;
+        this.lastX = e.touches[0].clientX;
+        this.lastY = e.touches[0].clientY;
+      } else {
+        this.dragging = false;
+        this.pinchGap = gapBetween(e.touches);
+      }
+    }, { passive: true });
+    this.canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (e.touches.length >= 2) {
+        const gap = gapBetween(e.touches);
+        if (this.pinchGap > 0 && gap > 0) {
+          const mid = midpoint(e.touches);
+          this.zoomAbout(mid.x, mid.y, gap / this.pinchGap);
+        }
+        this.pinchGap = gap;
+        return;
+      }
+      if (!this.dragging) return;
+      const t = e.touches[0];
+      this.cx -= (t.clientX - this.lastX) / this.cssPixelsPerTile;
+      this.cz -= (t.clientY - this.lastY) / this.cssPixelsPerTile;
+      this.lastX = t.clientX;
+      this.lastY = t.clientY;
+    }, { passive: false });
+    const lift = (e: TouchEvent) => {
+      if (e.touches.length === 0) { this.dragging = false; this.pinchGap = 0; }
+    };
+    this.canvas.addEventListener('touchend', lift);
+    this.canvas.addEventListener('touchcancel', lift);
+  }
+
+  /** Zoom by `factor` while keeping whatever is under (clientX, clientY) under it. */
+  private zoomAbout(clientX: number, clientY: number, factor: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    const px = (clientX - rect.left) * this.dpr, py = (clientY - rect.top) * this.dpr;
+    const before = this.toWorld(px, py);
+    this.zoomBy(factor);
+    const after = this.toWorld(px, py);
+    this.cx += before.x - after.x;
+    this.cz += before.z - after.z;
   }
 
   get isOpen(): boolean { return this.open; }
 
   private get pixelsPerTile(): number { return BASE_SCALE * this.zoom; }
+
+  /** The same, in the pixels a finger and the mouse move in. */
+  private get cssPixelsPerTile(): number { return this.pixelsPerTile / this.dpr; }
 
   private toWorld(px: number, py: number): { x: number; z: number } {
     return {
@@ -88,12 +139,17 @@ export class WorldMap {
     };
   }
 
+  /**
+   * Match the backing store to whatever space the flex column left the canvas. It is measured
+   * rather than calculated because the bar and the legend are not a fixed height: on a narrow
+   * screen the legend wraps, and a guess would stretch the map.
+   */
   private resize(): void {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.floor(window.innerWidth * dpr);
-    this.canvas.height = Math.floor((window.innerHeight - 96) * dpr);
-    this.canvas.style.width = `${window.innerWidth}px`;
-    this.canvas.style.height = `${window.innerHeight - 96}px`;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = this.canvas.clientWidth || window.innerWidth;
+    const height = this.canvas.clientHeight || window.innerHeight - MAP_CHROME_GUESS;
+    this.canvas.width = Math.floor(width * this.dpr);
+    this.canvas.height = Math.floor(height * this.dpr);
   }
 
   zoomBy(factor: number): void {
@@ -124,7 +180,7 @@ export class WorldMap {
   /** Arrow/WASD panning while the map is open. */
   pan(dx: number, dz: number, dt: number): void {
     if (dx === 0 && dz === 0) return;
-    const step = (PAN_KEY_SPEED * dt) / this.pixelsPerTile;
+    const step = (PAN_KEY_SPEED * dt) / this.cssPixelsPerTile;
     this.cx += dx * step;
     this.cz += dz * step;
   }
@@ -186,4 +242,18 @@ export class WorldMap {
     ctx.arc(me.px, me.py, 5, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/** How far apart the first two fingers are, in CSS pixels. */
+function gapBetween(touches: TouchList): number {
+  if (touches.length < 2) return 0;
+  return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+}
+
+/** The point a pinch is happening around. */
+function midpoint(touches: TouchList): { x: number; y: number } {
+  return {
+    x: (touches[0].clientX + touches[1].clientX) / 2,
+    y: (touches[0].clientY + touches[1].clientY) / 2,
+  };
 }

@@ -5,6 +5,8 @@ import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { QUALITY, createSceneRig } from './render/scene';
 import { WhaleSchool } from './render/whales';
+import { PackField } from './render/remains';
+import { Remains } from './game/remains';
 import { WHALE, displayAt, planPods, podsWithin, whaleAt, type Pod } from './game/whales';
 import { SeaHunt } from './game/seahunt';
 import { IsoCamera } from './render/camera';
@@ -39,6 +41,7 @@ import { CropField } from './render/crops';
 import { BOAT, Sailing } from './game/sailing';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
+import { TouchControls } from './ui/touch';
 import { $ } from './ui/dom';
 import { TerrainSampler } from './world/terrain';
 import { BIOMES, HUB_NAME, SEA_NAME } from './world/biomes';
@@ -61,7 +64,7 @@ import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 
 
-/** The world server's port, which `chore world` also uses. */
+/** The world server's own port, which `chore world` also uses. */
 const WORLD_PORT = 8787;
 
 /**
@@ -74,8 +77,15 @@ function defaultServer(url: URL): string {
   if (given) return given;
   const remembered = localStorage.getItem('ai.world/server');
   if (remembered) return remembered;
+
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${window.location.hostname || 'localhost'}:${WORLD_PORT}`;
+  const host = window.location.hostname || 'localhost';
+  const servedPort = window.location.port;
+  // A world server can hand out the game itself, and when it does, it is on the port the page
+  // came from — the whole point of running one box at home. In development the page comes from
+  // vite on another port, and the server is wherever it always is.
+  const sameOrigin = !import.meta.env.DEV && servedPort !== '';
+  return sameOrigin ? `${scheme}://${host}:${servedPort}` : `${scheme}://${host}:${WORLD_PORT}`;
 }
 
 async function boot(): Promise<void> {
@@ -104,6 +114,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   rig.setQuality(rig.quality);
   const iso = new IsoCamera();
   const input = new Input(rig.renderer.domElement);
+  // the on-screen controls speak to the game only through `input`, so a thumb and a key are the
+  // same press by the time anything below reads them
+  const touch = new TouchControls(input);
   const props = new PropLibrary();
   const graph = generateRoadGraph(seed);
   const manifest = new Manifest(seed, saved?.manifest);
@@ -122,7 +135,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
   const worldMap = new WorldMap(mapBase, fog);
   const entityRenderer = new EntityRenderer(rig.scene);
-  const entities = new EntityManager(entityRenderer, chunks, chunks, seed, structures.villages, (id) => ITEMS[id]?.price ?? 4);
+  const entities = new EntityManager(
+    entityRenderer, chunks, chunks, seed, structures.villages,
+    (id) => ITEMS[id]?.price ?? 4,
+    (who) => fallen(who),
+  );
   const dialogue = new DialogueBox();
   const sound = new Sound();
   const weather = new Weather(rig.scene);
@@ -256,6 +273,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const shutDown = (): void => {
     loop.stop();
     input.dispose();
+    touch.dispose();
     online.disconnect();
     others.clear();
     sound.dispose();
@@ -265,6 +283,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     heroGear.dispose();
     weather.dispose();
     school.dispose();
+    packField.dispose();
     cropField.dispose();
     props.dispose();
     rig.water.dispose();
@@ -354,10 +373,26 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
 
   // --- keys ---
+  // packs left where people fell, and the bundles that show them
+  const remains = new Remains();
+  const packField = new PackField(rig.scene);
+
+  /**
+   * Somebody has been killed by something. They leave what they had where they fell, and if it
+   * happened within sight you are told, because a scream in the middle distance is the point.
+   */
+  const fallen = (who: Entity): void => {
+    remains.leave(who.name, who.trade, who.x, who.z, who.purse, who.carrying?.id ?? null, seed ^ Math.floor(who.x * 131 + who.z * 977));
+    if (Math.hypot(who.x - player.x, who.z - player.z) < GAMEPLAY.POI_DISCOVER_RADIUS * 6) {
+      hud.flash(`${who.name} was killed. Their pack is where they fell.`);
+      sound.thud();
+    }
+  };
+
   const interactions = createInteractions({
     player, state, discovered,
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
-    market, party, duel, mount, sailing, plots, fishing, online, handover, ferries, quests,
+    market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests,
     dialogue, hud, chat, sound,
     raining: () => raining, discover, persist, startTalk, questLine,
   });
@@ -391,6 +426,27 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     localStorage.setItem('ai.world/server', address);
     online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
     chat.show();
+  });
+
+  /**
+   * An invite is this world and this server in one link, because "come and play in mine" should
+   * not mean reading a seed and an address down the phone. The page already reads both back out
+   * of the query string on arrival, so whoever opens it lands in the same world on the same
+   * server without touching the options at all.
+   */
+  $('inviteButton').addEventListener('click', () => {
+    const invite = new URL(window.location.href);
+    invite.search = '';                       // drop wherever the sender happens to be standing
+    invite.hash = '';
+    invite.searchParams.set('seed', String(seed));
+    const address = serverInput.value.trim();
+    if (address) invite.searchParams.set('server', address);
+    // a page served over https cannot open a plain ws:// socket, so an invite carrying one is a
+    // dead link for everybody who follows it from the published site
+    const blocked = window.location.protocol === 'https:' && address.startsWith('ws://');
+    void navigator.clipboard.writeText(invite.href)
+      .then(() => hud.flash(blocked ? 'Link copied, but a ws:// address will not open from an https page — use wss://' : 'Invite link copied'))
+      .catch(() => window.prompt('Copy this invite link', invite.href));
   });
 
   input.onKey('t', () => { if (online.connected && !dialogue.isOpen && !chat.isTyping) chat.open(); });
@@ -555,6 +611,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         i: m.rosterIndex, kind: m.kind.id,
         x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100, hp: m.hp,
       }));
+    (debug as { __drop?: () => void }).__drop = () => {
+      remains.leave('Rolf the Hunter', 'hunter', player.x + 1.2, player.z, 23, 'pelt', 4242);
+    };
+    (debug as { __packs?: () => unknown }).__packs = () => remains.all;
     (debug as { __sow?: (x: number, z: number) => void }).__sow = (x, z) => {
       plots.plant(x, z, 'wheat', state.day + state.time);
       online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
@@ -727,6 +787,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const clockNow = worldSeconds(state.day, state.time);
     interactions.sailFerries(clockNow, time);
     watchWhales(clockNow, dt);
+    remains.age(dt);
+    packField.update(remains.all, (x, z) => chunks.heightAt(x, z));
     // something takes an interest in a boat that has been in deep water a while
     const arrived = seaHunt.update(dt, sailing.sailing, player.x, player.z, sampler, entities);
     if (arrived) {

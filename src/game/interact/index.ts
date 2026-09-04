@@ -53,6 +53,7 @@ export function createInteractions(ctx: Surroundings) {
     if (village.tryBoard()) return;
     if (village.tryDoor()) return;
     if (wild.tryShrine()) return;
+    if (wild.tryRemains()) return;
     if (wild.tryWreck()) return;
     if (wild.tryCampfire()) return;
     if (village.trySignpost()) return;
