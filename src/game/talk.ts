@@ -1,10 +1,11 @@
 import type { Rng } from '../core/rng';
 import { isDaytime, type Entity } from '../entities/entity';
-import type { DialogueNode } from '../ui/dialogue';
+import type { DialogueNode, Speaker } from '../ui/dialogue';
 import { ITEMS, SHOP_DEFS, itemSummary, sellPrice, sellableAt } from './shops';
 import type { GameState } from './state';
 import type { Quest } from './quests';
 import { gossipFor } from './gossip';
+import { stageOf } from '../world/people';
 import type { Register } from '../world/register';
 
 export interface TalkCtx {
@@ -67,6 +68,22 @@ const CONGREGATION_LINES = [
 
 const pick = (rng: Rng, list: string[]): string => list[Math.floor(rng() * list.length)];
 
+/**
+ * A drawn face for whoever is speaking, when they are somebody who lives here. A wolf has no
+ * face on the register and keeps the emoji it always had.
+ */
+export function faceFor(e: Entity, ctx: { register?: Register; day?: number }): Speaker | undefined {
+  const person = e.person !== '' ? ctx.register?.find(e.person) : undefined;
+  if (person) {
+    const stage = stageOf(person, ctx.day ?? 1);
+    return { id: person.id, trade: person.trade || e.trade, stage: stage === 'adult' ? 'adult' : 'child' };
+  }
+  // a shopkeeper stands behind their counter rather than living on the register, but they are
+  // still a person, so their name and their shop are enough to grow a face from
+  if (e.kind.id !== 'villager' && e.kind.id !== 'traveller') return undefined;
+  return { id: `${e.name}:${e.shop ?? e.role}`, trade: e.trade || e.shop || '', stage: 'adult' };
+}
+
 /** Build the conversation tree for whoever the player is talking to. */
 export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
   const k = e.kind;
@@ -78,14 +95,14 @@ export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
 
   if (e.role === 'congregation') {
     return {
-      speaker: e.name, emoji: k.emoji,
+      speaker: e.name, emoji: k.emoji, face: faceFor(e, ctx),
       pages: ['Hello, traveller.', ...residentPages(e, ctx, pick(ctx.rng, CONGREGATION_LINES))],
     };
   }
   if (k.id === 'villager' || k.id === 'traveller') {
     const greeting = pick(ctx.rng, ['Hello there!', 'Oh! Hello.', 'Well met, traveller.']);
     return {
-      speaker: e.name, emoji: k.emoji,
+      speaker: e.name, emoji: k.emoji, face: faceFor(e, ctx),
       pages: [greeting, ...residentPages(e, ctx, e.line(ctx.rng))],
     };
   }
@@ -112,15 +129,16 @@ function residentPages(e: Entity, ctx: TalkCtx, fallback: string): string[] {
 function questDialogue(e: Entity, q: Quest, ctx: TalkCtx): DialogueNode {
   const speaker = `Elder ${e.name}`;
   const emoji = '🧓';
+  const face = faceFor(e, ctx);
   const status = ctx.state.quests.get(q.id);
   if (status === 'done') {
-    return { speaker, emoji, pages: [pick(ctx.rng, ['Good to see you again, friend.', `${q.village} will not forget what you did.`, 'Safe roads to you.'])] };
+    return { speaker, emoji, face, pages: [pick(ctx.rng, ['Good to see you again, friend.', `${q.village} will not forget what you did.`, 'Safe roads to you.'])] };
   }
   if (status === 'active') {
     const complete = q.kind === 'visit' ? ctx.state.discovered.has(q.target) : ctx.state.count(q.target) >= q.count;
-    if (!complete) return { speaker, emoji, pages: [q.reminder] };
+    if (!complete) return { speaker, emoji, face, pages: [q.reminder] };
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: q.done,
       choices: [{
         label: `Take ${q.reward} gold`,
@@ -139,11 +157,11 @@ function questDialogue(e: Entity, q: Quest, ctx: TalkCtx): DialogueNode {
     };
   }
   return {
-    speaker, emoji,
+    speaker, emoji, face,
     pages: q.intro,
     choices: [
-      { label: 'Accept', next: () => { ctx.state.quests.set(q.id, 'active'); ctx.state.version++; ctx.onQuestChange(q, 'active'); return { speaker, emoji, pages: ['Splendid. Come find me when it is done.'] }; } },
-      { label: 'Not now', next: () => ({ speaker, emoji, pages: ['Think on it. I am not going anywhere.'] }) },
+      { label: 'Accept', next: () => { ctx.state.quests.set(q.id, 'active'); ctx.state.version++; ctx.onQuestChange(q, 'active'); return { speaker, emoji, face, pages: ['Splendid. Come find me when it is done.'] }; } },
+      { label: 'Not now', next: () => ({ speaker, emoji, face, pages: ['Think on it. I am not going anywhere.'] }) },
     ],
   };
 }
@@ -152,6 +170,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   const def = SHOP_DEFS[e.shop!];
   const speaker = `${e.name}, ${def.title}`;
   const emoji = e.kind.emoji;
+  const face = faceFor(e, ctx);
   const village = e.herd.tag || 'town';
 
   /** A bed for the night: the sensible answer to a dark road and no hearts left. */
@@ -159,15 +178,15 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     const room = ctx.room!;
     if (ctx.state.inventory.gold < room.price) {
       // root is defined below; reaching it lazily keeps the night's first node buildable
-      return { speaker, emoji, pages: [`A room is ${room.price} gold, and you have ${ctx.state.inventory.gold}.`], choices: [{ label: 'Back', next: () => root() }] };
+      return { speaker, emoji, face, pages: [`A room is ${room.price} gold, and you have ${ctx.state.inventory.gold}.`], choices: [{ label: 'Back', next: () => root() }] };
     }
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: [room.shared
         ? 'Upstairs, first on the left. The night is the night — it will pass at its own pace — but you will pass it warm and safe.'
         : 'Upstairs, first on the left. Sleep as long as you like; I will wake you at dawn.'],
       choices: [
-        { label: 'Sleep', next: () => ({ speaker, emoji, pages: [room.take()] }) },
+        { label: 'Sleep', next: () => ({ speaker, emoji, face, pages: [room.take()] }) },
         { label: 'Not tonight', next: () => root() },
       ],
     };
@@ -177,7 +196,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     // an inn that shuts at night is no inn: the beds are the reason it is open
     if (e.shop === 'inn' && ctx.room) {
       return {
-        speaker, emoji,
+        speaker, emoji, face,
         pages: ['The kitchen is cold and the taps are off, but the beds are made and the door locks.'],
         choices: [
           { label: `Take a room (${ctx.room.price}g)`, next: bed },
@@ -185,13 +204,13 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
         ],
       };
     }
-    return { speaker, emoji, pages: [`The ${def.name.toLowerCase()} is shut for the night. Come back after dawn.`] };
+    return { speaker, emoji, face, pages: [`The ${def.name.toLowerCase()} is shut for the night. Come back after dawn.`] };
   }
 
   const purse = () => `You have ${ctx.state.inventory.gold} gold.`;
 
   const root = (): DialogueNode => ({
-    speaker, emoji,
+    speaker, emoji, face,
     pages: [pick(ctx.rng, def.greetings)],
     choices: [
       { label: 'Buy', next: buyMenu },
@@ -207,7 +226,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   const postMenu = (): DialogueNode => {
     const post = ctx.post!;
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: ['Parcels go on the shelf behind me. Anything left is handed over at any inn in the land.'],
       choices: [
         { label: 'Anything for me?', next: () => { post.collect(); return null; } },
@@ -222,13 +241,13 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     const carried = [...ctx.state.inventory.items.entries()].filter(([id]) => ITEMS[id]);
     if (carried.length === 0 || post.folk.length === 0) {
       return {
-        speaker, emoji,
+        speaker, emoji, face,
         pages: [carried.length === 0 ? 'You have nothing to send.' : 'No one else has passed through this world yet.'],
         choices: [{ label: 'Back', next: postMenu }],
       };
     }
     const forWhom = (itemId: string): DialogueNode => ({
-      speaker, emoji,
+      speaker, emoji, face,
       pages: [`${ITEMS[itemId].name}, and ${PARCEL_GOLD} gold for the carriage. Who is it for?`],
       choices: [
         ...post.folk.slice(0, 8).map((name) => ({
@@ -239,7 +258,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
       ],
     });
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: ['What are you sending?'],
       choices: [
         ...carried.slice(0, 8).map(([id]) => ({ label: `${ITEMS[id].emoji} ${ITEMS[id].name}`, next: () => forWhom(id) })),
@@ -249,7 +268,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   };
 
   const buyMenu = (): DialogueNode => ({
-    speaker, emoji,
+    speaker, emoji, face,
     pages: [`Here's the stock. ${purse()}`],
     choices: [
       ...def.items.map((id) => {
@@ -266,7 +285,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     const item = ITEMS[id];
     if (!ctx.state.inventory.canAfford(item)) {
       return {
-        speaker, emoji,
+        speaker, emoji, face,
         pages: [`That's ${item.price} gold, friend. You've only got ${ctx.state.inventory.gold}.`],
         choices: [{ label: 'Back', next: buyMenu }, { label: 'Leave', next: () => null }],
       };
@@ -276,7 +295,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     ctx.onInventoryChange();
     const note = itemSummary(item);
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: [`${item.name}, good choice. That's ${item.price} gold.`, `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`],
       choices: [{ label: 'Buy more', next: buyMenu }, { label: 'Sell something', next: sellMenu }, { label: 'Done', next: () => null }],
     };
@@ -286,14 +305,14 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     const stock = sellableAt(def, ctx.state.inventory.items.entries());
     if (stock.length === 0) {
       return {
-        speaker, emoji,
+        speaker, emoji, face,
         pages: [`Nothing in that pack I can use. ${def.name === 'Inn' ? 'Fish and food, mind.' : ''}`.trim()],
         choices: [{ label: 'Back', next: root }],
       };
     }
     const all = stock.reduce((sum, s) => sum + s.price * s.count, 0);
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: [`Let's see what you've got. ${purse()}`],
       choices: [
         ...stock.map(({ item, count, price }) => ({
@@ -314,7 +333,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     ctx.state.inventory.gold += paid;
     ctx.onInventoryChange();
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: [`${sold > 1 ? `${sold} ${item.name}` : item.name} for ${paid} gold. Done.`],
       choices: [{ label: 'Sell more', next: sellMenu }, { label: 'Buy something', next: buyMenu }, { label: 'Done', next: () => null }],
     };
@@ -329,14 +348,14 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     ctx.state.inventory.gold += paid;
     ctx.onInventoryChange();
     return {
-      speaker, emoji,
+      speaker, emoji, face,
       pages: [`The lot for ${paid} gold. Pleasure doing business.`],
       choices: [{ label: 'Buy something', next: buyMenu }, { label: 'Done', next: () => null }],
     };
   };
 
   const chat = (): DialogueNode => ({
-    speaker, emoji,
+    speaker, emoji, face,
     pages: [e.line(ctx.rng), `Business is steady here in ${village}.`],
     choices: [{ label: 'Back', next: root }, { label: 'Leave', next: () => null }],
   });

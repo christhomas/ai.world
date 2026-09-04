@@ -8,6 +8,8 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   color: #fff; font-size: 12px; z-index: 100;
 }
 #controls h4 { color: #a29bfe; margin-bottom: 8px; }
+/* the conversation takes the bottom of the screen, so the key list gets out of its way */
+body:has(#dialogue.show) #controls { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
 #areaName {
   position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.8); border: 2px solid #6c5ce7;
@@ -85,25 +87,48 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #inventory div.usable { cursor: pointer; }
 #inventory div.usable:hover { color: #f1c40f; }
 #dialogue {
-  display: none; position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
-  width: min(720px, 92vw); z-index: 1200;
+  display: none; position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  width: min(1100px, 96vw); z-index: 1200;
   background: linear-gradient(180deg, #1c2a6b 0%, #0d1540 100%);
-  border: 3px solid #e8ecff; outline: 3px solid #2a3aa0; border-radius: 6px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.6); color: #fff; font-size: 16px;
-  padding: 14px 18px; gap: 16px; align-items: flex-start;
+  border: 3px solid #e8ecff; outline: 3px solid #2a3aa0; border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.7); color: #fff; font-size: 17px;
+  padding: 14px 16px; gap: 14px; align-items: stretch;
 }
 #dialogue.show { display: flex; animation: popIn 0.15s ease-out; }
-#dialogue .dlg-portrait {
-  flex: 0 0 64px; width: 64px; height: 64px; font-size: 40px; line-height: 64px; text-align: center;
+
+/* the two people in the conversation, one at each end */
+#dialogue .dlg-side { flex: 0 0 132px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#dialogue .dlg-face {
+  width: 132px; height: 154px;                 /* the 48x56 grid, scaled up whole */
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  background: linear-gradient(180deg, #46538f 0%, #232d63 100%);
+  border: 2px solid #8fa0ff; border-radius: 6px;
+}
+#dialogue .dlg-emoji {
+  width: 132px; height: 154px; font-size: 72px; line-height: 154px; text-align: center;
   background: rgba(255,255,255,0.08); border: 2px solid #8fa0ff; border-radius: 6px;
 }
-#dialogue .dlg-body { flex: 1; min-height: 78px; position: relative; }
-#dialogue .dlg-name { color: #ffd76a; font-weight: bold; margin-bottom: 6px; }
-#dialogue .dlg-text { line-height: 1.5; min-height: 48px; white-space: pre-wrap; }
-#dialogue .dlg-choices { margin-top: 8px; }
-#dialogue .dlg-choice { padding: 2px 6px; cursor: pointer; white-space: pre; color: #cfd6ff; }
+#dialogue .dlg-name {
+  color: #ffd76a; font-weight: bold; font-size: 15px; text-align: center; line-height: 1.2;
+  text-shadow: 0 1px 0 #000;
+}
+/* the hero faces back across the panel, and steps back while somebody else is talking */
+#dialogue .dlg-me .dlg-face { transform: scaleX(-1); }
+#dialogue .dlg-me { opacity: 0.55; filter: saturate(0.7); transition: opacity 0.2s, filter 0.2s; }
+#dialogue.choosing .dlg-me { opacity: 1; filter: none; }
+#dialogue.choosing .dlg-them { opacity: 0.6; filter: saturate(0.7); }
+#dialogue .dlg-them { transition: opacity 0.2s, filter 0.2s; }
+
+#dialogue .dlg-panel {
+  flex: 1; position: relative; min-height: 154px;
+  background: rgba(0,0,0,0.22); border: 2px solid rgba(143,160,255,0.45); border-radius: 6px;
+  padding: 12px 14px;
+}
+#dialogue .dlg-text { line-height: 1.55; min-height: 52px; white-space: pre-wrap; }
+#dialogue .dlg-choices { margin-top: 10px; }
+#dialogue .dlg-choice { padding: 3px 6px; cursor: pointer; white-space: pre; color: #cfd6ff; }
 #dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); border-radius: 4px; }
-#dialogue .dlg-hint { position: absolute; right: 4px; bottom: -4px; color: #ffd76a; animation: bob 0.8s infinite alternate; }
+#dialogue .dlg-hint { position: absolute; right: 10px; bottom: 6px; color: #ffd76a; animation: bob 0.8s infinite alternate; }
 @keyframes bob { from { transform: translateY(0); } to { transform: translateY(4px); } }
 #quests {
   display: none; position: fixed; top: 84px; left: 200px; max-width: 280px;
@@ -431,10 +456,12 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #toast { top: 66px; left: 148px; font-size: 12px; padding: 6px 12px; }
   #duelbar { top: 140px; left: 148px; font-size: 12px; padding: 5px 12px; }
   #castbar { bottom: 200px; font-size: 12px; }
-  #dialogue { bottom: 12px; padding: 10px 12px; font-size: 14px; gap: 10px; width: 96vw; }
-  #dialogue .dlg-portrait { flex: 0 0 44px; width: 44px; height: 44px; font-size: 28px; line-height: 44px; }
-  #dialogue .dlg-body { min-height: 62px; }
-  #dialogue .dlg-text { min-height: 40px; }
+  #dialogue { bottom: 12px; padding: 10px; font-size: 14px; gap: 8px; width: 97vw; }
+  #dialogue .dlg-side { flex: 0 0 72px; }
+  #dialogue .dlg-face, #dialogue .dlg-emoji { width: 72px; height: 84px; font-size: 40px; line-height: 84px; }
+  #dialogue .dlg-name { font-size: 12px; }
+  #dialogue .dlg-panel { min-height: 84px; padding: 8px 10px; }
+  #dialogue .dlg-text { min-height: 40px; line-height: 1.45; }
   #chatPanel { left: 8px; right: 8px; width: auto; bottom: 240px; }
   #chatLog { max-height: 120px; }
   #journal, #players, #rucksack { width: 94vw; max-height: 78vh; padding: 14px; -webkit-overflow-scrolling: touch; }

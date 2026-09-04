@@ -1,0 +1,35 @@
+<!doctype html><meta charset=utf8>
+<title>faces</title>
+<!-- A contact sheet of generated faces, for judging them all at once rather than one at a
+     time. Run the dev server and open /tools/faces.html. It is not part of the built game. -->
+<style>
+ body { background:#232d63; margin:0; padding:16px; font:12px system-ui; color:#dfe4ff; }
+ .row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+ figure { margin:0; text-align:center; }
+ canvas { width:96px; height:112px; image-rendering:pixelated;
+   background:linear-gradient(180deg,#46538f,#232d63); border:2px solid #8fa0ff; border-radius:5px; }
+ figcaption { color:#ffd76a; margin-top:2px; }
+ h2 { color:#fff; font-size:13px; margin:8px 0 6px; }
+</style>
+<div id=out></div>
+<script type="module">
+ import { drawFace, faceOf } from '/src/ui/portrait.ts';
+ const TRADES = ['farmer','hunter','constable','doctor','soldier','sailor','seller','innkeeper','climber','explorer'];
+ const out = document.getElementById('out');
+ const section = (title, faces) => {
+   const h = document.createElement('h2'); h.textContent = title; out.append(h);
+   const row = document.createElement('div'); row.className = 'row';
+   for (const [label, face] of faces) {
+     const fig = document.createElement('figure');
+     const c = document.createElement('canvas');
+     drawFace(c, face);
+     const cap = document.createElement('figcaption'); cap.textContent = label;
+     fig.append(c, cap); row.append(fig);
+   }
+   out.append(row);
+ };
+ section('one of each trade', TRADES.map((t) => [t, faceOf('Ashford-' + t, t, 'adult')]));
+ section('ten villagers, no trade', Array.from({length:10}, (_, i) => ['#' + i, faceOf('Ashford-' + i, '', 'adult')]));
+ section('children', Array.from({length:6}, (_, i) => ['child ' + i, faceOf('kid-' + i, '', 'child')]));
+ section('talking', TRADES.slice(0,5).map((t) => [t, faceOf('Ashford-' + t, t, 'adult', true)]));
+</script>

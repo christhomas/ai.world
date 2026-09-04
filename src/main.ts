@@ -145,6 +145,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     register,
   );
   const dialogue = new DialogueBox();
+  /**
+   * The hero's own face, on the right of every conversation. It is seeded by the name they gave
+   * themselves, so it is theirs and stays theirs, and their helmet decides what is on its head.
+   */
+  const heroFace = (): void => dialogue.setHero({
+    id: `hero:${localStorage.getItem('ai.world/name') ?? 'Traveller'}`,
+    trade: state.equipped.head ? 'soldier' : '',
+    stage: 'adult',
+  });
   const sound = new Sound();
   const weather = new Weather(rig.scene);
   const seasonTintMaterials = new SeasonTintMaterials();
@@ -187,6 +196,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- state ---
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
   register.advance(state.day);                // a world reopened after a week finds a village changed
+  heroFace();                                 // the face on the right of every conversation
   const discovered = state.discovered;
   const urlTime = url.searchParams.get('t');
   if (urlTime !== null) state.time = Math.max(0, Math.min(0.999, Number(urlTime) || 0));
@@ -339,6 +349,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const startTalk = (e: Entity) => {
     talkCtx.time = state.time;
     talkCtx.day = state.day;
+    heroFace();                                 // in case they have put a helmet on since last time
     // a bed for the night, and in a shared world the night that cannot be skipped
     talkCtx.room = {
       price: ITEMS.room.price,
@@ -405,7 +416,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const interactions = createInteractions({
     player, state, discovered,
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
-    market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests,
+    market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register,
     dialogue, hud, chat, sound,
     raining: () => raining, discover, persist, startTalk, questLine,
   });

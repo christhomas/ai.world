@@ -5,6 +5,7 @@ import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
 import { HORSE } from '../mount';
 import { compassDir } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
+import { faceFor } from '../talk';
 import { REACH } from '../places';
 import type { DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
@@ -14,7 +15,7 @@ import type { Surroundings } from './context';
  * pitch, read a fingerpost, buy or mount a horse.
  */
 export function villageInteractions(ctx: Surroundings) {
-  const { player, state, structures, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, persist, questLine, quests, handover, discovered } = ctx;
+  const { player, state, structures, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, questLine, quests, handover, discovered } = ctx;
 
   /** Enter/Space at a doorway steps inside. */
   const tryDoor = (): boolean => {
@@ -195,16 +196,16 @@ export function villageInteractions(ctx: Surroundings) {
     const price = HORSE.PRICE;
     const village = hand.herd.tag || 'the village';
     if (mount.owned) {
-      dialogue.start({ speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`${mount.name} is a good horse. Mind the shoes.`] });
+      dialogue.start({ speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }), pages: [`${mount.name} is a good horse. Mind the shoes.`] });
       return true;
     }
     dialogue.start({
-      speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾',
+      speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }),
       pages: [`I have ${mount.offer()} out back, saddle and all. ${price} gold and the halter is yours.`],
       choices: [
         { label: `Buy the horse (${price}g)`, next: () => {
           if (state.inventory.gold < price) {
-            return { speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`Come back with ${price} gold.`] };
+            return { speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }), pages: [`Come back with ${price} gold.`] };
           }
           state.inventory.gold -= price;
           state.version++;

@@ -71,6 +71,11 @@ tasks:
     generates: [node_modules/.modules.yaml]
     cmds: [pnpm install]
 
+  faces:
+    desc: A contact sheet of generated villager faces, for judging them all at once
+    cmds:
+      - echo "open http://localhost:5173/tools/faces.html (run 'chore web' first)"
+
   check:
     desc: Typecheck and test, the gate before a commit
     cmds:

@@ -11,6 +11,7 @@ import type { Hud } from '../../ui/hud';
 import type { Chat } from '../../ui/chat';
 import type { Sound } from '../audio';
 import type { GameState } from '../state';
+import type { Register } from '../../world/register';
 import type { Places } from '../places';
 import type { Market } from '../market';
 import type { Party } from '../party';
@@ -44,6 +45,8 @@ export interface Surroundings {
   chunks: ChunkManager;
   manifest: Manifest;
   entities: EntityManager;
+  /** Who lives in the villages, so somebody you meet in the street has the face they always had. */
+  register: Register;
   entityRenderer: EntityRenderer;
   places: Places;
   seed: number;
