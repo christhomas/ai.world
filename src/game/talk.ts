@@ -18,6 +18,8 @@ export interface TalkCtx {
   onQuestChange: (quest: Quest, status: 'active' | 'done') => void;
   /** The inn's post shelf, when this world is shared with other people. */
   post?: Post;
+  /** Taking a room for the night, which only an innkeeper can offer. */
+  room?: Room;
 }
 
 /**
@@ -35,6 +37,19 @@ export interface Post {
 
 /** Gold that rides along with a parcel, so a gift can be more than a thing. */
 export const PARCEL_GOLD = 10;
+
+/**
+ * A bed for the night. Sleeping is the answer to a long dark: full hearts, a locked door, and
+ * morning. In a world shared with other people the night belongs to everybody, so it cannot be
+ * skipped — there you get the bed and the healing, and the hours pass at their own pace.
+ */
+export interface Room {
+  price: number;
+  /** True when the world's clock is somebody else's to move. */
+  shared: boolean;
+  /** Take the room. Returns what to say about it. */
+  take: () => string;
+}
 
 const CONGREGATION_LINES = [
   'We gather here most mornings. It is quieter than the square.',
@@ -115,7 +130,37 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   const emoji = e.kind.emoji;
   const village = e.herd.tag || 'town';
 
+  /** A bed for the night: the sensible answer to a dark road and no hearts left. */
+  const bed = (): DialogueNode => {
+    const room = ctx.room!;
+    if (ctx.state.inventory.gold < room.price) {
+      // root is defined below; reaching it lazily keeps the night's first node buildable
+      return { speaker, emoji, pages: [`A room is ${room.price} gold, and you have ${ctx.state.inventory.gold}.`], choices: [{ label: 'Back', next: () => root() }] };
+    }
+    return {
+      speaker, emoji,
+      pages: [room.shared
+        ? 'Upstairs, first on the left. The night is the night — it will pass at its own pace — but you will pass it warm and safe.'
+        : 'Upstairs, first on the left. Sleep as long as you like; I will wake you at dawn.'],
+      choices: [
+        { label: 'Sleep', next: () => ({ speaker, emoji, pages: [room.take()] }) },
+        { label: 'Not tonight', next: () => root() },
+      ],
+    };
+  };
+
   if (!isDaytime(ctx.time)) {
+    // an inn that shuts at night is no inn: the beds are the reason it is open
+    if (e.shop === 'inn' && ctx.room) {
+      return {
+        speaker, emoji,
+        pages: ['The kitchen is cold and the taps are off, but the beds are made and the door locks.'],
+        choices: [
+          { label: `Take a room (${ctx.room.price}g)`, next: bed },
+          { label: 'Back out into the dark', next: () => null },
+        ],
+      };
+    }
     return { speaker, emoji, pages: [`The ${def.name.toLowerCase()} is shut for the night. Come back after dawn.`] };
   }
 
@@ -127,6 +172,7 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     choices: [
       { label: 'Buy', next: buyMenu },
       { label: 'Sell', next: sellMenu },
+      ...(e.shop === 'inn' && ctx.room ? [{ label: `Take a room (${ctx.room.price}g)`, next: bed }] : []),
       ...(e.shop === 'inn' && ctx.post ? [{ label: 'The post shelf', next: postMenu }] : []),
       { label: 'Chat', next: chat },
       { label: 'Leave', next: () => null },

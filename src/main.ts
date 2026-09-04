@@ -313,6 +313,26 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
   const startTalk = (e: Entity) => {
     talkCtx.time = state.time;
+    // a bed for the night, and in a shared world the night that cannot be skipped
+    talkCtx.room = {
+      price: ITEMS.room.price,
+      shared: online.connected,
+      take: () => {
+        state.inventory.gold -= ITEMS.room.price;
+        if (online.connected) {
+          // the clock belongs to the world here, so the night passes for everybody or nobody
+          state.hp = state.maxHpTotal;
+          state.version++;
+          persist();
+          sound.chime();
+          return 'You sleep a few hours behind a locked door and wake with your strength back. Outside, the night is still going.';
+        }
+        state.rest();
+        persist();
+        sound.chime();
+        return 'You sleep soundly and wake at dawn, fully rested.';
+      },
+    };
     // the post shelf only exists in a shared world, and only knows the names that world has seen
     talkCtx.post = online.connected ? {
       folk: online.folk,
