@@ -1121,6 +1121,19 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       }
       return null;
     };
+    // the same door-finding as __enterInn, for any shop: the till is only reachable from inside,
+    // so without this there is no way to drive a sale from a test
+    (debug as { __enterShop?: (type?: string) => string | null }).__enterShop = (type = 'store') => {
+      for (const village of structures.villages) {
+        const shop = village.shops.find((s) => s.type === type);
+        if (!shop) continue;
+        const door = structures.doors.find((d) => d.bx === shop.house.tx && d.bz === shop.house.tz);
+        if (!door) continue;
+        places.enterBuilding(door);
+        return `${village.name}: ${shop.type}`;
+      }
+      return null;
+    };
     debug.__standAtCounter = () => {
       const spot = places.indoors?.world.map.keeper;
       if (spot) player.teleport(spot[0] + 0.5, spot[1] + 1.6);
