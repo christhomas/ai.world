@@ -25,6 +25,7 @@ export class IndexedDbStore implements SaveStore {
 import type { GameStateJson } from '../game/state';
 import type { ManifestJson } from '../world/manifest';
 import type { NemesisSave } from '../game/nemesis';
+import type { RoamingJson } from '../game/roaming';
 
 export interface SessionSave {
   seed: number;
@@ -38,6 +39,11 @@ export interface SessionSave {
    * the place: he is in a cell, or he is abroad, whoever happens to be playing.
    */
   nemesis?: NemesisSave;
+  /**
+   * Which of the roaming bands have been fought, and how far each has been thinned. Only the
+   * killing: where a band is on any day the seed already knows.
+   */
+  roaming?: RoamingJson;
   /** Legacy fields from saves before GameState existed. */
   discovered?: string[];
   inventory?: { gold: number; items: Record<string, number> };

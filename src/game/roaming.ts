@@ -1,5 +1,5 @@
 import { hashString, mulberry32, shuffle } from '../core/rng';
-import { derive } from '../core/salts';
+import { SALT, derive } from '../core/salts';
 import type { Structures } from '../world/structures';
 
 /**
@@ -35,7 +35,7 @@ import type { Structures } from '../world/structures';
  * The stream bands are rolled from. Its home is the table in `core/salts.ts` beside every other
  * named stream in the game, and it waits here only until it can be moved across.
  */
-const SALT_ROAM = 0x20a3;
+
 
 export const ROAM = {
   /**
@@ -87,6 +87,13 @@ export const ROAM = {
   /** What a night in the open near a pressed village is multiplied by, at full pressure. */
   NIGHTS_WORSE: 2,
   /**
+   * The share of a band that can still be standing when the rest of it gives up and scatters.
+   * Nothing large enough to be a band fights to the last one: a pack that had to be killed to the
+   * final wolf would be a chore, and telling somebody that killing enough of them ends it is a
+   * promise worth keeping. A thing that comes alone has nobody to run with and so has no share.
+   */
+  SCATTER: 0.34,
+  /**
    * Days a broken band's ground stays quiet before something else moves into it. Long enough
    * that clearing your own country buys you an evening of peace and not merely an hour.
    */
@@ -98,11 +105,12 @@ export const ROAM = {
   /** The ground one person calls theirs, in tiles: near enough to walk back to before dark. */
   REGION: 160,
   /**
-   * Bands one person can keep broken at once while still having a life. A band is a real fight
-   * and a trek to reach, and it is back in five days whatever you do about it, so this is a rate
-   * dressed as a number: hold about five, and the sixth is loose somewhere behind you.
+   * Bands one person can keep broken at once while still having a life. Every one of them is back
+   * within `BROKEN_FOR` whatever you did about it, so this is really a rate wearing a number's
+   * clothes: eight bands over five days is a fight or so every real hour, which somebody defending
+   * the country they live in will do and somebody trying to defend all of it will not.
    */
-  HOLD: 5,
+  HOLD: 8,
 } as const;
 
 /** What sort of thing a band is made of. Every one of these is a kind the spawner already knows. */
@@ -153,8 +161,8 @@ export interface Where {
   to: Stop;
   /** How far along the road between them, 0 to 1. */
   through: number;
-  /** True while it is camped on `from` rather than out on the road. */
-  standing: boolean;
+  /** True while it is camped on `from` rather than out on the road between the two. */
+  camped: boolean;
 }
 
 /**
@@ -197,9 +205,15 @@ export interface RoamingJson {
   era: Record<string, number>;
 }
 
+/** Which slot a band id names, or -1 for a string that is not one of ours. */
+function slotOf(id: string): number {
+  const slot = Number(id.slice('band:'.length));
+  return id.startsWith('band:') && Number.isInteger(slot) && slot >= 0 && slot < ROAM.BANDS ? slot : -1;
+}
+
 /** The grounds of a world, dealt out in an order that is the same for everybody who asks. */
 function homesOf(seed: number, stops: readonly Stop[]): Stop[] {
-  return shuffle(mulberry32(derive(seed, SALT_ROAM)), [...stops]);
+  return shuffle(mulberry32(derive(seed, SALT.ROAM)), [...stops]);
 }
 
 /** Which sort of band a roll makes, by how much of the country each sort is meant to have. */
@@ -227,11 +241,12 @@ export function stopsOf(structures: Structures): Stop[] {
  * ground is the same pack for everybody without anybody being told what it is.
  */
 export function bandFor(seed: number, stops: readonly Stop[], slot: number, era: number): Band {
-  const rng = mulberry32(derive(seed, SALT_ROAM) ^ Math.imul(slot, 0x9e37) ^ Math.imul(era, 0x85eb));
+  const rng = mulberry32(derive(seed, SALT.ROAM) ^ Math.imul(slot, 0x9e37) ^ Math.imul(era, 0x85eb));
   const kind = sortOf(rng());
-  // one ground each, dealt out of the same shuffled deck for every slot and every era. Two bands
-  // sharing a home would heap the world's danger in one county and leave another empty, and a
-  // ground that stays dangerous ground after the pack on it is broken is the truer story anyway
+  // a ground each while there are grounds to go round, dealt out of the same shuffled deck for
+  // every slot and every era. Bands piling onto one home would heap the world's danger in one
+  // county and leave another empty, and ground that stays dangerous after the pack holding it is
+  // broken is the truer story anyway
   const home = homesOf(seed, stops)[slot % stops.length];
   const away = (s: Stop) => Math.hypot(s.x - home.x, s.z - home.z);
   // the round is drawn from what lies near home, and only falls back to the nearest places
@@ -271,12 +286,12 @@ export function bandAt(band: Band, day: number): Where {
   const from = band.circuit[done % band.circuit.length];
   const to = band.circuit[(done + 1) % band.circuit.length];
   const into = legs - done;
-  const standing = into <= ROAM.DWELL;
-  const through = standing ? 0 : (into - ROAM.DWELL) / (1 - ROAM.DWELL);
+  const camped = into <= ROAM.DWELL;
+  const through = camped ? 0 : (into - ROAM.DWELL) / (1 - ROAM.DWELL);
   return {
     x: from.x + (to.x - from.x) * through,
     z: from.z + (to.z - from.z) * through,
-    from, to, through, standing,
+    from, to, through, camped,
   };
 }
 
@@ -333,11 +348,20 @@ export function tollOf(band: Band, place: Steading, day: number, pressure: numbe
 }
 
 /** How somebody who lives in the place would put what is happening to it. */
-export function saidOf(band: Band, place: Steading, pressure: number): string {
-  const what = told(band);
-  if (pressure >= 0.6) return `${what} are on ${place.name}. Nobody is sleeping and nobody is going out.`;
-  if (pressure >= 0.25) return `${what} have been at ${place.name} for days. We have buried people over it.`;
-  return `${what} have been seen near ${place.name}. The dogs have not settled since.`;
+export function saidOfPress(band: Band, place: Steading, pressure: number): string {
+  const what = nameFor(band);
+  // "Something very large have been seen" is how you can tell a sentence was assembled rather
+  // than written, so the verb follows the subject the way it would out of somebody's mouth
+  const many = plural(band.kind);
+  const [is, has] = many ? ['are', 'have'] : ['is', 'has'];
+  if (pressure >= 0.6) return `${what} ${is} on ${place.name}. Nobody is sleeping and nobody is going out.`;
+  if (pressure >= 0.25) return `${what} ${has} been at ${place.name} for days. We have buried people over it.`;
+  return `${what} ${has} been seen near ${place.name}. The dogs have not settled since.`;
+}
+
+/** Whether what a band is called takes a plural verb. Wolves have; something very large has. */
+function plural(kind: BandKind): boolean {
+  return kind === 'wolf' || kind === 'bear' || kind === 'skeleton';
 }
 
 /**
@@ -353,7 +377,7 @@ export function pressingOn(band: Band, place: Steading, day: number, standing = 
     pressure,
     nights: nightsNear(pressure),
     toll: tollOf(band, place, day, pressure),
-    said: saidOf(band, place, pressure),
+    said: saidOfPress(band, place, pressure),
   };
 }
 
@@ -371,12 +395,29 @@ export function regionOf<T extends Steading>(places: readonly T[], x: number, z:
 }
 
 /** The bands close enough to somebody to be worth standing up in the world, nearest first. */
-export function bandsNear(bands: readonly Band[], x: number, z: number, day: number, within = ROAM.SIGHT): Band[] {
+export function bandsNear(bands: readonly Band[], x: number, z: number, day: number, within: number = ROAM.SIGHT): Band[] {
   return bands
     .map((band) => ({ band, away: distanceTo(band, x, z, day) }))
     .filter((b) => b.away <= within)
     .sort((a, b) => a.away - b.away)
     .map((b) => b.band);
+}
+
+/**
+ * Should a pack already standing in the world be taken away again? The slack past `SIGHT` is why
+ * this is not simply the opposite of `bandsNear`: standing them up and taking them away at the
+ * same line would blink a pack in and out beside anybody walking the edge of it.
+ */
+export function outOfSight(band: Band, x: number, z: number, day: number): boolean {
+  return distanceTo(band, x, z, day) > ROAM.LEAVE;
+}
+
+/**
+ * How few of a band can be left before the rest of it scatters. Killing to this number breaks
+ * the band; killing past it is work nobody has to do.
+ */
+export function breaksAt(band: Band): number {
+  return Math.floor(band.size * ROAM.SCATTER);
 }
 
 /** How far a band is from a point today, in tiles. */
@@ -385,8 +426,8 @@ export function distanceTo(band: Band, x: number, z: number, day: number): numbe
   return Math.hypot(now.x - x, now.z - z);
 }
 
-/** What a band is called, in the words anybody would use for it. */
-export function told(band: Band): string {
+/** What a band is called, in the words anybody who had seen it would use. */
+export function nameFor(band: Band): string {
   switch (band.kind) {
     case 'wolf': return 'Wolves';
     case 'bear': return 'Bears';
@@ -453,16 +494,27 @@ export class Roaming {
     return this.roster().filter((band) => !this.isBroken(band));
   }
 
+  /**
+   * Which of a band are still on their feet, by the number each of them goes by. Whoever stands
+   * them up in the world hands these numbers to the creatures in the order it makes them, so a
+   * kill means the same member to everybody watching it.
+   */
+  alive(band: Band): number[] {
+    const up: number[] = [];
+    for (let member = 0; member < band.size; member++) {
+      if (!this.lost.has(`${band.id}#${band.era}#${member}`)) up.push(member);
+    }
+    return up;
+  }
+
   /** How many of a band are still on their feet. */
   standing(band: Band): number {
-    let up = band.size;
-    for (const key of this.lost) if (key.startsWith(`${band.id}#${band.era}#`)) up--;
-    return Math.max(0, up);
+    return this.alive(band).length;
   }
 
   /** Has this band been broken up? Its ground is quiet until something else moves in. */
   isBroken(band: Band): boolean {
-    return this.broken.has(band.id) || this.standing(band) <= 0;
+    return this.broken.has(band.id) || this.standing(band) <= breaksAt(band);
   }
 
   /** The day something else moves into a broken band's ground, or null while it is still whole. */
@@ -485,13 +537,14 @@ export class Roaming {
    * A kill against an era that has already been and gone changes nothing: that pack is long dead.
    */
   apply(fell: Fell): boolean {
-    if ((this.era.get(fell.band) ?? 0) !== fell.era) return false;
+    const slot = slotOf(fell.band);
+    if (slot < 0 || (this.era.get(fell.band) ?? 0) !== fell.era) return false;
     const key = `${fell.band}#${fell.era}#${fell.member}`;
     if (this.lost.has(key)) return false;
     this.lost.add(key);
 
-    const slot = Number(fell.band.slice('band:'.length));
-    if (this.standing(this.bandOf(slot)) <= 0 && !this.broken.has(fell.band)) {
+    const band = this.bandOf(slot);
+    if (this.standing(band) <= breaksAt(band) && !this.broken.has(fell.band)) {
       this.broken.set(fell.band, fell.day);
     }
     return true;
@@ -502,19 +555,19 @@ export class Roaming {
    * Returns the bands that have just arrived, which is worth a word to anybody nearby.
    */
   advance(today: number): Band[] {
-    const end = Math.floor(today);
-    if (end <= this.day) { this.day = Math.max(this.day, end); return []; }
-    this.day = end;
+    this.day = Math.max(this.day, Math.floor(today));
 
     const arrived: Band[] = [];
     for (const [id, finished] of [...this.broken]) {
-      if (end - finished < ROAM.BROKEN_FOR) continue;
+      // asked on every day rather than only on a day that has moved, so a world opened a fortnight
+      // after somebody broke a band opens with something already back on that ground
+      if (this.day - finished < ROAM.BROKEN_FOR) continue;
       this.broken.delete(id);
       const era = (this.era.get(id) ?? 0) + 1;
       this.era.set(id, era);
       // the dead pack's losses go with it: nothing about it is true of what has taken its place
       for (const key of [...this.lost]) if (key.startsWith(`${id}#`)) this.lost.delete(key);
-      arrived.push(this.bandOf(Number(id.slice('band:'.length))));
+      arrived.push(this.bandOf(slotOf(id)));
     }
     return arrived;
   }

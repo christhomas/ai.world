@@ -32,6 +32,7 @@ export const SALT = {
   HIRE: 0x51de,             // which soldiers are for hire, and what they ask
   RESCUE: 0x7e5c,           // what is emptying a village, and who it takes each night
   NEMESIS: 0x4e37,          // where Old Nettle goes next, and who it costs
+  ROAM: 0x20a3,             // where the bands that walk the roads are, and what mood they are in
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

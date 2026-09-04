@@ -305,7 +305,10 @@ describe('doing something about it', () => {
  * with a place below the size it was founded at.
  */
 describe('what a raid takes', () => {
-  const trouble = { village: 'Ashford', kind: 'wolf', place: 'Deep Wood', x: 10, z: 10, needed: 3 };
+  const trouble = {
+    village: 'Ashford', kind: 'wolf', place: 'Deep Wood', x: 10, z: 10, needed: 3,
+    said: 'wolves out of Deep Wood', tiles: 18, dir: 'north',
+  };
   const folk = (n: number) => Array.from({ length: n }, (_, i) => ({
     id: `p${i}`, name: `Person ${i}`, village: 'Ashford', trade: 'farmer',
     born: -30, lives: 80, mother: '', father: '', knows: [] as string[], memories: [],

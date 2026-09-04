@@ -40,8 +40,9 @@ const ALLOWED: Record<string, number> = {
   'game->ui': 12,
   // A save is a picture of the game's state and of what its world had grown, so storage knows
   // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
-  // world rather than to the hero, because he is in a cell or he is abroad whoever is playing.
-  'save->game': 2,
+  // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,
+  // and the fourth is which roaming bands have been fought, for the same reason.
+  'save->game': 3,
   'save->world': 1,
 };
 

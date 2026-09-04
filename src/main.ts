@@ -69,6 +69,7 @@ import { Jail, clockAt, toldOnWaking, windOn } from './game/jail';
 import { Gifts, type Kindness } from './game/gifts';
 import { Rescues } from './game/rescue';
 import { Nemesis, type Realm } from './game/nemesis';
+import { Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band } from './game/roaming';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
@@ -241,6 +242,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const nemesis = Nemesis.from(seed, saved?.nemesis);
   /** Everything his cycle needs to reach into, gathered when it is asked for rather than held. */
   const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name });
+  /**
+   * The bands that walk the roads. Danger that stays where you left it stops being danger and
+   * becomes scenery, so these move: where one is on a given day is a pure function of the seed,
+   * and only the killing has to be remembered.
+   */
+  const roaming = Roaming.from(seed, structures, saved?.roaming, state.day);
+  /** Which bands have people standing in the world for them right now. */
+  const bandsOut = new Map<string, Band>();
   /** The soldiers walking with somebody, and what was agreed with each. */
   const hires = new Hires();
   const discovered = state.discovered;
@@ -324,6 +333,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save() },
       manifest: manifest.toJSON(),
       nemesis: nemesis.toJSON(),
+      roaming: roaming.save(),
     });
   };
 
@@ -546,6 +556,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const fallen = (who: Entity): void => {
     // a hired man dies like any other villager: all that ends here is what he was owed
     const bargain = who.person !== '' ? hireFallen(who.person) : null;
+    // a band is broken by killing enough of it, and stays broken: the ledger is the only thing
+    // about a band that is not derivable from the seed, so it is the only thing that travels
+    const band = bandsOut.get(who.herd.tag);
+    if (band) {
+      roaming.felled(band, who.rosterIndex, state.day);
+      if (roaming.isBroken(band)) {
+        entities.despawnPack(band.id);
+        bandsOut.delete(band.id);
+        hud.flash('The rest of them scatter.');
+      }
+    }
     // a villager killed by something is off the register for good, and the people who knew them
     // are the only record of it left
     if (who.person !== '') {
@@ -910,6 +931,17 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       for (const person of doomed) register.bury(person.id, state.day);
       return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
     };
+    (debug as { __bands?: () => unknown }).__bands = () => {
+      const abroad = roaming.abroad();
+      return {
+        abroad: abroad.length,
+        near: bandsNear(abroad, player.x, player.z, state.day).map((b) => ({
+          id: b.id, kind: b.kind, left: roaming.alive(b).length, standing: entities.packSizeOf(b.id),
+          at: bandAt(b, state.day),
+        })),
+        pressing: roaming.pressings(structures.villages, state.day).map((p) => `${p.village}: ${p.said}`),
+      };
+    };
     (debug as { __nettle?: () => unknown }).__nettle = () => ({
       where: nemesis.whereabouts,
       scheme: nemesis.scheme,
@@ -1014,6 +1046,26 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   /** The one of him standing in the world, and nothing while he is in a cell or between schemes. */
   let nettleAbout: Entity | null = null;
+  /** Stand a band up when the hero comes near it, and take it away again when they leave. */
+  const watchBands = (): void => {
+    for (const [id, band] of [...bandsOut]) {
+      if (entities.packSizeOf(id) > 0 && !outOfSight(band, player.x, player.z, state.day)) continue;
+      entities.despawnPack(id);
+      bandsOut.delete(id);
+    }
+    for (const band of bandsNear(roaming.abroad(), player.x, player.z, state.day)) {
+      if (bandsOut.has(band.id)) continue;
+      const at = bandAt(band, state.day);
+      const alive = roaming.alive(band);
+      const pack = entities.spawnPack(band.kind, at.x, at.z, 0, band.seed ^ state.day, band.id, alive.length);
+      if (pack.length === 0) continue;        // no standable ground this frame; it will try again
+      // the number a kill will name, so two clients agree which of them went down
+      pack.forEach((e, i) => { e.rosterIndex = alive[i] ?? i; });
+      bandsOut.set(band.id, band);
+      hud.flash(warningOfBand(band));
+    }
+  };
+
   const watchNettle = (): void => {
     const abroad = nemesis.whereabouts === 'abroad' || nemesis.whereabouts === 'choosing';
     const where = nemesis.scheme;
@@ -1115,6 +1167,18 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (!talking) { state.tick(dt); magic.tick(dt); }
     // a day turning over is a day in the villages too: lives run out, and children are born
     for (const word of nemesis.advance(clockAt(state), realm())) chat.line(word.said, 'sys');
+    for (const band of roaming.advance(state.day)) hud.flash(warningOfBand(band));
+    // a band camped on a village's doorstep costs it people, and the same people on every client
+    for (const press of roaming.pressings(structures.villages, state.day)) {
+      const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
+      const living = [...register.living(press.village)];
+      for (let n = 0; n < press.toll && living.length > 0; n++) {
+        const [taken] = living.splice(Math.floor(pick() * living.length), 1);
+        const death = register.bury(taken.id, state.day);
+        if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
+      }
+      if (press.pressure >= 0.25) chat.line(press.said, 'sys');
+    }
     for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
         chat.line(`Word from ${change.village}: ${change.name} has died.`, 'sys');
@@ -1179,6 +1243,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     watchWhales(clockNow, dt);
     watchHaunts();
     watchNettle();
+    watchBands();
     watchCamps();
     remains.age(dt);
     interactions.ageCamps(dt);

@@ -256,9 +256,10 @@ export class EntityManager {
     return out;
   }
 
-  private spawnHerdAt(kindId: string, x: number, z: number, rng: Rng, key: string, out: Entity[]): Herd {
+  private spawnHerdAt(kindId: string, x: number, z: number, rng: Rng, key: string, out: Entity[], many = 0): Herd {
     const kind = KINDS[kindId];
-    const size = kind.herd[0] + Math.floor(rng() * (kind.herd[1] - kind.herd[0] + 1));
+    // a caller who knows how many are left says so: a band that has been fought is not a fresh one
+    const size = many > 0 ? many : kind.herd[0] + Math.floor(rng() * (kind.herd[1] - kind.herd[0] + 1));
     const herd = new Herd(kind, x, z, x, z, SPAWN.HERD_LEASH);
     for (let n = 0; n < size; n++) {
       for (let attempt = 0; attempt < SPAWN.PLACE_ATTEMPTS; attempt++) {
@@ -283,7 +284,7 @@ export class EntityManager {
    * nothing is generated out there but the surface — so what lives in it has to be put there
    * deliberately, around whatever it has come for.
    */
-  spawnPack(kindId: string, x: number, z: number, radius: number, seed: number): Entity[] {
+  spawnPack(kindId: string, x: number, z: number, radius: number, seed: number, key = 'sea', many = 0): Entity[] {
     const rng = mulberry32(seed);
     const out: Entity[] = [];
     const angle = rng() * Math.PI * 2;
@@ -291,26 +292,32 @@ export class EntityManager {
       kindId,
       x + Math.cos(angle) * radius,
       z + Math.sin(angle) * radius,
-      rng, 'sea', out,
+      rng, key, out, many,
     );
     if (herd.members.length === 0) return out;
-    let list = this.spawned.get('sea');
-    if (!list) { list = []; this.spawned.set('sea', list); }
+    herd.tag = key;                          // so a creature that dies knows whose band it was
+    let list = this.spawned.get(key);
+    if (!list) { list = []; this.spawned.set(key, list); }
     list.push(...out);
     return out;
   }
 
-  /** Send the sea pack away: they lose interest once you are ashore. */
-  despawnPack(): void {
-    const list = this.spawned.get('sea');
+  /** Send a pack away: the sea hunters lose interest ashore, and a band walks out of sight. */
+  despawnPack(key = 'sea'): void {
+    const list = this.spawned.get(key);
     if (!list) return;
     for (const e of [...list]) this.despawnEntity(e);
-    this.spawned.delete('sea');
+    this.spawned.delete(key);
+  }
+
+  /** How many of a pack are still standing. */
+  packSizeOf(key = 'sea'): number {
+    return this.spawned.get(key)?.length ?? 0;
   }
 
   /** How many hunters are in the water right now. */
   get packSize(): number {
-    return this.spawned.get('sea')?.length ?? 0;
+    return this.packSizeOf();
   }
 
   /** Put one named creature somewhere: a dungeon boss, say. */
