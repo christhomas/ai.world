@@ -1,0 +1,57 @@
+{
+  "ogre": {
+    "note": "The hulking thing that keeps a deep wood or a cave mouth. There is no branch here for a drawn sword, because it is not frightened of one, and none for fleeing, because it has never done it. The only question it ever answers is whether you are still in front of it, and it goes on answering that long after anything else would have given up.",
+    "first": [
+      {
+        "note": "Mark somebody and come on. `steps` rather than `all` so the question is asked once and not again on every tick of the walk: something with one pace that reconsiders every frame never arrives anywhere. Twenty-six tiles is more than twice a wolf's interest, which is what makes leaving early the only leaving that works.",
+        "steps": [
+          { "do": "markPrey", "with": { "within": 26 } },
+          {
+            "when": { "ask": "within", "with": { "tiles": 26 } },
+            "then": {
+              "all": [
+                { "do": "stalk" },
+                { "anyway": { "do": "bite", "with": { "cooldown": 2.4 } } }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "note": "Lost you. It does not go back and sit down: `roam` walks it over the whole of its ground, so somebody who has only just got clear can meet it again on the way out.",
+        "when": { "ask": "idle" },
+        "then": { "do": "roam", "with": { "tiles": 20 } }
+      }
+    ]
+  },
+
+  "wight": {
+    "note": "The spirit that keeps a ruin, a cold camp or a wreck. No branch for a drawn sword and none for fleeing either, because neither is one of the answers to it. The answers are daylight, its own ground, and a warding draught, and the first two are decided a layer up in game/haunts.ts.",
+    "first": [
+      {
+        "note": "It is abroad on exactly the hours the country keeps its doors shut: the same 0.82 to 0.27 that sends a villager home in the villagers' own file. Outside them there is nothing here to meet.",
+        "when": { "not": { "ask": "hourBetween", "with": { "from": 0.82, "to": 0.27 } } },
+        "then": { "do": "idle" }
+      },
+      {
+        "note": "It marks whoever is nearest and walks at them, and it walks faster than they do. No charge, no working itself up to anything, no gap between attempts to slip through: it does not need any of it.",
+        "steps": [
+          { "do": "markPrey", "with": { "within": 12 } },
+          {
+            "when": { "ask": "within", "with": { "tiles": 12 } },
+            "then": {
+              "all": [
+                { "do": "stalk" },
+                { "anyway": { "do": "bite", "with": { "cooldown": 2 } } }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "note": "Nobody within twelve tiles. It stands exactly where it was left, which is the other half of having only one pace: it does not potter, so the only time it moves at all is the time you are watching it come.",
+        "do": "idle"
+      }
+    ]
+  }
+}
