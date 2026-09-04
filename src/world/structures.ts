@@ -96,6 +96,8 @@ export interface Village {
   church: Structure | null;
   /** Tile in front of the church door where the congregation gathers. */
   churchDoor: [number, number] | null;
+  /** Market pitches around the square, in the order they were laid out. */
+  stalls: Array<[number, number]>;
 }
 
 export interface Poi {
@@ -301,14 +303,17 @@ export function generateStructures(sampler: TerrainSampler): Structures {
   };
 
   /** Market stalls just inside the square's edge, facing the well. */
-  const placeStalls = (squareR: number, level: number, biome: Biome): void => {
+  const placeStalls = (squareR: number, level: number, biome: Biome): Array<[number, number]> => {
     const stallAngle = rng() * Math.PI * 2;
+    const pitches: Array<[number, number]> = [];
     for (let i = 0; i < LAYOUT.STALLS; i++) {
       const a = stallAngle + i * LAYOUT.STALL_ANGLE_GAP;
       const r = squareR - LAYOUT.STALL_INSET;
       const sx = Math.floor(plazaX + Math.cos(a) * r), sz = Math.floor(plazaZ + Math.sin(a) * r);
       all.push({ kind: StructureKind.Stall, tx: sx, tz: sz, hw: 0, hd: 0, level, rot: a + Math.PI, biome, path: [] });
+      pitches.push([sx + 0.5, sz + 0.5]);
     }
+    return pitches;
   };
 
   /** The first few houses become shops (store, smith, inn, apothecary in turn); a sign stands beside each door. */
@@ -368,10 +373,10 @@ export function generateStructures(sampler: TerrainSampler): Structures {
       board = [bx + 0.5, bz + 0.5];
     }
 
-    placeStalls(squareR, level, biome);
+    const stalls = placeStalls(squareR, level, biome);
     const shops = assignShops(houses, biome);
     plazaR = 0;
-    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, church, churchDoor, board };
+    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, church, churchDoor, board, stalls };
   };
 
   // --- hub town ---

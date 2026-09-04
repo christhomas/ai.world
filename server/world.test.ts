@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DAY_LENGTH, SharedWorld, worldPath } from './world';
-import { cleanDelta, deltaKey } from './protocol';
+import { cleanDelta, cleanStallItem, deltaKey } from './protocol';
 
 const scratch = () => mkdtempSync(join(tmpdir(), 'aiworld-'));
 
@@ -60,6 +60,61 @@ describe('the shared world', () => {
   });
 });
 
+describe('market pitches', () => {
+  const world = () => new SharedWorld(3, worldPath(scratch(), 3), { day: 2, time: 0.4 });
+
+  it('are rented by name, and only by one trader at a time', () => {
+    const w = world();
+    expect(w.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' })).toEqual({ ok: true, kind: 'rented' });
+    const taken = w.stall('Wren', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
+    expect(taken.ok).toBe(false);
+    expect(w.stalls[0].until).toBe(5);                       // day 2 plus the three days of rent
+  });
+
+  it('sell a lot at a time, bank the money for the owner, and refuse the owner buying their own', () => {
+    const w = world();
+    w.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
+    w.stall('Rowan', { do: 'stock', id: 'Ashford#0', item: { id: 'apple', price: 10, count: 2 } });
+    expect(w.stall('Rowan', { do: 'buy', id: 'Ashford#0', index: 0 }).ok).toBe(false);
+
+    const sale = w.stall('Wren', { do: 'buy', id: 'Ashford#0', index: 0 });
+    expect(sale).toEqual({ ok: true, kind: 'bought', item: { id: 'apple', price: 10, count: 1 }, cost: 10 });
+    expect(w.stalls[0].items[0].count).toBe(1);
+    w.stall('Wren', { do: 'buy', id: 'Ashford#0', index: 0 });
+    expect(w.stalls[0].items).toEqual([]);                   // the last one sold clears the lot
+    expect(w.stall('Rowan', { do: 'collect', id: 'Ashford#0' })).toEqual({ ok: true, kind: 'collected', gold: 20 });
+    expect(w.stall('Rowan', { do: 'collect', id: 'Ashford#0' })).toEqual({ ok: true, kind: 'collected', gold: 0 });
+  });
+
+  it('cannot be stocked by anyone but their holder, and are swept when the rent runs out', () => {
+    const w = world();
+    w.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
+    expect(w.stall('Wren', { do: 'stock', id: 'Ashford#0', item: { id: 'apple', price: 10, count: 1 } }).ok).toBe(false);
+
+    expect(w.sweepStalls()).toBe(false);
+    w.tick(DAY_LENGTH * 4);
+    expect(w.sweepStalls()).toBe(true);
+    expect(w.stalls).toEqual([]);
+  });
+
+  it('outlive a restart, goods and takings and all', () => {
+    const dir = scratch();
+    try {
+      const path = worldPath(dir, 21);
+      const first = new SharedWorld(21, path, { day: 1, time: 0.2 });
+      first.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
+      first.stall('Rowan', { do: 'stock', id: 'Ashford#0', item: { id: 'apple', price: 10, count: 2 } });
+      first.stall('Wren', { do: 'buy', id: 'Ashford#0', index: 0 });
+      first.save();
+
+      const second = new SharedWorld(21, path, { day: 1, time: 0.2 });
+      expect(second.stalls[0].owner).toBe('Rowan');
+      expect(second.stalls[0].items).toEqual([{ id: 'apple', price: 10, count: 1 }]);
+      expect(second.stalls[0].takings).toBe(10);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
 describe('deltas off the wire', () => {
   it('are cleaned into something the world can trust', () => {
     expect(cleanDelta({ kind: 'chest', id: 'a'.repeat(300) })!.kind).toBe('chest');
@@ -67,5 +122,12 @@ describe('deltas off the wire', () => {
     expect(cleanDelta({ kind: 'sow', tile: '1,1', crop: 'wheat', day: -5 })).toEqual({ kind: 'sow', tile: '1,1', crop: 'wheat', day: 1 });
     expect(cleanDelta({ kind: 'sow', tile: '1,1', crop: 'wheat', day: Number.NaN })).toBeNull();
     expect(cleanDelta({ kind: 'nonsense' } as never)).toBeNull();
+  });
+
+  it('so are the lots people put on a stall', () => {
+    expect(cleanStallItem({ id: 'apple', price: 12.7, count: 3.2 })).toEqual({ id: 'apple', price: 12, count: 3 });
+    expect(cleanStallItem({ id: 'apple', price: -5, count: 1000 })).toEqual({ id: 'apple', price: 1, count: 99 });
+    expect(cleanStallItem({ id: '', price: 1, count: 1 })).toBeNull();
+    expect(cleanStallItem({ id: 'apple', price: Number.NaN, count: 1 })).toBeNull();
   });
 });

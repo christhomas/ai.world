@@ -1,6 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { deltaKey, type Clock, type WorldDelta } from './protocol';
+import {
+  STALL_DAYS, STALL_LOTS, deltaKey,
+  type Clock, type Stall, type StallItem, type WorldDelta,
+} from './protocol';
 
 /**
  * The little that a shared world actually needs to remember: what time it is, and the short list
@@ -24,12 +27,22 @@ export interface WorldFile {
   seed: number;
   clock: Clock;
   deltas: WorldDelta[];
+  stalls?: Stall[];
 }
+
+/** What a stall did with what it was asked, and what the asker should be told. */
+export type StallReply =
+  | { ok: true; kind: 'rented' | 'stocked' | 'closed' }
+  | { ok: true; kind: 'bought'; item: StallItem; cost: number }
+  | { ok: true; kind: 'collected'; gold: number }
+  | { ok: false; reason: string };
 
 export class SharedWorld {
   clock: Clock;
   /** Latest delta per key, so a tile sown then reaped keeps only the last word. */
   private readonly deltas = new Map<string, WorldDelta>();
+  /** Rented market pitches, by pitch id. */
+  private readonly pitches = new Map<string, Stall>();
   private saveTimer: NodeJS.Timeout | null = null;
   private dirty = false;
 
@@ -37,6 +50,12 @@ export class SharedWorld {
     const loaded = this.load();
     this.clock = loaded?.clock ?? start;
     for (const delta of loaded?.deltas ?? []) this.deltas.set(deltaKey(delta), delta);
+    for (const stall of loaded?.stalls ?? []) this.pitches.set(stall.id, stall);
+  }
+
+  /** Every pitch currently rented, for a client to draw and browse. */
+  get stalls(): Stall[] {
+    return [...this.pitches.values()];
   }
 
   /** Everything a joining player needs to catch up. */
@@ -49,6 +68,81 @@ export class SharedWorld {
     this.clock.time += seconds / DAY_LENGTH;
     while (this.clock.time >= 1) { this.clock.time -= 1; this.clock.day += 1; }
     this.dirty = true;
+  }
+
+  /**
+   * Clear pitches whose rent has run out, so a market is never held by somebody who left months
+   * ago. Uncollected takings go with them, which is the trader's own lookout.
+   * @returns whether anything was cleared, and so whether the market has to be described again
+   */
+  sweepStalls(): boolean {
+    let swept = false;
+    for (const [id, stall] of this.pitches) {
+      if (stall.until > this.clock.day) continue;
+      this.pitches.delete(id);
+      swept = true;
+    }
+    if (swept) this.scheduleSave();
+    return swept;
+  }
+
+  /**
+   * Everything a market pitch can be asked, in one place: renting it, stocking it, buying from it,
+   * taking the money, and giving it up. Gold and goods live in each player's own save, so the
+   * answer here says what should happen there.
+   */
+  stall(trader: string, request:
+    | { do: 'rent'; id: string; village: string }
+    | { do: 'stock'; id: string; item: StallItem }
+    | { do: 'buy'; id: string; index: number }
+    | { do: 'collect'; id: string }
+    | { do: 'close'; id: string },
+  ): StallReply {
+    const held = this.pitches.get(request.id);
+    if (request.do === 'rent') {
+      if (held) return { ok: false, reason: held.owner === trader ? 'You already hold this pitch.' : `${held.owner} holds this pitch until day ${held.until}.` };
+      this.pitches.set(request.id, {
+        id: request.id, village: request.village, owner: trader,
+        items: [], takings: 0, until: this.clock.day + STALL_DAYS,
+      });
+      this.scheduleSave();
+      return { ok: true, kind: 'rented' };
+    }
+    if (!held) return { ok: false, reason: 'Nobody holds this pitch.' };
+
+    if (request.do === 'buy') {
+      const lot = held.items[request.index];
+      if (!lot) return { ok: false, reason: 'That lot has already gone.' };
+      if (held.owner === trader) return { ok: false, reason: 'It is your own stall.' };
+      lot.count -= 1;
+      if (lot.count <= 0) held.items.splice(request.index, 1);
+      held.takings += lot.price;
+      this.scheduleSave();
+      return { ok: true, kind: 'bought', item: { id: lot.id, price: lot.price, count: 1 }, cost: lot.price };
+    }
+
+    if (held.owner !== trader) return { ok: false, reason: 'This is not your pitch.' };
+    switch (request.do) {
+      case 'stock': {
+        const existing = held.items.find((lot) => lot.id === request.item.id && lot.price === request.item.price);
+        if (existing) existing.count = Math.min(99, existing.count + request.item.count);
+        else if (held.items.length >= STALL_LOTS) return { ok: false, reason: 'The stall is full.' };
+        else held.items.push({ ...request.item });
+        this.scheduleSave();
+        return { ok: true, kind: 'stocked' };
+      }
+      case 'collect': {
+        const gold = held.takings;
+        held.takings = 0;
+        this.scheduleSave();
+        return { ok: true, kind: 'collected', gold };
+      }
+      case 'close': {
+        this.pitches.delete(request.id);
+        this.scheduleSave();
+        return { ok: true, kind: 'closed' };
+      }
+    }
   }
 
   /** Record something a player changed. Returns false when it was already known. */
@@ -84,7 +178,7 @@ export class SharedWorld {
   save(): void {
     if (!this.dirty) return;
     this.dirty = false;
-    const file: WorldFile = { seed: this.seed, clock: this.clock, deltas: this.log };
+    const file: WorldFile = { seed: this.seed, clock: this.clock, deltas: this.log, stalls: this.stalls };
     try {
       mkdirSync(dirname(this.path), { recursive: true });
       writeFileSync(this.path, JSON.stringify(file, null, 2));

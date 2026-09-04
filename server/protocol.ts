@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** Where somebody is and what they look like, sent several times a second. */
 export interface Presence {
@@ -71,6 +71,36 @@ export interface MonsterSnap {
   hp: number;
 }
 
+/** One lot on a market stall: a stack of the same item at one asking price. */
+export interface StallItem {
+  id: string;
+  /** Gold for one of them. */
+  price: number;
+  count: number;
+}
+
+/**
+ * A market pitch in a village square. A pitch belongs to a name rather than a connection, so the
+ * goods are still there when the trader has gone to bed, and takings wait to be collected.
+ */
+export interface Stall {
+  /** `<village>#<pitch>`, which every client can work out from the world it grew. */
+  id: string;
+  village: string;
+  owner: string;
+  items: StallItem[];
+  /** Gold from sales, waiting for the owner to come back for it. */
+  takings: number;
+  /** The world day the rent runs out, after which the pitch is cleared. */
+  until: number;
+}
+
+/** Renting a pitch costs this, and holds it for this many days. */
+export const STALL_RENT = 20;
+export const STALL_DAYS = 3;
+/** A trader may not stack more than this many lots on one pitch. */
+export const STALL_LOTS = 6;
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -80,7 +110,12 @@ export type ClientMessage =
   | { type: 'trade-decline'; from: string }
   | { type: 'delta'; delta: WorldDelta }
   | { type: 'monsters'; place: string; snap: MonsterSnap[]; gone: number[] }
-  | { type: 'hit'; place: string; index: number; damage: number };
+  | { type: 'hit'; place: string; index: number; damage: number }
+  | { type: 'stall-rent'; stall: string; village: string }
+  | { type: 'stall-stock'; stall: string; item: StallItem }
+  | { type: 'stall-buy'; stall: string; index: number }
+  | { type: 'stall-collect'; stall: string }
+  | { type: 'stall-close'; stall: string };
 
 export type ServerMessage =
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
@@ -94,6 +129,13 @@ export type ServerMessage =
   | { type: 'trade-result'; with: string; accepted: boolean; offer: TradeOffer }
   | { type: 'monsters'; place: string; snap: MonsterSnap[]; gone: number[]; from: string }
   | { type: 'hit'; place: string; index: number; damage: number; from: string }
+  | { type: 'stalls'; stalls: Stall[] }
+  /** Your own purchase came through: take the goods and pay for them. */
+  | { type: 'stall-bought'; stall: string; item: StallItem; cost: number }
+  /** Takings handed back to the trader who earned them. */
+  | { type: 'stall-takings'; stall: string; gold: number }
+  /** Something you asked of a stall could not be done. */
+  | { type: 'stall-refused'; stall: string; reason: string }
   | { type: 'error'; reason: string };
 
 /**
@@ -103,6 +145,15 @@ export type ServerMessage =
 export function ownerOfPlace(ids: string[]): string | null {
   const sorted = ids.filter(Boolean).sort();
   return sorted[0] ?? null;
+}
+
+/** Guard a lot off the wire: an item id, a sane price, and a stack somebody could actually carry. */
+export function cleanStallItem(item: StallItem): StallItem | null {
+  const id = String(item?.id ?? '').slice(0, 24);
+  const price = Math.floor(Number(item?.price));
+  const count = Math.floor(Number(item?.count));
+  if (!id || !Number.isFinite(price) || !Number.isFinite(count)) return null;
+  return { id, price: Math.max(1, Math.min(9999, price)), count: Math.max(1, Math.min(99, count)) };
 }
 
 /** Chat is short and plain; anything longer or stranger is cut here rather than downstream. */

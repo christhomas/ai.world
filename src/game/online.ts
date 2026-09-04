@@ -1,11 +1,12 @@
 import {
   PROTOCOL_VERSION, cleanChat, cleanName,
-  type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage, type TradeOffer, type WorldDelta,
+  type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage,
+  type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
-export type { Clock, MonsterSnap, Presence, TradeOffer, WorldDelta };
+export type { Clock, MonsterSnap, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
@@ -21,6 +22,14 @@ export interface OnlineEvents {
   onMonsters: (place: string, snap: MonsterSnap[], gone: number[]) => void;
   /** Somebody on our floor says they struck a monster; we own it, so we decide. */
   onHit: (place: string, index: number, damage: number) => void;
+  /** The market as the server sees it: who holds which pitch and what is on it. */
+  onStalls: (stalls: Stall[]) => void;
+  /** A purchase from somebody's stall went through: the goods are yours, so pay for them. */
+  onBought: (stall: string, item: StallItem, cost: number) => void;
+  /** Takings from your own stall, handed back. */
+  onTakings: (stall: string, gold: number) => void;
+  /** A stall would not do what you asked, and why. */
+  onStallRefused: (stall: string, reason: string) => void;
   /** Somebody has offered you goods; answering is up to the player. */
   onOffer: (offer: TradeOffer, fromName: string) => void;
   /** A trade you were part of finished: apply it to your own purse. */
@@ -130,6 +139,18 @@ export class Online {
       case 'hit':
         this.events.onHit(message.place, message.index, message.damage);
         break;
+      case 'stalls':
+        this.events.onStalls(message.stalls);
+        break;
+      case 'stall-bought':
+        this.events.onBought(message.stall, message.item, message.cost);
+        break;
+      case 'stall-takings':
+        this.events.onTakings(message.stall, message.gold);
+        break;
+      case 'stall-refused':
+        this.events.onStallRefused(message.stall, message.reason);
+        break;
       case 'said':
         this.events.onChat(`${message.name}: ${message.text}`);
         break;
@@ -173,6 +194,27 @@ export class Online {
   /** As a guest on a floor, report a blow for its owner to resolve. */
   hit(place: string, index: number, damage: number): void {
     if (this.connected) this.send({ type: 'hit', place, index, damage });
+  }
+
+  /** Rent a market pitch, put something on it, buy from it, take the money, or give it up. */
+  rentStall(stall: string, village: string): void {
+    if (this.connected) this.send({ type: 'stall-rent', stall, village });
+  }
+
+  stockStall(stall: string, item: StallItem): void {
+    if (this.connected) this.send({ type: 'stall-stock', stall, item });
+  }
+
+  buyFromStall(stall: string, index: number): void {
+    if (this.connected) this.send({ type: 'stall-buy', stall, index });
+  }
+
+  collectStall(stall: string): void {
+    if (this.connected) this.send({ type: 'stall-collect', stall });
+  }
+
+  closeStall(stall: string): void {
+    if (this.connected) this.send({ type: 'stall-close', stall });
   }
 
   say(text: string): void {

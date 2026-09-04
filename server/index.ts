@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
-  PROTOCOL_VERSION, cleanChat, cleanDelta, cleanName,
+  PROTOCOL_VERSION, cleanChat, cleanDelta, cleanName, cleanStallItem,
   type ClientMessage, type Presence, type ServerMessage, type TradeOffer,
 } from './protocol';
 import { CLOCK_INTERVAL, SharedWorld, worldPath } from './world';
@@ -56,6 +56,21 @@ const broadcast = (seed: number, message: ServerMessage, except?: Client): void 
   for (const client of room.clients) if (client !== except) send(client, message);
 };
 
+/** Turn a stall message into the request the world understands, dropping anything misshapen. */
+const stallRequest = (message: ClientMessage & { type: `stall-${string}` }, id: string):
+Parameters<SharedWorld['stall']>[1] | null => {
+  switch (message.type) {
+    case 'stall-rent': return { do: 'rent', id, village: String(message.village).slice(0, 40) };
+    case 'stall-stock': {
+      const item = cleanStallItem(message.item);
+      return item ? { do: 'stock', id, item } : null;
+    }
+    case 'stall-buy': return { do: 'buy', id, index: Math.max(0, Math.floor(message.index)) };
+    case 'stall-collect': return { do: 'collect', id };
+    default: return { do: 'close', id };
+  }
+};
+
 const server = createServer((_req, res) => {
   const players = [...rooms.values()].reduce((sum, room) => sum + room.clients.size, 0);
   res.writeHead(200, { 'content-type': 'text/plain' });
@@ -96,6 +111,7 @@ wss.on('connection', (socket) => {
         clock: room.world.clock,
         deltas: room.world.log,
       });
+      send(joining, { type: 'stalls', stalls: room.world.stalls });
       broadcast(seed, { type: 'joined', player: joining.presence }, joining);
       return;
     }
@@ -138,6 +154,23 @@ wss.on('connection', (socket) => {
             ? { type: 'monsters', place, snap: message.snap.slice(0, 64), gone: message.gone.slice(0, 64), from: me.presence.id }
             : { type: 'hit', place, index: Math.floor(message.index), damage: Math.max(0, Math.floor(message.damage)), from: me.presence.id });
         }
+        break;
+      }
+      case 'stall-rent':
+      case 'stall-stock':
+      case 'stall-buy':
+      case 'stall-collect':
+      case 'stall-close': {
+        const id = String(message.stall).slice(0, 80);
+        const request = stallRequest(message, id);
+        if (!request) { send(me, { type: 'stall-refused', stall: id, reason: 'There is nothing to put out.' }); break; }
+        const reply = room.world.stall(me.presence.name, request);
+        if (!reply.ok) { send(me, { type: 'stall-refused', stall: id, reason: reply.reason }); break; }
+        if (reply.kind === 'bought') send(me, { type: 'stall-bought', stall: id, item: reply.item, cost: reply.cost });
+        if (reply.kind === 'collected') send(me, { type: 'stall-takings', stall: id, gold: reply.gold });
+        // one description of the market goes to everyone, rather than a message per change
+        broadcast(me.seed, { type: 'stalls', stalls: room.world.stalls });
+        send(me, { type: 'stalls', stalls: room.world.stalls });
         break;
       }
       case 'trade-offer': {
@@ -198,6 +231,7 @@ setInterval(() => {
     if (room.clients.size === 0) { room.world.save(); rooms.delete(seed); continue; }
 
     room.world.tick(seconds);
+    if (room.world.sweepStalls()) broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
     const players = [...room.clients].map((c) => c.presence);
     for (const client of room.clients) {
       send(client, { type: 'presence', players: players.filter((p) => p.id !== client.presence.id) });

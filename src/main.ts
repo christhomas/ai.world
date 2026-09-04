@@ -15,6 +15,8 @@ import { buildBoat } from './render/boat';
 import { StructureKind, compassDir } from './world/structures';
 import { ITEMS } from './game/shops';
 import { COMBAT, spoils, swing } from './game/combat';
+import { Market, RENT, askingPrice, lotLine } from './game/market';
+import { STALL_DAYS } from '../server/protocol';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { SLOTS } from './game/items';
@@ -43,7 +45,7 @@ import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
 import { Fog, renderMapBase, type MapMarker } from './ui/mapbase';
 import { WorldMap } from './ui/worldmap';
-import { DialogueBox } from './ui/dialogue';
+import { DialogueBox, type DialogueNode } from './ui/dialogue';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
 import { GameState } from './game/state';
@@ -139,6 +141,29 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (!monster || monster.dead) return;
       if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.despawnEntity(monster);
     },
+    onStalls: (stalls) => { market.receive(stalls); pendingCost = 0; pendingStock = null; },
+    onBought: (_stall, item, cost) => {
+      state.inventory.gold = Math.max(0, state.inventory.gold - cost);
+      state.give(item.id, item.count);
+      state.version++;
+      sound.jingle();
+      hud.flash(`Bought ${ITEMS[item.id]?.name ?? item.id} for ${cost} gold`);
+      persist();
+    },
+    onTakings: (_stall, gold) => {
+      state.inventory.gold += gold;
+      state.version++;
+      if (gold > 0) sound.jingle();
+      hud.flash(gold > 0 ? `Took ${gold} gold from the stall` : 'Nothing sold yet');
+      persist();
+    },
+    onStallRefused: (_stall, reason) => {
+      // put back whatever we handed over in hope: the stall would not take it
+      if (pendingStock) { state.give(pendingStock, 1); pendingStock = null; }
+      if (pendingCost) { state.inventory.gold += pendingCost; pendingCost = 0; }
+      state.version++;
+      hud.flash(reason);
+    },
     onOffer: (offer, fromName) => showOffer(offer, fromName),
     onTradeResult: ({ accepted, offer, iSent }) => {
       if (!accepted) { chat.line('The trade was declined.', 'sys'); return; }
@@ -148,6 +173,25 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       persist();
     },
   });
+  const market = new Market();
+  /** The pitch we last walked up to, so the same stall is only announced once. */
+  let noticedPitch = '';
+  /** Say whose stall this is as you come to it: a bare awning looks the same as a busy one. */
+  const noticeStall = (): void => {
+    const pitch = market.nearest(structures.villages, player.x, player.z);
+    if (!pitch || !pitch.stall) { noticedPitch = pitch ? noticedPitch : ''; return; }
+    if (pitch.id === noticedPitch) return;
+    noticedPitch = pitch.id;
+    const stall = pitch.stall;
+    const lots = stall.items.length;
+    hud.flash(stall.owner === online.name
+      ? `Your stall — ${stall.takings} gold taken`
+      : `${stall.owner}'s stall — ${lots ? `${lots} lot${lots === 1 ? '' : 's'} out` : 'nothing out'}`);
+  };
+  /** Goods and gold sent to a stall that has not been answered for yet, so a refusal can undo them. */
+  let pendingStock: string | null = null;
+  let pendingCost = 0;
+
   /** Bank what a monster somebody else resolved for us left behind. */
   const creditKill = (fallen: Entity): void => {
     const won = spoils(state, fallen, seed);
@@ -344,6 +388,88 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       return true;
     }
     return false;
+  };
+
+  /**
+   * A market pitch in a village square. Anyone online can rent one, put goods out at their own
+   * price, and come back for the money; the goods stay out while the trader is away.
+   */
+  const tryStall = (): boolean => {
+    const pitch = market.nearest(structures.villages, player.x, player.z);
+    if (!pitch) return false;
+    const speaker = 'Market Pitch';
+    const emoji = '🏪';
+    if (!online.connected) {
+      dialogue.start({ speaker, emoji, pages: ['A trestle and a striped awning, waiting for a trader. Join a world online to take it on.'] });
+      return true;
+    }
+    const stall = pitch.stall;
+
+    if (!stall) {
+      dialogue.start({ speaker, emoji, pages: [`An empty pitch in ${pitch.village}. ${RENT} gold holds it for ${STALL_DAYS} days.`], choices: [
+        { label: `Rent it (${RENT}g)`, next: () => {
+          if (state.inventory.gold < RENT) { hud.flash(`You need ${RENT} gold for the pitch.`); return null; }
+          state.inventory.gold -= RENT;
+          pendingCost = RENT;
+          state.version++;
+          online.rentStall(pitch.id, pitch.village);
+          hud.flash('The pitch is yours. Put something out.');
+          return null;
+        } },
+        { label: 'Leave it', next: () => null },
+      ] });
+      return true;
+    }
+
+    if (stall.owner === online.name) {
+      const stockMenu = (): DialogueNode => {
+        const carried = tradableItems(state).filter(([id]) => ITEMS[id]);
+        return {
+          speaker, emoji,
+          pages: carried.length ? ['What goes out on the trestle?'] : ['Your pack is empty of anything worth selling.'],
+          choices: [
+            ...carried.slice(0, 8).map(([id]) => ({
+              label: `${ITEMS[id].emoji} ${ITEMS[id].name} — ask ${askingPrice(id)}g`,
+              next: () => {
+                state.take(id, 1);
+                pendingStock = id;
+                state.version++;
+                online.stockStall(stall.id, { id, price: askingPrice(id), count: 1 });
+                hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);
+                return null;
+              },
+            })),
+            { label: 'Never mind', next: () => null },
+          ],
+        };
+      };
+      const lots = stall.items.length ? stall.items.map(lotLine).join('\n') : 'Nothing out yet.';
+      dialogue.start({ speaker: `Your stall in ${stall.village}`, emoji, pages: [
+        `Rent paid until day ${stall.until}. Takings: ${stall.takings} gold.`,
+        lots,
+      ], choices: [
+        { label: 'Put something out', next: stockMenu },
+        { label: `Take the takings (${stall.takings}g)`, next: () => { online.collectStall(stall.id); return null; } },
+        { label: 'Pack up the stall', next: () => { online.closeStall(stall.id); hud.flash('The pitch is free again.'); return null; } },
+        { label: 'Leave it be', next: () => null },
+      ] });
+      return true;
+    }
+
+    dialogue.start({ speaker: `${stall.owner}'s stall`, emoji, pages: [
+      stall.items.length ? 'Take your pick.' : 'The trestle is bare. Come back when the trader has been by.',
+    ], choices: [
+      ...stall.items.slice(0, 6).map((lot, index) => ({
+        label: lotLine(lot),
+        next: () => {
+          if (state.inventory.gold < lot.price) { hud.flash(`That costs ${lot.price} gold.`); return null; }
+          online.buyFromStall(stall.id, index);
+          return null;
+        },
+      })),
+      { label: 'Walk on', next: () => null },
+    ] });
+    return true;
   };
 
   /**
@@ -736,6 +862,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (tryBoat()) return;
     if (tryHorse()) return;
     if (tryFarm()) return;
+    if (tryStall()) return;
     if (tryBoard()) return;
     if (tryDoor()) return;
     if (tryShrine()) return;
@@ -969,6 +1096,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       hosting: coop.hosting, mirroring: coop.mirroring, id: online.id,
       others: [...online.players.values()].map((p) => `${p.id}@${p.place}`),
     });
+    (debug as { __stalls?: () => unknown }).__stalls = () => {
+      const village = structures.villages
+        .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
+        .sort((a, b) => a.d - b.d)[0]?.v;
+      return village ? { village: village.name, pitches: market.pitchesOf(village) } : null;
+    };
     (debug as { __enterShrine?: () => void }).__enterShrine = () => {
       const shrine = structures.pois.find((p) => p.kind === StructureKind.Shrine);
       if (shrine) places.enterDungeon(shrine);
@@ -1114,6 +1247,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     mount.update(player, chunks);
 
     syncOnline(dt, (x, z) => chunks.heightAt(x, z));
+    noticeStall();
     ownBoat.visible = sailing.bought && places.outdoors;
     if (ownBoat.visible) {
       ownBoat.position.set(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z);
