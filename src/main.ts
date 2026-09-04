@@ -5,7 +5,7 @@ import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { QUALITY, createSceneRig } from './render/scene';
 import { WhaleSchool } from './render/whales';
-import { WHALE, displayAt, planPods, podsWithin, whaleAt } from './game/whales';
+import { WHALE, displayAt, planPods, podsWithin, whaleAt, type Pod } from './game/whales';
 import { SeaHunt } from './game/seahunt';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
@@ -585,8 +585,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const pods = planPods(sampler, seed);
   const seaHunt = new SeaHunt(seed);
   const school = new WhaleSchool(rig.scene);
-  /** The last display we told the player about, so one toast is one display. */
-  let announced = -1;
+  /** The hour we last announced each family in, so one word is one display. */
+  const announced = new Map<Pod, number>();
 
   /**
    * Whales, every frame we are above ground: the near pods drawn where the clock says they are,
@@ -599,8 +599,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
     for (const pod of near) {
       const { showing, hour } = displayAt(pod, now);
-      if (!showing || hour === announced) continue;
-      announced = hour;
+      if (!showing || announced.get(pod) === hour) continue;
+      announced.set(pod, hour);
       sound.whalesong();
       hud.flash(`Whales are breaching — ${compassDir(pod.x - player.x, pod.z - player.z)}, ${Math.round(Math.hypot(pod.x - player.x, pod.z - player.z))} tiles`);
     }

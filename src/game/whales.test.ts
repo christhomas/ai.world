@@ -11,7 +11,11 @@ describe('where whales live', () => {
     const first = planPods(sampler, 1);
     expect(first.length).toBeGreaterThan(0);
 
+    // every family keeps its own mark within the hour, so two in sight do not go at once
+    expect(new Set(first.map((p) => Math.round(p.at))).size).toBeGreaterThan(1);
     for (const pod of first) {
+      expect(pod.at).toBeGreaterThanOrEqual(0);
+      expect(pod.at).toBeLessThanOrEqual(HOUR_SECONDS - WHALE.DISPLAY);
       const here = sampler.probe(pod.x, pod.z);
       expect(here.land).toBe(false);
       expect(here.roadDist).toBeGreaterThanOrEqual(WHALE.DEEP);
@@ -21,7 +25,7 @@ describe('where whales live', () => {
     for (const a of first) {
       for (const b of first) {
         if (a === b) continue;
-        expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThanOrEqual(WHALE.DEEP * 2);
+        expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThanOrEqual(WHALE.APART);
       }
     }
     // the same world, grown again, has the same whales in it
@@ -38,7 +42,10 @@ describe('where whales live', () => {
 });
 
 describe('when whales breach', () => {
-  const pod = { x: 0, z: 0, size: 3, favourite: 5, seed: 99 };
+  /** A family that starts twenty seconds into each hour. */
+  const pod = { x: 0, z: 0, size: 3, favourite: 5, at: 20, seed: 99 };
+  /** World seconds at a point in this pod's own display. */
+  const during = (into: number) => pod.at + into;
 
   it('counts hours from the world clock', () => {
     expect(hourAt(0)).toEqual({ hour: 0, into: 0 });
@@ -46,19 +53,34 @@ describe('when whales breach', () => {
     expect(hourAt(HOUR_SECONDS * 3 + 4).into).toBeCloseTo(4);
   });
 
-  it('shows on the hour and not between hours', () => {
-    expect(displayAt(pod, 0).showing).toBe(true);
-    expect(displayAt(pod, WHALE.DISPLAY - 0.1).showing).toBe(true);
-    expect(displayAt(pod, WHALE.DISPLAY + 0.1).showing).toBe(false);
-    expect(displayAt(pod, HOUR_SECONDS - 0.1).showing).toBe(false);
-    expect(displayAt(pod, HOUR_SECONDS + 0.1).showing).toBe(true);
+  it('shows once an hour, at its own mark rather than the stroke', () => {
+    expect(displayAt(pod, 0).showing).toBe(false);                       // the hour itself: not yet
+    expect(displayAt(pod, during(0.1)).showing).toBe(true);
+    expect(displayAt(pod, during(WHALE.DISPLAY - 0.1)).showing).toBe(true);
+    expect(displayAt(pod, during(WHALE.DISPLAY + 0.1)).showing).toBe(false);
+    expect(displayAt(pod, HOUR_SECONDS + during(0.1)).showing).toBe(true);   // and again next hour
+
+    // a family with a different mark is up at a different moment
+    const later = { ...pod, at: 60 };
+    expect(displayAt(later, during(0.1)).showing).toBe(false);
+    expect(displayAt(later, 60.1).showing).toBe(true);
+  });
+
+  it('keeps a display going long enough to be worth watching', () => {
+    // somebody is out of the water for most of it, rather than one jump and done
+    let airborneMoments = 0;
+    for (let t = 0; t < WHALE.DISPLAY; t += 0.4) {
+      if ([0, 1, 2].some((i) => whaleAt(pod, i, during(t)).airborne)) airborneMoments++;
+    }
+    expect(WHALE.DISPLAY).toBeGreaterThan(30);
+    expect(airborneMoments / (WHALE.DISPLAY / 0.4)).toBeGreaterThan(0.5);
   });
 
   it('leaves the water, arcs over, and comes down again', () => {
     // the first whale takes the first turn, so its arc starts with the display
-    const start = whaleAt(pod, 0, 0.01);
-    const top = whaleAt(pod, 0, WHALE.ARC / 2);
-    const end = whaleAt(pod, 0, WHALE.ARC - 0.01);
+    const start = whaleAt(pod, 0, during(0.01));
+    const top = whaleAt(pod, 0, during(WHALE.ARC / 2));
+    const end = whaleAt(pod, 0, during(WHALE.ARC - 0.01));
 
     expect(top.y).toBeGreaterThan(start.y + 1);
     expect(top.y).toBeGreaterThan(end.y);
@@ -69,23 +91,24 @@ describe('when whales breach', () => {
   });
 
   it('rests just under the surface when nothing is happening', () => {
-    const resting = whaleAt(pod, 0, HOUR_SECONDS * 0.5);
+    const resting = whaleAt(pod, 0, HOUR_SECONDS * 0.8);
     expect(resting.airborne).toBe(false);
     expect(resting.through).toBe(-1);
     expect(resting.y).toBeLessThan(0);
   });
 
   it('takes each whale over in turn rather than all at once', () => {
-    const first = whaleAt(pod, 0, 0.2);
-    const second = whaleAt(pod, 1, 0.2);
+    const first = whaleAt(pod, 0, during(0.2));
+    const second = whaleAt(pod, 1, during(0.2));
     expect(first.airborne).toBe(true);
     expect(second.airborne).toBe(false);
-    expect(whaleAt(pod, 1, WHALE.DISPLAY / 3 + 0.4).airborne).toBe(true);
+    // the pod spreads itself through the cycle: the next one is up a third of it later
+    expect(whaleAt(pod, 1, during(WHALE.PERIOD / 3 + 0.2)).airborne).toBe(true);
   });
 
   it('names the spot where one comes down, and nothing while it is still up', () => {
-    expect(landingOf(pod, 0, WHALE.ARC / 2)).toBeNull();
-    const splash = landingOf(pod, 0, WHALE.ARC * 0.95);
+    expect(landingOf(pod, 0, during(WHALE.ARC / 2))).toBeNull();
+    const splash = landingOf(pod, 0, during(WHALE.ARC * 0.95));
     expect(splash).not.toBeNull();
     expect(Number.isFinite(splash!.x)).toBe(true);
   });

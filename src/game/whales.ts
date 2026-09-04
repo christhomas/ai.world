@@ -15,16 +15,26 @@ import type { TerrainSampler } from '../world/terrain';
 
 export const WHALE = {
   /** Pods scattered through one world's deep water. */
-  PODS: 12,
+  PODS: 18,
   /** Whales in a pod, fewest and most. */
   POD_MIN: 2,
   POD_MAX: 4,
-  /** How often a pod puts on a display: every hour, on the hour. */
+  /**
+   * Every family breaches every hour, but each keeps to its own mark within it rather than to the
+   * stroke — so where two pods are in sight you get two displays at different moments instead of
+   * one doubled.
+   */
   HOURS_BETWEEN: 1,
-  /** How long the whole display lasts, in real seconds. */
-  DISPLAY: 9,
+  /**
+   * How long a display lasts, in real seconds. An hour of the world is five minutes, so a family
+   * is up for a good two of them — long enough to row over and watch, short enough that the sea
+   * is not permanently full of whales.
+   */
+  DISPLAY: 120,
   /** How long one whale is out of the water. */
   ARC: 2.4,
+  /** How often one whale takes its turn again. The pod spreads itself through this. */
+  PERIOD: 5.6,
   /** How high a breach carries it above the waves, in tiles. */
   HEIGHT: 3.2,
   /** How far it travels forward while it is up there. */
@@ -36,6 +46,8 @@ export const WHALE = {
   SUBMERGED: 0.4,
   /** Water this far from the nearest road is deep enough for whales. */
   DEEP: 30,
+  /** How close two pods may live. Near enough that a good spot can have more than one in sight. */
+  APART: 34,
   /** You are told a display has begun within this many tiles of it. */
   WATCH: 70,
   /** A whale coming down this close to your boat throws you out of it. */
@@ -51,6 +63,8 @@ export interface Pod {
   /** How many whales, and which hour of the day this pod likes best (it breaches higher then). */
   size: number;
   favourite: number;
+  /** Seconds into each hour when this family begins, which is its own and nobody else's. */
+  at: number;
   /** Its own stream, so each whale in it moves differently from its neighbours. */
   seed: number;
 }
@@ -84,11 +98,12 @@ export function planPods(sampler: TerrainSampler, seed: number): Pod[] {
     const here = sampler.probe(x, z);
     if (here.land || here.roadDist < WHALE.DEEP) continue;
     // pods keep their distance from one another, so a crossing does not pass three at once
-    if (pods.some((p) => Math.hypot(p.x - x, p.z - z) < WHALE.DEEP * 2)) continue;
+    if (pods.some((p) => Math.hypot(p.x - x, p.z - z) < WHALE.APART)) continue;
     pods.push({
       x, z,
       size: WHALE.POD_MIN + Math.floor(rng() * (WHALE.POD_MAX - WHALE.POD_MIN + 1)),
       favourite: Math.floor(rng() * 24),
+      at: rng() * (HOUR_SECONDS - WHALE.DISPLAY),
       seed: (seed ^ Math.floor(rng() * 0xffffff)) >>> 0,
     });
   }
@@ -106,11 +121,15 @@ export function hourAt(seconds: number): { hour: number; into: number } {
   return { hour, into: seconds - hour * HOUR_SECONDS };
 }
 
-/** Whether a pod is putting on a display at this moment, and how far into it. */
+/**
+ * Whether a pod is putting on a display at this moment, and how far into it. Each family has its
+ * own mark within the hour, so two pods in sight of one another do not go at the same instant.
+ */
 export function displayAt(pod: Pod, seconds: number): { showing: boolean; into: number; hour: number } {
   const { hour, into } = hourAt(seconds);
-  const showing = hour % WHALE.HOURS_BETWEEN === 0 && into < WHALE.DISPLAY;
-  return { showing, into, hour };
+  const mine = into - pod.at;
+  const showing = hour % WHALE.HOURS_BETWEEN === 0 && mine >= 0 && mine < WHALE.DISPLAY;
+  return { showing, into: mine, hour };
 }
 
 /**
@@ -132,10 +151,12 @@ export function whaleAt(pod: Pod, index: number, seconds: number): WhaleState {
   const { showing, into, hour } = displayAt(pod, seconds);
   if (!showing) return waiting;
 
-  // each whale takes its turn, spaced through the display so they follow one another over
-  const turn = (index / Math.max(1, pod.size)) * (WHALE.DISPLAY - WHALE.ARC);
-  const t = into - turn;
-  if (t < 0 || t > WHALE.ARC) return waiting;
+  // the pod spreads itself through the cycle, so while the display lasts one of them is always up
+  const turn = (index / Math.max(1, pod.size)) * WHALE.PERIOD;
+  const mine = into - turn;
+  if (mine < 0) return waiting;
+  const t = mine % WHALE.PERIOD;
+  if (t > WHALE.ARC) return waiting;
 
   const through = t / WHALE.ARC;
   // the pod's favourite hour gets the bigger jump: something to arrange an evening around
