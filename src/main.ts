@@ -17,7 +17,8 @@ import { ITEMS } from './game/shops';
 import { COMBAT, spoils, swing } from './game/combat';
 import { Market, RENT, askingPrice, lotLine } from './game/market';
 import { PARTY_LIMIT, Party } from './game/party';
-import { STALL_DAYS } from '../server/protocol';
+import { PlayerList } from './ui/players';
+import { PING_LIFE, STALL_DAYS } from '../server/protocol';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { SLOTS } from './game/items';
@@ -191,6 +192,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       state.version++;
       hud.flash(reason);
     },
+    onEmote: (id, name, emoji, kind) => {
+      others.emote(id, emoji);
+      chat.line(`${name} ${kind}s. ${emoji}`, 'sys');
+    },
+    onPing: (x, z, name) => {
+      rally.push({ x, z, name, left: PING_LIFE });
+      sound.select();
+      hud.flash(`${name} marked a rally point — ${compassDir(x - player.x, z - player.z)}, ${Math.round(Math.hypot(x - player.x, z - player.z))} tiles`);
+    },
     onParty: (members) => {
       party.receive(members);
       chat.line(members.length ? `Party: ${members.map((m) => m.name).join(', ')}.` : 'You are travelling alone again.', 'sys');
@@ -226,6 +236,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
   const market = new Market();
   const party = new Party();
+  /** Rally points people have dropped, each fading in its own time. */
+  const rally: Array<{ x: number; z: number; name: string; left: number }> = [];
+  const playerList = new PlayerList();
   /** The pitch we last walked up to, so the same stall is only announced once. */
   let noticedPitch = '';
   /** Say whose stall this is as you come to it: a bare awning looks the same as a busy one. */
@@ -267,6 +280,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * are. It runs in every branch of the loop, because people underground are still people.
    */
   const syncOnline = (dt: number, heightAt: (x: number, z: number) => number | null): void => {
+    others.age(dt);
+    for (let i = rally.length - 1; i >= 0; i--) {
+      rally[i].left -= dt;
+      if (rally[i].left <= 0) rally.splice(i, 1);
+    }
+    playerList.refresh(playerListInput);
     const standingIn = placeName();
     online.update(dt, {
       x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,
@@ -318,7 +337,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     state.version++;
     if (!catchingUp) persist();
   };
-  chat.onSend = (text) => online.say(text);
+  chat.onSend = (text) => {
+    // a line beginning with a slash is a gesture, if it names one anybody knows
+    const gesture = text.startsWith('/') ? text.slice(1).trim().toLowerCase() : '';
+    if (gesture && online.emote(gesture)) return;
+    online.say(text);
+  };
 
   /** Somebody has offered you something: show it and let the player answer. */
   const showOffer = (offer: TradeOffer, fromName: string): void => {
@@ -965,6 +989,18 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     ] });
   };
   input.onKey('k', () => { if (!dialogue.isOpen && !chat.isTyping) partyMenu(); });
+  input.onKey('l', () => {
+    if (dialogue.isOpen || chat.isTyping) return;
+    if (!online.connected) { hud.flash('Join a world online to see who else is about.'); return; }
+    playerList.toggle(playerListInput);
+  });
+  input.onKey('r', () => {
+    if (dialogue.isOpen || chat.isTyping) return;
+    if (!online.connected) { hud.flash('Join a world online to rally anybody.'); return; }
+    online.ping(player.x, player.z);
+    rally.push({ x: player.x, z: player.z, name: 'your', left: PING_LIFE });
+    hud.flash(party.size ? 'Rally point marked for your party' : 'Rally point marked for everyone here');
+  });
   input.onKey('o', () => hud.toggleOptions());
   input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
   const serverInput = el('serverInput') as HTMLInputElement;
@@ -1015,7 +1051,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
   input.onKey('x', attack);
   input.onKey('n', toTitle);
-  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); });
+  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close(); });
+  const playerListInput = () => ({
+    players: [...online.players.values()],
+    party: new Set(party.roster.map((m) => m.id)),
+    x: player.x, z: player.z, place: placeName(), me: online.name,
+  });
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
@@ -1086,6 +1127,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // companions are worth finding across a wide world, so they are always on the map
     for (const mate of party.companions(online.players.values(), online.id)) {
       out.push({ x: mate.x, z: mate.z, color: '#7fd6ff', label: mate.name, emphasis: true });
+    }
+    for (const point of rally) {
+      out.push({ x: point.x, z: point.z, color: '#ff9f43', label: `${point.name}'s rally`, emphasis: true });
     }
     // active quest targets stand out in green, ringed on the big map
     for (const q of questList) {
@@ -1221,6 +1265,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
     (debug as { __quests?: () => unknown }).__quests = () => questList;
+    (debug as { __markers?: () => unknown }).__markers = () => markers();
     (debug as { __finishQuest?: (id: string) => void }).__finishQuest = (id) => {
       const errand = questList.find((q) => q.id === id);
       if (!errand) return;

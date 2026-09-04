@@ -1,5 +1,5 @@
 import {
-  PROTOCOL_VERSION, cleanChat, cleanName,
+  EMOTES, PROTOCOL_VERSION, cleanChat, cleanName,
   type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage,
   type Letter, type PartyMember, type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
@@ -36,6 +36,10 @@ export interface OnlineEvents {
   onMail: (letters: Letter[]) => void;
   /** Word from the post shelf: something waiting, your parcel away, or your parcel turned down. */
   onMailWord: (line: string, kind: 'waiting' | 'sent' | 'refused') => void;
+  /** Somebody made a gesture: show it over their head. */
+  onEmote: (id: string, name: string, emoji: string, kind: string) => void;
+  /** A rally point somebody dropped, to stand on the map for a while. */
+  onPing: (x: number, z: number, name: string) => void;
   /** Who you are travelling with now. */
   onParty: (members: PartyMember[]) => void;
   /** Somebody would like you to travel with them, or has answered your own asking. */
@@ -193,6 +197,12 @@ export class Online {
       case 'party-deed':
         this.events.onPartyDeed(message.quest, message.from);
         break;
+      case 'emoted':
+        this.events.onEmote(message.id, message.name, EMOTES[message.kind] ?? '❔', message.kind);
+        break;
+      case 'pinged':
+        this.events.onPing(message.x, message.z, message.name);
+        break;
       case 'said':
         this.events.onChat(`${message.name}: ${message.text}`);
         break;
@@ -285,6 +295,21 @@ export class Online {
   /** Tell your companions you finished an errand, so it counts for them as well. */
   shareDeed(quest: string): void {
     if (this.connected) this.send({ type: 'party-deed', quest });
+  }
+
+  /**
+   * Say something without words. Returns false when that is not a gesture anybody knows, so the
+   * chat line can be sent as it was typed instead.
+   */
+  emote(kind: string): boolean {
+    if (!EMOTES[kind]) return false;
+    if (this.connected) this.send({ type: 'emote', kind });
+    return true;
+  }
+
+  /** Drop a rally point where you stand. */
+  ping(x: number, z: number): void {
+    if (this.connected) this.send({ type: 'ping', x, z });
   }
 
   say(text: string): void {

@@ -11,9 +11,14 @@ import type { Presence } from '../game/online';
  * floating over each one. They are ordinary entities that nothing in the world reacts to: they
  * are not spawned by the manager, so no wolf hunts them and no shopkeeper talks to them.
  */
+/** How long a gesture stays over somebody's head, in seconds. */
+const EMOTE_LIFE = 4;
+
 export class OtherPlayers {
   private readonly bodies = new Map<string, Entity>();
   private readonly labels = new Map<string, HTMLDivElement>();
+  /** Gestures being shown, by player id, with the time left on each. */
+  private readonly gestures = new Map<string, { emoji: string; left: number }>();
   private readonly holder: HTMLDivElement;
 
   constructor(private readonly renderer: EntityRenderer) {
@@ -54,6 +59,19 @@ export class OtherPlayers {
     }
   }
 
+  /** Show a gesture over somebody's head for a few seconds. */
+  emote(id: string, emoji: string): void {
+    this.gestures.set(id, { emoji, left: EMOTE_LIFE });
+  }
+
+  /** Let gestures fade in their own time. */
+  age(dt: number): void {
+    for (const [id, gesture] of this.gestures) {
+      gesture.left -= dt;
+      if (gesture.left <= 0) this.gestures.delete(id);
+    }
+  }
+
   /** Ground height under each remote hero, so they stand on the land rather than in it. */
   settle(heightAt: (x: number, z: number) => number | null): void {
     for (const body of this.bodies.values()) {
@@ -70,7 +88,9 @@ export class OtherPlayers {
       this.holder.appendChild(el);
       this.labels.set(p.id, el);
     }
-    if (el.textContent !== p.name) el.textContent = p.name;
+    const gesture = this.gestures.get(p.id);
+    const text = gesture ? `${p.name} ${gesture.emoji}` : p.name;
+    if (el.textContent !== text) el.textContent = text;
     el.style.display = visible ? 'block' : 'none';
   }
 

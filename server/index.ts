@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
-  PARTY_LIMIT, PROTOCOL_VERSION, cleanChat, cleanDelta, cleanLetter, cleanName, cleanStallItem,
+  EMOTES, PARTY_LIMIT, PROTOCOL_VERSION, cleanChat, cleanDelta, cleanLetter, cleanName, cleanStallItem,
   type ClientMessage, type Presence, type ServerMessage, type TradeOffer,
 } from './protocol';
 import { CLOCK_INTERVAL, SharedWorld, worldPath } from './world';
@@ -254,6 +254,21 @@ wss.on('connection', (socket) => {
         for (const mate of me.party ?? []) {
           if (mate !== me) send(mate, { type: 'party-deed', quest, from: me.presence.name });
         }
+        break;
+      }
+      case 'emote': {
+        const kind = String(message.kind).slice(0, 12);
+        if (!EMOTES[kind]) break;
+        broadcast(me.seed, { type: 'emoted', id: me.presence.id, name: me.presence.name, kind });
+        break;
+      }
+      case 'ping': {
+        const x = Number(message.x), z = Number(message.z);
+        if (!Number.isFinite(x) || !Number.isFinite(z)) break;
+        const note: ServerMessage = { type: 'pinged', x, z, name: me.presence.name };
+        // a rally point is for your companions, or for the whole world when you travel alone
+        const audience = me.party ?? room.clients;
+        for (const other of audience) if (other !== me) send(other, note);
         break;
       }
       case 'trade-offer': {

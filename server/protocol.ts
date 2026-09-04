@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 /** Where somebody is and what they look like, sent several times a second. */
 export interface Presence {
@@ -126,6 +126,22 @@ export interface PartyMember {
 /** A party is small on purpose: enough to travel together, not enough to fill a dungeon. */
 export const PARTY_LIMIT = 6;
 
+/**
+ * The few gestures a traveller can make without words, so people who share no language can still
+ * greet each other. Typed in chat as /wave and the like.
+ */
+export const EMOTES: Record<string, string> = {
+  wave: '👋',
+  bow: '🙇',
+  cheer: '🎉',
+  laugh: '😄',
+  thanks: '🙏',
+  help: '🆘',
+};
+
+/** How long a rally point stands on everyone's map, in seconds. */
+export const PING_LIFE = 90;
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -147,7 +163,10 @@ export type ClientMessage =
   | { type: 'party-answer'; from: string; yes: boolean }
   | { type: 'party-leave' }
   /** An errand one member finished, which counts for the whole party. */
-  | { type: 'party-deed'; quest: string };
+  | { type: 'party-deed'; quest: string }
+  | { type: 'emote'; kind: string }
+  /** A rally point dropped where you stand: your party sees it, or the whole world if you have none. */
+  | { type: 'ping'; x: number; z: number };
 
 export type ServerMessage =
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
@@ -183,6 +202,8 @@ export type ServerMessage =
   /** Somebody would rather travel alone. */
   | { type: 'party-declined'; name: string }
   | { type: 'party-deed'; quest: string; from: string }
+  | { type: 'emoted'; id: string; name: string; kind: string }
+  | { type: 'pinged'; x: number; z: number; name: string }
   | { type: 'error'; reason: string };
 
 /**
