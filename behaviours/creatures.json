@@ -1,0 +1,32 @@
+{
+  "seaHunter": {
+    "note": "Sharks and orcas. They want a boat; on dry land you are somebody else's problem.",
+    "first": [
+      {
+        "note": "Nothing afloat, nothing to hunt.",
+        "when": { "not": { "ask": "afloat" } },
+        "then": { "do": "idle" }
+      },
+      {
+        "note": "Close enough to take an interest. Circle, and now and then one comes in.",
+        "when": { "ask": "within", "with": { "tiles": 18 } },
+        "then": {
+          "latch": [
+            {
+              "note": "A run, once it starts, is seen through: latch holds it, and steps means the gap is not asked again mid-charge.",
+              "steps": [
+                { "every": [5, 11], "then": { "do": "charge", "with": { "seconds": 2.6 } } },
+                { "anyway": { "do": "bite", "with": { "cooldown": 5.5 } } }
+              ]
+            },
+            {
+              "note": "Otherwise keep station off the beam.",
+              "do": "circle", "with": { "tiles": 6, "lead": 0.7 }
+            }
+          ]
+        }
+      },
+      { "note": "Too far off to care.", "do": "idle" }
+    ]
+  }
+}

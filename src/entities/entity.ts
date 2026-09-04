@@ -1,3 +1,6 @@
+import { Memory, type Node } from '../core/behaviour';
+// a type only: the trees know about this file, and this file must not know about them
+import type { Mind } from './verbs';
 import type { Rng } from '../core/rng';
 import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
@@ -111,10 +114,10 @@ export class Entity {
   /** Hidden indoors: not drawn, not interactive, until morning. */
   indoors = false;
   attackCooldown = 0;
-  /** Seconds left of a charge at the player; 0 when circling or uninterested. */
+  /** Seconds left of a charge at the player; the movement code reads it to pick a speed. */
   charging = 0;
-  /** Seconds until this one works itself up to a charge. */
-  nextCharge = 0;
+  /** Whatever this creature's behaviour is part way through. Its own, and nobody else's. */
+  readonly mind = new Memory();
   hp: number;
   /** Rig parts to leave undrawn, by tag: a helm replaces the hero's own hat. */
   readonly hiddenTags = new Set<string>();
@@ -199,6 +202,12 @@ export interface Ctx {
   playerArmed: boolean;
   /** Hero is in the water or on a boat, which is what sea hunters are interested in. */
   playerAfloat?: boolean;
+  /**
+   * The behaviour tree that decides for a kind of creature, when one does. Handed in rather than
+   * imported: this file is the mechanism, the trees are the content, and the content is allowed
+   * to know about the mechanism but not the other way about.
+   */
+  treeFor?: (behaviour: Behaviour) => Node<Mind> | null;
   onAttack: (e: Entity, damage: number) => void;
 }
 
@@ -213,46 +222,6 @@ function pickTarget(e: Entity, ctx: Ctx, radius: number): boolean {
     return true;
   }
   return false;
-}
-
-/**
- * A shark's day: keep station on whatever is in the water, tighten the ring, and every so often
- * one of them stops circling and comes straight in. A charge that reaches you bites; a charge
- * that runs out of patience peels off and rejoins the circle.
- *
- * Only things afloat are worth circling. On dry land you are somebody else's problem.
- */
-function circleAndCharge(e: Entity, dt: number, ctx: Ctx, pdx: number, pdz: number, pd2: number): void {
-  const interested = ctx.playerAfloat === true && pd2 < BEHAVIOUR.CIRCLE_NOTICE ** 2;
-  if (!interested) {
-    e.charging = 0;
-    e.nextCharge = 0;
-    return;
-  }
-
-  if (e.charging > 0) {
-    e.charging -= dt;
-    e.tx = ctx.playerX;
-    e.tz = ctx.playerZ;
-    if (e.state !== 'walk') { e.state = 'walk'; e.timer = BEHAVIOUR.CHARGE_TIME; }
-    return;
-  }
-
-  // keep station: each one holds its own place around the ring, drawing in as it works up to it
-  const [soonest, latest] = BEHAVIOUR.CHARGE_EVERY;
-  if (e.nextCharge <= 0) e.nextCharge = soonest + ctx.rng() * (latest - soonest);
-  e.nextCharge -= dt;
-  if (e.nextCharge <= 0) {
-    e.charging = BEHAVIOUR.CHARGE_TIME;
-    e.nextCharge = soonest + ctx.rng() * (latest - soonest);
-    return;
-  }
-
-  const ring = Math.max(1.5, BEHAVIOUR.CIRCLE_RADIUS - (1 - e.nextCharge / latest) * BEHAVIOUR.CIRCLE_CLOSE * BEHAVIOUR.CIRCLE_RADIUS);
-  const around = Math.atan2(pdz, pdx) + dt * 0.9 + e.phase * 0.01;
-  e.tx = ctx.playerX + Math.cos(around) * ring;
-  e.tz = ctx.playerZ + Math.sin(around) * ring;
-  if (e.state !== 'walk') { e.state = 'walk'; e.timer = 3; }
 }
 
 /** Advance a herd anchor now and then, so groups drift instead of standing on one spot forever. */
@@ -381,6 +350,22 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
 
   if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
 
+  const tree = ctx.treeFor?.(k.behaviour) ?? null;
+  if (tree) {
+    tree({
+      dt,
+      memory: e.mind,
+      world: {
+        self: e,
+        playerX: ctx.playerX, playerZ: ctx.playerZ,
+        playerAfloat: ctx.playerAfloat === true,
+        playerArmed: ctx.playerArmed,
+        rng: ctx.rng,
+        bite: ctx.onAttack,
+      },
+    });
+  }
+
   // prey run from the player; armed heroes scare *animal* predators off, monsters attack regardless
   const pdx = e.x - ctx.playerX, pdz = e.z - ctx.playerZ;
   const pd2 = pdx * pdx + pdz * pdz;
@@ -389,9 +374,8 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   if (scared && e.state !== 'flee' && pd2 < BEHAVIOUR.FLEE_RADIUS ** 2) startFlee(e, pdx, pdz, ctx.rng);
   // predators bite when they get close
   e.attackCooldown -= dt;
-  // a shark cannot bite somebody standing on the beach, whatever else it would like to do
-  const reachable = k.behaviour !== 'circle' || ctx.playerAfloat === true;
-  if (k.dangerous && reachable && (monster || !ctx.playerArmed)) {
+  // creatures with a tree do their own biting, in the file that says when
+  if (k.dangerous && !tree && (monster || !ctx.playerArmed)) {
     const chase = monster ? BEHAVIOUR.HUNT_RADIUS : BEHAVIOUR.STALK_RADIUS;
     if (pd2 < chase ** 2 && e.state !== 'flee') {
       // stalk: walk straight at the player
@@ -399,19 +383,12 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       if (e.state !== 'walk') { e.state = 'walk'; e.timer = 4; }
     }
     if (pd2 < BEHAVIOUR.BITE_RANGE ** 2 && e.attackCooldown <= 0) {
-      e.attackCooldown = k.behaviour === 'circle' ? BEHAVIOUR.SEA_BITE_COOLDOWN : BEHAVIOUR.BITE_COOLDOWN;
+      e.attackCooldown = BEHAVIOUR.BITE_COOLDOWN;
       e.yaw = yawFor(-pdx, -pdz);
       ctx.onAttack(e, k.dangerous);
-      if (k.behaviour === 'circle') {
-        // a shark that has bitten sheers off and rejoins the circle: it does not maul you where
-        // you float, which would leave a swimmer no moment to get back aboard or fight back
-        e.charging = 0;
-        e.nextCharge = BEHAVIOUR.CHARGE_EVERY[1];
-      }
     }
   }
 
-  if (k.behaviour === 'circle') circleAndCharge(e, dt, ctx, pdx, pdz, pd2);
 
   const hopper = k.behaviour === 'hop';
   let moving = false;

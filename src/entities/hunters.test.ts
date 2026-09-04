@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { BEHAVIOUR, Entity, Herd, updateEntity, type TileWorld } from './entity';
+import { treeFor } from './behaviours';
 
 /** All water, everywhere: the open sea a shark would be in. */
 const sea: TileWorld = {
@@ -28,7 +29,7 @@ function swimFor(e: Entity, seconds: number, ctx: { playerX: number; playerZ: nu
     updateEntity(e, step, {
       world: sea, rng: mulberry32(Math.floor(t * 1000) + 1),
       playerX: ctx.playerX, playerZ: ctx.playerZ,
-      playerArmed: false, playerAfloat: ctx.afloat,
+      playerArmed: false, playerAfloat: ctx.afloat, treeFor,
       onAttack: (_e, damage) => bites.push(damage),
     });
     ranges.push(Math.hypot(e.x - ctx.playerX, e.z - ctx.playerZ));

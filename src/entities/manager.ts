@@ -6,6 +6,7 @@ import { chunkKey, parseChunkKey } from '../world/spatial';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
+import { treeFor } from './behaviours';
 import { Entity, Herd, canStand, isDaytime, updateEntity, updateHerd, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
@@ -120,7 +121,10 @@ export class EntityManager {
       }
     }
 
-    const ctx = { world: this.world, rng: this.rng, playerX, playerZ, playerArmed, playerAfloat: afloat, onAttack, time };
+    const ctx = {
+      world: this.world, rng: this.rng, playerX, playerZ, playerArmed,
+      playerAfloat: afloat, onAttack, time, treeFor,
+    };
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
     for (const list of this.spawned.values()) {
