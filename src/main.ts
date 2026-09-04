@@ -487,6 +487,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     debug.__state = state;
     (debug as { __scene?: unknown }).__scene = rig.scene;
     (debug as { __rig?: unknown }).__rig = rig;
+    (debug as { __iso?: unknown }).__iso = iso;
+    (debug as { __three?: unknown }).__three = THREE;
     (debug as { __online?: unknown }).__online = online;
     debug.__doors = structures.doors;
     (debug as { __villages?: unknown }).__villages = structures.villages;
