@@ -136,6 +136,9 @@ export class EntityManager {
     return best;
   }
 
+  /** How many creatures have joined this floor's roster, so each gets a number of its own. */
+  private enrolled = 0;
+
   /** Spawn monsters directly (used by dungeons, which have their own tile world). */
   spawnMonsters(anchors: Array<[number, number]>, seed: number): Entity[] {
     const rng = mulberry32(seed);
@@ -149,7 +152,7 @@ export class EntityManager {
       const herd = this.spawnHerdAt(kindId, x, z, rng, key, out);
       if (herd.members.length === 0) continue;
     }
-    list.push(...out);
+    this.enrol(list, out);
     return out;
   }
 
@@ -182,7 +185,7 @@ export class EntityManager {
     const herd = this.spawnHerdAt(kindId, x, z, rng, 'dungeon', out);
     let list = this.spawned.get('dungeon');
     if (!list) { list = []; this.spawned.set('dungeon', list); }
-    list.push(...out);
+    this.enrol(list, out);
     return herd.members[0] ?? null;
   }
 
@@ -197,6 +200,21 @@ export class EntityManager {
       const j = list.indexOf(e);
       if (j >= 0) { list.splice(j, 1); return; }
     }
+  }
+
+  /** Add newcomers to a floor's roster, numbering them in the order every client spawns them. */
+  private enrol(list: Entity[], arrivals: Entity[]): void {
+    for (const e of arrivals) { e.rosterIndex = this.enrolled++; list.push(e); }
+  }
+
+  /** The dungeon's monsters still alive, each carrying the roster number it was born with. */
+  get roster(): Entity[] {
+    return this.spawned.get('dungeon') ?? [];
+  }
+
+  /** The monster with this roster number, if it is still down there. */
+  onRoster(index: number): Entity | null {
+    return this.roster.find((e) => e.rosterIndex === index) ?? null;
   }
 
   /** Every live creature within `r` tiles, nearest first. */

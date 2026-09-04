@@ -1,11 +1,11 @@
 import {
   PROTOCOL_VERSION, cleanChat, cleanName,
-  type ClientMessage, type Clock, type Presence, type ServerMessage, type TradeOffer, type WorldDelta,
+  type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
-export type { Clock, Presence, TradeOffer, WorldDelta };
+export type { Clock, MonsterSnap, Presence, TradeOffer, WorldDelta };
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
@@ -17,6 +17,10 @@ export interface OnlineEvents {
   onClock: (clock: Clock) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
+  /** The owner of a dungeon floor describing its monsters. */
+  onMonsters: (place: string, snap: MonsterSnap[], gone: number[]) => void;
+  /** Somebody on our floor says they struck a monster; we own it, so we decide. */
+  onHit: (place: string, index: number, damage: number) => void;
   /** Somebody has offered you goods; answering is up to the player. */
   onOffer: (offer: TradeOffer, fromName: string) => void;
   /** A trade you were part of finished: apply it to your own purse. */
@@ -120,6 +124,12 @@ export class Online {
         for (const id of [...this.players.keys()]) if (!seen.has(id)) this.players.delete(id);
         break;
       }
+      case 'monsters':
+        this.events.onMonsters(message.place, message.snap, message.gone);
+        break;
+      case 'hit':
+        this.events.onHit(message.place, message.index, message.damage);
+        break;
       case 'said':
         this.events.onChat(`${message.name}: ${message.text}`);
         break;
@@ -153,6 +163,16 @@ export class Online {
   /** Tell everyone about something we changed in the world. */
   report(delta: WorldDelta): void {
     if (this.connected) this.send({ type: 'delta', delta });
+  }
+
+  /** As the owner of a floor, say where its monsters are. */
+  monsters(place: string, snap: MonsterSnap[], gone: number[]): void {
+    if (this.connected) this.send({ type: 'monsters', place, snap, gone });
+  }
+
+  /** As a guest on a floor, report a blow for its owner to resolve. */
+  hit(place: string, index: number, damage: number): void {
+    if (this.connected) this.send({ type: 'hit', place, index, damage });
   }
 
   say(text: string): void {

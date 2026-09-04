@@ -14,7 +14,7 @@ import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, typ
 import { buildBoat } from './render/boat';
 import { StructureKind, compassDir } from './world/structures';
 import { ITEMS } from './game/shops';
-import { COMBAT, swing } from './game/combat';
+import { COMBAT, spoils, swing } from './game/combat';
 import { Places, REACH } from './game/places';
 import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
 import { SLOTS } from './game/items';
@@ -27,6 +27,7 @@ import { Compass, type CompassTarget } from './ui/compass';
 import { PhotoMode } from './ui/photo';
 import { HORSE, Mount } from './game/mount';
 import { Online, applyTrade, tradableItems, type TradeOffer, type WorldDelta } from './game/online';
+import { Coop } from './game/coop';
 import { OtherPlayers } from './render/others';
 import { Chat } from './ui/chat';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
@@ -49,7 +50,7 @@ import { GameState } from './game/state';
 import { dialogueFor } from './game/talk';
 import { generateQuests } from './game/quests';
 import { Sound } from './game/audio';
-import { yawFor, type Entity } from './entities/entity';
+import { damageEntity, yawFor, type Entity } from './entities/entity';
 import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
@@ -123,6 +124,21 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // the world's own time wins while you are in it, so everyone shares a dawn
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
+    onMonsters: (place, snap, gone) => {
+      const floor = places.underground;
+      if (!floor) return;
+      const mine = coop.applySnap(place, snap, gone, floor.monsters, (m) => floor.monsters.despawnEntity(m));
+      // the floor's owner resolved the blow, so the spoils are handed out here instead
+      for (const fallen of mine) creditKill(fallen);
+    },
+    onHit: (place, index, damage) => {
+      // we own this floor, so a blow reported by somebody else is resolved here
+      const floor = places.underground;
+      if (!floor || !coop.hosting || place !== placeName()) return;
+      const monster = floor.monsters.onRoster(index);
+      if (!monster || monster.dead) return;
+      if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.despawnEntity(monster);
+    },
     onOffer: (offer, fromName) => showOffer(offer, fromName),
     onTradeResult: ({ accepted, offer, iSent }) => {
       if (!accepted) { chat.line('The trade was declined.', 'sys'); return; }
@@ -132,7 +148,43 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       persist();
     },
   });
+  /** Bank what a monster somebody else resolved for us left behind. */
+  const creditKill = (fallen: Entity): void => {
+    const won = spoils(state, fallen, seed);
+    state.inventory.gold += won.gold;
+    state.version++;
+    sound.chime();
+    const spoilsText = [won.gold > 0 ? `${won.gold} gold` : '', ...won.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
+    hud.flash(spoilsText.length ? `Defeated ${fallen.kind.label} (+${spoilsText.join(', ')})` : `Defeated ${fallen.kind.label}`);
+    persist();
+  };
   const others = new OtherPlayers(entityRenderer);
+  const coop = new Coop({
+    sendSnap: (place, snap, gone) => online.monsters(place, snap, gone),
+    sendHit: (place, index, damage) => online.hit(place, index, damage),
+  });
+
+  /**
+   * Everything the server needs from us this frame, and everyone else drawn where they say they
+   * are. It runs in every branch of the loop, because people underground are still people.
+   */
+  const syncOnline = (dt: number, heightAt: (x: number, z: number) => number | null): void => {
+    const standingIn = placeName();
+    online.update(dt, {
+      x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,
+      place: standingIn, riding: sailing.sailing ? 'boat' : mount.riding ? 'horse' : 'foot',
+      gear: SLOTS.map((slot) => state.worn(slot)?.id ?? '').filter(Boolean),
+    });
+    others.sync(online.players.values(), standingIn);
+    others.settle(heightAt);
+    others.project(iso.camera, window.innerWidth, window.innerHeight);
+    onlineStatus.textContent = online.connected ? `online · ${online.count + 1} here` : online.status;
+  };
+
+  /** The world the hero is standing in: the surface, a dungeon floor, or a building. */
+  const placeName = (): string => places.underground
+    ? `${places.underground.poi.name}:${places.underground.floor}`
+    : places.indoors ? places.indoors.title : 'surface';
 
   /**
    * Something a player changed about the world: a chest opened, a vault unlocked, a crop sown or
@@ -733,7 +785,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     player.entity.attackCooldown = 0.45;
     const world = places.underground?.world ?? chunks;
     const manager = places.underground?.monsters ?? entities;
-    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed);
+    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring);
+    for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.hit.length === 0) { sound.select(); return; }
     sound.thud();
     if (res.killed.length > 0) {
@@ -911,6 +964,20 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
     (debug as { __descend?: () => void }).__descend = () => places.descend();
     (debug as { __plots?: () => unknown }).__plots = () => plots.count;
+    (debug as { __place?: () => string }).__place = () => placeName();
+    (debug as { __coop?: () => unknown }).__coop = () => ({
+      hosting: coop.hosting, mirroring: coop.mirroring, id: online.id,
+      others: [...online.players.values()].map((p) => `${p.id}@${p.place}`),
+    });
+    (debug as { __enterShrine?: () => void }).__enterShrine = () => {
+      const shrine = structures.pois.find((p) => p.kind === StructureKind.Shrine);
+      if (shrine) places.enterDungeon(shrine);
+    };
+    (debug as { __monsters?: () => unknown }).__monsters = () =>
+      (places.underground?.monsters.roster ?? []).map((m) => ({
+        i: m.rosterIndex, kind: m.kind.id,
+        x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100, hp: m.hp,
+      }));
     (debug as { __sow?: (x: number, z: number) => void }).__sow = (x, z) => {
       plots.plant(x, z, 'wheat', state.day);
       online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
@@ -965,6 +1032,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       // indoors: a fixed view of the room, the hero and whoever keeps the place
       indoors.renderer.update();
       heroGear.update(state, player.entity);
+      syncOnline(dt, () => 0.5);
       updateHud(dt, indoors.title);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
@@ -982,10 +1050,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       // underground: the hero, the monsters, the lights and the HUD tick
       below.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
       below.scene.heroLight.intensity = state.can('light') ? 9 : 3;
-      below.monsters.update(dt, player.x, player.z, false, onAttack);
+      // one player runs the monsters on a shared floor; everyone else mirrors what they are told
+      coop.survey(online.id, placeName(), online.players.values());
+      coop.age(dt);
+      if (!coop.mirroring) below.monsters.update(dt, player.x, player.z, false, onAttack);
+      coop.publish(dt, below.monsters);
       if (places.underground !== below) { input.endFrame(); return; }
       below.renderer.update();
       heroGear.update(state, player.entity);
+      syncOnline(dt, (x, z) => below.world.heightAt(x, z));
       below.map.reveal(player.x, player.z);
       below.map.draw(player.x, player.z, state.opened, (i) => below.world.chestId(i), below.world.unlocked);
       updateHud(dt, below.floor > 1 ? `${below.poi.name} Depths · floor ${below.floor}` : `${below.poi.name} Depths`);
@@ -1040,19 +1113,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
     mount.update(player, chunks);
 
-    // tell the server where we are, and draw whoever else is here
-    const placeName = places.underground
-      ? `${places.underground.poi.name}:${places.underground.floor}`
-      : places.indoors ? places.indoors.title : 'surface';
-    online.update(dt, {
-      x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,
-      place: placeName, riding: sailing.sailing ? 'boat' : mount.riding ? 'horse' : 'foot',
-      gear: SLOTS.map((slot) => state.worn(slot)?.id ?? '').filter(Boolean),
-    });
-    others.sync(online.players.values(), placeName);
-    others.settle((x, z) => chunks.heightAt(x, z));
-    others.project(iso.camera, window.innerWidth, window.innerHeight);
-    onlineStatus.textContent = online.connected ? `online · ${online.count + 1} here` : online.status;
+    syncOnline(dt, (x, z) => chunks.heightAt(x, z));
     ownBoat.visible = sailing.bought && places.outdoors;
     if (ownBoat.visible) {
       ownBoat.position.set(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z);

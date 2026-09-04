@@ -128,6 +128,18 @@ wss.on('connection', (socket) => {
         broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me);
         break;
       }
+      case 'monsters':
+      case 'hit': {
+        // pure relay: the clients themselves agree on who owns a floor
+        const place = String(message.place).slice(0, 60);
+        for (const other of room.clients) {
+          if (other === me || other.presence.place !== place) continue;
+          send(other, message.type === 'monsters'
+            ? { type: 'monsters', place, snap: message.snap.slice(0, 64), gone: message.gone.slice(0, 64), from: me.presence.id }
+            : { type: 'hit', place, index: Math.floor(message.index), damage: Math.max(0, Math.floor(message.damage)), from: me.presence.id });
+        }
+        break;
+      }
       case 'trade-offer': {
         const target = [...room.clients].find((c) => c.presence.id === message.to);
         if (!target) break;

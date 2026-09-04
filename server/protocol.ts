@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** Where somebody is and what they look like, sent several times a second. */
 export interface Presence {
@@ -57,6 +57,20 @@ export type WorldDelta =
   | { kind: 'reap'; tile: string }
   | { kind: 'found'; name: string };
 
+/**
+ * One monster as the floor's owner sees it. Everyone underground generates the same rooms from
+ * the same seed, so only the creatures moving about in them have to be described.
+ */
+export interface MonsterSnap {
+  /** Index into the floor's own monster list, which every client builds identically. */
+  i: number;
+  x: number;
+  z: number;
+  yaw: number;
+  walk: number;
+  hp: number;
+}
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -64,7 +78,9 @@ export type ClientMessage =
   | { type: 'trade-offer'; to: string; gold: number; items: Array<[string, number]> }
   | { type: 'trade-accept'; from: string }
   | { type: 'trade-decline'; from: string }
-  | { type: 'delta'; delta: WorldDelta };
+  | { type: 'delta'; delta: WorldDelta }
+  | { type: 'monsters'; place: string; snap: MonsterSnap[]; gone: number[] }
+  | { type: 'hit'; place: string; index: number; damage: number };
 
 export type ServerMessage =
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
@@ -76,7 +92,18 @@ export type ServerMessage =
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }
   | { type: 'trade-result'; with: string; accepted: boolean; offer: TradeOffer }
+  | { type: 'monsters'; place: string; snap: MonsterSnap[]; gone: number[]; from: string }
+  | { type: 'hit'; place: string; index: number; damage: number; from: string }
   | { type: 'error'; reason: string };
+
+/**
+ * Who simulates the monsters on a shared floor: the lowest player id standing on it. Every client
+ * works this out for itself from the presence it already has, so the server needs no say in it.
+ */
+export function ownerOfPlace(ids: string[]): string | null {
+  const sorted = ids.filter(Boolean).sort();
+  return sorted[0] ?? null;
+}
 
 /** Chat is short and plain; anything longer or stranger is cut here rather than downstream. */
 export const MAX_CHAT = 160;

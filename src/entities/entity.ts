@@ -61,6 +61,12 @@ export class Entity {
   yaw = 0;
   /** Renderer slot inside the kind pool, -1 when not drawn. */
   slot = -1;
+  /**
+   * Position in the floor's monster roster, fixed at spawn. The living list shrinks as creatures
+   * are killed, so a plain array index would mean something different on each client; this does
+   * not, which is what lets two players agree about the same monster.
+   */
+  rosterIndex = -1;
   phase: number;
   walk = 0;
   headPitch = 0;
