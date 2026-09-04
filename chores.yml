@@ -1,0 +1,101 @@
+# Running ai.world: the page, the world server, and the checks that guard both.
+#
+# The game is two halves. The page is grown from a seed and plays perfectly alone; the world
+# server holds the little that people share — the clock, the market, the post shelf, the log of
+# what players changed. `chore dev` runs both, and Ctrl-C stops both.
+chore_min_version: 0.9.0
+
+vars:
+  WEB_PORT: '5173'
+  WORLD_PORT: '8787'
+  # One JSON file per seed lives here. Deleting one forgets that world's shared state, nothing else.
+  WORLD_DATA: server/data
+
+tasks:
+  dev:
+    desc: The page and the world server, together
+    before: ['{{.CHORE_EXE}} install']
+    deps: [web, world]
+
+  # Anything after -- is handed to vite, so `chore web -- --host` opens it to the network.
+  web:
+    desc: The page alone, on its own port
+    vars:
+      PORT: '{{.WEB_PORT}}'
+    args:
+      - name: port
+        desc: port to serve the page on
+    cmds:
+      - 'pnpm vite --port {{.PORT}} --strictPort {{.CLI_ARGS}}'
+
+  world:
+    desc: The world server alone, holding what players share
+    vars:
+      PORT: '{{.WORLD_PORT}}'
+    args:
+      - name: port
+        desc: port the server listens on
+    env:
+      PORT: '{{.PORT}}'
+      DATA_DIR: '{{.WORLD_DATA}}'
+    cmds:
+      - 'pnpm tsx server/index.ts {{.CLI_ARGS}}'
+
+  preview:
+    desc: The built page, served as it will be deployed
+    before: ['{{.CHORE_EXE}} build']
+    cmds: ['pnpm vite preview --port {{.WEB_PORT}}']
+
+  install:
+    desc: Dependencies, if they are not already there
+    sources: [package.json, pnpm-lock.yaml]
+    generates: [node_modules/.modules.yaml]
+    cmds: [pnpm install]
+
+  check:
+    desc: Typecheck and test, the gate before a commit
+    cmds:
+      - task: typecheck
+      - task: test
+
+  typecheck:
+    desc: Types only
+    cmds: [pnpm tsc --noEmit]
+
+  test:
+    desc: The generators, the systems and the wire
+    vars:
+      PATTERN: ''
+    args:
+      - name: pattern
+        desc: only run test files whose path matches this
+    cmds: ['pnpm vitest run {{.PATTERN}}']
+
+  build:
+    desc: Typecheck and build the page into dist/
+    cmds: [pnpm build]
+
+  worlds:
+    desc: The worlds this server has kept, and what is in them
+    silent: true
+    cmds: ['pnpm tsx server/worlds.ts {{.WORLD_DATA}}']
+
+  forget:
+    desc: Forget one world's shared state, leaving the world itself untouched
+    args:
+      - name: seed
+        desc: which world to forget
+    cmds:
+      - 'rm -f {{.WORLD_DATA}}/{{.SEED}}.json'
+      - 'echo "World {{.SEED}} starts again from its seed alone."'
+
+  ping:
+    desc: Ask a running world server how it is
+    silent: true
+    vars:
+      PORT: '{{.WORLD_PORT}}'
+    args:
+      - name: port
+        desc: port to ask
+    cmds:
+      - 'curl -s -m 3 http://localhost:{{.PORT}}/ || echo "Nothing answering on {{.PORT}}."'

@@ -62,6 +62,23 @@ import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 
 
+/** The world server's port, which `chore world` also uses. */
+const WORLD_PORT = 8787;
+
+/**
+ * Where to look for a world server, in the order somebody would expect: the address in the link,
+ * then the one they used last, then the machine that served the page. Nobody should have to type
+ * an address to play with the person sitting next to them.
+ */
+function defaultServer(url: URL): string {
+  const given = url.searchParams.get('server');
+  if (given) return given;
+  const remembered = localStorage.getItem('ai.world/server');
+  if (remembered) return remembered;
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${scheme}://${window.location.hostname || 'localhost'}:${WORLD_PORT}`;
+}
+
 async function boot(): Promise<void> {
   const store = new IndexedDbStore();
   const url = new URL(window.location.href);
@@ -1086,10 +1103,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const nameInput = $('nameInput') as HTMLInputElement;
   const onlineStatus = $('onlineStatus');
   nameInput.value = localStorage.getItem('ai.world/name') ?? '';
+  serverInput.value = defaultServer(url);
   $('connectButton').addEventListener('click', () => {
     if (online.connected) { online.disconnect(); others.clear(); chat.hide(); return; }
+    const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
-    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
+    localStorage.setItem('ai.world/server', address);
+    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
     chat.show();
   });
 

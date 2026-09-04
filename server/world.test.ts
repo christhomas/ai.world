@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DAY_LENGTH, SharedWorld, worldPath } from './world';
+import { describeWorlds } from './worlds';
 import { cleanDelta, cleanLetter, cleanStallItem, deltaKey } from './protocol';
 
 const scratch = () => mkdtempSync(join(tmpdir(), 'aiworld-'));
@@ -167,5 +168,30 @@ describe('deltas off the wire', () => {
     expect(cleanStallItem({ id: 'apple', price: -5, count: 1000 })).toEqual({ id: 'apple', price: 1, count: 99 });
     expect(cleanStallItem({ id: '', price: 1, count: 1 })).toBeNull();
     expect(cleanStallItem({ id: 'apple', price: Number.NaN, count: 1 })).toBeNull();
+  });
+});
+
+describe('what the server has kept', () => {
+  it('reads back one line per world, and says so plainly when there are none', () => {
+    const dir = scratch();
+    try {
+      expect(describeWorlds(dir)[0]).toContain('No worlds saved yet');
+      expect(describeWorlds(join(dir, 'nowhere'))[0]).toContain('No worlds saved yet');
+
+      const world = new SharedWorld(5, worldPath(dir, 5), { day: 4, time: 0.5 });
+      world.apply({ kind: 'chest', id: 'vault:1:chest:0' });
+      world.meet('Rowan');
+      world.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
+      world.post({ from: 'Rowan', to: 'Wren', gold: 5, items: [], day: 4 });
+      world.save();
+
+      const [line] = describeWorlds(dir);
+      expect(line).toContain('seed 5');
+      expect(line).toContain('day 4, 12:00');
+      expect(line).toContain('1 change');
+      expect(line).toContain('1 stall');
+      expect(line).toContain('1 parcel');
+      expect(line).toContain('visited by Rowan');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

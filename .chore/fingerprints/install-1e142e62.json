@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "task": "install",
+  "hash": "c38d84a1f9f3a16f1844f562b575d3719985c936f5f5287d56ed3b50c6ddcadc",
+  "sources": {
+    "package.json": "91429a645cc627c43fc9ba7dddc948343ac0027e493b0b63d460e50e0e887c3c",
+    "pnpm-lock.yaml": "9964843f81072d07ddb6fee979dd72a70d5c47f7575ec2623678304c9aba82e5"
+  },
+  "generates": [
+    "node_modules/.modules.yaml"
+  ],
+  "updated_at": "2026-09-04T06:54:34.61874Z"
+}

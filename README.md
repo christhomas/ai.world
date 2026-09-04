@@ -179,12 +179,24 @@ any name: this is a game to play with people you know, not a hardened service.
 ## Running it yourself
 
 ```sh
-pnpm install
-pnpm dev        # the game at http://localhost:5173
-pnpm server     # optional multiplayer server on :8787
-pnpm test       # tests over the generators, the systems and the wire
-pnpm build      # typecheck and production build into dist/
+chore dev          # the page on :5173 and the world server on :8787, together
+chore web          # the page alone, or `chore web 3000` on another port
+chore world        # the world server alone
+chore check        # typecheck and the whole test suite
+chore build        # typecheck and a production build into dist/
+chore worlds       # what the server has kept: day, changes, stalls, parcels, who has visited
+chore forget 1     # forget world 1's shared state; the world itself is still in the seed
+chore ping         # ask a running server how it is
 ```
+
+`chore` reads `chores.yml`; `chore --list` shows every task and `chore <task> --help` describes
+one. One Ctrl-C stops both halves of `chore dev`, server included. The underlying scripts are
+still plain pnpm (`pnpm dev`, `pnpm server`, `pnpm test`, `pnpm build`) if you would rather run
+them directly.
+
+The page fills in the server address itself: the one in `?server=`, else the one you used last,
+else the machine that served the page. Playing with somebody on your network is
+`chore web -- --host` away, with no address to type.
 
 Deployment is a GitHub Action that builds `dist/` on every push to `main` and publishes it to
 GitHub Pages; the repository's Pages source must be set to **GitHub Actions**. The original
@@ -240,6 +252,7 @@ src/
   ui/          hud, rucksack, journal, map, dialogue, chat, player list, title, styles
   save/        persistence interface and IndexedDB implementation
 server/        wire protocol, the WebSocket server, and the world file it keeps per seed
+chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
 ```
 
 ### Tunables

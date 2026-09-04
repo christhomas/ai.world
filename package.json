@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "server": "tsx server/index.ts"
+    "server": "tsx server/index.ts",
+    "worlds": "tsx server/worlds.ts"
   },
   "dependencies": {
     "idb-keyval": "^6.3.0",
