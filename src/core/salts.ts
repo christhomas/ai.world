@@ -23,6 +23,7 @@ export const SALT = {
   WHALE: 0x7a1e,
   HUNT: 0x5aa4,
   INTERIOR: 0x1de5,
+  PEOPLE: 0x9e0b,           // the families a village is founded with
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

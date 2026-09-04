@@ -26,6 +26,7 @@ import type { Hud } from '../ui/hud';
 import type { Chat } from '../ui/chat';
 import type { Sound } from './audio';
 import type { MapMarker } from '../ui/mapbase';
+import type { Register } from '../world/register';
 
 /**
  * Everything that happens because other people are in your world: the connection, the market, the
@@ -51,6 +52,12 @@ export interface MultiplayerContext {
   questList: Quest[];
   /** Places the hero has named, shared with the rest of the game. */
   discovered: Set<string>;
+  /**
+   * Who lives in the villages. Almost nothing about it has to travel — every client works out the
+   * same births and natural deaths from the same seed — but a villager killed by a wolf on
+   * somebody else's screen is news, and arrives here as a delta.
+   */
+  register: Register;
   seed: number;
   /** Which world the hero is standing in: the surface, a dungeon floor, or a building. */
   placeName: () => string;
@@ -67,7 +74,7 @@ export interface MultiplayerContext {
 export function createMultiplayer(ctx: MultiplayerContext) {
   const {
     player, state, places, plots, mount, sailing, entityRenderer, camera,
-    dialogue, hud, chat, sound, questList, discovered, seed, placeName, persist, showOffer,
+    dialogue, hud, chat, sound, questList, discovered, register, seed, placeName, persist, showOffer,
   } = ctx;
   const onlineStatus = $('onlineStatus');
   const duelBar = $('duelbar');
@@ -267,6 +274,10 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       }
       case 'found':
         discovered.add(delta.name);
+        break;
+      case 'died':
+        // the village loses them, and the people who knew them are left holding the memory
+        register.apply({ kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence' });
         break;
     }
     state.version++;

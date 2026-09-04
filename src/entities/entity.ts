@@ -105,8 +105,17 @@ export class Entity {
   fleeX = 0;
   fleeZ = 0;
   readonly tints: number[];
-  readonly name: string;
+  /**
+   * What to call them. A creature's is drawn from its kind; a villager's is overwritten at spawn
+   * with the name the village register has for whoever is standing there.
+   */
+  name: string;
   role: EntityRole = 'none';
+  /**
+   * Which villager on the register this is, or empty for anything that is not a resident. It is
+   * the register, not this object, that knows their family and what they have seen happen.
+   */
+  person = '';
   /**
    * What this villager does for a living, which decides their whole day. The name of a tree in
    * behaviours/villagers.json; empty for anything that is not a working person.

@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -60,13 +60,15 @@ export interface Clock {
  * - `sow`     a crop planted on a tile, carrying the crop and the day it went in
  * - `reap`    that tile lifted again
  * - `found`   a place somebody named, so everyone's map agrees
+ * - `died`    a villager killed by something, which no client could have worked out on its own
  */
 export type WorldDelta =
   | { kind: 'chest'; id: string }
   | { kind: 'key'; id: string }
   | { kind: 'sow'; tile: string; crop: string; day: number }
   | { kind: 'reap'; tile: string }
-  | { kind: 'found'; name: string };
+  | { kind: 'found'; name: string }
+  | { kind: 'died'; who: string; village: string; day: number };
 
 /**
  * One monster as the floor's owner sees it. Everyone underground generates the same rooms from
@@ -322,6 +324,7 @@ export function deltaKey(delta: WorldDelta): string {
     case 'sow': return `sow:${delta.tile}`;
     case 'reap': return `sow:${delta.tile}`;   // reaping clears the sowing it replaces
     case 'found': return `found:${delta.name}`;
+    case 'died': return `died:${delta.who}`;
   }
 }
 
@@ -332,6 +335,11 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
     case 'chest': return { kind: 'chest', id: id(delta.id) };
     case 'key': return { kind: 'key', id: id(delta.id) };
     case 'found': return { kind: 'found', name: id(delta.name) };
+    case 'died': {
+      const day = Number(delta.day);
+      if (!Number.isFinite(day)) return null;
+      return { kind: 'died', who: id(delta.who), village: id(delta.village), day: Math.max(1, Math.floor(day)) };
+    }
     case 'sow': {
       const day = Number(delta.day);
       if (!Number.isFinite(day)) return null;

@@ -4,6 +4,8 @@ import type { DialogueNode } from '../ui/dialogue';
 import { ITEMS, SHOP_DEFS, itemSummary, sellPrice, sellableAt } from './shops';
 import type { GameState } from './state';
 import type { Quest } from './quests';
+import { gossipFor } from './gossip';
+import type { Register } from '../world/register';
 
 export interface TalkCtx {
   state: GameState;
@@ -20,6 +22,10 @@ export interface TalkCtx {
   post?: Post;
   /** Taking a room for the night, which only an innkeeper can offer. */
   room?: Room;
+  /** Who lives in the villages, so a resident can talk about their family and their losses. */
+  register?: Register;
+  /** The day it is, which is how long ago something was. */
+  day?: number;
 }
 
 /**
@@ -73,16 +79,34 @@ export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
   if (e.role === 'congregation') {
     return {
       speaker: e.name, emoji: k.emoji,
-      pages: ['Hello, traveller.', pick(ctx.rng, CONGREGATION_LINES)],
+      pages: ['Hello, traveller.', ...residentPages(e, ctx, pick(ctx.rng, CONGREGATION_LINES))],
     };
   }
   if (k.id === 'villager' || k.id === 'traveller') {
+    const greeting = pick(ctx.rng, ['Hello there!', 'Oh! Hello.', 'Well met, traveller.']);
     return {
       speaker: e.name, emoji: k.emoji,
-      pages: [pick(ctx.rng, ['Hello there!', 'Oh! Hello.', 'Well met, traveller.']), e.line(ctx.rng)],
+      pages: [greeting, ...residentPages(e, ctx, e.line(ctx.rng))],
     };
   }
   return { speaker: `${e.name} the ${k.label}`, emoji: k.emoji, pages: [e.line(ctx.rng)] };
+}
+
+/**
+ * What somebody who lives here says, as opposed to what a villager-shaped thing says.
+ *
+ * A death they are still carrying comes first, because it would: it is the thing on their mind.
+ * After that they will tell you about their family or point you at somebody worth meeting, and
+ * only then fall back on the line their trade always gives.
+ */
+function residentPages(e: Entity, ctx: TalkCtx, fallback: string): string[] {
+  if (e.person === '' || !ctx.register) return [fallback];
+  const person = ctx.register.find(e.person);
+  if (!person) return [fallback];
+
+  const talk = gossipFor(person, ctx.register, ctx.day ?? 1, ctx.rng);
+  const aside = talk.small.length > 0 ? pick(ctx.rng, talk.small) : fallback;
+  return talk.news ? [talk.news, aside] : [aside];
 }
 
 function questDialogue(e: Entity, q: Quest, ctx: TalkCtx): DialogueNode {

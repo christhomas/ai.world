@@ -7,7 +7,9 @@ import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { BIOME_ANIMALS, DUNGEON_MONSTERS, KINDS, WATER_ANIMALS, pickKind } from './animals';
 import { treeFor } from './behaviours';
-import { pickTrade } from './trades';
+import { pickTrade, tradesFor } from './trades';
+import type { Register } from '../world/register';
+import { stageOf, type Person } from '../world/people';
 import { Entity, Herd, canStand, damageEntity, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
@@ -86,6 +88,8 @@ export class EntityManager {
   private focusCz = Number.NaN;
   /** Chunks spawned during the night carry predators; the flag flips at dusk and dawn. */
   private night = false;
+  /** The register's day as of the last time the villagers on the street were checked against it. */
+  private registerDay = -1;
 
   constructor(
     private readonly renderer: EntityRenderer,
@@ -103,6 +107,12 @@ export class EntityManager {
      * line in the chat — because this layer only knows that a creature stopped moving.
      */
     private readonly onFallen: (who: Entity) => void = () => {},
+    /**
+     * Who lives in the villages. A villager standing in the street is one of the people on this
+     * register, not a stranger rolled on the spot, which is what lets them have a family, a name
+     * somebody else will use, and a death worth mentioning.
+     */
+    private readonly register: Register | null = null,
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -152,6 +162,10 @@ export class EntityManager {
       strike: (attacker: Entity, victim: Entity, damage: number) => this.strike(attacker, victim, damage),
       worth: this.priceOf,
     };
+    if (this.register && this.register.today !== this.registerDay) {
+      this.registerDay = this.register.today;
+      this.reseat();
+    }
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
     for (const list of this.spawned.values()) {
@@ -443,6 +457,7 @@ export class EntityManager {
         if (herd.members.length > 1) herd.members[1].role = 'stablehand';
         // everybody gets a house, a trade, and the places that trade takes them
         const posts = this.postsOf(v);
+        const residents = this.residentsFor(v, posts, herd.members.length);
         herd.members.forEach((e, i) => {
           const house = v.houses[i % Math.max(1, v.houses.length)];
           const home: [number, number] = house
@@ -460,6 +475,13 @@ export class EntityManager {
             e.role = 'villager';
             e.trade = pickTrade(posts, ctx.rng);
           }
+          // and whoever this is, they are somebody the village register knows by name
+          const resident = residents[i];
+          if (resident) {
+            e.person = resident.id;
+            e.name = resident.name;
+            if (resident.trade !== '') e.trade = resident.trade;
+          }
         });
       }
       if (v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
@@ -469,6 +491,50 @@ export class EntityManager {
       }
       // shopkeepers are inside their shops; the street outside is for villagers
     }
+  }
+
+  /**
+   * Nobody stands in the street after they have left the register.
+   *
+   * A villager can be there for days, and in that time the person they are can die of old age or
+   * be killed somewhere the player never saw. When that happens the body in the street is given
+   * to somebody who is actually alive — a village always has more people than it ever shows at
+   * once — and if there is nobody spare, they go indoors and are gone.
+   */
+  private reseat(): void {
+    if (!this.register) return;
+
+    for (const herd of this.herds) {
+      for (const villager of [...herd.members]) {
+        if (villager.person === '' || this.register.find(villager.person)) continue;
+
+        const taken = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
+        const free = this.register.living(herd.tag)
+          .find((p) => !taken.has(p.id) && stageOf(p, this.register!.today) !== 'baby');
+        if (!free) { this.despawnEntity(villager); continue; }
+
+        villager.person = free.id;
+        villager.name = free.name;
+        if (free.trade !== '') villager.trade = free.trade;
+      }
+    }
+  }
+
+  /**
+   * Which of a village's residents are out on the street right now.
+   *
+   * A village holds far more people than are ever drawn at once, so this takes the grown ones who
+   * are not already standing somewhere else. Babies stay indoors, which is why nobody ever meets
+   * one; they turn up as children a week later.
+   */
+  private residentsFor(v: Village, posts: Partial<Record<Post, [number, number]>>, wanted: number): Person[] {
+    if (!this.register) return [];
+    const trades = tradesFor(posts).map((t) => t.id);
+    const out = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
+
+    return this.register.settle(v.name, v.houses.length, trades)
+      .filter((p) => !out.has(p.id) && stageOf(p, this.register!.today) !== 'baby')
+      .slice(0, wanted);
   }
 
   /**

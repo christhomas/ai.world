@@ -62,6 +62,7 @@ import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
+import { Register } from './world/register';
 
 
 /** The world server's own port, which `chore world` also uses. */
@@ -135,10 +136,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
   const worldMap = new WorldMap(mapBase, fog);
   const entityRenderer = new EntityRenderer(rig.scene);
+  // who lives in the villages: founded from the seed, then born and buried as the days pass
+  const register = new Register(seed);       // caught up to the saved day once the state is loaded
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
     (id) => ITEMS[id]?.price ?? 4,
     (who) => fallen(who),
+    register,
   );
   const dialogue = new DialogueBox();
   const sound = new Sound();
@@ -182,6 +186,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   // --- state ---
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
+  register.advance(state.day);                // a world reopened after a week finds a village changed
   const discovered = state.discovered;
   const urlTime = url.searchParams.get('t');
   if (urlTime !== null) state.time = Math.max(0, Math.min(0.999, Number(urlTime) || 0));
@@ -261,6 +266,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // interaction layer below owns and hands back once it exists
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   const multiplayer = createMultiplayer({
+    register,
     player, state, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
     dialogue, hud, chat, sound, questList, discovered, seed,
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
@@ -319,7 +325,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   // --- talking ---
   const talkCtx: TalkCtx = {
-    state, rng: lineRng, quests, time: state.time,
+    state, rng: lineRng, quests, time: state.time, register, day: state.day,
     onInventoryChange: () => { sound.chime(); persist(); },
     onQuestChange: (q: { village: string; id?: string }, status: 'active' | 'done') => {
       if (status === 'done') {
@@ -332,6 +338,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   };
   const startTalk = (e: Entity) => {
     talkCtx.time = state.time;
+    talkCtx.day = state.day;
     // a bed for the night, and in a shared world the night that cannot be skipped
     talkCtx.room = {
       price: ITEMS.room.price,
@@ -382,6 +389,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * happened within sight you are told, because a scream in the middle distance is the point.
    */
   const fallen = (who: Entity): void => {
+    // a villager killed by something is off the register for good, and the people who knew them
+    // are the only record of it left
+    if (who.person !== '') {
+      const death = register.bury(who.person, state.day);
+      if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
+    }
     remains.leave(who.name, who.trade, who.x, who.z, who.purse, who.carrying?.id ?? null, seed ^ Math.floor(who.x * 131 + who.z * 977));
     if (Math.hypot(who.x - player.x, who.z - player.z) < GAMEPLAY.POI_DISCOVER_RADIUS * 6) {
       hud.flash(`${who.name} was killed. Their pack is where they fell.`);
@@ -629,8 +642,32 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       entities.within(player.x, player.z, 60).map((e) => ({
         kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
         x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
-        slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10,
+        slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person,
       }));
+    (debug as { __pass?: (days: number) => unknown }).__pass = (days) => {
+      state.day += Math.max(1, Math.floor(days));
+      const changes = register.advance(state.day);
+      return changes.map((c) => `day ${c.day}: ${c.name} ${c.kind}${c.cause ? ` (${c.cause})` : ''} in ${c.village}`);
+    };
+    (debug as { __talkTo?: (name: string) => unknown }).__talkTo = (name) => {
+      const who = entities.within(player.x, player.z, 120).find((e) => e.name === name);
+      if (!who) return null;
+      talkCtx.day = state.day;
+      const node = dialogueFor(who, talkCtx);
+      return { speaker: node.speaker, pages: node.pages, choices: (node.choices ?? []).map((c) => c.label) };
+    };
+    (debug as { __register?: (village?: string) => unknown }).__register = (village) => {
+      const here = village ?? structures.villages
+        .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
+        .sort((a, b) => a.d - b.d)[0]?.v.name ?? '';
+      return {
+        village: here, day: register.today,
+        people: register.living(here).map((p) => ({
+          name: p.name, trade: p.trade, born: p.born, lives: p.lives,
+          mother: p.mother, father: p.father, knows: p.knows.length, memories: p.memories,
+        })),
+      };
+    };
     debug.__player = player;
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
@@ -732,6 +769,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) state.tick(dt);
+    // a day turning over is a day in the villages too: lives run out, and children are born
+    for (const change of register.advance(state.day)) {
+      if (change.kind === 'died' && discovered.has(change.village)) {
+        chat.line(`Word from ${change.village}: ${change.name} has died.`, 'sys');
+      }
+    }
 
     // hold the place for this frame: a bite can end it half way through
     const indoors = places.indoors;
