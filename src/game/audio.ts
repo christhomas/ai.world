@@ -24,8 +24,31 @@ export class Sound {
     try { const s = localStorage.getItem('ai.world/volume'); if (s !== null) v = Number(s); } catch { /* ignore */ }
     this.volume = Number.isFinite(v) ? v : 0.6;
     const unlock = () => { this.ensure(); };
-    window.addEventListener('keydown', unlock, { once: true });
-    window.addEventListener('pointerdown', unlock, { once: true });
+    const signal = this.listening.signal;
+    window.addEventListener('keydown', unlock, { once: true, signal });
+    window.addEventListener('pointerdown', unlock, { once: true, signal });
+  }
+
+  /** Everything this sound holds open, so silence can be complete. */
+  private readonly listening = new AbortController();
+
+  /** Hold the whole audio graph while the tab is hidden, and pick it up again after. */
+  quiet(on: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (on) void ctx.suspend().catch(() => { /* already suspended */ });
+    else void ctx.resume().catch(() => { /* the browser will unlock it on the next key */ });
+  }
+
+  /** Close the audio down: no wind, no music, no context left running. */
+  dispose(): void {
+    this.listening.abort();
+    this.music.stop();
+    const ctx = this.ctx;
+    this.ctx = null;
+    this.master = null;
+    this.wind = null;
+    void ctx?.close().catch(() => { /* already gone */ });
   }
 
   setVolume(v: number): void {

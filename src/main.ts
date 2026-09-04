@@ -693,7 +693,43 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       manifest: manifest.toJSON(),
     });
   };
-  const toTitle = () => { persist(); window.setTimeout(() => { window.location.href = window.location.pathname; }, 150); };
+  /**
+   * Put the world away. The simulation is expensive — chunk workers, a webgl context, an audio
+   * graph, a socket — and none of it should outlive the moment you leave for the title screen.
+   */
+  const shutDown = (): void => {
+    loop.stop();
+    input.dispose();
+    online.disconnect();
+    others.clear();
+    sound.dispose();
+    places.dispose();
+    chunks.dispose();
+    entityRenderer.dispose();
+    heroGear.dispose();
+    weather.dispose();
+    cropField.dispose();
+    props.dispose();
+    rig.water.dispose();
+    rig.renderer.dispose();
+    rig.renderer.domElement.remove();
+  };
+
+  const toTitle = () => {
+    persist();
+    shutDown();
+    // the page comes back to a clean title screen: nothing of this world is left running
+    window.setTimeout(() => { window.location.href = window.location.pathname; }, 150);
+  };
+
+  /**
+   * A hidden tab should cost nothing. The frame loop already stops when the browser stops asking
+   * for frames, but the chunk workers and the audio graph do not, so they are stood down too.
+   */
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { loop.stop(); chunks.pause(); sound.quiet(true); }
+    else { chunks.resume(); sound.quiet(false); loop.start(); }
+  });
 
   // --- HUD / sound hooks ---
   hud.setVolume(sound.volume);

@@ -199,6 +199,12 @@ export class Places {
     this.enterDungeon(poi, style, anchorId, floor + 1);
   }
 
+  /** Put away whatever the hero is standing in: the world is being shut down. */
+  dispose(): void {
+    this.closeUnderground();
+    if (this.indoors) this.leaveBuilding();
+  }
+
   /** Tear down the current floor without putting the hero back outside. */
   private closeUnderground(): void {
     const visit = this.underground;

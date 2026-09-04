@@ -67,6 +67,19 @@ export class Music {
     if (this.out) this.out.gain.value = this.wantVolume;
   }
 
+  /** Silence the drone and forget the context: the world it played for has gone. */
+  stop(): void {
+    if (this.drone) {
+      this.drone.osc.stop();
+      this.drone.osc2.stop();
+      this.drone.gain.disconnect();
+      this.drone = null;
+    }
+    this.out?.disconnect();
+    this.out = null;
+    this.ctx = null;
+  }
+
   setScene(biome: Biome, night: number, cave: boolean): void {
     const mood = cave ? CAVE : MOODS[biome];
     if (mood !== this.mood && this.drone) {

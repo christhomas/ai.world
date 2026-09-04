@@ -93,7 +93,20 @@ export class ChunkManager implements TileWorld, ChunkSource {
     }
   }
 
+  /** True while the tab is hidden: queued chunks wait rather than keeping the workers busy. */
+  private paused = false;
+
+  /** Stand the workers down; whatever is queued stays queued. */
+  pause(): void { this.paused = true; }
+
+  /** Put them back to work on whatever piled up. */
+  resume(): void {
+    this.paused = false;
+    this.pump();
+  }
+
   private pump(): void {
+    if (this.paused) return;
     while (this.idle.length > 0 && this.queue.length > 0) {
       const job = this.queue.shift()!;
       const w = this.idle.pop()!;

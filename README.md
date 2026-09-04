@@ -30,7 +30,7 @@ synthesised as you play.
 | **Q / E**, scroll | Turn the camera, zoom |
 | **F** | Free camera |
 | **P** | Photo mode: the interface steps aside, Space takes the picture |
-| **N** | Save and return to the title |
+| **N** | Save and return to the title, which puts the whole world away rather than leaving it running |
 | **O** | Options: light, volume, multiplayer, seed |
 
 Three save slots on the title screen. `?seed=123` opens a particular world, and `&x=100&z=-50`

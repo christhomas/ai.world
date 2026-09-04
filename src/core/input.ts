@@ -16,16 +16,20 @@ export class Input {
   clickY = -1;
   clicked = false;
 
+  /** Every listener this input holds, so they can all be dropped at once. */
+  private readonly listening = new AbortController();
+
   constructor(el: HTMLElement) {
+    const signal = this.listening.signal;
     document.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
       if (!e.repeat) {
         this.keyHandlers.get(k)?.forEach((h) => h());
       }
       this.keys.add(k);
-    });
-    document.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
-    window.addEventListener('blur', () => this.keys.clear());
+    }, { signal });
+    document.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()), { signal });
+    window.addEventListener('blur', () => this.keys.clear(), { signal });
 
     el.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
@@ -34,7 +38,7 @@ export class Input {
       this.dragX = e.clientX;
       this.dragY = e.clientY;
       el.style.cursor = 'grabbing';
-    });
+    }, { signal });
     el.addEventListener('mousemove', (e) => {
       if (!this.dragging) return;
       const dx = e.clientX - this.dragX;
@@ -48,23 +52,30 @@ export class Input {
         this.dragX = e.clientX;
         this.dragY = e.clientY;
       }
-    });
+    }, { signal });
     const endDrag = () => {
       this.dragging = false;
       el.style.cursor = 'default';
     };
-    el.addEventListener('mouseup', endDrag);
-    el.addEventListener('mouseleave', endDrag);
+    el.addEventListener('mouseup', endDrag, { signal });
+    el.addEventListener('mouseleave', endDrag, { signal });
     el.addEventListener('click', (e) => {
       if (this.dragMoved) { this.dragMoved = false; return; }
       this.clicked = true;
       this.clickX = e.clientX;
       this.clickY = e.clientY;
-    });
+    }, { signal });
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
       this.wheelDelta += e.deltaY;
-    }, { passive: false });
+    }, { passive: false, signal });
+  }
+
+  /** Stop listening to anything. The world is being put away. */
+  dispose(): void {
+    this.listening.abort();
+    this.keys.clear();
+    this.keyHandlers.clear();
   }
 
   isDown(...keys: string[]): boolean {
