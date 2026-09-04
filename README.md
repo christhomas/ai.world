@@ -90,6 +90,21 @@ simulated — so two people in one world watch the same pod leave the water on t
 nothing passing between them. Sail underneath one as it comes down and it will put you over the
 side: a heart gone, and a moment treading water before you can haul yourself back aboard.
 
+### Something is following the boat
+
+![A shark circling the boat](docs/screenshots/sharks.png)
+
+Sail far enough from the roads and the water stops being scenery. After a while in open sea a
+pack finds you — sharks usually, orcas if you are unlucky — and they do what they do: keep
+station off the beam, tighten the ring, and eventually one breaks off and comes straight in. A
+strike puts you over the side and the pack sheers away, which is the moment to get back aboard,
+fight, or run for the shallows. They cannot touch you once you are ashore, and they lose interest
+when you are.
+
+Nothing is generated in open water — no land, no chunks, no tiles — so the hunters are not spawned
+by the world the way a herd of deer is. They are put there around whoever sailed out far enough to
+be worth a look.
+
 ### Seasons, weather and a calendar that matters
 
 A week to a season, four to a year. Autumn turns the meadows to rust; winter blends the whole

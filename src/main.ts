@@ -6,6 +6,7 @@ import { mulberry32 } from './core/rng';
 import { QUALITY, createSceneRig } from './render/scene';
 import { WhaleSchool } from './render/whales';
 import { WHALE, displayAt, planPods, podsWithin, whaleAt } from './game/whales';
+import { SeaHunt } from './game/seahunt';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
 import { DayCycle } from './render/daycycle';
@@ -442,6 +443,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (dialogue.isOpen) return;
     hud.hurt();
     sound.thud();
+    if (sailing.sailing && !sailing.overboard && attacker.kind.behaviour === 'circle') {
+      // it came up under the hull: over the side, and now you are in the water with it
+      sailing.throwOverboard();
+      sound.splash();
+      hud.flash(`${attacker.kind.label} hits the boat. You are in the water.`);
+    }
     if (!state.damage(dmg)) return;
     if (places.underground) {
       // knocked out underground: dragged back to the surface, minus some gold
@@ -456,6 +463,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       return;
     }
     // knocked out: wake in the nearest town, lighter in the purse
+    if (sailing.sailing) sailing.abandon();   // whatever happened at sea, you are not at sea now
     let home = structures.villages[0];
     for (const v of structures.villages) {
       if (Math.hypot(v.x - player.x, v.z - player.z) < Math.hypot(home.x - player.x, home.z - player.z)) home = v;
@@ -493,6 +501,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __iso?: unknown }).__iso = iso;
     (debug as { __sampler?: unknown }).__sampler = sampler;
     (debug as { __pods?: () => unknown }).__pods = () => pods;
+    (debug as { __sailing?: unknown }).__sailing = sailing;
     (debug as { __whaleY?: () => number[] }).__whaleY = () => {
       const now = worldSeconds(state.day, state.time);
       return pods.flatMap((pod) => Array.from({ length: pod.size }, (_, i) => Math.round(whaleAt(pod, i, now).y * 100) / 100));
@@ -537,7 +546,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
       entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
     (debug as { __entities?: () => unknown }).__entities = () =>
-      entities.within(player.x, player.z, 60).map((e) => ({ kind: e.kind.id, name: e.name, x: e.x, z: e.z }));
+      entities.within(player.x, player.z, 60).map((e) => ({
+        kind: e.kind.id, name: e.name,
+        x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
+        slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10,
+      }));
     debug.__player = player;
     debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
@@ -570,6 +583,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   // --- whales ---
   const pods = planPods(sampler, seed);
+  const seaHunt = new SeaHunt(seed);
   const school = new WhaleSchool(rig.scene);
   /** The last display we told the player about, so one toast is one display. */
   let announced = -1;
@@ -693,6 +707,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const clockNow = worldSeconds(state.day, state.time);
     interactions.sailFerries(clockNow, time);
     watchWhales(clockNow, dt);
+    // something takes an interest in a boat that has been in deep water a while
+    const arrived = seaHunt.update(dt, sailing.sailing, player.x, player.z, sampler, entities);
+    if (arrived) {
+      sound.thud();
+      hud.flash(`${arrived} in the water. They are circling.`);
+    }
     const { x, z } = iso.target;
     chunks.update(x, z);
     rig.follow(x, z, iso.zoom);
@@ -708,7 +728,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light'), season: tint, wet: weatherStrength });
-    entities.update(dt, player.x, player.z, state.armed, onAttack, state.time);
+    entities.update(dt, player.x, player.z, state.armed, onAttack, state.time, sailing.sailing);
     mount.update(player, chunks);
 
     multiplayer.sync(dt, (x, z) => chunks.heightAt(x, z));

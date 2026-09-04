@@ -186,10 +186,20 @@ export class ChunkManager implements TileWorld, ChunkSource {
     return hit.t.heights[hit.i];
   }
 
+  /**
+   * The water surface at a point, or null where there is none. Rivers and lakes carry their own
+   * level; the sea is the sea. A chunk that came back with no land in it at all is open ocean,
+   * which is how anything that swims can live out there — nothing else is generated for it.
+   */
   waterAt(x: number, z: number): number | null {
-    const hit = this.tileAt(x, z);
-    if (!hit) return null;
-    return hit.t.types[hit.i] === TileType.Water ? hit.t.waters[hit.i] : null;
+    const CS = WORLD.CHUNK_SIZE;
+    const chunk = this.loaded.get(chunkKey(Math.floor(x / CS), Math.floor(z / CS)));
+    if (!chunk) return null;                       // nothing generated here yet
+    if (!chunk.tiles) return WORLD.WATER_Y;        // an empty chunk is open sea
+    const lx = Math.floor(x - Math.floor(x / CS) * CS), lz = Math.floor(z - Math.floor(z / CS) * CS);
+    const i = lz * CS + lx;
+    if (chunk.tiles.types[i] === TileType.Water) return chunk.tiles.waters[i];
+    return chunk.tiles.types[i] === TileType.Seabed ? WORLD.WATER_Y : null;
   }
 
   blocked(x: number, z: number): boolean {

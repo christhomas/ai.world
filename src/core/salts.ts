@@ -21,6 +21,7 @@ export const SALT = {
   CAVE: 0xca7e,
   WRECK: 0x0e3c,
   WHALE: 0x7a1e,
+  HUNT: 0x5aa4,
   INTERIOR: 0x1de5,
 } as const;
 

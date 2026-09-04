@@ -35,7 +35,27 @@ export const BEHAVIOUR = {
   PROWL_DRIFT: 9,
   HERD_DRIFT_TIME: [8, 18],
   TURN_RATE: 8,            // radians per second toward the travel direction
+  /** Sea hunters notice a swimmer or a boat from here. */
+  CIRCLE_NOTICE: 18,
+  /** How far off they keep while they are only looking. */
+  CIRCLE_RADIUS: 6,
+  /** How quickly the ring tightens while they work themselves up. */
+  CIRCLE_CLOSE: 0.25,
+  /** Seconds between one of them breaking off to charge, fewest and most. */
+  CHARGE_EVERY: [5, 11],
+  /** How long a charge lasts before it gives up and goes back to circling. */
+  CHARGE_TIME: 2.6,
+  /**
+   * How long a sea hunter waits after a strike before it will bite again. Much longer than a
+   * wolf's: a swimmer cannot back away, so without this a pack simply eats them where they float.
+   */
+  SEA_BITE_COOLDOWN: 5.5,
 } as const;
+
+/** Kinds that live in the water and can only move through it. */
+export function swims(kind: { behaviour: string }): boolean {
+  return kind.behaviour === 'swim' || kind.behaviour === 'circle';
+}
 
 export class Herd {
   members: Entity[] = [];
@@ -91,6 +111,10 @@ export class Entity {
   /** Hidden indoors: not drawn, not interactive, until morning. */
   indoors = false;
   attackCooldown = 0;
+  /** Seconds left of a charge at the player; 0 when circling or uninterested. */
+  charging = 0;
+  /** Seconds until this one works itself up to a charge. */
+  nextCharge = 0;
   hp: number;
   /** Rig parts to leave undrawn, by tag: a helm replaces the hero's own hat. */
   readonly hiddenTags = new Set<string>();
@@ -123,7 +147,7 @@ export class Entity {
 
 /** Can this kind stand at (x,z), stepping from height `fromY` (or anywhere if undefined)? */
 export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number): boolean {
-  if (kind.behaviour === 'swim') return world.waterAt(x, z) !== null;
+  if (swims(kind)) return world.waterAt(x, z) !== null;
   if (kind.behaviour === 'fly') return true;
   const h = world.heightAt(x, z);
   if (h === null || world.blocked(x, z)) return false;
@@ -133,7 +157,7 @@ export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: numbe
 }
 
 export function groundY(world: TileWorld, kind: AnimalKind, x: number, z: number): number | null {
-  if (kind.behaviour === 'swim') return world.waterAt(x, z);
+  if (swims(kind)) return world.waterAt(x, z);
   return world.heightAt(x, z);
 }
 
@@ -173,6 +197,8 @@ export interface Ctx {
   time?: number;
   /** Hero carries a sword: predators keep away instead of biting. */
   playerArmed: boolean;
+  /** Hero is in the water or on a boat, which is what sea hunters are interested in. */
+  playerAfloat?: boolean;
   onAttack: (e: Entity, damage: number) => void;
 }
 
@@ -187,6 +213,46 @@ function pickTarget(e: Entity, ctx: Ctx, radius: number): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * A shark's day: keep station on whatever is in the water, tighten the ring, and every so often
+ * one of them stops circling and comes straight in. A charge that reaches you bites; a charge
+ * that runs out of patience peels off and rejoins the circle.
+ *
+ * Only things afloat are worth circling. On dry land you are somebody else's problem.
+ */
+function circleAndCharge(e: Entity, dt: number, ctx: Ctx, pdx: number, pdz: number, pd2: number): void {
+  const interested = ctx.playerAfloat === true && pd2 < BEHAVIOUR.CIRCLE_NOTICE ** 2;
+  if (!interested) {
+    e.charging = 0;
+    e.nextCharge = 0;
+    return;
+  }
+
+  if (e.charging > 0) {
+    e.charging -= dt;
+    e.tx = ctx.playerX;
+    e.tz = ctx.playerZ;
+    if (e.state !== 'walk') { e.state = 'walk'; e.timer = BEHAVIOUR.CHARGE_TIME; }
+    return;
+  }
+
+  // keep station: each one holds its own place around the ring, drawing in as it works up to it
+  const [soonest, latest] = BEHAVIOUR.CHARGE_EVERY;
+  if (e.nextCharge <= 0) e.nextCharge = soonest + ctx.rng() * (latest - soonest);
+  e.nextCharge -= dt;
+  if (e.nextCharge <= 0) {
+    e.charging = BEHAVIOUR.CHARGE_TIME;
+    e.nextCharge = soonest + ctx.rng() * (latest - soonest);
+    return;
+  }
+
+  const ring = Math.max(1.5, BEHAVIOUR.CIRCLE_RADIUS - (1 - e.nextCharge / latest) * BEHAVIOUR.CIRCLE_CLOSE * BEHAVIOUR.CIRCLE_RADIUS);
+  const around = Math.atan2(pdz, pdx) + dt * 0.9 + e.phase * 0.01;
+  e.tx = ctx.playerX + Math.cos(around) * ring;
+  e.tz = ctx.playerZ + Math.sin(around) * ring;
+  if (e.state !== 'walk') { e.state = 'walk'; e.timer = 3; }
 }
 
 /** Advance a herd anchor now and then, so groups drift instead of standing on one spot forever. */
@@ -231,6 +297,8 @@ function startFlee(e: Entity, awayX: number, awayZ: number, rng: Rng): void {
 /** Wander radius per behaviour when picking a new target. */
 const WANDER_RADIUS: Record<Behaviour, number> = {
   graze: 4, wander: 4, swim: 4, fly: 4, prowl: 8, travel: 7, hop: 2.5, hunt: 6,
+  // sea hunters range wide while nothing afloat is holding their attention
+  circle: 16,
 };
 
 /**
@@ -321,7 +389,9 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   if (scared && e.state !== 'flee' && pd2 < BEHAVIOUR.FLEE_RADIUS ** 2) startFlee(e, pdx, pdz, ctx.rng);
   // predators bite when they get close
   e.attackCooldown -= dt;
-  if (k.dangerous && (monster || !ctx.playerArmed)) {
+  // a shark cannot bite somebody standing on the beach, whatever else it would like to do
+  const reachable = k.behaviour !== 'circle' || ctx.playerAfloat === true;
+  if (k.dangerous && reachable && (monster || !ctx.playerArmed)) {
     const chase = monster ? BEHAVIOUR.HUNT_RADIUS : BEHAVIOUR.STALK_RADIUS;
     if (pd2 < chase ** 2 && e.state !== 'flee') {
       // stalk: walk straight at the player
@@ -329,11 +399,19 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       if (e.state !== 'walk') { e.state = 'walk'; e.timer = 4; }
     }
     if (pd2 < BEHAVIOUR.BITE_RANGE ** 2 && e.attackCooldown <= 0) {
-      e.attackCooldown = BEHAVIOUR.BITE_COOLDOWN;
+      e.attackCooldown = k.behaviour === 'circle' ? BEHAVIOUR.SEA_BITE_COOLDOWN : BEHAVIOUR.BITE_COOLDOWN;
       e.yaw = yawFor(-pdx, -pdz);
       ctx.onAttack(e, k.dangerous);
+      if (k.behaviour === 'circle') {
+        // a shark that has bitten sheers off and rejoins the circle: it does not maul you where
+        // you float, which would leave a swimmer no moment to get back aboard or fight back
+        e.charging = 0;
+        e.nextCharge = BEHAVIOUR.CHARGE_EVERY[1];
+      }
     }
   }
+
+  if (k.behaviour === 'circle') circleAndCharge(e, dt, ctx, pdx, pdz, pd2);
 
   const hopper = k.behaviour === 'hop';
   let moving = false;
@@ -362,7 +440,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       } else {
         dx = e.tx - e.x; dz = e.tz - e.z;
         const dist = Math.hypot(dx, dz);
-        if (monster && dist > BEHAVIOUR.ARRIVE_DISTANCE) speed = k.runSpeed;
+        if ((monster || e.charging > 0) && dist > BEHAVIOUR.ARRIVE_DISTANCE) speed = k.runSpeed;
         if (dist < BEHAVIOUR.ARRIVE_DISTANCE || e.timer <= 0) {
           e.state = 'idle'; e.timer = hopper ? 0.4 + ctx.rng() * 1.5 : 1 + ctx.rng() * 3;
           e.bobY = 0;

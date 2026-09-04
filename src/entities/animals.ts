@@ -27,7 +27,7 @@ export interface PartDef {
   rot?: [number, number, number];
 }
 
-export type Behaviour = 'graze' | 'wander' | 'prowl' | 'fly' | 'swim' | 'hop' | 'travel' | 'hunt';
+export type Behaviour = 'graze' | 'wander' | 'prowl' | 'fly' | 'swim' | 'hop' | 'travel' | 'hunt' | 'circle';
 
 export interface AnimalKind {
   id: string;
@@ -313,6 +313,41 @@ export const KINDS: Record<string, AnimalKind> = {
       cyl(0.06, 0.22, [0.18, 0.3, 0], W, { tint: 0 }),
       box([0.14, 0.05, 0.1], [0.38, 0.4, 0], 0xf0a020, { anim: 'head', pivot: [0.16, 0.3, 0] }),
       box([0.16, 0.06, 0.12], [-0.28, 0.22, 0], W, { tint: 1, anim: 'tail', rot: [0, 0, 0.5] }),
+    ],
+  },
+  shark: {
+    id: 'shark', label: 'Shark', emoji: '🦈', scale: 1.5, speed: 1.6, runSpeed: 6.5, herd: [2, 3], behaviour: 'circle', timid: false,
+    dangerous: 2, hp: 5, gold: [12, 30], drop: { id: 'fang', chance: 0.5 },
+    palettes: [[0x39464f, 0xdfe6ea], [0x2d383f, 0xd4dde3]],
+    names: ['Grey', 'Notch', 'Old Scar', 'The Fin'],
+    lines: ['*circles*', '*a fin cuts the water*'],
+    parts: [
+      box([1.5, 0.42, 0.5], [0, 0.1, 0], W, { tint: 0 }),
+      box([1.45, 0.2, 0.46], [0, -0.04, 0], W, { tint: 1 }),
+      cone(0.26, 0.6, [0.92, 0.08, 0], W, { tint: 0, rot: [0, 0, -Math.PI / 2] }),
+      // the fin, raked back: from a boat this is the whole animal
+      cone(0.24, 0.95, [-0.05, 0.62, 0], W, { tint: 0, rot: [0, 0, -0.3] }),
+      box([0.1, 0.5, 0.5], [-0.92, 0.16, 0], W, { tint: 0, anim: 'tail', pivot: [-0.7, 0.1, 0] }),
+      box([0.36, 0.08, 0.3], [0.2, -0.1, 0.3], W, { tint: 0, rot: [0.3, 0, 0] }),
+      box([0.36, 0.08, 0.3], [0.2, -0.1, -0.3], W, { tint: 0, rot: [-0.3, 0, 0] }),
+    ],
+  },
+  orca: {
+    id: 'orca', label: 'Orca', emoji: '🐋', scale: 2.1, speed: 1.9, runSpeed: 7.5, herd: [1, 2], behaviour: 'circle', timid: false,
+    dangerous: 3, hp: 9, gold: [30, 70], drop: { id: 'fang', chance: 0.7 },
+    palettes: [[0x1c2026, 0xf2f5f7]],
+    names: ['Blackfin', 'Two-Patch', 'The Matriarch', 'Cutwater'],
+    lines: ['*rolls to look at you*', '*breathes out hard*'],
+    parts: [
+      box([1.7, 0.55, 0.62], [0, 0.12, 0], W, { tint: 0 }),
+      box([1.6, 0.26, 0.58], [0, -0.08, 0], W, { tint: 1 }),
+      box([0.3, 0.16, 0.2], [0.5, 0.3, 0.24], W, { tint: 1 }),
+      box([0.3, 0.16, 0.2], [0.5, 0.3, -0.24], W, { tint: 1 }),
+      cone(0.3, 0.55, [1.0, 0.1, 0], W, { tint: 0, rot: [0, 0, -Math.PI / 2] }),
+      cone(0.22, 0.8, [0, 0.7, 0], W, { tint: 0 }),
+      box([0.12, 0.6, 0.66], [-1.05, 0.18, 0], W, { tint: 0, anim: 'tail', pivot: [-0.8, 0.12, 0] }),
+      box([0.44, 0.09, 0.34], [0.24, -0.12, 0.36], W, { tint: 0, rot: [0.35, 0, 0] }),
+      box([0.44, 0.09, 0.34], [0.24, -0.12, -0.36], W, { tint: 0, rot: [-0.35, 0, 0] }),
     ],
   },
   heron: {

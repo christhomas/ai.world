@@ -65,6 +65,15 @@ export class Sailing {
   board(): void { if (this.owned) this.sailing = true; }
 
   /**
+   * Off the boat, wherever you have ended up — dragged ashore after a knock-out, say. The boat
+   * stays moored where it was, which is where you will have to go back to for it.
+   */
+  abandon(): void {
+    this.sailing = false;
+    this.overboardFor = 0;
+  }
+
+  /**
    * Step ashore. Returns the tile to stand on, or null when there is no land within reach,
    * so you cannot strand yourself in open water.
    */

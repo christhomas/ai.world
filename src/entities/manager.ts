@@ -46,6 +46,9 @@ const SPAWN = {
   HERD_LEASH: 12,
   MIN_WATER_TILES: 6,
   WATER_HERD_CHANCE: 0.55,
+  /** A chunk with no land in it at all is open sea, and open sea has hunters in it. */
+  DEEP_PACK_CHANCE: 0.18,
+  DEEP_LEASH: 14,
   WATER_LEASH: 6,
   MIN_ROAD_TILES: 12,
   TRAVELLER_CHANCE: 0.3,
@@ -84,7 +87,13 @@ export class EntityManager {
 
   get count(): number { return this.renderer.count; }
 
-  update(dt: number, playerX: number, playerZ: number, playerArmed = false, onAttack: (e: Entity, damage: number) => void = () => {}, time?: number): void {
+  /**
+   * @param afloat the hero is in the water or on a boat, which is what the sea hunters want to know
+   */
+  update(
+    dt: number, playerX: number, playerZ: number, playerArmed = false,
+    onAttack: (e: Entity, damage: number) => void = () => {}, time?: number, afloat = false,
+  ): void {
     const CS = WORLD.CHUNK_SIZE;
     const wasNight = this.night;
     if (time !== undefined) this.night = !isDaytime(time);
@@ -111,7 +120,7 @@ export class EntityManager {
       }
     }
 
-    const ctx = { world: this.world, rng: this.rng, playerX, playerZ, playerArmed, onAttack, time };
+    const ctx = { world: this.world, rng: this.rng, playerX, playerZ, playerArmed, playerAfloat: afloat, onAttack, time };
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
     for (const list of this.spawned.values()) {
@@ -176,6 +185,41 @@ export class EntityManager {
     }
     if (herd.members.length > 0) this.herds.add(herd);
     return herd;
+  }
+
+  /**
+   * Put a pack of hunters in the water around a point. Open sea has no chunks to spawn from —
+   * nothing is generated out there but the surface — so what lives in it has to be put there
+   * deliberately, around whatever it has come for.
+   */
+  spawnPack(kindId: string, x: number, z: number, radius: number, seed: number): Entity[] {
+    const rng = mulberry32(seed);
+    const out: Entity[] = [];
+    const angle = rng() * Math.PI * 2;
+    const herd = this.spawnHerdAt(
+      kindId,
+      x + Math.cos(angle) * radius,
+      z + Math.sin(angle) * radius,
+      rng, 'sea', out,
+    );
+    if (herd.members.length === 0) return out;
+    let list = this.spawned.get('sea');
+    if (!list) { list = []; this.spawned.set('sea', list); }
+    list.push(...out);
+    return out;
+  }
+
+  /** Send the sea pack away: they lose interest once you are ashore. */
+  despawnPack(): void {
+    const list = this.spawned.get('sea');
+    if (!list) return;
+    for (const e of [...list]) this.despawnEntity(e);
+    this.spawned.delete('sea');
+  }
+
+  /** How many hunters are in the water right now. */
+  get packSize(): number {
+    return this.spawned.get('sea')?.length ?? 0;
   }
 
   /** Put one named creature somewhere: a dungeon boss, say. */
@@ -275,6 +319,11 @@ export class EntityManager {
     if (sorted.water.length >= SPAWN.MIN_WATER_TILES && rng() < SPAWN.WATER_HERD_CHANCE) {
       const kindId = pickKind(WATER_ANIMALS[sorted.biome], rng());
       if (kindId) this.spawnHerd(ctx, kindId, tileCentre(tiles, sorted.water[Math.floor(rng() * sorted.water.length)]), SPAWN.WATER_LEASH);
+    }
+    // nothing but water in this chunk means open sea, where something else is waiting
+    if (sorted.land.length === 0 && sorted.water.length >= SPAWN.MIN_WATER_TILES && rng() < SPAWN.DEEP_PACK_CHANCE) {
+      const hunter = rng() < 0.7 ? 'shark' : 'orca';
+      this.spawnHerd(ctx, hunter, tileCentre(tiles, sorted.water[Math.floor(rng() * sorted.water.length)]), SPAWN.DEEP_LEASH);
     }
     if (sorted.road.length >= SPAWN.MIN_ROAD_TILES && rng() < SPAWN.TRAVELLER_CHANCE) {
       this.place(ctx, 'traveller', tileCentre(tiles, sorted.road[Math.floor(rng() * sorted.road.length)]), 1 + Math.floor(rng() * 2), SPAWN.TRAVELLER_LEASH);
