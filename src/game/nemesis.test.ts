@@ -5,12 +5,13 @@ import { CREATURE_VERBS, rollSeconds } from '../entities/verbs';
 import { canBeCut } from '../entities/monsters';
 import { VILLAIN_KINDS } from '../entities/villain';
 import { Biome } from '../world/biomes';
+import { KINDS } from '../entities/animals';
 import { Register } from '../world/register';
 import { StructureKind, type Structure, type Village } from '../world/structures';
 import type { Person } from '../world/people';
 import { Jail } from './jail';
 import {
-  NEMESIS, Nemesis, WANTS, heardOfHim, knocked, planFor, type Realm, type Tool,
+  NEMESIS, Nemesis, SENDS, WANTS, heardOfHim, knocked, planFor, ruinsFor, sentBy, type Realm, type Tool,
 } from './nemesis';
 
 /** A house, in as much detail as any of this cares about: there is one, and it has a door. */
@@ -52,14 +53,15 @@ const everyTool: Tool[] = ['boat', 'shovel', 'horse', 'sword'];
 
 describe('which village he settles on', () => {
   it('rolls the same schemes in the same order from the same seed', () => {
-    const places = ['Oakford', 'Ashmere', 'Farfield', 'Nether Cray'];
+    const places = ['Oakford', 'Ashmere', 'Farfield', 'Nether Cray']
+      .map((name, i) => ({ name, biome: Biome.Plains, level: i % 3 }));
     const run = (seed: number) => [0, 1, 2, 3, 4, 5, 6, 7].map((n) => planFor(seed, places, n));
 
     expect(run(7)).toEqual(run(7));
     expect(run(7)).not.toEqual(run(8));
     // and every one of them is a place that exists, doing something the country has a word for
     for (const plan of run(7)) {
-      expect(places).toContain(plan.village);
+      expect(places.map((p) => p.name)).toContain(plan.village);
       expect(WANTS[plan.ruin]).toBeDefined();
     }
   });
@@ -324,16 +326,16 @@ describe('what a villager already knew', () => {
     const c = country();
     expect(c.him.whereabouts).toBe('lull');           // nothing has happened yet, and it is still sayable
 
-    const places = c.villages.map((v) => v.name);
+    const places = c.villages.map((v) => ({ name: v.name, biome: v.biome, level: v.level }));
     const tellers = c.register.living('Oakford').map((p) => p.id);
-    const said = tellers.map((who) => heardOfHim(11, who, places));
+    const said = tellers.map((who) => heardOfHim(11, who, places.map((p) => p.name)));
 
     for (const line of said) {
       expect(line).toContain(NEMESIS.NAME);
       expect(line.length).toBeGreaterThan(40);
     }
     expect(new Set(said).size, 'every villager tells it the same way').toBeGreaterThan(1);
-    expect(heardOfHim(11, tellers[0], places), 'a person changed their story').toBe(said[0]);
+    expect(heardOfHim(11, tellers[0], places.map((p) => p.name)), 'a person changed their story').toBe(said[0]);
   });
 });
 
@@ -372,5 +374,46 @@ describe('the man in the field', () => {
     expect(him.drop).toBeUndefined();
     expect(him.palettes.length, 'there is one of him').toBe(1);
     expect(knocked(him.hp!, him.hp), 'a full-health villain is not a beaten one').toBe(false);
+  });
+});
+
+/**
+ * What he sends is most of what anybody ever fights, and where he sends it has to be somewhere
+ * the disaster could plausibly happen. Both were missing when the rest of him was built.
+ */
+describe('what he sends, and where', () => {
+  it('sends more of his lot the longer a scheme is left to run', () => {
+    const scheme = { village: 'Oakford', work: 'well' as const, ruin: 'beasts' as const, number: 0, began: 10 };
+    const early = sentBy(scheme, 10);
+    const later = sentBy(scheme, 10 + NEMESIS.SENDS_EVERY * 3);
+    expect(early, 'somebody is always there').toBeGreaterThanOrEqual(1);
+    expect(later, 'and more of them if nobody comes').toBeGreaterThan(early);
+    expect(later, 'but never more than the work calls for').toBeLessThanOrEqual(SENDS.well.most);
+  });
+
+  it('sends a different sort of trouble for a different piece of work', () => {
+    const kinds = new Set(Object.values(SENDS).map((s) => s.kind));
+    expect(kinds.size, 'three works, three problems').toBe(3);
+    for (const work of ['well', 'nightmen', 'fever'] as const) {
+      expect(SENDS[work].most, work).toBeGreaterThan(0);
+      expect(KINDS[SENDS[work].kind], `${work} sends something that exists`).toBeDefined();
+    }
+  });
+
+  it('never sends a rockslide down at a village with nothing above it', () => {
+    // a disaster nobody can believe is a disaster nobody minds
+    const flat = { name: 'Saltings', biome: Biome.Desert, level: 0 };
+    const steep = { name: 'Cragfoot', biome: Biome.Mountain, level: 3 };
+    expect(ruinsFor(flat)).not.toContain('rockslide');
+    expect(ruinsFor(steep)).toContain('rockslide');
+    expect(ruinsFor(flat), 'nor a flood in a desert').not.toContain('flood');
+    expect(ruinsFor({ name: 'Coldwick', biome: Biome.Snow, level: 0 }), 'nor a fire in the snow')
+      .not.toContain('fire');
+  });
+
+  it('can always loose something on anybody, whatever the ground', () => {
+    for (const biome of [Biome.Desert, Biome.Snow, Biome.Swamp, Biome.Mountain, Biome.Plains, Biome.Forest]) {
+      expect(ruinsFor({ name: 'x', biome, level: 0 }).length, String(biome)).toBeGreaterThan(0);
+    }
   });
 });

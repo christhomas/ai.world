@@ -80,7 +80,7 @@ tasks:
       - pnpm exec tsx tools/art/show.ts {{.SUBJECT}} {{.CLI_ARGS}}
 
   ask:
-    desc: Ask Claude for a new version of some artwork, to look at with 'chore art'
+    desc: 'Ask Claude for new artwork: chore ask faces warmer -- "warmer skin, softer hair"'
     args: [subject, name]
     vars:
       SUBJECT: faces

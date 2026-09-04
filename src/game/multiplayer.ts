@@ -312,9 +312,18 @@ export function createMultiplayer(ctx: MultiplayerContext) {
   });
 
   /** Keep the bout's standing in front of the fighters while it lasts. */
+  /**
+   * The bar over a fight, whichever kind it is.
+   *
+   * A fight with sides shares the duel's bar rather than growing one of its own: you are never in
+   * both at once, and two bars for the same idea is how an interface starts lying about what is
+   * happening.
+   */
   const showDuel = (): void => {
-    duelBar.classList.toggle('show', duel.active);
-    if (duel.active) duelBar.textContent = duel.readout();
+    const fighting = duel.active || warband.active;
+    duelBar.classList.toggle('show', fighting);
+    if (!fighting) return;
+    duelBar.textContent = warband.active ? warband.readout() : duel.readout();
   };
 
   /** Bank what a monster somebody else resolved for us left behind. */

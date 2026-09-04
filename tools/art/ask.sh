@@ -9,6 +9,8 @@ set -euo pipefail
 subject="${1:?which artwork? e.g. faces}"
 name="${2:?what to call this proposal? e.g. warmer}"
 shift 2
+# the brief arrives after a -- because chore takes only its own declared arguments positionally:
+#   chore ask faces warmer -- "warmer skin, softer hair"
 brief="${*:-}"
 
 if [ -z "$brief" ]; then

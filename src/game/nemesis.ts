@@ -6,6 +6,7 @@ import { grownFolk } from '../world/fortunes';
 import type { Register } from '../world/register';
 import type { Village } from '../world/structures';
 import { JAIL, type Jail } from './jail';
+import { Biome } from '../world/biomes';
 
 /**
  * Old Nettle, and the whole of what the country can do about him, which is a fortnight at a time.
@@ -72,6 +73,8 @@ export const NEMESIS = {
   CHOOSING: 90,
   /** The share of his hit points at which the fight is over. Below it he is beaten, and never dead. */
   BEATEN_AT: 0.2,
+  /** Days between one more of his lot turning up at a scheme he is running. */
+  SENDS_EVERY: 3,
 } as const;
 
 /** Where he is up to, which is the whole state of the country as far as this file is concerned. */
@@ -101,6 +104,55 @@ export const WANTS: Record<Ruin, Tool> = {
 /** Everything he could be doing, in the order the roll reads them. */
 const WORKS: readonly Work[] = ['well', 'nightmen', 'fever'];
 const RUINS: readonly Ruin[] = ['flood', 'rockslide', 'fire', 'beasts'];
+
+/**
+ * The ground a village stands on, which is as much as choosing a ruin needs to know.
+ *
+ * Names alone were not enough: a rockslide needs a slope above the roofs and a flood needs
+ * somewhere for the water to come from, and rolling one blind gives you boulders on a salt flat.
+ * A disaster nobody can believe is a disaster nobody minds.
+ */
+export interface Ground {
+  name: string;
+  biome: Biome;
+  /** How far above the road the village sits. Two terraces is enough to have something over you. */
+  level: number;
+}
+
+/** Which ruins suit this ground. Never empty: something can always be loosed on a village. */
+/**
+ * What he sends, and how many of them.
+ *
+ * He himself is rare on purpose, so these are most of what anybody ever actually fights: a scheme
+ * is a place that has become dangerous to walk into rather than one man standing in a field
+ * waiting his turn. What rises depends on the work he is doing, so a village whose well has been
+ * poisoned has a different problem from one whose barrows are being opened.
+ */
+export const SENDS: Record<Work, { kind: string; most: number }> = {
+  well: { kind: 'skeleton', most: 3 },        // what was buried near the water comes up with it
+  nightmen: { kind: 'wight', most: 2 },       // the ones he calls out of the old places
+  fever: { kind: 'ogre', most: 1 },           // a single thing that should not be near people
+};
+
+/**
+ * How many of his lot are abroad at a scheme today.
+ *
+ * It builds while the scheme runs, so arriving early is a different fight from arriving late.
+ * Pure in the scheme and the day, so two clients raise the same number without a word.
+ */
+export function sentBy(scheme: Scheme, day: number): number {
+  const sends = SENDS[scheme.work];
+  const days = Math.max(0, day - scheme.began);
+  return Math.max(1, Math.min(sends.most, 1 + Math.floor(days / NEMESIS.SENDS_EVERY)));
+}
+
+export function ruinsFor(ground: Ground): Ruin[] {
+  const suits: Ruin[] = ['beasts'];                       // wherever there are people, there is this
+  if (ground.level >= 2 || ground.biome === Biome.Mountain) suits.push('rockslide');
+  if (ground.biome !== Biome.Desert && ground.biome !== Biome.Mountain) suits.push('flood');
+  if (ground.biome !== Biome.Snow && ground.biome !== Biome.Swamp) suits.push('fire');
+  return suits;
+}
 
 /** Where he goes next, what he does there, and what he leaves behind him. */
 export interface Plan {
@@ -196,14 +248,16 @@ function streamFor(seed: number, about: string): Rng {
  * The villages come from the world rather than from the register on purpose: which places exist is
  * a fact about the seed, and which of them a particular player has walked into is not.
  */
-export function planFor(seed: number, villages: readonly string[], n: number): Plan {
+export function planFor(seed: number, villages: readonly Ground[], n: number): Plan {
   const rng = streamFor(seed, `scheme:${n}`);
   // he comes back to places. Twice at the same village is not a repeat, it is a village that has
   // already buried people and cannot spare the ones it is about to lose
+  const where = villages[Math.floor(rng() * villages.length)];
+  const suits = ruinsFor(where);
   return {
-    village: villages[Math.floor(rng() * villages.length)],
+    village: where.name,
     work: WORKS[Math.floor(rng() * WORKS.length)],
-    ruin: RUINS[Math.floor(rng() * RUINS.length)],
+    ruin: suits[Math.floor(rng() * suits.length)],
   };
 }
 
@@ -477,7 +531,8 @@ export class Nemesis {
 
   /** He settles somewhere and starts work. */
   private begin(day: number, realm: Realm): Word[] {
-    const names = realm.villages.map((v) => v.name);
+    // the ground each place stands on, so a rockslide never lands on a salt flat
+    const names = realm.villages.map((v) => ({ name: v.name, biome: v.biome, level: v.level }));
     if (names.length === 0) return [];
 
     const plan = planFor(this.seed, names, this.ran);

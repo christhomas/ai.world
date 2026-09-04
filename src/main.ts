@@ -71,7 +71,7 @@ import { Jail, clockAt, toldOnWaking, windOn } from './game/jail';
 import { Gifts, type Kindness } from './game/gifts';
 import { Rescues } from './game/rescue';
 import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
-import { Nemesis, type Realm } from './game/nemesis';
+import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
 import { Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band } from './game/roaming';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
@@ -1048,6 +1048,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       where: nemesis.whereabouts,
       scheme: nemesis.scheme,
       standing: nettleAbout ? { x: Math.round(nettleAbout.x), z: Math.round(nettleAbout.z), hp: nettleAbout.hp } : null,
+      sent: sentOut.filter((e) => !e.dead).map((e) => `${e.kind.id} hp${e.hp}`),
     });
     (debug as { __fortunes?: () => unknown }).__fortunes = () =>
       structures.villages.map((v) => ({ village: v.name, living: register.living(v.name).length, fortune: register.fortune(v.name) }));
@@ -1140,6 +1141,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- what keeps the old places ---
   /** How near the hero has to be for Old Nettle to be worth putting in the world at all. */
   const NETTLE_WITHIN = 70;
+  /** And how far out from the village his lot stand, in tiles. */
+  const NETTLE_RING = 8;
   const haunts = hauntsOf(seed, structures);
   /** The one keeper standing in the world, and the place it came out of. You are only ever in one. */
   let keeper: { haunt: Haunt; entity: Entity } | null = null;
@@ -1148,6 +1151,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   /** The one of him standing in the world, and nothing while he is in a cell or between schemes. */
   let nettleAbout: Entity | null = null;
+  /** And his lot, who are most of what anybody ever actually fights. */
+  let sentOut: Entity[] = [];
   /** Stand a band up when the hero comes near it, and take it away again when they leave. */
   const watchBands = (): void => {
     for (const [id, band] of [...bandsOut]) {
@@ -1173,14 +1178,32 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const where = nemesis.scheme;
     if (!abroad || !where) {
       if (nettleAbout) { entities.despawnEntity(nettleAbout); nettleAbout = null; }
+      for (const one of sentOut) if (!one.dead) entities.despawnEntity(one);
+      sentOut = [];
       return;
     }
-    if (nettleAbout && !nettleAbout.dead) return;
     const village = structures.villages.find((v) => v.name === where.village);
     if (!village) return;
     // only once the hero is near enough to see it happen: he is rare, and being rare is the point
     if (Math.hypot(village.x - player.x, village.z - player.z) > NETTLE_WITHIN) return;
-    nettleAbout = entities.spawnOne('nettle', village.x + 3, village.z + 3, seed ^ hashString(where.village));
+
+    if (!nettleAbout || nettleAbout.dead) {
+      nettleAbout = entities.spawnOne('nettle', village.x + 3, village.z + 3, seed ^ hashString(where.village));
+    }
+    // his lot build up while the scheme runs, so arriving early is a different fight from
+    // arriving late. He is rare; these are what makes a scheme dangerous to walk into.
+    sentOut = sentOut.filter((one) => !one.dead);
+    const wanted = sentBy(where, state.day);
+    for (let n = sentOut.length; n < wanted; n++) {
+      const angle = (n / wanted) * Math.PI * 2;
+      const one = entities.spawnOne(
+        SENDS[where.work].kind,
+        village.x + Math.cos(angle) * NETTLE_RING,
+        village.z + Math.sin(angle) * NETTLE_RING,
+        seed ^ hashString(`${where.village}:${where.began}:${n}`),
+      );
+      if (one) sentOut.push(one);
+    }
   };
 
   const watchHaunts = (): void => {
