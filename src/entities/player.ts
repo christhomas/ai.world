@@ -65,6 +65,11 @@ export class Player {
 
   update(input: Input, iso: IsoCamera, dt: number, frozen = false, fixedCamera = false): void {
     const e = this.entity;
+    // the hero does not go through updateEntity, so nothing else counts a blow down for them.
+    // Without this the timer sticks at full, the blow never advances past its first frame, and
+    // pressing attack looks like pressing nothing at all.
+    if (e.strike > 0) e.strike = Math.max(0, e.strike - dt);
+    if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
     if (this.riding) {
       e.walk += (0 - e.walk) * Math.min(1, dt * 10); e.phase += dt * 1.5; e.bobY = 0;
       const k = Math.min(1, dt * 7);
