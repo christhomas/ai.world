@@ -4,6 +4,8 @@ import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { QUALITY, createSceneRig } from './render/scene';
+import { WhaleSchool } from './render/whales';
+import { WHALE, displayAt, planPods, podsWithin, whaleAt } from './game/whales';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
 import { DayCycle } from './render/daycycle';
@@ -261,6 +263,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     entityRenderer.dispose();
     heroGear.dispose();
     weather.dispose();
+    school.dispose();
     cropField.dispose();
     props.dispose();
     rig.water.dispose();
@@ -489,6 +492,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __rig?: unknown }).__rig = rig;
     (debug as { __iso?: unknown }).__iso = iso;
     (debug as { __sampler?: unknown }).__sampler = sampler;
+    (debug as { __pods?: () => unknown }).__pods = () => pods;
+    (debug as { __whaleY?: () => number[] }).__whaleY = () => {
+      const now = worldSeconds(state.day, state.time);
+      return pods.flatMap((pod) => Array.from({ length: pod.size }, (_, i) => Math.round(whaleAt(pod, i, now).y * 100) / 100));
+    };
     (debug as { __three?: unknown }).__three = THREE;
     (debug as { __online?: unknown }).__online = online;
     debug.__doors = structures.doors;
@@ -559,6 +567,43 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (spot) player.teleport(spot[0] + 0.5, spot[1] + 1.6);
     };
   }
+
+  // --- whales ---
+  const pods = planPods(sampler, seed);
+  const school = new WhaleSchool(rig.scene);
+  /** The last display we told the player about, so one toast is one display. */
+  let announced = -1;
+
+  /**
+   * Whales, every frame we are above ground: the near pods drawn where the clock says they are,
+   * a word when a display begins within sight, and a soaking for anybody whose boat is under one
+   * when it comes down.
+   */
+  const watchWhales = (now: number, dt: number): void => {
+    const near = podsWithin(pods, player.x, player.z, WHALE.WATCH);
+    const splashes = school.update(near, now, dt);
+
+    for (const pod of near) {
+      const { showing, hour } = displayAt(pod, now);
+      if (!showing || hour === announced) continue;
+      announced = hour;
+      sound.whalesong();
+      hud.flash(`Whales are breaching — ${compassDir(pod.x - player.x, pod.z - player.z)}, ${Math.round(Math.hypot(pod.x - player.x, pod.z - player.z))} tiles`);
+    }
+
+    if (!sailing.sailing || sailing.overboard) return;
+    for (const splash of splashes) {
+      if (Math.hypot(splash.x - sailing.x, splash.z - sailing.z) > WHALE.SPLASH) continue;
+      // thirty tonnes of whale onto a rowing boat: over the side you go
+      sailing.throwOverboard();
+      sound.splash();
+      hud.hurt();
+      state.damage(1);
+      hud.flash('A whale comes down across the bow. You are in the water.');
+      persist();
+      break;
+    }
+  };
 
   const { markers, mapInput, areaName, compassTargets, updateHud, journalInput } = createReadouts({
     player, state, structures, sampler, discovered, questList, ferries, sailing, places, rucksack,
@@ -645,7 +690,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     }
 
     // ferries follow the clock; the hero rides along and steps off when the boat ties up
-    interactions.sailFerries(worldSeconds(state.day, state.time), time);
+    const clockNow = worldSeconds(state.day, state.time);
+    interactions.sailFerries(clockNow, time);
+    watchWhales(clockNow, dt);
     const { x, z } = iso.target;
     chunks.update(x, z);
     rig.follow(x, z, iso.zoom);

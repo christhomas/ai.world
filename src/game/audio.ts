@@ -135,6 +135,19 @@ export class Sound {
   thud(): void { this.tone(140, 0.22, 'sine', 0.3, 0, 55); this.burst(0.12, 300, 0.8, 0.2); }
   select(): void { this.tone(1200, 0.03, 'square', 0.03); }
 
+  /** Something heavy meeting water: a low thump under a long hiss of spray. */
+  splash(): void {
+    this.tone(90, 0.3, 'sine', 0.22, 0, 40);
+    this.burst(0.5, 900, 0.6, 0.16);
+    this.burst(0.35, 2600, 0.4, 0.1, 0.06);
+  }
+
+  /** A whale calling: two long notes, the second bending up under the first. */
+  whalesong(): void {
+    this.tone(196, 1.5, 'sine', 0.1);
+    this.tone(147, 1.9, 'sine', 0.09, 0.35, 220);
+  }
+
   setScene(biome: Biome, night: number): void {
     this.biome = biome;
     this.night = night;

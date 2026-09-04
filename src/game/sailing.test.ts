@@ -56,3 +56,37 @@ describe('sailing', () => {
     expect(adrift.sailing).toBe(true);   // still aboard, not stranded in the water
   });
 });
+
+describe('being thrown out of the boat', () => {
+  it('puts the hero in the water beside the hull, and takes the tiller away until they are back', () => {
+    const boat = new Sailing();
+    boat.buy(20, 0, 0);
+    boat.board();
+    const hero = player() as unknown as { entity: { x: number; z: number; y: number; walk: number } };
+
+    boat.throwOverboard();
+    expect(boat.overboard).toBe(true);
+    expect(boat.sailing).toBe(true);              // the boat is still yours, you are simply not in it
+
+    // steering does nothing while you are in the water, and the boat stays where it was
+    boat.update(0.5, { forward: 1, turn: 1 }, world, hero as never);
+    expect(boat.x).toBe(20);
+    expect(boat.yaw).toBe(0);
+    const inTheWater = hero.entity.y;
+    expect(Math.hypot(hero.entity.x - 20, hero.entity.z)).toBeCloseTo(1.1, 1);
+
+    // after the ducking, you are aboard again and the tiller answers
+    boat.update(BOAT.OVERBOARD, { forward: 1, turn: 0 }, world, hero as never);
+    expect(boat.overboard).toBe(false);
+    boat.update(0.5, { forward: 1, turn: 0 }, world, hero as never);
+    expect(boat.x).toBeGreaterThan(20);
+    expect(hero.entity.y).toBeGreaterThan(inTheWater);   // back up on the deck, out of the water
+  });
+
+  it('cannot throw somebody out of a boat they are not in', () => {
+    const boat = new Sailing();
+    boat.buy(20, 0, 0);
+    boat.throwOverboard();
+    expect(boat.overboard).toBe(false);
+  });
+});

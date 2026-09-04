@@ -1,3 +1,4 @@
+import { WORLD } from '../core/config';
 import type { TileWorld } from '../entities/entity';
 import type { Player } from '../entities/player';
 
@@ -10,6 +11,8 @@ export const BOAT = {
   TURN: 2.4,
   /** How close to the boat you must be to climb aboard. */
   REACH: 3.2,
+  /** Seconds spent in the water after being thrown out of the boat. */
+  OVERBOARD: 2.4,
   /** The boat floats this far below the water line. */
   DRAFT: 0.12,
 } as const;
@@ -30,6 +33,20 @@ export class Sailing {
   yaw = 0;
   sailing = false;
   private owned = false;
+  /** Seconds left treading water after being thrown out of the boat, 0 when aboard. */
+  private overboardFor = 0;
+
+  /** True while the hero is in the water beside the hull rather than in it. */
+  get overboard(): boolean { return this.overboardFor > 0; }
+
+  /**
+   * Thrown out of the boat — by a whale coming down on it, or anything else that hits hard
+   * enough. The boat stays where it is; the hero has to climb back in, which takes a moment.
+   */
+  throwOverboard(): void {
+    if (!this.sailing) return;
+    this.overboardFor = BOAT.OVERBOARD;
+  }
 
   get bought(): boolean { return this.owned; }
 
@@ -76,6 +93,17 @@ export class Sailing {
    */
   update(dt: number, input: { forward: number; turn: number }, world: TileWorld, player: Player): void {
     if (!this.sailing) return;
+    if (this.overboardFor > 0) {
+      // in the water beside the hull: no steering until you have hauled yourself back aboard
+      this.overboardFor = Math.max(0, this.overboardFor - dt);
+      const bob = Math.sin(this.overboardFor * 7) * 0.06;
+      player.entity.x = this.x + Math.cos(this.yaw + Math.PI / 2) * 1.1;
+      player.entity.z = this.z - Math.sin(this.yaw + Math.PI / 2) * 1.1;
+      player.entity.y = WORLD.WATER_Y - 0.3 + bob;
+      player.entity.yaw = this.yaw;
+      player.entity.walk = 0.35;
+      return;
+    }
     this.yaw += input.turn * BOAT.TURN * dt;
     if (input.forward !== 0) {
       const step = input.forward * BOAT.SPEED * dt;

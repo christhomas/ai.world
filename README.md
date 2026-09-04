@@ -76,6 +76,20 @@ from its own tile's hash for height against width, a slight lean off upright, an
 dark it stands against its neighbour. It costs nothing to draw: one shape, one material, and a
 matrix per placement.
 
+### Whales, on the hour
+
+![A pod breaching in deep water](docs/screenshots/whales.png)
+
+Out where the water is deep and nothing else goes, pods of whales circle with their backs just
+under the surface. On every hour of the world's clock they breach: one after another out of the
+water, over, and down again in a ring of foam, with a call you can hear before you can see them.
+Each pod has an hour it likes best and jumps higher then.
+
+Like the ferries, a whale is a function of the clock and the seed rather than a thing being
+simulated — so two people in one world watch the same pod leave the water on the same beat with
+nothing passing between them. Sail underneath one as it comes down and it will put you over the
+side: a heart gone, and a moment treading water before you can haul yourself back aboard.
+
 ### Seasons, weather and a calendar that matters
 
 A week to a season, four to a year. Autumn turns the meadows to rust; winter blends the whole
