@@ -263,6 +263,37 @@ Deployment is a GitHub Action that builds `dist/` on every push to `main` and pu
 GitHub Pages; the repository's Pages source must be set to **GitHub Actions**. The original
 single-file prototype is kept at `legacy/index.html`.
 
+### Playing at home, on your own network
+
+The simplest way to run this for a household: put the world server on whatever small machine you
+have — a Raspberry Pi on a shelf is ideal — and let it hand out the game as well.
+
+```sh
+chore home          # builds the page, then serves the page and the world on one port
+```
+
+One process, one port, one address. Everybody on the network opens `http://<that machine>.local:8787/`
+— macOS and most Linux desktops resolve `.local` names without any setup — and the page works out
+its own server from the address it was served from. Nobody types a `ws://` anything.
+
+That also sidesteps certificates entirely. The rule that makes a public server need TLS is a
+browser one: an https page may not open a plain `ws://` socket. Serve the page over http from the
+same box as the socket and there is no mismatch to complain about, which is exactly right for a
+network you already trust.
+
+On the Pi itself, nothing beyond node is needed:
+
+```sh
+git clone <this repo> && cd ai.world
+pnpm install
+chore home
+```
+
+Worlds are kept in `server/data`, one JSON file per seed, so they survive restarts and can be
+copied off like any other file. `chore worlds` lists what is in them. If you would rather run it
+in the container, build the image on the Pi (or `docker buildx build --platform linux/arm64`),
+since a Pi is ARM and an image built on an Intel machine will not run on it.
+
 ### A server other people can reach
 
 The page is served over https, and a browser will not open a plain `ws://` socket from an https

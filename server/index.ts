@@ -2,11 +2,13 @@ import { startServer } from './serve';
 
 /**
  * Running the world server from a terminal: `chore world`, `pnpm server`, or node directly.
- * PORT and DATA_DIR are the only knobs; everything else lives in serve.ts.
+ * PORT, DATA_DIR and STATIC_DIR are the only knobs; everything else lives in serve.ts.
  */
 const running = await startServer({
   port: Number(process.env.PORT ?? 8787),
   dataDir: process.env.DATA_DIR ?? 'server/data',
+  // set STATIC_DIR to a built copy of the game and this one process serves both halves
+  staticDir: process.env.STATIC_DIR,
 });
 
 const shutDown = (): void => {

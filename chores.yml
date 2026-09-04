@@ -46,6 +46,25 @@ tasks:
     before: ['{{.CHORE_EXE}} build']
     cmds: ['pnpm vite preview --port {{.WEB_PORT}}']
 
+  # Playing at home: one machine — a Raspberry Pi on a shelf, say — serving both the page and the
+  # world on one port. Same origin, so no certificate is needed and nobody types an address: the
+  # page works out its own server from where it was served. Everyone else on the network opens
+  # http://<that machine>.local:8787/ and is in the same world.
+  home:
+    desc: Serve the game and the world together, for a machine on your own network
+    vars:
+      PORT: '{{.WORLD_PORT}}'
+    args:
+      - name: port
+        desc: port to serve both halves on
+    env:
+      PORT: '{{.PORT}}'
+      DATA_DIR: '{{.WORLD_DATA}}'
+      STATIC_DIR: dist
+    cmds:
+      - 'BASE=/ pnpm vite build'
+      - 'pnpm tsx server/index.ts'
+
   install:
     desc: Dependencies, if they are not already there
     sources: [package.json, pnpm-lock.yaml]

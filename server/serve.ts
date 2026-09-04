@@ -4,6 +4,7 @@ import { PROTOCOL_VERSION, cleanName, type ClientMessage, type ServerMessage } f
 import { handle } from './messages';
 import { Rooms } from './rooms';
 import { CLOCK_INTERVAL } from './world';
+import { staticFiles } from './static';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -23,6 +24,12 @@ export interface ServerOptions {
   /** 0 asks the operating system for a free port, which is what the tests want. */
   port?: number;
   dataDir?: string;
+  /**
+   * A built copy of the game to hand out alongside the world. Set it and one box serves both:
+   * the page over http and the world over ws, on one origin, which is what makes a server on
+   * your own network reachable without a certificate.
+   */
+  staticDir?: string;
   /** Log a line when the server is up. Off in tests. */
   quiet?: boolean;
 }
@@ -39,7 +46,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const dataDir = options.dataDir ?? 'server/data';
   const rooms = new Rooms(dataDir);
 
-  const http = createServer((_req, res) => {
+  const pages = options.staticDir ? staticFiles(options.staticDir) : null;
+  const http = createServer((req, res) => {
+    // the status page keeps its own address once there is a game to serve at the root
+    if (pages && req.url !== '/status' && pages(req, res)) return;
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end(`ai.world server\nworlds: ${rooms.worldCount}\nplayers: ${rooms.playerCount}\n`);
   });
@@ -100,7 +110,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }, CLOCK_INTERVAL);
 
   const port = await listen(http, options.port ?? 8787);
-  if (!options.quiet) console.log(`ai.world server listening on :${port}, worlds in ${dataDir}`);
+  if (!options.quiet) {
+    console.log(`ai.world server listening on :${port}, worlds in ${dataDir}`);
+    if (pages) console.log(`serving the game itself from ${options.staticDir} — open http://<this machine>:${port}/`);
+  }
 
   return {
     port,
