@@ -77,6 +77,28 @@ export interface InteriorVisit {
 const STAIRS_CLEARANCE: Array<[number, number]> = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, -2], [1, 0]];
 /** Reach for chests, doors and stairs underground; and for the keeper behind a counter. */
 export const REACH = { CHEST: 1.8, DOOR: 2.0, STAIRS: 1.4, BUILDING_DOOR: 1.6 } as const;
+
+/**
+ * Who wins when a person and a piece of scenery are both within reach of one keypress.
+ *
+ * The person does, whenever they are the nearer of the two. Market pitches stand in the middle of
+ * the square, which is where the elder holding your errand stands as well, so Enter reached the
+ * trestle from anywhere in the square and — offline, where a pitch only says to come back online —
+ * there was no way to be paid for the first job of a new save. Found by playing that errand
+ * through to its payment and not being paid.
+ *
+ * Distance rather than a fixed order, because a player standing plainly in front of a stall with
+ * somebody wandering past behind them still means the stall.
+ */
+export function personWins(
+  playerX: number, playerZ: number,
+  person: { x: number; z: number } | null,
+  thingX: number, thingZ: number,
+): boolean {
+  if (!person) return false;
+  return Math.hypot(person.x - playerX, person.z - playerZ)
+    < Math.hypot(thingX - playerX, thingZ - playerZ);
+}
 const BIG_CHEST_PRIZES = ['potion', 'steelsword', 'ironshield', 'helm', 'jerkin', 'mail', 'greaves', 'charm', 'lantern', 'rope', 'map', 'gem'];
 
 /**

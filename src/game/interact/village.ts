@@ -6,7 +6,7 @@ import { HORSE } from '../mount';
 import { compassDir } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
 import { faceFor } from '../talk';
-import { REACH } from '../places';
+import { REACH, personWins } from '../places';
 import { errandDone, pubTalk } from '../pub';
 import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
@@ -215,9 +215,22 @@ export function villageInteractions(ctx: Surroundings) {
    * price, and come back for the money; the goods stay out while the trader is away. Which of the
    * three conversations you get depends only on who holds the pitch.
    */
+  /**
+   * Somebody standing nearer than the scenery gets the hello.
+   *
+   * Pitches stand in the middle of the square, which is exactly where the elder with the work and
+   * everybody else worth talking to also stands. Enter used to reach the trestle first from
+   * anywhere in the square, and offline the trestle only says to come back online, so the quest
+   * you had walked a hundred paces to hand in could not be handed in at all. Found by playing the
+   * first errand of a new save through to its payment and not being paid.
+   */
+  const someoneNearerThan = (x: number, z: number): boolean =>
+    personWins(player.x, player.z, entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE), x, z);
+
   const tryStall = (): boolean => {
     const pitch = market.nearest(structures.villages, player.x, player.z);
     if (!pitch) return false;
+    if (someoneNearerThan(pitch.x, pitch.z)) return false;
     if (!online.connected) {
       dialogue.start({ ...STALL, pages: ['A trestle and a striped awning, waiting for a trader. Join a world online to take it on.'] });
       return true;
