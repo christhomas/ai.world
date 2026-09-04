@@ -1,0 +1,262 @@
+import {
+  EMOTES, PARTY_LIMIT, cleanChat, cleanDelta, cleanLetter, cleanStallItem,
+  type ClientMessage, type TradeOffer,
+} from './protocol';
+import type { Client, Party, Room, Rooms } from './rooms';
+import type { SharedWorld } from './world';
+
+/**
+ * What each message from a player means. One function per subject, so adding a message is a
+ * matter of finding the subject it belongs to rather than reading a switch four hundred lines
+ * long. Nothing here knows about sockets: `rooms` decides who hears what.
+ *
+ * The rule the whole server rests on: gold, goods and hearts live in each player's own save. The
+ * server says what should happen to them, and never holds them itself.
+ */
+export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  switch (message.type) {
+    case 'move': case 'say': case 'emote': case 'ping':
+      whereAndWhat(rooms, me, room, message);
+      return;
+    case 'delta': case 'monsters': case 'hit':
+      worldChange(rooms, me, room, message);
+      return;
+    case 'stall-rent': case 'stall-stock': case 'stall-buy': case 'stall-collect': case 'stall-close':
+      market(rooms, me, room, message);
+      return;
+    case 'mail-send': case 'mail-fetch':
+      post(rooms, me, room, message);
+      return;
+    case 'party-invite': case 'party-answer': case 'party-leave': case 'party-deed':
+      fellowship(rooms, me, room, message);
+      return;
+    case 'duel-challenge': case 'duel-answer': case 'duel-hit': case 'duel-yield':
+      bout(rooms, me, room, message);
+      return;
+    case 'trade-offer': case 'trade-accept': case 'trade-decline':
+      trade(rooms, me, room, message);
+      return;
+    default:
+      return;   // 'join' is answered by the handshake, before any of this
+  }
+}
+
+/** Where somebody is, what they said, and the two wordless things they can do. */
+function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  switch (message.type) {
+    case 'move': {
+      const p = me.presence;
+      p.x = message.x; p.z = message.z; p.yaw = message.yaw; p.walk = message.walk;
+      p.place = String(message.place).slice(0, 60);
+      p.riding = message.riding;
+      p.gear = message.gear.slice(0, 4).map((id) => String(id).slice(0, 24));
+      return;
+    }
+    case 'say': {
+      const text = cleanChat(message.text);
+      if (!text) return;
+      // the speaker hears their own line too, so chat reads the same for everybody
+      rooms.broadcast(me.seed, { type: 'said', id: me.presence.id, name: me.presence.name, text });
+      rooms.send(me, { type: 'said', id: me.presence.id, name: me.presence.name, text });
+      return;
+    }
+    case 'emote': {
+      const kind = String(message.kind).slice(0, 12);
+      if (!EMOTES[kind]) return;
+      rooms.broadcast(me.seed, { type: 'emoted', id: me.presence.id, name: me.presence.name, kind });
+      return;
+    }
+    case 'ping': {
+      const x = Number(message.x), z = Number(message.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+      // a rally point is for your companions, or for the whole world when you travel alone
+      const audience = me.party ?? room.clients;
+      for (const other of audience) if (other !== me) rooms.send(other, { type: 'pinged', x, z, name: me.presence.name });
+      return;
+    }
+  }
+}
+
+/**
+ * The two ways the world itself changes hands: the short log of what players have altered, and
+ * the monsters on a shared dungeon floor, which one client runs for everybody standing on it.
+ */
+function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  if (message.type === 'delta') {
+    const delta = cleanDelta(message.delta);
+    if (!delta || !room.world.apply(delta)) return;
+    rooms.broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me);
+    return;
+  }
+  if (message.type !== 'monsters' && message.type !== 'hit') return;
+
+  // a pure relay, and only to the floor it concerns: the clients agree among themselves who owns it
+  const place = String(message.place).slice(0, 60);
+  for (const other of room.clients) {
+    if (other === me || other.presence.place !== place) continue;
+    rooms.send(other, message.type === 'monsters'
+      ? { type: 'monsters', place, snap: message.snap.slice(0, 64), gone: message.gone.slice(0, 64), from: me.presence.id }
+      : { type: 'hit', place, index: Math.floor(message.index), damage: Math.max(0, Math.floor(message.damage)), from: me.presence.id });
+  }
+}
+
+/** Market pitches: rented, stocked, bought from, collected, given up. */
+function market(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  const id = String((message as { stall: string }).stall).slice(0, 80);
+  const request = stallRequest(message, id);
+  if (!request) { rooms.send(me, { type: 'stall-refused', stall: id, reason: 'There is nothing to put out.' }); return; }
+
+  const reply = room.world.stall(me.presence.name, request);
+  if (!reply.ok) { rooms.send(me, { type: 'stall-refused', stall: id, reason: reply.reason }); return; }
+  if (reply.kind === 'bought') rooms.send(me, { type: 'stall-bought', stall: id, item: reply.item, cost: reply.cost });
+  if (reply.kind === 'collected') rooms.send(me, { type: 'stall-takings', stall: id, gold: reply.gold });
+  // one description of the market goes to everyone, rather than a message per change, and the
+  // trader is told last so their own answer above arrives before the market it changed
+  rooms.broadcast(me.seed, { type: 'stalls', stalls: room.world.stalls }, me);
+  rooms.send(me, { type: 'stalls', stalls: room.world.stalls });
+}
+
+/** Turn a stall message into the request the world understands, dropping anything misshapen. */
+function stallRequest(message: ClientMessage, id: string): Parameters<SharedWorld['stall']>[1] | null {
+  switch (message.type) {
+    case 'stall-rent': return { do: 'rent', id, village: String(message.village).slice(0, 40) };
+    case 'stall-stock': {
+      const item = cleanStallItem(message.item);
+      return item ? { do: 'stock', id, item } : null;
+    }
+    case 'stall-buy': return { do: 'buy', id, index: Math.max(0, Math.floor(message.index)) };
+    case 'stall-collect': return { do: 'collect', id };
+    case 'stall-close': return { do: 'close', id };
+    default: return null;
+  }
+}
+
+/** The inn shelf: parcels left for a name, and parcels taken away by one. */
+function post(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  if (message.type === 'mail-fetch') {
+    rooms.send(me, { type: 'mail', letters: room.world.collect(me.presence.name) });
+    return;
+  }
+  if (message.type !== 'mail-send') return;
+
+  const letter = cleanLetter({
+    from: me.presence.name, to: message.to, gold: message.gold,
+    items: message.items, day: room.world.clock.day,
+  });
+  const refuse = (reason: string) => rooms.send(me, { type: 'mail-refused', reason });
+  if (!letter) return refuse('There is nothing in that parcel.');
+  if (letter.to === me.presence.name) return refuse('Post it to somebody else.');
+  if (!room.world.folk.includes(letter.to)) return refuse(`Nobody here has heard of ${letter.to}.`);
+
+  room.world.post(letter);
+  const recipient = rooms.byName(room, letter.to);
+  if (recipient) rooms.send(recipient, { type: 'mail-here', from: letter.from });
+  rooms.send(me, { type: 'mail-sent', to: letter.to });
+}
+
+/** Travelling together: the asking, the answer, the parting, and the errands that count for all. */
+function fellowship(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  switch (message.type) {
+    case 'party-invite': {
+      const target = rooms.byId(room, message.to);
+      if (!target || target === me) return;
+      if ((me.party?.size ?? 1) >= PARTY_LIMIT) { rooms.send(me, { type: 'error', reason: 'Your party is full.' }); return; }
+      me.invited.add(target.presence.id);
+      rooms.send(target, { type: 'party-invited', from: me.presence.id, fromName: me.presence.name });
+      return;
+    }
+    case 'party-answer': {
+      // only an answer to an asking that was actually made counts
+      const host = rooms.byId(room, message.from);
+      if (!host || !host.invited.delete(me.presence.id)) return;
+      if (!message.yes) { rooms.send(host, { type: 'party-declined', name: me.presence.name }); return; }
+
+      rooms.leaveParty(me);
+      const party: Party = host.party ?? new Set([host]);
+      if (party.size >= PARTY_LIMIT) { rooms.send(me, { type: 'error', reason: 'That party is full.' }); return; }
+      host.party = party;
+      party.add(me);
+      me.party = party;
+      rooms.tellParty(party);
+      return;
+    }
+    case 'party-leave': {
+      rooms.leaveParty(me);
+      rooms.send(me, { type: 'party', members: [] });
+      return;
+    }
+    case 'party-deed': {
+      const quest = String(message.quest).slice(0, 60);
+      for (const mate of me.party ?? []) {
+        if (mate !== me) rooms.send(mate, { type: 'party-deed', quest, from: me.presence.name });
+      }
+      return;
+    }
+  }
+}
+
+/**
+ * A friendly bout. The server only introduces the two of them and carries the blows: each client
+ * keeps its own duel health, and the one that runs out says so by yielding.
+ */
+function bout(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  switch (message.type) {
+    case 'duel-challenge': {
+      const target = rooms.byId(room, message.to);
+      if (!target || target === me || me.duel || target.duel) return;
+      me.challenged.add(target.presence.id);
+      rooms.send(target, { type: 'duel-challenged', from: me.presence.id, fromName: me.presence.name });
+      return;
+    }
+    case 'duel-answer': {
+      const challenger = rooms.byId(room, message.from);
+      if (!challenger || !challenger.challenged.delete(me.presence.id)) return;
+      if (!message.yes) { rooms.send(challenger, { type: 'duel-over', winner: '', name: me.presence.name }); return; }
+      if (challenger.duel || me.duel) return;
+      challenger.duel = me;
+      me.duel = challenger;
+      rooms.send(challenger, { type: 'duel-begun', withId: me.presence.id, withName: me.presence.name });
+      rooms.send(me, { type: 'duel-begun', withId: challenger.presence.id, withName: challenger.presence.name });
+      return;
+    }
+    case 'duel-hit': {
+      if (!me.duel) return;
+      rooms.send(me.duel, {
+        type: 'duel-struck',
+        damage: Math.max(0, Math.min(99, Math.floor(message.damage))),
+        from: me.presence.id,
+      });
+      return;
+    }
+    case 'duel-yield': {
+      rooms.endDuel(me, me.duel ? me.duel.presence.id : '', me.presence.name);
+      return;
+    }
+  }
+}
+
+/** Handing goods to somebody standing beside you. Both sides are told; each applies its own half. */
+function trade(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  if (message.type === 'trade-offer') {
+    const target = rooms.byId(room, message.to);
+    if (!target) return;
+    const offer: TradeOffer = {
+      from: me.presence.id,
+      to: message.to,
+      gold: Math.max(0, Math.floor(message.gold)),
+      items: message.items.slice(0, 12).map(([id, n]) => [String(id).slice(0, 24), Math.max(1, Math.floor(n))] as [string, number]),
+    };
+    me.offers.set(target.presence.id, offer);
+    rooms.send(target, { type: 'trade-offered', offer, fromName: me.presence.name });
+    return;
+  }
+  if (message.type !== 'trade-accept' && message.type !== 'trade-decline') return;
+
+  const other = rooms.byId(room, message.from);
+  const offer = other?.offers.get(me.presence.id);
+  if (!other || !offer) return;
+  other.offers.delete(me.presence.id);
+  const accepted = message.type === 'trade-accept';
+  rooms.send(other, { type: 'trade-result', with: me.presence.id, accepted, offer });
+  rooms.send(me, { type: 'trade-result', with: other.presence.id, accepted, offer });
+}
