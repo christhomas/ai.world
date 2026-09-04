@@ -1,6 +1,6 @@
 import type { Rng } from '../core/rng';
 import { isDaytime, type Entity } from '../entities/entity';
-import type { DialogueNode, Speaker } from '../ui/dialogue';
+import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
 import { ITEMS, SHOP_DEFS, itemSummary, sellPrice, sellableAt } from './shops';
 import type { GameState } from './state';
 import type { Quest } from './quests';
@@ -23,6 +23,8 @@ export interface TalkCtx {
   post?: Post;
   /** Taking a room for the night, which only an innkeeper can offer. */
   room?: Room;
+  /** Being patched up, which only a doctor can offer. */
+  mending?: Mending;
   /** Who lives in the villages, so a resident can talk about their family and their losses. */
   register?: Register;
   /** The day it is, which is how long ago something was. */
@@ -58,6 +60,35 @@ export interface Room {
   take: () => string;
 }
 
+/** What a doctor asks, and what waiting instead costs you. */
+export const DOCTOR = {
+  /** Gold a heart's worth of mending costs, which is less than a salve and much less than dying. */
+  A_HEART: 7,
+  /**
+   * Hours the free kind takes. Long enough to lose a morning and to be worth paying to avoid,
+   * short enough that having no money is an inconvenience rather than a punishment.
+   */
+  WAITING: 6,
+} as const;
+
+/**
+ * A doctor's terms, which are the same terms they give their own village.
+ *
+ * Paid care is quick. The free kind costs you hours instead of coin, and the hours are real: the
+ * clock winds forward and the world moves on without you. That is the whole of the doctor's
+ * economy, and it means nobody who asks for help ever has to die of not having any money.
+ */
+export interface Mending {
+  /** What they would charge, which is nothing at all for somebody they are in debt to. */
+  price: number;
+  /** Hearts they would put back. */
+  hearts: number;
+  /** How long the free kind takes, in hours of the world's clock. */
+  hours: number;
+  /** Be treated. Returns what to say about it. */
+  take: (paid: boolean) => string;
+}
+
 const CONGREGATION_LINES = [
   'We gather here most mornings. It is quieter than the square.',
   'The chapel bell has not rung in years. We still come.',
@@ -88,6 +119,9 @@ export function faceFor(e: Entity, ctx: { register?: Register; day?: number }): 
 export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
   const k = e.kind;
   if (e.role === 'shopkeeper' && e.shop) return shopDialogue(e, ctx);
+  // a doctor with somebody bleeding in front of them attends to that first, even if the village
+  // also made them its elder: the errand will still be there once you can stand up straight
+  if (e.trade === 'doctor' && ctx.mending && ctx.mending.hearts > 0) return doctorDialogue(e, ctx);
   if (e.role === 'elder') {
     const q = ctx.quests.get(e.herd.tag);
     if (q) return questDialogue(e, q, ctx);
@@ -124,6 +158,43 @@ function residentPages(e: Entity, ctx: TalkCtx, fallback: string): string[] {
   const talk = gossipFor(person, ctx.register, ctx.day ?? 1, ctx.rng);
   const aside = talk.small.length > 0 ? pick(ctx.rng, talk.small) : fallback;
   return talk.news ? [talk.news, aside] : [aside];
+}
+
+/**
+ * The doctor, for whoever is standing in front of them bleeding.
+ *
+ * Both doors are always open, which is the point: coin buys the quick way, and everybody else
+ * gets the slow one. A player with an empty purse is never turned away, only delayed.
+ */
+function doctorDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
+  const mending = ctx.mending!;
+  const speaker = `${e.name}, the Doctor`;
+  const emoji = '🩺';
+  const face = faceFor(e, ctx);
+  const settled = mending.price === 0;
+  const said = (line: string): DialogueNode => ({ speaker, emoji, face, pages: [line] });
+
+  const choices: DialogueChoice[] = [];
+  if (settled) {
+    choices.push({ label: 'Let them see to it', next: () => said(mending.take(true)) });
+  } else {
+    if (ctx.state.inventory.gold >= mending.price) {
+      choices.push({ label: `Pay ${mending.price} gold`, next: () => said(mending.take(true)) });
+    }
+    choices.push({
+      label: `Wait your turn (${mending.hours} hours)`,
+      next: () => said(mending.take(false)),
+    });
+  }
+  choices.push({ label: 'Not now', next: () => null });
+
+  return {
+    speaker, emoji, face,
+    pages: [settled
+      ? 'You again. Sit down, and put your purse away: I have told you before.'
+      : `That wants seeing to. ${mending.price} gold and you are out in a moment, or wait your turn with everybody else and it costs you nothing but the day.`],
+    choices,
+  };
 }
 
 function questDialogue(e: Entity, q: Quest, ctx: TalkCtx): DialogueNode {

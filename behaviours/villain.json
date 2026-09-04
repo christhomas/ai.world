@@ -1,0 +1,44 @@
+{
+  "nettle": {
+    "note": "Old Nettle, and the only fight in the game that is against a person. There is no branch here for being wounded and none for fleeing, and both absences are the design rather than an oversight: a villain who backs out of a fight he is losing is a game taking back a win it already gave you. He stands there and goes on being beaten, and what happens at the moment the fight is won is decided in game/nemesis.ts, one layer up, where it can be a choice offered to the player instead of a trick played on them. There is no branch for daylight either. He keeps no hours.",
+    "first": [
+      {
+        "note": "He marks whoever is nearest and works at that range for as long as they stay in it. Twenty-two tiles is nearly twice an ogre's interest, because an ogre is something you walk away from and he is not: the only way this branch ends is somebody leaving the county or somebody going down.",
+        "steps": [
+          { "do": "markPrey", "with": { "within": 22 } },
+          {
+            "when": { "ask": "within", "with": { "tiles": 22 } },
+            "then": {
+              "latch": [
+                {
+                  "note": "Every seven to twelve seconds, one long run straight in, a cut with the switch, and back out to the ring. `latch` rather than `first` so the run is seen through: reconsidering it mid-stride every frame is how a charge becomes a creature jittering on the spot.",
+                  "every": [7, 12],
+                  "then": {
+                    "all": [
+                      { "do": "charge", "with": { "seconds": 1.7 } },
+                      { "anyway": { "do": "bite", "with": { "cooldown": 1.2 } } }
+                    ]
+                  }
+                },
+                {
+                  "note": "A drawn blade widens the ring and nothing else. He is not frightened of it, he simply has all the time in the world and no reason to stand inside your reach while he waits.",
+                  "when": { "ask": "armed" },
+                  "then": { "do": "circle", "with": { "tiles": 9, "lead": 0.45 } }
+                },
+                {
+                  "note": "Otherwise he walks the ring at six tiles, unhurried, keeping you in front of him. This is most of the fight: a hero who only ever answers what is thrown at them will stand in a field being circled until nightfall.",
+                  "do": "circle", "with": { "tiles": 6, "lead": 0.55 }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "note": "Nobody within twenty-two tiles. He does not go back and stand where he was put: `roam` walks him across the whole of the village he is working, which is why somebody who has broken off and gone for a boat can meet him again on the way back.",
+        "when": { "ask": "idle" },
+        "then": { "do": "roam", "with": { "tiles": 26 } }
+      }
+    ]
+  }
+}

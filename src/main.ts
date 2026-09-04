@@ -54,7 +54,7 @@ import { DialogueBox, type DialogueNode } from './ui/dialogue';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
 import { GameState } from './game/state';
-import { dialogueFor, type TalkCtx } from './game/talk';
+import { DOCTOR, dialogueFor, type TalkCtx } from './game/talk';
 import { generateQuests } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
@@ -404,6 +404,30 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const host = e.person !== '' ? register.find(e.person) : undefined;
     const welcome = host ? gifts.favourFrom(host) : null;
     const bed = welcome?.kind === 'lodging' ? 0 : ITEMS.room.price;
+    // a doctor will see to you either way: coin buys the quick way, and everybody else waits.
+    // Somebody who has been good to them is not charged at all, and is told so.
+    const hurt = state.maxHpTotal - state.hp;
+    talkCtx.mending = hurt <= 0 ? undefined : {
+      price: welcome?.kind === 'mend' ? 0 : Math.max(4, Math.round(hurt * DOCTOR.A_HEART)),
+      hearts: hurt,
+      hours: DOCTOR.WAITING,
+      take: (paid: boolean) => {
+        if (paid) state.inventory.gold -= talkCtx.mending!.price;
+        state.hp = state.maxHpTotal;
+        state.version++;
+        if (!paid) {
+          // the hours are real: the world moves on while you sit in the corridor
+          state.time += DOCTOR.WAITING / 24;
+          while (state.time >= 1) { state.time -= 1; state.day++; }
+          register.advance(state.day);
+        }
+        persist();
+        sound.chime();
+        return paid
+          ? 'Stitched, bound and sent on your way inside the hour.'
+          : `You sit in the corner until somebody has time for you. It is ${state.clock().split('·')[1].trim()} by the time you are out, and you are whole again.`;
+      },
+    };
     // a bed for the night, and in a shared world the night that cannot be skipped
     talkCtx.room = {
       price: bed,
