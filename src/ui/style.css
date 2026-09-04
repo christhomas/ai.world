@@ -66,6 +66,8 @@ body:has(#dialogue.show) #controls { opacity: 0; pointer-events: none; transitio
 }
 #toast.show { opacity: 1; }
 
+#breath { color: #8fd2ff; font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
+#breath .warded { color: #ffd76a; }
 #status {
   position: fixed; top: 20px; left: 20px;
   background: rgba(0,0,0,0.7); border: 2px solid #e74c3c; border-radius: 8px;
@@ -431,7 +433,9 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #controls, #debug { display: none; }
   /* The three columns a hand-sized screen has room for: hearts and pack down the left, the
      corner map down the right, and everything the world says about itself between them. */
-  #status { top: 8px; left: 8px; min-width: 0; max-width: 96px; padding: 4px 8px; }
+  #breath { color: #8fd2ff; font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
+#breath .warded { color: #ffd76a; }
+#status { top: 8px; left: 8px; min-width: 0; max-width: 96px; padding: 4px 8px; }
   #hearts { font-size: 13px; letter-spacing: 0; }
   #inventory { top: 52px; left: 8px; min-width: 0; padding: 5px 8px; font-size: 11px; }
   /* The errand tracker is the one panel a phone can do without: the compass strip above already

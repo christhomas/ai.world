@@ -398,12 +398,18 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     talkCtx.time = state.time;
     talkCtx.day = state.day;
     heroFace();                                 // in case they have put a helmet on since last time
+    // an innkeeper you have been good to stops charging you, and does not go back to charging:
+    // that is the difference between a favour and a discount, and it is why generosity is worth
+    // more than the gold it costs
+    const host = e.person !== '' ? register.find(e.person) : undefined;
+    const welcome = host ? gifts.favourFrom(host) : null;
+    const bed = welcome?.kind === 'lodging' ? 0 : ITEMS.room.price;
     // a bed for the night, and in a shared world the night that cannot be skipped
     talkCtx.room = {
-      price: ITEMS.room.price,
+      price: bed,
       shared: online.connected,
       take: () => {
-        state.inventory.gold -= ITEMS.room.price;
+        state.inventory.gold -= bed;
         if (online.connected) {
           // the clock belongs to the world here, so the night passes for everybody or nobody
           state.hp = state.maxHpTotal;
@@ -1050,6 +1056,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       heroGear.update(state, player.entity);
       multiplayer.sync(dt, () => 0.5);
       updateHud(dt, indoors.title);
+      hud.setBreath(magic.wind, magic.warded);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
       rig.renderer.render(indoors.scene.scene, iso.camera);
@@ -1078,6 +1085,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       below.map.reveal(player.x, player.z);
       below.map.draw(player.x, player.z, state.opened, (i) => below.world.chestId(i), below.world.unlocked);
       updateHud(dt, below.floor > 1 ? `${below.poi.name} Depths · floor ${below.floor}` : `${below.poi.name} Depths`);
+      hud.setBreath(magic.wind, magic.warded);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () =>
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
@@ -1137,6 +1145,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
     areaLabel = areaName();
     updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');
+    hud.setBreath(magic.wind, magic.warded);
     if (fishing.active) {
       const ev = fishing.update(dt);
       if (ev === 'bite') sound.chime();

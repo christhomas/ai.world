@@ -21,6 +21,7 @@ export class Hud {
   private readonly toast = $('toast');
   private toastTimer = 0;
   private readonly heartsEl = $('hearts');
+  private readonly breathEl = $('breath');
   private readonly hurtEl = $('hurt');
   private hurtTimer = 0;
   private shownVersion = -1;
@@ -108,6 +109,20 @@ export class Hud {
   }
 
   /** Throttled so the DOM is not rewritten every frame. */
+  /**
+   * Breath, and the seconds of warding left.
+   *
+   * Drawn every frame rather than on a version bump, because both are always moving and neither
+   * is worth saving. Without it a spell is a line of text that has already gone: you cannot tell
+   * whether you can afford to run, which is the only question the ward exists to answer.
+   */
+  setBreath(wind: number, warded: number): void {
+    const full = Math.max(0, Math.min(10, Math.round(wind * 10)));
+    const dots = `${'●'.repeat(full)}${'○'.repeat(10 - full)}`;
+    const html = warded > 0 ? `${dots} <span class="warded">🛡 ${warded.toFixed(1)}s</span>` : dots;
+    if (this.breathEl.innerHTML !== html) this.breathEl.innerHTML = html;
+  }
+
   setDebug(dt: number, text: () => string): void {
     this.debugAccum += dt;
     if (this.debugAccum < 0.25) return;

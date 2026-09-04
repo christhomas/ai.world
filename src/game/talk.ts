@@ -180,11 +180,14 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
       // root is defined below; reaching it lazily keeps the night's first node buildable
       return { speaker, emoji, face, pages: [`A room is ${room.price} gold, and you have ${ctx.state.inventory.gold}.`], choices: [{ label: 'Back', next: () => root() }] };
     }
+    // a bed that costs nothing is one somebody decided you were not to be charged for, and
+    // saying so is the whole point of having earned it
+    const settled = room.price === 0 ? 'Your money is no good here, not after what you did. ' : '';
     return {
       speaker, emoji, face,
-      pages: [room.shared
+      pages: [settled + (room.shared
         ? 'Upstairs, first on the left. The night is the night — it will pass at its own pace — but you will pass it warm and safe.'
-        : 'Upstairs, first on the left. Sleep as long as you like; I will wake you at dawn.'],
+        : 'Upstairs, first on the left. Sleep as long as you like; I will wake you at dawn.')],
       choices: [
         { label: 'Sleep', next: () => ({ speaker, emoji, face, pages: [room.take()] }) },
         { label: 'Not tonight', next: () => root() },
