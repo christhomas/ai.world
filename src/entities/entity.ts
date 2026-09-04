@@ -232,6 +232,8 @@ export interface Ctx {
   nearestTrouble?: (from: Entity, within: number) => Entity | null;
   /** One creature hurting another, with nobody's hearts involved. */
   strike?: (attacker: Entity, victim: Entity, damage: number) => void;
+  /** What something fetches at market, which is the game's business and not this file's. */
+  worth?: (id: string) => number;
   onAttack: (e: Entity, damage: number) => void;
 }
 
@@ -343,6 +345,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         nearestPerson: ctx.nearestPerson ?? (() => null),
         nearestTrouble: ctx.nearestTrouble ?? (() => null),
         strike: ctx.strike ?? (() => {}),
+        worth: ctx.worth ?? (() => 0),
       },
   });
 

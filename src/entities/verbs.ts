@@ -1,7 +1,6 @@
 import { act, type Node, type Tick } from '../core/behaviour';
 import type { Params, Vocabulary } from '../core/behaviourFile';
 import { BEHAVIOUR, canStand, yawFor, type Entity, type Post, type TileWorld } from './entity';
-import { ITEMS } from '../game/items';
 import type { Rng } from '../core/rng';
 
 /**
@@ -41,6 +40,11 @@ export interface Mind {
   nearestTrouble: (from: Entity, within: number) => Entity | null;
   /** Hurt a creature rather than the hero: a wolf on a farmer, a constable on the wolf. */
   strike: (attacker: Entity, victim: Entity, damage: number) => void;
+  /**
+   * What something fetches at market. Handed in rather than looked up: what a pelt is worth is
+   * the game's business, and a creature's vocabulary has no reason to know the item catalogue.
+   */
+  worth: (id: string) => number;
 }
 
 /** Where this creature's attention is: whatever it has marked, or the hero if it has marked nothing. */
@@ -356,8 +360,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     sell: () => (tick) => {
       const { self } = tick.world;
       if (!self.carrying) return 'failure';
-      const worth = ITEMS[self.carrying.id]?.price ?? 4;
-      self.purse += worth * self.carrying.count;
+      self.purse += tick.world.worth(self.carrying.id) * self.carrying.count;
       self.carrying = null;
       self.state = 'idle';
       self.timer = 1.5;

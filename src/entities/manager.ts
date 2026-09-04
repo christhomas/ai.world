@@ -93,6 +93,11 @@ export class EntityManager {
     private readonly chunks: ChunkSource,
     private readonly seed: number,
     private readonly villages: Village[] = [],
+    /**
+     * What a thing fetches at market. Passed in because what a pelt is worth belongs to the game's
+     * item catalogue, and this layer has no business knowing it.
+     */
+    private readonly priceOf: (id: string) => number = () => 4,
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -140,6 +145,7 @@ export class EntityManager {
       nearestPerson: (from: Entity, within: number) => this.nearestPerson(from, within),
       nearestTrouble: (from: Entity, within: number) => this.nearestTrouble(from, within),
       strike: (attacker: Entity, victim: Entity, damage: number) => this.strike(attacker, victim, damage),
+      worth: this.priceOf,
     };
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;

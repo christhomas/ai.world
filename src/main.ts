@@ -122,7 +122,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
   const worldMap = new WorldMap(mapBase, fog);
   const entityRenderer = new EntityRenderer(rig.scene);
-  const entities = new EntityManager(entityRenderer, chunks, chunks, seed, structures.villages);
+  const entities = new EntityManager(entityRenderer, chunks, chunks, seed, structures.villages, (id) => ITEMS[id]?.price ?? 4);
   const dialogue = new DialogueBox();
   const sound = new Sound();
   const weather = new Weather(rig.scene);
