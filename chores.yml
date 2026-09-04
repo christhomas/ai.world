@@ -71,10 +71,27 @@ tasks:
     generates: [node_modules/.modules.yaml]
     cmds: [pnpm install]
 
-  faces:
-    desc: A contact sheet of generated villager faces, for judging them all at once
+  art:
+    desc: Draw a piece of the game's artwork on the terminal, beside what it would replace
+    args: [subject]
+    vars:
+      SUBJECT: ''
     cmds:
-      - echo "open http://localhost:5173/tools/faces.html (run 'chore web' first)"
+      - pnpm exec tsx tools/art/show.ts {{.SUBJECT}} {{.CLI_ARGS}}
+
+  ask:
+    desc: Ask Claude for a new version of some artwork, to look at with 'chore art'
+    args: [subject, name]
+    vars:
+      SUBJECT: faces
+      NAME: ''
+    cmds:
+      - tools/art/ask.sh {{.SUBJECT}} {{.NAME}} {{.CLI_ARGS}}
+
+  faces:
+    desc: A contact sheet of generated villager faces in a browser, at any size
+    cmds:
+      - 'echo "open http://localhost:5173/tools/faces.html (run: chore web) — or stay in the terminal with: chore art faces"'
 
   check:
     desc: Typecheck and test, the gate before a commit
