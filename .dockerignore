@@ -1,11 +1,18 @@
-# The image builds from the lockfile and server/ alone: the page, the docs and the screenshots
-# are none of the server's business, and leaving them out keeps the build context small enough
-# that a build is not preceded by a file copy.
+# The image builds from the lockfile, the server and — when the page is wanted in it too — the
+# sources the page is built from. The docs, the screenshots and the legacy folder are none of its
+# business, and leaving them out keeps the build context small enough that a build is not preceded
+# by a long file copy.
 *
 !package.json
 !pnpm-lock.yaml
 !tsconfig.json
 !server
+!vite.config.ts
+!index.html
+!src
+!animations
+!behaviours
+!art
 
 # Worlds belong to whoever is running the server, not to the image.
 server/data

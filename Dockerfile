@@ -1,6 +1,13 @@
-# The world server, and only the world server. The page is a static site that GitHub Pages
-# already carries; what has to live somewhere with an address is the half that holds the clock,
-# the market and the post shelf.
+# The world server, and — unless you ask otherwise — the page as well.
+#
+# The two are separable on purpose: the page is a static site GitHub Pages can carry on its own,
+# and what has to live somewhere with an address is the half that holds the clock, the market and
+# the post shelf. But one box serving both is the whole point of running this at home, and it buys
+# something beyond convenience: when the page is served by the world server, the client works out
+# its own WebSocket address from the origin it was loaded from, so nothing anywhere has to be
+# configured with a server address.
+#
+# `--build-arg WITH_PAGE=false` leaves it out and gives you the server alone, as it always was.
 #
 # Two stages, because what this needs to build is not what it needs to run. Building wants the
 # whole 126 MB toolchain; running wants a 32 kB bundle, `ws`, and node. Bundling rather than
@@ -15,6 +22,12 @@ ARG PNPM_VERSION=10.30.3
 # The port inside the container. Both compose and fly.toml publish this; the server itself reads
 # PORT, so one number changes all three.
 ARG PORT=8787
+# Whether to build the page into the image and serve it from the same origin.
+ARG WITH_PAGE=true
+# Source maps are 4.8 MB against the page's own 1.1 MB. Worth having locally where you might debug
+# the thing; not worth carrying to a Raspberry Pi over a home network, and not worth handing to
+# anything that can reach the box.
+ARG PAGE_SOURCEMAPS=false
 
 FROM node:${NODE_VERSION} AS build
 ARG PNPM_VERSION
@@ -31,6 +44,20 @@ COPY tsconfig.json ./
 COPY server ./server
 RUN pnpm exec vite build --config server/build.config.ts
 
+# The page, when it is wanted. Built after the server so that changing the game does not rebuild
+# the server layer, and into a fixed path so the runtime stage can copy it without knowing whether
+# it exists — an empty directory is a perfectly good "no page".
+ARG WITH_PAGE
+ARG PAGE_SOURCEMAPS
+COPY vite.config.ts index.html ./
+COPY src ./src
+COPY animations ./animations
+COPY behaviours ./behaviours
+COPY art ./art
+RUN mkdir -p /page && if [ "${WITH_PAGE}" = "true" ]; then \
+      BASE=/ pnpm exec vite build --sourcemap "${PAGE_SOURCEMAPS}" --outDir /page --emptyOutDir; \
+    fi
+
 FROM node:${NODE_VERSION}
 ARG PORT
 WORKDIR /app
@@ -40,6 +67,11 @@ ENV NODE_ENV=production
 # of the server's runtime dependency tree.
 COPY --from=build /app/node_modules/ws ./node_modules/ws
 COPY --from=build /app/server/dist/server.mjs ./server.mjs
+
+# The page. Empty when it was not built, which the server reads as "no page" and goes on serving
+# only the world.
+COPY --from=build /page ./dist
+ENV STATIC_DIR=/app/dist
 
 # One JSON file per seed lives here. Mount something durable over it — compose uses a named
 # volume, fly.toml a volume — or every world forgets itself when the container is replaced.
