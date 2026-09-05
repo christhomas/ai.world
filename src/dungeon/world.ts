@@ -69,7 +69,8 @@ export class DungeonWorld implements TileWorld {
       cx, cz, size,
       height: new Float32Array(n), type: new Uint8Array(n), biome: new Uint8Array(n).fill(Biome.Mountain),
       prop: new Uint8Array(n), propRot: new Float32Array(n).fill(Number.NaN), shore: new Float32Array(n),
-      corners: new Float32Array(n * 4), water: new Float32Array(n), empty: true,
+      corners: new Float32Array(n * 4),
+      sloped: new Uint8Array(n), water: new Float32Array(n), empty: true,
     };
     const ox = cx * CS - 1, oz = cz * CS - 1;
     for (let lz = 0; lz < size; lz++) {

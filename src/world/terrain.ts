@@ -5,6 +5,7 @@ import { Simplex2D } from './noise';
 import { biomeAt, segDist2, type RoadGraph } from './graph';
 import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
+import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 
@@ -40,8 +41,15 @@ export interface ChunkData {
   /** Fixed prop yaw for structures; NaN = random. */
   propRot: Float32Array;
   shore: Float32Array;   // for seabed tiles: tiles from the coast (0 = at the coast)
-  /** Road/bridge tiles only: heights at the 4 corners (NW, NE, SE, SW) so ramps are true slopes, not stairs. */
+  /** Heights at the 4 corners (NW, NE, SE, SW). Flat tiles repeat their own height four times. */
   corners: Float32Array;
+  /**
+   * 1 where the tile is a face of a mountain and is drawn as one leaning surface rather than a
+   * terrace. Terraces are the look of this world and stay exactly as they were; a mountain is
+   * cut from a smooth field, and mixing the two — a flat tile height with sloped corners — draws
+   * tops and walls that disagree and tears the mesh apart.
+   */
+  sloped: Uint8Array;
   /** Water surface height for Water/Bridge tiles, 0 elsewhere. */
   water: Float32Array;
   empty: boolean;
@@ -61,6 +69,8 @@ export interface TileSample {
   roadDist: number;
   roadWidth: number;
   corners: [number, number, number, number];
+  /** Whether this tile is part of a mountain face, and so drawn as a slope rather than a step. */
+  sloped: boolean;
 }
 
 export interface Probe {
@@ -101,6 +111,8 @@ export class TerrainSampler {
   readonly hydro: Hydrology;
   readonly structures: Structures;
   readonly seed: number;
+  /** The world's mountains. Planned before structures, because structures sample the ground. */
+  readonly massifs: Massif[];
 
   constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
     this.seed = graph.seed;
@@ -134,6 +146,17 @@ export class TerrainSampler {
       this.riverIndex.insert(this.riverSegs.length + i, l.x - m, l.z - m, l.x + m, l.z + m);
     });
 
+    // the mountains go in before anything reads the ground. Their anchors come off the road tree
+    // rather than off the village list, because villages are structures and structures are built
+    // from the finished ground: asking them where the towns are would be a circle. The graph
+    // already knows which nodes grew towns, which is the same answer one step earlier.
+    this.massifs = planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
+      (x, z) => {
+        const probe = this.landProbe(x, z);
+        if (!probe || !probe.land) return null;
+        return { fromRoad: probe.roadDist, fromCoast: probe.landWidth - probe.roadDist };
+      });
+
     // structures sample raw terrain, so they come last
     this.structures = prebuilt ? prebuilt.structures : generateStructures(this);
     this.structIndex = new CellIndex(CELL, this.structures.all.length);
@@ -144,7 +167,7 @@ export class TerrainSampler {
   }
 
   newSample(): TileSample {
-    return { type: TileType.Skip, level: 0, base: 0, height: 0, water: 0, shore: 0, biome: 0 as Biome, bank: false, roadDist: Infinity, roadWidth: 0, corners: [0, 0, 0, 0] };
+    return { type: TileType.Skip, level: 0, base: 0, height: 0, water: 0, shore: 0, biome: 0 as Biome, bank: false, roadDist: Infinity, roadWidth: 0, corners: [0, 0, 0, 0], sloped: false };
   }
 
   biomeOf(x: number, z: number): Biome {
@@ -241,7 +264,7 @@ export class TerrainSampler {
     const px = tx + 0.5, pz = tz + 0.5;
     out.type = TileType.Skip;
     out.water = 0; out.shore = 0; out.bank = false; out.level = 0; out.height = 0; out.base = 0;
-    out.roadDist = Infinity; out.roadWidth = 0;
+    out.roadDist = Infinity; out.roadWidth = 0; out.sloped = false;
     if (!cands) cands = this.edgeIndex.query(px - 1, pz - 1, px + 1, pz + 1);
     const hit = this.nearest(px, pz, cands);
     if (!hit) return;
@@ -296,6 +319,10 @@ export class TerrainSampler {
     const hills = this.noise.fbm(px * 0.04, pz * 0.04, 2);
     let rise = Math.floor(td * (0.75 + hills) * def.roughness);
     if (rise < 0) rise = 0;
+    // and whatever the mountains put here, which is nought over most of the world and a great deal
+    // in a few places. It is nought along a road at any height, so a pass stays a pass.
+    const lift = upliftAt(px, pz, this.massifs, d);
+    rise += lift;
     let level = Math.min(WORLD.MAX_LEVEL, baseLevel + rise);
 
     let type: TileType;
@@ -320,10 +347,14 @@ export class TerrainSampler {
         type = TileType.Sand;
         out.bank = true;
       } else {
-        // valley sides climb one terrace per ~1.4 tiles away from the bank
+        // valley sides climb one terrace per ~1.4 tiles away from the bank.
+        // Measured against the ground rather than against the mountain standing on it: a river
+        // cuts a valley into the country it runs through, it does not shave the top off a peak
+        // half a mile above it. Without the `lift` here a massif with a stream anywhere near it
+        // came out as level 5 in the middle and broke into slabs around the edges.
         const cap = wl + Math.floor((water.wd - HYDRO.BANK) / 1.4);
-        if (level > cap) {
-          level = cap;
+        if (level - lift > cap) {
+          level = cap + lift;
           if (type === TileType.High && level - baseLevel < def.highAt) type = TileType.Ground;
         }
       }
@@ -331,6 +362,25 @@ export class TerrainSampler {
     out.type = type;
     out.level = level;
     out.height = level * STEP;
+
+    // Corners. Flat ground is flat, which is the whole look of this world and is left alone.
+    // A mountain is drawn from the smooth field instead, so its faces are leaning surfaces rather
+    // than a hundred half-unit steps. Only the drawing changes: `height` above is still the tile,
+    // and still what anybody walking into the face has to climb, so a wall stays a wall.
+    if (lift <= 0) {
+      out.corners[0] = out.corners[1] = out.corners[2] = out.corners[3] = out.height;
+    } else {
+      const settled = out.height - lift * STEP;
+      out.corners[0] = settled + upliftRawAt(tx, tz, this.massifs, d) * STEP;
+      out.corners[1] = settled + upliftRawAt(tx + 1, tz, this.massifs, d) * STEP;
+      out.corners[2] = settled + upliftRawAt(tx + 1, tz + 1, this.massifs, d) * STEP;
+      out.corners[3] = settled + upliftRawAt(tx, tz + 1, this.massifs, d) * STEP;
+      // the tile *is* its corners now, so nothing draws a step in the middle of a mountain face.
+      // Still far too steep to climb — a face runs several terraces to the tile against a stride
+      // of one — so what this changes is how it looks and not where anybody can go.
+      out.height = (out.corners[0] + out.corners[1] + out.corners[2] + out.corners[3]) / 4;
+      out.sloped = true;
+    }
   }
 
   generateChunk(cx: number, cz: number): ChunkData {
@@ -346,6 +396,7 @@ export class TerrainSampler {
       propRot: new Float32Array(n).fill(Number.NaN),
       shore: new Float32Array(n),
       corners: new Float32Array(n * 4),
+      sloped: new Uint8Array(n),
       water: new Float32Array(n),
       empty: true,
     };
@@ -370,7 +421,16 @@ export class TerrainSampler {
           chunk.corners.set(grid.corners.subarray(gi * 4, gi * 4 + 4), idx * 4);
           continue;
         }
-        chunk.height[idx] = level * WORLD.STEP;
+        if (grid.sloped[gi] === 1) {
+          // a mountain face is taken exactly as it was cut, corners and all. The de-speckle filter
+          // works in whole terraces and has nothing to say about a surface that has none.
+          chunk.sloped[idx] = 1;
+          chunk.height[idx] = grid.height[gi];
+          chunk.corners.set(grid.corners.subarray(gi * 4, gi * 4 + 4), idx * 4);
+        } else {
+          chunk.height[idx] = level * WORLD.STEP;
+          chunk.corners.fill(level * WORLD.STEP, idx * 4, idx * 4 + 4);
+        }
         if (type !== TileType.Seabed) chunk.prop[idx] = this.rollProp(grid, gi, type);
       }
     }
@@ -398,7 +458,7 @@ export class TerrainSampler {
       type: new Uint8Array(n), biome: new Uint8Array(n), bank: new Uint8Array(n),
       level: new Float32Array(n), height: new Float32Array(n), water: new Float32Array(n), shore: new Float32Array(n),
       roadDist: new Float32Array(n), roadWidth: new Float32Array(n), base: new Int16Array(n),
-      corners: new Float32Array(n * 4),
+      corners: new Float32Array(n * 4), sloped: new Uint8Array(n),
     };
     const s = this.newSample();
     for (let gz = 0; gz < G; gz++) {
@@ -410,7 +470,8 @@ export class TerrainSampler {
         grid.biome[gi] = s.biome; grid.bank[gi] = s.bank ? 1 : 0;
         grid.level[gi] = s.level; grid.height[gi] = s.height; grid.water[gi] = s.water; grid.shore[gi] = s.shore;
         grid.roadDist[gi] = s.roadDist; grid.roadWidth[gi] = s.roadWidth; grid.base[gi] = s.base;
-        if (s.type === TileType.Road || s.type === TileType.Bridge) grid.corners.set(s.corners, gi * 4);
+        grid.corners.set(s.corners, gi * 4);
+        grid.sloped[gi] = s.sloped ? 1 : 0;
       }
     }
     return grid;
@@ -498,6 +559,7 @@ interface SampleGrid {
   shore: Float32Array;
   roadDist: Float32Array;
   roadWidth: Float32Array;
+  sloped: Uint8Array;
   base: Int16Array;
   corners: Float32Array;
 }
