@@ -89,8 +89,14 @@ export function swing(
   standing: Standing | null = null,
   /** What a spell is throwing instead of the hero's arm: how hard, and how far. Null for a swing. */
   blow: Blow | null = null,
+  /**
+   * How much of a swing this one is, from the breath there was to throw it with. One for anybody
+   * with air in their lungs; less for somebody swinging on empty, which is what stops a flurry
+   * from being infinite.
+   */
+  might = 1,
 ): SwingResult {
-  const damage = blow?.damage ?? state.attack;
+  const damage = Math.max(1, Math.round((blow?.damage ?? state.attack) * might));
   // yaw is a +x-facing rig's heading: forward is (cos yaw, -sin yaw)
   const fx = Math.cos(yaw), fz = -Math.sin(yaw);
   const out: SwingResult = { hit: [], killed: [], gold: 0, loot: [], reported: [], regard: null };

@@ -31,6 +31,10 @@ export function startDying(e: Entity): void {
   e.walk = 0;
   e.flap = 0;
   e.strike = 0;
+  // a blow that was half thrown when it died does not land. Without this a wolf shot out of the
+  // air still bites you on the way down, which is the sort of thing that reads as the game
+  // cheating even when the arithmetic is fair
+  e.winding = 0;
   e.target = null;
 }
 

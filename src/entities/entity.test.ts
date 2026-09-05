@@ -48,11 +48,18 @@ describe('entity movement', () => {
 
     const wolf = new Entity(KINDS.wolf, 3.5, 3, new Herd(KINDS.wolf, 3, 3, 3, 3, 5), 'k', rng);
     wolf.y = 1;
+    // a blow is wound up before it lands, so the bite is a tick or two after the decision to bite
     updateEntity(wolf, 0.1, ctx);
+    expect(wolf.winding, 'the wolf did not wind up at all').toBeGreaterThan(0);
+    expect(bites, 'the bite landed in the same instant it was decided on').toEqual([]);
+    for (let n = 0; n < 20 && bites.length === 0; n++) updateEntity(wolf, 0.1, ctx);
     expect(bites).toEqual([KINDS.wolf.dangerous]);
     updateEntity(wolf, 0.1, ctx);
     expect(bites.length).toBe(1);                        // cooldown
-    expect(wolf.attackCooldown).toBeGreaterThan(BEHAVIOUR.BITE_COOLDOWN - 0.3);
+    // the cooldown is set when the wolf commits, not when the blow lands, so by the time we are
+    // looking at it the wind-up has already been spent out of it
+    expect(wolf.attackCooldown).toBeGreaterThan(BEHAVIOUR.BITE_COOLDOWN * (1 - BEHAVIOUR.WIND_UP) - 0.3);
+    expect(wolf.attackCooldown).toBeGreaterThan(0);
 
     // an armed hero scares the wolf off instead
     const armed = { ...ctx, playerArmed: true };

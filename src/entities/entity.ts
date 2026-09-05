@@ -34,6 +34,27 @@ export const BEHAVIOUR = {
   STALK_RADIUS: 7,         // predators walk at the hero from here
   BITE_RANGE: 1.4,
   BITE_COOLDOWN: 1.6,
+  /**
+   * How much of a blow happens before it lands, as a share of the animation.
+   *
+   * This is the single most important number in a fight, because before it existed there was no
+   * such thing as reacting. A creature threw its animation and applied its damage in the same
+   * instant, so the swing you could see was the report of a hit you had already taken; nothing
+   * on screen ever preceded anything. Every complaint about the combat — that it is one button
+   * jammed until somebody falls over — starts here, because with no tell there is nothing to
+   * answer and mashing is not merely the easiest play, it is the only one.
+   *
+   * Just over half, so the blow lands a little past the top of the swing where the eye expects
+   * it, and the wind-up is long enough to be read but too short to stroll out of.
+   */
+  WIND_UP: 0.55,
+  /**
+   * How far outside its reach you can be when the blow finally lands and still be caught.
+   *
+   * Not nought, or backing off one step would beat everything in the game for ever; not large, or
+   * stepping out would never work. It is the width of the decision.
+   */
+  BITE_SLIP: 0.4,
   ARRIVE_DISTANCE: 0.25,   // close enough to a target to stop
   HUNT_RADIUS: 12,         // dungeon monsters come after the hero from here
   HURT_TIME: 0.35,         // stagger after taking a hit
@@ -161,6 +182,13 @@ export class Entity {
   offhandBlow = false;
   /** Seconds left of a charge at the player; the movement code reads it to pick a speed. */
   charging = 0;
+  /**
+   * Seconds left of a blow that has been started but has not landed yet.
+   *
+   * The gap between deciding to bite and biting, which is the window the player gets to move out
+   * of, guard against, or accept. Positive only between those two moments.
+   */
+  winding = 0;
   /** Whatever this creature's behaviour is part way through. Its own, and nobody else's. */
   readonly mind = new Memory();
   hp: number;

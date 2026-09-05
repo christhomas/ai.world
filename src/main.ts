@@ -23,6 +23,7 @@ import { StructureKind, compassDir } from './world/structures';
 import { ITEMS, sellPrice } from './game/shops';
 import { COMBAT, struck, swing } from './game/combat';
 import { carriedTo, costOf, saidOfKnockout } from './game/knockout';
+import { BREATH, Breath } from './game/breath';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
@@ -735,6 +736,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   input.onKey('=', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
   input.onKey('-', () => { if (worldMap.isOpen) worldMap.zoomBy(0.8); });
   let swingCooldown = 0;
+  /**
+   * What the hero has left to swing and guard with. The whole of the defensive game hangs off it:
+   * swinging spends it, holding a guard drains it, and it only comes back when you are doing
+   * neither — so there is now a reason to stop pressing the button.
+   */
+  const breath = new Breath();
   /** A hired man is re-marked now and then, because the world streams him out and back. */
   let musterIn = 0;
   const attack = () => {
@@ -748,6 +755,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       ? 'swing'
       : (player.entity.offhandBlow ? 'kick' : 'punch');
     throwBlow(player.entity, blow);
+    // a swing costs breath whether or not it finds anything, which is what makes swinging at air
+    // a decision rather than a free action
+    const might = breath.swing();
+    if (might < 1) hud.flash('You are swinging on empty.');
 
     const world = places.underground?.world ?? chunks;
     const manager = places.underground?.monsters ?? entities;
@@ -777,7 +788,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       .some((e) => e.kind.id === 'nettle' && !e.dead && e.hp <= state.attack);
     if (cornered && interactions.heWentDown()) { sound.thud(); return; }
 
-    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing);
+    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing, null, might);
     // the ledger moves on every deed, not only on the ones that change what people call you
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
@@ -982,6 +993,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const lost = costOf(state.inventory.gold, GAMEPLAY.KO_GOLD_LOSS);
     state.inventory.gold -= lost;
     state.hp = state.maxHpTotal;
+    breath.refill();
     state.version++;
     // underground you are left at the mouth of the place you went into; above ground somebody
     // carries you home. Either way you are somewhere you can walk away from.
@@ -1000,6 +1012,33 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // instant and a full-health hero dies before the screen has finished flashing, which is
     // not a fight, it is an announcement.
     if (reeling > 0) return;
+
+    /**
+     * The arm goes up, or it does not. A guard raised in the fraction of a second after the thing
+     * in front of you commits turns the blow aside completely and leaves whoever threw it
+     * flat-footed; one that has been held since before the swing started only takes the edge off.
+     * Holding the key down deliberately gets you the worse of the two.
+     */
+    const answered = breath.answer();
+    if (answered === 'parried') {
+      // it went past you, and it is now standing there with its weight in the wrong place
+      attacker.hurt = BREATH.STAGGER;
+      attacker.attackCooldown = BREATH.STAGGER;
+      attacker.winding = 0;
+      const px = attacker.x - player.x, pz = attacker.z - player.z;
+      const gap = Math.hypot(px, pz) || 1;
+      attacker.x += (px / gap) * BEHAVIOUR.KNOCKBACK;
+      attacker.z += (pz / gap) * BEHAVIOUR.KNOCKBACK;
+      // no shape of its own: the arm comes across, which is what a deflection looks like anyway
+      throwBlow(player.entity, 'swing');
+      sound.chime();
+      hud.flash('Parried.');
+      director.saw('fight');
+      return;
+    }
+    const taken = Breath.after(answered, dmg);
+    if (answered === 'blocked') { sound.thud(); hud.flash('Blocked.'); }
+
     reeling = GAMEPLAY.REELING;
     sound.voice(heftOf(attacker));
 
@@ -1018,7 +1057,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       sound.splash();
       hud.flash(`${attacker.kind.label} hits the boat. You are in the water.`);
     }
-    if (!struck(state, dmg, magic.ward)) return;
+    if (!struck(state, taken, magic.ward)) return;
     knockOut(attacker.kind.label);
   };
 
@@ -1416,12 +1455,19 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     }
     const talking = dialogue.isOpen || worldMap.isOpen;
     iso.update(input, dt, player.mode === 'free' && !talking && !places.indoors);
+    /**
+     * The guard is held, not tapped, and it is polled here rather than bound as a one-shot key so
+     * that how long it has been up is a real number the parry window can be measured against.
+     * Not while riding: a guard on horseback is a different animation and a different fight.
+     */
+    if (!talking && !mount.riding && !sailing.sailing && input.isDown('c')) breath.raise(); else breath.drop();
+    breath.age(dt);
     player.climb = state.climb;
     player.speedScale = haulPace(
       mount.riding ? paceOf(mount.breed, goingUnderfoot()) : 1,
       mount.riding,
       state.count('cart') > 0,
-    );
+    ) * (breath.guarding ? BREATH.GUARDED_PACE : 1);
     if (sailing.sailing && !talking) {
       sailing.update(dt, {
         forward: (input.isDown('w', 'arrowup') ? 1 : 0) - (input.isDown('s', 'arrowdown') ? 1 : 0),
@@ -1509,7 +1555,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       heroGear.update(state, player.entity);
       multiplayer.sync(dt, () => 0.5);
       updateHud(dt, indoors.title);
-      hud.setBreath(magic.wind, magic.warded);
+      hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
       rig.renderer.render(indoors.scene.scene, iso.camera);
@@ -1538,7 +1584,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       below.map.reveal(player.x, player.z);
       below.map.draw(player.x, player.z, state.opened, (i) => below.world.chestId(i), below.world.unlocked);
       updateHud(dt, below.floor > 1 ? `${below.poi.name} Depths · floor ${below.floor}` : `${below.poi.name} Depths`);
-      hud.setBreath(magic.wind, magic.warded);
+      hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () =>
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
@@ -1601,7 +1647,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
     areaLabel = areaName();
     updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');
-    hud.setBreath(magic.wind, magic.warded);
+    hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
     if (fishing.active) {
       const ev = fishing.update(dt);
       if (ev === 'bite') sound.chime();

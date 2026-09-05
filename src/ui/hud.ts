@@ -118,10 +118,17 @@ export class Hud {
    * is worth saving. Without it a spell is a line of text that has already gone: you cannot tell
    * whether you can afford to run, which is the only question the ward exists to answer.
    */
-  setBreath(wind: number, warded: number): void {
-    const full = Math.max(0, Math.min(10, Math.round(wind * 10)));
-    const dots = `${'●'.repeat(full)}${'○'.repeat(10 - full)}`;
-    const html = warded > 0 ? `${dots} <span class="warded">🛡 ${warded.toFixed(1)}s</span>` : dots;
+  setBreath(wind: number, warded: number, arm = 1, guarding = false): void {
+    const row = (share: number) => {
+      const full = Math.max(0, Math.min(10, Math.round(share * 10)));
+      return `${'●'.repeat(full)}${'○'.repeat(10 - full)}`;
+    };
+    const parts = [row(wind)];
+    // the arm shows only when it is worth knowing about. A meter that sits full through every walk
+    // across the country is furniture, and the one thing this readout must not become is furniture
+    if (arm < 1 || guarding) parts.push(`<span class="${arm < 0.2 ? 'winded' : 'arm'}">${guarding ? '🛡' : '⚔'} ${row(arm)}</span>`);
+    if (warded > 0) parts.push(`<span class="warded">🛡 ${warded.toFixed(1)}s</span>`);
+    const html = parts.join(' ');
     if (this.breathEl.innerHTML !== html) this.breathEl.innerHTML = html;
   }
 

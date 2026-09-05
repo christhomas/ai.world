@@ -301,8 +301,14 @@ describe('a stick', () => {
 describe('the things that are meant to be a bad idea', () => {
   it('makes a bear cost a beginner more than half of themselves', () => {
     const stick = fight('bear', 1, null);
-    // winnable, and not worth winning: six of ten hearts for twenty-five gold, alone in a wood
-    expect(stick.hearts, 'a bear is cheap with a stick').toBeLessThanOrEqual(10 / 2);
+    // winnable, and not worth winning: six of ten hearts for twenty-five gold, alone in a wood.
+    // The hero in this harness swings whenever it may and never once steps back, which is exactly
+    // the player this fight is meant to punish — so the cost being over half is the claim, and the
+    // upper bound is only there to catch a bear that has quietly become unsurvivable.
+    // 2026-09-05: 5 -> 6, when a blow gained a wind-up you can step out of and this hero does not.
+    expect(stick.hearts, 'a bear no longer costs a masher more than half').toBeGreaterThan(10 / 2);
+    expect(stick.hearts, 'a bear is no longer winnable with a stick').toBeLessThan(10);
+    expect(stick.won, 'a bear is no longer winnable with a stick').toBe(true);
     // and a real weapon changes the argument twice over, because a drawn sword is also what
     // makes a prowler decide you are not worth it
     const sword = fight('bear', 1, 'sword');

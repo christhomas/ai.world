@@ -184,17 +184,46 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       };
     },
 
-    /** Bite, if the hero is close enough to bite. Fails when they are not. */
+    /**
+     * Bite, if the hero is close enough to bite. Fails when they are not.
+     *
+     * A bite is two moments, not one: the creature commits and rears back, and then, a fraction of
+     * a second later, the blow lands. It used to be a single instant — throw the animation and
+     * take the hearts off in the same tick — which meant the swing you could see was the report of
+     * damage you had already taken. Nothing on screen ever preceded anything, so there was nothing
+     * to react to, and jamming the attack button was not the laziest way to fight but the only
+     * one there was.
+     *
+     * Splitting it costs one field and buys the whole of the defensive game: a wind-up you can
+     * read, a moment where stepping back actually works, and a window a guard can be timed to.
+     * The creature commits at the start of it — it does not re-aim while it swings — so backing
+     * off during the wind-up beats a blow that was already thrown, which is the deal.
+     */
     bite: (params) => (tick) => {
       const { self, bite, strike } = tick.world;
       const aim = aimOf(tick.world);
       const reach = number(params, 'tiles', BEHAVIOUR.BITE_RANGE);
-      if (rangeTo(tick) > reach || self.attackCooldown > 0) return 'failure';
-      self.attackCooldown = number(params, 'cooldown', BEHAVIOUR.BITE_COOLDOWN);
-      self.yaw = yawFor(aim.x - self.x, aim.z - self.z);
-      // every creature in the game attacks through this one verb, so it is the only place a blow
-      // has to be thrown for wolves, bears, constables and hired swords all to swing at things
-      throwBlow(self, blowOf(self.kind));
+
+      // the wind-up lives on the creature rather than in this node's memory, so that a blow which
+      // is interrupted — the thing is frightened off, or killed mid-swing — is over the moment the
+      // creature stops being able to throw it, rather than waiting in a tree to be resumed
+      if (self.winding <= 0) {
+        if (rangeTo(tick) > reach || self.attackCooldown > 0) return 'failure';
+        self.attackCooldown = number(params, 'cooldown', BEHAVIOUR.BITE_COOLDOWN);
+        self.yaw = yawFor(aim.x - self.x, aim.z - self.z);
+        // every creature in the game attacks through this one verb, so it is the only place a
+        // blow has to be thrown for wolves, bears, constables and hired swords all to swing
+        throwBlow(self, blowOf(self.kind));
+        self.winding = self.strike * BEHAVIOUR.WIND_UP;
+        return 'running';
+      }
+
+      self.winding = Math.max(0, self.winding - tick.dt);
+      if (self.winding > 0) return 'running';
+
+      // it lands where the creature is now, against wherever the target has got to. A step back
+      // during the wind-up is a step out of it, which is the only defence that needs no button.
+      if (rangeTo(tick) > reach + BEHAVIOUR.BITE_SLIP) return 'failure';
       const damage = number(params, 'damage', self.kind.dangerous ?? 1);
       // the hero has hearts and a HUD; anybody else is just another creature to be hurt
       if (aim.who) strike(self, aim.who, damage); else bite(self, damage);

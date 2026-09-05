@@ -94,6 +94,8 @@ body:has(#dialogue.show) #controls { opacity: 0; pointer-events: none; transitio
 
 #breath { color: #8fd2ff; font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
 #breath .warded { color: #ffd76a; }
+#breath .arm { color: #cfe6a0; }
+#breath .winded { color: #ff9d7a; }
 #status {
   position: fixed; top: 20px; left: 20px;
   background: rgba(0,0,0,0.7); border: 2px solid #e74c3c; border-radius: 8px;
@@ -397,6 +399,12 @@ body.touch #touch {
 .touch-swing {
   right: calc(var(--touch-act) + 16px); bottom: 30px;
   width: var(--touch-swing); height: var(--touch-swing); font-size: 24px;
+}
+/* the guard sits inside the sword, where the thumb already is: you raise it in the moment you
+   would otherwise have swung, which is the whole decision the button exists for */
+.touch-guard {
+  right: calc(var(--touch-act) + var(--touch-swing) + 26px); bottom: 34px;
+  width: var(--touch-target); height: var(--touch-target); font-size: 21px;
 }
 /* the bow sits above the sword: the same hand, one reach further, and out of the thumb's way */
 .touch-loose {

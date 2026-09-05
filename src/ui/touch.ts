@@ -84,6 +84,8 @@ const MORE_BUTTONS: readonly Button[] = [
 const ACT = { key: 'enter', glyph: '⏎', label: 'Talk, open, board, harvest, dig, fell' } as const;
 const SWING = { key: 'x', glyph: '⚔', label: 'Swing' } as const;
 const LOOSE = { key: 'z', glyph: '🏹', label: 'Loose an arrow' } as const;
+/** Held rather than tapped, because how long it has been up is what decides a parry from a block. */
+const GUARD = { key: 'c', glyph: '🛡', label: 'Guard (hold)', hold: true } as const;
 const ESCAPE = { key: 'escape', glyph: '✕', label: 'Close' } as const;
 
 /** `?touch=1` forces the controls on, `?touch=0` off, for anyone whose device we guess wrong. */
@@ -223,6 +225,7 @@ export class TouchControls {
     cluster.id = 'touchAct';
     cluster.append(
       this.button(LOOSE, 'touch-round touch-loose'),
+      this.button(GUARD, 'touch-round touch-guard'),
       this.button(SWING, 'touch-round touch-swing'),
       this.button(ACT, 'touch-round touch-do'),
     );
