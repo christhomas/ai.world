@@ -44,7 +44,7 @@ import { HORSE, Mount } from './game/mount';
 import { Online, tradableItems, type TradeOffer, type WorldDelta } from './game/online';
 import { Chat } from './ui/chat';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
-import { Houses, stageAt } from './game/building';
+import { BUILD, Houses, stageAt } from './game/building';
 import { CropField } from './render/crops';
 import { BuildingSite } from './render/site';
 import { BOAT, Sailing } from './game/sailing';
@@ -829,6 +829,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   input.onKey('+', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
   input.onKey('=', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
   input.onKey('-', () => { if (worldMap.isOpen) worldMap.zoomBy(0.8); });
+  /** Which houses were standing when the world was last told what to walk into. */
+  let wallsBuilt = '';
   let swingCooldown = 0;
   /** A hired man is re-marked now and then, because the world streams him out and back. */
   let musterIn = 0;
@@ -1253,6 +1255,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       hired: houses.hired,
       jobs: houses.entries().map((job) => ({ ...job, stage: stageAt(job, state.day + state.time) })),
     });
+    // put a finished house on the ground where you stand, for checking that a wall is a wall
+    (debug as { __build?: (x: number, z: number) => unknown }).__build = (x, z) => {
+      houses.takeOn('Crossroads Town', BUILD.PRICE, BUILD.PRICE);
+      const job = houses.place(x, z, state.day - BUILD.DAYS - 1);
+      state.version++;
+      return job;
+    };
+    (debug as { __solid?: (x: number, z: number) => boolean }).__solid = (x, z) => chunks.blocked(x, z);
     (debug as { __place?: () => string }).__place = () => placeName();
     (debug as { __coop?: () => unknown }).__coop = () => ({
       hosting: coop.hosting, mirroring: coop.mirroring, id: online.id,
@@ -1880,10 +1890,31 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       ownBoat.rotation.y = sailing.yaw;
     }
     cropField.update(plots, state.day + state.time, player.x, player.z, (x, z) => chunks.heightAt(x, z));
-    buildingSite.update(
-      houses.entries().map((job) => ({ id: job.id, x: job.x, z: job.z, rot: job.rot, stage: stageAt(job, state.day + state.time) })),
-      player.x, player.z, (x, z) => chunks.heightAt(x, z),
-    );
+    const standing = houses.entries().map((job) => ({ id: job.id, x: job.x, z: job.z, rot: job.rot, stage: stageAt(job, state.day + state.time) }));
+    buildingSite.update(standing, player.x, player.z, (x, z) => chunks.heightAt(x, z));
+    /**
+     * And a finished house is a wall to everybody, not only a picture.
+     *
+     * Only the finished ones. Pegs in the ground and a frame are things you walk through on a
+     * building site, and a site that turned solid the day it was marked out could shut a door
+     * behind somebody standing on their own plot.
+     *
+     * Rebuilt only when the set of houses or their stages actually changes, because this runs
+     * every frame and almost every frame the answer is the same one as last time.
+     */
+    const walls = standing.filter((job) => job.stage === 'house').map((job) => `${job.id}`).join('|');
+    if (walls !== wallsBuilt) {
+      wallsBuilt = walls;
+      const tiles: Array<{ x: number; z: number }> = [];
+      for (const job of standing) {
+        if (job.stage !== 'house') continue;
+        const tx = Math.floor(job.x), tz = Math.floor(job.z);
+        for (let dz = -BUILD.PLOT; dz <= BUILD.PLOT; dz++) {
+          for (let dx = -BUILD.PLOT; dx <= BUILD.PLOT; dx++) tiles.push({ x: tx + dx, z: tz + dz });
+        }
+      }
+      chunks.standsOn(tiles);
+    }
     entityRenderer.update();
     heroGear.update(state, player.entity);
 

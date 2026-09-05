@@ -3,6 +3,7 @@ import { WORLD } from '../core/config';
 import type { PropLibrary } from '../render/props';
 import type { PropKind } from './biomes';
 import type { WorkerRequest, WorkerResponse } from './messages';
+import { Standing } from './standing';
 import { TileType } from './terrain';
 import type { TileWorld } from '../entities/entity';
 import type { ChunkSource, ChunkTiles } from '../entities/manager';
@@ -202,7 +203,23 @@ export class ChunkManager implements TileWorld, ChunkSource {
     return chunk.tiles.types[i] === TileType.Seabed ? WORLD.WATER_Y : null;
   }
 
+  /**
+   * What has been put up since the ground was made.
+   *
+   * It lives here rather than on the hero's own view of the world on purpose. Everything that
+   * walks asks this one object whether it may — the hero, wolves, villagers, a constable running
+   * somewhere. Teaching only the hero about a house would give you a wall that stopped you and let
+   * a wolf stroll through it, which reads worse than no wall at all.
+   */
+  private readonly built = new Standing();
+
+  /** Replace everything standing that the ground does not know about. */
+  standsOn(tiles: Iterable<{ x: number; z: number }>): void {
+    this.built.replace(tiles);
+  }
+
   blocked(x: number, z: number): boolean {
+    if (this.built.at(x, z)) return true;
     const hit = this.tileAt(x, z);
     return hit ? hit.t.blocked[hit.i] === 1 : true;
   }
