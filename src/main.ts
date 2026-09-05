@@ -75,7 +75,8 @@ import { Gifts, type Kindness } from './game/gifts';
 import { Rescues } from './game/rescue';
 import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
 import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
-import { Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
+import { ROAM, Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
+import { Director } from './game/director';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
@@ -786,6 +787,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       return;
     }
     sound.hit(madeOf(res.hit[0]));
+    director.saw('fight');
     // swinging at things teaches you to swing at things: practice, weighted by what you swung at
     for (const e of res.hit) {
       const grew = state.practised(e.kind.dangerous ?? 0, res.killed.includes(e));
@@ -1117,6 +1119,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __eyries?: () => unknown }).__eyries = () => eyries.map((e) => ({
       id: e.id, name: e.name, x: Math.round(e.x), z: Math.round(e.z), partner: e.partner, fare: e.fare,
     }));
+    (debug as { __director?: () => unknown }).__director = () => ({ quietFor: Math.round(director.quietFor), reach: Math.round(director.reach * 100) / 100, last: director.last });
     (debug as { __water?: () => unknown }).__water = () => ({ ...heard, drop: Math.round(heard.drop * 10) / 10 });
     (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
     (debug as { __warband?: () => unknown }).__warband = () => ({
@@ -1243,6 +1246,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- what keeps the old places ---
   /** How near the hero has to be for Old Nettle to be worth putting in the world at all. */
   const NETTLE_WITHIN = 70;
+  /**
+   * How hard the world is currently looking for the player. Everything below is gated on being
+   * near enough, and a player is one person on one road; this widens that gate while nothing has
+   * happened and puts it back the moment something does.
+   */
+  const director = new Director();
   /** And how far out from the village his lot stand, in tiles. */
   const NETTLE_RING = 8;
   const haunts = hauntsOf(seed, structures);
@@ -1262,7 +1271,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       entities.despawnPack(id);
       bandsOut.delete(id);
     }
-    for (const band of bandsNear(roaming.abroad(), player.x, player.z, state.day)) {
+    for (const band of bandsNear(roaming.abroad(), player.x, player.z, state.day, ROAM.SIGHT * director.reach)) {
       if (bandsOut.has(band.id)) continue;
       const at = bandAt(band, state.day);
       const alive = roaming.alive(band);
@@ -1270,6 +1279,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (pack.length === 0) continue;        // no standable ground this frame; it will try again
       // the number a kill will name, so two clients agree which of them went down
       pack.forEach((e, i) => { e.rosterIndex = alive[i] ?? i; });
+      director.saw('band');
       bandsOut.set(band.id, band);
       hud.flash(warningOfBand(band));
     }
@@ -1287,10 +1297,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const village = structures.villages.find((v) => v.name === where.village);
     if (!village) return;
     // only once the hero is near enough to see it happen: he is rare, and being rare is the point
-    if (Math.hypot(village.x - player.x, village.z - player.z) > NETTLE_WITHIN) return;
+    if (Math.hypot(village.x - player.x, village.z - player.z) > NETTLE_WITHIN * director.reach) return;
 
     if (!nettleAbout || nettleAbout.dead) {
       nettleAbout = entities.spawnOne('nettle', village.x + 3, village.z + 3, seed ^ hashString(where.village));
+      director.saw('nemesis');
     }
     // his lot build up while the scheme runs, so arriving early is a different fight from
     // arriving late. He is rare; these are what makes a scheme dangerous to walk into.
@@ -1413,6 +1424,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         const where = structures.villages.find((v) => v.name === press.village);
         const way = where ? wayTo(where, player) : null;
         chat.line(way ? `${press.said} ${way}` : press.said, 'sys');
+        director.saw('trouble');
       }
     }
     for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
@@ -1538,6 +1550,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.setScene(here.biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
     listenForWater();
+    director.advance(dt);
 
     swingCooldown = Math.max(0, swingCooldown - dt);
     reeling = Math.max(0, reeling - dt);
