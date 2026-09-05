@@ -42,6 +42,17 @@ export const MINING = {
   FATAL: 0.18,
   /** How much a frightened village cuts its own working days. One bad story is worth a lot. */
   DREAD_COST: 0.85,
+  /**
+   * What one thing killed in the workings takes off how dangerous the place is.
+   *
+   * A cave floor holds somewhere around eight creatures, so this is set so that killing most of
+   * what is down there takes the place to nothing. Much smaller and clearing a mine is an
+   * afternoon's work for a rounding error, which is the state the game was in: a player could
+   * empty a cave and the village would go on being frightened of it for ever. Much larger and one
+   * lucky swing at a rat makes a mine safe, and the danger stops being something you have to
+   * finish dealing with.
+   */
+  CLEARED_BY: 0.016,
 } as const;
 
 /** What a mine is, as far as the economy is concerned. */
@@ -131,6 +142,37 @@ export function restOvernight(mine: Mine, today: DayUnderground): Mine {
   // back down anyway.
   else dread = Math.max(0, dread - 0.022);
   return { id: mine.id, worked, dread };
+}
+
+/**
+ * How dangerous a mine is once so many of the things living in it have been killed.
+ *
+ * This is the fact, not the belief — the share of days that actually go wrong down there. It is
+ * the one number in the whole economy the player can move with a sword, which is the point of
+ * having it: a village that cannot work its mine is poor, and the reason it cannot work its mine
+ * is walking about underground waiting to be dealt with.
+ */
+export function perilAfter(cleared: number): number {
+  return Math.max(0, MINING.PERIL - cleared * MINING.CLEARED_BY);
+}
+
+/**
+ * What word from somebody who has actually been down there does to what the village believes.
+ *
+ * Fear fades on its own at a fiftieth a day, which is slow on purpose — quickly, and a bad week
+ * is forgotten by the next one, and then clearing a mine out is worth nothing because the village
+ * was about to go back down anyway. This is the other way fear ends, and the one the player owns:
+ * somebody walks into the village and says the workings are quiet now.
+ *
+ * It can only ever lower dread, never raise it. A man who walked out of a mine alive is not the
+ * story that frightens a village — the story that frightens a village is the one who did not, and
+ * `restOvernight` already carries that. And it lowers dread only to what the place now warrants,
+ * so telling them about a mine that is still half full of trouble buys a half-hearted return to
+ * work rather than a village that has forgotten what it saw.
+ */
+export function toldOfMine(mine: Mine, peril: number): Mine {
+  const warranted = Math.min(1, peril / MINING.PERIL);
+  return { id: mine.id, worked: mine.worked, dread: Math.min(mine.dread, warranted) };
 }
 
 /** How the village talks about the place. Silence when there is nothing to say. */
