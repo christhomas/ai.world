@@ -27,9 +27,19 @@ export const WEB = {
    * The spanning tree is the skeleton and would be a tree again if nothing else were added; these
    * are what make it a web. High enough that most junctions have three ways out of them.
    */
-  LOOPS: 0.55,
+  LOOPS: 0.28,
   /** Half-width of the road surface itself, in tiles. */
   ROAD_WIDTH: 2.2,
+  /**
+   * How many pieces each road between two crossroads is bent into, and how far it may wander from
+   * the straight line, as a share of its length.
+   *
+   * A road drawn straight from corner to corner draws the mesh: you can see the hexagons through
+   * it. Bending it hides the lattice and is what a road does anyway, since nobody ever laid one
+   * along a ruler.
+   */
+  BENDS: 3,
+  WANDER: 0.19,
   /** How many towns a world gets, and how far apart they have to stand, in tiles. */
   TOWNS: 9,
   TOWN_SPACING: 120,
@@ -48,13 +58,20 @@ export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph
   const mesh = generateMesh(seed, radius);
   const rng = mulberry32(derive(seed, SALT.ROAD_RNG));
 
-  // a corner is a crossroads if any of the faces meeting there is dry
+  // A road runs along the border BETWEEN two regions, never through the middle of one. Hexes glued
+  // into a region have their inner edges swallowed, so what is left is the outline of a territory
+  // with corners at every angle — which is the whole reason the hexes are glued at all. Roads on
+  // every hex edge drew a honeycomb over the map, with three roads leaving every junction at a
+  // hundred and twenty degrees, and no amount of bending them hid it.
   const dry = (kind: FaceKind): boolean => kind === FaceKind.Land || kind === FaceKind.Mountain;
   const onLand = new Set<number>();
   const candidates = new Map<string, { a: number; b: number }>();
   for (const face of mesh.faces) {
     if (!dry(face.kind)) continue;
     for (let k = 0; k < face.corners.length; k++) {
+      const across = face.neighbours[k];
+      // an edge inside a region is not a border and carries no road
+      if (across >= 0 && mesh.faces[across].region === face.region) continue;
       const a = face.corners[k], b = face.corners[(k + 1) % face.corners.length];
       onLand.add(a); onLand.add(b);
       candidates.set(edgeKey(a, b), { a, b });
@@ -110,18 +127,38 @@ export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph
     }
   }
 
-  // and then the loops, which are what stop it being a tree again
+  // and then the loops, which are what stop it being a tree again. Not every edge: a road on every
+  // border of every face draws the mesh for the player in dashed lines.
   const edges: RoadEdge[] = [];
+  const bend = (a: number, b: number, loop: boolean): void => {
+    const from = nodes[a], to = nodes[b];
+    const dx = to.x - from.x, dz = to.z - from.z;
+    const len = Math.hypot(dx, dz) || 1;
+    // the perpendicular the road is allowed to wander along, and one bulge along it per road
+    const px = -dz / len, pz = dx / len;
+    const swing = (rng() * 2 - 1) * WEB.WANDER * len;
+    let prev = a;
+    for (let k = 1; k < WEB.BENDS; k++) {
+      const t = k / WEB.BENDS;
+      // a single arc rather than a jagged line: nought at both ends, most of it in the middle
+      const off = Math.sin(t * Math.PI) * swing;
+      const mid = nodes.length;
+      nodes.push({
+        x: from.x + dx * t + px * off,
+        z: from.z + dz * t + pz * off,
+        parent: prev, depth: nodes[prev].depth + 1, level: 1, size: 1,
+      });
+      edges.push({ a: prev, b: mid, width: mesh.radius, roadWidth: WEB.ROAD_WIDTH, loop });
+      prev = mid;
+    }
+    edges.push({ a: prev, b, width: mesh.radius, roadWidth: WEB.ROAD_WIDTH, loop });
+  };
+
   for (const [li, link] of links.entries()) {
     if (!reached.has(link.a) || !reached.has(link.b)) continue;   // an island with no way in
-    const kept = inTree.has(li) || rng() < WEB.LOOPS;
-    if (!kept) continue;
-    edges.push({
-      a: link.a, b: link.b,
-      width: mesh.radius,          // land is the mesh's business now, so this is no longer a limit
-      roadWidth: WEB.ROAD_WIDTH,
-      loop: !inTree.has(li),
-    });
+    const inWeb = inTree.has(li);
+    if (!inWeb && rng() >= WEB.LOOPS) continue;
+    bend(link.a, link.b, !inWeb);
   }
 
   // subtree sizes, so trunks read as trunks: how many nodes hang off each one
