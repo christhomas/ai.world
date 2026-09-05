@@ -1,0 +1,39 @@
+{{ .Chart.Name }} {{ .Chart.AppVersion }} is installed as {{ .Release.Name }}.
+
+{{- if .Values.ingress.enabled }}
+
+Reach it at:
+{{- range .Values.ingress.hosts }}
+  {{- $scheme := "http" }}
+  {{- if $.Values.ingress.tls }}{{ $scheme = "https" }}{{ end }}
+  {{- range .paths }}
+  {{ $scheme }}://{{ .host }}{{ .path }}
+  {{- end }}
+{{- end }}
+
+That name has to resolve to the cluster. On a single-node k3s that is the node's own address —
+add it to /etc/hosts on whatever you are browsing from, or point a real record at it.
+{{- else }}
+
+No ingress. To look at it without one:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "ai-world.fullname" . }} 8787:{{ .Values.service.port }}
+
+then open http://127.0.0.1:8787/
+{{- end }}
+
+{{- if not .Values.persistence.enabled }}
+
+WARNING: persistence is off. Every world is forgotten when the pod is replaced, which happens on
+every upgrade and not only on a crash.
+{{- end }}
+
+{{- if not .Values.page.enabled }}
+
+The page is not being served from here — only the world. Whatever serves the page needs to be told
+this server's address, since it can no longer work it out from the origin it was loaded from.
+{{- end }}
+
+The worlds live on the volume as one JSON file per seed:
+
+  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "ai-world.fullname" . }} -- ls {{ .Values.persistence.mountPath }}

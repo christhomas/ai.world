@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-world.fullname" . }}
+  labels:
+    {{- include "ai-world.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  {{- if .Values.persistence.enabled }}
+  # Recreate, not RollingUpdate.
+  #
+  # The worlds live on a ReadWriteOnce volume, so a rolling update would start the new pod while
+  # the old one still holds the claim and the new one would wait for a volume it can never get.
+  # On a single node that is a deployment which hangs for ever; the honest alternative is a moment
+  # of downtime while the old pod lets go, which for one person's homelab is no loss at all.
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ai-world.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ai-world.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Roll the pod when the configuration changes but the image tag does not. Without this,
+        # editing a value that only appears in the environment leaves the old pod running and the
+        # change appears to have done nothing.
+        checksum/config: {{ toJson .Values | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: world
+          image: {{ include "ai-world.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.containerPort | quote }}
+            - name: DATA_DIR
+              value: {{ .Values.persistence.mountPath | quote }}
+            {{- if .Values.page.enabled }}
+            # The server hands out the built page as well as the world it runs, on one origin.
+            # That is what lets the client work out its own WebSocket address from the page it came
+            # from, so nothing has to be configured with a server address at all.
+            - name: STATIC_DIR
+              value: {{ .Values.page.path | quote }}
+            {{- end }}
+          {{- if .Values.probes.enabled }}
+          # The server answers a plain-text page at the root; that is what the image's own
+          # healthcheck asks for and it is enough to know the worlds are open.
+          #
+          # A startup probe rather than a long initialDelay on the others: a Pi reading a cold
+          # image off an SD card can take a while, and a liveness probe that fires during boot
+          # restarts the pod for ever without ever saying why.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 3
+            failureThreshold: {{ div .Values.probes.startupSeconds 3 }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: worlds
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- if .Values.securityContext.readOnlyRootFilesystem }}
+            # The root filesystem is read-only, and node wants somewhere to put temporary files.
+            # An emptyDir rather than a relaxed filesystem: it costs nothing and keeps the rest of
+            # the container immutable.
+            - name: tmp
+              mountPath: /tmp
+            {{- end }}
+      volumes:
+        - name: worlds
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "ai-world.fullname" . }}
+          {{- else }}
+          # Explicitly ephemeral. Every world is forgotten when the pod is replaced, which happens
+          # on every upgrade and not only on a crash — fine for a throwaway, wrong for anything
+          # anybody has played.
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.securityContext.readOnlyRootFilesystem }}
+        - name: tmp
+          emptyDir: {}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

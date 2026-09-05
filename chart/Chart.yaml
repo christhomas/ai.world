@@ -1,0 +1,15 @@
+apiVersion: v2
+name: ai-world
+description: The world server, and the page that draws it, on one origin.
+type: application
+# The chart's own version, bumped when the templates change.
+version: 0.1.0
+# What it deploys by default. Overridden by image.tag, so a chart bump and a game release are
+# separate events rather than one number pretending to be two.
+appVersion: "0.1.0"
+home: https://github.com/christhomas/ai.world
+sources:
+  - https://github.com/christhomas/ai.world
+keywords:
+  - game
+  - websocket

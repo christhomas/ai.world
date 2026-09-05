@@ -1,0 +1,22 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ai-world.fullname" . }}
+  labels:
+    {{- include "ai-world.labels" . | nindent 4 }}
+  annotations:
+    # Outlive the release. Uninstalling the chart should not be the thing that destroys every world
+    # anybody has played in — that has to be a deliberate `kubectl delete pvc`, not a side effect of
+    # `helm uninstall` typed while tidying up.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end }}

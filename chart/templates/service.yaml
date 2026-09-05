@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-world.fullname" . }}
+  labels:
+    {{- include "ai-world.labels" . | nindent 4 }}
+spec:
+  # ClusterIP, deliberately, even though this is the thing the outside world talks to.
+  #
+  # On k3s the ingress controller is what faces the network: ServiceLB binds 80 and 443 on the host
+  # and Traefik routes from there. A LoadBalancer service here would ask for a second address for
+  # the same traffic, and on a single node there is no second address to give.
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ai-world.selectorLabels" . | nindent 4 }}

@@ -1,0 +1,101 @@
+# The world server, as installed. Everything here is meant to be overridden per cluster: the same
+# chart runs on a Raspberry Pi's k3s and on a VPS, and those two disagree about storage classes,
+# ingress controllers and how much memory anything may have.
+
+image:
+  repository: ghcr.io/christhomas/ai-world
+  # Empty means "use the chart's appVersion", so a deployment pins a version rather than chasing
+  # whatever `latest` happened to be when a pod was last rescheduled — which is how two nodes end
+  # up running different code and nobody can say why.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# One. Not a default to be raised later — a constraint of what this is.
+#
+# The server holds the clock, the market and the post shelf, and writes one JSON file per seed to a
+# volume. Two of them would be two worlds disagreeing about the same seed while sharing a disk, and
+# the volume is ReadWriteOnce in any case, so the second pod would simply never start. Scaling this
+# up is a change to the server, not a number here.
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+# What the server itself listens on, inside the pod. The Dockerfile's own default, repeated here
+# because the probes and the service both have to agree with it.
+containerPort: 8787
+
+ingress:
+  enabled: true
+  # k3s ships Traefik and a VPS usually has nginx. Left empty, the cluster's default IngressClass
+  # is used, which is the right answer on k3s and on anything else that has one configured.
+  className: ""
+  annotations: {}
+  hosts:
+    - host: ai.world.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# The worlds.
+#
+# One JSON file per seed. Without this the game forgets everything the moment a pod is replaced —
+# which happens on every upgrade, not only on a crash — so it is on by default rather than being
+# an option somebody discovers after losing a world.
+persistence:
+  enabled: true
+  # Empty uses the cluster's default class: `local-path` on k3s, whatever the VPS provides
+  # elsewhere. Naming one here is how a chart stops being portable.
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 1Gi
+  # Where the container expects it, matching DATA_DIR in the image.
+  mountPath: /data
+
+# Serve the page as well as the world.
+#
+# The server can hand out a built copy of the game alongside the world it runs, on one origin —
+# which is the whole reason a single box can host this. Off means the image carries no page and
+# something else is serving it; on means STATIC_DIR is set and the pod answers for both.
+page:
+  enabled: true
+  path: /app/dist
+
+# Deliberately modest, because the first place this runs is a Raspberry Pi sharing a CPU with
+# everything else on it. A request that reserves more than the machine has means a pod that is
+# never scheduled and no error that says why.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# The server answers a plain-text page at the root, which is what the image's own healthcheck asks
+# for. Startup gets a longer leash than the others: a Pi reading a cold image off an SD card is
+# slow, and a liveness probe that fires during boot restarts the pod for ever.
+probes:
+  enabled: true
+  startupSeconds: 60
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Nothing in here needs root, and a server strangers connect to is the wrong place to keep it.
+# The image already runs as the `node` user; this says so to Kubernetes as well, so a cluster with
+# a policy that checks will admit it.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
