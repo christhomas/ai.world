@@ -176,6 +176,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (village) => structures.villages.some((v) => v.name === village && stableAt(v, seed) !== null),
     () => standing.guilt,
     (by) => arrested(by),
+    // high country: on a massif or against its flank, where the goats and the things that climb are
+    (x, z) => sampler.massifs.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
   );
   const dialogue = new DialogueBox();
   /**

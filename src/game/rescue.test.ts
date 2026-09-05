@@ -3,7 +3,8 @@ import {
   RESCUE, Rescues, contractFor, counts, goodwillFor, purseOf, takenTonight, troubleNear,
   type Asking, type Trouble,
 } from './rescue';
-import { BIOME_ANIMALS, KINDS } from '../entities/animals';
+import { KINDS } from '../entities/animals';
+import { BIOME_ANIMALS } from '../entities/spawns';
 import { HIRE } from './hire';
 import { Standing } from './standing';
 import { Biome } from '../world/biomes';

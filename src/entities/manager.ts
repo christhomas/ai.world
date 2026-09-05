@@ -5,7 +5,8 @@ import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
-import { BIOME_ANIMALS, KINDS, WATER_ANIMALS, dungeonMonsters, pickKind } from './animals';
+import { KINDS } from './animals';
+import { BIOME_ANIMALS, HIGHLAND_ANIMALS, WATER_ANIMALS, dungeonMonsters, pickKind } from './spawns';
 import { treeFor } from './behaviours';
 import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
@@ -144,6 +145,14 @@ export class EntityManager {
      * game's business; all that happens here is that somebody was paid for it.
      */
     private readonly onArrest: (by: Entity) => void = () => {},
+    /**
+     * Whether this point is high country — on or against a massif.
+     *
+     * Asked rather than worked out, because what counts as a mountain belongs to the world's
+     * generator and this layer only wants to know which list to spawn from. False everywhere in a
+     * world with no mountains in it, which is the old one.
+     */
+    private readonly highland: (x: number, z: number) => boolean = () => false,
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -491,9 +500,13 @@ export class EntityManager {
     if (sorted.land.length >= SPAWN.MIN_LAND_TILES) {
       const rolls = rng() < SPAWN.HERD_CHANCE ? (rng() < SPAWN.SECOND_HERD_CHANCE ? 2 : 1) : 0;
       for (let h = 0; h < rolls; h++) {
-        const kindId = pickKind(BIOME_ANIMALS[sorted.biome], rng());
+        // high ground has its own list: a massif can stand in any country, so what decides what
+        // lives here is the height rather than the biome the map happens to call it
+        const spot = tileCentre(tiles, sorted.land[Math.floor(rng() * sorted.land.length)]);
+        const table = this.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS : BIOME_ANIMALS[sorted.biome];
+        const kindId = pickKind(table, rng());
         if (!kindId) break;
-        this.spawnHerd(ctx, kindId, tileCentre(tiles, sorted.land[Math.floor(rng() * sorted.land.length)]), SPAWN.HERD_LEASH);
+        this.spawnHerd(ctx, kindId, spot, SPAWN.HERD_LEASH);
       }
     }
     if (sorted.water.length >= SPAWN.MIN_WATER_TILES && rng() < SPAWN.WATER_HERD_CHANCE) {
