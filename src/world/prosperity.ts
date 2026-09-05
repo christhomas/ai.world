@@ -38,8 +38,22 @@ export const PROSPER = {
    * so no individual could ever afford one; a village of two dozen, left alone, can.
    */
   LUXURY: 3400,
-  /** Nobody's purse grows past this: a village of millionaires is not a village. */
+  /**
+   * The most anybody keeps by them.
+   *
+   * A cap rather than a rule about the world: a purse that only ever fills is a savings account,
+   * not a circulation. Now that food takes money out every day and a village spends on its own
+   * upkeep, this is only here to stop one long-lived shopkeeper in a quiet corner ending the
+   * century with everything.
+   */
   MOST: 4000,
+  /**
+   * What a working person spends on themselves in a day, beyond food: a mended roof, a new haft,
+   * a drink. Small, but it is what stops a purse being a place money goes to die.
+   */
+  UPKEEP: 0.8,
+  /** What somebody will not spend below, so nobody spends themselves into starving. */
+  KEEPS_BACK: 6,
 } as const;
 
 /** The trades whose whole business is other people's money. */
@@ -50,6 +64,22 @@ export function earnedInADay(person: Person, pressure: number): number {
   if (pressure > PROSPER.UNTROUBLED) return 0;
   if (!person.trade) return 0;                       // children and the very old keep no purse
   return TRADERS.has(person.trade) ? PROSPER.TRADED : PROSPER.A_DAY;
+}
+
+/**
+ * What somebody spends on themselves today, beyond eating.
+ *
+ * Deliberately not modelled as items — this is the mending, the drinking and the replacing that a
+ * life involves and that nobody would want simulated. What matters is only that it leaves the
+ * purse, because money that never leaves is not money, it is a score.
+ *
+ * Nobody spends into their last few coins: going hungry to buy a new hat is not a thing people do,
+ * and a village that did it would starve itself the first quiet week.
+ */
+export function spentOnLiving(person: Person): number {
+  if (!person.trade) return 0;
+  if (person.purse <= PROSPER.KEEPS_BACK) return 0;
+  return Math.min(PROSPER.UPKEEP, person.purse - PROSPER.KEEPS_BACK);
 }
 
 /** How many storeys the owner of this purse has put on their house. One, or two if they can. */

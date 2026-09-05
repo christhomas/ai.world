@@ -1,4 +1,4 @@
-import { PROSPER, earnedInADay } from './prosperity';
+import { PROSPER, earnedInADay, spentOnLiving } from './prosperity';
 import { cellarCap, eat, grownInADay } from './food';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
@@ -221,7 +221,12 @@ export class Register {
    */
   private trade(village: Settlement, pressure: number): void {
     for (const person of village.people) {
-      person.purse = Math.min(PROSPER.MOST, person.purse + earnedInADay(person, pressure));
+      const earned = earnedInADay(person, pressure);
+      // and what a life costs beyond dinner. Money that only ever arrives is a score rather than
+      // a currency, and a village of people who never spend anything cannot get poorer for any
+      // reason except being killed.
+      const spent = spentOnLiving(person);
+      person.purse = Math.min(PROSPER.MOST, Math.max(0, person.purse + earned - spent));
     }
   }
 

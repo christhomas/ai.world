@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PROSPER, earnedInADay, feeFor, luxuryFor, saidOfWealth, storeysFor } from './prosperity';
+import { PROSPER, earnedInADay, feeFor, luxuryFor, saidOfWealth, spentOnLiving, storeysFor } from './prosperity';
 import type { Person } from './people';
 
 const person = (trade: string): Person => ({
@@ -50,5 +50,34 @@ describe('what a village is worth', () => {
   it('takes a real stretch of quiet days to build anything', () => {
     // a fortnight of peace should not turn a farmer into a landlord
     expect(storeysFor(earnedInADay(person('farmer'), 0) * 14)).toBe(1);
+  });
+});
+
+/**
+ * A purse that only ever fills is a savings account, not a circulation — and a village of people
+ * who never spend anything cannot get poorer for any reason except being killed.
+ */
+describe('what a life costs beyond dinner', () => {
+  const withPurse = (purse: number, trade = 'smith') => ({ ...person(trade), purse });
+
+  it('takes something out of a working purse every day', () => {
+    expect(spentOnLiving(withPurse(200))).toBeGreaterThan(0);
+  });
+
+  it('never spends somebody down to nothing', () => {
+    // going hungry to buy a new hat is not a thing people do, and a village that did it would
+    // starve itself the first quiet week
+    const poor = withPurse(PROSPER.KEEPS_BACK);
+    expect(spentOnLiving(poor)).toBe(0);
+    const nearly = withPurse(PROSPER.KEEPS_BACK + 0.3);
+    expect(spentOnLiving(nearly)).toBeLessThanOrEqual(0.3);
+  });
+
+  it('asks nothing of a child', () => {
+    expect(spentOnLiving(withPurse(500, ''))).toBe(0);
+  });
+
+  it('costs less than a working day earns, or nobody could ever get ahead', () => {
+    expect(spentOnLiving(withPurse(500))).toBeLessThan(earnedInADay(person('farmer'), 0));
   });
 });
