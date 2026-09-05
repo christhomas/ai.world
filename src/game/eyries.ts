@@ -113,3 +113,67 @@ export function eyrieAt(eyries: readonly Eyrie[], x: number, z: number): Eyrie |
 export function tooDear(eyrie: Eyrie, purse: number): string {
   return `The eagle looks at you, then away. ${eyrie.fare} gold to cross, and you have ${purse}.`;
 }
+
+/**
+ * The one flight that is not over a mountain.
+ *
+ * Somewhere out past the mainland there is an island with another island floating over it, and no
+ * boat, no road and no amount of walking gets anybody onto the second one. The eagles know where
+ * it is: they gather at the foot of the waterfall coming off it, which is the one place in the
+ * world where somebody can ask to be taken up.
+ *
+ * Deliberately not one of the crags above. A perch belongs to a mountain range, and a world can be
+ * grown with no range in it worth flying over — every road-tree world is, as it happens — so
+ * hanging the sky islands off the eyries would have made a whole place that exists, can be seen
+ * from the ground, and cannot be reached in most of the worlds anybody plays.
+ *
+ * Everything about the flight is asymmetric on purpose. Going up is dear, is refused when the bird
+ * cannot lift what you are carrying, and is refused when you cannot pay. Coming down is free and
+ * is refused by nothing, which is the whole difference between a place that is hard to reach and
+ * a hole in a save file.
+ */
+export const SKYWARD = {
+  /**
+   * What the bird asks to be carried up through the cloud.
+   *
+   * Flat, and not by distance as a crossing is. The flight is a few hundred feet straight up and
+   * the price has nothing to do with the length of it: what is being sold is the only way into the
+   * only place nobody can walk to. Set against the middle of the game — a boat is a hundred and
+   * twenty, chain mail a hundred and eighty — so it is a morning's work and a real decision rather
+   * than either loose change or a wall.
+   */
+  FARE: 90,
+  /**
+   * What one bird will carry besides the person on its back.
+   *
+   * An ordinary traveller's pack is comfortably under it, because the point was never to make
+   * anybody count apples. What it stops is walking to the falls straight off a timber run, or with
+   * a cart in the rucksack, and expecting to be flown up with all of it.
+   */
+  LIFT: 30,
+  /**
+   * What weighs more than one of everything else does.
+   *
+   * Only the haulage. A sword and a loaf both weigh the same to a bird that size, and pretending
+   * otherwise means a weight column in the rucksack and an afternoon of arithmetic for the player.
+   */
+  HEAVY: { wood: 4, cart: 40, silverore: 4, nugget: 3, bearpelt: 3, mail: 3, ironshield: 2, axe: 2 } as Record<string, number>,
+} as const;
+
+/** What a pack weighs to an eagle. Everything counts one; the haulage counts what it says. */
+export function packWeight(items: Iterable<readonly [string, number]>): number {
+  let total = 0;
+  for (const [id, n] of items) total += (SKYWARD.HEAVY[id] ?? 1) * n;
+  return total;
+}
+
+/** The thing in the pack the bird objects to most, or null when it will lift the lot. */
+export function tooHeavy(items: Iterable<readonly [string, number]>): { weight: number; worst: string } | null {
+  let weight = 0, worst = '', worstBy = 0;
+  for (const [id, n] of items) {
+    const each = (SKYWARD.HEAVY[id] ?? 1) * n;
+    weight += each;
+    if (each > worstBy) { worstBy = each; worst = id; }
+  }
+  return weight > SKYWARD.LIFT ? { weight, worst } : null;
+}

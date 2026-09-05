@@ -38,7 +38,7 @@ export function createInteractions(ctx: Surroundings) {
   const gifts = giftInteractions(ctx);
   const rescue = rescueInteractions(ctx);
   const nettle = nemesisInteractions(ctx);
-  const { player, places, dialogue, hud, entities, startTalk } = ctx;
+  const { player, places, dialogue, hud, entities, skies, startTalk } = ctx;
 
   const talkNearest = () => {
     // the choice outranks every door in the game: there is a clock on it and people in the water
@@ -66,11 +66,24 @@ export function createInteractions(ctx: Surroundings) {
       } else if (below === null) hud.flash('Nothing here');
       return;
     }
+    // Up on a sky island the whole ground-level chain is wrong, and dangerously so: the hero is
+    // standing twenty-six units directly above an island with its own villages, doors, shrines and
+    // diggable hillsides, every one of which would answer an Enter press meant for a crag.
+    if (skies.aloft) {
+      if (travel.trySky()) return;
+      hud.flash('Nothing here but cloud. The crag on the rim is where the bird waits.');
+      return;
+    }
     // a body under your feet is the most specific thing there is, so it beats the village
     // furniture standing around it: a rabbit dropped in the square was unskinnable without this
     if (camp.trySkin()) return;
     if (travel.tryBoat()) return;
     if (travel.tryEagle()) return;   // a crag with a bird on it, before anything else up here
+    // and the birds at the foot of a fall coming out of the sky, which is the way up to a village
+    // nobody can walk to. Ahead of the village furniture: an island under a sky island has houses
+    // on it, and losing the only way up to a doorway you can reach from twenty other tiles would
+    // be the worst trade in the chain.
+    if (travel.trySkyward()) return;
     if (village.tryHorse()) return;
     if (wild.tryFarm()) return;
     if (village.tryLuxury()) return;

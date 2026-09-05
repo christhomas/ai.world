@@ -16,6 +16,9 @@ import { ChunkManager } from './world/chunkManager';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
 import { planEyries } from './game/eyries';
+import { buildSkyIsland, planSkyIslands } from './world/skyisland';
+import { SkyIslands } from './render/skyisland';
+import { Skies } from './game/skies';
 import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
@@ -48,7 +51,7 @@ import { Rucksack } from './ui/rucksack';
 import { bodyMotion } from './entities/motion';
 import { TouchControls } from './ui/touch';
 import { $ } from './ui/dom';
-import { TerrainSampler } from './world/terrain';
+import { TerrainSampler, TileType } from './world/terrain';
 import { BIOMES, HUB_NAME, SEA_NAME } from './world/biomes';
 import { villageAt } from './world/structures';
 import { Hud } from './ui/hud';
@@ -364,6 +367,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       manifest: manifest.toJSON(),
       nemesis: nemesis.toJSON(),
       roaming: roaming.save(),
+      sky: skies.save(),
     });
   };
 
@@ -398,6 +402,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     heroGear.dispose();
     weather.dispose();
     school.dispose();
+    skyRenderer.dispose();
     packField.dispose();
     cropField.dispose();
     props.dispose();
@@ -639,8 +644,41 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // perch shuffled round the shoulder until it stands on ground somebody can actually reach
   const eyries = planEyries(seed, sampler.massifs, (x, z) => sampler.probe(x, z).land);
 
+  // --- the villages in the clouds ---
+  // Additional geometry over the world's islands, not a replacement for any of it: the chunks
+  // below are generated and drawn exactly as they were, and the sky islands go into the same
+  // outdoor scene on top of them, so standing at a rim and looking down shows the real country.
+  const skyIsles = planSkyIslands(seed, graph.islands, sampler.massifs, (x, z) => sampler.probe(x, z).land).map((site) =>
+    buildSkyIsland(
+      site,
+      manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over).seed,
+      (x, z) => sampler.probe(x, z).land,
+    ));
+  const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial);
+  const groundSample = sampler.newSample();
+  for (const isle of skyIsles) {
+    skyRenderer.add(isle, (x, z) => {
+      // where the fall lands. Taken from the sampler rather than from a loaded chunk because the
+      // island is built before anything has streamed in, and a plume that stops at zero when the
+      // ground under it is four terraces up hangs in the air with a gap under it.
+      sampler.sampleTile(Math.floor(x), Math.floor(z), groundSample);
+      return groundSample.type === TileType.Skip || groundSample.type === TileType.Seabed
+        ? WORLD.WATER_Y : groundSample.height;
+    });
+  }
+  const skies = new Skies({
+    player, iso, ground: chunks,
+    flash: (message) => hud.flash(message),
+    chime: () => sound.chime(),
+    discover, persist: () => persist(),
+  }, skyIsles);
+  // a world put away while the hero was up in the clouds opens with them still up there. Without
+  // it they come back at the same coordinates with the island no longer under their feet, which
+  // is a spawn over open sea and a save that cannot be walked out of.
+  if (saved?.sky) skies.restore(saved.sky);
+
   const interactions = createInteractions({
-    player, state, discovered, eyries,
+    player, state, discovered, eyries, skies,
     luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
@@ -1008,6 +1046,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   const onAttack = (attacker: Entity, dmg: number) => {
     if (dialogue.isOpen) return;
+    // Nothing on the ground reaches somebody standing on a sky island. Every distance in this game
+    // is measured in x and z with no height in it — which is right for a world that is one
+    // heightfield, and wrong for the one place where two pieces of ground share the same
+    // coordinates — so without this a wolf on the island below walks to the square underneath the
+    // village in the clouds and bites whoever is up in it. The pack is still simulated, because
+    // the island below is meant to be alive when you look down at it; it simply cannot land a blow
+    // on somebody a hundred feet over its head.
+    if (skies.aloft) return;
     // A blow buys you a moment. Without it a swarm lands every one of its hits in the same
     // instant and a full-health hero dies before the screen has finished flashing, which is
     // not a fight, it is an announcement.
@@ -1175,6 +1221,23 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __eyries?: () => unknown }).__eyries = () => eyries.map((e) => ({
       id: e.id, name: e.name, x: Math.round(e.x), z: Math.round(e.z), partner: e.partner, fare: e.fare,
     }));
+    (debug as { __skies?: () => unknown }).__skies = () => ({
+      aloft: skies.aloft?.name ?? null,
+      isles: skyIsles.map((s) => ({
+        id: s.site.id, name: s.name, x: s.site.x, z: s.site.z, y: s.site.y, radius: s.site.radius,
+        perch: s.perch, loft: s.loft, fall: { x: s.fall.x, z: s.fall.z, lipY: Math.round(s.fall.lipY * 100) / 100 },
+      })),
+      crags: skyIsles.map((s) => ({ name: s.name, ...s.crag })),
+    });
+    // Fly up without walking to a crag, so the place can be looked at without playing to it.
+    // Coming back down is the ordinary way down, because that is the path that has to work.
+    (debug as { __sky?: (n?: number) => unknown }).__sky = (n = 0) => {
+      const isle = skyIsles[n];
+      if (!isle) return null;
+      skies.fly(isle, { x: player.x, z: player.z });
+      return { on: isle.name, perch: isle.perch, y: isle.site.y };
+    };
+    (debug as { __ground?: () => unknown }).__ground = () => { skies.descend(); return { on: 'the ground' }; };
     (debug as { __director?: () => unknown }).__director = () => ({ quietFor: Math.round(director.quietFor), reach: Math.round(director.reach * 100) / 100, last: director.last });
     (debug as { __water?: () => unknown }).__water = () => ({ ...heard, drop: Math.round(heard.drop * 10) / 10 });
     (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
@@ -1615,6 +1678,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       sound.thud();
       hud.flash(`${arrived} in the water. They are circling.`);
     }
+    // the clouds turn, and anybody standing on a sky island is checked to be still standing on it
+    skyRenderer.update(dt);
+    skies.update();
     const { x, z } = iso.target;
     chunks.update(x, z);
     rig.follow(x, z, iso.zoom);
@@ -1630,7 +1696,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light') || magic.lit, season: tint, wet: weatherStrength });
-    entities.update(dt, player.x, player.z, state.armed, onAttack, state.time, sailing.sailing);
+    // Up on a sky island the hero counts as armed whatever is in their hands. A predator that
+    // cannot reach you has no business stalking you, and a pack gathering on the ground beneath
+    // the village to hunt somebody it can never touch is exactly the sort of thing you notice
+    // when you are stood at a rim looking down at them.
+    entities.update(dt, player.x, player.z, state.armed || skies.aloft !== null, onAttack, state.time, sailing.sailing);
     mount.update(player, chunks);
 
     multiplayer.sync(dt, (x, z) => chunks.heightAt(x, z));
@@ -1645,7 +1715,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     heroGear.update(state, player.entity);
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
-    areaLabel = areaName();
+    areaLabel = skies.aloft?.name ?? areaName();
     updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');
     hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
     if (fishing.active) {

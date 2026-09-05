@@ -44,6 +44,14 @@ export interface SessionSave {
    * killing: where a band is on any day the seed already knows.
    */
   roaming?: RoamingJson;
+  /**
+   * The anchor id of the sky island the hero was standing on, if they were on one.
+   *
+   * On the save rather than derivable, and not optional in practice, because a hero saved in the
+   * clouds and reopened on the ground would come back somewhere over the sea with nothing under
+   * their feet. The one field that has to exist for the place to be safe to visit at all.
+   */
+  sky?: string | null;
   /** Legacy fields from saves before GameState existed. */
   discovered?: string[];
   inventory?: { gold: number; items: Record<string, number> };
