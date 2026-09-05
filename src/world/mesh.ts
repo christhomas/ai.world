@@ -54,6 +54,16 @@ export const MESH = {
   SHORE: -0.3,
   /** And above this, dry land stands up as a mountain region. */
   PEAKS: 0.26,
+  /**
+   * How many islands a world is guaranteed, and how far out they stand.
+   *
+   * The mesh throws off islands by itself, but only sometimes — two worlds in six, of three faces
+   * each. An island is somewhere to sail to and one of the few reasons to own a boat, so a couple
+   * are made on purpose: a land region well out from the middle has its land neighbours drowned
+   * until the sea goes all the way round it.
+   */
+  ISLANDS: 3,
+  ISLAND_OUT: 0.45,
   /** Share of inland faces that hold a lake instead of open ground. */
   LAKE_SHARE: 0.07,
   /** Faces nearer the rim than this fraction of the world radius are always sea, so the map ends in water. */
@@ -312,6 +322,30 @@ export function generateMesh(seed: number, radius = GRAPH.RADIUS): WorldMesh {
     if (lakeRoll() < MESH.LAKE_SHARE) region.kind = FaceKind.Lake;
   }
   for (const face of faces) face.kind = regions[face.region].kind;
+
+  // Islands, made by raising the sea rather than by drowning the land. The first attempt cut
+  // them loose from the coast, and doing that safely is impossible: a "neighbour" can be the
+  // continent, and seed 1 lost two fifths of its mainland to make four islands. Lifting an
+  // offshore region that is already surrounded by water cannot damage anything.
+  const dryKind = (k: FaceKind): boolean => k === FaceKind.Land || k === FaceKind.Mountain;
+  const openSea = regions
+    .filter((r) => r.kind === FaceKind.Sea)
+    .filter((r) => r.faces.length <= 3)
+    .filter((r) => {
+      const away = Math.hypot(r.cx, r.cz);
+      // out to very nearly the edge: the genuinely open water, which is where an island belongs,
+      // lies past the line where the map starts drowning itself
+      if (away < radius * MESH.ISLAND_OUT || away > radius * 0.97) return false;
+      // every face of it must have open water all the way round, or it is a peninsula
+      return r.faces.every((f) => faces[f].neighbours.every((n) =>
+        n < 0 || faces[n].region === r.id || !dryKind(faces[n].kind)));
+    })
+    .sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz));
+
+  for (const island of openSea.slice(0, MESH.ISLANDS)) {
+    island.kind = FaceKind.Land;
+    for (const f of island.faces) faces[f].kind = FaceKind.Land;
+  }
 
   // the middle of the world is where the player starts, so it had better be walkable
   const hubId = latticeAt(0, 0);

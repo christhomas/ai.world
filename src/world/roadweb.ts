@@ -3,8 +3,8 @@ import { mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
-import type { RoadEdge, RoadGraph, RoadNode } from './graph';
-import { FaceKind, faceAt, generateMesh, type WorldMesh } from './mesh';
+import type { IslandInfo, RoadEdge, RoadGraph, RoadNode } from './graph';
+import { FaceKind, faceAt, generateMesh, type MeshFace, type WorldMesh } from './mesh';
 
 /**
  * The roads, laid over the polygon mesh.
@@ -215,10 +215,53 @@ export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph
     towns.push(i);
   }
 
+  // Islands: dry ground with no dry ground next to it. The mesh throws these off by itself, so
+  // they are found rather than placed — walk the faces, and any landmass that is not the one the
+  // hub stands on is an island. `mainlandNodes` stays the whole list because the nodes are
+  // numbered in corner order rather than mainland-then-islands, which nothing in this world reads.
+  const dryFace = (f: MeshFace): boolean => dry(f.kind);
+  const seenFace = new Set<number>();
+  const islands: IslandInfo[] = [];
+  const hubFace = faceAt(mesh, nodes[hub].x, nodes[hub].z);
+  for (const face of mesh.faces) {
+    if (seenFace.has(face.id) || !dryFace(face)) continue;
+    const mass: MeshFace[] = [];
+    const queue = [face];
+    seenFace.add(face.id);
+    while (queue.length > 0) {
+      const here = queue.pop()!;
+      mass.push(here);
+      for (const n of here.neighbours) {
+        if (n < 0 || seenFace.has(n) || !dryFace(mesh.faces[n])) continue;
+        seenFace.add(n);
+        queue.push(mesh.faces[n]);
+      }
+    }
+    if (hubFace && mass.some((f) => f.id === hubFace.id)) continue;   // that one is the mainland
+
+    const cx = mass.reduce((a, f) => a + f.cx, 0) / mass.length;
+    const cz = mass.reduce((a, f) => a + f.cz, 0) / mass.length;
+    const reach = Math.max(...mass.map((f) => Math.hypot(f.cx - cx, f.cz - cz))) + mesh.size;
+    // the crossroads on it, if the roads reached: an island of one face may have none
+    let onIt = -1, best = Infinity;
+    nodes.forEach((n, i) => {
+      const d = Math.hypot(n.x - cx, n.z - cz);
+      if (d < reach && d < best) { best = d; onIt = i; }
+    });
+    islands.push({
+      id: `isle:${Math.round(cx)},${Math.round(cz)}`,
+      seed: seed ^ Math.round(cx * 31 + cz * 17),
+      x: cx, z: cz, radius: reach,
+      biome: Biome.Plains,
+      hub: onIt >= 0 ? onIt : hub,
+      firstNode: onIt >= 0 ? onIt : hub,
+    });
+  }
+
   const sectors = shuffle(rng, [Biome.Plains, Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow]);
   return {
     seed, radius, nodes, edges, towns,
-    islands: [], mainlandNodes: nodes.length,
+    islands, mainlandNodes: nodes.length,
     sectors, sectorOffset: rng() * Math.PI * 2,
     mesh,
   };
