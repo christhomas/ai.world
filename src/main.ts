@@ -655,6 +655,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       (x, z) => sampler.probe(x, z).land,
     ));
   const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial);
+  skyRenderer.useSeasonTint(seasonTintMaterials);
   const groundSample = sampler.newSample();
   for (const isle of skyIsles) {
     skyRenderer.add(isle, (x, z) => {

@@ -125,6 +125,16 @@ export class SkyIslands {
     this.placed.push({ isle, group, clouds });
   }
 
+  /**
+   * Let the season reach the island's turf as well.
+   *
+   * The props up here already get it — they are drawn with the world's own prop material — so
+   * without this the pines on a sky island went white in winter and stood in summer grass.
+   */
+  useSeasonTint(tint: { attach: (m: THREE.Material) => void }): void {
+    tint.attach(this.landMaterial);
+  }
+
   /** The clouds go round, slowly, because a still cloud is a rock. */
   update(dt: number): void {
     this.turned += (dt / DRAW.CLOUD_TURN) * Math.PI * 2;
