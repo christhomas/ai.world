@@ -1,6 +1,7 @@
 import { GRAPH } from '../core/config';
 import { mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
+import { Simplex2D } from './noise';
 import { Biome } from './biomes';
 import type { RoadEdge, RoadGraph, RoadNode } from './graph';
 import { FaceKind, faceAt, generateMesh, type WorldMesh } from './mesh';
@@ -43,6 +44,16 @@ export const WEB = {
   /** How many towns a world gets, and how far apart they have to stand, in tiles. */
   TOWNS: 9,
   TOWN_SPACING: 120,
+  /**
+   * How the ground a road sits on rises inland, in terraces, and how coarsely it varies.
+   *
+   * Without this every crossroads sat at level one, the country was dead flat, and — much worse —
+   * the rivers had no downhill to run to and spread over a third of the map with bridges over all
+   * of it. A road climbs as it leaves the sea, and mountain country starts higher again.
+   */
+  LEVEL_RANGE: 3,
+  LEVEL_SCALE: 0.006,
+  MOUNTAIN_BASE: 3,
 } as const;
 
 const edgeKey = (a: number, b: number): string => (a < b ? `${a},${b}` : `${b},${a}`);
@@ -159,6 +170,24 @@ export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph
     const inWeb = inTree.has(li);
     if (!inWeb && rng() >= WEB.LOOPS) continue;
     bend(link.a, link.b, !inWeb);
+  }
+
+  // the ground each crossroads stands on. Rivers run downhill and need somewhere to run from.
+  const levelNoise = new Simplex2D(derive(seed, SALT.BIOME));
+  for (const node of nodes) {
+    const face = faceAt(mesh, node.x, node.z);
+    const base = face?.kind === FaceKind.Mountain ? WEB.MOUNTAIN_BASE : 0;
+    const h = (levelNoise.fbm(node.x * WEB.LEVEL_SCALE, node.z * WEB.LEVEL_SCALE, 3) + 1) * 0.5;
+    node.level = Math.max(1, 1 + base + Math.round(h * WEB.LEVEL_RANGE));
+  }
+  // and then smoothed along the tree, so no road climbs more than a terrace between one
+  // crossroads and the next and every one of them stays walkable
+  const byDepthUp = [...reached].sort((a, b) => nodes[a].depth - nodes[b].depth);
+  for (const i of byDepthUp) {
+    const parent = nodes[i].parent;
+    if (parent < 0) continue;
+    const pl = nodes[parent].level;
+    nodes[i].level = Math.max(1, Math.max(pl - 1, Math.min(pl + 1, nodes[i].level)));
   }
 
   // subtree sizes, so trunks read as trunks: how many nodes hang off each one

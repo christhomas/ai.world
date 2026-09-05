@@ -6,8 +6,10 @@ import { biomeAt, segDist2, type RoadGraph } from './graph';
 import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
+import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
+import { stampCentreProp, stampFootprint, stampPath, stampPier, stampPlaza, stampSingleProp } from './stamp';
 
 /** What is drawn on top of a tile. Skip = nothing at all (open sea, no floor). */
 export const enum TileType {
@@ -41,8 +43,15 @@ export interface ChunkData {
   /** Fixed prop yaw for structures; NaN = random. */
   propRot: Float32Array;
   shore: Float32Array;   // for seabed tiles: tiles from the coast (0 = at the coast)
-  /** Road/bridge tiles only: heights at the 4 corners (NW, NE, SE, SW) so ramps are true slopes, not stairs. */
+  /** Heights at the 4 corners (NW, NE, SE, SW). Flat tiles repeat their own height four times. */
   corners: Float32Array;
+  /**
+   * 1 where the tile is a face of a mountain and is drawn as one leaning surface rather than a
+   * terrace. Terraces are the look of this world and stay exactly as they were; a mountain is
+   * cut from a smooth field, and mixing the two — a flat tile height with sloped corners — draws
+   * tops and walls that disagree and tears the mesh apart.
+   */
+  sloped: Uint8Array;
   /** Water surface height for Water/Bridge tiles, 0 elsewhere. */
   water: Float32Array;
   empty: boolean;
@@ -62,6 +71,8 @@ export interface TileSample {
   roadDist: number;
   roadWidth: number;
   corners: [number, number, number, number];
+  /** Whether this tile is part of a mountain face, and so drawn as a slope rather than a step. */
+  sloped: boolean;
 }
 
 export interface Probe {
@@ -80,6 +91,13 @@ const RIVER_MARGIN = HYDRO.RIVER_MAX_WIDTH + HYDRO.BANK + 8;
 const LAKE_MARGIN = HYDRO.BANK + 8;
 const HUB_PLAZA = 5;
 /** Share of ground tiles that use the alternate ground colour. */
+/**
+ * What `landWidth` reports in a mesh world: the width of the countryside a road runs through,
+ * not the size of the landmass. Kept near the old world's widest so everything tuned against it —
+ * river sizes, how far off a road a shrine is set — stays in the range it was tuned for.
+ */
+const MESH_LAND_WIDTH = 22;
+
 const GROUND_ALT_CHANCE = 0.35;
 /** Neighbours (of 8) that must agree before the de-speckle filter overrides a tile's level. */
 const DESPECKLE_MAJORITY = 5;
@@ -111,6 +129,8 @@ export class TerrainSampler {
    * two be compared rather than swapped over blind.
    */
   readonly mesh: WorldMesh | null;
+  /** The world's mountains. Planned before structures, because structures sample the ground. */
+  readonly massifs: Massif[];
 
   constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
     this.seed = graph.seed;
@@ -145,6 +165,17 @@ export class TerrainSampler {
       this.riverIndex.insert(this.riverSegs.length + i, l.x - m, l.z - m, l.x + m, l.z + m);
     });
 
+    // the mountains go in before anything reads the ground. Their anchors come off the road tree
+    // rather than off the village list, because villages are structures and structures are built
+    // from the finished ground: asking them where the towns are would be a circle. The graph
+    // already knows which nodes grew towns, which is the same answer one step earlier.
+    this.massifs = planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
+      (x, z) => {
+        const probe = this.landProbe(x, z);
+        if (!probe || !probe.land) return null;
+        return { fromRoad: probe.roadDist, fromCoast: probe.landWidth - probe.roadDist };
+      }, this.mesh);
+
     // structures sample raw terrain, so they come last
     this.structures = prebuilt ? prebuilt.structures : generateStructures(this);
     this.structIndex = new CellIndex(CELL, this.structures.all.length);
@@ -155,7 +186,7 @@ export class TerrainSampler {
   }
 
   newSample(): TileSample {
-    return { type: TileType.Skip, level: 0, base: 0, height: 0, water: 0, shore: 0, biome: 0 as Biome, bank: false, roadDist: Infinity, roadWidth: 0, corners: [0, 0, 0, 0] };
+    return { type: TileType.Skip, level: 0, base: 0, height: 0, water: 0, shore: 0, biome: 0 as Biome, bank: false, roadDist: Infinity, roadWidth: 0, corners: [0, 0, 0, 0], sloped: false };
   }
 
   biomeOf(x: number, z: number): Biome {
@@ -172,13 +203,15 @@ export class TerrainSampler {
    * purpose — it decides where a beach is drawn and how far the seabed reaches, and neither wants
    * more than a tile or so of precision.
    */
-  private waterAway(x: number, z: number, most: number, wantLand: boolean): number {
+  private waterAway(x: number, z: number, most: number, looking: boolean): number {
     const mesh = this.mesh;
     if (!mesh) return most;
+    // the distance to the nearest place where `isLand` is `looking`: pass false to find the water
+    // from dry ground, true to find the shore from out at sea
     for (let r = 1; r <= most; r += 1.5) {
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2;
-        if (isLand(mesh, x + Math.cos(a) * r, z + Math.sin(a) * r) !== wantLand) return r;
+        if (isLand(mesh, x + Math.cos(a) * r, z + Math.sin(a) * r) === looking) return r;
       }
     }
     return most;
@@ -189,7 +222,11 @@ export class TerrainSampler {
     const hit = this.nearest(x, z, cands);
     if (!hit) return null;
     const e = this.graph.edges[hit.edge];
-    const W = this.landWidth(hit.edge, x, z);
+    // With a mesh, land is not a band around the road and this is no longer what decides it. It
+    // still has readers though — the rivers size themselves by it and landmarks are placed at a
+    // fraction of it — so it stays the width of the country a road runs through rather than
+    // becoming the radius of the world, which drowned the map in rivers and bridges.
+    const W = this.mesh ? MESH_LAND_WIDTH : this.landWidth(hit.edge, x, z);
     const a = this.graph.nodes[e.a], b = this.graph.nodes[e.b];
     const roadLevel = a.level + (b.level - a.level) * hit.t;
     let ux = b.x - a.x, uz = b.z - a.z;
@@ -274,7 +311,7 @@ export class TerrainSampler {
     const px = tx + 0.5, pz = tz + 0.5;
     out.type = TileType.Skip;
     out.water = 0; out.shore = 0; out.bank = false; out.level = 0; out.height = 0; out.base = 0;
-    out.roadDist = Infinity; out.roadWidth = 0;
+    out.roadDist = Infinity; out.roadWidth = 0; out.sloped = false;
     if (!cands) cands = this.edgeIndex.query(px - 1, pz - 1, px + 1, pz + 1);
     const hit = this.nearest(px, pz, cands);
     if (!hit) return;
@@ -332,6 +369,10 @@ export class TerrainSampler {
     const hills = this.noise.fbm(px * 0.04, pz * 0.04, 2);
     let rise = Math.floor(td * (0.75 + hills) * def.roughness);
     if (rise < 0) rise = 0;
+    // and whatever the mountains put here, which is nought over most of the world and a great deal
+    // in a few places. It is nought along a road at any height, so a pass stays a pass.
+    const lift = upliftAt(px, pz, this.massifs, d);
+    rise += lift;
     let level = Math.min(WORLD.MAX_LEVEL, baseLevel + rise);
 
     const COAST = 2.2;
@@ -358,10 +399,14 @@ export class TerrainSampler {
         type = TileType.Sand;
         out.bank = true;
       } else {
-        // valley sides climb one terrace per ~1.4 tiles away from the bank
+        // valley sides climb one terrace per ~1.4 tiles away from the bank.
+        // Measured against the ground rather than against the mountain standing on it: a river
+        // cuts a valley into the country it runs through, it does not shave the top off a peak
+        // half a mile above it. Without the `lift` here a massif with a stream anywhere near it
+        // came out as level 5 in the middle and broke into slabs around the edges.
         const cap = wl + Math.floor((water.wd - HYDRO.BANK) / 1.4);
-        if (level > cap) {
-          level = cap;
+        if (level - lift > cap) {
+          level = cap + lift;
           if (type === TileType.High && level - baseLevel < def.highAt) type = TileType.Ground;
         }
       }
@@ -369,6 +414,25 @@ export class TerrainSampler {
     out.type = type;
     out.level = level;
     out.height = level * STEP;
+
+    // Corners. Flat ground is flat, which is the whole look of this world and is left alone.
+    // A mountain is drawn from the smooth field instead, so its faces are leaning surfaces rather
+    // than a hundred half-unit steps. Only the drawing changes: `height` above is still the tile,
+    // and still what anybody walking into the face has to climb, so a wall stays a wall.
+    if (lift <= 0) {
+      out.corners[0] = out.corners[1] = out.corners[2] = out.corners[3] = out.height;
+    } else {
+      const settled = out.height - lift * STEP;
+      out.corners[0] = settled + upliftRawAt(tx, tz, this.massifs, d) * STEP;
+      out.corners[1] = settled + upliftRawAt(tx + 1, tz, this.massifs, d) * STEP;
+      out.corners[2] = settled + upliftRawAt(tx + 1, tz + 1, this.massifs, d) * STEP;
+      out.corners[3] = settled + upliftRawAt(tx, tz + 1, this.massifs, d) * STEP;
+      // the tile *is* its corners now, so nothing draws a step in the middle of a mountain face.
+      // Still far too steep to climb — a face runs several terraces to the tile against a stride
+      // of one — so what this changes is how it looks and not where anybody can go.
+      out.height = (out.corners[0] + out.corners[1] + out.corners[2] + out.corners[3]) / 4;
+      out.sloped = true;
+    }
   }
 
   generateChunk(cx: number, cz: number): ChunkData {
@@ -384,6 +448,7 @@ export class TerrainSampler {
       propRot: new Float32Array(n).fill(Number.NaN),
       shore: new Float32Array(n),
       corners: new Float32Array(n * 4),
+      sloped: new Uint8Array(n),
       water: new Float32Array(n),
       empty: true,
     };
@@ -408,7 +473,16 @@ export class TerrainSampler {
           chunk.corners.set(grid.corners.subarray(gi * 4, gi * 4 + 4), idx * 4);
           continue;
         }
-        chunk.height[idx] = level * WORLD.STEP;
+        if (grid.sloped[gi] === 1) {
+          // a mountain face is taken exactly as it was cut, corners and all. The de-speckle filter
+          // works in whole terraces and has nothing to say about a surface that has none.
+          chunk.sloped[idx] = 1;
+          chunk.height[idx] = grid.height[gi];
+          chunk.corners.set(grid.corners.subarray(gi * 4, gi * 4 + 4), idx * 4);
+        } else {
+          chunk.height[idx] = level * WORLD.STEP;
+          chunk.corners.fill(level * WORLD.STEP, idx * 4, idx * 4 + 4);
+        }
         if (type !== TileType.Seabed) chunk.prop[idx] = this.rollProp(grid, gi, type);
       }
     }
@@ -436,7 +510,7 @@ export class TerrainSampler {
       type: new Uint8Array(n), biome: new Uint8Array(n), bank: new Uint8Array(n),
       level: new Float32Array(n), height: new Float32Array(n), water: new Float32Array(n), shore: new Float32Array(n),
       roadDist: new Float32Array(n), roadWidth: new Float32Array(n), base: new Int16Array(n),
-      corners: new Float32Array(n * 4),
+      corners: new Float32Array(n * 4), sloped: new Uint8Array(n),
     };
     const s = this.newSample();
     for (let gz = 0; gz < G; gz++) {
@@ -448,7 +522,8 @@ export class TerrainSampler {
         grid.biome[gi] = s.biome; grid.bank[gi] = s.bank ? 1 : 0;
         grid.level[gi] = s.level; grid.height[gi] = s.height; grid.water[gi] = s.water; grid.shore[gi] = s.shore;
         grid.roadDist[gi] = s.roadDist; grid.roadWidth[gi] = s.roadWidth; grid.base[gi] = s.base;
-        if (s.type === TileType.Road || s.type === TileType.Bridge) grid.corners.set(s.corners, gi * 4);
+        grid.corners.set(s.corners, gi * 4);
+        grid.sloped[gi] = s.sloped ? 1 : 0;
       }
     }
     return grid;
@@ -536,6 +611,7 @@ interface SampleGrid {
   shore: Float32Array;
   roadDist: Float32Array;
   roadWidth: Float32Array;
+  sloped: Uint8Array;
   base: Int16Array;
   corners: Float32Array;
 }
@@ -543,127 +619,4 @@ interface SampleGrid {
 /** Tiles whose level the de-speckle filter may compare and adjust. */
 function isFlatLand(t: TileType): boolean {
   return t === TileType.Ground || t === TileType.GroundAlt || t === TileType.High || t === TileType.Sand;
-}
-
-/** Tiles a structure may sit on or flatten (never water, sea or bridges). */
-function isStampable(t: number): boolean {
-  return t !== TileType.Skip && t !== TileType.Seabed && t !== TileType.Water && t !== TileType.Bridge;
-}
-
-/** Local index of a world tile inside the chunk arrays, or -1 when outside. */
-function localIndex(chunk: ChunkData, ox: number, oz: number, tx: number, tz: number): number {
-  const lx = tx - ox, lz = tz - oz;
-  if (lx < 0 || lz < 0 || lx >= chunk.size || lz >= chunk.size) return -1;
-  return lz * chunk.size + lx;
-}
-
-/** Town square: a flattened disc of cobbles, trees cleared. */
-function stampPlaza(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
-  const r = s.radius ?? 4;
-  const h = s.level * WORLD.STEP;
-  for (let dz = -s.hd; dz <= s.hd; dz++) {
-    for (let dx = -s.hw; dx <= s.hw; dx++) {
-      if (Math.hypot(dx, dz) > r) continue;
-      const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
-      if (idx < 0 || !isStampable(chunk.type[idx])) continue;
-      chunk.type[idx] = TileType.Plaza;
-      chunk.height[idx] = h;
-      chunk.prop[idx] = PropKind.None;
-    }
-  }
-}
-
-/** Yard ring flattened to the building's level; the footprint itself becomes Floor for houses and churches. */
-function stampFootprint(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
-  const h = s.level * WORLD.STEP;
-  const building = s.kind === StructureKind.House || s.kind === StructureKind.Church;
-  for (let dz = -s.hd - 1; dz <= s.hd + 1; dz++) {
-    for (let dx = -s.hw - 1; dx <= s.hw + 1; dx++) {
-      const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
-      if (idx < 0) continue;
-      const t = chunk.type[idx];
-      if (!isStampable(t) || t === TileType.Road) continue;
-      const inner = Math.abs(dx) <= s.hw && Math.abs(dz) <= s.hd;
-      chunk.height[idx] = h;
-      chunk.prop[idx] = PropKind.None;
-      if (inner && building) chunk.type[idx] = TileType.Floor;
-      else if (t === TileType.High) chunk.type[idx] = TileType.Ground;
-    }
-  }
-}
-
-/** Door path tiles become flat road at the building's level; squares and floors are left alone. */
-function stampPath(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
-  const h = s.level * WORLD.STEP;
-  for (const [x, z] of s.path) {
-    const idx = localIndex(chunk, ox, oz, x, z);
-    if (idx < 0) continue;
-    const t = chunk.type[idx];
-    if (!isStampable(t) || t === TileType.Plaza || t === TileType.Floor) continue;
-    chunk.type[idx] = TileType.Road;
-    chunk.height[idx] = h;
-    chunk.corners.fill(h, idx * 4, idx * 4 + 4);
-    chunk.prop[idx] = PropKind.None;
-  }
-}
-
-/** The building prop goes on the centre tile, but only when that tile is in the chunk interior (props are emitted once). */
-function stampCentreProp(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
-  const idx = interiorIndex(chunk, ox, oz, s.tx, s.tz);
-  if (idx < 0) return;
-  chunk.prop[idx] = structureProp(s);
-  chunk.propRot[idx] = s.rot;
-}
-
-/** Signs and stalls: no yard, just the prop on its tile if the ground allows. */
-function stampSingleProp(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
-  const idx = interiorIndex(chunk, ox, oz, s.tx, s.tz);
-  if (idx < 0) return;
-  if (!isStampable(chunk.type[idx]) || chunk.type[idx] === TileType.Floor) return;
-  chunk.prop[idx] = structureProp(s);
-  chunk.propRot[idx] = s.rot;
-}
-
-/** Jetty planks: flat wooden deck at the shore's level, laid over sea, sand or shallow water. */
-function stampPier(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
-  const h = s.level * WORLD.STEP;
-  for (const [x, z] of s.path) {
-    const idx = localIndex(chunk, ox, oz, x, z);
-    if (idx < 0) continue;
-    const t = chunk.type[idx];
-    if (t === TileType.Bridge || t === TileType.Road || t === TileType.Floor) continue;
-    chunk.type[idx] = TileType.Pier;
-    chunk.height[idx] = h;
-    chunk.water[idx] = 0;
-    chunk.prop[idx] = PropKind.None;
-  }
-}
-
-/** Like localIndex but excludes the apron ring. */
-function interiorIndex(chunk: ChunkData, ox: number, oz: number, tx: number, tz: number): number {
-  const lx = tx - ox, lz = tz - oz;
-  const CS = WORLD.CHUNK_SIZE;
-  if (lx < 1 || lz < 1 || lx > CS || lz > CS) return -1;
-  return lz * chunk.size + lx;
-}
-
-export function structureProp(s: Structure): PropKind {
-  switch (s.kind) {
-    case StructureKind.House: return (PropKind.HousePlains + s.biome) as PropKind;
-    case StructureKind.Church: return (PropKind.ChurchPlains + s.biome) as PropKind;
-    case StructureKind.Well: return PropKind.Well;
-    case StructureKind.Shrine: return PropKind.Shrine;
-    case StructureKind.Ruins: return PropKind.Ruins;
-    case StructureKind.Tower: return PropKind.Tower;
-    case StructureKind.Campfire: return PropKind.Campfire;
-    case StructureKind.GiantTree: return PropKind.GiantTree;
-    case StructureKind.Stall: return PropKind.Stall;
-    case StructureKind.Sign: return PropKind.Sign;
-    case StructureKind.Plaza: return PropKind.None;
-    case StructureKind.Pier: return PropKind.None;
-    case StructureKind.Signpost: return PropKind.Signpost;
-    case StructureKind.NoticeBoard: return PropKind.NoticeBoard;
-    case StructureKind.CaveMouth: return PropKind.CaveMouth;
-    case StructureKind.Shipwreck: return PropKind.Shipwreck;
-  }
 }

@@ -128,16 +128,17 @@ class ChunkView {
   index(lx: number, lz: number): number { return (lz + 1) * this.c.size + (lx + 1); }
   type(lx: number, lz: number): TileType { return this.c.type[this.index(lx, lz)] as TileType; }
 
-  /** Corner heights of a tile: road/bridge tiles carry real ramp corners, everything else is flat. */
+  /**
+   * Corner heights of a tile.
+   *
+   * Every tile carries them now. Flat ground sets all four to its own height, so the terraced look
+   * is exactly what it was; roads carry ramp corners as they always did; a mountain carries the
+   * smooth field it was cut from, which is what makes its faces lean instead of staircase.
+   */
   corners(lx: number, lz: number, out: number[]): void {
     const i = this.index(lx, lz);
-    const t = this.c.type[i];
-    if (t === TileType.Skip) { out[0] = out[1] = out[2] = out[3] = 0; return; }
-    if (t === TileType.Road || t === TileType.Bridge) {
-      for (let k = 0; k < 4; k++) out[k] = this.c.corners[i * 4 + k];
-      return;
-    }
-    out[0] = out[1] = out[2] = out[3] = this.c.height[i];
+    if (this.c.type[i] === TileType.Skip) { out[0] = out[1] = out[2] = out[3] = 0; return; }
+    for (let k = 0; k < 4; k++) out[k] = this.c.corners[i * 4 + k];
   }
 
   /** Water surface height a neighbour presents to us, or -1 if it is dry land. */
@@ -209,8 +210,11 @@ export function buildChunkMesh(chunk: ChunkData, seed: number): ChunkMeshes {
       const top: RGB = [base[0] * shade, base[1] * shade, base[2] * shade];
 
       view.corners(lx, lz, me);
-      const sloped = type === TileType.Road || type === TileType.Bridge;
-      const [nx, ny, nz] = sloped ? slopeNormal(me) : [0, 1, 0];
+      // anything whose corners disagree is a real surface and has to be lit like one. Ramps were
+      // the only such thing until mountains arrived; a leaning face lit straight up reads as flat
+      // ground stuck on at an angle, which is most of what made the first mountains look wrong.
+      const leaning = chunk.sloped[i] === 1 || type === TileType.Road || type === TileType.Bridge;
+      const [nx, ny, nz] = leaning ? slopeNormal(me) : [0, 1, 0];
       land.quad([wx, me[0], wz], [wx, me[3], wz + 1], [wx + 1, me[2], wz + 1], [wx + 1, me[1], wz], nx, ny, nz, top);
 
       // cliff walls toward any lower neighbour; edge endpoints use corner heights so ramps stay watertight

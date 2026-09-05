@@ -34,6 +34,7 @@ export const SALT = {
   NEMESIS: 0x4e37,          // where Old Nettle goes next, and who it costs
   ROAM: 0x20a3,             // where the bands that walk the roads are, and what mood they are in
   MESH: 0x6ce5,             // the polygons the world is tiled with, and which of them are dry
+  MOUNTAINS: 0x3a17,        // where the massifs stand, and how high each one gets
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */
