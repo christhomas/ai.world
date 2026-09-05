@@ -77,6 +77,8 @@ class KindPool {
       mesh.receiveShadow = true;
       // the instances written are the ones in shot, so there is nothing left for three to cull
       mesh.frustumCulled = false;
+      // a pool sits at the origin and stays there; only the instances inside it ever move
+      mesh.matrixAutoUpdate = false;
       scene.add(mesh);
       const pivot = def.pivot ? new THREE.Vector3(...def.pivot) : new THREE.Vector3(...def.offset);
       const fromPivot = new THREE.Vector3(...def.offset).sub(pivot);
@@ -253,6 +255,10 @@ export class EntityRenderer {
       for (const part of p.parts) {
         const mesh = part.mesh;
         mesh.count = part.count;
+        // a count of zero draws nothing either way, but three finds that out only after walking
+        // the mesh, sorting it into the render list and offering it to the shadow pass as well;
+        // hidden, it is passed over at the one point where passing over it is free
+        mesh.visible = part.count > 0;
         if (part.count === 0) continue;
         // only the slots in use are uploaded: a pool is sized for a crowd that is usually not
         // there, and posting the whole buffer every frame costs more than the maths that filled it
