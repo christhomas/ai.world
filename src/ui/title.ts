@@ -37,9 +37,19 @@ interface Switch {
 const SWITCHES: readonly Switch[] = [
   {
     id: 'mountains',
+    /**
+     * Off by default, and it is the map that decides it rather than the feature list.
+     *
+     * The polygon world is the only one that can grow a mountain, so everything hanging off one —
+     * cliffs, high passes, the eyries — lives behind this switch. But its road web is a hex
+     * lattice, and at map scale that is exactly what it looks like: a honeycomb of near-identical
+     * cells tiling the whole country. The road tree it replaces draws an organic branching sprawl
+     * of land with a coastline worth exploring. Until the polygon world stops reading as a
+     * repeating pattern it is not the one to hand somebody by default, whatever it has in it.
+     */
     label: 'Mountains',
-    note: 'Cliffs, high passes and the eyries above them. Off grows the older, flatter country.',
-    fallback: true,
+    note: 'Cliffs, high passes and the eyries above them. The land comes out more regular, though.',
+    fallback: false,
   },
 ];
 
@@ -113,7 +123,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         </div>`).join('');
     };
     /** What the switches currently add up to, read at the moment a world is actually made. */
-    const chosenWorld = (): WorldKind => (switchIsOn('mountains', true) ? 'mesh' : 'road');
+    const chosenWorld = (): WorldKind => (switchIsOn('mountains', false) ? 'mesh' : 'road');
 
     const pick = (i: number, act: string) => {
       const key = SLOT_KEYS[i];
