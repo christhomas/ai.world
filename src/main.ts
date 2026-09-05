@@ -22,6 +22,7 @@ import { buildBoat } from './render/boat';
 import { StructureKind, compassDir } from './world/structures';
 import { ITEMS, sellPrice } from './game/shops';
 import { COMBAT, struck, swing } from './game/combat';
+import { carriedTo, costOf, saidOfKnockout } from './game/knockout';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
@@ -960,6 +961,39 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   /** What the water listener last worked out, for the debug hook and for nothing else. */
   let heard = { nearness: 0, drop: 0 };
 
+  /**
+   * Running out of hearts, wherever it happened and whatever did it.
+   *
+   * Every source of damage ends here, which is the point of it being one function: a blow that
+   * empties the hearts and then returns to whatever called it leaves the hero conscious at nought,
+   * with no death, no waking up and nothing on screen — which is how the whale used to sink you.
+   *
+   * It stops the world with a dialogue rather than a flash. Losing a fight is a thing that
+   * happened to you, and three seconds of text at the top of the screen is not enough to tell
+   * somebody why they are suddenly standing in a village they have never seen.
+   */
+  const knockOut = (cause: string) => {
+    const below = places.underground !== null;
+    const den = below ? places.underground!.poi.name : '';
+    if (below) places.exitDungeon();
+    else if (sailing.sailing) sailing.abandon();   // whatever happened at sea, you are not at sea now
+
+    const woke = carriedTo(structures.villages, player.x, player.z);
+    const lost = costOf(state.inventory.gold, GAMEPLAY.KO_GOLD_LOSS);
+    state.inventory.gold -= lost;
+    state.hp = state.maxHpTotal;
+    state.version++;
+    // underground you are left at the mouth of the place you went into; above ground somebody
+    // carries you home. Either way you are somewhere you can walk away from.
+    if (!below && woke) player.teleport(woke.x + 2, woke.z + 2);
+
+    const pages = saidOfKnockout(cause, woke, lost, below);
+    if (below && den) pages[1] = `Somebody dragged you up out of the ${den} and left you at the mouth of it. You are alive.`;
+    sound.thud();
+    dialogue.start({ speaker: 'Knocked out', emoji: '💫', pages, choices: [{ label: 'Get up', next: () => null }] });
+    persist();
+  };
+
   const onAttack = (attacker: Entity, dmg: number) => {
     if (dialogue.isOpen) return;
     // A blow buys you a moment. Without it a swarm lands every one of its hits in the same
@@ -985,31 +1019,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       hud.flash(`${attacker.kind.label} hits the boat. You are in the water.`);
     }
     if (!struck(state, dmg, magic.ward)) return;
-    if (places.underground) {
-      // knocked out underground: dragged back to the surface, minus some gold
-      const lostBelow = Math.min(GAMEPLAY.KO_GOLD_LOSS, state.inventory.gold);
-      state.inventory.gold -= lostBelow;
-      state.hp = state.maxHpTotal;
-      state.version++;
-      const name = places.underground.poi.name;
-      places.exitDungeon();
-      hud.flash(`${attacker.kind.label} got you. You crawl out of the ${name}${lostBelow ? `, ${lostBelow} gold lighter` : ''}.`);
-      persist();
-      return;
-    }
-    // knocked out: wake in the nearest town, lighter in the purse
-    if (sailing.sailing) sailing.abandon();   // whatever happened at sea, you are not at sea now
-    let home = structures.villages[0];
-    for (const v of structures.villages) {
-      if (Math.hypot(v.x - player.x, v.z - player.z) < Math.hypot(home.x - player.x, home.z - player.z)) home = v;
-    }
-    const lost = Math.min(GAMEPLAY.KO_GOLD_LOSS, state.inventory.gold);
-    state.inventory.gold -= lost;
-    state.hp = state.maxHpTotal;
-    state.version++;
-    player.teleport(home.x + 2, home.z + 2);
-    hud.flash(`${attacker.kind.label} got you. You wake in ${home.name}${lost ? `, ${lost} gold lighter` : ''}.`);
-    persist();
+    knockOut(attacker.kind.label);
   };
 
 
@@ -1378,7 +1388,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       sailing.throwOverboard();
       sound.splash();
       hud.hurt();
-      state.damage(1);
+      // a blow that empties the hearts has to end somewhere. Dropped on the floor, this one left
+      // the hero treading water at nought hearts for ever, alive and with nothing to do about it
+      if (state.damage(1)) { knockOut('A breaching whale'); break; }
       hud.flash('A whale comes down across the bow. You are in the water.');
       persist();
       break;
