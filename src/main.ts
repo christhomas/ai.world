@@ -3,6 +3,7 @@ import { GAMEPLAY, GRAPH, WORLD } from './core/config';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
+import { AutoQuality, everChoseQuality, rememberAutoChoice, rememberTheirChoice } from './render/autoquality';
 import { QUALITY, createSceneRig } from './render/scene';
 import { WhaleSchool } from './render/whales';
 import { PackField } from './render/remains';
@@ -146,6 +147,13 @@ async function boot(): Promise<void> {
 }
 
 function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number, url: URL): void {
+  /**
+   * Whether the player has ever picked a quality themselves — asked before anything else, because
+   * the rig writes the level down every time it is set and the very next line sets it. Ask any
+   * later and the game's own start-up looks exactly like somebody making a choice, so nothing
+   * would ever be adjusted for anybody.
+   */
+  const qualityWasChosen = everChoseQuality();
   const rig = createSceneRig($('gameContainer'));
   rig.setQuality(rig.quality);
   const iso = new IsoCamera();
@@ -170,7 +178,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const chunks = new ChunkManager(rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial);
   const hud = new Hud(rig, seed);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
-  hud.onQualityChange = (level) => { rig.setQuality(level); hud.flash(`Graphics: ${QUALITY[level].label}`); };
+  hud.onQualityChange = (level) => {
+    // their choice, and it stands: nothing measured afterwards may argue with it
+    autoQuality.leaveItAlone();
+    rememberTheirChoice();
+    rig.setQuality(level);
+    hud.flash(`Graphics: ${QUALITY[level].label}`);
+  };
   const mapBase = renderMapBase(graph);
   const fog = new Fog(mapBase);
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
@@ -1667,7 +1681,22 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     discover,
   });
 
+  /**
+   * Watches the frame times and turns the picture down if the machine cannot hold sixty.
+   *
+   * Only for somebody who has never chosen a level: the rig defaults to `high` — pixel ratio two
+   * and a 2048-square shadow map every frame — picked sight unseen on a machine nobody measured,
+   * and a player whose computer cannot hold that gets a slideshow with no clue why.
+   */
+  const autoQuality = new AutoQuality(qualityWasChosen);
+
   const loop = new GameLoop((dt, time) => {
+    const stepDown = autoQuality.saw(dt * 1000, rig.quality);
+    if (stepDown) {
+      rig.setQuality(stepDown);
+      rememberAutoChoice();
+      hud.flash(`Graphics turned down to keep up: ${QUALITY[stepDown].label}`);
+    }
     // the full-screen map pauses the world the way a conversation does
     if (worldMap.isOpen) {
       const panX = (input.isDown('d', 'arrowright') ? 1 : 0) - (input.isDown('a', 'arrowleft') ? 1 : 0);
