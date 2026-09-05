@@ -1064,6 +1064,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const dx = player.x - attacker.x, dz = player.z - attacker.z;
     const len = Math.hypot(dx, dz) || 1;
     player.shove((dx / len) * GAMEPLAY.KNOCKED_BACK, (dz / len) * GAMEPLAY.KNOCKED_BACK);
+    // and it turns you to face whatever did it. A swing only covers the arc in front of you, so
+    // being bitten from behind used to leave you hitting air with no idea which way to look;
+    // wheeling round on the thing is what a person does anyway, and it is now the difference
+    // between answering an ambush and standing in one.
+    player.entity.yaw = yawFor(attacker.x - player.x, attacker.z - player.z);
     throwBlow(player.entity, player.entity.blow);   // the hero flinches with everything else
     player.entity.hurt = BEHAVIOUR.HURT_TIME;
 

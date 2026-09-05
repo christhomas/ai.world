@@ -18,11 +18,24 @@ export class IsoCamera {
     this.applyPosition();
   }
 
-  /** Unit vectors on the ground plane for "screen up" and "screen right". */
+  /**
+   * Unit vectors on the ground plane for "screen up" and "screen right".
+   *
+   * The right one used to be the left one. It was handed out under this name to the hero, the free
+   * camera and the touch stick alike, so everything that strafed strafed backwards: A moved you
+   * right and D moved you left, at every rotation, for as long as the game has existed. Forward
+   * was always correct, which is why it read as an occasional glitch rather than as a constant —
+   * you notice a wrong turn far less than you notice walking backwards.
+   *
+   * Screen right for a camera standing at `target + (cos r, ·, sin r)` and looking back at the
+   * target is `(sin r, -cos r)`: the camera's own +X axis, which is what the screen calls right.
+   * `camera.test.ts` checks this against the rig's world matrix rather than against any arithmetic
+   * of ours, because the arithmetic is what was wrong.
+   */
   basis(): { fx: number; fz: number; rx: number; rz: number } {
     return {
       fx: -Math.cos(this.rotation), fz: -Math.sin(this.rotation),
-      rx: -Math.sin(this.rotation), rz: Math.cos(this.rotation),
+      rx: Math.sin(this.rotation), rz: -Math.cos(this.rotation),
     };
   }
 
@@ -41,8 +54,11 @@ export class IsoCamera {
 
     if (pan && (input.dragDX !== 0 || input.dragDY !== 0)) {
       const k = CAMERA.DRAG_SPEED * (this.zoom / CAMERA.START_ZOOM);
-      this.target.x += rx * input.dragDX * k + fx * input.dragDY * k;
-      this.target.z += rz * input.dragDX * k + fz * input.dragDY * k;
+      // dragging takes hold of the world and pulls it, so the view goes the other way to the hand.
+      // The sideways term is subtracted because the right vector was corrected above and this drag
+      // was quietly relying on it pointing left; without the sign, grabbing the map would invert.
+      this.target.x += -rx * input.dragDX * k + fx * input.dragDY * k;
+      this.target.z += -rz * input.dragDX * k + fz * input.dragDY * k;
     }
     if (input.wheelDelta !== 0) {
       this.zoom = Math.max(CAMERA.MIN_ZOOM, Math.min(this.ceiling, this.zoom + input.wheelDelta * 0.03));
