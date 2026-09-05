@@ -8,6 +8,9 @@ import { GAMEPLAY } from '../../core/config';
 import { faceFor } from '../talk';
 import { REACH, personWins } from '../places';
 import { feeFor } from '../../world/prosperity';
+import { DARTS, playLeg, saidOfLeg } from '../darts';
+import { levelFor } from '../prowess';
+import { hashString } from '../../core/rng';
 import { errandDone, pubTalk } from '../pub';
 import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
@@ -44,6 +47,24 @@ export function villageInteractions(ctx: Surroundings) {
       else pages.push(...errand.intro);
 
       const choices: DialogueChoice[] = [];
+      // there is a board on the wall, and the house will take your money at it
+      choices.push({
+        label: `Play darts (${DARTS.STAKE}g)`,
+        next: () => {
+          if (state.inventory.gold < DARTS.STAKE) {
+            return { speaker: talk.name, emoji: '🍺', pages: [`A leg is ${DARTS.STAKE} gold, and you have ${state.inventory.gold}.`] };
+          }
+          state.inventory.gold -= DARTS.STAKE;
+          const leg = playLeg(hashString(`${village.name}:${state.day}:${state.inventory.gold}`), levelFor(state.practice));
+          if (leg.won) { state.inventory.gold += DARTS.WINNINGS; sound.chime(); } else sound.thud();
+          state.version++;
+          persist();
+          return {
+            speaker: talk.name, emoji: '🎯',
+            pages: [saidOfLeg(leg), leg.won ? `${DARTS.WINNINGS} gold to you.` : 'The house keeps the stake.'],
+          };
+        },
+      });
       if (errand && status === undefined) {
         choices.push({ label: `Take it on (${errand.reward}g)`, next: () => {
           state.quests.set(errand.id, 'active');
