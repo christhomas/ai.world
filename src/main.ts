@@ -75,7 +75,7 @@ import { Gifts, type Kindness } from './game/gifts';
 import { Rescues } from './game/rescue';
 import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
 import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
-import { Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band } from './game/roaming';
+import { Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
@@ -1408,7 +1408,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       // news repeated daily stops being news and starts being wallpaper
       if (press.pressure >= 0.25 && pressSaid.get(press.village) !== press.said) {
         pressSaid.set(press.village, press.said);
-        chat.line(press.said, 'sys');
+        // the news is remembered without the direction, because the direction changes with every
+        // step the player takes and would make the same news new again for ever
+        const where = structures.villages.find((v) => v.name === press.village);
+        const way = where ? wayTo(where, player) : null;
+        chat.line(way ? `${press.said} ${way}` : press.said, 'sys');
       }
     }
     for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
