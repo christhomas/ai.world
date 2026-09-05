@@ -415,6 +415,60 @@ export class PropLibrary {
       part(new THREE.IcosahedronGeometry(0.13, 0), 0xe8c94a, [0.02, 0.74, -0.04]),
     ]));
 
+    /**
+     * A house of the player's own, in the four states somebody riding past would recognise it in.
+     *
+     * They are built to the same 3x3 footprint and the same colours as the world's own cottages,
+     * so a finished one belongs in the landscape rather than looking like a game object dropped on
+     * it — but with a plain stone chimney the village houses do not have, because the one house
+     * that is yours should be findable from the ridge without opening the map.
+     */
+    {
+      const timber = 0x8a6238, cut = 0x6b4a2b, stone = 0x8f8f8f;
+      // pegs and string: four corner stakes and a line between them, which is all a site is on day one
+      this.geometries.set(PropKind.HousePegs, merge([
+        ...([[-1.3, -1.3], [1.3, -1.3], [1.3, 1.3], [-1.3, 1.3]] as const).map(([x, z]) =>
+          part(new THREE.CylinderGeometry(0.05, 0.07, 0.55, 5), cut, [x, 0.27, z])),
+        part(new THREE.BoxGeometry(2.6, 0.02, 0.02), 0xd8cfb4, [0, 0.5, -1.3]),
+        part(new THREE.BoxGeometry(2.6, 0.02, 0.02), 0xd8cfb4, [0, 0.5, 1.3]),
+        part(new THREE.BoxGeometry(0.02, 0.02, 2.6), 0xd8cfb4, [-1.3, 0.5, 0]),
+        part(new THREE.BoxGeometry(0.02, 0.02, 2.6), 0xd8cfb4, [1.3, 0.5, 0]),
+        part(new THREE.BoxGeometry(1.1, 0.14, 0.5), cut, [0.6, 0.07, 1.0]),
+      ]));
+      // the frame: a sill on the ground and four uprights, open to the weather
+      const posts = ([[-1.1, -1.1], [1.1, -1.1], [1.1, 1.1], [-1.1, 1.1]] as const).map(([x, z]) =>
+        part(new THREE.BoxGeometry(0.18, 1.7, 0.18), timber, [x, 0.85, z]));
+      this.geometries.set(PropKind.HouseFrame, merge([
+        part(new THREE.BoxGeometry(2.6, 0.2, 2.6), cut, [0, 0.1, 0]),
+        ...posts,
+        part(new THREE.BoxGeometry(2.4, 0.14, 0.14), timber, [0, 1.7, -1.1]),
+        part(new THREE.BoxGeometry(2.4, 0.14, 0.14), timber, [0, 1.7, 1.1]),
+        part(new THREE.BoxGeometry(0.14, 0.14, 2.4), timber, [-1.1, 1.7, 0]),
+        part(new THREE.BoxGeometry(0.14, 0.14, 2.4), timber, [1.1, 1.7, 0]),
+        part(new THREE.BoxGeometry(0.1, 1.9, 0.1), cut, [1.6, 0.95, -1.5], [1, 1, 1], [0, 0, 0.3]),
+      ]));
+      // walls up and the rafters on, but no slates: the state a house spends the longest in
+      this.geometries.set(PropKind.HouseRoof, merge([
+        part(new THREE.BoxGeometry(2.6, 0.2, 2.6), cut, [0, 0.1, 0]),
+        part(new THREE.BoxGeometry(2.4, 1.5, 2.4), 0xf1e4c8, [0, 0.95, 0]),
+        part(new THREE.BoxGeometry(0.08, 0.95, 0.62), 0x3a2a1a, [1.22, 0.68, 0]),
+        ...([-1.0, -0.5, 0, 0.5, 1.0]).map((z) =>
+          part(new THREE.BoxGeometry(0.1, 1.5, 0.1), timber, [-0.62, 2.3, z], [1, 1, 1], [0, 0, -0.72])),
+        ...([-1.0, -0.5, 0, 0.5, 1.0]).map((z) =>
+          part(new THREE.BoxGeometry(0.1, 1.5, 0.1), timber, [0.62, 2.3, z], [1, 1, 1], [0, 0, 0.72])),
+        part(new THREE.BoxGeometry(0.12, 0.12, 2.8), timber, [0, 2.75, 0]),
+        part(new THREE.BoxGeometry(0.45, 1.2, 0.45), stone, [-0.8, 1.3, 0]),
+      ]));
+      // and finished, with the chimney that says which one is yours
+      this.geometries.set(PropKind.HouseYours, merge([
+        house({ wall: 0xf1e4c8, roof: 0x7d5a3a, trim: 0x6b4a2b, roofType: 'gable' }),
+        part(new THREE.BoxGeometry(0.5, 1.5, 0.5), stone, [-0.8, 2.2, 0]),
+        part(new THREE.BoxGeometry(0.62, 0.16, 0.62), 0x6e6e6e, [-0.8, 2.95, 0]),
+      ]));
+      this.glows.set(PropKind.HouseYours, merge(HOUSE_WINDOWS.map(([size, pos]) =>
+        part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos))));
+    }
+
     this.geometries.set(PropKind.NoticeBoard, merge([
       part(new THREE.BoxGeometry(0.12, 1.3, 0.12), 0x6b4a2b, [0, 0.65, -0.6]),
       part(new THREE.BoxGeometry(0.12, 1.3, 0.12), 0x6b4a2b, [0, 0.65, 0.6]),
