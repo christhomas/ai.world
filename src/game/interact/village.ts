@@ -40,7 +40,14 @@ export function villageInteractions(ctx: Surroundings) {
       const status = errand ? state.quests.get(errand.id) : undefined;
       const settled = errand !== null && status === 'active' && errandDone(errand, state.discovered, (id) => state.count(id));
 
-      const pages = [`${talk.name}, ${village.name}. ${talk.room}`, talk.rumours.join('\n')];
+      // what the room believes about the workings, said before the errand. A pub is where a
+      // village keeps the things it is worried about, and a mine nobody will go down is the
+      // reason this one is poor — so it belongs in the talk and not in a menu
+      const workings = ctx.saidOfMine(village.name);
+      const pages = [
+        `${talk.name}, ${village.name}. ${talk.room}`,
+        workings === '' ? talk.rumours.join('\n') : [...talk.rumours, workings].join('\n'),
+      ];
       if (!errand) pages.push('Nobody in here wants anything from you tonight.');
       else if (status === 'done') pages.push('Your errand here is long settled, and the room remembers it.');
       else if (status === 'active') pages.push(settled ? errand.done[0] : errand.reminder);

@@ -26,6 +26,15 @@ export interface GameStateJson {
   opened: string[];
   /** Anchor ids whose locked doors have been opened. */
   keys: string[];
+  /**
+   * The workings under the caves: what has been taken out of each, what the village round it
+   * believes, and how much of what lived in it has been killed.
+   *
+   * Kept with `opened` and `keys` because it is the same kind of thing — state belonging to a
+   * dungeon anchor, which nothing can derive from the seed because it is the record of days that
+   * have already been lived. Written by main.ts at save time the way `gifts` and `jail` are.
+   */
+  mines?: MinesJson;
   /** Where the hero stands between good and evil, as one number. */
   standing?: number;
   practice?: number;
@@ -64,6 +73,7 @@ export const BASE_MAX_HP = 10;
 export const STARTING_KIT = { worn: ['tunic', 'boots', 'stick'], carried: { apple: 2, bread: 1, knife: 1 } } as const;
 import { DAY_LENGTH } from '../../server/protocol';
 import type { Bond } from './gifts';
+import type { MinesJson } from './mines';
 import type { JailSave } from './jail';
 import type { Kept } from './rescue';
 import type { Held } from './grudge';

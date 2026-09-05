@@ -36,6 +36,14 @@ export interface TalkCtx {
   day?: number;
   /** What this villager has heard about Old Nettle, for the rare occasion they bring him up. */
   wordOfHim?: (person: Person) => string;
+  /**
+   * What this person's village believes about the mine it works, which is belief and not fact.
+   *
+   * A mine somebody cleared out last week is still spoken of as a death trap until word gets
+   * back, and that is the point of routing it through what people say rather than through what
+   * the mine is: the gap between the two is the thing the player closes by walking home.
+   */
+  saidOfMine?: (village: string) => string;
 }
 
 /**
@@ -185,10 +193,19 @@ function residentPages(e: Entity, ctx: TalkCtx, fallback: string): string[] {
   if (!person) return [fallback];
 
   const talk = gossipFor(person, ctx.register, ctx.day ?? 1, ctx.rng);
+  // what the village believes about its mine is small talk rather than news: a fresh fright is a
+  // memory and leads the conversation, but a mine everybody has been afraid of for a month is
+  // only a thing people here say — and it has to keep being said, or somebody passing through can
+  // never find out why the place is poor.
+  const said = ctx.saidOfMine?.(person.village) ?? '';
   // one villager in a few has heard about Old Nettle, and says it the way they say anything else.
   // It has to be small talk and it has to come BEFORE he first gets away, or his escaping reads
   // as the game cheating rather than as the one thing everybody already knew about him.
-  const small = ctx.wordOfHim && ctx.rng() < WORD_OF_HIM ? [...talk.small, ctx.wordOfHim(person)] : talk.small;
+  const small = [
+    ...talk.small,
+    ...(ctx.wordOfHim && ctx.rng() < WORD_OF_HIM ? [ctx.wordOfHim(person)] : []),
+    ...(said === '' ? [] : [said]),
+  ];
   // somebody plainly down to their last few coins gets told how people here get by, because a
   // world full of things to do teaches nobody anything if none of them is ever mentioned
   if (ctx.state.inventory.gold < POOR) return [pick(ctx.rng, HOW_PEOPLE_GET_BY)];
