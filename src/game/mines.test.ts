@@ -246,3 +246,36 @@ describe('a mine surviving being walked away from', () => {
     expect(purseOf(register)).toBe(0);
   });
 });
+
+describe('a mine that somebody else has been down', () => {
+  const ID = 'cave:one';
+
+  it('takes the larger count, because two people can be down the same hole at once', () => {
+    const mines = new Mines(1);
+    mines.slain(ID, 5);
+    mines.clearedTo(ID, 3);            // a stale word from somebody who had killed less
+    expect(mines.clearedIn(ID), 'a late message undid work already done').toBe(5);
+    mines.clearedTo(ID, 9);
+    expect(mines.clearedIn(ID)).toBe(9);
+  });
+
+  it('can be applied twice without counting twice, because the wire may repeat itself', () => {
+    const mines = new Mines(1);
+    mines.clearedTo(ID, 7);
+    mines.clearedTo(ID, 7);
+    expect(mines.clearedIn(ID)).toBe(7);
+  });
+
+  it('makes the place less dangerous for everybody, not only for whoever swung the sword', () => {
+    const mines = new Mines(1);
+    const before = mines.perilOf(ID);
+    mines.clearedTo(ID, 40);
+    expect(mines.perilOf(ID)).toBeLessThan(before);
+  });
+
+  it('leaves a mine nobody has touched exactly as it was', () => {
+    const mines = new Mines(1);
+    mines.clearedTo(ID, 0);
+    expect(mines.clearedIn(ID)).toBe(0);
+  });
+});

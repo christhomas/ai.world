@@ -197,6 +197,34 @@ export class Mines {
     this.cleared.set(id, (this.cleared.get(id) ?? 0) + many);
   }
 
+  /** How much of a mine has been fought through, for telling anybody else playing in this world. */
+  clearedIn(id: string): number { return this.cleared.get(id) ?? 0; }
+
+  /**
+   * What somebody else's fighting has done to a mine.
+   *
+   * The larger of the two counts wins rather than the newer, because two people can be down the
+   * same hole at once and messages do not arrive in the order they were sent. Taking the newest
+   * would let a stale word from a player who had killed less undo work that was already done.
+   */
+  clearedTo(id: string, many: number): void {
+    if (many > (this.cleared.get(id) ?? 0)) this.cleared.set(id, many);
+  }
+
+  /**
+   * What somebody else's word to a village has done to what it believes.
+   *
+   * Belief only ever falls this way — the word is that the place is safer than they thought — so
+   * the lower dread wins and a message arriving late cannot re-frighten a village that has already
+   * been reassured.
+   */
+  heardTold(id: string): void {
+    const mine = this.mines.get(id);
+    if (!mine) return;
+    const after = toldOfMine(mine, this.perilOf(id));
+    if (after.dread < mine.dread) this.mines.set(id, after);
+  }
+
   /**
    * Somebody has come up out of the workings and told the village what is down there now.
    *

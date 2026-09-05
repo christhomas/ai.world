@@ -68,7 +68,30 @@ export type WorldDelta =
   | { kind: 'sow'; tile: string; crop: string; day: number }
   | { kind: 'reap'; tile: string }
   | { kind: 'found'; name: string }
-  | { kind: 'died'; who: string; village: string; day: number };
+  | { kind: 'died'; who: string; village: string; day: number }
+  /**
+   * Something living in a mine has been killed, and how many.
+   *
+   * Counted rather than named because the dungeon behind an anchor is regrown from its seed every
+   * time anybody walks into it, so there is no such thing as a particular troll that stays dead.
+   * What survives is how much of the place has been fought through, and that is what the danger
+   * down there is made of — so it is a fact about the world and has to travel like one.
+   *
+   * `many` is the running total for that mine rather than the handful just killed, because the log
+   * keeps one entry per key and a later entry replaces an earlier one. An increment would be
+   * swallowed by that; a total survives it, arrives in any order, and can be applied twice without
+   * counting anything twice.
+   */
+  | { kind: 'cleared'; mine: string; many: number }
+  /**
+   * Somebody has walked into a village and told them what is down their mine now.
+   *
+   * Separate from clearing it because they are separate acts: one changes the mine, the other
+   * changes what a village believes about it, and a village that believes its mine is haunted
+   * stays at home whatever is true. Without this a mine one player cleared and reported goes on
+   * frightening everybody else's villagers for ever.
+   */
+  | { kind: 'told'; mine: string };
 
 /**
  * One monster as the floor's owner sees it. Everyone underground generates the same rooms from
@@ -351,6 +374,10 @@ export function deltaKey(delta: WorldDelta): string {
     case 'reap': return `sow:${delta.tile}`;   // reaping clears the sowing it replaces
     case 'found': return `found:${delta.name}`;
     case 'died': return `died:${delta.who}`;
+    // one entry per mine, and the newest wins: both of these carry a whole state rather than a
+    // change to one, so replacing is exactly right and adding would double-count
+    case 'cleared': return `cleared:${delta.mine}`;
+    case 'told': return `told:${delta.mine}`;
   }
 }
 

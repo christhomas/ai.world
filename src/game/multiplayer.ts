@@ -7,6 +7,7 @@ import { Market } from './market';
 import { Party } from './party';
 import { Duel } from './duel';
 import { Breath, guardCovers } from './breath';
+import type { Mines } from './mines';
 import { Handover } from './handover';
 import { OtherPlayers } from '../render/others';
 import { PlayerList } from '../ui/players';
@@ -46,6 +47,8 @@ export interface MultiplayerContext {
   state: GameState;
   /** What the hero has left to swing and guard with, so a bout obeys the same rules a fight does. */
   breath: Breath;
+  /** The world's mines, so one player's afternoon underground is felt in everybody's villages. */
+  mines: Mines;
   places: Places;
   plots: Plots;
   mount: Mount;
@@ -82,7 +85,7 @@ export interface MultiplayerContext {
 
 export function createMultiplayer(ctx: MultiplayerContext) {
   const {
-    player, state, breath, places, plots, mount, sailing, entityRenderer, camera,
+    player, state, breath, mines, places, plots, mount, sailing, entityRenderer, camera,
     dialogue, hud, chat, sound, questList, discovered, register, hires, seed, placeName, persist, showOffer,
   } = ctx;
   const onlineStatus = $('onlineStatus');
@@ -376,6 +379,16 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       }
       case 'found':
         discovered.add(delta.name);
+        break;
+      case 'cleared':
+        // somebody else has been down there with a sword. The mine is a fact about the world, so
+        // what they killed counts for everybody who plays in it
+        mines.clearedTo(delta.mine, delta.many);
+        break;
+      case 'told':
+        // and somebody has walked into the village and said so, which is the half that changes
+        // what people believe rather than what is true
+        mines.heardTold(delta.mine);
         break;
       case 'died':
         // the village loses them, and the people who knew them are left holding the memory

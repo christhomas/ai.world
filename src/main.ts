@@ -461,7 +461,7 @@ function startGame(
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   const multiplayer = createMultiplayer({
     register, hires,
-    player, state, breath, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
+    player, state, breath, mines, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
     dialogue, hud, chat, sound, questList, discovered, seed,
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
@@ -949,7 +949,7 @@ function startGame(
       sound.voice(heftOf(res.killed[0]), true);
       // what lived in the workings is what made them dangerous, so killing it is the one thing a
       // player can do that moves a village's whole economy
-      mines.slain(fightingInAMine(), res.killed.length);
+      reportCleared(fightingInAMine(), res.killed.length);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -992,7 +992,7 @@ function startGame(
       sound.chime();
       // what lived in the workings is what made them dangerous, so killing it is the one thing a
       // player can do that moves a village's whole economy
-      mines.slain(fightingInAMine(), res.killed.length);
+      reportCleared(fightingInAMine(), res.killed.length);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -1026,7 +1026,7 @@ function startGame(
     if (res.killed.length > 0) {
       // what lived in the workings is what made them dangerous, so killing it is the one thing a
       // player can do that moves a village's whole economy
-      mines.slain(fightingInAMine(), res.killed.length);
+      reportCleared(fightingInAMine(), res.killed.length);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -1170,6 +1170,18 @@ function startGame(
       e.warned = true;
       sound.voice(heftOf(e));
     }
+  };
+
+  /**
+   * Killing something in a mine, told to anybody else playing in this world.
+   *
+   * The running total goes on the wire rather than the handful just killed: the delta log keeps one
+   * entry per mine and a later one replaces the earlier, so an increment would be swallowed. A
+   * total survives that, arrives in any order, and can be applied twice without counting twice.
+   */
+  const reportCleared = (id: string | null, many: number) => {
+    mines.slain(id, many);
+    if (id) online.report({ kind: 'cleared', mine: id, many: mines.clearedIn(id) });
   };
 
   const onAttack = (attacker: Entity, dmg: number) => {
@@ -1829,7 +1841,12 @@ function startGame(
       const home = structures.villages.find((v) => v.name === working.village);
       if (!home || Math.hypot(home.x - player.x, home.z - player.z) > home.radius) continue;
       const said = mines.told(working.mine, working.name);
-      if (said !== null) { hud.flash(said); sound.chime(); persist(); }
+      if (said !== null) {
+        hud.flash(said); sound.chime();
+        // a village that has been reassured is reassured for everybody, not only for whoever walked in
+        online.report({ kind: 'told', mine: working.mine });
+        persist();
+      }
     }
 
     // hold the place for this frame: a bite can end it half way through
