@@ -1,5 +1,5 @@
 import { $ } from './dom';
-import { BASE_SCALE, type Fog, type MapBase, type MapMarker } from './mapbase';
+import { BASE_SCALE, type Fog, type MapBase, type MapMarker, headingOnMap } from './mapbase';
 import type { DungeonMinimap } from './dungeonmap';
 
 const ZOOM = { MIN: 0.35, MAX: 5, STEP: 1.25, START: 1.6 } as const;
@@ -11,6 +11,8 @@ export interface WorldMapInput {
   markers: MapMarker[];
   playerX: number;
   playerZ: number;
+  /** Which way the hero is looking, as a rig yaw. Undefined draws no cone. */
+  facing?: number;
   /** false once the region map is in your pocket. */
   fog: boolean;
   /** Shown in the header. */
@@ -230,8 +232,21 @@ export class WorldMap {
       }
     }
 
-    // the hero, as an arrow-less dot with a ring so it is never lost in the clutter
+    // the hero: a dot with a ring so it is never lost in the clutter, and a cone off it so the
+    // map answers "which way am I pointing" as well as "where am I"
     const me = this.toScreen(input.playerX, input.playerZ);
+    if (input.facing !== undefined) {
+      ctx.save();
+      ctx.translate(me.px, me.py);
+      ctx.rotate(headingOnMap(input.facing));
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 26, -0.42, 0.42);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255,77,77,0.32)';
+      ctx.fill();
+      ctx.restore();
+    }
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.beginPath();

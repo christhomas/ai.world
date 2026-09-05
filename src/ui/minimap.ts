@@ -1,4 +1,4 @@
-import { BASE_SCALE, type Fog, type MapBase, type MapMarker } from './mapbase';
+import { BASE_SCALE, headingOnMap, type Fog, type MapBase, type MapMarker } from './mapbase';
 
 /** The corner map: a small window on the world around the hero, cropped from the shared base. */
 export class Minimap {
@@ -6,6 +6,9 @@ export class Minimap {
   private readonly size: number;
   /** Tiles visible across the corner map. */
   localTiles = 110;
+  /** How far the facing cone reaches, in pixels, and how wide it opens, in radians either side. */
+  private static readonly CONE_REACH = 13;
+  private static readonly CONE_HALF = 0.42;
 
   constructor(canvas: HTMLCanvasElement, private readonly base: MapBase, private readonly fog: Fog) {
     const ctx = canvas.getContext('2d');
@@ -17,6 +20,8 @@ export class Minimap {
   draw(
     camX: number, camZ: number, zoom: number, aspect: number, rotation: number,
     markers: MapMarker[] = [], playerX = camX, playerZ = camZ, fog = true,
+    /** Which way the hero is looking, as a rig yaw. Undefined draws no cone. */
+    facing?: number,
   ): void {
     const ctx = this.ctx, bs = BASE_SCALE, N = this.size, B = this.base.canvas.width;
     const srcW = Math.min(B, this.localTiles * bs);
@@ -33,6 +38,19 @@ export class Minimap {
     for (const m of markers) {
       ctx.fillStyle = m.color;
       ctx.fillRect(toX(m.x) - 3, toZ(m.z) - 3, 6, 6);
+    }
+    // which way they are looking, drawn under the dot so the dot stays the thing you find first
+    if (facing !== undefined) {
+      ctx.save();
+      ctx.translate(toX(playerX), toZ(playerZ));
+      ctx.rotate(headingOnMap(facing));
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, Minimap.CONE_REACH, -Minimap.CONE_HALF, Minimap.CONE_HALF);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255,77,77,0.38)';
+      ctx.fill();
+      ctx.restore();
     }
     ctx.fillStyle = '#ff4d4d';
     ctx.beginPath();

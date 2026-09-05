@@ -93,3 +93,16 @@ export interface MapMarker {
   /** Bigger dot and a ring: quest targets and the like. */
   emphasis?: boolean;
 }
+
+/**
+ * The angle to rotate a map by so that "up" on the canvas is the way somebody is facing.
+ *
+ * A rig's yaw is measured the way `yawFor` measures it — forward is (cos yaw, -sin yaw), with z
+ * running the opposite way to the angle. A map canvas has z running straight down its y axis, so
+ * the same heading is the negative of the yaw. It is one minus sign and it is the sort of thing
+ * that is wrong for a fortnight before anybody notices the arrow points the wrong way, so it is
+ * written down once and tested rather than being inlined at each map that wants it.
+ */
+export function headingOnMap(yaw: number): number {
+  return -yaw;
+}

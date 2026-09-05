@@ -82,6 +82,8 @@ export function createReadouts(ctx: ReadoutContext) {
   };
 
   const mapInput = () => ({
+    // so the full map answers "which way am I pointing" as well as "where am I"
+    facing: player.entity.yaw,
     markers: markers(),
     playerX: player.x,
     playerZ: player.z,
