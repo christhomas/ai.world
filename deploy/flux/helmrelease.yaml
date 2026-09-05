@@ -1,0 +1,77 @@
+# Installing the game, and keeping it installed.
+#
+# This is the piece that makes deployment a commit. Flux watches the GitRepository beside this file,
+# renders the chart, and reconciles the cluster against it — continuously, not once. Someone editing
+# the Deployment with kubectl gets corrected within the interval; a Deployment somebody deletes comes
+# back without anyone noticing it went.
+#
+# That is the difference from `helm install`, which records what it installed and then stops caring,
+# and from a Pulumi run, which compares against reality only when a person asks it to. Same axis,
+# three rungs: ran once, checks when asked, checks always.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ai-world
+  namespace: ai-world
+spec:
+  interval: 5m
+  # The chart is read straight from the repository rather than from a packaged Helm repository,
+  # because there is no registry in the middle to publish to and nothing gained by adding one. The
+  # version pins which chart is deployed; the branch only says where to look for it.
+  chart:
+    spec:
+      chart: ./chart
+      version: '0.1.0'
+      sourceRef:
+        kind: GitRepository
+        name: ai-world
+        namespace: flux-system
+      interval: 1m
+
+  # Give up rather than retry for ever. A release that cannot install is usually wrong rather than
+  # unlucky, and a controller retrying a broken chart every five minutes buries the real error in a
+  # log nobody reads.
+  install:
+    remediation:
+      retries: 3
+    createNamespace: true
+  upgrade:
+    remediation:
+      # Put the previous release back when an upgrade fails, which is the thing Helm can do and
+      # nothing else in this stack can: the cluster ends up running the last version that worked
+      # rather than a half-applied new one.
+      retries: 3
+      remediateLastFailure: true
+    cleanupOnFail: true
+
+  values:
+    # Everything not named here takes the chart's own default, which is deliberately written to suit
+    # k3s: storage class and ingress class both left empty so the cluster's own defaults win —
+    # local-path and Traefik.
+    ingress:
+      enabled: true
+      hosts:
+        - host: homelab.local
+          paths:
+            - path: /
+              pathType: Prefix
+
+    # Modest on purpose. This machine is a media centre first: it runs Kodi on tty1 against the
+    # display, and a pod that eats the machine leaves somebody looking at a stuttering film. These
+    # are the limits that keep the game a guest rather than the tenant.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+
+    persistence:
+      enabled: true
+      size: 2Gi
+
+    # The server hands out the built page as well as the world, on one origin. That is what lets
+    # the client work out its own WebSocket address from wherever it was loaded, so nothing has to
+    # be configured with a server address — the whole reason one box can host this.
+    page:
+      enabled: true

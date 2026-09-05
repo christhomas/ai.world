@@ -1,0 +1,5 @@
+# The game gets its own namespace, so everything it owns can be seen — and removed — together.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-world
