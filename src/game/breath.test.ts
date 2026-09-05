@@ -118,3 +118,18 @@ describe('the guard', () => {
     expect(BREATH.GUARDED_PACE).toBeGreaterThan(0);
   });
 });
+
+describe('a guard against another player', () => {
+  it('blocks, because holding your arm up is a decision you can actually make', () => {
+    const b = new Breath();
+    b.raise();
+    expect(b.answer(false)).toBe('blocked');
+  });
+
+  it('never parries, because the tell arrives over a wire and timing it would be luck', () => {
+    const b = new Breath();
+    b.raise();
+    // the same guard that would parry a wolf only blocks a person
+    expect(b.answer(false)).not.toBe('parried');
+  });
+});

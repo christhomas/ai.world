@@ -6,6 +6,7 @@ import { Coop } from './coop';
 import { Market } from './market';
 import { Party } from './party';
 import { Duel } from './duel';
+import { Breath } from './breath';
 import { Handover } from './handover';
 import { OtherPlayers } from '../render/others';
 import { PlayerList } from '../ui/players';
@@ -43,6 +44,8 @@ import {
 export interface MultiplayerContext {
   player: Player;
   state: GameState;
+  /** What the hero has left to swing and guard with, so a bout obeys the same rules a fight does. */
+  breath: Breath;
   places: Places;
   plots: Plots;
   mount: Mount;
@@ -79,7 +82,7 @@ export interface MultiplayerContext {
 
 export function createMultiplayer(ctx: MultiplayerContext) {
   const {
-    player, state, places, plots, mount, sailing, entityRenderer, camera,
+    player, state, breath, places, plots, mount, sailing, entityRenderer, camera,
     dialogue, hud, chat, sound, questList, discovered, register, hires, seed, placeName, persist, showOffer,
   } = ctx;
   const onlineStatus = $('onlineStatus');
@@ -188,8 +191,13 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       hud.flash(`Duel with ${withName}!`);
     },
     onDuelStruck: (damage) => {
+      // a raised guard counts here too, but it can only ever block: the blow crossed a wire to get
+      // here, so timing a parry to it would be reacting to something that already happened
+      const answered = breath.answer(false);
+      if (answered === 'blocked') hud.flash('Blocked.');
+      const taken = Breath.after(answered, damage);
       // the bout's standing is on screen the whole time, so a blow only needs to be heard
-      if (!duel.struck(damage)) { sound.thud(); return; }
+      if (!duel.struck(taken)) { sound.thud(); return; }
       // out of breath: say so, and the server tells both sides it is over
       online.yieldDuel();
       hud.flash(`${duel.opponentName} wins the bout.`);

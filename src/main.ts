@@ -231,6 +231,16 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
 
   const plots = new Plots(saved?.state?.plots);
+  /**
+   * What the hero has left to swing and guard with. The whole of the defensive game hangs off it:
+   * swinging spends it, holding a guard drains it, and it only comes back when you are doing
+   * neither — so there is now a reason to stop pressing the button.
+   *
+   * Declared up here with the rest of the hero's long-lived state because a bout against another
+   * player obeys the same rules a fight against a wolf does, and the multiplayer wiring below
+   * needs it.
+   */
+  const breath = new Breath();
   const sailing = Sailing.from(saved?.state?.boat ?? null);
   const ownBoat = buildBoat();
   ownBoat.visible = false;
@@ -376,7 +386,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   const multiplayer = createMultiplayer({
     register, hires,
-    player, state, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
+    player, state, breath, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
     dialogue, hud, chat, sound, questList, discovered, seed,
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
@@ -736,12 +746,6 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   input.onKey('=', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
   input.onKey('-', () => { if (worldMap.isOpen) worldMap.zoomBy(0.8); });
   let swingCooldown = 0;
-  /**
-   * What the hero has left to swing and guard with. The whole of the defensive game hangs off it:
-   * swinging spends it, holding a guard drains it, and it only comes back when you are doing
-   * neither — so there is now a reason to stop pressing the button.
-   */
-  const breath = new Breath();
   /** A hired man is re-marked now and then, because the world streams him out and back. */
   let musterIn = 0;
   const attack = () => {
@@ -759,14 +763,26 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // a decision rather than a free action
     const might = breath.swing();
     if (might < 1) hud.flash('You are swinging on empty.');
+    /**
+     * What this particular swing is worth, breath and all.
+     *
+     * Creatures get this through `swing()`, which scales the damage itself. Another player is hit
+     * through the duel and warband paths instead, and those were reading `state.attack` straight —
+     * so against a person you paid the breath and still swung at full strength, and the rule that
+     * a flurry has an end quietly did not apply to the only opponent who could notice.
+     *
+     * Both the local prediction and the number that goes on the wire use this, so the two sides of
+     * a bout never disagree about how hard you hit.
+     */
+    const landed = Math.max(1, Math.round(state.attack * might));
 
     const world = places.underground?.world ?? chunks;
     const manager = places.underground?.monsters ?? entities;
     if (duel.active) {
       const them = online.players.get(duel.opponent);
       if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
-        duel.landed(state.attack);
-        online.duelHit(state.attack);
+        duel.landed(landed);
+        online.duelHit(landed);
         sound.thud();
         return;
       }
@@ -776,8 +792,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (warband.active && warband.mayStrike(online.id, warband.opponent, hires)) {
       const them = online.players.get(warband.opponent);
       if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
-        warband.landed({ damage: state.attack, sword: false });
-        online.warbandHit(state.attack, false);
+        warband.landed({ damage: landed, sword: false });
+        online.warbandHit(landed, false);
         sound.thud();
         return;
       }
@@ -785,7 +801,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // Old Nettle is beaten rather than killed: the blow that would finish him raises the choice
     // instead, which is the whole design. He must never reach nought.
     const cornered = entities.within(player.x, player.z, COMBAT.RANGE)
-      .some((e) => e.kind.id === 'nettle' && !e.dead && e.hp <= state.attack);
+      // against the blow actually being thrown, not against a full-strength one: a winded swing
+      // must not trigger the scene where he goes down, because it would not have put him there
+      .some((e) => e.kind.id === 'nettle' && !e.dead && e.hp <= landed);
     if (cornered && interactions.heWentDown()) { sound.thud(); return; }
 
     const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing, null, might);

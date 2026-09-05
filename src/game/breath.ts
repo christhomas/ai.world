@@ -111,10 +111,15 @@ export class Breath {
    *
    * The whole of the skill is in the first line: a guard that went up in the last fraction of a
    * second is a parry, and one that has been held since before the blow was thrown is only a block.
+   *
+   * `canParry` is false where the tell cannot be trusted. Against another player a blow arrives
+   * over a wire, some unknown fraction of a second after the swing that threw it — so timing a
+   * guard to it would be luck wearing skill's clothes. The guard still blocks there, because
+   * holding your arm up is a decision that does not depend on reflexes you were never given.
    */
-  answer(): Answered {
+  answer(canParry = true): Answered {
     if (this.raised === null) return 'open';
-    if (this.raised <= BREATH.PARRY_WINDOW) {
+    if (canParry && this.raised <= BREATH.PARRY_WINDOW) {
       this.left = Math.min(BREATH.MOST, this.left + BREATH.MOST * BREATH.PARRY_REFUND);
       this.raised = null;   // the parry spends the guard: you have to raise it for the next one
       return 'parried';

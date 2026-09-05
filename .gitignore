@@ -2,3 +2,6 @@ node_modules/
 dist/
 .DS_Store
 server/data/
+
+# local-only Claude Code settings (worktree base, permissions)
+.claude/settings.local.json
