@@ -4,13 +4,17 @@ import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import { EntityRenderer } from '../entities/pool';
 import { mulberry32 } from '../core/rng';
+import { PropKind } from '../world/biomes';
+import { PropBatch, type PropInstance } from './instancing';
+import { PropLibrary } from './props';
 import { QUALITY, setWorldView, worldView, type Quality } from './scene';
 
 /**
  * Speed itself is a property of the machine and the hour, and no test can hold it. What a test
  * can hold is the shape of the work: that nothing is drawn twice, that nothing off screen is
- * drawn at all, that a pool never outgrows the buffer it was given, and that turning the quality
- * down still turns off the things the label promises.
+ * drawn at all, that a pool never outgrows the buffer it was given, that a kind nobody is growing
+ * costs no mesh at all, and that turning the quality down still turns off the things the label
+ * promises.
  */
 
 const rng = mulberry32(7);
@@ -31,6 +35,21 @@ function meshes(scene: THREE.Scene): THREE.InstancedMesh[] {
 
 /** Instances actually handed to the GPU across every part of every pool. */
 const drawn = (scene: THREE.Scene): number => meshes(scene).reduce((n, m) => n + m.count, 0);
+
+/** Where every drawn instance stands, as strings, so two frames can be compared for sameness. */
+function positions(scene: THREE.Scene): string[] {
+  const matrix = new THREE.Matrix4();
+  const at = new THREE.Vector3();
+  const out: string[] = [];
+  for (const mesh of meshes(scene)) {
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getMatrixAt(i, matrix);
+      at.setFromMatrixPosition(matrix);
+      out.push(`${at.x},${at.y},${at.z}`);
+    }
+  }
+  return out;
+}
 
 describe('what the creature pools draw', () => {
   it('draws nothing that the camera cannot see', () => {
@@ -146,6 +165,186 @@ describe('what the creature pools draw', () => {
       // sixteen floats to a matrix: one instance, not the three hundred the pool can hold
       expect(ranges[0]).toEqual({ start: 0, count: 16 });
     }
+  });
+});
+
+/**
+ * A prop batch is the same bargain as a creature pool, struck for scenery instead: the world says
+ * what grows where, and the batch decides how few draw calls that can be turned into. What these
+ * hold is that the bargain is kept both ways — every prop that should be on screen is on screen,
+ * and nothing is drawn that need not be.
+ */
+describe('what the prop batches draw', () => {
+  const library = new PropLibrary();
+  const glowMaterial = new THREE.MeshBasicMaterial();
+
+  /** A row of props of one kind, marching away from the origin along x. */
+  const row = (kind: PropKind, count: number, from = 0): PropInstance[] =>
+    Array.from({ length: count }, (_, i) => ({ kind, x: from + i, y: 0, z: 0, rot: 0 }));
+
+  /** How many instances of a kind are actually handed over, across every mesh drawing it. */
+  const drawnOf = (scene: THREE.Scene, kind: PropKind): number =>
+    meshes(scene)
+      .filter((m) => m.geometry === library.geometries.get(kind))
+      .reduce((n, m) => n + m.count, 0);
+
+  it('gives a kind nobody is growing no mesh at all', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('a chunk with nothing on it', []);
+    batch.update();
+    // an InstancedMesh with a count of zero draws nothing and still costs a walk, a sort and a
+    // look-in from the shadow pass; nine hundred of them was the whole problem
+    expect(meshes(scene)).toEqual([]);
+  });
+
+  it('collapses one kind across many chunks into a single mesh', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    for (let i = 0; i < 40; i++) batch.set(`chunk ${i}`, row(PropKind.Oak, 3, i * 3));
+    batch.update();
+
+    // forty chunks of three oaks each is one draw of a hundred and twenty, not forty draws of three
+    expect(meshes(scene).length).toBe(1);
+    expect(drawn(scene)).toBe(120);
+  });
+
+  it('draws every prop once and once only', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('a', row(PropKind.Oak, 4));
+    batch.set('b', row(PropKind.Oak, 4, 10));
+    batch.set('c', row(PropKind.Rock, 5, 20));
+    batch.update();
+
+    expect(drawnOf(scene, PropKind.Oak)).toBe(8);
+    expect(drawnOf(scene, PropKind.Rock)).toBe(5);
+    const seen = new Set<string>();
+    const matrix = new THREE.Matrix4();
+    const at = new THREE.Vector3();
+    for (const mesh of meshes(scene)) {
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, matrix);
+        at.setFromMatrixPosition(matrix);
+        seen.add(`${mesh.geometry.uuid}@${at.x},${at.z}`);
+      }
+    }
+    expect(seen.size).toBe(13);
+  });
+
+  it('draws nothing that the camera cannot see', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('near', row(PropKind.Oak, 3));
+    batch.set('far', row(PropKind.Oak, 7, 400));
+    setWorldView(scene, 0, 0, 40);
+    batch.update();
+    expect(drawn(scene)).toBe(3);
+
+    // the camera walks off to where the far seven are and the near three are left behind
+    setWorldView(scene, 403, 0, 40);
+    batch.update();
+    expect(drawn(scene)).toBe(7);
+  });
+
+  it('hides a kind outright when none of it is in shot', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('over the hill', row(PropKind.Oak, 5, 900));
+    setWorldView(scene, 0, 0, 40);
+    batch.update();
+
+    expect(drawn(scene)).toBe(0);
+    // three finds out that a count of zero draws nothing only after walking it and sorting it;
+    // hidden, it is passed over at the one point where passing over it is free
+    for (const m of meshes(scene)) expect(m.visible).toBe(false);
+  });
+
+  it('draws the lot when no camera has claimed the scene', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('near', row(PropKind.Oak, 3));
+    batch.set('far', row(PropKind.Oak, 7, 4000));
+    // interiors and dungeons have no rig to say where the view is, so they are not culled
+    expect(worldView(scene)).toBeNull();
+    batch.update();
+    expect(drawn(scene)).toBe(10);
+  });
+
+  it('takes a chunk away with its props, and gives them back when it returns', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('staying', row(PropKind.Oak, 3));
+    batch.set('going', row(PropKind.Oak, 4, 10));
+    batch.update();
+    expect(drawn(scene)).toBe(7);
+
+    batch.remove('going');
+    batch.update();
+    expect(drawn(scene)).toBe(3);
+
+    // walking back the way you came must find the wood you walked through, in the same place
+    const before = positions(scene);
+    batch.set('going', row(PropKind.Oak, 4, 10));
+    batch.update();
+    expect(drawn(scene)).toBe(7);
+    expect(positions(scene)).toEqual(expect.arrayContaining(before));
+  });
+
+  it('keeps no mesh for a kind whose last chunk has gone', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('only', row(PropKind.Rock, 6));
+    batch.update();
+    expect(meshes(scene).length).toBe(1);
+
+    batch.remove('only');
+    expect(meshes(scene)).toEqual([]);
+  });
+
+  it('grows the buffer rather than dropping what will not fit', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('a', row(PropKind.Oak, 4));
+    batch.update();
+    const small = meshes(scene)[0].instanceMatrix.count;
+
+    // far more than the first buffer could hold: a wood streaming in must not be truncated
+    for (let i = 0; i < 30; i++) batch.set(`chunk ${i}`, row(PropKind.Oak, 9, 100 + i * 9));
+    batch.update();
+    const grown = meshes(scene)[0];
+    expect(grown.instanceMatrix.count).toBeGreaterThan(small);
+    expect(grown.instanceMatrix.count).toBeGreaterThanOrEqual(274);
+    expect(drawn(scene)).toBe(274);
+  });
+
+  it('lights exactly the windows it drew houses for', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('village', row(PropKind.HousePlains, 3));
+    setWorldView(scene, 0, 0, 40);
+    batch.update();
+
+    const walls = meshes(scene).find((m) => m.geometry === library.geometries.get(PropKind.HousePlains));
+    const windows = meshes(scene).find((m) => m.geometry === library.glows.get(PropKind.HousePlains));
+    expect(walls).toBeDefined();
+    expect(windows).toBeDefined();
+    expect(windows!.count).toBe(walls!.count);
+    // the lit panes have to stand in the same walls, or a house glows where it is not
+    expect(windows!.instanceMatrix.array.slice(0, walls!.count * 16))
+      .toEqual(walls!.instanceMatrix.array.slice(0, walls!.count * 16));
+  });
+
+  it('leaves nothing in the scene once it is disposed of', () => {
+    const scene = new THREE.Scene();
+    const batch = new PropBatch(scene, library, glowMaterial);
+    batch.set('a', row(PropKind.Oak, 3));
+    batch.update();
+    expect(meshes(scene).length).toBe(1);
+
+    batch.dispose();
+    expect(meshes(scene)).toEqual([]);
+    expect(scene.children).toEqual([]);
   });
 });
 

@@ -1859,8 +1859,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     skyRenderer.update(dt);
     skies.update();
     const { x, z } = iso.target;
-    chunks.update(x, z);
+    // the rig writes where the camera is looking onto the scene, and the chunks read it back to
+    // decide which props are worth handing to the GPU, so it has to be said before it is asked
     rig.follow(x, z, iso.zoom);
+    chunks.update(x, z);
     // season and weather: both derived from the day counter and the biome underfoot
     const here = sampler.probe(player.x, player.z);
     const season = seasonOf(state.day);

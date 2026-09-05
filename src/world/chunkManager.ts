@@ -9,7 +9,7 @@ import type { TileWorld } from '../entities/entity';
 import type { ChunkSource, ChunkTiles } from '../entities/manager';
 import type { TerrainSampler } from './terrain';
 import { chunkKey } from './spatial';
-import { addPropInstances, disposeInstances, meshFromData, type PropInstance } from '../render/instancing';
+import { PropBatch, disposeInstances, meshFromData, type PropInstance } from '../render/instancing';
 import type { SeasonTintMaterials } from '../render/seasontint';
 
 interface LoadedChunk {
@@ -44,6 +44,16 @@ export class ChunkManager implements TileWorld, ChunkSource {
   onFirstChunk: (() => void) | null = null;
   private firstChunkSeen = false;
 
+  /**
+   * Every prop in every loaded chunk, drawn per kind rather than per chunk.
+   *
+   * A chunk owning its own instanced meshes is the obvious way round and the wrong one: a chunk is
+   * sixteen tiles square and holds a handful of any one kind of tree, so a hundred loaded chunks
+   * meant hundreds of draw calls each carrying three or four instances. The chunk still decides
+   * what grows where and still takes its props away when it goes; it just no longer draws them.
+   */
+  private readonly propBatch: PropBatch;
+
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
   constructor(
@@ -51,8 +61,9 @@ export class ChunkManager implements TileWorld, ChunkSource {
     sampler: TerrainSampler,
     private readonly props: PropLibrary,
     private readonly waterMaterial: THREE.Material,
-    private readonly glowMaterial: THREE.Material,
+    glowMaterial: THREE.Material,
   ) {
+    this.propBatch = new PropBatch(scene, props, glowMaterial);
     const R = WORLD.VIEW_RADIUS;
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) this.offsets.push({ dx, dz });
     this.offsets.sort((a, b) => a.dx * a.dx + a.dz * a.dz - (b.dx * b.dx + b.dz * b.dz));
@@ -76,6 +87,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       this.refreshDesired();
     }
     this.pump();
+    this.propBatch.update();
     this.stats.loaded = this.loaded.size;
     this.stats.pending = this.pending.size + this.queue.length;
   }
@@ -145,8 +157,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
         water.renderOrder = 2;
         group.add(water);
       }
-      addPropInstances(group, this.props, readPropStream(msg.props), this.glowMaterial);
+      this.propBatch.set(k, readPropStream(msg.props));
       this.scene.add(group);
+      // the ground of a chunk never moves once it is down, so the frame need not walk it every
+      // frame asking whether it has: a hundred chunks of that is a hundred chunks of nothing
+      group.matrixAutoUpdate = false;
+      group.updateMatrixWorld(true);
+      group.matrixWorldAutoUpdate = false;
       this.loaded.set(k, {
         cx: msg.cx, cz: msg.cz, group,
         tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, blocked: msg.blocked, biomes: msg.biomes },
@@ -158,6 +175,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
   }
 
   private unload(k: string, c: LoadedChunk): void {
+    this.propBatch.remove(k);
     if (c.group) {
       this.scene.remove(c.group);
       c.group.traverse((o) => {
@@ -247,6 +265,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   dispose(): void {
     for (const [k, c] of this.loaded) this.unload(k, c);
+    this.propBatch.dispose();
     for (const w of this.workers) w.terminate();
     this.terrainMaterial.dispose();
   }
