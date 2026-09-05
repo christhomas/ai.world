@@ -20,7 +20,7 @@ import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
 import { StructureKind, compassDir } from './world/structures';
-import { ITEMS } from './game/shops';
+import { ITEMS, sellPrice } from './game/shops';
 import { COMBAT, struck, swing } from './game/combat';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
@@ -172,7 +172,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const register = new Register(seed);       // caught up to the saved day once the state is loaded
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
-    (id) => ITEMS[id]?.price ?? 4,
+    // What a villager is paid for what they sell — the same share of the shop price the player
+    // gets, and for the same reason. They were being handed the full sticker price while the hero
+    // got half of it for the identical pelt, which makes the world's economy a different economy
+    // from the player's rather than the one they are both standing in.
+    (id) => (ITEMS[id] ? sellPrice(ITEMS[id]) : 2),
     (who) => fallen(who),
     register,
     (village) => structures.villages.some((v) => v.name === village && stableAt(v, seed) !== null),

@@ -272,6 +272,11 @@ export interface Ctx {
   strike?: (attacker: Entity, victim: Entity, damage: number) => void;
   /** What something fetches at market, which is the game's business and not this file's. */
   worth?: (id: string) => number;
+  /**
+   * A villager has sold something. Handed up rather than kept, because a body in the street is
+   * destroyed when the player walks away and the register is what outlives it.
+   */
+  banked?: (person: string, coin: number) => void;
   /** The hero is wanted by the law: what takes a constable off their beat. */
   wanted?: boolean;
   /** A constable has laid hands on a wanted hero. What that means is the game's business. */
@@ -405,6 +410,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         nearestTrouble: ctx.nearestTrouble ?? (() => null),
         strike: ctx.strike ?? (() => {}),
         worth: ctx.worth ?? (() => 0),
+        banked: ctx.banked,
         wanted: ctx.wanted === true,
         arrest: ctx.arrest ?? (() => {}),
       },

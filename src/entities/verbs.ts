@@ -50,6 +50,13 @@ export interface Mind {
    * the game's business, and a creature's vocabulary has no reason to know the item catalogue.
    */
   worth: (id: string) => number;
+  /**
+   * A sale, reported upward so it reaches the register.
+   *
+   * Optional because the dungeon and the tests build a world without one, and nothing down there
+   * sells anything.
+   */
+  banked?: (person: string, coin: number) => void;
 }
 
 /** Where this creature's attention is: whatever it has marked, or the hero if it has marked nothing. */
@@ -367,11 +374,20 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
       return 'success';
     },
 
-    /** Hand over what is being carried, and take the coin for it. */
+    /**
+     * Hand over what is being carried, and take the coin for it.
+     *
+     * The coin goes to the person as well as to the body standing in the street. The body is
+     * destroyed the moment the player walks out of range, so for as long as this was the only
+     * place it landed, every sale a villager ever made evaporated and the village was never a
+     * penny better off for any of it.
+     */
     sell: () => (tick) => {
       const { self } = tick.world;
       if (!self.carrying) return 'failure';
-      self.purse += tick.world.worth(self.carrying.id) * self.carrying.count;
+      const took = tick.world.worth(self.carrying.id) * self.carrying.count;
+      self.purse += took;
+      tick.world.banked?.(self.person, took);
       self.carrying = null;
       self.state = 'idle';
       self.timer = 1.5;

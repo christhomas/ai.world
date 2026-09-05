@@ -204,6 +204,11 @@ export class EntityManager {
       nearestTrouble: (from: Entity, within: number) => this.nearestTrouble(from, within),
       strike: (attacker: Entity, victim: Entity, damage: number) => this.strike(attacker, victim, damage),
       worth: this.priceOf,
+      // a sale reaches the register, which outlives the body that made it
+      banked: (person: string, coin: number) => {
+        const who = person ? this.register?.find(person) : undefined;
+        if (who) who.purse += coin;
+      },
       // asked once a tick and handed to everybody, because a village's constables all heard the
       // same news about the same person on the same morning
       wanted: this.guiltOf() > 0,

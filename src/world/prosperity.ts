@@ -16,10 +16,18 @@ import type { Person } from './people';
  */
 
 export const PROSPER = {
-  /** What an ordinary day's trade is worth to one working person. */
-  A_DAY: 3,
+  /**
+   * What a day is worth to somebody the player never watched.
+   *
+   * A small floor rather than a wage. Villagers earn properly now — a sale credits the seller the
+   * true market value of what they sold — but only the handful of them standing near the player
+   * are ever simulated closely enough to make one. This keeps the rest of the world ticking over
+   * at a subsistence rate instead of a village quietly starving because nobody visited it, and it
+   * is deliberately far below what an afternoon of real trade brings in.
+   */
+  A_DAY: 1,
   /** A shopkeeper or an innkeeper does better; the trades that serve everybody else. */
-  TRADED: 7,
+  TRADED: 2,
   /** Nobody earns while the place is being raided; below this pressure, business as usual. */
   UNTROUBLED: 0.25,
   /** What a second storey costs its owner. */
