@@ -77,8 +77,15 @@ export class Grudges {
     for (const [village, what] of Object.entries(saved ?? {})) this.held.set(village, { ...what });
   }
 
-  /** Something of theirs was killed. Returns what the village now holds. */
-  slighted(village: string, day: number, by = GRUDGE.A_BEAST): number {
+  /**
+   * Something of theirs was killed, or something of theirs went unpaid for. Returns what the
+   * village now holds.
+   *
+   * `by` is written out as a number rather than left to be inferred from the default, because the
+   * default is a `as const` literal and inference made this take only the number thirty — which
+   * silently meant a beast was the only thing anybody could ever be blamed for.
+   */
+  slighted(village: string, day: number, by: number = GRUDGE.A_BEAST): number {
     const now = this.weight(village, day);
     const after = Math.min(GRUDGE.MOST, now + by);
     this.held.set(village, { weight: after, day });

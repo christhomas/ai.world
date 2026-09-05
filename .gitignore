@@ -5,3 +5,6 @@ server/data/
 
 # local-only Claude Code settings (worktree base, permissions)
 .claude/settings.local.json
+
+# agent worktrees live here; they are checkouts, not content
+.claude/worktrees/

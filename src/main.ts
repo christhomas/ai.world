@@ -41,7 +41,9 @@ import { HORSE, Mount } from './game/mount';
 import { Online, tradableItems, type TradeOffer, type WorldDelta } from './game/online';
 import { Chat } from './ui/chat';
 import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
+import { Houses, stageAt } from './game/building';
 import { CropField } from './render/crops';
+import { BuildingSite } from './render/site';
 import { BOAT, Sailing } from './game/sailing';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
@@ -241,11 +243,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * needs it.
    */
   const breath = new Breath();
+  /** The builder you are holding, and every house you have had put up. */
+  const houses = Houses.from(saved?.state?.houses);
   const sailing = Sailing.from(saved?.state?.boat ?? null);
   const ownBoat = buildBoat();
   ownBoat.visible = false;
   rig.scene.add(ownBoat);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
+  const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
 
   // --- state ---
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
@@ -407,7 +412,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save() },
       manifest: manifest.toJSON(),
       nemesis: nemesis.toJSON(),
       roaming: roaming.save(),
@@ -447,6 +452,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     school.dispose();
     packField.dispose();
     cropField.dispose();
+    buildingSite.dispose();
     props.dispose();
     rig.water.dispose();
     rig.renderer.dispose();
@@ -692,7 +698,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
     saidOfMine,
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
-    market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
+    market, party, duel, mount, sailing, plots, houses, grudges, fishing, online, handover, remains, ferries, quests, register, jail,
     gifts, hires, standing, rescues, nemesis,
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
@@ -1196,6 +1202,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __descend?: () => void }).__descend = () => places.descend();
     (debug as { __climbOut?: () => void }).__climbOut = () => places.exitDungeon();
     (debug as { __plots?: () => unknown }).__plots = () => plots.count;
+    (debug as { __houses?: () => unknown }).__houses = () => ({
+      hired: houses.hired,
+      jobs: houses.entries().map((job) => ({ ...job, stage: stageAt(job, state.day + state.time) })),
+    });
     (debug as { __place?: () => string }).__place = () => placeName();
     (debug as { __coop?: () => unknown }).__coop = () => ({
       hosting: coop.hosting, mirroring: coop.mirroring, id: online.id,
@@ -1660,6 +1670,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         director.saw('trouble');
       }
     }
+    // a builder who has finished and not been paid has said so in the pub by now, and the village
+    // holds it against you for every day it goes on standing there unsettled
+    interactions.builderDay();
     for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
         chat.line(`Word from ${change.village}: ${change.name} has died.`, 'sys');
@@ -1795,6 +1808,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       ownBoat.rotation.y = sailing.yaw;
     }
     cropField.update(plots, state.day + state.time, player.x, player.z, (x, z) => chunks.heightAt(x, z));
+    buildingSite.update(
+      houses.entries().map((job) => ({ id: job.id, x: job.x, z: job.z, rot: job.rot, stage: stageAt(job, state.day + state.time) })),
+      player.x, player.z, (x, z) => chunks.heightAt(x, z),
+    );
     entityRenderer.update();
     heroGear.update(state, player.entity);
 

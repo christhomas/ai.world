@@ -12,6 +12,7 @@ import { hireInteractions } from './hire';
 import { giftInteractions } from './gifts';
 import { rescueInteractions } from './rescue';
 import { nemesisInteractions } from './nemesis';
+import { builderInteractions } from './builder';
 import type { Surroundings } from './context';
 
 export type { Surroundings } from './context';
@@ -38,6 +39,7 @@ export function createInteractions(ctx: Surroundings) {
   const gifts = giftInteractions(ctx);
   const rescue = rescueInteractions(ctx);
   const nettle = nemesisInteractions(ctx);
+  const builder = builderInteractions(ctx);
   const { player, places, dialogue, hud, entities, startTalk } = ctx;
 
   const talkNearest = () => {
@@ -72,6 +74,9 @@ export function createInteractions(ctx: Surroundings) {
     if (travel.tryBoat()) return;
     if (travel.tryEagle()) return;   // a crag with a bird on it, before anything else up here
     if (village.tryHorse()) return;
+    // your own front door, before the ground it stands on: a house you paid for outranks the
+    // furrow you could have dug there
+    if (builder.tryChest()) return;
     if (wild.tryFarm()) return;
     if (village.tryLuxury()) return;
     if (village.tryStall()) return;
@@ -98,6 +103,9 @@ export function createInteractions(ctx: Surroundings) {
     if (camp.tryCamp()) return;
     if (rescue.tryRescue()) return;   // an elder burying too many asks before anything else does
     if (hire.tryHire()) return;
+    // last of everything, because it answers on any patch of open ground — and only at all when
+    // there is a builder taken on and waiting to be told where
+    if (builder.tryBuild()) return;
     const e = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
     if (e) startTalk(e); else hud.flash('No one close enough to talk to');
   };
@@ -124,6 +132,7 @@ export function createInteractions(ctx: Surroundings) {
     ageCamps: camp.age,
     carcasses: camp.bodies,
     noticeStall: village.noticeStall,
+    builderDay: builder.builderDay,
     sailFerries: travel.sailFerries,
     aboard: travel.aboard,
     offerTrade: people.offerTrade,

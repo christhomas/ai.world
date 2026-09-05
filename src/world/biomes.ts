@@ -75,6 +75,15 @@ export const enum PropKind {
   Seedling = 80,
   CropYoung = 81,
   CropRipe = 82,
+  /**
+   * A house of the player's own, going up. Four separate kinds rather than one that grows,
+   * because a building site is a sequence of recognisable states and each of these has to read
+   * from the top of an isometric camera at a hundred paces.
+   */
+  HousePegs = 83,
+  HouseFrame = 84,
+  HouseRoof = 85,
+  HouseYours = 86,
   CaveMouth = 56,
   Shipwreck = 57,
   // interior furniture

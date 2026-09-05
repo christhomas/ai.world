@@ -4,6 +4,7 @@ import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippa
 import { chunkKey } from '../world/spatial';
 import type { HorseSave } from './mount';
 import type { PlotJson } from './farming';
+import type { HouseJson } from './building';
 import type { BoatSave } from './sailing';
 
 /**
@@ -56,6 +57,8 @@ export interface GameStateJson {
   horse?: HorseSave | null;
   /** What is planted where. */
   plots?: PlotJson;
+  /** The builder you are holding, and every house you have had put up. */
+  houses?: HouseJson;
   /** The boat you bought, and where it is moored. */
   boat?: BoatSave | null;
 }
