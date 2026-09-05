@@ -79,8 +79,26 @@ describe('what the creature pools draw', () => {
     renderer.update();
 
     // three.js issues no draw call for an instanced mesh whose count is zero, which is the whole
-    // point: a herd two fields away costs neither matrix work nor a draw
-    for (const m of meshes(scene)) expect(m.count).toBe(0);
+    // point: a herd two fields away costs neither matrix work nor a draw. It still walks it and
+    // sorts it into both passes to find that out, though, so it is hidden as well as empty
+    for (const m of meshes(scene)) {
+      expect(m.count).toBe(0);
+      expect(m.visible).toBe(false);
+    }
+  });
+
+  it('shows a part again the moment somebody of that kind walks back into shot', () => {
+    const scene = new THREE.Scene();
+    const renderer = new EntityRenderer(scene);
+    const sheep = creature('sheep', 300, 300);
+    renderer.add(sheep);
+    setWorldView(scene, 0, 0, 40);
+    renderer.update();
+    for (const m of meshes(scene)) expect(m.visible).toBe(false);
+
+    sheep.x = 1; sheep.z = 1;
+    renderer.update();
+    for (const m of meshes(scene)) expect(m.visible).toBe(true);
   });
 
   it('draws everything when no camera has claimed the scene', () => {
