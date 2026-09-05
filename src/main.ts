@@ -786,6 +786,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       return;
     }
     sound.hit(madeOf(res.hit[0]));
+    // swinging at things teaches you to swing at things: practice, weighted by what you swung at
+    for (const e of res.hit) {
+      const grew = state.practised(e.kind.dangerous ?? 0, res.killed.includes(e));
+      if (grew) hud.flash(grew);
+    }
     if (res.killed.length > 0) {
       sound.voice(heftOf(res.killed[0]), true);
       const rustling: string[] = [];

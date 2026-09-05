@@ -1,3 +1,4 @@
+import { levelFor } from '../game/prowess';
 import { describeGpu, type Quality, type SceneRig } from '../render/scene';
 import { ITEMS, SLOTS } from '../game/items';
 import type { GameState } from '../game/state';
@@ -77,7 +78,8 @@ export class Hud {
     const worn = SLOTS.map((slot) => state.worn(slot)).filter((i) => i !== null);
     const lines = [`<div>💰 ${state.inventory.gold} gold</div>`];
     if (worn.length > 0) lines.push(`<div>${worn.map((i) => i!.emoji).join(' ')}</div>`);
-    lines.push(`<div class="hud-stats">⚔ ${state.attack} · 🛡 ${state.defence} · 🎒 ${state.inventory.items.size}</div>`);
+    const skill = levelFor(state.practice);
+    lines.push(`<div class="hud-stats">⚔ ${state.attack}${skill > 0 ? ` <span title="what practice has taught you">(+${skill})</span>` : ''} · 🛡 ${state.defence} · 🎒 ${state.inventory.items.size}</div>`);
     this.invEl.innerHTML = lines.join('');
   }
 

@@ -1,3 +1,4 @@
+import { learnedFrom, levelFor, saidOf } from './prowess';
 import { ITEMS, Inventory, type InventoryJson } from './shops';
 import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippable } from './items';
 import { chunkKey } from '../world/spatial';
@@ -27,6 +28,7 @@ export interface GameStateJson {
   keys: string[];
   /** Where the hero stands between good and evil, as one number. */
   standing?: number;
+  practice?: number;
   /**
    * Who the hero has given things to, and what each of them made of it. Written by main.ts at
    * save time the way `standing` is: the state itself has no reason to know what a bond is.
@@ -122,7 +124,14 @@ export class GameState {
   }
 
   /** Damage a swing deals: bare hands plus whatever is in your hand. */
-  get attack(): number { return 1 + this.sumWorn((i) => i.attack); }
+  /**
+   * What a blow of yours is worth: your arm, plus whatever is in your hand.
+   *
+   * The practice term is the only thing here that is yours rather than the shop's. It is small
+   * against a sword on purpose — it is meant to be the difference between only just failing and
+   * only just managing.
+   */
+  get attack(): number { return 1 + levelFor(this.practice) + this.sumWorn((i) => i.attack); }
   /** Armour: every two points turns one heart of a bite aside. */
   get defence(): number { return this.sumWorn((i) => i.defence); }
   get maxHpTotal(): number { return this.maxHp + this.sumWorn((i) => i.hearts); }
@@ -257,6 +266,22 @@ export class GameState {
     return changed;
   }
 
+  /**
+   * Swinging at things, in the units prowess.ts counts. Kept as the raw total rather than as a
+   * level so the level's cost can be retuned without everybody's save resetting to nothing.
+   */
+  practice = 0;
+
+  /** Something was hit. Returns the words for it when that pushed you up a level, else null. */
+  practised(danger: number, killed: boolean): string | null {
+    const before = levelFor(this.practice);
+    this.practice += learnedFrom(danger, killed);
+    const now = levelFor(this.practice);
+    if (now === before) return null;
+    this.version++;
+    return saidOf(now);
+  }
+
   toJSON(): GameStateJson {
     return {
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
@@ -267,6 +292,7 @@ export class GameState {
       opened: [...this.opened],
       keys: [...this.keys],
       standing: this.standing,
+      practice: this.practice,
     };
   }
 
@@ -283,6 +309,7 @@ export class GameState {
     if (!json) return GameState.fresh();
     const g = new GameState();
     if (typeof json.hp === 'number') g.hp = json.hp;
+    if (typeof json.practice === 'number') g.practice = json.practice;
     if (typeof json.maxHp === 'number') g.maxHp = json.maxHp;
     if (typeof json.time === 'number') g.time = json.time;
     if (typeof json.day === 'number') g.day = json.day;
