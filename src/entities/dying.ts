@@ -35,6 +35,7 @@ export function startDying(e: Entity): void {
   // air still bites you on the way down, which is the sort of thing that reads as the game
   // cheating even when the arithmetic is fair
   e.winding = 0;
+  e.warned = false;
   e.target = null;
 }
 

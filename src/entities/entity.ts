@@ -189,6 +189,14 @@ export class Entity {
    * of, guard against, or accept. Positive only between those two moments.
    */
   winding = 0;
+  /**
+   * Whether this particular wind-up has already been announced out loud.
+   *
+   * A wind-up is only a warning if you can perceive it, and the animation is no use whatsoever for
+   * something standing behind you — which is the case where a warning is worth most. So the sound
+   * moved to the front of the blow, and this stops it being made again on every frame of one.
+   */
+  warned = false;
   /** Whatever this creature's behaviour is part way through. Its own, and nobody else's. */
   readonly mind = new Memory();
   hp: number;

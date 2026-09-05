@@ -1024,6 +1024,26 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     persist();
   };
 
+  /**
+   * Say a blow out loud at the moment it is thrown, rather than when it arrives.
+   *
+   * The voice used to sound on the hit, which is the report of damage already taken — no use to
+   * anybody. The wind-up is a warning only if it can be perceived, and the animation is worth
+   * nothing at all for something standing behind you, which is precisely the case a warning is
+   * worth most. A growl at your back is now something you can turn and answer.
+   *
+   * Only for things close enough to matter, so a wood full of distant wolves is not a racket.
+   */
+  const HEARD_WINDING = 14;
+  const announceWindUps = (crowd: readonly Entity[]) => {
+    for (const e of crowd) {
+      if (e.winding <= 0) { e.warned = false; continue; }
+      if (e.warned || e.dead) continue;
+      e.warned = true;
+      sound.voice(heftOf(e));
+    }
+  };
+
   const onAttack = (attacker: Entity, dmg: number) => {
     if (dialogue.isOpen) return;
     // A blow buys you a moment. Without it a swarm lands every one of its hits in the same
@@ -1064,7 +1084,6 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (answered === 'blocked') { sound.thud(); hud.flash('Blocked.'); }
 
     reeling = GAMEPLAY.REELING;
-    sound.voice(heftOf(attacker));
 
     // and it knocks you back, which is the space you get to react in
     const dx = player.x - attacker.x, dz = player.z - attacker.z;
@@ -1167,6 +1186,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
         x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
         slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
+        // the fight's own state, without which none of the wind-up work can be checked from
+        // outside: a probe that reads e.winding off this and finds undefined quietly measures
+        // nothing at all and reports it as a result
+        dead: e.dead, hurt: Math.round(e.hurt * 100) / 100,
+        winding: Math.round(e.winding * 1000) / 1000, warned: e.warned,
       }));
     (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => {
       const doomed = [...register.living(village)].slice(0, n);
@@ -1605,6 +1629,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       coop.survey(online.id, placeName(), online.players.values());
       coop.age(dt);
       if (!coop.mirroring) below.monsters.update(dt, player.x, player.z, state.armed, onAttack);
+      announceWindUps(below.monsters.within(player.x, player.z, HEARD_WINDING));
       coop.publish(dt, below.monsters);
       if (places.underground !== below) { input.endFrame(); return; }
       below.renderer.update();
@@ -1660,6 +1685,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
     daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light') || magic.lit, season: tint, wet: weatherStrength });
     entities.update(dt, player.x, player.z, state.armed, onAttack, state.time, sailing.sailing);
+    announceWindUps(entities.within(player.x, player.z, HEARD_WINDING));
     mount.update(player, chunks);
 
     multiplayer.sync(dt, (x, z) => chunks.heightAt(x, z));
