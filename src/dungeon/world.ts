@@ -17,7 +17,7 @@ export class DungeonWorld implements TileWorld {
   /** Set once the hero finds the key; doors then open. */
   unlocked = false;
 
-  constructor(readonly map: DungeonMap, readonly anchorId: string) {
+  constructor(readonly map: DungeonMap, readonly anchorId: string, readonly style: 'vault' | 'cave' | 'thicket' = 'cave') {
     for (const c of map.chests) this.chestTiles.add(c.z * map.size + c.x);
     for (const d of map.doors) this.doorTiles.add(d.z * map.size + d.x);
   }
@@ -67,9 +67,12 @@ export class DungeonWorld implements TileWorld {
     const n = size * size;
     const chunk: ChunkData = {
       cx, cz, size,
-      height: new Float32Array(n), type: new Uint8Array(n), biome: new Uint8Array(n).fill(Biome.Mountain),
+      height: new Float32Array(n), type: new Uint8Array(n), // a thicket is wood the whole way through, so it takes the forest's colours; everything
+      // else underground is rock
+      biome: new Uint8Array(n).fill(this.style === 'thicket' ? Biome.Forest : Biome.Mountain),
       prop: new Uint8Array(n), propRot: new Float32Array(n).fill(Number.NaN), shore: new Float32Array(n),
-      corners: new Float32Array(n * 4), water: new Float32Array(n), empty: true,
+      corners: new Float32Array(n * 4),
+      sloped: new Uint8Array(n), water: new Float32Array(n), empty: true,
     };
     const ox = cx * CS - 1, oz = cz * CS - 1;
     for (let lz = 0; lz < size; lz++) {

@@ -14,6 +14,8 @@ import { PropLibrary } from './render/props';
 import { DayCycle } from './render/daycycle';
 import { ChunkManager } from './world/chunkManager';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
+import { generateWebGraph } from './world/roadweb';
+import { planEyries } from './game/eyries';
 import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
@@ -73,7 +75,9 @@ import { Gifts, type Kindness } from './game/gifts';
 import { Rescues } from './game/rescue';
 import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
 import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
-import { Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band } from './game/roaming';
+import { ROAM, Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
+import { Director } from './game/director';
+import { feeFor, luxuryFor, storeysFor, type Luxury } from './world/prosperity';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
@@ -142,10 +146,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // same press by the time anything below reads them
   const touch = new TouchControls(input);
   const props = new PropLibrary();
-  const graph = generateRoadGraph(seed);
+  // ?world=mesh grows the polygon world instead of the road tree. Both can be built, so the two
+  // can be walked and compared rather than one being swapped for the other on faith.
+  const meshWorld = url.searchParams.get('world') === 'mesh';
+  const graph = meshWorld ? generateWebGraph(seed) : generateRoadGraph(seed);
   const manifest = new Manifest(seed, saved?.manifest);
-  if (manifest.byKind('island').length === 0) for (const p of planIslands(graph, seed)) manifest.ensure(p.id, 'island', p.x, p.z);
-  attachIslands(graph, manifest.byKind('island'));
+  if (!meshWorld) {
+    if (manifest.byKind('island').length === 0) for (const p of planIslands(graph, seed)) manifest.ensure(p.id, 'island', p.x, p.z);
+    attachIslands(graph, manifest.byKind('island'));
+  }
   const sampler = new TerrainSampler(graph);
   const structures = sampler.structures;
   const daycycle = new DayCycle(rig);
@@ -169,6 +178,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (village) => structures.villages.some((v) => v.name === village && stableAt(v, seed) !== null),
     () => standing.guilt,
     (by) => arrested(by),
+    // high country: on a massif or against its flank, where the goats and the things that climb are
+    (x, z) => sampler.massifs.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
   );
   const dialogue = new DialogueBox();
   /**
@@ -617,8 +628,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (bargain) hud.flash(`${bargain.name}, who you hired, is dead.`);
   };
 
+  // the crags with eagles on them: one pair per range big enough to be worth flying over, each
+  // perch shuffled round the shoulder until it stands on ground somebody can actually reach
+  const eyries = planEyries(seed, sampler.massifs, (x, z) => sampler.probe(x, z).land);
+
   const interactions = createInteractions({
-    player, state, discovered,
+    player, state, discovered, eyries,
+    luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
     gifts, hires, standing, rescues, nemesis,
@@ -760,7 +776,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.hit.length === 0) {
-      sound.select();
+      sound.miss();
       // a blade that finds nothing where something plainly stands has to say why, or the rule
       // that a sword is no answer to a wight reads as a broken game rather than as the point
       // a swing that finds nothing where something plainly stands has to say why, or a rule
@@ -772,9 +788,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       }
       return;
     }
-    sound.thud();
+    sound.hit(madeOf(res.hit[0]));
+    director.saw('fight');
+    // swinging at things teaches you to swing at things: practice, weighted by what you swung at
+    for (const e of res.hit) {
+      const grew = state.practised(e.kind.dangerous ?? 0, res.killed.includes(e));
+      if (grew) hud.flash(grew);
+    }
     if (res.killed.length > 0) {
-      sound.chime();
+      sound.voice(heftOf(res.killed[0]), true);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -891,6 +913,48 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   /** Seconds left of the moment after a blow in which nothing else can land on the hero. */
   let reeling = 0;
 
+  /** What a blow on this creature sounds like: bone rattles, armour rings, everything else gives. */
+  const madeOf = (e: Entity): 'flesh' | 'bone' | 'plate' => {
+    const id = e.kind.id;
+    if (id === 'skeleton' || id === 'wight') return 'bone';
+    if (id === 'nettle' || e.trade === 'constable') return 'plate';
+    return 'flesh';
+  };
+
+  /** Roughly how big a thing is against a person, which is what pitches its voice. */
+  const heftOf = (e: Entity): number => e.kind.scale * (e.kind.hp ? 1 : 0.7);
+
+  /**
+   * How much water is within earshot, and how far the loudest of it is falling.
+   *
+   * Felt outward in a ring rather than kept as a field: what matters is only whether there is
+   * water near enough to hear and whether it is dropping, and a couple of dozen lookups a frame
+   * is cheaper than maintaining anything. The drop is measured between neighbouring surfaces,
+   * which is the same thing the mesher uses to decide it is drawing a waterfall.
+   */
+  const WATER_EARSHOT = 22;
+  const listenForWater = (): void => {
+    let nearest = Infinity;
+    let loudest = 0;
+    for (let r = 2; r <= WATER_EARSHOT; r += 4) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const x = player.x + Math.cos(a) * r, z = player.z + Math.sin(a) * r;
+        const here = chunks.waterAt(x, z);
+        if (here === null) continue;
+        if (r < nearest) nearest = r;
+        // the fall beside it, if any: how far this surface stands above the next one along
+        const there = chunks.waterAt(x + Math.cos(a) * 2, z + Math.sin(a) * 2);
+        if (there !== null) loudest = Math.max(loudest, Math.abs(here - there));
+      }
+    }
+    const nearness = nearest === Infinity ? 0 : 1 - Math.min(1, nearest / WATER_EARSHOT);
+    heard = { nearness, drop: loudest };
+    sound.setWater(nearness, loudest);
+  };
+  /** What the water listener last worked out, for the debug hook and for nothing else. */
+  let heard = { nearness: 0, drop: 0 };
+
   const onAttack = (attacker: Entity, dmg: number) => {
     if (dialogue.isOpen) return;
     // A blow buys you a moment. Without it a swarm lands every one of its hits in the same
@@ -898,6 +962,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // not a fight, it is an announcement.
     if (reeling > 0) return;
     reeling = GAMEPLAY.REELING;
+    sound.voice(heftOf(attacker));
 
     // and it knocks you back, which is the space you get to react in
     const dx = player.x - attacker.x, dz = player.z - attacker.z;
@@ -1053,6 +1118,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         roll: Math.round(body.roll * 100) / 100, bob: Math.round(body.bob * 100) / 100,
       };
     });
+    (debug as { __eyries?: () => unknown }).__eyries = () => eyries.map((e) => ({
+      id: e.id, name: e.name, x: Math.round(e.x), z: Math.round(e.z), partner: e.partner, fare: e.fare,
+    }));
+    (debug as { __director?: () => unknown }).__director = () => ({ quietFor: Math.round(director.quietFor), reach: Math.round(director.reach * 100) / 100, last: director.last });
+    (debug as { __water?: () => unknown }).__water = () => ({ ...heard, drop: Math.round(heard.drop * 10) / 10 });
     (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
     (debug as { __warband?: () => unknown }).__warband = () => ({
       active: warband.active, opponent: warband.opponentName, muster: warband.muster, readout: warband.readout(),
@@ -1178,6 +1248,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- what keeps the old places ---
   /** How near the hero has to be for Old Nettle to be worth putting in the world at all. */
   const NETTLE_WITHIN = 70;
+  /**
+   * How hard the world is currently looking for the player. Everything below is gated on being
+   * near enough, and a player is one person on one road; this widens that gate while nothing has
+   * happened and puts it back the moment something does.
+   */
+  const director = new Director();
+  /** What each village has built for itself, by name. Empty until somewhere gets rich. */
+  const villageLuxury = new Map<string, Luxury>();
   /** And how far out from the village his lot stand, in tiles. */
   const NETTLE_RING = 8;
   const haunts = hauntsOf(seed, structures);
@@ -1197,7 +1275,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       entities.despawnPack(id);
       bandsOut.delete(id);
     }
-    for (const band of bandsNear(roaming.abroad(), player.x, player.z, state.day)) {
+    for (const band of bandsNear(roaming.abroad(), player.x, player.z, state.day, ROAM.SIGHT * director.reach)) {
       if (bandsOut.has(band.id)) continue;
       const at = bandAt(band, state.day);
       const alive = roaming.alive(band);
@@ -1205,6 +1283,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (pack.length === 0) continue;        // no standable ground this frame; it will try again
       // the number a kill will name, so two clients agree which of them went down
       pack.forEach((e, i) => { e.rosterIndex = alive[i] ?? i; });
+      director.saw('band');
       bandsOut.set(band.id, band);
       hud.flash(warningOfBand(band));
     }
@@ -1222,10 +1301,11 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     const village = structures.villages.find((v) => v.name === where.village);
     if (!village) return;
     // only once the hero is near enough to see it happen: he is rare, and being rare is the point
-    if (Math.hypot(village.x - player.x, village.z - player.z) > NETTLE_WITHIN) return;
+    if (Math.hypot(village.x - player.x, village.z - player.z) > NETTLE_WITHIN * director.reach) return;
 
     if (!nettleAbout || nettleAbout.dead) {
       nettleAbout = entities.spawnOne('nettle', village.x + 3, village.z + 3, seed ^ hashString(where.village));
+      director.saw('nemesis');
     }
     // his lot build up while the scheme runs, so arriving early is a different fight from
     // arriving late. He is rare; these are what makes a scheme dangerous to walk into.
@@ -1341,9 +1421,23 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       }
       // a village under the same band says so once, not every morning until it is dealt with:
       // news repeated daily stops being news and starts being wallpaper
+      // nobody trades while their neighbours are being buried, which is what makes a village's
+      // prosperity something the player can protect rather than a number that only goes up
+      register.leanedOn(press.village, press.pressure);
+      // and what the village has made of itself: houses grow a storey when their owners can
+      // afford one, which the chunks pick up the next time they are built
+      const folk = register.living(press.village);
+      const worth = folk.reduce((sum, p) => sum + p.purse, 0);
+      sampler.storeys.set(press.village, storeysFor(worth / Math.max(1, folk.length)));
+      villageLuxury.set(press.village, luxuryFor(worth, hashString(press.village)));
       if (press.pressure >= 0.25 && pressSaid.get(press.village) !== press.said) {
         pressSaid.set(press.village, press.said);
-        chat.line(press.said, 'sys');
+        // the news is remembered without the direction, because the direction changes with every
+        // step the player takes and would make the same news new again for ever
+        const where = structures.villages.find((v) => v.name === press.village);
+        const way = where ? wayTo(where, player) : null;
+        chat.line(way ? `${press.said} ${way}` : press.said, 'sys');
+        director.saw('trouble');
       }
     }
     for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
@@ -1468,6 +1562,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     hud.tick(dt);
     sound.setScene(here.biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
+    listenForWater();
+    director.advance(dt);
 
     swingCooldown = Math.max(0, swingCooldown - dt);
     reeling = Math.max(0, reeling - dt);

@@ -5,7 +5,8 @@ import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
-import { BIOME_ANIMALS, KINDS, WATER_ANIMALS, dungeonMonsters, pickKind } from './animals';
+import { KINDS } from './animals';
+import { BIOME_ANIMALS, HIGHLAND_ANIMALS, WATER_ANIMALS, dungeonMonsters, pickKind } from './spawns';
 import { treeFor } from './behaviours';
 import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
@@ -14,6 +15,7 @@ import { postsOf } from './villagers';
 import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
+import { residentsOnTheStreet } from './residents';
 import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { blowOf } from './motion';
 import type { EntityRenderer } from './pool';
@@ -144,6 +146,14 @@ export class EntityManager {
      * game's business; all that happens here is that somebody was paid for it.
      */
     private readonly onArrest: (by: Entity) => void = () => {},
+    /**
+     * Whether this point is high country — on or against a massif.
+     *
+     * Asked rather than worked out, because what counts as a mountain belongs to the world's
+     * generator and this layer only wants to know which list to spawn from. False everywhere in a
+     * world with no mountains in it, which is the old one.
+     */
+    private readonly highland: (x: number, z: number) => boolean = () => false,
   ) {
     this.rng = mulberry32(derive(seed, SALT.HERDS));
   }
@@ -491,9 +501,13 @@ export class EntityManager {
     if (sorted.land.length >= SPAWN.MIN_LAND_TILES) {
       const rolls = rng() < SPAWN.HERD_CHANCE ? (rng() < SPAWN.SECOND_HERD_CHANCE ? 2 : 1) : 0;
       for (let h = 0; h < rolls; h++) {
-        const kindId = pickKind(BIOME_ANIMALS[sorted.biome], rng());
+        // high ground has its own list: a massif can stand in any country, so what decides what
+        // lives here is the height rather than the biome the map happens to call it
+        const spot = tileCentre(tiles, sorted.land[Math.floor(rng() * sorted.land.length)]);
+        const table = this.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS : BIOME_ANIMALS[sorted.biome];
+        const kindId = pickKind(table, rng());
         if (!kindId) break;
-        this.spawnHerd(ctx, kindId, tileCentre(tiles, sorted.land[Math.floor(rng() * sorted.land.length)]), SPAWN.HERD_LEASH);
+        this.spawnHerd(ctx, kindId, spot, SPAWN.HERD_LEASH);
       }
     }
     if (sorted.water.length >= SPAWN.MIN_WATER_TILES && rng() < SPAWN.WATER_HERD_CHANCE) {
@@ -614,28 +628,10 @@ export class EntityManager {
     }
   }
 
-  /**
-   * Which of a village's residents are out on the street right now.
-   *
-   * A village holds far more people than are ever drawn at once, so this takes the grown ones who
-   * are not already standing somewhere else. Babies stay indoors, which is why nobody ever meets
-   * one; they turn up as children a week later.
-   */
   private residentsFor(v: Village, posts: Partial<Record<Post, [number, number]>>, wanted: number): Person[] {
     if (!this.register) return [];
-    const trades = tradesFor(posts).map((t) => t.id);
-    const out = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
-
-    const here = this.register.settle(v.name, v.houses.length, trades)
-      .filter((p) => !out.has(p.id) && stageOf(p, this.register!.today) !== 'baby');
-
-    // a village shows only a handful of its people at once, so who those are matters. When the
-    // law wants somebody, the constable is one of them: a police force that is statistically
-    // unlikely to be outdoors is not a police force.
-    if (this.guiltOf() > 0) {
-      here.sort((a, b) => Number(b.trade === 'constable') - Number(a.trade === 'constable'));
-    }
-    return here.slice(0, wanted);
+    const alreadyOut = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
+    return residentsOnTheStreet(this.register, v, posts, wanted, alreadyOut, this.guiltOf() > 0);
   }
 
   /** Create `count` entities of a kind scattered around `anchor`, registered with the renderer. */

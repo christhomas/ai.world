@@ -587,6 +587,53 @@ export const KINDS: Record<string, AnimalKind> = {
       box([0.2, 1.0, 0.2], [0.1, 1.0, 0.62], 0x6b4a2b, { anim: 'armL', pivot: [0, 1.55, 0.5], rot: [0, 0, 0.4] }),
     ],
   },
+  /**
+   * The things that live above the treeline.
+   *
+   * A mountain is a wall, and the whole point of a wall is that it decides where you may go. These
+   * two are what makes that frightening rather than merely inconvenient: they climb. `climb` is
+   * how far up a creature may step, and the hero's is 0.56 — one terrace, so two is a wall to him
+   * and to everything else in the game. Theirs is enormous, so the face you are pinned under is a
+   * road to them and they can come at you from anywhere, including straight down.
+   *
+   * Between a bear and a troll for damage, and slower than a running hero, so the answer is always
+   * allowed to be to leave. The yeti is the colder, heavier one; the bigfoot is quicker and keeps
+   * to the treeline.
+   */
+  yeti: {
+    id: 'yeti', label: 'Yeti', emoji: '🦍', blow: 'rear', scale: 1.75, speed: 1.1, runSpeed: 3.9, herd: [1, 1], behaviour: 'prowl', timid: false,
+    dangerous: 3, hp: 26, climb: 40, gold: [60, 140], drop: { id: 'pelt', chance: 0.6 },
+    palettes: [[0xf2f5f8, 0xc9d6e2], [0xe4ebf2, 0xb4c4d4]],
+    names: ['Hoarfrost', 'The White Thing', 'Skarn', 'Old Winter'],
+    lines: ['*a long howl off the rocks*', '*snow comes down somewhere above you*'],
+    parts: [
+      box([0.52, 0.5, 0.5], [0, 1.72, 0], W, { tint: 0, anim: 'head', pivot: [0, 1.48, 0] }),
+      box([0.1, 0.09, 0.08], [0.28, 1.8, 0.13], 0x2a3b4a, { anim: 'head', pivot: [0, 1.48, 0] }),
+      box([0.1, 0.09, 0.08], [0.28, 1.8, -0.13], 0x2a3b4a, { anim: 'head', pivot: [0, 1.48, 0] }),
+      box([0.78, 0.86, 0.66], [0, 1.12, 0], W, { tint: 0 }),
+      box([0.3, 0.98, 0.3], [0, 1.16, 0.54], W, { tint: 1, anim: 'armL', pivot: [0, 1.54, 0.54] }),
+      box([0.3, 0.98, 0.3], [0, 1.16, -0.54], W, { tint: 1, anim: 'armR', pivot: [0, 1.54, -0.54] }),
+      box([0.32, 0.7, 0.32], [0, 0.36, 0.21], W, { tint: 1, anim: 'legL', pivot: [0, 0.72, 0.21] }),
+      box([0.32, 0.7, 0.32], [0, 0.36, -0.21], W, { tint: 1, anim: 'legR', pivot: [0, 0.72, -0.21] }),
+    ],
+  },
+  bigfoot: {
+    id: 'bigfoot', label: 'Bigfoot', emoji: '🦧', blow: 'punch', scale: 1.6, speed: 1.4, runSpeed: 4.4, herd: [1, 1], behaviour: 'prowl', timid: false,
+    dangerous: 3, hp: 22, climb: 40, gold: [40, 110], drop: { id: 'pelt', chance: 0.5 },
+    palettes: [[0x4a3a2c, 0x2e241a], [0x5a4636, 0x3a2c20]],
+    names: ['The Woodwose', 'Long Shanks', 'Barkfoot', 'Old Shaggy'],
+    lines: ['*something very large moves in the trees*', '*a knock, twice, on wood*'],
+    parts: [
+      box([0.46, 0.46, 0.46], [0, 1.62, 0], W, { tint: 0, anim: 'head', pivot: [0, 1.4, 0] }),
+      box([0.09, 0.08, 0.07], [0.25, 1.69, 0.12], 0xf5d76e, { anim: 'head', pivot: [0, 1.4, 0] }),
+      box([0.09, 0.08, 0.07], [0.25, 1.69, -0.12], 0xf5d76e, { anim: 'head', pivot: [0, 1.4, 0] }),
+      box([0.68, 0.8, 0.6], [0, 1.06, 0], W, { tint: 0 }),
+      box([0.26, 1.02, 0.26], [0, 1.1, 0.5], W, { tint: 1, anim: 'armL', pivot: [0, 1.46, 0.5] }),
+      box([0.26, 1.02, 0.26], [0, 1.1, -0.5], W, { tint: 1, anim: 'armR', pivot: [0, 1.46, -0.5] }),
+      box([0.28, 0.66, 0.28], [0, 0.34, 0.19], W, { tint: 1, anim: 'legL', pivot: [0, 0.68, 0.19] }),
+      box([0.28, 0.66, 0.28], [0, 0.34, -0.19], W, { tint: 1, anim: 'legR', pivot: [0, 0.68, -0.19] }),
+    ],
+  },
   shopkeeper: {
     id: 'shopkeeper', label: 'Shopkeeper', emoji: '🧑‍🍳', scale: 1.0, speed: 0.6, runSpeed: 0.6, herd: [1, 1], behaviour: 'wander', timid: false,
     palettes: [[0xffffff, 0x2c1810], [0xf5deb3, 0x8b4513], [0xdcdcdc, 0x4a2a10], [0xe8e0c8, 0x6c5ce7]],
@@ -612,61 +659,3 @@ export const KINDS: Record<string, AnimalKind> = {
     ],
   },
 };
-
-export interface SpawnWeight { kind: string; weight: number }
-
-/** Herd kinds per biome, on land. */
-export const BIOME_ANIMALS: Record<Biome, SpawnWeight[]> = {
-  [Biome.Plains]: [{ kind: 'cow', weight: 4 }, { kind: 'sheep', weight: 4 }, { kind: 'horse', weight: 2 }, { kind: 'chicken', weight: 3 }, { kind: 'rabbit', weight: 2 }],
-  [Biome.Forest]: [{ kind: 'deer', weight: 5 }, { kind: 'rabbit', weight: 3 }, { kind: 'fox', weight: 2 }, { kind: 'bear', weight: 1 }],
-  [Biome.Desert]: [{ kind: 'camel', weight: 3 }, { kind: 'lizard', weight: 4 }, { kind: 'vulture', weight: 2 }],
-  [Biome.Swamp]: [{ kind: 'frog', weight: 5 }, { kind: 'heron', weight: 2 }, { kind: 'duck', weight: 3 }],
-  [Biome.Mountain]: [{ kind: 'goat', weight: 5 }, { kind: 'eagle', weight: 2 }, { kind: 'wolf', weight: 1 }],
-  [Biome.Snow]: [{ kind: 'hare', weight: 4 }, { kind: 'wolf', weight: 2 }, { kind: 'elk', weight: 3 }],
-};
-
-/**
- * What waits underground, by how far down you are. One entry per floor, counting from one.
- *
- * A cave mouth on the road out of the first village and the bottom of a three-floor vault were
- * the same table, so an hour-one cave was a third bats and had skeletons in it. A cave is always
- * floor one, so moving the skeletons into the second band is most of the fix: the first hour is
- * rats and the odd roost, and what hits twice as hard starts below the first stair, which is a
- * village and a shop away.
- */
-const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> = [
-  [{ kind: 'rat', weight: 6 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 3 }],
-  [{ kind: 'rat', weight: 4 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 4 }, { kind: 'skeleton', weight: 3 }],
-  [{ kind: 'rat', weight: 2 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 4 }, { kind: 'skeleton', weight: 5 }],
-];
-
-/** What lives on a floor. Anything deeper than the table goes holds whatever the bottom holds. */
-export function dungeonMonsters(floor: number): readonly SpawnWeight[] {
-  const band = Math.min(Math.max(1, Math.floor(floor)), DUNGEON_BANDS.length);
-  return DUNGEON_BANDS[band - 1];
-}
-
-/** The shallow band: every cave, and the floor of a vault you arrive on. */
-export const DUNGEON_MONSTERS: readonly SpawnWeight[] = dungeonMonsters(1);
-
-/** Kinds that spawn on water tiles instead of land. */
-export const WATER_ANIMALS: Record<Biome, SpawnWeight[]> = {
-  [Biome.Plains]: [{ kind: 'duck', weight: 1 }],
-  [Biome.Forest]: [{ kind: 'duck', weight: 1 }],
-  [Biome.Desert]: [],
-  [Biome.Swamp]: [{ kind: 'duck', weight: 2 }, { kind: 'frog', weight: 1 }],
-  [Biome.Mountain]: [],
-  [Biome.Snow]: [],
-};
-
-export function pickKind(list: readonly SpawnWeight[], r: number): string | null {
-  if (list.length === 0) return null;
-  let total = 0;
-  for (const p of list) total += p.weight;
-  let t = r * total;
-  for (const p of list) {
-    t -= p.weight;
-    if (t <= 0) return p.kind;
-  }
-  return list[list.length - 1].kind;
-}

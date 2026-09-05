@@ -10,6 +10,9 @@ export class Sound {
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private wind: { gain: GainNode; filter: BiquadFilterNode } | null = null;
+  /** The river bed, so to speak: a second noise voice that swells as you come up on water. */
+  private water: { gain: GainNode; filter: BiquadFilterNode } | null = null;
+  private wetness = 0;
   private stepTimer = 0;
   private chirpTimer = 3;
   private biome: Biome = Biome.Plains;
@@ -33,6 +36,9 @@ export class Sound {
   private readonly listening = new AbortController();
 
   /** Hold the whole audio graph while the tab is hidden, and pick it up again after. */
+  /** Nothing is audible while the game is paused, water included. */
+  private hushWater(): void { if (this.water) this.water.gain.gain.value = 0; }
+
   quiet(on: boolean): void {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -86,6 +92,19 @@ export class Sound {
       lfo.connect(lfoGain).connect(filter.frequency);
       lfo.start();
       this.wind = { gain, filter };
+
+      // Water gets its own voice off the same noise buffer. A river is a soft hiss and a fall is
+      // a loud one an octave lower, so one bed with a moving filter covers both and there is
+      // nothing to load.
+      const wsrc = ctx.createBufferSource();
+      wsrc.buffer = buf; wsrc.loop = true;
+      const wfilter = ctx.createBiquadFilter();
+      wfilter.type = 'bandpass'; wfilter.frequency.value = 900; wfilter.Q.value = 0.5;
+      const wgain = ctx.createGain();
+      wgain.gain.value = 0;
+      wsrc.connect(wfilter).connect(wgain).connect(this.master);
+      wsrc.start();
+      this.water = { gain: wgain, filter: wfilter };
       this.music.attach(ctx, this.master);
       this.music.setVolume(this.volume);
       return ctx;
@@ -128,6 +147,51 @@ export class Sound {
   }
 
   footstep(hard: boolean): void { this.burst(0.07, hard ? 1500 : 700, 1.2, hard ? 0.12 : 0.18); }
+
+  /**
+   * How much water is audible from here, and how far it is falling.
+   *
+   * `nearness` is nought out of earshot and one standing in it; `drop` is the height of the
+   * biggest fall within earshot, in world units, which decides whether this is a brook or
+   * something you have to raise your voice over. Eased rather than set, so walking up to a river
+   * fades in instead of switching on.
+   */
+  setWater(nearness: number, drop: number): void {
+    this.wetness = Math.max(0, Math.min(1, nearness));
+    const w = this.water;
+    if (!w || !this.ctx) return;
+    const loud = Math.min(1, drop / 12);
+    w.gain.gain.value = this.wetness * (0.035 + loud * 0.16) * (this.cave ? 0.6 : 1);
+    // a fall is broader and lower than a brook, which is most of what tells them apart
+    w.filter.frequency.value = 1500 - loud * 950;
+    w.filter.Q.value = 0.5 + loud * 0.9;
+  }
+
+  /**
+   * A blow landing. What it hits decides what it sounds like: meat is a dull slap, bone is a
+   * sharper crack, and a shell or plate rings. Missing is just the air moving, which is quieter
+   * and higher and is the whole reason a swing that connects feels different from one that does not.
+   */
+  hit(on: 'flesh' | 'bone' | 'plate'): void {
+    if (on === 'plate') { this.tone(1100, 0.09, 'square', 0.07, 0, 700); this.burst(0.09, 2600, 3, 0.1); return; }
+    if (on === 'bone') { this.burst(0.07, 1800, 3.5, 0.16); this.tone(260, 0.1, 'triangle', 0.1, 0, 150); return; }
+    this.burst(0.11, 420, 0.9, 0.2);
+    this.tone(120, 0.14, 'sine', 0.16, 0, 70);
+  }
+
+  /** A swing through empty air. */
+  miss(): void { this.burst(0.13, 1150, 0.7, 0.055); }
+
+  /**
+   * A creature's voice, pitched to its size: `weight` is roughly how big it is against a person,
+   * so a bat squeaks and a troll bellows off the same two lines.
+   */
+  voice(weight: number, dying = false): void {
+    const base = 620 / Math.max(0.35, weight);
+    const dur = dying ? 0.5 : 0.26;
+    this.tone(base, dur, 'sawtooth', 0.09, 0, dying ? base * 0.45 : base * 0.8);
+    this.burst(dur * 0.7, base * 1.6, 1.4, dying ? 0.09 : 0.06, 0.02);
+  }
   blip(): void { this.tone(880 + Math.random() * 80, 0.035, 'square', 0.04); }
   chime(): void { this.tone(660, 0.12, 'sine', 0.12); this.tone(990, 0.16, 'sine', 0.12, 0.11); }
   jingle(): void { [523, 659, 784].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0.14, i * 0.13)); }

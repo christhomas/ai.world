@@ -56,7 +56,7 @@ export interface DungeonVisit {
   world: DungeonWorld;
   /** Which floor we are on, and how we got here, so climbing out returns to daylight. */
   floor: number;
-  style: 'dungeon' | 'cave';
+  style: 'dungeon' | 'cave' | 'thicket';
   anchorId: string;
   scene: DungeonScene;
   renderer: EntityRenderer;
@@ -118,10 +118,11 @@ export class Places {
 
   // --- underground ---
 
-  enterDungeon(poi: Underground, kind: 'dungeon' | 'cave' = 'dungeon', anchorId = `dungeon:${poi.name}`, floor = 1): void {
+  enterDungeon(poi: Underground, kind: 'dungeon' | 'cave' | 'thicket' = 'dungeon', anchorId = `dungeon:${poi.name}`, floor = 1): void {
     const { manifest, state, props, rig, iso, player, overworldRenderer, minimapCanvas } = this.ctx;
     const anchor = manifest.ensure(anchorId, kind, poi.x, poi.z);
-    const world = new DungeonWorld(generateDungeon(anchor.seed, kind === 'cave' ? 'cave' : 'vault', floor), `${anchor.id}:${floor}`);
+    const style = kind === 'dungeon' ? 'vault' : kind;
+    const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style);
     world.unlocked = state.keys.has(anchor.id);
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
     const renderer = new EntityRenderer(scene.scene);

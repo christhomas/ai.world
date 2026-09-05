@@ -1,6 +1,7 @@
 import { hash3, mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
-import { BIOME_ANIMALS, KINDS, pickKind, type SpawnWeight } from '../entities/animals';
+import { KINDS } from '../entities/animals';
+import { BIOME_ANIMALS, pickKind, type SpawnWeight } from '../entities/spawns';
 import { Biome } from '../world/biomes';
 import type { Village } from '../world/structures';
 import { MORNING } from './state';

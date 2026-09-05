@@ -7,7 +7,17 @@
  * share of the window height — which held on the window it was tried on and overlapped on a taller
  * one, printing the village's news straight through the controls.
  */
-:root { --log-bottom: 380px; }
+:root {
+  /*
+   * Where the message log's underside sits, measured up from the bottom of the window.
+   *
+   * Two things read it: the log is pinned here, and the key list below grows upward and stops
+   * short of it. The second term is for a short window — the log is 190px tall and the readouts
+   * live in the top corners, so on anything under about 740px the fixed distance would push it up
+   * over the hearts. Whichever is smaller wins.
+   */
+  --log-bottom: min(380px, max(150px, calc(100vh - 380px)));
+}
 body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monospace; }
 #gameContainer { width: 100vw; height: 100vh; }
 #gameContainer canvas { display: block; }

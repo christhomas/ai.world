@@ -56,11 +56,19 @@ export const DUNGEON = {
 } as const;
 
 /** Shrine vaults are roomy and locked; caves are cramped, winding and open. */
-export type DungeonStyle = 'vault' | 'cave';
+/**
+ * What kind of hole this is.
+ *
+ * A vault was built and has rooms and corridors; a cave and a thicket both grew, so they share
+ * their layout entirely. What separates a thicket is only where you find it and what it is made
+ * of: you walk into it through a gap under a great tree rather than down a hole, and it is wood
+ * rather than rock all the way through.
+ */
+export type DungeonStyle = 'vault' | 'cave' | 'thicket';
 
 export function generateDungeon(seed: number, style: DungeonStyle = 'vault', floor = 1): DungeonMap {
   const rng = mulberry32(seed + floor * 7919);
-  const cave = style === 'cave';
+  const cave = style !== 'vault';
   const size = DUNGEON.SIZE;
   const tiles = new Uint8Array(size * size); // Rock
   const idx = (x: number, z: number) => z * size + x;
@@ -160,7 +168,7 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault', flo
   }
 
   // the way down sits in the treasure room; the last floor has a boss instead
-  const deepest = style === 'cave' ? 1 : DEPTH.FLOORS;
+  const deepest = style === 'vault' ? DEPTH.FLOORS : 1;
   const isLast = floor >= deepest;
   const descent: [number, number] | null = isLast ? null : [centre(far)[0] + 1, centre(far)[1]];
   if (descent && tiles[idx(descent[0], descent[1])] === DTile.Floor) tiles[idx(descent[0], descent[1])] = DTile.Descent;

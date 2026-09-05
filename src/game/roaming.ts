@@ -1,6 +1,6 @@
 import { hashString, mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
-import type { Structures } from '../world/structures';
+import { compassDir, type Structures } from '../world/structures';
 
 /**
  * Danger that will not stay where you left it.
@@ -38,6 +38,8 @@ import type { Structures } from '../world/structures';
 
 
 export const ROAM = {
+  /** Near enough that saying which way it lies would be silly, in tiles. */
+  NEARLY_THERE: 30,
   /**
    * Bands abroad in one world. Set against sixteen villages, so most places have something
    * working the country near them most of the time and nowhere is permanently safe.
@@ -357,6 +359,25 @@ export function saidOfPress(band: Band, place: Steading, pressure: number): stri
   if (pressure >= 0.6) return `${what} ${is} on ${place.name}. Nobody is sleeping and nobody is going out.`;
   if (pressure >= 0.25) return `${what} ${has} been at ${place.name} for days. We have buried people over it.`;
   return `${what} ${has} been seen near ${place.name}. The dogs have not settled since.`;
+}
+
+/**
+ * Which way a troubled place lies, and how far, in the words somebody would use.
+ *
+ * Deliberately not part of `saidOfPress`. That line is remembered so a village says its news once
+ * rather than every morning until it is dealt with, and a distance changes with every step the
+ * player takes — baking it in would make the same news new again constantly. So the sentence
+ * stays put and this is added when it is spoken.
+ *
+ * The quest system already solved the same problem in the same words: a direction and a rough
+ * number of paces. Null when you are already there, because somebody standing in it does not
+ * need telling where it is.
+ */
+export function wayTo(place: Steading, from: { x: number; z: number }): string | null {
+  const dx = place.x - from.x, dz = place.z - from.z;
+  const away = Math.hypot(dx, dz);
+  if (away < ROAM.NEARLY_THERE) return null;
+  return `It lies to the ${compassDir(dx, dz)}, about ${Math.round(away / 10) * 10} paces off.`;
 }
 
 /** Whether what a band is called takes a plural verb. Wolves have; something very large has. */

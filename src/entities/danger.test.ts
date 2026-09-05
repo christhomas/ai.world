@@ -6,7 +6,8 @@ import { GAMEPLAY } from '../core/config';
 import { mulberry32 } from '../core/rng';
 import { COMBAT } from '../game/combat';
 import { GameState } from '../game/state';
-import { DUNGEON_MONSTERS, KINDS, dungeonMonsters } from './animals';
+import { KINDS } from './animals';
+import { DUNGEON_MONSTERS, dungeonMonsters } from './spawns';
 import { Entity, Herd, damageEntity, updateEntity, type TileWorld } from './entity';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
 

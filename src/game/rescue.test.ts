@@ -3,7 +3,8 @@ import {
   RESCUE, Rescues, contractFor, counts, goodwillFor, purseOf, takenTonight, troubleNear,
   type Asking, type Trouble,
 } from './rescue';
-import { BIOME_ANIMALS, KINDS } from '../entities/animals';
+import { KINDS } from '../entities/animals';
+import { BIOME_ANIMALS } from '../entities/spawns';
 import { HIRE } from './hire';
 import { Standing } from './standing';
 import { Biome } from '../world/biomes';
@@ -311,7 +312,7 @@ describe('what a raid takes', () => {
   };
   const folk = (n: number) => Array.from({ length: n }, (_, i) => ({
     id: `p${i}`, name: `Person ${i}`, village: 'Ashford', trade: 'farmer',
-    born: -30, lives: 80, mother: '', father: '', knows: [] as string[], memories: [],
+    born: -30, lives: 80, mother: '', father: '', knows: [] as string[], memories: [], purse: 0,
   }));
 
   it('eases off as the village empties, so a place is never quietly finished off', () => {

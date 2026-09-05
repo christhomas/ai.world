@@ -17,6 +17,11 @@ export class Player {
   riding = false;
   /** Multiplier on walking pace: a horse carries you faster. */
   speedScale = 1;
+  /**
+   * A stroll, as a share of the hero's running pace. Under the motion file's `running.from` of
+   * 0.55, so ambling is genuinely a different gait and not just a slower run.
+   */
+  static readonly STROLL = 0.42;
 
   constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
     const kind = KINDS.hero;
@@ -104,15 +109,22 @@ export class Player {
     if (input.isDown('d', 'arrowright')) { dx += rx; dz += rz; }
     const len = Math.hypot(dx, dz);
     let moved = false;
+    // Hold shift to stroll. The hero has only ever had one pace, so the run lean and the long
+    // stride the motion file gives a running creature were on him permanently, even crossing a
+    // village square. Running stays the default and stays exactly the speed it was, so nothing
+    // about outrunning a wolf changes; this only adds the slower gear.
+    const pace = input.isDown('shift') ? Player.STROLL : 1;
     if (len > 0) {
       dx /= len; dz /= len;
-      const step = e.kind.speed * this.speedScale * dt;
+      const step = e.kind.speed * this.speedScale * pace * dt;
       e.yaw = yawFor(dx, dz);
       moved = tryMove(this.world, e, dx * step, dz * step);
     }
     if (moved) {
-      e.walk += (1 - e.walk) * Math.min(1, dt * 12);
-      e.phase += dt * 14;
+      // `walk` is the pace rather than a flag, so the animation follows the legs: below the motion
+      // file's `running.from` it is an amble and above it the stride opens out
+      e.walk += (pace - e.walk) * Math.min(1, dt * 12);
+      e.phase += dt * 14 * (0.5 + 0.5 * pace);
     } else {
       e.walk += (0 - e.walk) * Math.min(1, dt * 12);
       e.phase += dt * 1.5;

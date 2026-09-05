@@ -122,11 +122,38 @@ export class PropLibrary {
     ];
     for (const [kind, style] of houseStyles) {
       this.geometries.set(kind, house(style));
+      // the same house with another floor in it, for a villager whose trade has gone well
+      const tall = kind + (PropKind.TallHousePlains - PropKind.HousePlains);
+      this.geometries.set(tall, house(style, 2));
+      this.glows.set(tall, merge([
+        ...HOUSE_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos)),
+        ...HOUSE_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, [pos[0], pos[1] + 1.2, pos[2]])),
+      ]));
       this.glows.set(kind, merge(HOUSE_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos))));
       const churchKind = kind + (PropKind.ChurchPlains - PropKind.HousePlains);
       this.geometries.set(churchKind, church(style));
       this.glows.set(churchKind, merge(CHURCH_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos))));
     }
+
+    // A bath house: low, broad, timber, with a stone stack going up out of it and steam-coloured
+    // trim. Charged for by whoever built it.
+    this.geometries.set(PropKind.Sauna, merge([
+      part(new THREE.BoxGeometry(2.6, 0.2, 2.2), 0x6b4a2b, [0, 0.1, 0]),
+      part(new THREE.BoxGeometry(2.4, 1.1, 2.0), 0x8a6238, [0, 0.75, 0]),
+      prism(2.8, 0.7, 2.4, 0x5a4632, [0, 1.5, 0]),
+      part(new THREE.BoxGeometry(0.45, 1.2, 0.45), 0x8f8f8f, [-0.8, 1.9, 0]),
+      part(new THREE.BoxGeometry(0.08, 0.8, 0.5), 0x3a2a1a, [1.22, 0.6, 0]),
+      part(new THREE.BoxGeometry(0.5, 0.12, 1.0), 0xd9cbb0, [1.5, 0.06, 0]),
+    ]));
+    // And a pool: a sunk stone tank with water in it and a lip to sit on.
+    this.geometries.set(PropKind.Pool, merge([
+      part(new THREE.BoxGeometry(3.0, 0.24, 2.6), 0xbfae90, [0, 0.12, 0]),
+      part(new THREE.BoxGeometry(2.4, 0.16, 2.0), 0x2f8fbf, [0, 0.26, 0]),
+      part(new THREE.BoxGeometry(0.3, 0.34, 2.6), 0xd9cbb0, [1.5, 0.3, 0]),
+      part(new THREE.BoxGeometry(0.3, 0.34, 2.6), 0xd9cbb0, [-1.5, 0.3, 0]),
+      part(new THREE.BoxGeometry(3.0, 0.34, 0.3), 0xd9cbb0, [0, 0.3, 1.3]),
+      part(new THREE.BoxGeometry(3.0, 0.34, 0.3), 0xd9cbb0, [0, 0.3, -1.3]),
+    ]));
 
     this.geometries.set(PropKind.Well, merge([
       part(new THREE.CylinderGeometry(0.62, 0.66, 0.7, 8), 0x8a8a8a, [0, 0.35, 0]),

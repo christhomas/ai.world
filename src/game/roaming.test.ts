@@ -5,7 +5,7 @@ import type { Structures } from '../world/structures';
 import {
   ROAM, Roaming, bandAt, bandFor, bandsNear, bandsOver, breaksAt, distanceTo, nightsNear,
   outOfSight, planBands, pressingOn, pressureOn, regionOf, stopsOf, temperOf, tollOf, warningFor,
-  type Band,
+  type Band, wayTo,
 } from './roaming';
 
 /** Growing a world is the expensive part of these tests, so each one is grown once. */
@@ -339,5 +339,31 @@ describe('one person can hold a region, and not a world', () => {
       for (let day = 1; day <= 90; day++) seen += bandsOver(bands, [village], day).length;
       expect(seen).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * "Wolves have been at Silverton for days" names a village the player may never have seen, with
+ * no way to act on it. The quest system had already solved the same problem in the same words.
+ */
+describe('saying where the trouble is', () => {
+  const place = { name: 'Silverton', x: 300, z: 0 };
+
+  it('gives a direction and a rough distance', () => {
+    const said = wayTo(place, { x: 0, z: 0 })!;
+    expect(said).toContain('east');
+    expect(said).toMatch(/\d+ paces/);
+  });
+
+  it('rounds the distance, because nobody says three hundred and seven', () => {
+    expect(wayTo({ name: 'X', x: 307, z: 0 }, { x: 0, z: 0 })).toContain('310 paces');
+  });
+
+  it('says nothing to somebody already standing in it', () => {
+    expect(wayTo(place, { x: 305, z: 4 })).toBeNull();
+  });
+
+  it('turns with the player rather than being fixed to the village', () => {
+    expect(wayTo(place, { x: 600, z: 0 })).toContain('west');
   });
 });

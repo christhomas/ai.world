@@ -47,6 +47,16 @@ export const enum PropKind {
   GiantTree = 31,
   Sign = 32,
   Stall = 33,
+  // the same houses with another storey on them, built by a villager who could afford it
+  TallHousePlains = 90,
+  TallHouseForest = 91,
+  TallHouseDesert = 92,
+  TallHouseSwamp = 93,
+  TallHouseMountain = 94,
+  TallHouseSnow = 95,
+  /** What a village builds once it has more than it needs, and charges you to use. */
+  Sauna = 96,
+  Pool = 97,
   ChurchPlains = 40,
   ChurchForest = 41,
   ChurchDesert = 42,

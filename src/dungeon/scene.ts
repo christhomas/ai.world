@@ -15,9 +15,12 @@ export class DungeonScene {
   private readonly glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffb040 });
 
   constructor(private readonly world: DungeonWorld, private readonly props: PropLibrary, waterMaterial: THREE.Material, seed: number, opened: Set<string>) {
-    this.scene.background = new THREE.Color(0x05060c);
-    this.scene.add(new THREE.AmbientLight(0x3a4260, 0.75));
-    const hemi = new THREE.HemisphereLight(0x384060, 0x14141c, 0.7);
+    // Under a canopy rather than under rock: green light coming through leaves instead of the
+    // cold blue of a cave, and a warmer glow from anything burning.
+    const wooded = world.style === 'thicket';
+    this.scene.background = new THREE.Color(wooded ? 0x0a1408 : 0x05060c);
+    this.scene.add(new THREE.AmbientLight(wooded ? 0x35502e : 0x3a4260, 0.8));
+    const hemi = new THREE.HemisphereLight(wooded ? 0x4a6a38 : 0x384060, wooded ? 0x1a2214 : 0x14141c, 0.7);
     this.scene.add(hemi);
     this.scene.add(this.heroLight);
 

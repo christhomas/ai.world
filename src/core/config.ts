@@ -8,7 +8,12 @@ export const WORLD = {
   SEABED_RANGE: 12,   // tiles of seabed drawn beyond the coast before we stop drawing floor
   VIEW_RADIUS: 5,     // chunks kept loaded around the camera
   UNLOAD_RADIUS: 7,   // chunks beyond this get disposed
-  MAX_LEVEL: 14,
+  /**
+   * The highest terrace anything may reach. It was 14 while the only thing that made ground rise
+   * was distance from a road; mountains are a layer of their own now and need room to be
+   * mountains, so this is the ceiling on a summit rather than on a hillside.
+   */
+  MAX_LEVEL: 120,
 } as const;
 
 export const GRAPH = {
