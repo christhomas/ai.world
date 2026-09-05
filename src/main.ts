@@ -199,7 +199,7 @@ function startGame(
     rig.setQuality(level);
     hud.flash(`Graphics: ${QUALITY[level].label}`);
   };
-  const mapBase = renderMapBase(graph);
+  const mapBase = renderMapBase(graph, sampler);
   const fog = new Fog(mapBase);
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
   const worldMap = new WorldMap(mapBase, fog);
