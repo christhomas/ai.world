@@ -77,6 +77,7 @@ import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
 import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
 import { ROAM, Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
 import { Director } from './game/director';
+import { MINING, dayUnderground, freshMine, restOvernight, type Mine } from './game/mining';
 import { feeFor, luxuryFor, storeysFor, type Luxury } from './world/prosperity';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
@@ -1252,6 +1253,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- what keeps the old places ---
   /** How near the hero has to be for Old Nettle to be worth putting in the world at all. */
   const NETTLE_WITHIN = 70;
+  /** How near a cave has to be for a village to call it their mine, in tiles. */
+  const MINE_WITHIN = 220;
   /**
    * How hard the world is currently looking for the player. Everything below is gated on being
    * near enough, and a player is one person on one road; this widens that gate while nothing has
@@ -1260,6 +1263,14 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const director = new Director();
   /** What each village has built for itself, by name. Empty until somewhere gets rich. */
   const villageLuxury = new Map<string, Luxury>();
+  /**
+   * The mine each village works, by village name.
+   *
+   * Where the world's money comes from: an economy that only circulates runs down, so something
+   * has to mint, and it is the workings under the caves — which is also the answer to why there
+   * are tunnels down there at all. People dug them.
+   */
+  const villageMines = new Map<string, Mine>();
   /** And how far out from the village his lot stand, in tiles. */
   const NETTLE_RING = 8;
   const haunts = hauntsOf(seed, structures);
@@ -1428,6 +1439,32 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       // nobody trades while their neighbours are being buried, which is what makes a village's
       // prosperity something the player can protect rather than a number that only goes up
       register.leanedOn(press.village, press.pressure);
+      // a day at the face. The mine is capped whatever the crew size, spends itself as it is
+      // worked, and the things living in it kill miners or frighten the village into staying home
+      const here = structures.villages.find((v) => v.name === press.village);
+      const cave = here && structures.caves
+        .map((c) => ({ c, d: Math.hypot(c.x - here.x, c.z - here.z) }))
+        .sort((a, b) => a.d - b.d)
+        .find((o) => o.d < MINE_WITHIN)?.c;
+      if (here && cave) {
+        const crew = register.living(here.name).filter((p) => p.trade === 'miner');
+        let mine = villageMines.get(here.name) ?? freshMine(`mine:${cave.name}`);
+        const shift = dayUnderground(seed ^ hashString(cave.name), state.day, mine, crew.length);
+        // the takings are shared out among the people who went down, which is what puts real
+        // money into the register rather than a stipend standing in for it
+        if (shift.gold > 0 && crew.length > 0) {
+          const each = shift.gold / crew.length;
+          for (const p of crew) p.purse += each;
+        }
+        if (shift.lost && crew.length > 0) {
+          // somebody did not come back, and what they were carrying is on the floor where they fell
+          const gone = crew[Math.floor(pick() * crew.length)];
+          remains.leave(gone.name, 'miner', cave.x, cave.z, shift.dropped, 'nugget', seed ^ state.day);
+          register.bury(gone.id, state.day);
+        }
+        villageMines.set(here.name, restOvernight(mine, shift));
+        void mine;
+      }
       // and what the village has made of itself: houses grow a storey when their owners can
       // afford one, which the chunks pick up the next time they are built
       const folk = register.living(press.village);

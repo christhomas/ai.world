@@ -41,6 +41,10 @@ export const TRADES: Trade[] = [
     lines: ['Tide is on the turn.', 'I have been further out than anybody here, whatever they tell you.'],
   },
   {
+    id: 'miner', label: 'Miner', weight: 2, needs: ['heights'],
+    lines: ['Down at the face all week. The seam is still giving.', 'It is dark work, but it pays.', 'You hear things down there. Rock settling, mostly.'],
+  },
+  {
     id: 'climber', label: 'Mountain Climber', weight: 1, needs: ['heights'],
     lines: ['There is a way up the north face. Nobody believes me.', 'The view is worth the knees.'],
   },
