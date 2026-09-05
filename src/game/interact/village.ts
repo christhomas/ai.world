@@ -12,6 +12,7 @@ import { DARTS, playLeg, saidOfLeg } from '../darts';
 import { levelFor } from '../prowess';
 import { hashString } from '../../core/rng';
 import { errandDone, pubTalk } from '../pub';
+import { builderPubChoices } from './builder';
 import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
 import { stableAt } from '../stables';
@@ -65,6 +66,8 @@ export function villageInteractions(ctx: Surroundings) {
           };
         },
       });
+      // and the man with the sawdust on him in the corner, who will put a house up for you
+      choices.push(...builderPubChoices(ctx, village));
       if (errand && status === undefined) {
         choices.push({ label: `Take it on (${errand.reward}g)`, next: () => {
           state.quests.set(errand.id, 'active');

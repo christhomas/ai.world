@@ -8,7 +8,7 @@ import type { Luxury } from '../../world/prosperity';
 import type { Structures } from '../../world/structures';
 import type { TerrainSampler } from '../../world/terrain';
 import type { Manifest } from '../../world/manifest';
-import type { DialogueBox } from '../../ui/dialogue';
+import type { DialogueBox, DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Hud } from '../../ui/hud';
 import type { Chat } from '../../ui/chat';
 import type { Sound } from '../audio';
@@ -27,6 +27,8 @@ import type { Duel } from '../duel';
 import type { Mount } from '../mount';
 import type { Sailing } from '../sailing';
 import type { Plots } from '../farming';
+import type { Houses } from '../building';
+import type { Grudges } from '../grudge';
 import type { Fishing } from '../fishing';
 import type { Online } from '../online';
 import type { Handover } from '../handover';
@@ -40,6 +42,16 @@ import type * as THREE from 'three';
  * horse, cast a line or rent a market pitch, so this is a wide surface by nature — but it is
  * written down in one place, and each file below takes only the handful of it that it uses.
  */
+/**
+ * The two shapes a conversation is written in, handed on from here.
+ *
+ * They belong to the ui, and the game writes conversations for the ui to draw — but every
+ * interaction file needing them means every interaction file reaching up a layer for them, which
+ * the architecture test counts and is right to. So the one file that already has to know about the
+ * dialogue box passes the vocabulary along, and the interactions below take it sideways.
+ */
+export type { DialogueChoice, DialogueNode };
+
 export interface Surroundings {
   // where the hero is, and what they are carrying
   player: Player;
@@ -80,6 +92,14 @@ export interface Surroundings {
   mount: Mount;
   sailing: Sailing;
   plots: Plots;
+  /** The builder you are holding, and every house you have had put up. */
+  houses: Houses;
+  /**
+   * What each village holds against you, which owing a builder for a finished house adds to. Kept
+   * apart from the good and evil scale for the same reason a dead cow is: not paying for a house
+   * in one village is that village's business and not the whole country's.
+   */
+  grudges: Grudges;
   fishing: Fishing;
   online: Online;
   /** Goods handed over but not yet answered for, so a refusal can put them back. */
