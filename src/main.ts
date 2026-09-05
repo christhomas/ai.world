@@ -771,7 +771,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.hit.length === 0) {
-      sound.select();
+      sound.miss();
       // a blade that finds nothing where something plainly stands has to say why, or the rule
       // that a sword is no answer to a wight reads as a broken game rather than as the point
       // a swing that finds nothing where something plainly stands has to say why, or a rule
@@ -783,9 +783,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       }
       return;
     }
-    sound.thud();
+    sound.hit(madeOf(res.hit[0]));
     if (res.killed.length > 0) {
-      sound.chime();
+      sound.voice(heftOf(res.killed[0]), true);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -902,6 +902,48 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   /** Seconds left of the moment after a blow in which nothing else can land on the hero. */
   let reeling = 0;
 
+  /** What a blow on this creature sounds like: bone rattles, armour rings, everything else gives. */
+  const madeOf = (e: Entity): 'flesh' | 'bone' | 'plate' => {
+    const id = e.kind.id;
+    if (id === 'skeleton' || id === 'wight') return 'bone';
+    if (id === 'nettle' || e.trade === 'constable') return 'plate';
+    return 'flesh';
+  };
+
+  /** Roughly how big a thing is against a person, which is what pitches its voice. */
+  const heftOf = (e: Entity): number => e.kind.scale * (e.kind.hp ? 1 : 0.7);
+
+  /**
+   * How much water is within earshot, and how far the loudest of it is falling.
+   *
+   * Felt outward in a ring rather than kept as a field: what matters is only whether there is
+   * water near enough to hear and whether it is dropping, and a couple of dozen lookups a frame
+   * is cheaper than maintaining anything. The drop is measured between neighbouring surfaces,
+   * which is the same thing the mesher uses to decide it is drawing a waterfall.
+   */
+  const WATER_EARSHOT = 22;
+  const listenForWater = (): void => {
+    let nearest = Infinity;
+    let loudest = 0;
+    for (let r = 2; r <= WATER_EARSHOT; r += 4) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const x = player.x + Math.cos(a) * r, z = player.z + Math.sin(a) * r;
+        const here = chunks.waterAt(x, z);
+        if (here === null) continue;
+        if (r < nearest) nearest = r;
+        // the fall beside it, if any: how far this surface stands above the next one along
+        const there = chunks.waterAt(x + Math.cos(a) * 2, z + Math.sin(a) * 2);
+        if (there !== null) loudest = Math.max(loudest, Math.abs(here - there));
+      }
+    }
+    const nearness = nearest === Infinity ? 0 : 1 - Math.min(1, nearest / WATER_EARSHOT);
+    heard = { nearness, drop: loudest };
+    sound.setWater(nearness, loudest);
+  };
+  /** What the water listener last worked out, for the debug hook and for nothing else. */
+  let heard = { nearness: 0, drop: 0 };
+
   const onAttack = (attacker: Entity, dmg: number) => {
     if (dialogue.isOpen) return;
     // A blow buys you a moment. Without it a swarm lands every one of its hits in the same
@@ -909,6 +951,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     // not a fight, it is an announcement.
     if (reeling > 0) return;
     reeling = GAMEPLAY.REELING;
+    sound.voice(heftOf(attacker));
 
     // and it knocks you back, which is the space you get to react in
     const dx = player.x - attacker.x, dz = player.z - attacker.z;
@@ -1067,6 +1110,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __eyries?: () => unknown }).__eyries = () => eyries.map((e) => ({
       id: e.id, name: e.name, x: Math.round(e.x), z: Math.round(e.z), partner: e.partner, fare: e.fare,
     }));
+    (debug as { __water?: () => unknown }).__water = () => ({ ...heard, drop: Math.round(heard.drop * 10) / 10 });
     (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
     (debug as { __warband?: () => unknown }).__warband = () => ({
       active: warband.active, opponent: warband.opponentName, muster: warband.muster, readout: warband.readout(),
@@ -1482,6 +1526,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     hud.tick(dt);
     sound.setScene(here.biome, state.night);
     sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
+    listenForWater();
 
     swingCooldown = Math.max(0, swingCooldown - dt);
     reeling = Math.max(0, reeling - dt);
