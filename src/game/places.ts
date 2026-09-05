@@ -1,3 +1,4 @@
+import { CAMERA } from '../core/config';
 import type { Rng } from '../core/rng';
 import { mulberry32 } from '../core/rng';
 import type { IsoCamera } from '../render/camera';
@@ -133,6 +134,9 @@ export class Places {
     const [dx, dz] = STAIRS_CLEARANCE.find(([ox, oz]) => world.heightAt(ex + ox + 0.5, ez + oz + 0.5) !== null) ?? [0, 0];
     player.teleport(ex + dx + 0.5, ez + dz + 0.5);
     iso.target.set(ex + dx + 0.5, 0.5, ez + dz + 0.5);
+    // underground you are inside something, and the camera should say so: a cave seen from the
+    // height a whole valley is seen from is a diagram of a cave rather than a place you are in
+    iso.limitZoom(CAMERA.SHUT_IN_ZOOM);
 
     const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed + floor);
     monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor);
@@ -159,6 +163,7 @@ export class Places {
     player.setWorld(overworld);
     player.teleport(visit.poi.x + 2.5, visit.poi.z + 0.5);
     iso.target.set(visit.poi.x + 2.5, 0.5, visit.poi.z + 0.5);
+    iso.limitZoom(CAMERA.MAX_ZOOM);
     this.underground = null;
     this.ctx.setCaveAmbience(false);
     this.ctx.persist();
@@ -257,6 +262,7 @@ export class Places {
     // frame the whole room: the camera holds still and the hero moves inside it
     this.outdoorZoom = iso.zoom;
     iso.zoom = Math.max(map.w, map.h) * 1.35;
+    iso.limitZoom(iso.zoom);
     iso.resize();
     iso.target.set(map.w / 2, 0.5, map.h / 2);
 
@@ -290,6 +296,7 @@ export class Places {
     this.ctx.heroGear.attachTo(this.ctx.rig.scene);
     player.setWorld(overworld);
     player.teleport(visit.exit[0], visit.exit[1] + 1);
+    iso.limitZoom(CAMERA.MAX_ZOOM);
     iso.zoom = this.outdoorZoom;
     iso.resize();
     iso.target.set(visit.exit[0], 0.5, visit.exit[1] + 1);

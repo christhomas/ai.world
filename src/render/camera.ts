@@ -8,6 +8,8 @@ export class IsoCamera {
   readonly target = new THREE.Vector3();
   rotation = Math.PI / 4;
   zoom: number = CAMERA.START_ZOOM;
+  /** How far back this place lets you stand: less sky indoors and underground than in a field. */
+  private ceiling: number = CAMERA.MAX_ZOOM;
 
   constructor() {
     const aspect = window.innerWidth / window.innerHeight;
@@ -43,7 +45,7 @@ export class IsoCamera {
       this.target.z += rz * input.dragDX * k + fz * input.dragDY * k;
     }
     if (input.wheelDelta !== 0) {
-      this.zoom = Math.max(CAMERA.MIN_ZOOM, Math.min(CAMERA.MAX_ZOOM, this.zoom + input.wheelDelta * 0.03));
+      this.zoom = Math.max(CAMERA.MIN_ZOOM, Math.min(this.ceiling, this.zoom + input.wheelDelta * 0.03));
       this.applyFrustum(window.innerWidth / window.innerHeight);
     }
     this.applyPosition();
@@ -51,6 +53,21 @@ export class IsoCamera {
 
   resize(): void {
     this.applyFrustum(window.innerWidth / window.innerHeight);
+  }
+
+  /**
+   * Shut the view in, or open it back up to the sky.
+   *
+   * Pulls the current zoom in with the ceiling rather than only capping the wheel, so stepping
+   * from a field into a cave closes the picture rather than leaving you pulled back until you
+   * happen to scroll. Never below MIN_ZOOM, so a very small room cannot lock the camera.
+   */
+  limitZoom(most: number): void {
+    this.ceiling = Math.max(CAMERA.MIN_ZOOM, most);
+    if (this.zoom > this.ceiling) {
+      this.zoom = this.ceiling;
+      this.resize();
+    }
   }
 
   private applyFrustum(aspect: number): void {

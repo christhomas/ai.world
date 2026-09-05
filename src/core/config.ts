@@ -74,6 +74,12 @@ export const CAMERA = {
   ROT_SPEED: 1.7,   // radians per second
   MIN_ZOOM: 14,
   MAX_ZOOM: 72,
+  /**
+   * The furthest you may stand back somewhere enclosed. Underground you kept the whole sky's worth
+   * of zoom, so a cave read as a small room seen from very high up rather than as being inside
+   * anything. Held close enough that the walls are always at the edge of the picture.
+   */
+  SHUT_IN_ZOOM: 17,
   START_ZOOM: 30,
   HEIGHT: 70,
   DIST: 70,
