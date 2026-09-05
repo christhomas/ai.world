@@ -4,6 +4,7 @@ import { StructureKind } from '../../world/structures';
 import { CROPS, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from '../farming';
 import { FISHING } from '../fishing';
 import { Digging, groundOf, seamAt, type Ground } from '../digging';
+import { mineIdOf } from '../mines';
 import { GRAPH } from '../../core/config';
 import { villageAt } from '../../world/structures';
 import type { Surroundings } from './context';
@@ -53,7 +54,7 @@ export function wildInteractions(ctx: Surroundings) {
       if (Math.hypot(cave.x - player.x, cave.z - player.z) > 3.2) continue;
       discover(cave.name);
       dialogue.start({ speaker: cave.name, emoji: '🕳️', pages: ['A cold draught comes out of the dark. Go in?'], choices: [
-        { label: 'Go in', next: () => { places.enterDungeon(cave, 'cave', `cave:${cave.id}`); return null; } },
+        { label: 'Go in', next: () => { places.enterDungeon(cave, 'cave', mineIdOf(cave)); return null; } },
         { label: 'Not now', next: () => null },
       ] });
       return true;

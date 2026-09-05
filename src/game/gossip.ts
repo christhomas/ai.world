@@ -46,6 +46,9 @@ function newsOf(what: string, who: string, daysAgo: number, hardWeek: boolean): 
     case 'saved': return `${who} pulled me out of trouble ${when}. I owe them for it.`;
     case 'robbed': return `${who} was robbed on the road ${when}. Keep your purse close.`;
     case 'given': return `${who} gave me something I had need of ${when}. Not many stop to.`;
+    // the mine, not a person: a bad day at the face is news the same way a death is, and it is
+    // the only way anybody ever hears about a mine they have not walked into
+    case 'feared': return `Something happened down ${who} ${when}. There are men who will not go back.`;
     default: return `Something happened with ${who} ${when}.`;
   }
 }

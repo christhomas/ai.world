@@ -37,8 +37,13 @@ export type Stage = 'baby' | 'child' | 'adult';
 
 /** Something that happened, worth carrying about. Named, so it outlives whoever it is about. */
 export interface Memory {
-  what: 'died' | 'born' | 'saved' | 'robbed' | 'given';
-  /** The name of the person it happened to. */
+  what: 'died' | 'born' | 'saved' | 'robbed' | 'given' | 'feared';
+  /**
+   * The name of the person it happened to — or of the place, for the things that happen to a
+   * place rather than to anybody. A mine that swallowed somebody is remembered by the mine's
+   * name, which works for exactly the reason a dead person's name does: a name means something
+   * after the thing it belonged to is gone, and can never dangle.
+   */
   who: string;
   day: number;
 }

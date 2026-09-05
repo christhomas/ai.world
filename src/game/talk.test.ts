@@ -90,6 +90,42 @@ describe('shop dialogue', () => {
   });
 });
 
+/**
+ * A mine is feared or it is not, and the only way anybody outside the village finds out which is
+ * by asking somebody who lives there. It is belief rather than fact on purpose: a mine made safe
+ * on Tuesday is still spoken of as a death trap until word gets back, and a villager who reported
+ * the truth instead would take that away.
+ */
+describe('what a villager believes about the mine', () => {
+  it('says it when there is something to say, and says nothing when there is not', async () => {
+    const { Register } = await import('../world/register');
+    const register = new Register(1);
+    const folk = register.settle('Testford', 6, ['miner']);
+    const state = new GameState();
+    state.inventory.gold = 200;                 // not so poor that they change the subject to work
+    const herd = new Herd(KINDS.villager, 0, 0, 0, 0, 1);
+    herd.tag = 'Testford';
+    const villager = new Entity(KINDS.villager, 0, 0, herd, 'k', mulberry32(3));
+    villager.person = folk[0].id;
+
+    // said among everything else a villager might say, so it takes a few conversations to hear
+    const overAFewChats = (believed: string): string => {
+      const said: string[] = [];
+      for (let seed = 1; seed <= 40; seed++) {
+        said.push(...dialogueFor(villager, {
+          state, rng: mulberry32(seed), time: 0.5, quests: new Map(), register, day: 1,
+          saidOfMine: () => believed,
+          onInventoryChange: () => {}, onQuestChange: () => {},
+        }).pages);
+      }
+      return said.join(' ');
+    };
+
+    expect(overAFewChats('Nobody will go down there now.')).toContain('Nobody will go down there now.');
+    expect(overAFewChats('')).not.toContain('Nobody will go down there now.');
+  });
+});
+
 describe('quests', () => {
   it('generates one quest per village deterministically and the elder flow pays out', async () => {
     const { generateRoadGraph } = await import('../world/graph');

@@ -91,6 +91,14 @@ export interface Surroundings {
   eyries: readonly Eyrie[];
   /** What a village has built for itself with what it earned, by name. */
   luxuryOf: (village: string) => Luxury;
+  /**
+   * What a village believes about the mine it works, or nothing when there is nothing to say.
+   *
+   * Belief and not fact, which is why it comes through a village name rather than a mine: a mine
+   * the player emptied on Tuesday is still a death trap in this room until somebody has been in
+   * to say otherwise, and a room that reported the truth would take that away.
+   */
+  saidOfMine: (village: string) => string;
   quests: Map<string, Quest>;
 
   // how an interaction answers back

@@ -79,7 +79,7 @@ import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
 import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
 import { ROAM, Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
 import { Director } from './game/director';
-import { MINING, dayUnderground, freshMine, restOvernight, type Mine } from './game/mining';
+import { MINES, Mines, claimedMines, mineIdOf, type Working } from './game/mines';
 import { feeFor, luxuryFor, storeysFor, type Luxury } from './world/prosperity';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
@@ -286,6 +286,40 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * and only the killing has to be remembered.
    */
   const roaming = Roaming.from(seed, structures, saved?.roaming, state.day);
+  /**
+   * The workings under the caves: where the world's money is minted.
+   *
+   * An economy that only circulates runs down, so something has to mint, and it is the mines —
+   * which is also the answer to why there are tunnels under the ground at all. People dug them,
+   * some of them are still down there working, and what they bring up is the gold everybody else
+   * spends. Held here beside the bands because it is the same sort of thing: a fact about the
+   * world rather than about the hero, true whoever happens to be playing.
+   */
+  const mines = Mines.from(seed, saved?.state?.mines, state.day);
+  /**
+   * Which cave each village calls its mine. A pure function of the structures, so it is worked
+   * out once: the ground does not move and neither do the villages standing on it.
+   */
+  const claimed = claimedMines(structures.villages, structures.caves);
+  /**
+   * What a village believes about its mine, for anybody who has to put it into words.
+   *
+   * Belief rather than fact on purpose. A mine the player emptied on Tuesday goes on being spoken
+   * of as a death trap until somebody has walked back in to say otherwise, and that gap is the
+   * point: it is what makes going back and telling them a thing worth doing.
+   */
+  const saidOfMine = (village: string): string => {
+    const cave = claimed.get(village);
+    return cave ? mines.saidOf(mineIdOf(cave)) : '';
+  };
+  /**
+   * The mine the hero is currently swinging inside, or nothing.
+   *
+   * Only a cave counts. A vault and a thicket are places to go rather than places anybody works,
+   * and counting a kill in one of those would quietly make safe a mine nobody has been near.
+   */
+  const fightingInAMine = (): string | null =>
+    places.underground?.style === 'cave' ? places.underground.anchorId : null;
   /** Which bands have people standing in the world for them right now. */
   const bandsOut = new Map<string, Band>();
   /** The last thing each village was heard to say about its trouble, so it is not said twice. */
@@ -370,7 +404,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       seed,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save() },
       manifest: manifest.toJSON(),
       nemesis: nemesis.toJSON(),
       roaming: roaming.save(),
@@ -446,6 +480,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const talkCtx: TalkCtx = {
     state, rng: lineRng, quests, time: state.time, register, day: state.day,
     wordOfHim: (person) => interactions.wordOfHim(person),
+    saidOfMine,
     onInventoryChange: () => { sound.chime(); persist(); },
     onQuestChange: (q: { village: string; id?: string }, status: 'active' | 'done') => {
       if (status === 'done') {
@@ -652,6 +687,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const interactions = createInteractions({
     player, state, discovered, eyries,
     luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
+    saidOfMine,
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
     gifts, hires, standing, rescues, nemesis,
@@ -832,6 +868,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     }
     if (res.killed.length > 0) {
       sound.voice(heftOf(res.killed[0]), true);
+      // what lived in the workings is what made them dangerous, so killing it is the one thing a
+      // player can do that moves a village's whole economy
+      mines.slain(fightingInAMine(), res.killed.length);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -872,6 +911,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     sound.thud();
     if (res.killed.length > 0) {
       sound.chime();
+      // what lived in the workings is what made them dangerous, so killing it is the one thing a
+      // player can do that moves a village's whole economy
+      mines.slain(fightingInAMine(), res.killed.length);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -903,6 +945,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     if (res.killed.length > 0) {
+      // what lived in the workings is what made them dangerous, so killing it is the one thing a
+      // player can do that moves a village's whole economy
+      mines.slain(fightingInAMine(), res.killed.length);
       const rustling: string[] = [];
       for (const e of res.killed) {
         interactions.fell(e.kind.id, e.x, e.z);
@@ -1146,6 +1191,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     (debug as { __descent?: () => unknown }).__descent = () => places.underground?.world.map.descent ?? null;
     (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
     (debug as { __descend?: () => void }).__descend = () => places.descend();
+    (debug as { __climbOut?: () => void }).__climbOut = () => places.exitDungeon();
     (debug as { __plots?: () => unknown }).__plots = () => plots.count;
     (debug as { __place?: () => string }).__place = () => placeName();
     (debug as { __coop?: () => unknown }).__coop = () => ({
@@ -1253,6 +1299,23 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     });
     (debug as { __fortunes?: () => unknown }).__fortunes = () =>
       structures.villages.map((v) => ({ village: v.name, living: register.living(v.name).length, fortune: register.fortune(v.name) }));
+    (debug as { __enterMine?: (village: string) => unknown }).__enterMine = (village) => {
+      const cave = claimed.get(village);
+      if (!cave) return null;
+      places.enterDungeon(cave, 'cave', mineIdOf(cave));
+      return { mine: cave.name, id: mineIdOf(cave) };
+    };
+    (debug as { __mines?: () => unknown }).__mines = () =>
+      minesWorked().map((w) => ({
+        inAMine: fightingInAMine(),
+        village: w.village, mine: w.name, id: w.mine,
+        crew: register.living(w.village).filter((p) => p.trade === 'miner').length,
+        purse: Math.round(register.living(w.village).reduce((sum, p) => sum + p.purse, 0)),
+        dread: Number((mines.at(w.mine)?.dread ?? 0).toFixed(3)),
+        worked: Math.round(mines.at(w.mine)?.worked ?? 0),
+        peril: Number(mines.perilOf(w.mine).toFixed(3)),
+        said: mines.saidOf(w.mine),
+      }));
     (debug as { __stables?: () => unknown }).__stables = () =>
       structures.villages.map((v) => {
         const stable = stableAt(v, seed);
@@ -1355,8 +1418,6 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // --- what keeps the old places ---
   /** How near the hero has to be for Old Nettle to be worth putting in the world at all. */
   const NETTLE_WITHIN = 70;
-  /** How near a cave has to be for a village to call it their mine, in tiles. */
-  const MINE_WITHIN = 220;
   /**
    * How hard the world is currently looking for the player. Everything below is gated on being
    * near enough, and a player is one person on one road; this widens that gate while nothing has
@@ -1366,13 +1427,34 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   /** What each village has built for itself, by name. Empty until somewhere gets rich. */
   const villageLuxury = new Map<string, Luxury>();
   /**
-   * The mine each village works, by village name.
+   * The mines being worked today, and who would hear about a bad day at one.
    *
-   * Where the world's money comes from: an economy that only circulates runs down, so something
-   * has to mint, and it is the workings under the caves — which is also the answer to why there
-   * are tunnels down there at all. People dug them.
+   * Only villages the register has been told about are in it, which is the register's own rule
+   * rather than a new one: a place nobody has walked into has no people in it yet, so it has no
+   * miners either. Rebuilt when another village comes onto the register and not otherwise,
+   * because this runs every frame and the answer only changes when somebody walks somewhere new.
    */
-  const villageMines = new Map<string, Mine>();
+  let workings: Working[] = [];
+  let workingsFor = -1;
+  const minesWorked = (): Working[] => {
+    const settled = new Set(register.settled());
+    if (settled.size === workingsFor) return workings;
+    workingsFor = settled.size;
+    workings = [];
+    for (const [village, cave] of claimed) {
+      const home = structures.villages.find((v) => v.name === village);
+      if (!home || !settled.has(village)) continue;
+      // the story reaches the village that works it and its nearest neighbours, which is how
+      // somebody in a pub two valleys over can warn you off a hole you have never seen
+      const heardIn = [village, ...structures.villages
+        .filter((v) => v.name !== village && settled.has(v.name))
+        .sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z))
+        .slice(0, MINES.HEARD_IN - 1)
+        .map((v) => v.name)];
+      workings.push({ village, mine: mineIdOf(cave), name: cave.name, x: cave.x, z: cave.z, heardIn });
+    }
+    return workings;
+  };
   /** And how far out from the village his lot stand, in tiles. */
   const NETTLE_RING = 8;
   const haunts = hauntsOf(seed, structures);
@@ -1533,6 +1615,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) { state.tick(dt); magic.tick(dt); }
+    // What a blow costs in time, counted before the frame decides where the hero is standing.
+    //
+    // These used to be counted down at the bottom of the outdoor path, past the two early returns
+    // — so underground and indoors the cooldown was set by the first swing and never came off
+    // again, and the hero got exactly one swing per visit however long they stayed. Which made
+    // clearing a mine out impossible, and that is the one thing the whole mining economy is
+    // waiting on. Found by trying to fight a cave empty and hitting a rat once.
+    swingCooldown = Math.max(0, swingCooldown - dt);
+    drawCooldown = Math.max(0, drawCooldown - dt);
     // a day turning over is a day in the villages too: lives run out, and children are born
     for (const word of nemesis.advance(clockAt(state), realm())) chat.line(word.said, 'sys');
     for (const band of roaming.advance(state.day)) hud.flash(warningOfBand(band));
@@ -1550,32 +1641,6 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       // nobody trades while their neighbours are being buried, which is what makes a village's
       // prosperity something the player can protect rather than a number that only goes up
       register.leanedOn(press.village, press.pressure);
-      // a day at the face. The mine is capped whatever the crew size, spends itself as it is
-      // worked, and the things living in it kill miners or frighten the village into staying home
-      const here = structures.villages.find((v) => v.name === press.village);
-      const cave = here && structures.caves
-        .map((c) => ({ c, d: Math.hypot(c.x - here.x, c.z - here.z) }))
-        .sort((a, b) => a.d - b.d)
-        .find((o) => o.d < MINE_WITHIN)?.c;
-      if (here && cave) {
-        const crew = register.living(here.name).filter((p) => p.trade === 'miner');
-        let mine = villageMines.get(here.name) ?? freshMine(`mine:${cave.name}`);
-        const shift = dayUnderground(seed ^ hashString(cave.name), state.day, mine, crew.length);
-        // the takings are shared out among the people who went down, which is what puts real
-        // money into the register rather than a stipend standing in for it
-        if (shift.gold > 0 && crew.length > 0) {
-          const each = shift.gold / crew.length;
-          for (const p of crew) p.purse += each;
-        }
-        if (shift.lost && crew.length > 0) {
-          // somebody did not come back, and what they were carrying is on the floor where they fell
-          const gone = crew[Math.floor(pick() * crew.length)];
-          remains.leave(gone.name, 'miner', cave.x, cave.z, shift.dropped, 'nugget', seed ^ state.day);
-          register.bury(gone.id, state.day);
-        }
-        villageMines.set(here.name, restOvernight(mine, shift));
-        void mine;
-      }
       // and what the village has made of itself: houses grow a storey when their owners can
       // afford one, which the chunks pick up the next time they are built
       const folk = register.living(press.village);
@@ -1596,6 +1661,37 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       if (change.kind === 'died' && discovered.has(change.village)) {
         chat.line(`Word from ${change.village}: ${change.name} has died.`, 'sys');
       }
+    }
+    /**
+     * A day at the face, in every village that has a mine.
+     *
+     * After the register has caught up, because a mine is worked by people and the register is
+     * who they are. What comes up goes into the miners' own purses, so it leaves again through
+     * their dinner and their upkeep the way anybody else's money does — which is the whole reason
+     * to mint it there rather than crediting a village a number nobody spends.
+     */
+    for (const dug of mines.advance(state.day, minesWorked(), (v) => register.living(v))) {
+      if (dug.lost) {
+        // what he had on him was minted this morning and is now on the floor where he fell, which
+        // is the only reason anybody would go down a mine that has just killed somebody
+        remains.leave(dug.lost.name, 'miner', dug.x, dug.z, dug.dropped, 'nugget', seed ^ Math.floor(dug.x * 131 + dug.z * 977));
+        const death = register.bury(dug.lost.id, dug.day);
+        if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
+      }
+      if (dug.scared && discovered.has(dug.village)) {
+        chat.line(dug.lost
+          ? `Word from ${dug.village}: ${dug.lost.name} did not come up out of ${dug.name}.`
+          : `Word from ${dug.village}: they came running up out of ${dug.name} today.`, 'sys');
+      }
+    }
+    // and the other half of it: a mine the player has fought through is still a mine nobody will
+    // go down until somebody walks into the village and says otherwise. Standing in the square is
+    // that somebody, which is why this is proximity and not a menu
+    for (const working of places.outdoors ? minesWorked() : []) {
+      const home = structures.villages.find((v) => v.name === working.village);
+      if (!home || Math.hypot(home.x - player.x, home.z - player.z) > home.radius) continue;
+      const said = mines.told(working.mine, working.name);
+      if (said !== null) { hud.flash(said); sound.chime(); persist(); }
     }
 
     // hold the place for this frame: a bite can end it half way through
@@ -1719,11 +1815,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     listenForWater();
     director.advance(dt);
 
-    swingCooldown = Math.max(0, swingCooldown - dt);
     reeling = Math.max(0, reeling - dt);
     musterIn -= dt;
     if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
-    drawCooldown = Math.max(0, drawCooldown - dt);
     if (input.clicked && !talking) {
       mouse.set((input.clickX / window.innerWidth) * 2 - 1, -(input.clickY / window.innerHeight) * 2 + 1);
       raycaster.setFromCamera(mouse, iso.camera);
