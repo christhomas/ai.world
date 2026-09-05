@@ -7,6 +7,7 @@ import { compassDir } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
 import { faceFor } from '../talk';
 import { REACH, personWins } from '../places';
+import { feeFor } from '../../world/prosperity';
 import { errandDone, pubTalk } from '../pub';
 import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
@@ -324,5 +325,51 @@ export function villageInteractions(ctx: Surroundings) {
       : `${stall.owner}'s stall — ${lots ? `${lots} lot${lots === 1 ? '' : 's'} out` : 'nothing out'}`);
   };
 
-  return { tryDoor, tryBoard, tryStall, trySignpost, tryHorse, noticeStall };
+  /**
+   * The bath house or the pool a prosperous village has built for itself.
+   *
+   * Money the player has been putting into the economy comes back out of it here: whoever built
+   * this charges for it, and what you get is a night's rest without an inn. A village that has
+   * not got rich has nothing to offer and this says nothing at all.
+   */
+  const tryLuxury = (): boolean => {
+    const village = structures.villages
+      .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
+      .filter((o) => o.d < o.v.radius)
+      .sort((a, b) => a.d - b.d)[0]?.v;
+    if (!village) return false;
+    const luxury = ctx.luxuryOf(village.name);
+    if (luxury === 'none') return false;
+    if (someoneNearerThan(village.x, village.z)) return false;
+    if (Math.hypot(village.x - player.x, village.z - player.z) > REACH.BUILDING_DOOR + 3) return false;
+
+    const fee = feeFor(luxury);
+    const name = luxury === 'sauna' ? 'the bath house' : 'the pool';
+    if (state.inventory.gold < fee) {
+      dialogue.start({ speaker: 'Attendant', emoji: '🧖', pages: [`${fee} gold for ${name}, and you have ${state.inventory.gold}.`] });
+      return true;
+    }
+    dialogue.start({
+      speaker: 'Attendant', emoji: '🧖',
+      pages: [`${village.name} built ${name} out of what it made this year. ${fee} gold, and you may use it.`],
+      choices: [
+        {
+          label: `Pay (${fee}g)`,
+          next: () => {
+            state.inventory.gold -= fee;
+            state.heal(state.maxHpTotal);
+            state.version++;
+            sound.chime();
+            hud.flash(`You come out of ${name} a new person.`);
+            persist();
+            return null;
+          },
+        },
+        { label: 'Another time', next: () => null },
+      ],
+    });
+    return true;
+  };
+
+  return { tryDoor, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
 }

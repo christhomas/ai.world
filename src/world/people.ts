@@ -60,6 +60,15 @@ export interface Person {
   knows: string[];
   /** The last couple of things that happened around them, newest first. */
   memories: Memory[];
+  /**
+   * What they have put by, from trading in the same economy the player uses.
+   *
+   * On the person rather than on the entity standing in the street, because the entity is gone
+   * the moment you walk away and the village was never a penny richer for anything that happened
+   * in it. What this buys is a storey on their house, and after that what a village builds when
+   * it has more than it needs.
+   */
+  purse: number;
 }
 
 /** Which part of a life somebody is in, on a given day. */
@@ -144,6 +153,7 @@ function born(
     father: '',
     knows: [],
     memories: [],
+    purse: 0,
   };
 }
 

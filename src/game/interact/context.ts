@@ -4,6 +4,7 @@ import type { EntityRenderer } from '../../entities/pool';
 import type { Entity } from '../../entities/entity';
 import type { Player } from '../../entities/player';
 import type { Eyrie } from '../eyries';
+import type { Luxury } from '../../world/prosperity';
 import type { Structures } from '../../world/structures';
 import type { TerrainSampler } from '../../world/terrain';
 import type { Manifest } from '../../world/manifest';
@@ -88,6 +89,8 @@ export interface Surroundings {
   ferries: Array<{ line: FerryLine; mesh: THREE.Object3D }>;
   /** The crags with eagles on them, empty in a world with no mountains worth flying over. */
   eyries: readonly Eyrie[];
+  /** What a village has built for itself with what it earned, by name. */
+  luxuryOf: (village: string) => Luxury;
   quests: Map<string, Quest>;
 
   // how an interaction answers back

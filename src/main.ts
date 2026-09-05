@@ -77,6 +77,7 @@ import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
 import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
 import { ROAM, Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
 import { Director } from './game/director';
+import { feeFor, luxuryFor, storeysFor, type Luxury } from './world/prosperity';
 import { HIRE, Hires } from './game/hire';
 import { Magic, type SpellId } from './game/magic';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
@@ -633,6 +634,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
 
   const interactions = createInteractions({
     player, state, discovered, eyries,
+    luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
     gifts, hires, standing, rescues, nemesis,
@@ -1252,6 +1254,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * happened and puts it back the moment something does.
    */
   const director = new Director();
+  /** What each village has built for itself, by name. Empty until somewhere gets rich. */
+  const villageLuxury = new Map<string, Luxury>();
   /** And how far out from the village his lot stand, in tiles. */
   const NETTLE_RING = 8;
   const haunts = hauntsOf(seed, structures);
@@ -1417,6 +1421,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       }
       // a village under the same band says so once, not every morning until it is dealt with:
       // news repeated daily stops being news and starts being wallpaper
+      // nobody trades while their neighbours are being buried, which is what makes a village's
+      // prosperity something the player can protect rather than a number that only goes up
+      register.leanedOn(press.village, press.pressure);
+      // and what the village has made of itself: houses grow a storey when their owners can
+      // afford one, which the chunks pick up the next time they are built
+      const folk = register.living(press.village);
+      const worth = folk.reduce((sum, p) => sum + p.purse, 0);
+      sampler.storeys.set(press.village, storeysFor(worth / Math.max(1, folk.length)));
+      villageLuxury.set(press.village, luxuryFor(worth, hashString(press.village)));
       if (press.pressure >= 0.25 && pressSaid.get(press.village) !== press.said) {
         pressSaid.set(press.village, press.said);
         // the news is remembered without the direction, because the direction changes with every

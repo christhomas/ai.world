@@ -131,6 +131,15 @@ export class TerrainSampler {
   readonly mesh: WorldMesh | null;
   /** The world's mountains. Planned before structures, because structures sample the ground. */
   readonly massifs: Massif[];
+  /**
+   * How many storeys the houses of a village have, by village name.
+   *
+   * Set from outside, because how rich a village is belongs to the register and changes by the
+   * day, while the ground is a function of the seed. Chunks are rebuilt whenever they reload, so
+   * a village that has prospered while you were away is taller when you come back without
+   * anything having to be told to change.
+   */
+  readonly storeys = new Map<string, number>();
 
   constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
     this.seed = graph.seed;
@@ -579,6 +588,14 @@ export class TerrainSampler {
   }
 
   /** Flatten yards, lay door paths, and drop each building prop on its centre tile. */
+  /** Which village a structure belongs to, by whose radius it falls inside. Empty for the wild. */
+  private villageHolding(s: Structure): string {
+    for (const v of this.structures.villages) {
+      if (Math.hypot(v.x - s.tx, v.z - s.tz) <= v.radius) return v.name;
+    }
+    return '';
+  }
+
   private stampStructures(chunk: ChunkData, ox: number, oz: number): void {
     if (!this.structIndex) return;
     const hits = this.structIndex.query(ox, oz, ox + chunk.size, oz + chunk.size);
@@ -599,7 +616,8 @@ export class TerrainSampler {
         default:
           stampFootprint(chunk, ox, oz, s);
           stampPath(chunk, ox, oz, s);
-          stampCentreProp(chunk, ox, oz, s);
+          // a house is as tall as the village it stands in has managed to become
+          stampCentreProp(chunk, ox, oz, s, this.storeys.get(this.villageHolding(s)) ?? 1);
       }
     }
   }

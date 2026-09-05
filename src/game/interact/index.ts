@@ -73,6 +73,7 @@ export function createInteractions(ctx: Surroundings) {
     if (travel.tryEagle()) return;   // a crag with a bird on it, before anything else up here
     if (village.tryHorse()) return;
     if (wild.tryFarm()) return;
+    if (village.tryLuxury()) return;
     if (village.tryStall()) return;
     if (nettle.tryScheme()) return;
     if (village.tryBoard()) return;

@@ -1,3 +1,4 @@
+import { PROSPER, earnedInADay } from './prosperity';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Person } from './people';
@@ -46,6 +47,20 @@ const BIRTH_RATE = 0.06;
 
 export class Register {
   private readonly villages = new Map<string, Settlement>();
+  /**
+   * How hard each village is being leaned on today, nought to one, as roaming.ts reckons it.
+   *
+   * Told rather than worked out: what a warband is doing is the game's business and this only
+   * keeps the register. It matters here because nobody trades while their neighbours are being
+   * buried, which is what makes a village's prosperity something the player can protect.
+   */
+  private readonly pressure = new Map<string, number>();
+
+  /** Somebody has looked at what the bands are doing today. */
+  leanedOn(village: string, pressure: number): void {
+    this.pressure.set(village, pressure);
+  }
+
   /**
    * Who was killed, and on which day. A violent death is the one thing about a village that
    * cannot be worked out from the seed, so it is kept — and kept by day, because *when* somebody
@@ -190,7 +205,21 @@ export class Register {
    * that has already been lived — and a village re-lived from its founding has to arrive at the
    * same place as the village that watched it happen. The gap is filled the following morning.
    */
+  /**
+   * A day's earnings for everybody still working in a village.
+   *
+   * Nobody earns while the place is being raided, which is the whole reason a village under
+   * pressure stays poor and one left alone slowly does not: prosperity is a thing the player can
+   * protect rather than a number that only goes up.
+   */
+  private trade(village: Settlement, pressure: number): void {
+    for (const person of village.people) {
+      person.purse = Math.min(PROSPER.MOST, person.purse + earnedInADay(person, pressure));
+    }
+  }
+
   private liveADay(name: string, village: Settlement, day: number): Change[] {
+    this.trade(village, this.pressure.get(name) ?? 0);
     const changes = [
       ...this.buryTheOld(village, day),
       ...this.fillTheGaps(name, village, day),
@@ -344,6 +373,7 @@ export class Register {
       born: day,
       lives: Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE)),
       mother: '', father: '', knows: [], memories: [],
+      purse: 0,                                  // a baby has nothing; a trade is what starts it
     };
   }
 

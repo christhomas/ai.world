@@ -76,10 +76,10 @@ export function stampPath(chunk: ChunkData, ox: number, oz: number, s: Structure
 }
 
 /** The building prop goes on the centre tile, but only when that tile is in the chunk interior (props are emitted once). */
-export function stampCentreProp(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+export function stampCentreProp(chunk: ChunkData, ox: number, oz: number, s: Structure, storeys = 1): void {
   const idx = interiorIndex(chunk, ox, oz, s.tx, s.tz);
   if (idx < 0) return;
-  chunk.prop[idx] = structureProp(s);
+  chunk.prop[idx] = structureProp(s, storeys);
   chunk.propRot[idx] = s.rot;
 }
 
@@ -115,9 +115,20 @@ function interiorIndex(chunk: ChunkData, ox: number, oz: number, tx: number, tz:
   return lz * chunk.size + lx;
 }
 
-export function structureProp(s: Structure): PropKind {
+/**
+ * What a structure is drawn as.
+ *
+ * `storeys` is how the village's prosperity reaches the eye: a house whose owner has done well
+ * has another floor in it. It is asked for at the moment a chunk is built rather than baked into
+ * the structure, so a village that grows richer while you are away is taller when you come back —
+ * chunks are rebuilt whenever they reload, so nothing has to be told to change.
+ */
+export function structureProp(s: Structure, storeys = 1): PropKind {
   switch (s.kind) {
-    case StructureKind.House: return (PropKind.HousePlains + s.biome) as PropKind;
+    case StructureKind.House:
+      return storeys > 1
+        ? (PropKind.TallHousePlains + s.biome) as PropKind
+        : (PropKind.HousePlains + s.biome) as PropKind;
     case StructureKind.Church: return (PropKind.ChurchPlains + s.biome) as PropKind;
     case StructureKind.Well: return PropKind.Well;
     case StructureKind.Shrine: return PropKind.Shrine;

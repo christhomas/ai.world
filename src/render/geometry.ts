@@ -25,24 +25,36 @@ export const CHURCH_WINDOWS: WindowSpec[] = [
 
 export interface HouseStyle { wall: number; roof: number; trim: number; roofType: 'gable' | 'flat' | 'steep' }
 
-/** Small cottage on a 3x3 footprint; door faces +x. */
-export function house(st: HouseStyle): THREE.BufferGeometry {
+/**
+ * Small cottage on a 3x3 footprint; door faces +x.
+ *
+ * `storeys` is what a villager who has done well buys with it: the same house with another floor
+ * under the same roof, and a second row of windows to say so from a distance.
+ */
+export function house(st: HouseStyle, storeys = 1): THREE.BufferGeometry {
+  const lift = (storeys - 1) * 1.2;
   const parts: THREE.BufferGeometry[] = [
     part(new THREE.BoxGeometry(2.6, 0.2, 2.6), st.trim, [0, 0.1, 0]),
-    part(new THREE.BoxGeometry(2.4, 1.5, 2.4), st.wall, [0, 0.95, 0]),
+    part(new THREE.BoxGeometry(2.4, 1.5 + lift, 2.4), st.wall, [0, 0.95 + lift / 2, 0]),
     part(new THREE.BoxGeometry(0.08, 0.95, 0.62), 0x3a2a1a, [1.22, 0.68, 0]),
     ...HOUSE_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(...size), 0x9fd4ef, pos)),
     part(new THREE.BoxGeometry(0.55, 0.16, 0.9), st.trim, [1.5, 0.08, 0]),
   ];
+  // an upper row of windows, so the extra floor reads as a floor rather than as a taller box
+  if (lift > 0) {
+    for (const [size, pos] of HOUSE_WINDOWS) {
+      parts.push(part(new THREE.BoxGeometry(...size), 0x9fd4ef, [pos[0], pos[1] + lift, pos[2]]));
+    }
+  }
   if (st.roofType === 'flat') {
-    parts.push(part(new THREE.BoxGeometry(2.7, 0.3, 2.7), st.roof, [0, 1.85, 0]));
-    parts.push(part(new THREE.BoxGeometry(2.7, 0.3, 0.2), st.trim, [0, 2.1, 1.25]));
-    parts.push(part(new THREE.BoxGeometry(2.7, 0.3, 0.2), st.trim, [0, 2.1, -1.25]));
-    parts.push(part(new THREE.BoxGeometry(0.2, 0.3, 2.7), st.trim, [-1.25, 2.1, 0]));
+    parts.push(part(new THREE.BoxGeometry(2.7, 0.3, 2.7), st.roof, [0, 1.85 + lift, 0]));
+    parts.push(part(new THREE.BoxGeometry(2.7, 0.3, 0.2), st.trim, [0, 2.1 + lift, 1.25]));
+    parts.push(part(new THREE.BoxGeometry(2.7, 0.3, 0.2), st.trim, [0, 2.1 + lift, -1.25]));
+    parts.push(part(new THREE.BoxGeometry(0.2, 0.3, 2.7), st.trim, [-1.25, 2.1 + lift, 0]));
   } else {
     const h = st.roofType === 'steep' ? 1.6 : 1.1;
-    parts.push(prism(3.0, h, 3.0, st.roof, [0, 1.7, 0]));
-    parts.push(part(new THREE.BoxGeometry(0.34, 0.9, 0.34), st.trim, [-0.7, 1.7 + h * 0.55, 0.7]));
+    parts.push(prism(3.0, h, 3.0, st.roof, [0, 1.7 + lift, 0]));
+    parts.push(part(new THREE.BoxGeometry(0.34, 0.9, 0.34), st.trim, [-0.7, 1.7 + lift + h * 0.55, 0.7]));
   }
   return merge(parts);
 }
