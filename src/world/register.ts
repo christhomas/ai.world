@@ -1,4 +1,5 @@
 import { PROSPER, earnedInADay } from './prosperity';
+import { cellarCap, eat, grownInADay } from './food';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Person } from './people';
@@ -25,12 +26,17 @@ export interface Change {
   village: string;
   day: number;
   /** How they went, for a death: their years, or something with teeth. */
-  cause?: 'age' | 'violence';
+  cause?: 'age' | 'violence' | 'hunger';
 }
 
 /** A village the register has been told about, so it knows how big to keep it. */
 interface Settlement {
   people: Person[];
+  /**
+   * Meals in the store. Grown by whoever farms, eaten every day, and spoiling past what a cellar
+   * of this size can keep — so a village cannot bank a good decade against a bad year.
+   */
+  food: number;
   /** The day the last of them died, for a place that has been emptied. */
   emptied?: number;
   /** The size it was founded at. Births aim to hold it near this. */
@@ -90,7 +96,8 @@ export class Register {
     if (known) return known.people;
 
     const people = foundVillage(this.seed, village, houses, trades);
-    const settlement: Settlement = { people, founded: people.length, houses, trades };
+    // a village is founded with a few days in the cellar, not starving on its first morning
+    const settlement: Settlement = { people, founded: people.length, houses, trades, food: people.length * 3 };
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) this.liveADay(village, settlement, day);
     return settlement.people;
@@ -222,6 +229,7 @@ export class Register {
     this.trade(village, this.pressure.get(name) ?? 0);
     const changes = [
       ...this.buryTheOld(village, day),
+      ...this.dinner(village, day),
       ...this.fillTheGaps(name, village, day),
       ...this.growUp(name, village, day),
       ...this.takeTheKilled(village, day),
@@ -273,6 +281,26 @@ export class Register {
     if (!settlement) return;
     this.villages.delete(village);
     this.settle(village, settlement.houses, settlement.trades);
+  }
+
+  /**
+   * What a village grew and what it ate.
+   *
+   * The drain the whole economy needed: gold matters because bread costs money, and prosperity
+   * matters because a poor village buries people. Whoever cannot pay for what there is goes
+   * without, and long enough without is what kills them.
+   */
+  private dinner(village: Settlement, day: number): Change[] {
+    const pressure = this.pressure.get(village.people[0]?.village ?? '') ?? 0;
+    village.food = Math.min(
+      cellarCap(village.people),
+      village.food + grownInADay(village.people, pressure),
+    );
+    const meal = eat(village.people, village.food);
+    village.food = Math.max(0, village.food - meal.eaten);
+    return meal.starved
+      .map((p) => this.remove(p, day, 'hunger'))
+      .filter((c): c is Change => c !== null);
   }
 
   private buryTheOld(village: Settlement, day: number): Change[] {
@@ -349,7 +377,7 @@ export class Register {
    * Take somebody off the register and leave them in the memory of the people who knew them.
    * There is no book of the dead: asking a villager is how you find out somebody is gone.
    */
-  private remove(person: Person, day: number, cause: 'age' | 'violence'): Change | null {
+  private remove(person: Person, day: number, cause: 'age' | 'violence' | 'hunger'): Change | null {
     const village = this.villages.get(person.village);
     if (!village) return null;
     const at = village.people.indexOf(person);
@@ -373,7 +401,7 @@ export class Register {
       born: day,
       lives: Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE)),
       mother: '', father: '', knows: [], memories: [],
-      purse: 0,                                  // a baby has nothing; a trade is what starts it
+      purse: 0, hungry: 0,                                  // a baby has nothing; a trade is what starts it
     };
   }
 

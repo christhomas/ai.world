@@ -25,9 +25,9 @@ export const PROSPER = {
    * at a subsistence rate instead of a village quietly starving because nobody visited it, and it
    * is deliberately far below what an afternoon of real trade brings in.
    */
-  A_DAY: 1,
+  A_DAY: 1.5,
   /** A shopkeeper or an innkeeper does better; the trades that serve everybody else. */
-  TRADED: 2,
+  TRADED: 3,
   /** Nobody earns while the place is being raided; below this pressure, business as usual. */
   UNTROUBLED: 0.25,
   /** What a second storey costs its owner. */

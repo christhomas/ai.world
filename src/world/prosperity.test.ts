@@ -4,7 +4,7 @@ import type { Person } from './people';
 
 const person = (trade: string): Person => ({
   id: 'x', name: 'Maren', village: 'Ashford', trade, born: -30, lives: 70,
-  mother: '', father: '', knows: [], memories: [], purse: 0,
+  mother: '', father: '', knows: [], memories: [], purse: 0, hungry: 0,
 });
 
 /**

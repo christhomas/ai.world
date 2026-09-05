@@ -69,6 +69,13 @@ export interface Person {
    * it has more than it needs.
    */
   purse: number;
+  /**
+   * Days running without a meal. Nought for anybody who ate today.
+   *
+   * Somebody goes without either because the village has no food or because they could not pay
+   * for what there was, which is what makes a purse the difference between eating and not.
+   */
+  hungry: number;
 }
 
 /** Which part of a life somebody is in, on a given day. */
@@ -154,6 +161,7 @@ function born(
     knows: [],
     memories: [],
     purse: 0,
+    hungry: 0,
   };
 }
 
