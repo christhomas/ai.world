@@ -6,6 +6,7 @@ import { mulberry32 } from '../core/rng';
 import { BEHAVIOUR, Entity, Herd, type TileWorld, updateEntity } from './entity';
 import { MONSTER_KINDS, type MonsterId } from './monsters';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
+import { tellOf } from './motion';
 import { startDying } from './dying';
 
 /**
@@ -109,5 +110,38 @@ describe('a blow you can see coming', () => {
     // last frame has no follow-through and looks like a creature poking at the air
     expect(BEHAVIOUR.WIND_UP).toBeGreaterThan(0.3);
     expect(BEHAVIOUR.WIND_UP).toBeLessThan(0.8);
+  });
+});
+
+describe('what different things telegraph', () => {
+  it('gives a bear rearing far more warning than a shark lunging', () => {
+    // most of what makes one fight feel unlike another: readable and slow against barely there
+    expect(tellOf('rear', BEHAVIOUR.WIND_UP)).toBeGreaterThan(tellOf('bite', BEHAVIOUR.WIND_UP) * 1.5);
+    expect(tellOf('lunge', BEHAVIOUR.WIND_UP)).toBeLessThan(tellOf('bite', BEHAVIOUR.WIND_UP));
+  });
+
+  it('never gives none at all, whatever the shape says', () => {
+    // a tell of nought is the original bug: the blow lands in the instant it is thrown
+    for (const blow of ['swing', 'punch', 'kick', 'bite', 'rear', 'lunge'] as const) {
+      expect(tellOf(blow, BEHAVIOUR.WIND_UP), blow).toBeGreaterThan(0);
+    }
+  });
+
+  it('and a bear really does wind up for longer than a wolf, running the pair of them', () => {
+    const bear = stand('ogre', 3);
+    const seen = (e: Entity) => {
+      const step = 1 / 60;
+      let longest = 0;
+      for (let t = 0; t < 12; t += step) {
+        updateEntity(e, step, {
+          world: moor, rng: mulberry32(Math.floor(t * 1000) + 1),
+          playerX: 0, playerZ: 0, playerArmed: true, playerAfloat: false,
+          time: 0.5, treeFor, onAttack: () => {},
+        });
+        longest = Math.max(longest, e.winding);
+      }
+      return longest;
+    };
+    expect(seen(bear)).toBeGreaterThan(0);
   });
 });

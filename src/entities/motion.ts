@@ -78,6 +78,14 @@ interface DyingFile {
 interface Strike {
   lasts: number;
   wind: number;
+  /**
+   * The share of the blow that happens before it lands, which is how much warning it gives.
+   *
+   * Optional: a blow without one falls back to BEHAVIOUR.WIND_UP, so adding a shape to the file
+   * never silently makes it unreadable. It lives here rather than on the creature because it is a
+   * property of the movement — a rear is slow to arrive whoever is rearing.
+   */
+  tell?: number;
   turn?: Partial<Record<AnimRole, number>>;
   /** Tips the whole body rather than a limb, which is the only way a rear reads. */
   lean?: number;
@@ -228,6 +236,11 @@ for (const [name, turn] of Object.entries(DYING.turn ?? {})) {
 for (const [name, blow] of Object.entries(BLOWS)) {
   if (!(blow.lasts > 0) || blow.lasts > SANE_LASTS) fault(`blows.${name}.lasts`, `must be between 0 and ${SANE_LASTS} seconds`);
   if (!(blow.wind >= 0) || blow.wind >= 1) fault(`blows.${name}.wind`, 'must be a share of the blow, from 0 up to but not including 1');
+  // a tell of nought would land the blow in the same instant it was thrown, which is the exact bug
+  // the wind-up exists to fix; one of a whole would land it after the animation had finished
+  if (blow.tell !== undefined && (!(blow.tell > 0) || blow.tell >= 1)) {
+    fault(`blows.${name}.tell`, 'must be a share of the blow, above 0 and below 1');
+  }
   if (blow.lean !== undefined) figure(`blows.${name}.lean`, blow.lean, SANE_TURN);
   for (const [part, turn] of Object.entries(blow.turn ?? {})) {
     role(`blows.${name}.turn`, part);
@@ -292,6 +305,19 @@ export function blowOf(kind: Pick<AnimalKind, 'blow' | 'parts'>): Blow {
 /** How long the named blow takes, for whoever starts one. */
 export function lastsFor(blow: Blow): number {
   return BLOWS[blow].lasts;
+}
+
+/**
+ * How long the named blow takes to arrive, in seconds.
+ *
+ * This is the warning the thing in front of you gives, and it is deliberately not the same for
+ * everything: a bear rearing is readable from across a clearing and a shark is on you before you
+ * have decided anything. That spread is most of what makes one fight feel unlike another.
+ *
+ * @param fallback the share to use for a blow whose shape does not name one
+ */
+export function tellOf(blow: Blow, fallback: number): number {
+  return BLOWS[blow].lasts * (BLOWS[blow].tell ?? fallback);
 }
 
 /** Whether the named blow alternates hands. */

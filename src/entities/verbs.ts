@@ -1,7 +1,7 @@
 import { act, type Node, type Tick } from '../core/behaviour';
 import type { Params, Vocabulary } from '../core/behaviourFile';
 import { BEHAVIOUR, canStand, throwBlow, yawFor, type Entity, type Post, type TileWorld } from './entity';
-import { blowOf } from './motion';
+import { blowOf, tellOf } from './motion';
 import type { Rng } from '../core/rng';
 
 /**
@@ -213,8 +213,11 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
         self.yaw = yawFor(aim.x - self.x, aim.z - self.z);
         // every creature in the game attacks through this one verb, so it is the only place a
         // blow has to be thrown for wolves, bears, constables and hired swords all to swing
-        throwBlow(self, blowOf(self.kind));
-        self.winding = self.strike * BEHAVIOUR.WIND_UP;
+        const shape = blowOf(self.kind);
+        throwBlow(self, shape);
+        // how much warning this particular blow gives, which is the blow's own business: a bear's
+        // rear is slow and readable, a shark's lunge is barely there at all
+        self.winding = tellOf(shape, BEHAVIOUR.WIND_UP);
         return 'running';
       }
 
