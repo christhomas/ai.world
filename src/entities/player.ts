@@ -55,7 +55,19 @@ export class Player {
     this.entity.x = x; this.entity.z = z;
     this.placed = false;
     this.riding = false;
+    this.warped = true;
   }
+
+  /**
+   * Set by a teleport and cleared by the next update, which takes the camera along.
+   *
+   * The camera follows the hero by easing toward him a little each frame, and that easing sits
+   * past the early return taken while a dialogue is open — so being carried off after a knockout
+   * left the view behind at the place you fell, watching an empty patch of grass, and then sliding
+   * across the county once you dismissed the dialogue. Every other teleport in the game had the
+   * same slide: out of a dungeon, off a ferry, into a cell.
+   */
+  private warped = false;
 
   get x(): number { return this.entity.x; }
   get z(): number { return this.entity.z; }
@@ -90,6 +102,14 @@ export class Player {
     // pressing attack looks like pressing nothing at all.
     if (e.strike > 0) e.strike = Math.max(0, e.strike - dt);
     if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
+    // whoever moved him, the view goes too, and before anything below can return early. The height
+    // is left to ease: the ground under the new place may not have loaded yet, and a camera that
+    // drops to nought and climbs back is worse than one that settles.
+    if (this.warped) {
+      this.warped = false;
+      iso.target.x = e.x;
+      iso.target.z = e.z;
+    }
     if (this.riding) {
       e.walk += (0 - e.walk) * Math.min(1, dt * 10); e.phase += dt * 1.5; e.bobY = 0;
       const k = Math.min(1, dt * 7);

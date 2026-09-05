@@ -83,6 +83,25 @@ export class Register {
   }
 
   /**
+   * Villages with a mine on their doorstep, which is what lets them raise miners.
+   *
+   * The trade needs high ground to be offered at all, and villages are put where people would
+   * live rather than where the rock is — so out of seventeen villages, eight had a claimed mine
+   * and only four of those had anybody to work it. Four miners in the whole world, which made the
+   * one thing that mints money nearly invisible.
+   *
+   * A cave full of gold within a morning's walk is the reason to be a miner, and it is a better
+   * reason than the shape of the ground behind the village. Told to the register from outside
+   * because who works which hole is the game's business, not the register's.
+   */
+  private worksAMine = new Set<string>();
+
+  /** Which villages have a mine. Must be said before anybody settles, or the founding misses it. */
+  minesAt(villages: Iterable<string>): void {
+    this.worksAMine = new Set(villages);
+  }
+
+  /**
    * Introduce a village. The first call founds its families from the seed; later calls just hand
    * back who lives there now, so it is safe to call every time the player walks into the place.
    *
@@ -95,7 +114,17 @@ export class Register {
     const known = this.villages.get(village);
     if (known) return known.people;
 
-    const people = foundVillage(this.seed, village, houses, trades);
+    /**
+     * A village with a mine has somebody down it — exactly one somebody, and the rest of the
+     * village is founded as though the mine were not there.
+     *
+     * Putting `miner` into the weighted list instead was the obvious move and it was wrong: adding
+     * an option reshuffles every draw, so mining villages came out with systematically fewer of
+     * everything else. Ashford lost its only farmer to it and Fernreach ended up with five miners
+     * out of twelve adults, which is not a village with a mine, it is a mine with a village.
+     */
+    const mining = this.worksAMine.has(village);
+    const people = foundVillage(this.seed, village, houses, trades, mining ? ['miner'] : []);
     // a village is founded with a few days in the cellar, not starving on its first morning
     const settlement: Settlement = { people, founded: people.length, houses, trades, food: people.length * 3 };
     this.villages.set(village, settlement);

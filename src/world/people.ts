@@ -113,7 +113,18 @@ export function remember(person: Person, memory: Memory): void {
  * They are not all born on day one. Ages are spread across a life so a village starts with
  * children, parents and the old in it, rather than a cohort who all die in the same week.
  */
-export function foundVillage(seed: number, village: string, houses: number, trades: string[]): Person[] {
+/**
+ * Found a village.
+ *
+ * `must` names trades the village cannot be without, because it has the thing that demands them.
+ * Offering a trade is not the same as having one: a mining village drew its people from a weighted
+ * list where `miner` was one option among a dozen, so out of seventeen villages only four had
+ * anybody underground at all — and mining is where every coin in the world is minted. A trade the
+ * place exists around has to be filled rather than hoped for.
+ */
+export function foundVillage(
+  seed: number, village: string, houses: number, trades: string[], must: readonly string[] = [],
+): Person[] {
   const rng = mulberry32(derive(seed, SALT.PEOPLE) ^ hashName(village));
   const people: Person[] = [];
   const lifeOf = (): number =>
@@ -138,6 +149,17 @@ export function foundVillage(seed: number, village: string, houses: number, trad
       child.trade = '';                        // a trade comes with growing up
       people.push(child);
     }
+  }
+
+  // whatever the village cannot be without, somebody is doing. Taken from the last grown-up who
+  // is not already doing one of these jobs, and a farmer last of all: a place can survive nobody
+  // going down the mine for a week, and cannot survive nobody putting dinner on the table.
+  const grown = people.filter((p) => p.trade !== '');
+  for (const trade of must) {
+    if (grown.some((p) => p.trade === trade)) continue;
+    const spare = [...grown].reverse().find((p) => p.trade !== 'farmer' && !must.includes(p.trade))
+      ?? [...grown].reverse().find((p) => !must.includes(p.trade));
+    if (spare) spare.trade = trade;
   }
 
   // and everybody knows a handful of their neighbours

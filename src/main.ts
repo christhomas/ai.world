@@ -301,6 +301,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
    * out once: the ground does not move and neither do the villages standing on it.
    */
   const claimed = claimedMines(structures.villages, structures.caves);
+  // said before anybody settles, because a village is founded once and its trades are fixed then:
+  // tell the register after the fact and the mining village has already been raised without miners
+  register.minesAt(claimed.keys());
   /**
    * What a village believes about its mine, for anybody who has to put it into words.
    *
