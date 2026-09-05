@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EYRIE, eyrieAt, planEyries, tooDear } from './eyries';
 import type { Massif } from '../world/mountains';
 
-const range = (x: number, z: number, radius: number): Massif => ({ x, z, radius, height: 80 });
+const range = (x: number, z: number, radius: number): Massif => ({ x, z, radius, height: 80, hollow: 0 });
 const anywhere = (): boolean => true;
 
 /**

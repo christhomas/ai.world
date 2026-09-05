@@ -68,6 +68,10 @@ export const MOUNTAIN = {
   INLAND: 30,
   /** How coarsely the world is searched for somewhere to stand a mountain, in tiles. */
   GRID: 22,
+  /** How much of a bowl's reach is the floor the village stands on. */
+  BOWL_FLOOR: 0.42,
+  /** And how sharply the wall comes up off that floor, as a share of what is left. */
+  BOWL_WALL: 0.2,
 } as const;
 
 /** One mountain: where it stands, how far it reaches, and how high it gets. */
@@ -78,6 +82,16 @@ export interface Massif {
   radius: number;
   /** Terraces above the ground at the summit. */
   height: number;
+  /**
+   * Tiles at the middle where nothing is lifted at all, which turns the massif inside out.
+   *
+   * Nought for an ordinary mountain. Set, it becomes a ring of high country around a flat floor —
+   * a village sits in the bowl with its ground untouched, the walls stand all round it, and the
+   * roads it already had are the only ways in, because a road is never lifted. Done this way
+   * rather than by dropping a mountain on top of a village, which does not bury it but does take
+   * away the flat ground its houses need, so the village lays itself out somewhere else instead.
+   */
+  hollow: number;
 }
 
 /**
@@ -118,8 +132,35 @@ export function planMassifs(
         x: region.cx, z: region.cz,
         radius: Math.max(MOUNTAIN.NARROWEST, Math.min(MOUNTAIN.WIDEST, reach)),
         height: Math.round(MOUNTAIN.SHORTEST + rng() * (MOUNTAIN.TALLEST - MOUNTAIN.SHORTEST)),
+        hollow: 0,
       });
     }
+    // One village in the world sits inside the mountains rather than beside them: a ring of high
+    // country round a flat floor, with the roads it already had as the only ways in or out. The
+    // start village is never chosen — being walled in on your first morning is a cage, not a
+    // discovery — and neither is one already standing in a range.
+    const bowlRadius = MOUNTAIN.NARROWEST + rng() * (MOUNTAIN.WIDEST - MOUNTAIN.NARROWEST);
+    /** A wall is only a wall if it goes all the way round: no bowl half of which is open sea. */
+    const ringedByLand = (v: { x: number; z: number }): boolean => {
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        if (!ground(v.x + Math.cos(a) * bowlRadius * 0.85, v.z + Math.sin(a) * bowlRadius * 0.85)) return false;
+      }
+      return true;
+    };
+    const bowlAt = villages
+      .filter((v) => Math.hypot(v.x, v.z) > MOUNTAIN.CLEAR_OF_VILLAGES * 2)
+      .filter((v) => !ranges.some((m) => Math.hypot(m.x - v.x, m.z - v.z) < m.radius + MOUNTAIN.CLEAR_OF_VILLAGES))
+      .filter(ringedByLand)
+      .sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
+    if (bowlAt) {
+      ranges.push({
+        x: bowlAt.x, z: bowlAt.z, radius: bowlRadius,
+        hollow: bowlRadius * MOUNTAIN.BOWL_FLOOR,
+        height: Math.round(MOUNTAIN.SHORTEST + rng() * (MOUNTAIN.TALLEST - MOUNTAIN.SHORTEST)),
+      });
+    }
+
     return ranges;
   }
 
@@ -151,6 +192,7 @@ export function planMassifs(
       z: spot.z,
       radius: MOUNTAIN.NARROWEST + rng() * (MOUNTAIN.WIDEST - MOUNTAIN.NARROWEST),
       height: Math.round(MOUNTAIN.SHORTEST + rng() * (MOUNTAIN.TALLEST - MOUNTAIN.SHORTEST)),
+      hollow: 0,
     });
   }
   return out;
@@ -182,8 +224,20 @@ export function upliftRawAt(x: number, z: number, massifs: readonly Massif[], ro
   for (const m of massifs) {
     const away = Math.hypot(x - m.x, z - m.z);
     if (away >= m.radius) continue;
-    // 1 across the summit, falling to 0 over the outer SHOULDER of the reach
-    const shelf = smooth((m.radius - away) / (m.radius * MOUNTAIN.SHOULDER));
+    let shelf: number;
+    if (m.hollow <= 0) {
+      // an ordinary mountain: 1 across the summit, falling to 0 over the outer SHOULDER
+      shelf = smooth((m.radius - away) / (m.radius * MOUNTAIN.SHOULDER));
+    } else {
+      // a bowl: nothing at all on the floor, a wall coming up off its rim, then the same fall away
+      if (away <= m.hollow) continue;
+      const span = m.radius - m.hollow;
+      const out = away - m.hollow;
+      shelf = Math.min(
+        smooth(out / Math.max(1, span * MOUNTAIN.BOWL_WALL)),
+        smooth((span - out) / Math.max(1, span * MOUNTAIN.SHOULDER)),
+      );
+    }
     const lift = m.height * shelf;
     if (lift > most) most = lift;
   }
