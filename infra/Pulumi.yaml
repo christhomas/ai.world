@@ -1,0 +1,6 @@
+name: ai-world-home
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm
+description: The home server that serves the world, declared rather than remembered.

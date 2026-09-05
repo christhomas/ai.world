@@ -8,3 +8,6 @@ server/data/
 
 # agent worktrees live here; they are checkouts, not content
 .claude/worktrees/
+
+# Pulumi stack state and local config for the homelab
+infra/Pulumi.*.yaml
