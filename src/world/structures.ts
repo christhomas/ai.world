@@ -1,3 +1,4 @@
+import { footprintLevel } from './footprint';
 import { GRAPH } from '../core/config';
 import { mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
@@ -277,19 +278,8 @@ export function generateStructures(sampler: TerrainSampler): Structures {
   /** All tiles of a footprint are flat land at `level`, with no water/road, and no other structure nearby. */
   const footprintOk = (tx: number, tz: number, hw: number, hd: number, level: number | null): number | null => {
     if (plazaR > 0 && Math.hypot(tx + 0.5 - plazaX, tz + 0.5 - plazaZ) < plazaR + hw + 2) return null;
-    let lvl = level;
-    for (let dz = -hd - 1; dz <= hd + 1; dz++) {
-      for (let dx = -hw - 1; dx <= hw + 1; dx++) {
-        sampler.sampleTile(tx + dx, tz + dz, sample);
-        const t = sample.type;
-        const inner = Math.abs(dx) <= hw && Math.abs(dz) <= hd;
-        if (t === TileType.Skip || t === TileType.Seabed || t === TileType.Water || t === TileType.Bridge) return null;
-        if (inner && t === TileType.Road) return null;
-        if (!inner) continue; // the yard ring may be a road or slope; it just must be land
-        if (lvl === null) lvl = sample.level;
-        else if (sample.level !== lvl) return null;
-      }
-    }
+    const lvl = footprintLevel(sampler, tx, tz, hw, hd, level, sample);
+    if (lvl === null) return null;
     for (const s of all) {
       if (s.kind === StructureKind.Plaza) continue;
       if (Math.abs(s.tx - tx) <= s.hw + hw + 1 && Math.abs(s.tz - tz) <= s.hd + hd + 1) return null;
