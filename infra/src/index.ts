@@ -2,6 +2,7 @@ import * as pulumi from '@pulumi/pulumi';
 import { AptPackage } from './resources/apt';
 import { ManagedFile } from './resources/file';
 import { SystemdUnit } from './resources/systemd';
+import { User } from './resources/user';
 import type { Host } from './ssh';
 
 /**
@@ -77,12 +78,26 @@ ReadWritePaths=${HOME}/data
 WantedBy=multi-user.target
 `;
 
+/**
+ * Who the game runs as.
+ *
+ * Its own account rather than the login user, so a compromise of the thing facing the internet is a
+ * compromise of a shell-less account that owns one directory. `nologin` because nothing should ever
+ * be logging in as it, and a service account with a real shell is an invitation nobody sent.
+ */
+const owner = new User('aiworld', host, {
+  name: SERVICE_USER,
+  home: HOME,
+  shell: '/usr/sbin/nologin',
+  createHome: true,
+});
+
 const service = new SystemdUnit('aiworld', host, {
   name: 'aiworld',
   unit,
   enabled: true,
   started: true,
-}, { dependsOn: [node] });
+}, { dependsOn: [node, owner] });
 
 /**
  * A note on the machine saying what put it there.
