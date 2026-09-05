@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EYRIE, eyrieAt, planEyries, tooDear } from './eyries';
+import { EYRIE, SKYWARD, eyrieAt, packWeight, planEyries, tooDear, tooHeavy } from './eyries';
 import type { Massif } from '../world/mountains';
 
 const range = (x: number, z: number, radius: number): Massif => ({ x, z, radius, height: 80, hollow: 0 });
@@ -72,5 +72,38 @@ describe('being spoken to by a bird', () => {
     const said = tooDear(eyries[0], 3);
     expect(said).toContain(String(eyries[0].fare));
     expect(said).toContain('3');
+  });
+});
+
+/**
+ * The flight up to a village in the clouds, which is the same bird with a different job.
+ *
+ * Everything worth testing here is about the asymmetry. Going up can be refused — for the fare and
+ * for the load — and the refusal has to say which. Coming back down is not modelled at all,
+ * because it costs nothing and is answered for by the island itself: see `game/skies.ts`.
+ */
+describe('the flight into the clouds', () => {
+  it('weighs a pack by what is in it, and a loaf is a loaf', () => {
+    expect(packWeight([['apple', 3], ['sword', 1]])).toBe(4);
+    expect(packWeight([['wood', 2]])).toBe(SKYWARD.HEAVY.wood * 2);
+  });
+
+  it('carries an ordinary traveller without comment', () => {
+    expect(tooHeavy([['apple', 4], ['bread', 2], ['sword', 1], ['rope', 1], ['potion', 3]])).toBeNull();
+  });
+
+  it('will not lift a timber run, and says which part of it is the trouble', () => {
+    const load = tooHeavy([['wood', 9], ['apple', 1]]);
+    expect(load).not.toBeNull();
+    expect(load!.worst).toBe('wood');
+    expect(load!.weight).toBeGreaterThan(SKYWARD.LIFT);
+  });
+
+  it('will not lift a cart at all, whatever else is in the pack', () => {
+    expect(tooHeavy([['cart', 1]])!.worst).toBe('cart');
+  });
+
+  it('charges the same wherever the fall is, because the height is the same', () => {
+    expect(SKYWARD.FARE).toBeGreaterThan(EYRIE.FARE_BASE);
   });
 });

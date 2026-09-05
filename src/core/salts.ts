@@ -36,6 +36,7 @@ export const SALT = {
   MESH: 0x6ce5,             // the polygons the world is tiled with, and which of them are dry
   MOUNTAINS: 0x3a17,        // where the massifs stand, and how high each one gets
   EYRIE: 0xea61,            // which crag each eagle waits on, and which way it faces
+  SKY: 0x5c1e,              // which islands have another one floating over them, and its shape
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

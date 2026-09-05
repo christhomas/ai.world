@@ -80,7 +80,15 @@ const SIDES: readonly Side[] = [
   { dx: 0, dz: -1, mine: [0, 1], theirs: [3, 2], a: [0, 0], b: [1, 0], nx: 0, nz: -1 }, // north
 ];
 
-class MeshBuilder {
+/**
+ * Somewhere to push flat-shaded quads and get one buffer out.
+ *
+ * Exported because the chunks are no longer the only thing in this world built out of coloured
+ * facets: a sky island is cut from the same terraces, walled with the same cliffs and poured off
+ * with the same water, and re-deriving winding order and vertex packing beside it would be two
+ * places to get the same thing wrong.
+ */
+export class MeshBuilder {
   positions: number[] = [];
   normals: number[] = [];
   colors: number[] = [];
