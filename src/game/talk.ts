@@ -434,6 +434,19 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     };
   };
 
+  /**
+   * The trestle, with a number against each thing on it.
+   *
+   * Selling a stack of twenty pelts used to mean twenty trips through the same three lines of
+   * patter, and the only way out of that was "sell the lot", which empties the pack of everything
+   * — no use at all when you are keeping four apples and selling the rest. Left and right on a row
+   * set how many of that one thing you mean, so the common case is two taps rather than twenty.
+   *
+   * `wanted` carries the numbers between redraws, keyed by item. It has to live outside the node
+   * because the menu is rebuilt from scratch on every nudge.
+   */
+  const wanted = new Map<string, number>();
+
   const sellMenu = (): DialogueNode => {
     const stock = sellableAt(def, ctx.state.inventory.items.entries());
     if (stock.length === 0) {
@@ -444,14 +457,35 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
       };
     }
     const all = stock.reduce((sum, s) => sum + s.price * s.count, 0);
+    // anything sold, dropped or eaten since the last look may have left a number stranded above
+    // what is actually in the pack, and offering to sell nine of six is how a shop loses its money
+    for (const { item, count } of stock) {
+      const asked = wanted.get(item.id);
+      if (asked !== undefined) wanted.set(item.id, Math.max(1, Math.min(count, asked)));
+    }
     return {
       speaker, emoji, face,
       pages: [`Let's see what you've got. ${purse()}`],
       choices: [
-        ...stock.map(({ item, count, price }) => ({
-          label: `${item.emoji} ${item.name}${count > 1 ? ` ×${count}` : ''} — ${price}g each`,
-          next: () => sell(item.id, 1),
-        })),
+        ...stock.map(({ item, count, price }) => {
+          const n = Math.max(1, Math.min(count, wanted.get(item.id) ?? 1));
+          // the arrows are only worth drawing where there is more than one to argue about
+          const dial = count > 1 ? `  ◀ ${n} of ${count} ▶` : '';
+          return {
+            label: `${item.emoji} ${item.name} — ${price * n}g${dial}`,
+            next: () => sell(item.id, n),
+            adjust: (dir: number): DialogueNode | null => {
+              if (count <= 1) return null;
+              // it wraps rather than stopping at the ends, which is the whole of what makes this
+              // usable: the key handler deliberately ignores auto-repeat, so a stack of twenty
+              // would otherwise be nineteen separate presses to sell whole. Left from one lands on
+              // all of them, which is the number people want most often after one.
+              const moved = stepWithin(n, dir, count);
+              wanted.set(item.id, moved);
+              return sellMenu();
+            },
+          };
+        }),
         ...(stock.length > 1 || stock[0].count > 1 ? [{ label: `Sell the lot (${all}g)`, next: () => sellAll(stock) }] : []),
         { label: 'Back', next: root },
       ],
@@ -467,7 +501,9 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     ctx.onInventoryChange();
     return {
       speaker, emoji, face,
-      pages: [`${sold > 1 ? `${sold} ${item.name}` : item.name} for ${paid} gold. Done.`],
+      // "4 × Wolf Pelt" rather than "4 Wolf Pelt": the names are singular and pluralising them
+      // properly would mean a plural for every item in the game to avoid writing "4 Breads"
+      pages: [`${sold > 1 ? `${sold} × ${item.name}` : item.name} for ${paid} gold. Done.`],
       choices: [{ label: 'Sell more', next: sellMenu }, { label: 'Buy something', next: buyMenu }, { label: 'Done', next: () => null }],
     };
   };
@@ -494,6 +530,23 @@ function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   });
 
   return root();
+}
+
+/**
+ * Move a quantity by one, wrapping round the ends of its range.
+ *
+ * Wrapping rather than stopping is the whole of what makes the sell dial usable. The key handler
+ * deliberately ignores auto-repeat, so a stack of twenty would be nineteen separate presses to
+ * sell whole; from one, a single press of left lands on all of them, which is the number people
+ * want most often after one.
+ *
+ * @param n where the dial is now, from 1 to count
+ * @param dir -1 or 1
+ * @param count how many there are, which is the top of the range
+ */
+export function stepWithin(n: number, dir: number, count: number): number {
+  if (count <= 1) return 1;
+  return ((n - 1 + dir) % count + count) % count + 1;
 }
 
 function capitalise(text: string): string {

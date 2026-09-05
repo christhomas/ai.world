@@ -15,6 +15,18 @@ export interface DialogueChoice {
   label: string;
   /** Return the next node, or null to close. */
   next: () => DialogueNode | null;
+  /**
+   * Left and right on this row change something about it rather than moving off it.
+   *
+   * For a choice that carries a number — how many of a thing to sell, most obviously. Selling a
+   * stack of twenty pelts one at a time meant twenty trips through the same three lines of
+   * dialogue, and the only alternative on offer was selling every last thing in the pack.
+   *
+   * Returns the whole menu again with the new number in it, or null to leave the row alone at the
+   * end of its range. The box redraws it without retyping and without losing your place on the
+   * list, so holding a key runs the number up smoothly.
+   */
+  adjust?: (dir: number) => DialogueNode | null;
 }
 
 /**
@@ -115,10 +127,31 @@ export class DialogueBox {
     this.typed = 0;
     this.acc = 0;
     this.choice = 0;
+    this.showFace(node);
     this.nameEl.textContent = node.speaker;
     this.choicesEl.innerHTML = '';
-    this.showFace(node);
     this.el.classList.add('show');
+    this.render();
+  }
+
+  /**
+   * Left or right on the highlighted row, for a choice that carries a number.
+   *
+   * Redraws in place: the same page, already typed out, with the cursor still on the row you were
+   * on. Anything else and running a quantity up from one to twenty would replay the shopkeeper's
+   * patter twenty times and drop you back at the top of the list on every press.
+   */
+  nudge(dir: number): void {
+    if (!this.node?.choices || !this.atChoices()) return;
+    const here = this.choice;
+    const changed = this.node.choices[here]?.adjust?.(dir);
+    if (!changed) return;
+    this.node = changed;
+    // stay on the same row unless the menu came back shorter than it was
+    this.choice = Math.min(here, (changed.choices?.length ?? 1) - 1);
+    this.page = changed.pages.length - 1;
+    this.typed = changed.pages[this.page].length;
+    this.nameEl.textContent = changed.speaker;
     this.render();
   }
 

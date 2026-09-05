@@ -1051,6 +1051,10 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   });
   for (const key of ['arrowup', 'w']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(-1); });
   for (const key of ['arrowdown', 's']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(1); });
+  // left and right change the highlighted row rather than leaving it: how many of a thing you mean
+  // to sell, on a menu that offers a number. Rows without one simply ignore it.
+  for (const key of ['arrowleft', 'a']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.nudge(-1); });
+  for (const key of ['arrowright', 'd']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.nudge(1); });
   window.addEventListener('resize', () => { rig.resize(); iso.resize(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 

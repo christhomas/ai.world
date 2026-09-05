@@ -4,7 +4,7 @@ import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { GameState } from './state';
 import { ITEMS, sellPrice } from './items';
-import { dialogueFor } from './talk';
+import { dialogueFor, stepWithin } from './talk';
 
 describe('shop dialogue', () => {
   const keeper = (shop: 'store' | 'smith' | 'inn' | 'apothecary', rng = mulberry32(5)) => {
@@ -212,5 +212,37 @@ describe('a room at the inn', () => {
     const said = pick(pick(dialogueFor(innkeeper(), ctx), 'Take a room'), 'Sleep');
     expect(slept).toBe(1);
     expect(said.pages[0]).toContain('sleep');
+  });
+});
+
+describe('the sell dial', () => {
+  it('steps up and down one at a time', () => {
+    expect(stepWithin(1, 1, 12)).toBe(2);
+    expect(stepWithin(5, -1, 12)).toBe(4);
+  });
+
+  it('wraps from one straight to all of them, which is the point of it', () => {
+    // the key handler ignores auto-repeat, so without this a stack of twelve is eleven presses
+    expect(stepWithin(1, -1, 12)).toBe(12);
+  });
+
+  it('wraps from all of them back round to one', () => {
+    expect(stepWithin(12, 1, 12)).toBe(1);
+  });
+
+  it('stays put when there is only one of the thing to argue about', () => {
+    expect(stepWithin(1, 1, 1)).toBe(1);
+    expect(stepWithin(1, -1, 1)).toBe(1);
+  });
+
+  it('never leaves the range, whichever way it is pushed', () => {
+    for (const count of [1, 2, 3, 12, 99]) {
+      let n = 1;
+      for (let step = 0; step < count * 3; step++) {
+        n = stepWithin(n, step % 2 === 0 ? 1 : -1, count);
+        expect(n, `count ${count}`).toBeGreaterThanOrEqual(1);
+        expect(n, `count ${count}`).toBeLessThanOrEqual(count);
+      }
+    }
   });
 });
