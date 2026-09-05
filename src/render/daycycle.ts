@@ -78,6 +78,9 @@ export class DayCycle {
       18 + Math.max(0.1, sunH) * 62,
       focusZ + 26,
     );
+    // the rig cut its shadow slab for wherever the sun was when the camera last moved, which was
+    // before this; a low sun needs a far deeper slab than a high one, so it is cut again here
+    this.rig.fitShadow();
     // the night floor is moonlight: dark enough to want a lantern, bright enough to walk by
     sun.intensity = this.daySunIntensity * (0.22 + 0.78 * day) * (1 - wet * 0.45);
     this.tmp.copy(DAY_SUN).lerp(DUSK_SUN, dusk).lerp(NIGHT_SUN, night);
