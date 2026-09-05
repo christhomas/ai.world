@@ -146,7 +146,26 @@ export class TerrainSampler {
         Math.max(a.x, b.x) + EDGE_MARGIN, Math.max(a.z, b.z) + EDGE_MARGIN);
     });
 
-    this.hydro = prebuilt ? prebuilt.hydro : generateHydrology(graph, (x, z) => this.landProbe(x, z));
+    // The mountains go in before anything reads the ground, and before the water in particular:
+    // a river has to know what it is running down. Their anchors come off the road tree rather
+    // than off the village list, because villages are structures and structures are built from
+    // the finished ground — asking them where the towns are would be a circle. The graph already
+    // knows which nodes grew towns, which is the same answer one step earlier.
+    this.massifs = planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
+      (x, z) => {
+        const probe = this.landProbe(x, z);
+        if (!probe || !probe.land) return null;
+        return { fromRoad: probe.roadDist, fromCoast: probe.landWidth - probe.roadDist };
+      }, this.mesh);
+
+    this.hydro = prebuilt ? prebuilt.hydro : generateHydrology(
+      graph,
+      (x, z) => this.landProbe(x, z),
+      // how high the ground actually is here, mountains included. Without it a river takes its
+      // height from the road it follows, roads are never lifted, and so no river in the world
+      // ever ran down a mountain.
+      (x, z, roadDist) => upliftAt(x, z, this.massifs, roadDist),
+    );
     for (const river of this.hydro.rivers) {
       for (let i = 0; i + 1 < river.length; i++) {
         const a = river[i], b = river[i + 1];
@@ -164,17 +183,6 @@ export class TerrainSampler {
       const m = l.r * 1.3 + LAKE_MARGIN;
       this.riverIndex.insert(this.riverSegs.length + i, l.x - m, l.z - m, l.x + m, l.z + m);
     });
-
-    // the mountains go in before anything reads the ground. Their anchors come off the road tree
-    // rather than off the village list, because villages are structures and structures are built
-    // from the finished ground: asking them where the towns are would be a circle. The graph
-    // already knows which nodes grew towns, which is the same answer one step earlier.
-    this.massifs = planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
-      (x, z) => {
-        const probe = this.landProbe(x, z);
-        if (!probe || !probe.land) return null;
-        return { fromRoad: probe.roadDist, fromCoast: probe.landWidth - probe.roadDist };
-      }, this.mesh);
 
     // structures sample raw terrain, so they come last
     this.structures = prebuilt ? prebuilt.structures : generateStructures(this);

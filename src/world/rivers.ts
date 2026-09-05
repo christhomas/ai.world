@@ -29,11 +29,28 @@ export interface LandProbe {
   uz: number;
 }
 
-export function generateHydrology(graph: RoadGraph, probe: (x: number, z: number) => LandProbe | null, cfg = HYDRO): Hydrology {
+export function generateHydrology(
+  graph: RoadGraph,
+  probe: (x: number, z: number) => LandProbe | null,
+  /**
+   * How many terraces the mountains add at a point, which is nought over most of the world.
+   *
+   * A river takes its height from the road it follows, and roads are never lifted by a mountain —
+   * they are the passes through it. So without this no river anywhere ran downhill off high
+   * ground, and the tallest waterfall in the world was one that happened by accident at a river
+   * mouth. With it, a river that rises on a massif falls the whole height of it.
+   */
+  uplift: (x: number, z: number, roadDist: number) => number = () => 0,
+  cfg = HYDRO,
+): Hydrology {
   const rng = mulberry32(derive(graph.seed, SALT.RIVER_RNG));
   const noise = new Simplex2D(derive(graph.seed, SALT.RIVER_MEANDER));
   const rivers: RiverNode[][] = [];
   const lakes: Lake[] = [];
+
+  /** How high the ground is at a probed point: the road's terrace plus whatever stands on it. */
+  const groundLevel = (p: LandProbe, x: number, z: number): number =>
+    p.baseLevel + uplift(x, z, p.roadDist);
 
   const nearWater = (x: number, z: number, dist: number, skipRiver = -1): boolean => {
     const d2 = dist * dist;
@@ -50,7 +67,14 @@ export function generateHydrology(graph: RoadGraph, probe: (x: number, z: number
     .map((n, i) => ({ n, i }))
     .filter(({ n }) => n.parent >= 0 && n.depth >= 4 && Math.hypot(n.x, n.z) > GRAPH.HUB_RADIUS * 1.6);
   shuffle(rng, candidates);
-  candidates.sort((a, b) => b.n.level - a.n.level); // stable: high nodes first, shuffled within a level
+  // high nodes first, shuffled within a height. "High" now counts the mountains standing on the
+  // road's own terrace, so a range with a road through it is where the rivers start.
+  const startHeight = (i: number): number => {
+    const n = graph.nodes[i];
+    const p = probe(n.x, n.z);
+    return n.level + (p ? uplift(n.x, n.z, p.roadDist) : 0);
+  };
+  candidates.sort((a, b) => startHeight(b.i) - startHeight(a.i));
   const sources: number[] = [];
   for (const { i } of candidates) {
     if (sources.length >= cfg.RIVERS) break;
@@ -73,7 +97,7 @@ export function generateHydrology(graph: RoadGraph, probe: (x: number, z: number
     if (nearWater(x, z, cfg.SOURCE_SPACING * 0.5)) continue;
 
     let hx = pr0.ux, hz = pr0.uz; // heading
-    let level = pr.baseLevel;
+    let level = groundLevel(pr, x, z);
     let width: number = cfg.RIVER_MIN_WIDTH;
     const nodes: RiverNode[] = [{ x, z, level, width }];
     let endedAtSea = false;
@@ -107,7 +131,7 @@ export function generateHydrology(graph: RoadGraph, probe: (x: number, z: number
         break;
       }
       if (nearWater(x, z, cfg.MERGE_DIST, rivers.length)) break;
-      level = Math.min(level, q.baseLevel);
+      level = Math.min(level, groundLevel(q, x, z));
       width = Math.min(cfg.RIVER_MAX_WIDTH, width + 0.05);
       nodes.push({ x, z, level, width });
     }
