@@ -77,8 +77,24 @@ export const MESH = {
    * gives bays, spits and headlands that are the same on every machine because they come from the
    * seed and the position and nothing else.
    */
-  WARP: 26,
-  WARP_SCALE: 0.011,
+  WARP: 34,
+  WARP_SCALE: 0.009,
+  /**
+   * How many octaves of noise the displacement is made of, and how each one compares to the last.
+   *
+   * One octave was not enough and the reason is worth writing down: a single wave whose length is
+   * about the width of a hex moves whole hexes around without changing their shape, so the coast
+   * came out as a chain of gently bent hexagon edges — "too uniform and too regular", which is
+   * exactly what it looked like. Coastlines are rough at every scale at once. The first octave
+   * swings whole headlands out into the sea, the second cuts bays into those headlands, and the
+   * third frets the edges of the bays; together they hide the lattice the land is grown on.
+   *
+   * Three, because the fourth is finer than a tile and nobody would ever see it.
+   */
+  WARP_OCTAVES: 3,
+  /** How much quieter each octave is than the one before, and how much shorter its waves. */
+  WARP_GAIN: 0.5,
+  WARP_LACUNARITY: 2.7,
 } as const;
 
 /** What a face is made of. The player meets these as territories, not as polygons. */
@@ -149,8 +165,8 @@ export interface WorldMesh {
  * shared and nothing tears.
  */
 export function faceAt(mesh: WorldMesh, x: number, z: number): MeshFace | null {
-  const wx = x + wobble(mesh.seed, x * MESH.WARP_SCALE, z * MESH.WARP_SCALE) * MESH.WARP;
-  const wz = z + wobble(mesh.seed ^ 0x9e37, x * MESH.WARP_SCALE, z * MESH.WARP_SCALE) * MESH.WARP;
+  const wx = x + roughen(mesh.seed, x, z) * MESH.WARP;
+  const wz = z + roughen(mesh.seed ^ 0x9e37, x, z) * MESH.WARP;
   const { q, r } = hexAt(wx, wz, mesh.size);
   if (Math.abs(q) > mesh.span || Math.abs(r) > mesh.span) return null;
   const id = mesh.lattice[(r + mesh.span) * (2 * mesh.span + 1) + (q + mesh.span)];
@@ -201,6 +217,27 @@ const NEIGHBOURS: ReadonlyArray<Axial> = [
   { q: 1, r: -1 }, { q: 1, r: 0 }, { q: 0, r: 1 },
   { q: -1, r: 1 }, { q: -1, r: 0 }, { q: 0, r: -1 },
 ];
+
+/**
+ * Noise at several scales at once, in the range of roughly a half either way.
+ *
+ * A coastline is rough at every scale — headlands with bays cut into them and the bays themselves
+ * fretted — and one wave cannot do that. This stacks a few, each shorter and quieter than the last,
+ * and divides by the total so the result keeps the range a single octave had and WARP goes on
+ * meaning what it meant.
+ */
+function roughen(seed: number, x: number, z: number): number {
+  let sum = 0, amplitude = 1, frequency = MESH.WARP_SCALE, loudest = 0;
+  for (let octave = 0; octave < MESH.WARP_OCTAVES; octave++) {
+    // each octave gets its own seed, or they would all be the same wave at different sizes and the
+    // sum would have a visible grain running through it
+    sum += wobble(seed ^ Math.imul(octave + 1, 0x85ebca6b), x * frequency, z * frequency) * amplitude;
+    loudest += amplitude;
+    amplitude *= MESH.WARP_GAIN;
+    frequency *= MESH.WARP_LACUNARITY;
+  }
+  return sum / loudest;
+}
 
 /** Smooth value noise from a hash: no object to build, so it can be used from a free function. */
 function wobble(seed: number, x: number, z: number): number {
