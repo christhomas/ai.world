@@ -142,7 +142,7 @@ export function shoot(
   const won = spoils(state, mark, seed);
   out.gold += won.gold;
   out.loot.push(...won.loot);
-  entities.despawnEntity(mark);
+  entities.killEntity(mark);
   if (out.gold > 0) { state.inventory.gold += out.gold; state.version++; }
   return out;
 }

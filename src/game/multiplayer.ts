@@ -129,7 +129,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       if (!floor || !coop.hosting || place !== placeName()) return;
       const monster = floor.monsters.onRoster(index);
       if (!monster || monster.dead) return;
-      if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.despawnEntity(monster);
+      if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.killEntity(monster);
     },
     onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
     onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },

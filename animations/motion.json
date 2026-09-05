@@ -52,6 +52,14 @@
     "turn": { "head": 0.5, "armL": -0.4, "armR": -0.4, "tail": 0.6 }
   },
 
+  "dying": {
+    "note": "Falling over for the last time. 'lasts' is how long the body takes to go down and how long it stays in the world after it is killed, so it is also how long you have to watch what you did. 'fall' is how far it topples, on the axis it rolls onto its feet on, so it goes over sideways rather than folding forward. 'sink' carries it down through the ground as it goes, which is what hands it over to the carcass lying underneath without either of them being seen to appear: by the end the body is below the grass and there is only the carcass. 'turn' is the same shape as a blow's, for whatever parts are worth throwing as it drops. Keep 'fall' near a quarter turn: a body that rolls further than that is a barrel.",
+    "lasts": 0.85,
+    "fall": 1.5,
+    "sink": 0.75,
+    "turn": { "head": 0.55, "legL": -0.7, "legR": -0.55, "armL": -0.45, "armR": -0.35, "tail": 0.5 }
+  },
+
   "blows": {
     "note": "What a creature does when it hits something. 'lasts' is seconds; 'wind' is the share of that spent going back before it comes forward, and the load is shallower than the blow because nobody draws back as far as they follow through. 'turn' is how far each limb travels at the furthest point, and 'lean' tips the whole body instead, which is how a bear reads as a bear. A creature throws the blow its kind names, or punches if it has arms and bites if it has not.",
     "swing": { "lasts": 0.42, "wind": 0.3, "turn": { "armR": 2.4 }, "mirrors": true },

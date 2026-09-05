@@ -66,6 +66,14 @@ interface FlinchFile {
   turn?: Partial<Record<AnimRole, number>>;
 }
 
+/** Going down for the last time. */
+interface DyingFile {
+  lasts: number;
+  fall: number;
+  sink: number;
+  turn?: Partial<Record<AnimRole, number>>;
+}
+
 /** One blow, from the wind-up to the furthest point of it. */
 interface Strike {
   lasts: number;
@@ -83,6 +91,7 @@ interface MotionFile {
   body: BodyFile & { note?: string };
   running: RunFile & { note?: string };
   flinch: FlinchFile & { note?: string };
+  dying: DyingFile & { note?: string };
   blows: Record<string, Strike | string>;
 }
 
@@ -114,7 +123,7 @@ const file = motion as unknown as MotionFile;
 
 // a section somebody has deleted should say so, rather than failing later as an unreadable
 // property of undefined with no hint of which file it came from
-for (const name of ['walking', 'idling', 'body', 'running', 'flinch', 'blows'] as const) {
+for (const name of ['walking', 'idling', 'body', 'running', 'flinch', 'dying', 'blows'] as const) {
   if (!file[name] || typeof file[name] !== 'object') fault(name, 'is missing from the file');
 }
 
@@ -149,6 +158,7 @@ const BLOWS: Record<string, Strike> = sectionOf<Strike>(file.blows, 'blows');
 const BODY = file.body;
 const RUN = file.running;
 const FLINCH = file.flinch;
+const DYING = file.dying;
 
 /** Which way a part turns, taken from its walk and shared by everything else that moves it. */
 function axisOf(name: string): 'x' | 'y' | 'z' {
@@ -207,6 +217,14 @@ for (const [name, turn] of Object.entries(FLINCH.turn ?? {})) {
   figure(`flinch.turn.${name}`, turn, SANE_TURN);
 }
 
+if (!(DYING.lasts > 0) || DYING.lasts > SANE_LASTS) fault('dying.lasts', `must be between 0 and ${SANE_LASTS} seconds`);
+figure('dying.fall', DYING.fall, SANE_TURN);
+figure('dying.sink', DYING.sink, SANE_LIFT);
+for (const [name, turn] of Object.entries(DYING.turn ?? {})) {
+  role('dying.turn', name);
+  figure(`dying.turn.${name}`, turn, SANE_TURN);
+}
+
 for (const [name, blow] of Object.entries(BLOWS)) {
   if (!(blow.lasts > 0) || blow.lasts > SANE_LASTS) fault(`blows.${name}.lasts`, `must be between 0 and ${SANE_LASTS} seconds`);
   if (!(blow.wind >= 0) || blow.wind >= 1) fault(`blows.${name}.wind`, 'must be a share of the blow, from 0 up to but not including 1');
@@ -227,6 +245,27 @@ export const BLOW_NAMES: readonly string[] = Object.keys(BLOWS);
  * the two together or a flinch will still be settling long after the creature can fight back.
  */
 export const FLINCH_LASTS: number = FLINCH.lasts;
+
+/**
+ * How long a body takes to fall, and so how long a killed creature stays in the world.
+ *
+ * The game counts it down itself, exactly as it counts down a stagger, so this is the file's
+ * opinion of the same length and the two have to agree.
+ */
+export const DYING_LASTS: number = DYING.lasts;
+
+/**
+ * How far through going down a body is: nought at the moment it is killed, one when it is still.
+ *
+ * It accelerates, because a body that topples at a constant rate is a plank being lowered rather
+ * than something falling, and it holds at one at the end rather than settling back — nothing gets
+ * up from this.
+ */
+export function dyingAt(dying: number): number {
+  if (dying <= 0) return 0;
+  const at = 1 - Math.min(1, dying / DYING.lasts);
+  return at * at;
+}
 
 /** Is this a blow the file knows about? */
 export function isBlow(name: string): name is Blow {
@@ -371,6 +410,8 @@ export interface Moving {
   headPitch: number;
   /** Seconds left of the stagger after a hit, which is nought for anything unharmed. */
   hurt: number;
+  /** Seconds left of going down, which is nought for anything still alive. */
+  dying: number;
 }
 
 /** One part of a cycle worked out, before it is put on an axis. */
@@ -398,13 +439,21 @@ export function cycleTurn(part: AnimRole | undefined, e: Moving): [number, numbe
   const cycle = CYCLES[part];
   const idle = IDLES[part];
   const hit = FLINCH.turn?.[part];
-  if (!cycle && !idle && hit === undefined) return [0, 0, 0];
+  const last = DYING.turn?.[part];
+  if (!cycle && !idle && hit === undefined && last === undefined) return [0, 0, 0];
 
   let turn = 0;
   if (cycle) turn += cycleValue(cycle, e, 1 + (RUN.stride - 1) * runShare(e.walk));
   // the stand fades in exactly as the walk fades out, so nothing is ever holding perfectly still
   if (idle) turn += cycleValue(idle, e, 1) * (1 - e.walk);
   if (hit !== undefined) turn += hit * flinchAt(e.hurt);
+  // and going down takes over from all of it, because a body on its way to the ground is not
+  // also breathing
+  const going = dyingAt(e.dying);
+  if (going > 0) {
+    const last = DYING.turn?.[part];
+    turn = turn * (1 - going) + (last ?? 0) * going;
+  }
 
   const axis = axisOf(part);
   return axis === 'x' ? [turn, 0, 0] : axis === 'y' ? [0, turn, 0] : [0, 0, turn];
@@ -444,5 +493,13 @@ export function bodyMotion(e: Moving): BodyMotion {
   const roll = Math.sin(e.phase) * BODY.sway * e.walk
     + Math.sin(e.phase * BODY.settleRate) * BODY.settle * still;
 
-  return { bob, lean, roll };
+  // a body going down rolls over and keeps going into the ground, which is what hands it over to
+  // the carcass lying underneath without either of them being seen to appear
+  const going = dyingAt(e.dying);
+  if (going === 0) return { bob, lean, roll };
+  return {
+    bob: bob * (1 - going) - DYING.sink * going,
+    lean: lean * (1 - going),
+    roll: roll * (1 - going) + DYING.fall * going,
+  };
 }

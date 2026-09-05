@@ -41,6 +41,7 @@ import { CropField } from './render/crops';
 import { BOAT, Sailing } from './game/sailing';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
+import { bodyMotion } from './entities/motion';
 import { TouchControls } from './ui/touch';
 import { $ } from './ui/dom';
 import { TerrainSampler } from './world/terrain';
@@ -79,7 +80,7 @@ import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
 import { goingOf, paceOf, stableAt, type Going } from './game/stables';
 import { haulPace } from './game/woodcraft';
 import { canBeCut } from './entities/monsters';
-import { PEOPLE as PEOPLE_KINDS } from './entities/manager';
+import { PEOPLE as PEOPLE_KINDS } from './entities/quarry';
 import { CampField } from './render/wildcamps';
 import type { WildCamp } from './game/wildcamps';
 import { remember } from './world/people';
@@ -1044,6 +1045,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
       others: entities.within(player.x, player.z, 30)
         .filter((e) => e.strike > 0)
         .map((e) => `${e.kind.id}: ${e.blow} ${Math.round(e.strike * 100) / 100}`),
+    });
+    (debug as { __dying?: () => unknown }).__dying = () => entities.theFallen().map((e) => {
+      const body = bodyMotion(e);
+      return {
+        kind: e.kind.id, left: Math.round(e.dying * 100) / 100,
+        roll: Math.round(body.roll * 100) / 100, bob: Math.round(body.bob * 100) / 100,
+      };
     });
     (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
     (debug as { __warband?: () => unknown }).__warband = () => ({

@@ -169,6 +169,13 @@ export class Entity {
   /** Counts down after a hit; the renderer flashes the creature white while it is positive. */
   hurt = 0;
   dead = false;
+  /**
+   * Seconds left of going down. A killed creature used to leave the world on the frame it died,
+   * which read as things blinking out of a fight rather than being beaten in one; it now keeps a
+   * body for as long as this, falls over, and sinks out of sight before it is taken away. Nothing
+   * acts, is talked to, is hit again or is counted as alive while it is positive.
+   */
+  dying = 0;
 
   constructor(
     readonly kind: AnimalKind,
@@ -369,6 +376,10 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   const k = e.kind;
   const { world } = ctx;
   if (e.role === 'mount') return;   // your horse waits where you left it
+  // a body on its way to the ground has nothing left to decide. The countdown itself is kept by
+  // the manager, so a creature killed as the hero runs out of range still finishes falling and
+  // still leaves the world rather than being left standing for ever in an unwatched field
+  if (e.dying > 0) return;
   e.timer -= dt;
 
   if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);

@@ -1,6 +1,7 @@
 import type { Entity } from '../entities/entity';
 import { damageEntity, type TileWorld } from '../entities/entity';
-import { PEOPLE, type EntityManager } from '../entities/manager';
+import { type EntityManager } from '../entities/manager';
+import { PEOPLE } from '../entities/quarry';
 import { mulberry32 } from '../core/rng';
 import type { GameState } from './state';
 import type { Deed, Standing } from './standing';
@@ -115,7 +116,8 @@ export function swing(
     out.gold += won.gold;
     out.loot.push(...won.loot);
   }
-  for (const e of out.killed) entities.despawnEntity(e);
+  // killed rather than removed: each keeps a body for as long as it takes to fall
+  for (const e of out.killed) entities.killEntity(e);
   if (out.gold > 0) { state.inventory.gold += out.gold; state.version++; }
   return out;
 }

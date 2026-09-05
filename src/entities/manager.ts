@@ -13,6 +13,8 @@ import { stageOf, type Person } from '../world/people';
 import { postsOf } from './villagers';
 import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
+import { buryTheFallen, startDying } from './dying';
+import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { blowOf } from './motion';
 import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
@@ -47,11 +49,6 @@ const BOUNTY = {
   ARREST_WORST: 45,
 } as const;
 
-/**
- * Kinds that count as people: what a predator prefers, what a constable protects, and what it is
- * murder rather than hunting to kill.
- */
-export const PEOPLE = new Set(['villager', 'traveller', 'shopkeeper', 'hero']);
 
 const ACTIVE_RANGE = 44;     // tiles; beyond this creatures freeze
 
@@ -192,7 +189,7 @@ export class EntityManager {
       world: this.world, rng: this.rng, playerX, playerZ, playerArmed,
       playerAfloat: afloat, onAttack, time, treeFor,
       quarry: (from: Entity, within: number) => this.nearestQuarry(from, within),
-      removeEntity: (prey: Entity) => this.despawnEntity(prey),
+      removeEntity: (prey: Entity) => this.killEntity(prey),
       nearestPerson: (from: Entity, within: number) => this.nearestPerson(from, within),
       nearestTrouble: (from: Entity, within: number) => this.nearestTrouble(from, within),
       strike: (attacker: Entity, victim: Entity, damage: number) => this.strike(attacker, victim, damage),
@@ -224,6 +221,7 @@ export class EntityManager {
       }
     }
     keepBodiesApart(this.spawned.values(), this.herds, playerX, playerZ, ACTIVE_RANGE, dt, this.world);
+    buryTheFallen(this.spawned.values(), dt, (e) => this.despawnEntity(e));
   }
 
   /** Closest creature within `r` tiles of a point. Anyone indoors is not there to talk to. */
@@ -231,7 +229,7 @@ export class EntityManager {
     let best: Entity | null = null, bestD = r * r;
     for (const list of this.spawned.values()) {
       for (const e of list) {
-        if (e.indoors) continue;
+        if (e.indoors || e.dead) continue;
         const d = (e.x - x) ** 2 + (e.z - z) ** 2;
         if (d < bestD) { bestD = d; best = e; }
       }
@@ -334,6 +332,28 @@ export class EntityManager {
     return herd.members[0] ?? null;
   }
 
+  /**
+   * A creature has been killed: let it fall before it leaves.
+   *
+   * This is the difference between dying and being removed. Everything that kills something comes
+   * through here, and it keeps a body for the length of the collapse; unloading a chunk, or a
+   * host telling us a monster is gone, still goes straight to `despawnEntity`, because neither of
+   * those is a death and neither should be watched.
+   *
+   * Its pace is dropped rather than left where it was, so the walk stops with it and the file's
+   * collapse is not fighting a stride that is still running underneath.
+   */
+  killEntity(e: Entity): void {
+    startDying(e);
+  }
+
+  /** Bodies presently on their way down. `within` will not return them: they are not alive. */
+  theFallen(): Entity[] {
+    const out: Entity[] = [];
+    for (const list of this.spawned.values()) for (const e of list) if (e.dying > 0) out.push(e);
+    return out;
+  }
+
   /** Drop a dead creature from the world. */
   despawnEntity(e: Entity): void {
     this.renderer.remove(e);
@@ -363,50 +383,19 @@ export class EntityManager {
   }
 
   /**
-   * The nearest wild animal worth a hunter's arrow: something that can be killed, is not a person,
-   * and is not something that would rather kill them.
+   * The three questions creatures ask of a crowd. The work is in quarry.ts; what stays here is
+   * the crowd itself, which only the manager can supply.
    */
   private nearestQuarry(from: Entity, within: number): Entity | null {
-    let best: Entity | null = null;
-    let bestAway = within;
-    for (const e of this.within(from.x, from.z, within)) {
-      if (e === from || e.dead || !e.kind.hp) continue;
-      if (PEOPLE.has(e.kind.id) || (e.kind.dangerous ?? 0) > 0) continue;
-      const away = Math.hypot(e.x - from.x, e.z - from.z);
-      if (away < bestAway) { bestAway = away; best = e; }
-    }
-    return best;
+    return nearestQuarry(from, this.within(from.x, from.z, within));
   }
 
-  /** The nearest person: somebody a wolf would rather have than a rabbit. */
   private nearestPerson(from: Entity, within: number): Entity | null {
-    let best: Entity | null = null;
-    let bestAway = within;
-    for (const e of this.within(from.x, from.z, within)) {
-      if (e === from || e.dead || e.indoors || !PEOPLE.has(e.kind.id)) continue;
-      const away = Math.hypot(e.x - from.x, e.z - from.z);
-      if (away < bestAway) { bestAway = away; best = e; }
-    }
-    return best;
+    return nearestPerson(from, this.within(from.x, from.z, within));
   }
 
-  /** The nearest creature presently going for somebody: what a constable comes running about. */
   private nearestTrouble(from: Entity, within: number): Entity | null {
-    let best: Entity | null = null;
-    let bestAway = within;
-    for (const e of this.within(from.x, from.z, within)) {
-      if (e === from || e.dead || !(e.kind.dangerous ?? 0)) continue;
-      // a creature with nothing marked is coming for the hero, which is markPrey's convention.
-      // Without this clause the only fight anybody ever breaks up is one they are not in, so a
-      // hired sword walks past a wolf that is on you and a constable does the same.
-      const onSomebody = e.target
-        ? !e.target.dead && PEOPLE.has(e.target.kind.id)
-        : Math.hypot(e.x - this.heroX, e.z - this.heroZ) <= BEHAVIOUR.STALK_RADIUS;
-      if (!onSomebody) continue;
-      const away = Math.hypot(e.x - from.x, e.z - from.z);
-      if (away < bestAway) { bestAway = away; best = e; }
-    }
-    return best;
+    return nearestTrouble(from, this.within(from.x, from.z, within), this.heroX, this.heroZ);
   }
 
   /**
@@ -435,7 +424,7 @@ export class EntityManager {
       if (bounty > 0 && PEOPLE.has(attacker.kind.id)) {
         attacker.purse += attacker.trade === 'constable' ? bounty : Math.round(bounty * BOUNTY.RESCUE_SHARE);
       }
-      this.despawnEntity(victim);
+      this.killEntity(victim);
       attacker.target = null;
       return;
     }
@@ -444,10 +433,19 @@ export class EntityManager {
   }
 
   /** Every live creature within `r` tiles, nearest first. */
+  /**
+   * Everything alive within `r` tiles, nearest first.
+   *
+   * The dead are left out here rather than at each of the dozen places that ask, because a body
+   * now stays in the world while it falls: without this you could talk to a corpse, hand it a
+   * gift, hire it, or have it answer Enter in front of the person standing behind it. Anything
+   * that genuinely wants a body wants a carcass, which is a different list.
+   */
   within(x: number, z: number, r: number): Entity[] {
     const hits: Array<{ e: Entity; d: number }> = [];
     for (const list of this.spawned.values()) {
       for (const e of list) {
+        if (e.dead) continue;
         const d = Math.hypot(e.x - x, e.z - z);
         if (d <= r) hits.push({ e, d });
       }

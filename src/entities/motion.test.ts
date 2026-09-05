@@ -5,8 +5,8 @@ import {
 } from './motion';
 import { KINDS } from './animals';
 
-const still: Moving = { walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0 };
-const walking: Moving = { walk: 1, flap: 1, phase: Math.PI / 2, headPitch: 0, hurt: 0 };
+const still: Moving = { walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0, dying: 0 };
+const walking: Moving = { walk: 1, flap: 1, phase: Math.PI / 2, headPitch: 0, hurt: 0, dying: 0 };
 /** Slower than the pace a run takes over at, so it is an amble however hard it is trying. */
 const ambling: Moving = { ...walking, walk: 0.4 };
 /** A creature a moment after something landed on it. */
@@ -352,6 +352,7 @@ describe('a file somebody has got wrong', () => {
     body: { bounce: 0.04, sway: 0.03, lean: -0.05, breath: 0.014, breathRate: 0.9, settle: 0.028, settleRate: 0.22 },
     running: { from: 0.55, stride: 1.4, bounce: 1.55, lean: -0.14 },
     flinch: { lasts: 0.35, snap: 0.18, lean: 0.26, drop: 0.06, turn: { head: 0.5 } },
+    dying: { lasts: 0.85, fall: 1.5, sink: 0.75, turn: { head: 0.55 } },
     blows: { punch: { lasts: 0.42, wind: 0.3, turn: { armR: 1.9 } } },
   });
 
