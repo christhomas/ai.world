@@ -25,6 +25,13 @@ const CLIMB = KINDS.hero.climb ?? STEP_LIMIT;
 /** Tiles either side of the origin to walk. Wide enough to hold a dozen villages of most seeds. */
 const REACH = 280;
 
+/**
+ * The eight ways the hero can step. `tryMove` tries the diagonal first and only then slides along
+ * each axis, so somebody walking really does cross corners; a four-way fill is stricter than the
+ * game and reports landmarks stranded that anybody could walk to.
+ */
+const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
+
 interface Walked {
   reached: (x: number, z: number) => boolean;
   tiles: number;
@@ -52,7 +59,7 @@ function walkFrom(sampler: TerrainSampler, fromX: number, fromZ: number): Walked
   while (stack.length > 0) {
     const here = stack.pop()!;
     const x = here % size, z = (here / size) | 0;
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    for (const [dx, dz] of STEPS) {
       const nx = x + dx, nz = z + dz;
       if (nx < 0 || nz < 0 || nx >= size || nz >= size) continue;
       const there = nz * size + nx;

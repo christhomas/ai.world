@@ -247,6 +247,33 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     return false;
   };
 
+  /**
+   * Could somebody walk from the road out to here?
+   *
+   * The ground climbs away from the road, so a landmark placed far off it can sit above a step
+   * nobody can climb — and nothing in the game would ever say so: the quest naming it would
+   * simply be impossible. So the line from the road node to the spot is walked, and a spot is
+   * refused if the ground ever jumps more than a terrace between one step and the next.
+   *
+   * Measured in terraces rather than in the hero's units on purpose: one terrace is a stride and
+   * two is a wall, which is a fact about how this world is built and belongs here rather than
+   * being borrowed from whoever happens to be walking.
+   */
+  const walkableFrom = (fromX: number, fromZ: number, toX: number, toZ: number): boolean => {
+    const dx = toX - fromX, dz = toZ - fromZ;
+    const steps = Math.ceil(Math.hypot(dx, dz) * 2);
+    if (steps === 0) return true;
+    let last: number | null = null;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      sampler.sampleTile(Math.floor(fromX + dx * t), Math.floor(fromZ + dz * t), sample);
+      if (sample.type === TileType.Water) return false;
+      if (last !== null && Math.abs(sample.level - last) > 1) return false;
+      last = sample.level;
+    }
+    return true;
+  };
+
   /** All tiles of a footprint are flat land at `level`, with no water/road, and no other structure nearby. */
   const footprintOk = (tx: number, tz: number, hw: number, hd: number, level: number | null): number | null => {
     if (plazaR > 0 && Math.hypot(tx + 0.5 - plazaX, tz + 0.5 - plazaZ) < plazaR + hw + 2) return null;
@@ -484,6 +511,8 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     const half = kind === StructureKind.Campfire ? 1 : kind === StructureKind.Tower ? 1 : 2;
     const level = footprintOk(tx, tz, half, half, null);
     if (level === null) continue;
+    // and somewhere the hero can actually get to, now that highlands have faces you cannot climb
+    if (!walkableFrom(n.x, n.z, tx + 0.5, tz + 0.5)) continue;
     const biome = sampler.biomeOf(cx, cz);
     const s: Structure = { kind, tx, tz, hw: half, hd: half, level, rot: rng() * Math.PI * 2, biome, path: [] };
     all.push(s);
