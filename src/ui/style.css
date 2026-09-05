@@ -1,4 +1,13 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
+/**
+ * Where the message log's underside sits, measured up from the bottom of the window.
+ *
+ * Named because two things have to agree about it: the log is pinned here, and the key list below
+ * grows upward and must stop short of it. They were capped independently before — the list at a
+ * share of the window height — which held on the window it was tried on and overlapped on a taller
+ * one, printing the village's news straight through the controls.
+ */
+:root { --log-bottom: 380px; }
 body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monospace; }
 #gameContainer { width: 100vw; height: 100vh; }
 #gameContainer canvas { display: block; }
@@ -6,10 +15,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   position: fixed; bottom: 20px; left: 20px;
   background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px;
   color: #fff; font-size: 12px; z-index: 100;
-  /* it grows upward from the bottom corner, and what is up there is the message log. Capped so a
-     longer key list scrolls inside its own box rather than climbing over what the village is
-     telling you. */
-  max-height: 46vh; overflow-y: auto;
+  /* It grows upward from the bottom corner, and what is up there is the message log, so it is
+     capped to stop below it however tall the window is. The second term is for a window too short
+     for even that, where fitting on the screen matters more: whichever is smaller wins, and the
+     list scrolls inside its own box either way. */
+  max-height: min(calc(var(--log-bottom) - 34px), 46vh);
+  overflow-y: auto;
 }
 #controls h4 { color: #a29bfe; margin-bottom: 8px; }
 #controls h4 ~ h4 { margin-top: 12px; }
@@ -288,7 +299,7 @@ body:has(#dialogue.show) #controls { opacity: 0; pointer-events: none; transitio
 }
 #photoHint.show { display: block; }
 #chatPanel {
-  display: none; position: fixed; left: 20px; bottom: 380px; width: 340px; z-index: 300;
+  display: none; position: fixed; left: 20px; bottom: var(--log-bottom); width: 340px; z-index: 300;
 }
 #chatPanel.show { display: block; }
 #chatLog {
@@ -476,8 +487,10 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #dialogue .dlg-name { font-size: 12px; }
   #dialogue .dlg-panel { min-height: 84px; padding: 8px 10px; }
   #dialogue .dlg-text { min-height: 40px; line-height: 1.45; }
-  #chatPanel { left: 8px; right: 8px; width: auto; bottom: 240px; }
+  #chatPanel { left: 8px; right: 8px; width: auto; }
   #chatLog { max-height: 120px; }
+  /* the log rides lower on a small screen, and the key list follows it down */
+  :root { --log-bottom: 240px; }
   #journal, #players, #rucksack { width: 94vw; max-height: 78vh; padding: 14px; -webkit-overflow-scrolling: touch; }
   #rucksack .r-columns { flex-direction: column; gap: 10px; }
   #rucksack .r-worn { flex: 1 1 auto; width: 100%; }
