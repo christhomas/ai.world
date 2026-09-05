@@ -15,6 +15,7 @@ import { DayCycle } from './render/daycycle';
 import { ChunkManager } from './world/chunkManager';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
+import { planEyries } from './game/eyries';
 import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
@@ -623,8 +624,12 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     if (bargain) hud.flash(`${bargain.name}, who you hired, is dead.`);
   };
 
+  // the crags with eagles on them: one pair per range big enough to be worth flying over, each
+  // perch shuffled round the shoulder until it stands on ground somebody can actually reach
+  const eyries = planEyries(seed, sampler.massifs, (x, z) => sampler.probe(x, z).land);
+
   const interactions = createInteractions({
-    player, state, discovered,
+    player, state, discovered, eyries,
     structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, fishing, online, handover, remains, ferries, quests, register, jail,
     gifts, hires, standing, rescues, nemesis,
@@ -1059,6 +1064,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
         roll: Math.round(body.roll * 100) / 100, bob: Math.round(body.bob * 100) / 100,
       };
     });
+    (debug as { __eyries?: () => unknown }).__eyries = () => eyries.map((e) => ({
+      id: e.id, name: e.name, x: Math.round(e.x), z: Math.round(e.z), partner: e.partner, fare: e.fare,
+    }));
     (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
     (debug as { __warband?: () => unknown }).__warband = () => ({
       active: warband.active, opponent: warband.opponentName, muster: warband.muster, readout: warband.readout(),

@@ -70,6 +70,7 @@ export function createInteractions(ctx: Surroundings) {
     // furniture standing around it: a rabbit dropped in the square was unskinnable without this
     if (camp.trySkin()) return;
     if (travel.tryBoat()) return;
+    if (travel.tryEagle()) return;   // a crag with a bird on it, before anything else up here
     if (village.tryHorse()) return;
     if (wild.tryFarm()) return;
     if (village.tryStall()) return;

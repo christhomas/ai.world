@@ -35,6 +35,7 @@ export const SALT = {
   ROAM: 0x20a3,             // where the bands that walk the roads are, and what mood they are in
   MESH: 0x6ce5,             // the polygons the world is tiled with, and which of them are dry
   MOUNTAINS: 0x3a17,        // where the massifs stand, and how high each one gets
+  EYRIE: 0xea61,            // which crag each eagle waits on, and which way it faces
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

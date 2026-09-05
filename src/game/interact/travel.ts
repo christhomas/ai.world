@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WORLD } from '../../core/config';
 import { FERRY, ferryStateAt, formatCountdown, worldSeconds, type FerryLine } from '../ferry';
 import { BOAT } from '../sailing';
+import { EYRIE, eyrieAt, tooDear } from '../eyries';
 import type { Surroundings } from './context';
 
 /**
@@ -9,7 +10,7 @@ import type { Surroundings } from './context';
  * The ferry ride lives here too, because who is aboard is nobody else's business.
  */
 export function travelInteractions(ctx: Surroundings) {
-  const { player, state, structures, chunks, dialogue, hud, sound, sailing, ferries, persist } = ctx;
+  const { player, state, structures, chunks, dialogue, hud, sound, sailing, ferries, eyries, persist } = ctx;
 
   const dockTile = (line: FerryLine, end: 'from' | 'to'): [number, number] => {
     const pier = end === 'from' ? line.fromPier : line.toPier;
@@ -120,5 +121,41 @@ export function travelInteractions(ctx: Surroundings) {
     }
   };
 
-  return { tryFerry, tryBoat, sailFerries, aboard };
+  /**
+   * A crag with an eagle on it. It will carry you over the range and put you down on the far
+   * side, which is the only way across a mountain that is not a day's walk round it.
+   */
+  const tryEagle = (): boolean => {
+    const here = eyrieAt(eyries, player.x, player.z);
+    if (!here) return false;
+    const there = eyries.find((e) => e.id === here.partner);
+    if (!there) return false;
+
+    if (state.inventory.gold < here.fare) {
+      dialogue.start({ speaker: 'Eagle', emoji: '🦅', pages: [tooDear(here, state.inventory.gold)] });
+      return true;
+    }
+    dialogue.start({
+      speaker: 'Eagle', emoji: '🦅',
+      pages: [`It is bigger than a horse and it has been watching you climb. Over the range to ${there.name}, ${here.fare} gold?`],
+      choices: [
+        {
+          label: `Fly (${here.fare}g)`,
+          next: () => {
+            state.inventory.gold -= here.fare;
+            state.version++;
+            player.teleport(there.x, there.z);
+            sound.chime();
+            hud.flash(`Over the clouds, and down at ${there.name}.`);
+            persist();
+            return null;
+          },
+        },
+        { label: 'Walk round', next: () => null },
+      ],
+    });
+    return true;
+  };
+
+  return { tryFerry, tryBoat, tryEagle, sailFerries, aboard };
 }
