@@ -35,6 +35,20 @@ export function wildInteractions(ctx: Surroundings) {
       ] });
       return true;
     }
+    // A great tree with a way in under it. Same layout as a cave, because both grew rather than
+    // being cut, but it is wood the whole way through and lit green — and the camera is held in
+    // close down there, so it is a place you are inside rather than one you look down at.
+    for (const poi of structures.pois) {
+      if (poi.kind !== StructureKind.GiantTree || Math.hypot(poi.x - player.x, poi.z - player.z) > 3.2) continue;
+      discover(poi.name);
+      dialogue.start({ speaker: poi.name, emoji: '🌳', pages: [
+        'The branches come down to the ground on every side, and there is a gap where the roots lift. It is dark in there and it does not smell of earth.',
+      ], choices: [
+        { label: 'Push through', next: () => { places.enterDungeon(poi, 'thicket', `thicket:${poi.name}`); return null; } },
+        { label: 'Leave it', next: () => null },
+      ] });
+      return true;
+    }
     for (const cave of structures.caves) {
       if (Math.hypot(cave.x - player.x, cave.z - player.z) > 3.2) continue;
       discover(cave.name);

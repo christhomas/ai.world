@@ -8,7 +8,7 @@ import { SALT } from '../core/salts';
  * a stored anchor can be overridden, keeps its generator version, and new kinds can be appended
  * later without disturbing anything already there.
  */
-export type AnchorKind = 'island' | 'dungeon' | 'cave' | 'wreck';
+export type AnchorKind = 'island' | 'dungeon' | 'cave' | 'wreck' | 'thicket';
 
 export interface Anchor {
   id: string;
@@ -27,10 +27,10 @@ export interface ManifestJson {
   anchors: Anchor[];
 }
 
-const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SALT.DUNGEON, cave: SALT.CAVE, wreck: SALT.WRECK };
+const KIND_SALT: Record<AnchorKind, number> = { island: SALT.ISLAND, dungeon: SALT.DUNGEON, cave: SALT.CAVE, wreck: SALT.WRECK, thicket: SALT.FOREST };
 
 /** Current generator version per kind; bump when a generator changes so old anchors stay pinned. */
-export const ANCHOR_VERSION: Record<AnchorKind, number> = { island: 1, dungeon: 1, cave: 1, wreck: 1 };
+export const ANCHOR_VERSION: Record<AnchorKind, number> = { island: 1, dungeon: 1, cave: 1, wreck: 1, thicket: 1 };
 
 export class Manifest {
   readonly anchors = new Map<string, Anchor>();
