@@ -15,6 +15,7 @@ import { postsOf } from './villagers';
 import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
+import { residentsOnTheStreet } from './residents';
 import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { blowOf } from './motion';
 import type { EntityRenderer } from './pool';
@@ -627,28 +628,10 @@ export class EntityManager {
     }
   }
 
-  /**
-   * Which of a village's residents are out on the street right now.
-   *
-   * A village holds far more people than are ever drawn at once, so this takes the grown ones who
-   * are not already standing somewhere else. Babies stay indoors, which is why nobody ever meets
-   * one; they turn up as children a week later.
-   */
   private residentsFor(v: Village, posts: Partial<Record<Post, [number, number]>>, wanted: number): Person[] {
     if (!this.register) return [];
-    const trades = tradesFor(posts).map((t) => t.id);
-    const out = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
-
-    const here = this.register.settle(v.name, v.houses.length, trades)
-      .filter((p) => !out.has(p.id) && stageOf(p, this.register!.today) !== 'baby');
-
-    // a village shows only a handful of its people at once, so who those are matters. When the
-    // law wants somebody, the constable is one of them: a police force that is statistically
-    // unlikely to be outdoors is not a police force.
-    if (this.guiltOf() > 0) {
-      here.sort((a, b) => Number(b.trade === 'constable') - Number(a.trade === 'constable'));
-    }
-    return here.slice(0, wanted);
+    const alreadyOut = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
+    return residentsOnTheStreet(this.register, v, posts, wanted, alreadyOut, this.guiltOf() > 0);
   }
 
   /** Create `count` entities of a kind scattered around `anchor`, registered with the renderer. */
