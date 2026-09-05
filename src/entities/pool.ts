@@ -5,16 +5,27 @@ import type { Entity } from './entity';
 import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from './motion';
 
 /**
- * Draws every creature through per-part InstancedMesh pools: one pool per (kind, part).
- * A field of forty sheep is ~8 draw calls. Animation is done by rewriting instance matrices.
+ * Draws every creature through InstancedMesh pools: one pool per kind, and inside it one mesh for
+ * every group of parts that can share a draw. A field of forty sheep is a handful of draw calls.
+ * Animation is done by rewriting instance matrices.
  *
- * Only what the camera can see is written, packed at the front of each buffer. A part with
- * nobody in shot has a count of zero, which three.js skips without issuing a draw at all, so the
+ * Only what the camera can see is written, packed at the front of each buffer. A mesh with nobody
+ * in shot has a count of zero, which three.js skips without issuing a draw at all, so the
  * twenty-odd kinds alive around a player cost draws only for the few actually on screen. The
  * scene says where the camera is looking; a scene nobody has told (an interior, a dungeon) draws
  * the lot, as it always did.
+ *
+ * The grouping is the reason a creature is not one draw call per part. Four legs are four boxes
+ * of the same size in the same colour standing in four places, and an instanced draw is exactly
+ * the thing that puts one shape in many places — so they are one mesh with four instances per
+ * animal rather than four meshes with one each. They still swing independently, because a leg's
+ * swing lives in its own instance matrix and always did. Widening that from "the same box" to
+ * "the same box stretched differently" collapses a body, a neck and a snout together as well,
+ * which is what takes the bestiary from three hundred and twenty-eight meshes down to a hundred
+ * and fifty.
  */
 
+/** Creatures one pool will hold. Each of its meshes has room for this many of each part it draws. */
 const CAPACITY = 320;
 const SHADOW_VOLUME = 0.012;
 const HURT_COLOR = new THREE.Color(0xffffff);
@@ -41,12 +52,29 @@ function partVolume(p: PartDef): number {
   }
 }
 
+/** One part of one kind: where it sits on the body, and which mesh draws it. */
 interface PartRuntime {
   def: PartDef;
-  mesh: THREE.InstancedMesh;
   pivot: THREE.Vector3;
   fromPivot: THREE.Vector3;   // offset - pivot
   staticRot: THREE.Matrix4 | null;
+  /**
+   * How far the mesh's own shape has to be stretched to become this part, or null when the mesh
+   * is already the right size. three.js divides an instance normal by the squared length of each
+   * matrix column before transforming it, which is the exact inverse-transpose for the
+   * translation-rotation-scale matrices this file writes, so a stretched instance is lit as the
+   * shape it looks like rather than as the shape it was cut from.
+   */
+  scale: THREE.Vector3 | null;
+  /** The mesh this part's instances go into, shared with every part built the same way. */
+  into: PartMesh;
+}
+
+/** One draw call: every part of a kind that can share a shape, a colour and a shadow. */
+interface PartMesh {
+  mesh: THREE.InstancedMesh;
+  /** Parts drawn through it, so the buffer holds this many instances for every creature. */
+  parts: number;
   /** Instances written this frame; the mesh draws exactly this many. */
   count: number;
   /**
@@ -57,50 +85,104 @@ interface PartRuntime {
   drawn: Array<Entity | undefined>;
   /** Whether the creature in each slot was drawn hurt, so a flash that ends is noticed. */
   hot: Uint8Array;
-  /** Set when any colour in this part changed, so the buffer is only uploaded when it must be. */
+  /**
+   * Which palette colour each slot was painted from. A slot holds a leg one frame and an ear the
+   * next once something ahead of it leaves the view, and two parts sharing a mesh may well be
+   * painted from different entries of the same palette — without this, that ear keeps the leg's
+   * colour for as long as the same animal stays in the slot.
+   */
+  paint: Int8Array;
+  /** Set when any colour in this mesh changed, so the buffer is only uploaded when it must be. */
   recoloured: boolean;
 }
 
 class KindPool {
   readonly parts: PartRuntime[] = [];
+  readonly meshes: PartMesh[] = [];
   readonly entities: Entity[] = [];
   colorsDirty = false;
 
   constructor(readonly kind: AnimalKind, scene: THREE.Scene) {
+    const grouped = new Map<string, PartDef[]>();
     for (const def of kind.parts) {
-      const geo = makeGeometry(def);
-      const mat = new THREE.MeshLambertMaterial({ color: def.tint === undefined ? def.color : 0xffffff });
-      const mesh = new THREE.InstancedMesh(geo, mat, CAPACITY);
+      const key = meshKey(def);
+      const list = grouped.get(key);
+      if (list) list.push(def);
+      else grouped.set(key, [def]);
+    }
+    const built = new Map<string, PartMesh>();
+    for (const [key, defs] of grouped) {
+      const first = defs[0];
+      const geo = unitGeometry(first);
+      const mat = new THREE.MeshLambertMaterial({ color: first.tint === undefined ? first.color : 0xffffff });
+      const room = CAPACITY * defs.length;
+      const mesh = new THREE.InstancedMesh(geo, mat, room);
       mesh.count = 0;
       // only chunky parts cast shadows; legs, ears and beaks are not worth a shadow-pass draw call
-      mesh.castShadow = partVolume(def) >= SHADOW_VOLUME;
+      mesh.castShadow = partVolume(first) >= SHADOW_VOLUME;
       mesh.receiveShadow = true;
       // the instances written are the ones in shot, so there is nothing left for three to cull
       mesh.frustumCulled = false;
       // a pool sits at the origin and stays there; only the instances inside it ever move
       mesh.matrixAutoUpdate = false;
       scene.add(mesh);
-      const pivot = def.pivot ? new THREE.Vector3(...def.pivot) : new THREE.Vector3(...def.offset);
-      const fromPivot = new THREE.Vector3(...def.offset).sub(pivot);
-      const staticRot = def.rot ? new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...def.rot)) : null;
-      const part: PartRuntime = {
-        def, mesh, pivot, fromPivot, staticRot,
-        count: 0, drawn: [], hot: new Uint8Array(CAPACITY), recoloured: false,
+      const part: PartMesh = {
+        mesh, parts: defs.length, count: 0,
+        drawn: [], hot: new Uint8Array(room), paint: new Int8Array(room).fill(-1), recoloured: false,
       };
       mesh.userData.pool = this;
       mesh.userData.part = part;
-      this.parts.push(part);
+      built.set(key, part);
+      this.meshes.push(part);
+    }
+    for (const def of kind.parts) {
+      const pivot = def.pivot ? new THREE.Vector3(...def.pivot) : new THREE.Vector3(...def.offset);
+      const fromPivot = new THREE.Vector3(...def.offset).sub(pivot);
+      const staticRot = def.rot ? new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...def.rot)) : null;
+      this.parts.push({ def, pivot, fromPivot, staticRot, scale: unitScale(def), into: built.get(meshKey(def))! });
     }
   }
 }
 
-function makeGeometry(p: PartDef): THREE.BufferGeometry {
+/**
+ * The size of the shape a part is cut from, or null when it is already its own size.
+ *
+ * Everything in the bestiary is a box, a cylinder, a cone or an icosahedron, and all four are the
+ * same shape at every size — so one geometry per shape, stretched per instance, draws them all.
+ * The exception is a cylinder with a different radius at each end, which is a taper rather than a
+ * stretch and gets a geometry of its own; nothing has one today, and this is here so that adding
+ * one is a part definition rather than a bug.
+ */
+function unitScale(p: PartDef): THREE.Vector3 | null {
+  switch (p.shape) {
+    case 'box': return new THREE.Vector3(p.size[0], p.size[1], p.size[2]);
+    case 'ico': return new THREE.Vector3(p.size[0], p.size[0], p.size[0]);
+    case 'cone': return new THREE.Vector3(p.size[2], p.size[1], p.size[2]);
+    case 'cyl': return p.size[0] === p.size[2] ? new THREE.Vector3(p.size[0], p.size[1], p.size[0]) : null;
+  }
+}
+
+/**
+ * What decides whether two parts of a kind share a draw: the same shape, the same paint, and the
+ * same answer to whether they are worth a shadow. Painted parts group together whatever palette
+ * entry they read, because that colour is written per instance; a fixed colour is in the material
+ * and so has to match exactly.
+ */
+function meshKey(p: PartDef): string {
+  const shape = unitScale(p) ? p.shape : `${p.shape}:${p.size.join(',')}`;
+  const paint = p.tint === undefined ? `c${p.color}` : 'tinted';
+  return `${shape}|${paint}|${partVolume(p) >= SHADOW_VOLUME}`;
+}
+
+/** The geometry a group of parts is drawn from: one unit shape, or the exact one for a taper. */
+function unitGeometry(p: PartDef): THREE.BufferGeometry {
+  const size = unitScale(p) ? [1, 1, 1] : p.size;
   let g: THREE.BufferGeometry;
   switch (p.shape) {
-    case 'box': g = new THREE.BoxGeometry(p.size[0], p.size[1], p.size[2]); break;
-    case 'cyl': g = new THREE.CylinderGeometry(p.size[0], p.size[2], p.size[1], 6); break;
-    case 'cone': g = new THREE.ConeGeometry(p.size[2], p.size[1], 6); break;
-    case 'ico': g = new THREE.IcosahedronGeometry(p.size[0], 0); break;
+    case 'box': g = new THREE.BoxGeometry(size[0], size[1], size[2]); break;
+    case 'cyl': g = new THREE.CylinderGeometry(size[0], size[2], size[1], 6); break;
+    case 'cone': g = new THREE.ConeGeometry(size[2], size[1], 6); break;
+    case 'ico': g = new THREE.IcosahedronGeometry(size[0], 0); break;
   }
   const flat = g.index ? g.toNonIndexed() : g;
   if (flat !== g) g.dispose();
@@ -156,13 +238,13 @@ export class EntityRenderer {
   /** The meshes a click can land on: the ones with anything drawn in them. */
   pickables(): THREE.Object3D[] {
     const out: THREE.Object3D[] = [];
-    for (const p of this.pools.values()) for (const part of p.parts) if (part.count > 0) out.push(part.mesh);
+    for (const p of this.pools.values()) for (const part of p.meshes) if (part.count > 0) out.push(part.mesh);
     return out;
   }
 
   /** Whoever owns the instance a ray hit, or null if the hit was on nothing living. */
   entityAt(hit: THREE.Intersection): Entity | null {
-    const part = hit.object.userData.part as PartRuntime | undefined;
+    const part = hit.object.userData.part as PartMesh | undefined;
     if (!part || hit.instanceId === undefined || hit.instanceId >= part.count) return null;
     return part.drawn[hit.instanceId] ?? null;
   }
@@ -189,7 +271,7 @@ export class EntityRenderer {
       // remove ask for a full rewrite; every other reason to recolour is caught slot by slot
       const recolour = p.colorsDirty;
       p.colorsDirty = false;
-      for (const part of p.parts) { part.count = 0; part.recoloured = recolour; }
+      for (const part of p.meshes) { part.count = 0; part.recoloured = recolour; }
       for (let i = 0; i < n; i++) {
         const e = p.entities[i];
         // indoors creatures used to be parked below the world; not drawing them is the same
@@ -238,21 +320,25 @@ export class EntityRenderer {
             this.m.multiply(this.t);
           }
           if (part.staticRot) this.m.multiply(part.staticRot);
-          const k = part.count++;
-          part.mesh.setMatrixAt(k, this.m);
+          // the mesh holds one shape at one size; this is what makes it this part's shape
+          if (part.scale) this.m.scale(part.scale);
+          const into = part.into;
+          const k = into.count++;
+          into.mesh.setMatrixAt(k, this.m);
           if (d.tint === undefined) continue;
           const hot = e.hurt > 0 ? 1 : 0;
-          if (part.drawn[k] !== e || part.hot[k] !== hot) {
-            part.drawn[k] = e;
-            part.hot[k] = hot;
-            part.recoloured = true;
-            this.writeColour(part, k, e);
+          if (into.drawn[k] !== e || into.hot[k] !== hot || into.paint[k] !== d.tint) {
+            into.drawn[k] = e;
+            into.hot[k] = hot;
+            into.paint[k] = d.tint;
+            into.recoloured = true;
+            this.writeColour(into, k, e, d.tint);
           } else if (recolour) {
-            this.writeColour(part, k, e);
+            this.writeColour(into, k, e, d.tint);
           }
         }
       }
-      for (const part of p.parts) {
+      for (const part of p.meshes) {
         const mesh = part.mesh;
         mesh.count = part.count;
         // a count of zero draws nothing either way, but three finds that out only after walking
@@ -275,8 +361,7 @@ export class EntityRenderer {
   }
 
   /** The colour one creature wears in one slot, washed towards white while it is smarting. */
-  private writeColour(part: PartRuntime, index: number, e: Entity): void {
-    const tint = part.def.tint as number;
+  private writeColour(part: PartMesh, index: number, e: Entity, tint: number): void {
     this.color.setHex(e.tints[Math.min(tint, e.tints.length - 1)]);
     if (e.hurt > 0) this.color.lerp(HURT_COLOR, 0.7);
     part.mesh.setColorAt(index, this.color);
@@ -284,7 +369,7 @@ export class EntityRenderer {
 
   dispose(): void {
     for (const p of this.pools.values()) {
-      for (const part of p.parts) {
+      for (const part of p.meshes) {
         this.scene.remove(part.mesh);
         part.mesh.geometry.dispose();
         (part.mesh.material as THREE.Material).dispose();

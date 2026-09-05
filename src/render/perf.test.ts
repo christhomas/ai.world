@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { KINDS } from '../entities/animals';
+import { KINDS, type AnimalKind } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import { EntityRenderer } from '../entities/pool';
 import { mulberry32 } from '../core/rng';
@@ -36,6 +36,16 @@ function meshes(scene: THREE.Scene): THREE.InstancedMesh[] {
 /** Instances actually handed to the GPU across every part of every pool. */
 const drawn = (scene: THREE.Scene): number => meshes(scene).reduce((n, m) => n + m.count, 0);
 
+/**
+ * How many of a creature's parts one mesh draws. A mesh holding all four legs writes four
+ * instances per animal, so "one creature in shot" is not "one instance" for it.
+ */
+const partsPer = (mesh: THREE.InstancedMesh): number => (mesh.userData.part as { parts: number }).parts;
+
+/** The meshes of a pool whose parts are painted from the instance's own palette. */
+const painted = (scene: THREE.Scene): THREE.InstancedMesh[] =>
+  meshes(scene).filter((m) => m.instanceColor !== null && m.instanceColor !== undefined);
+
 /** Where every drawn instance stands, as strings, so two frames can be compared for sameness. */
 function positions(scene: THREE.Scene): string[] {
   const matrix = new THREE.Matrix4();
@@ -67,7 +77,44 @@ describe('what the creature pools draw', () => {
     // one instance per part for the sheep in shot, and nothing at all for the one four hundred
     // tiles away, rather than two instances per part as an uncontrolled pool would write
     expect(drawn(scene)).toBe(parts);
-    for (const m of meshes(scene)) expect(m.count).toBe(1);
+    for (const m of meshes(scene)) expect(m.count).toBe(partsPer(m));
+  });
+
+  it('draws a sheep in fewer meshes than it has parts', () => {
+    const scene = new THREE.Scene();
+    const renderer = new EntityRenderer(scene);
+    renderer.add(creature('sheep', 2, 2));
+    setWorldView(scene, 0, 0, 40);
+    renderer.update();
+
+    // four legs of the same box in the same wool are one draw with four instances in it, which is
+    // the whole reason instancing exists; a mesh per part gave the pools a hundred and forty
+    // draw calls between them and nothing to show for it
+    expect(meshes(scene).length).toBeLessThan(KINDS.sheep.parts.length);
+    // and every part still gets drawn: the parts a mesh carries add up to the whole animal
+    expect(meshes(scene).reduce((n, m) => n + partsPer(m), 0)).toBe(KINDS.sheep.parts.length);
+  });
+
+  it('gives every kind in the bestiary fewer meshes than parts, and never more', () => {
+    let parts = 0;
+    let drawCalls = 0;
+    for (const kind of Object.values(KINDS)) {
+      const scene = new THREE.Scene();
+      const renderer = new EntityRenderer(scene);
+      renderer.add(creature(kind.id, 0, 0));
+      setWorldView(scene, 0, 0, 40);
+      renderer.update();
+      const built = meshes(scene);
+      expect(built.reduce((n, m) => n + partsPer(m), 0)).toBe(kind.parts.length);
+      expect(built.length).toBeLessThanOrEqual(kind.parts.length);
+      parts += kind.parts.length;
+      drawCalls += built.length;
+    }
+    // the whole bestiary, as a number somebody can watch: three hundred and twenty-eight parts
+    // drawn by a hundred and fifty meshes. If a new creature pushes this up, it is because its
+    // parts are shapes nothing else has, which is worth knowing rather than worth hiding
+    expect(parts).toBeGreaterThan(300);
+    expect(drawCalls).toBeLessThanOrEqual(parts * 0.5);
   });
 
   it('drops a whole part to no draw at all when nobody is in shot', () => {
@@ -150,7 +197,11 @@ describe('what the creature pools draw', () => {
     const scene = new THREE.Scene();
     const renderer = new EntityRenderer(scene);
     renderer.add(creature('sheep', 0, 0));
-    const capacity = meshes(scene)[0].instanceMatrix.count;
+    // a mesh's buffer holds one slot per creature for each part it draws, so the number of
+    // creatures a pool can hold is what that buffer divides down to
+    const first = meshes(scene)[0];
+    const capacity = first.instanceMatrix.count / partsPer(first);
+    for (const m of meshes(scene)) expect(m.instanceMatrix.count).toBe(capacity * partsPer(m));
 
     // forty more than the buffer can hold are offered in all; forty must be turned away
     const OVER = 40;
@@ -165,8 +216,9 @@ describe('what the creature pools draw', () => {
     setWorldView(scene, 0, 0, 400);
     renderer.update();
     for (const m of meshes(scene)) {
-      expect(m.count).toBeLessThanOrEqual(capacity);
-      expect(m.count).toBe(capacity);
+      const room = m.instanceMatrix.count;
+      expect(m.count).toBeLessThanOrEqual(room);
+      expect(m.count).toBe(capacity * partsPer(m));
     }
   });
 
@@ -180,8 +232,38 @@ describe('what the creature pools draw', () => {
     for (const m of meshes(scene)) {
       const ranges = m.instanceMatrix.updateRanges;
       expect(ranges.length).toBe(1);
-      // sixteen floats to a matrix: one instance, not the three hundred the pool can hold
-      expect(ranges[0]).toEqual({ start: 0, count: 16 });
+      // sixteen floats to a matrix: one sheep's worth of this mesh's parts, not the three hundred
+      // creatures' worth the pool can hold
+      expect(ranges[0]).toEqual({ start: 0, count: 16 * partsPer(m) });
+    }
+  });
+
+  it('draws a stretched part as the shape it looks like, not the shape it was cut from', () => {
+    const scene = new THREE.Scene();
+    const renderer = new EntityRenderer(scene);
+    renderer.add(creature('sheep', 0, 0));
+    setWorldView(scene, 0, 0, 40);
+    renderer.update();
+
+    // A mesh shared by parts of different sizes carries one shape and stretches each instance to
+    // fit, so the sizes have to come back out of the matrices rather than out of the geometry.
+    // Every box the sheep is made of must be findable at its own size somewhere in the pool.
+    const drawnSizes: number[][] = [];
+    const matrix = new THREE.Matrix4();
+    const size = new THREE.Vector3();
+    for (const mesh of meshes(scene)) {
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, matrix);
+        size.setFromMatrixScale(matrix);
+        drawnSizes.push([size.x, size.y, size.z]);
+      }
+    }
+    const scale = KINDS.sheep.scale;
+    for (const part of KINDS.sheep.parts) {
+      if (part.shape !== 'box') continue;
+      const want = part.size.map((v) => v * scale);
+      const found = drawnSizes.some((got) => got.every((v, i) => Math.abs(v - want[i]) < 1e-6));
+      expect(found, `no instance is ${want.join(' x ')}`).toBe(true);
     }
   });
 });
@@ -377,17 +459,20 @@ describe('picking follows the packed buffer', () => {
     setWorldView(scene, 0, 0, 40);
     renderer.update();
 
-    const mesh = meshes(scene)[0];
+    // a mesh may carry several of an animal's parts, so the first creature owns the first block
+    // of instances in it and the second the block after that
+    const mesh = painted(scene)[0];
+    const each = partsPer(mesh);
     const hitOf = (instanceId: number) => renderer.entityAt({ object: mesh, instanceId } as unknown as THREE.Intersection);
-    expect(hitOf(0)).toBe(first);
-    expect(hitOf(1)).toBe(second);
+    for (let i = 0; i < each; i++) expect(hitOf(i)).toBe(first);
+    for (let i = each; i < each * 2; i++) expect(hitOf(i)).toBe(second);
 
     // the first one wanders off; the second takes over slot zero, and a click there must find it
     first.x = 500;
     renderer.update();
-    expect(mesh.count).toBe(1);
-    expect(hitOf(0)).toBe(second);
-    expect(hitOf(1)).toBeNull();
+    expect(mesh.count).toBe(each);
+    for (let i = 0; i < each; i++) expect(hitOf(i)).toBe(second);
+    expect(hitOf(each)).toBeNull();
   });
 
   it('offers no pickable mesh for a pool with nobody in shot', () => {
@@ -397,7 +482,8 @@ describe('picking follows the packed buffer', () => {
     renderer.add(sheep);
     setWorldView(scene, 0, 0, 40);
     renderer.update();
-    expect(renderer.pickables().length).toBe(KINDS.sheep.parts.length);
+    // every mesh the pool built has this sheep's parts in it, so every one can be clicked on
+    expect(renderer.pickables().length).toBe(meshes(scene).length);
 
     sheep.x = 500;
     renderer.update();
@@ -414,9 +500,9 @@ describe('the hurt flash survives being packed', () => {
     setWorldView(scene, 0, 0, 40);
     renderer.update();
 
-    const tinted = meshes(scene).find((m) => (m.userData.part as { def: { tint?: number } }).def.tint !== undefined);
+    const tinted = painted(scene)[0];
     expect(tinted).toBeDefined();
-    const colourAt = (i: number) => new THREE.Color().fromBufferAttribute(tinted!.instanceColor!, i).getHex();
+    const colourAt = (i: number) => new THREE.Color().fromBufferAttribute(tinted.instanceColor!, i).getHex();
 
     const calm = colourAt(0);
     sheep.hurt = 1;
@@ -432,6 +518,85 @@ describe('the hurt flash survives being packed', () => {
     sheep.x = 1;
     renderer.update();
     expect(colourAt(0)).toBe(calm);
+  });
+});
+
+/**
+ * The pools do not rewrite a colour they believe is already right, which is the only reason the
+ * colour buffer is not posted to the GPU every frame. That belief is held per buffer slot, and a
+ * slot is a place in a shared mesh rather than a place in one part — so it can come to hold a
+ * different part of the same animal, painted from a different entry of the same palette. What
+ * this holds is the whole bargain: a pool that has been running is a pool that agrees, matrix for
+ * matrix and colour for colour, with one built from scratch in the same state.
+ */
+describe('what a pool remembers between frames', () => {
+  /** A creature whose palette is chosen from its own stream, so two of these can be made alike. */
+  const twin = (kindId: string, x: number, z: number, seed: number): Entity => {
+    const kind = KINDS[kindId];
+    const herd = new Herd(kind, x, z, 0, 0, 8);
+    return new Entity(kind, x, z, herd, 'test', mulberry32(seed));
+  };
+
+  /** Every matrix and colour a renderer has handed over, mesh by mesh. */
+  const buffers = (scene: THREE.Scene): Array<{ matrices: number[]; colors: number[] }> =>
+    meshes(scene).map((m) => ({
+      matrices: Array.from(m.instanceMatrix.array.slice(0, m.count * 16)),
+      colors: m.instanceColor ? Array.from(m.instanceColor.array.slice(0, m.count * 3)) : [],
+    }));
+
+  /**
+   * Two parts of one shape painted from different entries of the same palette, the first of them
+   * hideable. Nothing in the bestiary is built quite like this today; what it is here for is that
+   * hiding the first part slides the second one down into a slot the first was painted in, which
+   * is the one way a slot can change what it is drawing without changing whose it is.
+   */
+  const twoTone: AnimalKind = {
+    ...KINDS.sheep,
+    id: 'test-two-tone',
+    palettes: [[0x112233, 0xccddee]],
+    parts: [
+      { shape: 'box', size: [1, 1, 1], offset: [0, 1, 0], color: 0xffffff, tint: 0, tag: 'saddle' },
+      { shape: 'box', size: [1, 1, 1], offset: [0, 2, 0], color: 0xffffff, tint: 1 },
+    ],
+  };
+
+  it('agrees with a pool built from scratch after a part is hidden under a slot', () => {
+    const run = (hideFirst: boolean): THREE.Scene => {
+      const scene = new THREE.Scene();
+      const renderer = new EntityRenderer(scene);
+      const herd = new Herd(twoTone, 1, 0, 0, 0, 8);
+      const beast = new Entity(twoTone, 1, 0, herd, 'test', mulberry32(3));
+      renderer.add(beast);
+      setWorldView(scene, 0, 0, 40);
+      if (!hideFirst) renderer.update();
+      beast.hiddenTags.add('saddle');
+      renderer.update();
+      return scene;
+    };
+
+    // one pool has drawn a frame with the saddle on and then had it taken away; the other never
+    // saw the saddle at all. Nothing about the picture should be able to tell them apart
+    expect(buffers(run(false))).toEqual(buffers(run(true)));
+  });
+
+  it('agrees with a pool built from scratch after the one in front walks out of shot', () => {
+    const run = (aloneFromTheStart: boolean): THREE.Scene => {
+      const scene = new THREE.Scene();
+      const renderer = new EntityRenderer(scene);
+      const front = twin('wolf', 1, 0, 3);
+      const behind = twin('wolf', 2, 0, 9);
+      renderer.add(front);
+      renderer.add(behind);
+      setWorldView(scene, 0, 0, 40);
+      if (!aloneFromTheStart) renderer.update();
+      front.x = 500;
+      renderer.update();
+      return scene;
+    };
+
+    // a wolf is grey over a paler belly, so the slots the front one gave up are slots the one
+    // behind it has to repaint rather than inherit
+    expect(buffers(run(false))).toEqual(buffers(run(true)));
   });
 });
 
