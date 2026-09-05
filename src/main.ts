@@ -63,7 +63,7 @@ import { Fog, renderMapBase, type MapMarker } from './ui/mapbase';
 import { WorldMap } from './ui/worldmap';
 import { DialogueBox, type DialogueNode } from './ui/dialogue';
 import { LEGACY_KEY, showTitle } from './ui/title';
-import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
+import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from './save/store';
 import { GameState } from './game/state';
 import { DOCTOR, dialogueFor, type TalkCtx } from './game/talk';
 import { generateQuests } from './game/quests';
@@ -130,23 +130,38 @@ async function boot(): Promise<void> {
   const url = new URL(window.location.href);
   const urlSeed = url.searchParams.get('seed');
 
-  let slotKey: string, saved: SessionSave | undefined, seed: number;
+  let slotKey: string, saved: SessionSave | undefined, seed: number, world: WorldKind;
   if (urlSeed !== null && /^\d+$/.test(urlSeed)) {
     // share / dev link: play the given seed in a scratch session, skip the title screen
     seed = Number(urlSeed) >>> 0;
     slotKey = LEGACY_KEY;
     saved = await store.load<SessionSave>(LEGACY_KEY);
     if (saved?.seed !== seed) saved = undefined;
+    world = worldFromLink(url) ?? saved?.world ?? 'road';
   } else {
     $('loading').style.display = 'none';
     const choice = await showTitle(store);
-    slotKey = choice.key; saved = choice.save; seed = choice.seed;
+    slotKey = choice.key; saved = choice.save; seed = choice.seed; world = choice.world;
     $('loading').style.display = 'block';
   }
-  startGame(store, slotKey, saved, seed, url);
+  startGame(store, slotKey, saved, seed, url, world);
 }
 
-function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number, url: URL): void {
+/** `?world=mesh` or `?world=road` on a share link, for growing a scratch world of a given kind. */
+function worldFromLink(url: URL): WorldKind | null {
+  const asked = url.searchParams.get('world');
+  return asked === 'mesh' || asked === 'road' ? asked : null;
+}
+
+function startGame(
+  store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number, url: URL,
+  /**
+   * Which world to grow. It comes from the save whenever there is one, because the same seed grows
+   * two completely different countries and reopening a world as the other kind would put the ground
+   * somewhere else under a house, a planted field and every anchor the manifest holds.
+   */
+  world: WorldKind,
+): void {
   /**
    * Whether the player has ever picked a quality themselves — asked before anything else, because
    * the rig writes the level down every time it is set and the very next line sets it. Ask any
@@ -162,9 +177,8 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // same press by the time anything below reads them
   const touch = new TouchControls(input);
   const props = new PropLibrary();
-  // ?world=mesh grows the polygon world instead of the road tree. Both can be built, so the two
-  // can be walked and compared rather than one being swapped for the other on faith.
-  const meshWorld = url.searchParams.get('world') === 'mesh';
+  // chosen when the world was made and written into its save, so it never changes underneath one
+  const meshWorld = world === 'mesh';
   const graph = meshWorld ? generateWebGraph(seed) : generateRoadGraph(seed);
   const manifest = new Manifest(seed, saved?.manifest);
   if (!meshWorld) {
@@ -427,6 +441,7 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   const persist = () => {
     void store.save<SessionSave>(slotKey, {
       seed,
+      world,
       cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
       player: { x: player.x, z: player.z },
       state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save() },

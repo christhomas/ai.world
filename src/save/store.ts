@@ -27,8 +27,25 @@ import type { ManifestJson } from '../world/manifest';
 import type { NemesisSave } from '../game/nemesis';
 import type { RoamingJson } from '../game/roaming';
 
+/**
+ * Which of the two worlds a save is set in.
+ *
+ * `mesh` grows the polygon world — regions glued out of hexes, with mountains, cliffs and the
+ * eyries that hang off them. `road` is the older road tree, which is flatter: it cannot place a
+ * massif at all, because a massif needs thirty tiles of room from the coast and the road world's
+ * land is never wider than twenty-two.
+ *
+ * It belongs on the save because it decides the entire terrain. The same seed grows two completely
+ * different countries, so a world reopened as the other kind would put the ground somewhere else
+ * underneath a house, a planted field, and every dungeon and island anchor the manifest is holding.
+ * Before this was written down, every world made with `?world=mesh` came back as a road world.
+ */
+export type WorldKind = 'road' | 'mesh';
+
 export interface SessionSave {
   seed: number;
+  /** Which world this is. Absent on saves made before the choice existed, which were all road. */
+  world?: WorldKind;
   cam: { x: number; z: number; rot: number; zoom: number };
   player?: { x: number; z: number };
   state?: Partial<GameStateJson>;
