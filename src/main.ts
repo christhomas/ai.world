@@ -1480,6 +1480,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) { state.tick(dt); magic.tick(dt); }
+    // What a blow costs in time, counted before the frame decides where the hero is standing.
+    //
+    // These used to be counted down at the bottom of the outdoor path, past the two early returns
+    // — so underground and indoors the cooldown was set by the first swing and never came off
+    // again, and the hero got exactly one swing per visit however long they stayed. Which made
+    // clearing a mine out impossible, and that is the one thing the whole mining economy is
+    // waiting on. Found by trying to fight a cave empty and hitting a rat once.
+    swingCooldown = Math.max(0, swingCooldown - dt);
+    drawCooldown = Math.max(0, drawCooldown - dt);
     // a day turning over is a day in the villages too: lives run out, and children are born
     for (const word of nemesis.advance(clockAt(state), realm())) chat.line(word.said, 'sys');
     for (const band of roaming.advance(state.day)) hud.flash(warningOfBand(band));
@@ -1664,11 +1673,9 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
     listenForWater();
     director.advance(dt);
 
-    swingCooldown = Math.max(0, swingCooldown - dt);
     reeling = Math.max(0, reeling - dt);
     musterIn -= dt;
     if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
-    drawCooldown = Math.max(0, drawCooldown - dt);
     if (input.clicked && !talking) {
       mouse.set((input.clickX / window.innerWidth) * 2 - 1, -(input.clickY / window.innerHeight) * 2 + 1);
       raycaster.setFromCamera(mouse, iso.camera);
