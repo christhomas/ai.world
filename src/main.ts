@@ -14,6 +14,7 @@ import { PropLibrary } from './render/props';
 import { DayCycle } from './render/daycycle';
 import { ChunkManager } from './world/chunkManager';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
+import { generateWebGraph } from './world/roadweb';
 import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
@@ -142,10 +143,15 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
   // same press by the time anything below reads them
   const touch = new TouchControls(input);
   const props = new PropLibrary();
-  const graph = generateRoadGraph(seed);
+  // ?world=mesh grows the polygon world instead of the road tree. Both can be built, so the two
+  // can be walked and compared rather than one being swapped for the other on faith.
+  const meshWorld = url.searchParams.get('world') === 'mesh';
+  const graph = meshWorld ? generateWebGraph(seed) : generateRoadGraph(seed);
   const manifest = new Manifest(seed, saved?.manifest);
-  if (manifest.byKind('island').length === 0) for (const p of planIslands(graph, seed)) manifest.ensure(p.id, 'island', p.x, p.z);
-  attachIslands(graph, manifest.byKind('island'));
+  if (!meshWorld) {
+    if (manifest.byKind('island').length === 0) for (const p of planIslands(graph, seed)) manifest.ensure(p.id, 'island', p.x, p.z);
+    attachIslands(graph, manifest.byKind('island'));
+  }
   const sampler = new TerrainSampler(graph);
   const structures = sampler.structures;
   const daycycle = new DayCycle(rig);

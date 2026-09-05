@@ -75,15 +75,39 @@ export interface MeshFace {
   neighbours: number[];
 }
 
+/**
+ * The mesh, as plain data.
+ *
+ * Deliberately without methods on it: the graph is handed to a Web Worker to build chunks off the
+ * main thread, and a structured clone cannot carry a function. So the lookups are free functions
+ * that take the mesh, and the lattice index is a typed array rather than a Map for the same
+ * reason — it crosses the wire and it is read for every tile in the world.
+ */
 export interface WorldMesh {
   seed: number;
   radius: number;
+  /** Lattice spacing the faces were laid out on, before their corners were pushed about. */
+  size: number;
+  /** How far the lattice runs either side of the middle, which is what indexes `lattice`. */
+  span: number;
+  /** Face id at each lattice position, -1 where there is none. Indexed by (r + span, q + span). */
+  lattice: Int32Array;
   vertices: MeshVertex[];
   faces: MeshFace[];
-  /** The face a point falls in, or null past the edge of the world. */
-  faceAt(x: number, z: number): MeshFace | null;
-  /** Whether a point is somewhere you could stand: inside a face that is not water. */
-  isLand(x: number, z: number): boolean;
+}
+
+/** The face a point falls in, or null past the edge of the world. */
+export function faceAt(mesh: WorldMesh, x: number, z: number): MeshFace | null {
+  const { q, r } = hexAt(x, z, mesh.size);
+  if (Math.abs(q) > mesh.span || Math.abs(r) > mesh.span) return null;
+  const id = mesh.lattice[(r + mesh.span) * (2 * mesh.span + 1) + (q + mesh.span)];
+  return id < 0 ? null : mesh.faces[id];
+}
+
+/** Whether a point is somewhere you could stand: inside a face that is not water. */
+export function isLand(mesh: WorldMesh, x: number, z: number): boolean {
+  const face = faceAt(mesh, x, z);
+  return face !== null && (face.kind === FaceKind.Land || face.kind === FaceKind.Mountain);
 }
 
 /** Axial hex coordinates, which is the lattice the faces are laid out on. */
@@ -143,7 +167,11 @@ export function generateMesh(seed: number, radius = GRAPH.RADIUS): WorldMesh {
   const vertices: MeshVertex[] = [];
   const byKey = new Map<string, number>();
   const faces: MeshFace[] = [];
-  const faceByAxial = new Map<string, number>();
+  const span = Math.ceil(radius / (size * 1.5)) + 2;
+  const stride = 2 * span + 1;
+  const lattice = new Int32Array(stride * stride).fill(-1);
+  const latticeAt = (q: number, r: number): number =>
+    (Math.abs(q) > span || Math.abs(r) > span) ? -1 : lattice[(r + span) * stride + (q + span)];
 
   /** One vertex per corner position, jittered once and then shared by all three faces. */
   const vertexAt = (x: number, z: number): number => {
@@ -160,15 +188,13 @@ export function generateMesh(seed: number, radius = GRAPH.RADIUS): WorldMesh {
     return id;
   };
 
-  // how far out the lattice has to run to cover the disc
-  const span = Math.ceil(radius / (size * 1.5)) + 2;
   for (let r = -span; r <= span; r++) {
     for (let q = -span; q <= span; q++) {
       const { x, z } = hexCentre(q, r, size);
       const away = Math.hypot(x, z);
       if (away > radius + size) continue;
       const id = faces.length;
-      faceByAxial.set(`${q},${r}`, id);
+      lattice[(r + span) * stride + (q + span)] = id;
       faces.push({
         id, cx: x, cz: z, kind: FaceKind.Sea,
         corners: hexCorners(x, z, size).map((c) => vertexAt(c.x, c.z)),
@@ -180,9 +206,9 @@ export function generateMesh(seed: number, radius = GRAPH.RADIUS): WorldMesh {
   // neighbours, once every face exists
   for (let r = -span; r <= span; r++) {
     for (let q = -span; q <= span; q++) {
-      const id = faceByAxial.get(`${q},${r}`);
-      if (id === undefined) continue;
-      faces[id].neighbours = NEIGHBOURS.map((n) => faceByAxial.get(`${q + n.q},${r + n.r}`) ?? -1);
+      const id = latticeAt(q, r);
+      if (id < 0) continue;
+      faces[id].neighbours = NEIGHBOURS.map((n) => latticeAt(q + n.q, r + n.r));
     }
   }
 
@@ -206,30 +232,10 @@ export function generateMesh(seed: number, radius = GRAPH.RADIUS): WorldMesh {
   }
 
   // the middle of the world is where the player starts, so it had better be walkable
-  const hub = faceAtLattice(0, 0);
-  if (hub && hub.kind !== FaceKind.Land) hub.kind = FaceKind.Land;
+  const hubId = latticeAt(0, 0);
+  if (hubId >= 0 && faces[hubId].kind !== FaceKind.Land) faces[hubId].kind = FaceKind.Land;
 
-  function faceAtLattice(x: number, z: number): MeshFace | null {
-    const { q, r } = hexAt(x, z, size);
-    const id = faceByAxial.get(`${q},${r}`);
-    return id === undefined ? null : faces[id];
-  }
-
-  return {
-    seed,
-    radius,
-    vertices,
-    faces,
-    faceAt(x, z) {
-      const face = faceAtLattice(x, z);
-      if (!face) return null;
-      return Math.hypot(face.cx, face.cz) > radius + size ? null : face;
-    },
-    isLand(x, z) {
-      const face = faceAtLattice(x, z);
-      return face !== null && (face.kind === FaceKind.Land || face.kind === FaceKind.Mountain);
-    },
-  };
+  return { seed, radius, size, span, lattice, vertices, faces };
 }
 
 /** Every face reachable from `start` over faces of the same kind: one territory, however shaped. */

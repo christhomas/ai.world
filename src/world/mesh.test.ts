@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FaceKind, MESH, generateMesh, territoryOf } from './mesh';
+import { FaceKind, MESH, generateMesh, isLand, territoryOf } from './mesh';
 
 /**
  * The mesh replaces "land is anywhere near a road" with "land is inside a land face". The tests
@@ -61,13 +61,13 @@ describe('the same seed is the same world', () => {
 
 describe('the country it makes', () => {
   it('puts dry land under the hero, who starts at the middle', () => {
-    expect(mesh.isLand(0, 0)).toBe(true);
+    expect(isLand(mesh, 0, 0)).toBe(true);
   });
 
   it('ends in open sea rather than at a wall', () => {
     const rim = mesh.radius * 0.95;
     for (const [x, z] of [[rim, 0], [-rim, 0], [0, rim], [0, -rim]] as const) {
-      expect(mesh.isLand(x, z), `land at the rim (${x}, ${z})`).toBe(false);
+      expect(isLand(mesh, x, z), `land at the rim (${x}, ${z})`).toBe(false);
     }
   });
 
@@ -96,7 +96,7 @@ describe('the country it makes', () => {
     for (let z = -300; z <= 300; z += 30) {
       let run = 0;
       for (let x = -mesh.radius; x <= mesh.radius; x += 4) {
-        if (mesh.isLand(x, z)) { run += 4; longest = Math.max(longest, run); } else run = 0;
+        if (isLand(mesh, x, z)) { run += 4; longest = Math.max(longest, run); } else run = 0;
       }
     }
     expect(longest, 'still ribbons').toBeGreaterThan(200);

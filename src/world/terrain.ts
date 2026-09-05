@@ -5,6 +5,7 @@ import { Simplex2D } from './noise';
 import { biomeAt, segDist2, type RoadGraph } from './graph';
 import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
+import { isLand, type WorldMesh } from './mesh';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 
@@ -101,9 +102,19 @@ export class TerrainSampler {
   readonly hydro: Hydrology;
   readonly structures: Structures;
   readonly seed: number;
+  /**
+   * The polygons the world is tiled with, when it was grown that way.
+   *
+   * Its presence is what decides where land comes from. With a mesh, dry ground is somewhere
+   * inside a dry face and the roads are only roads; without one, the old rule stands and land is
+   * whatever lies within W tiles of a road. Both worlds can be generated, which is what lets the
+   * two be compared rather than swapped over blind.
+   */
+  readonly mesh: WorldMesh | null;
 
   constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
     this.seed = graph.seed;
+    this.mesh = (graph as RoadGraph & { mesh?: WorldMesh }).mesh ?? null;
     this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
     this.biomeNoise = new Simplex2D(derive(graph.seed, SALT.BIOME));
 
@@ -152,6 +163,27 @@ export class TerrainSampler {
   }
 
   /** Road-relative facts about a point. Used by hydrology routing, structures and the HUD. */
+  /**
+   * Roughly how far this point is from water, in tiles, giving up past `most`.
+   *
+   * The road-tree world got this for nothing: land was a band around a line, so the distance to
+   * the sea was the distance to the road subtracted from the band's width. A face has no such
+   * arithmetic, so the ground is felt outward in rings until it stops being ground. Coarse on
+   * purpose — it decides where a beach is drawn and how far the seabed reaches, and neither wants
+   * more than a tile or so of precision.
+   */
+  private waterAway(x: number, z: number, most: number, wantLand: boolean): number {
+    const mesh = this.mesh;
+    if (!mesh) return most;
+    for (let r = 1; r <= most; r += 1.5) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        if (isLand(mesh, x + Math.cos(a) * r, z + Math.sin(a) * r) !== wantLand) return r;
+      }
+    }
+    return most;
+  }
+
   landProbe(x: number, z: number): LandProbe | null {
     const cands = this.edgeIndex.query(x - 1, z - 1, x + 1, z + 1);
     const hit = this.nearest(x, z, cands);
@@ -164,7 +196,8 @@ export class TerrainSampler {
     const len = Math.hypot(ux, uz) || 1;
     ux /= len; uz /= len;
     return {
-      land: hit.d < W, roadDist: hit.d, roadWidth: e.roadWidth, landWidth: W,
+      land: this.mesh ? isLand(this.mesh, x, z) : hit.d < W,
+      roadDist: hit.d, roadWidth: e.roadWidth, landWidth: W,
       baseLevel: Math.max(1, Math.round(roadLevel)),
       cx: a.x + (b.x - a.x) * hit.t, cz: a.z + (b.z - a.z) * hit.t, ux, uz,
     };
@@ -257,10 +290,13 @@ export class TerrainSampler {
     out.roadWidth = e.roadWidth;
     const d = hit.d;
 
-    if (d >= W) {
-      if (d - W < WORLD.SEABED_RANGE) {
+    const wet = this.mesh ? !isLand(this.mesh, px, pz) : d >= W;
+    if (wet) {
+      // how far out to sea we are: measured off the coast with a mesh, off the road without one
+      const away = this.mesh ? this.waterAway(px, pz, WORLD.SEABED_RANGE, true) : d - W;
+      if (away < WORLD.SEABED_RANGE) {
         out.type = TileType.Seabed;
-        out.shore = d - W;
+        out.shore = away;
       }
       return;
     }
@@ -298,8 +334,10 @@ export class TerrainSampler {
     if (rise < 0) rise = 0;
     let level = Math.min(WORLD.MAX_LEVEL, baseLevel + rise);
 
+    const COAST = 2.2;
+    const shoreNear = this.mesh ? this.waterAway(px, pz, COAST, false) < COAST : d > W - COAST;
     let type: TileType;
-    if (d > W - 2.2) {
+    if (shoreNear) {
       // coast band: beaches on low ground, cliff coasts on highlands
       level = baseLevel;
       type = level <= 1 ? TileType.Sand : TileType.Ground;
