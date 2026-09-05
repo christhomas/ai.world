@@ -1,7 +1,8 @@
 import { GRAPH } from '../core/config';
-import { hash3, mulberry32 } from '../core/rng';
+import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
+import { faceUnder, indexFaces, scatterPoints, weldPolygons, type FaceIndex } from './polygons';
 
 /**
  * The world as a mesh of polygons.
@@ -14,87 +15,147 @@ import { Simplex2D } from './noise';
  *
  * So the primitive here is the face, not the road. The plane is tiled with polygons; each one is
  * sea, lake, open land or mountain; and land is somewhere inside a land face rather than near a
- * line. Neighbouring land faces merge into expanses of any size, water faces are the sea and the
- * lakes, and the border between the two is a coastline that costs nothing to find. The corners of
- * the polygons are the crossroads and the edges between them are the roads that may be built, so
- * the road network stops being a tree that land hangs off and becomes a web laid over the country.
+ * line. Neighbouring land faces run together into expanses of any size, water faces are the sea
+ * and the lakes, and the border between the two is a coastline that costs nothing to find. The
+ * corners of the polygons are the crossroads and the edges between them are the roads that may be
+ * built, so the road network stops being a tree that land hangs off and becomes a web laid over
+ * the country.
  *
- * Hexagons rather than a Delaunay triangulation, for one reason worth stating: every corner is
- * shared by exactly three faces and every face has exactly six neighbours, so the topology needs
- * no computing and cannot come out malformed. The corners are then pushed about by a hash of
- * their own position, which is what stops it looking like a beehive; faces of the same kind are
- * merged when anything asks about territory, so a "polygon" as the player meets it is a run of
- * three to a dozen hexes with a ragged border, not a hexagon.
+ * The first version of this tiled the plane with hexagons, on the reasoning that a lattice cannot
+ * come out malformed and jittering its corners would hide it. It could not, and the reason is
+ * worth writing down because it is the whole argument for the machinery below. A lattice has one
+ * cell size and one cell shape, and every corner in it has exactly three roads leaving at a
+ * hundred and twenty degrees. Noise added afterwards can move that, but it cannot add variety
+ * that was never generated: the verdict on the finished thing was "a uniform, boring world with no
+ * variety and no randomness, everything is fixed and predictable", and the map read as a repeating
+ * pattern from the first glance.
+ *
+ * So the faces are made rather than laid out. Points are scattered with a spacing that itself
+ * varies across the map, they are triangulated, and neighbouring triangles are welded together
+ * into faces of three to six sides — so the country is a mixture of triangles, quadrilaterals,
+ * pentagons and hexagons of several different sizes, and a crossroads has three, four or five
+ * roads leaving it depending on how many faces happen to meet there.
  *
  * Everything comes from the world seed, so the same seed is the same world on every machine and
  * for the life of the world, exactly as the road tree was.
  */
 
 export const MESH = {
-  /** Distance from a face's middle to its corners, in tiles, before the corners are jittered. */
-  FACE_RADIUS: 42,
   /**
-   * How far a corner may be pushed from where the lattice put it, as a share of the radius. Past
-   * about a third the polygons start to turn inside out; well under it and they still read hexagonal.
-   */
-  JITTER: 0.3,
-  /**
-   * How many hexes are glued together into one region, at most.
+   * How closely the crossroads are scattered in the fine-grained country and in the open country,
+   * in tiles.
    *
-   * Hexagons alone give the game away however much they are jittered: every corner has exactly
-   * three roads leaving it at a hundred and twenty degrees, and the eye reads that as a lattice
-   * immediately. Glueing them into clumps of two to five gives regions of five to a dozen sides
-   * with corners of every angle, and roads run along the borders between regions rather than along
-   * every hex edge — so what is drawn is territories, not a honeycomb.
+   * The gap between the two is the point: it is what stops every territory being the same size.
+   * Both together set how far apart the roads are, since a road runs along a face border — near 34
+   * and far 62 give a world of a couple of hundred faces, which is a road every seventy tiles or
+   * so in the close country and every hundred and twenty in the open. Halve them and the map turns
+   * into a net; double them and a face is bigger than the view and the polygons stop reading as
+   * territories at all.
    */
-  CLUMP: 5,
+  NEAR: 34,
+  FAR: 62,
+  /**
+   * How coarsely the close country gives way to the open country.
+   *
+   * A wavelength of about four hundred tiles, so a world holds a handful of each rather than one
+   * of each (which reads as a gradient across the map) or dozens (which averages back out to one
+   * spacing everywhere and undoes the whole idea).
+   */
+  GRAIN: 0.0026,
+  /** How many places a crossroads tries to grow a neighbour before it gives up. */
+  TRIES: 22,
+  /**
+   * How far past the world's edge the points are scattered, in tiles.
+   *
+   * Points have to reach beyond the radius for two reasons: the rim of a point set has no
+   * polygons worth the name, only the long slivers that close off its hull, and a lookup displaces
+   * the point it is given — by up to half of WARP, since the noise runs a half either way — before
+   * it asks anything. Both want a margin, and this is comfortably more than either needs.
+   */
+  OUTSIDE: 80,
+  /**
+   * Relative appetite for three, four, five and six sides.
+   *
+   * Weighted rather than uniform because the welding is not free: a face may be refused its sixth
+   * side because the neighbour it would have taken has already grown, or because the result would
+   * be dented, and every refusal lands in a lower bucket. Asking for more of the larger faces than
+   * you want is what makes the four come out in comparable numbers.
+   */
+  APPETITE: [1, 1.2, 1.6, 2.4],
+  /** The fewest roads that may leave a crossroads, so a junction is a junction. */
+  MIN_ROADS: 3,
+  /** How much of a dent a face may have in it. See `WeldDials.dent`. */
+  DENT: 0.5,
+  /**
+   * How wide a square of the lookup grid is, in tiles.
+   *
+   * About the closest two crossroads ever come, which keeps three or four faces filed under a
+   * typical square: small enough that a lookup tests a handful of polygons rather than a hundred,
+   * large enough that a big face is not filed under fifty squares.
+   */
+  INDEX_CELL: 34,
   /** How coarse the noise that decides land from sea is. Smaller means bigger continents. */
   CONTINENT_SCALE: 0.0022,
   /** Above this, a face is dry. The sea takes everything below it. */
   SHORE: -0.3,
-  /** And above this, dry land stands up as a mountain region. */
+  /** And above this, dry land stands up as mountain country. */
   PEAKS: 0.26,
   /**
    * How many islands a world is guaranteed, and how far out they stand.
    *
-   * The mesh throws off islands by itself, but only sometimes — two worlds in six, of three faces
-   * each. An island is somewhere to sail to and one of the few reasons to own a boat, so a couple
-   * are made on purpose: a land region well out from the middle has its land neighbours drowned
-   * until the sea goes all the way round it.
+   * The mesh throws off islands by itself, but only sometimes. An island is somewhere to sail to
+   * and one of the few reasons to own a boat, so a couple are made on purpose: a face of open
+   * water well out from the middle, with nothing but water all round it, is lifted into land.
+   * Lifting water can never damage a coast, which drowning land repeatedly did.
    */
   ISLANDS: 3,
   ISLAND_OUT: 0.45,
   /** Share of inland faces that hold a lake instead of open ground. */
   LAKE_SHARE: 0.07,
+  /**
+   * How likely a lake is to take in one more face, each time it is offered one.
+   *
+   * A single face is a tarn and several are a loch, and a world wants both. Rolled per neighbour
+   * rather than fixed, so the sizes come out spread instead of all being the same.
+   */
+  LAKE_SPREAD: 0.45,
   /** Faces nearer the rim than this fraction of the world radius are always sea, so the map ends in water. */
   RIM: 0.86,
   /**
    * How far a point is displaced before it is asked which face it is in, in tiles, and how coarse
    * that displacement is.
    *
-   * Without it a face border is a straight hexagon edge, and the coastline comes out ruled. The
-   * point is moved rather than the border, which costs two evaluations instead of remeshing, and
+   * Without it a face border is a straight line, and the coastline comes out ruled. The point is
+   * moved rather than the border, which costs a few noise evaluations instead of remeshing, and
    * gives bays, spits and headlands that are the same on every machine because they come from the
    * seed and the position and nothing else.
+   *
+   * A hundred is more than twice the width of a face, and it has to be: anything much less and the
+   * straight border can still be read through the coast it makes. It buys that at a price paid in
+   * `WEB.FOOTHOLD` — the further the coast wanders from the border it was drawn from, the more
+   * borders end up under water and cannot carry a road.
    */
-  WARP: 34,
+  WARP: 100,
   WARP_SCALE: 0.009,
   /**
    * How many octaves of noise the displacement is made of, and how each one compares to the last.
    *
-   * One octave was not enough and the reason is worth writing down: a single wave whose length is
-   * about the width of a hex moves whole hexes around without changing their shape, so the coast
-   * came out as a chain of gently bent hexagon edges — "too uniform and too regular", which is
-   * exactly what it looked like. Coastlines are rough at every scale at once. The first octave
-   * swings whole headlands out into the sea, the second cuts bays into those headlands, and the
-   * third frets the edges of the bays; together they hide the lattice the land is grown on.
+   * One octave was not enough and the reason is worth writing down: a single wave about as long as
+   * a face is wide moves whole faces around without changing their shape, so the coast came out as
+   * a chain of gently bent straight edges — "too uniform and too regular", which is exactly what it
+   * looked like. Coastlines are rough at every scale at once. The first octave swings whole
+   * headlands out into the sea, the second cuts bays into those headlands, the third frets the
+   * edges of the bays and the fourth roughens the fretting.
    *
-   * Three, because the fourth is finer than a tile and nobody would ever see it.
+   * Four rather than three, and each one louder relative to the last than it used to be: measured
+   * as coastline length over the square root of the land it encloses, the fourth octave is worth
+   * as much roughness as raising the displacement by a third, and it does not push any more of the
+   * road network out to sea to get it. The fifth would be finer than a tile and nobody would see it.
    */
-  WARP_OCTAVES: 3,
+  WARP_OCTAVES: 4,
   /** How much quieter each octave is than the one before, and how much shorter its waves. */
-  WARP_GAIN: 0.5,
-  WARP_LACUNARITY: 2.7,
+  WARP_GAIN: 0.62,
+  WARP_LACUNARITY: 2.4,
 } as const;
 
 /** What a face is made of. The player meets these as territories, not as polygons. */
@@ -110,7 +171,7 @@ export interface MeshVertex {
   z: number;
 }
 
-/** A run of hexes glued together: what the player meets as one stretch of country. */
+/** Every face you can walk between without changing what you are walking on: one territory. */
 export interface MeshRegion {
   id: number;
   kind: FaceKind;
@@ -122,13 +183,15 @@ export interface MeshRegion {
 
 export interface MeshFace {
   id: number;
-  /** The region this hex was glued into. Its kind is the region's kind. */
+  /** The territory this face is part of. Its kind is the region's kind and the region's is its. */
   region: number;
-  /** Where the face sits: the lattice point it grew from, which is inside it whatever the jitter. */
+  /** The area centroid, which is inside the face: where the face "is", for anything that asks. */
   cx: number;
   cz: number;
+  /** How much ground it covers, in tiles. Faces differ by several times over, which is the idea. */
+  area: number;
   kind: FaceKind;
-  /** Corner indices, going round. Six of them; the jitter is what makes them look otherwise. */
+  /** Corner indices, going round. Three to six of them. */
   corners: number[];
   /** Face id across each edge, in the same order as `corners`. -1 where the world ends. */
   neighbours: number[];
@@ -139,37 +202,38 @@ export interface MeshFace {
  *
  * Deliberately without methods on it: the graph is handed to a Web Worker to build chunks off the
  * main thread, and a structured clone cannot carry a function. So the lookups are free functions
- * that take the mesh, and the lattice index is a typed array rather than a Map for the same
- * reason — it crosses the wire and it is read for every tile in the world.
+ * that take the mesh, and the spatial index is a bundle of typed arrays for the same reason — it
+ * crosses the wire and it is read for every tile in the world.
  */
 export interface WorldMesh {
   seed: number;
   radius: number;
-  /** Lattice spacing the faces were laid out on, before their corners were pushed about. */
+  /**
+   * The radius of a middling face, in tiles.
+   *
+   * Faces are all different sizes now, so this is the one number that stands for "about how big is
+   * a face" — the half-width a massif or an island is scaled by. Measured off the finished mesh
+   * rather than declared, so it stays true when the spacing is retuned.
+   */
   size: number;
-  /** How far the lattice runs either side of the middle, which is what indexes `lattice`. */
-  span: number;
-  /** Face id at each lattice position, -1 where there is none. Indexed by (r + span, q + span). */
-  lattice: Int32Array;
+  /** Which face is under a point, without asking every face. */
+  index: FaceIndex;
   vertices: MeshVertex[];
   faces: MeshFace[];
-  /** The hexes glued into territories. A face's kind is its region's kind. */
+  /** The faces run together into territories. A face's kind is its region's kind. */
   regions: MeshRegion[];
 }
 
 /**
  * The face a point falls in, or null past the edge of the world.
  *
- * The point is pushed about by a little noise first, which is what turns the hexagon borders into
+ * The point is pushed about by a little noise first, which is what turns the polygon borders into
  * a coastline. Two faces asked about the same point are pushed the same way, so the borders stay
  * shared and nothing tears.
  */
 export function faceAt(mesh: WorldMesh, x: number, z: number): MeshFace | null {
-  const wx = x + roughen(mesh.seed, x, z) * MESH.WARP;
-  const wz = z + roughen(mesh.seed ^ 0x9e37, x, z) * MESH.WARP;
-  const { q, r } = hexAt(wx, wz, mesh.size);
-  if (Math.abs(q) > mesh.span || Math.abs(r) > mesh.span) return null;
-  const id = mesh.lattice[(r + mesh.span) * (2 * mesh.span + 1) + (q + mesh.span)];
+  roughen(mesh.seed, x, z);
+  const id = faceUnder(mesh.index, x + drift.x * MESH.WARP, z + drift.z * MESH.WARP);
   return id < 0 ? null : mesh.faces[id];
 }
 
@@ -179,238 +243,188 @@ export function isLand(mesh: WorldMesh, x: number, z: number): boolean {
   return face !== null && (face.kind === FaceKind.Land || face.kind === FaceKind.Mountain);
 }
 
-/** Axial hex coordinates, which is the lattice the faces are laid out on. */
-interface Axial { q: number; r: number; }
-
-const SQRT3 = Math.sqrt(3);
-
-/** Middle of the hex at (q, r), in tiles. Pointy-topped, so rows interlock along x. */
-function hexCentre(q: number, r: number, size: number): { x: number; z: number } {
-  return { x: size * SQRT3 * (q + r / 2), z: size * 1.5 * r };
-}
-
-/** Which hex a point falls in. Standard cube rounding, done on the lattice before any jitter. */
-function hexAt(x: number, z: number, size: number): Axial {
-  const r = (2 / 3) * z / size;
-  const q = (SQRT3 / 3) * x / size - r / 2;
-  // round in cube space so the three coordinates keep summing to zero
-  const s = -q - r;
-  let rq = Math.round(q), rr = Math.round(r), rs = Math.round(s);
-  const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s);
-  if (dq > dr && dq > ds) rq = -rr - rs;
-  else if (dr > ds) rr = -rq - rs;
-  return { q: rq, r: rr };
-}
-
-/** The six corners of a hex, before jitter. Pointy-topped: the first corner is due north. */
-function hexCorners(cx: number, cz: number, size: number): Array<{ x: number; z: number }> {
-  const out: Array<{ x: number; z: number }> = [];
-  for (let k = 0; k < 6; k++) {
-    const angle = (Math.PI / 180) * (60 * k - 90);
-    out.push({ x: cx + size * Math.cos(angle), z: cz + size * Math.sin(angle) });
-  }
-  return out;
-}
-
-/** The six neighbours of a hex, in the same order as its corners' edges. */
-const NEIGHBOURS: ReadonlyArray<Axial> = [
-  { q: 1, r: -1 }, { q: 1, r: 0 }, { q: 0, r: 1 },
-  { q: -1, r: 1 }, { q: -1, r: 0 }, { q: 0, r: -1 },
-];
+/** Land or mountain: ground you can put your foot on, as opposed to sea or lake. */
+const dryKind = (kind: FaceKind): boolean => kind === FaceKind.Land || kind === FaceKind.Mountain;
 
 /**
- * Noise at several scales at once, in the range of roughly a half either way.
+ * Where `roughen` leaves its answer, each coordinate roughly a half either way.
+ *
+ * A returned pair would be an object allocated on every lookup, and a lookup happens for every
+ * tile of every chunk in the world and twice a pixel while the map is drawn. Written to rather
+ * than returned, and read straight away by the one caller: nothing here is re-entrant, and each
+ * worker has its own copy of the module.
+ */
+const drift = { x: 0, z: 0 };
+
+/**
+ * Noise at several scales at once, in both directions at once.
  *
  * A coastline is rough at every scale — headlands with bays cut into them and the bays themselves
  * fretted — and one wave cannot do that. This stacks a few, each shorter and quieter than the last,
  * and divides by the total so the result keeps the range a single octave had and WARP goes on
  * meaning what it meant.
+ *
+ * The displacement is two-dimensional and hashing the lattice a second time for the second
+ * direction was half the cost of a lookup, so both come out of the same four hashes: one from bits
+ * eight to twenty-three and the other from sixteen to thirty-one. They share a byte, which is
+ * worth a word. The byte they share is the top of one number and the bottom of the other, so it
+ * carries two hundred and fifty-six times the weight in the first as it does in the second, and
+ * what correlation that leaves between the two is well under a per cent — far below anything the
+ * eye could pick out of a coastline.
  */
-function roughen(seed: number, x: number, z: number): number {
-  let sum = 0, amplitude = 1, frequency = MESH.WARP_SCALE, loudest = 0;
+function roughen(seed: number, x: number, z: number): void {
+  let sumX = 0, sumZ = 0, amplitude = 1, frequency = MESH.WARP_SCALE, loudest = 0;
   for (let octave = 0; octave < MESH.WARP_OCTAVES; octave++) {
     // each octave gets its own seed, or they would all be the same wave at different sizes and the
     // sum would have a visible grain running through it
-    sum += wobble(seed ^ Math.imul(octave + 1, 0x85ebca6b), x * frequency, z * frequency) * amplitude;
+    const spin = seed ^ Math.imul(octave + 1, 0x85ebca6b);
+    const px = x * frequency, pz = z * frequency;
+    const x0 = Math.floor(px), z0 = Math.floor(pz);
+    const fx = px - x0, fz = pz - z0;
+    const ex = fx * fx * (3 - 2 * fx), ez = fz * fz * (3 - 2 * fz);
+    const ha = hashAt(spin, x0, z0), hb = hashAt(spin, x0 + 1, z0);
+    const hc = hashAt(spin, x0, z0 + 1), hd = hashAt(spin, x0 + 1, z0 + 1);
+    sumX += blend(low(ha), low(hb), low(hc), low(hd), ex, ez) * amplitude;
+    sumZ += blend(high(ha), high(hb), high(hc), high(hd), ex, ez) * amplitude;
     loudest += amplitude;
     amplitude *= MESH.WARP_GAIN;
     frequency *= MESH.WARP_LACUNARITY;
   }
-  return sum / loudest;
+  drift.x = sumX / loudest;
+  drift.z = sumZ / loudest;
 }
 
-/** Smooth value noise from a hash: no object to build, so it can be used from a free function. */
-function wobble(seed: number, x: number, z: number): number {
-  const x0 = Math.floor(x), z0 = Math.floor(z);
-  const fx = x - x0, fz = z - z0;
-  const ex = fx * fx * (3 - 2 * fx), ez = fz * fz * (3 - 2 * fz);
-  const at = (ix: number, iz: number): number => {
-    const h = Math.imul(Math.imul(ix, 0x27d4eb2d) ^ Math.imul(iz, 0x165667b1) ^ seed, 0x9e3779b1);
-    return ((h >>> 8) & 0xffff) / 0xffff - 0.5;
-  };
-  const a = at(x0, z0), b = at(x0 + 1, z0), c = at(x0, z0 + 1), d = at(x0 + 1, z0 + 1);
+/** One lattice corner's hash. No object to build, so it can be used from a free function. */
+function hashAt(seed: number, ix: number, iz: number): number {
+  return Math.imul(Math.imul(ix, 0x27d4eb2d) ^ Math.imul(iz, 0x165667b1) ^ seed, 0x9e3779b1);
+}
+
+const low = (h: number): number => ((h >>> 8) & 0xffff) / 0xffff - 0.5;
+const high = (h: number): number => ((h >>> 16) & 0xffff) / 0xffff - 0.5;
+
+/** Smoothly across a lattice square, given its four corners and the eased fractions. */
+function blend(a: number, b: number, c: number, d: number, ex: number, ez: number): number {
   return (a + (b - a) * ex) * (1 - ez) + (c + (d - c) * ex) * ez;
-}
-
-/** A key that two faces sharing a corner both arrive at, so the corner is one vertex and not three. */
-function cornerKey(x: number, z: number): string {
-  return `${Math.round(x * 8)},${Math.round(z * 8)}`;
 }
 
 /**
  * Grow the world's polygons.
  *
- * The lattice decides the topology and the seed decides everything else: where each corner is
- * actually pushed to, which faces are dry, which of the dry ones stand up as mountains, and which
+ * The seed decides everything: where the crossroads fall, how the triangles between them are
+ * welded into faces, which faces are dry, which of the dry ones stand up as mountains, and which
  * hollows hold a lake.
  */
 export function generateMesh(seed: number, radius = GRAPH.RADIUS): WorldMesh {
-  const size = MESH.FACE_RADIUS;
+  const grain = new Simplex2D(derive(seed, SALT.MESH ^ 0x9a17));
   const shape = new Simplex2D(derive(seed, SALT.MESH));
-  const vertices: MeshVertex[] = [];
-  const byKey = new Map<string, number>();
-  const faces: MeshFace[] = [];
-  const span = Math.ceil(radius / (size * 1.5)) + 2;
-  const stride = 2 * span + 1;
-  const lattice = new Int32Array(stride * stride).fill(-1);
-  const latticeAt = (q: number, r: number): number =>
-    (Math.abs(q) > span || Math.abs(r) > span) ? -1 : lattice[(r + span) * stride + (q + span)];
 
-  /** One vertex per corner position, jittered once and then shared by all three faces. */
-  const vertexAt = (x: number, z: number): number => {
-    const key = cornerKey(x, z);
-    const known = byKey.get(key);
-    if (known !== undefined) return known;
-    // pushed by a hash of where it is, so every face that meets here agrees on where "here" is
-    const rng = mulberry32(hash3(seed, Math.round(x * 8), Math.round(z * 8), SALT.MESH & 0xffff));
-    const angle = rng() * Math.PI * 2;
-    const push = rng() * MESH.JITTER * size;
-    const id = vertices.length;
-    vertices.push({ x: x + Math.cos(angle) * push, z: z + Math.sin(angle) * push });
-    byKey.set(key, id);
-    return id;
+  const { px, pz } = scatterPoints(
+    mulberry32(derive(seed, SALT.MESH)),
+    (x, z) => (grain.fbm(x * MESH.GRAIN, z * MESH.GRAIN, 2) + 1) * 0.5,
+    { reach: radius + MESH.OUTSIDE, near: MESH.NEAR, far: MESH.FAR, tries: MESH.TRIES },
+  );
+  const polygons = weldPolygons(
+    mulberry32(derive(seed, SALT.MESH ^ 0xc1a3)), px, pz,
+    { appetite: MESH.APPETITE, minRoads: MESH.MIN_ROADS, dent: MESH.DENT },
+  );
+
+  const vertices: MeshVertex[] = px.map((x, i) => ({ x, z: pz[i] }));
+  const faces: MeshFace[] = polygons.map((p, id) => ({
+    id, region: -1, cx: p.cx, cz: p.cz, area: p.area, kind: FaceKind.Sea,
+    corners: p.corners, neighbours: p.neighbours,
+  }));
+  // the middling face rather than the average one: a handful of enormous slivers close off the
+  // hull, and an average would let them speak for the whole country
+  const areas = polygons.map((p) => p.area).sort((a, b) => a - b);
+  const middling = areas.length > 0 ? areas[areas.length >> 1] : MESH.NEAR * MESH.NEAR;
+  const mesh: WorldMesh = {
+    seed, radius, vertices, faces, regions: [],
+    // the radius of a hexagon of that area, so the number means what it meant when the world was
+    // a hexagon lattice and everything downstream was tuned against it
+    size: Math.sqrt(middling / 2.598),
+    index: indexFaces(polygons, px, pz, MESH.INDEX_CELL),
   };
 
-  for (let r = -span; r <= span; r++) {
-    for (let q = -span; q <= span; q++) {
-      const { x, z } = hexCentre(q, r, size);
-      const away = Math.hypot(x, z);
-      if (away > radius + size) continue;
-      const id = faces.length;
-      lattice[(r + span) * stride + (q + span)] = id;
-      faces.push({
-        id, region: -1, cx: x, cz: z, kind: FaceKind.Sea,
-        corners: hexCorners(x, z, size).map((c) => vertexAt(c.x, c.z)),
-        neighbours: [],
-      });
+  // What each face is made of. Noise rather than a die, so neighbours agree and the land comes out
+  // in continents instead of confetti; the rim is drowned so the world ends in open sea.
+  for (const face of faces) {
+    const rim = Math.hypot(face.cx, face.cz) / radius;
+    if (rim > MESH.RIM) { face.kind = FaceKind.Sea; continue; }
+    const height = shape.fbm(face.cx * MESH.CONTINENT_SCALE, face.cz * MESH.CONTINENT_SCALE, 4)
+      - Math.max(0, (rim - 0.5) * 1.2);       // fall away towards the rim so coasts are not a circle
+    if (height < MESH.SHORE) { face.kind = FaceKind.Sea; continue; }
+    face.kind = height > MESH.PEAKS ? FaceKind.Mountain : FaceKind.Land;
+  }
+
+  // Lakes, in the hollows that have dry ground all the way round them, so a lake is inland water
+  // and never a bite taken out of a coast. Grown into their neighbours rather than being one face
+  // each, because a world wants tarns and lochs and not one size of pond.
+  const lakeRoll = mulberry32(derive(seed, SALT.MESH ^ 0x5eed));
+  const inland = (face: MeshFace): boolean =>
+    face.kind === FaceKind.Land && face.neighbours.every((n) => n >= 0 && dryKind(faces[n].kind));
+  for (const face of faces) {
+    if (!inland(face) || lakeRoll() >= MESH.LAKE_SHARE) continue;
+    face.kind = FaceKind.Lake;
+    for (const n of face.neighbours) {
+      if (lakeRoll() >= MESH.LAKE_SPREAD || !inland(faces[n])) continue;
+      faces[n].kind = FaceKind.Lake;
     }
   }
 
-  // neighbours, once every face exists
-  for (let r = -span; r <= span; r++) {
-    for (let q = -span; q <= span; q++) {
-      const id = latticeAt(q, r);
-      if (id < 0) continue;
-      faces[id].neighbours = NEIGHBOURS.map((n) => latticeAt(q + n.q, r + n.r));
+  // Islands, made by raising the sea rather than by drowning the land. The first attempt cut them
+  // loose from the coast, and doing that safely is impossible: a "neighbour" can be the continent,
+  // and seed 1 lost two fifths of its mainland to make four islands. Lifting a face of open water
+  // that already has water all round it cannot damage anything.
+  const offshore = faces
+    .filter((f) => f.kind === FaceKind.Sea)
+    .filter((f) => {
+      const away = Math.hypot(f.cx, f.cz);
+      // out to very nearly the edge: the genuinely open water, which is where an island belongs,
+      // lies past the line where the map starts drowning itself
+      if (away < radius * MESH.ISLAND_OUT || away > radius * 0.97) return false;
+      return f.neighbours.every((n) => n < 0 || !dryKind(faces[n].kind));
+    })
+    .sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz));
+  for (const island of offshore.slice(0, MESH.ISLANDS)) island.kind = FaceKind.Land;
+
+  // The middle of the world is where the player starts, so it had better be walkable — and walkable
+  // for some way around, because the clearing the hero wakes up in is wider than one small face.
+  const hub = faceAt(mesh, 0, 0);
+  if (hub && hub.kind !== FaceKind.Land) {
+    hub.kind = FaceKind.Land;
+    for (const n of hub.neighbours) {
+      if (n >= 0 && !dryKind(faces[n].kind)) faces[n].kind = FaceKind.Land;
     }
   }
 
-  // Glue the hexes into regions. Grown rather than diced so a region is a connected clump, and
-  // grown in face order so the same seed clumps them the same way.
-  const clumpRoll = mulberry32(derive(seed, SALT.MESH ^ 0xc1a3));
-  const regions: MeshRegion[] = [];
+  // and finally the territories: everywhere you can walk to without the ground changing under you.
+  // Grown from the kinds rather than the kinds from them, so a region is a real stretch of country
+  // — one mountain range, one lake, one sea — and not a bookkeeping clump.
   for (const face of faces) {
     if (face.region >= 0) continue;
-    const id = regions.length;
+    const id = mesh.regions.length;
     const mine: number[] = [face.id];
     face.region = id;
-    const want = 1 + Math.floor(clumpRoll() * MESH.CLUMP);
-    // breadth-first over free neighbours, so a clump stays in a lump rather than trailing away
-    for (let head = 0; head < mine.length && mine.length < want; head++) {
+    for (let head = 0; head < mine.length; head++) {
       for (const n of faces[mine[head]].neighbours) {
-        if (mine.length >= want) break;
-        if (n < 0 || faces[n].region >= 0) continue;
+        if (n < 0 || faces[n].region >= 0 || faces[n].kind !== face.kind) continue;
         faces[n].region = id;
         mine.push(n);
       }
     }
-    let cx = 0, cz = 0;
-    for (const f of mine) { cx += faces[f].cx; cz += faces[f].cz; }
-    regions.push({ id, kind: FaceKind.Sea, faces: mine, cx: cx / mine.length, cz: cz / mine.length });
+    let cx = 0, cz = 0, weight = 0;
+    for (const f of mine) { cx += faces[f].cx * faces[f].area; cz += faces[f].cz * faces[f].area; weight += faces[f].area; }
+    mesh.regions.push({
+      id, kind: face.kind, faces: mine,
+      cx: weight > 0 ? cx / weight : faces[face.id].cx,
+      cz: weight > 0 ? cz / weight : faces[face.id].cz,
+    });
   }
 
-  // what each region is made of. Noise rather than a die, so neighbours agree and the land comes
-  // out in continents instead of confetti; the rim is drowned so the world ends in open sea.
-  const lakeRoll = mulberry32(derive(seed, SALT.MESH ^ 0x5eed));
-  for (const region of regions) {
-    const rim = Math.hypot(region.cx, region.cz) / radius;
-    if (rim > MESH.RIM) { region.kind = FaceKind.Sea; continue; }
-    const height = shape.fbm(region.cx * MESH.CONTINENT_SCALE, region.cz * MESH.CONTINENT_SCALE, 4)
-      - Math.max(0, (rim - 0.5) * 1.2);       // fall away towards the rim so coasts are not a circle
-    if (height < MESH.SHORE) { region.kind = FaceKind.Sea; continue; }
-    region.kind = height > MESH.PEAKS ? FaceKind.Mountain : FaceKind.Land;
-  }
-  for (const region of regions) {
-    if (region.kind !== FaceKind.Land) continue;
-    // a lake only where the ground around it is dry, so lakes are inland and not bites out of a coast
-    const touchesSea = region.faces.some((f) => faces[f].neighbours
-      .some((n) => n === -1 || (faces[n].region !== region.id && regions[faces[n].region]?.kind === FaceKind.Sea)));
-    if (touchesSea) continue;
-    if (lakeRoll() < MESH.LAKE_SHARE) region.kind = FaceKind.Lake;
-  }
-  for (const face of faces) face.kind = regions[face.region].kind;
-
-  // Islands, made by raising the sea rather than by drowning the land. The first attempt cut
-  // them loose from the coast, and doing that safely is impossible: a "neighbour" can be the
-  // continent, and seed 1 lost two fifths of its mainland to make four islands. Lifting an
-  // offshore region that is already surrounded by water cannot damage anything.
-  const dryKind = (k: FaceKind): boolean => k === FaceKind.Land || k === FaceKind.Mountain;
-  const openSea = regions
-    .filter((r) => r.kind === FaceKind.Sea)
-    .filter((r) => r.faces.length <= 3)
-    .filter((r) => {
-      const away = Math.hypot(r.cx, r.cz);
-      // out to very nearly the edge: the genuinely open water, which is where an island belongs,
-      // lies past the line where the map starts drowning itself
-      if (away < radius * MESH.ISLAND_OUT || away > radius * 0.97) return false;
-      // every face of it must have open water all the way round, or it is a peninsula
-      return r.faces.every((f) => faces[f].neighbours.every((n) =>
-        n < 0 || faces[n].region === r.id || !dryKind(faces[n].kind)));
-    })
-    .sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz));
-
-  for (const island of openSea.slice(0, MESH.ISLANDS)) {
-    island.kind = FaceKind.Land;
-    for (const f of island.faces) faces[f].kind = FaceKind.Land;
-  }
-
-  // the middle of the world is where the player starts, so it had better be walkable
-  const hubId = latticeAt(0, 0);
-  if (hubId >= 0 && faces[hubId].kind !== FaceKind.Land) {
-    const region = regions[faces[hubId].region];
-    region.kind = FaceKind.Land;
-    for (const f of region.faces) faces[f].kind = FaceKind.Land;
-  }
-
-  return { seed, radius, size, span, lattice, vertices, faces, regions };
+  return mesh;
 }
 
 /** Every face reachable from `start` over faces of the same kind: one territory, however shaped. */
 export function territoryOf(mesh: WorldMesh, start: MeshFace): MeshFace[] {
-  const want = start.kind;
-  const seen = new Set<number>([start.id]);
-  const out: MeshFace[] = [start];
-  const queue = [start];
-  while (queue.length > 0) {
-    const face = queue.pop()!;
-    for (const n of face.neighbours) {
-      if (n < 0 || seen.has(n)) continue;
-      const next = mesh.faces[n];
-      if (next.kind !== want) continue;
-      seen.add(n);
-      out.push(next);
-      queue.push(next);
-    }
-  }
-  return out;
+  return mesh.regions[start.region].faces.map((f) => mesh.faces[f]);
 }

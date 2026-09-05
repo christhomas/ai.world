@@ -4,7 +4,7 @@ import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
 import type { IslandInfo, RoadEdge, RoadGraph, RoadNode } from './graph';
-import { FaceKind, faceAt, generateMesh, type MeshFace, type WorldMesh } from './mesh';
+import { FaceKind, faceAt, generateMesh, isLand, type MeshFace, type WorldMesh } from './mesh';
 
 /**
  * The roads, laid over the polygon mesh.
@@ -41,6 +41,26 @@ export const WEB = {
    */
   BENDS: 3,
   WANDER: 0.19,
+  /**
+   * Where along a border the ground is felt for before a road is offered there.
+   *
+   * Not the ends, which belong to the next border along as much as to this one, and not the middle
+   * alone, which passes a road that runs out into a bay and comes back. Five points inside the
+   * ends catches every border that spends any real length in the water, and the tenths at either
+   * hand leave the junctions themselves alone.
+   */
+  FOOTING: [0.1, 0.3, 0.5, 0.7, 0.9],
+  /**
+   * How many of those have to be dry, which is a compromise and worth saying why.
+   *
+   * Demanding all five takes away a fifth of the network, and every road taken away leaves land
+   * with nothing near it — which the sampler cannot draw at all, because a tile with no road
+   * within about forty tiles has no terrace level to sit at and comes out as sea. Demanding none
+   * of them leaves a fifth of the roads drawn across open water. A simple majority is the best of
+   * both: roads over water fall from a fifth to a fifteenth, and the land orphaned by the change
+   * goes from two per cent to under four.
+   */
+  FOOTHOLD: 3,
   /** How many towns a world gets, and how far apart they have to stand, in tiles. */
   TOWNS: 9,
   TOWN_SPACING: 120,
@@ -69,21 +89,40 @@ export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph
   const mesh = generateMesh(seed, radius);
   const rng = mulberry32(derive(seed, SALT.ROAD_RNG));
 
-  // A road runs along the border BETWEEN two regions, never through the middle of one. Hexes glued
-  // into a region have their inner edges swallowed, so what is left is the outline of a territory
-  // with corners at every angle — which is the whole reason the hexes are glued at all. Roads on
-  // every hex edge drew a honeycomb over the map, with three roads leaving every junction at a
-  // hundred and twenty degrees, and no amount of bending them hid it.
+  // Every border of every dry face is a road that could be built, and every corner of one is a
+  // crossroads. That is the plain reading of the mesh and it only works because the mesh is
+  // irregular: back when the faces were hexagons this drew a honeycomb, with three roads leaving
+  // every junction at a hundred and twenty degrees, and no amount of bending them hid it. Faces of
+  // three to six sides at several different scales give junctions of three, four and five roads at
+  // every angle, which is a road network rather than a lattice with roads painted on it.
   const dry = (kind: FaceKind): boolean => kind === FaceKind.Land || kind === FaceKind.Mountain;
   const onLand = new Set<number>();
   const candidates = new Map<string, { a: number; b: number }>();
+  /**
+   * Whether there is ground the whole way along a border, so a road built there could be walked.
+   *
+   * The mesh decides land face by face, but a lookup displaces the point it is given before it
+   * asks, so the coastline is not the border it was drawn from: a border between dry country and
+   * open water is half in the sea by the time the ground is built, and the sampler draws seabed
+   * there and no road at all. That left a fifth of the network as lines on the map with nothing
+   * under them — bands walked into the water and quests pointed across it. So a border is only
+   * offered as a road if the ground is there, sampled along its length rather than at its ends,
+   * because the ends are shared with the next border along and one wet corner would otherwise cut
+   * a whole junction out of the web.
+   */
+  const walkable = (a: number, b: number): boolean => {
+    const va = mesh.vertices[a], vb = mesh.vertices[b];
+    let dry = 0;
+    for (const t of WEB.FOOTING) {
+      if (isLand(mesh, va.x + (vb.x - va.x) * t, va.z + (vb.z - va.z) * t)) dry++;
+    }
+    return dry >= WEB.FOOTHOLD;
+  };
   for (const face of mesh.faces) {
     if (!dry(face.kind)) continue;
     for (let k = 0; k < face.corners.length; k++) {
-      const across = face.neighbours[k];
-      // an edge inside a region is not a border and carries no road
-      if (across >= 0 && mesh.faces[across].region === face.region) continue;
       const a = face.corners[k], b = face.corners[(k + 1) % face.corners.length];
+      if (!walkable(a, b)) continue;
       onLand.add(a); onLand.add(b);
       candidates.set(edgeKey(a, b), { a, b });
     }

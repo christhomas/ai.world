@@ -59,6 +59,15 @@ export const MOUNTAIN = {
   /** Nor nearer than this to each other, so they read as separate ranges. */
   APART: 150,
   /**
+   * How much wider than the mountain face it stands on a massif reaches, in the polygon world.
+   *
+   * A face of the middling size is about sixty tiles across, and at 1.0 a massif would stop dead
+   * at its own border and leave a ring of flat ground between it and the next one along — a range
+   * of separate hats rather than a range. Past about 2.6 they swallow each other and the passes
+   * between them close up, which is the one piece of mountain country worth walking.
+   */
+  SPREAD: 2.2,
+  /**
    * How far inside the coast a massif has to stand, in tiles.
    *
    * The last couple of tiles before the sea are flattened to the shore's own level to make a
@@ -115,25 +124,33 @@ export function planMassifs(
 ): Massif[] {
   const rng = mulberry32(derive(seed, SALT.MOUNTAINS));
 
-  // With a mesh, the country has already been told where its mountains are: whole regions of it
-  // are mountain rather than open land. A massif goes in the middle of each, sized to the region
-  // it fills, so the height agrees with the map instead of being sprinkled over it.
+  // With a mesh, the country has already been told where its mountains are: whole territories of
+  // it are mountain rather than open land. A massif goes on each of the broadest faces of each,
+  // spaced apart so that a wide range comes out as a chain of peaks with valleys between them
+  // rather than as one enormous dome, and so the height agrees with the map instead of being
+  // sprinkled over it. Biggest range first, biggest face within it first, so the mountains a world
+  // can only afford ten of go where there is most mountain country to stand them on.
   if (mesh) {
     const ranges: Massif[] = [];
     const highlands = mesh.regions.filter((r: MeshRegion) => r.kind === FaceKind.Mountain);
-    highlands.sort((a, b) => b.faces.length - a.faces.length);
+    highlands.sort((a, b) => b.faces.length - a.faces.length || a.id - b.id);
     for (const region of highlands) {
       if (ranges.length >= MOUNTAIN.RANGES) break;
-      if (villages.some((v) => Math.hypot(v.x - region.cx, v.z - region.cz) < MOUNTAIN.CLEAR_OF_VILLAGES)) continue;
-      // a region of n hexes covers about n * size^2 * 2.6, so this is the radius of a circle of
-      // that area: a massif that fills its own territory and does not spill into the next one
-      const reach = Math.sqrt(region.faces.length) * mesh.size * 0.9;
-      ranges.push({
-        x: region.cx, z: region.cz,
-        radius: Math.max(MOUNTAIN.NARROWEST, Math.min(MOUNTAIN.WIDEST, reach)),
-        height: Math.round(MOUNTAIN.SHORTEST + rng() * (MOUNTAIN.TALLEST - MOUNTAIN.SHORTEST)),
-        hollow: 0,
-      });
+      const spots = region.faces.map((f) => mesh.faces[f]).sort((a, b) => b.area - a.area || a.id - b.id);
+      for (const face of spots) {
+        if (ranges.length >= MOUNTAIN.RANGES) break;
+        if (villages.some((v) => Math.hypot(v.x - face.cx, v.z - face.cz) < MOUNTAIN.CLEAR_OF_VILLAGES)) continue;
+        if (ranges.some((m) => Math.hypot(m.x - face.cx, m.z - face.cz) < MOUNTAIN.APART)) continue;
+        // the radius of a circle covering the face, widened a little so neighbouring massifs meet
+        // in a saddle instead of leaving a ring of flat ground round each one
+        const reach = Math.sqrt(face.area / Math.PI) * MOUNTAIN.SPREAD;
+        ranges.push({
+          x: face.cx, z: face.cz,
+          radius: Math.max(MOUNTAIN.NARROWEST, Math.min(MOUNTAIN.WIDEST, reach)),
+          height: Math.round(MOUNTAIN.SHORTEST + rng() * (MOUNTAIN.TALLEST - MOUNTAIN.SHORTEST)),
+          hollow: 0,
+        });
+      }
     }
     // One village in the world sits inside the mountains rather than beside them: a ring of high
     // country round a flat floor, with the roads it already had as the only ways in or out. The
