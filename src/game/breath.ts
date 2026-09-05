@@ -48,7 +48,32 @@ export const BREATH = {
   TIRED: 0.45,
   /** How much of your pace a raised guard costs you. */
   GUARDED_PACE: 0.45,
+  /**
+   * Half the arc a raised guard covers, in radians.
+   *
+   * Wider than the arc you can swing through, because taking a blow on a raised arm asks less of
+   * you than landing one, but nothing like the whole circle: a guard that answered a blow arriving
+   * at the back of your head would make holding the key strictly better than facing anything, and
+   * the arc is the only reason facing matters at all. Just over 2.6 radians of cover in total,
+   * which is most of what is in front of you and none of what is behind.
+   */
+  GUARD_ARC: 1.3,
 } as const;
+
+/**
+ * Is the thing hitting you somewhere your guard could actually meet it?
+ *
+ * @param yaw where the hero is facing; forward is (cos yaw, -sin yaw), the convention the whole
+ *   game uses
+ * @param dx how far the attacker is from the hero along x, and dz along z
+ */
+export function guardCovers(yaw: number, dx: number, dz: number, arc: number = BREATH.GUARD_ARC): boolean {
+  const away = Math.hypot(dx, dz);
+  // standing inside you is not behind you: something that has walked into the hero has no angle
+  // at all, and refusing to guard against it would punish exactly the swarm the arc exists for
+  if (away === 0) return true;
+  return ((dx / away) * Math.cos(yaw) + (dz / away) * -Math.sin(yaw)) >= Math.cos(arc);
+}
 
 /** What a blow that arrived while the guard was up came to. */
 export type Answered = 'parried' | 'blocked' | 'open';
@@ -117,8 +142,11 @@ export class Breath {
    * guard to it would be luck wearing skill's clothes. The guard still blocks there, because
    * holding your arm up is a decision that does not depend on reflexes you were never given.
    */
-  answer(canParry = true): Answered {
+  answer(canParry = true, covered = true): Answered {
     if (this.raised === null) return 'open';
+    // the arm is up, but not between you and it. The guard is not spent — it simply was not there,
+    // which is what makes turning to face something a real move rather than a flourish
+    if (!covered) return 'open';
     if (canParry && this.raised <= BREATH.PARRY_WINDOW) {
       this.left = Math.min(BREATH.MOST, this.left + BREATH.MOST * BREATH.PARRY_REFUND);
       this.raised = null;   // the parry spends the guard: you have to raise it for the next one

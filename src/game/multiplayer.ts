@@ -6,7 +6,7 @@ import { Coop } from './coop';
 import { Market } from './market';
 import { Party } from './party';
 import { Duel } from './duel';
-import { Breath } from './breath';
+import { Breath, guardCovers } from './breath';
 import { Handover } from './handover';
 import { OtherPlayers } from '../render/others';
 import { PlayerList } from '../ui/players';
@@ -193,7 +193,11 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onDuelStruck: (damage) => {
       // a raised guard counts here too, but it can only ever block: the blow crossed a wire to get
       // here, so timing a parry to it would be reacting to something that already happened
-      const answered = breath.answer(false);
+      // and only from a quarter the arm is actually on, the same as against anything else
+      const them = online.players.get(duel.opponent);
+      const covered = them === undefined
+        || guardCovers(player.entity.yaw, them.x - player.x, them.z - player.z);
+      const answered = breath.answer(false, covered);
       if (answered === 'blocked') hud.flash('Blocked.');
       const taken = Breath.after(answered, damage);
       // the bout's standing is on screen the whole time, so a blow only needs to be heard

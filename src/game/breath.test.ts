@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BREATH, Breath } from './breath';
+import { BREATH, Breath, guardCovers } from './breath';
+import { COMBAT } from './combat';
 
 /**
  * The complaint these answer: you jam one button until something falls over. So every claim here
@@ -131,5 +132,48 @@ describe('a guard against another player', () => {
     b.raise();
     // the same guard that would parry a wolf only blocks a person
     expect(b.answer(false)).not.toBe('parried');
+  });
+});
+
+/**
+ * A guard that answered a blow arriving at the back of your head would make holding the key
+ * strictly better than facing anything, and the arc is the only reason facing matters.
+ */
+describe('where a guard reaches', () => {
+  // the hero faces +x at yaw 0: forward is (cos yaw, -sin yaw)
+  const facingEast = 0;
+
+  it('covers what is in front of you', () => {
+    expect(guardCovers(facingEast, 1, 0)).toBe(true);
+  });
+
+  it('does not cover what is directly behind you', () => {
+    expect(guardCovers(facingEast, -1, 0)).toBe(false);
+  });
+
+  it('covers wider than you can swing, because taking a blow asks less than landing one', () => {
+    expect(BREATH.GUARD_ARC).toBeGreaterThan(COMBAT.ARC);
+    // and still nothing like the whole circle
+    expect(BREATH.GUARD_ARC).toBeLessThan(Math.PI);
+  });
+
+  it('counts something standing inside you as covered, or a swarm would be unanswerable', () => {
+    expect(guardCovers(facingEast, 0, 0)).toBe(true);
+  });
+
+  it('leaves you open to a blow from outside the arc without spending the guard', () => {
+    const b = new Breath();
+    b.raise();
+    expect(b.answer(true, false)).toBe('open');
+    // the arm never came down: it simply was not there, so it still answers the next one
+    expect(b.guarding).toBe(true);
+    expect(b.answer(true, true)).toBe('parried');
+  });
+
+  it('so a blow from behind lands in full however long the guard has been up', () => {
+    const b = new Breath();
+    b.raise();
+    const behind = guardCovers(facingEast, -1, 0);
+    expect(Breath.after(b.answer(true, behind), 4)).toBe(4);
   });
 });

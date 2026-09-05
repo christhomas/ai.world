@@ -23,7 +23,7 @@ import { StructureKind, compassDir } from './world/structures';
 import { ITEMS, sellPrice } from './game/shops';
 import { COMBAT, struck, swing } from './game/combat';
 import { carriedTo, costOf, saidOfKnockout } from './game/knockout';
-import { BREATH, Breath } from './game/breath';
+import { BREATH, Breath, guardCovers } from './game/breath';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
@@ -1037,7 +1037,13 @@ function startGame(store: SaveStore, slotKey: string, saved: SessionSave | undef
      * flat-footed; one that has been held since before the swing started only takes the edge off.
      * Holding the key down deliberately gets you the worse of the two.
      */
-    const answered = breath.answer();
+    const answered = breath.answer(
+      true,
+      // and only if it is coming at a side of you the arm is on. Being hit turns you to face the
+      // thing, so a second blow from the same quarter is one you can answer — an ambush costs you
+      // the first and no more.
+      guardCovers(player.entity.yaw, attacker.x - player.x, attacker.z - player.z),
+    );
     if (answered === 'parried') {
       // it went past you, and it is now standing there with its weight in the wrong place
       attacker.hurt = BREATH.STAGGER;
