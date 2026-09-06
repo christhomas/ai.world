@@ -63,9 +63,9 @@ belongs to the project, and the next person to open it can see what was known.
 
 - [x] A release is one act: chart version, game version, tag and image all naming the same moment.
       *(`chore release`, and `docs/releasing.md`.)*
-- [ ] v0.2.1 is tagged and published with no image behind it — the Dockerfile fix landed after it.
-      The chart currently pins it, so a cluster reconciling right now cannot pull. Fixed by cutting
-      the next version; the dead tag should be deleted rather than left to be rolled back to.
+- [x] v0.2.1 was tagged and published with no image behind it. *(0.3.0 cut with the new tooling and
+      published for both architectures; the dead tag and its release are deleted, because a version
+      somebody could roll back to and never start is worse than no version at all.)*
 
 ## Smaller
 
