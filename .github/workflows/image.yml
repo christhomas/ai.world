@@ -1,0 +1,93 @@
+# Publish the world server as an image, so a cluster can pull it.
+#
+# The page has GitHub Pages and the server had nowhere: the Dockerfile existed and every image it
+# produced lived and died on whatever laptop built it. A cluster cannot pull from a laptop, and Flux
+# is built around pulling — so without this the chart names an image that does not exist anywhere.
+#
+# Built for arm64 and amd64. arm64 because the machine this is for is a Raspberry Pi 5, amd64
+# because the same chart is meant to run on an ordinary VPS later and an image that only exists for
+# one architecture quietly makes that a rebuild rather than a redeploy.
+name: Publish the server image
+
+on:
+  push:
+    branches: [main]
+    # Only when something that ends up *in* the image changes. A texture, a test or a README does
+    # not need a new image, and a registry full of identical layers under different tags is a
+    # registry nobody can reason about.
+    paths:
+      - 'Dockerfile'
+      - 'server/**'
+      - 'src/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'animations/**'
+      - 'behaviours/**'
+      - 'art/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/image.yml'
+  # A release rather than a tag push, deliberately. `paths` above filters tag pushes too, and a tag
+  # changes no files — so a tags trigger sharing that filter would never fire, which is the kind of
+  # bug you only find when the release you needed did not happen.
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ${{ github.repository_owner }}/ai-world
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The only credential needed. GITHUB_TOKEN can write packages for this repository, so there
+      # is no registry secret to create, rotate or leak.
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # arm64 on an amd64 runner is emulated, which is slow but correct. Building on the Pi itself
+      # would be faster per byte and would mean the Pi had to be awake and reachable for a release
+      # to happen, which is exactly the dependency this is meant to remove.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          # `latest` on main so there is always something to pull, and the commit sha always, so a
+          # deployment can name exactly what it is running rather than whatever `latest` meant that
+          # afternoon. A tag also produces its own semver tags.
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64,linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # The page goes in, because one origin serving both is what lets the client work out its
+          # own WebSocket address and needs nothing configured anywhere.
+          build-args: |
+            WITH_PAGE=true
+            PAGE_SOURCEMAPS=false
+          # Layers survive between runs, which matters most for the half of the build that installs
+          # the toolchain — unchanged on almost every push, and the slowest thing here under
+          # emulation.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
