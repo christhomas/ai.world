@@ -112,6 +112,18 @@ export class SharedWorld {
     return [...this.deltas.values()];
   }
 
+  /**
+   * Wind the clock to a day and a time. For the console, and for whoever operates a world.
+   *
+   * The world's own, not a player's: everybody in it is told the moment it changes, because the
+   * time of day is the one thing a world has to agree about.
+   */
+  setClock(day: number, time: number): Clock {
+    this.clock.day = Math.max(1, Math.floor(day));
+    this.clock.time = Math.max(0, Math.min(0.999, time));
+    return this.clock;
+  }
+
   /** Move the clock on by the seconds that have actually passed. */
   tick(seconds: number): void {
     this.clock.time += seconds / DAY_LENGTH;

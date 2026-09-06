@@ -28,6 +28,15 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
     case 'stood':
       putThere(rooms, me, message);
       return;
+    case 'setclock':
+      // the time of day is the one thing everybody in a world shares, so it is only a player's to
+      // set while they are the only player in it — everywhere else, the operator door
+      if (room.clients.size !== 1) return;
+      rooms.broadcast(me.seed, {
+        type: 'clock',
+        clock: room.world.setClock(Number(message.day) || 1, Number(message.time) || 0),
+      });
+      return;
     case 'delta': case 'monsters': case 'hit':
       worldChange(rooms, me, room, message);
       return;

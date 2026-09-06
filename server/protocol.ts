@@ -298,6 +298,16 @@ export type ClientMessage =
    * stops being a floor they have left it.
    */
   | { type: 'floor'; place: string; anchor: string; kind: 'dungeon' | 'cave' | 'thicket'; floor: number }
+  /**
+   * Set the world's clock: what day it is, and how far through it.
+   *
+   * Refused by a world that has other people in it — the time of day is the one thing everybody in
+   * a world shares, and a stranger winding it to midnight is not a thing anybody wants done to
+   * them. A world running in the thread next door is nobody else's, so it takes it, which is what
+   * makes the console's `time` and `day` work in single player. On a real server the way in is the
+   * operator door, which is what that door is for.
+   */
+  | { type: 'setclock'; day: number; time: number }
   | { type: 'stall-rent'; stall: string; village: string }
   | { type: 'stall-stock'; stall: string; item: StallItem }
   | { type: 'stall-buy'; stall: string; index: number }

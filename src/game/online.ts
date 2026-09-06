@@ -369,6 +369,14 @@ export class Online {
     if (this.connected) this.send({ type: 'stood', x, z, why });
   }
 
+  /**
+   * Ask the world to wind its clock. Refused where anybody else is in it, and silently: the world
+   * simply goes on saying what time it is, which is the answer.
+   */
+  setClock(day: number, time: number): void {
+    if (this.connected) this.send({ type: 'setclock', day, time });
+  }
+
   /** Tell everyone about something we changed in the world. */
   report(delta: WorldDelta): void {
     if (this.connected) this.send({ type: 'delta', delta });

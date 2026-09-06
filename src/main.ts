@@ -1686,13 +1686,21 @@ function startGame(
       ));
       return { asked: many, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
     },
+    // The clock belongs to the world, and the world says what time it is ten times a minute — so
+    // setting it here alone lasted until the next thing the world said, which is why `time 0.5`
+    // answered with half past noon and left the sun where it was. Asked of the world instead, and
+    // the world tells everybody in it, which is one person or it is refused.
     setTime: (fraction) => {
-      state.time = Math.max(0, Math.min(0.999, fraction));
-      return { day: state.day, time: state.time };
+      const time = Math.max(0, Math.min(0.999, fraction));
+      state.time = time;
+      online.setClock(state.day, time);
+      return { day: state.day, time };
     },
     setDay: (day) => {
-      state.day = Math.max(1, Math.round(day));
-      return { day: state.day, time: state.time };
+      const today = Math.max(1, Math.round(day));
+      state.day = today;
+      online.setClock(today, state.time);
+      return { day: today, time: state.time };
     },
     where: () => ({
       x: Math.round(player.x * 10) / 10, z: Math.round(player.z * 10) / 10,

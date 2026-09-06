@@ -235,9 +235,12 @@ the two are separate jobs with a third in between them.
       rather than a race: every message it waits for is sent as soon as the one before it is read,
       so a second was enough on an idle laptop and not on one running a hundred workers and a
       socket. Four seconds, and it still returns the moment the message arrives.)*
-- [ ] `/time 0.5` answers "day 1, time 0.5" and the clock in the corner stays at 08:13. Seen once,
-      from a headless console; find out whether the command sets a time nothing reads, or whether the
-      day cycle eases to it too slowly to see in three seconds.
+- [x] `/time 0.5` answered "day 1, time 0.5" and left the clock at 08:13. *(The clock belongs to the
+      world and the world says what time it is ten times a minute, so setting it on the client alone
+      lasted until the next thing the world said. Asked of the world now, which tells everybody in
+      it — and refuses where there is anybody else in it to tell, because the time of day is the one
+      thing a world has to agree about and a stranger winding it to midnight is not a thing anybody
+      wants done to them. On a real server the way in is the operator door, which is what it is for.)*
 - [ ] The server answers every steer with a `youAre`, which is about 0.7 KB/s a player down. Cheap
       enough to leave alone, and the knob to turn if the Pi ever complains: answer at the presence
       tick instead, since the client predicts either way.
