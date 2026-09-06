@@ -13,8 +13,8 @@ belongs to the project, and the next person to open it can see what was known.
       filesystem in it; `serve.ts` hosts it on websockets and files, `src/workers/sim.worker.ts`
       hosts the same code in a Web Worker with `localStorage`. The client reaches either through a
       `Link`. Leaving the server address empty plays against the world in the next thread.)*
-- [ ] Single player should use the Worker world by default, rather than only when somebody leaves
-      the address empty and presses connect.
+- [x] Single player should use the Worker world by default. *(Connected at boot; leaving a server
+      returns to it. Joining your own world says nothing, because it is not news.)*
 - [ ] **Phase 3 — the world's life moves across.** Villagers, herds, village economy, monsters.
       Interest management is part of this, not an optimisation afterwards: about two hundred
       creatures stand near a player and they cannot all go over the wire several times a second.
@@ -54,8 +54,8 @@ belongs to the project, and the next person to open it can see what was known.
 
 ## Smaller
 
-- [ ] The page asks for `/favicon.ico` on every load and gets a 404. A tab with no icon, and a
-      request that always fails.
+- [x] The page asks for `/favicon.ico` on every load and gets a 404. *(`public/favicon.svg`: sea, a
+      shore, and a mountain, in the game's own colours.)*
 
 - [x] `server/proxy.test.ts` is flaky under full-suite load. *(It was a race, not a deadline: the
       test joined through the proxy in the same breath as the direct player. It waits for the

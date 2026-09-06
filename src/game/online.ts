@@ -80,6 +80,14 @@ export interface OnlineEvents {
  */
 export class Online {
   private link: Link | null = null;
+  /**
+   * True when the world is the one in this tab rather than one on a server.
+   *
+   * It changes nothing about the protocol and one thing about the manners: joining your own world
+   * is not news. Without this, every solo game opens with "Joined world 3 as Traveller. 0 other
+   * travellers here", which is the game announcing itself to itself.
+   */
+  private local = false;
   private sinceMove = 0;
   private url = '';
   /** Other people in this world, by id. */
@@ -105,6 +113,7 @@ export class Online {
   connect(url: string, seed: number, name: string, clock: Clock): void {
     this.disconnect();
     this.url = url;
+    this.local = url === '';
     this.name = cleanName(name);
     this.status = 'connecting';
 
@@ -114,7 +123,7 @@ export class Online {
       }),
       onMessage: (text) => this.receive(text),
       onClose: (why) => {
-        if (this.status !== 'offline') this.events.onSystem(why);
+        if (this.status !== 'offline' && !this.local) this.events.onSystem(why);
         this.status = 'offline';
         this.players.clear();
         this.link = null;
@@ -152,7 +161,9 @@ export class Online {
         this.events.onClock(message.clock);
         // catch up on everything that happened here before we arrived
         for (const delta of message.deltas) this.events.onDelta(delta, true);
-        this.events.onSystem(`Joined world ${message.seed} as ${this.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
+        if (!this.local) {
+          this.events.onSystem(`Joined world ${message.seed} as ${this.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
+        }
         break;
       case 'clock':
         this.events.onClock(message.clock);

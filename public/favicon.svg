@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The world in a tab: sea, a shore, and a mountain standing on it, in the game's own colours —
+       the sea it draws, the meadow green, and the ramp the ranges are shaded with. -->
+  <rect width="32" height="32" fill="#1d4f78"/>
+  <path d="M0 20 L10 17 L22 19 L32 16 L32 32 L0 32 Z" fill="#72b04c"/>
+  <path d="M6 22 L14 8 L22 22 Z" fill="#8d8d8d"/>
+  <path d="M11.5 13 L14 8 L16.5 13 L14 12 Z" fill="#eef2f5"/>
+</svg>

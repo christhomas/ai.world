@@ -866,8 +866,25 @@ function startGame(
   const onlineStatus = $('onlineStatus');
   nameInput.value = localStorage.getItem('ai.world/name') ?? '';
   serverInput.value = defaultServer(url);
+  /**
+   * Play alone, against the world in the next thread.
+   *
+   * The simulation runs in a Web Worker beside the page: the same clock, the same market, the same
+   * post shelf and the same code a shared world runs, with one player in it. Started at boot rather
+   * than waiting for somebody to press connect, because a game whose world only exists once you ask
+   * for it is a game with two ways of working — which is the whole thing this is here to stop.
+   *
+   * Joining a real server disconnects this first, and leaving one comes back to it.
+   */
+  const playAlone = (): void => {
+    if (online.connected || online.status === 'connecting') return;
+    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
+  };
+  playAlone();
   $('connectButton').addEventListener('click', () => {
-    if (online.connected) { online.disconnect(); others.clear(); chat.hide(); return; }
+    // Leaving a server goes back to the world in this tab rather than to no world at all: the game
+    // is always played against a simulation now, and the only question is whose.
+    if (online.connected) { online.disconnect(); others.clear(); chat.hide(); playAlone(); return; }
     // An empty address is the world in the next thread: the same simulation the server runs, in a
     // Web Worker beside the page. Playing alone is playing against the server, which is what stops
     // single player being a second implementation. See docs/server-authority.md.
