@@ -15,9 +15,16 @@ belongs to the project, and the next person to open it can see what was known.
       `Link`. Leaving the server address empty plays against the world in the next thread.)*
 - [x] Single player should use the Worker world by default. *(Connected at boot; leaving a server
       returns to it. Joining your own world says nothing, because it is not news.)*
-- [ ] **Phase 3 — the world's life moves across.** Villagers, herds, village economy, monsters.
-      Interest management is part of this, not an optimisation afterwards: about two hundred
-      creatures stand near a player and they cannot all go over the wire several times a second.
+- [x] **Phase 3 — the world's life moves across.** *(The simulation grows the world it serves, owns
+      the wildlife on it, and tells each player what is within sixty tiles of them three times a
+      second — only what changed, which halved it. Measured: 13.7 KB/s a player, 1.8% of a core,
+      ~120 creatures over 49 chunks. Villagers stay client-side on purpose: they are the seed and
+      the register, which every client already agrees about, and a villager the server owned would
+      be one nobody could talk to. Hunting works through a strike message, with the world capping
+      what one blow may be worth.)*
+- [ ] Village economy and monsters are still each client's own. The economy is derived from the
+      register, so it agrees already; the monsters on a dungeon floor are owned by whichever player
+      is on it, which is the older co-op arrangement and not yet the server's.
 - [ ] **Phase 4 — the hero.** Movement, collision, combat, with prediction on the client and
       reconciliation when the server disagrees. Last, because it is the part players feel.
 
