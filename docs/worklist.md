@@ -59,8 +59,15 @@ belongs to the project, and the next person to open it can see what was known.
       old level and dragged the ground beside it back down — but not the road. The country is now
       cut down into the valley at the same slope the valley sides climb, so road and fields come
       down together. Worst step beside a road: 21 terraces → 7.)*
-- [ ] The roads are too uniform: every one the same width, the same flat colour, the same straight
+- [~] The roads are too uniform: every one the same width, the same flat colour, the same straight
       run between two nodes. A trunk road between towns and a lane to a farm should not look alike.
+      *(Surface done: a road wide enough to have a middle is drawn as made surface, one that is all
+      edge as worn earth, with per-tile wear over both and a scuffed verge where the fields meet
+      them. Width is not: widening the spread from 1.8–3.4 tiles to 1.8–5.4 moves every village a
+      little, and the roaming bands are planned off where the villages are — seed 1 went to ten
+      bands over one neighbourhood against a design figure of eight, and left one village unvisited
+      over a whole season. So the width and the shape of the web want doing together with the band
+      plan re-tuned, and that is a day's work rather than a constant.)*
 - [ ] Ground beside a road can still stand seven terraces above it over six tiles, which is a
       cutting rather than a verge. Worst offenders are near the world edge.
 

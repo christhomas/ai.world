@@ -159,6 +159,9 @@ class ChunkView {
   }
 }
 
+/** Tile kinds that get a scuffed verge where they meet a road. Not sand, water or anything built. */
+const VERGEABLE: ReadonlySet<number> = new Set([TileType.Ground, TileType.GroundAlt, TileType.High]);
+
 /** Top colour for a tile, in linear RGB, including seabed depth fade and wet river beds. */
 function topColor(c: ChunkData, i: number, type: TileType): RGB {
   const def = BIOMES[c.biome[i]];
@@ -184,6 +187,51 @@ function topColor(c: ChunkData, i: number, type: TileType): RGB {
   }
   if (type === TileType.Water) return [r * WET_BED[0], g * WET_BED[1], b * WET_BED[2]];
   return [r, g, b];
+}
+
+/** Is this tile something somebody would call a road? Bridges and squares count; verges do not. */
+function isMade(type: number): boolean {
+  return type === TileType.Road || type === TileType.Bridge || type === TileType.Plaza;
+}
+
+/**
+ * How many of the four tiles around this one are road — which is to say how wide the road is here.
+ *
+ * The width is in the graph and not in the chunk, so it cannot be read directly; but a tile with
+ * road on all four sides is in the middle of something at least three tiles across, and a tile with
+ * one or two is the edge of a lane. That is the whole distinction a person actually sees. Safe on
+ * the apron, because every tile the mesher visits has one.
+ */
+function roadAbout(chunk: ChunkData, i: number): number {
+  const s = chunk.size;
+  return (isMade(chunk.type[i + 1]) ? 1 : 0) + (isMade(chunk.type[i - 1]) ? 1 : 0)
+    + (isMade(chunk.type[i + s]) ? 1 : 0) + (isMade(chunk.type[i - s]) ? 1 : 0);
+}
+
+const mixed = (a: RGB, b: RGB, t: number): RGB =>
+  [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+/**
+ * The surface of a road, which is not one surface.
+ *
+ * Every road in this world used to be painted the same flat colour at the same width, so a lane to
+ * a farm and the highway between two towns were the same object drawn twice. They are not: a way
+ * that carries carts is made — metalled, pale, kept — and a way that carries a man and a donkey is
+ * a track, which is the ground with the grass worn off it. Here that is a road wide enough to have
+ * a middle against a road that is all edge, and a per-tile wear on top so neither reads as paint:
+ * ruts, dry patches and grass coming back through, in the colours the biome already owns.
+ */
+function roadColor(chunk: ChunkData, i: number, def: typeof BIOMES[number], wear: number): RGB {
+  const made = hexToLinear(def.road);
+  const about = roadAbout(chunk, i);
+  // the middle of a wide road is kept surface; the edge of a narrow one is worn earth
+  const surface = about >= 4 ? mixed(made, hexToLinear(def.sand), 0.34)
+    : about >= 3 ? made
+      : mixed(made, hexToLinear(def.ground), 0.42);
+  // and no stretch of it is quite the same as the next: patches, ruts, and grass coming back
+  return wear < 0.22 ? mixed(surface, hexToLinear(def.ground), 0.5)
+    : wear > 0.82 ? mixed(surface, hexToLinear(def.sand), 0.4)
+      : surface;
 }
 
 /** Normal of a road/bridge top: tilted to match the ramp so lighting follows the slope. */
@@ -214,7 +262,14 @@ export function buildChunkMesh(chunk: ChunkData, seed: number): ChunkMeshes {
       const wx = ox + lx, wz = oz + lz;
 
       const shade = SHADE_MIN + rand2(seed, wx, wz, TILE_SALT.SHADE) * SHADE_RANGE;
-      const base = topColor(chunk, i, type);
+      let base = topColor(chunk, i, type);
+      if (type === TileType.Road) {
+        base = roadColor(chunk, i, def, rand2(seed, wx, wz, TILE_SALT.ROAD_WEAR));
+      } else if (VERGEABLE.has(type) && roadAbout(chunk, i) > 0) {
+        // the ground beside a road is not the ground: it is scuffed, and half of what makes a road
+        // look stamped on rather than worn in is that it meets the fields at a painted line
+        base = mixed(base, hexToLinear(def.road), 0.28);
+      }
       const top: RGB = [base[0] * shade, base[1] * shade, base[2] * shade];
 
       view.corners(lx, lz, me);

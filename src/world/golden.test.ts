@@ -36,7 +36,12 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when villages of six houses or more gained a police station, which
+ * Last updated deliberately when the roads stopped being one flat colour: a road wide enough to
+ * have a middle is drawn as made surface and one that is all edge as worn earth, with per-tile
+ * wear over both and a scuffed verge where the fields meet them (2026-09-06). Only `chunks` moved,
+ * and only its colours — the ground itself is where it was, and nothing was drawn from the random
+ * stream that was not drawn before.
+ * Before that: villages of six houses or more gained a police station, which
  * takes a house off the same street and hangs a sign beside its door (2026-09-04). Only the
  * structure list moved, for the same reason the pub moved it: the station is a house that was
  * already standing, and it draws nothing from the random stream.
@@ -54,6 +59,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '24d226fa', chunks: 'df174a4a', quests: '74df0249' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: '17d1bd6c', chunks: 'e4f6e69f', quests: '10885860' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '24d226fa', chunks: '19333eca', quests: '74df0249' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '17d1bd6c', chunks: '0cb0c3bb', quests: '10885860' },
 };
