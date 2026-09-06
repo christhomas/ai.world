@@ -69,8 +69,17 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return dropped;
   }
 
+  /**
+   * A chunk, if this world is holding it.
+   *
+   * Null rather than generating one on demand, which is the whole of the interest management: the
+   * simulation decides how much world exists by calling `reach`, and everything else — the herds
+   * looking for somewhere to spawn, a creature asking what is underfoot — works within what it
+   * decided. Generating on demand here would let the wildlife quietly grow the world past the point
+   * anybody is watching it, and then drop it again on the next sweep, for ever.
+   */
   getTiles(cx: number, cz: number): ChunkTiles | null {
-    return this.loaded.get(chunkKey(cx, cz)) ?? this.load(cx, cz);
+    return this.loaded.get(chunkKey(cx, cz)) ?? null;
   }
 
   heightAt(x: number, z: number): number | null {

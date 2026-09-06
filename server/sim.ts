@@ -4,6 +4,7 @@ import { Rooms, type Client, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld } from '../src/world/groundworld';
+import { Wildlife } from './wildlife';
 import { generateWebGraph } from '../src/world/roadweb';
 import { TerrainSampler } from '../src/world/terrain';
 
@@ -63,6 +64,8 @@ export class Simulation {
   private readonly reach: number;
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
+  /** And what lives on it: the herds, the villagers, the things that hunt at night. */
+  private readonly wildlife = new Map<number, Wildlife>();
   private lastTick = Date.now();
   private ticker: ReturnType<typeof setInterval> | null = null;
   private clockTicker: ReturnType<typeof setInterval> | null = null;
@@ -93,9 +96,17 @@ export class Simulation {
     // and shared through a link — so the server grows the polygon world, which is the one that has
     // mountains, villages on real ground, and everything phase three is about.
     const graph = generateWebGraph(seed);
-    const grown = new GroundWorld(new TerrainSampler(graph));
+    const sampler = new TerrainSampler(graph);
+    const grown = new GroundWorld(sampler);
     this.ground.set(seed, grown);
+    this.wildlife.set(seed, new Wildlife(seed, grown, sampler.structures.villages));
     return grown;
+  }
+
+  /** What is alive in a world, when the simulation is the thing keeping it alive. */
+  livesIn(seed: number): Wildlife | null {
+    this.groundOf(seed);
+    return this.wildlife.get(seed) ?? null;
   }
 
   /** Start the clocks. Separate from the constructor so a test can step time itself. */
@@ -163,7 +174,12 @@ export class Simulation {
       for (const client of room.clients) {
         if (now - client.lastSeen > this.timeout) { client.wire.close(); this.rooms.leave(client); }
       }
-      if (room.clients.size === 0) { this.rooms.close(seed); this.ground.delete(seed); continue; }
+      if (room.clients.size === 0) {
+        this.rooms.close(seed);
+        this.ground.delete(seed);
+        this.wildlife.delete(seed);
+        continue;
+      }
 
       room.world.tick(seconds);
       if (room.world.sweepStalls()) this.rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
@@ -174,6 +190,8 @@ export class Simulation {
       if (ground) {
         for (const who of players) ground.reach(who.x, who.z, this.reach);
         ground.keepOnly(players, this.reach + 1);
+        // and the creatures on it, following the players about
+        this.wildlife.get(seed)?.step(seconds, players, room.world.clock.time);
       }
       for (const client of room.clients) {
         this.rooms.send(client, { type: 'presence', players: players.filter((p) => p.id !== client.presence.id) });

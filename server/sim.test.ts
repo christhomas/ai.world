@@ -199,3 +199,40 @@ describe('the simulation holding the ground itself', () => {
     expect(sim.groundOf(3)).toBeNull();
   });
 });
+
+describe('the world alive on the server', () => {
+  const walkAbout = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+
+  it('puts creatures in the country a player is standing in', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    expect(sim.livesIn(3)!.count, 'an empty world before anybody is in it').toBe(0);
+
+    sim.tick(Date.now() + 100);
+    expect(sim.livesIn(3)!.count, 'a countryside with things living in it').toBeGreaterThan(20);
+  });
+
+  it('lets them live: they move about on their own', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    sim.tick(Date.now() + 100);
+
+    const before = [...sim.livesIn(3)!.all()].map((e) => ({ e, x: e.x, z: e.z }));
+    let now = Date.now() + 100;
+    for (let i = 0; i < 60; i++) sim.tick(now += 100);
+    const moved = before.filter(({ e, x, z }) => Math.hypot(e.x - x, e.z - z) > 0.2);
+    expect(moved.length, 'some of them went somewhere').toBeGreaterThan(0);
+  });
+
+  it('has nothing alive in a world it is not holding the ground of', () => {
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    sim.tick(Date.now() + 100);
+    expect(sim.livesIn(3)).toBeNull();
+  });
+});

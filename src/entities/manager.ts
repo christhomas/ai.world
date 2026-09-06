@@ -20,7 +20,7 @@ import { buryTheFallen, startDying } from './dying';
 import { residentsOnTheStreet } from './residents';
 import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { blowOf } from './motion';
-import type { EntityRenderer } from './pool';
+import type { EntityView } from './roster';
 import { doorTile, type Village } from '../world/structures';
 
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
@@ -97,7 +97,11 @@ export class EntityManager {
   private lawWasOut = false;
 
   constructor(
-    private readonly renderer: EntityRenderer,
+    /**
+     * Whatever is showing these creatures: the game's renderer, or a list on a server with no
+     * screen. The rules of the world are the same either way, so they are written once.
+     */
+    private readonly renderer: EntityView,
     private readonly world: TileWorld,
     private readonly chunks: ChunkSource,
     private readonly seed: number,
