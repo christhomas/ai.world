@@ -45,13 +45,20 @@ export interface ReadoutContext {
   fogged: () => boolean;
   /** Where the camera is looking, which is what the area name follows. */
   cameraTarget: () => { x: number; z: number };
+  /**
+   * Where the player has asked to be pointed, if anywhere: what `/nav` set.
+   *
+   * The compass already points at the errand and the nearest town, so a place somebody asked to be
+   * shown is one more thing in that list rather than a second piece of screen furniture.
+   */
+  bound: () => { name: string; x: number; z: number } | null;
   discover: (name: string) => void;
 }
 
 export function createReadouts(ctx: ReadoutContext) {
   const {
     player, state, structures, sampler, discovered, questList, ferries, sailing, places, rucksack,
-    hud, clock, compass: compassBar, companyMarkers, fogged, cameraTarget, discover,
+    hud, clock, compass: compassBar, companyMarkers, fogged, cameraTarget, discover, bound,
   } = ctx;
   let areaLabel = 'The Crossroads';
 
@@ -68,6 +75,8 @@ export function createReadouts(ctx: ReadoutContext) {
     ];
     // companions are worth finding across a wide world, so they are always on the map
     out.push(...companyMarkers());
+    const asked = bound();
+    if (asked) out.push({ x: asked.x, z: asked.z, color: '#ff7a1a', label: asked.name, emphasis: true });
     // active quest targets stand out in green, ringed on the big map
     for (const q of questList) {
       if (state.quests.get(q.id) !== 'active') continue;
@@ -110,6 +119,9 @@ export function createReadouts(ctx: ReadoutContext) {
   /** What the compass points at: the errand first, then the nearest town. */
   const compassTargets = (): CompassTarget[] => {
     const targets: CompassTarget[] = [];
+    // what the player asked for comes first: they asked for it, and the errand did not
+    const asked = bound();
+    if (asked) targets.push({ label: asked.name, x: asked.x, z: asked.z, primary: true });
     for (const q of questList) {
       if (state.quests.get(q.id) !== 'active') continue;
       const done = q.kind === 'visit' ? state.discovered.has(q.target) : state.count(q.target) >= q.count;

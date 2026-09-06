@@ -18,6 +18,7 @@ import { MountainMaterial, buildMountainMesh } from './render/mountains';
 import { Skyline } from './game/skyline';
 import { noSuchTopic, topicFor, topicIndex } from './ui/topics';
 import { CommandBus, describeResult } from './core/commandbus';
+import { rangesAsMassifs } from './world/ranges';
 import { registerCommands, type CommandWorld } from './game/commands';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
@@ -60,7 +61,7 @@ import { bodyMotion } from './entities/motion';
 import { TouchControls } from './ui/touch';
 import { $ } from './ui/dom';
 import { TerrainSampler, TileType } from './world/terrain';
-import { BIOMES, HUB_NAME, SEA_NAME } from './world/biomes';
+import { BIOMES, HUB_NAME, SEA_NAME, biomeAnswersTo } from './world/biomes';
 import { villageAt } from './world/structures';
 import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
@@ -194,6 +195,12 @@ function startGame(
     attachIslands(graph, manifest.byKind('island'));
   }
   const sampler = new TerrainSampler(graph);
+  /**
+   * The world's mountains, whichever kind this world grew: the road-tree world's domes, or the
+   * polygon world's ranges described in the same terms. Everything that stands something on a
+   * mountain — the eagles, the villages in the clouds, the goats — reads this rather than either.
+   */
+  const highPlaces = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
   const structures = sampler.structures;
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
@@ -238,8 +245,9 @@ function startGame(
     (village) => structures.villages.some((v) => v.name === village && stableAt(v, seed) !== null),
     () => standing.guilt,
     (by) => arrested(by),
-    // high country: on a massif or against its flank, where the goats and the things that climb are
-    (x, z) => sampler.massifs.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
+    // high country: on a mountain or against its flank, where the goats and the things that climb
+    // are. Whichever kind of mountain this world grew — a massif, or a polygon range.
+    (x, z) => highPlaces.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
   );
   const dialogue = new DialogueBox();
   /**
@@ -769,13 +777,13 @@ function startGame(
 
   // the crags with eagles on them: one pair per range big enough to be worth flying over, each
   // perch shuffled round the shoulder until it stands on ground somebody can actually reach
-  const eyries = planEyries(seed, sampler.massifs, (x, z) => sampler.probe(x, z).land);
+  const eyries = planEyries(seed, highPlaces, (x, z) => sampler.probe(x, z).land);
 
   // --- the villages in the clouds ---
   // Additional geometry over the world's islands, not a replacement for any of it: the chunks
   // below are generated and drawn exactly as they were, and the sky islands go into the same
   // outdoor scene on top of them, so standing at a rim and looking down shows the real country.
-  const skyIsles = planSkyIslands(seed, graph.islands, sampler.massifs, (x, z) => sampler.probe(x, z).land).map((site) =>
+  const skyIsles = planSkyIslands(seed, graph.islands, highPlaces, (x, z) => sampler.probe(x, z).land).map((site) =>
     buildSkyIsland(
       site,
       manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over).seed,
@@ -1327,20 +1335,62 @@ function startGame(
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
 
   /**
+   * The docks, named after the villages they serve.
+   *
+   * `isle:226,-130 dock` is an id with a word after it, not a name. The nearest village is what a
+   * person would say, and where two docks share one, they are told apart by a number rather than
+   * by their coordinates.
+   */
+  const dockNames = (): Array<{ name: string; kind: string; x: number; z: number }> => {
+    const used = new Map<string, number>();
+    return structures.piers.map((pier) => {
+      const x = pier.tiles[0]?.[0] ?? pier.dockX;
+      const z = pier.tiles[0]?.[1] ?? pier.dockZ;
+      const near = structures.villages
+        .map((v) => ({ v, away: Math.hypot(v.x - x, v.z - z) }))
+        .sort((a, b) => a.away - b.away)[0];
+      const base = near ? `${near.v.name} dock` : 'dock';
+      const seen = (used.get(base) ?? 0) + 1;
+      used.set(base, seen);
+      return { name: seen > 1 ? `${base} ${seen}` : base, kind: 'dock', x, z };
+    });
+  };
+
+  /**
    * Everywhere in this world with a name on it: the villages, and whatever the map has a word for.
    *
    * Sorted so the answer is stable between two runs of the same seed, which matters because it is
    * read by people and by scripts alike, and a list that shuffles is a list nobody can diff.
    */
-  const namedPlaces = (like?: string): Array<{ name: string; kind: string; x: number; z: number }> => {
-    const all = [
+  const namedPlaces = (like?: string): Array<{ name: string; kind: string; country: string; x: number; z: number }> => {
+    const described = ([
       ...structures.villages.map((v) => ({ name: v.name, kind: 'village', x: v.x, z: v.z })),
       ...structures.pois.map((p) => ({ name: p.name, kind: placeKindName(p.kind), x: p.x, z: p.z })),
-    ].sort((a, b) => a.name.localeCompare(b.name));
-    if (!like) return all;
-    const wanted = like.toLowerCase();
-    // name or kind, so `places shrine` answers with the shrines and `places silver` with Silverholm
-    return all.filter((p) => p.name.toLowerCase().includes(wanted) || p.kind.includes(wanted));
+      ...structures.caves.map((c) => ({ name: c.name, kind: 'cave', x: c.x, z: c.z })),
+      ...structures.wrecks.map((wk) => ({ name: wk.name, kind: 'wreck', x: wk.x, z: wk.z })),
+      // A pier has no name of its own — it is the dock of whatever it reaches, and what it reaches
+      // is an island known by its coordinates. So it is named for the village nearest it, which is
+      // how anybody standing on one would describe it, and numbered when a village has two.
+      ...dockNames(),
+      ...eyries.map((e) => ({ name: e.name, kind: 'eyrie', x: e.x, z: e.z })),
+      ...skyIsles.map((isle) => ({ name: isle.name, kind: 'sky island', x: isle.crag.x, z: isle.crag.z })),
+    ] as Array<{ name: string; kind: string; x: number; z: number }>)
+      // what country each one stands in, which is the thing a broad search is really asking about:
+      // "the places in the mountains" is a question about the ground, not about their names
+      .map((place) => ({ ...place, biome: sampler.biomeOf(place.x, place.z) }))
+      .map((place) => ({ ...place, country: BIOMES[place.biome].name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!like) return described;
+    const wanted = like.trim().toLowerCase();
+    /** The places that are of the sea rather than on the land, whatever the ground behind them is. */
+    const coastal = (kind: string): boolean => kind === 'dock' || kind === 'wreck' || kind === 'pier';
+    const atSea = ['sea', 'ocean', 'coast', 'shore', 'water'].some((word) => word.startsWith(wanted) || wanted.startsWith(word));
+    return described.filter((place) =>
+      place.name.toLowerCase().includes(wanted)
+      || place.kind.includes(wanted)
+      || biomeAnswersTo(place.biome, wanted)
+      || (atSea && coastal(place.kind)));
   };
 
   /**
@@ -1349,11 +1399,17 @@ function startGame(
    * silverholm` ever being ambiguous.
    */
   const namedPlace = (like: string): { name: string; kind: string; x: number; z: number } | null => {
-    const wanted = like.toLowerCase();
+    const wanted = like.trim().toLowerCase();
     const all = namedPlaces();
+    const nearestOfKind = all
+      .filter((p) => p.kind.includes(wanted))
+      .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z))[0];
+    // A name beats a kind, and a kind beats nothing: `teleport silverholm` goes to the town, and
+    // `teleport dock` goes to the nearest one, which is what somebody asking for "a dock" means.
     return all.find((p) => p.name.toLowerCase() === wanted)
       ?? all.find((p) => p.name.toLowerCase().startsWith(wanted))
       ?? all.find((p) => p.name.toLowerCase().includes(wanted))
+      ?? nearestOfKind
       ?? null;
   };
 
@@ -1363,6 +1419,17 @@ function startGame(
   // hooks below are the same acts under older names and now go through here, so a console, a tool,
   // a test and — once the simulation moves across — the server itself all say the same words.
   // `docs/server-authority.md` is where that is going.
+  /**
+   * Where the player has asked to be pointed, if anywhere.
+   *
+   * One place at a time on purpose: a compass with four needles is a map, and there is already a
+   * map. Cleared by `nav off`, and by arriving — standing on the thing you were walking to is the
+   * moment the arrow stops being useful and starts being clutter.
+   */
+  let bound: { name: string; x: number; z: number } | null = null;
+  /** How near counts as arrived, in tiles: inside a village square rather than at its sign. */
+  const ARRIVED = 6;
+
   const commandWorld: CommandWorld = {
     teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); },
     teleportTo: (place) => {
@@ -1372,15 +1439,34 @@ function startGame(
       iso.target.set(found.x, 0.5, found.z);
       return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
     },
-    places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, x: Math.round(p.x), z: Math.round(p.z) })),
+    places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, country: p.country, x: Math.round(p.x), z: Math.round(p.z) })),
     // The villages, in the order somebody standing here cares about them. Distance and heading
     // rather than coordinates, because "Silverholm, 240 paces north-west" is an answer and
     // "Silverholm, 280, -110" is a lookup.
-    towns: () => structures.villages
+    // A word narrows it, and means either the village's own name or the country it stands in:
+    // `towns mountains` and `towns silver` are both questions somebody actually asks.
+    navTo: (place) => {
+      if (place === undefined) {
+        if (!bound) return 'pointing nowhere. Try: nav silverholm';
+        const away = Math.round(Math.hypot(bound.x - player.x, bound.z - player.z));
+        return { name: bound.name, away, heading: compassDir(bound.x - player.x, bound.z - player.z) };
+      }
+      if (place === null) { bound = null; return 'the compass is your own again'; }
+      const found = namedPlace(place);
+      if (!found) throw new Error(`nowhere called ${place} — try: places`);
+      bound = { name: found.name, x: found.x, z: found.z };
+      return { name: found.name, away: Math.round(Math.hypot(found.x - player.x, found.z - player.z)),
+        heading: compassDir(found.x - player.x, found.z - player.z) };
+    },
+    towns: (like) => structures.villages
+      .filter((v) => !like
+        || v.name.toLowerCase().includes(like.trim().toLowerCase())
+        || biomeAnswersTo(v.biome, like))
       .map((v) => ({
         name: v.name,
         away: Math.round(Math.hypot(v.x - player.x, v.z - player.z)),
         heading: compassDir(v.x - player.x, v.z - player.z),
+        country: BIOMES[v.biome].name,
         x: Math.round(v.x), z: Math.round(v.z),
       }))
       .sort((a, b) => a.away - b.away),
@@ -1873,6 +1959,7 @@ function startGame(
   const { markers, mapInput, areaName, compassTargets, updateHud, journalInput } = createReadouts({
     player, state, structures, sampler, discovered, questList, ferries, sailing, places, rucksack,
     hud, clock, compass,
+    bound: () => bound,
     companyMarkers: multiplayer.markers,
     fogged: () => !state.can('map'),
     cameraTarget: () => iso.target,
@@ -2163,6 +2250,11 @@ function startGame(
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
     areaLabel = skies.aloft?.name ?? areaName();
+    // arriving is what ends a walk, so it is what puts the arrow away
+    if (bound && Math.hypot(bound.x - player.x, bound.z - player.z) < ARRIVED) {
+      hud.flash(`${bound.name} — you are here`);
+      bound = null;
+    }
     updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');
     hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
     if (fishing.active) {

@@ -33,7 +33,14 @@ export interface Command {
 /** One argument a command takes. */
 export interface ArgSpec {
   name: string;
-  kind: 'number' | 'text';
+  /**
+   * `rest` takes everything left on the line as one argument, and must be the last one.
+   *
+   * It exists because places have names with spaces in them. `teleport ashfield dock` should work,
+   * and making somebody remember to write `teleport "ashfield dock"` is making them do the
+   * parser's job — the moment a command's last argument is a name, the rest of the line is it.
+   */
+  kind: 'number' | 'text' | 'rest';
   /** Optional arguments come last, and a command may have several. */
   optional?: boolean;
 }
@@ -58,6 +65,7 @@ const spec = (name: string, help: string, args: ArgSpec[] = [], reads = false): 
 
 const num = (name: string, optional = false): ArgSpec => ({ name, kind: 'number', optional });
 const text = (name: string, optional = false): ArgSpec => ({ name, kind: 'text', optional });
+const rest = (name: string, optional = false): ArgSpec => ({ name, kind: 'rest', optional });
 
 /**
  * Every command the game knows, by name.
@@ -74,10 +82,13 @@ export const COMMANDS: Record<string, CommandSpec> = {
    * handler decides which it was.
    */
   teleport: spec('teleport', 'Put the hero at a named place, or at a point on the map',
-    [text('place or x'), num('z', true)]),
-  towns: spec('towns', 'List the villages, the nearest first, with how far off each one is', [], true),
-  places: spec('places', 'List everything with a name on it, or the ones matching a word',
-    [text('like', true)], true),
+    [rest('place, or x and z', true)]),
+  nav: spec('nav', 'Point the compass at a place, or say "off" to stop pointing',
+    [rest('place', true)]),
+  towns: spec('towns', 'List the villages nearest first, or only the ones a word describes',
+    [rest('like', true)], true),
+  places: spec('places', 'List everything with a name on it: a word narrows it to a name, a kind, or a country',
+    [rest('like', true)], true),
   descend: spec('descend', 'Go down the stairs of the place you are standing in'),
   'climb-out': spec('climb-out', 'Leave the underground for the surface'),
   'enter-shrine': spec('enter-shrine', 'Step into the nearest shrine'),
@@ -121,29 +132,45 @@ export function parseCommand(line: string, issuer?: string): ParseResult {
   if (words === null) return { ok: false, error: 'unclosed quote' };
   if (words.length === 0) return { ok: false, error: 'nothing to run' };
 
-  const [name, ...rest] = words;
+  const [name] = words;
   const known = COMMANDS[name];
   if (!known) return { ok: false, error: `no such command: ${name}` };
 
+  const given = words.slice(1);
+  const takesRest = known.args.length > 0 && known.args[known.args.length - 1].kind === 'rest';
   const needed = known.args.filter((a) => !a.optional).length;
-  if (rest.length < needed || rest.length > known.args.length) {
+  if (given.length < needed || (!takesRest && given.length > known.args.length)) {
     return { ok: false, error: `${name} takes ${usage(known)}` };
   }
 
   const args: CommandArg[] = [];
-  for (let i = 0; i < rest.length; i++) {
+  for (let i = 0; i < known.args.length && i < given.length; i++) {
     const want = known.args[i];
-    if (want.kind !== 'number') { args.push(rest[i]); continue; }
-    const value = Number(rest[i]);
-    if (!Number.isFinite(value)) return { ok: false, error: `${want.name} must be a number, not ${rest[i]}` };
+    if (want.kind === 'rest') {
+      // everything left, as it was typed: a name with spaces in it is one argument
+      args.push(given.slice(i).join(' '));
+      break;
+    }
+    if (want.kind !== 'number') { args.push(given[i]); continue; }
+    const value = Number(given[i]);
+    if (!Number.isFinite(value)) return { ok: false, error: `${want.name} must be a number, not ${given[i]}` };
     args.push(value);
   }
   return { ok: true, command: { name, args, issuer } };
 }
 
-/** How a command is written down: the reverse of parsing it, and what a log records. */
+/**
+ * How a command is written down: the reverse of parsing it, and what a log records.
+ *
+ * A `rest` argument is written bare, spaces and all, because that is how it was read — quoting it
+ * would produce a line that parses to something else, and a log you cannot replay is a log.
+ */
 export function formatCommand(command: Command): string {
-  const args = command.args.map((a) => (typeof a === 'number' || !/[\s"]/.test(a) ? String(a) : JSON.stringify(a)));
+  const known = COMMANDS[command.name];
+  const args = command.args.map((arg, i) => {
+    if (known?.args[i]?.kind === 'rest') return String(arg);
+    return typeof arg === 'number' || !/[\s"]/.test(arg) ? String(arg) : JSON.stringify(arg);
+  });
   return [command.name, ...args].join(' ');
 }
 

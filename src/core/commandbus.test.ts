@@ -20,11 +20,19 @@ describe('reading a command', () => {
     expect(read.command.args.every((a) => typeof a === 'number')).toBe(true);
   });
 
-  it('leaves teleport its two readings, because a place has a name and a point has numbers', () => {
+  /**
+   * A place has a name with spaces in it, so teleport takes the whole of the rest of the line and
+   * works out afterwards whether it was given a name or a point. Making somebody type quotes round
+   * "ashfield dock" is making them do the parser's job.
+   */
+  it('gives teleport the rest of the line, spaces and all', () => {
     const point = parseCommand('teleport 322 53');
-    expect(point.ok && point.command.args).toEqual(['322', 53]);
+    expect(point.ok && point.command.args).toEqual(['322 53']);
     const named = parseCommand('teleport silverholm');
     expect(named.ok && named.command.args).toEqual(['silverholm']);
+    const spaced = parseCommand('teleport ashfield dock');
+    expect(spaced.ok && spaced.command.args).toEqual(['ashfield dock']);
+    // and quotes still work for anybody who reaches for them
     const spoken = parseCommand('teleport "The Long Water"');
     expect(spoken.ok && spoken.command.args).toEqual(['The Long Water']);
   });
@@ -43,14 +51,14 @@ describe('reading a command', () => {
   it('says what is wrong rather than throwing', () => {
     expect(parseCommand('')).toEqual({ ok: false, error: 'nothing to run' });
     expect(parseCommand('fly to the moon').ok).toBe(false);
-    expect(parseCommand('teleport 1 2 3')).toEqual({ ok: false, error: 'teleport takes <place or x> [z]' });
-    expect(parseCommand('teleport here 53').ok).toBe(true);   // "here" could be a place; the handler decides
-    expect(parseCommand('teleport 322 here')).toEqual({ ok: false, error: 'z must be a number, not here' });
+    expect(parseCommand('sow 12')).toEqual({ ok: false, error: 'sow takes <x> <z>' });
+    expect(parseCommand('sow 12 13 14')).toEqual({ ok: false, error: 'sow takes <x> <z>' });
+    expect(parseCommand('sow here 53')).toEqual({ ok: false, error: 'x must be a number, not here' });
     expect(parseCommand('discover "unfinished')).toEqual({ ok: false, error: 'unclosed quote' });
   });
 
   it('writes a command back out the way it was read', () => {
-    for (const line of ['teleport 322 53', 'spawn wolf 30', 'descend', 'discover "The Long Water"']) {
+    for (const line of ['teleport ashfield dock', 'teleport 322 53', 'spawn wolf 30', 'descend', 'discover "The Long Water"']) {
       const read = parseCommand(line);
       expect(read.ok && formatCommand(read.command)).toBe(line);
     }
@@ -109,7 +117,7 @@ describe('the bus', () => {
     bus.define('teleport', () => undefined);
     // in the order the vocabulary is written, not the order they were defined
     expect(bus.names).toEqual(['teleport', 'descend']);
-    expect(helpText(bus)).toContain('teleport <place or x> [z] —');
+    expect(helpText(bus)).toContain('teleport [place, or x and z] —');
     expect(helpText(bus, 'spawn')).toContain('spawn <kind> [away]');
     expect(helpText(bus, 'conjure')).toBe('no such command: conjure');
   });

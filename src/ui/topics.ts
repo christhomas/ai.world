@@ -68,6 +68,8 @@ export const TOPICS: Topic[] = [
       'M opens the map; F takes the camera off your shoulder so you can look about.',
       'A horse is ridden by walking into it; a boat is boarded from a pier with Enter.',
       'The eagles at a crag will carry you to a village in the sky, for a price.',
+      '`/nav silverholm` points the compass at somewhere until you get there; `/nav off` stops it.',
+      '`/towns mountains` and `/places ocean` ask what is where, by country as well as by name.',
       'Mountains are walked round rather than over: a road through a range is a pass, and the pass',
       'is the way through.',
     ],

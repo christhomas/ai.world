@@ -20,8 +20,15 @@ export interface CommandWorld {
   teleport(x: number, z: number): void;
   /** Somewhere with a name: a village, or anything else the map has a word for. */
   teleportTo(place: string): unknown;
-  /** The villages, nearest first: the list a player actually wants. */
-  towns(): unknown;
+  /**
+   * Point the compass at somewhere, stop pointing, or say where it is pointing now.
+   *
+   * Null clears it, undefined asks. That distinction is worth the awkwardness: `nav` with nothing
+   * after it is a question, and `nav off` is an instruction, and the two should not be the same.
+   */
+  navTo(place: string | null | undefined): unknown;
+  /** The villages, nearest first, or only those a word describes: a name, or the country they stand in. */
+  towns(like?: string): unknown;
   /** What can be named, for when somebody has forgotten the word. */
   places(like?: string): unknown;
   descend(): void;
@@ -52,17 +59,24 @@ export interface CommandWorld {
 export function registerCommands(bus: CommandBus, world: CommandWorld): void {
   // `teleport 322 53` and `teleport silverholm` are the same command: the first argument arrives
   // as text either way, and having a second one is what says it was a coordinate
-  bus.define('teleport', ([place, z]) => {
-    if (z === undefined) {
-      const asNumber = Number(place);
-      if (Number.isFinite(asNumber)) throw new Error('a point on the map needs both x and z');
-      return world.teleportTo(String(place));
+  bus.define('teleport', ([given]) => {
+    const said = String(given ?? '').trim();
+    if (!said) throw new Error('teleport where? try: places');
+    // two numbers are a point on the map; anything else is the name of somewhere
+    const parts = said.split(/\s+/);
+    if (parts.length === 2 && parts.every((part) => Number.isFinite(Number(part)))) {
+      return world.teleport(Number(parts[0]), Number(parts[1]));
     }
-    const x = Number(place);
-    if (!Number.isFinite(x)) throw new Error(`x must be a number, not ${place}`);
-    return world.teleport(x, z as number);
+    if (parts.length === 1 && Number.isFinite(Number(parts[0]))) throw new Error('a point on the map needs both x and z');
+    return world.teleportTo(said);
   });
-  bus.define('towns', () => world.towns());
+  bus.define('nav', ([place]) => {
+    const said = String(place ?? '').trim().toLowerCase();
+    if (!place) return world.navTo(undefined);
+    if (said === 'off' || said === 'none' || said === 'stop') return world.navTo(null);
+    return world.navTo(String(place).trim());
+  });
+  bus.define('towns', ([like]) => world.towns(like as string | undefined));
   bus.define('places', ([like]) => world.places(like as string | undefined));
   bus.define('descend', () => world.descend());
   bus.define('climb-out', () => world.climbOut());

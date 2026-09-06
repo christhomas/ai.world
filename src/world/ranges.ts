@@ -2,6 +2,7 @@ import { WORLD } from '../core/config';
 import { mulberry32, rand2 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { FaceKind, type WorldMesh } from './mesh';
+import type { Massif } from './mountains';
 
 /**
  * Mountains as polygons, not as a hill turned up.
@@ -422,6 +423,30 @@ export function slopeAt(ranges: Ranges, x: number, z: number): number {
     if (near !== null) most = Math.max(most, Math.abs(near - here));
   }
   return most;
+}
+
+/**
+ * The mountains of a polygon world, described the way the older mountains were.
+ *
+ * Eyries and sky islands are placed against mountains — a village in the clouds hangs over one, and
+ * the eagles that carry you up perch on its shoulder — and both were written against `Massif`, the
+ * dome that the polygon ranges replaced. Rather than teach them a second kind of mountain, the new
+ * kind describes itself in the old terms: where it stands, how far it reaches, how high it is.
+ *
+ * Without this both features quietly vanished from every polygon world, which is exactly the sort
+ * of loss that leaves no error behind it — the eagles simply were not there, and nothing said so.
+ */
+export function rangesAsMassifs(ranges: Ranges, mesh: WorldMesh | null): Massif[] {
+  return ranges.peaks.map((peak) => ({
+    x: peak.x,
+    z: peak.z,
+    // the reach of the face it stands on, pulled in the same way the rock itself is, so a bird
+    // lands on the shoulder of the mountain that is actually there
+    radius: Math.sqrt((mesh?.faces[peak.face]?.area ?? 0) / Math.PI) * RANGE.SPREAD,
+    // terraces, because that is what a Massif counts in and what everything reading one expects
+    height: peak.lift / WORLD.STEP,
+    hollow: 0,
+  }));
 }
 
 /** A terrace's worth of height, so callers can talk in the units the rest of the ground uses. */
