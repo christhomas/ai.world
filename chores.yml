@@ -175,7 +175,8 @@ tasks:
       - name: note
         desc: one line about what is in it
     cmds:
-      - 'pnpm exec tsx tools/release.ts {{.VERSION}} {{.NOTE | default ""}}'
+      # quoted, because a note is a sentence and a sentence has apostrophes in it
+      - 'pnpm exec tsx tools/release.ts "{{.VERSION}}" "{{.NOTE}}"'
 
   bundle:
     desc: Roll the world server into one file, the way the image ships it
