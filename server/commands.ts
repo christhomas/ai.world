@@ -75,7 +75,8 @@ export const COMMANDS: Record<string, CommandSpec> = {
    */
   teleport: spec('teleport', 'Put the hero at a named place, or at a point on the map',
     [text('place or x'), num('z', true)]),
-  places: spec('places', 'List the places that can be named: villages, and what is worth finding',
+  towns: spec('towns', 'List the villages, the nearest first, with how far off each one is', [], true),
+  places: spec('places', 'List everything with a name on it, or the ones matching a word',
     [text('like', true)], true),
   descend: spec('descend', 'Go down the stairs of the place you are standing in'),
   'climb-out': spec('climb-out', 'Leave the underground for the surface'),

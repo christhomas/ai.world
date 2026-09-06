@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { COMMANDS, formatCommand, parseCommand } from '../../server/commands';
-import { CommandBus, helpText } from './commandbus';
+import { CommandBus, describeResult, helpText } from './commandbus';
 
 /**
  * The bus and the vocabulary, which are the seam everything else will hang on: a command typed at
@@ -132,5 +132,31 @@ describe('the vocabulary itself', () => {
     for (const known of Object.values(COMMANDS)) {
       expect(known.help.length, `${known.name}`).toBeGreaterThan(10);
     }
+  });
+});
+
+describe('writing an answer out for a person', () => {
+  it('leaves a line of text alone, and splits one that has lines in it', () => {
+    expect(describeResult('nothing here runs that')).toEqual(['nothing here runs that']);
+    expect(describeResult('one\ntwo')).toEqual(['one', 'two']);
+  });
+
+  it('says nothing at all for nothing at all', () => {
+    expect(describeResult(undefined)).toEqual([]);
+    expect(describeResult([])).toEqual(['nothing']);
+  });
+
+  it('leads a row with its name and follows with the rest', () => {
+    expect(describeResult([{ name: 'Silverholm', away: 240, heading: 'north-west' }]))
+      .toEqual(['Silverholm — away 240, heading north-west']);
+  });
+
+  it('writes a row with no name as its fields', () => {
+    expect(describeResult({ x: 322, z: 53 })).toEqual(['x 322, z 53']);
+  });
+
+  it('gives one line per row, so a list reads as a list', () => {
+    const said = describeResult([{ name: 'A', away: 1 }, { name: 'B', away: 2 }]);
+    expect(said).toEqual(['A — away 1', 'B — away 2']);
   });
 });

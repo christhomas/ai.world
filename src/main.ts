@@ -17,7 +17,7 @@ import { ChunkManager } from './world/chunkManager';
 import { MountainMaterial, buildMountainMesh } from './render/mountains';
 import { Skyline } from './game/skyline';
 import { noSuchTopic, topicFor, topicIndex } from './ui/topics';
-import { CommandBus } from './core/commandbus';
+import { CommandBus, describeResult } from './core/commandbus';
 import { registerCommands, type CommandWorld } from './game/commands';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
@@ -297,8 +297,8 @@ function startGame(
       if (online.emote(said.toLowerCase())) return;
       const result = commands.run(said, 'console');
       if (!result.ok) chat.line(result.error, 'sys');
-      else if (result.value !== undefined) chat.line(typeof result.value === 'string' ? result.value : JSON.stringify(result.value), 'sys');
-      else chat.line(`${said} — done`, 'sys');
+      else if (result.value === undefined) chat.line(`${said} — done`, 'sys');
+      else for (const line of describeResult(result.value)) chat.line(line, 'sys');
       return;
     }
     online.say(text);
@@ -1339,7 +1339,8 @@ function startGame(
     ].sort((a, b) => a.name.localeCompare(b.name));
     if (!like) return all;
     const wanted = like.toLowerCase();
-    return all.filter((p) => p.name.toLowerCase().includes(wanted));
+    // name or kind, so `places shrine` answers with the shrines and `places silver` with Silverholm
+    return all.filter((p) => p.name.toLowerCase().includes(wanted) || p.kind.includes(wanted));
   };
 
   /**
@@ -1372,6 +1373,17 @@ function startGame(
       return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
     },
     places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, x: Math.round(p.x), z: Math.round(p.z) })),
+    // The villages, in the order somebody standing here cares about them. Distance and heading
+    // rather than coordinates, because "Silverholm, 240 paces north-west" is an answer and
+    // "Silverholm, 280, -110" is a lookup.
+    towns: () => structures.villages
+      .map((v) => ({
+        name: v.name,
+        away: Math.round(Math.hypot(v.x - player.x, v.z - player.z)),
+        heading: compassDir(v.x - player.x, v.z - player.z),
+        x: Math.round(v.x), z: Math.round(v.z),
+      }))
+      .sort((a, b) => a.away - b.away),
     descend: () => places.descend(),
     climbOut: () => places.exitDungeon(),
     enterShrine: () => {

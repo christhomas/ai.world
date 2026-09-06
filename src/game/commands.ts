@@ -20,6 +20,8 @@ export interface CommandWorld {
   teleport(x: number, z: number): void;
   /** Somewhere with a name: a village, or anything else the map has a word for. */
   teleportTo(place: string): unknown;
+  /** The villages, nearest first: the list a player actually wants. */
+  towns(): unknown;
   /** What can be named, for when somebody has forgotten the word. */
   places(like?: string): unknown;
   descend(): void;
@@ -60,6 +62,7 @@ export function registerCommands(bus: CommandBus, world: CommandWorld): void {
     if (!Number.isFinite(x)) throw new Error(`x must be a number, not ${place}`);
     return world.teleport(x, z as number);
   });
+  bus.define('towns', () => world.towns());
   bus.define('places', ([like]) => world.places(like as string | undefined));
   bus.define('descend', () => world.descend());
   bus.define('climb-out', () => world.climbOut());

@@ -107,5 +107,40 @@ export function helpText(bus: CommandBus, name?: string): string {
   }).join('\n');
 }
 
+/**
+ * What a command's answer looks like written out for a person.
+ *
+ * A command hands back the thing it found — a list of towns, a peak, a place — because that is what
+ * a script or a tool wants. A player reading the console wants sentences. JSON is neither: it is
+ * the structure with all the punctuation of the structure, and `[{"name":"Silverholm","away":240}]`
+ * is a worse answer than "Silverholm — away 240, heading north-west" for exactly the reason that
+ * it is the same information.
+ *
+ * Deliberately shallow. Anything nested is printed as JSON rather than walked, because a command
+ * that answers with something deep is a command that should be answering with less.
+ */
+export function describeResult(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (typeof value === 'string') return value.split('\n');
+  if (typeof value === 'number' || typeof value === 'boolean') return [String(value)];
+  if (Array.isArray(value)) {
+    if (value.length === 0) return ['nothing'];
+    return value.map((row) => describeRow(row));
+  }
+  return [describeRow(value)];
+}
+
+/** One row: its name first if it has one, then the rest as `key value` pairs. */
+function describeRow(row: unknown): string {
+  if (row === null || typeof row !== 'object') return String(row);
+  const fields = Object.entries(row as Record<string, unknown>);
+  const named = fields.find(([key]) => key === 'name');
+  const rest = fields.filter(([key]) => key !== 'name');
+  const said = rest
+    .map(([key, at]) => `${key} ${typeof at === 'object' && at !== null ? JSON.stringify(at) : String(at)}`)
+    .join(', ');
+  return named ? `${String(named[1])}${said ? ` — ${said}` : ''}` : said;
+}
+
 export { formatCommand, parseCommand };
 export type { Command, CommandArg };
