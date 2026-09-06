@@ -59,6 +59,14 @@ belongs to the project, and the next person to open it can see what was known.
 - [x] An optional `envFromSecret` in the chart, so the operator tokens can be given to the server
       without a password travelling through chart values into Flux's storage. Chart 0.2.1.
 
+## Releasing
+
+- [x] A release is one act: chart version, game version, tag and image all naming the same moment.
+      *(`chore release`, and `docs/releasing.md`.)*
+- [ ] v0.2.1 is tagged and published with no image behind it — the Dockerfile fix landed after it.
+      The chart currently pins it, so a cluster reconciling right now cannot pull. Fixed by cutting
+      the next version; the dead tag should be deleted rather than left to be rolled back to.
+
 ## Smaller
 
 - [x] The page asks for `/favicon.ico` on every load and gets a 404. *(`public/favicon.svg`: sea, a

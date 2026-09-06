@@ -163,6 +163,20 @@ tasks:
   # That means a container behind something holding a certificate: `chore up` locally, `chore
   # deploy` for the real one.
 
+  # Cutting a release, which is one act: the chart's version, the game's version, the tag on the
+  # commit and the image all name the same moment. `chore release 0.3.0 "what is in it"`, or
+  # `chore release minor`. It refuses a dirty tree, refuses to run off main, and runs the tests
+  # first, because a release is the wrong place to find out.
+  release:
+    desc: Bump the chart and the game, tag the commit, and publish the release that builds the image
+    args:
+      - name: version
+        desc: a version like 0.3.0, or major, minor or patch
+      - name: note
+        desc: one line about what is in it
+    cmds:
+      - 'pnpm exec tsx tools/release.ts {{.VERSION}} {{.NOTE | default ""}}'
+
   bundle:
     desc: Roll the world server into one file, the way the image ships it
     cmds: ['pnpm vite build --config server/build.config.ts']
