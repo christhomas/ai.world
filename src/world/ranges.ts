@@ -66,6 +66,19 @@ export const RANGE = {
    */
   COL: 0.42,
   /**
+   * How much face there has to be per peak, in tiles of area.
+   *
+   * A face is sixty to a hundred and fifty tiles across, and one peak on it is one mountain: a
+   * range came out as a handful of separate cones with flat ground between them. Above this much
+   * area a face carries a second peak, and above twice it a third, so a wide territory reads as a
+   * chain with saddles between the summits — which is what makes it a range rather than a row.
+   */
+  PER_PEAK: 5200,
+  /** However big the face, never more than this many, or a range turns into a bed of nails. */
+  MOST_PEAKS: 3,
+  /** The least a second or third summit stands, as a share of the tallest on its face. */
+  LESSER: 0.55,
+  /**
    * How far a peak sits from the middle of its face, as a share of the face's own reach, and the
    * quietest and loudest a face may push it.
    *
@@ -287,25 +300,36 @@ export function buildRanges(mesh: WorldMesh, ground: GroundAt, walled?: WalledVi
   const owner: number[] = [];
   for (const face of mountains) {
     const reach = Math.sqrt(face.area / Math.PI);
-    // the apex, pushed off the centroid so the two flanks are different lengths
-    const lean = rng() * Math.PI * 2;
-    const away = rng() * RANGE.LEAN * reach;
-    const ax = face.cx + Math.cos(lean) * away;
-    const az = face.cz + Math.sin(lean) * away;
-    const id = peaks.length;
-    const under = ground(ax, az);
-    peaks.push({ face: face.id, range: face.region, x: ax, z: az, lift: lift[face.id], y: under + lift[face.id] });
-    const apex: Point = { x: ax, z: az, ground: under, lift: lift[face.id] };
+    // How many summits this face carries. A big territory is a range and wants several; a small one
+    // is a mountain and wants the one.
+    const many = Math.max(1, Math.min(RANGE.MOST_PEAKS, Math.round(face.area / RANGE.PER_PEAK)));
+    // where each stands: spread round the middle at a share of the reach, turned by the die so two
+    // faces of the same size are not the same mountain twice
+    const turn = rng() * Math.PI * 2;
+    for (let p = 0; p < many; p++) {
+      const lean = many === 1 ? rng() * Math.PI * 2 : turn + (p / many) * Math.PI * 2;
+      const away = (many === 1 ? rng() * RANGE.LEAN : RANGE.LEAN + rng() * RANGE.LEAN * 0.5) * reach;
+      const ax = face.cx + Math.cos(lean) * away;
+      const az = face.cz + Math.sin(lean) * away;
+      // the summits of one range differ: a chain of identical peaks is a fence
+      const height = lift[face.id] * (p === 0 ? 1 : RANGE.LESSER + rng() * (1 - RANGE.LESSER));
+      const id = peaks.length;
+      const under = ground(ax, az);
+      peaks.push({ face: face.id, range: face.region, x: ax, z: az, lift: height, y: under + height });
+      const apex: Point = { x: ax, z: az, ground: under, lift: height };
 
-    // the rim: the polygon's own shape, pulled in towards the apex so the flanks are steep
-    const rim = face.corners.map((c) => {
-      const v = mesh.vertices[c];
-      const rx = ax + (v.x - ax) * RANGE.SPREAD;
-      const rz = az + (v.z - az) * RANGE.SPREAD;
-      return { x: rx, z: rz, ground: ground(rx, rz), lift: cornerLift[c] * RANGE.SPREAD - RANGE.BURY };
-    });
-    for (let k = 0; k < rim.length; k++) {
-      cut(apex, rim[k], rim[(k + 1) % rim.length], RANGE.CUTS, mesh.seed, tallest, tris, owner, id);
+      // the rim: the polygon's own shape, pulled in towards this apex so the flanks are steep. With
+      // several on one face they overlap, and where two flanks cross is a saddle.
+      const spread = RANGE.SPREAD / Math.sqrt(many);
+      const rim = face.corners.map((c) => {
+        const v = mesh.vertices[c];
+        const rx = ax + (v.x - ax) * spread;
+        const rz = az + (v.z - az) * spread;
+        return { x: rx, z: rz, ground: ground(rx, rz), lift: cornerLift[c] * spread - RANGE.BURY };
+      });
+      for (let k = 0; k < rim.length; k++) {
+        cut(apex, rim[k], rim[(k + 1) % rim.length], RANGE.CUTS, mesh.seed, tallest, tris, owner, id);
+      }
     }
   }
 

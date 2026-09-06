@@ -23,17 +23,33 @@ const worlds = (seeds: number[]): Array<{ seed: number; mesh: WorldMesh; ranges:
   });
 
 describe('mountains built from the polygons', () => {
-  it('gives every mountain face a fan and nothing else one', () => {
+  it('raises every mountain face, and a wide one more than once', () => {
     for (const { seed, mesh, ranges } of worlds([1, 2, 3, 7, 42])) {
       const mountains = mesh.faces.filter((f) => f.kind === FaceKind.Mountain);
-      expect(ranges.peaks.length, `seed ${seed} raises every mountain face`).toBe(mountains.length);
       expect(mountains.length, `seed ${seed} has mountains at all`).toBeGreaterThan(0);
-
-      // one triangle per side of the polygon, each cut into four as many times as RANGE.CUTS says
-      const sides = mountains.reduce((n, f) => n + f.corners.length, 0);
-      expect(ranges.tris.length / 9, `seed ${seed}`).toBe(sides * 4 ** RANGE.CUTS);
+      // every face gets at least one summit, and none gets more than a range's worth
+      const perFace = new Map<number, number>();
+      for (const peak of ranges.peaks) perFace.set(peak.face, (perFace.get(peak.face) ?? 0) + 1);
+      for (const face of mountains) {
+        const many = perFace.get(face.id) ?? 0;
+        expect(many, `seed ${seed} face ${face.id}`).toBeGreaterThanOrEqual(1);
+        expect(many, `seed ${seed} face ${face.id}`).toBeLessThanOrEqual(RANGE.MOST_PEAKS);
+      }
       expect(ranges.peaks.every((p) => mesh.faces[p.face].kind === FaceKind.Mountain)).toBe(true);
+
+      // one triangle per side of the polygon per summit, each cut into four RANGE.CUTS times
+      const sides = ranges.peaks.reduce((n, p) => n + mesh.faces[p.face].corners.length, 0);
+      expect(ranges.tris.length / 9, `seed ${seed}`).toBe(sides * 4 ** RANGE.CUTS);
     }
+  });
+
+  it('gives a wide territory a chain rather than one enormous cone', () => {
+    // somewhere among these seeds there is a face big enough for a second summit; that is the case
+    // this exists to protect, because the first version had exactly one peak however wide the face
+    const many = worlds([1, 2, 3, 5, 7, 11, 42])
+      .flatMap(({ ranges }) => ranges.peaks.map((p) => p.face))
+      .reduce((counts, face) => counts.set(face, (counts.get(face) ?? 0) + 1), new Map<number, number>());
+    expect([...many.values()].some((n) => n > 1), 'some face carries a chain').toBe(true);
   });
 
   it('stands its peaks between the shortest and the tallest a mountain may be', () => {

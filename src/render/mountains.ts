@@ -22,14 +22,32 @@ import { type Ranges } from '../world/ranges';
 
 /** How a mountain is coloured. */
 const ROCK = {
-  /** Bare rock at the foot, and the paler stone above. Sampled from the highland biome's palette. */
-  LOW: 0x6e6e6e,
-  HIGH: 0x8f8f8f,
+  /**
+   * Bare rock at the foot, and the paler stone above.
+   *
+   * Warmer and darker at the bottom than the highland biome's grey, because a mountain seen from
+   * the valley is mostly the shaded side of something and a single flat grey reads as a hole in the
+   * world. The two are far enough apart that the height ramp does visible work on its own.
+   */
+  LOW: 0x5d5a55,
+  HIGH: 0x9a978f,
   /** Snow, and the height it starts at as a share of the tallest peak in the world. */
   SNOW: 0xeef2f5,
   SNOWLINE: 0.62,
   /** How abruptly it turns to snow, as a share of the tallest peak. Short, so a snowline reads. */
   SNOW_FADE: 0.12,
+  /**
+   * How much darker a face gets for lying flat, and how much lighter for standing up.
+   *
+   * Lambert shading alone gives a mountain one tone per angle to the sun, and half a mountain is
+   * always facing away from it — so the flanks in shadow came out as one grey sheet whatever their
+   * shape. Weathering does the opposite of the light: a ledge holds dust and lichen and goes dull,
+   * a wall sheds everything and shows clean stone. Painted into the colour rather than lit, so it
+   * is there at every hour and from every side.
+   */
+  BEDDING: 0.22,
+  /** Where the sun is coming from, as a share of full brightness, for picking out one face in two. */
+  FACING: 0.1,
   /**
    * How much brighter or darker one face may be than its neighbour.
    *
@@ -90,10 +108,17 @@ export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THR
     const mid = (positions[i + 1] + positions[i + 4] + positions[i + 7]) / 3;
     const up = Math.max(0, Math.min(1, mid / tallest));
     const stone = mix(rockLow, rockHigh, up);
-    const white = Math.max(0, Math.min(1, (up - ROCK.SNOWLINE) / ROCK.SNOW_FADE));
+    // snow lies on what is flat enough to hold it: a wall stays bare however high it stands, which
+    // is the difference between a mountain and a white triangle
+    const lying = Math.max(0, Math.min(1, (n.y - 0.35) / 0.5));
+    const white = Math.max(0, Math.min(1, (up - ROCK.SNOWLINE) / ROCK.SNOW_FADE)) * lying;
     const colour = mix(stone, snow, white);
     // a fixed jitter per triangle: the same mountain has the same face lit the same way every time
-    const shade = 1 + (rand2(ranges.owner[t] + 1, Math.round(positions[i]), Math.round(positions[i + 2]), TILE_SALT.SHADE) - 0.5) * ROCK.SHADE;
+    const jitter = (rand2(ranges.owner[t] + 1, Math.round(positions[i]), Math.round(positions[i + 2]), TILE_SALT.SHADE) - 0.5) * ROCK.SHADE;
+    // and the rock's own bedding: flat ledges dull, walls clean, one face in two catching the light
+    const bedding = (n.y - 0.5) * -ROCK.BEDDING;
+    const facing = (n.x * 0.7 + n.z * 0.7) * ROCK.FACING;
+    const shade = 1 + jitter + bedding + facing;
 
     for (let v = 0; v < 3; v++) {
       normals[i + v * 3] = n.x; normals[i + v * 3 + 1] = n.y; normals[i + v * 3 + 2] = n.z;
