@@ -339,8 +339,11 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #chatPanel.console #chatLog {
   max-height: 40vh; background: none; border-radius: 0; padding: 0 0 6px;
-  /* whatever was said last is the thing being read, so the log sits at its own bottom */
-  display: flex; flex-direction: column; justify-content: flex-end;
+  /* Scrolled, not flexed. `justify-content: flex-end` put the newest line at the bottom and made
+     everything above the fold unreachable — the box scrolled to its own end and no further. The
+     log is pinned to its bottom by setting scrollTop when a line arrives instead, which leaves the
+     wheel free to go back up through what has already been said. */
+  overflow-y: auto; overscroll-behavior: contain;
 }
 #chatPanel.console #chatInput { margin-top: 8px; padding: 7px 10px; font-size: 13px; }
 @keyframes consoleUp {

@@ -24,6 +24,10 @@ export class Chat {
   onSend: ((text: string) => void) | null = null;
 
   constructor() {
+    // The wheel over this box scrolls the box. Without this the game reads it as a zoom the moment
+    // the pointer leaves the log — and, worse, a page that ever gets the event scrolls the world
+    // behind a console somebody is reading.
+    this.panel.addEventListener('wheel', (e) => e.stopPropagation());
     this.input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
@@ -65,6 +69,7 @@ export class Chat {
     this.input.classList.add('show');
     this.input.placeholder = asConsole ? 'Say something, ? for help, / for a command' : 'Say something, then Enter';
     this.input.focus();
+    this.log.scrollTop = this.log.scrollHeight;
     // the key that opened the box would otherwise land in it
     window.setTimeout(() => { this.input.value = ''; }, 0);
   }
@@ -85,13 +90,25 @@ export class Chat {
     this.input.blur();
   }
 
+  /**
+   * Whether the log is showing its newest line.
+   *
+   * A line arriving pulls the log down to the bottom, which is right until somebody has scrolled up
+   * to read what was said earlier — then it is the box snatching itself out of their hands. Within
+   * a couple of pixels, because a scroll position is a float and lands a hair short.
+   */
+  private get atBottom(): boolean {
+    return this.log.scrollHeight - this.log.scrollTop - this.log.clientHeight < 4;
+  }
+
   line(text: string, kind: 'chat' | 'sys' = 'chat'): void {
+    const following = this.atBottom;
     const el = document.createElement('div');
     if (kind === 'sys') el.className = 'sys';
     el.textContent = text;
     this.log.appendChild(el);
     while (this.log.childElementCount > MAX_LINES) this.log.firstElementChild?.remove();
-    this.log.scrollTop = this.log.scrollHeight;
+    if (following) this.log.scrollTop = this.log.scrollHeight;
     this.show();
   }
 }
