@@ -40,14 +40,16 @@ export const RANGE = {
   /**
    * How high a peak stands above the ground it grows out of, in world units.
    *
-   * Answerable to the camera, which is fixed at forty-five degrees and cannot step back. The
-   * picture is half the zoom tall — fifteen world units above the hero at the ordinary zoom — so a
-   * peak of fifty-five was a black wall filling the screen from its own foot, and no amount of
-   * looking up made that a view rather than an obstruction. At thirty-four a mountain is still
-   * twice anything else in the world and you can see past it.
+   * Measured from the ground it stands on, which is now high country rather than a plain: the land
+   * has already risen ten or fifteen units by the time anything is built on it, so a summit reaches
+   * thirty-odd units above the fields without being a thirty-unit tower over them.
+   *
+   * Answerable to the camera as well, which is fixed at forty-five degrees and cannot step back. The
+   * picture is fifteen world units tall above the hero, so a peak that stands much more than twice
+   * that above its own foot is a wall rather than a view, whatever the camera does.
    */
-  TALLEST: 34,
-  SHORTEST: 19,
+  TALLEST: 21,
+  SHORTEST: 11,
   /**
    * How much of that a face gets for being large.
    *

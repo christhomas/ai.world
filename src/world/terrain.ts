@@ -3,11 +3,14 @@ import { rand2 } from '../core/rng';
 import { SALT, TILE_SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import { biomeAt, segDist2, type RoadGraph } from './graph';
-import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
+import { BIOMES, Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { growRanges, liftField, mountainAt, nearestLift, type Ranges } from './ranges';
+import { highlandAt, highlandLift, type Highland } from './highland';
+import { despeckle } from './despeckle';
+import { rollProp } from './props';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 import { stampCentreProp, stampFootprint, stampPath, stampPier, stampPlaza, stampSingleProp } from './stamp';
@@ -99,16 +102,25 @@ const HUB_PLAZA = 5;
  */
 const MESH_LAND_WIDTH = 22;
 
-const GROUND_ALT_CHANCE = 0.35;
+export const GROUND_ALT_CHANCE = 0.35;
+/**
+ * How high the country has to stand before it stops being whatever it was, in terraces.
+ *
+ * Eight terraces is four world units of climb, which is a hillside rather than a hummock; snow
+ * comes in at twice that. Both are heights of *country* rather than of rock, so the change happens
+ * on the long approach and the peaks are already standing in mountain country before they start.
+ */
+const HIGH_ENOUGH_FOR_ROCK = 8;
+const HIGH_ENOUGH_FOR_SNOW = 18;
 /** Neighbours (of 8) that must agree before the de-speckle filter overrides a tile's level. */
-const DESPECKLE_MAJORITY = 5;
+export const DESPECKLE_MAJORITY = 5;
 /** Tiles beyond the road edge kept free of props. */
-const ROAD_SHOULDER = 1.2;
+export const ROAD_SHOULDER = 1.2;
 /** How far a mountain has to stand above the ground before nothing grows under it, in units. */
-const PROP_HEADROOM = 1.5;
-const HIGH_ROCK_DENSITY = 0.06;
+export const PROP_HEADROOM = 1.5;
+export const HIGH_ROCK_DENSITY = 0.06;
 /** Coast sand gets this fraction of the bank prop density. */
-const COAST_PROP_FACTOR = 0.25;
+export const COAST_PROP_FACTOR = 0.25;
 /** Bridge decks sit this far above the river surface. */
 export const BRIDGE_DECK_LIFT = 0.14;
 
@@ -132,6 +144,14 @@ export class TerrainSampler {
    * two be compared rather than swapped over blind.
    */
   readonly mesh: WorldMesh | null;
+  /**
+   * How high each face of the world stands because it is in the mountains, in terraces.
+   *
+   * This is the country, not the rock: the ground itself tilting up as you walk into a range, so
+   * the valleys between summits are already high and you are in the mountains long before you are
+   * on one. Null in the road-tree world, which has no mountain country in it.
+   */
+  private readonly highland: Highland[];
   /** The world's mountains. Planned before structures, because structures sample the ground. */
   readonly massifs: Massif[];
   /**
@@ -156,6 +176,7 @@ export class TerrainSampler {
   constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
     this.seed = graph.seed;
     this.mesh = (graph as RoadGraph & { mesh?: WorldMesh }).mesh ?? null;
+    this.highland = this.mesh ? highlandLift(this.mesh) : [];
     this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
     this.biomeNoise = new Simplex2D(derive(graph.seed, SALT.BIOME));
 
@@ -190,11 +211,10 @@ export class TerrainSampler {
     this.hydro = prebuilt ? prebuilt.hydro : generateHydrology(
       graph,
       (x, z) => this.landProbe(x, z),
-      // A massif is part of the road-tree world's heightfield and a river must know its height or
-      // run uphill. A polygon world's ranges stand on the ground instead, and telling the water
-      // about those put their height into the rivers' own terrace levels, which the banks were then
-      // built up to: sixteen units of ground in open country, hills no mountain explained.
-      (x, z, roadDist) => (this.mesh ? 0 : upliftAt(x, z, this.massifs, roadDist)),
+      // How high the ground is here. In the road-tree world that is a massif; in a polygon world it
+      // is the mountain country itself, which is ground and therefore something a river must know
+      // about or it will run uphill out of a valley.
+      (x, z, roadDist) => (this.mesh ? this.highlandAt(x, z) : upliftAt(x, z, this.massifs, roadDist)),
       // where they stand is still worth knowing, for where water comes out of the ground
       (x, z) => (high ? nearestLift(high, x, z) : 0),
     );
@@ -241,11 +261,27 @@ export class TerrainSampler {
     }
   }
 
+  /** How high the ground stands here because of the country it is in, in terraces. */
+  highlandAt(x: number, z: number): number {
+    return highlandAt(this.highland, x, z);
+  }
+
   newSample(): TileSample {
     return { type: TileType.Skip, level: 0, base: 0, height: 0, water: 0, shore: 0, biome: 0 as Biome, bank: false, roadDist: Infinity, roadWidth: 0, corners: [0, 0, 0, 0], sloped: false };
   }
 
+  /**
+   * What country a point is in.
+   *
+   * High ground is mountain country whatever the road tree thought, and snow above that. Without
+   * this a range that rose out of a desert stayed desert to the last tile: sand at fifteen units,
+   * cactus on the shoulder of a mountain, and an area name that told you you were in the dunes
+   * while you stood on a hillside. The land decides, not the map's earlier opinion of it.
+   */
   biomeOf(x: number, z: number): Biome {
+    const country = this.highlandAt(x, z);
+    if (country >= HIGH_ENOUGH_FOR_SNOW) return Biome.Snow;
+    if (country >= HIGH_ENOUGH_FOR_ROCK) return Biome.Mountain;
     return biomeAt(this.graph, this.biomeNoise, x, z);
   }
 
@@ -398,15 +434,19 @@ export class TerrainSampler {
     const water = riverCands.length > 0 ? this.waterAt(px, pz, riverCands) : null;
     const plaza = Math.hypot(px, pz) < HUB_PLAZA;
 
+    // the country this is in, which the road climbs as much as the fields either side of it: a
+    // road through the mountains is a road in the mountains, not a trench across them
+    const country = this.highlandAt(px, pz);
+
     if (d < e.roadWidth || plaza) {
       out.type = TileType.Road;
-      out.level = roadLevel;
-      out.height = roadLevel * STEP;
+      out.level = roadLevel + country;
+      out.height = out.level * STEP;
       // corners sample the road level field so consecutive tiles form a continuous ramp
-      out.corners[0] = this.roadHeightAt(tx, tz, cands, roadLevel);
-      out.corners[1] = this.roadHeightAt(tx + 1, tz, cands, roadLevel);
-      out.corners[2] = this.roadHeightAt(tx + 1, tz + 1, cands, roadLevel);
-      out.corners[3] = this.roadHeightAt(tx, tz + 1, cands, roadLevel);
+      out.corners[0] = this.roadHeightAt(tx, tz, cands, roadLevel) + country * STEP;
+      out.corners[1] = this.roadHeightAt(tx + 1, tz, cands, roadLevel) + country * STEP;
+      out.corners[2] = this.roadHeightAt(tx + 1, tz + 1, cands, roadLevel) + country * STEP;
+      out.corners[3] = this.roadHeightAt(tx, tz + 1, cands, roadLevel) + country * STEP;
       if (water && water.wd < 0) {
         // bridge: deck rides just above the river surface
         out.type = TileType.Bridge;
@@ -419,7 +459,7 @@ export class TerrainSampler {
       return;
     }
 
-    const baseLevel = Math.max(1, Math.round(roadLevel));
+    const baseLevel = Math.max(1, Math.round(roadLevel + country));
     out.base = baseLevel;
     const td = (d - e.roadWidth) / (W - e.roadWidth);
     const hills = this.noise.fbm(px * 0.04, pz * 0.04, 2);
@@ -519,7 +559,7 @@ export class TerrainSampler {
         const idx = lz * size + lx;
         if (grid.type[gi] === TileType.Skip) continue;
         drawn++;
-        const { type, level } = this.despeckle(grid, gi);
+        const { type, level } = despeckle(grid, gi, this.seed);
         chunk.type[idx] = type;
         chunk.biome[idx] = grid.biome[gi];
         chunk.water[idx] = grid.water[gi];
@@ -539,7 +579,7 @@ export class TerrainSampler {
           chunk.height[idx] = level * WORLD.STEP;
           chunk.corners.fill(level * WORLD.STEP, idx * 4, idx * 4 + 4);
         }
-        if (type !== TileType.Seabed) chunk.prop[idx] = this.rollProp(grid, gi, type);
+        if (type !== TileType.Seabed) chunk.prop[idx] = rollProp(grid, gi, type, this.seed, this.ranges);
       }
     }
 
@@ -585,57 +625,6 @@ export class TerrainSampler {
     return grid;
   }
 
-  /** Majority filter: a lone tile a terrace off from its neighbourhood joins the crowd. */
-  private despeckle(grid: SampleGrid, gi: number): { type: TileType; level: number } {
-    let type = grid.type[gi] as TileType;
-    let level = grid.level[gi];
-    if (!isFlatLand(type) || grid.bank[gi] || type === TileType.Sand) return { type, level };
-    const counts = new Map<number, number>();
-    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-      if (dx === 0 && dz === 0) continue;
-      const ni = gi + dz * grid.G + dx;
-      if (!isFlatLand(grid.type[ni] as TileType)) continue;
-      counts.set(grid.level[ni], (counts.get(grid.level[ni]) ?? 0) + 1);
-    }
-    let mode = level, modeN = 0;
-    for (const [l, cnt] of counts) if (cnt > modeN) { modeN = cnt; mode = l; }
-    if (modeN < DESPECKLE_MAJORITY || mode === level) return { type, level };
-    level = mode;
-    const def = BIOMES[grid.biome[gi]];
-    const tx = grid.x0 + (gi % grid.G), tz = grid.z0 + Math.floor(gi / grid.G);
-    if (level - grid.base[gi] >= def.highAt) type = TileType.High;
-    else if (type === TileType.High) type = rand2(this.seed, tx, tz, TILE_SALT.GROUND_VARIANT) < GROUND_ALT_CHANCE ? TileType.GroundAlt : TileType.Ground;
-    return { type, level };
-  }
-
-  /** Which prop (if any) grows on a land tile. Roads keep a clear shoulder; banks and water have their own tables. */
-  private rollProp(grid: SampleGrid, gi: number, type: TileType): PropKind {
-    const tx = grid.x0 + (gi % grid.G), tz = grid.z0 + Math.floor(gi / grid.G);
-    // Nothing grows under a mountain. The ground beneath one is still generated — it is what the
-    // rock stands on, and the rim needs it — but a tree rooted in ground that is now the inside of
-    // a mountain is a trunk sticking out of a cliff. A hand's breadth of clearance rather than
-    // nought, so the skirt where the rock meets the grass still has its scrub.
-    if (this.ranges) {
-      const rock = mountainAt(this.ranges, tx + 0.5, tz + 0.5);
-      if (rock !== null && rock > grid.height[gi] + PROP_HEADROOM) return PropKind.None;
-    }
-    const def = BIOMES[grid.biome[gi]];
-    const r = rand2(this.seed, tx, tz, TILE_SALT.PROP_ROLL);
-    const kindRoll = rand2(this.seed, tx, tz, TILE_SALT.PROP_KIND);
-    if (type === TileType.Water) return r < def.waterDensity ? pickWeighted(def.water, kindRoll) : PropKind.None;
-    if (grid.bank[gi]) return r < def.bankDensity ? pickWeighted(def.bank, kindRoll) : PropKind.None;
-    if (grid.roadDist[gi] < grid.roadWidth[gi] + ROAD_SHOULDER) return PropKind.None;
-    switch (type) {
-      case TileType.High: return r < HIGH_ROCK_DENSITY ? (kindRoll < 0.5 ? PropKind.Rock : PropKind.Boulder) : PropKind.None;
-      case TileType.Ground:
-      case TileType.GroundAlt: return r < def.propDensity ? pickWeighted(def.props, kindRoll) : PropKind.None;
-      case TileType.Sand: return r < def.bankDensity * COAST_PROP_FACTOR ? pickWeighted(def.bank, kindRoll) : PropKind.None;
-      default: return PropKind.None;
-    }
-  }
-
-  /** Flatten yards, lay door paths, and drop each building prop on its centre tile. */
-  /** Which village a structure belongs to, by whose radius it falls inside. Empty for the wild. */
   private villageHolding(s: Structure): string {
     for (const v of this.structures.villages) {
       if (Math.hypot(v.x - s.tx, v.z - s.tz) <= v.radius) return v.name;
@@ -671,7 +660,7 @@ export class TerrainSampler {
 }
 
 /** One sampled grid with a two-tile apron; indices are gz * G + gx. */
-interface SampleGrid {
+export interface SampleGrid {
   G: number;
   x0: number;
   z0: number;
@@ -690,6 +679,6 @@ interface SampleGrid {
 }
 
 /** Tiles whose level the de-speckle filter may compare and adjust. */
-function isFlatLand(t: TileType): boolean {
+export function isFlatLand(t: TileType): boolean {
   return t === TileType.Ground || t === TileType.GroundAlt || t === TileType.High || t === TileType.Sand;
 }
