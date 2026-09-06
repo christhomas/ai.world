@@ -6,9 +6,16 @@ import { commandChannel } from './tools/commandchannel.ts';
  * on your own network serves it at the root, and says so by setting BASE=/ when it builds. Dev is
  * always the root.
  */
-export default defineConfig(({ command }) => ({
-  // the development door for commands: post one to /__command and every open tab runs it
-  plugins: [commandChannel()],
+export default defineConfig(async ({ command }) => ({
+  /**
+   * The development door for commands: post one to /__command and every open tab runs it.
+   *
+   * Imported only when serving, and dynamically, so a production build never reaches for the file.
+   * The image copies the game and the server and not the workbench — `tools/` is not in it — and a
+   * static import of something that is not there fails the build in a way that has nothing to do
+   * with the thing being built.
+   */
+  plugins: command === 'serve' ? [(await import('./tools/commandchannel')).commandChannel()] : [],
   base: process.env.BASE ?? (command === 'build' ? '/ai.world/' : '/'),
   /**
    * The dev server, pinned.
@@ -24,8 +31,8 @@ export default defineConfig(({ command }) => ({
    * localhost to 127.0.0.1 finds nothing there either.
    */
   server: { port: 5174, strictPort: true, host: true },
-  worker: { format: 'es' },
-  build: { target: 'es2022', sourcemap: true },
+  worker: { format: 'es' as const },
+  build: { target: 'es2022' as const, sourcemap: true },
   /**
    * Sixty seconds a test, not vitest's five.
    *
