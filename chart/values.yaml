@@ -12,6 +12,15 @@ image:
 
 imagePullSecrets: []
 
+# A secret whose keys become environment variables in the server, or empty for none.
+#
+# This exists for OPERATOR_TOKEN and OPERATOR_WATCH_TOKEN, which are what the `/operate` door reads
+# — with neither set the route is not registered at all. They are named here rather than valued
+# because a chart value ends up in the HelmRelease and in Flux's storage, and a password written
+# into the desired state of a cluster is a password in a git repository one copy later.
+envFromSecret: ""
+
+
 # One. Not a default to be raised later — a constraint of what this is.
 #
 # The server holds the clock, the market and the post shelf, and writes one JSON file per seed to a

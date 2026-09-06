@@ -41,9 +41,13 @@ belongs to the project, and the next person to open it can see what was known.
 - [x] Push the work, bump the chart to 0.2.0 and cut the release that gives it an image. *(Took
       three goes: the config's import of the dev command channel, then the Dockerfile copy, then
       `.dockerignore`. Image 0.2.0 is published for amd64 and arm64.)*
-- [ ] Flux on chrispi: `GitRepository` + `Kustomization` pointing at `deploy/flux`, and the
-      `ai-world-cluster-values` ConfigMap with the hostname. Owned by the homelab-server session;
-      unverifiable from here while kubectl fails with the Go-dialer bug.
+- [x] Flux on chrispi. *(Done by the homelab-server session: v0.2.0 running, Helm revision v4,
+      arm64 pulled from the manifest list, answering on http://aiworld.homelab.local. Note for
+      anyone writing `ignore` rules: `/*` then `!/deploy` does not re-include the directory's
+      contents — it needs `!/deploy/**` too, and the error names the Kustomization's path rather
+      than the fetch that omitted it.)*
+- [x] An optional `envFromSecret` in the chart, so the operator tokens can be given to the server
+      without a password travelling through chart values into Flux's storage. Chart 0.2.1.
 
 ## Smaller
 

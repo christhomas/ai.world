@@ -57,6 +57,14 @@ spec:
             - name: STATIC_DIR
               value: {{ .Values.page.path | quote }}
             {{- end }}
+          {{- with .Values.envFromSecret }}
+          # Anything the server should be told that must not be written down here: the operator
+          # tokens, in practice. A chart value would travel into the HelmRelease and into Flux's own
+          # storage; a secret named here is created on the cluster and this only points at it.
+          envFrom:
+            - secretRef:
+                name: {{ . | quote }}
+          {{- end }}
           {{- if .Values.probes.enabled }}
           # The server answers a plain-text page at the root; that is what the image's own
           # healthcheck asks for and it is enough to know the worlds are open.
