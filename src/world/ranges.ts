@@ -1,7 +1,7 @@
 import { WORLD } from '../core/config';
 import { mulberry32, rand2 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
-import { FaceKind, type WorldMesh } from './mesh';
+import { FaceKind, faceAt, type WorldMesh } from './mesh';
 import type { Massif } from './mountains';
 
 /**
@@ -123,6 +123,32 @@ export const RANGE = {
    */
   ROUGH_FLOOR: 0.12,
   /**
+   * The walled-in village: how far the wall stands from the middle of it, as a share of the
+   * village's own radius, and how high it goes.
+   *
+   * The wall has to stand clear of the houses — a village lays itself out before any of this is
+   * built, and rock through somebody's roof is not a feature — and near enough that it is plainly
+   * the wall of *that* village rather than hills in the distance.
+   */
+  BOWL_OUT: 3.2,
+  /** How thick the wall is, as a share of where it stands: the crest sits between these. */
+  BOWL_INNER: 0.72,
+  BOWL_OUTER: 1.34,
+  /** How high the wall stands, in world units. Lower than a peak: it is a wall, not a mountain. */
+  BOWL_HIGH: 34,
+  /** However small the village, the wall stands at least this far out, in tiles. */
+  BOWL_LEAST: 62,
+  /** And it is never put round a village this near the middle of the world, where the hero starts. */
+  BOWL_CLEAR_OF_START: 220,
+  /**
+   * How wide the gate is where a road crosses the wall, in tiles.
+   *
+   * The old walled village worked because roads were never lifted by the heightfield. Geometry has
+   * no such manners, so the wall is cut down to the ground wherever a road runs through it. Wide
+   * enough for the road and its verge, narrow enough that the wall still reads as a wall.
+   */
+  BOWL_GATE: 9,
+  /**
    * How far from a peak still counts as being near it, in tiles.
    *
    * Wider than the mountain itself: what this measures is country in the shadow of a range, which
@@ -160,6 +186,8 @@ export interface Ranges {
   /** Which peak each triangle belongs to, one entry per triangle. */
   owner: Int32Array;
   peaks: Peak[];
+  /** The walled-in village, when this world has one. */
+  bowl: Bowl | null;
   /** Triangle ids by grid cell, for asking what is under a point without testing every triangle. */
   index: TriIndex;
 }
@@ -179,6 +207,19 @@ export interface TriIndex {
 export type GroundAt = (x: number, z: number) => number;
 
 /**
+ * The walled village to build, and how to find the roads that must be left open through its wall.
+ *
+ * Optional as a whole: the water asks for the mountains before there are villages to wall in, and
+ * gets a world without one, which is right — a wall is not a mountain and nothing about the rivers
+ * depends on it.
+ */
+export interface WalledVillage {
+  bowl: Bowl;
+  /** How far a point is from the middle of the nearest road, in tiles. */
+  roadAway: (x: number, z: number) => number;
+}
+
+/**
  * Grow the mountains of a world.
  *
  * `ground` is asked only at the corners and apexes — a few hundred points for a whole world rather
@@ -186,7 +227,7 @@ export type GroundAt = (x: number, z: number) => number;
  * settled ground *without* mountains on it, which it now always is: nothing adds mountains to the
  * heightfield any more.
  */
-export function buildRanges(mesh: WorldMesh, ground: GroundAt): Ranges {
+export function buildRanges(mesh: WorldMesh, ground: GroundAt, walled?: WalledVillage): Ranges {
   const rng = mulberry32(derive(mesh.seed, SALT.MOUNTAINS));
 
   // Which faces are mountain, and how big each is relative to the biggest of them. Relative rather
@@ -268,8 +309,14 @@ export function buildRanges(mesh: WorldMesh, ground: GroundAt): Ranges {
     }
   }
 
+  if (walled) buildWall(walled, ground, mesh.seed, tris, owner);
+
   const flat = new Float32Array(tris);
-  return { tris: flat, owner: new Int32Array(owner), peaks, index: indexTriangles(flat, mesh.radius) };
+  return {
+    tris: flat, owner: new Int32Array(owner), peaks,
+    bowl: walled?.bowl ?? null,
+    index: indexTriangles(flat, mesh.radius),
+  };
 }
 
 /**
@@ -331,6 +378,57 @@ function between(a: Point, b: Point, seed: number, tallest: number): Point {
     lift: Math.max(-RANGE.BURY, lift + (die - 0.5) * 2 * RANGE.ROUGH * span * share),
   };
 }
+
+/**
+ * The wall round a walled village: a ring of high country with a flat floor inside it.
+ *
+ * Three rings of points and two strips of triangles between them — the outer skirt at ground level,
+ * the crest, and the inner foot back at ground where the village's own fields start. Nothing is
+ * done to the floor itself: the houses, the roads and the fields are the ones the village already
+ * laid out, which is the whole point of walling a village in rather than building one in a crater.
+ *
+ * Where a road crosses, the crest comes down to the ground. That is the gate, and it is what makes
+ * the place somewhere you can get into: the old walled village worked because the heightfield never
+ * lifted a road, and geometry has no such manners.
+ */
+function buildWall(
+  walled: WalledVillage, ground: GroundAt, seed: number, tris: number[], owner: number[],
+): void {
+  const { bowl, roadAway } = walled;
+  const sides = WALL_SIDES;
+  const ring = (radius: number, lift: number): Point[] => Array.from({ length: sides }, (_, k) => {
+    const a = (k / sides) * Math.PI * 2;
+    const x = bowl.x + Math.cos(a) * radius;
+    const z = bowl.z + Math.sin(a) * radius;
+    // a gate where a road already runs, and nothing but ground for its verge
+    const open = Math.max(0, Math.min(1, (roadAway(x, z) - RANGE.BOWL_GATE) / RANGE.BOWL_GATE));
+    return { x, z, ground: ground(x, z), lift: lift * open - (lift > 0 ? 0 : RANGE.BURY) };
+  });
+
+  const outer = ring(bowl.radius * RANGE.BOWL_OUTER, 0);
+  const crest = ring(bowl.radius, RANGE.BOWL_HIGH);
+  const inner = ring(bowl.radius * RANGE.BOWL_INNER, 0);
+
+  // the two strips, each a pair of triangles per side, cut down like any other mountain face
+  for (let k = 0; k < sides; k++) {
+    const next = (k + 1) % sides;
+    for (const [a, b, c] of [
+      [outer[k], crest[k], crest[next]], [outer[k], crest[next], outer[next]],
+      [crest[k], inner[k], inner[next]], [crest[k], inner[next], crest[next]],
+    ] as Array<[Point, Point, Point]>) {
+      cut(a, b, c, RANGE.CUTS - 1, seed, RANGE.BOWL_HIGH, tris, owner, -1);
+    }
+  }
+}
+
+/**
+ * How many sides the wall has.
+ *
+ * Enough that it reads as a ring of hills rather than as a polygon fort, few enough that each side
+ * is a slab of rock the size of the faces the mountains are made of, so the two look like the same
+ * country.
+ */
+const WALL_SIDES = 14;
 
 /** Bucket every triangle into the grid cells its bounding box covers. */
 function indexTriangles(tris: Float32Array, radius: number): TriIndex {
@@ -449,6 +547,52 @@ export function slopeAt(ranges: Ranges, x: number, z: number): number {
     if (near !== null) most = Math.max(most, Math.abs(near - here));
   }
   return most;
+}
+
+/** A village with a ring of high country round it, and the roads it already had as the way in. */
+export interface Bowl {
+  village: string;
+  x: number;
+  z: number;
+  /** Where the crest of the wall stands, in tiles from the middle. */
+  radius: number;
+}
+
+/**
+ * Which village, if any, is walled into the mountains.
+ *
+ * One in a world. Never the one nearest the middle, because the hero starts there and being walled
+ * in on your first morning is a cage rather than a discovery; never one already standing in
+ * mountain country, which has walls of its own; and only where there is dry land all the way round,
+ * since a wall with a bay in it is not a wall. The one furthest out that passes is chosen, so the
+ * walled village is somewhere you arrive at rather than somewhere you begin.
+ */
+export function planBowl(
+  mesh: WorldMesh,
+  villages: ReadonlyArray<{ name: string; x: number; z: number; radius: number }>,
+  onLand: (x: number, z: number) => boolean,
+): Bowl | null {
+  const ringed = (x: number, z: number, radius: number): boolean => {
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      if (!onLand(x + Math.cos(a) * radius, z + Math.sin(a) * radius)) return false;
+    }
+    return true;
+  };
+  const candidates = villages
+    .filter((v) => Math.hypot(v.x, v.z) > RANGE.BOWL_CLEAR_OF_START)
+    .filter((v) => faceAtKind(mesh, v.x, v.z) !== FaceKind.Mountain)
+    .map((v) => ({ v, radius: Math.max(v.radius * RANGE.BOWL_OUT, RANGE.BOWL_LEAST) }))
+    .filter(({ v, radius }) => ringed(v.x, v.z, radius * RANGE.BOWL_OUTER))
+    .sort((a, b) => Math.hypot(b.v.x, b.v.z) - Math.hypot(a.v.x, a.v.z));
+  const chosen = candidates[0];
+  return chosen ? { village: chosen.v.name, x: chosen.v.x, z: chosen.v.z, radius: chosen.radius } : null;
+}
+
+/** What kind of country a point stands in, or Sea past the edge of the world. */
+function faceAtKind(mesh: WorldMesh, x: number, z: number): FaceKind {
+  const face = faceAt(mesh, x, z);
+  return face ? face.kind : FaceKind.Sea;
 }
 
 /**

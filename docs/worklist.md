@@ -20,10 +20,11 @@ belongs to the project, and the next person to open it can see what was known.
 
 ## Mountains
 
-- [ ] Rivers no longer run off mountains. Hydrology takes its downhill from the massif uplift,
-      which is zero in a polygon world.
-- [ ] The walled-in village — a ring of high country round a flat floor, reached only by the roads
-      it already had — is gone. Its code is the mesh branch of `planMassifs`, now unreachable.
+- [x] Rivers no longer run off mountains. Hydrology takes its downhill from the massif uplift,
+      which is zero in a polygon world. *(Median source-to-peak distance: 70 tiles → 40.)*
+- [x] The walled-in village — a ring of high country round a flat floor, reached only by the roads
+      it already had — is gone. *(Rebuilt as ring geometry with gates where roads cross; the dead
+      branch of `planMassifs` is deleted.)*
 - [ ] Mountains are missing from the map and the minimap: they are no longer terrain, and nothing
       draws them there.
 - [ ] Creatures still spawn on and under the rock. Only props are suppressed.
@@ -33,7 +34,9 @@ belongs to the project, and the next person to open it can see what was known.
 
 ## Deployment
 
-- [x] Push the work, bump the chart to 0.2.0 and cut the release that gives it an image.
+- [x] Push the work, bump the chart to 0.2.0 and cut the release that gives it an image. *(Took
+      three goes: the config's import of the dev command channel, then the Dockerfile copy, then
+      `.dockerignore`. Image 0.2.0 is published for amd64 and arm64.)*
 - [ ] Flux on chrispi: `GitRepository` + `Kustomization` pointing at `deploy/flux`, and the
       `ai-world-cluster-values` ConfigMap with the hostname. Owned by the homelab-server session;
       unverifiable from here while kubectl fails with the Go-dialer bug.

@@ -7,7 +7,7 @@ import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
-import { buildRanges, liftField, mountainAt, nearestLift, terracesAt, type Ranges } from './ranges';
+import { buildRanges, liftField, mountainAt, nearestLift, planBowl, terracesAt, type Ranges } from './ranges';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 import { stampCentreProp, stampFootprint, stampPath, stampPier, stampPlaza, stampSingleProp } from './stamp';
@@ -182,7 +182,7 @@ export class TerrainSampler {
         const probe = this.landProbe(x, z);
         if (!probe || !probe.land) return null;
         return { fromRoad: probe.roadDist, fromCoast: probe.landWidth - probe.roadDist };
-      }, this.mesh);
+      });
 
     // The mountains, measured from nothing, because the water has to know where the high ground is
     // before there is a settled ground for them to stand on.
@@ -228,10 +228,20 @@ export class TerrainSampler {
     // mountains were a field again.
     if (this.mesh) {
       const probe = this.newSample();
-      this.ranges = buildRanges(this.mesh, (x, z) => {
+      const groundAt = (x: number, z: number): number => {
         this.sampleTile(Math.round(x), Math.round(z), probe);
         return probe.height;
+      };
+      // one village in the world is walled into the mountains, with the roads it already had as the
+      // only ways in. It is chosen here rather than in the geometry because it needs the villages,
+      // and the villages are the last thing this constructor builds.
+      const bowl = planBowl(this.mesh, this.structures.villages, (x, z) => {
+        const land = this.landProbe(x, z);
+        return land !== null && land.land;
       });
+      this.ranges = buildRanges(this.mesh, groundAt, bowl
+        ? { bowl, roadAway: (x, z) => this.landProbe(x, z)?.roadDist ?? Infinity }
+        : undefined);
     }
   }
 

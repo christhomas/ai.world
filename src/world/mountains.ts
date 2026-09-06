@@ -1,10 +1,14 @@
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { segDist2, type RoadGraph } from './graph';
-import { FaceKind, type MeshRegion, type WorldMesh } from './mesh';
 
 /**
- * Mountains, as a layer of their own.
+ * Mountains, as a layer of their own — in the road-tree world.
+ *
+ * The polygon world's mountains are geometry now and live in `ranges.ts`; this is what the older
+ * world still grows, and the two share nothing but the word. What is left here is the layer as it
+ * was: a handful of domes placed off the world seed and added to the heightfield, which is the
+ * right shape for a world whose ground is the only thing there is.
  *
  * The ground generator answers one question — how high is it here, given how far off the road you
  * are — and answering it well makes a country you can walk across. It is the wrong tool for a
@@ -59,15 +63,6 @@ export const MOUNTAIN = {
   /** Nor nearer than this to each other, so they read as separate ranges. */
   APART: 150,
   /**
-   * How much wider than the mountain face it stands on a massif reaches, in the polygon world.
-   *
-   * A face of the middling size is about sixty tiles across, and at 1.0 a massif would stop dead
-   * at its own border and leave a ring of flat ground between it and the next one along — a range
-   * of separate hats rather than a range. Past about 2.6 they swallow each other and the passes
-   * between them close up, which is the one piece of mountain country worth walking.
-   */
-  SPREAD: 2.2,
-  /**
    * How far inside the coast a massif has to stand, in tiles.
    *
    * The last couple of tiles before the sea are flattened to the shore's own level to make a
@@ -119,67 +114,8 @@ export function planMassifs(
   villages: ReadonlyArray<{ x: number; z: number }>,
   /** How much room a point has: how far from a road, and how far inside the coast. Null at sea. */
   ground: (x: number, z: number) => { fromRoad: number; fromCoast: number } | null,
-  /** The polygons, when the world was grown that way. Mountain country is decided there. */
-  mesh: WorldMesh | null = null,
 ): Massif[] {
   const rng = mulberry32(derive(seed, SALT.MOUNTAINS));
-
-  // With a mesh, the country has already been told where its mountains are: whole territories of
-  // it are mountain rather than open land. A massif goes on each of the broadest faces of each,
-  // spaced apart so that a wide range comes out as a chain of peaks with valleys between them
-  // rather than as one enormous dome, and so the height agrees with the map instead of being
-  // sprinkled over it. Biggest range first, biggest face within it first, so the mountains a world
-  // can only afford ten of go where there is most mountain country to stand them on.
-  if (mesh) {
-    const ranges: Massif[] = [];
-    const highlands = mesh.regions.filter((r: MeshRegion) => r.kind === FaceKind.Mountain);
-    highlands.sort((a, b) => b.faces.length - a.faces.length || a.id - b.id);
-    for (const region of highlands) {
-      if (ranges.length >= MOUNTAIN.RANGES) break;
-      const spots = region.faces.map((f) => mesh.faces[f]).sort((a, b) => b.area - a.area || a.id - b.id);
-      for (const face of spots) {
-        if (ranges.length >= MOUNTAIN.RANGES) break;
-        if (villages.some((v) => Math.hypot(v.x - face.cx, v.z - face.cz) < MOUNTAIN.CLEAR_OF_VILLAGES)) continue;
-        if (ranges.some((m) => Math.hypot(m.x - face.cx, m.z - face.cz) < MOUNTAIN.APART)) continue;
-        // the radius of a circle covering the face, widened a little so neighbouring massifs meet
-        // in a saddle instead of leaving a ring of flat ground round each one
-        const reach = Math.sqrt(face.area / Math.PI) * MOUNTAIN.SPREAD;
-        ranges.push({
-          x: face.cx, z: face.cz,
-          radius: Math.max(MOUNTAIN.NARROWEST, Math.min(MOUNTAIN.WIDEST, reach)),
-          height: Math.round(MOUNTAIN.SHORTEST + rng() * (MOUNTAIN.TALLEST - MOUNTAIN.SHORTEST)),
-          hollow: 0,
-        });
-      }
-    }
-    // One village in the world sits inside the mountains rather than beside them: a ring of high
-    // country round a flat floor, with the roads it already had as the only ways in or out. The
-    // start village is never chosen — being walled in on your first morning is a cage, not a
-    // discovery — and neither is one already standing in a range.
-    const bowlRadius = MOUNTAIN.NARROWEST + rng() * (MOUNTAIN.WIDEST - MOUNTAIN.NARROWEST);
-    /** A wall is only a wall if it goes all the way round: no bowl half of which is open sea. */
-    const ringedByLand = (v: { x: number; z: number }): boolean => {
-      for (let k = 0; k < 12; k++) {
-        const a = (k / 12) * Math.PI * 2;
-        if (!ground(v.x + Math.cos(a) * bowlRadius * 0.85, v.z + Math.sin(a) * bowlRadius * 0.85)) return false;
-      }
-      return true;
-    };
-    const bowlAt = villages
-      .filter((v) => Math.hypot(v.x, v.z) > MOUNTAIN.CLEAR_OF_VILLAGES * 2)
-      .filter((v) => !ranges.some((m) => Math.hypot(m.x - v.x, m.z - v.z) < m.radius + MOUNTAIN.CLEAR_OF_VILLAGES))
-      .filter(ringedByLand)
-      .sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
-    if (bowlAt) {
-      ranges.push({
-        x: bowlAt.x, z: bowlAt.z, radius: bowlRadius,
-        hollow: bowlRadius * MOUNTAIN.BOWL_FLOOR,
-        height: Math.round(MOUNTAIN.SHORTEST + rng() * (MOUNTAIN.TALLEST - MOUNTAIN.SHORTEST)),
-      });
-    }
-
-    return ranges;
-  }
 
   // Somewhere solid to stand each one. Room means two things and both matter: far enough from a
   // road that the massif is not all pass, and far enough inside the coast that it is not all

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FaceKind, generateMesh, type WorldMesh } from './mesh';
-import { RANGE, buildRanges, mountainAt, type Ranges } from './ranges';
+import { RANGE, buildRanges, mountainAt, planBowl, type Ranges } from './ranges';
 
 /**
  * The mountains, as the shape they are rather than as a picture of one.
@@ -145,5 +145,67 @@ describe('mountains built from the polygons', () => {
       }
       expect(last).toBeLessThan(peak.lift);
     });
+  });
+});
+
+describe('the village walled into the mountains', () => {
+  /** A village, as the planner needs to see one. */
+  const village = (name: string, x: number, z: number, radius = 22) => ({ name, x, z, radius });
+  const everywhereLand = (): boolean => true;
+
+  it('walls one village, and never the one the hero starts beside', () => {
+    const mesh = generateMesh(3);
+    const near = village('Homestead', 40, 20);
+    const far = village('Faraway', 300, 240);
+    const bowl = planBowl(mesh, [near, far], everywhereLand);
+    expect(bowl?.village).toBe('Faraway');
+  });
+
+  it('walls nobody when there is nobody far enough out to wall', () => {
+    expect(planBowl(generateMesh(3), [village('Homestead', 40, 20)], everywhereLand)).toBeNull();
+    expect(planBowl(generateMesh(3), [], everywhereLand)).toBeNull();
+  });
+
+  it('will not wall a village whose ring runs into the sea', () => {
+    const mesh = generateMesh(3);
+    const far = village('Seaside', 300, 240);
+    // land everywhere except one bearing, which is all it takes for a wall to have a hole in it
+    const gap = (x: number, z: number): boolean => !(x > 300 && z > 240);
+    expect(planBowl(mesh, [far], gap)).toBeNull();
+  });
+
+  it('stands a wall round the village and leaves its floor alone', () => {
+    const mesh = generateMesh(3);
+    const far = village('Faraway', 300, 240);
+    const bowl = planBowl(mesh, [far], everywhereLand);
+    expect(bowl).not.toBeNull();
+    if (!bowl) return;
+    // no roads anywhere, so nothing is gated: the wall should be unbroken
+    const ranges = buildRanges(mesh, FLAT, { bowl, roadAway: () => Infinity });
+    expect(ranges.bowl?.village).toBe('Faraway');
+
+    let walled = 0;
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const y = mountainAt(ranges, bowl.x + Math.cos(a) * bowl.radius, bowl.z + Math.sin(a) * bowl.radius);
+      if (y !== null && y > RANGE.BOWL_HIGH / 2) walled++;
+    }
+    expect(walled, 'the wall goes all the way round').toBe(24);
+    // and the village itself is standing where it always was
+    const floor = mountainAt(ranges, bowl.x, bowl.z);
+    expect(floor === null || floor <= 0, 'the floor is clear').toBe(true);
+  });
+
+  it('opens a gate where a road already runs through the wall', () => {
+    const mesh = generateMesh(3);
+    const bowl = planBowl(mesh, [village('Faraway', 300, 240)], everywhereLand);
+    if (!bowl) throw new Error('no bowl to test');
+    // one road, running east from the village: the wall must come down where it crosses
+    const roadAway = (x: number, z: number): number => (x > bowl.x ? Math.abs(z - bowl.z) : Infinity);
+    const ranges = buildRanges(mesh, FLAT, { bowl, roadAway });
+    const onTheRoad = mountainAt(ranges, bowl.x + bowl.radius, bowl.z);
+    const offIt = mountainAt(ranges, bowl.x - bowl.radius, bowl.z);
+    expect(onTheRoad === null || onTheRoad < 2, 'the gate is open').toBe(true);
+    expect(offIt ?? 0, 'the rest of the wall still stands').toBeGreaterThan(RANGE.BOWL_HIGH / 2);
   });
 });
