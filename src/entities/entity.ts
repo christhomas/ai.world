@@ -5,6 +5,10 @@ import type { Rng } from '../core/rng';
 import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
 import { lastsFor, mirrors, type Blow } from './motion';
+// The ground belongs to the world layer; creatures read it. Re-exported because half the game asks
+// this file what a TileWorld is, and moving the definition is not a reason to move every import.
+export type { TileWorld } from '../world/tiles';
+import type { TileWorld } from '../world/tiles';
 
 export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder' | 'mount' | 'stablehand';
 
@@ -12,24 +16,6 @@ export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | '
 export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods' | 'doctor';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
-export interface TileWorld {
-  /** Walkable ground height at (x,z); null when unloaded, sea, or river/lake. */
-  heightAt(x: number, z: number): number | null;
-  /** Water surface height if (x,z) is a river/lake tile, else null. */
-  waterAt(x: number, z: number): number | null;
-  /** True when a tree / boulder / cactus occupies the tile. */
-  blocked(x: number, z: number): boolean;
-  /**
-   * True where a mountain stands over this tile, so the ground here is the inside of a cliff.
-   *
-   * Optional, because it is only true of the outdoor world of a polygon country. Nothing should
-   * live on a mountain flank or under one: the flank is too steep to stand on and the ground under
-   * it cannot be seen, so a herd spawned there is a herd nobody will ever meet.
-   */
-  buried?(x: number, z: number): boolean;
-  isRoad(x: number, z: number): boolean;
-}
-
 export type EntityState = 'idle' | 'walk' | 'graze' | 'flee' | 'hop' | 'fly' | 'swim';
 
 /** Max height difference a walker can step across; terrace steps (0.5) are walls, ramps are fine. */

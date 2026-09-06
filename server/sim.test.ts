@@ -151,3 +151,51 @@ describe('the simulation, hosted by nothing at all', () => {
     expect(sim.rooms.playerCount).toBe(0);
   });
 });
+
+describe('the simulation holding the ground itself', () => {
+  it('grows a world when somebody stands in it, and only where they are standing', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    expect(sim.groundOf(3)!.held, 'nothing until somebody is there').toBe(0);
+
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    // five by five chunks round one player
+    expect(sim.groundOf(3)!.held).toBe(25);
+  });
+
+  it('follows a player, and forgets the country behind them', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 1, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    const first = sim.groundOf(3)!.held;
+    expect(first).toBe(9);
+
+    // a long way off: the ground there is made, and the ground they left is dropped
+    rowan.say({ type: 'move', x: 900, z: 900, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 200);
+    expect(sim.groundOf(3)!.held).toBe(9);
+    expect(sim.groundOf(3)!.heightAt(0.5, 0.5), 'where they were is gone').toBeNull();
+  });
+
+  it('lets go of a world\'s ground when the last player leaves it', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 1, timeout: 1_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    expect(sim.groundOf(3)!.held).toBeGreaterThan(0);
+
+    sim.tick(Date.now() + 5_000);          // long enough that they are dropped for silence
+    sim.tick(Date.now() + 6_000);          // and the empty room is closed
+    expect(sim.groundOf(3)!.held, 'a fresh world, not the old one').toBe(0);
+  });
+
+  it('grows nothing at all when it was not asked to', () => {
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    expect(sim.groundOf(3)).toBeNull();
+  });
+});

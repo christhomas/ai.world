@@ -3,6 +3,9 @@ import { PROTOCOL_VERSION, cleanName, type ClientMessage, type ServerMessage } f
 import { Rooms, type Client, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
+import { GroundWorld } from '../src/world/groundworld';
+import { generateWebGraph } from '../src/world/roadweb';
+import { TerrainSampler } from '../src/world/terrain';
 
 /**
  * The simulation: everything the shared world does, and nothing about where it is running.
@@ -25,6 +28,16 @@ export interface SimOptions {
   dataDir?: string;
   /** How long since we last heard from somebody before they are dropped, in milliseconds. */
   timeout?: number;
+  /**
+   * Whether to grow the ground of a world when somebody is standing in it.
+   *
+   * Off by default, because today nothing on the server needs it and standing a world up costs
+   * about a tenth of a second and twenty megabytes. On, the simulation holds the same terrain the
+   * players are walking on, which is what owning the creatures in it will need.
+   */
+  ground?: boolean;
+  /** How many chunks either side of a player the simulation keeps. */
+  reach?: number;
 }
 
 /** One player's connection, from the simulation's side. */
@@ -40,9 +53,16 @@ export const TICK = 100;
 /** Drop anyone we have not heard from in this long. */
 export const TIMEOUT = 30_000;
 
+/** How many chunks either side of a player the ground is held for, by default. */
+export const REACH = 3;
+
 export class Simulation {
   readonly rooms: Rooms;
   private readonly timeout: number;
+  private readonly growGround: boolean;
+  private readonly reach: number;
+  /** The ground of each world, for the worlds anybody is standing in. */
+  private readonly ground = new Map<number, GroundWorld>();
   private lastTick = Date.now();
   private ticker: ReturnType<typeof setInterval> | null = null;
   private clockTicker: ReturnType<typeof setInterval> | null = null;
@@ -50,6 +70,32 @@ export class Simulation {
   constructor(options: SimOptions = {}) {
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
+    this.growGround = options.ground ?? false;
+    this.reach = options.reach ?? REACH;
+  }
+
+  /**
+   * The ground of a world, grown the first time anybody stands in it.
+   *
+   * The same terrain the players have: the same seed through the same generator, so what the
+   * server believes about a tile and what a player sees on their screen are the same thing by
+   * construction rather than by agreement. It costs about a tenth of a second to stand one up and
+   * a millisecond a chunk after that, measured — which is what makes this affordable on a
+   * Raspberry Pi and worth doing lazily anyway.
+   *
+   * A world with nobody in it has no ground, and loses it again when the last player leaves.
+   */
+  groundOf(seed: number): GroundWorld | null {
+    if (!this.growGround) return null;
+    const held = this.ground.get(seed);
+    if (held) return held;
+    // Which kind of world a seed grows is the client's business today — it is written into a save
+    // and shared through a link — so the server grows the polygon world, which is the one that has
+    // mountains, villages on real ground, and everything phase three is about.
+    const graph = generateWebGraph(seed);
+    const grown = new GroundWorld(new TerrainSampler(graph));
+    this.ground.set(seed, grown);
+    return grown;
   }
 
   /** Start the clocks. Separate from the constructor so a test can step time itself. */
@@ -117,11 +163,18 @@ export class Simulation {
       for (const client of room.clients) {
         if (now - client.lastSeen > this.timeout) { client.wire.close(); this.rooms.leave(client); }
       }
-      if (room.clients.size === 0) { this.rooms.close(seed); continue; }
+      if (room.clients.size === 0) { this.rooms.close(seed); this.ground.delete(seed); continue; }
 
       room.world.tick(seconds);
       if (room.world.sweepStalls()) this.rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
       const players = [...room.clients].map((c) => c.presence);
+      // the ground exists where somebody is standing, and nowhere else: a chunk nobody is near is a
+      // chunk with nobody to tell about it
+      const ground = this.groundOf(seed);
+      if (ground) {
+        for (const who of players) ground.reach(who.x, who.z, this.reach);
+        ground.keepOnly(players, this.reach + 1);
+      }
       for (const client of room.clients) {
         this.rooms.send(client, { type: 'presence', players: players.filter((p) => p.id !== client.presence.id) });
       }

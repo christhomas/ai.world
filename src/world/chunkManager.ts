@@ -6,8 +6,8 @@ import type { WorkerRequest, WorkerResponse } from './messages';
 import { Standing } from './standing';
 import { TileType } from './terrain';
 import { mountainAt, type Ranges } from './ranges';
-import type { TileWorld } from '../entities/entity';
-import type { ChunkSource, ChunkTiles } from '../entities/manager';
+
+import type { ChunkSource, ChunkTiles, TileWorld } from './tiles';
 import type { TerrainSampler } from './terrain';
 import { chunkKey } from './spatial';
 import { PropBatch, disposeInstances, meshFromData, type PropInstance } from '../render/instancing';

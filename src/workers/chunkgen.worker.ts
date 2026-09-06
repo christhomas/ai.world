@@ -1,9 +1,10 @@
 import { WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
-import { TerrainSampler, TileType } from '../world/terrain';
+import { TerrainSampler } from '../world/terrain';
 import { buildChunkMesh } from '../world/mesher';
-import { BLOCKS_WALKING, PropKind } from '../world/biomes';
+import { tilesOf } from '../world/tiles';
+import { PropKind } from '../world/biomes';
 import type { WorkerRequest, WorkerResponse } from '../world/messages';
 
 let sampler: TerrainSampler | null = null;
@@ -29,23 +30,14 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
   const CS = WORLD.CHUNK_SIZE;
   const size = chunk.size;
-  const heights = new Float32Array(CS * CS);
-  const types = new Uint8Array(CS * CS);
-  const waters = new Float32Array(CS * CS);
-  const blocked = new Uint8Array(CS * CS);
-  const biomes = new Uint8Array(CS * CS);
+  // what anything walking on this chunk needs, packed the one way both halves of the game agree on
+  const { heights, types, waters, blocked, biomes } = tilesOf(chunk);
   const props: number[] = [];
   for (let lz = 0; lz < CS; lz++) {
     for (let lx = 0; lx < CS; lx++) {
       const i = (lz + 1) * size + (lx + 1);
-      heights[lz * CS + lx] = chunk.height[i];
-      types[lz * CS + lx] = chunk.type[i];
-      waters[lz * CS + lx] = chunk.water[i];
-      biomes[lz * CS + lx] = chunk.biome[i];
-      if (chunk.type[i] === TileType.Floor) blocked[lz * CS + lx] = 1;
       const kind = chunk.prop[i];
       if (kind === 0) continue;
-      if (BLOCKS_WALKING.has(kind)) blocked[lz * CS + lx] = 1;
       const wx = cx * CS + lx, wz = cz * CS + lz;
       const y = kind === PropKind.Lily ? chunk.water[i] : chunk.height[i];
       const fixedRot = chunk.propRot[i];

@@ -3,6 +3,8 @@ import { WORLD } from '../core/config';
 import { hash3, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
+export type { ChunkSource, ChunkTiles } from '../world/tiles';
+import type { ChunkSource, ChunkTiles } from '../world/tiles';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { KINDS } from './animals';
@@ -22,20 +24,6 @@ import type { EntityRenderer } from './pool';
 import { doorTile, type Village } from '../world/structures';
 
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
-export interface ChunkTiles {
-  cx: number;
-  cz: number;
-  types: Uint8Array;
-  heights: Float32Array;
-  waters: Float32Array;
-  blocked: Uint8Array;
-  biomes: Uint8Array;
-}
-
-export interface ChunkSource {
-  getTiles(cx: number, cz: number): ChunkTiles | null;
-}
-
 const SPAWN_RADIUS = 4;      // chunks around the player that get creatures
 /**
  * What the law is paid. A constable takes the whole bounty for putting down something that was
