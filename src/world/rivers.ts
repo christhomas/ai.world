@@ -41,6 +41,17 @@ export function generateHydrology(
    * mouth. With it, a river that rises on a massif falls the whole height of it.
    */
   uplift: (x: number, z: number, roadDist: number) => number = () => 0,
+  /**
+   * How high the mountains stand *near* a point, in terraces, for choosing where rivers rise.
+   *
+   * Separate from `uplift`, which answers about the point itself and is nought a step outside a
+   * mountain's own footprint. That is the right answer for the height of the ground and the wrong
+   * one for where a river should start: a spring rises at the foot of a range, not on its summit,
+   * and a crossroads beside a mountain is exactly the place water comes out of the hill. Without
+   * this, a polygon world's mountains had no bearing on its rivers at all — the ranges are not in
+   * the heightfield any more, so nothing about them reached this.
+   */
+  highNearby: (x: number, z: number) => number = () => 0,
   cfg = HYDRO,
 ): Hydrology {
   const rng = mulberry32(derive(graph.seed, SALT.RIVER_RNG));
@@ -72,7 +83,9 @@ export function generateHydrology(
   const startHeight = (i: number): number => {
     const n = graph.nodes[i];
     const p = probe(n.x, n.z);
-    return n.level + (p ? uplift(n.x, n.z, p.roadDist) : 0);
+    // the mountains standing on this road's terrace, and the ones standing beside it: both mean
+    // water, and the second is what a spring at the foot of a range is
+    return n.level + (p ? uplift(n.x, n.z, p.roadDist) : 0) + highNearby(n.x, n.z) * cfg.FOOT_OF_THE_HILLS;
   };
   candidates.sort((a, b) => startHeight(b.i) - startHeight(a.i));
   const sources: number[] = [];

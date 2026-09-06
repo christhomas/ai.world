@@ -7,7 +7,7 @@ import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
-import { buildRanges, mountainAt, type Ranges } from './ranges';
+import { buildRanges, mountainAt, nearestLift, type Ranges } from './ranges';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 import { stampCentreProp, stampFootprint, stampPath, stampPier, stampPlaza, stampSingleProp } from './stamp';
@@ -184,13 +184,28 @@ export class TerrainSampler {
         return { fromRoad: probe.roadDist, fromCoast: probe.landWidth - probe.roadDist };
       }, this.mesh);
 
+    /**
+     * The mountains as a field of lift, with no ground under them.
+     *
+     * Built before the water because the water has to know where the high ground is, and built
+     * with a flat ground on purpose: only the lift matters here, the shape is identical either
+     * way — `buildRanges` carries the ground and the lift separately all the way down — and the
+     * real ranges cannot be built yet, because they stand on a settled ground that does not exist
+     * until the rivers have cut their valleys into it.
+     */
+    const highGround = this.mesh ? buildRanges(this.mesh, () => 0) : null;
+
     this.hydro = prebuilt ? prebuilt.hydro : generateHydrology(
       graph,
       (x, z) => this.landProbe(x, z),
       // how high the ground actually is here, mountains included. Without it a river takes its
       // height from the road it follows, roads are never lifted, and so no river in the world
       // ever ran down a mountain.
-      (x, z, roadDist) => upliftAt(x, z, this.massifs, roadDist),
+      (x, z, roadDist) => (highGround
+        ? Math.max(0, (mountainAt(highGround, x, z) ?? 0) / WORLD.STEP)
+        : upliftAt(x, z, this.massifs, roadDist)),
+      // and where the ranges are, for choosing where water comes out of the ground
+      (x, z) => (highGround ? nearestLift(highGround, x, z) : 0),
     );
     for (const river of this.hydro.rivers) {
       for (let i = 0; i + 1 < river.length; i++) {

@@ -39,6 +39,16 @@ export const HYDRO = {
   RIVERS: 26,              // river sources attempted per world
   LAKES: 16,               // standalone lakes attempted per world
   SOURCE_SPACING: 45,     // min distance between river sources
+  /**
+   * How much a mountain standing near a crossroads counts toward starting a river there, as a
+   * share of a terrace of real height.
+   *
+   * Half, because it is a reason and not a fact: the ground at that crossroads is where it is, and
+   * what the range beside it changes is how likely the water is to come out of the hill just there.
+   * At 1 the tallest range in the world takes every source in it; at 0 the mountains have nothing
+   * to do with the rivers, which is the state this was written to end.
+   */
+  FOOT_OF_THE_HILLS: 0.5,
   RIVER_STEP: 5,          // polyline segment length
   RIVER_MAX_STEPS: 120,
   RIVER_MIN_NODES: 6,     // shorter attempts are discarded

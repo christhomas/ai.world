@@ -122,6 +122,13 @@ export const RANGE = {
    * is, the peaks are ragged and the passes stay passes.
    */
   ROUGH_FLOOR: 0.12,
+  /**
+   * How far from a peak still counts as being near it, in tiles.
+   *
+   * Wider than the mountain itself: what this measures is country in the shadow of a range, which
+   * is where the springs are and where somebody would say they live in the mountains.
+   */
+  NEARBY: 150,
   /** Cell size of the lookup grid, in tiles. About a third of a face, so a cell meets few faces. */
   CELL: 20,
 } as const;
@@ -386,6 +393,25 @@ export function mountainAt(ranges: Ranges, x: number, z: number): number | null 
     if (y !== null && (top === null || y > top)) top = y;
   }
   return top;
+}
+
+/**
+ * How high the nearest mountain stands to a point, in world units, falling off with distance.
+ *
+ * Not the height at the point — that is `mountainAt`, and it is nought a step outside the rock.
+ * This answers "is there a mountain about here", which is the question anything siting something
+ * *beside* a range has to ask: where a spring rises, where a village of miners would be, where the
+ * air is thin. Nought once nothing is within reach.
+ */
+export function nearestLift(ranges: Ranges, x: number, z: number, reach = RANGE.NEARBY): number {
+  let most = 0;
+  for (const peak of ranges.peaks) {
+    const away = Math.hypot(peak.x - x, peak.z - z);
+    if (away >= reach) continue;
+    // its full height underneath it, none of it at the edge of reach
+    most = Math.max(most, peak.lift * (1 - away / reach));
+  }
+  return most;
 }
 
 /** Whether a point stands on mountain geometry at all: the cheap question, asked far more often. */
