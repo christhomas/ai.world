@@ -1,4 +1,5 @@
 import type { Entity } from '../src/entities/entity';
+import type { Blow } from './wildlife';
 import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
 import type { Vault } from './vault';
@@ -33,7 +34,8 @@ export interface Wire {
  * has no business knowing what a creature is — only that somebody has to be told when one is hit.
  */
 export interface CreatureOwner {
-  struck(id: number, damage: number): boolean;
+  /** A blow in an arc in front of somebody: the world works out what it reached. Returns the dead. */
+  swung(blow: Blow): number[];
 }
 
 /** One connected player. */

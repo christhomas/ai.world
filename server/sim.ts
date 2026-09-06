@@ -215,7 +215,13 @@ export class Simulation {
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {
-          alive.step(seconds, players, room.world.clock.time);
+          // and what any of them got their teeth into. Told rather than taken: hearts live in a
+          // player's own save, so the world says a wolf bit you and how hard, and your own game
+          // works out what your guard was worth and which way it knocked you.
+          for (const bite of alive.step(seconds, players, room.world.clock.time)) {
+            const bitten = [...room.clients].find((c) => c.presence === bite.who);
+            if (bitten) this.rooms.send(bitten, { type: 'bitten', id: bite.id, damage: bite.damage });
+          }
           this.tellAboutCreatures(seed, alive);
         }
       }

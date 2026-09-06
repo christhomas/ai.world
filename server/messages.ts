@@ -29,13 +29,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
     case 'steer':
       walked(rooms, me, message);
       return;
-    case 'strike': {
-      // a blow on a creature the world owns: the world decides what it did
-      const killed = rooms.worldOf(me.seed)?.struck(message.id, Number(message.damage) || 1);
-      // everybody sees the body fall; only whoever landed the blow takes anything off it
-      if (killed) rooms.broadcast(me.seed, { type: 'killed', id: message.id, by: me.presence.id });
+    case 'swing':
+      thrown(rooms, me, message);
       return;
-    }
     case 'delta': case 'monsters': case 'hit':
       worldChange(rooms, me, room, message);
       return;
@@ -61,6 +57,29 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
     default:
       return;   // 'join' is answered by the handshake, before any of this
   }
+}
+
+/**
+ * A blow, and what it reached.
+ *
+ * The hero it is thrown from is the one the world has been walking — not a position the client
+ * sent with the blow — which is what makes this worth doing at all: a swing lands where the world
+ * says the hero is standing, so two people watching the same fight are watching the same fight.
+ */
+function thrown(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'swing' }>): void {
+  const world = rooms.worldOf(me.seed);
+  const hero = me.hero;
+  // no ground, no hero, no creatures: a world where the client is still its own authority
+  if (!world || !hero) return;
+  const killed = world.swung({
+    x: hero.x, z: hero.z, y: hero.y, yaw: hero.yaw,
+    reach: Number(message.reach) || 0,
+    arc: Number(message.arc) || 0,
+    damage: Number(message.damage) || 1,
+    one: message.one === true,
+  });
+  // everybody sees the body fall; only whoever landed the blow takes anything off it
+  for (const id of killed) rooms.broadcast(me.seed, { type: 'killed', id, by: me.presence.id });
 }
 
 /**

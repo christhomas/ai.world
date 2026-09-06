@@ -25,18 +25,23 @@ belongs to the project, and the next person to open it can see what was known.
 
 ### Phase 4, the rest of it — combat
 
-A swing is still resolved where it is drawn and the server told afterwards. Hearts, gold and what
-is in the pack stay in the player's own save whatever happens here: what moves is who decides that
-a blow landed.
-
-- [ ] A swing becomes a `swing` command: where the hero stood, which way he faced, when. The server
-      resolves it against its own creatures and answers with what was hit.
-- [ ] The client goes on drawing the swing at once and takes the server's word for the outcome, the
-      way it already does for a creature the world owns.
-- [ ] The bow, which is the same thing with a different reach and one arrow to account for.
-- [ ] A creature landing a blow on the hero: the server says how hard, the client takes it off its
-      own hearts.
-- [ ] Then the roster's `strike` message can go, because a swing will carry it.
+- [x] A swing becomes a `swing` command: how hard, how far, how wide, and nothing about what it hit.
+      The world measures the arc itself, against the hero it has been walking and the creatures it
+      owns. *(The client used to send a list of numbers to hurt, which is a client choosing its own
+      targets. It goes on drawing the blow landing, because a hit that waits for a round trip does
+      not feel like one.)*
+- [x] The bow: the same message with `one` set, so the world takes the first creature an arrow would
+      reach rather than everything in the arc, and counts height towards the distance.
+- [x] A spell, which is a swing with a longer arm and its own damage.
+- [x] The roster's `strike` message is gone, because a swing carries it.
+- [x] **A creature the world owns could not hurt anybody at all.** *(Found while doing the above:
+      the client stopped stepping a creature the world owns when phase three moved them across, and
+      the server stepped them with no `onAttack` at all — so nothing anywhere decided that a wolf
+      had bitten you, and every wild animal in the world had been decorative since. The world now
+      reports a bite and the client works out what it cost, which is the same division as
+      everywhere else on this wire. `server/wildlife.test.ts` stands a person in front of a wolf.)*
+- [x] A creature put down by hand out of doors was swept away on the next step. *(Filed under
+      `dungeon`, which the chunk sweep reads as nowhere, and nowhere is never worth keeping.)*
 
 ### Phase 4, the rest of it — warps
 
@@ -182,6 +187,10 @@ the two are separate jobs with a third in between them.
 - [x] `server/proxy.test.ts` is flaky under full-suite load. *(It was a race, not a deadline: the
       test joined through the proxy in the same breath as the direct player. It waits for the
       server to say she is in.)*
+- [x] `server/serve.test.ts` fails about one run in ten under full-suite load. *(A real deadline
+      rather than a race: every message it waits for is sent as soon as the one before it is read,
+      so a second was enough on an idle laptop and not on one running a hundred workers and a
+      socket. Four seconds, and it still returns the moment the message arrives.)*
 - [ ] `/time 0.5` answers "day 1, time 0.5" and the clock in the corner stays at 08:13. Seen once,
       from a headless console; find out whether the command sets a time nothing reads, or whether the
       day cycle eases to it too slowly to see in three seconds.

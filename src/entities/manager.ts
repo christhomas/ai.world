@@ -297,13 +297,23 @@ export class EntityManager {
     return this.packSizeOf();
   }
 
-  /** Put one named creature somewhere: a dungeon boss, say. */
-  spawnOne(kindId: string, x: number, z: number, seed: number): Entity | null {
+  /**
+   * Put one named creature somewhere: a dungeon boss, say.
+   *
+   * Filed under the chunk it stands in rather than under `dungeon` when it is put down out of
+   * doors, because the sweep that decides which chunks are worth keeping cannot read `dungeon` as
+   * a place: it comes out as nowhere, and nowhere is never worth keeping. So anything put into the
+   * open air used to be swept away on the next step, which is a hard thing to notice from the
+   * outside — the creature is made, it is handed back, and then it is not there.
+   */
+  spawnOne(kindId: string, x: number, z: number, seed: number, outdoors = false): Entity | null {
     const rng = mulberry32(seed);
     const out: Entity[] = [];
-    const herd = this.spawnHerdAt(kindId, x, z, rng, 'dungeon', out);
-    let list = this.spawned.get('dungeon');
-    if (!list) { list = []; this.spawned.set('dungeon', list); }
+    const CS = WORLD.CHUNK_SIZE;
+    const key = outdoors ? chunkKey(Math.floor(x / CS), Math.floor(z / CS)) : 'dungeon';
+    const herd = this.spawnHerdAt(kindId, x, z, rng, key, out);
+    let list = this.spawned.get(key);
+    if (!list) { list = []; this.spawned.set(key, list); }
     this.enrol(list, out);
     return herd.members[0] ?? null;
   }

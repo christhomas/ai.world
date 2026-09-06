@@ -22,8 +22,6 @@ export interface SwingResult {
   gold: number;
   /** Item ids dropped into the rucksack by the kill. */
   loot: string[];
-  /** Creatures the world owns that we hit: their numbers, and what the blow was worth. */
-  struck: Array<{ id: number; damage: number }>;
   /** Indices of creatures we struck but did not resolve, because somebody else owns the floor. */
   reported: Array<{ index: number; damage: number }>;
   /**
@@ -101,7 +99,7 @@ export function swing(
   const damage = Math.max(1, Math.round((blow?.damage ?? state.attack) * might));
   // yaw is a +x-facing rig's heading: forward is (cos yaw, -sin yaw)
   const fx = Math.cos(yaw), fz = -Math.sin(yaw);
-  const out: SwingResult = { hit: [], killed: [], gold: 0, loot: [], struck: [], reported: [], regard: null };
+  const out: SwingResult = { hit: [], killed: [], gold: 0, loot: [], reported: [], regard: null };
   for (const e of entities.within(x, z, blow?.range ?? COMBAT.RANGE)) {
     if (!e.kind.hp || e.dead) continue;
     const dx = e.x - x, dz = e.z - z;
@@ -109,11 +107,11 @@ export function swing(
     if ((dx / len) * fx + (dz / len) * fz < Math.cos(COMBAT.ARC)) continue;
     out.hit.push(e);
     if (e.worldId > 0) {
-      // The world owns this animal. Show the blow landing — a hit that waits for a round trip does
-      // not feel like one — and tell the world, which decides whether it killed anything. The
-      // spoils come back the same way they always do: through what the world says next.
+      // The world owns this animal, and has been told what was swung rather than what it hit: the
+      // arc is measured there, against the hero it has been walking. Showing the blow landing here
+      // is a guess, because a hit that waits for a round trip does not feel like one, and the
+      // spoils come back the way they always do — through what the world says next.
       e.hurt = 0.35;
-      out.struck.push({ id: e.worldId, damage });
       continue;
     }
     if (!authoritative) {

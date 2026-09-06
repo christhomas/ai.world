@@ -13,6 +13,18 @@ import { startServer, type RunningServer } from './serve';
  */
 
 /** One player, seen from the outside. Messages are kept so a test can wait for the one it wants. */
+/**
+ * How long a test waits for the server to say something, in milliseconds.
+ *
+ * Generous on purpose. Nothing here is waiting on a timer — every message these tests want is one
+ * the server sends as soon as it has read the one before it — so the wait only ever runs out when
+ * the machine is busy, and it is busy: the suite runs a hundred workers at once and this one has a
+ * real socket in it. A second was enough on an idle laptop and not on a loaded one, which is a
+ * flake rather than a failure, and a flake teaches everybody to re-run the suite instead of reading
+ * it.
+ */
+const PATIENCE = 4000;
+
 class Player {
   private readonly socket: WebSocket;
   private readonly seen: ServerMessage[] = [];
@@ -42,7 +54,7 @@ class Player {
 
   /** The first message of this type to arrive, waiting up to a second for it. */
   async next<T extends ServerMessage['type']>(type: T): Promise<Extract<ServerMessage, { type: T }>> {
-    const deadline = Date.now() + 1000;
+    const deadline = Date.now() + PATIENCE;
     for (;;) {
       const found = this.seen.findIndex((m) => m.type === type);
       if (found >= 0) return this.seen.splice(found, 1)[0] as Extract<ServerMessage, { type: T }>;
@@ -62,7 +74,7 @@ class Player {
   async nextWhere<T extends ServerMessage['type']>(
     type: T, ready: (message: Extract<ServerMessage, { type: T }>) => boolean,
   ): Promise<Extract<ServerMessage, { type: T }>> {
-    const deadline = Date.now() + 1000;
+    const deadline = Date.now() + PATIENCE;
     for (;;) {
       const message = await this.next(type);
       if (ready(message)) return message;

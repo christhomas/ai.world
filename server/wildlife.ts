@@ -2,7 +2,8 @@ import { EntityManager } from '../src/entities/manager';
 import { Roster } from '../src/entities/roster';
 import { damageEntity, type Entity } from '../src/entities/entity';
 import type { GroundWorld } from '../src/world/groundworld';
-import type { CreatureSnap } from './protocol';
+import { ITEMS } from '../src/game/items';
+import type { CreatureSnap, Presence } from './protocol';
 
 /**
  * The creatures of a world, run by the server.
@@ -45,8 +46,33 @@ export class Wildlife {
     this.manager = new EntityManager(this.roster, ground, ground, seed, []);
   }
 
+  /**
+   * What is alive round a point, nearest first: the number each one travels under, what it is, and
+   * where. The `entities` command answers out of this, and so does a test that wants to know what
+   * it has actually got rather than what it asked for — a herd is put down as a herd, scattered
+   * round the spot rather than standing on it.
+   */
+  listNear(x: number, z: number, r: number): Array<{ id: number; kind: string; x: number; z: number }> {
+    return this.manager.within(x, z, r)
+      .filter((e) => !e.dead)
+      .map((e) => ({ id: this.numberOf(e), kind: e.kind.id, x: e.x, z: e.z }));
+  }
+
   /** How many creatures the server is holding. */
   get count(): number { return this.roster.count; }
+
+  /**
+   * Put one creature into the world, at a place, and hand back the number it travels under.
+   *
+   * The world grows its own creatures and needs no help doing it. This exists so that a test can
+   * arrange a meeting — a wolf, a person, and nothing else to think about — rather than walking
+   * about at night hoping for one, and so that the operator door can put something somewhere when
+   * somebody is looking into a report.
+   */
+  put(kind: string, x: number, z: number, seed: number): number | null {
+    const born = this.manager.spawnOne(kind, x, z, seed, true);
+    return born ? this.numberOf(born) : null;
+  }
 
   /** Everything alive, for whoever has to tell the players about it. */
   all(): Iterable<Entity> { return this.roster.all(); }
@@ -96,6 +122,46 @@ export class Wildlife {
     return false;
   }
 
+  /**
+   * A blow thrown in an arc in front of somebody, and what it did.
+   *
+   * The client used to decide this: it read its own copy of the creatures, worked out which of them
+   * were in front of the hero, and told the world which numbers to hurt. That is a client choosing
+   * its own targets, and it is the last thing in a fight that was not the world's to say. Now it
+   * says only what it swung with — how hard, how far, how wide — and the arc is measured here,
+   * against the hero the world has been walking and the creatures it owns.
+   *
+   * The sword and a spell take everything in the arc. A shot takes one, the nearest that the arrow
+   * would reach, because an arrow stops in the first thing it hits — and that one is measured along
+   * the arrow's flight rather than across the ground, so a bird overhead is as far off as it looks.
+   *
+   * Nothing is checked about who is swinging beyond where the world says they are standing: what a
+   * hero can carry and how hard they can hit lives in their own save, which the server has never
+   * held. What it will not do is let any of it reach further than a bow does or hurt more than a
+   * blow may be worth.
+   */
+  swung(blow: Blow): number[] {
+    const fx = Math.cos(blow.yaw), fz = -Math.sin(blow.yaw);
+    const far = Math.min(FURTHEST_BLOW, Math.max(0, blow.reach));
+    const cone = Math.cos(Math.min(Math.PI, Math.max(0, blow.arc)));
+    const hard = Math.max(1, Math.min(blow.damage, MOST_A_BLOW));
+    const killed: number[] = [];
+    // `within` comes back nearest first, which is the order a shot picks its one creature in
+    for (const e of this.manager.within(blow.x, blow.z, far)) {
+      if (!e.kind.hp || e.dead) continue;
+      const dx = e.x - blow.x, dz = e.z - blow.z;
+      const flat = Math.hypot(dx, dz) || 1;
+      if ((dx / flat) * fx + (dz / flat) * fz < cone) continue;
+      if (blow.one && Math.hypot(flat, e.y - blow.y) > far) continue;
+      if (damageEntity(e, hard, blow.x, blow.z, this.ground)) {
+        killed.push(this.numberOf(e));
+        this.manager.killEntity(e);
+      }
+      if (blow.one) break;
+    }
+    return killed;
+  }
+
   /** The number a creature travels under, given the first time anybody asks about it. */
   private numberOf(e: Entity): number {
     const had = this.numbered.get(e);
@@ -113,8 +179,8 @@ export class Wildlife {
    * is the right trade while the manager is built around a single focus: the alternative is four
    * managers and four sets of the same deer.
    */
-  step(dt: number, players: ReadonlyArray<{ x: number; z: number }>, time?: number): void {
-    if (players.length === 0) return;
+  step(dt: number, players: ReadonlyArray<Standing>, time?: number): Bite[] {
+    if (players.length === 0) return [];
     // One of them is followed and the rest are told to the manager, which keeps the country round
     // all of them alive. Following them in turn as well spreads the cost of the one thing that is
     // still per-focus — which chunk the sweep starts from — rather than doing it for everybody
@@ -122,7 +188,15 @@ export class Wildlife {
     const who = players[this.turn % players.length];
     this.turn++;
     this.manager.alsoNear = players.filter((p) => p !== who);
-    this.manager.update(dt, who.x, who.z, false, () => {}, time);
+    // A sword on the hip is what keeps a wolf at arm's length, and the server has never held
+    // anybody's pack — but presence carries what they are wearing, which is enough to know whether
+    // one of them is a weapon.
+    const armed = who.gear.some((id) => (ITEMS[id]?.attack ?? 0) >= 2);
+    const bites: Bite[] = [];
+    this.manager.update(dt, who.x, who.z, armed, (e, damage) => {
+      bites.push({ who, id: this.numberOf(e), damage });
+    }, time);
+    return bites;
   }
 }
 
@@ -135,6 +209,44 @@ export class Wildlife {
  * shape of the world.
  */
 const MOST_A_BLOW = 40;
+
+/**
+ * And the furthest one may reach, in tiles. A bow carries fourteen and nothing in the game carries
+ * further, so this is that with a little room rather than a rule of its own.
+ */
+const FURTHEST_BLOW = 16;
+
+/** Whoever the creatures are being stepped around: as much of a player as any of this needs. */
+type Standing = Pick<Presence, 'x' | 'z' | 'gear'>;
+
+/**
+ * A creature that got its teeth into somebody.
+ *
+ * Reported rather than resolved. Hearts live in the player's own save and the server has never
+ * held one — so what it says is that a wolf bit you and how hard, and your own game works out what
+ * that costs you, whether your guard was up, and which way it knocked you.
+ */
+export interface Bite {
+  who: Standing;
+  /** The number the creature travels under, so the client knows which one to flinch from. */
+  id: number;
+  damage: number;
+}
+
+/** A blow thrown at whatever is in front of somebody: where from, how hard, how far and how wide. */
+export interface Blow {
+  x: number;
+  z: number;
+  /** The height it is thrown from, which only a shot cares about. */
+  y: number;
+  yaw: number;
+  reach: number;
+  /** Half-angle of the arc it covers, in radians. A sword's is wide; a bow is aimed. */
+  arc: number;
+  damage: number;
+  /** True for a shot: one creature, the first the arrow would reach, and height counts. */
+  one: boolean;
+}
 
 /** A tenth of a tile, which is as much of a creature's position as anybody can see. */
 const round = (v: number): number => Math.round(v * 10) / 10;

@@ -375,7 +375,14 @@ describe('hunting something the world owns', () => {
     for (let at = 100; at <= ms; at += 100) sim.tick(from + at);
   };
 
-  it('takes a blow, and says who killed what', () => {
+  /** Face a hero at something and put him on his feet, which is what makes a swing land. */
+  const faceAt = (who: Pretend, seq: number, x: number, z: number, at: { x: number; z: number }): void => {
+    who.say({ type: 'steer', seq, dx: at.x - x, dz: at.z - z, pace: 1, ms: 20 });
+  };
+  /** Everything in front of the hero, out to a bowshot: what a wide swing reaches. */
+  const wide = { damage: 20, reach: 15, arc: 1.4, one: false } as const;
+
+  it('works out for itself what a blow reached, and says who killed what', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
     walkAbout(rowan, 0, 0);
@@ -384,12 +391,30 @@ describe('hunting something the world owns', () => {
     const prey = rowan.of('creatures').at(-1)!.near[0];
     expect(prey, 'there is something to hunt').toBeDefined();
 
-    // hit it until it stops being there, the way a player would
-    for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'strike', id: prey.id, damage: 20 });
+    // face it and swing until whatever is over there stops being there. The client says how hard
+    // it hit and how far it reached, and nothing at all about what it hit.
+    for (let blow = 0; blow < 30; blow++) {
+      faceAt(rowan, blow + 1, 0, 0, prey);
+      rowan.say({ type: 'swing', ...wide });
+    }
     const killed = rowan.of('killed');
-    expect(killed.length, 'the world says it died').toBeGreaterThan(0);
-    expect(killed[0].id).toBe(prey.id);
+    expect(killed.length, 'the world says something died').toBeGreaterThan(0);
     expect(killed[0].by, 'and who did it, so they take what was on it').toBe(rowan.of('welcome')[0].id);
+  });
+
+  it('reaches nothing at all behind the hero', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 600);
+    const prey = rowan.of('creatures').at(-1)!.near[0];
+
+    // faced the other way, and swinging with everything: an arc is an arc
+    for (let blow = 0; blow < 30; blow++) {
+      faceAt(rowan, blow + 1, 0, 0, { x: -prey.x, z: -prey.z });
+      rowan.say({ type: 'swing', ...wide, arc: 0.6 });
+    }
+    expect(rowan.of('killed').map((k) => k.id)).not.toContain(prey.id);
   });
 
   it('tells everybody in the world, not only whoever swung', () => {
@@ -401,7 +426,10 @@ describe('hunting something the world owns', () => {
     tickFor(sim, 900);
 
     const prey = rowan.of('creatures').at(-1)!.near[0];
-    for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'strike', id: prey.id, damage: 20 });
+    for (let blow = 0; blow < 30; blow++) {
+      faceAt(rowan, blow + 1, 0, 0, prey);
+      rowan.say({ type: 'swing', ...wide });
+    }
     expect(wren.of('killed').length, 'the body falls on her screen too').toBeGreaterThan(0);
     expect(wren.of('killed')[0].by, 'and it was not her').not.toBe(wren.of('welcome')[0].id);
   });
@@ -413,11 +441,26 @@ describe('hunting something the world owns', () => {
     tickFor(sim, 600);
 
     // something with enough hearts that one honest blow could not do it
-    const stout = rowan.of('creatures').at(-1)!.near.reduce((a, b) => (a.hp > b.hp ? a : b));
-    rowan.say({ type: 'strike', id: stout.id, damage: 1e9 });
-    const killed = rowan.of('killed');
+    const near = rowan.of('creatures').at(-1)!.near;
+    const stout = near.reduce((a, b) => (a.hp > b.hp ? a : b));
+    faceAt(rowan, 1, 0, 0, stout);
+    rowan.say({ type: 'swing', ...wide, damage: 1e9 });
+    tickFor(sim, 400, Date.now() + 600);
+
     // one blow may be worth a great deal and still not be worth a number nothing could produce
-    if (stout.hp > 40) expect(killed.length, 'a made-up number does not kill it').toBe(0);
+    if (stout.hp > 40) {
+      expect(rowan.of('killed').map((k) => k.id), 'a made-up number does not kill it').not.toContain(stout.id);
+    }
+  });
+
+  it('has nothing to swing with until the world is walking the hero', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 600);
+    // never steered, so the world has never stood him anywhere: a blow from nowhere lands nowhere
+    for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'swing', ...wide });
+    expect(rowan.of('killed')).toHaveLength(0);
   });
 });
 

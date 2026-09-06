@@ -248,7 +248,16 @@ export type ClientMessage =
    * trip does not feel like a hit; what actually happens to the animal is decided by the world, and
    * arrives back as it always does — a creature with fewer hearts, or one that has gone.
    */
-  | { type: 'strike'; id: number; damage: number }
+  /**
+   * A blow thrown at whatever is in front of the hero: how hard, how far, how wide.
+   *
+   * It says nothing about what it hit. The world knows where it has been walking this hero and what
+   * is standing near him, so working out which creatures were in the arc is its job — the client
+   * used to do it and send a list of numbers to hurt, which is a client choosing its own targets.
+   * `one` is a shot rather than a swing: one creature, the first an arrow would reach, and height
+   * counts towards the distance.
+   */
+  | { type: 'swing'; damage: number; reach: number; arc: number; one: boolean }
   | { type: 'stall-rent'; stall: string; village: string }
   | { type: 'stall-stock'; stall: string; item: StallItem }
   | { type: 'stall-buy'; stall: string; index: number }
@@ -309,6 +318,14 @@ export type ServerMessage =
    * server's business. Everybody else is told so that the body falls on their screen too.
    */
   | { type: 'killed'; id: number; by: string }
+  /**
+   * One of the world's creatures got its teeth into you, and how hard.
+   *
+   * Only ever sent to whoever was bitten. What it costs is not decided here: hearts, armour and
+   * whether the guard was up live in the player's own save, so the world says what happened and the
+   * client says what it was worth — the same division as everywhere else on this wire.
+   */
+  | { type: 'bitten'; id: number; damage: number }
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }

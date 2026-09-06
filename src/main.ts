@@ -500,6 +500,17 @@ function startGame(
     report: (delta) => online.report(delta),
   });
 
+  /**
+   * Is the hero somewhere the world can see him?
+   *
+   * The server walks him and throws his blows for him out of doors, on his own feet, on ground it
+   * has grown. Indoors, underground, on a horse and at sea it has nothing to walk him on and no
+   * creatures of its own there, so the client stays the authority — and asking it to swing would
+   * be asking it to swing at whatever happens to stand near the last field he was in.
+   */
+  const outdoors = (): boolean =>
+    places.indoors === null && !places.underground && !sailing.sailing && !player.riding;
+
   chunks.onFirstChunk = () => {
     hud.hideLoading();
     mount.restore(chunks, entityRenderer);
@@ -572,6 +583,13 @@ function startGame(
       }
       wildlife.apply([], [id]);
     },
+    // A creature the world owns has bitten us. The world decided that it happened and how hard;
+    // everything after that — the guard, the parry, the knockback, the hearts — is the same code a
+    // bite has always gone through, because it is the client that holds all of it.
+    onBitten: (id, damage) => {
+      const attacker = wildlife.find(id);
+      if (attacker) onAttack(attacker, damage);
+    },
     onWorldSilent: () => {
       if (!entities.toldWhatLives) return;
       entities.toldWhatLives = false;
@@ -582,7 +600,7 @@ function startGame(
     // because both halves walk with the same `stride` over the same ground; where it does not, the
     // world is right and the hero is moved — a lean for a small gap, at once for a large one.
     onWhereYouAre: (seq, x, z) => {
-      if (places.indoors !== null || places.underground || sailing.sailing || player.riding) return;
+      if (!outdoors()) return;
       const out = walked.toldWhereHeIs(player.entity, chunks, seq, x, z);
       walking.answers++;
       if (out > 0) { walking.corrections++; walking.worst = Math.max(walking.worst, out); }
@@ -1070,8 +1088,9 @@ function startGame(
     // the ledger moves on every deed, not only on the ones that change what people call you
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
-    // and the ones the world owns, which it resolves for everybody at once
-    for (const { id, damage } of res.struck) online.strike(id, damage);
+    // and out of doors the world throws the blow itself: we say how hard and how far, it says what
+    // was in the arc. What is drawn above is the guess that keeps a hit feeling like one.
+    if (outdoors()) online.swing(Math.max(1, Math.round(state.attack * might)), COMBAT.RANGE, COMBAT.ARC);
     if (res.hit.length === 0) {
       sound.miss();
       // a blade that finds nothing where something plainly stands has to say why, or the rule
@@ -1133,8 +1152,8 @@ function startGame(
     const res = shoot(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing);
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
-    // and the ones the world owns, which it resolves for everybody at once
-    for (const { id, damage } of res.struck) online.strike(id, damage);
+    // an arrow is one arrow, so the world takes the first thing it would reach rather than the arc
+    if (outdoors()) online.swing(state.attack, BOW.RANGE, BOW.ARC, true);
     if (res.hit.length === 0) { sound.select(); hud.flash(`Missed. ${quiver(state)} arrows left.`); return; }
     sound.thud();
     if (res.killed.length > 0) {
@@ -1172,8 +1191,8 @@ function startGame(
     const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing, cast.blow);
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
-    // and the ones the world owns, which it resolves for everybody at once
-    for (const { id, damage } of res.struck) online.strike(id, damage);
+    // a spell is a swing with a longer arm, and it reaches the world's creatures the same way
+    if (outdoors()) online.swing(cast.blow.damage, cast.blow.range, COMBAT.ARC);
     if (res.killed.length > 0) {
       // what lived in the workings is what made them dangerous, so killing it is the one thing a
       // player can do that moves a village's whole economy
@@ -2127,7 +2146,7 @@ function startGame(
     // got to; the step above has already walked him here so the game answers the key at once. Only
     // out of doors and on his own feet: everywhere else the world has no ground to walk him on and
     // the client is still the authority. `docs/server-authority.md`, phase four.
-    if (places.indoors === null && !places.underground && !sailing.sailing && !player.riding) {
+    if (outdoors()) {
       walked.walked(player.steered);
       walked.settle(player.entity, dt);
     } else {
