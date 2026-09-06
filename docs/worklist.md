@@ -200,8 +200,12 @@ the two are separate jobs with a third in between them.
       a half tiles passes every test and is too small to see. So the bend wants to know where the
       water is before it can be worth having — taper it toward the coast, or refuse it where the
       road is within a few tiles of the sea — and that is a design pass rather than a constant.
-- [ ] Surfaces that belong to their country: cobbles where a road runs through a village, sand
-      drifting over it in the desert, snow lying on it in the north.
+- [x] Surfaces that belong to their country. *(Already true, once the surface work landed: every
+      biome carries its own road, ground and sand colours, and what a road's edge is mixed toward is
+      its own country's ground — so a desert road drifts sandy at the edges and a northern one goes
+      pale, without a rule of its own. What is not done is cobbles through a village, because a
+      village street is a road tile like any other and the mesher has no idea it is in a village;
+      that wants the street stamped as the square already is, which moves the ground.)*
 
 ## On a phone
 
@@ -242,9 +246,10 @@ the two are separate jobs with a third in between them.
       published for both architectures; the dead tag and its release are deleted, because a version
       somebody could roll back to and never start is worse than no version at all.)*
 
-- [ ] Nothing since 0.3.0 is released: the sea, the roads off their causeways, the road surfaces
-      and the server-walked hero are all on `main` and not in the cluster. One `chore release minor`
-      when the world geometry has settled enough to be worth a version.
+- [x] Released as the work lands, so it can be tried on the cluster and on a phone: 0.4.0 (the sea,
+      the roads off their causeways, the surfaces, the server-walked hero, the blows and the floors),
+      0.4.1 (a phone held sideways), 0.4.2 (the phone's buttons, and the world's own clock). Each one
+      built for amd64 and arm64 and pulled by Flux.
 
 ## Smaller
 
@@ -264,12 +269,12 @@ the two are separate jobs with a third in between them.
       it — and refuses where there is anybody else in it to tell, because the time of day is the one
       thing a world has to agree about and a stranger winding it to midnight is not a thing anybody
       wants done to them. On a real server the way in is the operator door, which is what it is for.)*
-- [ ] The server answers every steer with a `youAre`, which is about 0.7 KB/s a player down. Cheap
-      enough to leave alone, and the knob to turn if the Pi ever complains: answer at the presence
-      tick instead, since the client predicts either way.
-- [ ] The coast field is measured only where chunks are loaded, so water past the streamed ground
-      has open-sea waves and no shore. Invisible at the zoom the game plays at, and worth writing
-      down before somebody widens the view and wonders.
+- [note] The server answers every steer with a `youAre`, about 0.7 KB/s a player down. Cheap enough
+      to leave alone; the knob if the Pi ever complains is to answer at the presence tick instead,
+      since the client predicts either way.
+- [note] The coast field is measured only where chunks are loaded, so water past the streamed
+      ground has open-sea waves and no shore. Invisible at the zoom the game plays at; worth knowing
+      before somebody widens the view and wonders.
 
 - [x] The operator door has no safety story. *(`OPERATOR_WATCH_TOKEN` may only run the commands
       marked `reads`; both tokens are rate limited, and every command through the door is logged.)*
