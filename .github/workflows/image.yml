@@ -1,20 +1,27 @@
-# Publish the world server as an image, so a cluster can pull it.
+# Publish the world server as an image, so a cluster has something to pull.
 #
-# The page has GitHub Pages and the server had nowhere: the Dockerfile existed and every image it
-# produced lived and died on whatever laptop built it. A cluster cannot pull from a laptop, and Flux
-# is built around pulling — so without this the chart names an image that does not exist anywhere.
+# The Dockerfile existed and every image it produced lived and died on whatever laptop built it. A
+# cluster cannot pull from a laptop, and Flux is built around pulling — so without this the chart
+# names an image that exists nowhere.
 #
-# Built for arm64 and amd64. arm64 because the machine this is for is a Raspberry Pi 5, amd64
-# because the same chart is meant to run on an ordinary VPS later and an image that only exists for
-# one architecture quietly makes that a rebuild rather than a redeploy.
+# Built for arm64 and amd64: arm64 because the machine this is for is a Raspberry Pi 5 (and an
+# Apple Silicon Mac, which is the same architecture), amd64 because the same chart is meant to run
+# on an ordinary VPS later, and an image that exists for one architecture quietly turns that into a
+# rebuild rather than a redeploy.
+#
+# Each architecture is built on a runner of its own kind and the two are then joined into one
+# manifest list. The obvious alternative — one runner building both under QEMU — works and is
+# considerably slower, because emulating a compiler is the worst possible thing to emulate. GitHub
+# gives arm64 runners to public repositories, and this repository is public, so there is no reason
+# to pay the emulation tax.
 name: Publish the server image
 
 on:
   push:
     branches: [main]
     # Only when something that ends up *in* the image changes. A texture, a test or a README does
-    # not need a new image, and a registry full of identical layers under different tags is a
-    # registry nobody can reason about.
+    # not need a new image, and a registry full of identical layers under different tags is one
+    # nobody can reason about.
     paths:
       - 'Dockerfile'
       - 'server/**'
@@ -29,7 +36,7 @@ on:
       - '.github/workflows/image.yml'
   # A release rather than a tag push, deliberately. `paths` above filters tag pushes too, and a tag
   # changes no files — so a tags trigger sharing that filter would never fire, which is the kind of
-  # bug you only find when the release you needed did not happen.
+  # bug found only when the release you needed did not happen.
   release:
     types: [published]
   workflow_dispatch:
@@ -39,20 +46,79 @@ env:
   IMAGE: ${{ github.repository_owner }}/ai-world
 
 jobs:
-  publish:
-    runs-on: ubuntu-latest
+  # One job per architecture, each on its own hardware. They push by digest rather than by tag,
+  # because two jobs pushing the same tag would race and the winner would be whichever finished
+  # last — a manifest list is assembled from digests afterwards instead.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
-      # The only credential needed. GITHUB_TOKEN can write packages for this repository, so there
-      # is no registry secret to create, rotate or leak.
       packages: write
     steps:
       - uses: actions/checkout@v4
 
-      # arm64 on an amd64 runner is emulated, which is slow but correct. Building on the Pi itself
-      # would be faster per byte and would mean the Pi had to be awake and reachable for a release
-      # to happen, which is exactly the dependency this is meant to remove.
-      - uses: docker/setup-qemu-action@v3
+      # No QEMU here on purpose: each runner is already the architecture it is building.
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          # By digest, with no tag. The merge job gives it its names.
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            WITH_PAGE=true
+            PAGE_SOURCEMAPS=false
+          # Scoped per architecture, or the two jobs would fight over one cache and each would keep
+          # evicting the other's layers.
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+      # Hand the digest to the merge job. The filename is the digest itself, so two jobs writing
+      # into the same artifact cannot collide.
+      - name: Keep the digest
+        shell: bash
+        run: |
+          mkdir -p /tmp/digests
+          # the strip has to happen in bash: a GitHub expression is not a shell and cannot do it
+          digest='${{ steps.build.outputs.digest }}'
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  # The two images become one thing anybody can pull without knowing what they are running on.
+  merge:
+    needs: [build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -66,28 +132,23 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
           # `latest` on main so there is always something to pull, and the commit sha always, so a
-          # deployment can name exactly what it is running rather than whatever `latest` meant that
-          # afternoon. A tag also produces its own semver tags.
+          # deployment can say exactly what it is running rather than whatever `latest` meant that
+          # afternoon. A release adds its own semver tags, which is how the version the chart pins
+          # comes to exist.
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=long
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64,linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # The page goes in, because one origin serving both is what lets the client work out its
-          # own WebSocket address and needs nothing configured anywhere.
-          build-args: |
-            WITH_PAGE=true
-            PAGE_SOURCEMAPS=false
-          # Layers survive between runs, which matters most for the half of the build that installs
-          # the toolchain — unchanged on almost every push, and the slowest thing here under
-          # emulation.
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Join the architectures into one manifest
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE }}@sha256:%s ' *)
+
+      - name: Say what was published
+        run: |
+          docker buildx imagetools inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
