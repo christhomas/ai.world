@@ -11,13 +11,22 @@ import { CommandBus, helpText } from './commandbus';
 
 describe('reading a command', () => {
   it('reads a name and its arguments, and knows a number from a word', () => {
-    const read = parseCommand('teleport 322 53');
+    const read = parseCommand('sow 322 53');
     expect(read.ok).toBe(true);
     if (!read.ok) return;
-    expect(read.command.name).toBe('teleport');
+    expect(read.command.name).toBe('sow');
     expect(read.command.args).toEqual([322, 53]);
     // numbers arrive as numbers: a handler asked for a coordinate, not for the text of one
     expect(read.command.args.every((a) => typeof a === 'number')).toBe(true);
+  });
+
+  it('leaves teleport its two readings, because a place has a name and a point has numbers', () => {
+    const point = parseCommand('teleport 322 53');
+    expect(point.ok && point.command.args).toEqual(['322', 53]);
+    const named = parseCommand('teleport silverholm');
+    expect(named.ok && named.command.args).toEqual(['silverholm']);
+    const spoken = parseCommand('teleport "The Long Water"');
+    expect(spoken.ok && spoken.command.args).toEqual(['The Long Water']);
   });
 
   it('holds a quoted argument together', () => {
@@ -34,8 +43,9 @@ describe('reading a command', () => {
   it('says what is wrong rather than throwing', () => {
     expect(parseCommand('')).toEqual({ ok: false, error: 'nothing to run' });
     expect(parseCommand('fly to the moon').ok).toBe(false);
-    expect(parseCommand('teleport 322')).toEqual({ ok: false, error: 'teleport takes <x> <z>' });
-    expect(parseCommand('teleport here 53')).toEqual({ ok: false, error: 'x must be a number, not here' });
+    expect(parseCommand('teleport 1 2 3')).toEqual({ ok: false, error: 'teleport takes <place or x> [z]' });
+    expect(parseCommand('teleport here 53').ok).toBe(true);   // "here" could be a place; the handler decides
+    expect(parseCommand('teleport 322 here')).toEqual({ ok: false, error: 'z must be a number, not here' });
     expect(parseCommand('discover "unfinished')).toEqual({ ok: false, error: 'unclosed quote' });
   });
 
@@ -56,8 +66,8 @@ describe('the bus', () => {
   it('runs what has been defined, and hands back what it returned', () => {
     const bus = new CommandBus();
     const seen: unknown[] = [];
-    bus.define('teleport', (args) => { seen.push(args); return { at: args }; });
-    expect(bus.run('teleport 10 20')).toEqual({ ok: true, value: { at: [10, 20] } });
+    bus.define('sow', (args) => { seen.push(args); return { at: args }; });
+    expect(bus.run('sow 10 20')).toEqual({ ok: true, value: { at: [10, 20] } });
     expect(seen).toEqual([[10, 20]]);
   });
 
@@ -99,7 +109,7 @@ describe('the bus', () => {
     bus.define('teleport', () => undefined);
     // in the order the vocabulary is written, not the order they were defined
     expect(bus.names).toEqual(['teleport', 'descend']);
-    expect(helpText(bus)).toContain('teleport <x> <z> —');
+    expect(helpText(bus)).toContain('teleport <place or x> [z] —');
     expect(helpText(bus, 'spawn')).toContain('spawn <kind> [away]');
     expect(helpText(bus, 'conjure')).toBe('no such command: conjure');
   });

@@ -11,6 +11,27 @@ import { TileType } from './terrain';
  * back to the road, and are rendered as instanced props. POIs sit off the road as things to find.
  */
 
+/**
+ * What to call a kind of place out loud.
+ *
+ * `StructureKind` is a const enum, so it has no names at runtime to reverse-map — and that is the
+ * right trade for something read on every tile of every chunk. This is the small table for the few
+ * places that are ever named to a person: the landmarks, not the houses.
+ */
+export function placeKindName(kind: StructureKind): string {
+  switch (kind) {
+    case StructureKind.Shrine: return 'shrine';
+    case StructureKind.Ruins: return 'ruins';
+    case StructureKind.Tower: return 'tower';
+    case StructureKind.GiantTree: return 'giant tree';
+    case StructureKind.Church: return 'church';
+    case StructureKind.Campfire: return 'camp';
+    case StructureKind.Well: return 'well';
+    case StructureKind.Pier: return 'pier';
+    default: return 'landmark';
+  }
+}
+
 export const enum StructureKind {
   House = 1,
   Well = 2,

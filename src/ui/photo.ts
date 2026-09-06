@@ -1,7 +1,7 @@
 import { $ } from './dom';
 
 /** Elements hidden while a photograph is taken. */
-const CHROME = ['status', 'inventory', 'quests', 'controls', 'minimap', 'debug', 'areaName', 'compass', 'toast', 'castbar'];
+const CHROME = ['status', 'inventory', 'quests', 'minimap', 'debug', 'areaName', 'compass', 'toast', 'castbar', 'chatPanel'];
 
 /**
  * Photo mode: the interface steps out of the way and the camera comes free, so a world worth

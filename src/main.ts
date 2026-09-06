@@ -16,6 +16,7 @@ import { DayCycle } from './render/daycycle';
 import { ChunkManager } from './world/chunkManager';
 import { MountainMaterial, buildMountainMesh } from './render/mountains';
 import { Skyline } from './game/skyline';
+import { noSuchTopic, topicFor, topicIndex } from './ui/topics';
 import { CommandBus } from './core/commandbus';
 import { registerCommands, type CommandWorld } from './game/commands';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
@@ -27,7 +28,7 @@ import { Skies } from './game/skies';
 import { Manifest } from './world/manifest';
 import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
 import { buildBoat } from './render/boat';
-import { StructureKind, compassDir } from './world/structures';
+import { StructureKind, compassDir, placeKindName } from './world/structures';
 import { ITEMS, sellPrice } from './game/shops';
 import { COMBAT, struck, swing } from './game/combat';
 import { carriedTo, costOf, saidOfKnockout } from './game/knockout';
@@ -274,10 +275,32 @@ function startGame(
     ? `${places.underground.poi.name}:${places.underground.floor}`
     : places.indoors ? places.indoors.title : 'surface';
 
+  /**
+   * What a line typed into the console means.
+   *
+   * Four readings, in the order somebody would guess them. A question mark asks the game and the
+   * answer is yours alone; a slash is a gesture if it names one everybody knows and a command
+   * otherwise; anything else is said out loud. Nothing here needs the world to be online — asking
+   * and running work alone, which is most of what they are for.
+   */
   chat.onSend = (text) => {
-    // a line beginning with a slash is a gesture, if it names one anybody knows
-    const gesture = text.startsWith('/') ? text.slice(1).trim().toLowerCase() : '';
-    if (gesture && online.emote(gesture)) return;
+    if (text.startsWith('?')) {
+      const asked = text.slice(1).trim();
+      if (!asked) { for (const line of topicIndex()) chat.line(line, 'sys'); return; }
+      const topic = topicFor(asked);
+      for (const line of topic ? [topic.name.toUpperCase(), ...topic.lines] : noSuchTopic(asked)) chat.line(line, 'sys');
+      return;
+    }
+    if (text.startsWith('/')) {
+      const said = text.slice(1).trim();
+      // a gesture first: everybody knows what a wave is, and /wave is older than the command bus
+      if (online.emote(said.toLowerCase())) return;
+      const result = commands.run(said, 'console');
+      if (!result.ok) chat.line(result.error, 'sys');
+      else if (result.value !== undefined) chat.line(typeof result.value === 'string' ? result.value : JSON.stringify(result.value), 'sys');
+      else chat.line(`${said} — done`, 'sys');
+      return;
+    }
     online.say(text);
   };
 
@@ -1071,8 +1094,16 @@ function startGame(
   input.onKey('v', () => conjure('draught'));
   input.onKey('n', toTitle);
   input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close(); });
+  // the console takes the keyboard while it is up, so its own Escape is handled in the input box
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
   input.onKey('i', () => { if (!dialogue.isOpen) rucksack.toggle(); });
+  // Enter opens the console when nothing else has the keyboard. Space keeps talk, open and board,
+  // so the hand that was interacting still is; a dialogue keeps Enter for itself, because
+  // advancing what somebody is saying to you is what Enter means while they are saying it.
+  input.onKey('enter', () => {
+    if (chat.isTyping || dialogue.isOpen || photo.active || worldMap.isOpen) return;
+    chat.open(true);
+  });
   for (const key of ['enter', ' ']) input.onKey(key, () => {
     if (chat.isTyping) return;
     if (photo.active) {
@@ -1291,6 +1322,36 @@ function startGame(
   const heroSpot = new THREE.Vector3();
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
 
+  /**
+   * Everywhere in this world with a name on it: the villages, and whatever the map has a word for.
+   *
+   * Sorted so the answer is stable between two runs of the same seed, which matters because it is
+   * read by people and by scripts alike, and a list that shuffles is a list nobody can diff.
+   */
+  const namedPlaces = (like?: string): Array<{ name: string; kind: string; x: number; z: number }> => {
+    const all = [
+      ...structures.villages.map((v) => ({ name: v.name, kind: 'village', x: v.x, z: v.z })),
+      ...structures.pois.map((p) => ({ name: p.name, kind: placeKindName(p.kind), x: p.x, z: p.z })),
+    ].sort((a, b) => a.name.localeCompare(b.name));
+    if (!like) return all;
+    const wanted = like.toLowerCase();
+    return all.filter((p) => p.name.toLowerCase().includes(wanted));
+  };
+
+  /**
+   * The place somebody meant. An exact name wins, then one that starts with what was typed, then
+   * one that merely contains it — so `teleport silver` finds Silverholm without `teleport
+   * silverholm` ever being ambiguous.
+   */
+  const namedPlace = (like: string): { name: string; kind: string; x: number; z: number } | null => {
+    const wanted = like.toLowerCase();
+    const all = namedPlaces();
+    return all.find((p) => p.name.toLowerCase() === wanted)
+      ?? all.find((p) => p.name.toLowerCase().startsWith(wanted))
+      ?? all.find((p) => p.name.toLowerCase().includes(wanted))
+      ?? null;
+  };
+
   // --- commands ---
   //
   // Everything the game can be told to do, under one vocabulary that the server shares. The debug
@@ -1299,6 +1360,14 @@ function startGame(
   // `docs/server-authority.md` is where that is going.
   const commandWorld: CommandWorld = {
     teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); },
+    teleportTo: (place) => {
+      const found = namedPlace(place);
+      if (!found) throw new Error(`nowhere called ${place} — try: places`);
+      player.teleport(found.x, found.z);
+      iso.target.set(found.x, 0.5, found.z);
+      return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
+    },
+    places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, x: Math.round(p.x), z: Math.round(p.z) })),
     descend: () => places.descend(),
     climbOut: () => places.exitDungeon(),
     enterShrine: () => {
@@ -1567,7 +1636,10 @@ function startGame(
     if (import.meta.hot) {
       import.meta.hot.on('ai-world:command', ({ line }: { line: string }) => {
         const result = commands.run(line, 'dev');
-        import.meta.hot?.send('ai-world:command-result', { line, result });
+        // which world answered. A command goes to every tab the dev server is serving, and two
+        // tabs are the ordinary case — one road world, one polygon world, both obediently
+        // teleporting to the same coordinates, one of which is the middle of the sea.
+        import.meta.hot?.send('ai-world:command-result', { line, result, seed, world });
         if (!result.ok) console.warn(`command: ${line} — ${result.error}`);
       });
     }

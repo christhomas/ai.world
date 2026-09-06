@@ -68,7 +68,15 @@ const text = (name: string, optional = false): ArgSpec => ({ name, kind: 'text',
  */
 export const COMMANDS: Record<string, CommandSpec> = {
   // Where the hero is
-  teleport: spec('teleport', 'Put the hero at a place on the map', [num('x'), num('z')]),
+  /**
+   * Two numbers or one name. A place you can name is how a person thinks about the map — nobody
+   * remembers that Silverholm is at 118, -44 — so the first argument is read as text and the
+   * handler decides which it was.
+   */
+  teleport: spec('teleport', 'Put the hero at a named place, or at a point on the map',
+    [text('place or x'), num('z', true)]),
+  places: spec('places', 'List the places that can be named: villages, and what is worth finding',
+    [text('like', true)], true),
   descend: spec('descend', 'Go down the stairs of the place you are standing in'),
   'climb-out': spec('climb-out', 'Leave the underground for the surface'),
   'enter-shrine': spec('enter-shrine', 'Step into the nearest shrine'),

@@ -79,9 +79,9 @@ describe('operating a world from outside it', () => {
     expect(nonsense.status).toBe(400);
     expect(nonsense.body).toContain('no such command');
 
-    const wrong = await post({ line: 'teleport here' }, { 'x-operator-token': TOKEN });
+    const wrong = await post({ line: 'sow 12' }, { 'x-operator-token': TOKEN });
     expect(wrong.status).toBe(400);
-    expect(wrong.body).toContain('teleport takes');
+    expect(wrong.body).toContain('sow takes');
   });
 
   it('sends a command to the players of one world, and to nobody else', async () => {

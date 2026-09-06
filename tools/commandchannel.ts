@@ -26,6 +26,16 @@ interface Answered {
   at: number;
   /** What the page said happened, once it has said anything. */
   result?: unknown;
+  /**
+   * Which world answered: its seed and whether it was grown from roads or from polygons.
+   *
+   * Every page the server is serving runs the command, and two pages open on two different worlds
+   * is the ordinary case while something is being compared. Without this the answers come back
+   * indistinguishable, and a teleport that put one hero on a summit and another in the sea reads
+   * as one hero somewhere strange.
+   */
+  seed?: number;
+  world?: string;
 }
 
 export function commandChannel(): Plugin {
@@ -37,10 +47,13 @@ export function commandChannel(): Plugin {
     configureServer(server: ViteDevServer) {
       // The page reports what a command did, so a tool that posted one can find out rather than
       // guess. Answers are matched by the line itself, which is enough for a channel this small.
-      server.hot.on('ai-world:command-result', (data: { line: string; result: unknown }) => {
+      server.hot.on('ai-world:command-result', (data: { line: string; result: unknown; seed?: number; world?: string }) => {
         const waiting = answers.find((a) => a.line === data.line && a.result === undefined);
-        if (waiting) waiting.result = data.result;
-        else answers.push({ line: data.line, at: Date.now(), result: data.result });
+        const answer = waiting ?? { line: data.line, at: Date.now() };
+        answer.result = data.result;
+        answer.seed = data.seed;
+        answer.world = data.world;
+        if (!waiting) answers.push(answer);
         while (answers.length > KEEP) answers.shift();
       });
 

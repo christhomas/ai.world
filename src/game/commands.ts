@@ -18,6 +18,10 @@ import { helpText } from '../core/commandbus';
 /** The few things the game must be able to do for a command to mean anything. */
 export interface CommandWorld {
   teleport(x: number, z: number): void;
+  /** Somewhere with a name: a village, or anything else the map has a word for. */
+  teleportTo(place: string): unknown;
+  /** What can be named, for when somebody has forgotten the word. */
+  places(like?: string): unknown;
   descend(): void;
   climbOut(): void;
   enterShrine(): unknown;
@@ -44,7 +48,19 @@ export interface CommandWorld {
  * that only look at the world return the thing they looked at.
  */
 export function registerCommands(bus: CommandBus, world: CommandWorld): void {
-  bus.define('teleport', ([x, z]) => world.teleport(x as number, z as number));
+  // `teleport 322 53` and `teleport silverholm` are the same command: the first argument arrives
+  // as text either way, and having a second one is what says it was a coordinate
+  bus.define('teleport', ([place, z]) => {
+    if (z === undefined) {
+      const asNumber = Number(place);
+      if (Number.isFinite(asNumber)) throw new Error('a point on the map needs both x and z');
+      return world.teleportTo(String(place));
+    }
+    const x = Number(place);
+    if (!Number.isFinite(x)) throw new Error(`x must be a number, not ${place}`);
+    return world.teleport(x, z as number);
+  });
+  bus.define('places', ([like]) => world.places(like as string | undefined));
   bus.define('descend', () => world.descend());
   bus.define('climb-out', () => world.climbOut());
   bus.define('enter-shrine', () => world.enterShrine());

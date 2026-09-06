@@ -21,21 +21,6 @@
 body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monospace; }
 #gameContainer { width: 100vw; height: 100vh; }
 #gameContainer canvas { display: block; }
-#controls {
-  position: fixed; bottom: 20px; left: 20px;
-  background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px;
-  color: #fff; font-size: 12px; z-index: 100;
-  /* It grows upward from the bottom corner, and what is up there is the message log, so it is
-     capped to stop below it however tall the window is. The second term is for a window too short
-     for even that, where fitting on the screen matters more: whichever is smaller wins, and the
-     list scrolls inside its own box either way. */
-  max-height: min(calc(var(--log-bottom) - 34px), 46vh);
-  overflow-y: auto;
-}
-#controls h4 { color: #a29bfe; margin-bottom: 8px; }
-#controls h4 ~ h4 { margin-top: 12px; }
-/* the conversation takes the bottom of the screen, so the key list gets out of its way */
-body:has(#dialogue.show) #controls { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
 #areaName {
   position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.8); border: 2px solid #6c5ce7;
@@ -339,6 +324,10 @@ body:has(#dialogue.show) #controls { opacity: 0; pointer-events: none; transitio
   display: none; position: fixed; left: 20px; bottom: var(--log-bottom); width: 340px; z-index: 300;
 }
 #chatPanel.show { display: block; }
+/* The console is the same box with room to answer a question in: `? keys` is seven lines, and a
+   log that shows three of them is a log you scroll instead of read. */
+#chatPanel.console { width: min(560px, calc(100vw - 40px)); }
+#chatPanel.console #chatLog { max-height: 42vh; background: rgba(0,0,0,0.78); }
 #chatLog {
   max-height: 190px; overflow-y: auto; background: rgba(0,0,0,0.6); border-radius: 6px;
   padding: 6px 10px; color: #dfe6ff; font-size: 12px; line-height: 1.5;
@@ -465,7 +454,6 @@ body.touch:has(#dialogue.show, #worldmap.show, #rucksack.show, #journal.show, #p
 }
 
 /* Lines telling somebody to press a key they do not have. */
-body.touch #controls,
 body.touch #debug,
 body.touch .r-hint,
 body.touch .j-hint,
@@ -494,7 +482,7 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
    ------------------------------------------------------------------------ */
 @media (max-width: 820px), (max-height: 560px) {
   :root { --minimap-drop: 186px; }
-  #controls, #debug { display: none; }
+  #debug { display: none; }
   /* The three columns a hand-sized screen has room for: hearts and pack down the left, the
      corner map down the right, and everything the world says about itself between them. */
   #breath { color: #8fd2ff; font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
