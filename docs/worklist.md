@@ -49,15 +49,21 @@ A hero moves further in one message than a walk could, and the server takes it: 
 teleport, a staircase and a gangplank all work today, and it is also what a client would send to
 walk through a wall. Each one wants a reason the server already knows about.
 
-- [ ] `teleport` is in the command vocabulary already: run it on the server, move its own hero, and
-      tell the client where he went, rather than the client moving and the server following.
-- [ ] Stairs and doors become asks — `descend`, `climb-out`, `enter-inn` — that the server answers
-      with a place and a position.
-- [ ] A boat and a horse: say plainly which of the two halves owns the hero while he is carried,
-      and hand authority over at the moment he steps on and off rather than inferring it from how
-      far he jumped.
-- [ ] With all three done, drop the `WARP_STEP` rule in `server/messages.ts`, which is the piece of
-      trust the others exist to remove.
+- [x] A jump is now told rather than guessed at: `stood`, with the reason — a teleport, a
+      staircase, a gangplank, a saddle — and the world moves its own hero to match and answers with
+      where that leaves him. *(The answer carries the sequence number the world has already run, so
+      the steers still in flight when somebody teleports are thrown away rather than walked on top
+      of the new position.)*
+- [x] Stairs, doors, boats and horses: the client says so the moment the place or the ride changes,
+      which is the one thing it knows and the world cannot — it has never grown a cellar and does
+      not know where a boat is.
+- [x] `WARP_STEP` is gone. A `move` from a hero the world is walking says nothing about where he is
+      standing, which is what owning him means; everywhere else it says everything, which is what
+      not owning him means.
+- [ ] `stood` is still taken on trust — it has to be, while the places it is about are the client's.
+      What closes it is the places themselves moving across, which is the dungeon-floor work below
+      and the same again for interiors. Until then the trust has a name and a place in the log
+      rather than being inferred from how far somebody moved.
 
 ### Monsters on a dungeon floor
 

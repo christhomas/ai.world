@@ -258,6 +258,21 @@ export type ClientMessage =
    * counts towards the distance.
    */
   | { type: 'swing'; damage: number; reach: number; arc: number; one: boolean }
+  /**
+   * The hero has been *put* somewhere rather than having walked there, and why.
+   *
+   * The one thing a walk cannot account for. A teleport, a staircase, a door, a gangplank and a
+   * saddle all move somebody further in one moment than any stride would, and the world has no way
+   * to work out that it happened: it does not run the console, it has never grown a cellar, and it
+   * does not know where a boat is. So it is told, with the reason, and it moves its own hero to
+   * match — which is the difference between a world that is told about a jump and one that infers a
+   * jump from how far somebody moved, and cannot tell that from a client walking through a wall.
+   *
+   * `why` is not checked. It is here so that the log of a world says what happened, and so that the
+   * day one of these becomes the server's to run — a teleport is already a command it knows — the
+   * message that has to stop being trusted is named rather than hunted for.
+   */
+  | { type: 'stood'; x: number; z: number; why: 'teleport' | 'place' | 'ride' }
   | { type: 'stall-rent'; stall: string; village: string }
   | { type: 'stall-stock'; stall: string; item: StallItem }
   | { type: 'stall-buy'; stall: string; index: number }

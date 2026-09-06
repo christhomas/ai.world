@@ -1549,12 +1549,14 @@ function startGame(
   const ARRIVED = 6;
 
   const commandWorld: CommandWorld = {
-    teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); },
+    teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); online.stood(x, z, 'teleport'); },
     teleportTo: (place) => {
       const found = namedPlace(place);
       if (!found) throw new Error(`nowhere called ${place} — try: places`);
       player.teleport(found.x, found.z);
       iso.target.set(found.x, 0.5, found.z);
+      // the world moves its own hero to match: a teleport is the one jump nothing else can see
+      online.stood(found.x, found.z, 'teleport');
       return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
     },
     places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, country: p.country, x: Math.round(p.x), z: Math.round(p.z) })),

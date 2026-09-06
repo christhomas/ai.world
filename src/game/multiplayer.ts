@@ -454,6 +454,10 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     }
   };
 
+  /** Where the hero was last known to be, so a step into somewhere else can be noticed. */
+  let lastPlace = '';
+  let lastRide: 'foot' | 'horse' | 'boat' = 'foot';
+
   const syncOnline = (dt: number, heightAt: (x: number, z: number) => number | null): void => {
     others.age(dt);
     showDuel();
@@ -464,9 +468,19 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     }
     playerList.refresh(playerListInput);
     const standingIn = placeName();
+    const carriedBy = sailing.sailing ? 'boat' : mount.riding ? 'horse' : 'foot';
+    // Stepping through a door, down a staircase or off a gangplank moves the hero further than any
+    // stride, and it is the client that knows it happened — the world has never grown a cellar and
+    // does not know where a boat is. So the moment either of those changes, it is told where he is
+    // now standing, and it moves its own hero to match rather than guessing from the distance.
+    if (standingIn !== lastPlace || carriedBy !== lastRide) {
+      lastPlace = standingIn;
+      lastRide = carriedBy;
+      online.stood(player.x, player.z, 'place');
+    }
     online.update(dt, {
       x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,
-      place: standingIn, riding: sailing.sailing ? 'boat' : mount.riding ? 'horse' : 'foot',
+      place: standingIn, riding: carriedBy,
       gear: SLOTS.map((slot) => state.worn(slot)?.id ?? '').filter(Boolean),
     });
     others.sync(online.players.values(), standingIn);

@@ -231,11 +231,30 @@ describe('the simulation holding the ground itself', () => {
     const bystander = new Pretend(sim).join(3, 'Ash');
     expect(bystander.of('welcome')[0].players[0].x).toBeCloseTo(walked, 5);
 
-    // but a warp — a teleport, a staircase, a ferry — is further than any step and is taken
+    // and a move saying he is somewhere else entirely is still only a move: the world is walking
+    // him, so it knows where he is and this is not news
     rowan.say({ type: 'move', x: 400, z: -120, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
-    sim.tick(Date.now() + 200);        // and again where he lands, before he can walk there either
     rowan.say({ type: 'steer', seq: 2, dx: 0, dz: 1, pace: 1, ms: 200 });
-    const after = rowan.of('youAre')[1];
+    expect(rowan.of('youAre').at(-1)!.x, 'nowhere near where it claimed').toBeCloseTo(walked, 1);
+  });
+
+  it('takes a jump when it is told it was a jump, and says where that leaves him', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+
+    // a teleport, a staircase, a gangplank: the one kind of move a walk cannot account for
+    rowan.say({ type: 'stood', x: 400, z: -120, why: 'teleport' });
+    const put = rowan.of('youAre').at(-1)!;
+    expect(put.x).toBe(400);
+    expect(put.z).toBe(-120);
+
+    // and he walks on from there rather than from where he was
+    sim.tick(Date.now() + 200);
+    rowan.say({ type: 'steer', seq: 2, dx: 0, dz: 1, pace: 1, ms: 200 });
+    const after = rowan.of('youAre').at(-1)!;
     expect(after.x).toBeCloseTo(400, 5);
     expect(after.z).toBeGreaterThan(-120);
   });

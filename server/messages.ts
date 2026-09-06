@@ -7,13 +7,6 @@ import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
 
 /**
- * How far a `move` may be from where the server has walked somebody before it is read as a warp
- * rather than as drift, in tiles. Comfortably past a step at running pace, comfortably short of a
- * staircase.
- */
-const WARP_STEP = 4;
-
-/**
  * What each message from a player means. One function per subject, so adding a message is a
  * matter of finding the subject it belongs to rather than reading a switch four hundred lines
  * long. Nothing here knows about sockets: `rooms` decides who hears what.
@@ -31,6 +24,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'swing':
       thrown(rooms, me, message);
+      return;
+    case 'stood':
+      putThere(rooms, me, message);
       return;
     case 'delta': case 'monsters': case 'hit':
       worldChange(rooms, me, room, message);
@@ -57,6 +53,27 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
     default:
       return;   // 'join' is answered by the handshake, before any of this
   }
+}
+
+/**
+ * The hero has been put somewhere: move the world's own copy of him to match, and say so.
+ *
+ * Answered rather than silent, and answered with the sequence number the world has already run, so
+ * the client throws away everything it had in flight and stands where it is told. Without that the
+ * steers still on the wire when somebody teleports are walked on top of the new position, and the
+ * hero arrives having taken three paces in whatever direction he left in.
+ */
+function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'stood' }>): void {
+  const p = me.presence;
+  const x = Number(message.x) || 0;
+  const z = Number(message.z) || 0;
+  p.x = x; p.z = z;
+  const hero = me.hero;
+  if (!hero) return;
+  hero.x = x; hero.z = z;
+  const under = rooms.groundOf(me.seed)?.heightAt(x, z);
+  if (under !== null && under !== undefined) hero.y = under;
+  rooms.send(me, { type: 'youAre', seq: me.steered, x, z, y: hero.y, yaw: p.yaw });
 }
 
 /**
@@ -133,16 +150,17 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
       // joins. Those all move him further in one message than any walk could, so a long jump is
       // taken as a warp and a short one is ignored, and the client goes on owning everywhere the
       // server does not: indoors, underground, and at sea.
-      // and the server owns him only where it walks him: out of doors, on his own feet. Indoors,
-      // underground and at sea the client is still the authority and says where he is, which it
-      // has to be, because those are places the server has never grown any ground for.
+      // The server owns him only where it walks him: out of doors, on his own feet, on ground it
+      // has grown. There, a move says nothing about where he is standing — that is what owning him
+      // means. Everywhere else the client is the authority and this is how it says so, and a jump
+      // from one to the other arrives as `stood` rather than being guessed at from a distance.
       const walked = me.hero;
       const ground = rooms.groundOf(me.seed);
       const outside = String(message.place) === 'surface' && message.riding === 'foot';
       const standing = walked !== null && ground !== null && ground.heightAt(walked.x, walked.z) !== null;
-      const warped = !outside || !standing || Math.hypot(message.x - walked!.x, message.z - walked!.z) > WARP_STEP;
-      if (warped && walked) { walked.x = message.x; walked.z = message.z; }
-      if (warped) { p.x = message.x; p.z = message.z; }
+      const theirs = !outside || !standing;
+      if (theirs && walked) { walked.x = message.x; walked.z = message.z; }
+      if (theirs) { p.x = message.x; p.z = message.z; }
       p.yaw = message.yaw; p.walk = message.walk;
       p.place = String(message.place).slice(0, LIMITS.PLACE);
       p.riding = message.riding;
