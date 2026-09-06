@@ -581,7 +581,7 @@ function startGame(
   let putOfferToPlayer: (offer: TradeOffer, fromName: string) => void = () => {};
   const multiplayer = createMultiplayer({
     register, hires,
-    player, state, breath, mines, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
+    player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera: iso.camera,
     dialogue, hud, chat, sound, questList, discovered, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
@@ -950,6 +950,7 @@ function startGame(
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
     raining: () => raining, discover, persist, startTalk, questLine,
+    told: (delta) => online.report(delta),
   });
   const { atHand: talkNearest, offerTrade, partyMenu, noticeStall, takeShare, musterHires, hireFallen, hireMenu, tryGive } = interactions;
   splitTakings = takeShare;

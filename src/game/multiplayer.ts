@@ -20,6 +20,7 @@ import type { EntityRenderer } from '../entities/pool';
 import type { Player } from '../entities/player';
 import type { GameState } from './state';
 import type { Places } from './places';
+import type { Houses } from './building';
 import type { Plots } from './farming';
 import type { Quest } from './quests';
 import type { Mount } from './mount';
@@ -52,6 +53,8 @@ export interface MultiplayerContext {
   mines: Mines;
   places: Places;
   plots: Plots;
+  /** The buildings going up in this world, so one somebody else paid for can be adopted. */
+  houses: Houses;
   mount: Mount;
   sailing: Sailing;
   entityRenderer: EntityRenderer;
@@ -103,7 +106,7 @@ export interface MultiplayerContext {
 
 export function createMultiplayer(ctx: MultiplayerContext) {
   const {
-    player, state, breath, mines, places, plots, mount, sailing, entityRenderer, camera,
+    player, state, breath, mines, places, plots, houses, mount, sailing, entityRenderer, camera,
     dialogue, hud, chat, sound, questList, discovered, register, hires, seed, placeName, persist, showOffer,
   } = ctx;
   const onlineStatus = $('onlineStatus');
@@ -403,6 +406,11 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       }
       case 'found':
         discovered.add(delta.name);
+        break;
+      case 'built':
+        // a village is a house bigger, whoever paid for it. What stage the work has reached is
+        // worked out from the day it began, so this is the same building on every screen.
+        houses.adopt(delta);
         break;
       case 'cleared':
         // somebody else has been down there with a sword. The mine is a fact about the world, so

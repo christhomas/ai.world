@@ -212,6 +212,12 @@ export function builderInteractions(ctx: Surroundings) {
         { label: 'Build it here', next: () => {
           const job = houses.place(x, z, today(), player.entity.yaw);
           if (!job) return null;
+          // a village is a house bigger for everybody, so the world is told where it stands and
+          // when it was begun — the stage it has reached is worked out from that on every screen
+          ctx.told({
+            kind: 'built', id: job.id, village: job.village,
+            x: job.x, z: job.z, rot: job.rot ?? 0, day: Math.floor(job.began),
+          });
           state.version++;
           sound.chime();
           hud.flash(`Pegs and string. ${BUILD.DAYS} days.`);

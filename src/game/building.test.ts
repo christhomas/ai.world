@@ -188,3 +188,25 @@ describe('the builder in the corner', () => {
     expect(names.size).toBeGreaterThan(1);
   });
 });
+
+describe('a house somebody else paid for', () => {
+  it('stands in the village on every screen, at the stage its day says', () => {
+    const mine = new Houses();
+    const theirs = { id: 'house:Ashfield:10,20', village: 'Ashfield', x: 10.5, z: 20.5, rot: 1.2, day: 4 };
+    mine.adopt(theirs);
+    expect(mine.count).toBe(1);
+    const [job] = mine.entries();
+    expect(job).toMatchObject({ id: theirs.id, village: 'Ashfield', began: 4, rot: 1.2 });
+    // the money was theirs and stays theirs: nobody here owes a village for it
+    expect(job.paid).toBe(0);
+    expect(job.price).toBe(0);
+  });
+
+  it('is one house however many times the world mentions it', () => {
+    const mine = new Houses();
+    const theirs = { id: 'house:Ashfield:10,20', village: 'Ashfield', x: 10.5, z: 20.5, rot: 0, day: 4 };
+    mine.adopt(theirs);
+    mine.adopt(theirs);
+    expect(mine.count).toBe(1);
+  });
+});

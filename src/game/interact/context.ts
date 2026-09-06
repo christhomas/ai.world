@@ -135,6 +135,14 @@ export interface Surroundings {
   raining: () => boolean;
   discover: (name: string) => void;
   persist: () => void;
+  /**
+   * Tell everybody else in this world about something that has changed in it.
+   *
+   * A building is the one thing an interaction does that the world has to hear about: a village is
+   * a house bigger afterwards, whoever paid for it, and until this existed a house went up in one
+   * player's save and nowhere else.
+   */
+  told: (delta: { kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number }) => void;
   startTalk: (e: Entity) => void;
   questLine: (q: { kind: string; target: string; count: number }) => string;
 }

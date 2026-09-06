@@ -97,10 +97,18 @@ so the shape is known and the pieces are the same ones.
 
 ### Village economy
 
-- [ ] Audit what in the economy is not already derived from the register or held by the market, and
-      write down what is left. The belief is that it agrees on every client already — prices come
-      from the register and stalls are the server's — so this may close with a note rather than
-      with code, and if it does not, the list wants the exceptions rather than the worry.
+- [x] Audited. Most of it does agree on every client already, and by two different means: the
+      register is *derived* — who lives in a village, what they earn, what a village is worth and
+      therefore what things cost are all grown from the seed and lived forward, with the facts that
+      cannot be derived travelling as deltas (`died`, `cleared`, `told`, `found`, `sow`, `reap`,
+      `chest`, `key`) — and the market and the post are *held*, by the server, which is the other
+      way to agree. What came out of it is one exception, below.
+- [x] **A house a player builds was never told to anybody.** *(It went into that player's own save
+      and nowhere else: their village grew a house and on every other screen the plot stayed empty
+      grass. A `built` delta now carries where it stands, which way it faces and the day work
+      began — the stage it has reached is worked out from the day, so it is the same building at
+      the same stage on every screen — and `Houses.adopt` takes one on without anybody owing a
+      village for somebody else's house.)*
 - [~] **Phase 4 — the hero.** *(Walking and collision are across. What crosses the wire is a
       `steer` — which way somebody pushed and for how long — and the server walks the hero itself
       against the ground it grew, then says where he got to. Both halves walk with the same

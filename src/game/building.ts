@@ -234,6 +234,24 @@ export class Houses {
     return job;
   }
 
+  /**
+   * A house somebody else paid for, as the world describes it.
+   *
+   * The money is theirs and stays theirs — this is not a commission we are holding, it is a
+   * building standing in a village we can both see, and what it looks like is worked out from the
+   * day it was begun. Named for what it is: adopting somebody else's house rather than taking one
+   * on. Doing nothing when we already know about it, because a delta log may say it twice.
+   */
+  adopt(built: { id: string; village: string; x: number; z: number; rot: number; day: number }): void {
+    if (this.jobs.some((job) => job.id === built.id)) return;
+    this.jobs.push({
+      id: built.id, x: built.x, z: built.z, village: built.village,
+      began: built.day, rot: built.rot,
+      // paid in full by whoever ordered it: nobody here owes a village anything for it
+      paid: 0, price: 0,
+    });
+  }
+
   /** The nearest house within reach, or null. Used by whatever the player is standing next to. */
   nearest(x: number, z: number, within: number): Commission | null {
     let best: Commission | null = null;

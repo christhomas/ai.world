@@ -91,7 +91,20 @@ export type WorldDelta =
    * stays at home whatever is true. Without this a mine one player cleared and reported goes on
    * frightening everybody else's villagers for ever.
    */
-  | { kind: 'told'; mine: string };
+  | { kind: 'told'; mine: string }
+  /**
+   * Somebody has paid a village's builder to put up a house, and where.
+   *
+   * A building is a fact about a village rather than about the player who paid for it: the village
+   * is a house bigger afterwards, whoever is looking at it. It was the one thing in the economy
+   * that never left the save it was made in — a player's own village grew, and on every other
+   * screen the plot stayed empty grass.
+   *
+   * What travels is where it stands, which way it faces and the day work began, because the stage
+   * it has reached is worked out from the day rather than sent: a frame is a frame on everybody's
+   * screen if they all know when it was started.
+   */
+  | { kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number };
 
 /**
  * One monster as the floor's owner sees it. Everyone underground generates the same rooms from
@@ -512,6 +525,8 @@ export function deltaKey(delta: WorldDelta): string {
     // change to one, so replacing is exactly right and adding would double-count
     case 'cleared': return `cleared:${delta.mine}`;
     case 'told': return `told:${delta.mine}`;
+    // one entry per building, so a house started and then described again is one house
+    case 'built': return `built:${delta.id}`;
   }
 }
 
@@ -555,6 +570,15 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       return { kind: 'sow', tile: id(delta.tile), crop: id(delta.crop), day: Math.max(1, Math.floor(day)) };
     }
     case 'reap': return { kind: 'reap', tile: id(delta.tile) };
+    case 'built': {
+      const day = Number(delta.day);
+      const x = Number(delta.x), z = Number(delta.z), rot = Number(delta.rot);
+      if (![day, x, z, rot].every(Number.isFinite)) return null;
+      return {
+        kind: 'built', id: id(delta.id), village: id(delta.village),
+        x, z, rot, day: Math.max(1, Math.floor(day)),
+      };
+    }
     default: return null;
   }
 }
