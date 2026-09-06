@@ -29,7 +29,7 @@ export const TOPICS: Topic[] = [
       'Z looses an arrow · B wards · H blights · U witchlight · V drinks a draught',
       'M map · I rucksack · J journal · F free camera · P photo · O options · N save and leave',
       'T chat · G offer a trade · K party · L who is here · R rally point',
-      'Enter opens this console · Escape closes it · ? asks it something',
+      'Enter or Escape drops this console down · Escape closes it again · ? asks it something',
     ],
   },
   {
@@ -85,8 +85,8 @@ export const TOPICS: Topic[] = [
     name: 'console',
     about: 'what this box does',
     lines: [
-      'Enter opens the console, Escape closes it. Anything typed is said out loud to the world,',
-      'unless it starts with one of these:',
+      'Enter drops this down, and so does Escape on a clear screen. Escape closes it again.',
+      'Anything typed is said out loud to the world, unless it starts with one of these:',
       '  ? topic     asks the game something, and only you see the answer',
       '  /wave       a gesture, which everybody sees',
       '  /teleport silverholm     a command, run on the spot',

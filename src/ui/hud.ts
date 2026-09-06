@@ -163,4 +163,7 @@ export class Hud {
   toggleOptions(): void { this.options.classList.toggle('show'); }
   closeOptions(): void { this.options.classList.remove('show'); }
 
+  /** Whether the options are up, so Escape knows whether it has something to back out of. */
+  get isOptionsOpen(): boolean { return this.options.classList.contains('show'); }
+
 }

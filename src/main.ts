@@ -1093,8 +1093,23 @@ function startGame(
   input.onKey('u', () => conjure('light'));
   input.onKey('v', () => conjure('draught'));
   input.onKey('n', toTitle);
-  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close(); });
-  // the console takes the keyboard while it is up, so its own Escape is handled in the input box
+  /**
+   * Escape backs out of whatever is open, and drops the console when nothing is.
+   *
+   * The layering is what makes one key do both without ambiguity: if a panel, a map or a
+   * conversation is up, Escape is for leaving it, and that is the whole of what it does. Only with
+   * a clear screen does it mean "give me the console", which is the convention people arrive with
+   * from games that drop one down.
+   *
+   * Escape while the console is open is handled by the input box itself, because the box has the
+   * keyboard by then and the key never reaches this.
+   */
+  input.onKey('escape', () => {
+    const anythingOpen = hud.isOptionsOpen || dialogue.isOpen || journal.isOpen
+      || rucksack.isOpen || worldMap.isOpen || playerList.isOpen;
+    hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close();
+    if (!anythingOpen && !chat.isTyping && !photo.active) chat.open(true);
+  });
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
   input.onKey('i', () => { if (!dialogue.isOpen) rucksack.toggle(); });
   // Enter opens the console when nothing else has the keyboard. Space keeps talk, open and board,

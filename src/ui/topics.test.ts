@@ -54,7 +54,7 @@ describe('asking the game something', () => {
     const said = keys?.lines.join('\n') ?? '';
     expect(said).toContain('WASD');
     expect(said).toContain('X strikes');
-    expect(said).toContain('Enter opens this console');
+    expect(said).toContain('Enter or Escape drops this console down');
     // Space took over talking when Enter took the console
     expect(said).toContain('Space talks');
   });
