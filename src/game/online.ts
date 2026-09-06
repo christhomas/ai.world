@@ -1,3 +1,4 @@
+import { socketLink, workerLink, type Link, type LinkEvents } from '../net/link';
 import {
   EMOTES, PROTOCOL_VERSION, cleanChat, cleanName,
   type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage,
@@ -78,7 +79,7 @@ export interface OnlineEvents {
  * The connection is optional in every sense: with no server, the game is exactly as it was.
  */
 export class Online {
-  private socket: WebSocket | null = null;
+  private link: Link | null = null;
   private sinceMove = 0;
   private url = '';
   /** Other people in this world, by id. */
@@ -94,46 +95,50 @@ export class Online {
   get connected(): boolean { return this.status === 'online'; }
   get count(): number { return this.players.size; }
 
-  /** Join the world of this seed on the server given. */
+  /**
+   * Join the world of this seed on the server given.
+   *
+   * `url` empty means the world in the next thread: the same simulation, hosted in a Web Worker
+   * beside the page rather than on a machine somewhere. Nothing below this line knows the
+   * difference, which is what keeps one implementation honest.
+   */
   connect(url: string, seed: number, name: string, clock: Clock): void {
     this.disconnect();
     this.url = url;
     this.name = cleanName(name);
     this.status = 'connecting';
-    let socket: WebSocket;
-    try {
-      socket = new WebSocket(url);
-    } catch {
+
+    const events: LinkEvents = {
+      onOpen: () => this.send({
+        type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
+      }),
+      onMessage: (text) => this.receive(text),
+      onClose: (why) => {
+        if (this.status !== 'offline') this.events.onSystem(why);
+        this.status = 'offline';
+        this.players.clear();
+        this.link = null;
+      },
+    };
+    const link = url ? socketLink(url, events) : workerLink(events);
+    if (!link) {
       this.status = 'offline';
       this.events.onSystem(`Could not reach ${url}.`);
       return;
     }
-    this.socket = socket;
-    socket.onopen = () => {
-      this.send({ type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time });
-    };
-    socket.onmessage = (event) => this.receive(String(event.data));
-    socket.onclose = () => {
-      if (this.status !== 'offline') this.events.onSystem('Disconnected from the server.');
-      this.status = 'offline';
-      this.players.clear();
-      this.socket = null;
-    };
-    socket.onerror = () => {
-      this.events.onSystem(`Could not reach ${this.url}.`);
-    };
+    this.link = link;
   }
 
   disconnect(): void {
-    if (!this.socket) return;
+    if (!this.link) return;
     this.status = 'offline';
-    this.socket.close();
-    this.socket = null;
+    this.link.close();
+    this.link = null;
     this.players.clear();
   }
 
   private send(message: ClientMessage): void {
-    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(message));
+    if (this.link?.ready) this.link.send(JSON.stringify(message));
   }
 
   private receive(raw: string): void {

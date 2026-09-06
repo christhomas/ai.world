@@ -59,9 +59,10 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
     case 'say': {
       const text = cleanChat(message.text);
       if (!text) return;
-      // the speaker hears their own line too, so chat reads the same for everybody
+      // Everybody, the speaker included, so chat reads the same for everybody in the world. It was
+      // broadcast and then sent again to the speaker, which is what a broadcast already does when
+      // nobody is excepted from it — so they saw their own line twice.
       rooms.broadcast(me.seed, { type: 'said', id: me.presence.id, name: me.presence.name, text });
-      rooms.send(me, { type: 'said', id: me.presence.id, name: me.presence.name, text });
       return;
     }
     case 'emote': {

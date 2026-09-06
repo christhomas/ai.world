@@ -868,6 +868,9 @@ function startGame(
   serverInput.value = defaultServer(url);
   $('connectButton').addEventListener('click', () => {
     if (online.connected) { online.disconnect(); others.clear(); chat.hide(); return; }
+    // An empty address is the world in the next thread: the same simulation the server runs, in a
+    // Web Worker beside the page. Playing alone is playing against the server, which is what stops
+    // single player being a second implementation. See docs/server-authority.md.
     const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
     localStorage.setItem('ai.world/server', address);

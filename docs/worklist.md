@@ -9,9 +9,12 @@ belongs to the project, and the next person to open it can see what was known.
 
 ## Server authority — `docs/server-authority.md`
 
-- [ ] **Phase 2 — the sim, hosted twice.** The authoritative world as a module with no Node and no
-      DOM in it. A Node host over WebSocket, a Worker host over `MessagePort`, single player moved
-      onto the Worker. Start with what the server already owns: clock, market, post, deltas.
+- [x] **Phase 2 — the sim, hosted twice.** *(`server/sim.ts` is the simulation with no socket and no
+      filesystem in it; `serve.ts` hosts it on websockets and files, `src/workers/sim.worker.ts`
+      hosts the same code in a Web Worker with `localStorage`. The client reaches either through a
+      `Link`. Leaving the server address empty plays against the world in the next thread.)*
+- [ ] Single player should use the Worker world by default, rather than only when somebody leaves
+      the address empty and presses connect.
 - [ ] **Phase 3 — the world's life moves across.** Villagers, herds, village economy, monsters.
       Interest management is part of this, not an optimisation afterwards: about two hundred
       creatures stand near a player and they cannot all go over the wire several times a second.
@@ -50,6 +53,9 @@ belongs to the project, and the next person to open it can see what was known.
       without a password travelling through chart values into Flux's storage. Chart 0.2.1.
 
 ## Smaller
+
+- [ ] The page asks for `/favicon.ico` on every load and gets a 404. A tab with no icon, and a
+      request that always fails.
 
 - [x] `server/proxy.test.ts` is flaky under full-suite load. *(It was a race, not a deadline: the
       test joined through the proxy in the same breath as the direct player. It waits for the

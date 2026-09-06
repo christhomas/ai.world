@@ -1,11 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { COMMANDS, parseCommand } from './commands';
-import { PROTOCOL_VERSION, cleanName, type ClientMessage, type ServerMessage } from './protocol';
-import { handle } from './messages';
+import type { ServerMessage } from './protocol';
 import { FileVault } from './filevault';
+import { Simulation } from './sim';
 import { Rooms, type Wire } from './rooms';
-import { CLOCK_INTERVAL } from './world';
 import { staticFiles } from './static';
 
 /**
@@ -16,11 +15,6 @@ import { staticFiles } from './static';
  * dungeons from the same seed, so what travels is people, words, goods, the hour, and the short
  * list of things players have changed.
  */
-
-/** How often presence goes out, in milliseconds. */
-const TICK = 100;
-/** Drop anyone we have not heard from in this long. */
-const TIMEOUT = 30_000;
 
 export interface ServerOptions {
   /** 0 asks the operating system for a free port, which is what the tests want. */
@@ -78,8 +72,10 @@ function wireFor(socket: WebSocket): Wire {
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const dataDir = options.dataDir ?? 'server/data';
-  // a server keeps its worlds in files; a Worker running the same simulation keeps them elsewhere
-  const rooms = new Rooms(dataDir, new FileVault());
+  // The simulation is the game. This is the thing that gives it sockets, files and an address; a
+  // Web Worker gives the same simulation a MessagePort and a browser's idea of storage instead.
+  const sim = new Simulation({ dataDir, vault: new FileVault() });
+  const rooms = sim.rooms;
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;
   const http = createServer((req, res) => {
@@ -94,59 +90,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   });
   const sockets = new WebSocketServer({ server: http });
 
+  // every socket is a player attached to the simulation, and nothing here knows what they say
   sockets.on('connection', (socket) => {
-    let client: ReturnType<Rooms['admit']> | null = null;
-
-    socket.on('message', (raw) => {
-      let message: ClientMessage;
-      try { message = JSON.parse(String(raw)) as ClientMessage; } catch { return; }
-
-      if (message.type === 'join') {
-        if (client) return;                      // one join per socket
-        client = welcome(rooms, socket, message);
-        return;
-      }
-      if (!client) return;                       // nothing counts until somebody has said who they are
-      const room = rooms.get(client.seed);
-      if (!room) return;
-      client.lastSeen = Date.now();
-      handle(rooms, client, room, message);
-    });
-
-    const drop = (): void => {
-      if (!client) return;
-      rooms.leave(client);
-      client = null;
-    };
-    socket.on('close', drop);
-    socket.on('error', drop);
+    const player = sim.attach(wireFor(socket));
+    socket.on('message', (raw) => player.receive(String(raw)));
+    socket.on('close', () => player.leave());
+    socket.on('error', () => player.leave());
   });
 
-  let lastTick = Date.now();
-  const ticker = setInterval(() => {
-    const now = Date.now();
-    const seconds = (now - lastTick) / 1000;
-    lastTick = now;
-
-    for (const [seed, room] of rooms.entries()) {
-      for (const client of room.clients) {
-        if (now - client.lastSeen > TIMEOUT) { client.wire.close(); rooms.leave(client); }
-      }
-      if (room.clients.size === 0) { rooms.close(seed); continue; }
-
-      room.world.tick(seconds);
-      if (room.world.sweepStalls()) rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
-      const players = [...room.clients].map((c) => c.presence);
-      for (const client of room.clients) {
-        rooms.send(client, { type: 'presence', players: players.filter((p) => p.id !== client.presence.id) });
-      }
-    }
-  }, TICK);
-
-  /** The clock goes out rarely: clients run their own between messages and simply agree with it. */
-  const clock = setInterval(() => {
-    for (const [seed, room] of rooms.entries()) rooms.broadcast(seed, { type: 'clock', clock: room.world.clock });
-  }, CLOCK_INTERVAL);
+  sim.start();
 
   const port = await listen(http, options.port ?? 8787);
   if (!options.quiet) {
@@ -158,52 +110,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     port,
     rooms,
     close: async () => {
-      clearInterval(ticker);
-      clearInterval(clock);
-      rooms.saveAll();
+      sim.stop();
       for (const socket of sockets.clients) socket.terminate();
       await new Promise<void>((done) => sockets.close(() => done()));
       await new Promise<void>((done) => http.close(() => done()));
     },
   };
-}
-
-/**
- * The handshake. A joining player is told everything they have missed: who is here, what time it
- * is, what has been changed, what is on the market stalls, who this world has met, and whether
- * anything is waiting for them at an inn.
- */
-function welcome(rooms: Rooms, socket: import('ws').WebSocket, message: ClientMessage & { type: 'join' }) {
-  if (message.version !== PROTOCOL_VERSION) {
-    socket.send(JSON.stringify({ type: 'error', reason: 'This server speaks a different version.' } satisfies ServerMessage));
-    socket.close();
-    return null;
-  }
-  const seed = message.seed >>> 0;
-  // the first player through the door sets the clock; after that the world keeps its own time
-  const room = rooms.open(seed, {
-    day: Math.max(1, Math.floor(message.day) || 1),
-    time: Number(message.time) || 0.3,
-  });
-  const joining = rooms.admit(wireFor(socket), room, seed, cleanName(message.name));
-
-  rooms.send(joining, {
-    type: 'welcome', id: joining.presence.id, seed,
-    players: [...room.clients].filter((c) => c !== joining).map((c) => c.presence),
-    clock: room.world.clock,
-    deltas: room.world.log,
-  });
-  rooms.send(joining, { type: 'stalls', stalls: room.world.stalls });
-
-  const newcomer = room.world.meet(joining.presence.name);
-  rooms.send(joining, { type: 'folk', names: room.world.folk });
-  if (newcomer) rooms.broadcast(seed, { type: 'folk', names: room.world.folk }, joining);
-
-  const waiting = room.world.waiting(joining.presence.name);
-  if (waiting > 0) rooms.send(joining, { type: 'mail-here', from: `${waiting} parcel${waiting === 1 ? '' : 's'}` });
-
-  rooms.broadcast(seed, { type: 'joined', player: joining.presence }, joining);
-  return joining;
 }
 
 function listen(http: Server, port: number): Promise<number> {
