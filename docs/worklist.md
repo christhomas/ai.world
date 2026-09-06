@@ -181,10 +181,13 @@ the two are separate jobs with a third in between them.
       eight. Dealing each band's circuit at a stride through what lies near home, rather than
       shuffling it, recovers some of that (5/9/1/10) and is not enough. The width wants the roaming
       design revisited, not a constant, and the surface work already tells a lane from a highway.
-- [ ] **Seed 12 has three villages no band ever reaches over a season**, and seeds 1, 2 and 5 have
-      none. Found while measuring the above, and true of the world as it stands: a village that is
-      neither a band's home nor within a circuit of one is never worked at all. Either every village
-      should be somebody's ground, or "nowhere is permanently safe" is not what the design means.
+- [x] **Seed 12 had three villages no band ever reached over a season**, and so did seed 33.
+      *(A band takes the next ground off a shuffled deck of every stop in the world — villages and
+      landmarks together — and there are more stops than bands, so a village at the bottom of the
+      deck got no home; one that was also outside everybody's circuit was never worked by anything
+      at all. Villages are dealt before landmarks now, and there are more bands than villages, so
+      every village is somebody's ground. Across seeds 1, 2, 5, 12 and 33: villages nothing ever
+      comes to, three and three, now none anywhere. The test asked one seed and passed for years.)*
 - [~] Make a road wander. **Built, measured, and put down at the last fence.** One line in
       `TerrainSampler.nearest`, which is the funnel every road distance in the world goes through:
       take the signed distance to the run rather than the unsigned one, and subtract a slow noise

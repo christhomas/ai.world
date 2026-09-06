@@ -123,6 +123,8 @@ export interface Stop {
   name: string;
   x: number;
   z: number;
+  /** True for a village. Landmarks are stops too, and nobody lives on them. */
+  lived: boolean;
 }
 
 /** Somewhere a band can lean on. A village satisfies this as it stands. */
@@ -215,7 +217,13 @@ function slotOf(id: string): number {
 
 /** The grounds of a world, dealt out in an order that is the same for everybody who asks. */
 function homesOf(seed: number, stops: readonly Stop[]): Stop[] {
-  return shuffle(mulberry32(derive(seed, SALT.ROAM)), [...stops]);
+  const deck = shuffle(mulberry32(derive(seed, SALT.ROAM)), [...stops]);
+  // Villages first, then the landmarks. There are more bands than villages, and a band takes the
+  // next ground off the deck, so dealing this way makes every village somebody's ground — which is
+  // what "nowhere is permanently safe" is supposed to mean. Shuffled together, the villages at the
+  // bottom of the deck got no home at all, and one that was also outside everybody's circuit was
+  // never worked by anything: three of seed 12's seventeen, over a whole season.
+  return [...deck.filter((s) => s.lived), ...deck.filter((s) => !s.lived)];
 }
 
 /** Which sort of band a roll makes, by how much of the country each sort is meant to have. */
@@ -233,8 +241,8 @@ function sortOf(roll: number): BandKind {
  * is to say the places the roads already go, so a band on its way somewhere is on a road.
  */
 export function stopsOf(structures: Structures): Stop[] {
-  const stops: Stop[] = structures.villages.map((v) => ({ name: v.name, x: v.x, z: v.z }));
-  for (const poi of structures.pois) stops.push({ name: poi.name, x: poi.x, z: poi.z });
+  const stops: Stop[] = structures.villages.map((v) => ({ name: v.name, x: v.x, z: v.z, lived: true }));
+  for (const poi of structures.pois) stops.push({ name: poi.name, x: poi.x, z: poi.z, lived: false });
   return stops;
 }
 
