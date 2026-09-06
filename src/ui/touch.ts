@@ -81,9 +81,7 @@ const MORE_BUTTONS: readonly Button[] = [
 ];
 
 /** The three that are pressed constantly, drawn big enough to hit without looking. */
-// Space rather than Enter: Enter opens the console now, and a thumb reaching for the action button
-// wants to talk to the person in front of it rather than to a text box.
-const ACT = { key: ' ', glyph: '⏎', label: 'Talk, open, board, harvest, dig, fell' } as const;
+const ACT = { key: 'enter', glyph: '⏎', label: 'Talk, open, board, harvest, dig, fell' } as const;
 const SWING = { key: 'x', glyph: '⚔', label: 'Swing' } as const;
 const LOOSE = { key: 'z', glyph: '🏹', label: 'Loose an arrow' } as const;
 /** Held rather than tapped, because how long it has been up is what decides a parry from a block. */

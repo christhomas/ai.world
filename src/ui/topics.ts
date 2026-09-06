@@ -24,12 +24,12 @@ export const TOPICS: Topic[] = [
     about: 'every key, in one place',
     lines: [
       'WASD or the arrows run · Shift walks · Q and E turn the camera · Scroll zooms',
-      'Space talks, opens and boards · X strikes with whatever is to hand',
+      'Enter or Space talks, opens and boards · X strikes with whatever is to hand',
       'C guards, held: raise it as they swing to parry, early and you only block',
       'Z looses an arrow · B wards · H blights · U witchlight · V drinks a draught',
       'M map · I rucksack · J journal · F free camera · P photo · O options · N save and leave',
       'T chat · G offer a trade · K party · L who is here · R rally point',
-      'Enter or Escape drops this console down · Escape closes it again · ? asks it something',
+      '` drops this console down and puts it away · ? asks it something',
     ],
   },
   {
@@ -66,7 +66,7 @@ export const TOPICS: Topic[] = [
     about: 'the map, mounts, boats, the sky',
     lines: [
       'M opens the map; F takes the camera off your shoulder so you can look about.',
-      'A horse is ridden by walking into it; a boat is boarded from a pier with Space.',
+      'A horse is ridden by walking into it; a boat is boarded from a pier with Enter.',
       'The eagles at a crag will carry you to a village in the sky, for a price.',
       'Mountains are walked round rather than over: a road through a range is a pass, and the pass',
       'is the way through.',
@@ -85,7 +85,7 @@ export const TOPICS: Topic[] = [
     name: 'console',
     about: 'what this box does',
     lines: [
-      'Enter drops this down, and so does Escape on a clear screen. Escape closes it again.',
+      '` drops this down and puts it away again; Escape closes it too.',
       'Anything typed is said out loud to the world, unless it starts with one of these:',
       '  ? topic     asks the game something, and only you see the answer',
       '  /wave       a gesture, which everybody sees',

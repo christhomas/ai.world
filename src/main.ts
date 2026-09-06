@@ -1093,31 +1093,20 @@ function startGame(
   input.onKey('u', () => conjure('light'));
   input.onKey('v', () => conjure('draught'));
   input.onKey('n', toTitle);
-  /**
-   * Escape backs out of whatever is open, and drops the console when nothing is.
-   *
-   * The layering is what makes one key do both without ambiguity: if a panel, a map or a
-   * conversation is up, Escape is for leaving it, and that is the whole of what it does. Only with
-   * a clear screen does it mean "give me the console", which is the convention people arrive with
-   * from games that drop one down.
-   *
-   * Escape while the console is open is handled by the input box itself, because the box has the
-   * keyboard by then and the key never reaches this.
-   */
-  input.onKey('escape', () => {
-    const anythingOpen = hud.isOptionsOpen || dialogue.isOpen || journal.isOpen
-      || rucksack.isOpen || worldMap.isOpen || playerList.isOpen;
-    hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close();
-    if (!anythingOpen && !chat.isTyping && !photo.active) chat.open(true);
-  });
+  // Escape leaves whatever you are in, and nothing more. It closes the console too, but that is
+  // handled by the input box, which has the keyboard while the console is up.
+  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close(); });
   input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
   input.onKey('i', () => { if (!dialogue.isOpen) rucksack.toggle(); });
-  // Enter opens the console when nothing else has the keyboard. Space keeps talk, open and board,
-  // so the hand that was interacting still is; a dialogue keeps Enter for itself, because
-  // advancing what somebody is saying to you is what Enter means while they are saying it.
-  input.onKey('enter', () => {
-    if (chat.isTyping || dialogue.isOpen || photo.active || worldMap.isOpen) return;
-    chat.open(true);
+  // The console lives on the key it has been on since Quake: one row under Escape, and spare in
+  // every other game. Both of the characters that live on it, because a keyboard laid out for
+  // another country puts the other one under the same thumb.
+  //
+  // Having its own key is what leaves everything else alone: Enter and Space still talk, open and
+  // board, and Escape still means nothing but "leave what I am in".
+  for (const key of ['`', '~']) input.onKey(key, () => {
+    if (dialogue.isOpen || photo.active || worldMap.isOpen) return;
+    chat.toggleConsole();
   });
   for (const key of ['enter', ' ']) input.onKey(key, () => {
     if (chat.isTyping) return;

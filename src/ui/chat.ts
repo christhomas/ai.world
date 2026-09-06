@@ -35,6 +35,11 @@ export class Chat {
       } else if (e.key === 'Escape') {
         this.input.value = '';
         this.close();
+      } else if ((e.key === '`' || e.key === '~') && this.input.value === '') {
+        // the key that dropped the console shuts it again, the way it does everywhere else. Only
+        // on an empty line: somebody halfway through typing a backtick meant the character.
+        e.preventDefault();
+        this.close();
       }
     });
   }
@@ -66,6 +71,11 @@ export class Chat {
 
   /** Whether the console is up, as opposed to the one-line chat input. */
   get isConsole(): boolean { return this.typing && this.asConsole; }
+
+  /** The console key: down if it is up, up if it is down. */
+  toggleConsole(): void {
+    if (this.isConsole) this.close(); else this.open(true);
+  }
 
   private close(): void {
     this.typing = false;
