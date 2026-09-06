@@ -1,4 +1,5 @@
-import { PING_LIFE } from '../../server/protocol';
+import {
+  type CreatureSnap, PING_LIFE } from '../../server/protocol';
 import { ITEMS, SLOTS } from './items';
 import { spoils } from './combat';
 import { Online, applyTrade, type Presence, type TradeOffer, type WorldDelta } from './online';
@@ -83,6 +84,12 @@ export interface MultiplayerContext {
    * the alternative is this module knowing what a command means, which is not its business.
    */
   runCommand: (line: string, issuer: string) => void;
+  /** The creatures the world says are near, and the ones that have gone from sight. */
+  onCreatures: (near: CreatureSnap[], gone: number[]) => void;
+  /** One of the world's creatures died; `mine` says whether we killed it. */
+  onCreatureKilled: (id: number, mine: boolean) => void;
+  /** The world stopped telling us what lives here, so the game goes back to deciding for itself. */
+  onWorldSilent: () => void;
   /**
    * How an offer of goods is put to the player. The dialogue that answers it belongs to the
    * interaction layer, which is built after this one, so main.ts hands it over here.
@@ -130,6 +137,9 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
     onCommand: (line, issuer) => ctx.runCommand(line, issuer),
+    onCreatures: (near, gone) => ctx.onCreatures(near, gone),
+    onCreatureKilled: (id, mine) => ctx.onCreatureKilled(id, mine),
+    onWorldSilent: () => ctx.onWorldSilent(),
     onMonsters: (place, snap, gone) => {
       const floor = places.underground;
       if (!floor) return;

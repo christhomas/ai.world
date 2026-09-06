@@ -18,6 +18,13 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
     case 'move': case 'say': case 'emote': case 'ping':
       whereAndWhat(rooms, me, room, message);
       return;
+    case 'strike': {
+      // a blow on a creature the world owns: the world decides what it did
+      const killed = rooms.worldOf(me.seed)?.struck(message.id, Number(message.damage) || 1);
+      // everybody sees the body fall; only whoever landed the blow takes anything off it
+      if (killed) rooms.broadcast(me.seed, { type: 'killed', id: message.id, by: me.presence.id });
+      return;
+    }
     case 'delta': case 'monsters': case 'hit':
       worldChange(rooms, me, room, message);
       return;

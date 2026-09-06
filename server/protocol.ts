@@ -228,6 +228,14 @@ export type ClientMessage =
   | { type: 'delta'; delta: WorldDelta }
   | { type: 'monsters'; place: string; snap: MonsterSnap[]; gone: number[] }
   | { type: 'hit'; place: string; index: number; damage: number }
+  /**
+   * A blow landed on a creature the world owns.
+   *
+   * The client draws the swing and the flinch straight away, because a hit that waits for a round
+   * trip does not feel like a hit; what actually happens to the animal is decided by the world, and
+   * arrives back as it always does — a creature with fewer hearts, or one that has gone.
+   */
+  | { type: 'strike'; id: number; damage: number }
   | { type: 'stall-rent'; stall: string; village: string }
   | { type: 'stall-stock'; stall: string; item: StallItem }
   | { type: 'stall-buy'; stall: string; index: number }
@@ -280,6 +288,14 @@ export type ServerMessage =
    * there — a client that loses one simply stops drawing it.
    */
   | { type: 'creatures'; near: CreatureSnap[]; gone: number[] }
+  /**
+   * One of the world's creatures was killed, and by whom.
+   *
+   * The world decides that it died; what its death is worth is worked out by whoever killed it,
+   * because a pelt's price and a purse belong to that player's own save and have never been the
+   * server's business. Everybody else is told so that the body falls on their screen too.
+   */
+  | { type: 'killed'; id: number; by: string }
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }

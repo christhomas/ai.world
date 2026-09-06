@@ -1,6 +1,7 @@
 import { Biome } from '../world/biomes';
 import type { TileWorld } from './entity';
-import { tileCentre, type ChunkTiles } from './manager';
+import { tileCentre } from './chunkspots';
+import type { ChunkTiles } from '../world/tiles';
 
 /**
  * What lives where.

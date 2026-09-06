@@ -4,6 +4,8 @@ import { hash3, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
 export type { ChunkSource, ChunkTiles } from '../world/tiles';
+import { sortTiles, tileCentre, type SortedTiles } from './chunkspots';
+export { tileCentre } from './chunkspots';
 import type { ChunkSource, ChunkTiles } from '../world/tiles';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
@@ -18,6 +20,7 @@ import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, 
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
 import { residentsOnTheStreet } from './residents';
+import { callOutTheLaw, reseatVillagers } from './village';
 import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { blowOf } from './motion';
 import type { EntityView } from './roster';
@@ -82,6 +85,22 @@ const SPAWN = {
  */
 export class EntityManager {
   private readonly spawned = new Map<string, Entity[]>();
+  /**
+   * True when somebody else decides what lives in this world.
+   *
+   * The simulation owns the creatures now — on a server, or in the thread next door — and a client
+   * that also spawns its own would draw two of every deer, one of which nobody else can see. So it
+   * stops spawning and starts being told; everything else it does, it goes on doing.
+   */
+  toldWhatLives = false;
+  /**
+   * Creatures somebody else owns: drawn here, found here, but never thought for here.
+   *
+   * A swing, an arrow, a hunt and the console's `entities` all ask this manager what is nearby, so
+   * the world's own animals have to be findable through it or they are scenery. What they *do* is
+   * decided where they live.
+   */
+  guests: Iterable<Entity> = [];
   private readonly herds = new Set<Herd>();
   private readonly rng: Rng;
   private focusCx = Number.NaN;
@@ -208,7 +227,7 @@ export class EntityManager {
     };
     if (this.register && this.register.today !== this.registerDay) {
       this.registerDay = this.register.today;
-      this.reseat();
+      reseatVillagers(this.herds, this.register, (e) => this.despawnEntity(e));
     }
     // the moment the law wants somebody, the village turns a constable out into the street. A
     // village shows only a handful of its people at once, so without this the police force is
@@ -216,7 +235,7 @@ export class EntityManager {
     const lawOut = this.guiltOf() > 0;
     if (lawOut !== this.lawWasOut) {
       this.lawWasOut = lawOut;
-      if (lawOut) this.callOutTheLaw();
+      if (lawOut && this.register) callOutTheLaw(this.herds, this.register);
     }
     for (const h of this.herds) updateHerd(h, dt, ctx);
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
@@ -450,13 +469,13 @@ export class EntityManager {
    */
   within(x: number, z: number, r: number): Entity[] {
     const hits: Array<{ e: Entity; d: number }> = [];
-    for (const list of this.spawned.values()) {
-      for (const e of list) {
-        if (e.dead) continue;
-        const d = Math.hypot(e.x - x, e.z - z);
-        if (d <= r) hits.push({ e, d });
-      }
-    }
+    const near = (e: Entity): void => {
+      if (e.dead) return;
+      const d = Math.hypot(e.x - x, e.z - z);
+      if (d <= r) hits.push({ e, d });
+    };
+    for (const list of this.spawned.values()) for (const e of list) near(e);
+    for (const e of this.guests) near(e);
     return hits.sort((a, b) => a.d - b.d).map((h) => h.e);
   }
 
@@ -481,6 +500,22 @@ export class EntityManager {
   }
 
   /** Deterministic per-chunk spawn: land herds, water herds, travellers, and any village folk. */
+  /**
+   * Take away the wildlife this client invented for itself, keeping the people.
+   *
+   * Called when the world takes over the animals. Without it the deer this client made go on
+   * standing in the field beside the ones the world sent, and only one of each pair is there as far
+   * as anybody else is concerned. The villagers stay: nobody else is spawning those.
+   */
+  forgetTheWildlife(): void {
+    for (const [key, list] of this.spawned) {
+      // somebody with a name in the register, or a job in a village: those are the client's
+      const people = list.filter((e) => e.person !== '' || e.role !== 'none');
+      for (const e of list) if (!people.includes(e)) this.despawnEntity(e);
+      this.spawned.set(key, people);
+    }
+  }
+
   private spawnChunk(tiles: ChunkTiles, key: string): Entity[] {
     const rng = mulberry32(hash3(this.seed, tiles.cx, tiles.cz, SALT.HERD_CHUNK));
     const sorted = sortTiles(tiles);
@@ -489,6 +524,10 @@ export class EntityManager {
     const ctx: SpawnCtx = { tiles, key, rng, out };
 
     this.spawnVillageFolk(ctx);
+    // Everything below this line is wildlife, and the world owns that when there is a world to own
+    // it: the animals are what two players standing in one field disagree about. The people of a
+    // village are not — they are the seed and the register, which everybody has.
+    if (this.toldWhatLives) return out;
     // after dark, something else is out on the land
     if (this.night && sorted.land.length >= SPAWN.MIN_LAND_TILES && rng() < SPAWN.NIGHT_PACK_CHANCE) {
       const table = NIGHT_PREDATORS[sorted.biome];
@@ -525,6 +564,13 @@ export class EntityManager {
   }
 
   /** A herd of a kind's natural size around an anchor. */
+  /** The people a village would have out today, given who is alive and who is already outside. */
+  private residentsFor(v: Village, posts: Partial<Record<Post, [number, number]>>, wanted: number): Person[] {
+    if (!this.register) return [];
+    const alreadyOut = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
+    return residentsOnTheStreet(this.register, v, posts, wanted, alreadyOut, this.guiltOf() > 0);
+  }
+
   private spawnHerd(ctx: SpawnCtx, kindId: string, anchor: [number, number], leash: number): Herd {
     const kind = KINDS[kindId];
     const size = kind.herd[0] + Math.floor(ctx.rng() * (kind.herd[1] - kind.herd[0] + 1));
@@ -588,52 +634,6 @@ export class EntityManager {
    * to somebody who is actually alive — a village always has more people than it ever shows at
    * once — and if there is nobody spare, they go indoors and are gone.
    */
-  private reseat(): void {
-    if (!this.register) return;
-
-    for (const herd of this.herds) {
-      for (const villager of [...herd.members]) {
-        if (villager.person === '' || this.register.find(villager.person)) continue;
-
-        const taken = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
-        const free = this.register.living(herd.tag)
-          .find((p) => !taken.has(p.id) && stageOf(p, this.register!.today) !== 'baby');
-        if (!free) { this.despawnEntity(villager); continue; }
-
-        villager.person = free.id;
-        villager.name = free.name;
-        if (free.trade !== '') villager.trade = free.trade;
-      }
-    }
-  }
-
-  /** Put a constable on the street in every village that has one and is not already showing it. */
-  private callOutTheLaw(): void {
-    if (!this.register) return;
-    for (const herd of this.herds) {
-      if (herd.tag === '' || herd.members.length === 0) continue;
-      if (herd.members.some((e) => e.trade === 'constable')) continue;
-
-      const shown = new Set(herd.members.map((e) => e.person));
-      const law = this.register.living(herd.tag).find((p) => p.trade === 'constable' && !shown.has(p.id));
-      if (!law) continue;
-
-      // the villager furthest from their own doorstep is the one with least to do
-      const spare = herd.members.find((e) => e.person !== '' && e.role === 'villager');
-      if (!spare) continue;
-      spare.person = law.id;
-      spare.name = law.name;
-      spare.trade = law.trade;
-    }
-  }
-
-  private residentsFor(v: Village, posts: Partial<Record<Post, [number, number]>>, wanted: number): Person[] {
-    if (!this.register) return [];
-    const alreadyOut = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
-    return residentsOnTheStreet(this.register, v, posts, wanted, alreadyOut, this.guiltOf() > 0);
-  }
-
-  /** Create `count` entities of a kind scattered around `anchor`, registered with the renderer. */
   private place(ctx: SpawnCtx, kindId: string, anchor: [number, number], count: number, leash: number): Herd {
     const { rng } = ctx;
     const kind = KINDS[kindId];
@@ -661,30 +661,3 @@ export class EntityManager {
 
 interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[] }
 
-interface SortedTiles { land: number[]; water: number[]; road: number[]; biome: Biome }
-
-/** Bucket a chunk's tiles by what can spawn on them, and find its dominant biome. */
-function sortTiles(tiles: ChunkTiles): SortedTiles {
-  const CS = WORLD.CHUNK_SIZE;
-  const land: number[] = [], water: number[] = [], road: number[] = [];
-  const biomeCount = new Map<number, number>();
-  for (let i = 0; i < CS * CS; i++) {
-    const t = tiles.types[i];
-    if (t === TileType.Ground || t === TileType.GroundAlt || t === TileType.Sand) {
-      if (!tiles.blocked[i]) land.push(i);
-      biomeCount.set(tiles.biomes[i], (biomeCount.get(tiles.biomes[i]) ?? 0) + 1);
-    } else if (t === TileType.Water) {
-      water.push(i);
-    } else if (t === TileType.Road || t === TileType.Bridge) {
-      road.push(i);
-    }
-  }
-  let biome = 0 as Biome, best = -1;
-  for (const [b, n] of biomeCount) if (n > best) { best = n; biome = b as Biome; }
-  return { land, water, road, biome };
-}
-
-export function tileCentre(tiles: ChunkTiles, i: number): [number, number] {
-  const CS = WORLD.CHUNK_SIZE;
-  return [tiles.cx * CS + (i % CS) + 0.5, tiles.cz * CS + Math.floor(i / CS) + 0.5];
-}

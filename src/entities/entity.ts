@@ -143,6 +143,14 @@ export class Entity {
   name: string;
   role: EntityRole = 'none';
   /**
+   * The number this creature travels under when the world owns it, or nought when it is ours.
+   *
+   * A creature the simulation is running is drawn here and can be swung at here, but what happens
+   * to it is decided there — so a blow that lands on one is reported rather than applied, and this
+   * is the name to report it under.
+   */
+  worldId = 0;
+  /**
    * Which villager on the register this is, or empty for anything that is not a resident. It is
    * the register, not this object, that knows their family and what they have seen happen.
    */

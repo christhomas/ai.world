@@ -2,7 +2,7 @@ import { socketLink, workerLink, type Link, type LinkEvents } from '../net/link'
 import {
   EMOTES, PROTOCOL_VERSION, cleanChat, cleanName,
   type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage,
-  type Letter, type PartyMember, type Stall, type StallItem, type TradeOffer, type WorldDelta,
+  type CreatureSnap, type Letter, type PartyMember, type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { GameState } from './state';
 import { ITEMS } from './items';
@@ -19,6 +19,12 @@ export interface OnlineEvents {
   onClock: (clock: Clock) => void;
   /** A command from whoever operates this world, to run on our own bus. */
   onCommand: (line: string, issuer: string) => void;
+  /** The creatures the world says are near us, and the ones that have gone from sight. */
+  onCreatures: (near: CreatureSnap[], gone: number[]) => void;
+  /** One of the world's creatures died. `mine` is true when it was our blow that did it. */
+  onCreatureKilled: (id: number, mine: boolean) => void;
+  /** We are no longer being told what lives here, so the game decides for itself again. */
+  onWorldSilent: () => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
   /** The owner of a dungeon floor describing its monsters. */
@@ -124,6 +130,8 @@ export class Online {
       onMessage: (text) => this.receive(text),
       onClose: (why) => {
         if (this.status !== 'offline' && !this.local) this.events.onSystem(why);
+        // nobody is telling us what lives here any more
+        this.events.onWorldSilent();
         this.status = 'offline';
         this.players.clear();
         this.link = null;
@@ -144,6 +152,11 @@ export class Online {
     this.link.close();
     this.link = null;
     this.players.clear();
+  }
+
+  /** Tell the world we hit one of its creatures. What it did about it comes back as a snapshot. */
+  strike(id: number, damage: number): void {
+    this.send({ type: 'strike', id, damage });
   }
 
   private send(message: ClientMessage): void {
@@ -167,6 +180,12 @@ export class Online {
         break;
       case 'clock':
         this.events.onClock(message.clock);
+        break;
+      case 'creatures':
+        this.events.onCreatures(message.near, message.gone);
+        break;
+      case 'killed':
+        this.events.onCreatureKilled(message.id, message.by === this.id);
         break;
       case 'command':
         // whoever operates this world has sent something to do. What it does is the client's own

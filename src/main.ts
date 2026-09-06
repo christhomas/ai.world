@@ -19,6 +19,7 @@ import { Skyline } from './game/skyline';
 import { noSuchTopic, topicFor, topicIndex } from './ui/topics';
 import { CommandBus, describeResult } from './core/commandbus';
 import { mountainAt, rangesAsMassifs } from './world/ranges';
+import { Wildlife } from './game/wildlife';
 import { registerCommands, type CommandWorld } from './game/commands';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
@@ -31,7 +32,7 @@ import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, typ
 import { buildBoat } from './render/boat';
 import { StructureKind, compassDir, placeKindName } from './world/structures';
 import { ITEMS, sellPrice } from './game/shops';
-import { COMBAT, struck, swing } from './game/combat';
+import { COMBAT, spoils, struck, swing } from './game/combat';
 import { carriedTo, costOf, saidOfKnockout } from './game/knockout';
 import { BREATH, Breath, guardCovers } from './game/breath';
 import { createInteractions } from './game/interact';
@@ -205,6 +206,7 @@ function startGame(
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
   const chunks = new ChunkManager(rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial);
+
   // The mountains go into the scene once and stay there. They are one shape the size of a county,
   // not something streamed in squares as the hero walks, and they are visible from most of the
   // world — the whole of a world's mountain country is fewer triangles than a single chunk of
@@ -254,6 +256,15 @@ function startGame(
     // are. Whichever kind of mountain this world grew — a massif, or a polygon range.
     (x, z) => highPlaces.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
   );
+  /**
+   * The creatures the world says are there.
+   *
+   * When the simulation owns the wildlife — which it does the moment this client is connected to
+   * one, whether that is a server or the thread next door — the game stops inventing its own and
+   * draws what it is told. Two players in one field then see the same deer, which is the whole of
+   * what phase three of docs/server-authority.md is for.
+   */
+  const wildlife = new Wildlife(entityRenderer, entities);
   const dialogue = new DialogueBox();
   /**
    * The hero's own face, on the right of every conversation. It is seeded by the name they gave
@@ -520,6 +531,36 @@ function startGame(
     dialogue, hud, chat, sound, questList, discovered, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
+    // the world's own creatures: drawn as they arrive, and the local ones stand down
+    onCreatures: (near, gone) => {
+      if (!entities.toldWhatLives) {
+        entities.toldWhatLives = true;
+        entities.forgetTheWildlife();
+      }
+      wildlife.apply(near, gone);
+    },
+    /**
+     * One of the world's creatures died.
+     *
+     * Everybody drops it from their screen; whoever landed the blow takes what was on it. What a
+     * pelt is worth is decided here rather than by the world, because a purse and a rucksack live
+     * in a player's own save and never travel — the world's business is that the creature is dead.
+     */
+    onCreatureKilled: (id, mine) => {
+      const body = wildlife.find(id);
+      if (body && mine) {
+        const won = spoils(state, body, seed);
+        if (won.gold > 0) { state.inventory.gold += won.gold; state.version++; }
+        for (const item of won.loot) state.give(item, 1);
+        if (won.gold > 0 || won.loot.length > 0) sound.chime();
+      }
+      wildlife.apply([], [id]);
+    },
+    onWorldSilent: () => {
+      if (!entities.toldWhatLives) return;
+      entities.toldWhatLives = false;
+      wildlife.clear();
+    },
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
   const { online, market, party, duel, warband, coop, others, handover, rally, playerList } = multiplayer;
@@ -1002,6 +1043,8 @@ function startGame(
     // the ledger moves on every deed, not only on the ones that change what people call you
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
+    // and the ones the world owns, which it resolves for everybody at once
+    for (const { id, damage } of res.struck) online.strike(id, damage);
     if (res.hit.length === 0) {
       sound.miss();
       // a blade that finds nothing where something plainly stands has to say why, or the rule
@@ -1063,6 +1106,8 @@ function startGame(
     const res = shoot(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing);
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
+    // and the ones the world owns, which it resolves for everybody at once
+    for (const { id, damage } of res.struck) online.strike(id, damage);
     if (res.hit.length === 0) { sound.select(); hud.flash(`Missed. ${quiver(state)} arrows left.`); return; }
     sound.thud();
     if (res.killed.length > 0) {
@@ -1100,6 +1145,8 @@ function startGame(
     const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing, cast.blow);
     state.standing = standing.value;
     for (const { index, damage } of res.reported) coop.reportHit(index, damage);
+    // and the ones the world owns, which it resolves for everybody at once
+    for (const { id, damage } of res.struck) online.strike(id, damage);
     if (res.killed.length > 0) {
       // what lived in the workings is what made them dangerous, so killing it is the one thing a
       // player can do that moves a village's whole economy
@@ -1574,6 +1621,8 @@ function startGame(
       // outside: a probe that reads e.winding off this and finds undefined quietly measures
       // nothing at all and reports it as a result
       dead: e.dead, hurt: Math.round(e.hurt * 100) / 100,
+      // nought when this client owns it, and the world's own number when the world does
+      worldId: e.worldId,
       winding: Math.round(e.winding * 1000) / 1000, warned: e.warned,
     })),
   };
@@ -2233,6 +2282,8 @@ function startGame(
     // the village to hunt somebody it can never touch is exactly the sort of thing you notice
     // when you are stood at a rim looking down at them.
     entities.update(dt, player.x, player.z, state.armed || skies.aloft !== null, onAttack, state.time, sailing.sailing);
+    // what the world says is about, eased towards where it last said it was
+    wildlife.update(dt);
     // and nothing announces a blow it is in no position to land, so the cloud is quiet
     if (skies.aloft === null) announceWindUps(entities.within(player.x, player.z, HEARD_WINDING));
     mount.update(player, chunks);

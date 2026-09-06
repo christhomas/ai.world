@@ -110,7 +110,14 @@ export class Simulation {
     const sampler = new TerrainSampler(graph);
     const grown = new GroundWorld(sampler);
     this.ground.set(seed, grown);
-    this.wildlife.set(seed, new Wildlife(seed, grown, sampler.structures.villages));
+    // Animals only. The people of a village are worked out from the seed and the register of who
+    // has died, so every client already agrees about them without being told — and a villager the
+    // server owned would be one the player could not talk to, because a conversation is a thing the
+    // client holds. What players disagree about is the wildlife, so that is what moves across.
+    const alive = new Wildlife(seed, grown);
+    this.wildlife.set(seed, alive);
+    // so that a blow arriving through the roster can find whatever is running the creatures
+    this.rooms.ownCreatures(seed, alive);
     return grown;
   }
 

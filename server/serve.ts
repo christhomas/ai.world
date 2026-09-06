@@ -74,7 +74,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const dataDir = options.dataDir ?? 'server/data';
   // The simulation is the game. This is the thing that gives it sockets, files and an address; a
   // Web Worker gives the same simulation a MessagePort and a browser's idea of storage instead.
-  const sim = new Simulation({ dataDir, vault: new FileVault() });
+  // `ground: true`: the server grows the world it is serving and owns the creatures in it, which
+  // is what makes two players in one field look at the same deer. It costs about a tenth of a
+  // second and twenty megabytes a world, measured, plus a couple of per cent of a core per player.
+  const sim = new Simulation({ dataDir, vault: new FileVault(), ground: true });
   const rooms = sim.rooms;
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;

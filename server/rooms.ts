@@ -24,6 +24,16 @@ export interface Wire {
  * `messages.ts` decides what to do about a message; this decides who hears it.
  */
 
+/**
+ * Whatever is running the creatures of a world.
+ *
+ * Named as the little of it the roster needs rather than as the class itself, because the roster
+ * has no business knowing what a creature is — only that somebody has to be told when one is hit.
+ */
+export interface CreatureOwner {
+  struck(id: number, damage: number): boolean;
+}
+
 /** One connected player. */
 export interface Client {
   wire: Wire;
@@ -116,6 +126,23 @@ export class Rooms {
     let sent = 0;
     for (const client of room.clients) if (client !== except) { this.send(client, message); sent++; }
     return sent;
+  }
+
+  /**
+   * What is alive in a world, when something is keeping it alive.
+   *
+   * Set by the simulation when it grows a world; null when nothing owns the creatures, which is
+   * every world until the ground is switched on. Held here because a message about a creature
+   * arrives through the roster and has to find its way to whatever is running them.
+   */
+  private readonly living = new Map<number, CreatureOwner>();
+
+  ownCreatures(seed: number, owner: CreatureOwner): void {
+    this.living.set(seed, owner);
+  }
+
+  worldOf(seed: number): CreatureOwner | null {
+    return this.living.get(seed) ?? null;
   }
 
   /**

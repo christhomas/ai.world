@@ -308,3 +308,57 @@ describe('telling players what is alive near them', () => {
     expect(bytes / 3, 'bytes a second, one player').toBeLessThan(40_000);
   });
 });
+
+describe('hunting something the world owns', () => {
+  const walkAbout = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+  const tickFor = (sim: Simulation, ms: number, from = Date.now()): void => {
+    for (let at = 100; at <= ms; at += 100) sim.tick(from + at);
+  };
+
+  it('takes a blow, and says who killed what', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 600);
+
+    const prey = rowan.of('creatures').at(-1)!.near[0];
+    expect(prey, 'there is something to hunt').toBeDefined();
+
+    // hit it until it stops being there, the way a player would
+    for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'strike', id: prey.id, damage: 20 });
+    const killed = rowan.of('killed');
+    expect(killed.length, 'the world says it died').toBeGreaterThan(0);
+    expect(killed[0].id).toBe(prey.id);
+    expect(killed[0].by, 'and who did it, so they take what was on it').toBe(rowan.of('welcome')[0].id);
+  });
+
+  it('tells everybody in the world, not only whoever swung', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const wren = new Pretend(sim).join(3, 'Wren');
+    walkAbout(rowan, 0, 0);
+    walkAbout(wren, 3, 3);
+    tickFor(sim, 900);
+
+    const prey = rowan.of('creatures').at(-1)!.near[0];
+    for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'strike', id: prey.id, damage: 20 });
+    expect(wren.of('killed').length, 'the body falls on her screen too').toBeGreaterThan(0);
+    expect(wren.of('killed')[0].by, 'and it was not her').not.toBe(wren.of('welcome')[0].id);
+  });
+
+  it('will not take a client\'s word for how hard it hit', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 600);
+
+    // something with enough hearts that one honest blow could not do it
+    const stout = rowan.of('creatures').at(-1)!.near.reduce((a, b) => (a.hp > b.hp ? a : b));
+    rowan.say({ type: 'strike', id: stout.id, damage: 1e9 });
+    const killed = rowan.of('killed');
+    // one blow may be worth a great deal and still not be worth a number nothing could produce
+    if (stout.hp > 40) expect(killed.length, 'a made-up number does not kill it').toBe(0);
+  });
+});

@@ -114,7 +114,7 @@ export function shoot(
   standing: Standing | null = null,
 ): ShotResult {
   const out: ShotResult = {
-    hit: [], killed: [], gold: 0, loot: [], reported: [], regard: null, spent: 0, recovered: 0,
+    hit: [], killed: [], gold: 0, loot: [], struck: [], reported: [], regard: null, spent: 0, recovered: 0,
   };
   if (!canShoot(state)) return out;
   const damage = state.attack;
@@ -127,6 +127,12 @@ export function shoot(
   if (!mark) return out;
 
   out.hit.push(mark);
+  if (mark.worldId > 0) {
+    // the world owns this one: show the arrow landing and let the world say what it did
+    mark.hurt = BEHAVIOUR.HURT_TIME;
+    out.struck.push({ id: mark.worldId, damage });
+    return out;
+  }
   if (!authoritative) {
     // somebody else runs this floor: tell them, and show the shot landing
     mark.hurt = BEHAVIOUR.HURT_TIME;

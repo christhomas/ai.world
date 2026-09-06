@@ -1,8 +1,7 @@
 import { EntityManager } from '../src/entities/manager';
 import { Roster } from '../src/entities/roster';
-import type { Entity } from '../src/entities/entity';
+import { damageEntity, type Entity } from '../src/entities/entity';
 import type { GroundWorld } from '../src/world/groundworld';
-import type { Village } from '../src/world/structures';
 import type { CreatureSnap } from './protocol';
 
 /**
@@ -34,8 +33,16 @@ export class Wildlife {
   private readonly numbered = new WeakMap<Entity, number>();
   private nextNumber = 1;
 
-  constructor(seed: number, private readonly ground: GroundWorld, villages: Village[] = []) {
-    this.manager = new EntityManager(this.roster, ground, ground, seed, villages);
+  /**
+   * No villages are handed over on purpose.
+   *
+   * The manager spawns village folk when it is told where the villages are, and this must not: who
+   * lives in a village is worked out from the seed and the register of who has been killed, so
+   * every client already agrees about them. A villager owned by the server would be a villager
+   * nobody could talk to, because a conversation is held by the client.
+   */
+  constructor(seed: number, private readonly ground: GroundWorld) {
+    this.manager = new EntityManager(this.roster, ground, ground, seed, []);
   }
 
   /** How many creatures the server is holding. */
@@ -71,6 +78,24 @@ export class Wildlife {
     return seen;
   }
 
+  /**
+   * Somebody hit one of these. Decide what it did.
+   *
+   * The one place a blow on a wild animal is resolved, however many people are swinging: the client
+   * that threw it has already drawn it landing, and what it was worth is worked out here. Nothing
+   * is said back — the creature simply turns up hurt, or stops turning up.
+   */
+  struck(id: number, damage: number): boolean {
+    for (const e of this.roster.all()) {
+      if (this.numbered.get(e) !== id) continue;
+      // the same rules a blow follows anywhere: the ground decides whether it is thrown back
+      const killed = damageEntity(e, Math.max(1, Math.min(damage, MOST_A_BLOW)), e.x, e.z, this.ground);
+      if (killed) this.manager.killEntity(e);
+      return killed;
+    }
+    return false;
+  }
+
   /** The number a creature travels under, given the first time anybody asks about it. */
   private numberOf(e: Entity): number {
     const had = this.numbered.get(e);
@@ -95,6 +120,16 @@ export class Wildlife {
     this.manager.update(dt, who.x, who.z, false, () => {}, time);
   }
 }
+
+/**
+ * The most one blow may be worth, whatever a client says it threw.
+ *
+ * A client says how hard it hit, because the hero's strength is the hero's business and lives in
+ * their own save. What it may not do is say a number nothing in the game could produce — so the
+ * world caps it, which is the difference between trusting a player and taking their word for the
+ * shape of the world.
+ */
+const MOST_A_BLOW = 40;
 
 /** A tenth of a tile, which is as much of a creature's position as anybody can see. */
 const round = (v: number): number => Math.round(v * 10) / 10;

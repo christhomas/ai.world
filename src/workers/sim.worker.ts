@@ -18,7 +18,14 @@ import { BrowserVault } from '../net/browservault';
  * One player, one world, no network. `docs/server-authority.md` for where it goes next.
  */
 
-const sim = new Simulation({ dataDir: 'worlds', vault: new BrowserVault() });
+/**
+ * One player, one world, and the world's own creatures.
+ *
+ * `ground: true` is what makes this the authority rather than a clock with a market attached: it
+ * grows the same terrain the page is drawing, spawns the herds on it, steps them, and tells the
+ * page what is near. The page stops inventing its own the moment it is told anything.
+ */
+const sim = new Simulation({ dataDir: 'worlds', vault: new BrowserVault(), ground: true });
 
 /** The page, as the roster sees it: exactly what a websocket looks like from the same angle. */
 const wire: Wire = {
