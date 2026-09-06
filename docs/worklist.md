@@ -184,17 +184,19 @@ the two are separate jobs with a third in between them.
 
 ## On a phone
 
-- [ ] The game should be playable on a phone, and a phone should be held sideways to play it. On a
-      screen that small the whole design is landscape — an isometric view of a valley, a HUD along
-      the top and the bottom, a console that comes up from the bottom edge — and in portrait there
-      is nothing worth showing.
-- [ ] Detect a phone-sized screen rather than a touch screen: a tablet in portrait is a different
-      question and a laptop with a touchscreen is not a phone at all.
-- [ ] Lock to landscape where the browser allows it (`screen.orientation.lock`, which needs
-      fullscreen on most of them), and where it does not, hold the game landscape inside a portrait
-      window and say so — a turn-your-phone card over the top, rather than a squashed game behind it.
-- [ ] Then the HUD itself: the boxes are sized for a desktop window and there are a lot of them.
-      Work out what a phone shows and what it hides behind the console.
+- [x] A phone is held sideways to play this. *(`src/ui/sideways.ts`: the lock is asked for where a
+      browser will give it, and where it will not — which is iOS, at any price — an upright phone is
+      covered by a card asking to be turned, and uncovered the moment it is.)*
+- [x] Detect a phone rather than a touch screen. *(The screen's own two sides and whether the
+      pointer is a finger: a tablet on its end is a fine way to read a map, and a laptop with a
+      touchscreen is not a phone. Which way up it is being held comes from the *window* instead,
+      because on iOS `screen.width` is the width of the phone standing up whichever way it is
+      turned — read that for the orientation and the game asks somebody to turn a phone they have
+      already turned.)*
+- [ ] Then the HUD itself. There is a small-screen pass in `style.css` already and it is a good
+      one — three columns, the errand tracker hidden, the map cut to its own size — but it was
+      written before the console and the touch buttons, and the buttons now sit in the middle of the
+      picture rather than under a thumb. Play it on a phone and see what is in the way.
 
 ## Deployment
 

@@ -69,6 +69,7 @@ import { Minimap } from './ui/minimap';
 import { Fog, renderMapBase, type MapMarker } from './ui/mapbase';
 import { WorldMap } from './ui/worldmap';
 import { DialogueBox, type DialogueNode } from './ui/dialogue';
+import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from './save/store';
 import { GameState } from './game/state';
@@ -137,6 +138,9 @@ function defaultServer(url: URL): string {
 }
 
 async function boot(): Promise<void> {
+  // A phone is held sideways to play this, and it says so before anything else is drawn: the
+  // title screen is as landscape as the game behind it.
+  keepSideways(thisBrowser($('turnPhone')), whenTurned);
   const store = new IndexedDbStore();
   const url = new URL(window.location.href);
   const urlSeed = url.searchParams.get('seed');

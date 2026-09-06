@@ -8,6 +8,15 @@
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body>
+  <!-- A phone is held sideways to play this: the whole design is landscape. Hidden until
+       src/ui/sideways.ts finds a phone standing on its end. -->
+  <div id="turnPhone">
+    <div class="turn-card">
+      <div class="turn-icon">📱</div>
+      <h2>Turn your phone</h2>
+      <p>This world is wider than it is tall. Hold the phone sideways to walk about in it.</p>
+    </div>
+  </div>
   <div id="loading">Generating World...</div>
   <div id="gameContainer"></div>
   <div id="areaName">The Crossroads</div>

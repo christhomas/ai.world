@@ -557,3 +557,34 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #slots .slot { padding: 10px 12px; }
   #slots button { padding: 10px 14px; min-height: 44px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Turn your phone.
+
+   Over everything, including the title screen, because there is nothing worth
+   showing behind it: an isometric valley in a portrait window is a corridor.
+   Display is set from `sideways.ts` rather than by a media query, so that one
+   place decides what counts as a phone — a tablet on its end is fine, and a
+   desktop window nobody has resized should never see this.
+   --------------------------------------------------------------------------- */
+#turnPhone {
+  display: none; position: fixed; inset: 0; z-index: 9000;
+  align-items: center; justify-content: center;
+  background: #0d1420; color: #e8eef7; padding: 24px;
+  font-family: var(--ui-font, system-ui, sans-serif); text-align: center;
+}
+#turnPhone .turn-card { max-width: 320px; }
+#turnPhone .turn-icon {
+  font-size: 56px; line-height: 1;
+  display: inline-block; animation: turn-nudge 2.4s ease-in-out infinite;
+}
+#turnPhone h2 { margin: 14px 0 8px; font-size: 20px; letter-spacing: 0.5px; }
+#turnPhone p { margin: 0; font-size: 14px; line-height: 1.5; opacity: 0.8; }
+/* a quarter turn and back, which says what to do without a diagram */
+@keyframes turn-nudge {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  25%, 40% { transform: rotate(-90deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #turnPhone .turn-icon { animation: none; transform: rotate(-90deg); }
+}
