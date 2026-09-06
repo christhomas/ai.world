@@ -13,13 +13,14 @@ import { startServer, type RunningServer } from './serve';
  */
 
 const TOKEN = 'a-long-and-boring-secret';
+const WATCHING = 'a-token-that-may-only-look';
 
 let dir: string;
 let server: RunningServer;
 const sockets: WebSocket[] = [];
 
-const start = async (operatorToken?: string): Promise<void> => {
-  server = await startServer({ port: 0, dataDir: dir, quiet: true, operatorToken });
+const start = async (operatorToken?: string, watchToken?: string): Promise<void> => {
+  server = await startServer({ port: 0, dataDir: dir, quiet: true, operatorToken, watchToken });
 };
 
 /** A player in a world, keeping everything the server has said to them. */
@@ -122,5 +123,41 @@ describe('operating a world from outside it', () => {
     await start(TOKEN);
     const answer = await fetch(`http://localhost:${server.port}/operate`, { headers: { 'x-operator-token': TOKEN } });
     expect(answer.status).toBe(405);
+  });
+});
+
+describe('a token that may only ask', () => {
+  it('answers a question and refuses an instruction', async () => {
+    await start(TOKEN, WATCHING);
+    const asking = await post({ line: 'where' }, { 'x-operator-token': WATCHING });
+    expect(asking.status).toBe(200);
+
+    const doing = await post({ line: 'teleport 1 2' }, { 'x-operator-token': WATCHING });
+    expect(doing.status).toBe(403);
+    expect(doing.body).toContain('may only ask');
+  });
+
+  it('leaves the full token able to do both', async () => {
+    await start(TOKEN, WATCHING);
+    expect((await post({ line: 'where' }, { 'x-operator-token': TOKEN })).status).toBe(200);
+    expect((await post({ line: 'teleport 1 2' }, { 'x-operator-token': TOKEN })).status).toBe(200);
+  });
+
+  it('opens the door for a watcher even when nobody may operate', async () => {
+    await start(undefined, WATCHING);
+    expect((await post({ line: 'peaks' }, { 'x-operator-token': WATCHING })).status).toBe(200);
+    expect((await post({ line: 'peaks' }, { 'x-operator-token': TOKEN })).status).toBe(401);
+  });
+
+  it('shuts the door on somebody knocking too often', async () => {
+    await start(TOKEN);
+    let refused = 0;
+    // well past the limit, and every one of them correctly authenticated: the point is the rate,
+    // not the password
+    for (let i = 0; i < 130; i++) {
+      const answer = await post({ line: 'where' }, { 'x-operator-token': TOKEN });
+      if (answer.status === 429) refused++;
+    }
+    expect(refused, 'the last knocks are turned away').toBeGreaterThan(0);
   });
 });

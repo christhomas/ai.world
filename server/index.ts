@@ -2,7 +2,8 @@ import { startServer } from './serve';
 
 /**
  * Running the world server from a terminal: `chore world`, `pnpm server`, or node directly.
- * PORT, DATA_DIR, STATIC_DIR and OPERATOR_TOKEN are the only knobs; the rest lives in serve.ts.
+ * PORT, DATA_DIR, STATIC_DIR, OPERATOR_TOKEN and OPERATOR_WATCH_TOKEN are the only knobs; the
+ * rest lives in serve.ts.
  */
 const running = await startServer({
   port: Number(process.env.PORT ?? 8787),
@@ -12,6 +13,8 @@ const running = await startServer({
   // set OPERATOR_TOKEN and the server will take commands for the worlds it is holding. Unset, the
   // route does not exist — see docs/server-authority.md for what comes through it.
   operatorToken: process.env.OPERATOR_TOKEN,
+  // and a second one that may only ask a world questions, for anything watching rather than running
+  watchToken: process.env.OPERATOR_WATCH_TOKEN,
 });
 
 const shutDown = (): void => {

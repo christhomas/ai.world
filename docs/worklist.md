@@ -47,7 +47,8 @@ belongs to the project, and the next person to open it can see what was known.
 
 ## Smaller
 
-- [ ] `server/proxy.test.ts` is flaky under full-suite load — one-second deadlines lose a race when
-      a hundred other files are running.
-- [ ] The operator door has no safety story: anything the client will run, an operator can send.
-      The vocabulary already marks which commands only read; nothing uses that yet.
+- [x] `server/proxy.test.ts` is flaky under full-suite load. *(It was a race, not a deadline: the
+      test joined through the proxy in the same breath as the direct player. It waits for the
+      server to say she is in.)*
+- [x] The operator door has no safety story. *(`OPERATOR_WATCH_TOKEN` may only run the commands
+      marked `reads`; both tokens are rate limited, and every command through the door is logged.)*

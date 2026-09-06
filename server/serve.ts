@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocketServer } from 'ws';
-import { parseCommand } from './commands';
+import { COMMANDS, parseCommand } from './commands';
 import { PROTOCOL_VERSION, cleanName, type ClientMessage, type ServerMessage } from './protocol';
 import { handle } from './messages';
 import { Rooms } from './rooms';
@@ -41,6 +41,14 @@ export interface ServerOptions {
    * the internet, the second is the one worth having. `index.ts` reads it from the environment.
    */
   operatorToken?: string;
+  /**
+   * A second password that may only ask questions.
+   *
+   * A dashboard watching a world wants `where` and `towns`; it has no business teleporting anybody.
+   * Two tokens rather than one with a flag, because the difference is who holds it — a thing that
+   * can only look is a thing that can be given to something you trust less.
+   */
+  watchToken?: string;
 }
 
 export interface RunningServer {
@@ -57,7 +65,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;
   const http = createServer((req, res) => {
-    if (options.operatorToken && req.url === '/operate') { operate(rooms, options.operatorToken, req, res); return; }
+    if ((options.operatorToken || options.watchToken) && req.url === '/operate') {
+      operate(rooms, options, req, res);
+      return;
+    }
     // the status page keeps its own address once there is a game to serve at the root
     if (pages && req.url !== '/status' && pages(req, res)) return;
     res.writeHead(200, { 'content-type': 'text/plain' });
@@ -198,7 +209,7 @@ function listen(http: Server, port: number): Promise<number> {
  * The token is compared in full and only after the body has been read, so a wrong one costs the
  * same as a right one. It is not a login: whoever has it can do anything the vocabulary allows.
  */
-function operate(rooms: Rooms, token: string, req: IncomingMessage, res: ServerResponse): void {
+function operate(rooms: Rooms, options: ServerOptions, req: IncomingMessage, res: ServerResponse): void {
   const say = (code: number, body: unknown): void => {
     res.writeHead(code, { 'content-type': 'application/json' });
     res.end(JSON.stringify(body));
@@ -214,7 +225,14 @@ function operate(rooms: Rooms, token: string, req: IncomingMessage, res: ServerR
   req.on('end', () => {
     const given = String(req.headers['x-operator-token'] ?? '')
       || String(req.headers.authorization ?? '').replace(/^Bearer /, '');
-    if (given !== token) { say(401, { error: 'no' }); return; }
+    const may: 'anything' | 'ask' | 'nothing' =
+      options.operatorToken && given === options.operatorToken ? 'anything'
+        : options.watchToken && given === options.watchToken ? 'ask'
+          : 'nothing';
+    if (may === 'nothing') { say(401, { error: 'no' }); return; }
+    // A busy door is a door being tried. The limit is far above what operating a world takes and
+    // far below what a script working through a wordlist would want.
+    if (!withinRate(given)) { say(429, { error: 'too many' }); return; }
 
     let asked: { line?: string; seed?: number };
     try { asked = JSON.parse(body || '{}') as { line?: string; seed?: number }; }
@@ -226,8 +244,37 @@ function operate(rooms: Rooms, token: string, req: IncomingMessage, res: ServerR
     const read = parseCommand(line, 'operator');
     if (!read.ok) { say(400, { error: read.error }); return; }
 
+    if (may === 'ask' && !COMMANDS[read.command.name]?.reads) {
+      say(403, { error: `${read.command.name} changes the world; this token may only ask` });
+      return;
+    }
+
     const message: ServerMessage = { type: 'command', line, issuer: 'operator' };
     const sent = asked.seed === undefined ? rooms.everyone(message) : rooms.broadcast(asked.seed, message);
+    // Said out loud, because a command sent into somebody else's world should leave a trace in the
+    // place a person would look for one. There is no other record: the game is on the clients.
+    console.log(`operate: ${may === 'ask' ? 'watcher' : 'operator'} ran ${JSON.stringify(line)}`
+      + ` on ${asked.seed === undefined ? 'every world' : `world ${asked.seed}`} — ${sent} player${sent === 1 ? '' : 's'}`);
     say(200, { sent: line, players: sent });
   });
+}
+
+/**
+ * How often one token may knock, and how a knock is counted.
+ *
+ * A fixed window rather than anything cleverer: the point is to make a wordlist pointless, not to
+ * be fair to a busy operator, and a minute of memory for something with no state to lose is the
+ * whole of what this deserves.
+ */
+const KNOCKS = 120;
+const WINDOW = 60_000;
+const knocks = new Map<string, { until: number; count: number }>();
+
+function withinRate(token: string): boolean {
+  const now = Date.now();
+  const seen = knocks.get(token);
+  if (!seen || seen.until < now) { knocks.set(token, { until: now + WINDOW, count: 1 }); return true; }
+  seen.count++;
+  // whoever is knocking this hard is not operating a world
+  return seen.count <= KNOCKS;
 }

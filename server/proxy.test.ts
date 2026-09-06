@@ -105,7 +105,20 @@ describe('the world server behind a proxy', () => {
   it('tells a proxied player about one who came in directly, so the two share a world', async () => {
     const direct = new WebSocket(`ws://127.0.0.1:${running.port}`);
     await new Promise((open, fail) => { direct.on('open', open); direct.on('error', fail); });
+    // Wait for the server to say it has her, rather than for it to have had time to. Sending the
+    // join and joining through the proxy in the next breath is a race the proxied player wins
+    // whenever the machine is busy, and then the welcome lists nobody and the test blames the
+    // proxy for it.
+    const wrenIsIn = new Promise<void>((seated, fail) => {
+      const giveUp = setTimeout(() => fail(new Error(`no welcome for Wren after ${PATIENCE}ms`)), PATIENCE);
+      direct.on('message', (raw) => {
+        if ((JSON.parse(String(raw)) as ServerMessage).type !== 'welcome') return;
+        clearTimeout(giveUp);
+        seated();
+      });
+    });
     direct.send(JSON.stringify({ type: 'join', seed: 7, name: 'Wren', version: PROTOCOL_VERSION, day: 2, time: 0.4 }));
+    await wrenIsIn;
 
     const heard = await joinThroughProxy('Rowan');
     const welcome = heard.find((m) => m.type === 'welcome');

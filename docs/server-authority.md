@@ -64,7 +64,10 @@ Two doors, and they are not the same door.
   from production builds.
 - **Operating a real world.** `POST /operate` on the server, authenticated with `OPERATOR_TOKEN`
   from the environment. With no token in the environment the route is not registered at all — not
-  guarded, not present.
+  guarded, not present. `OPERATOR_WATCH_TOKEN` is the same door for anything that should only ask
+  questions: it runs the commands marked `reads` and refuses the rest, so a dashboard can be given
+  a key that cannot teleport anybody. Both are rate limited, and every command that goes through is
+  logged, because there is no other record — the game is on the clients.
 
 ## The order of the work
 
