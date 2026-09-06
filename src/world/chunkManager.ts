@@ -5,6 +5,7 @@ import type { PropKind } from './biomes';
 import type { WorkerRequest, WorkerResponse } from './messages';
 import { Standing } from './standing';
 import { TileType } from './terrain';
+import { mountainAt, type Ranges } from './ranges';
 import type { TileWorld } from '../entities/entity';
 import type { ChunkSource, ChunkTiles } from '../entities/manager';
 import type { TerrainSampler } from './terrain';
@@ -56,6 +57,9 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
+  /** The world's mountains, when it has any: geometry to stand on, not chunks to stream. */
+  private readonly ranges: Ranges | null;
+
   constructor(
     private readonly scene: THREE.Scene,
     sampler: TerrainSampler,
@@ -64,6 +68,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     glowMaterial: THREE.Material,
   ) {
     this.propBatch = new PropBatch(scene, props, glowMaterial);
+    this.ranges = sampler.ranges;
     const R = WORLD.VIEW_RADIUS;
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) this.offsets.push({ dx, dz });
     this.offsets.sort((a, b) => a.dx * a.dx + a.dz * a.dz - (b.dx * b.dx + b.dz * b.dz));
@@ -202,7 +207,14 @@ export class ChunkManager implements TileWorld, ChunkSource {
     if (!hit) return null;
     const type = hit.t.types[hit.i];
     if (type === TileType.Skip || type === TileType.Seabed || type === TileType.Water) return null;
-    return hit.t.heights[hit.i];
+    const ground = hit.t.heights[hit.i];
+    // A mountain is a solid standing on the ground rather than a shape the ground was bent into,
+    // so what is underfoot is whichever of the two is higher. Nothing needs to know which it is
+    // standing on: the surface is steep enough that STEP_LIMIT keeps walkers off the flanks by
+    // itself, and the roads — which run along the borders between faces, where the geometry comes
+    // down to the ground — are the ways through, exactly as the map draws them.
+    const rock = this.ranges ? mountainAt(this.ranges, x, z) : null;
+    return rock !== null && rock > ground ? rock : ground;
   }
 
   /**

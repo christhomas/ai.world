@@ -7,6 +7,7 @@ import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
+import { buildRanges, mountainAt, type Ranges } from './ranges';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 import { stampCentreProp, stampFootprint, stampPath, stampPier, stampPlaza, stampSingleProp } from './stamp';
@@ -103,6 +104,8 @@ const GROUND_ALT_CHANCE = 0.35;
 const DESPECKLE_MAJORITY = 5;
 /** Tiles beyond the road edge kept free of props. */
 const ROAD_SHOULDER = 1.2;
+/** How far a mountain has to stand above the ground before nothing grows under it, in units. */
+const PROP_HEADROOM = 1.5;
 const HIGH_ROCK_DENSITY = 0.06;
 /** Coast sand gets this fraction of the bank prop density. */
 const COAST_PROP_FACTOR = 0.25;
@@ -132,6 +135,15 @@ export class TerrainSampler {
   /** The world's mountains. Planned before structures, because structures sample the ground. */
   readonly massifs: Massif[];
   /**
+   * The mountains of a polygon world, as geometry standing on the ground rather than as ground.
+   *
+   * Null in the road-tree world, which has no mountain country wide enough to put one in, and
+   * where `massifs` above is still the answer. Built last of everything here: it asks how high the
+   * ground is at a few hundred points, and the ground has to be finished before that means
+   * anything.
+   */
+  readonly ranges: Ranges | null = null;
+  /**
    * How many storeys the houses of a village have, by village name.
    *
    * Set from outside, because how rich a village is belongs to the register and changes by the
@@ -160,7 +172,12 @@ export class TerrainSampler {
     // than off the village list, because villages are structures and structures are built from
     // the finished ground — asking them where the towns are would be a circle. The graph already
     // knows which nodes grew towns, which is the same answer one step earlier.
-    this.massifs = planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
+    //
+    // Only in the road-tree world. A polygon world's mountains are polygons — built at the end of
+    // this constructor, out of the faces the mesh already marked as mountain country — and a
+    // massif raising the heightfield underneath them would be a second, rounder mountain standing
+    // inside the first.
+    this.massifs = this.mesh ? [] : planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
       (x, z) => {
         const probe = this.landProbe(x, z);
         if (!probe || !probe.land) return null;
@@ -200,6 +217,19 @@ export class TerrainSampler {
       const b = structureBounds(s);
       this.structIndex!.insert(i, b.minX, b.minZ, b.maxX + 1, b.maxZ + 1);
     });
+
+    // The mountains, last. They stand on the finished ground rather than being part of it, so
+    // this has to happen after everything that decides how high the ground is — and can, because
+    // nothing above it asks where the mountains are. The ground is read at the corners and apexes
+    // of the polygons only: a few hundred tiles for a whole world, against one per tile if the
+    // mountains were a field again.
+    if (this.mesh) {
+      const probe = this.newSample();
+      this.ranges = buildRanges(this.mesh, (x, z) => {
+        this.sampleTile(Math.round(x), Math.round(z), probe);
+        return probe.height;
+      });
+    }
   }
 
   newSample(): TileSample {
@@ -572,6 +602,14 @@ export class TerrainSampler {
   /** Which prop (if any) grows on a land tile. Roads keep a clear shoulder; banks and water have their own tables. */
   private rollProp(grid: SampleGrid, gi: number, type: TileType): PropKind {
     const tx = grid.x0 + (gi % grid.G), tz = grid.z0 + Math.floor(gi / grid.G);
+    // Nothing grows under a mountain. The ground beneath one is still generated — it is what the
+    // rock stands on, and the rim needs it — but a tree rooted in ground that is now the inside of
+    // a mountain is a trunk sticking out of a cliff. A hand's breadth of clearance rather than
+    // nought, so the skirt where the rock meets the grass still has its scrub.
+    if (this.ranges) {
+      const rock = mountainAt(this.ranges, tx + 0.5, tz + 0.5);
+      if (rock !== null && rock > grid.height[gi] + PROP_HEADROOM) return PropKind.None;
+    }
     const def = BIOMES[grid.biome[gi]];
     const r = rand2(this.seed, tx, tz, TILE_SALT.PROP_ROLL);
     const kindRoll = rand2(this.seed, tx, tz, TILE_SALT.PROP_KIND);

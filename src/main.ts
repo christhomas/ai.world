@@ -14,6 +14,8 @@ import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
 import { DayCycle } from './render/daycycle';
 import { ChunkManager } from './world/chunkManager';
+import { MountainMaterial, buildMountainMesh } from './render/mountains';
+import { Skyline } from './game/skyline';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
 import { planEyries } from './game/eyries';
@@ -99,6 +101,9 @@ import type { WildCamp } from './game/wildcamps';
 import { remember } from './world/people';
 import { gone, hauntsOf, toRaise, warningFor, type Haunt } from './game/haunts';
 import { hashString } from './core/rng';
+
+/** How far above his feet the hero's middle is, for the window the mountains keep open. */
+const HERO_EYE = 1.2;
 
 
 /** The world server's own port, which `chore world` also uses. */
@@ -190,6 +195,18 @@ function startGame(
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
   const chunks = new ChunkManager(rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial);
+  // The mountains go into the scene once and stay there. They are one shape the size of a county,
+  // not something streamed in squares as the hero walks, and they are visible from most of the
+  // world — the whole of a world's mountain country is fewer triangles than a single chunk of
+  // ground, so there is nothing to gain by taking them away again.
+  const rock = new MountainMaterial();
+  if (sampler.ranges) {
+    const range = buildMountainMesh(sampler.ranges, rock.material);
+    if (range) rig.scene.add(range);
+  }
+  // and the camera's own answer to them: it stands further back near a range, because a peak is
+  // taller than the picture is and would otherwise be cut off by the top of its own frustum
+  const skyline = new Skyline(sampler.ranges);
   const hud = new Hud(rig, seed);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
   hud.onQualityChange = (level) => {
@@ -1266,6 +1283,8 @@ function startGame(
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
+  /** Where the mountains are told the hero is: his feet plus enough to be his middle. */
+  const heroSpot = new THREE.Vector3();
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
 
   // debug handle so headless screenshots can jump the calendar
@@ -1737,6 +1756,12 @@ function startGame(
     }
     const talking = dialogue.isOpen || worldMap.isOpen;
     iso.update(input, dt, player.mode === 'free' && !talking && !places.indoors);
+    // the mountains, twice: how far back the camera stands from them, and the hole they keep open
+    // in front of the hero so that being on the far side of one is not being unable to play
+    skyline.update(iso, player.entity.x, player.entity.z, dt, !places.indoors && !places.underground);
+    heroSpot.set(player.entity.x, player.entity.y + HERO_EYE, player.entity.z);
+    rock.look(heroSpot, iso.camera, iso.target);
+
     /**
      * The guard is held, not tapped, and it is polled here rather than bound as a one-shot key so
      * that how long it has been up is a real number the parry window can be measured against.
@@ -1759,6 +1784,9 @@ function startGame(
       iso.target.z += (sailing.z - iso.target.z) * Math.min(1, dt * 6);
     }
     player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
+    // and then look up at the mountain, if there is one: the hero has just pointed the camera at
+    // his own feet, and a peak is above the top of the picture from there
+    iso.target.y += skyline.headroom;
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) { state.tick(dt); magic.tick(dt); }
