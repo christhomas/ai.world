@@ -1,11 +1,11 @@
-# The two together, so a cluster adopts the game with one reference rather than two.
+# The namespace and the release together, so a cluster adopts the game with one reference rather
+# than two.
 #
-# Whatever holds the cluster's desired state — a homelab-flux repository, or Flux's own bootstrap
-# path — points at this directory and gets the source and the release as a unit. Nothing here knows
-# which cluster it is going into, which is what makes it work on the Pi and on a VPS unchanged.
+# Whatever holds the cluster's desired state points a Flux Kustomization at this directory. The
+# GitRepository it reads this from is that cluster's to create — it is the thing that found this
+# directory, so it cannot also be described inside it.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - gitrepository.yaml
   - helmrelease.yaml

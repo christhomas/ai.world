@@ -1,13 +1,19 @@
 # Installing the game, and keeping it installed.
 #
-# This is the piece that makes deployment a commit. Flux watches the GitRepository beside this file,
-# renders the chart, and reconciles the cluster against it — continuously, not once. Someone editing
-# the Deployment with kubectl gets corrected within the interval; a Deployment somebody deletes comes
-# back without anyone noticing it went.
+# This is the piece that makes deployment a commit. Flux renders the chart beside this file and
+# reconciles the cluster against it — continuously, not once. Someone editing the Deployment with
+# kubectl gets corrected within the interval; a Deployment somebody deletes comes back without
+# anyone noticing it went.
 #
 # That is the difference from `helm install`, which records what it installed and then stops caring,
 # and from a Pulumi run, which compares against reality only when a person asks it to. Same axis,
 # three rungs: ran once, checks when asked, checks always.
+#
+# What is deliberately NOT here: hostnames, ingress classes, storage classes, resource limits — the
+# facts that differ between one cluster and the next. Writing this file for a particular machine
+# would make the game deployable on that machine and nowhere else, and would put a name that means
+# nothing outside somebody's house into the game's own repository. They arrive instead through the
+# ConfigMap named at the bottom, which belongs to whoever runs the cluster.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -22,6 +28,11 @@ spec:
     spec:
       chart: ./chart
       version: '0.1.0'
+      # The GitRepository is not declared here. Whoever runs the cluster creates it — it is what
+      # points Flux at this repository in the first place, so it necessarily exists before anything
+      # in this directory is read, and a second object of the same name would be two things claiming
+      # one source. Its `ignore` rules have to keep both `/chart`, which this reads, and `/deploy`,
+      # which holds the Kustomization that reads this.
       sourceRef:
         kind: GitRepository
         name: ai-world
@@ -44,34 +55,28 @@ spec:
       remediateLastFailure: true
     cleanupOnFail: true
 
+  # Only what is true of the game wherever it runs.
   values:
-    # Everything not named here takes the chart's own default, which is deliberately written to suit
-    # k3s: storage class and ingress class both left empty so the cluster's own defaults win —
-    # local-path and Traefik.
-    ingress:
-      enabled: true
-      hosts:
-        - host: homelab.local
-          paths:
-            - path: /
-              pathType: Prefix
-
-    # Modest on purpose. This machine is a media centre first: it runs Kodi on tty1 against the
-    # display, and a pod that eats the machine leaves somebody looking at a stuttering film. These
-    # are the limits that keep the game a guest rather than the tenant.
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        memory: 512Mi
-
+    # The worlds outlive the pods. Off, an upgrade — not a crash, an ordinary upgrade — forgets
+    # every world the server was holding.
     persistence:
       enabled: true
-      size: 2Gi
 
     # The server hands out the built page as well as the world, on one origin. That is what lets
     # the client work out its own WebSocket address from wherever it was loaded, so nothing has to
     # be configured with a server address — the whole reason one box can host this.
     page:
       enabled: true
+
+  # Everything a particular cluster disagrees about: the hostname it answers on, its ingress class,
+  # its storage class, how much memory the machine can spare. The cluster's own stack creates this
+  # ConfigMap; this repository only says where to look for it.
+  #
+  # Optional, so a cluster that has nothing to say installs the chart's own defaults and works —
+  # which is what makes this directory usable on a second cluster without editing it. Values here
+  # win over the block above, so a cluster can overrule anything.
+  valuesFrom:
+    - kind: ConfigMap
+      name: ai-world-cluster-values
+      valuesKey: values.yaml
+      optional: true
