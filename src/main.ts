@@ -587,6 +587,7 @@ function startGame(
     buildingSite.dispose();
     props.dispose();
     rig.water.dispose();
+    rig.coast.dispose();
     rig.renderer.dispose();
     rig.renderer.domElement.remove();
   };
@@ -2266,6 +2267,8 @@ function startGame(
     // decide which props are worth handing to the GPU, so it has to be said before it is asked
     rig.follow(x, z, iso.zoom);
     chunks.update(x, z);
+    // and the sea reads the ground back, so its waves come in parallel to whatever coast is here
+    rig.seaAround(x, z, chunks);
     // season and weather: both derived from the day counter and the biome underfoot
     const here = sampler.probe(player.x, player.z);
     const season = seasonOf(state.day);

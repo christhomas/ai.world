@@ -94,6 +94,12 @@ const EDGE_MARGIN = GRAPH.MAX_WIDTH * 1.45 + WORLD.SEABED_RANGE + 2;
 const RIVER_MARGIN = HYDRO.RIVER_MAX_WIDTH + HYDRO.BANK + 8;
 const LAKE_MARGIN = HYDRO.BANK + 8;
 const HUB_PLAZA = 5;
+/**
+ * How far a valley side goes back for every terrace it climbs, in tiles. One number for two jobs,
+ * and they have to agree: the slope the ground beside a river is held down to, and the slope the
+ * high country may come back up at as it leaves the water. Disagree, and one of them leaves a step.
+ */
+const VALLEY_SIDE = 1.4;
 /** Share of ground tiles that use the alternate ground colour. */
 /**
  * What `landWidth` reports in a mesh world: the width of the countryside a road runs through,
@@ -437,9 +443,14 @@ export class TerrainSampler {
     const water = riverCands.length > 0 ? this.waterAt(px, pz, riverCands) : null;
     const plaza = Math.hypot(px, pz) < HUB_PLAZA;
 
-    // the country this is in, which the road climbs as much as the fields either side of it: a
-    // road through the mountains is a road in the mountains, not a trench across them
-    const country = this.highlandAt(px, pz);
+    // The country this is in, which the road climbs as much as the fields either side of it — a
+    // road through the mountains is a road in the mountains — cut down into any valley it crosses.
+    // The rivers were carved before the high country was raised over them, so a stream in the hills
+    // still runs at the level it had on the plain and the ground beside it is dragged back down to
+    // meet it. Nothing told the road that: it stayed up where the swell put it, and every road that
+    // crossed high ground with a river in it became a causeway with a ten-unit drop either side.
+    let country = this.highlandAt(px, pz);
+    if (water) country = Math.min(country, Math.max(0, water.wd - HYDRO.BANK) / VALLEY_SIDE);
 
     if (d < e.roadWidth || plaza) {
       out.type = TileType.Road;
@@ -498,12 +509,12 @@ export class TerrainSampler {
         type = TileType.Sand;
         out.bank = true;
       } else {
-        // valley sides climb one terrace per ~1.4 tiles away from the bank.
+        // valley sides climb one terrace per VALLEY_SIDE tiles away from the bank.
         // Measured against the ground rather than against the mountain standing on it: a river
         // cuts a valley into the country it runs through, it does not shave the top off a peak
         // half a mile above it. Without the `lift` here a massif with a stream anywhere near it
         // came out as level 5 in the middle and broke into slabs around the edges.
-        const cap = wl + Math.floor((water.wd - HYDRO.BANK) / 1.4);
+        const cap = wl + Math.floor((water.wd - HYDRO.BANK) / VALLEY_SIDE);
         if (level - lift > cap) {
           level = cap + lift;
           if (type === TileType.High && level - baseLevel < def.highAt) type = TileType.Ground;

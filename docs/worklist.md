@@ -46,6 +46,24 @@ belongs to the project, and the next person to open it can see what was known.
       peaks with valleys between them. *(A face carries up to three summits by area, the later ones
       shorter; seed 3 went from four peaks to six.)*
 
+## The world's surface
+
+- [x] The sea was one repeating texture: the same wave everywhere, crossing a beach without
+      noticing it. *(`src/render/coastfield.ts` measures how far every point of water is from land
+      and hands the shader a small picture of it; waves are contours of that field, so a swell
+      refracts round to arrive parallel to whatever coast is there, bunches and stands up as it
+      shallows, and breaks white at the water's edge. The wave field drives the surface normal, so
+      the light on it is the game's own sun. 0.3 ms a sweep, a few sweeps a second.)*
+- [x] Roads between towns stood on causeways with a ten-unit drop either side. *(The rivers were
+      carved before the high country was raised over them, so a river in the hills still ran at its
+      old level and dragged the ground beside it back down — but not the road. The country is now
+      cut down into the valley at the same slope the valley sides climb, so road and fields come
+      down together. Worst step beside a road: 21 terraces → 7.)*
+- [ ] The roads are too uniform: every one the same width, the same flat colour, the same straight
+      run between two nodes. A trunk road between towns and a lane to a farm should not look alike.
+- [ ] Ground beside a road can still stand seven terraces above it over six tiles, which is a
+      cutting rather than a verge. Worst offenders are near the world edge.
+
 ## Deployment
 
 - [x] Push the work, bump the chart to 0.2.0 and cut the release that gives it an image. *(Took

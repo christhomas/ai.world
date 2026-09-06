@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CAMERA, WORLD } from '../core/config';
+import type { ChunkSource } from '../world/tiles';
+import { CoastField } from './coastfield';
 import { WaterMaterial } from './water';
 
 const SKY = 0x8fc1e6;
@@ -169,10 +171,19 @@ export interface SceneRig {
   hemi: THREE.HemisphereLight;
   ambient: THREE.AmbientLight;
   water: WaterMaterial;
+  /** How far every point of the sea is from land, which is what shapes the waves. */
+  coast: CoastField;
   /** Set true once a DayCycle positions the sun, so follow() stops overriding it. */
   sunDriven: boolean;
   /** Call every frame with the camera target so light, shadows and water travel with the view. */
   follow(x: number, z: number, zoom: number): void;
+  /**
+   * Re-measure where the land is around the camera, so the waves know which way the shore is.
+   *
+   * Every frame, and cheap in almost all of them: the field only does the work when the view has
+   * travelled far enough for the answer to have changed.
+   */
+  seaAround(x: number, z: number, source: ChunkSource): void;
   /**
    * Fit the shadow slab to where the sun is now. `follow` does this with the sun it can see, which
    * is last frame's when a day cycle is driving it; whatever moves the sun should call this again
@@ -220,6 +231,9 @@ export function createSceneRig(container: HTMLElement): SceneRig {
   // Water: one big translucent plane that follows the camera. Seabed shows through near the coast,
   // the dark "deep" plane underneath makes open water read as depth.
   const waterMat = new WaterMaterial();
+  const coast = new CoastField();
+  const coastArea = new THREE.Vector4();
+  waterMat.setCoast(coast.texture, coast.area(coastArea));
   const seaGeo = new THREE.PlaneGeometry(900, 900, 1, 1).rotateX(-Math.PI / 2);
   {
     const c = new THREE.Color(0x2f86bf);
@@ -228,6 +242,9 @@ export function createSceneRig(container: HTMLElement): SceneRig {
     for (let i = 0; i < n; i++) { colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b; }
     seaGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     seaGeo.setAttribute('flow', new THREE.BufferAttribute(new Float32Array(n), 1));
+    // this one plane is the sea; every other surface the water material draws is a river, a lake or
+    // a fall, and none of those has a coastline to bend a swell round
+    seaGeo.setAttribute('sea', new THREE.BufferAttribute(new Float32Array(n).fill(1), 1));
   }
   const water = new THREE.Mesh(seaGeo, waterMat.material);
   water.position.y = WORLD.WATER_Y;
@@ -259,7 +276,7 @@ export function createSceneRig(container: HTMLElement): SceneRig {
   })();
 
   return {
-    renderer, scene, sun, hemi, ambient, water: waterMat, sunDriven: false,
+    renderer, scene, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
     quality: remembered,
     setQuality(level: Quality) {
       const want = QUALITY[level];
@@ -302,6 +319,11 @@ export function createSceneRig(container: HTMLElement): SceneRig {
       groundRadius = Math.hypot(zoom * aspect / 2, zoom * GROUND_DEPTH);
       setWorldView(scene, x, z, groundRadius + VIEW_MARGIN);
       this.fitShadow();
+    },
+    seaAround(x, z, source) {
+      if (coast.update(x, z, source, performance.now())) {
+        waterMat.setCoast(coast.texture, coast.area(coastArea));
+      }
     },
     fitShadow() {
       // nothing has said where the camera is looking yet, so there is no picture to fit to
