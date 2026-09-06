@@ -170,15 +170,36 @@ so the shape is known and the pieces are the same ones.
 The surface is done. What is left is that every road is the same size and runs dead straight, and
 the two are separate jobs with a third in between them.
 
-- [ ] Widen the road width spread — a track at a yard and a half, a trunk road at five tiles — and
-      re-tune the roaming band plan beside it. The measurement to beat: seed 1 came out at ten bands
-      over one neighbourhood against a design figure of eight, and left one village unvisited over a
-      season.
-- [ ] Update the golden fingerprint and say in it what moved and why, because this one moves the
-      ground rather than its colours and so moves every saved world's layout.
-- [ ] Make a road wander: a low-frequency offset on the centreline so it is not a ruled line between
-      two nodes. Everything that reads `roadDist` — villages, props, spawning, the map — has to read
-      the same wander, so this is one function and every caller of it.
+- [no] Widen the road width spread. **Tried, measured, and put down.** A road's surface half-width
+      is not only what is drawn: rivers are routed around it, houses are set back from it and errands
+      are written about what it passes, so widening it moves every one of those. The fingerprint says
+      so plainly — `graph`, `hydro`, `structures`, `chunks` and `quests` all move, which is every
+      saved world in the world relaid.
+      What it costs is not the relaying, it is that the world comes out worse: with villages packed
+      closer, the roaming bands crowd. Measured over seeds 1, 2, 5 and 12, bands over one
+      neighbourhood inside a healing window went from 6/6/6/7 to 5/10/1/11 against a design figure of
+      eight. Dealing each band's circuit at a stride through what lies near home, rather than
+      shuffling it, recovers some of that (5/9/1/10) and is not enough. The width wants the roaming
+      design revisited, not a constant, and the surface work already tells a lane from a highway.
+- [ ] **Seed 12 has three villages no band ever reaches over a season**, and seeds 1, 2 and 5 have
+      none. Found while measuring the above, and true of the world as it stands: a village that is
+      neither a band's home nor within a circuit of one is never worked at all. Either every village
+      should be somebody's ground, or "nowhere is permanently safe" is not what the design means.
+- [~] Make a road wander. **Built, measured, and put down at the last fence.** One line in
+      `TerrainSampler.nearest`, which is the funnel every road distance in the world goes through:
+      take the signed distance to the run rather than the unsigned one, and subtract a slow noise
+      read *at the point* rather than along the road. Reading it at the point is the trick — two
+      edges meeting at a node ask the field in the same place and are pushed the same way, so a
+      junction stays a junction. Costs nothing measurable: a chunk still builds in a millisecond and
+      a world still stands up in 133 ms. It also *improves* the roaming: bands over one
+      neighbourhood came out 3/7/7/6 against 6/6/6/7, and villages nothing ever visits went from
+      three to one, because the villages spread with the roads.
+      What stopped it is the coast. A road bent seaward is a road on tiles the mesh calls water, and
+      a drowned road is a village nobody can walk to: at a lean of five tiles, seed 1 walls off
+      Thorncross and seed 3 walls off Broken Hall, which `traversal.test.ts` catches by name. Two and
+      a half tiles passes every test and is too small to see. So the bend wants to know where the
+      water is before it can be worth having — taper it toward the coast, or refuse it where the
+      road is within a few tiles of the sea — and that is a design pass rather than a constant.
 - [ ] Surfaces that belong to their country: cobbles where a road runs through a village, sand
       drifting over it in the desert, snow lying on it in the north.
 
