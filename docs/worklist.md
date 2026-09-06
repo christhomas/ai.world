@@ -22,9 +22,62 @@ belongs to the project, and the next person to open it can see what was known.
       the register, which every client already agrees about, and a villager the server owned would
       be one nobody could talk to. Hunting works through a strike message, with the world capping
       what one blow may be worth.)*
-- [ ] Village economy and monsters are still each client's own. The economy is derived from the
-      register, so it agrees already; the monsters on a dungeon floor are owned by whichever player
-      is on it, which is the older co-op arrangement and not yet the server's.
+
+### Phase 4, the rest of it — combat
+
+A swing is still resolved where it is drawn and the server told afterwards. Hearts, gold and what
+is in the pack stay in the player's own save whatever happens here: what moves is who decides that
+a blow landed.
+
+- [ ] A swing becomes a `swing` command: where the hero stood, which way he faced, when. The server
+      resolves it against its own creatures and answers with what was hit.
+- [ ] The client goes on drawing the swing at once and takes the server's word for the outcome, the
+      way it already does for a creature the world owns.
+- [ ] The bow, which is the same thing with a different reach and one arrow to account for.
+- [ ] A creature landing a blow on the hero: the server says how hard, the client takes it off its
+      own hearts.
+- [ ] Then the roster's `strike` message can go, because a swing will carry it.
+
+### Phase 4, the rest of it — warps
+
+A hero moves further in one message than a walk could, and the server takes it: that is how a
+teleport, a staircase and a gangplank all work today, and it is also what a client would send to
+walk through a wall. Each one wants a reason the server already knows about.
+
+- [ ] `teleport` is in the command vocabulary already: run it on the server, move its own hero, and
+      tell the client where he went, rather than the client moving and the server following.
+- [ ] Stairs and doors become asks — `descend`, `climb-out`, `enter-inn` — that the server answers
+      with a place and a position.
+- [ ] A boat and a horse: say plainly which of the two halves owns the hero while he is carried,
+      and hand authority over at the moment he steps on and off rather than inferring it from how
+      far he jumped.
+- [ ] With all three done, drop the `WARP_STEP` rule in `server/messages.ts`, which is the piece of
+      trust the others exist to remove.
+
+### Monsters on a dungeon floor
+
+Owned by whichever player is standing on the floor, which is the older co-op arrangement: the owner
+leaves and the monsters change their minds. Wildlife on the surface has already been through this,
+so the shape is known and the pieces are the same ones.
+
+- [ ] Grow a dungeon floor on the server. The generator is seed plus floor id and has no DOM in it;
+      check that is still true, and that a floor can be stood up without a renderer.
+- [ ] A floor owner in the simulation, the way `server/wildlife.ts` owns the surface: it ticks the
+      monsters on floors somebody is standing on, and nothing else.
+- [ ] Send the floor's monsters to everybody on it. A floor is small, so there is no interest
+      management to do — the whole floor is what is near you.
+- [ ] Blows go through `strike` against a floor, with the server capping what one is worth, exactly
+      as a blow on a deer does now.
+- [ ] Retire the client-owned `monsters` and `hit` messages once nothing sends them.
+- [ ] Let go of a floor nobody is on, so a world that has been explored does not cost anything to
+      keep.
+
+### Village economy
+
+- [ ] Audit what in the economy is not already derived from the register or held by the market, and
+      write down what is left. The belief is that it agrees on every client already — prices come
+      from the register and stalls are the server's — so this may close with a note rather than
+      with code, and if it does not, the list wants the exceptions rather than the worry.
 - [~] **Phase 4 — the hero.** *(Walking and collision are across. What crosses the wire is a
       `steer` — which way somebody pushed and for how long — and the server walks the hero itself
       against the ground it grew, then says where he got to. Both halves walk with the same
@@ -34,13 +87,6 @@ belongs to the project, and the next person to open it can see what was known.
       KB/s for phase three alone. A hero standing on nothing the server has grown — at sea, indoors,
       underground, on a horse or in a boat — is still the client's own, and the client takes back
       authority by itself whenever the server has no ground under him.)*
-- [ ] Combat is still the client's: a swing is resolved where it is drawn, and the server is told
-      about it afterwards through `strike`.
-- [ ] A warp is taken on trust. Teleports, staircases, ferries and boats move the hero further in
-      one message than a walk could, so the server reads a long jump as a warp and accepts it —
-      which is also what a client would send to walk through a wall. It wants a reason: a command
-      the server ran, or a place it knows the hero was standing in.
-
 ## Mountains
 
 - [x] Rivers no longer run off mountains. Hydrology takes its downhill from the massif uplift,
@@ -82,7 +128,26 @@ belongs to the project, and the next person to open it can see what was known.
       over a whole season. So the width and the shape of the web want doing together with the band
       plan re-tuned, and that is a day's work rather than a constant.)*
 - [ ] Ground beside a road can still stand seven terraces above it over six tiles, which is a
-      cutting rather than a verge. Worst offenders are near the world edge.
+      cutting rather than a verge. Worst offenders are near the world edge. *(`td` in `sampleTile`
+      is not clamped, so the rise away from a road goes on growing past the land width it was meant
+      to be measured against.)*
+
+### Roads, the rest of it
+
+The surface is done. What is left is that every road is the same size and runs dead straight, and
+the two are separate jobs with a third in between them.
+
+- [ ] Widen the road width spread — a track at a yard and a half, a trunk road at five tiles — and
+      re-tune the roaming band plan beside it. The measurement to beat: seed 1 came out at ten bands
+      over one neighbourhood against a design figure of eight, and left one village unvisited over a
+      season.
+- [ ] Update the golden fingerprint and say in it what moved and why, because this one moves the
+      ground rather than its colours and so moves every saved world's layout.
+- [ ] Make a road wander: a low-frequency offset on the centreline so it is not a ruled line between
+      two nodes. Everything that reads `roadDist` — villages, props, spawning, the map — has to read
+      the same wander, so this is one function and every caller of it.
+- [ ] Surfaces that belong to their country: cobbles where a road runs through a village, sand
+      drifting over it in the desert, snow lying on it in the north.
 
 ## Deployment
 
@@ -105,6 +170,10 @@ belongs to the project, and the next person to open it can see what was known.
       published for both architectures; the dead tag and its release are deleted, because a version
       somebody could roll back to and never start is worse than no version at all.)*
 
+- [ ] Nothing since 0.3.0 is released: the sea, the roads off their causeways, the road surfaces
+      and the server-walked hero are all on `main` and not in the cluster. One `chore release minor`
+      when the world geometry has settled enough to be worth a version.
+
 ## Smaller
 
 - [x] The page asks for `/favicon.ico` on every load and gets a 404. *(`public/favicon.svg`: sea, a
@@ -113,5 +182,15 @@ belongs to the project, and the next person to open it can see what was known.
 - [x] `server/proxy.test.ts` is flaky under full-suite load. *(It was a race, not a deadline: the
       test joined through the proxy in the same breath as the direct player. It waits for the
       server to say she is in.)*
+- [ ] `/time 0.5` answers "day 1, time 0.5" and the clock in the corner stays at 08:13. Seen once,
+      from a headless console; find out whether the command sets a time nothing reads, or whether the
+      day cycle eases to it too slowly to see in three seconds.
+- [ ] The server answers every steer with a `youAre`, which is about 0.7 KB/s a player down. Cheap
+      enough to leave alone, and the knob to turn if the Pi ever complains: answer at the presence
+      tick instead, since the client predicts either way.
+- [ ] The coast field is measured only where chunks are loaded, so water past the streamed ground
+      has open-sea waves and no shore. Invisible at the zoom the game plays at, and worth writing
+      down before somebody widens the view and wonders.
+
 - [x] The operator door has no safety story. *(`OPERATOR_WATCH_TOKEN` may only run the commands
       marked `reads`; both tokens are rate limited, and every command through the door is logged.)*
