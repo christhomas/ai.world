@@ -29,7 +29,7 @@ const ROCK = {
    * the valley is mostly the shaded side of something and a single flat grey reads as a hole in the
    * world. The two are far enough apart that the height ramp does visible work on its own.
    */
-  LOW: 0x5d5a55,
+  LOW: 0x6b6862,
   HIGH: 0x9a978f,
   /** Snow, and the height it starts at as a share of the tallest peak in the world. */
   SNOW: 0xeef2f5,
@@ -68,6 +68,18 @@ const ROCK = {
 const HOLE = {
   RADIUS: 7.5,
   RIM: 3.5,
+  /**
+   * How far in front of the hero the hole starts, in world units.
+   *
+   * Without it the hole begins at his own depth, which takes away the ground he is standing on: on
+   * a mountain flank the rock under his feet is at the same distance from the camera as he is, so
+   * the whole hillside vanished and he appeared to be standing on the desert two hundred units
+   * below. A few units of margin keeps what he is standing on and still cuts the wall between him
+   * and the camera.
+   */
+  STARTS_AT: 4,
+  /** And how far in front it takes to open fully, so the cut widens with distance rather than jumping. */
+  OPENS_OVER: 14,
 } as const;
 
 /**
@@ -163,7 +175,27 @@ export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THR
  * mountain a solid, and at the scale of a few pixels the eye reads the speckled edge as a fade.
  */
 export class MountainMaterial {
-  readonly material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  /**
+   * Drawn on both sides.
+   *
+   * A fan is wound from its apex outwards and whether that comes out clockwise depends on which way
+   * round the polygon's corners were stored, so half the triangles in a world face away from the
+   * camera. The normal is turned to face the sky either way — a mountain has no underside anybody
+   * can get to — but a back-facing triangle is not drawn at all, and the result was a hillside with
+   * holes in it that the hero appeared to be standing on the desert through.
+   */
+  readonly material = new THREE.MeshLambertMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    /**
+     * A little light of its own, so the shaded side of a mountain is rock rather than a hole.
+     *
+     * Half a mountain faces away from the sun at any hour, and Lambert gives an unlit face nothing
+     * but the ambient — which on a slab this size reads as a black shape cut out of the sky. Stone
+     * in shadow is dark grey and still plainly stone; this is the difference between the two.
+     */
+    emissive: 0x23262e,
+  });
   private readonly uniforms = {
     /** Where the hero is standing, in world space. */
     uHero: { value: new THREE.Vector3(0, 0, 0) },
@@ -172,6 +204,8 @@ export class MountainMaterial {
     /** How wide the hole is, and how much of that width is the dithered rim. */
     uHole: { value: HOLE.RADIUS },
     uRim: { value: HOLE.RIM },
+    uStarts: { value: HOLE.STARTS_AT },
+    uOpens: { value: HOLE.OPENS_OVER },
   };
 
   constructor() {
@@ -190,6 +224,8 @@ uniform vec3 uHero;
 uniform vec3 uLook;
 uniform float uHole;
 uniform float uRim;
+uniform float uStarts;
+uniform float uOpens;
 
 // a cheap hash of the pixel, so the rim breaks up in a fixed speckle rather than a moving fizz
 float rockDither(vec2 p) {
@@ -200,8 +236,12 @@ float rockDither(vec2 p) {
   vec3 fromHero = vRockWorld - uHero;
   float along = dot(fromHero, uLook);          // negative: between the camera and the hero
   float across = length(fromHero - along * uLook);
-  if (along < 0.0) {
-    float edge = smoothstep(uHole - uRim, uHole, across);
+  // how far in front of him this is, and therefore how much of a hole it is worth: nothing at his
+  // own depth, which is the ground he is standing on, and all of it further forward
+  float infront = clamp((-along - uStarts) / uOpens, 0.0, 1.0);
+  if (infront > 0.0) {
+    float hole = uHole * infront;
+    float edge = smoothstep(hole - uRim, hole, across);
     if (edge < rockDither(gl_FragCoord.xy)) discard;
   }
 }`);

@@ -54,9 +54,19 @@ describe('mountains built from the polygons', () => {
 
   it('stands its peaks between the shortest and the tallest a mountain may be', () => {
     for (const { seed, ranges } of worlds([1, 2, 3, 7, 42])) {
+      // A face's own mountain is within the range; the second and third summits on a wide face are
+      // shorter than it by design, because a chain of identical peaks is a fence.
+      const tallestOn = new Map<number, number>();
       for (const peak of ranges.peaks) {
-        expect(peak.lift, `seed ${seed} face ${peak.face}`).toBeGreaterThanOrEqual(RANGE.SHORTEST);
-        expect(peak.lift, `seed ${seed} face ${peak.face}`).toBeLessThanOrEqual(RANGE.TALLEST);
+        tallestOn.set(peak.face, Math.max(tallestOn.get(peak.face) ?? 0, peak.lift));
+      }
+      for (const [face, tallest] of tallestOn) {
+        expect(tallest, `seed ${seed} face ${face}`).toBeGreaterThanOrEqual(RANGE.SHORTEST);
+        expect(tallest, `seed ${seed} face ${face}`).toBeLessThanOrEqual(RANGE.TALLEST);
+      }
+      for (const peak of ranges.peaks) {
+        const most = tallestOn.get(peak.face) ?? 0;
+        expect(peak.lift, `seed ${seed} face ${peak.face}`).toBeGreaterThanOrEqual(most * RANGE.LESSER - 1e-6);
       }
       // and they are not all the same mountain: a range of identical peaks is a lattice again
       const heights = ranges.peaks.map((p) => Math.round(p.lift));

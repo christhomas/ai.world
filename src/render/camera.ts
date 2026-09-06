@@ -7,6 +7,16 @@ export class IsoCamera {
   readonly camera: THREE.OrthographicCamera;
   readonly target = new THREE.Vector3();
   rotation = Math.PI / 4;
+  /**
+   * How far above the target the camera actually looks, in world units.
+   *
+   * Used to look up a mountain without moving what the camera is following. Held here rather than
+   * added to `target` by whoever wants it, because the hero pulls the target back to his own feet
+   * every frame and anything added to it accumulates instead: the first version of this drifted
+   * fifty units into the air within a few seconds, which is where "the camera is a mile up" came
+   * from.
+   */
+  lift = 0;
   zoom: number = CAMERA.START_ZOOM;
   /** How far back this place lets you stand: less sky indoors and underground than in a field. */
   private ceiling: number = CAMERA.MAX_ZOOM;
@@ -96,11 +106,12 @@ export class IsoCamera {
   }
 
   private applyPosition(): void {
+    const at = this.target.y + this.lift;
     this.camera.position.set(
       this.target.x + Math.cos(this.rotation) * CAMERA.DIST,
-      this.target.y + CAMERA.HEIGHT,
+      at + CAMERA.HEIGHT,
       this.target.z + Math.sin(this.rotation) * CAMERA.DIST,
     );
-    this.camera.lookAt(this.target);
+    this.camera.lookAt(this.target.x, at, this.target.z);
   }
 }

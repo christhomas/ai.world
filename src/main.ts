@@ -2093,9 +2093,10 @@ function startGame(
       iso.target.z += (sailing.z - iso.target.z) * Math.min(1, dt * 6);
     }
     player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
-    // and then look up at the mountain, if there is one: the hero has just pointed the camera at
-    // his own feet, and a peak is above the top of the picture from there
-    iso.target.y += skyline.headroom;
+    // and then look up at the mountain, if there is one. Set rather than added: the hero pulls the
+    // camera back to his own feet every frame, so anything added here accumulates — which it did,
+    // fifty units into the air.
+    iso.lift = skyline.headroom;
     dialogue.update(dt);
     rig.water.update(time);
     if (!talking) { state.tick(dt); magic.tick(dt); }

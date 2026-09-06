@@ -40,12 +40,14 @@ export const RANGE = {
   /**
    * How high a peak stands above the ground it grows out of, in world units.
    *
-   * The old dome measured its height in terraces (half a unit each) and reached about fifty units.
-   * These are the same size in the end, but written in the units the geometry is actually built in
-   * — nothing here is terraced, so counting terraces would be counting a thing that is not there.
+   * Answerable to the camera, which is fixed at forty-five degrees and cannot step back. The
+   * picture is half the zoom tall — fifteen world units above the hero at the ordinary zoom — so a
+   * peak of fifty-five was a black wall filling the screen from its own foot, and no amount of
+   * looking up made that a view rather than an obstruction. At thirty-four a mountain is still
+   * twice anything else in the world and you can see past it.
    */
-  TALLEST: 58,
-  SHORTEST: 30,
+  TALLEST: 34,
+  SHORTEST: 19,
   /**
    * How much of that a face gets for being large.
    *
