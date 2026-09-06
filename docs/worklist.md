@@ -158,10 +158,12 @@ so the shape is known and the pieces are the same ones.
       bands over one neighbourhood against a design figure of eight, and left one village unvisited
       over a whole season. So the width and the shape of the web want doing together with the band
       plan re-tuned, and that is a day's work rather than a constant.)*
-- [ ] Ground beside a road can still stand seven terraces above it over six tiles, which is a
-      cutting rather than a verge. Worst offenders are near the world edge. *(`td` in `sampleTile`
-      is not clamped, so the rise away from a road goes on growing past the land width it was meant
-      to be measured against.)*
+- [x] Ground beside a road standing seven terraces above it: measured properly, and mostly not what
+      it looked like. *(The worst of them near the world edge were cliff coasts — a road along the
+      top of one with the sea at nought six tiles away — and the scan was counting the drowned end
+      of a road as a road tile. What was real was the other way up: a lake left standing eight units
+      above the fields around it, on a pedestal made of its own bank, by the rule that took the
+      roads off their causeways. Water sits in its own country now.)*
 
 ### Roads, the rest of it
 
