@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
 import { Simulation } from './sim';
+import { IN_SIGHT } from './wildlife';
 import { Forgetful } from './vault';
 
 /**
@@ -234,5 +235,76 @@ describe('the world alive on the server', () => {
     walkAbout(rowan, 0, 0);
     sim.tick(Date.now() + 100);
     expect(sim.livesIn(3)).toBeNull();
+  });
+});
+
+describe('telling players what is alive near them', () => {
+  const walkAbout = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+  /** Enough ticks for the creatures to go out, which they do rarer than presence. */
+  const tickFor = (sim: Simulation, ms: number, from = Date.now()): void => {
+    for (let at = 100; at <= ms; at += 100) sim.tick(from + at);
+  };
+
+  it('sends a player the creatures they can see, and nothing further off', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 600);
+
+    const told = rowan.of('creatures').at(-1);
+    expect(told, 'they were told about the country round them').toBeDefined();
+    expect(told!.near.length).toBeGreaterThan(0);
+    for (const c of told!.near) {
+      expect(Math.hypot(c.x, c.z), `${c.kind} at ${c.x},${c.z}`).toBeLessThanOrEqual(IN_SIGHT + 1);
+      expect(c.kind.length, 'it says what it is').toBeGreaterThan(0);
+    }
+  });
+
+  it('says what has gone out of sight, once, and then stops mentioning it', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    const from = Date.now();
+    tickFor(sim, 600, from);
+    const first = rowan.of('creatures').at(-1)!;
+    expect(first.near.length).toBeGreaterThan(0);
+
+    // a long walk: everything they could see is behind them now
+    walkAbout(rowan, 4_000, 4_000);
+    tickFor(sim, 600, from + 1_000);
+    const after = rowan.of('creatures').at(-1)!;
+    expect(after.gone.length, 'the country they left is taken off their screen').toBeGreaterThan(0);
+    expect(after.near, 'and there is nothing where they went, which is unloaded ground').toEqual([]);
+  });
+
+  it('tells two players in one field about the same creatures', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const wren = new Pretend(sim).join(3, 'Wren');
+    walkAbout(rowan, 0, 0);
+    walkAbout(wren, 4, 4);
+    tickFor(sim, 900);
+
+    const his = new Set(rowan.of('creatures').at(-1)!.near.map((c) => c.id));
+    const hers = wren.of('creatures').at(-1)!.near.map((c) => c.id);
+    expect(hers.length).toBeGreaterThan(0);
+    // standing four tiles apart, they are looking at the same animals — which is the whole point
+    expect(hers.filter((id) => his.has(id)).length).toBeGreaterThan(hers.length / 2);
+  });
+
+  it('costs what it was measured to cost, per player per second', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 3_000);
+
+    const messages = rowan.of('creatures');
+    const bytes = messages.reduce((n, m) => n + JSON.stringify(m).length, 0);
+    // three seconds of standing in open country: this is the number that decides whether a
+    // domestic router and a Raspberry Pi can carry a world, so it is written down rather than felt
+    expect(messages.length, 'about three a second').toBeGreaterThan(5);
+    expect(bytes / 3, 'bytes a second, one player').toBeLessThan(40_000);
   });
 });

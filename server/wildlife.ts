@@ -3,6 +3,7 @@ import { Roster } from '../src/entities/roster';
 import type { Entity } from '../src/entities/entity';
 import type { GroundWorld } from '../src/world/groundworld';
 import type { Village } from '../src/world/structures';
+import type { CreatureSnap } from './protocol';
 
 /**
  * The creatures of a world, run by the server.
@@ -22,10 +23,16 @@ import type { Village } from '../src/world/structures';
  * moves between them, so everybody's country is stepped in turn rather than only the first
  * arrival's. Sending what it holds to the right people is the next piece, not this one.
  */
+/** How far a player can see a creature, in tiles. Past this, it is somebody else's business. */
+export const IN_SIGHT = 60;
+
 export class Wildlife {
   private readonly roster = new Roster();
   private readonly manager: EntityManager;
   private turn = 0;
+  /** The number each creature travels under, which is the one thing the wire needs and an Entity lacks. */
+  private readonly numbered = new WeakMap<Entity, number>();
+  private nextNumber = 1;
 
   constructor(seed: number, private readonly ground: GroundWorld, villages: Village[] = []) {
     this.manager = new EntityManager(this.roster, ground, ground, seed, villages);
@@ -36,6 +43,42 @@ export class Wildlife {
 
   /** Everything alive, for whoever has to tell the players about it. */
   all(): Iterable<Entity> { return this.roster.all(); }
+
+  /**
+   * What one player can see, as the wire carries it.
+   *
+   * Interest management, and the whole of it at this stage: a player is sent what is near them and
+   * nothing else. Two hundred creatures stand round somebody in open country, so sending the world
+   * would be sending most of it to everybody several times a second — which is the cost this phase
+   * has to answer for, and the answer is that nobody is told about country they cannot see.
+   */
+  inSightOf(x: number, z: number, reach = IN_SIGHT): CreatureSnap[] {
+    const seen: CreatureSnap[] = [];
+    const r2 = reach * reach;
+    for (const e of this.roster.all()) {
+      const dx = e.x - x, dz = e.z - z;
+      if (dx * dx + dz * dz > r2) continue;
+      seen.push({
+        id: this.numberOf(e),
+        kind: e.kind.id,
+        // rounded on the way out: a creature's position is worth a tenth of a tile to look at, and
+        // the digits past that are bandwidth spent on nothing anybody can see
+        x: round(e.x), z: round(e.z), y: round(e.y),
+        yaw: round(e.yaw), walk: round(e.walk),
+        state: e.state, hp: e.hp,
+      });
+    }
+    return seen;
+  }
+
+  /** The number a creature travels under, given the first time anybody asks about it. */
+  private numberOf(e: Entity): number {
+    const had = this.numbered.get(e);
+    if (had !== undefined) return had;
+    const fresh = this.nextNumber++;
+    this.numbered.set(e, fresh);
+    return fresh;
+  }
 
   /**
    * Step the world's creatures, following the players in it.
@@ -52,3 +95,6 @@ export class Wildlife {
     this.manager.update(dt, who.x, who.z, false, () => {}, time);
   }
 }
+
+/** A tenth of a tile, which is as much of a creature's position as anybody can see. */
+const round = (v: number): number => Math.round(v * 10) / 10;

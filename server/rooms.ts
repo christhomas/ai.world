@@ -35,6 +35,14 @@ export interface Client {
   offers: Map<string, TradeOffer>;
   /** The party this client travels with, if any. */
   party: Party | null;
+  /**
+   * The creatures this client has been told about, and what it was told about each.
+   *
+   * Kept so that only changes have to be sent. Most of a countryside is standing still at any
+   * moment — a hundred and fifty of two hundred creatures are idle, grazing or asleep — and sending
+   * a deer that has not moved is paying for a fact the client already has.
+   */
+  seeing: Map<number, string>;
   /** Ids this client has asked to travel with, so an answer can be trusted. */
   invited: Set<string>;
   /** Ids this client has challenged to a bout, for the same reason. */
@@ -90,7 +98,7 @@ export class Rooms {
   /** Put a newcomer in a room and hand back the client the rest of the server will talk to. */
   admit(wire: Wire, room: Room, seed: number, name: string): Client {
     const client: Client = {
-      wire, seed, lastSeen: Date.now(), offers: new Map(), party: null,
+      wire, seed, lastSeen: Date.now(), offers: new Map(), party: null, seeing: new Map(),
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };

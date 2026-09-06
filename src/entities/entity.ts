@@ -16,7 +16,10 @@ export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | '
 export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods' | 'doctor';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
-export type EntityState = 'idle' | 'walk' | 'graze' | 'flee' | 'hop' | 'fly' | 'swim';
+// What a creature is doing travels between the halves of the game now, so the wire owns the list
+// and this re-exports it: two lists that must agree are one list with extra steps.
+export type { EntityState } from '../../server/protocol';
+import type { EntityState } from '../../server/protocol';
 
 /** Max height difference a walker can step across; terrace steps (0.5) are walls, ramps are fine. */
 export const STEP_LIMIT = 0.32;

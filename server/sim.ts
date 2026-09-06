@@ -1,5 +1,5 @@
 import { handle } from './messages';
-import { PROTOCOL_VERSION, cleanName, type ClientMessage, type ServerMessage } from './protocol';
+import { PROTOCOL_VERSION, cleanName, type ClientMessage, type CreatureSnap, type ServerMessage } from './protocol';
 import { Rooms, type Client, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
@@ -53,6 +53,15 @@ export interface Attached {
 export const TICK = 100;
 /** Drop anyone we have not heard from in this long. */
 export const TIMEOUT = 30_000;
+/**
+ * How often each player is told what is alive near them, in milliseconds.
+ *
+ * A third of a second. Presence is ten times a second because a hero that stutters is unplayable;
+ * a deer in the middle distance is not, and the client draws between what it is told anyway. Three
+ * a second for two hundred creatures is about six kilobytes a second a player, which a domestic
+ * router and a Raspberry Pi can both carry.
+ */
+export const CREATURE_INTERVAL = 330;
 
 /** How many chunks either side of a player the ground is held for, by default. */
 export const REACH = 3;
@@ -67,6 +76,8 @@ export class Simulation {
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
   private readonly wildlife = new Map<number, Wildlife>();
   private lastTick = Date.now();
+  /** Milliseconds since the creatures last went out, which is rarer than presence. */
+  private sinceCreatures = 0;
   private ticker: ReturnType<typeof setInterval> | null = null;
   private clockTicker: ReturnType<typeof setInterval> | null = null;
 
@@ -191,11 +202,51 @@ export class Simulation {
         for (const who of players) ground.reach(who.x, who.z, this.reach);
         ground.keepOnly(players, this.reach + 1);
         // and the creatures on it, following the players about
-        this.wildlife.get(seed)?.step(seconds, players, room.world.clock.time);
+        const alive = this.wildlife.get(seed);
+        if (alive) {
+          alive.step(seconds, players, room.world.clock.time);
+          this.tellAboutCreatures(seed, alive);
+        }
       }
       for (const client of room.clients) {
         this.rooms.send(client, { type: 'presence', players: players.filter((p) => p.id !== client.presence.id) });
       }
+    }
+  }
+
+  /**
+   * Tell each player what is alive near them, and what has gone from their sight.
+   *
+   * Per player rather than per world, because "near" is a different place for each of them — that
+   * is the whole of interest management, and it is what makes two hundred creatures a world affordable
+   * rather than two hundred creatures a player. Only the difference is sent: what is new or has
+   * moved, and the numbers of what has walked out of view.
+   *
+   * Sent at its own rate rather than every tick. Presence goes out ten times a second because a
+   * player's own hero must not stutter; a deer forty tiles away is perfectly legible at three.
+   */
+  private tellAboutCreatures(seed: number, alive: Wildlife): void {
+    const room = this.rooms.get(seed);
+    if (!room) return;
+    this.sinceCreatures += TICK;
+    if (this.sinceCreatures < CREATURE_INTERVAL) return;
+    this.sinceCreatures = 0;
+
+    for (const client of room.clients) {
+      const near = alive.inSightOf(client.presence.x, client.presence.z);
+      const changed: CreatureSnap[] = [];
+      const now = new Map<number, string>();
+      for (const c of near) {
+        // what a client would draw differently: where it is, which way it faces, what it is doing
+        const shape = `${c.x},${c.z},${c.y},${c.yaw},${c.walk},${c.state},${c.hp}`;
+        now.set(c.id, shape);
+        if (client.seeing.get(c.id) !== shape) changed.push(c);
+      }
+      const gone: number[] = [];
+      for (const id of client.seeing.keys()) if (!now.has(id)) gone.push(id);
+      client.seeing = now;
+      if (changed.length === 0 && gone.length === 0) continue;
+      this.rooms.send(client, { type: 'creatures', near: changed, gone });
     }
   }
 

@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -187,6 +187,37 @@ export const DUEL_RANGE = 2.4;
  */
 export const WARBAND_RANGE = DUEL_RANGE;
 
+/**
+ * One creature as the world's owner sees it.
+ *
+ * Sent by whatever is running the world — a server, or the simulation in the next thread — to
+ * everybody near enough to see it. Unlike a monster on a dungeon floor, a creature out in the
+ * country cannot be named by an index into a list both sides generated: what lives where is decided
+ * by the simulation rather than by the seed alone. So it carries its own id and says what it is.
+ *
+ * Deliberately small. Two hundred creatures stand near a player, and every field here is paid for
+ * several times a second by everybody who can see them.
+ */
+export interface CreatureSnap {
+  /** The world's own numbering, stable while the creature lives. */
+  id: number;
+  /** Which animal: the id of a kind, which every client already has the drawing for. */
+  kind: string;
+  x: number;
+  z: number;
+  y: number;
+  yaw: number;
+  /** Walk animation strength, so legs move. */
+  walk: number;
+  /** What it is doing, which decides how it is drawn. */
+  state: EntityState;
+  /** Hearts left, for anything that can be fought. */
+  hp: number;
+}
+
+/** What a creature is doing. The client draws each of these differently. */
+export type EntityState = 'idle' | 'walk' | 'graze' | 'flee' | 'hop' | 'fly' | 'swim';
+
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
@@ -241,6 +272,14 @@ export type ServerMessage =
    * does not run a given command simply says so.
    */
   | { type: 'command'; line: string; issuer: string }
+  /**
+   * The creatures near you, as the world's owner sees them, and the ones that have gone.
+   *
+   * "Gone" means gone from your sight rather than dead: walked out of your neighbourhood, or died,
+   * or the world stopped holding that piece of country. What it never means is that they were never
+   * there — a client that loses one simply stops drawing it.
+   */
+  | { type: 'creatures'; near: CreatureSnap[]; gone: number[] }
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }
