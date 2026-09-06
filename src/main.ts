@@ -80,6 +80,7 @@ import { damageEntity, yawFor, type Entity } from './entities/entity';
 import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
+import { Walked } from './game/walked';
 import { BEHAVIOUR, throwBlow } from './entities/entity';
 import type { Blow } from './entities/motion';
 import { SALT, derive } from './core/salts';
@@ -518,6 +519,21 @@ function startGame(
     });
   };
 
+  /**
+   * The hero's side of a hero the world owns: what we pushed, what is still in flight, and what to
+   * do when the answer comes back disagreeing. Built before the multiplayer half because the
+   * answer arrives through it.
+   */
+  const walked = new Walked((steer) => online.steer(steer.seq, steer.dx, steer.dz, steer.pace, steer.dt));
+  /**
+   * How the two halves are getting on, for `window.__walking` and for nothing else.
+   *
+   * Worth having a number for: the whole design rests on the client's guess and the world's answer
+   * being the same arithmetic, and the only honest way to know whether that is true is to walk
+   * about and read how often it is not.
+   */
+  const walking = { answers: 0, corrections: 0, worst: 0 };
+
   // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the
   // interaction layer below owns and hands back once it exists
   /** Late-bound the way the offer is: places is built before the interactions that split coin. */
@@ -560,6 +576,16 @@ function startGame(
       if (!entities.toldWhatLives) return;
       entities.toldWhatLives = false;
       wildlife.clear();
+      walked.reset();
+    },
+    // The world has walked our own hero. Almost always this agrees with where we already drew him,
+    // because both halves walk with the same `stride` over the same ground; where it does not, the
+    // world is right and the hero is moved — a lean for a small gap, at once for a large one.
+    onWhereYouAre: (seq, x, z) => {
+      if (places.indoors !== null || places.underground || sailing.sailing || player.riding) return;
+      const out = walked.toldWhereHeIs(player.entity, chunks, seq, x, z);
+      walking.answers++;
+      if (out > 0) { walking.corrections++; walking.worst = Math.max(walking.worst, out); }
     },
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
@@ -1671,6 +1697,9 @@ function startGame(
     };
     (debug as { __solid?: (x: number, z: number) => boolean }).__solid = (x, z) => chunks.blocked(x, z);
     (debug as { __place?: () => string }).__place = () => placeName();
+    (debug as { __walking?: () => unknown }).__walking = () => ({
+      ...walking, worst: Math.round(walking.worst * 1000) / 1000,
+    });
     (debug as { __coop?: () => unknown }).__coop = () => ({
       hosting: coop.hosting, mirroring: coop.mirroring, id: online.id,
       others: [...online.players.values()].map((p) => `${p.id}@${p.place}`),
@@ -2094,6 +2123,16 @@ function startGame(
       iso.target.z += (sailing.z - iso.target.z) * Math.min(1, dt * 6);
     }
     player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
+    // What the hero was trying to do goes to the world, which walks him itself and says where he
+    // got to; the step above has already walked him here so the game answers the key at once. Only
+    // out of doors and on his own feet: everywhere else the world has no ground to walk him on and
+    // the client is still the authority. `docs/server-authority.md`, phase four.
+    if (places.indoors === null && !places.underground && !sailing.sailing && !player.riding) {
+      walked.walked(player.steered);
+      walked.settle(player.entity, dt);
+    } else {
+      walked.reset();
+    }
     // and then look up at the mountain, if there is one. Set rather than added: the hero pulls the
     // camera back to his own feet every frame, so anything added here accumulates — which it did,
     // fifty units into the air.

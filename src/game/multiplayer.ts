@@ -90,6 +90,8 @@ export interface MultiplayerContext {
   onCreatureKilled: (id: number, mine: boolean) => void;
   /** The world stopped telling us what lives here, so the game goes back to deciding for itself. */
   onWorldSilent: () => void;
+  /** The world has walked our hero: put him where it says, and walk back what it had not seen. */
+  onWhereYouAre: (seq: number, x: number, z: number, y: number) => void;
   /**
    * How an offer of goods is put to the player. The dialogue that answers it belongs to the
    * interaction layer, which is built after this one, so main.ts hands it over here.
@@ -140,6 +142,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onCreatures: (near, gone) => ctx.onCreatures(near, gone),
     onCreatureKilled: (id, mine) => ctx.onCreatureKilled(id, mine),
     onWorldSilent: () => ctx.onWorldSilent(),
+    onWhereYouAre: (seq, x, z, y) => ctx.onWhereYouAre(seq, x, z, y),
     onMonsters: (place, snap, gone) => {
       const floor = places.underground;
       if (!floor) return;

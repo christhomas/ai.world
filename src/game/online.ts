@@ -25,6 +25,8 @@ export interface OnlineEvents {
   onCreatureKilled: (id: number, mine: boolean) => void;
   /** We are no longer being told what lives here, so the game decides for itself again. */
   onWorldSilent: () => void;
+  /** The world has walked our own hero, and this is where it says he is standing. */
+  onWhereYouAre: (seq: number, x: number, z: number, y: number) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
   /** The owner of a dungeon floor describing its monsters. */
@@ -178,6 +180,9 @@ export class Online {
           this.events.onSystem(`Joined world ${message.seed} as ${this.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
         }
         break;
+      case 'youAre':
+        this.events.onWhereYouAre(message.seq, message.x, message.z, message.y);
+        break;
       case 'clock':
         this.events.onClock(message.clock);
         break;
@@ -321,6 +326,17 @@ export class Online {
     if (this.sinceMove < MOVE_INTERVAL) return;
     this.sinceMove = 0;
     this.send({ type: 'move', ...me });
+  }
+
+  /**
+   * Say which way we pushed and for how long, so the world can walk the hero itself.
+   *
+   * Sent beside `move` rather than instead of it: a move still carries what the hero looks like
+   * and where he is when the server is not walking him — indoors, underground, at sea. What the
+   * server does with a move's position while it owns him is ignore it.
+   */
+  steer(seq: number, dx: number, dz: number, pace: number, dt: number): void {
+    if (this.connected) this.send({ type: 'steer', seq, dx, dz, pace, ms: Math.round(dt * 1000) });
   }
 
   /** Tell everyone about something we changed in the world. */

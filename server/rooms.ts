@@ -1,3 +1,5 @@
+import type { Entity } from '../src/entities/entity';
+import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
 import type { Vault } from './vault';
 import { SharedWorld, worldPath } from './world';
@@ -65,6 +67,16 @@ export interface Client {
   swords: number;
   /** Who they are dueling now. */
   duel: Client | null;
+  /**
+   * The hero the server is walking for this client, once it has walked one.
+   *
+   * Null until the first steer arrives in a world with ground under it. What it holds is a body
+   * with a position, not a save: hearts, gold and what is in the pack are still the client's own,
+   * which is the rule the whole server rests on.
+   */
+  hero: Entity | null;
+  /** The last steer of theirs the world has run, so an answer can name where it has caught up to. */
+  steered: number;
 }
 
 /** A handful of players travelling together. A party lives only as long as the people in it. */
@@ -110,6 +122,7 @@ export class Rooms {
     const client: Client = {
       wire, seed, lastSeen: Date.now(), offers: new Map(), party: null, seeing: new Map(),
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
+      hero: null, steered: 0,
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);
@@ -143,6 +156,27 @@ export class Rooms {
 
   worldOf(seed: number): CreatureOwner | null {
     return this.living.get(seed) ?? null;
+  }
+
+  /**
+   * The ground of a world, when the simulation has grown one.
+   *
+   * Here for the same reason the creatures are: a steer arrives through the roster and has to find
+   * the terrain to be walked against. Null in a world with no ground, and then the client stays
+   * its own authority over where its hero is standing, exactly as it was before phase four.
+   */
+  private readonly footing = new Map<number, TileWorld>();
+
+  ownGround(seed: number, ground: TileWorld): void {
+    this.footing.set(seed, ground);
+  }
+
+  groundOf(seed: number): TileWorld | null {
+    return this.footing.get(seed) ?? null;
+  }
+
+  forgetGround(seed: number): void {
+    this.footing.delete(seed);
   }
 
   /**

@@ -192,6 +192,64 @@ describe('the simulation holding the ground itself', () => {
     expect(sim.groundOf(3)!.held, 'a fresh world, not the old one').toBe(0);
   });
 
+  it('walks the hero itself, and says where he got to', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    // the first move is a placing rather than a walk: nothing has walked him anywhere yet
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+
+    // push east for a fifth of a second, which at the hero's pace is about a tile
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const [first] = rowan.of('youAre');
+    expect(first.seq).toBe(1);
+    expect(first.x).toBeCloseTo(1.1, 1);
+    expect(first.z).toBeCloseTo(0, 5);
+    // and the ground he is standing on came with it
+    expect(first.y).toBe(sim.groundOf(3)!.heightAt(first.x, first.z));
+
+    // a steer that arrives after a newer one is dropped rather than walked backwards
+    rowan.say({ type: 'steer', seq: 3, dx: 1, dz: 0, pace: 1, ms: 200 });
+    rowan.say({ type: 'steer', seq: 2, dx: -1, dz: 0, pace: 1, ms: 200 });
+    const said = rowan.of('youAre');
+    expect(said).toHaveLength(2);
+    expect(said[1]).toMatchObject({ seq: 3 });
+    expect(said[1].x).toBeGreaterThan(first.x);
+  });
+
+  it('will not be told where the hero is standing by the machine drawing him', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);        // the ground grows round him before anything can walk on it
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walked = rowan.of('youAre')[0].x;
+
+    // a client claiming a couple of tiles it did not walk is ignored: the server has its own hero
+    rowan.say({ type: 'move', x: 3, z: 0, yaw: 0, walk: 1, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    const bystander = new Pretend(sim).join(3, 'Ash');
+    expect(bystander.of('welcome')[0].players[0].x).toBeCloseTo(walked, 5);
+
+    // but a warp — a teleport, a staircase, a ferry — is further than any step and is taken
+    rowan.say({ type: 'move', x: 400, z: -120, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 200);        // and again where he lands, before he can walk there either
+    rowan.say({ type: 'steer', seq: 2, dx: 0, dz: 1, pace: 1, ms: 200 });
+    const after = rowan.of('youAre')[1];
+    expect(after.x).toBeCloseTo(400, 5);
+    expect(after.z).toBeGreaterThan(-120);
+  });
+
+  it('leaves the client its own authority in a world with no ground', () => {
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 12, z: 8, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    expect(rowan.of('youAre')).toHaveLength(0);
+    const bystander = new Pretend(sim).join(3, 'Ash');
+    expect(bystander.of('welcome')[0].players[0]).toMatchObject({ x: 12, z: 8 });
+  });
+
   it('grows nothing at all when it was not asked to', () => {
     const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');

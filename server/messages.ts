@@ -2,8 +2,16 @@ import {
   EMOTES, LIMITS, PARTY_LIMIT, clamp, cleanChat, cleanDelta, cleanLetter, cleanStallItem, cleanSwing, cleanSwords,
   type ClientMessage, type TradeOffer,
 } from './protocol';
+import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride';
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
+
+/**
+ * How far a `move` may be from where the server has walked somebody before it is read as a warp
+ * rather than as drift, in tiles. Comfortably past a step at running pace, comfortably short of a
+ * staircase.
+ */
+const WARP_STEP = 4;
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -17,6 +25,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
   switch (message.type) {
     case 'move': case 'say': case 'emote': case 'ping':
       whereAndWhat(rooms, me, room, message);
+      return;
+    case 'steer':
+      walked(rooms, me, message);
       return;
     case 'strike': {
       // a blow on a creature the world owns: the world decides what it did
@@ -52,12 +63,68 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
   }
 }
 
+/**
+ * How far somebody got, which the world works out for itself.
+ *
+ * The client says which way it pushed and for how long; the ground here says how far that gets
+ * anybody, and what comes back is where the hero is now. This is phase four of
+ * `docs/server-authority.md` — the point of it is not to catch cheats, it is that two people in
+ * one village are now looking at the same hero in the same place because one machine decided
+ * where he is.
+ *
+ * A world with no ground under it — the simulation grows one only when it is asked to — leaves the
+ * client its own authority, and the game plays exactly as it did.
+ */
+function walked(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'steer' }>): void {
+  const ground = rooms.groundOf(me.seed);
+  if (!ground) return;
+  const seq = Math.floor(Number(message.seq) || 0);
+  // an old steer arriving after a newer one has already been run: running it now would walk the
+  // hero backwards, and the client has long since drawn past it
+  if (seq <= me.steered) return;
+  const p = me.presence;
+  const hero = me.hero ?? (me.hero = newHero(p.x, p.z, ROPED_CLIMB));
+  // The ground grows around where somebody is standing, a tick behind them, so for a moment after
+  // a teleport there is nothing under the hero to walk on. Answering then would be answering with
+  // wherever he was before the jump, and the client would be dragged back to it. So say nothing:
+  // the client stays its own authority until the world under him exists, which is a tick.
+  const under = ground.heightAt(hero.x, hero.z);
+  if (under === null) return;
+  hero.y = under;
+  me.steered = seq;
+  stride(ground, hero, {
+    dx: Number(message.dx) || 0,
+    dz: Number(message.dz) || 0,
+    pace: Number(message.pace) || 0,
+    dt: (Number(message.ms) || 0) / 1000,
+  });
+  settleOnto(ground, hero);
+  p.x = hero.x; p.z = hero.z; p.yaw = hero.yaw;
+  rooms.send(me, { type: 'youAre', seq, x: hero.x, z: hero.z, y: hero.y, yaw: hero.yaw });
+}
+
 /** Where somebody is, what they said, and the two wordless things they can do. */
 function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
   switch (message.type) {
     case 'move': {
       const p = me.presence;
-      p.x = message.x; p.z = message.z; p.yaw = message.yaw; p.walk = message.walk;
+      // A hero the server is walking is not moved by what a client says about him — that is the
+      // whole of owning him. But a hero can still be *put* somewhere by things the server has no
+      // idea about: a teleport, a staircase, a ferry, a boat, the first placing when somebody
+      // joins. Those all move him further in one message than any walk could, so a long jump is
+      // taken as a warp and a short one is ignored, and the client goes on owning everywhere the
+      // server does not: indoors, underground, and at sea.
+      // and the server owns him only where it walks him: out of doors, on his own feet. Indoors,
+      // underground and at sea the client is still the authority and says where he is, which it
+      // has to be, because those are places the server has never grown any ground for.
+      const walked = me.hero;
+      const ground = rooms.groundOf(me.seed);
+      const outside = String(message.place) === 'surface' && message.riding === 'foot';
+      const standing = walked !== null && ground !== null && ground.heightAt(walked.x, walked.z) !== null;
+      const warped = !outside || !standing || Math.hypot(message.x - walked!.x, message.z - walked!.z) > WARP_STEP;
+      if (warped && walked) { walked.x = message.x; walked.z = message.z; }
+      if (warped) { p.x = message.x; p.z = message.z; }
+      p.yaw = message.yaw; p.walk = message.walk;
       p.place = String(message.place).slice(0, LIMITS.PLACE);
       p.riding = message.riding;
       p.gear = message.gear.slice(0, LIMITS.GEAR).map((id) => String(id).slice(0, LIMITS.ITEM_ID));

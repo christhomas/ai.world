@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -221,6 +221,19 @@ export type EntityState = 'idle' | 'walk' | 'graze' | 'flee' | 'hop' | 'fly' | '
 export type ClientMessage =
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
+  /**
+   * What the hero was trying to do, rather than where they ended up.
+   *
+   * The difference is the whole of phase four. A `move` is a client telling the world where its
+   * player is standing, which the world has to take on trust; a `steer` is a client saying which
+   * way it pushed and for how long, and the world walks the hero itself against the ground it
+   * grew. Both are sent for now — the steer while a hero is on foot out of doors, the move for
+   * everything the server does not yet own — and a client sending neither still plays, which is
+   * what keeps this from being a flag day.
+   *
+   * `seq` counts steers from one client so an answer can name which one it has caught up to.
+   */
+  | { type: 'steer'; seq: number; dx: number; dz: number; pace: number; ms: number }
   | { type: 'say'; text: string }
   | { type: 'trade-offer'; to: string; gold: number; items: Array<[string, number]> }
   | { type: 'trade-accept'; from: string }
@@ -300,6 +313,15 @@ export type ServerMessage =
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }
   | { type: 'presence'; players: Presence[] }
+  /**
+   * Where the world says you are, and which of your own steers it had run when it said so.
+   *
+   * The client has already walked itself there — that is what makes the game answer the keyboard —
+   * so this is usually the position it already holds, and agreeing is the common case and costs
+   * nothing to check. Where they differ, the client is wrong by definition: it puts the hero here
+   * and walks the steers the server had not seen yet back on top.
+   */
+  | { type: 'youAre'; seq: number; x: number; z: number; y: number; yaw: number }
   | { type: 'clock'; clock: Clock }
   | { type: 'delta'; delta: WorldDelta; from: string }
   | { type: 'said'; id: string; name: string; text: string }

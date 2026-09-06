@@ -18,10 +18,14 @@ import { PROTOCOL_VERSION, type ServerMessage } from '../server/protocol';
  * Read the answer next to `kubectl top pod`, which is the other half of it.
  */
 
-/** How often a player says where they are, which is what the real game does. */
-const MOVE_EVERY = 100;
-/** How far each of them wanders from where they started, in tiles. */
-const ROAM = 90;
+/**
+ * How often a player says which way they are pushing, in milliseconds.
+ *
+ * The real client batches a frame at a time and sends about thirty a second; this sends ten, which
+ * is enough to keep a hero walking and keeps the tool's own cost off the measurement. What the
+ * server does per steer is the same either way.
+ */
+const STEER_EVERY = 100;
 
 interface Counted {
   name: string;
@@ -29,6 +33,8 @@ interface Counted {
   messages: number;
   creatures: number;
   creatureBytes: number;
+  /** How many times the world said where this player's hero is, which is phase four's traffic. */
+  answers: number;
 }
 
 async function main(): Promise<void> {
@@ -42,7 +48,7 @@ async function main(): Promise<void> {
   const sockets: WebSocket[] = [];
 
   for (let i = 0; i < many; i++) {
-    const mine: Counted = { name: `Crowd${i + 1}`, bytes: 0, messages: 0, creatures: 0, creatureBytes: 0 };
+    const mine: Counted = { name: `Crowd${i + 1}`, bytes: 0, messages: 0, creatures: 0, creatureBytes: 0, answers: 0 };
     counted.push(mine);
     const socket = new WebSocket(url);
     sockets.push(socket);
@@ -52,6 +58,7 @@ async function main(): Promise<void> {
       mine.bytes += text.length;
       mine.messages++;
       // creatures are the thing phase three added, so they are counted apart from everything else
+      if (text.startsWith('{"type":"youAre"')) mine.answers++;
       if (text.startsWith('{"type":"creatures"')) {
         mine.creatureBytes += text.length;
         const said = JSON.parse(text) as Extract<ServerMessage, { type: 'creatures' }>;
@@ -70,17 +77,36 @@ async function main(): Promise<void> {
     // spread them round a circle so they are not all standing in one field, which would measure
     // one player's neighbourhood several times rather than several neighbourhoods
     const angle = (i / many) * Math.PI * 2;
+    // put them down where they start; after that the server walks them, which is what phase four
+    // moved across and what this is now measuring
+    socket.send(JSON.stringify({
+      type: 'move',
+      x: Math.cos(angle) * 120, z: Math.sin(angle) * 120,
+      yaw: angle, walk: 1, place: 'surface', riding: 'foot', gear: [],
+    }));
     let step = 0;
+    let seq = 0;
+    let away = 120;
     const walking = setInterval(() => {
       step++;
-      const wander = Math.sin(step / 40) * ROAM;
+      // a slow arc rather than a straight line, so they cross ground rather than leaving the world
+      const heading = angle + Math.sin(step / 40) * 1.4;
       socket.send(JSON.stringify({
-        type: 'move',
-        x: Math.cos(angle) * 120 + wander,
-        z: Math.sin(angle) * 120 + wander,
-        yaw: angle, walk: 1, place: 'surface', riding: 'foot', gear: [],
+        type: 'steer', seq: ++seq,
+        dx: Math.cos(heading), dz: Math.sin(heading), pace: 1, ms: STEER_EVERY,
       }));
-    }, MOVE_EVERY);
+      // A ring drawn round the middle of a world lands some of its players in the sea, and the
+      // server does not walk anybody who is not standing on anything — so a player it has said
+      // nothing to for a couple of seconds is standing in the water, and wades inland to look for
+      // some. Without this a third of a crowd stands still and the measurement is a third short.
+      if (mine.answers === 0 && step % 20 === 0 && away > 15) {
+        away /= 2;
+        socket.send(JSON.stringify({
+          type: 'move', x: Math.cos(angle) * away, z: Math.sin(angle) * away,
+          yaw: angle, walk: 1, place: 'surface', riding: 'foot', gear: [],
+        }));
+      }
+    }, STEER_EVERY);
     socket.on('close', () => clearInterval(walking));
   }
 
@@ -93,7 +119,8 @@ async function main(): Promise<void> {
   for (const c of counted) {
     console.log(`  ${c.name}: ${(c.bytes / seconds / 1024).toFixed(1)} KB/s`
       + `, ${(c.messages / seconds).toFixed(0)} msg/s`
-      + `, creatures ${(c.creatureBytes / seconds / 1024).toFixed(1)} KB/s`);
+      + `, creatures ${(c.creatureBytes / seconds / 1024).toFixed(1)} KB/s`
+      + `, walked ${(c.answers / seconds).toFixed(0)}/s`);
   }
   console.log('');
   console.log(`  everybody: ${(total / seconds / 1024).toFixed(1)} KB/s out of the server`

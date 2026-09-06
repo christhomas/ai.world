@@ -25,8 +25,21 @@ belongs to the project, and the next person to open it can see what was known.
 - [ ] Village economy and monsters are still each client's own. The economy is derived from the
       register, so it agrees already; the monsters on a dungeon floor are owned by whichever player
       is on it, which is the older co-op arrangement and not yet the server's.
-- [ ] **Phase 4 — the hero.** Movement, collision, combat, with prediction on the client and
-      reconciliation when the server disagrees. Last, because it is the part players feel.
+- [~] **Phase 4 — the hero.** *(Walking and collision are across. What crosses the wire is a
+      `steer` — which way somebody pushed and for how long — and the server walks the hero itself
+      against the ground it grew, then says where he got to. Both halves walk with the same
+      `src/entities/stride.ts` over the same terrain, so the client's guess and the world's answer
+      are the same arithmetic: measured over a walk in seed 3, thirty-six answers and not one
+      correction. Six players walked at once cost 20.9 KB/s each and 2–12% of a core, against 21.9
+      KB/s for phase three alone. A hero standing on nothing the server has grown — at sea, indoors,
+      underground, on a horse or in a boat — is still the client's own, and the client takes back
+      authority by itself whenever the server has no ground under him.)*
+- [ ] Combat is still the client's: a swing is resolved where it is drawn, and the server is told
+      about it afterwards through `strike`.
+- [ ] A warp is taken on trust. Teleports, staircases, ferries and boats move the hero further in
+      one message than a walk could, so the server reads a long jump as a warp and accepts it —
+      which is also what a client would send to walk through a wall. It wants a reason: a command
+      the server ran, or a place it knows the hero was standing in.
 
 ## Mountains
 

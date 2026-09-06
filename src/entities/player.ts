@@ -2,7 +2,8 @@ import type { Input } from '../core/input';
 import type { IsoCamera } from '../render/camera';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
-import { Entity, Herd, canStand, tryMove, yawFor, type TileWorld } from './entity';
+import { Entity, Herd, canStand, tryMove, type TileWorld } from './entity';
+import { newHero, stride, type Steer } from './stride';
 import type { EntityRenderer } from './pool';
 
 /** The hero: an entity driven by the keyboard, with the camera trailing it. */
@@ -18,15 +19,22 @@ export class Player {
   /** Multiplier on walking pace: a horse carries you faster. */
   speedScale = 1;
   /**
+   * The steer the last frame was walked with, or null for a frame nobody moved in.
+   *
+   * Read by whatever is talking to the server: what crosses the wire is what the hero was *trying*
+   * to do, so the server can walk him itself rather than take a client's word for where he ended
+   * up. Left here rather than returned because `update` is called from several places and only one
+   * of them cares.
+   */
+  steered: Steer | null = null;
+  /**
    * A stroll, as a share of the hero's running pace. Under the motion file's `running.from` of
    * 0.55, so ambling is genuinely a different gait and not just a slower run.
    */
   static readonly STROLL = 0.42;
 
   constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
-    const kind = KINDS.hero;
-    const herd = new Herd(kind, x, z, x, z, 0);
-    this.entity = new Entity(kind, x, z, herd, 'player', mulberry32(1));
+    this.entity = newHero(x, z);
     renderer.add(this.entity);
   }
 
@@ -97,6 +105,9 @@ export class Player {
 
   update(input: Input, iso: IsoCamera, dt: number, frozen = false, fixedCamera = false): void {
     const e = this.entity;
+    // cleared first, because most of the ways out of this method are early returns and a steer left
+    // lying about would be sent to the server as a step the hero never took
+    this.steered = null;
     // the hero does not go through updateEntity, so nothing else counts a blow down for them.
     // Without this the timer sticks at full, the blow never advances past its first frame, and
     // pressing attack looks like pressing nothing at all.
@@ -134,12 +145,10 @@ export class Player {
     // village square. Running stays the default and stays exactly the speed it was, so nothing
     // about outrunning a wolf changes; this only adds the slower gear.
     const pace = input.isDown('shift') ? Player.STROLL : 1;
-    if (len > 0) {
-      dx /= len; dz /= len;
-      const step = e.kind.speed * this.speedScale * pace * dt;
-      e.yaw = yawFor(dx, dz);
-      moved = tryMove(this.world, e, dx * step, dz * step);
-    }
+    // through the same gate the server walks him through, so a guess made here and an answer given
+    // there are the same arithmetic rather than two arrangements that agree most of the time
+    this.steered = len > 0 ? { dx, dz, pace, dt } : null;
+    if (this.steered) moved = stride(this.world, e, this.steered, this.speedScale);
     if (moved) {
       // `walk` is the pace rather than a flag, so the animation follows the legs: below the motion
       // file's `running.from` it is an amble and above it the stride opens out

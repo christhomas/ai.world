@@ -118,6 +118,9 @@ export class Simulation {
     this.wildlife.set(seed, alive);
     // so that a blow arriving through the roster can find whatever is running the creatures
     this.rooms.ownCreatures(seed, alive);
+    // and the same ground the players are walking on, so a hero can be walked against it rather
+    // than taken on trust from the machine he is being walked on
+    this.rooms.ownGround(seed, grown);
     return grown;
   }
 
@@ -196,6 +199,7 @@ export class Simulation {
         this.rooms.close(seed);
         this.ground.delete(seed);
         this.wildlife.delete(seed);
+        this.rooms.forgetGround(seed);
         continue;
       }
 
