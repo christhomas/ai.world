@@ -530,9 +530,10 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   }
   #areaName { top: 8px; padding: 5px 10px; font-size: 11px; }
   #compass { top: 40px; font-size: 10px; gap: 8px; padding: 3px 8px; justify-content: center; flex-wrap: wrap; }
-  /* these two hang alongside the pack panel, so they start where it ends rather than over it */
-  #toast { top: 66px; left: 148px; font-size: 12px; padding: 6px 12px; }
-  #duelbar { top: 140px; left: 148px; font-size: 12px; padding: 5px 12px; }
+  /* these two hang alongside the pack panel, so they start where it ends rather than over it —
+     and below the row of buttons, which owns the strip under the compass */
+  #toast { top: 140px; left: 152px; font-size: 12px; padding: 6px 12px; }
+  #duelbar { top: 190px; left: 152px; font-size: 12px; padding: 5px 12px; }
   #castbar { bottom: 200px; font-size: 12px; }
   #dialogue { bottom: 12px; padding: 10px; font-size: 14px; gap: 8px; width: 97vw; }
   #dialogue .dlg-side { flex: 0 0 72px; }
@@ -552,6 +553,16 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #optionsPanel h3 { margin-bottom: 10px; }
   #worldmap .wm-bar { padding: 8px 12px; gap: 10px; }
   #worldmap .wm-legend { gap: 8px; padding: 6px 12px; font-size: 10px; }
+  /* A landscape phone is 390 tall, and the panel buttons hung 186px down its right-hand side —
+     which is the middle of the picture, over the very ground the player is walking on, wrapped
+     into two rows because eight of them do not fit across two thirds of the glass. The strip under
+     the compass is the one band of screen nothing else wants: the pack panel ends to the left of
+     it, the corner map begins to the right, and the thumbs are both at the bottom. */
+  #touchPanels {
+    top: 92px; left: 152px; right: 138px;
+    max-width: none; justify-content: flex-start; flex-wrap: nowrap;
+  }
+  #touchPanels .touch-btn { width: 40px; height: 40px; font-size: 19px; }
   #title h1 { font-size: clamp(32px, 11vw, 56px); }
   #title .title-card { width: 94vw; }
   #slots .slot { padding: 10px 12px; }

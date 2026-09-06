@@ -193,10 +193,12 @@ the two are separate jobs with a third in between them.
       because on iOS `screen.width` is the width of the phone standing up whichever way it is
       turned — read that for the orientation and the game asks somebody to turn a phone they have
       already turned.)*
-- [ ] Then the HUD itself. There is a small-screen pass in `style.css` already and it is a good
-      one — three columns, the errand tracker hidden, the map cut to its own size — but it was
-      written before the console and the touch buttons, and the buttons now sit in the middle of the
-      picture rather than under a thumb. Play it on a phone and see what is in the way.
+- [~] The HUD on a phone. *(The panel buttons hung a hundred and eighty pixels down the right-hand
+      side, which on a landscape phone is the middle of the picture, wrapped into two rows because
+      eight of them do not fit across two thirds of the glass. They are one row across the strip
+      under the compass now — the pack panel ends to its left, the corner map begins to its right,
+      and both thumbs are at the bottom — with the toast and the duel bar moved below them. What is
+      left is the part that wants a real thumb on real glass rather than an emulator.)*
 
 ## Deployment
 
