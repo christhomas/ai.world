@@ -186,13 +186,6 @@ describe('the land below', () => {
     }
   };
 
-  /**
-   * Vitest allows a test five seconds; the sweeps below grow ten or twenty whole worlds each,
-   * which takes longer than that on this laptop and longer again on a CI runner sharing a core.
-   * A ceiling generous enough that only a hang trips it, rather than a slow machine.
-   */
-  const WORLD_SWEEP_MS = 60_000;
-
   it('is what the waterfall comes down onto, which is the whole picture', () => {
     let seen = 0;
     for (const { seed, ground, built } of worldsWithSkies([1, 2, 5, 7, 11], false)) {
@@ -203,7 +196,7 @@ describe('the land below', () => {
       expect(ground(lx, lz), `${built.name} on seed ${seed} lands at ${Math.round(lx)},${Math.round(lz)}`).toBe(true);
     }
     expect(seen, 'every one of those seeds hangs a village in its sky').toBe(10);
-  }, WORLD_SWEEP_MS);
+  });
 
   it('never hangs a village over open water, whichever way the world was grown', () => {
     for (const mesh of [false, true]) {
@@ -211,7 +204,7 @@ describe('the land below', () => {
         expect(ground(site.x, site.z), `${built.name} on seed ${seed}`).toBe(true);
       }
     }
-  }, WORLD_SWEEP_MS);
+  });
 
   /**
    * The one that would be unforgivable. Everything else here is scenery; this is whether the place
@@ -227,7 +220,7 @@ describe('the land below', () => {
           .toBeLessThanOrEqual(built.site.radius + SKY.PLUME + SKY.CRAG_HUNT);
       }
     }
-  }, WORLD_SWEEP_MS);
+  });
 
   it('takes the direction it is given when there is no world to look down at', () => {
     const [site] = planSkyIslands(3, [isle(1000, 0)], []);

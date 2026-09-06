@@ -23,5 +23,20 @@ export default defineConfig(({ command }) => ({
   server: { port: 5174, strictPort: true, host: true },
   worker: { format: 'es' },
   build: { target: 'es2022', sourcemap: true },
-  test: { include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'tools/**/*.test.ts'] },
+  /**
+   * Sixty seconds a test, not vitest's five.
+   *
+   * A good part of this suite proves things by sweeping the world rather than by repeating the
+   * arithmetic that built it: growing twenty complete worlds to check that no sky village stands
+   * its eagles in the sea, or walking half a million points through the shadow box to check that
+   * none of them is cut off. They take seconds by their nature, and a CI runner sharing a core is
+   * two or three times slower again — so five seconds failed them on time rather than on any
+   * assertion, and which one failed moved around depending on what else was running.
+   *
+   * Sixty is a number only a genuine hang can reach; the whole suite finishes inside a minute.
+   */
+  test: {
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'tools/**/*.test.ts'],
+    testTimeout: 60_000,
+  },
 }));
