@@ -6,16 +6,14 @@ import { commandChannel } from './tools/commandchannel.ts';
  * on your own network serves it at the root, and says so by setting BASE=/ when it builds. Dev is
  * always the root.
  */
-export default defineConfig(async ({ command }) => ({
+export default defineConfig(({ command }) => ({
   /**
-   * The development door for commands: post one to /__command and every open tab runs it.
-   *
-   * Imported only when serving, and dynamically, so a production build never reaches for the file.
-   * The image copies the game and the server and not the workbench — `tools/` is not in it — and a
-   * static import of something that is not there fails the build in a way that has nothing to do
-   * with the thing being built.
+   * The development door for commands: post one to /__command and every open tab runs it. The
+   * plugin itself is `apply: 'serve'`, so it does nothing during a build — but the config is
+   * bundled before it is read, and a bundler resolves an import whether or not the thing it names
+   * will ever run. That is why the image has to carry `tools/` even though it never serves.
    */
-  plugins: command === 'serve' ? [(await import('./tools/commandchannel')).commandChannel()] : [],
+  plugins: [commandChannel()],
   base: process.env.BASE ?? (command === 'build' ? '/ai.world/' : '/'),
   /**
    * The dev server, pinned.
@@ -31,8 +29,8 @@ export default defineConfig(async ({ command }) => ({
    * localhost to 127.0.0.1 finds nothing there either.
    */
   server: { port: 5174, strictPort: true, host: true },
-  worker: { format: 'es' as const },
-  build: { target: 'es2022' as const, sourcemap: true },
+  worker: { format: 'es' },
+  build: { target: 'es2022', sourcemap: true },
   /**
    * Sixty seconds a test, not vitest's five.
    *

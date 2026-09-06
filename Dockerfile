@@ -50,6 +50,11 @@ RUN pnpm exec vite build --config server/build.config.ts
 ARG WITH_PAGE
 ARG PAGE_SOURCEMAPS
 COPY vite.config.ts index.html ./
+# The config imports the development command channel from here. It never runs during a build — the
+# plugin is `apply: 'serve'` — but the config is bundled before it is read, and a bundler resolves
+# an import whether or not it will ever be called. Without this the page build fails with "module
+# not found" and says nothing about which module or why.
+COPY tools ./tools
 COPY src ./src
 COPY animations ./animations
 COPY behaviours ./behaviours
