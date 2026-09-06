@@ -42,11 +42,16 @@ RUN pnpm install --frozen-lockfile --node-linker=hoisted
 
 COPY tsconfig.json ./
 COPY server ./server
+# The world itself, which the server now needs as much as the page does: it grows the terrain it is
+# serving and runs the creatures on it, so `server/` alone no longer bundles. Copied before the
+# server build rather than after it, which is where it used to be when only the page wanted it.
+COPY src ./src
+COPY animations ./animations
+COPY behaviours ./behaviours
 RUN pnpm exec vite build --config server/build.config.ts
 
-# The page, when it is wanted. Built after the server so that changing the game does not rebuild
-# the server layer, and into a fixed path so the runtime stage can copy it without knowing whether
-# it exists — an empty directory is a perfectly good "no page".
+# The page, when it is wanted, into a fixed path so the runtime stage can copy it without knowing
+# whether it exists — an empty directory is a perfectly good "no page".
 ARG WITH_PAGE
 ARG PAGE_SOURCEMAPS
 COPY vite.config.ts index.html ./
@@ -55,9 +60,6 @@ COPY vite.config.ts index.html ./
 # an import whether or not it will ever be called. Without this the page build fails with "module
 # not found" and says nothing about which module or why.
 COPY tools ./tools
-COPY src ./src
-COPY animations ./animations
-COPY behaviours ./behaviours
 COPY art ./art
 RUN mkdir -p /page && if [ "${WITH_PAGE}" = "true" ]; then \
       BASE=/ pnpm exec vite build --sourcemap "${PAGE_SOURCEMAPS}" --outDir /page --emptyOutDir; \
