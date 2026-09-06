@@ -178,6 +178,14 @@ tasks:
       # quoted, because a note is a sentence and a sentence has apostrophes in it
       - 'pnpm exec tsx tools/release.ts "{{.VERSION}}" "{{.NOTE}}"'
 
+  # What a world server actually costs, on the machine it is actually running on. Stands up a crowd
+  # of players, walks them about, and says how much came back and how much of it was creatures.
+  # `chore crowd -- ws://aiworld.homelab.local 8 60` — read it next to `kubectl top pod`.
+  crowd:
+    desc: Put a crowd of players on a world server and measure what it sends them
+    cmds:
+      - 'pnpm exec tsx tools/crowd.ts {{.CLI_ARGS}}'
+
   bundle:
     desc: Roll the world server into one file, the way the image ships it
     cmds: ['pnpm vite build --config server/build.config.ts']

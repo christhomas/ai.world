@@ -362,3 +362,33 @@ describe('hunting something the world owns', () => {
     if (stout.hp > 40) expect(killed.length, 'a made-up number does not kill it').toBe(0);
   });
 });
+
+describe('a world with several people in it', () => {
+  const walkAbout = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+  const tickFor = (sim: Simulation, ms: number, from = Date.now()): void => {
+    for (let at = 100; at <= ms; at += 100) sim.tick(from + at);
+  };
+
+  /**
+   * The failure this exists to prevent, found by putting four players on a server and looking:
+   * the creature manager followed one hero, so the country round everybody else was spawned and
+   * then thrown away as the focus moved on. Three of the four stood in an empty world.
+   */
+  it('keeps the country alive round everybody, not only round whoever is followed', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const apart = [
+      { who: new Pretend(sim).join(3, 'Rowan'), x: 0, z: 0 },
+      { who: new Pretend(sim).join(3, 'Wren'), x: 220, z: 40 },
+      { who: new Pretend(sim).join(3, 'Bram'), x: -140, z: 180 },
+    ];
+    for (const { who, x, z } of apart) walkAbout(who, x, z);
+    tickFor(sim, 1_500);
+
+    for (const { who } of apart) {
+      const told = who.of('creatures').at(-1);
+      expect(told?.near.length ?? 0, `${who.of('welcome')[0].id} has a world round them`).toBeGreaterThan(0);
+    }
+  });
+});

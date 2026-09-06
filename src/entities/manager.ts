@@ -25,74 +25,11 @@ import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { blowOf } from './motion';
 import type { EntityView } from './roster';
 import { doorTile, type Village } from '../world/structures';
+import { ACTIVE_RANGE, BOUNTY, NIGHT_PREDATORS, SPAWN, SPAWN_RADIUS } from './spawning';
 
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
-const SPAWN_RADIUS = 4;      // chunks around the player that get creatures
-/**
- * What the law is paid. A constable takes the whole bounty for putting down something that was
- * attacking somebody; anybody else who does it — a hunter, a passing farmer — takes a share, which
- * is the difference between doing the job and helping out. Taking in somebody the law wants is the
- * same job on the same purse, priced by how badly it wants them.
- */
-const BOUNTY = {
-  RESCUE_SHARE: 0.3,
-  /** What taking in anybody the law wants pays, before their crimes are counted. */
-  ARREST: 15,
-  /** And what the worst of them is worth on top: a constable's own reason to come for you. */
-  ARREST_WORST: 45,
-} as const;
-
-
-const ACTIVE_RANGE = 44;     // tiles; beyond this creatures freeze
-
-/** Spawn odds and sizes. Chances are per chunk, leashes in tiles. */
-/** Extra packs that only come out after dark, per biome. */
-const NIGHT_PREDATORS: Record<Biome, string[]> = {
-  [Biome.Plains]: ['wolf'],
-  [Biome.Forest]: ['wolf', 'bear'],
-  [Biome.Desert]: ['bat'],
-  [Biome.Swamp]: ['bat', 'wolf'],
-  [Biome.Mountain]: ['wolf'],
-  [Biome.Snow]: ['wolf'],
-};
-
-const SPAWN = {
-  MIN_LAND_TILES: 30,
-  HERD_CHANCE: 0.6,
-  SECOND_HERD_CHANCE: 0.3,
-  HERD_LEASH: 12,
-  MIN_WATER_TILES: 6,
-  WATER_HERD_CHANCE: 0.55,
-  /** A chunk with no land in it at all is open sea, and open sea has hunters in it. */
-  DEEP_PACK_CHANCE: 0.18,
-  DEEP_LEASH: 14,
-  WATER_LEASH: 6,
-  MIN_ROAD_TILES: 12,
-  TRAVELLER_CHANCE: 0.3,
-  TRAVELLER_LEASH: 30,
-  CONGREGATION_LEASH: 2.5,
-  SHOPKEEPER_LEASH: 1.2,
-  PLACE_ATTEMPTS: 8,
-  SCATTER: 2.2,          // members land within this radius of the anchor
-  FLIER_RING: 4,
-  NIGHT_PACK_CHANCE: 0.35,
-  NIGHT_LEASH: 16,
-} as const;
-
-/**
- * Spawns herds per chunk (deterministically from the seed), despawns them when the player
- * moves away, and ticks behaviour for creatures near the player.
- */
 export class EntityManager {
   private readonly spawned = new Map<string, Entity[]>();
-  /**
-   * True when somebody else decides what lives in this world.
-   *
-   * The simulation owns the creatures now — on a server, or in the thread next door — and a client
-   * that also spawns its own would draw two of every deer, one of which nobody else can see. So it
-   * stops spawning and starts being told; everything else it does, it goes on doing.
-   */
-  toldWhatLives = false;
   /**
    * Creatures somebody else owns: drawn here, found here, but never thought for here.
    *
@@ -101,6 +38,26 @@ export class EntityManager {
    * decided where they live.
    */
   guests: Iterable<Entity> = [];
+  /**
+   * Other places worth keeping alive, besides whoever this manager is following.
+   *
+   * A game has one hero and this was built around that: creatures spawn in the chunks near him and
+   * are forgotten as he leaves. A world server has as many heroes as there are players, and with a
+   * single focus the country round each of them was spawned and then thrown away as the focus moved
+   * on — measured with four players, three of them stood in an empty world while the fourth had a
+   * hundred and thirty creatures around them.
+   *
+   * Empty in the game, where there is only ever one person to keep a world alive around.
+   */
+  alsoNear: ReadonlyArray<{ x: number; z: number }> = [];
+  /**
+   * True when somebody else decides what lives in this world.
+   *
+   * The simulation owns the creatures now — on a server, or in the thread next door — and a client
+   * that also spawns its own would draw two of every deer, one of which nobody else can see. So it
+   * stops spawning and starts being told; everything else it does, it goes on doing.
+   */
+  toldWhatLives = false;
   private readonly herds = new Set<Herd>();
   private readonly rng: Rng;
   private focusCx = Number.NaN;
@@ -188,23 +145,17 @@ export class EntityManager {
       // day flipped: let chunks respawn so the night shift can arrive (or go home)
       for (const [key, list] of this.spawned) if (key !== 'dungeon') this.despawn(key, list);
     }
-    if (cx !== this.focusCx || cz !== this.focusCz) {
+    if (cx !== this.focusCx || cz !== this.focusCz || this.alsoNear.length > 0) {
       this.focusCx = cx; this.focusCz = cz;
       for (const [key, list] of this.spawned) {
         const [kx, kz] = parseChunkKey(key);
-        if (Math.max(Math.abs(kx - cx), Math.abs(kz - cz)) > SPAWN_RADIUS + 1) this.despawn(key, list);
+        if (!this.worthKeeping(kx, kz, cx, cz)) this.despawn(key, list);
       }
     }
-    // chunks arrive asynchronously, so keep polling the spawn window
-    for (let dz = -SPAWN_RADIUS; dz <= SPAWN_RADIUS; dz++) {
-      for (let dx = -SPAWN_RADIUS; dx <= SPAWN_RADIUS; dx++) {
-        const key = chunkKey(cx + dx, cz + dz);
-        if (this.spawned.has(key)) continue;
-        const tiles = this.chunks.getTiles(cx + dx, cz + dz);
-        if (!tiles) continue;
-        this.spawned.set(key, this.spawnChunk(tiles, key));
-      }
-    }
+    // chunks arrive asynchronously, so keep polling the spawn window — round everybody in the
+    // world, not only round whoever this manager is following
+    for (const who of this.alsoNear) this.spawnAround(Math.floor(who.x / CS), Math.floor(who.z / CS));
+    this.spawnAround(cx, cz);
 
     const ctx = {
       world: this.world, rng: this.rng, playerX, playerZ, playerArmed,
@@ -241,8 +192,7 @@ export class EntityManager {
     const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
     for (const list of this.spawned.values()) {
       for (const e of list) {
-        const dx = e.x - playerX, dz = e.z - playerZ;
-        if (dx * dx + dz * dz > r2) continue;
+        if (!this.worthThinking(e, playerX, playerZ, r2)) continue;
         updateEntity(e, dt, ctx);
       }
     }
@@ -514,6 +464,41 @@ export class EntityManager {
       for (const e of list) if (!people.includes(e)) this.despawnEntity(e);
       this.spawned.set(key, people);
     }
+  }
+
+  /** Fill in the creatures around one place, for whatever chunks have arrived there. */
+  private spawnAround(cx: number, cz: number): void {
+    for (let dz = -SPAWN_RADIUS; dz <= SPAWN_RADIUS; dz++) {
+      for (let dx = -SPAWN_RADIUS; dx <= SPAWN_RADIUS; dx++) {
+        const key = chunkKey(cx + dx, cz + dz);
+        if (this.spawned.has(key)) continue;
+        const tiles = this.chunks.getTiles(cx + dx, cz + dz);
+        if (!tiles) continue;
+        this.spawned.set(key, this.spawnChunk(tiles, key));
+      }
+    }
+  }
+
+  /** Whether a chunk is near anybody at all: the one this manager follows, or another player. */
+  private worthKeeping(kx: number, kz: number, cx: number, cz: number): boolean {
+    if (Math.max(Math.abs(kx - cx), Math.abs(kz - cz)) <= SPAWN_RADIUS + 1) return true;
+    const CS = WORLD.CHUNK_SIZE;
+    for (const who of this.alsoNear) {
+      const ox = Math.floor(who.x / CS), oz = Math.floor(who.z / CS);
+      if (Math.max(Math.abs(kx - ox), Math.abs(kz - oz)) <= SPAWN_RADIUS + 1) return true;
+    }
+    return false;
+  }
+
+  /** Whether a creature is near enough to anybody to be worth thinking for. */
+  private worthThinking(e: Entity, playerX: number, playerZ: number, r2: number): boolean {
+    const dx = e.x - playerX, dz = e.z - playerZ;
+    if (dx * dx + dz * dz <= r2) return true;
+    for (const who of this.alsoNear) {
+      const ox = e.x - who.x, oz = e.z - who.z;
+      if (ox * ox + oz * oz <= r2) return true;
+    }
+    return false;
   }
 
   private spawnChunk(tiles: ChunkTiles, key: string): Entity[] {

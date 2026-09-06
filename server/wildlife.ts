@@ -115,8 +115,13 @@ export class Wildlife {
    */
   step(dt: number, players: ReadonlyArray<{ x: number; z: number }>, time?: number): void {
     if (players.length === 0) return;
+    // One of them is followed and the rest are told to the manager, which keeps the country round
+    // all of them alive. Following them in turn as well spreads the cost of the one thing that is
+    // still per-focus — which chunk the sweep starts from — rather than doing it for everybody
+    // every tick.
     const who = players[this.turn % players.length];
     this.turn++;
+    this.manager.alsoNear = players.filter((p) => p !== who);
     this.manager.update(dt, who.x, who.z, false, () => {}, time);
   }
 }
