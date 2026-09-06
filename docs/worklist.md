@@ -109,7 +109,8 @@ so the shape is known and the pieces are the same ones.
       began — the stage it has reached is worked out from the day, so it is the same building at
       the same stage on every screen — and `Houses.adopt` takes one on without anybody owing a
       village for somebody else's house.)*
-- [~] **Phase 4 — the hero.** *(Walking and collision are across. What crosses the wire is a
+- [x] **Phase 4 — the hero.** *(Walking, collision, blows and jumps are all across.
+      Walking and collision: What crosses the wire is a
       `steer` — which way somebody pushed and for how long — and the server walks the hero itself
       against the ground it grew, then says where he got to. Both halves walk with the same
       `src/entities/stride.ts` over the same terrain, so the client's guess and the world's answer
