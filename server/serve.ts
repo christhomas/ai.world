@@ -1,5 +1,6 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocketServer } from 'ws';
+import { parseCommand } from './commands';
 import { PROTOCOL_VERSION, cleanName, type ClientMessage, type ServerMessage } from './protocol';
 import { handle } from './messages';
 import { Rooms } from './rooms';
@@ -32,6 +33,14 @@ export interface ServerOptions {
   staticDir?: string;
   /** Log a line when the server is up. Off in tests. */
   quiet?: boolean;
+  /**
+   * The password for `POST /operate`, which sends a command to the players in a world.
+   *
+   * Given none, the route is not registered at all. That is the difference between a door that is
+   * locked and a door that is not there, and for a box on somebody's home network reachable from
+   * the internet, the second is the one worth having. `index.ts` reads it from the environment.
+   */
+  operatorToken?: string;
 }
 
 export interface RunningServer {
@@ -48,6 +57,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;
   const http = createServer((req, res) => {
+    if (options.operatorToken && req.url === '/operate') { operate(rooms, options.operatorToken, req, res); return; }
     // the status page keeps its own address once there is a game to serve at the root
     if (pages && req.url !== '/status' && pages(req, res)) return;
     res.writeHead(200, { 'content-type': 'text/plain' });
@@ -173,5 +183,51 @@ function listen(http: Server, port: number): Promise<number> {
       const address = http.address();
       done(typeof address === 'object' && address ? address.port : port);
     });
+  });
+}
+
+/**
+ * Operating a running world from outside it.
+ *
+ * A line of text goes to the players in one world — or to everybody, if no seed is named — and they
+ * run it on their own command bus. The server does not run it: today it owns no simulation to run
+ * one against, and saying so plainly here is better than pretending otherwise. When the simulation
+ * moves across (`docs/server-authority.md`) this is where it will be run instead, and the shape of
+ * the request will not have to change.
+ *
+ * The token is compared in full and only after the body has been read, so a wrong one costs the
+ * same as a right one. It is not a login: whoever has it can do anything the vocabulary allows.
+ */
+function operate(rooms: Rooms, token: string, req: IncomingMessage, res: ServerResponse): void {
+  const say = (code: number, body: unknown): void => {
+    res.writeHead(code, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(body));
+  };
+  if (req.method !== 'POST') { say(405, { error: 'post a command' }); return; }
+
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk;
+    // a command is a line, not a payload: anything longer is somebody trying it on
+    if (body.length > 4_000) req.destroy();
+  });
+  req.on('end', () => {
+    const given = String(req.headers['x-operator-token'] ?? '')
+      || String(req.headers.authorization ?? '').replace(/^Bearer /, '');
+    if (given !== token) { say(401, { error: 'no' }); return; }
+
+    let asked: { line?: string; seed?: number };
+    try { asked = JSON.parse(body || '{}') as { line?: string; seed?: number }; }
+    catch { say(400, { error: 'that is not json' }); return; }
+
+    const line = (asked.line ?? '').trim();
+    // read here as well as on the client, so a line nobody could run is refused at the door rather
+    // than sent to every player in the world for each of them to reject separately
+    const read = parseCommand(line, 'operator');
+    if (!read.ok) { say(400, { error: read.error }); return; }
+
+    const message: ServerMessage = { type: 'command', line, issuer: 'operator' };
+    const sent = asked.seed === undefined ? rooms.everyone(message) : rooms.broadcast(asked.seed, message);
+    say(200, { sent: line, players: sent });
   });
 }

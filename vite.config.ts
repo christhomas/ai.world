@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { commandChannel } from './tools/commandchannel.ts';
 
 /**
  * Where the built page will be served from. GitHub Pages puts it under /ai.world/; a world server
@@ -6,6 +7,8 @@ import { defineConfig } from 'vite';
  * always the root.
  */
 export default defineConfig(({ command }) => ({
+  // the development door for commands: post one to /__command and every open tab runs it
+  plugins: [commandChannel()],
   base: process.env.BASE ?? (command === 'build' ? '/ai.world/' : '/'),
   /**
    * The dev server, pinned.

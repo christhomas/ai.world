@@ -16,6 +16,8 @@ import { DayCycle } from './render/daycycle';
 import { ChunkManager } from './world/chunkManager';
 import { MountainMaterial, buildMountainMesh } from './render/mountains';
 import { Skyline } from './game/skyline';
+import { CommandBus } from './core/commandbus';
+import { registerCommands, type CommandWorld } from './game/commands';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
 import { planEyries } from './game/eyries';
@@ -480,6 +482,8 @@ function startGame(
     register, hires,
     player, state, breath, mines, places, plots, mount, sailing, entityRenderer, camera: iso.camera,
     dialogue, hud, chat, sound, questList, discovered, seed,
+    // a command from whoever operates this world goes to the same bus a console does
+    runCommand: (line, issuer) => { commands.run(line, issuer); },
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
   const { online, market, party, duel, warband, coop, others, handover, rally, playerList } = multiplayer;
@@ -1287,6 +1291,99 @@ function startGame(
   const heroSpot = new THREE.Vector3();
   let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
 
+  // --- commands ---
+  //
+  // Everything the game can be told to do, under one vocabulary that the server shares. The debug
+  // hooks below are the same acts under older names and now go through here, so a console, a tool,
+  // a test and — once the simulation moves across — the server itself all say the same words.
+  // `docs/server-authority.md` is where that is going.
+  const commandWorld: CommandWorld = {
+    teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); },
+    descend: () => places.descend(),
+    climbOut: () => places.exitDungeon(),
+    enterShrine: () => {
+      const shrine = structures.pois.find((p) => p.kind === StructureKind.Shrine);
+      if (!shrine) return null;
+      places.enterDungeon(shrine);
+      return shrine.name;
+    },
+    enterInn: () => {
+      for (const village of structures.villages) {
+        const inn = village.shops.find((shop) => shop.type === 'inn');
+        if (!inn) continue;
+        const door = structures.doors.find((d) => d.bx === inn.house.tx && d.bz === inn.house.tz);
+        if (!door) continue;
+        places.enterBuilding(door);
+        return village.name;
+      }
+      return null;
+    },
+    standAtCounter: () => {
+      const spot = places.indoors?.world.map.keeper;
+      if (!spot) return null;
+      player.teleport(spot[0] + 0.5, spot[1] + 1.6);
+      return { x: spot[0] + 0.5, z: spot[1] + 1.6 };
+    },
+    spawn: (kind, away) => {
+      const e = entities.spawnOne(kind, player.x + away, player.z, seed ^ Date.now());
+      return e ? { kind: e.kind.id, x: Math.round(e.x), z: Math.round(e.z), hp: e.hp } : null;
+    },
+    sow: (x, z) => {
+      plots.plant(x, z, 'wheat', state.day + state.time);
+      online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
+      state.version++;
+      return { tile: `${x},${z}`, crop: 'wheat', day: state.day };
+    },
+    drop: () => {
+      remains.leave('Rolf the Hunter', 'hunter', player.x + 1.2, player.z, 23, 'pelt', 4242);
+      return remains.all.length;
+    },
+    discover: (place) => { discover(place); return place; },
+    thin: (village, many) => {
+      const doomed = [...register.living(village)].slice(0, many);
+      for (const person of doomed) register.bury(person.id, state.day);
+      return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
+    },
+    hire: (many) => {
+      // stand somebody's own soldiers up without walking a village: for trying a fight out
+      const folk = structures.villages.flatMap((v) => [...register.living(v.name)]).filter((p) => p.trade === 'soldier');
+      const side = online.id || 'alone';
+      const taken = folk.slice(0, many).map((p) => hires.strike(
+        { who: p.id, name: p.name, asking: 0, terms: [{ fee: 0, share: 0.2 }] },
+        { fee: 0, share: 0.2 }, 999, side,
+      ));
+      return { asked: many, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
+    },
+    setTime: (fraction) => {
+      state.time = Math.max(0, Math.min(0.999, fraction));
+      return { day: state.day, time: state.time };
+    },
+    setDay: (day) => {
+      state.day = Math.max(1, Math.round(day));
+      return { day: state.day, time: state.time };
+    },
+    where: () => ({
+      x: Math.round(player.x * 10) / 10, z: Math.round(player.z * 10) / 10,
+      y: Math.round(player.entity.y * 100) / 100,
+      place: placeName(), area: areaLabel,
+    }),
+    peaks: () => (sampler.ranges?.peaks ?? []).map((peak) => ({
+      x: Math.round(peak.x), z: Math.round(peak.z), height: Math.round(peak.lift), range: peak.range,
+    })).sort((a, b) => b.height - a.height),
+    entities: () => entities.within(player.x, player.z, 60).map((e) => ({
+      kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
+      x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
+      slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
+      // the fight's own state, without which none of the wind-up work can be checked from
+      // outside: a probe that reads e.winding off this and finds undefined quietly measures
+      // nothing at all and reports it as a result
+      dead: e.dead, hurt: Math.round(e.hurt * 100) / 100,
+      winding: Math.round(e.winding * 1000) / 1000, warned: e.warned,
+    })),
+  };
+  const commands = new CommandBus();
+  registerCommands(commands, commandWorld);
+
   // debug handle so headless screenshots can jump the calendar
   // headless screenshot hooks; stripped from production builds
   if (import.meta.env.DEV) {
@@ -1312,8 +1409,8 @@ function startGame(
     (debug as { __piers?: unknown }).__piers = structures.piers;
     (debug as { __descent?: () => unknown }).__descent = () => places.underground?.world.map.descent ?? null;
     (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
-    (debug as { __descend?: () => void }).__descend = () => places.descend();
-    (debug as { __climbOut?: () => void }).__climbOut = () => places.exitDungeon();
+    (debug as { __descend?: () => void }).__descend = () => commandWorld.descend();
+    (debug as { __climbOut?: () => void }).__climbOut = () => commandWorld.climbOut();
     (debug as { __plots?: () => unknown }).__plots = () => plots.count;
     (debug as { __houses?: () => unknown }).__houses = () => ({
       hired: houses.hired,
@@ -1338,60 +1435,25 @@ function startGame(
         .sort((a, b) => a.d - b.d)[0]?.v;
       return village ? { village: village.name, pitches: market.pitchesOf(village) } : null;
     };
-    (debug as { __enterShrine?: () => void }).__enterShrine = () => {
-      const shrine = structures.pois.find((p) => p.kind === StructureKind.Shrine);
-      if (shrine) places.enterDungeon(shrine);
-    };
+    (debug as { __enterShrine?: () => void }).__enterShrine = () => { commandWorld.enterShrine(); };
     (debug as { __monsters?: () => unknown }).__monsters = () =>
       (places.underground?.monsters.roster ?? []).map((m) => ({
         i: m.rosterIndex, kind: m.kind.id,
         x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100, hp: m.hp,
       }));
-    (debug as { __drop?: () => void }).__drop = () => {
-      remains.leave('Rolf the Hunter', 'hunter', player.x + 1.2, player.z, 23, 'pelt', 4242);
-    };
+    (debug as { __drop?: () => void }).__drop = () => { commandWorld.drop(); };
     (debug as { __packs?: () => unknown }).__packs = () => remains.all;
-    (debug as { __sow?: (x: number, z: number) => void }).__sow = (x, z) => {
-      plots.plant(x, z, 'wheat', state.day + state.time);
-      online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
-      state.version++;
-    };
-    (debug as { __discover?: (n: string) => void }).__discover = (n) => discover(n);
+    (debug as { __sow?: (x: number, z: number) => void }).__sow = (x, z) => { commandWorld.sow(x, z); };
+    (debug as { __discover?: (n: string) => void }).__discover = (n) => { commandWorld.discover(n); };
     (debug as { __reportChest?: (id: string) => void }).__reportChest = (id) => { state.opened.add(id); online.report({ kind: 'chest', id }); state.version++; };
     (debug as { __shrines?: unknown }).__shrines = structures.pois.filter((p) => p.kind === StructureKind.Shrine).map((p) => ({ name: p.name, x: p.x, z: p.z }));
     (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
       entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
-    (debug as { __entities?: () => unknown }).__entities = () =>
-      entities.within(player.x, player.z, 60).map((e) => ({
-        kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
-        x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
-        slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
-        // the fight's own state, without which none of the wind-up work can be checked from
-        // outside: a probe that reads e.winding off this and finds undefined quietly measures
-        // nothing at all and reports it as a result
-        dead: e.dead, hurt: Math.round(e.hurt * 100) / 100,
-        winding: Math.round(e.winding * 1000) / 1000, warned: e.warned,
-      }));
-    (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => {
-      const doomed = [...register.living(village)].slice(0, n);
-      for (const person of doomed) register.bury(person.id, state.day);
-      return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
-    };
+    (debug as { __entities?: () => unknown }).__entities = () => commandWorld.entities();
+    (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => commandWorld.thin(village, n);
     (debug as { __callOut?: (id: string) => void }).__callOut = (id) => multiplayer.callOut(id);
-    (debug as { __hire?: (n: number) => unknown }).__hire = (n) => {
-      // stand somebody's own soldiers up without walking a village: for trying a fight out
-      const folk = structures.villages.flatMap((v) => [...register.living(v.name)]).filter((p) => p.trade === 'soldier');
-      const side = online.id || 'alone';
-      const taken = folk.slice(0, n).map((p) => hires.strike(
-        { who: p.id, name: p.name, asking: 0, terms: [{ fee: 0, share: 0.2 }] },
-        { fee: 0, share: 0.2 }, 999, side,
-      ));
-      return { asked: n, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
-    };
-    (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => {
-      const e = entities.spawnOne(kind, player.x + away, player.z, seed ^ Date.now());
-      return e ? { kind: e.kind.id, x: Math.round(e.x), z: Math.round(e.z), hp: e.hp } : null;
-    };
+    (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
+    (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => commandWorld.spawn(kind, away);
     (debug as { __blow?: () => unknown }).__blow = () => ({
       hero: { blow: player.entity.blow, strike: Math.round(player.entity.strike * 100) / 100 },
       others: entities.within(player.x, player.z, 30)
@@ -1497,7 +1559,18 @@ function startGame(
       };
     };
     debug.__player = player;
-    debug.__teleport = (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); };
+    debug.__teleport = (x, z) => commandWorld.teleport(x, z);
+    // the console's way in: `cmd('teleport 322 53')`, and `cmd('help')` for the rest
+    (debug as { cmd?: (line: string) => unknown }).cmd = (line) => commands.run(line, 'console');
+    // and the way in from outside the browser altogether: a line posted to the dev server arrives
+    // here over Vite's own channel, so a terminal can drive a tab nobody is touching
+    if (import.meta.hot) {
+      import.meta.hot.on('ai-world:command', ({ line }: { line: string }) => {
+        const result = commands.run(line, 'dev');
+        import.meta.hot?.send('ai-world:command-result', { line, result });
+        if (!result.ok) console.warn(`command: ${line} — ${result.error}`);
+      });
+    }
     (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
     (debug as { __quests?: () => unknown }).__quests = () => questList;
     (debug as { __markers?: () => unknown }).__markers = () => markers();
@@ -1509,17 +1582,7 @@ function startGame(
       state.version++;
       talkCtx.onQuestChange(errand, 'done');
     };
-    (debug as { __enterInn?: () => string | null }).__enterInn = () => {
-      for (const village of structures.villages) {
-        const inn = village.shops.find((shop) => shop.type === 'inn');
-        if (!inn) continue;
-        const door = structures.doors.find((d) => d.bx === inn.house.tx && d.bz === inn.house.tz);
-        if (!door) continue;
-        places.enterBuilding(door);
-        return village.name;
-      }
-      return null;
-    };
+    (debug as { __enterInn?: () => string | null }).__enterInn = () => commandWorld.enterInn() as string | null;
     // the same door-finding as __enterInn, for any shop: the till is only reachable from inside,
     // so without this there is no way to drive a sale from a test
     (debug as { __enterShop?: (type?: string) => string | null }).__enterShop = (type = 'store') => {
@@ -1533,10 +1596,7 @@ function startGame(
       }
       return null;
     };
-    debug.__standAtCounter = () => {
-      const spot = places.indoors?.world.map.keeper;
-      if (spot) player.teleport(spot[0] + 0.5, spot[1] + 1.6);
-    };
+    debug.__standAtCounter = () => { commandWorld.standAtCounter(); };
   }
 
   // --- whales ---

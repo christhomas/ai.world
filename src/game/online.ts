@@ -16,6 +16,8 @@ export interface OnlineEvents {
   onSystem: (line: string) => void;
   /** The world's own time, which everyone in it shares. */
   onClock: (clock: Clock) => void;
+  /** A command from whoever operates this world, to run on our own bus. */
+  onCommand: (line: string, issuer: string) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
   /** The owner of a dungeon floor describing its monsters. */
@@ -149,6 +151,11 @@ export class Online {
         break;
       case 'clock':
         this.events.onClock(message.clock);
+        break;
+      case 'command':
+        // whoever operates this world has sent something to do. What it does is the client's own
+        // business: the vocabulary is shared, the handlers are not.
+        this.events.onCommand(message.line, message.issuer);
         break;
       case 'delta':
         this.events.onDelta(message.delta, false);

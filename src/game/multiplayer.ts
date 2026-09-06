@@ -77,6 +77,13 @@ export interface MultiplayerContext {
   /** Name a place the first time anybody reaches it. */
   discover: (name: string) => void;
   /**
+   * Run a command that arrived from whoever operates this world.
+   *
+   * Handed over the same way `showOffer` is, because the command bus is assembled after this and
+   * the alternative is this module knowing what a command means, which is not its business.
+   */
+  runCommand: (line: string, issuer: string) => void;
+  /**
    * How an offer of goods is put to the player. The dialogue that answers it belongs to the
    * interaction layer, which is built after this one, so main.ts hands it over here.
    */
@@ -122,6 +129,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     // the world's own time wins while you are in it, so everyone shares a dawn
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
+    onCommand: (line, issuer) => ctx.runCommand(line, issuer),
     onMonsters: (place, snap, gone) => {
       const floor = places.underground;
       if (!floor) return;

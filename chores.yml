@@ -65,6 +65,22 @@ tasks:
       - 'BASE=/ pnpm vite build'
       - 'pnpm tsx server/index.ts'
 
+  # Driving a game that is already running, from a terminal. `chore cmd -- teleport 322 53` goes to
+  # the dev server, down Vite's own channel, and into every tab it is serving; `chore cmd -- help`
+  # lists what a tab will answer to. Nothing here reaches a real world — that door is on the world
+  # server, wants OPERATOR_TOKEN, and is described in docs/server-authority.md.
+  cmd:
+    desc: Run a command in whatever the dev server is serving
+    args:
+      - name: line
+        desc: the command and its arguments, e.g. "teleport 322 53"
+    cmds:
+      - 'curl -sS -X POST --data "{{.LINE}}" http://localhost:{{.WEB_PORT}}/__command'
+      - 'sleep 0.4'
+      # what the page said happened, which is the only way to see the answer to a question like
+      # `where` or `peaks` from out here
+      - 'curl -sS http://localhost:{{.WEB_PORT}}/__command'
+
   install:
     desc: Dependencies, if they are not already there
     sources: [package.json, pnpm-lock.yaml]

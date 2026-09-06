@@ -4,7 +4,7 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -232,6 +232,15 @@ export type ClientMessage =
   | { type: 'warband-yield' };
 
 export type ServerMessage =
+  /**
+   * A command from whoever is operating this world, to be run by the client that receives it.
+   *
+   * The door it comes through is `POST /operate`, which exists only when the server was started
+   * with an operator token, so this arrives from somebody who already holds it. The client still
+   * decides what it will do — the vocabulary is shared but the handlers are not, and a client that
+   * does not run a given command simply says so.
+   */
+  | { type: 'command'; line: string; issuer: string }
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }

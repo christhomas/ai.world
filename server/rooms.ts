@@ -88,10 +88,22 @@ export class Rooms {
     if (client.socket.readyState === 1) client.socket.send(JSON.stringify(message));
   }
 
-  broadcast(seed: number, message: ServerMessage, except?: Client): void {
+  broadcast(seed: number, message: ServerMessage, except?: Client): number {
     const room = this.rooms.get(seed);
-    if (!room) return;
-    for (const client of room.clients) if (client !== except) this.send(client, message);
+    if (!room) return 0;
+    let sent = 0;
+    for (const client of room.clients) if (client !== except) { this.send(client, message); sent++; }
+    return sent;
+  }
+
+  /**
+   * Everybody, in every world. Only whoever is operating the server has any business saying
+   * something to all of them at once, which is why nothing in the game itself calls this.
+   */
+  everyone(message: ServerMessage): number {
+    let sent = 0;
+    for (const seed of this.rooms.keys()) sent += this.broadcast(seed, message);
+    return sent;
   }
 
   /** The player with this id in this room, if they are still here. */
