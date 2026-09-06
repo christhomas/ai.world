@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, type WebSocket } from 'ws';
 import { COMMANDS, parseCommand } from './commands';
 import { PROTOCOL_VERSION, cleanName, type ClientMessage, type ServerMessage } from './protocol';
 import { handle } from './messages';
-import { Rooms } from './rooms';
+import { FileVault } from './filevault';
+import { Rooms, type Wire } from './rooms';
 import { CLOCK_INTERVAL } from './world';
 import { staticFiles } from './static';
 
@@ -59,9 +60,26 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 
+/**
+ * A websocket, as the roster sees it.
+ *
+ * The whole of what the server needs from a connection is a way to send text, a way to know it is
+ * still there, and a way to end it — which is also the whole of what a `MessagePort` to a Worker
+ * offers. Keeping it this thin is what lets the same simulation run on a server and inside a
+ * browser tab without knowing which it is in.
+ */
+function wireFor(socket: WebSocket): Wire {
+  return {
+    send: (text) => socket.send(text),
+    get open(): boolean { return socket.readyState === 1; },
+    close: () => socket.close(),
+  };
+}
+
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const dataDir = options.dataDir ?? 'server/data';
-  const rooms = new Rooms(dataDir);
+  // a server keeps its worlds in files; a Worker running the same simulation keeps them elsewhere
+  const rooms = new Rooms(dataDir, new FileVault());
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;
   const http = createServer((req, res) => {
@@ -112,7 +130,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
     for (const [seed, room] of rooms.entries()) {
       for (const client of room.clients) {
-        if (now - client.lastSeen > TIMEOUT) { client.socket.close(); rooms.leave(client); }
+        if (now - client.lastSeen > TIMEOUT) { client.wire.close(); rooms.leave(client); }
       }
       if (room.clients.size === 0) { rooms.close(seed); continue; }
 
@@ -167,7 +185,7 @@ function welcome(rooms: Rooms, socket: import('ws').WebSocket, message: ClientMe
     day: Math.max(1, Math.floor(message.day) || 1),
     time: Number(message.time) || 0.3,
   });
-  const joining = rooms.admit(socket, room, seed, cleanName(message.name));
+  const joining = rooms.admit(wireFor(socket), room, seed, cleanName(message.name));
 
   rooms.send(joining, {
     type: 'welcome', id: joining.presence.id, seed,

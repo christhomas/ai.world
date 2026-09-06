@@ -1,6 +1,20 @@
-import type { WebSocket } from 'ws';
 import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
+import type { Vault } from './vault';
 import { SharedWorld, worldPath } from './world';
+
+/**
+ * The way to reach one player, whatever they are on the other end of.
+ *
+ * A WebSocket today; a `MessagePort` when the simulation runs in a Worker beside a game somebody is
+ * playing alone. The roster only ever needs to know whether it can still send, and how — so that is
+ * all this is, and the rest of the server never learns which it has.
+ */
+export interface Wire {
+  send(text: string): void;
+  /** False once the other end has gone, so a room can stop talking to nobody. */
+  readonly open: boolean;
+  close(): void;
+}
 
 /**
  * Who is in which world, and who is with whom. This is the roster: it knows nothing about what
@@ -12,7 +26,7 @@ import { SharedWorld, worldPath } from './world';
 
 /** One connected player. */
 export interface Client {
-  socket: WebSocket;
+  wire: Wire;
   presence: Presence;
   seed: number;
   /** When we last heard anything from them, for dropping the silent. */
@@ -48,7 +62,7 @@ export class Rooms {
   private readonly rooms = new Map<number, Room>();
   private nextId = 1;
 
-  constructor(private readonly dataDir: string) {}
+  constructor(private readonly dataDir: string, private readonly vault?: Vault) {}
 
   get worldCount(): number { return this.rooms.size; }
 
@@ -67,16 +81,16 @@ export class Rooms {
   open(seed: number, start: { day: number; time: number }): Room {
     let room = this.rooms.get(seed);
     if (!room) {
-      room = { clients: new Set(), world: new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }) };
+      room = { clients: new Set(), world: new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.vault) };
       this.rooms.set(seed, room);
     }
     return room;
   }
 
   /** Put a newcomer in a room and hand back the client the rest of the server will talk to. */
-  admit(socket: WebSocket, room: Room, seed: number, name: string): Client {
+  admit(wire: Wire, room: Room, seed: number, name: string): Client {
     const client: Client = {
-      socket, seed, lastSeen: Date.now(), offers: new Map(), party: null,
+      wire, seed, lastSeen: Date.now(), offers: new Map(), party: null,
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
@@ -85,7 +99,7 @@ export class Rooms {
   }
 
   send(client: Client, message: ServerMessage): void {
-    if (client.socket.readyState === 1) client.socket.send(JSON.stringify(message));
+    if (client.wire.open) client.wire.send(JSON.stringify(message));
   }
 
   broadcast(seed: number, message: ServerMessage, except?: Client): number {

@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FileVault } from './filevault';
 import { DAY_LENGTH, SharedWorld, worldPath } from './world';
+
+/** These tests are about a world outliving the thing that held it, so they want real files. */
+const kept = new FileVault();
 import { describeWorlds } from './worlds';
 import { cleanDelta, cleanLetter, cleanStallItem, deltaKey } from './protocol';
 
@@ -42,19 +46,19 @@ describe('the shared world', () => {
     const dir = scratch();
     try {
       const path = worldPath(dir, 12);
-      const first = new SharedWorld(12, path, { day: 1, time: 0.2 });
+      const first = new SharedWorld(12, path, { day: 1, time: 0.2 }, kept);
       first.tick(DAY_LENGTH * 2.5);
       first.apply({ kind: 'found', name: 'Moonwell Shrine' });
       first.apply({ kind: 'key', id: 'dungeon:Moonwell Shrine:1' });
       first.save();
 
-      const second = new SharedWorld(12, path, { day: 99, time: 0.99 });
+      const second = new SharedWorld(12, path, { day: 99, time: 0.99 }, kept);
       expect(second.clock.day).toBe(first.clock.day);
       expect(second.clock.time).toBeCloseTo(first.clock.time);
       expect(second.log.map(deltaKey).sort()).toEqual(['found:Moonwell Shrine', 'key:dungeon:Moonwell Shrine:1']);
 
       // a different seed does not read somebody else's world
-      const other = new SharedWorld(13, path, { day: 5, time: 0.5 });
+      const other = new SharedWorld(13, path, { day: 5, time: 0.5 }, kept);
       expect(other.clock.day).toBe(5);
       expect(other.log).toEqual([]);
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -102,13 +106,13 @@ describe('market pitches', () => {
     const dir = scratch();
     try {
       const path = worldPath(dir, 21);
-      const first = new SharedWorld(21, path, { day: 1, time: 0.2 });
+      const first = new SharedWorld(21, path, { day: 1, time: 0.2 }, kept);
       first.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
       first.stall('Rowan', { do: 'stock', id: 'Ashford#0', item: { id: 'apple', price: 10, count: 2 } });
       first.stall('Wren', { do: 'buy', id: 'Ashford#0', index: 0 });
       first.save();
 
-      const second = new SharedWorld(21, path, { day: 1, time: 0.2 });
+      const second = new SharedWorld(21, path, { day: 1, time: 0.2 }, kept);
       expect(second.stalls[0].owner).toBe('Rowan');
       expect(second.stalls[0].items).toEqual([{ id: 'apple', price: 10, count: 1 }]);
       expect(second.stalls[0].takings).toBe(10);
@@ -135,12 +139,12 @@ describe('the post shelf', () => {
     const dir = scratch();
     try {
       const path = worldPath(dir, 31);
-      const first = new SharedWorld(31, path, { day: 1, time: 0.2 });
+      const first = new SharedWorld(31, path, { day: 1, time: 0.2 }, kept);
       first.meet('Rowan');
       first.post({ from: 'Rowan', to: 'Wren', gold: 5, items: [], day: 1 });
       first.save();
 
-      const second = new SharedWorld(31, path, { day: 1, time: 0.2 });
+      const second = new SharedWorld(31, path, { day: 1, time: 0.2 }, kept);
       expect(second.folk).toEqual(['Rowan']);
       expect(second.collect('Wren')[0].gold).toBe(5);
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -178,7 +182,7 @@ describe('what the server has kept', () => {
       expect(describeWorlds(dir)[0]).toContain('No worlds saved yet');
       expect(describeWorlds(join(dir, 'nowhere'))[0]).toContain('No worlds saved yet');
 
-      const world = new SharedWorld(5, worldPath(dir, 5), { day: 4, time: 0.5 });
+      const world = new SharedWorld(5, worldPath(dir, 5), { day: 4, time: 0.5 }, kept);
       world.apply({ kind: 'chest', id: 'vault:1:chest:0' });
       world.meet('Rowan');
       world.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });

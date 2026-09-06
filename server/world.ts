@@ -1,5 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { Forgetful, type Vault } from './vault';
 import {
   DAY_LENGTH, MAIL_LIMIT, STALL_DAYS, STALL_LOTS, deltaKey,
   type Clock, type Letter, type Stall, type StallItem, type WorldDelta,
@@ -51,7 +50,13 @@ export class SharedWorld {
   private saveTimer: NodeJS.Timeout | null = null;
   private dirty = false;
 
-  constructor(readonly seed: number, private readonly path: string, start: Clock) {
+  constructor(
+    readonly seed: number,
+    private readonly path: string,
+    start: Clock,
+    /** Where this world is kept. A vault that forgets is a world that lasts as long as the process. */
+    private readonly vault: Vault = new Forgetful(),
+  ) {
     const loaded = this.load();
     this.clock = loaded?.clock ?? start;
     for (const delta of loaded?.deltas ?? []) this.deltas.set(deltaKey(delta), delta);
@@ -227,8 +232,7 @@ export class SharedWorld {
       stalls: this.stalls, letters: this.letters, folk: this.folk,
     };
     try {
-      mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(this.path, JSON.stringify(file, null, 2));
+      this.vault.write(this.path, JSON.stringify(file, null, 2));
     } catch (error) {
       console.error(`could not save world ${this.seed}:`, error);
     }
@@ -236,11 +240,13 @@ export class SharedWorld {
 
   private load(): WorldFile | null {
     try {
-      const raw = JSON.parse(readFileSync(this.path, 'utf8')) as WorldFile;
+      const kept = this.vault.read(this.path);
+      if (kept === null) return null;
+      const raw = JSON.parse(kept) as WorldFile;
       if (raw?.seed !== this.seed || !raw.clock) return null;
       return raw;
     } catch {
-      return null;   // no file yet, or an unreadable one: start fresh
+      return null;   // nothing kept yet, or something unreadable: start fresh
     }
   }
 }
@@ -249,7 +255,12 @@ function sameDelta(a: WorldDelta, b: WorldDelta): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Where a world's file lives. */
+/**
+ * What a world is filed under.
+ *
+ * A name rather than a path, because a vault might be a directory of files or might be a Map in a
+ * Web Worker, and the only thing both agree on is that a world is called something.
+ */
 export function worldPath(dataDir: string, seed: number): string {
-  return join(dataDir, `${seed}.json`);
+  return dataDir ? `${dataDir}/${seed}.json` : `${seed}.json`;
 }
