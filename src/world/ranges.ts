@@ -452,6 +452,29 @@ export function slopeAt(ranges: Ranges, x: number, z: number): number {
 }
 
 /**
+ * The lift of a world's mountains, with no ground under them.
+ *
+ * The water has to know where the high ground is, and it has to know before the ground is settled —
+ * the real ranges stand on a ground the rivers have not finished cutting. Only the lift matters for
+ * that, and the lift is identical either way, because a range carries its ground and its lift
+ * separately all the way down. So this is the same mountains, measured from nothing.
+ */
+export function liftField(mesh: WorldMesh): Ranges {
+  return buildRanges(mesh, () => 0);
+}
+
+/**
+ * How many terraces the mountains add at a point, for anything that counts in terraces.
+ *
+ * The ground is measured in half-unit steps and the rock in world units, and a number that means
+ * one thing here and another there is the sort of thing that is only ever found by a river running
+ * uphill.
+ */
+export function terracesAt(ranges: Ranges, x: number, z: number): number {
+  return Math.max(0, (mountainAt(ranges, x, z) ?? 0) / WORLD.STEP);
+}
+
+/**
  * The mountains of a polygon world, described the way the older mountains were.
  *
  * Eyries and sky islands are placed against mountains — a village in the clouds hangs over one, and
