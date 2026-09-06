@@ -1,4 +1,6 @@
-import { FaceKind, faceAt, type WorldMesh } from './mesh';
+import { derive, SALT } from '../core/salts';
+import { FaceKind, type WorldMesh } from './mesh';
+import { Simplex2D } from './noise';
 
 /**
  * Mountain country: the ground itself rising, before any rock stands on it.
@@ -27,9 +29,9 @@ export const HIGHLAND = {
    * plain and the country behind it fourteen. That is the climb: by the time you are among the
    * peaks you have already walked up something.
    */
-  PER_STEP: 14,
+  PER_STEP: 21,
   /** However deep the country, the ground itself never rises past this, in terraces. */
-  MOST: 40,
+  MOST: 56,
   /**
    * How far the ground round a mountain face is raised, as a share of the face's own reach.
    *
@@ -46,6 +48,24 @@ export const HIGHLAND = {
    * Two thirds gives a long approach and a broad shoulder of high ground for the peaks to stand on.
    */
   SHOULDER: 0.66,
+  /**
+   * How much of the height is carved by ridges, as against being the plain swell underneath.
+   *
+   * This is what stops a range being a dome. High ground does not rise evenly to a middle: it goes
+   * up in spurs with valleys between them, and a walk into the hills climbs, levels, drops into a
+   * hollow and climbs again. At nought that is gone and a range is a hemisphere; at one the swell
+   * disappears and the ridges have nothing to stand on. Two thirds ridge, one third swell.
+   */
+  RIDGED: 0.66,
+  /**
+   * How large the ridges are, in tiles, and how many scales of them there are.
+   *
+   * The first octave is the length of a spur — a few hundred tiles, so a range has two or three
+   * arms rather than a texture. Each one after it is half the size and worth less, which is what
+   * gives a hillside its shoulders and hollows without turning it into gravel.
+   */
+  RIDGE_SCALE: 320,
+  RIDGE_OCTAVES: 4,
 } as const;
 
 /** One face's worth of high country: where it is, how far its ground rises, and how high. */
@@ -102,13 +122,28 @@ export function highlandLift(mesh: WorldMesh): Highland[] {
 }
 
 /**
+ * The ridges a world's high country is carved into.
+ *
+ * Made from the seed, so a range has the same spurs every time it is looked at, and separate from
+ * the swells because the swells say *where* the country is high and this says *what shape* it is.
+ */
+export function highlandRidges(seed: number): Simplex2D {
+  return new Simplex2D(derive(seed, SALT.MESH ^ 0x5d9e));
+}
+
+/**
  * How high the ground stands at a point because of the country it is in, in terraces.
  *
- * The highest of what any range nearby makes of it, rather than the sum: two shoulders overlapping
- * make a saddle at the height of the higher one, which is what a saddle is. Smooth all the way out,
- * so there is no line anywhere that the ground steps across.
+ * Two things multiplied. The swell says how much height this country is allowed — the highest of
+ * what any range nearby makes of it, rather than the sum, because two shoulders overlapping make a
+ * saddle at the height of the higher one. The ridges say how much of that allowance the ground
+ * actually takes here, and that is what makes it hills rather than a dome: a walk into them climbs
+ * a spur, levels off, drops into a hollow and climbs again, and the trend is upward the whole way
+ * without a single stretch of it being a slope to a middle.
  */
-export function highlandAt(country: ReadonlyArray<Highland>, x: number, z: number): number {
+export function highlandAt(
+  country: ReadonlyArray<Highland>, ridges: Simplex2D, x: number, z: number,
+): number {
   let most = 0;
   for (const hill of country) {
     const away = Math.hypot(hill.x - x, hill.z - z);
@@ -119,5 +154,9 @@ export function highlandAt(country: ReadonlyArray<Highland>, x: number, z: numbe
     const eased = share * share * (3 - 2 * share);
     most = Math.max(most, hill.lift * eased);
   }
-  return most;
+  if (most <= 0) return 0;
+  // the noise already knows how to fold itself into crests; this only says at what size
+  const ridge = ridges.ridged(x / HIGHLAND.RIDGE_SCALE, z / HIGHLAND.RIDGE_SCALE, HIGHLAND.RIDGE_OCTAVES);
+  return most * (1 - HIGHLAND.RIDGED + HIGHLAND.RIDGED * ridge);
 }
+

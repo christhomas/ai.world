@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FaceKind, generateMesh, type WorldMesh } from './mesh';
 import { RANGE, buildRanges, mountainAt, planBowl, type Ranges } from './ranges';
-import { highlandAt, highlandLift } from './highland';
+import { highlandAt, highlandLift, highlandRidges } from './highland';
 
 /**
  * The mountains, as the shape they are rather than as a picture of one.
@@ -247,28 +247,30 @@ describe('mountain country', () => {
   it('raises the country a long way before any rock stands on it', () => {
     const mesh = generateMesh(3);
     const country = highlandLift(mesh);
+    const ridges = highlandRidges(mesh.seed);
     expect(country.length, 'seed 3 has mountain country').toBeGreaterThan(0);
 
     const middle = country.reduce((a, b) => (a.lift > b.lift ? a : b));
     // walking out from the middle of the highest country: high, then lower, then the plain
-    const near = highlandAt(country, middle.x, middle.z);
-    const halfway = highlandAt(country, middle.x + middle.reach * 0.6, middle.z);
+    const near = highlandAt(country, ridges, middle.x, middle.z);
+    const halfway = highlandAt(country, ridges, middle.x + middle.reach * 0.6, middle.z);
     expect(near).toBeGreaterThan(6);
     expect(halfway).toBeLessThan(near);
     // and somewhere no range reaches at all is the plain. Far out, because ranges overlap: a point
     // just past one face's reach is often still inside the next face's, which is what a range is.
     const away = Math.max(...country.map((c) => Math.hypot(c.x, c.z) + c.reach)) + 200;
-    expect(highlandAt(country, away, away), 'the plain is the plain').toBe(0);
+    expect(highlandAt(country, ridges, away, away), 'the plain is the plain').toBe(0);
   });
 
   it('climbs rather than steps: no cliff anywhere on the approach', () => {
     const mesh = generateMesh(3);
     const country = highlandLift(mesh);
+    const ridges = highlandRidges(mesh.seed);
     const middle = country.reduce((a, b) => (a.lift > b.lift ? a : b));
     let worst = 0;
     for (let out = 0; out < middle.reach * 1.4; out += 2) {
-      const here = highlandAt(country, middle.x + out, middle.z);
-      const next = highlandAt(country, middle.x + out + 2, middle.z);
+      const here = highlandAt(country, ridges, middle.x + out, middle.z);
+      const next = highlandAt(country, ridges, middle.x + out + 2, middle.z);
       worst = Math.max(worst, Math.abs(next - here));
     }
     // two tiles of walking never changes the country by more than a terrace and a half
@@ -278,10 +280,11 @@ describe('mountain country', () => {
   it('puts its peaks on that high ground rather than on the plain', () => {
     const mesh = generateMesh(3);
     const country = highlandLift(mesh);
+    const ridges = highlandRidges(mesh.seed);
     // the ground a peak stands on, as the world would report it: the country under the summit
-    const ranges = buildRanges(mesh, (x, z) => highlandAt(country, x, z) * 0.5);
+    const ranges = buildRanges(mesh, (x, z) => highlandAt(country, ridges, x, z) * 0.5);
     for (const peak of ranges.peaks) {
-      const under = highlandAt(country, peak.x, peak.z) * 0.5;
+      const under = highlandAt(country, ridges, peak.x, peak.z) * 0.5;
       expect(peak.y, `${peak.face}`).toBeCloseTo(under + peak.lift, 4);
       expect(under, 'and that ground is high before the rock is counted').toBeGreaterThan(0);
     }

@@ -8,7 +8,7 @@ import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { growRanges, liftField, mountainAt, nearestLift, type Ranges } from './ranges';
-import { highlandAt, highlandLift, type Highland } from './highland';
+import { highlandAt, highlandLift, highlandRidges, type Highland } from './highland';
 import { despeckle } from './despeckle';
 import { rollProp } from './props';
 import { CellIndex } from './spatial';
@@ -152,6 +152,8 @@ export class TerrainSampler {
    * on one. Null in the road-tree world, which has no mountain country in it.
    */
   private readonly highland: Highland[];
+  /** The spurs and hollows that country is carved into, so a range is hills rather than a dome. */
+  private readonly ridges: Simplex2D;
   /** The world's mountains. Planned before structures, because structures sample the ground. */
   readonly massifs: Massif[];
   /**
@@ -177,6 +179,7 @@ export class TerrainSampler {
     this.seed = graph.seed;
     this.mesh = (graph as RoadGraph & { mesh?: WorldMesh }).mesh ?? null;
     this.highland = this.mesh ? highlandLift(this.mesh) : [];
+    this.ridges = highlandRidges(graph.seed);
     this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
     this.biomeNoise = new Simplex2D(derive(graph.seed, SALT.BIOME));
 
@@ -263,7 +266,7 @@ export class TerrainSampler {
 
   /** How high the ground stands here because of the country it is in, in terraces. */
   highlandAt(x: number, z: number): number {
-    return highlandAt(this.highland, x, z);
+    return highlandAt(this.highland, this.ridges, x, z);
   }
 
   newSample(): TileSample {
