@@ -2,11 +2,16 @@ apiVersion: v2
 name: ai-world
 description: The world server, and the page that draws it, on one origin.
 type: application
-# The chart's own version, bumped when the templates change.
+# The chart's own version and the game's move together, always.
+#
+# They are two numbers that could drift and must not: `appVersion` is the image tag a deployment
+# pulls, so a chart published without a game to match it points at an image that does not exist, and
+# a game published without a chart is a version nobody can install. `chart.test.ts` fails the build
+# if they disagree.
 version: 0.2.1
 # What it deploys by default. Overridden by image.tag, so a chart bump and a game release are
 # separate events rather than one number pretending to be two.
-appVersion: "0.2.0"
+appVersion: "0.2.1"
 home: https://github.com/christhomas/ai.world
 sources:
   - https://github.com/christhomas/ai.world

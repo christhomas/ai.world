@@ -35,8 +35,16 @@ const VIEW = {
   FAR: 260,
   /** Headroom above the summit, in world units, so a peak is not framed exactly at the top edge. */
   MARGIN: 12,
-  /** However tall the mountain, the view never opens past this. Beyond it the hero is an ant. */
-  CEILING: 150,
+  /**
+   * However tall the mountain, the view never opens past this.
+   *
+   * The ordinary view is thirty units of world and the wheel takes it to seventy-two. This started
+   * at a hundred and fifty, which framed the tallest peak in the world and made the hero an ant
+   * seen from a mile up — a picture of a mountain rather than a view from beside one. Forty-four is
+   * a step back rather than a departure, and the rest of the framing is done by aiming the camera
+   * up the mountain instead of shrinking the world to fit it in.
+   */
+  CEILING: 58,
   /** How fast the zoom eases toward where it should be, as a share of the gap per second. */
   EASE: 1.6,
   /** A gap smaller than this is left alone, so the frustum is not rebuilt every frame for nothing. */
@@ -45,11 +53,12 @@ const VIEW = {
    * The most the camera will look up, in world units, and how fast it gets there.
    *
    * Zooming out alone cannot frame a mountain: the picture is centred on the hero, so half of what
-   * the extra height buys is spent on ground behind him. Lifting what the camera aims at moves the
-   * whole picture up the mountain instead, which is what a person does when they look at one — and
-   * it costs nothing in scale, so the hero stays the size he was.
+   * the extra height buys is spent on ground behind him, and enough of it to fit a whole peak leaves
+   * the hero a speck. Lifting what the camera aims at moves the picture up the mountain instead,
+   * which is what a person does when they look at one — and it costs nothing in scale, so the hero
+   * stays the size he was. This is the half of the framing that does the work.
    */
-  LOOK_UP: 34,
+  LOOK_UP: 30,
   LOOK_EASE: 1.4,
 } as const;
 
