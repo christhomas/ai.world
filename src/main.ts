@@ -266,6 +266,13 @@ function startGame(
    * what phase three of docs/server-authority.md is for.
    */
   const wildlife = new Wildlife(entityRenderer, entities);
+  /**
+   * And the world's creatures on whatever floor the hero is standing on, when he is standing on one.
+   *
+   * A floor is a world of its own with its own monsters and its own numbering, so it gets its own
+   * telling rather than sharing the country's. Null above ground, which is most of the time.
+   */
+  let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
   /**
    * The hero's own face, on the right of every conversation. It is seeded by the name they gave
@@ -498,6 +505,18 @@ function startGame(
     setCaveAmbience: (on) => { sound.cave = on; },
     persist: () => persist(),
     report: (delta) => online.report(delta),
+    // A floor is the world's if there is a world listening. It grows the same rooms from the same
+    // anchor name and owns what walks about in them; this side draws what it is told and spawns
+    // nothing of its own.
+    wentBelow: (below) => {
+      if (!online.connected) return false;
+      online.floor(below.place, below.anchorId, below.kind, below.floor);
+      // built from what is handed over rather than from `places.underground`, which is not the
+      // floor being entered yet: this is called on the way in, before the visit is the visit
+      floorLife = new Wildlife(below.renderer, below.monsters);
+      return true;
+    },
+    cameUp: () => { floorLife = null; },
   });
 
   /**
@@ -510,6 +529,14 @@ function startGame(
    */
   const outdoors = (): boolean =>
     places.indoors === null && !places.underground && !sailing.sailing && !player.riding;
+
+  /**
+   * The world a blow is thrown in, when the world owns it, and null when it does not.
+   *
+   * The country and every dungeon floor are the world's; the inside of a building is nobody's but
+   * this client's, because nothing has ever grown one anywhere else.
+   */
+  const battlefield = (): string | null => (places.indoors === null ? placeName() : null);
 
   chunks.onFirstChunk = () => {
     hud.hideLoading();
@@ -558,8 +585,14 @@ function startGame(
     dialogue, hud, chat, sound, questList, discovered, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
-    // the world's own creatures: drawn as they arrive, and the local ones stand down
-    onCreatures: (near, gone) => {
+    // the world's own creatures, in whichever of its worlds they live: drawn as they arrive, and
+    // the local ones stand down. A snapshot for a place the hero is not in is not ours to draw —
+    // the numbers a floor gives its monsters mean nothing on a hillside.
+    onCreatures: (place, near, gone) => {
+      if (place !== 'surface') {
+        if (place === placeName()) floorLife?.apply(near, gone);
+        return;
+      }
       if (!entities.toldWhatLives) {
         entities.toldWhatLives = true;
         entities.forgetTheWildlife();
@@ -573,21 +606,24 @@ function startGame(
      * pelt is worth is decided here rather than by the world, because a purse and a rucksack live
      * in a player's own save and never travel — the world's business is that the creature is dead.
      */
-    onCreatureKilled: (id, mine) => {
-      const body = wildlife.find(id);
+    onCreatureKilled: (place, id, mine) => {
+      const alive = place === 'surface' ? wildlife : place === placeName() ? floorLife : null;
+      if (!alive) return;
+      const body = alive.find(id);
       if (body && mine) {
         const won = spoils(state, body, seed);
         if (won.gold > 0) { state.inventory.gold += won.gold; state.version++; }
         for (const item of won.loot) state.give(item, 1);
         if (won.gold > 0 || won.loot.length > 0) sound.chime();
       }
-      wildlife.apply([], [id]);
+      alive.apply([], [id]);
     },
     // A creature the world owns has bitten us. The world decided that it happened and how hard;
     // everything after that — the guard, the parry, the knockback, the hearts — is the same code a
     // bite has always gone through, because it is the client that holds all of it.
-    onBitten: (id, damage) => {
-      const attacker = wildlife.find(id);
+    onBitten: (place, id, damage) => {
+      const alive = place === 'surface' ? wildlife : place === placeName() ? floorLife : null;
+      const attacker = alive?.find(id);
       if (attacker) onAttack(attacker, damage);
     },
     onWorldSilent: () => {
@@ -607,7 +643,7 @@ function startGame(
     },
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
-  const { online, market, party, duel, warband, coop, others, handover, rally, playerList } = multiplayer;
+  const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
   /**
    * Put the world away. The simulation is expensive — chunk workers, a webgl context, an audio
    * graph, a socket — and none of it should outlive the moment you leave for the title screen.
@@ -1084,13 +1120,13 @@ function startGame(
       .some((e) => e.kind.id === 'nettle' && !e.dead && e.hp <= landed);
     if (cornered && interactions.heWentDown()) { sound.thud(); return; }
 
-    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing, null, might);
+    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, true, standing, null, might);
     // the ledger moves on every deed, not only on the ones that change what people call you
     state.standing = standing.value;
-    for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     // and out of doors the world throws the blow itself: we say how hard and how far, it says what
     // was in the arc. What is drawn above is the guess that keeps a hit feeling like one.
-    if (outdoors()) online.swing(Math.max(1, Math.round(state.attack * might)), COMBAT.RANGE, COMBAT.ARC);
+    const field = battlefield();
+    if (field) online.swing(field, Math.max(1, Math.round(state.attack * might)), COMBAT.RANGE, COMBAT.ARC);
     if (res.hit.length === 0) {
       sound.miss();
       // a blade that finds nothing where something plainly stands has to say why, or the rule
@@ -1149,11 +1185,11 @@ function startGame(
     player.entity.attackCooldown = BOW.COOLDOWN;
     const world = places.underground?.world ?? chunks;
     const manager = places.underground?.monsters ?? entities;
-    const res = shoot(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing);
+    const res = shoot(state, manager, world, player.x, player.z, player.entity.yaw, seed, true, standing);
     state.standing = standing.value;
-    for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     // an arrow is one arrow, so the world takes the first thing it would reach rather than the arc
-    if (outdoors()) online.swing(state.attack, BOW.RANGE, BOW.ARC, true);
+    const field = battlefield();
+    if (field) online.swing(field, state.attack, BOW.RANGE, BOW.ARC, true);
     if (res.hit.length === 0) { sound.select(); hud.flash(`Missed. ${quiver(state)} arrows left.`); return; }
     sound.thud();
     if (res.killed.length > 0) {
@@ -1188,11 +1224,11 @@ function startGame(
     // nothing about killing a thing depends on what killed it
     const world = places.underground?.world ?? chunks;
     const manager = places.underground?.monsters ?? entities;
-    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, !coop.mirroring, standing, cast.blow);
+    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, true, standing, cast.blow);
     state.standing = standing.value;
-    for (const { index, damage } of res.reported) coop.reportHit(index, damage);
     // a spell is a swing with a longer arm, and it reaches the world's creatures the same way
-    if (outdoors()) online.swing(cast.blow.damage, cast.blow.range, COMBAT.ARC);
+    const field = battlefield();
+    if (field) online.swing(field, cast.blow.damage, cast.blow.range, COMBAT.ARC);
     if (res.killed.length > 0) {
       // what lived in the workings is what made them dangerous, so killing it is the one thing a
       // player can do that moves a village's whole economy
@@ -1721,10 +1757,6 @@ function startGame(
     (debug as { __walking?: () => unknown }).__walking = () => ({
       ...walking, worst: Math.round(walking.worst * 1000) / 1000,
     });
-    (debug as { __coop?: () => unknown }).__coop = () => ({
-      hosting: coop.hosting, mirroring: coop.mirroring, id: online.id,
-      others: [...online.players.values()].map((p) => `${p.id}@${p.place}`),
-    });
     (debug as { __stalls?: () => unknown }).__stalls = () => {
       const village = structures.villages
         .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
@@ -1732,9 +1764,11 @@ function startGame(
       return village ? { village: village.name, pitches: market.pitchesOf(village) } : null;
     };
     (debug as { __enterShrine?: () => void }).__enterShrine = () => { commandWorld.enterShrine(); };
+    // Everything on the floor, whoever owns it: the world's monsters arrive as guests rather than
+    // as entries in this manager's own roster, so reading the roster showed an empty dungeon.
     (debug as { __monsters?: () => unknown }).__monsters = () =>
-      (places.underground?.monsters.roster ?? []).map((m) => ({
-        i: m.rosterIndex, kind: m.kind.id,
+      (places.underground?.monsters.within(player.x, player.z, 999) ?? []).map((m) => ({
+        kind: m.kind.id, world: m.worldId,
         x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100, hp: m.hp,
       }));
     (debug as { __drop?: () => void }).__drop = () => { commandWorld.drop(); };
@@ -2275,12 +2309,13 @@ function startGame(
       // underground: the hero, the monsters, the lights and the HUD tick
       below.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
       below.scene.heroLight.intensity = state.can('light') || magic.lit ? 9 : 3;
-      // one player runs the monsters on a shared floor; everyone else mirrors what they are told
-      coop.survey(online.id, placeName(), online.players.values());
-      coop.age(dt);
-      if (!coop.mirroring) below.monsters.update(dt, player.x, player.z, state.armed, onAttack);
+      // The world runs the monsters on a floor, the way it runs the animals in a field, and this
+      // side eases them between what it is told. Where there is no world listening, the same
+      // manager thinks for them itself: it holds its own monsters rather than guests, and `update`
+      // is what makes them move.
+      below.monsters.update(dt, player.x, player.z, state.armed, onAttack);
+      floorLife?.update(dt);
       announceWindUps(below.monsters.within(player.x, player.z, HEARD_WINDING));
-      coop.publish(dt, below.monsters);
       if (places.underground !== below) { input.endFrame(); return; }
       below.renderer.update();
       heroGear.update(state, player.entity);

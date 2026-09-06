@@ -1,7 +1,9 @@
 import { EntityManager } from '../src/entities/manager';
 import { Roster } from '../src/entities/roster';
 import { damageEntity, type Entity } from '../src/entities/entity';
-import type { GroundWorld } from '../src/world/groundworld';
+import type { DungeonMap } from '../src/dungeon/generate';
+import type { TileWorld } from '../src/entities/entity';
+import type { ChunkSource } from '../src/world/tiles';
 import { ITEMS } from '../src/game/items';
 import type { CreatureSnap, Presence } from './protocol';
 
@@ -42,8 +44,21 @@ export class Wildlife {
    * every client already agrees about them. A villager owned by the server would be a villager
    * nobody could talk to, because a conversation is held by the client.
    */
-  constructor(seed: number, private readonly ground: GroundWorld) {
-    this.manager = new EntityManager(this.roster, ground, ground, seed, []);
+  constructor(seed: number, private readonly ground: TileWorld, chunks: ChunkSource) {
+    this.manager = new EntityManager(this.roster, ground, chunks, seed, []);
+  }
+
+  /**
+   * Fill a dungeon floor, once, with whatever the map says stands in it.
+   *
+   * The country above spawns itself as its chunks arrive; a floor has no chunks and never grows any
+   * more, so everything that lives down there is put there the moment the floor is stood up. The
+   * same map and the same seed the client draws it from, so it is the same monsters in the same
+   * rooms rather than an agreement to have similar ones.
+   */
+  fill(map: DungeonMap, seed: number, floor: number): void {
+    this.manager.spawnMonsters(map.monsterSpots, seed + floor, floor);
+    if (map.boss) this.manager.spawnOne('troll', map.boss[0] + 0.5, map.boss[1] + 0.5, seed + 99);
   }
 
   /**

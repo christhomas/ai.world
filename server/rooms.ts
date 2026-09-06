@@ -70,6 +70,14 @@ export interface Client {
   /** Who they are dueling now. */
   duel: Client | null;
   /**
+   * The place this client is standing in: `surface`, or the name of a dungeon floor.
+   *
+   * Kept beside presence's own copy because it decides which world's creatures they are told about
+   * and which one their blows reach, and those have to be settled by something that is not a string
+   * a client sent this frame.
+   */
+  standingIn: string;
+  /**
    * The hero the server is walking for this client, once it has walked one.
    *
    * Null until the first steer arrives in a world with ground under it. What it holds is a body
@@ -124,7 +132,7 @@ export class Rooms {
     const client: Client = {
       wire, seed, lastSeen: Date.now(), offers: new Map(), party: null, seeing: new Map(),
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
-      hero: null, steered: 0,
+      hero: null, steered: 0, standingIn: 'surface',
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);
@@ -150,14 +158,24 @@ export class Rooms {
    * every world until the ground is switched on. Held here because a message about a creature
    * arrives through the roster and has to find its way to whatever is running them.
    */
-  private readonly living = new Map<number, CreatureOwner>();
+  private readonly living = new Map<string, CreatureOwner>();
 
-  ownCreatures(seed: number, owner: CreatureOwner): void {
-    this.living.set(seed, owner);
+  ownCreatures(seed: number, place: string, owner: CreatureOwner): void {
+    this.living.set(`${seed}|${place}`, owner);
   }
 
-  worldOf(seed: number): CreatureOwner | null {
-    return this.living.get(seed) ?? null;
+  forgetCreatures(seed: number, place: string): void {
+    this.living.delete(`${seed}|${place}`);
+  }
+
+  /**
+   * Whatever is running the creatures of one place in one world.
+   *
+   * Keyed by place as well as by seed, because a dungeon floor is a world of its own with its own
+   * animals in it, and a blow thrown three floors down has no business reaching a deer in a field.
+   */
+  worldOf(seed: number, place: string): CreatureOwner | null {
+    return this.living.get(`${seed}|${place}`) ?? null;
   }
 
   /**

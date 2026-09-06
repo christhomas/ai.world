@@ -1,11 +1,14 @@
 import { handle } from './messages';
-import { PROTOCOL_VERSION, cleanName, type ClientMessage, type CreatureSnap, type ServerMessage } from './protocol';
-import { Rooms, type Client, type Wire } from './rooms';
+import { LIMITS, PROTOCOL_VERSION, cleanName, type ClientMessage, type CreatureSnap, type ServerMessage } from './protocol';
+import { Rooms, type Client, type Room, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld } from '../src/world/groundworld';
 import { Wildlife } from './wildlife';
 import { generateWebGraph } from '../src/world/roadweb';
+import { generateDungeon } from '../src/dungeon/generate';
+import { DungeonWorld } from '../src/dungeon/world';
+import { Manifest } from '../src/world/manifest';
 import { TerrainSampler } from '../src/world/terrain';
 
 /**
@@ -66,6 +69,9 @@ export const CREATURE_INTERVAL = 330;
 /** How many chunks either side of a player the ground is held for, by default. */
 export const REACH = 3;
 
+/** The deepest floor anybody may claim to be standing on, so a number is not a way to spend memory. */
+const FLOORS = 40;
+
 export class Simulation {
   readonly rooms: Rooms;
   private readonly timeout: number;
@@ -75,6 +81,14 @@ export class Simulation {
   private readonly ground = new Map<number, GroundWorld>();
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
   private readonly wildlife = new Map<number, Wildlife>();
+  /**
+   * The dungeon floors somebody is standing on, and what lives in them, keyed by world and place.
+   *
+   * A floor is a world of its own: its own rooms, its own monsters, its own numbering. It is grown
+   * when the first person walks down the stairs into it and dropped when the last one leaves,
+   * because a world that has been explored should cost nothing to have been explored.
+   */
+  private readonly underworlds = new Map<string, Wildlife>();
   private lastTick = Date.now();
   /** Milliseconds since the creatures last went out, which is rarer than presence. */
   private sinceCreatures = 0;
@@ -114,10 +128,10 @@ export class Simulation {
     // has died, so every client already agrees about them without being told — and a villager the
     // server owned would be one the player could not talk to, because a conversation is a thing the
     // client holds. What players disagree about is the wildlife, so that is what moves across.
-    const alive = new Wildlife(seed, grown);
+    const alive = new Wildlife(seed, grown, grown);
     this.wildlife.set(seed, alive);
     // so that a blow arriving through the roster can find whatever is running the creatures
-    this.rooms.ownCreatures(seed, alive);
+    this.rooms.ownCreatures(seed, 'surface', alive);
     // and the same ground the players are walking on, so a hero can be walked against it rather
     // than taken on trust from the machine he is being walked on
     this.rooms.ownGround(seed, grown);
@@ -173,6 +187,10 @@ export class Simulation {
         const room = this.rooms.get(client.seed);
         if (!room) return;
         client.lastSeen = Date.now();
+        // A floor is the one thing a message can ask the simulation to *make*, so it is answered
+        // here rather than in the roster: growing one costs a world, and only the thing that holds
+        // the worlds can decide to.
+        if (message.type === 'floor') { this.standOn(client, message); return; }
         handle(this.rooms, client, room, message);
       },
       leave: () => {
@@ -205,26 +223,27 @@ export class Simulation {
 
       room.world.tick(seconds);
       if (room.world.sweepStalls()) this.rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
-      const players = [...room.clients].map((c) => c.presence);
+      // who is where. A world is several worlds at once — the country, and a floor under every
+      // staircase somebody is standing on — and each of them is stepped for the people in it.
+      const above = [...room.clients].filter((c) => c.standingIn === 'surface');
+      const players = above.map((c) => c.presence);
+      this.sinceCreatures += TICK;
+      const tellNow = this.sinceCreatures >= CREATURE_INTERVAL;
+      if (tellNow) this.sinceCreatures = 0;
+
       // the ground exists where somebody is standing, and nowhere else: a chunk nobody is near is a
       // chunk with nobody to tell about it
       const ground = this.groundOf(seed);
-      if (ground) {
+      if (ground && players.length > 0) {
         for (const who of players) ground.reach(who.x, who.z, this.reach);
         ground.keepOnly(players, this.reach + 1);
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {
-          // and what any of them got their teeth into. Told rather than taken: hearts live in a
-          // player's own save, so the world says a wolf bit you and how hard, and your own game
-          // works out what your guard was worth and which way it knocked you.
-          for (const bite of alive.step(seconds, players, room.world.clock.time)) {
-            const bitten = [...room.clients].find((c) => c.presence === bite.who);
-            if (bitten) this.rooms.send(bitten, { type: 'bitten', id: bite.id, damage: bite.damage });
-          }
-          this.tellAboutCreatures(seed, alive);
+          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow);
         }
       }
+      this.stepFloors(seed, room, seconds, tellNow);
       for (const client of room.clients) {
         this.rooms.send(client, { type: 'presence', players: players.filter((p) => p.id !== client.presence.id) });
       }
@@ -242,14 +261,47 @@ export class Simulation {
    * Sent at its own rate rather than every tick. Presence goes out ten times a second because a
    * player's own hero must not stutter; a deer forty tiles away is perfectly legible at three.
    */
-  private tellAboutCreatures(seed: number, alive: Wildlife): void {
-    const room = this.rooms.get(seed);
-    if (!room) return;
-    this.sinceCreatures += TICK;
-    if (this.sinceCreatures < CREATURE_INTERVAL) return;
-    this.sinceCreatures = 0;
+  /**
+   * One world, one step: move what lives there, tell whoever it bit, and describe it to the people
+   * standing in it. The country and every floor under it go through this, which is what makes a
+   * dungeon the same kind of thing as a hillside rather than a special case with its own rules.
+   */
+  private stepAndTell(
+    alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
+  ): void {
+    // told rather than taken: hearts live in a player's own save, so the world says a wolf bit you
+    // and how hard, and your own game works out what your guard was worth and which way it threw you
+    for (const bite of alive.step(dt, who.map((c) => c.presence), time)) {
+      const bitten = who.find((c) => c.presence === bite.who);
+      if (bitten) this.rooms.send(bitten, { type: 'bitten', place, id: bite.id, damage: bite.damage });
+    }
+    if (tell) this.tellAboutCreatures(alive, place, who);
+  }
 
-    for (const client of room.clients) {
+  /**
+   * Every floor somebody is standing on, and the ones nobody is standing on any more.
+   *
+   * A floor is grown when the first person walks down into it and dropped when the last one leaves.
+   * Nothing is kept for a world that has been explored: the rooms are the same every time they are
+   * grown, and what was in them is not worth remembering — the point of a floor is that it is
+   * dangerous while you are in it.
+   */
+  private stepFloors(seed: number, room: Room, dt: number, tell: boolean): void {
+    for (const [key, alive] of this.underworlds) {
+      if (!key.startsWith(`${seed}|`)) continue;
+      const place = key.slice(String(seed).length + 1);
+      const here = [...room.clients].filter((c) => c.standingIn === place);
+      if (here.length === 0) {
+        this.underworlds.delete(key);
+        this.rooms.forgetCreatures(seed, place);
+        continue;
+      }
+      this.stepAndTell(alive, place, here, dt, room.world.clock.time, tell);
+    }
+  }
+
+  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>): void {
+    for (const client of who) {
       const near = alive.inSightOf(client.presence.x, client.presence.z);
       const changed: CreatureSnap[] = [];
       const now = new Map<number, string>();
@@ -263,8 +315,37 @@ export class Simulation {
       for (const id of client.seeing.keys()) if (!now.has(id)) gone.push(id);
       client.seeing = now;
       if (changed.length === 0 && gone.length === 0) continue;
-      this.rooms.send(client, { type: 'creatures', near: changed, gone });
+      this.rooms.send(client, { type: 'creatures', place, near: changed, gone });
     }
+  }
+
+  /**
+   * Somebody has gone underground. Grow the floor they are standing on, if nobody has yet.
+   *
+   * The seed is derived here rather than sent: the same root seed and the same anchor name give the
+   * same rooms on every machine, which is the whole of how this world is shared. So a client says
+   * which floor it walked into and the world works out what that floor is — and two people who name
+   * the same floor are standing in the same one by construction.
+   */
+  private standOn(client: Client, message: Extract<ClientMessage, { type: 'floor' }>): void {
+    const place = String(message.place).slice(0, LIMITS.PLACE);
+    client.standingIn = place;
+    client.seeing = new Map();
+    if (!this.growGround) return;
+    const key = `${client.seed}|${place}`;
+    if (this.underworlds.has(key)) return;
+
+    const anchorId = String(message.anchor).slice(0, LIMITS.PLACE);
+    const kind = message.kind === 'cave' || message.kind === 'thicket' ? message.kind : 'dungeon';
+    const floor = Math.max(1, Math.min(FLOORS, Math.floor(Number(message.floor) || 1)));
+    const seed = new Manifest(client.seed).deriveSeed(anchorId, kind, null);
+    const style = kind === 'dungeon' ? 'vault' : kind;
+    const world = new DungeonWorld(generateDungeon(seed, style, floor), place, style);
+    // a floor has no chunks streaming into it: what lives down there is put there once, now
+    const alive = new Wildlife(seed + floor, world, { getTiles: () => null });
+    alive.fill(world.map, seed, floor);
+    this.underworlds.set(key, alive);
+    this.rooms.ownCreatures(client.seed, place, alive);
   }
 
   /**

@@ -71,17 +71,29 @@ Owned by whichever player is standing on the floor, which is the older co-op arr
 leaves and the monsters change their minds. Wildlife on the surface has already been through this,
 so the shape is known and the pieces are the same ones.
 
-- [ ] Grow a dungeon floor on the server. The generator is seed plus floor id and has no DOM in it;
-      check that is still true, and that a floor can be stood up without a renderer.
-- [ ] A floor owner in the simulation, the way `server/wildlife.ts` owns the surface: it ticks the
-      monsters on floors somebody is standing on, and nothing else.
-- [ ] Send the floor's monsters to everybody on it. A floor is small, so there is no interest
-      management to do — the whole floor is what is near you.
-- [ ] Blows go through `strike` against a floor, with the server capping what one is worth, exactly
-      as a blow on a deer does now.
-- [ ] Retire the client-owned `monsters` and `hit` messages once nothing sends them.
-- [ ] Let go of a floor nobody is on, so a world that has been explored does not cost anything to
-      keep.
+- [x] Grow a dungeon floor on the server. *(The generator has no DOM in it, and the seed is derived
+      rather than sent: the same root seed and the same anchor name give the same rooms on every
+      machine, so two people who name the same floor are standing in the same one by arithmetic
+      rather than by agreement.)*
+- [x] A floor owner in the simulation. *(`Wildlife` now takes any ground and any chunk source, so
+      the same class owns a hillside and a cellar; a floor has no chunks streaming into it, so what
+      lives there is put there once when the floor is stood up.)*
+- [x] Send the floor's monsters to everybody on it, keyed by place. *(`creatures`, `killed` and
+      `bitten` all carry the place they are about, because a number means nothing outside the world
+      that issued it — a snapshot for somewhere you are not is dropped rather than drawn.)*
+- [x] Blows go through `swing` against a floor, from where the world last saw somebody go rather
+      than from where the message says they are.
+- [x] Let go of a floor nobody is on. *(Grown when the first person walks down into it, dropped when
+      the last one climbs out: the rooms are the same every time they are grown, and what was in
+      them is not worth remembering.)*
+- [x] **A dungeon floor had no monsters on it at all.** *(Found by standing in one: the manager
+      forgets the country behind the hero by dropping the chunks he has walked away from, and a
+      floor's monsters are filed under `dungeon`, which read as a chunk at nowhere — and nowhere is
+      never near enough to keep. So every monster was dropped on the first step taken on the floor.
+      Invisible from outside: the rooms, doors, chests and torches are all there, and the place is
+      empty. `src/entities/floors.test.ts`.)*
+- [ ] `src/game/coop.ts` and the `monsters` and `hit` messages are what the floors used to run on,
+      and nothing sends them now. Deleting them takes a test with it, so it wants a yes first.
 
 ### Village economy
 

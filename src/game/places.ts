@@ -47,6 +47,25 @@ export interface PlaceContext {
   persist: () => void;
   /** Tell anyone else in this world about a chest opened or a vault unlocked. */
   report: (delta: { kind: 'chest'; id: string } | { kind: 'key'; id: string }) => void;
+  /**
+   * A floor has been stepped into: which one, hanging off which anchor, and how deep.
+   *
+   * The world grows the same floor from the same anchor name and owns what walks about in it, so
+   * this returns whether it did. When it did, nothing is spawned here — being told what lives
+   * somewhere and inventing it are the two ways to have monsters, and doing both gives you two of
+   * every one, half of which nobody else can see.
+   */
+  wentBelow: (below: {
+    place: string;
+    anchorId: string;
+    kind: 'dungeon' | 'cave' | 'thicket';
+    floor: number;
+    /** What will draw the floor's monsters, and what will hold them, once it is told about them. */
+    renderer: EntityRenderer;
+    monsters: EntityManager;
+  }) => boolean;
+  /** And come back up, so whatever was drawing the floor's monsters can be put away. */
+  cameUp: () => void;
 }
 
 /** A named spot with a way down: a shrine, or a cave mouth. */
@@ -140,10 +159,18 @@ export class Places {
     iso.limitZoom(CAMERA.SHUT_IN_ZOOM);
 
     const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed + floor);
-    monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor);
-    if (world.map.boss) {
-      const [bx, bz] = world.map.boss;
-      monsters.spawnOne('troll', bx + 0.5, bz + 0.5, anchor.seed + 99);
+    const place = `${poi.name}:${floor}`;
+    // The world owns a floor when there is a world to own it. Told, it says what lives down here
+    // and this spawns nothing; alone, the floor is grown from the same seed the world would have
+    // used, which is what keeps a game with no server behind it playing exactly as it did.
+    const told = this.ctx.wentBelow({ place, anchorId, kind, floor, renderer, monsters });
+    monsters.toldWhatLives = told;
+    if (!told) {
+      monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor);
+      if (world.map.boss) {
+        const [bx, bz] = world.map.boss;
+        monsters.spawnOne('troll', bx + 0.5, bz + 0.5, anchor.seed + 99);
+      }
     }
     this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
     this.ctx.setCaveAmbience(true);
@@ -166,6 +193,7 @@ export class Places {
     iso.target.set(visit.poi.x + 2.5, 0.5, visit.poi.z + 0.5);
     iso.limitZoom(CAMERA.MAX_ZOOM);
     this.underground = null;
+    this.ctx.cameUp();
     this.ctx.setCaveAmbience(false);
     this.ctx.persist();
   }
@@ -244,6 +272,7 @@ export class Places {
     visit.renderer.dispose();
     visit.scene.dispose();
     this.underground = null;
+    this.ctx.cameUp();
   }
 
   // --- indoors ---

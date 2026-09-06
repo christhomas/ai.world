@@ -84,19 +84,30 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
  * says the hero is standing, so two people watching the same fight are watching the same fight.
  */
 function thrown(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'swing' }>): void {
-  const world = rooms.worldOf(me.seed);
-  const hero = me.hero;
-  // no ground, no hero, no creatures: a world where the client is still its own authority
-  if (!world || !hero) return;
+  // where the blow was thrown, as the world has it rather than as the message says: a swing three
+  // floors down has no business reaching a deer in a field, and the place is not the client's to
+  // pick per blow — it is where the world last saw them go
+  const place = me.standingIn;
+  if (String(message.place) !== place) return;
+  const world = rooms.worldOf(me.seed, place);
+  if (!world) return;
+  // underground the world walks nobody, so the blow is thrown from where they say they are; on the
+  // surface it is thrown from the hero the world has been walking, and a client's word is not asked
+  const from = place === 'surface' ? me.hero : me.presence;
+  if (!from) return;
   const killed = world.swung({
-    x: hero.x, z: hero.z, y: hero.y, yaw: hero.yaw,
+    x: from.x, z: from.z, y: 'y' in from ? from.y : 0, yaw: me.presence.yaw,
     reach: Number(message.reach) || 0,
     arc: Number(message.arc) || 0,
     damage: Number(message.damage) || 1,
     one: message.one === true,
   });
   // everybody sees the body fall; only whoever landed the blow takes anything off it
-  for (const id of killed) rooms.broadcast(me.seed, { type: 'killed', id, by: me.presence.id });
+  for (const id of killed) {
+    for (const client of rooms.get(me.seed)?.clients ?? []) {
+      if (client.standingIn === place) rooms.send(client, { type: 'killed', place, id, by: me.presence.id });
+    }
+  }
 }
 
 /**
@@ -163,6 +174,15 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
       if (theirs) { p.x = message.x; p.z = message.z; }
       p.yaw = message.yaw; p.walk = message.walk;
       p.place = String(message.place).slice(0, LIMITS.PLACE);
+      // Which world they are in, which decides whose creatures they are told about and where their
+      // blows land. A floor is grown by the `floor` message; this is how they come back up out of
+      // one, and how the server learns they have stepped into somewhere it has never grown at all.
+      if (me.standingIn !== p.place) {
+        me.standingIn = p.place;
+        // what they were told about the last place is not about this one, and the numbers may even
+        // be the same numbers: start again rather than send a difference against another world
+        me.seeing = new Map();
+      }
       p.riding = message.riding;
       p.gear = message.gear.slice(0, LIMITS.GEAR).map((id) => String(id).slice(0, LIMITS.ITEM_ID));
       return;

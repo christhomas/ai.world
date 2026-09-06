@@ -257,7 +257,7 @@ export type ClientMessage =
    * `one` is a shot rather than a swing: one creature, the first an arrow would reach, and height
    * counts towards the distance.
    */
-  | { type: 'swing'; damage: number; reach: number; arc: number; one: boolean }
+  | { type: 'swing'; place: string; damage: number; reach: number; arc: number; one: boolean }
   /**
    * The hero has been *put* somewhere rather than having walked there, and why.
    *
@@ -273,6 +273,18 @@ export type ClientMessage =
    * message that has to stop being trusted is named rather than hunted for.
    */
   | { type: 'stood'; x: number; z: number; why: 'teleport' | 'place' | 'ride' }
+  /**
+   * The hero has gone underground, and this is the floor he is standing on.
+   *
+   * Enough for the world to grow the same floor: the anchor it hangs from, what kind of hole it is,
+   * and how deep. The seed is *not* sent — the world derives it the way the client does, from its
+   * own root seed and the anchor's name, so two people who name the same floor get the same rooms
+   * and nobody can hand the world a floor of their own devising.
+   *
+   * Leaving is not a message. The place in `move` says where somebody is standing, and when that
+   * stops being a floor they have left it.
+   */
+  | { type: 'floor'; place: string; anchor: string; kind: 'dungeon' | 'cave' | 'thicket'; floor: number }
   | { type: 'stall-rent'; stall: string; village: string }
   | { type: 'stall-stock'; stall: string; item: StallItem }
   | { type: 'stall-buy'; stall: string; index: number }
@@ -323,8 +335,12 @@ export type ServerMessage =
    * "Gone" means gone from your sight rather than dead: walked out of your neighbourhood, or died,
    * or the world stopped holding that piece of country. What it never means is that they were never
    * there — a client that loses one simply stops drawing it.
+   *
+   * `place` says which world these are in: `surface`, or the name of a dungeon floor. A creature's
+   * number is only unique within its own place, and a client standing on a floor is still told
+   * about neither — so a snapshot for somewhere you are not is dropped rather than drawn.
    */
-  | { type: 'creatures'; near: CreatureSnap[]; gone: number[] }
+  | { type: 'creatures'; place: string; near: CreatureSnap[]; gone: number[] }
   /**
    * One of the world's creatures was killed, and by whom.
    *
@@ -332,7 +348,7 @@ export type ServerMessage =
    * because a pelt's price and a purse belong to that player's own save and have never been the
    * server's business. Everybody else is told so that the body falls on their screen too.
    */
-  | { type: 'killed'; id: number; by: string }
+  | { type: 'killed'; place: string; id: number; by: string }
   /**
    * One of the world's creatures got its teeth into you, and how hard.
    *
@@ -340,7 +356,7 @@ export type ServerMessage =
    * whether the guard was up live in the player's own save, so the world says what happened and the
    * client says what it was worth — the same division as everywhere else on this wire.
    */
-  | { type: 'bitten'; id: number; damage: number }
+  | { type: 'bitten'; place: string; id: number; damage: number }
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }

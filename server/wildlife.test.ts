@@ -19,7 +19,7 @@ import { Wildlife } from './wildlife';
 function worldAt(seed: number, x: number, z: number): { alive: Wildlife; ground: GroundWorld } {
   const ground = new GroundWorld(new TerrainSampler(generateWebGraph(seed)));
   ground.reach(x, z, 2);
-  return { alive: new Wildlife(seed, ground), ground };
+  return { alive: new Wildlife(seed, ground, ground), ground };
 }
 
 /**

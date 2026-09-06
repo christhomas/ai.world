@@ -20,11 +20,11 @@ export interface OnlineEvents {
   /** A command from whoever operates this world, to run on our own bus. */
   onCommand: (line: string, issuer: string) => void;
   /** The creatures the world says are near us, and the ones that have gone from sight. */
-  onCreatures: (near: CreatureSnap[], gone: number[]) => void;
+  onCreatures: (place: string, near: CreatureSnap[], gone: number[]) => void;
   /** One of the world's creatures died. `mine` is true when it was our blow that did it. */
-  onCreatureKilled: (id: number, mine: boolean) => void;
+  onCreatureKilled: (place: string, id: number, mine: boolean) => void;
   /** One of the world's creatures bit us, and how hard. What it costs is our own business. */
-  onBitten: (id: number, damage: number) => void;
+  onBitten: (place: string, id: number, damage: number) => void;
   /** We are no longer being told what lives here, so the game decides for itself again. */
   onWorldSilent: () => void;
   /** The world has walked our own hero, and this is where it says he is standing. */
@@ -159,14 +159,14 @@ export class Online {
   }
 
   /**
-   * Throw a blow at whatever the world says is in front of the hero.
+   * Throw a blow at whatever the world says is in front of the hero, in the world he is in.
    *
    * We say how hard, how far and how wide, and nothing about what it hit: the world has been
    * walking this hero and owns the creatures round him, so which of them were in the arc is its
    * business. What it did about it comes back as a snapshot, or as a body falling.
    */
-  swing(damage: number, reach: number, arc: number, one = false): void {
-    this.send({ type: 'swing', damage, reach, arc, one });
+  swing(place: string, damage: number, reach: number, arc: number, one = false): void {
+    this.send({ type: 'swing', place, damage, reach, arc, one });
   }
 
   private send(message: ClientMessage): void {
@@ -195,13 +195,13 @@ export class Online {
         this.events.onClock(message.clock);
         break;
       case 'creatures':
-        this.events.onCreatures(message.near, message.gone);
+        this.events.onCreatures(message.place, message.near, message.gone);
         break;
       case 'killed':
-        this.events.onCreatureKilled(message.id, message.by === this.id);
+        this.events.onCreatureKilled(message.place, message.id, message.by === this.id);
         break;
       case 'bitten':
-        this.events.onBitten(message.id, message.damage);
+        this.events.onBitten(message.place, message.id, message.damage);
         break;
       case 'command':
         // whoever operates this world has sent something to do. What it does is the client's own
@@ -348,6 +348,17 @@ export class Online {
    */
   steer(seq: number, dx: number, dz: number, pace: number, dt: number): void {
     if (this.connected) this.send({ type: 'steer', seq, dx, dz, pace, ms: Math.round(dt * 1000) });
+  }
+
+  /**
+   * The hero has gone underground: which floor, hanging off which anchor, and how deep.
+   *
+   * The world grows the same floor from its own root seed and the anchor's name, so this carries no
+   * seed of its own — two people who name the same floor are standing in the same one because the
+   * arithmetic says so, not because they agreed about it.
+   */
+  floor(place: string, anchor: string, kind: 'dungeon' | 'cave' | 'thicket', floor: number): void {
+    if (this.connected) this.send({ type: 'floor', place, anchor, kind, floor });
   }
 
   /**

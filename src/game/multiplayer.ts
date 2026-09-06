@@ -85,11 +85,11 @@ export interface MultiplayerContext {
    */
   runCommand: (line: string, issuer: string) => void;
   /** The creatures the world says are near, and the ones that have gone from sight. */
-  onCreatures: (near: CreatureSnap[], gone: number[]) => void;
+  onCreatures: (place: string, near: CreatureSnap[], gone: number[]) => void;
   /** One of the world's creatures died; `mine` says whether we killed it. */
-  onCreatureKilled: (id: number, mine: boolean) => void;
+  onCreatureKilled: (place: string, id: number, mine: boolean) => void;
   /** One of the world's creatures bit us: work out what that costs, the way a bite always did. */
-  onBitten: (id: number, damage: number) => void;
+  onBitten: (place: string, id: number, damage: number) => void;
   /** The world stopped telling us what lives here, so the game goes back to deciding for itself. */
   onWorldSilent: () => void;
   /** The world has walked our hero: put him where it says, and walk back what it had not seen. */
@@ -141,9 +141,9 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onClock: (clock) => { state.day = clock.day; state.time = clock.time; state.version++; },
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
     onCommand: (line, issuer) => ctx.runCommand(line, issuer),
-    onCreatures: (near, gone) => ctx.onCreatures(near, gone),
-    onCreatureKilled: (id, mine) => ctx.onCreatureKilled(id, mine),
-    onBitten: (id, damage) => ctx.onBitten(id, damage),
+    onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),
+    onCreatureKilled: (place, id, mine) => ctx.onCreatureKilled(place, id, mine),
+    onBitten: (place, id, damage) => ctx.onBitten(place, id, damage),
     onWorldSilent: () => ctx.onWorldSilent(),
     onWhereYouAre: (seq, x, z, y) => ctx.onWhereYouAre(seq, x, z, y),
     onMonsters: (place, snap, gone) => {

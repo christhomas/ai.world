@@ -148,6 +148,12 @@ export class EntityManager {
     if (cx !== this.focusCx || cz !== this.focusCz || this.alsoNear.length > 0) {
       this.focusCx = cx; this.focusCz = cz;
       for (const [key, list] of this.spawned) {
+        // `dungeon` is a place rather than a chunk, and a place is kept as long as somebody is
+        // standing in it. It read as a chunk at nowhere, nowhere is never worth keeping, and so a
+        // floor lost every monster on it the first time this ran — which is the first frame, because
+        // the focus starts at nowhere too. An empty dungeon is a hard thing to notice from outside:
+        // the rooms are there, the doors are there, the chests are there, and nothing is home.
+        if (key === 'dungeon') continue;
         const [kx, kz] = parseChunkKey(key);
         if (!this.worthKeeping(kx, kz, cx, cz)) this.despawn(key, list);
       }

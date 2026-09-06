@@ -399,7 +399,7 @@ describe('hunting something the world owns', () => {
     who.say({ type: 'steer', seq, dx: at.x - x, dz: at.z - z, pace: 1, ms: 20 });
   };
   /** Everything in front of the hero, out to a bowshot: what a wide swing reaches. */
-  const wide = { damage: 20, reach: 15, arc: 1.4, one: false } as const;
+  const wide = { place: 'surface', damage: 20, reach: 15, arc: 1.4, one: false } as const;
 
   it('works out for itself what a blow reached, and says who killed what', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
@@ -480,6 +480,79 @@ describe('hunting something the world owns', () => {
     // never steered, so the world has never stood him anywhere: a blow from nowhere lands nowhere
     for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'swing', ...wide });
     expect(rowan.of('killed')).toHaveLength(0);
+  });
+});
+
+describe('a floor under the world', () => {
+  const walkAbout = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+  const tickFor = (sim: Simulation, ms: number, from = Date.now()): void => {
+    for (let at = 100; at <= ms; at += 100) sim.tick(from + at);
+  };
+  const goDown = (who: Pretend, place: string): void => {
+    who.say({ type: 'floor', place, anchor: 'dungeon:Barrow', kind: 'dungeon', floor: 1 });
+    who.say({ type: 'move', x: 4, z: 4, yaw: 0, walk: 0, place, riding: 'foot', gear: [] });
+  };
+
+  it('grows the floor somebody walks into, and tells them what is down there', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 300);
+    goDown(rowan, 'Barrow:1');
+    tickFor(sim, 900, Date.now() + 300);
+
+    const below = rowan.of('creatures').filter((c) => c.place === 'Barrow:1');
+    expect(below.length, 'the world describes the floor').toBeGreaterThan(0);
+    expect(below[0].near.length, 'and there is something in it').toBeGreaterThan(0);
+  });
+
+  it('keeps a floor and a hillside apart, however alike their numbers are', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const wren = new Pretend(sim).join(3, 'Wren');
+    walkAbout(rowan, 0, 0);
+    walkAbout(wren, 0, 0);
+    tickFor(sim, 300);
+    goDown(wren, 'Barrow:1');
+    tickFor(sim, 900, Date.now() + 300);
+
+    // she is underground and hears about the floor; he is above and hears about the country
+    expect(wren.of('creatures').every((c) => c.place === 'Barrow:1')).toBe(true);
+    expect(rowan.of('creatures').every((c) => c.place === 'surface')).toBe(true);
+  });
+
+  it('lets go of a floor when the last person climbs out of it', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 300);
+    goDown(rowan, 'Barrow:1');
+    tickFor(sim, 600, Date.now() + 300);
+    const heard = rowan.of('creatures').filter((c) => c.place === 'Barrow:1').length;
+    expect(heard).toBeGreaterThan(0);
+
+    // back up the stairs, and the floor is nobody's any more
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 900, Date.now() + 900);
+    expect(rowan.of('creatures').filter((c) => c.place === 'Barrow:1')).toHaveLength(heard);
+  });
+
+  it('will not let a blow thrown on a floor reach a deer in a field', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 600);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 20 });
+    goDown(rowan, 'Barrow:1');
+    tickFor(sim, 400, Date.now() + 600);
+
+    // swinging underground, and claiming to be swinging up in the daylight
+    for (let blow = 0; blow < 20; blow++) {
+      rowan.say({ type: 'swing', place: 'surface', damage: 40, reach: 15, arc: 3, one: false });
+    }
+    expect(rowan.of('killed').filter((k) => k.place === 'surface')).toHaveLength(0);
   });
 });
 
