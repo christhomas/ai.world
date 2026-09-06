@@ -68,6 +68,34 @@ export const HIGHLAND = {
   RIDGE_OCTAVES: 4,
 } as const;
 
+/**
+ * How far a valley side goes back for every terrace it climbs, in tiles. One number for two jobs,
+ * and they have to agree: the slope the ground beside a river is held down to, and the slope the
+ * high country may come back up at as it leaves the water. Disagree, and one of them leaves a step.
+ */
+export const VALLEY_SIDE = 1.4;
+
+/**
+ * The high country a river or a lake is allowed to have around it.
+ *
+ * Water is part of the country it lies in. The ground meets it at its own surface and climbs away
+ * at the rate a valley side climbs, and the country here is whichever is smaller — what the swell
+ * asked for, or what the valley allows. Both halves of that matter and both were learned the hard
+ * way: without any cut at all, a road crossing high ground with a river in it stands on a causeway
+ * with a ten-unit drop either side, because the ground beside the river is dragged down to meet it
+ * and nothing tells the road; cut to nothing instead, and the ground drops while the lake does not,
+ * which leaves it standing on a pedestal of its own bank.
+ *
+ * @param roadLevel the level the road web has here, which is what `country` is measured on top of.
+ */
+export function cutForWater(
+  country: number, water: { level: number; wd: number } | null, roadLevel: number, bank: number,
+): number {
+  if (!water) return country;
+  const allowed = (Math.max(1, water.level) - roadLevel) + Math.max(0, water.wd - bank) / VALLEY_SIDE;
+  return Math.min(country, Math.max(0, allowed));
+}
+
 /** One face's worth of high country: where it is, how far its ground rises, and how high. */
 export interface Highland {
   x: number;

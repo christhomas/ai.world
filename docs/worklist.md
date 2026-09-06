@@ -180,6 +180,20 @@ the two are separate jobs with a third in between them.
 - [ ] Surfaces that belong to their country: cobbles where a road runs through a village, sand
       drifting over it in the desert, snow lying on it in the north.
 
+## On a phone
+
+- [ ] The game should be playable on a phone, and a phone should be held sideways to play it. On a
+      screen that small the whole design is landscape — an isometric view of a valley, a HUD along
+      the top and the bottom, a console that comes up from the bottom edge — and in portrait there
+      is nothing worth showing.
+- [ ] Detect a phone-sized screen rather than a touch screen: a tablet in portrait is a different
+      question and a laptop with a touchscreen is not a phone at all.
+- [ ] Lock to landscape where the browser allows it (`screen.orientation.lock`, which needs
+      fullscreen on most of them), and where it does not, hold the game landscape inside a portrait
+      window and say so — a turn-your-phone card over the top, rather than a squashed game behind it.
+- [ ] Then the HUD itself: the boxes are sized for a desktop window and there are a lot of them.
+      Work out what a phone shows and what it hides behind the console.
+
 ## Deployment
 
 - [x] Push the work, bump the chart to 0.2.0 and cut the release that gives it an image. *(Took

@@ -8,7 +8,7 @@ import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { growRanges, liftField, mountainAt, nearestLift, type Ranges } from './ranges';
-import { highlandAt, highlandLift, highlandRidges, type Highland } from './highland';
+import { VALLEY_SIDE, cutForWater, highlandAt, highlandLift, highlandRidges, type Highland } from './highland';
 import { despeckle } from './despeckle';
 import { rollProp } from './props';
 import { CellIndex } from './spatial';
@@ -94,12 +94,6 @@ const EDGE_MARGIN = GRAPH.MAX_WIDTH * 1.45 + WORLD.SEABED_RANGE + 2;
 const RIVER_MARGIN = HYDRO.RIVER_MAX_WIDTH + HYDRO.BANK + 8;
 const LAKE_MARGIN = HYDRO.BANK + 8;
 const HUB_PLAZA = 5;
-/**
- * How far a valley side goes back for every terrace it climbs, in tiles. One number for two jobs,
- * and they have to agree: the slope the ground beside a river is held down to, and the slope the
- * high country may come back up at as it leaves the water. Disagree, and one of them leaves a step.
- */
-const VALLEY_SIDE = 1.4;
 /** Share of ground tiles that use the alternate ground colour. */
 /**
  * What `landWidth` reports in a mesh world: the width of the countryside a road runs through,
@@ -443,14 +437,9 @@ export class TerrainSampler {
     const water = riverCands.length > 0 ? this.waterAt(px, pz, riverCands) : null;
     const plaza = Math.hypot(px, pz) < HUB_PLAZA;
 
-    // The country this is in, which the road climbs as much as the fields either side of it — a
-    // road through the mountains is a road in the mountains — cut down into any valley it crosses.
-    // The rivers were carved before the high country was raised over them, so a stream in the hills
-    // still runs at the level it had on the plain and the ground beside it is dragged back down to
-    // meet it. Nothing told the road that: it stayed up where the swell put it, and every road that
-    // crossed high ground with a river in it became a causeway with a ten-unit drop either side.
-    let country = this.highlandAt(px, pz);
-    if (water) country = Math.min(country, Math.max(0, water.wd - HYDRO.BANK) / VALLEY_SIDE);
+    // the country this is in — a road through the mountains is a road in the mountains — cut down
+    // into whatever valley it crosses, which is `cutForWater`'s whole subject
+    const country = cutForWater(this.highlandAt(px, pz), water, roadLevel, HYDRO.BANK);
 
     if (d < e.roadWidth || plaza) {
       out.type = TileType.Road;
