@@ -6,7 +6,7 @@ import { chunkKey, parseChunkKey } from '../world/spatial';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { KINDS } from './animals';
-import { BIOME_ANIMALS, HIGHLAND_ANIMALS, WATER_ANIMALS, dungeonMonsters, pickKind } from './spawns';
+import { BIOME_ANIMALS, HIGHLAND_ANIMALS, WATER_ANIMALS, dungeonMonsters, openGround, pickKind } from './spawns';
 import { treeFor } from './behaviours';
 import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
@@ -501,14 +501,16 @@ export class EntityManager {
     if (this.night && sorted.land.length >= SPAWN.MIN_LAND_TILES && rng() < SPAWN.NIGHT_PACK_CHANCE) {
       const table = NIGHT_PREDATORS[sorted.biome];
       const kindId = table[Math.floor(rng() * table.length)];
-      this.spawnHerd(ctx, kindId, tileCentre(tiles, sorted.land[Math.floor(rng() * sorted.land.length)]), SPAWN.NIGHT_LEASH);
+      const den = openGround(this.world, tiles, sorted.land, rng);
+      if (den) this.spawnHerd(ctx, kindId, den, SPAWN.NIGHT_LEASH);
     }
     if (sorted.land.length >= SPAWN.MIN_LAND_TILES) {
       const rolls = rng() < SPAWN.HERD_CHANCE ? (rng() < SPAWN.SECOND_HERD_CHANCE ? 2 : 1) : 0;
       for (let h = 0; h < rolls; h++) {
         // high ground has its own list: a massif can stand in any country, so what decides what
         // lives here is the height rather than the biome the map happens to call it
-        const spot = tileCentre(tiles, sorted.land[Math.floor(rng() * sorted.land.length)]);
+        const spot = openGround(this.world, tiles, sorted.land, rng);
+        if (!spot) break;
         const table = this.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS : BIOME_ANIMALS[sorted.biome];
         const kindId = pickKind(table, rng());
         if (!kindId) break;
@@ -690,7 +692,7 @@ function sortTiles(tiles: ChunkTiles): SortedTiles {
   return { land, water, road, biome };
 }
 
-function tileCentre(tiles: ChunkTiles, i: number): [number, number] {
+export function tileCentre(tiles: ChunkTiles, i: number): [number, number] {
   const CS = WORLD.CHUNK_SIZE;
   return [tiles.cx * CS + (i % CS) + 0.5, tiles.cz * CS + Math.floor(i / CS) + 0.5];
 }

@@ -25,9 +25,11 @@ belongs to the project, and the next person to open it can see what was known.
 - [x] The walled-in village — a ring of high country round a flat floor, reached only by the roads
       it already had — is gone. *(Rebuilt as ring geometry with gates where roads cross; the dead
       branch of `planMassifs` is deleted.)*
-- [ ] Mountains are missing from the map and the minimap: they are no longer terrain, and nothing
-      draws them there.
-- [ ] Creatures still spawn on and under the rock. Only props are suppressed.
+- [x] Mountains are missing from the map and the minimap: they are no longer terrain, and nothing
+      draws them there. *(The map base shades rock grey to white by height.)*
+- [x] Creatures still spawn on and under the rock. Only props are suppressed. *(Herds are placed on
+      open ground, and nothing that cannot climb walks onto a flank. Eagles still fly over it,
+      which is what eagles are for.)*
 - [ ] The rock reads flat: one colour ramp, little variation between facets.
 - [ ] One peak per mesh face, so a range is a couple of overlapping cones rather than a chain of
       peaks with valleys between them.

@@ -19,6 +19,14 @@ export interface TileWorld {
   waterAt(x: number, z: number): number | null;
   /** True when a tree / boulder / cactus occupies the tile. */
   blocked(x: number, z: number): boolean;
+  /**
+   * True where a mountain stands over this tile, so the ground here is the inside of a cliff.
+   *
+   * Optional, because it is only true of the outdoor world of a polygon country. Nothing should
+   * live on a mountain flank or under one: the flank is too steep to stand on and the ground under
+   * it cannot be seen, so a herd spawned there is a herd nobody will ever meet.
+   */
+  buried?(x: number, z: number): boolean;
   isRoad(x: number, z: number): boolean;
 }
 
@@ -242,6 +250,10 @@ export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: numbe
   if (kind.behaviour === 'fly') return true;
   const h = world.heightAt(x, z);
   if (h === null || world.blocked(x, z)) return false;
+  // Not onto a mountain. The rim of one is gentle for a tile or two before the flank stands up, so
+  // a deer following its herd wanders up it and is then stuck on a cliff with nothing to eat; the
+  // goats and the things that climb are placed on the high ground rather than walking to it.
+  if (!kind.climb && world.buried?.(x, z)) return false;
   if (kind.behaviour === 'travel' && !world.isRoad(x, z)) return false;
   if (fromY !== undefined && Math.abs(h - fromY) > (kind.climb ?? STEP_LIMIT)) return false;
   return true;

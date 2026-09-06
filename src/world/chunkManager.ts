@@ -24,6 +24,9 @@ interface LoadedChunk {
  * Streams chunks around a focus point. Generation happens in a worker pool; the main thread
  * only uploads finished buffers. Chunks outside UNLOAD_RADIUS are disposed.
  */
+/** How far a mountain has to stand above a tile before nothing belongs there, in world units. */
+const BURIED_BY = 1.5;
+
 export class ChunkManager implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, LoadedChunk>();
   private readonly pending = new Map<string, number>();  // key → job id
@@ -215,6 +218,21 @@ export class ChunkManager implements TileWorld, ChunkSource {
     // down to the ground — are the ways through, exactly as the map draws them.
     const rock = this.ranges ? mountainAt(this.ranges, x, z) : null;
     return rock !== null && rock > ground ? rock : ground;
+  }
+
+  /**
+   * Whether a mountain stands over this tile.
+   *
+   * The ground under a range is still generated — the rock stands on it, and the rim needs it — so
+   * a tile there looks like any other to anything reading the heightfield. Nothing should be put
+   * there: what is above it is a cliff face, and what is under it cannot be seen.
+   */
+  buried(x: number, z: number): boolean {
+    if (!this.ranges) return false;
+    const hit = this.tileAt(x, z);
+    if (!hit) return false;
+    const rock = mountainAt(this.ranges, x, z);
+    return rock !== null && rock > hit.t.heights[hit.i] + BURIED_BY;
   }
 
   /**

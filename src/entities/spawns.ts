@@ -1,4 +1,6 @@
 import { Biome } from '../world/biomes';
+import type { TileWorld } from './entity';
+import { tileCentre, type ChunkTiles } from './manager';
 
 /**
  * What lives where.
@@ -81,4 +83,23 @@ export function pickKind(list: readonly SpawnWeight[], r: number): string | null
     if (t <= 0) return p.kind;
   }
   return list[list.length - 1].kind;
+}
+
+
+/**
+ * A tile in a chunk with the sky over it, or nothing if the chunk is all mountain.
+ *
+ * A polygon world's mountains stand on the ground rather than in it, so a tile under one reads as
+ * ordinary land to everything that looks at the heightfield — and a herd put there is either inside
+ * a cliff or clinging to the outside of one. A few tries rather than a filtered list, because the
+ * buried tiles are a small share of a chunk and only in the chunks that have any at all.
+ */
+export function openGround(
+  world: TileWorld, tiles: ChunkTiles, land: number[], rng: () => number,
+): [number, number] | null {
+  for (let tries = 0; tries < 5; tries++) {
+    const spot = tileCentre(tiles, land[Math.floor(rng() * land.length)]);
+    if (!world.buried?.(spot[0], spot[1])) return spot;
+  }
+  return null;
 }

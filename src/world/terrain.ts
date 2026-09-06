@@ -7,7 +7,7 @@ import { BIOMES, type Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
 import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
-import { buildRanges, liftField, mountainAt, nearestLift, planBowl, terracesAt, type Ranges } from './ranges';
+import { growRanges, liftField, mountainAt, nearestLift, type Ranges } from './ranges';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 import { stampCentreProp, stampFootprint, stampPath, stampPier, stampPlaza, stampSingleProp } from './stamp';
@@ -190,9 +190,12 @@ export class TerrainSampler {
     this.hydro = prebuilt ? prebuilt.hydro : generateHydrology(
       graph,
       (x, z) => this.landProbe(x, z),
-      // how high the ground is here, mountains included: without it no river ever ran down one
-      (x, z, roadDist) => (high ? terracesAt(high, x, z) : upliftAt(x, z, this.massifs, roadDist)),
-      // and how high they stand nearby, which is where water comes out of the ground
+      // A massif is part of the road-tree world's heightfield and a river must know its height or
+      // run uphill. A polygon world's ranges stand on the ground instead, and telling the water
+      // about those put their height into the rivers' own terrace levels, which the banks were then
+      // built up to: sixteen units of ground in open country, hills no mountain explained.
+      (x, z, roadDist) => (this.mesh ? 0 : upliftAt(x, z, this.massifs, roadDist)),
+      // where they stand is still worth knowing, for where water comes out of the ground
       (x, z) => (high ? nearestLift(high, x, z) : 0),
     );
     for (const river of this.hydro.rivers) {
@@ -228,20 +231,13 @@ export class TerrainSampler {
     // mountains were a field again.
     if (this.mesh) {
       const probe = this.newSample();
-      const groundAt = (x: number, z: number): number => {
-        this.sampleTile(Math.round(x), Math.round(z), probe);
-        return probe.height;
-      };
-      // one village in the world is walled into the mountains, with the roads it already had as the
-      // only ways in. It is chosen here rather than in the geometry because it needs the villages,
-      // and the villages are the last thing this constructor builds.
-      const bowl = planBowl(this.mesh, this.structures.villages, (x, z) => {
-        const land = this.landProbe(x, z);
-        return land !== null && land.land;
-      });
-      this.ranges = buildRanges(this.mesh, groundAt, bowl
-        ? { bowl, roadAway: (x, z) => this.landProbe(x, z)?.roadDist ?? Infinity }
-        : undefined);
+      this.ranges = growRanges(
+        this.mesh,
+        (x, z) => { this.sampleTile(Math.round(x), Math.round(z), probe); return probe.height; },
+        this.structures.villages,
+        (x, z) => this.landProbe(x, z)?.land === true,
+        (x, z) => this.landProbe(x, z)?.roadDist ?? Infinity,
+      );
     }
   }
 

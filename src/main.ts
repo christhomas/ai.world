@@ -18,7 +18,7 @@ import { MountainMaterial, buildMountainMesh } from './render/mountains';
 import { Skyline } from './game/skyline';
 import { noSuchTopic, topicFor, topicIndex } from './ui/topics';
 import { CommandBus, describeResult } from './core/commandbus';
-import { rangesAsMassifs } from './world/ranges';
+import { mountainAt, rangesAsMassifs } from './world/ranges';
 import { registerCommands, type CommandWorld } from './game/commands';
 import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
 import { generateWebGraph } from './world/roadweb';
@@ -226,7 +226,12 @@ function startGame(
     rig.setQuality(level);
     hud.flash(`Graphics: ${QUALITY[level].label}`);
   };
-  const mapBase = renderMapBase(graph, sampler);
+  // the map is drawn from the same terrain the ground is, plus the mountains, which stand on that
+  // terrain rather than in it and would otherwise be missing from every map of a polygon world
+  const mapBase = renderMapBase(graph, {
+    probe: (x, z) => sampler.probe(x, z),
+    rock: sampler.ranges ? (x, z) => mountainAt(sampler.ranges!, x, z) ?? 0 : undefined,
+  });
   const fog = new Fog(mapBase);
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
   const worldMap = new WorldMap(mapBase, fog);

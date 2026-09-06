@@ -596,6 +596,24 @@ function faceAtKind(mesh: WorldMesh, x: number, z: number): FaceKind {
 }
 
 /**
+ * A world's mountains as they finally stand: the ranges, and the one village walled into them.
+ *
+ * The two are built together because they are the same rock and share one lookup — a walker asking
+ * what is underfoot should not have to ask twice — and because the bowl needs the villages, which
+ * are the last thing a world grows.
+ */
+export function growRanges(
+  mesh: WorldMesh,
+  ground: GroundAt,
+  villages: ReadonlyArray<{ name: string; x: number; z: number; radius: number }>,
+  onLand: (x: number, z: number) => boolean,
+  roadAway: (x: number, z: number) => number,
+): Ranges {
+  const bowl = planBowl(mesh, villages, onLand);
+  return buildRanges(mesh, ground, bowl ? { bowl, roadAway } : undefined);
+}
+
+/**
  * The lift of a world's mountains, with no ground under them.
  *
  * The water has to know where the high ground is, and it has to know before the ground is settled —

@@ -19,6 +19,14 @@ const SEA_RGB = 0x1b4466;
  */
 export interface MapGround {
   probe(x: number, z: number): { land: boolean; biome: Biome };
+  /**
+   * How high the rock stands at a point, in world units, or nought where there is none.
+   *
+   * Mountains are not in the heightfield of a polygon world — they are geometry standing on it —
+   * so a map drawn from the ground alone shows a range as ordinary highland. Optional, because the
+   * road-tree world has no such thing and its mountains are already in the ground it is drawn from.
+   */
+  rock?: (x: number, z: number) => number;
 }
 
 export interface MapBase {
@@ -72,8 +80,13 @@ export function renderMapBase(graph: RoadGraph, sampler: MapGround): MapBase {
   const px = img.data;
   for (let y = 0; y < canvas.height; y += PROBE_BLOCK) {
     for (let x = 0; x < canvas.width; x += PROBE_BLOCK) {
-      const here = sampler.probe(x / s - pad, y / s - pad);
-      const colour = here.land ? BIOMES[here.biome].ground : SEA_RGB;
+      const wx = x / s - pad, wz = y / s - pad;
+      const here = sampler.probe(wx, wz);
+      const ground = here.land ? BIOMES[here.biome].ground : SEA_RGB;
+      // rock over the top of it, going white at the summits, so a range reads as a range at a
+      // glance rather than as a patch of highland that happens to be a different green
+      const high = sampler.rock ? sampler.rock(wx, wz) : 0;
+      const colour = high > 0 ? overRock(ground, high) : ground;
       const r = (colour >> 16) & 255, g = (colour >> 8) & 255, b = colour & 255;
       for (let dy = 0; dy < PROBE_BLOCK && y + dy < canvas.height; dy++) {
         let i = ((y + dy) * canvas.width + x) * 4;
@@ -99,6 +112,22 @@ export function renderMapBase(graph: RoadGraph, sampler: MapGround): MapBase {
 }
 
 /** The unexplored dark, punched out chunk by chunk as the hero walks. */
+/** Rock on the map: grey at the foot, white at the top of the tallest thing a world holds. */
+function overRock(ground: number, high: number): number {
+  const up = Math.max(0, Math.min(1, high / MAP_SUMMIT));
+  const mix = (from: number, to: number, shift: number): number =>
+    Math.round(((from >> shift) & 255) + (((to >> shift) & 255) - ((from >> shift) & 255)) * up);
+  // the foot of a mountain is still the country it stands in, so the ground colour shows through
+  // where the rock is low and gives way entirely by the summit
+  const rock = up > 0.72 ? MAP_SNOW : MAP_ROCK;
+  return (mix(ground, rock, 16) << 16) | (mix(ground, rock, 8) << 8) | mix(ground, rock, 0);
+}
+
+/** The height at which rock is drawn as pale as it gets, in world units. */
+const MAP_SUMMIT = 52;
+const MAP_ROCK = 0x8d8d8d;
+const MAP_SNOW = 0xeef2f5;
+
 export class Fog {
   readonly canvas: HTMLCanvasElement;
 
