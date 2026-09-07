@@ -517,3 +517,8 @@ Things Chris hit on a real phone, in the order he hit them.
 - [ ] The villagers and the other people are blocky in the wrong way. Keep them blocky — that is the
       game — but they want designing rather than assembling.
 - [ ] Villagers and creatures do not touch the ground. They hover over it.
+- [ ] Walking into a house's door should take you inside. At the moment you have to stop and press
+      something.
+- [ ] Some buildings open a conversation when you try to go in, which reads as talking to a
+      building. You should go inside, and the people who were behind that conversation should be
+      sitting round a table in there to be talked to like anybody else.
