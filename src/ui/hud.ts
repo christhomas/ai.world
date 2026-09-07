@@ -96,7 +96,10 @@ export class Hud {
     }
     const html = lines.length ? `<div class="title">Quests</div>${lines.join('')}` : '';
     if (this.questEl.innerHTML !== html) this.questEl.innerHTML = html;
-    this.questEl.style.display = lines.length ? 'block' : 'none';
+    // A class rather than an inline style. Written on the element, `display` outranks every rule in
+    // the stylesheet, so the one screen that wants this panel gone — a phone, which has the errand
+    // on the compass strip already — had to say `!important` to be heard at all.
+    this.questEl.classList.toggle('has-errands', lines.length > 0);
   }
 
   hurt(): void {

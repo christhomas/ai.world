@@ -1,3 +1,4 @@
+import { ICONS, type IconName } from './glyphs';
 import type { Input } from '../core/input';
 
 /**
@@ -43,7 +44,12 @@ export function nubOffset(dx: number, dy: number): { x: number; y: number } {
 interface Button {
   /** The key this button is, spelled the way `Input` spells it. */
   key: string;
-  glyph: string;
+  /**
+   * What is drawn on it: a name from the drawn set for anything permanently on screen, or a
+   * character for the shelf, where the picture sits beside its own words. One of the two.
+   */
+  icon?: IconName;
+  glyph?: string;
   /** Read out by screen readers, and the label in the extra-controls menu. */
   label: string;
   /** True for a button that is held rather than struck, like turning the camera. */
@@ -52,12 +58,12 @@ interface Button {
 
 /** The buttons that live on screen: the panels, the camera, and the way out of whatever is open. */
 const PANEL_BUTTONS: readonly Button[] = [
-  { key: 'm', glyph: '🗺', label: 'Map' },
-  { key: 'i', glyph: '🎒', label: 'Rucksack' },
-  { key: 'j', glyph: '📖', label: 'Journal' },
-  { key: 'o', glyph: '⚙', label: 'Options' },
-  { key: 'q', glyph: '↺', label: 'Turn the camera left', hold: true },
-  { key: 'e', glyph: '↻', label: 'Turn the camera right', hold: true },
+  { key: 'm', icon: 'map', label: 'Map' },
+  { key: 'i', icon: 'pack', label: 'Rucksack' },
+  { key: 'j', icon: 'book', label: 'Journal' },
+  { key: 'o', icon: 'sliders', label: 'Options' },
+  { key: 'q', icon: 'turnLeft', label: 'Turn the camera left', hold: true },
+  { key: 'e', icon: 'turnRight', label: 'Turn the camera right', hold: true },
 ];
 
 /**
@@ -88,11 +94,11 @@ const MORE_BUTTONS: readonly Button[] = [
  * player is not holding. It still sends Enter; it just no longer expects anybody to know that.
  */
 const ACT = { key: 'enter', glyph: 'USE', label: 'Talk, open, board, harvest, dig, fell' } as const;
-const SWING = { key: 'x', glyph: '⚔', label: 'Swing' } as const;
-const LOOSE = { key: 'z', glyph: '🏹', label: 'Loose an arrow' } as const;
+const SWING = { key: 'x', icon: 'sword', label: 'Swing' } as const;
+const LOOSE = { key: 'z', icon: 'bow', label: 'Loose an arrow' } as const;
 /** Held rather than tapped, because how long it has been up is what decides a parry from a block. */
-const GUARD = { key: 'c', glyph: '🛡', label: 'Guard (hold)', hold: true } as const;
-const ESCAPE = { key: 'escape', glyph: '✕', label: 'Close' } as const;
+const GUARD = { key: 'c', icon: 'shield', label: 'Guard (hold)', hold: true } as const;
+const ESCAPE = { key: 'escape', icon: 'close', label: 'Close' } as const;
 
 /** `?touch=1` forces the controls on, `?touch=0` off, for anyone whose device we guess wrong. */
 function forcedByLink(): boolean | null {
@@ -205,7 +211,7 @@ export class TouchControls {
     row.id = 'touchPanels';
     for (const b of PANEL_BUTTONS) row.appendChild(this.button(b, 'touch-btn'));
 
-    const more = this.button({ key: '', glyph: '⋯', label: 'More controls' }, 'touch-btn');
+    const more = this.button({ key: '', icon: 'more', label: 'More controls' }, 'touch-btn');
     more.addEventListener('pointerdown', () => this.more.classList.toggle('show'), { signal: this.listening.signal });
     row.appendChild(more);
 
@@ -218,7 +224,10 @@ export class TouchControls {
     this.more.id = 'touchMore';
     for (const b of MORE_BUTTONS) {
       const btn = this.button(b, 'touch-more-btn');
-      btn.innerHTML = `<span class="touch-glyph">${b.glyph}</span><span class="touch-label">${b.label}</span>`;
+      const word = document.createElement('span');
+      word.className = 'touch-label';
+      word.textContent = b.label;
+      btn.appendChild(word);
       // the menu is a shelf, not a mode: whatever you came for, you are done with it
       btn.addEventListener('pointerdown', () => this.more.classList.remove('show'), { signal: this.listening.signal });
       this.more.appendChild(btn);
@@ -248,7 +257,12 @@ export class TouchControls {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = className;
-    el.textContent = b.glyph;
+    // always in its own box, whether it is a drawing or a character, so one rule sizes and inks
+    // every picture on every control
+    const mark = document.createElement('span');
+    mark.className = 'touch-glyph';
+    if (b.icon) mark.innerHTML = ICONS[b.icon]; else mark.textContent = b.glyph ?? '';
+    el.appendChild(mark);
     el.setAttribute('aria-label', b.label);
     el.title = b.label;
     const signal = this.listening.signal;

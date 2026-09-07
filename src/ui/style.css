@@ -14,6 +14,14 @@
     calc(380 * var(--ui-scale)),
     max(calc(150 * var(--ui-scale)), calc(100vh - 380 * var(--ui-scale)))
   );
+  /*
+   * How tall the message log is allowed to get.
+   *
+   * Named because the momentary banners — a toast, a duel's score — stack upward off the top of
+   * the log on a small screen, and a stack whose steps are guessed rather than read is a stack
+   * that overlaps the first time somebody changes one of them.
+   */
+  --log-height: calc(190 * var(--ui-scale));
 
   /*
    * One control, described once.
@@ -253,6 +261,9 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   padding: calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
   color: #fff; font-size: calc(12 * var(--ui-scale)); z-index: 100;
 }
+/* shown when `hud.ts` finds an errand to show, so the screens that do not want it can say so
+   in the stylesheet like everything else */
+#quests.has-errands { display: block; }
 #quests .title { color: #8fa0ff; font-weight: bold; margin-bottom: calc(4 * var(--ui-scale)); }
 #quests div { line-height: 1.5; }
 #optionsPanel button.wide {
@@ -487,7 +498,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
    costs two lines of screen rather than a fixed 190px of grey.
    --------------------------------------------------------------------------- */
 #chatLog {
-  max-height: calc(190 * var(--ui-scale)); overflow-y: auto;
+  max-height: var(--log-height); overflow-y: auto;
   /* the container itself is not drawn — only the lines standing in it are */
   background: none; padding: 0;
   font-size: calc(13 * var(--ui-scale)); line-height: 1.45;
@@ -643,6 +654,20 @@ body.touch #touch {
   background: none; border-color: transparent; box-shadow: none;
 }
 
+/* Every picture on every control, in one box.
+
+   The drawn ones take their colour from the button, so they light up with it; they are given a
+   share of the button rather than a size of their own, so one number moves the whole set. The
+   shelf's emoji get the colour taken out of them — they cannot be made to match the drawings for
+   weight, but they can at least be the same ink as everything else, which is most of what made
+   the old row look like two sets of controls that had met by accident. */
+#touch .touch-glyph { display: flex; align-items: center; justify-content: center; }
+#touch .touch-glyph svg { width: 55%; height: auto; max-width: calc(30 * var(--ui-scale)); }
+#touch .touch-btn .touch-glyph,
+#touch .touch-round .touch-glyph,
+#touch .touch-orbit .touch-glyph { width: 100%; height: 100%; }
+#touch .touch-more-btn .touch-glyph { filter: grayscale(1) brightness(1.25) contrast(1.05); }
+
 /* The action cluster: the big one in the corner, the other three in orbit around it.
 
    They used to be placed one at a time — `right: calc(act + swing + 26px)`, `bottom: 34px` — which
@@ -660,6 +685,10 @@ body.touch #touch {
   position: absolute; inset: 0; font-size: calc(19 * var(--ui-scale));
   font-weight: bold; letter-spacing: var(--ui-scale);
 }
+/* the three orbiting keys carry a drawing, so their glyph is sized as a share of the disc rather
+   than as a font size — the same rule the rail's buttons follow */
+.touch-orbit .touch-glyph svg { width: 58%; max-width: none; }
+#touchPanels .touch-glyph svg { width: 58%; max-width: none; }
 /* Straight up is 0deg and the angle runs anticlockwise, which keeps all three inside the quarter
    circle a right thumb sweeps without the hand leaving the corner. The second rotation is only
    there to stand the glyph back up after the first one has tipped it over. */
@@ -729,6 +758,9 @@ body.touch #optionsPanel button.wide,
 body.touch #optionsPanel select,
 body.touch #optionsPanel input[type="text"] { min-height: var(--touch-target); font-size: calc(15 * var(--ui-scale)); }
 body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
+/* Not in HUD units, and the one place in this file that is deliberate about it: 44px is a
+   measurement of a fingertip, not a design decision, so it does not grow with the picture. The
+   scale only ever multiplies, so a row that is bigger than this stays bigger than this. */
 body.touch #rucksack .r-item,
 body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items: center; }
 
@@ -788,7 +820,8 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #chatPanel { margin-top: auto; min-height: 0; }
   #chatPanel.show { display: flex; flex-direction: column; }
   #hudRail > #chatPanel { flex: 0 1 auto; }
-  #chatLog { max-height: calc(340 * var(--ui-scale)); min-height: 0; }
+  :root { --log-height: calc(340 * var(--ui-scale)); }
+  #chatLog { min-height: 0; }
   /* the readout swaps corners with the log, because the right-hand bottom corner is now spoken for */
   #debug { left: var(--hud-edge); right: auto; }
   /* and so is the right-hand side, for anyone playing this on a large touchscreen */
@@ -818,9 +851,8 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #hearts { font-size: 13px; letter-spacing: 0; }
   #inventory { top: 52px; left: 8px; min-width: 0; padding: 5px 8px; font-size: 11px; }
   /* The errand tracker is the one panel a phone can do without: the compass strip above already
-     names the errand with its bearing and distance, and the journal is one thumb away. `hud.ts`
-     sets this display inline, which is why the rule has to shout. */
-  #quests { display: none !important; }
+     names the errand with its bearing and distance, and the journal is one thumb away. */
+  #quests.has-errands { display: none; }
   #minimap { top: 8px; right: 8px; padding: 3px; width: 124px; }   /* as wide as its own map, no wider */
   #minimapCanvas { width: 110px; height: 110px; }
   /* the date drops under the time rather than making the whole corner map wider than its own map */
@@ -828,18 +860,40 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #clockDate { margin-left: 0; flex-basis: 100%; }
   #clockIcon { font-size: 12px; }
   #clockTime { font-size: 13px; letter-spacing: 0; }
-  #areaName, #compass, #toast, #duelbar {
+  #areaName, #compass {
     left: 112px; right: 132px; transform: none; white-space: normal; text-align: center;
     /* wide enough to read, never wider: a banner the width of a landscape phone is a wall */
     max-width: 420px; margin-inline: auto;
   }
   #areaName { top: 8px; padding: 5px 10px; font-size: 11px; }
   #compass { top: 40px; font-size: 10px; gap: 8px; padding: 3px 8px; justify-content: center; flex-wrap: wrap; }
-  /* these two hang alongside the pack panel, so they start where it ends rather than over it —
-     and below the row of buttons, which owns the strip under the compass */
-  #toast { top: 140px; left: 152px; font-size: 12px; padding: 6px 12px; }
-  #duelbar { top: 190px; left: 152px; font-size: 12px; padding: 5px 12px; }
-  #castbar { bottom: 200px; font-size: 12px; }
+  /* The momentary banners join the log rather than standing in the middle of the picture.
+
+     They were pinned at `top: 140px` and `top: 190px` with a hand-computed left edge, which on a
+     screen 342 tall is the band the hero walks through — a warning was being printed over the very
+     thing it was warning about. They are the same kind of thing the log is, so they belong in the
+     same column: the log at the bottom, the toast a line above it, the duel's score above that,
+     each step read off `--log-height` rather than guessed. */
+  #toast, #duelbar {
+    left: 8px; right: auto; transform: none; margin-inline: 0;
+    width: min(50vw, 360px); max-width: none; white-space: normal; text-align: left;
+    font-size: 12px;
+  }
+  /* a message, so it stands with the messages: one line above the log, and it grows upward */
+  #toast { top: auto; bottom: calc(var(--log-bottom) + var(--log-height) + 6px); padding: 6px 12px; }
+  /* A duel's score is not a message — it stands there for as long as the duel does — so it joins
+     the readouts down the left instead, under the pack, where the hearts and the coin count are. */
+  #duelbar { top: 116px; bottom: auto; padding: 5px 12px; }
+  /* The console comes up over the bottom of the screen and takes the log with it, so the toast
+     has nothing to stand on. It moves into the strip under the button rail, which is the one band
+     the console never reaches. */
+  body:has(#chatPanel.console) #toast {
+    left: 112px; right: 132px; bottom: auto; top: 154px; width: auto; margin-inline: auto;
+    text-align: center;
+  }
+  /* A cast bar is watched, so it stays where the eye already is — the bottom of the screen, under
+     the hero rather than on him. `bottom: 200px` put it at the hero's feet on a phone. */
+  #castbar { bottom: 8px; font-size: 12px; max-width: 60vw; white-space: normal; text-align: center; }
   #dialogue { bottom: 12px; padding: 10px; font-size: 14px; gap: 8px; width: 97vw; }
   #dialogue .dlg-side { flex: 0 0 72px; }
   #dialogue .dlg-face, #dialogue .dlg-emoji { width: 72px; height: 84px; font-size: 40px; line-height: 84px; }
@@ -854,7 +908,8 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
      being drawn where nobody could see them. Down the left instead, half the width, and only the
      last three lines: everything before that is still in the console, one tap away. */
   #chatPanel { left: 8px; right: auto; width: min(50vw, 360px); }
-  #chatLog { max-height: 82px; font-size: 11px; }
+  :root { --log-height: 82px; }
+  #chatLog { font-size: 11px; }
   #chatPanel:not(.console) #chatLog > div:nth-last-child(n+4) { display: none; }
   /* Low, but not in the corner: the left thumb rests there, and the stick draws its ring around
      wherever it lands. This clears the ring and still leaves the whole play area above it. */
@@ -942,11 +997,14 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #areaName { top: var(--safe-top); }
   #compass { top: calc(var(--safe-top) + 32px); }
   #touchPanels { top: calc(var(--safe-top) + 58px); }
-  #chatPanel { left: var(--safe-left); }
+  #chatPanel, #toast, #duelbar { left: var(--safe-left); }
+  /* under the pack panel, which ends at 108, and clear of the button rail's underside at 112 */
+  #duelbar { top: calc(var(--safe-top) + 116px); }
+  #castbar { bottom: var(--safe-bottom); }
   /* Two lines, not three. On a window 342 tall the three-line log ran up into the band the
      announcements use, and a warning printed over the news it is about to become is worse than
      either on its own. The console still has the lot. */
-  #chatLog { max-height: 62px; }
+  :root { --log-height: 62px; }
   #chatPanel:not(.console) #chatLog > div:nth-last-child(n+3) { display: none; }
   :root { --log-bottom: calc(var(--safe-bottom) + 76px); }
   #dialogue {
