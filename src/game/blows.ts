@@ -447,17 +447,20 @@ export function createBlows(ctx: Fighting) {
     /**
      * What a blow costs in time, counted before the frame decides where the hero is standing.
      *
-     * These used to be counted down at the bottom of the outdoor path, past the two early returns
-     * — so underground and indoors the cooldown was set by the first swing and never came off
-     * again, and the hero got exactly one swing per visit however long they stayed. Which made
-     * clearing a mine out impossible, and that is the one thing the whole mining economy is
-     * waiting on. Found by trying to fight a cave empty and hitting a rat once.
+     * All three of these used to be counted down at the bottom of the outdoor path, past the two
+     * early returns — so underground and indoors they were set once and never came off again. For
+     * the two cooldowns that meant exactly one swing per visit however long you stayed, which made
+     * clearing a mine out impossible; that was found by trying to fight a cave empty and hitting a
+     * rat once, and fixed. `reeling` was left behind in the same place, and it fails the other way
+     * round: the moment of grace a blow buys you never expires, so one bite from a rat makes the
+     * hero untouchable for the rest of the visit. A mine you cannot be hurt in is not a fight
+     * either. They are counted together now so that the next thing of this kind cannot be added to
+     * one list and forgotten in the other.
      */
     cooled: (dt: number): void => {
       swingCooldown = Math.max(0, swingCooldown - dt);
       drawCooldown = Math.max(0, drawCooldown - dt);
+      reeling = Math.max(0, reeling - dt);
     },
-    /** And how long the hero is left alone for after taking one. */
-    recovered: (dt: number): void => { reeling = Math.max(0, reeling - dt); },
   };
 }

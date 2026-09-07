@@ -109,7 +109,7 @@ export interface Framing {
   castbar: HTMLElement;
 
   // the pieces of the game this drives, each of which owns its own state
-  blows: { cooled: (dt: number) => void; recovered: (dt: number) => void };
+  blows: { cooled: (dt: number) => void };
   tidings: { theDaysNews: () => void };
   watch: { watching: (now: number, dt: number) => void; hunted: (dt: number) => void };
   announceWindUps: (crowd: EntityManager) => void;
@@ -416,7 +416,6 @@ export function createFrame(ctx: Framing) {
     sound.setWater(heard.nearness, heard.drop);
     director.advance(dt);
 
-    blows.recovered(dt);
     musterIn -= dt;
     if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
     if (input.clicked && !talking) {
