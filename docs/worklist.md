@@ -189,27 +189,26 @@ the two are separate jobs with a third in between them.
       at all. Villages are dealt before landmarks now, and there are more bands than villages, so
       every village is somebody's ground. Across seeds 1, 2, 5, 12 and 33: villages nothing ever
       comes to, three and three, now none anywhere. The test asked one seed and passed for years.)*
-- [~] Make a road wander. **Built, measured, and put down at the last fence.** One line in
-      `TerrainSampler.nearest`, which is the funnel every road distance in the world goes through:
-      take the signed distance to the run rather than the unsigned one, and subtract a slow noise
-      read *at the point* rather than along the road. Reading it at the point is the trick — two
-      edges meeting at a node ask the field in the same place and are pushed the same way, so a
-      junction stays a junction. Costs nothing measurable: a chunk still builds in a millisecond and
-      a world still stands up in 133 ms. It also *improves* the roaming: bands over one
-      neighbourhood came out 3/7/7/6 against 6/6/6/7, and villages nothing ever visits went from
-      three to one, because the villages spread with the roads.
-      What stopped it is the coast. A road bent seaward is a road on tiles the mesh calls water, and
-      a drowned road is a village nobody can walk to: at a lean of five tiles, seed 1 walls off
-      Thorncross and seed 3 walls off Broken Hall, which `traversal.test.ts` catches by name. Two and
-      a half tiles passes every test and is too small to see. So the bend wants to know where the
-      water is before it can be worth having — taper it toward the coast, or refuse it where the
-      road is within a few tiles of the sea — and that is a design pass rather than a constant.
-- [x] Surfaces that belong to their country. *(Already true, once the surface work landed: every
-      biome carries its own road, ground and sand colours, and what a road's edge is mixed toward is
-      its own country's ground — so a desert road drifts sandy at the edges and a northern one goes
-      pale, without a rule of its own. What is not done is cobbles through a village, because a
-      village street is a road tile like any other and the mesher has no idea it is in a village;
-      that wants the street stamped as the square already is, which moves the ground.)*
+- [~] Make a road wander. **Built twice, measured, and put down twice — now with the real reason.**
+      One line in `TerrainSampler.nearest`, the funnel every road distance in the world goes
+      through: signed distance to the surveyed run, less a slow noise read *at the point* rather
+      than along the road. Reading it at the point is what keeps junctions joined — two roads
+      meeting there ask the field in the same place. It costs nothing measurable, it looks right,
+      and it improves the roaming.
+      The first attempt drowned roads at the coast, so the second gave every node a freedom
+      measured from how far it is from water, faded along each run. That was not enough either, and
+      what it turned up is the thing worth writing down: **the rivers are laid out against the
+      roads.** Hydrology is generated through `landProbe`, which measures to the road — so bending
+      the roads bends the rivers with them, and in seed 1 the bent river runs straight across
+      Thorncross's village centre. The village is then standing in water, and a tile of water is a
+      tile nobody can walk onto, so the whole village is walled off. `traversal.test.ts` catches it
+      by name, one tile short of the square.
+      No village stands in water in any of seeds 1, 2, 3, 5, 12 or 33 as things are, so this is a
+      fragility rather than a bug — but it is the fragility that has to be dealt with first. Either
+      hydrology stops measuring itself against roads, or roads keep two distances: the surveyed one
+      that villages, rivers and props are laid out against, and the wandering one that is drawn.
+      The second is smaller, and it needs every reader of `roadDist` sorted into one camp or the
+      other.
 
 ## On a phone
 
