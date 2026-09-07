@@ -51,6 +51,14 @@ import type { Entity } from '../entities/entity';
 const HERO_EYE = 1.2;
 
 /**
+ * How dark it has to get before the hero lights a torch.
+ *
+ * The same point at which the night light starts coming up at all, so the torch appears with the
+ * light it is meant to be casting rather than a minute before or after it.
+ */
+const TORCH_OUT = 0.2;
+
+/**
  * One frame of the game, in three shapes.
  *
  * A room, a mine and a hillside are three different games sharing a hero: indoors there is no
@@ -346,7 +354,13 @@ export function createFrame(ctx: Framing) {
     else seasonTintMaterials.set([1, 1, 1], 0);
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
-    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light') || magic.lit, season: tint, wet: weatherStrength });
+    // the gear goes on before the light does, because after dark the light comes from the torch in
+    // the hero's hand and the hand has to have been put somewhere first
+    heroGear.update(state, player.entity, state.night > TORCH_OUT && !state.can('light'));
+    daycycle.apply({
+      time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z,
+      lanternOn: state.can('light') || magic.lit, flame: heroGear.lightSource(), season: tint, wet: weatherStrength,
+    });
     // Up on a sky island the hero counts as armed whatever is in their hands. A predator that
     // cannot reach you has no business stalking you, and a pack gathering on the ground beneath
     // the village to hunt somebody it can never touch is exactly the sort of thing you notice
@@ -392,7 +406,6 @@ export function createFrame(ctx: Framing) {
       chunks.standsOn(tiles);
     }
     entityRenderer.update();
-    heroGear.update(state, player.entity);
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) reveal();
     areaLabel = skies.aloft?.name ?? areaName();

@@ -85,20 +85,100 @@ const GEAR: Record<string, Build> = {
   charm: () => merge([part(new THREE.IcosahedronGeometry(0.1, 0), 0x6fae4b, [0, 0, 0])]),
   map: () => merge([part(new THREE.BoxGeometry(0.06, 0.18, 0.24), 0xe8dcc0, [0, 0, 0])]),
   rope: () => merge([part(new THREE.TorusGeometry(0.12, 0.04, 4, 8), 0xb8945a, [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0])]),
+  /**
+   * A torch, cut and bound rather than bought: a cane shaft, two ties of cord, and a bowl of pitch
+   * at the top with the fire in it. Held in the off hand after dark, which is where the light of
+   * the world at night now comes from.
+   */
+  torch: () => merge([
+    part(new THREE.CylinderGeometry(0.035, 0.045, 0.78, 6), 0xa8834e, [0, 0.2, 0]),
+    part(new THREE.CylinderGeometry(0.05, 0.05, 0.045, 6), 0x5e4a2e, [0, 0.34, 0]),
+    part(new THREE.CylinderGeometry(0.05, 0.05, 0.045, 6), 0x5e4a2e, [0, 0.10, 0]),
+    part(new THREE.CylinderGeometry(0.11, 0.06, 0.14, 6), 0x4a3a24, [0, 0.63, 0]),
+  ]),
+};
+
+/**
+ * The flame, which is not lit by anything and must not be.
+ *
+ * Everything else the hero carries is a Lambert surface that takes its brightness from the sun and
+ * from the torch itself. A flame drawn that way is a dull orange cone in the middle of the light it
+ * is supposedly casting, which reads as a mistake — so this one is drawn flat at full colour, the
+ * way the window glows already are.
+ */
+const FLAME: Build = () => merge([
+  part(new THREE.ConeGeometry(0.085, 0.26, 6), 0xffb43c, [0, 0.13, 0]),
+  part(new THREE.ConeGeometry(0.045, 0.15, 6), 0xfff0a8, [0, 0.10, 0]),
+]);
+
+/**
+ * How the torch is carried: out to the side of the off hand, and leaned away from the body.
+ *
+ * Held straight up it puts the fire directly over the hero's hat, which from this camera is the
+ * picture the torch was meant to replace — a light apparently coming out of his head. Leaning it
+ * out and holding it wide sets the flame beside him instead, where you can see it is a thing he is
+ * carrying.
+ */
+const TORCH = {
+  /** Where the fist is, in hero units: off-hand height, and this far out to that side. */
+  HAND: [0.06, 0.9, 0.5] as [number, number, number],
+  /** How far the shaft leans away from the body, in radians. */
+  LEAN: 0.5,
+  /** And how far up the shaft the fire sits. */
+  REACH: 0.66,
+};
+
+/** The off hand with a torch in it, and the fire at the end of it, as two things to hang. */
+const TORCH_HAND: Mount = { offset: TORCH.HAND, swing: 'armL' };
+const TORCH_FIRE: Mount = {
+  offset: [
+    TORCH.HAND[0],
+    TORCH.HAND[1] + Math.cos(TORCH.LEAN) * TORCH.REACH,
+    TORCH.HAND[2] + Math.sin(TORCH.LEAN) * TORCH.REACH,
+  ],
+  swing: 'armL',
 };
 
 /** Items whose presence hides part of the hero's own rig. */
 const HIDES: Record<string, string> = { cap: 'hat', helm: 'hat' };
 
+/** How high the shoulder the arms swing from is, in hero units. */
+const SHOULDER = 1.14;
+
+/** Scratch for `held`, which runs once per worn thing per frame. */
+const HERE = new THREE.Vector3();
+
 export class HeroGear {
   readonly group = new THREE.Group();
   private readonly material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  /** The flame is not lit by the world; it is one of the things lighting it. */
+  private readonly flameMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
   private readonly worn = new Map<EquipSlot, { mesh: THREE.Mesh; id: string; mount: Mount }>();
   private readonly cache = new Map<string, THREE.BufferGeometry>();
   private shownVersion = -1;
+  /** The torch and its flame, made once and shown only after dark. */
+  private torch: THREE.Mesh | null = null;
+  private flame: THREE.Mesh | null = null;
+  /** Where the fire is this frame, for whatever wants to put a light there. */
+  private readonly fire = new THREE.Vector3();
+  private carrying = false;
 
   constructor(scene: THREE.Object3D) {
     scene.add(this.group);
+  }
+
+  /**
+   * Where the light the hero is carrying actually is.
+   *
+   * The torch when one is out, and the lantern when one is held instead — both hang from the off
+   * hand, so both swing with the walk and neither is anywhere near the head, which is where the
+   * night light used to come from for want of anywhere better. Null when the hero is carrying
+   * nothing, so a caller can tell "no light" from "a light at the origin".
+   */
+  lightSource(): THREE.Vector3 | null {
+    if (this.carrying) return this.fire;
+    const lantern = this.worn.get('offhand');
+    return lantern?.id === 'lantern' ? this.fire.copy(lantern.mesh.position) : null;
   }
 
   /** Move the gear onto a different scene, following the hero indoors or underground. */
@@ -114,35 +194,75 @@ export class HeroGear {
     return geometry;
   }
 
-  /** Rebuild when the equipment changed, then follow the hero every frame. */
-  update(state: GameState, hero: Entity): void {
+  /**
+   * Rebuild when the equipment changed, then follow the hero every frame.
+   *
+   * `carry` asks for the torch to be out — after dark, and not while a lantern is already doing
+   * the job. It is drawn in the off hand and it takes that hand: nobody holds a shield and a torch
+   * in the same fist, and hiding the shield for the night is a smaller lie than growing a third
+   * arm.
+   */
+  update(state: GameState, hero: Entity, carry = false): void {
     if (state.version !== this.shownVersion) {
       this.shownVersion = state.version;
       this.rebuild(state, hero);
     }
+    this.carrying = carry;
+    if (carry && !this.torch) {
+      const build = GEAR.torch;
+      this.torch = new THREE.Mesh(build(), this.material);
+      this.torch.castShadow = true;
+      this.flame = new THREE.Mesh(FLAME(), this.flameMaterial);
+      this.group.add(this.torch, this.flame);
+    }
+    if (this.torch && this.flame) { this.torch.visible = carry; this.flame.visible = carry; }
+    const offhand = this.worn.get('offhand');
+    if (offhand) offhand.mesh.visible = !carry;
     const swing = Math.sin(hero.phase) * 0.6 * hero.walk;
     const scale = hero.kind.scale;
     for (const [slot, worn] of this.worn) {
-      const [ox, oy, oz] = worn.mount.offset;
-      // the arm swing is a rotation about the shoulder, so held things travel with the hand
-      let x = ox, y = oy, z = oz;
-      if (worn.mount.swing) {
-        const angle = worn.mount.swing === 'armR' ? swing * 0.8 : -swing * 0.8;
-        const shoulderY = 1.14;
-        const dy = oy - shoulderY;
-        y = shoulderY + dy * Math.cos(angle);
-        x = ox - dy * Math.sin(angle);
-      }
-      const cos = Math.cos(hero.yaw), sin = Math.sin(hero.yaw);
-      worn.mesh.position.set(
-        hero.x + (x * cos + z * sin) * scale,
-        hero.y + hero.bobY + (y + bodyMotion(hero).bob) * scale,
-        hero.z + (-x * sin + z * cos) * scale,
-      );
+      worn.mesh.position.copy(this.held(hero, worn.mount, swing, scale));
       worn.mesh.rotation.y = hero.yaw;
       worn.mesh.scale.setScalar(scale);
       void slot;
     }
+    if (carry && this.torch && this.flame) {
+      // the same arm the off-hand gear hangs from, so the torch swings with the walk like the rest
+      this.torch.position.copy(this.held(hero, TORCH_HAND, swing, scale));
+      // yaw first and then the lean, so the shaft tips out to the hero's side whichever way he
+      // happens to be facing rather than always towards the same corner of the world
+      this.torch.rotation.set(TORCH.LEAN, hero.yaw, 0, 'YXZ');
+      this.torch.scale.setScalar(scale);
+      this.flame.position.copy(this.held(hero, TORCH_FIRE, swing, scale));
+      this.flame.rotation.y = hero.yaw;
+      // the fire breathes: a fifteenth either way, which is a flicker rather than a pulse
+      this.flame.scale.setScalar(scale * (1 + Math.sin(hero.phase * 5.3) * 0.07));
+      this.fire.copy(this.flame.position);
+    }
+  }
+
+  /**
+   * Where a thing hanging from a mount ends up in the world this frame.
+   *
+   * The arm swing is a rotation about the shoulder, so a held thing travels on an arc with the
+   * hand rather than sliding up and down in front of the body. Returns a scratch vector: copy it
+   * before calling again.
+   */
+  private held(hero: Entity, mount: Mount, swing: number, scale: number): THREE.Vector3 {
+    const [ox, oy, oz] = mount.offset;
+    let x = ox, y = oy;
+    if (mount.swing) {
+      const angle = mount.swing === 'armR' ? swing * 0.8 : -swing * 0.8;
+      const dy = oy - SHOULDER;
+      y = SHOULDER + dy * Math.cos(angle);
+      x = ox - dy * Math.sin(angle);
+    }
+    const cos = Math.cos(hero.yaw), sin = Math.sin(hero.yaw);
+    return HERE.set(
+      hero.x + (x * cos + oz * sin) * scale,
+      hero.y + hero.bobY + (y + bodyMotion(hero).bob) * scale,
+      hero.z + (-x * sin + oz * cos) * scale,
+    );
   }
 
   private rebuild(state: GameState, hero: Entity): void {

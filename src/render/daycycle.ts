@@ -3,6 +3,14 @@ import type { SceneRig } from './scene';
 import { smoothstep } from '../game/state';
 import type { SeasonTint } from '../game/seasons';
 
+/**
+ * How fast a carried fire wavers, in cycles per day.
+ *
+ * Driven off the clock rather than off frames so it looks the same whatever the machine manages,
+ * and fast enough to read as fire: a day is a few minutes, so this is a few times a second.
+ */
+const TORCH_FLICKER = 5200;
+
 const DAY_SKY = new THREE.Color(0x8fc1e6);
 const DUSK_SKY = new THREE.Color(0xe89a6a);
 const NIGHT_SKY = new THREE.Color(0x0b1230);
@@ -32,6 +40,15 @@ export interface DayCycleInput {
   heroY: number;
   heroZ: number;
   lanternOn: boolean;
+  /**
+   * Where the light the hero is carrying is, when they are carrying one.
+   *
+   * The night light used to be pinned a metre and a half over the hero's feet, which is his head —
+   * so at night he walked about lit from inside his own skull, with his shadow thrown out in every
+   * direction from a point nobody could see. It now comes from the torch in his hand. Null falls
+   * back to the old place, which is what happens where there is no hero to hold anything.
+   */
+  flame?: { x: number; y: number; z: number } | null;
 }
 
 /**
@@ -63,7 +80,7 @@ export class DayCycle {
   }
 
   /** Returns the night factor in [0,1]. */
-  apply({ time, focusX, focusZ, heroX, heroY, heroZ, lanternOn, season, wet }: DayCycleInput): number {
+  apply({ time, focusX, focusZ, heroX, heroY, heroZ, lanternOn, flame, season, wet }: DayCycleInput): number {
     const ang = (time - 0.25) * Math.PI * 2;
     const sunH = Math.sin(ang);
     const day = smoothstep(-0.12, 0.25, sunH);
@@ -101,9 +118,14 @@ export class DayCycle {
     // windows warm up as the light fades
     this.glowMaterial.color.copy(this.tmp2.copy(WINDOW_DAY).lerp(WINDOW_NIGHT, smoothstep(0.3, 0.8, night)));
 
-    // a faint glow follows the hero after dark even without a lantern, so you are never lost
-    this.lantern.position.set(heroX, heroY + 1.4, heroZ);
-    this.lantern.intensity = (lanternOn ? 14 : 3.5) * smoothstep(0.2, 0.7, night);
+    // the light comes from what the hero is holding, and from his head only where there is nothing
+    // in his hand to hold it — which after dark there always is
+    if (flame) this.lantern.position.set(flame.x, flame.y, flame.z);
+    else this.lantern.position.set(heroX, heroY + 1.4, heroZ);
+    // a torch is worth less than a lantern and more than nothing, and the fire wavers
+    const carried = lanternOn ? 14 : flame ? 9 : 3.5;
+    const waver = flame ? 1 + Math.sin(time * TORCH_FLICKER) * 0.06 : 1;
+    this.lantern.intensity = carried * waver * smoothstep(0.2, 0.7, night);
     return night;
   }
 }

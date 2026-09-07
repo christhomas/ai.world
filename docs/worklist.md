@@ -468,7 +468,17 @@ Things Chris hit on a real phone, in the order he hit them.
       to aim up at a mountain, which puts him 70% down the frame. The map is now always centred on
       him, turns so that the way the camera looks is the top of it, and asks the camera itself where
       the picture meets the ground.)*
-- [ ] At night the hero is lit as though the light comes out of his head. He should be carrying a
-      torch — something like a tiki torch, in his hand, that the light comes from.
+- [x] At night the hero is lit as though the light comes out of his head. He should be carrying a
+      torch — something like a tiki torch, in his hand, that the light comes from. *(He was: the
+      night light was pinned a metre and a half above his feet, which is his head, so his shadow
+      went out in every direction from a point nobody could see. He now carries a cane torch — a
+      shaft, two ties of cord, a bowl of pitch and a flame — in his off hand from dusk, and the
+      light comes from the fire on the end of it. The flame is drawn flat at full colour rather
+      than lit like everything else, because a flame shaded by the light it is casting is a dull
+      cone in the middle of its own glow. Held straight up it sat directly over his hat, which is
+      the picture it was meant to replace, so it leans out and is held wide: yaw first and lean
+      second, so it tips out to his side whichever way he is facing. It takes the off hand while it
+      is out — nobody holds a shield and a torch in one fist — and a lantern, which is better light,
+      keeps it in its pocket.)*
 - [ ] A stable reads as an ordinary house. It wants a paddock attached, with goats and horses
       walking about inside it, so that it is obviously a stable from a distance.
