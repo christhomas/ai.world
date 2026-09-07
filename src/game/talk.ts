@@ -453,7 +453,15 @@ function purseLine(s: Counter): string {
   return `You have ${s.ctx.state.inventory.gold} gold.`;
 }
 
-/** The stock, with today's price against each thing and a tick beside what you already own. */
+/**
+ * The stock, with today's price against each thing, a tick beside what you already own, and what
+ * each one actually does written underneath it.
+ *
+ * The shelf used to be a list of names and prices, which asks the player to buy a thing to find
+ * out what it is for. Every one of these notes was already written and already on screen
+ * somewhere else — the rucksack shows it, and so does the journal — so a shop that withheld it was
+ * not being mysterious, it was being the one place that forgot.
+ */
 function buyMenu(s: Counter): DialogueNode {
   const dear = (s.ctx.markup ?? 0) > 0;
   const greeting = dear
@@ -463,7 +471,13 @@ function buyMenu(s: Counter): DialogueNode {
     ...s.def.items.map((id) => {
       const item = ITEMS[id];
       const owned = s.ctx.state.owns(id) ? ' ✓' : '';
-      return { label: `${item.emoji} ${item.name} — ${asking(s, item)}g${owned}`, next: () => buyOne(s, item.id) };
+      return {
+        label: `${item.emoji} ${item.name} — ${asking(s, item)}g${owned}`,
+        // what it gives you, and failing that what it is: a sack of ore grants nothing and still
+        // wants a line, or the row reads as an item whose note went missing
+        note: itemSummary(item) || item.desc,
+        next: () => buyOne(s, item.id),
+      };
     }),
     { label: 'Back', next: () => shopRoot(s) },
   ]);

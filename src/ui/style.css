@@ -201,6 +201,11 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   box-shadow: 0 10px 40px rgba(0,0,0,0.7); color: #fff; font-size: calc(17 * var(--ui-scale));
   padding: calc(14 * var(--ui-scale)) calc(16 * var(--ui-scale));
   gap: calc(14 * var(--ui-scale)); align-items: stretch;
+  /* The box is anchored to the bottom of the screen, so anything it cannot fit grows off the top
+     of it — and a general store stocks seventeen things. The shelf has always been taller than a
+     phone; it simply had no note under each row to make it obvious. Cap the box at the screen and
+     let the list inside it scroll. */
+  max-height: calc(100vh - 40 * var(--ui-scale));
 }
 #dialogue.show { display: flex; animation: popIn 0.15s ease-out; }
 
@@ -236,18 +241,32 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #dialogue .dlg-them { transition: opacity 0.2s, filter 0.2s; }
 
 #dialogue .dlg-panel {
+  /* a column, so the words keep their height and the list below them takes what is left */
   flex: 1; position: relative; min-height: calc(154 * var(--ui-scale));
+  display: flex; flex-direction: column; min-width: 0;
   background: rgba(0,0,0,0.22); border: calc(2 * var(--ui-scale)) solid rgba(143,160,255,0.45);
   border-radius: calc(6 * var(--ui-scale));
   padding: calc(12 * var(--ui-scale)) calc(14 * var(--ui-scale));
 }
-#dialogue .dlg-text { line-height: 1.55; min-height: calc(52 * var(--ui-scale)); white-space: pre-wrap; }
-#dialogue .dlg-choices { margin-top: calc(10 * var(--ui-scale)); }
+#dialogue .dlg-text { line-height: 1.55; min-height: calc(52 * var(--ui-scale)); white-space: pre-wrap; flex: 0 0 auto; }
+/* the shelf scrolls rather than the box growing; the selected row is scrolled into view as it
+   moves, so arrowing down a long list walks the list rather than running off the end of it */
+#dialogue .dlg-choices {
+  margin-top: calc(10 * var(--ui-scale)); overflow-y: auto; min-height: 0; flex: 1 1 auto;
+  scrollbar-width: thin; scrollbar-color: rgba(143,160,255,0.5) transparent;
+}
 #dialogue .dlg-choice {
   padding: calc(3 * var(--ui-scale)) calc(6 * var(--ui-scale));
   cursor: pointer; white-space: pre; color: #cfd6ff;
 }
 #dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); border-radius: calc(4 * var(--ui-scale)); }
+/* what the row gets you, under the row. Indented past the ▶ so the labels still line up, and it
+   wraps where a label may not — a shop note runs to nine words and a phone is 96vw wide. */
+#dialogue .dlg-note {
+  display: block; margin-left: calc(14 * var(--ui-scale));
+  font-size: calc(14 * var(--ui-scale)); color: #97a3d8; white-space: pre-wrap;
+}
+#dialogue .dlg-choice.sel .dlg-note { color: #c2cbf2; }
 #dialogue .dlg-hint {
   position: absolute; right: calc(10 * var(--ui-scale)); bottom: calc(6 * var(--ui-scale));
   color: #ffd76a; animation: bob 0.8s infinite alternate;

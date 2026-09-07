@@ -3,7 +3,7 @@ import { mulberry32 } from '../core/rng';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { GameState } from './state';
-import { ITEMS, sellPrice } from './items';
+import { ITEMS, itemSummary, sellPrice } from './items';
 import { dialogueFor, stepWithin } from './talk';
 
 describe('shop dialogue', () => {
@@ -15,6 +15,36 @@ describe('shop dialogue', () => {
     e.shop = shop;
     return e;
   };
+
+  it('says what every thing on the shelf is for, before you have to buy it to find out', () => {
+    const state = new GameState();
+    state.inventory.gold = 500;
+    const ctx = { state, rng: mulberry32(5), time: 0.5, quests: new Map(), onInventoryChange: () => {}, onQuestChange: () => {} };
+    for (const shop of ['store', 'smith', 'inn', 'apothecary'] as const) {
+      const shelf = dialogueFor(keeper(shop), ctx).choices!.find((c) => c.label === 'Buy')!.next()!;
+      const stock = shelf.choices!.filter((c) => c.label !== 'Back');
+      expect(stock.length, `${shop} stocks something`).toBeGreaterThan(0);
+      for (const row of stock) {
+        expect(row.note, `${shop}: ${row.label}`).toBeTruthy();
+        // the note is what it does, not what it costs — the price is already on the label
+        expect(row.note).not.toContain('g —');
+      }
+    }
+  });
+
+  it('takes the note from the item rather than from a second table that could drift', () => {
+    const state = new GameState();
+    state.inventory.gold = 500;
+    const ctx = { state, rng: mulberry32(5), time: 0.5, quests: new Map(), onInventoryChange: () => {}, onQuestChange: () => {} };
+    const shelf = dialogueFor(keeper('store'), ctx).choices!.find((c) => c.label === 'Buy')!.next()!;
+    const lantern = shelf.choices!.find((c) => c.label.includes('Lantern'))!;
+    expect(lantern.note).toBe(itemSummary(ITEMS.lantern));
+    // and where an item grants nothing measurable, the shelf says what it is instead of nothing:
+    // seeds have no stats at all, and "Wheat Seeds — 6g" on its own tells a player nothing
+    const seeds = shelf.choices!.find((c) => c.label.includes('Wheat Seeds'))!;
+    expect(itemSummary(ITEMS.wheatseed), 'seeds grant nothing measurable').toBe('');
+    expect(seeds.note).toBe(ITEMS.wheatseed.desc);
+  });
 
   it('buying puts the item in the rucksack, unworn, and refuses when broke', () => {
     const rng = mulberry32(5);

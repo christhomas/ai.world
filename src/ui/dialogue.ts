@@ -13,6 +13,17 @@ import { FACE, drawFace, faceOf, type Face, type Stage } from './portrait';
  */
 export interface DialogueChoice {
   label: string;
+  /**
+   * What taking this row actually gets you, on a quieter second line under the label.
+   *
+   * For a shop shelf, mostly: a row that says only "Iron Sword — 60g" asks the player to buy the
+   * thing to find out what it does, and the answer was already written down — the rucksack and the
+   * journal have both been showing it for as long as they have existed. Kept apart from the label
+   * rather than glued onto the end of it because a note is long enough to want its own line: the
+   * mortar's is nine words, and a shelf where one row is three times the width of the others reads
+   * as a mistake.
+   */
+  note?: string;
   /** Return the next node, or null to close. */
   next: () => DialogueNode | null;
   /**
@@ -252,9 +263,14 @@ export class DialogueBox {
     // whoever is not talking steps back, which is what makes the two sides read as a conversation
     this.el.classList.toggle('choosing', showChoices);
     if (showChoices) {
-      const items = this.node.choices!.map((c, i) =>
-        `<div class="dlg-choice${i === this.choice ? ' sel' : ''}" data-choice="${i}">${i === this.choice ? '▶ ' : '  '}${c.label}</div>`);
+      const items = this.node.choices!.map((c, i) => {
+        const note = c.note ? `<span class="dlg-note">${c.note}</span>` : '';
+        return `<div class="dlg-choice${i === this.choice ? ' sel' : ''}" data-choice="${i}">${i === this.choice ? '▶ ' : '  '}${c.label}${note}</div>`;
+      });
       this.choicesEl.innerHTML = items.join('');
+      // and keep the highlighted row on screen: the shelf scrolls now, so moving down a long list
+      // has to bring the list with it or the selection walks off the bottom and is lost
+      this.choicesEl.children[this.choice]?.scrollIntoView({ block: 'nearest' });
     } else if (this.choicesEl.innerHTML !== '') {
       this.choicesEl.innerHTML = '';
     }
