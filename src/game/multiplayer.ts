@@ -482,9 +482,12 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     // does not know where a boat is. So the moment either of those changes, it is told where he is
     // now standing, and it moves its own hero to match rather than guessing from the distance.
     if (standingIn !== lastPlace || carriedBy !== lastRide) {
+      // which of the two it was matters at the other end: a door lets you out where it let you in
+      // and the world checks that, and a horse carries you wherever it likes and it cannot
+      const ridden = carriedBy !== lastRide;
       lastPlace = standingIn;
       lastRide = carriedBy;
-      online.stood(player.x, player.z, 'place');
+      online.stood(player.x, player.z, ridden ? 'ride' : 'place');
     }
     online.update(dt, {
       x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,

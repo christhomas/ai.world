@@ -60,10 +60,17 @@ walk through a wall. Each one wants a reason the server already knows about.
 - [x] `WARP_STEP` is gone. A `move` from a hero the world is walking says nothing about where he is
       standing, which is what owning him means; everywhere else it says everything, which is what
       not owning him means.
-- [ ] `stood` is still taken on trust — it has to be, while the places it is about are the client's.
-      What closes it is the places themselves moving across, which is the dungeon-floor work below
-      and the same again for interiors. Until then the trust has a name and a place in the log
-      rather than being inferred from how far somebody moved.
+- [x] `stood` is no longer taken on trust wholesale. *(Split into the three things it was carrying.
+      A **door** — a staircase, a doorway — leaves the hero standing where he was, because the world
+      has no business following anybody into a cellar it has never grown, and it remembers the door:
+      a hero who reappears more than a few paces from the one he went in by is put back at it, since
+      a door lets you out where it let you in. A **teleport** is a console act and is refused where
+      there is anybody else in the world to wind about, exactly as the clock is. A **ride** is taken
+      as it comes, and is now the last thing on this wire that is — the world has never been told
+      where a boat is.)*
+- [ ] A ride is still trusted: step onto a horse or a boat and the client says where it puts you
+      down. Closing it means the world owning the boat and the horse, which is a phase of its own —
+      they are the two things that carry a hero and neither has ever been the server's.
 
 ### Monsters on a dungeon floor
 

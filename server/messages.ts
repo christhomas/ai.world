@@ -2,6 +2,7 @@ import {
   EMOTES, LIMITS, PARTY_LIMIT, clamp, cleanChat, cleanDelta, cleanLetter, cleanStallItem, cleanSwing, cleanSwords,
   type ClientMessage, type TradeOffer,
 } from './protocol';
+import type { Entity } from '../src/entities/entity';
 import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride';
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
@@ -65,6 +66,15 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
 }
 
 /**
+ * How far from the door somebody may come back out of it, in tiles.
+ *
+ * A staircase puts you down at the cave mouth and a doorway on its own step, so this is a few paces
+ * of slack rather than a distance anybody travels. Wide enough that a hero who stepped inside off a
+ * moving horse is not dragged back; narrow enough that a cellar is not a way across a county.
+ */
+const SAME_DOOR = 8;
+
+/**
  * The hero has been put somewhere: move the world's own copy of him to match, and say so.
  *
  * Answered rather than silent, and answered with the sequence number the world has already run, so
@@ -76,13 +86,58 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
   const p = me.presence;
   const x = Number(message.x) || 0;
   const z = Number(message.z) || 0;
-  p.x = x; p.z = z;
   const hero = me.hero;
+
+  // A teleport is a jump on the spot, and a console act: winding somebody across a shared world is
+  // the operator door's business rather than any player's. Alone in a world — which is what playing
+  // single player is — it is nobody else's affair, exactly as the clock is.
+  if (message.why === 'teleport') {
+    const alone = (rooms.get(me.seed)?.clients.size ?? 1) <= 1;
+    if (alone) { p.x = x; p.z = z; }
+    if (!hero) return;
+    if (alone) { hero.x = x; hero.z = z; }
+    settle(rooms, me, hero);
+    rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
+    return;
+  }
+
+  // A horse or a boat carries you, and the world does not own either — it has never been told where
+  // a boat is. So a ride is taken as it comes, and it is the last thing on this wire that is.
+  if (message.why === 'ride') {
+    p.x = x; p.z = z;
+    if (!hero) return;
+    hero.x = x; hero.z = z;
+    settle(rooms, me, hero);
+    return;
+  }
+
+  // Going somewhere the world does not own — a door, a staircase. The hero stays where he was and
+  // the door is remembered, because that is where he will come back out: the world has no business
+  // following anybody into a cellar it has never grown.
+  if (me.standingIn === 'surface' && hero) {
+    me.leftSurfaceAt = { x: hero.x, z: hero.z };
+    p.x = x; p.z = z;
+    return;
+  }
+
+  // And coming back out of one. A door lets you out where it let you in, so a hero who reappears a
+  // long way from the one he went in by did not walk there — he is put back at it. This is the
+  // last of the trust in this message, and the reason the two above are worth separating out.
+  p.x = x; p.z = z;
   if (!hero) return;
-  hero.x = x; hero.z = z;
-  const under = rooms.groundOf(me.seed)?.heightAt(x, z);
+  const door = me.leftSurfaceAt;
+  const wandered = door !== null && Math.hypot(x - door.x, z - door.z) > SAME_DOOR;
+  hero.x = wandered ? door.x : x;
+  hero.z = wandered ? door.z : z;
+  if (wandered) { p.x = hero.x; p.z = hero.z; }
+  settle(rooms, me, hero);
+  rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
+}
+
+/** Stand a hero on whatever ground is under him, where the world has grown any. */
+function settle(rooms: Rooms, me: Client, hero: Entity): void {
+  const under = rooms.groundOf(me.seed)?.heightAt(hero.x, hero.z);
   if (under !== null && under !== undefined) hero.y = under;
-  rooms.send(me, { type: 'youAre', seq: me.steered, x, z, y: hero.y, yaw: p.yaw });
 }
 
 /**

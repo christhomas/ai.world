@@ -259,6 +259,56 @@ describe('the simulation holding the ground itself', () => {
     expect(after.z).toBeGreaterThan(-120);
   });
 
+  it('keeps the hero at the door while he is somewhere it does not own', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const door = rowan.of('youAre').at(-1)!;
+
+    // down the stairs: the world says nothing, because it does not own what is down there
+    const said = rowan.of('youAre').length;
+    rowan.say({ type: 'stood', x: 12, z: 40, why: 'place' });
+    rowan.say({ type: 'move', x: 12, z: 40, yaw: 0, walk: 0, place: 'Barrow:1', riding: 'foot', gear: [] });
+    expect(rowan.of('youAre')).toHaveLength(said);
+
+    // and back out of it, a long way from the door he went in by: he is put back at the door
+    rowan.say({ type: 'stood', x: 300, z: -200, why: 'place' });
+    const back = rowan.of('youAre').at(-1)!;
+    expect(back.x).toBeCloseTo(door.x, 5);
+    expect(back.z).toBeCloseTo(door.z, 5);
+  });
+
+  it('lets a door let him out where it let him in', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const door = rowan.of('youAre').at(-1)!;
+
+    rowan.say({ type: 'stood', x: 12, z: 40, why: 'place' });
+    rowan.say({ type: 'move', x: 12, z: 40, yaw: 0, walk: 0, place: 'Barrow:1', riding: 'foot', gear: [] });
+    // a couple of paces from where he went in, which is what a cave mouth is
+    rowan.say({ type: 'stood', x: door.x + 2.5, z: door.z, why: 'place' });
+    expect(rowan.of('youAre').at(-1)!.x).toBeCloseTo(door.x + 2.5, 5);
+  });
+
+  it('will not let one player wind another\'s world about', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    new Pretend(sim).join(3, 'Wren');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walked = rowan.of('youAre').at(-1)!.x;
+
+    // a teleport is a console act, and a shared world's console is the operator's door
+    rowan.say({ type: 'stood', x: 400, z: -120, why: 'teleport' });
+    expect(rowan.of('youAre').at(-1)!.x, 'exactly where he walked to').toBeCloseTo(walked, 5);
+  });
+
   it('leaves the client its own authority in a world with no ground', () => {
     const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');

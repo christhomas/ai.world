@@ -78,6 +78,14 @@ export interface Client {
    */
   standingIn: string;
   /**
+   * Where the world last had this hero standing out of doors, before they went somewhere it does
+   * not own — through a door, down a staircase, onto a gangplank.
+   *
+   * What a staircase is worth on the way back. A door lets you out where it let you in, so a hero
+   * who comes back to the surface a long way from where he left it did not walk there.
+   */
+  leftSurfaceAt: { x: number; z: number } | null;
+  /**
    * The hero the server is walking for this client, once it has walked one.
    *
    * Null until the first steer arrives in a world with ground under it. What it holds is a body
@@ -132,7 +140,7 @@ export class Rooms {
     const client: Client = {
       wire, seed, lastSeen: Date.now(), offers: new Map(), party: null, seeing: new Map(),
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
-      hero: null, steered: 0, standingIn: 'surface',
+      hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null,
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);
