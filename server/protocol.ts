@@ -106,20 +106,6 @@ export type WorldDelta =
    */
   | { kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number };
 
-/**
- * One monster as the floor's owner sees it. Everyone underground generates the same rooms from
- * the same seed, so only the creatures moving about in them have to be described.
- */
-export interface MonsterSnap {
-  /** Index into the floor's own monster list, which every client builds identically. */
-  i: number;
-  x: number;
-  z: number;
-  yaw: number;
-  walk: number;
-  hp: number;
-}
-
 /** One lot on a market stall: a stack of the same item at one asking price. */
 export interface StallItem {
   id: string;
@@ -260,8 +246,6 @@ export type ClientMessage =
   | { type: 'trade-accept'; from: string }
   | { type: 'trade-decline'; from: string }
   | { type: 'delta'; delta: WorldDelta }
-  | { type: 'monsters'; place: string; snap: MonsterSnap[]; gone: number[] }
-  | { type: 'hit'; place: string; index: number; damage: number }
   /**
    * A blow landed on a creature the world owns.
    *
@@ -406,8 +390,6 @@ export type ServerMessage =
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }
   | { type: 'trade-result'; with: string; accepted: boolean; offer: TradeOffer }
-  | { type: 'monsters'; place: string; snap: MonsterSnap[]; gone: number[]; from: string }
-  | { type: 'hit'; place: string; index: number; damage: number; from: string }
   | { type: 'stalls'; stalls: Stall[] }
   /** Your own purchase came through: take the goods and pay for them. */
   | { type: 'stall-bought'; stall: string; item: StallItem; cost: number }
@@ -444,15 +426,6 @@ export type ServerMessage =
   | { type: 'emoted'; id: string; name: string; kind: string }
   | { type: 'pinged'; x: number; z: number; name: string }
   | { type: 'error'; reason: string };
-
-/**
- * Who simulates the monsters on a shared floor: the lowest player id standing on it. Every client
- * works this out for itself from the presence it already has, so the server needs no say in it.
- */
-export function ownerOfPlace(ids: string[]): string | null {
-  const sorted = ids.filter(Boolean).sort();
-  return sorted[0] ?? null;
-}
 
 /** Keep a number inside the range the game can deal with. */
 export function clamp(value: number, low: number, high: number): number {
@@ -508,8 +481,6 @@ export const LIMITS = {
   /** Lots in one parcel, and items in one trade offer. */
   PARCEL_ITEMS: 8,
   TRADE_ITEMS: 12,
-  /** Monsters described in one snapshot of a dungeon floor. */
-  MONSTERS: 64,
   /** How many of one thing can sit in a stack, on a stall or in a parcel. */
   STACK: 99,
   /** The most anybody may ask for something, and the hardest blow anybody may claim to land. */

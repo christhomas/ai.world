@@ -3,7 +3,6 @@ import {
 import { ITEMS, SLOTS } from './items';
 import { spoils } from './combat';
 import { Online, applyTrade, type Presence, type TradeOffer, type WorldDelta } from './online';
-import { Coop } from './coop';
 import { Market } from './market';
 import { Party } from './party';
 import { Duel } from './duel';
@@ -149,21 +148,6 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onBitten: (place, id, damage) => ctx.onBitten(place, id, damage),
     onWorldSilent: () => ctx.onWorldSilent(),
     onWhereYouAre: (seq, x, z, y) => ctx.onWhereYouAre(seq, x, z, y),
-    onMonsters: (place, snap, gone) => {
-      const floor = places.underground;
-      if (!floor) return;
-      const mine = coop.applySnap(place, snap, gone, floor.monsters, (m) => floor.monsters.despawnEntity(m));
-      // the floor's owner resolved the blow, so the spoils are handed out here instead
-      for (const fallen of mine) creditKill(fallen);
-    },
-    onHit: (place, index, damage) => {
-      // we own this floor, so a blow reported by somebody else is resolved here
-      const floor = places.underground;
-      if (!floor || !coop.hosting || place !== placeName()) return;
-      const monster = floor.monsters.onRoster(index);
-      if (!monster || monster.dead) return;
-      if (damageEntity(monster, damage, monster.x + 1, monster.z, floor.world)) floor.monsters.killEntity(monster);
-    },
     onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
     onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },
     onMail: (letters) => {
@@ -348,10 +332,6 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     },
   });
 
-  const coop = new Coop({
-    sendSnap: (place, snap, gone) => online.monsters(place, snap, gone),
-    sendHit: (place, index, damage) => online.hit(place, index, damage),
-  });
 
   /** Keep the bout's standing in front of the fighters while it lasts. */
   /**
@@ -527,7 +507,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
   };
 
   return {
-    online, market, party, duel, coop, others, handover, rally, warband, callOut,
+    online, market, party, duel, others, handover, rally, warband, callOut,
     playerList, playerListInput, markers,
     sync: syncOnline,
     applyDelta: applyWorldDelta,

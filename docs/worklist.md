@@ -123,8 +123,11 @@ so the shape is known and the pieces are the same ones.
       never near enough to keep. So every monster was dropped on the first step taken on the floor.
       Invisible from outside: the rooms, doors, chests and torches are all there, and the place is
       empty. `src/entities/floors.test.ts`.)*
-- [ ] `src/game/coop.ts` and the `monsters` and `hit` messages are what the floors used to run on,
-      and nothing sends them now. Deleting them takes a test with it, so it wants a yes first.
+- [x] The old co-op path is gone: `src/game/coop.ts` and its test, the `monsters` and `hit`
+      messages both ways, `MonsterSnap`, `ownerOfPlace`, the server's relay of them and the socket
+      test that covered it. *(Nothing had sent any of it since the world took the floors. What it
+      was for — one player simulating a floor for everybody standing on it, with the lowest player
+      id winning the job — is worth remembering as the arrangement that came before a server.)*
 
 ### Village economy
 
@@ -345,11 +348,12 @@ Things Chris hit on a real phone, in the order he hit them.
       Proof it was a move and not a rewrite: the whole `KINDS` table dumped before and after,
       key-sorted at every depth, identical byte for byte at 104 KB, and the golden fingerprint did
       not budge. `animals.ts` went 661 lines to 404.)*
-- [ ] Six of the twenty-four numbers in `properties/behaviour.json` are read by nothing: the trees
-      write those numbers themselves now, and `CIRCLE_CLOSE` is dead outright because the ring no
-      longer tightens. Each one's note says so. Deleting them is a decision rather than a tidy-up,
-      which is why they were moved unchanged.
-
+- [x] The six numbers in `properties/behaviour.json` that nothing read are gone: `FLEE_RADIUS`,
+      `HUNT_RADIUS`, `CIRCLE_NOTICE`, `CHARGE_EVERY`, `SEA_BITE_COOLDOWN` and `CIRCLE_CLOSE`.
+      *(The first five were superseded when the trees started writing those numbers themselves —
+      which is the right place for them, because a shark's ring and a wolf's are different sharks
+      and different wolves rather than one default. `CIRCLE_CLOSE` was dead outright: the ring no
+      longer tightens, it holds. The notes that explained them went with them.)*
 - [x] The HUD scales with the screen. *(`--ui-scale` is a *length* rather than a number, because CSS
       cannot divide one length by another, and every HUD rule says `calc(13 * var(--ui-scale))` where
       it used to say `13px`. Two terms, smaller wins, and each is a constraint rather than a taste:

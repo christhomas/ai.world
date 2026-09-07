@@ -186,10 +186,8 @@ export function creature(id: string, parts: PartDef[]): CreatureProperties & { p
  * one decides is written beside it in `properties/behaviour.json`.
  */
 export interface BehaviourDefaults {
-  FLEE_RADIUS: number;
   FLEE_TIME: [number, number];
   STALK_RADIUS: number;
-  HUNT_RADIUS: number;
   ARRIVE_DISTANCE: number;
   BITE_RANGE: number;
   BITE_COOLDOWN: number;
@@ -204,22 +202,16 @@ export interface BehaviourDefaults {
   PROWL_DRIFT: number;
   HERD_DRIFT_TIME: [number, number];
   TURN_RATE: number;
-  CIRCLE_NOTICE: number;
   CIRCLE_RADIUS: number;
-  CIRCLE_CLOSE: number;
-  CHARGE_EVERY: [number, number];
   CHARGE_TIME: number;
-  SEA_BITE_COOLDOWN: number;
 }
 
 const defaults = flatten('properties/behaviour.json', tuning);
 
 /** Behaviour tuning shared by every creature. Distances in tiles, times in seconds. */
 export const BEHAVIOUR: BehaviourDefaults = {
-  FLEE_RADIUS: defaults.num('FLEE_RADIUS'),
   FLEE_TIME: defaults.pair('FLEE_TIME'),
   STALK_RADIUS: defaults.num('STALK_RADIUS'),
-  HUNT_RADIUS: defaults.num('HUNT_RADIUS'),
   ARRIVE_DISTANCE: defaults.num('ARRIVE_DISTANCE'),
   BITE_RANGE: defaults.num('BITE_RANGE'),
   BITE_COOLDOWN: defaults.num('BITE_COOLDOWN'),
@@ -234,12 +226,8 @@ export const BEHAVIOUR: BehaviourDefaults = {
   PROWL_DRIFT: defaults.num('PROWL_DRIFT'),
   HERD_DRIFT_TIME: defaults.pair('HERD_DRIFT_TIME'),
   TURN_RATE: defaults.num('TURN_RATE'),
-  CIRCLE_NOTICE: defaults.num('CIRCLE_NOTICE'),
   CIRCLE_RADIUS: defaults.num('CIRCLE_RADIUS'),
-  CIRCLE_CLOSE: defaults.num('CIRCLE_CLOSE'),
-  CHARGE_EVERY: defaults.pair('CHARGE_EVERY'),
   CHARGE_TIME: defaults.num('CHARGE_TIME'),
-  SEA_BITE_COOLDOWN: defaults.num('SEA_BITE_COOLDOWN'),
 };
 
 /**

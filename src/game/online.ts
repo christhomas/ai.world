@@ -1,13 +1,13 @@
 import { socketLink, workerLink, type Link, type LinkEvents } from '../net/link';
 import {
   EMOTES, PROTOCOL_VERSION, cleanChat, cleanName,
-  type ClientMessage, type Clock, type MonsterSnap, type Presence, type ServerMessage,
+  type ClientMessage, type Clock, type Presence, type ServerMessage,
   type CreatureSnap, type Letter, type PartyMember, type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
-export type { Clock, Letter, MonsterSnap, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
+export type { Clock, Letter, PartyMember, Presence, Stall, StallItem, TradeOffer, WorldDelta };
 
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
@@ -41,10 +41,6 @@ export interface OnlineEvents {
   onWhereYouAre: (seq: number, x: number, z: number, y: number) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
-  /** The owner of a dungeon floor describing its monsters. */
-  onMonsters: (place: string, snap: MonsterSnap[], gone: number[]) => void;
-  /** Somebody on our floor says they struck a monster; we own it, so we decide. */
-  onHit: (place: string, index: number, damage: number) => void;
   /** The market as the server sees it: who holds which pitch and what is on it. */
   onStalls: (stalls: Stall[]) => void;
   /** A purchase from somebody's stall went through: the goods are yours, so pay for them. */
@@ -266,12 +262,6 @@ export class Online {
         for (const id of [...this.players.keys()]) if (!seen.has(id)) this.players.delete(id);
         break;
       }
-      case 'monsters':
-        this.events.onMonsters(message.place, message.snap, message.gone);
-        break;
-      case 'hit':
-        this.events.onHit(message.place, message.index, message.damage);
-        break;
       case 'stalls':
         this.events.onStalls(message.stalls);
         break;
@@ -453,16 +443,6 @@ export class Online {
   /** Tell everyone about something we changed in the world. */
   report(delta: WorldDelta): void {
     if (this.connected) this.send({ type: 'delta', delta });
-  }
-
-  /** As the owner of a floor, say where its monsters are. */
-  monsters(place: string, snap: MonsterSnap[], gone: number[]): void {
-    if (this.connected) this.send({ type: 'monsters', place, snap, gone });
-  }
-
-  /** As a guest on a floor, report a blow for its owner to resolve. */
-  hit(place: string, index: number, damage: number): void {
-    if (this.connected) this.send({ type: 'hit', place, index, damage });
   }
 
   /** Rent a market pitch, put something on it, buy from it, take the money, or give it up. */

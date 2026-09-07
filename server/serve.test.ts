@@ -175,23 +175,6 @@ describe('the world server', () => {
     expect((await latecomer.next('welcome')).deltas).toEqual([{ kind: 'chest', id: 'vault:1:chest:0' }]);
   });
 
-  it('relays a floor\'s monsters only to the people standing on that floor', async () => {
-    const { rowan, wren } = await two();
-    const elsewhere = await Player.join(server.port, 'Alder');
-    await elsewhere.arrive();
-
-    rowan.send({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'Shrine of Echoes:1', riding: 'foot', gear: [] });
-    wren.send({ type: 'move', x: 1, z: 0, yaw: 0, walk: 0, place: 'Shrine of Echoes:1', riding: 'foot', gear: [] });
-    elsewhere.send({ type: 'move', x: 2, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
-    await new Promise((settle) => setTimeout(settle, 60));
-
-    rowan.send({ type: 'monsters', place: 'Shrine of Echoes:1', snap: [{ i: 0, x: 5, z: 6, yaw: 0, walk: 0, hp: 2 }], gone: [] });
-    expect((await wren.next('monsters')).snap[0].x).toBe(5);
-    await elsewhere.never('monsters');
-
-    wren.send({ type: 'hit', place: 'Shrine of Echoes:1', index: 0, damage: 3 });
-    expect((await rowan.next('hit')).damage).toBe(3);
-  });
 });
 
 describe('the market, over the wire', () => {

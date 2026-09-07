@@ -44,7 +44,7 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
         clock: room.world.setClock(Number(message.day) || 1, Number(message.time) || 0),
       });
       return;
-    case 'delta': case 'monsters': case 'hit':
+    case 'delta':
       worldChange(rooms, me, room, message);
       return;
     case 'stall-rent': case 'stall-stock': case 'stall-buy': case 'stall-collect': case 'stall-close':
@@ -337,27 +337,12 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
   }
 }
 
-/**
- * The two ways the world itself changes hands: the short log of what players have altered, and
- * the monsters on a shared dungeon floor, which one client runs for everybody standing on it.
- */
+/** The short log of what players have altered about the world, passed on to everybody else in it. */
 function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
-  if (message.type === 'delta') {
-    const delta = cleanDelta(message.delta);
-    if (!delta || !room.world.apply(delta)) return;
-    rooms.broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me);
-    return;
-  }
-  if (message.type !== 'monsters' && message.type !== 'hit') return;
-
-  // a pure relay, and only to the floor it concerns: the clients agree among themselves who owns it
-  const place = String(message.place).slice(0, LIMITS.PLACE);
-  for (const other of room.clients) {
-    if (other === me || other.presence.place !== place) continue;
-    rooms.send(other, message.type === 'monsters'
-      ? { type: 'monsters', place, snap: message.snap.slice(0, LIMITS.MONSTERS), gone: message.gone.slice(0, LIMITS.MONSTERS), from: me.presence.id }
-      : { type: 'hit', place, index: Math.floor(message.index), damage: Math.max(0, Math.floor(message.damage)), from: me.presence.id });
-  }
+  if (message.type !== 'delta') return;
+  const delta = cleanDelta(message.delta);
+  if (!delta || !room.world.apply(delta)) return;
+  rooms.broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me);
 }
 
 /** Market pitches: rented, stocked, bought from, collected, given up. */
