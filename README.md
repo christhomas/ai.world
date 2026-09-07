@@ -428,6 +428,28 @@ guard is asked once at the start of an action rather than on every tick of it).
 that does not exist fails at load with the path to the node that asked and a list of what it could
 have said instead, and the tests compile every shipped file so that lands in the build.
 
+### So do the numbers
+
+What a creature *is* is a file too. `properties/*.json` holds every pace, bite, purse and herd in
+the game, with the argument for each written beside it:
+
+```json
+"wolf": {
+  "note": "One damage a bite is a tenth of a fresh hero, which is survivable one wolf at a time — and is exactly why they arrive in twos and fours.",
+  "speed": 1.5, "runSpeed": 5.5, "herd": [2, 4], "behaviour": "prowl",
+  "timid": false, "dangerous": 1, "hp": 3, "gold": [8, 20],
+  "drop": { "id": "pelt", "chance": 0.5 }
+}
+```
+
+`properties/behaviour.json` holds the defaults every creature shares — how far a blow reaches, how
+long the wind-up is, how hard being hit shoves you — which a behaviour tree overrides by naming
+one; and `properties/spawning.json` says which kinds live in which country, how often a chunk gets
+any of them, and what comes out after dark. All of it is parsed against a TypeScript type at load,
+so a missing speed or a misspelt behaviour stops the game with the file and the key that is wrong
+rather than producing a wolf with `NaN` hit points. What stayed in the source is the rig that draws
+a creature, because a shape is read by looking at it rather than by being told.
+
 ### Layout
 
 ```
@@ -439,7 +461,7 @@ src/
   dungeon/     room and corridor generator, walkability, dungeon scene
   interior/    per-building room layouts, walkability, interior scene
   entities/    animal and character rigs, instanced renderer, movement, spawning, the player
-               (what a creature decides lives in behaviours/, not here)
+               (what a creature decides lives in behaviours/, what it is in properties/)
   game/        state and equipment, items, shops, quests, combat, fishing, farming,
                ferries, sailing, mounts, seasons, dialogue, audio, and the shared-world
                systems: online client, co-op floors, market, parties, duels
@@ -448,6 +470,8 @@ src/
   save/        persistence interface and IndexedDB implementation
 server/        wire protocol, the WebSocket server, and the world file it keeps per seed
 behaviours/    what every creature decides, as data: one tree per kind, in the game's own verbs
+properties/    what every creature is, and where it comes from: paces, bites, purses, herds,
+               the defaults a behaviour tree overrides, and which kinds live in which country
 chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
 Dockerfile     the world server as an image: one bundled module, `ws`, node, and nothing else
 docker-compose.yml   that image with its worlds on a volume, which is what `chore up` runs
@@ -458,8 +482,10 @@ fly.toml       where the server goes to have a name and a certificate
 
 `src/core/config.ts` holds the knobs: chunk size, terrace step, water level, view radius,
 road-graph density, world radius, town count, river and lake counts, and camera speeds. Biome
-palettes and prop tables live in `src/world/biomes.ts`, creature rigs and spawn tables in
-`src/entities/animals.ts`, items in `src/game/items.ts`, shop stock in `src/game/shops.ts`.
+palettes and prop tables live in `src/world/biomes.ts`, items in `src/game/items.ts`, shop stock
+in `src/game/shops.ts`. What a creature is worth, what it hits for and where it lives are not code
+at all any more: they are `properties/*.json`, with the argument for each number written beside it,
+and only the rigs that draw a creature stayed in `src/entities/animals.ts`.
 
 Three readability passes are written up in `docs/human-code-report-2026-09-03.md`,
 `docs/human-code-report-2026-09-03-pass2.md` and `docs/human-code-report-2026-09-04.md`.

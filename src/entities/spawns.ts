@@ -1,43 +1,63 @@
+import spawning from '../../properties/spawning.json';
 import { Biome } from '../world/biomes';
+import { Fields, asText } from '../core/properties';
 import type { TileWorld } from './entity';
 import { tileCentre } from './chunkspots';
 import type { ChunkTiles } from '../world/tiles';
 
 /**
- * What lives where.
+ * What lives where, read out of `properties/spawning.json`.
  *
  * Kept apart from animals.ts because it answers a different question. That file says what a
  * creature *is* — its rig, its pace, how hard it hits; this one says where you meet it, which is
  * a fact about the world rather than about the animal. They change for different reasons and at
- * different times, and animals.ts had grown past the length anybody can hold in their head.
+ * different times.
+ *
+ * A weighted table is written in the file as names against shares, which is how anybody would
+ * write one down, and turned into a list here. The list keeps the order the file was written in,
+ * and that order is load-bearing: `pickKind` walks it, so the same roll in the same chunk lands on
+ * whichever kind the order puts it on. Reordering a table is a different world, not a tidy-up.
  */
 
 export interface SpawnWeight { kind: string; weight: number }
 
-/** Herd kinds per biome, on land. */
-export const BIOME_ANIMALS: Record<Biome, SpawnWeight[]> = {
-  [Biome.Plains]: [{ kind: 'cow', weight: 4 }, { kind: 'sheep', weight: 4 }, { kind: 'horse', weight: 2 }, { kind: 'chicken', weight: 3 }, { kind: 'rabbit', weight: 2 }],
-  [Biome.Forest]: [{ kind: 'deer', weight: 5 }, { kind: 'rabbit', weight: 3 }, { kind: 'fox', weight: 2 }, { kind: 'bear', weight: 1 }],
-  [Biome.Desert]: [{ kind: 'camel', weight: 3 }, { kind: 'lizard', weight: 4 }, { kind: 'vulture', weight: 2 }],
-  [Biome.Swamp]: [{ kind: 'frog', weight: 5 }, { kind: 'heron', weight: 2 }, { kind: 'duck', weight: 3 }],
-  [Biome.Mountain]: [{ kind: 'goat', weight: 5 }, { kind: 'eagle', weight: 2 }, { kind: 'wolf', weight: 1 }],
-  [Biome.Snow]: [{ kind: 'hare', weight: 4 }, { kind: 'wolf', weight: 2 }, { kind: 'elk', weight: 3 }],
-};
-
-/**
- * What waits underground, by how far down you are. One entry per floor, counting from one.
- *
- * A cave mouth on the road out of the first village and the bottom of a three-floor vault were
- * the same table, so an hour-one cave was a third bats and had skeletons in it. A cave is always
- * floor one, so moving the skeletons into the second band is most of the fix: the first hour is
- * rats and the odd roost, and what hits twice as hard starts below the first stair, which is a
- * village and a shop away.
- */
-const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> = [
-  [{ kind: 'rat', weight: 6 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 3 }],
-  [{ kind: 'rat', weight: 4 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 4 }, { kind: 'skeleton', weight: 3 }],
-  [{ kind: 'rat', weight: 2 }, { kind: 'slime', weight: 3 }, { kind: 'bat', weight: 4 }, { kind: 'skeleton', weight: 5 }],
+/** The names the file uses for the six countries; the game holds a biome as a number. */
+const COUNTRIES: ReadonlyArray<readonly [string, Biome]> = [
+  ['plains', Biome.Plains],
+  ['forest', Biome.Forest],
+  ['desert', Biome.Desert],
+  ['swamp', Biome.Swamp],
+  ['mountain', Biome.Mountain],
+  ['snow', Biome.Snow],
 ];
+
+const file = new Fields('properties/spawning.json', spawning);
+const countries = file.group('biomes');
+
+/** One table of names against shares, in the order the file wrote them, which is the order that decides. */
+function weights(table: Fields): SpawnWeight[] {
+  return table.keys().map((kind) => ({ kind, weight: table.num(kind) }));
+}
+
+/** The same table read for each of the six, so a country nobody filled in is an error rather than an empty field. */
+function perCountry<T>(read: (country: Fields) => T): Record<Biome, T> {
+  const out = {} as Record<Biome, T>;
+  for (const [name, biome] of COUNTRIES) out[biome] = read(countries.group(name));
+  return out;
+}
+
+/** Herd kinds per biome, on land. */
+export const BIOME_ANIMALS: Record<Biome, SpawnWeight[]> = perCountry((country) => weights(country.group('land')));
+
+/** Kinds that spawn on water tiles instead of land. */
+export const WATER_ANIMALS: Record<Biome, SpawnWeight[]> = perCountry((country) => weights(country.group('water')));
+
+/** Extra packs that only come out after dark, per biome. Picked flat, so names and no shares. */
+export const NIGHT_PREDATORS: Record<Biome, string[]> = perCountry((country) => country.list('night', asText));
+
+/** What waits underground, by how far down you are. One entry per floor, counting from one. */
+const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> =
+  file.group('dungeon').list('floors', (floor, where) => weights(new Fields(where, floor)));
 
 /** What lives on a floor. Anything deeper than the table goes holds whatever the bottom holds. */
 export function dungeonMonsters(floor: number): readonly SpawnWeight[] {
@@ -48,31 +68,11 @@ export function dungeonMonsters(floor: number): readonly SpawnWeight[] {
 /** The shallow band: every cave, and the floor of a vault you arrive on. */
 export const DUNGEON_MONSTERS: readonly SpawnWeight[] = dungeonMonsters(1);
 
-/**
- * What lives above the treeline, on and around a massif.
- *
- * Kept apart from the biome tables because a mountain is not a biome: a massif can stand in any
- * country, and what matters is the height rather than the latitude. Deliberately short and
- * deliberately dangerous — the reason to look up when the ground starts to rise.
- */
-export const HIGHLAND_ANIMALS: readonly SpawnWeight[] = [
-  { kind: 'goat', weight: 5 },
-  { kind: 'eagle', weight: 3 },
-  { kind: 'wolf', weight: 2 },
-  { kind: 'bear', weight: 1 },
-  { kind: 'bigfoot', weight: 1 },
-  { kind: 'yeti', weight: 1 },
-];
+/** What lives above the treeline, on and around a massif. */
+export const HIGHLAND_ANIMALS: readonly SpawnWeight[] = weights(file.group('highland').group('kinds'));
 
-/** Kinds that spawn on water tiles instead of land. */
-export const WATER_ANIMALS: Record<Biome, SpawnWeight[]> = {
-  [Biome.Plains]: [{ kind: 'duck', weight: 1 }],
-  [Biome.Forest]: [{ kind: 'duck', weight: 1 }],
-  [Biome.Desert]: [],
-  [Biome.Swamp]: [{ kind: 'duck', weight: 2 }, { kind: 'frog', weight: 1 }],
-  [Biome.Mountain]: [],
-  [Biome.Snow]: [],
-};
+/** What a pack in open water turns out to be: nothing else spawns out there at all. */
+export const DEEP_ANIMALS: readonly SpawnWeight[] = weights(file.group('deep').group('kinds'));
 
 export function pickKind(list: readonly SpawnWeight[], r: number): string | null {
   if (list.length === 0) return null;

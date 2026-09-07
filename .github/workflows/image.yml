@@ -30,6 +30,7 @@ on:
       - 'vite.config.ts'
       - 'animations/**'
       - 'behaviours/**'
+      - 'properties/**'
       - 'art/**'
       - 'package.json'
       - 'pnpm-lock.yaml'

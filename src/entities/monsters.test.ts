@@ -5,7 +5,7 @@ import { compileAll, type BehaviourFile } from '../core/behaviourFile';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { Entity, Herd, canStand, type TileWorld, updateEntity } from './entity';
-import { MONSTER, MONSTER_KINDS, canBeCut, type MonsterId } from './monsters';
+import { MONSTER_KINDS, canBeCut, type MonsterId } from './monsters';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
 
 /**
@@ -85,9 +85,10 @@ describe('the ogre', () => {
     const e = stand('ogre', 10);
     const run = meet(e, 25, { time: 0.5, running: false });
     expect(run.bites.length).toBeGreaterThan(0);
-    for (const damage of run.bites) expect(damage).toBe(MONSTER.OGRE_HIT);
+    const swing = MONSTER_KINDS.ogre.dangerous!;
+    for (const damage of run.bites) expect(damage).toBe(swing);
     // two of those out of ten hearts: standing still is not a plan, it is the start of one
-    expect(MONSTER.OGRE_HIT * 2).toBeGreaterThanOrEqual(10 / 2);
+    expect(swing * 2).toBeGreaterThanOrEqual(10 / 2);
   });
 
   it('cannot follow you up a terrace, because nothing gave it the hero\'s legs', () => {
@@ -97,7 +98,6 @@ describe('the ogre', () => {
 
   it('is a real fight for anybody who wants one, and worth having had', () => {
     expect(canBeCut(MONSTER_KINDS.ogre)).toBe(true);
-    expect(MONSTER_KINDS.ogre.hp).toBe(MONSTER.OGRE_HP);
     expect(MONSTER_KINDS.ogre.hp!).toBeGreaterThan(KINDS.bear.hp!);
     expect(MONSTER_KINDS.ogre.gold![0]).toBeGreaterThan(0);
   });

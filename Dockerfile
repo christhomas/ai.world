@@ -48,6 +48,7 @@ COPY server ./server
 COPY src ./src
 COPY animations ./animations
 COPY behaviours ./behaviours
+COPY properties ./properties
 RUN pnpm exec vite build --config server/build.config.ts
 
 # The page, when it is wanted, into a fixed path so the runtime stage can copy it without knowing

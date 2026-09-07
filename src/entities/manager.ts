@@ -10,7 +10,7 @@ import type { ChunkSource, ChunkTiles } from '../world/tiles';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { KINDS } from './animals';
-import { BIOME_ANIMALS, HIGHLAND_ANIMALS, WATER_ANIMALS, dungeonMonsters, openGround, pickKind } from './spawns';
+import { BIOME_ANIMALS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS, dungeonMonsters, openGround, pickKind } from './spawns';
 import { treeFor } from './behaviours';
 import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
@@ -25,7 +25,7 @@ import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { blowOf } from './motion';
 import type { EntityView } from './roster';
 import { doorTile, type Village } from '../world/structures';
-import { ACTIVE_RANGE, BOUNTY, NIGHT_PREDATORS, SPAWN, SPAWN_RADIUS } from './spawning';
+import { ACTIVE_RANGE, BOUNTY, SPAWN, SPAWN_RADIUS } from './spawning';
 
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
 export class EntityManager {
@@ -555,8 +555,8 @@ export class EntityManager {
     }
     // nothing but water in this chunk means open sea, where something else is waiting
     if (sorted.land.length === 0 && sorted.water.length >= SPAWN.MIN_WATER_TILES && rng() < SPAWN.DEEP_PACK_CHANCE) {
-      const hunter = rng() < 0.7 ? 'shark' : 'orca';
-      this.spawnHerd(ctx, hunter, tileCentre(tiles, sorted.water[Math.floor(rng() * sorted.water.length)]), SPAWN.DEEP_LEASH);
+      const hunter = pickKind(DEEP_ANIMALS, rng());
+      if (hunter) this.spawnHerd(ctx, hunter, tileCentre(tiles, sorted.water[Math.floor(rng() * sorted.water.length)]), SPAWN.DEEP_LEASH);
     }
     if (sorted.road.length >= SPAWN.MIN_ROAD_TILES && rng() < SPAWN.TRAVELLER_CHANCE) {
       this.place(ctx, 'traveller', tileCentre(tiles, sorted.road[Math.floor(rng() * sorted.road.length)]), 1 + Math.floor(rng() * 2), SPAWN.TRAVELLER_LEASH);

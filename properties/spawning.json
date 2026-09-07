@@ -1,0 +1,126 @@
+{
+  "note": [
+    "Where creatures come from: how far around a player the world is populated, how often a chunk gets anything at all, and which kinds live in which country.",
+    "This answers a different question from the rest of properties/. Those files say what a wolf is; this says where you meet one, which is a fact about the world rather than about the animal. They change for different reasons and at different times, which is why they are apart.",
+    "Chances are per chunk and are rolled once each, so raising one costs a roll's worth of creatures and nothing else. Leashes and ranges are tiles.",
+    "In the weighted tables — the biome lists, the highland, the dungeon floors, the deep sea — a name is a kind and its number is its share of the roll. The ORDER of the entries decides which kind a given roll lands on, so reordering a table is not a tidy-up: it hands every world a different set of animals in the same fields. Add and remove freely; leave what is there where it is."
+  ],
+
+  "reach": {
+    "note": "SPAWN_RADIUS is how many chunks around a player get creatures at all, and ACTIVE_RANGE how far from anybody a creature goes on being thought for. Past that it freezes where it stands rather than being stepped, which is what makes a world of thousands affordable: only the few hundred near somebody are ever alive at once.",
+    "SPAWN_RADIUS": 4,
+    "ACTIVE_RANGE": 44
+  },
+
+  "herds": {
+    "note": [
+      "A chunk with at least MIN_LAND_TILES of open ground gets a herd with HERD_CHANCE, and a second with SECOND_HERD_CHANCE on top of that — which is what makes some fields busy and most of them empty, rather than every field being the same field.",
+      "HERD_LEASH is how far the herd may drift from where it was put. SCATTER is how far its members land from the anchor, and PLACE_ATTEMPTS how many times a member tries to find standable ground before it gives up and is simply not there. FLIER_RING is the same for anything with wings, which rings its anchor instead of scattering across it."
+    ],
+    "MIN_LAND_TILES": 30,
+    "HERD_CHANCE": 0.6,
+    "SECOND_HERD_CHANCE": 0.3,
+    "HERD_LEASH": 12,
+    "PLACE_ATTEMPTS": 8,
+    "SCATTER": 2.2,
+    "FLIER_RING": 4
+  },
+
+  "water": {
+    "note": [
+      "MIN_WATER_TILES of water in a chunk gets ducks and frogs with WATER_HERD_CHANCE, on a short WATER_LEASH because a pond is small and a duck that wanders off it is a duck standing in a field.",
+      "A chunk with no land in it at all is open sea, and open sea has hunters in it: DEEP_PACK_CHANCE, on a long leash, because nothing out there has any reason to stay anywhere."
+    ],
+    "MIN_WATER_TILES": 6,
+    "WATER_HERD_CHANCE": 0.55,
+    "WATER_LEASH": 6,
+    "DEEP_PACK_CHANCE": 0.18,
+    "DEEP_LEASH": 14
+  },
+
+  "roads": {
+    "note": "A chunk with MIN_ROAD_TILES of road through it gets somebody walking along it, with TRAVELLER_CHANCE. The leash is long because that is the whole idea of a traveller: they are going somewhere, and a road nobody is ever on is scenery.",
+    "MIN_ROAD_TILES": 12,
+    "TRAVELLER_CHANCE": 0.3,
+    "TRAVELLER_LEASH": 30
+  },
+
+  "village": {
+    "note": "How far the people of a village stray from the spot they belong to. A congregation stands about the church door; a shopkeeper is on an even shorter string, because a shopkeeper who wanders is a shop you cannot find.",
+    "CONGREGATION_LEASH": 2.5,
+    "SHOPKEEPER_LEASH": 1.2
+  },
+
+  "night": {
+    "note": "What comes out after dark is rolled per chunk on top of the day's herds, so night is not a different world — it is the same one with something else in it. Which packs those are is written into each biome below, beside what lives there in daylight.",
+    "NIGHT_PACK_CHANCE": 0.35,
+    "NIGHT_LEASH": 16
+  },
+
+  "bounty": {
+    "note": "What the law is paid. A constable takes the whole bounty for putting down something that was attacking somebody; anybody else who does it — a hunter, a passing farmer — takes RESCUE_SHARE of it, which is the difference between doing the job and helping out. ARREST is what taking in somebody the law wants pays before their crimes are counted, and ARREST_WORST what the very worst of them is worth on top: a constable's own reason to come for you.",
+    "RESCUE_SHARE": 0.3,
+    "ARREST": 15,
+    "ARREST_WORST": 45
+  },
+
+  "biomes": {
+    "note": [
+      "Who lives in each country, all three answers together: `land` is the herds that stand on the ground, `water` the ones that want a pond, and `night` the packs that come out after dark. A biome whose water holds nothing says so with an empty table rather than by leaving it out, because that is a decision somebody made about deserts.",
+      "The weights are relative within one biome and mean nothing across them. What they buy is a country that reads as itself: the plains are farmland and are mostly livestock, the forest is a deer wood with one bear in it, the mountain is goats with something worse above them.",
+      "The night lists carry no weights, only names, because a night pack is picked flat. Wolves nearly everywhere, since a wolf is what a beginner learns the word dangerous from; bears only where there are trees for one to come out of; and bats over the desert and the marshes, where nothing else is awake."
+    ],
+    "plains": {
+      "land": { "cow": 4, "sheep": 4, "horse": 2, "chicken": 3, "rabbit": 2 },
+      "water": { "duck": 1 },
+      "night": ["wolf"]
+    },
+    "forest": {
+      "land": { "deer": 5, "rabbit": 3, "fox": 2, "bear": 1 },
+      "water": { "duck": 1 },
+      "night": ["wolf", "bear"]
+    },
+    "desert": {
+      "land": { "camel": 3, "lizard": 4, "vulture": 2 },
+      "water": {},
+      "night": ["bat"]
+    },
+    "swamp": {
+      "land": { "frog": 5, "heron": 2, "duck": 3 },
+      "water": { "duck": 2, "frog": 1 },
+      "night": ["bat", "wolf"]
+    },
+    "mountain": {
+      "land": { "goat": 5, "eagle": 2, "wolf": 1 },
+      "water": {},
+      "night": ["wolf"]
+    },
+    "snow": {
+      "land": { "hare": 4, "wolf": 2, "elk": 3 },
+      "water": {},
+      "night": ["wolf"]
+    }
+  },
+
+  "highland": {
+    "note": "What lives above the treeline, on and around a massif. Kept apart from the biome tables because a mountain is not a biome: a massif can stand in any country, and what matters is the height rather than the latitude. Deliberately short and deliberately dangerous — it is the reason to look up when the ground starts to rise.",
+    "kinds": { "goat": 5, "eagle": 3, "wolf": 2, "bear": 1, "bigfoot": 1, "yeti": 1 }
+  },
+
+  "deep": {
+    "note": "What a pack in open water turns out to be. Sharks mostly, orcas now and then, and nothing else in the game spawns out there at all: the sea is one encounter with two faces, and the rarer one hits half again as hard.",
+    "kinds": { "shark": 7, "orca": 3 }
+  },
+
+  "dungeon": {
+    "note": [
+      "What waits underground, by how far down you are: one table per floor, counting from one, and anything deeper than the list goes holds whatever the bottom holds.",
+      "A cave mouth on the road out of the first village and the bottom of a three-floor vault were once the same table, so an hour-one cave was a third bats and had skeletons in it. A cave is always floor one, so moving the skeletons into the second band is most of the fix: the first hour is rats and the odd roost, and what hits twice as hard starts below the first stair, which is a village and a shop away."
+    ],
+    "floors": [
+      { "rat": 6, "slime": 3, "bat": 3 },
+      { "rat": 4, "slime": 3, "bat": 4, "skeleton": 3 },
+      { "rat": 2, "slime": 3, "bat": 4, "skeleton": 5 }
+    ]
+  }
+}

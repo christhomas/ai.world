@@ -1,0 +1,102 @@
+{
+  "note": "Everything that has wings, whether or not it uses them: `altitude` is the difference between a bird in the sky and a bird standing in a field. Fields are as described in beasts.json.",
+  "chicken": {
+    "note": "One hit point, so it is the first thing most heroes ever kill, and the reason meat is never scarce near a village.",
+    "label": "Chicken",
+    "emoji": "🐔",
+    "scale": 0.75,
+    "speed": 1.2,
+    "runSpeed": 3.5,
+    "herd": [3, 6],
+    "behaviour": "hop",
+    "timid": true,
+    "hp": 1,
+    "owned": true,
+    "drop": { "id": "meat", "chance": 1 },
+    "palettes": [
+      ["#ffffff"],
+      ["#c9803a"],
+      ["#3a3a3a"]
+    ],
+    "names": ["Nugget", "Clucky", "Pecky", "Henrietta", "Bawk"],
+    "lines": ["Bawk!", "*pecks*", "Cluck~", "BUG!"]
+  },
+  "duck": {
+    "note": "Slower than anything else with wings, because it spends its life on water rather than above it.",
+    "label": "Duck",
+    "emoji": "🦆",
+    "scale": 0.6,
+    "speed": 0.8,
+    "runSpeed": 2,
+    "herd": [2, 5],
+    "behaviour": "swim",
+    "timid": true,
+    "hp": 1,
+    "drop": { "id": "meat", "chance": 0.9 },
+    "palettes": [
+      ["#4a6a3a", "#7a5a3a"],
+      ["#f4f0e0", "#f4f0e0"],
+      ["#6a4a2a", "#8a6a4a"]
+    ],
+    "names": ["Quackers", "Puddles", "Mallard", "Waddles", "Splash"],
+    "lines": ["Quack!", "*paddles*", "*dabbles*", "*preens*"]
+  },
+  "vulture": {
+    "note": "It circles rather than hunts: `timid` is false and `dangerous` absent, so it comes to look at you and nothing more. What it is worth is what it has already picked over.",
+    "label": "Vulture",
+    "emoji": "🦅",
+    "scale": 0.9,
+    "speed": 2.5,
+    "runSpeed": 2.5,
+    "herd": [1, 3],
+    "behaviour": "fly",
+    "timid": false,
+    "altitude": 7,
+    "hp": 2,
+    "gold": [4, 12],
+    "drop": { "id": "bone", "chance": 0.3 },
+    "palettes": [
+      ["#3a3a3a", "#e0a0a0"]
+    ],
+    "names": ["Scavenger", "Gloom", "Vulpecula", "Carrion"],
+    "lines": ["*circles*", "*screeches*", "*eyes you hungrily*"]
+  },
+  "heron": {
+    "note": "The slowest creature in the world, standing still in the reeds on purpose. Nothing about it is a threat and nothing about it runs.",
+    "label": "Heron",
+    "emoji": "🪶",
+    "scale": 1,
+    "speed": 0.6,
+    "runSpeed": 2,
+    "herd": [1, 2],
+    "behaviour": "wander",
+    "timid": true,
+    "hp": 1,
+    "drop": { "id": "meat", "chance": 0.8 },
+    "palettes": [
+      ["#9aa8b4", "#e8eef2"]
+    ],
+    "names": ["Stilt", "Grey", "Reed", "Patience"],
+    "lines": ["*stands perfectly still*", "*stalks*", "*strikes at a fish*"]
+  },
+  "eagle": {
+    "note": "Higher than the vulture and quicker, which is the whole difference between them: one waits for a thing to die and the other is the reason it did.",
+    "label": "Eagle",
+    "emoji": "🦅",
+    "scale": 1,
+    "speed": 3,
+    "runSpeed": 3,
+    "herd": [1, 2],
+    "behaviour": "fly",
+    "timid": false,
+    "altitude": 9,
+    "hp": 2,
+    "gold": [6, 18],
+    "drop": { "id": "fang", "chance": 0.2 },
+    "palettes": [
+      ["#5a3a22", "#f4f0e8"]
+    ],
+    "names": ["Talon", "Skye", "Aquila", "Summit"],
+    "lines": ["*soars*", "*cries out*", "*scans the ground*"]
+  }
+}

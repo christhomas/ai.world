@@ -1,6 +1,6 @@
 import { hashString, mulberry32, shuffle, type Rng } from '../core/rng';
 import { derive } from '../core/salts';
-import { VILLAIN } from '../entities/villain';
+import { KINDS } from '../entities/animals';
 import { LIFE, remember, type Person } from '../world/people';
 import { grownFolk } from '../world/fortunes';
 import type { Register } from '../world/register';
@@ -265,8 +265,11 @@ export function planFor(seed: number, villages: readonly Ground[], n: number): P
  * Has he taken enough? The caller asks this instead of letting a blow land, and calls `beaten`
  * when it is true. He has hit points because the fight has to be winnable; what he does not have
  * anywhere in the game is a death, and this is the line where that is kept.
+ *
+ * How many he has comes from properties/villain.json, which is checked at load, so the one kind
+ * in the game guaranteed to have hit points is the one this asks.
  */
-export function knocked(hp: number, full: number = VILLAIN.HP): boolean {
+export function knocked(hp: number, full: number = KINDS.nettle.hp!): boolean {
   return hp <= full * NEMESIS.BEATEN_AT;
 }
 

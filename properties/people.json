@@ -1,0 +1,106 @@
+{
+  "note": "Everybody in the world with a life rather than a habit — and the hero, who is a creature kind like any other so that everything which knows how to draw, animate and hit a creature knows how to do it to you. Fields are as described in beasts.json.",
+  "traveller": {
+    "note": "Walks the roads at a fixed pace with no run in it — a traveller never flees, because nothing on a road has ever given them cause to. The palettes are wide so that two on the same road are two people.",
+    "label": "Traveller",
+    "emoji": "🧑",
+    "scale": 1,
+    "speed": 1.3,
+    "runSpeed": 1.3,
+    "herd": [1, 2],
+    "behaviour": "travel",
+    "timid": false,
+    "hp": 5,
+    "palettes": [
+      ["#e74c3c", "#2c1810"],
+      ["#3498db", "#8b4513"],
+      ["#2ecc71", "#ffd700"],
+      ["#9b59b6", "#6c5ce7"],
+      ["#f39c12", "#00ced1"],
+      ["#1abc9c", "#ff69b4"],
+      ["#e91e63", "#2c1810"],
+      ["#00bcd4", "#ff4500"]
+    ],
+    "names": ["Alex", "Nova", "Kai", "Zeph", "Mira", "Tolan", "Wren", "Idris", "Suri", "Bram"],
+    "lines": [
+      "Hello!",
+      "*waves*",
+      "Nice day for a walk.",
+      "The road goes on and on...",
+      "Seen any bears?",
+      "Hi there~",
+      "Mind the cliffs."
+    ]
+  },
+  "villager": {
+    "note": "Slower than a traveller and with more of a life to lose. Their day is decided by their trade rather than by their kind, which is why the tree that drives them is filed under the job.",
+    "label": "Villager",
+    "emoji": "🧑‍🌾",
+    "scale": 1,
+    "speed": 1.1,
+    "runSpeed": 1.1,
+    "herd": [2, 4],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 6,
+    "palettes": [
+      ["#c0392b", "#2c1810"],
+      ["#2980b9", "#8b4513"],
+      ["#27ae60", "#ffd700"],
+      ["#8e44ad", "#6c5ce7"],
+      ["#d35400", "#00ced1"],
+      ["#16a085", "#ff69b4"],
+      ["#7f8c8d", "#2c1810"],
+      ["#f1c40f", "#4a2a10"]
+    ],
+    "names": ["Ella", "Tomas", "Greta", "Piet", "Anouk", "Rolf", "Maren", "Jory", "Hild", "Oskar"],
+    "lines": [
+      "Welcome to {village}!",
+      "Not much happens in {village}, and we like it that way.",
+      "The well water here is the sweetest around.",
+      "Watch the road at night.",
+      "Lovely weather for it.",
+      "Have you seen the old ruins?",
+      "{village} has stood here for generations."
+    ]
+  },
+  "shopkeeper": {
+    "note": "Barely moves, because a shopkeeper who wanders is a shop you cannot find. No hit points at all: the person you buy from is not a fight anybody gets to have.",
+    "label": "Shopkeeper",
+    "emoji": "🧑‍🍳",
+    "scale": 1,
+    "speed": 0.6,
+    "runSpeed": 0.6,
+    "herd": [1, 1],
+    "behaviour": "wander",
+    "timid": false,
+    "palettes": [
+      ["#ffffff", "#2c1810"],
+      ["#f5deb3", "#8b4513"],
+      ["#dcdcdc", "#4a2a10"],
+      ["#e8e0c8", "#6c5ce7"]
+    ],
+    "names": ["Berta", "Hamund", "Lise", "Corvin", "Margit", "Oswin", "Tilda", "Renn"],
+    "lines": ["Welcome, welcome! Have a look around.", "Best prices in {village}, I promise.", "Come back any time."]
+  },
+  "hero": {
+    "note": [
+      "You. A creature kind like any other, so everything that already knows how to draw, animate, herd and hit a creature knows how to do it to you.",
+      "The climb is the consequential number: 0.56 clears one terrace and nothing else in the world has it. It is what a mountain is for, and it is the free answer to every heavy thing underground."
+    ],
+    "label": "You",
+    "emoji": "🧝",
+    "scale": 1.06,
+    "speed": 5.5,
+    "runSpeed": 5.5,
+    "climb": 0.56,
+    "herd": [1, 1],
+    "behaviour": "wander",
+    "timid": false,
+    "palettes": [
+      ["#2fb36a", "#f2d15c"]
+    ],
+    "names": ["You"],
+    "lines": ["..."]
+  }
+}

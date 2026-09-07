@@ -1,63 +1,87 @@
-import { Biome } from '../world/biomes';
+import spawning from '../../properties/spawning.json';
+import { Fields } from '../core/properties';
 
 /**
- * The dials on what lives where, and what the law is paid.
+ * The dials on how much of the world is alive at once, and what the law is paid.
  *
- * Numbers rather than behaviour, kept apart from the manager that reads them: a table of odds is
- * the sort of thing somebody comes looking for on its own, and it is read far more often than the
- * code around it is.
+ * The numbers are in `properties/spawning.json` with the argument for each beside it; what is
+ * here is the reading of them, and the shape the game holds them in. They are apart from the
+ * manager that uses them for the reason they were always apart: a table of odds is the sort of
+ * thing somebody comes looking for on its own, and is read far more often than the code around it.
+ *
+ * Who lives where is in the same file and read by `spawns.ts`, which is the other half of the
+ * question: this one is how many and how far, that one is which.
  */
+
+const file = new Fields('properties/spawning.json', spawning);
+const reach = file.group('reach');
+const herds = file.group('herds');
+const water = file.group('water');
+const roads = file.group('roads');
+const village = file.group('village');
+const night = file.group('night');
+const bounty = file.group('bounty');
 
 /** Chunks around a player that get creatures. */
-export const SPAWN_RADIUS = 4;
+export const SPAWN_RADIUS: number = reach.num('SPAWN_RADIUS');
 
 /** Tiles: beyond this from anybody, creatures freeze rather than being thought for. */
-export const ACTIVE_RANGE = 44;
+export const ACTIVE_RANGE: number = reach.num('ACTIVE_RANGE');
 
-/**
- * What the law is paid. A constable takes the whole bounty for putting down something that was
- * attacking somebody; anybody else who does it — a hunter, a passing farmer — takes a share, which
- * is the difference between doing the job and helping out. Taking in somebody the law wants is the
- * same job on the same purse, priced by how badly it wants them.
- */
-export const BOUNTY = {
-  RESCUE_SHARE: 0.3,
-  /** What taking in anybody the law wants pays, before their crimes are counted. */
-  ARREST: 15,
-  /** And what the worst of them is worth on top: a constable's own reason to come for you. */
-  ARREST_WORST: 45,
-} as const;
+/** What the law is paid, as a share of a bounty and as flat coin for an arrest. */
+export interface BountyRates {
+  RESCUE_SHARE: number;
+  ARREST: number;
+  ARREST_WORST: number;
+}
 
-/** Extra packs that only come out after dark, per biome. */
-export const NIGHT_PREDATORS: Record<Biome, string[]> = {
-  [Biome.Plains]: ['wolf'],
-  [Biome.Forest]: ['wolf', 'bear'],
-  [Biome.Desert]: ['bat'],
-  [Biome.Swamp]: ['bat', 'wolf'],
-  [Biome.Mountain]: ['wolf'],
-  [Biome.Snow]: ['wolf'],
+export const BOUNTY: BountyRates = {
+  RESCUE_SHARE: bounty.num('RESCUE_SHARE'),
+  ARREST: bounty.num('ARREST'),
+  ARREST_WORST: bounty.num('ARREST_WORST'),
 };
 
 /** Spawn odds and sizes. Chances are per chunk, leashes in tiles. */
-export const SPAWN = {
-  MIN_LAND_TILES: 30,
-  HERD_CHANCE: 0.6,
-  SECOND_HERD_CHANCE: 0.3,
-  HERD_LEASH: 12,
-  MIN_WATER_TILES: 6,
-  WATER_HERD_CHANCE: 0.55,
-  /** A chunk with no land in it at all is open sea, and open sea has hunters in it. */
-  DEEP_PACK_CHANCE: 0.18,
-  DEEP_LEASH: 14,
-  WATER_LEASH: 6,
-  MIN_ROAD_TILES: 12,
-  TRAVELLER_CHANCE: 0.3,
-  TRAVELLER_LEASH: 30,
-  CONGREGATION_LEASH: 2.5,
-  SHOPKEEPER_LEASH: 1.2,
-  PLACE_ATTEMPTS: 8,
-  SCATTER: 2.2,          // members land within this radius of the anchor
-  FLIER_RING: 4,
-  NIGHT_PACK_CHANCE: 0.35,
-  NIGHT_LEASH: 16,
-} as const;
+export interface SpawnDials {
+  MIN_LAND_TILES: number;
+  HERD_CHANCE: number;
+  SECOND_HERD_CHANCE: number;
+  HERD_LEASH: number;
+  MIN_WATER_TILES: number;
+  WATER_HERD_CHANCE: number;
+  DEEP_PACK_CHANCE: number;
+  DEEP_LEASH: number;
+  WATER_LEASH: number;
+  MIN_ROAD_TILES: number;
+  TRAVELLER_CHANCE: number;
+  TRAVELLER_LEASH: number;
+  CONGREGATION_LEASH: number;
+  SHOPKEEPER_LEASH: number;
+  PLACE_ATTEMPTS: number;
+  SCATTER: number;
+  FLIER_RING: number;
+  NIGHT_PACK_CHANCE: number;
+  NIGHT_LEASH: number;
+}
+
+export const SPAWN: SpawnDials = {
+  MIN_LAND_TILES: herds.num('MIN_LAND_TILES'),
+  HERD_CHANCE: herds.num('HERD_CHANCE'),
+  SECOND_HERD_CHANCE: herds.num('SECOND_HERD_CHANCE'),
+  HERD_LEASH: herds.num('HERD_LEASH'),
+  MIN_WATER_TILES: water.num('MIN_WATER_TILES'),
+  WATER_HERD_CHANCE: water.num('WATER_HERD_CHANCE'),
+  DEEP_PACK_CHANCE: water.num('DEEP_PACK_CHANCE'),
+  DEEP_LEASH: water.num('DEEP_LEASH'),
+  WATER_LEASH: water.num('WATER_LEASH'),
+  MIN_ROAD_TILES: roads.num('MIN_ROAD_TILES'),
+  TRAVELLER_CHANCE: roads.num('TRAVELLER_CHANCE'),
+  TRAVELLER_LEASH: roads.num('TRAVELLER_LEASH'),
+  CONGREGATION_LEASH: village.num('CONGREGATION_LEASH'),
+  SHOPKEEPER_LEASH: village.num('SHOPKEEPER_LEASH'),
+  PLACE_ATTEMPTS: herds.num('PLACE_ATTEMPTS'),
+  SCATTER: herds.num('SCATTER'),
+  FLIER_RING: herds.num('FLIER_RING'),
+  NIGHT_PACK_CHANCE: night.num('NIGHT_PACK_CHANCE'),
+  NIGHT_LEASH: night.num('NIGHT_LEASH'),
+};

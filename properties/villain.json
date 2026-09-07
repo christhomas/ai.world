@@ -1,0 +1,32 @@
+{
+  "note": "Old Nettle, alone, because there is one of him. What he is worth is not what he pays: he pays nothing, and the argument for every number here is in the note beside him.",
+  "nettle": {
+    "note": [
+      "His walk is unhurried, because he has never once had to hurry, and his run is under the hero's 5.5 on purpose: he must never get away by being quicker than you. The only thing he ever gets away with is a decision you made.",
+      "One cut of the switch costs three out of ten hearts — under the ogre's four, because he is not strength — against half again the ogre's hit points, which makes him the longest fight in the game and means a hero who has not bothered with a decent blade simply does not finish it. He goes up a terrace exactly as the hero does, so the one free answer to an ogre is no answer here.",
+      "No gold and nothing to carry home. Every other kind pays out because every other kind can be finished; you never get so much as a moment to go through his coat.",
+      "One palette, where every other kind has three or four. Those exist so that a field of cows is not four copies of one cow. There is one of him, he is the same man in every village in the world, and a second palette would be a second person."
+    ],
+    "label": "Old Nettle",
+    "emoji": "🎩",
+    "scale": 1.05,
+    "speed": 3.6,
+    "runSpeed": 5.2,
+    "climb": 0.56,
+    "herd": [1, 1],
+    "behaviour": "hunt",
+    "timid": false,
+    "dangerous": 3,
+    "hp": 48,
+    "palettes": [
+      ["#28331f", "#d7d2bb", "#14180f"]
+    ],
+    "names": ["Old Nettle"],
+    "lines": [
+      "*he waits for you to come the last few yards*",
+      "\"You are the one they sent, then.\"",
+      "*the switch goes back and forth, back and forth*",
+      "\"We will both of us be here next spring.\""
+    ]
+  }
+}

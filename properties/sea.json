@@ -1,0 +1,44 @@
+{
+  "note": "The two things that hunt you in water, where none of the answers that work on land do: you cannot climb, you cannot outrun what swims, and a boat is only a place to be caught standing. Fields are as described in beasts.json.",
+  "shark": {
+    "note": "It circles before it commits, which is the only warning water ever gives. Two damage a pass against a hero who cannot back away is what makes swimming a decision.",
+    "label": "Shark",
+    "emoji": "🦈",
+    "scale": 1.5,
+    "speed": 1.6,
+    "runSpeed": 6.5,
+    "herd": [2, 3],
+    "behaviour": "circle",
+    "timid": false,
+    "dangerous": 2,
+    "hp": 5,
+    "gold": [12, 30],
+    "drop": { "id": "fang", "chance": 0.5 },
+    "palettes": [
+      ["#39464f", "#dfe6ea"],
+      ["#2d383f", "#d4dde3"]
+    ],
+    "names": ["Grey", "Notch", "Old Scar", "The Fin"],
+    "lines": ["*circles*", "*a fin cuts the water*"]
+  },
+  "orca": {
+    "note": "The shark's argument, larger: quicker than anything in the water, hitting for three, and worth a small fortune to anybody mad enough to be in the sea with a blade.",
+    "label": "Orca",
+    "emoji": "🐋",
+    "scale": 2.1,
+    "speed": 1.9,
+    "runSpeed": 7.5,
+    "herd": [1, 2],
+    "behaviour": "circle",
+    "timid": false,
+    "dangerous": 3,
+    "hp": 9,
+    "gold": [30, 70],
+    "drop": { "id": "fang", "chance": 0.7 },
+    "palettes": [
+      ["#1c2026", "#f2f5f7"]
+    ],
+    "names": ["Blackfin", "Two-Patch", "The Matriarch", "Cutwater"],
+    "lines": ["*rolls to look at you*", "*breathes out hard*"]
+  }
+}

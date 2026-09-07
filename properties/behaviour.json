@@ -1,0 +1,83 @@
+{
+  "note": [
+    "What every creature fights, flees and jostles by when its own tree has not said otherwise.",
+    "These are defaults in the strict sense. A behaviour tree overrides any of them it names — { \"do\": \"bite\", \"with\": { \"cooldown\": 3.4 } } is a creature that bites more slowly than this file says — so what is written here is only what happens in the absence of an argument. That is the reason they are beside the trees that override them rather than in the source that reads them: the two halves of one decision were in two different languages.",
+    "Distances are tiles, times are seconds, and a pair is a range rolled between. The sections are for whoever is reading; the game sees one flat table, so a name may appear only once in the file.",
+    "A few of these are read by nothing at all any more, because the tree that used to fall back on them now writes the number itself. They are marked, and they are the honest record of what the trees chose."
+  ],
+
+  "fleeing": {
+    "note": "FLEE_RADIUS is how close the hero comes before a timid creature bolts, and FLEE_TIME how long it keeps running once it has — long enough to break the encounter, short enough that a field of sheep is not permanently in flight. The radius is not read any more: every tree that flees asks `within` for itself, and 3.5 is the number they all ask with.",
+    "FLEE_RADIUS": 3.5,
+    "FLEE_TIME": [1.5, 3]
+  },
+
+  "hunting": {
+    "note": [
+      "STALK_RADIUS is how far off a predator in the open starts walking at the hero. HUNT_RADIUS is the same for something underground, and larger, because a corridor gives you nowhere else to be.",
+      "ARRIVE_DISTANCE is close enough to a target to count as having got there. Smaller, and a creature spends its life stepping back and forth across the exact point it was aiming at.",
+      "HUNT_RADIUS is not read any more: the ogre and the wight ask `within` with their own numbers, which is how one of them notices you at twenty-six tiles and the other at twelve."
+    ],
+    "STALK_RADIUS": 7,
+    "HUNT_RADIUS": 12,
+    "ARRIVE_DISTANCE": 0.25
+  },
+
+  "blows": {
+    "note": [
+      "BITE_RANGE is how close a creature must be to land one, and BITE_COOLDOWN how long it waits before trying again. These two are the pair a tree overrides most often — `tiles` and `cooldown` on the `bite` verb — because they are how one animal's attack differs from another's without either of them needing new code.",
+      "WIND_UP is the share of a blow that happens before it lands, and it is the single most important number in a fight. Before it existed there was no such thing as reacting: a creature threw its animation and applied its damage in the same instant, so the swing you could see was the report of a hit you had already taken. Every complaint about the combat — that it is one button jammed until somebody falls over — starts there, because with no tell there is nothing to answer, and mashing is not merely the easiest play but the only one. Just over half, so the blow lands a little past the top of the swing where the eye expects it, and the wind-up is long enough to be read but too short to stroll out of. A blow with a `tell` of its own in animations/motion.json uses that instead: a bear's rear is slow and readable, a shark's lunge is barely there at all.",
+      "BITE_SLIP is how far outside its reach you can be when the blow finally lands and still be caught. Not nought, or backing off one step would beat everything in the game for ever; not large, or stepping out would never work. It is the width of the decision."
+    ],
+    "BITE_RANGE": 1.4,
+    "BITE_COOLDOWN": 1.6,
+    "WIND_UP": 0.55,
+    "BITE_SLIP": 0.4
+  },
+
+  "hurt": {
+    "note": "HURT_TIME is the stagger after taking a hit and KNOCKBACK how far it shoves you, in tiles. Together they are what stops two things standing inside each other trading blows at the frame rate: being hit costs you a moment and some ground, whoever you are.",
+    "HURT_TIME": 0.35,
+    "KNOCKBACK": 0.7
+  },
+
+  "crowding": {
+    "note": [
+      "PERSONAL is how close anything may get to the hero before it is pushed out again. Without it a swarm stands inside you: three bats occupy the same square as your head, every one of them in reach, and there is no space to react in because there is no space at all. It is the difference between a fight and being deleted.",
+      "ELBOW is the same for two creatures, and less, because a herd should still huddle. SHOVE is how hard bodies push apart, in tiles a second — firm enough to be immediate, not a bounce."
+    ],
+    "PERSONAL": 0.95,
+    "ELBOW": 0.6,
+    "SHOVE": 7
+  },
+
+  "herds": {
+    "note": "A herd wanders as one: HERD_DRIFT is how far its anchor moves each time it moves, PROWL_DRIFT the same for something that hunts rather than grazes, and HERD_DRIFT_TIME how long it stands still in between. A prowler covers more ground because a wolf pack that stays in one field is a wolf pack you can walk around for ever.",
+    "HERD_DRIFT": 5,
+    "PROWL_DRIFT": 9,
+    "HERD_DRIFT_TIME": [8, 18]
+  },
+
+  "walking": {
+    "note": [
+      "TURN_RATE is how fast anything swings round to face where it is going, in radians a second. High enough that a creature never appears to slide sideways, low enough that it does not snap.",
+      "STEP_LIMIT is the height a walker can step up when its kind has no `climb` of its own. A terrace is half a unit, so this keeps everything off them and a ramp is what the world offers instead — which is the whole reason the hero's own 0.56 is worth having."
+    ],
+    "TURN_RATE": 8,
+    "STEP_LIMIT": 0.32
+  },
+
+  "sea": {
+    "note": [
+      "What a shark or an orca does to somebody in the water. CIRCLE_NOTICE is how far off they take an interest, CIRCLE_RADIUS how far off they keep while they are only looking, and CIRCLE_CLOSE how quickly that ring tightens as they work themselves up. CHARGE_EVERY is the gap between one of them breaking off to come in, and CHARGE_TIME how long that run lasts before it gives up and goes back to circling.",
+      "SEA_BITE_COOLDOWN is much longer than a wolf's, because a swimmer cannot back away: without it a pack simply eats them where they float.",
+      "Only CIRCLE_RADIUS and CHARGE_TIME are read here. The sea hunters' own tree carries the rest — 18 tiles to take notice, a run every 5 to 11 seconds, 5.5 seconds between bites — and CIRCLE_CLOSE is read by nothing at all: the ring no longer tightens, it simply holds."
+    ],
+    "CIRCLE_NOTICE": 18,
+    "CIRCLE_RADIUS": 6,
+    "CIRCLE_CLOSE": 0.25,
+    "CHARGE_EVERY": [5, 11],
+    "CHARGE_TIME": 2.6,
+    "SEA_BITE_COOLDOWN": 5.5
+  }
+}

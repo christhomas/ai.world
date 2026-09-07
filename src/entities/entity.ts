@@ -1,4 +1,5 @@
 import { Memory, type Node } from '../core/behaviour';
+import { BEHAVIOUR, STEP_LIMIT } from './properties';
 // a type only: the trees know about this file, and this file must not know about them
 import type { Mind } from './verbs';
 import type { Rng } from '../core/rng';
@@ -21,73 +22,17 @@ export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'fie
 export type { EntityState } from '../../server/protocol';
 import type { EntityState } from '../../server/protocol';
 
-/** Max height difference a walker can step across; terrace steps (0.5) are walls, ramps are fine. */
-export const STEP_LIMIT = 0.32;
-
-/** Behaviour tuning shared by every creature. Distances in tiles, times in seconds. */
-export const BEHAVIOUR = {
-  FLEE_RADIUS: 3.5,        // prey bolt when the hero is this close
-  FLEE_TIME: [1.5, 3],     // how long a flee lasts
-  STALK_RADIUS: 7,         // predators walk at the hero from here
-  BITE_RANGE: 1.4,
-  BITE_COOLDOWN: 1.6,
-  /**
-   * How much of a blow happens before it lands, as a share of the animation.
-   *
-   * This is the single most important number in a fight, because before it existed there was no
-   * such thing as reacting. A creature threw its animation and applied its damage in the same
-   * instant, so the swing you could see was the report of a hit you had already taken; nothing
-   * on screen ever preceded anything. Every complaint about the combat — that it is one button
-   * jammed until somebody falls over — starts here, because with no tell there is nothing to
-   * answer and mashing is not merely the easiest play, it is the only one.
-   *
-   * Just over half, so the blow lands a little past the top of the swing where the eye expects
-   * it, and the wind-up is long enough to be read but too short to stroll out of.
-   */
-  WIND_UP: 0.55,
-  /**
-   * How far outside its reach you can be when the blow finally lands and still be caught.
-   *
-   * Not nought, or backing off one step would beat everything in the game for ever; not large, or
-   * stepping out would never work. It is the width of the decision.
-   */
-  BITE_SLIP: 0.4,
-  ARRIVE_DISTANCE: 0.25,   // close enough to a target to stop
-  HUNT_RADIUS: 12,         // dungeon monsters come after the hero from here
-  HURT_TIME: 0.35,         // stagger after taking a hit
-  KNOCKBACK: 0.7,          // tiles pushed per hit
-  /**
-   * How close anything may get to the hero before it is pushed out again, in tiles.
-   *
-   * Without this a swarm stands inside you: three bats occupy the same square as your head, every
-   * one of them in reach, and there is no space to react in because there is no space at all. It
-   * is the difference between a fight and being deleted.
-   */
-  PERSONAL: 0.95,
-  /** And how close two creatures may get to each other. Less, because a herd should still huddle. */
-  ELBOW: 0.6,
-  /** How hard bodies push apart, in tiles a second. Firm enough to be immediate, not a bounce. */
-  SHOVE: 7,
-  HERD_DRIFT: 5,           // how far a herd anchor wanders per move
-  PROWL_DRIFT: 9,
-  HERD_DRIFT_TIME: [8, 18],
-  TURN_RATE: 8,            // radians per second toward the travel direction
-  /** Sea hunters notice a swimmer or a boat from here. */
-  CIRCLE_NOTICE: 18,
-  /** How far off they keep while they are only looking. */
-  CIRCLE_RADIUS: 6,
-  /** How quickly the ring tightens while they work themselves up. */
-  CIRCLE_CLOSE: 0.25,
-  /** Seconds between one of them breaking off to charge, fewest and most. */
-  CHARGE_EVERY: [5, 11],
-  /** How long a charge lasts before it gives up and goes back to circling. */
-  CHARGE_TIME: 2.6,
-  /**
-   * How long a sea hunter waits after a strike before it will bite again. Much longer than a
-   * wolf's: a swimmer cannot back away, so without this a pack simply eats them where they float.
-   */
-  SEA_BITE_COOLDOWN: 5.5,
-} as const;
+/**
+ * The tuning every creature shares, out of `properties/behaviour.json`.
+ *
+ * They come through here because half the game imports them from this file, and because this is
+ * where they are read. What they are worth is not decided here any more, and it is worth saying
+ * why: every one of these is a *default*. A behaviour tree that names one beats it — a wolf whose
+ * `bite` says `with: { cooldown: 3.4 }` bites on its own clock and never looks at BITE_COOLDOWN —
+ * so the numbers belong beside the trees that argue with them rather than in the source that
+ * falls back on them. The argument for each is in the file.
+ */
+export { BEHAVIOUR, STEP_LIMIT };
 
 /** Kinds that live in the water and can only move through it. */
 export function swims(kind: { behaviour: string }): boolean {
