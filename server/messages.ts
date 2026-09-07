@@ -4,6 +4,7 @@ import {
 } from './protocol';
 import type { Entity } from '../src/entities/entity';
 import { WORLD } from '../src/core/config';
+import { GroundWorld } from '../src/world/groundworld';
 import { BOAT, helm } from '../src/game/sailing';
 import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride';
 import type { Client, Party, Room, Rooms } from './rooms';
@@ -83,6 +84,15 @@ const SAME_DOOR = 8;
 const OFF_THE_BOAT = 6;
 
 /**
+ * How near a pier a ferry may put somebody down, in tiles.
+ *
+ * A pier is a dozen tiles of deck and the game measures it at its ends, so this is the slack
+ * between the two — wide enough for a gangplank at either end, narrow enough that a pier is not a
+ * way of arriving somewhere else.
+ */
+const AT_A_PIER = 12;
+
+/**
  * A hand on the tiller, and where it takes the boat.
  *
  * The same bargain as a walk: the client says what it asked of the boat and the world moves it
@@ -141,14 +151,23 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
   // somebody who leaves a boat half a county from where the world has it did not step off it.
   if (message.why === 'ride') {
     const boat = me.boat;
-    const stepping = boat !== null && Math.hypot(x - boat.x, z - boat.z) > OFF_THE_BOAT;
-    p.x = stepping ? boat.x : x;
-    p.z = stepping ? boat.z : z;
+    const ground = rooms.groundOf(me.seed);
+    // Three ways to get on or off something, and the world can check all of them. A saddle: you
+    // mount and dismount where you are standing, and the world knows where that is. A boat: beside
+    // the boat, which the world has been sailing. A ferry: at a pier, because a pier is the only
+    // thing in the world that reaches out over the water, and a ferry lands at one or it lands
+    // nowhere. Anything else is not a ride, and the hero stays where the world had him.
+    const near = (to: { x: number; z: number } | null, within: number): boolean =>
+      to !== null && Math.hypot(x - to.x, z - to.z) <= within;
+    const stepped = near(boat, OFF_THE_BOAT) || near(hero, OFF_THE_BOAT)
+      || (ground instanceof GroundWorld && ground.atAPier(x, z, AT_A_PIER));
     me.boat = null;
+    p.x = stepped ? x : (hero?.x ?? p.x);
+    p.z = stepped ? z : (hero?.z ?? p.z);
     if (!hero) return;
     hero.x = p.x; hero.z = p.z;
     settle(rooms, me, hero);
-    if (stepping) rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
+    if (!stepped) rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
     return;
   }
 

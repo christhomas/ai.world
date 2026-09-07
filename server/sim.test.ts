@@ -334,6 +334,29 @@ describe('the simulation holding the ground itself', () => {
     expect(ashore.z).toBeCloseTo(sailed.z, 5);
   });
 
+  it('lets a ferry put somebody down at a pier, and nowhere else', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
+    const walked = rowan.of('youAre').at(-1)!;
+
+    // a crossing that lands nowhere near anything a boat could tie up to is not a crossing
+    rowan.say({ type: 'stood', x: 250, z: 250, why: 'ride' });
+    expect(rowan.of('youAre').at(-1)!.x, 'left where the world had him').toBeCloseTo(walked.x, 5);
+
+    // and one that lands at the end of a pier is exactly what a ferry does
+    const pier = sim.groundOf(3)!.piers[0];
+    const [ex, ez] = pier.tiles[pier.tiles.length - 1];
+    const said = rowan.of('youAre').length;
+    rowan.say({ type: 'stood', x: ex + 0.5, z: ez + 0.5, why: 'ride' });
+    expect(rowan.of('youAre'), 'taken without a word, because it is where a ferry lands')
+      .toHaveLength(said);
+    const bystander = new Pretend(sim).join(3, 'Ash');
+    expect(bystander.of('welcome')[0].players[0].x).toBeCloseTo(ex + 0.5, 5);
+  });
+
   it('leaves the client its own authority in a world with no ground', () => {
     const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');

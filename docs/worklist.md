@@ -89,9 +89,12 @@ walk through a wall. Each one wants a reason the server already knows about.
       being walked. So no steer was sent, the world's hero stayed on the pier he sailed from, and
       the first step taken on the far shore was answered with a position back across the water. The
       landing is now told, the way boarding a boat is.)*
-- [ ] The ferry is *told* rather than checked, and it need not be: its position is a pure function
-      of the clock, and the world has the piers and the islands the timetable is built from. It
-      could work out where a ferry is and refuse a landing that is not at one of its two ends.
+- [x] And now checked rather than told. *(Three ways to get on or off something, and the world can
+      check all three: a saddle, where you mount and dismount where you are standing and the world
+      knows where that is; a boat, beside the boat it has been sailing; a ferry, at a pier — because
+      a pier is the only thing in the world that reaches out over the water, so a ferry lands at one
+      or it lands nowhere. Anything else leaves the hero where the world had him. That is the last
+      of the trust in `stood`.)*
 
 ### Monsters on a dungeon floor
 

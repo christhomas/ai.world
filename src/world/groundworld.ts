@@ -3,6 +3,7 @@ import type { ChunkSource, ChunkTiles, TileWorld } from './tiles';
 
 import { chunkKey } from './spatial';
 import { mountainAt } from './ranges';
+import type { Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
 
@@ -28,6 +29,25 @@ export class GroundWorld implements TileWorld, ChunkSource {
 
   /** How many chunks are being held. What the memory of a busy world is made of. */
   get held(): number { return this.loaded.size; }
+
+  /** The piers of this world: where anything that floats ties up. */
+  get piers(): ReadonlyArray<Pier> { return this.sampler.structures.piers; }
+
+  /**
+   * Is this a place a boat could have put somebody down?
+   *
+   * A pier is the only thing in the world that reaches out over the water, so it is where a ferry
+   * lands, where a boat is moored and where anybody who arrives by water arrives. Both ends of it
+   * count: the deck end a gangplank comes down on, and the tile a hull ties up beside.
+   */
+  atAPier(x: number, z: number, within: number): boolean {
+    for (const pier of this.piers) {
+      if (Math.hypot(pier.dockX + 0.5 - x, pier.dockZ + 0.5 - z) <= within) return true;
+      const [ex, ez] = pier.tiles[pier.tiles.length - 1];
+      if (Math.hypot(ex + 0.5 - x, ez + 0.5 - z) <= within) return true;
+    }
+    return false;
+  }
 
   /**
    * Make sure the ground round a point exists, and say how many chunks had to be made for it.
