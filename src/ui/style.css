@@ -5,11 +5,15 @@
    *
    * The log grows upward from here, so this is the one number that decides where the news is
    * read. It has to clear the conversation panel, which comes up from the bottom edge and is
-   * about 200px tall; and on a short window a fixed 380px would push the log's top out through
+   * about 200 units tall; and on a short window a flat 380 would push the log's top out through
    * the readouts in the corners, which is why the second term shrinks it. Whichever is smaller
-   * wins.
+   * wins. In HUD units throughout — see `--ui-scale` below — so the gap keeps its share of the
+   * window rather than its pixel count.
    */
-  --log-bottom: min(380px, max(150px, calc(100vh - 380px)));
+  --log-bottom: min(
+    calc(380 * var(--ui-scale)),
+    max(calc(150 * var(--ui-scale)), calc(100vh - 380 * var(--ui-scale)))
+  );
 
   /*
    * One control, described once.
@@ -23,7 +27,43 @@
   --ui-glass-lit: rgba(150, 140, 255, 0.62);   /* the same control, with a thumb on it */
   --ui-rim: rgba(214, 221, 255, 0.34);
   --ui-ink: #eef2ff;
-  --ui-lift: 0 2px 10px rgba(0, 0, 0, 0.45);   /* lifts the glass off whatever it is lying on */
+  /* lifts the glass off whatever it is lying on. In HUD units like everything else: a two-pixel
+     shadow under a button that has grown to 144px is a shadow nobody can see. */
+  --ui-lift: 0 calc(2 * var(--ui-scale)) calc(10 * var(--ui-scale)) rgba(0, 0, 0, 0.45);
+
+  /*
+   * One HUD pixel.
+   *
+   * A CSS pixel is a CSS pixel, so an interface that is right on a 1280-wide window is a set of
+   * postage stamps on a 3840-wide one: the picture behind it got three times bigger and the panels
+   * did not. Every size in the HUD below is written as a multiple of this instead of in pixels, so
+   * a panel keeps the same share of the picture whatever the window is.
+   *
+   * It is a length rather than a plain number because CSS cannot divide one length by another: you
+   * cannot get a unitless 1.5 out of `100vh / 720px`. So the ramp is carried by the unit and the
+   * rules say `calc(13 * var(--ui-scale))` where they used to say `13px`.
+   *
+   * Two things set the ramp, and the smaller of them wins:
+   *
+   *   100vh / 720   The HUD is a column down one side and a map in a corner, so what it has to fit
+   *                 in is the window's height. A 720-tall window is the size the whole thing was
+   *                 drawn at, and is therefore 1.
+   *   100vw / 1080  The right-hand column is 250 units wide and stands 20 off the edge, so it only
+   *                 clears the middle half of the window while `width >= 1080 * scale`. Turned
+   *                 around, that is a ceiling on the scale — which is why the column's breakpoint
+   *                 is still 1080px however far the HUD has grown, rather than a number that
+   *                 happened to be true at one size.
+   *
+   *   window     1280x720   1920x1080   2560x1440   3840x2160
+   *   scale        1.00        1.50        2.00        3.00
+   *
+   * The cap is 3: past that the panels stop growing and simply take less of an ever-larger picture,
+   * which is the right way round. The floor is 1, and it does the most important job here — any
+   * window shorter than 720px gets exactly 1 and every rule below behaves as it always has. A phone
+   * held sideways is 342 tall, so the phone is out of reach of this by construction rather than by
+   * a media query somebody has to remember to keep in step.
+   */
+  --ui-scale: clamp(1px, min(100vh / 720, 100vw / 1080), 3px);
 }
 body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monospace; }
 #gameContainer { width: 100vw; height: 100vh; }
@@ -32,38 +72,52 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
    Everything inside it stays pinned to the corner it was pinned to before. */
 #hudRail { display: contents; }
 #areaName {
-  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.8); border: 2px solid #6c5ce7;
-  border-radius: 8px; padding: 10px 30px; color: #a29bfe;
-  font-size: 16px; font-weight: bold; z-index: 100; white-space: nowrap;
+  position: fixed; top: calc(20 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.8); border: calc(2 * var(--ui-scale)) solid #6c5ce7;
+  border-radius: calc(8 * var(--ui-scale));
+  padding: calc(10 * var(--ui-scale)) calc(30 * var(--ui-scale)); color: #a29bfe;
+  font-size: calc(16 * var(--ui-scale)); font-weight: bold; z-index: 100; white-space: nowrap;
 }
 #minimap {
-  position: fixed; top: 20px; right: 20px;
-  background: rgba(0,0,0,0.8); border: 2px solid #6c5ce7;
-  border-radius: 8px; padding: 5px; z-index: 100;
+  position: fixed; top: calc(20 * var(--ui-scale)); right: calc(20 * var(--ui-scale));
+  background: rgba(0,0,0,0.8); border: calc(2 * var(--ui-scale)) solid #6c5ce7;
+  border-radius: calc(8 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)); z-index: 100;
 }
+/* The one thing here that does not really scale: the canvas is drawn 180 pixels across whatever
+   size it is shown at, so past about twice that it is an upscale rather than a bigger map. Making
+   it honest means `minimap.ts` sizing its own backing store and its marker dots from the box it is
+   given, which is the map's business rather than the HUD's. */
 #minimapCanvas { display: block; }
 #clockPanel {
-  display: flex; align-items: baseline; gap: 6px;
-  padding: 2px 4px 4px; color: #cfd6ff; font-size: 11px; white-space: nowrap;
+  display: flex; align-items: baseline; gap: calc(6 * var(--ui-scale));
+  padding: calc(2 * var(--ui-scale)) calc(4 * var(--ui-scale)) calc(4 * var(--ui-scale));
+  color: #cfd6ff; font-size: calc(11 * var(--ui-scale)); white-space: nowrap;
 }
-#clockIcon { font-size: 15px; }
-#clockWeather { font-size: 13px; }
-#clockTime { font-size: 17px; font-weight: bold; color: #ffd76a; letter-spacing: 1px; }
+#clockIcon { font-size: calc(15 * var(--ui-scale)); }
+#clockWeather { font-size: calc(13 * var(--ui-scale)); }
+#clockTime {
+  font-size: calc(17 * var(--ui-scale)); font-weight: bold; color: #ffd76a;
+  letter-spacing: var(--ui-scale);
+}
 #clockDate { margin-left: auto; color: #8f9dc9; }
 #clockBar {
-  position: relative; height: 5px; margin: 0 2px 5px; border-radius: 3px;
-  border: 1px solid rgba(255,255,255,0.25);
+  position: relative; height: calc(5 * var(--ui-scale));
+  margin: 0 calc(2 * var(--ui-scale)) calc(5 * var(--ui-scale));
+  border-radius: calc(3 * var(--ui-scale));
+  border: var(--ui-scale) solid rgba(255,255,255,0.25);
   background: #2a3560;   /* the phase gradient is painted from src/ui/clock.ts */
 }
 #clockMarker {
-  position: absolute; top: -3px; width: 3px; height: 11px; margin-left: -1px;
-  background: #ffffff; border-radius: 2px; box-shadow: 0 0 4px rgba(0,0,0,0.8);
+  position: absolute; top: calc(-3 * var(--ui-scale)); width: calc(3 * var(--ui-scale));
+  height: calc(11 * var(--ui-scale)); margin-left: calc(-1 * var(--ui-scale));
+  background: #ffffff; border-radius: calc(2 * var(--ui-scale)); box-shadow: 0 0 4px rgba(0,0,0,0.8);
 }
-#loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #a29bfe; font-size: 24px; z-index: 2000; }
+#loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #a29bfe; font-size: calc(24 * var(--ui-scale)); z-index: 2000; }
 #debug {
-  position: fixed; bottom: 20px; right: 20px; color: #8f8fb0; font-size: 11px;
-  background: rgba(0,0,0,0.5); padding: 6px 10px; border-radius: 6px; z-index: 100; white-space: pre;
+  position: fixed; bottom: calc(20 * var(--ui-scale)); right: calc(20 * var(--ui-scale));
+  color: #8f8fb0; font-size: calc(11 * var(--ui-scale));
+  background: rgba(0,0,0,0.5); padding: calc(6 * var(--ui-scale)) calc(10 * var(--ui-scale));
+  border-radius: calc(6 * var(--ui-scale)); z-index: 100; white-space: pre;
 }
 #optionsPanel {
   display: none; position: fixed; top: 50%; left: 50%;
@@ -80,25 +134,35 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #optionsPanel .value-display { text-align: right; color: #a29bfe; font-size: 14px; margin-top: 3px; }
 #optionsPanel .close-hint { text-align: center; color: #666; font-size: 11px; margin-top: 15px; }
 #toast {
-  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.8); border: 2px solid #f1c40f; border-radius: 8px;
+  position: fixed; top: calc(70 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.8); border: calc(2 * var(--ui-scale)) solid #f1c40f;
+  border-radius: calc(8 * var(--ui-scale));
   /* over the message log rather than under it: this is the one thing on screen that has just
      happened, and the log is where it will still be in a minute */
-  padding: 8px 24px; color: #f1c40f; font-size: 15px; font-weight: bold; z-index: 400;
+  padding: calc(8 * var(--ui-scale)) calc(24 * var(--ui-scale));
+  color: #f1c40f; font-size: calc(15 * var(--ui-scale)); font-weight: bold; z-index: 400;
   opacity: 0; transition: opacity 0.4s; pointer-events: none; white-space: nowrap;
 }
 #toast.show { opacity: 1; }
 
-#breath { color: #8fd2ff; font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
+#breath {
+  color: #8fd2ff; font-size: calc(13 * var(--ui-scale)); letter-spacing: var(--ui-scale);
+  margin-top: calc(2 * var(--ui-scale)); min-height: calc(15 * var(--ui-scale));
+}
 #breath .warded { color: #ffd76a; }
 #breath .arm { color: #cfe6a0; }
 #breath .winded { color: #ff9d7a; }
 #status {
-  position: fixed; top: 20px; left: 20px;
-  background: rgba(0,0,0,0.7); border: 2px solid #e74c3c; border-radius: 8px;
-  padding: 6px 12px; color: #fff; z-index: 100; min-width: 160px;
+  position: fixed; top: calc(20 * var(--ui-scale)); left: calc(20 * var(--ui-scale));
+  background: rgba(0,0,0,0.7); border: calc(2 * var(--ui-scale)) solid #e74c3c;
+  border-radius: calc(8 * var(--ui-scale));
+  padding: calc(6 * var(--ui-scale)) calc(12 * var(--ui-scale));
+  color: #fff; z-index: 100; min-width: calc(160 * var(--ui-scale));
 }
-#hearts { color: #ff5c5c; font-size: 18px; letter-spacing: 1px; line-height: 1.2; }
+#hearts {
+  color: #ff5c5c; font-size: calc(18 * var(--ui-scale)); letter-spacing: var(--ui-scale);
+  line-height: 1.2;
+}
 #hurt {
   position: fixed; inset: 0; pointer-events: none; z-index: 1100;
   background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(200,0,0,0.55) 100%);
@@ -106,38 +170,52 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #hurt.show { opacity: 1; }
 #inventory {
-  position: fixed; top: 84px; left: 20px;
-  background: rgba(0,0,0,0.7); border: 2px solid #f1c40f; border-radius: 8px;
-  padding: 8px 12px; color: #fff; font-size: 13px; z-index: 100; min-width: 120px;
+  position: fixed; top: calc(84 * var(--ui-scale)); left: calc(20 * var(--ui-scale));
+  background: rgba(0,0,0,0.7); border: calc(2 * var(--ui-scale)) solid #f1c40f;
+  border-radius: calc(8 * var(--ui-scale));
+  padding: calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
+  color: #fff; font-size: calc(13 * var(--ui-scale)); z-index: 100;
+  min-width: calc(120 * var(--ui-scale));
 }
 #inventory div { line-height: 1.5; }
 #inventory div.usable { cursor: pointer; }
 #inventory div.usable:hover { color: #f1c40f; }
 #dialogue {
-  display: none; position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
-  width: min(1100px, 96vw); z-index: 1200;
+  display: none; position: fixed; left: 50%; bottom: calc(20 * var(--ui-scale));
+  transform: translateX(-50%);
+  width: min(calc(1100 * var(--ui-scale)), 96vw); z-index: 1200;
   background: linear-gradient(180deg, #1c2a6b 0%, #0d1540 100%);
-  border: 3px solid #e8ecff; outline: 3px solid #2a3aa0; border-radius: 8px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.7); color: #fff; font-size: 17px;
-  padding: 14px 16px; gap: 14px; align-items: stretch;
+  border: calc(3 * var(--ui-scale)) solid #e8ecff;
+  outline: calc(3 * var(--ui-scale)) solid #2a3aa0; border-radius: calc(8 * var(--ui-scale));
+  box-shadow: 0 10px 40px rgba(0,0,0,0.7); color: #fff; font-size: calc(17 * var(--ui-scale));
+  padding: calc(14 * var(--ui-scale)) calc(16 * var(--ui-scale));
+  gap: calc(14 * var(--ui-scale)); align-items: stretch;
 }
 #dialogue.show { display: flex; animation: popIn 0.15s ease-out; }
 
 /* the two people in the conversation, one at each end */
-#dialogue .dlg-side { flex: 0 0 132px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#dialogue .dlg-side {
+  flex: 0 0 calc(132 * var(--ui-scale)); display: flex; flex-direction: column;
+  align-items: center; gap: calc(6 * var(--ui-scale));
+}
 #dialogue .dlg-face {
-  width: 132px; height: 154px;                 /* the 48x56 grid, scaled up whole */
+  /* the 48x56 grid, scaled up whole — and it stays whole, because the scale only ever multiplies
+     the same 132x154 box that was already a round multiple of it */
+  width: calc(132 * var(--ui-scale)); height: calc(154 * var(--ui-scale));
   image-rendering: pixelated; image-rendering: crisp-edges;
   background: linear-gradient(180deg, #46538f 0%, #232d63 100%);
-  border: 2px solid #8fa0ff; border-radius: 6px;
+  border: calc(2 * var(--ui-scale)) solid #8fa0ff; border-radius: calc(6 * var(--ui-scale));
 }
 #dialogue .dlg-emoji {
-  width: 132px; height: 154px; font-size: 72px; line-height: 154px; text-align: center;
-  background: rgba(255,255,255,0.08); border: 2px solid #8fa0ff; border-radius: 6px;
+  width: calc(132 * var(--ui-scale)); height: calc(154 * var(--ui-scale));
+  font-size: calc(72 * var(--ui-scale)); line-height: calc(154 * var(--ui-scale));
+  text-align: center;
+  background: rgba(255,255,255,0.08); border: calc(2 * var(--ui-scale)) solid #8fa0ff;
+  border-radius: calc(6 * var(--ui-scale));
 }
 #dialogue .dlg-name {
-  color: #ffd76a; font-weight: bold; font-size: 15px; text-align: center; line-height: 1.2;
-  text-shadow: 0 1px 0 #000;
+  color: #ffd76a; font-weight: bold; font-size: calc(15 * var(--ui-scale)); text-align: center;
+  line-height: 1.2; text-shadow: 0 1px 0 #000;
 }
 /* the hero faces back across the panel, and steps back while somebody else is talking */
 #dialogue .dlg-me .dlg-face { transform: scaleX(-1); }
@@ -147,22 +225,32 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #dialogue .dlg-them { transition: opacity 0.2s, filter 0.2s; }
 
 #dialogue .dlg-panel {
-  flex: 1; position: relative; min-height: 154px;
-  background: rgba(0,0,0,0.22); border: 2px solid rgba(143,160,255,0.45); border-radius: 6px;
-  padding: 12px 14px;
+  flex: 1; position: relative; min-height: calc(154 * var(--ui-scale));
+  background: rgba(0,0,0,0.22); border: calc(2 * var(--ui-scale)) solid rgba(143,160,255,0.45);
+  border-radius: calc(6 * var(--ui-scale));
+  padding: calc(12 * var(--ui-scale)) calc(14 * var(--ui-scale));
 }
-#dialogue .dlg-text { line-height: 1.55; min-height: 52px; white-space: pre-wrap; }
-#dialogue .dlg-choices { margin-top: 10px; }
-#dialogue .dlg-choice { padding: 3px 6px; cursor: pointer; white-space: pre; color: #cfd6ff; }
-#dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); border-radius: 4px; }
-#dialogue .dlg-hint { position: absolute; right: 10px; bottom: 6px; color: #ffd76a; animation: bob 0.8s infinite alternate; }
+#dialogue .dlg-text { line-height: 1.55; min-height: calc(52 * var(--ui-scale)); white-space: pre-wrap; }
+#dialogue .dlg-choices { margin-top: calc(10 * var(--ui-scale)); }
+#dialogue .dlg-choice {
+  padding: calc(3 * var(--ui-scale)) calc(6 * var(--ui-scale));
+  cursor: pointer; white-space: pre; color: #cfd6ff;
+}
+#dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); border-radius: calc(4 * var(--ui-scale)); }
+#dialogue .dlg-hint {
+  position: absolute; right: calc(10 * var(--ui-scale)); bottom: calc(6 * var(--ui-scale));
+  color: #ffd76a; animation: bob 0.8s infinite alternate;
+}
 @keyframes bob { from { transform: translateY(0); } to { transform: translateY(4px); } }
 #quests {
-  display: none; position: fixed; top: 84px; left: 200px; max-width: 280px;
-  background: rgba(0,0,0,0.7); border: 2px solid #8fa0ff; border-radius: 8px;
-  padding: 8px 12px; color: #fff; font-size: 12px; z-index: 100;
+  display: none; position: fixed; top: calc(84 * var(--ui-scale)); left: calc(200 * var(--ui-scale));
+  max-width: calc(280 * var(--ui-scale));
+  background: rgba(0,0,0,0.7); border: calc(2 * var(--ui-scale)) solid #8fa0ff;
+  border-radius: calc(8 * var(--ui-scale));
+  padding: calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
+  color: #fff; font-size: calc(12 * var(--ui-scale)); z-index: 100;
 }
-#quests .title { color: #8fa0ff; font-weight: bold; margin-bottom: 4px; }
+#quests .title { color: #8fa0ff; font-weight: bold; margin-bottom: calc(4 * var(--ui-scale)); }
 #quests div { line-height: 1.5; }
 #optionsPanel button.wide {
   width: 100%; padding: 8px; background: #2d2d44; color: #fff; border: 2px solid #6c5ce7;
@@ -240,9 +328,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #optionsPanel #gpuName { font-size: 11px; opacity: 0.75; }
 #optionsPanel #gpuName.software { color: #ffb35c; opacity: 1; }
 #duelbar {
-  display: none; position: fixed; left: 50%; top: 96px; transform: translateX(-50%);
-  background: rgba(30,8,8,0.82); border: 2px solid #d95d5d; border-radius: 8px;
-  padding: 6px 18px; color: #ffd9d9; font-size: 14px; z-index: 1200; white-space: nowrap;
+  display: none; position: fixed; left: 50%; top: calc(96 * var(--ui-scale));
+  transform: translateX(-50%);
+  background: rgba(30,8,8,0.82); border: calc(2 * var(--ui-scale)) solid #d95d5d;
+  border-radius: calc(8 * var(--ui-scale));
+  padding: calc(6 * var(--ui-scale)) calc(18 * var(--ui-scale));
+  color: #ffd9d9; font-size: calc(14 * var(--ui-scale)); z-index: 1200; white-space: nowrap;
 }
 #duelbar.show { display: block; }
 #players {
@@ -260,9 +351,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #players .j-empty { font-size: 13px; color: #7a6a4a; font-style: italic; }
 #players .j-hint { text-align: center; color: #8a7a5a; font-size: 11px; margin-top: 14px; }
 #castbar {
-  display: none; position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%);
-  background: rgba(0,0,0,0.75); border: 2px solid #6fd3ff; border-radius: 8px;
-  padding: 8px 20px; color: #cfefff; font-size: 14px; z-index: 1000; white-space: nowrap;
+  display: none; position: fixed; left: 50%; bottom: calc(120 * var(--ui-scale));
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.75); border: calc(2 * var(--ui-scale)) solid #6fd3ff;
+  border-radius: calc(8 * var(--ui-scale));
+  padding: calc(8 * var(--ui-scale)) calc(20 * var(--ui-scale));
+  color: #cfefff; font-size: calc(14 * var(--ui-scale)); z-index: 1000; white-space: nowrap;
 }
 #castbar.show { display: block; }
 #castbar.bite { border-color: #f1c40f; color: #ffe38a; animation: bob 0.25s infinite alternate; }
@@ -320,9 +414,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #worldmap .wm-legend span { display: flex; align-items: center; gap: 5px; }
 #worldmap .wm-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 #compass {
-  display: none; position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
-  gap: 14px; background: rgba(0,0,0,0.66); border: 1px solid #4a5a9a; border-radius: 6px;
-  padding: 4px 14px; color: #9fb0e0; font-size: 12px; z-index: 100; white-space: nowrap;
+  display: none; position: fixed; top: calc(62 * var(--ui-scale)); left: 50%;
+  transform: translateX(-50%);
+  gap: calc(14 * var(--ui-scale)); background: rgba(0,0,0,0.66);
+  border: var(--ui-scale) solid #4a5a9a; border-radius: calc(6 * var(--ui-scale));
+  padding: calc(4 * var(--ui-scale)) calc(14 * var(--ui-scale));
+  color: #9fb0e0; font-size: calc(12 * var(--ui-scale)); z-index: 100; white-space: nowrap;
 }
 #compass .c-primary { color: #7fe0a0; font-weight: bold; }
 .photo-hidden { display: none !important; }
@@ -333,7 +430,8 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #photoHint.show { display: block; }
 #chatPanel {
-  display: none; position: fixed; left: 20px; bottom: var(--log-bottom); width: 340px; z-index: 300;
+  display: none; position: fixed; left: calc(20 * var(--ui-scale)); bottom: var(--log-bottom);
+  width: calc(340 * var(--ui-scale)); z-index: 300;
 }
 #chatPanel.show { display: block; }
 /* The console comes up off the bottom edge, the whole width of the screen, the way one has since
@@ -348,19 +446,24 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
      console that came up as part of the column would be a console the width of the column */
   position: fixed;
   left: 0; right: 0; bottom: 0; width: auto;
-  background: rgba(6, 8, 16, 0.9); border-top: 2px solid #6c5ce7;
-  padding: 10px 16px 12px; box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  background: rgba(6, 8, 16, 0.9); border-top: calc(2 * var(--ui-scale)) solid #6c5ce7;
+  padding: calc(10 * var(--ui-scale)) calc(16 * var(--ui-scale)) calc(12 * var(--ui-scale));
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
   animation: consoleUp 130ms ease-out;
 }
 #chatPanel.console #chatLog {
-  max-height: 40vh; padding-bottom: 6px;
+  max-height: 40vh; padding-bottom: calc(6 * var(--ui-scale));
   /* Scrolled, not flexed. `justify-content: flex-end` put the newest line at the bottom and made
      everything above the fold unreachable — the box scrolled to its own end and no further. The
      log is pinned to its bottom by setting scrollTop when a line arrives instead, which leaves the
      wheel free to go back up through what has already been said. */
   overflow-y: auto; overscroll-behavior: contain;
 }
-#chatPanel.console #chatInput { margin-top: 8px; padding: 7px 10px; font-size: 13px; }
+#chatPanel.console #chatInput {
+  margin-top: calc(8 * var(--ui-scale));
+  padding: calc(7 * var(--ui-scale)) calc(10 * var(--ui-scale));
+  font-size: calc(13 * var(--ui-scale));
+}
 @keyframes consoleUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
@@ -381,19 +484,22 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
    costs two lines of screen rather than a fixed 190px of grey.
    --------------------------------------------------------------------------- */
 #chatLog {
-  max-height: 190px; overflow-y: auto;
+  max-height: calc(190 * var(--ui-scale)); overflow-y: auto;
   /* the container itself is not drawn — only the lines standing in it are */
   background: none; padding: 0;
-  font-size: 13px; line-height: 1.45;
+  font-size: calc(13 * var(--ui-scale)); line-height: 1.45;
   /* a column of shrink-to-fit lines, all flush left, so the coloured rules stack into one edge */
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: calc(3 * var(--ui-scale));
 }
 #chatLog > div {
-  max-width: 100%; padding: 3px 10px 3px 8px;
-  border-left: 3px solid #7f6ff0; border-radius: 0 5px 5px 0;
+  max-width: 100%;
+  padding: calc(3 * var(--ui-scale)) calc(10 * var(--ui-scale))
+           calc(3 * var(--ui-scale)) calc(8 * var(--ui-scale));
+  border-left: calc(3 * var(--ui-scale)) solid #7f6ff0;
+  border-radius: 0 calc(5 * var(--ui-scale)) calc(5 * var(--ui-scale)) 0;
   background: rgba(6, 8, 18, 0.74); color: #eef1ff;
   /* the words are read over whatever the world happens to be, and a spring field is very bright */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) rgba(0, 0, 0, 0.9);
   transition: opacity 260ms ease;
 }
 /* The world talking about itself, as against somebody in it talking. It is the half of the log
@@ -417,14 +523,18 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   #chatLog > div { animation: none; transition: none; }
 }
 #chatInput {
-  display: none; width: 100%; margin-top: 5px; padding: 5px 8px; font-family: inherit; font-size: 12px;
-  background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #6c5ce7; border-radius: 6px;
+  display: none; width: 100%; margin-top: calc(5 * var(--ui-scale));
+  padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale));
+  font-family: inherit; font-size: calc(12 * var(--ui-scale));
+  background: rgba(0,0,0,0.8); color: #fff; border: var(--ui-scale) solid #6c5ce7;
+  border-radius: calc(6 * var(--ui-scale));
 }
 #chatInput.show { display: block; }
 #nameplates { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
 .nameplate {
   position: absolute; transform: translate(-50%, -100%);
-  background: rgba(0,0,0,0.55); color: #cfe6ff; font-size: 11px; padding: 1px 6px; border-radius: 8px;
+  background: rgba(0,0,0,0.55); color: #cfe6ff; font-size: calc(11 * var(--ui-scale));
+  padding: var(--ui-scale) calc(6 * var(--ui-scale)); border-radius: calc(8 * var(--ui-scale));
   white-space: nowrap;
 }
 #optionsPanel input[type="text"] {
@@ -441,14 +551,18 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
    the `touch` class on <body> decides.
    ------------------------------------------------------------------------ */
 :root {
-  --touch-target: 48px;          /* every on-screen button: the 44px floor, plus room to miss */
-  --touch-act: 78px;             /* the one action key, pressed more than all the others together */
-  --act-reach: 96px;             /* how far the three lesser actions orbit the middle of that one */
-  --touch-gap: 8px;
-  /* How far any control sits from the edge of the glass. The same 20px the readouts in the corners
-     use, so the rail's right edge and the corner map's are one line rather than eight pixels apart. */
-  --touch-edge: 20px;
-  --minimap-drop: 268px;         /* below the corner map, which reaches 255px down at full size */
+  /* Each of these is in HUD units, so they grow with everything else — a button that stayed 48px
+     on a screen where the panel beside it had trebled would read as a different set again. The
+     44px floor is a floor in *physical* pixels and the scale only ever multiplies, so it holds. */
+  --touch-target: calc(48 * var(--ui-scale));   /* the 44px floor, plus room to miss */
+  --touch-act: calc(78 * var(--ui-scale));      /* the one action key, pressed more than the rest together */
+  --act-reach: calc(96 * var(--ui-scale));      /* how far the three lesser actions orbit the middle of that one */
+  --touch-gap: calc(8 * var(--ui-scale));
+  /* How far any control sits from the edge of the glass. The same 20 units the readouts in the
+     corners use, so the rail's right edge and the corner map's are one line rather than eight
+     pixels apart. */
+  --touch-edge: calc(20 * var(--ui-scale));
+  --minimap-drop: calc(268 * var(--ui-scale));  /* below the corner map, which reaches 255 down at full size */
   /* The notch, the rounded corners and the home bar. These are the only insets kept on a phone,
      because these are the only ones with something actually in the way. */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -475,23 +589,25 @@ body.touch #touch {
   font-family: inherit; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   color: var(--ui-ink); background: var(--ui-glass);
-  border: 1px solid var(--ui-rim); border-radius: 50%;
+  border: var(--ui-scale) solid var(--ui-rim); border-radius: 50%;
   box-shadow: var(--ui-lift);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);   /* the glyph is drawn over the world, not over a page */
+  text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) rgba(0, 0, 0, 0.75);   /* drawn over the world, not over a page */
   transition: background 90ms linear, border-color 90ms linear;
 }
 /* Lit rather than shrunk: three of these are placed with a transform, and a press that scaled them
    would have to undo an arc first. */
 #touch button:active {
   background: var(--ui-glass-lit); border-color: rgba(255, 255, 255, 0.72);
-  box-shadow: var(--ui-lift), 0 0 0 2px rgba(255, 255, 255, 0.18);
+  box-shadow: var(--ui-lift), 0 0 0 calc(2 * var(--ui-scale)) rgba(255, 255, 255, 0.18);
 }
 
 /* The stick is drawn where the thumb lands rather than where a designer guessed it would. */
 #touchStick { position: absolute; left: 0; bottom: 0; width: 55%; height: 58%; pointer-events: auto; touch-action: none; }
 #touchStick .stick-base {
-  display: none; position: fixed; width: 132px; height: 132px; margin: -66px 0 0 -66px;
-  border-radius: 50%; border: 1px solid var(--ui-rim);
+  display: none; position: fixed;
+  width: calc(132 * var(--ui-scale)); height: calc(132 * var(--ui-scale));
+  margin: calc(-66 * var(--ui-scale)) 0 0 calc(-66 * var(--ui-scale));
+  border-radius: 50%; border: var(--ui-scale) solid var(--ui-rim);
   /* faded at the rim, so the ring reads as a well the nub sits in rather than as a lid over the
      ground the player is about to walk across */
   background: radial-gradient(circle, rgba(10, 13, 28, 0.5) 45%, rgba(10, 13, 28, 0.1) 100%);
@@ -499,8 +615,9 @@ body.touch #touch {
 }
 #touchStick .stick-base.show { display: block; }
 #touchStick .stick-nub {
-  position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; border-radius: 50%;
-  background: rgba(214, 221, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.75);
+  position: absolute; left: 50%; top: 50%; border-radius: 50%;
+  width: calc(56 * var(--ui-scale)); height: calc(56 * var(--ui-scale));
+  background: rgba(214, 221, 255, 0.5); border: var(--ui-scale) solid rgba(255, 255, 255, 0.75);
   box-shadow: var(--ui-lift); transform: translate(-50%, -50%);
 }
 
@@ -513,13 +630,13 @@ body.touch #touch {
 #touchPanels {
   position: absolute; top: var(--minimap-drop); right: calc(var(--touch-edge) + var(--safe-right));
   display: flex; align-items: center; gap: var(--touch-gap);
-  padding: 4px; border-radius: 999px; pointer-events: auto;
-  background: rgba(8, 11, 24, 0.6); border: 1px solid rgba(214, 221, 255, 0.2);
+  padding: calc(4 * var(--ui-scale)); border-radius: 999px; pointer-events: auto;
+  background: rgba(8, 11, 24, 0.6); border: var(--ui-scale) solid rgba(214, 221, 255, 0.2);
   box-shadow: var(--ui-lift);
 }
 /* on the rail, so no rim of their own: a border inside a border is what the old set looked like */
 #touch .touch-btn {
-  width: var(--touch-target); height: var(--touch-target); font-size: 22px;
+  width: var(--touch-target); height: var(--touch-target); font-size: calc(22 * var(--ui-scale));
   background: none; border-color: transparent; box-shadow: none;
 }
 
@@ -536,13 +653,16 @@ body.touch #touch {
   width: var(--touch-act); height: var(--touch-act); pointer-events: none;
 }
 /* the word rather than a glyph: ⏎ is a key on a keyboard the player is not holding */
-.touch-do { position: absolute; inset: 0; font-size: 19px; font-weight: bold; letter-spacing: 1px; }
+.touch-do {
+  position: absolute; inset: 0; font-size: calc(19 * var(--ui-scale));
+  font-weight: bold; letter-spacing: var(--ui-scale);
+}
 /* Straight up is 0deg and the angle runs anticlockwise, which keeps all three inside the quarter
    circle a right thumb sweeps without the hand leaving the corner. The second rotation is only
    there to stand the glyph back up after the first one has tipped it over. */
 .touch-orbit {
   position: absolute; left: 50%; top: 50%;
-  width: var(--touch-target); height: var(--touch-target); font-size: 21px;
+  width: var(--touch-target); height: var(--touch-target); font-size: calc(21 * var(--ui-scale));
   margin: calc(var(--touch-target) / -2) 0 0 calc(var(--touch-target) / -2);
   transform: rotate(var(--arc)) translateY(calc(-1 * var(--act-reach))) rotate(calc(-1 * var(--arc)));
 }
@@ -557,20 +677,22 @@ body.touch #touch {
   display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   /* a fixed width so the two columns come out equal — sized to the longest label there is, which
      is "Drink a warding draught", rather than letting the grid crop it */
-  width: min(94vw, 520px); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
-  max-height: calc(100dvh - 24px); overflow-y: auto; pointer-events: auto;
-  background: rgba(8, 11, 24, 0.95); border: 1px solid var(--ui-rim);
-  border-radius: 16px; padding: 8px; box-shadow: var(--ui-lift);
+  width: min(94vw, calc(520 * var(--ui-scale))); grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(6 * var(--ui-scale));
+  max-height: calc(100dvh - 24 * var(--ui-scale)); overflow-y: auto; pointer-events: auto;
+  background: rgba(8, 11, 24, 0.95); border: var(--ui-scale) solid var(--ui-rim);
+  border-radius: calc(16 * var(--ui-scale)); padding: calc(8 * var(--ui-scale));
+  box-shadow: var(--ui-lift);
 }
 #touchMore.show { display: grid; }
 /* a row, not a disc: it is as wide as its own words and it carries them beside the glyph */
 #touch .touch-more-btn {
-  min-height: var(--touch-target); padding: 0 12px; gap: 10px;
-  justify-content: flex-start; font-size: 13px; white-space: nowrap;
-  border-radius: 10px; background: rgba(255, 255, 255, 0.05);
+  min-height: var(--touch-target); padding: 0 calc(12 * var(--ui-scale)); gap: calc(10 * var(--ui-scale));
+  justify-content: flex-start; font-size: calc(13 * var(--ui-scale)); white-space: nowrap;
+  border-radius: calc(10 * var(--ui-scale)); background: rgba(255, 255, 255, 0.05);
   border-color: transparent; box-shadow: none;
 }
-.touch-more-btn .touch-glyph { font-size: 20px; }
+.touch-more-btn .touch-glyph { font-size: calc(20 * var(--ui-scale)); }
 
 /* Whatever is open has the screen: walking and swinging would only fight it. The way out of it
    is the one button that appears in their place. */
@@ -602,7 +724,7 @@ body.touch .on-touch { display: inline; }
 /* Anything a thumb has to land on inside a panel gets the same floor as the buttons. */
 body.touch #optionsPanel button.wide,
 body.touch #optionsPanel select,
-body.touch #optionsPanel input[type="text"] { min-height: var(--touch-target); font-size: 15px; }
+body.touch #optionsPanel input[type="text"] { min-height: var(--touch-target); font-size: calc(15 * var(--ui-scale)); }
 body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
 body.touch #rucksack .r-item,
 body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items: center; }
@@ -618,23 +740,30 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
    which was already on the right, the whole lot reads as one piece of furniture
    and the middle of the picture is the game.
 
-   The breakpoint is measured, not chosen. The column is 250px and stands 20px
-   off the edge, so it is clear of the middle half of the window once
-   `width - 270 >= 0.75 * width`, which is 1080px. Below that a right-hand
-   column would be standing in the picture too, and there is nothing to gain by
-   moving it there. The height floor is measured the same way: the map, the
-   hearts and the pack cost about 450px of the column between them, so 700px
+   The breakpoint is measured, not chosen. The column is 250 units wide and
+   stands 20 off the edge, so it clears the middle half of the window once
+   `width - 270 * scale >= 0.75 * width`, which is `width >= 1080 * scale`.
+   That is a rule about two things at once, and it is settled in `--ui-scale`
+   rather than here: the scale is capped at `100vw / 1080`, so the condition
+   holds at every size and this query's 1080px is only the case where the scale
+   is 1. Grow the HUD and the column grows with it; the middle half of the
+   window stays empty either way.
+
+   The height floor is measured the same way. The map, the hearts and the pack
+   cost about 450 units of the column between them, so 700 units of height
    leaves a little over 200 for the log — three or four lines, which is a log.
-   On a shorter window it would be one line, and one line is a ticker.
+   On a shorter window it would be one line, and one line is a ticker. The
+   scale's other term, `100vh / 720`, keeps that true as the HUD grows: 700
+   units of column can never exceed 0.98 of the window's height.
 
    Requiring both a width and a height also keeps this away from the phone: no
    window can match `min-height: 700px` and `max-height: 560px`, so the rules
    below and the rules for a phone held sideways can never meet.
    --------------------------------------------------------------------------- */
 @media (min-width: 1080px) and (min-height: 700px) {
-  :root { --hud-rail: 250px; --hud-edge: 20px; }
+  :root { --hud-rail: calc(250 * var(--ui-scale)); --hud-edge: calc(20 * var(--ui-scale)); }
   #hudRail {
-    display: flex; flex-direction: column; gap: 10px;
+    display: flex; flex-direction: column; gap: calc(10 * var(--ui-scale));
     position: fixed; top: var(--hud-edge); bottom: var(--hud-edge);
     right: var(--hud-edge); width: var(--hud-rail); z-index: 300;
     /* the gaps between the panels are still the world, and the world is still walked on */
@@ -648,7 +777,7 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #minimapCanvas { width: 100%; height: auto; }   /* as wide as the column, and square */
   /* an errand list is a reminder, not a document: past this it scrolls rather than pushing the
      rest of the column about */
-  #quests { max-height: 132px; overflow-y: auto; }
+  #quests { max-height: calc(132 * var(--ui-scale)); overflow-y: auto; }
   /* The log falls to the foot of the column, so the newest line is always in the same place
      however much or little has been said. It is also the one thing here allowed to give way: the
      map and the readouts are fixed, and when a long errand list leaves less room the log takes
@@ -656,7 +785,7 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #chatPanel { margin-top: auto; min-height: 0; }
   #chatPanel.show { display: flex; flex-direction: column; }
   #hudRail > #chatPanel { flex: 0 1 auto; }
-  #chatLog { max-height: 340px; min-height: 0; }
+  #chatLog { max-height: calc(340 * var(--ui-scale)); min-height: 0; }
   /* the readout swaps corners with the log, because the right-hand bottom corner is now spoken for */
   #debug { left: var(--hud-edge); right: auto; }
   /* and so is the right-hand side, for anyone playing this on a large touchscreen */

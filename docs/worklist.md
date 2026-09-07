@@ -345,6 +345,21 @@ Things Chris hit on a real phone, in the order he hit them.
       `entity.ts` with it: those are the defaults a behaviour file overrides with `with:`, so they
       belong beside the files that override them rather than in the source that reads them.
 
+- [x] The HUD scales with the screen. *(`--ui-scale` is a *length* rather than a number, because CSS
+      cannot divide one length by another, and every HUD rule says `calc(13 * var(--ui-scale))` where
+      it used to say `13px`. Two terms, smaller wins, and each is a constraint rather than a taste:
+      the window's height against the 720 it was drawn at, and the width against the 1080 at which a
+      column still clears the middle half of the picture — which makes last week's breakpoint true at
+      every size instead of at one. Measured: 1.00 / 1.50 / 2.00 / 3.00 at 1280, 1920, 2560 and 3840
+      wide. A maximised browser on a 4K screen has about 2020 pixels of viewport rather than 2160, so
+      what Chris will actually see is 2.8×. The phone cannot reach the ramp at all — the floor is 1
+      below 720 tall — which is a stronger guarantee than a media query somebody has to remember.)*
+- [ ] Two things the scaling made obvious rather than caused. The corner map is an upscale, not a
+      bigger map: its canvas is 180 pixels square whatever size it is shown at, so at 3× it is a 4×
+      blow-up of the same image, and `minimap.ts` should size its own backing store and its markers
+      from the box it is given. And the modal panels — journal, rucksack, options, world map, the
+      title screen — do not scale at all, so at 4K a 13-pixel journal sits inside a HUD that has
+      trebled and reads as a different application.
 - [ ] Three more the same, found while doing the above: `#castbar` sits at `bottom: 200px` on a
       phone, which is directly over the hero; `#toast` and `#duelbar` are still pinned with
       hand-computed offsets in the middle of the picture and want the treatment the log just had;
