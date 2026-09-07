@@ -259,6 +259,28 @@ the two are separate jobs with a third in between them.
       and both thumbs are at the bottom — with the toast and the duel bar moved below them. What is
       left is the part that wants a real thumb on real glass rather than an emulator.)*
 
+## Found while playing it on a phone
+
+Things Chris hit on a real phone, in the order he hit them.
+
+- [x] The title screen — the slots you pick a world from — was unusable on a phone. *(Laid out for a
+      desktop: three slots stacked down a tall page, the switches pinned to the bottom-right corner,
+      the lot centred in a box that does not scroll. On a screen 342 pixels tall that put the game's
+      name above the top edge, slot three below the bottom one and the switches over slot two, with
+      no way to reach any of it. On a short window it now scrolls from the top, the slots go side by
+      side — three columns is the shape of a landscape phone — and the switches come out of the
+      corner into the flow.)*
+- [ ] On a phone in landscape, take the whole glass: fullscreen, so the browser's own furniture is
+      not eating a fifth of a 342-pixel screen. It has to be asked for from a tap — the tap that
+      enters a world is the one — and it is also what makes the orientation lock possible on
+      Android. iOS gives neither, and keeps the turn-your-phone card as its fallback.
+- [ ] The message log — the box above the chat that says what has happened — reads badly. The
+      colours are wrong on a desktop and it eats the screen on a phone: 340 by 190 pixels of a
+      342-pixel-tall window, which is most of the game. `#chatLog` in `style.css`.
+- [ ] The default zoom on a phone is a view from five hundred metres up. It wants to start close to
+      the hero: on a small screen the hero is what you are looking at, and the country round him is
+      background.
+
 ## Deployment
 
 - [x] Push the work, bump the chart to 0.2.0 and cut the release that gives it an image. *(Took
