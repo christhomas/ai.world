@@ -333,17 +333,22 @@ Things Chris hit on a real phone, in the order he hit them.
 
 ## The numbers of the world
 
-- [ ] Move what a creature *is* out of the code and into data, the way what a creature *does*
-      already lives in `behaviours/*.json`. `src/entities/animals.ts` holds every kind's speed, hit
-      points, bite, herd size, climb, price and colours as a typed table in the middle of the
-      source; a `properties/*.json` beside the behaviours would put them where they can be argued
-      about without opening an editor. Watch for: the table is typed and read by tests and by the
-      renderer, so whatever replaces it has to keep both — a schema and a loader, not a bag of
-      `any`. Spawning goes with it — which kinds belong to which biome, how many, at what hour, how
-      far from the hero — because that is a property of a creature as much as its speed is, and it
-      is the other half of what makes a countryside feel the way it does. And `BEHAVIOUR` in
-      `entity.ts` with it: those are the defaults a behaviour file overrides with `with:`, so they
-      belong beside the files that override them rather than in the source that reads them.
+- [x] **The numbers of the world moved out of the source and into `properties/*.json`.** *(Three
+      moves in one: what a creature *is* — six files for thirty-five creatures, every field noted in
+      prose beside the number it argues about, colours as `"#f2f2f2"` because six digits of decimal
+      is not a thing anybody can change; where they come from — the radius, the nineteen dials, the
+      six countries with their land, water and night lists together; and the `BEHAVIOUR` defaults,
+      which is where it was worth saying out loud that they *are* defaults and a tree naming
+      `cooldown` beats them. The rigs stayed in the source, because a shape is read by looking at
+      it. `src/core/properties.ts` parses against a type written once, so nothing downstream sees an
+      `any`, and a bad value stops the game at load naming the file, the creature and the field.
+      Proof it was a move and not a rewrite: the whole `KINDS` table dumped before and after,
+      key-sorted at every depth, identical byte for byte at 104 KB, and the golden fingerprint did
+      not budge. `animals.ts` went 661 lines to 404.)*
+- [ ] Six of the twenty-four numbers in `properties/behaviour.json` are read by nothing: the trees
+      write those numbers themselves now, and `CIRCLE_CLOSE` is dead outright because the ring no
+      longer tightens. Each one's note says so. Deleting them is a decision rather than a tidy-up,
+      which is why they were moved unchanged.
 
 - [x] The HUD scales with the screen. *(`--ui-scale` is a *length* rather than a number, because CSS
       cannot divide one length by another, and every HUD rule says `calc(13 * var(--ui-scale))` where
