@@ -522,3 +522,5 @@ Things Chris hit on a real phone, in the order he hit them.
 - [ ] Some buildings open a conversation when you try to go in, which reads as talking to a
       building. You should go inside, and the people who were behind that conversation should be
       sitting round a table in there to be talked to like anybody else.
+- [ ] A ship sailed straight through an island. Boats want to collide with a coastline — and getting
+      on or off one should only be possible at a dock.
