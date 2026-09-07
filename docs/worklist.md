@@ -532,8 +532,15 @@ Things Chris hit on a real phone, in the order he hit them.
       gold rule it had briefly acquired.)*
 - [ ] The faces on the villagers are bad — the dialogue box draws something anime-ish and it is not
       the standard of the rest of the game. Wants a proper design pass rather than a tweak.
-- [ ] The torch's flame comes away from the torch when the hero walks, and he does not look like he
-      is holding it — it floats beside him with no arm reaching for it.
+- [x] The torch's flame comes away from the torch when the hero walks, and he does not look like he
+      is holding it — it floats beside him with no arm reaching for it. *(The flame hung off a mount
+      of its own, a little above the shoulder, while the hand hangs below it — and the arm swing is
+      a rotation about the shoulder, so the two were carried round it in opposite directions. The
+      fire orbited the hand instead of sitting on the end of the stick. It is now worked out from
+      where the shaft actually ended up. And the torch moved in to where a shield hangs, which is
+      where the rig's hand really is: held further out it was a torch floating beside a man with his
+      arms at his sides. What is left of "no arm reaching for it" belongs to the models, which are
+      their own item — the rig has no arm that extends.)*
 - [ ] The villagers and the other people are blocky in the wrong way. Keep them blocky — that is the
       game — but they want designing rather than assembling.
 - [ ] Villagers and creatures do not touch the ground. They hover over it.

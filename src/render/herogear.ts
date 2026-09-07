@@ -120,24 +120,22 @@ const FLAME: Build = () => merge([
  * carrying.
  */
 const TORCH = {
-  /** Where the fist is, in hero units: off-hand height, and this far out to that side. */
-  HAND: [0.06, 0.9, 0.5] as [number, number, number],
-  /** How far the shaft leans away from the body, in radians. */
-  LEAN: 0.5,
+  /**
+   * Where the fist is, in hero units.
+   *
+   * The same place a shield hangs, and for the same reason: that is where the rig's hand actually
+   * is. Held further out it was a torch floating beside a man with his arms at his sides — which
+   * is what "he does not appear to be holding it" means.
+   */
+  HAND: [0.06, 0.9, 0.3] as [number, number, number],
+  /** How far the shaft leans away from the body, in radians. It is the lean that clears the hat. */
+  LEAN: 0.6,
   /** And how far up the shaft the fire sits. */
   REACH: 0.66,
 };
 
-/** The off hand with a torch in it, and the fire at the end of it, as two things to hang. */
+/** The off hand with a torch in it — the fire is fixed to the shaft rather than hung separately. */
 const TORCH_HAND: Mount = { offset: TORCH.HAND, swing: 'armL' };
-const TORCH_FIRE: Mount = {
-  offset: [
-    TORCH.HAND[0],
-    TORCH.HAND[1] + Math.cos(TORCH.LEAN) * TORCH.REACH,
-    TORCH.HAND[2] + Math.sin(TORCH.LEAN) * TORCH.REACH,
-  ],
-  swing: 'armL',
-};
 
 /** Items whose presence hides part of the hero's own rig. */
 const HIDES: Record<string, string> = { cap: 'hat', helm: 'hat' };
@@ -228,12 +226,25 @@ export class HeroGear {
     }
     if (carry && this.torch && this.flame) {
       // the same arm the off-hand gear hangs from, so the torch swings with the walk like the rest
-      this.torch.position.copy(this.held(hero, TORCH_HAND, swing, scale));
+      const hand = this.torch.position.copy(this.held(hero, TORCH_HAND, swing, scale));
       // yaw first and then the lean, so the shaft tips out to the hero's side whichever way he
       // happens to be facing rather than always towards the same corner of the world
       this.torch.rotation.set(TORCH.LEAN, hero.yaw, 0, 'YXZ');
       this.torch.scale.setScalar(scale);
-      this.flame.position.copy(this.held(hero, TORCH_FIRE, swing, scale));
+      /*
+       * The fire is fixed to the end of the shaft, and has to be worked out from where the shaft
+       * ended up rather than hung off a mount of its own.
+       *
+       * It used to be its own mount, a little higher up. The arm swing is a rotation about the
+       * shoulder, so a mount's travel depends on how far it is from the shoulder — and the hand is
+       * below the shoulder while the flame is above it. The two therefore swung in opposite
+       * directions, and the fire came away from the torch on every step. A flame is not a thing
+       * that hangs off a hero; it is a thing on the end of a stick he is holding.
+       */
+      const up = Math.cos(TORCH.LEAN) * TORCH.REACH * scale;
+      const out = Math.sin(TORCH.LEAN) * TORCH.REACH * scale;
+      const cos = Math.cos(hero.yaw), sin = Math.sin(hero.yaw);
+      this.flame.position.set(hand.x + out * sin, hand.y + up, hand.z + out * cos);
       this.flame.rotation.y = hero.yaw;
       // the fire breathes: a fifteenth either way, which is a flicker rather than a pulse
       this.flame.scale.setScalar(scale * (1 + Math.sin(hero.phase * 5.3) * 0.07));

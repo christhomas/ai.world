@@ -63,6 +63,38 @@ describe('the torch after dark', () => {
     expect(spots.size).toBe(4);
   });
 
+  it('keeps the fire on the end of the stick while he walks', () => {
+    const gear = new HeroGear(new THREE.Group());
+    const who = hero();
+    who.walk = 1;
+    const state = new GameState();
+    const offsets: THREE.Vector3[] = [];
+    // the arm swings through a whole stride; the fire must travel with the hand, not against it
+    for (let phase = 0; phase < Math.PI * 2; phase += Math.PI / 6) {
+      who.phase = phase;
+      gear.update(state, who, true);
+      const meshes = (gear as unknown as { group: THREE.Group }).group.children
+        .filter((o): o is THREE.Mesh => (o as THREE.Mesh).isMesh && o.visible);
+      const flame = meshes.find((m) => (m.material as THREE.Material).type === 'MeshBasicMaterial')!;
+      const shaft = meshes.find((m) => (m.material as THREE.Material).type === 'MeshLambertMaterial')!;
+      expect(flame, 'the fire is drawn').toBeTruthy();
+      expect(shaft, 'and so is the stick').toBeTruthy();
+      offsets.push(flame.position.clone().sub(shaft.position));
+    }
+    /*
+     * The whole offset, not its length.
+     *
+     * The bug kept the length and lost the direction, which is why it was not obvious from a still
+     * picture: the flame hung off a mount of its own above the shoulder while the hand hangs below
+     * it, so the swing carried the two round the shoulder in opposite directions. The fire orbited
+     * the hand instead of sitting on the end of the stick, and every step threw it off the top.
+     */
+    const first = offsets[0];
+    for (const [n, at] of offsets.entries()) {
+      expect(at.distanceTo(first), `stride step ${n}: the fire moved to ${at.toArray().map((v) => v.toFixed(3)).join(', ')}`).toBeLessThan(1e-9);
+    }
+  });
+
   it('gives the light to a lantern instead when the hero is holding one', () => {
     const gear = new HeroGear(new THREE.Group());
     const state = new GameState();
