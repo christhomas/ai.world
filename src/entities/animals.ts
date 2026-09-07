@@ -98,10 +98,19 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
     box([0.22, 0.44, 0.36], [0, 0.94, 0], 0xffffff, { tint: o.shirtTint }),
     box([0.1, 0.4, 0.1], [0, 0.94, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
     box([0.1, 0.4, 0.1], [0, 0.94, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
-    box([0.13, 0.46, 0.13], [0, 0.49, 0.09], o.pantsColor, { anim: 'legL', pivot: [0, 0.72, 0.09] }),
-    box([0.13, 0.46, 0.13], [0, 0.49, -0.09], o.pantsColor, { anim: 'legR', pivot: [0, 0.72, -0.09] }),
-    box([0.2, 0.08, 0.13], [0.03, 0.04, 0.09], 0x3a2a1a, { anim: 'legL', pivot: [0, 0.72, 0.09] }),
-    box([0.2, 0.08, 0.13], [0.03, 0.04, -0.09], 0x3a2a1a, { anim: 'legR', pivot: [0, 0.72, -0.09] }),
+    /*
+     * The leg reaches the boot.
+     *
+     * It used to stop at 0.26 while the boot lay from 0 to 0.08, leaving nearly two tenths of a
+     * unit of nothing between them — an eighth of the whole figure. Standing still that reads as a
+     * person floating a little above the ground; walking, the leg and the boot swing on the same
+     * hip at different radii, so the gap opens and closes and the feet look like two blocks
+     * following him about. This is what "they do not touch the ground" was.
+     */
+    box([0.13, 0.64, 0.13], [0, 0.4, 0.09], o.pantsColor, { anim: 'legL', pivot: [0, 0.72, 0.09] }),
+    box([0.13, 0.64, 0.13], [0, 0.4, -0.09], o.pantsColor, { anim: 'legR', pivot: [0, 0.72, -0.09] }),
+    box([0.2, 0.08, 0.15], [0.03, 0.04, 0.09], 0x3a2a1a, { anim: 'legL', pivot: [0, 0.72, 0.09] }),
+    box([0.2, 0.08, 0.15], [0.03, 0.04, -0.09], 0x3a2a1a, { anim: 'legR', pivot: [0, 0.72, -0.09] }),
   ];
 }
 

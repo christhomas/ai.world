@@ -543,7 +543,14 @@ Things Chris hit on a real phone, in the order he hit them.
       their own item — the rig has no arm that extends.)*
 - [ ] The villagers and the other people are blocky in the wrong way. Keep them blocky — that is the
       game — but they want designing rather than assembling.
-- [ ] Villagers and creatures do not touch the ground. They hover over it.
+- [x] Villagers and creatures do not touch the ground. They hover over it. *(Not the ground — the
+      legs. A villager's leg ran from 0.26 up, while his boot lay from 0 to 0.08, so there were
+      nearly two tenths of a unit of nothing between the two: an eighth of the whole figure, and
+      the eighth nearest the ground. Standing still that reads as somebody floating; walking, the
+      leg and the boot swing on the same hip at different radii, so the gap opens and shuts and the
+      feet look like two blocks following him about. The leg reaches the boot now. Checked what was
+      underneath first: the entity origins were already sitting on the drawn surface to within a
+      tenth of a unit, and that tenth is a creature mid-step across a terrace edge.)*
 - [ ] Walking into a house's door should take you inside. At the moment you have to stop and press
       something.
 - [ ] Some buildings open a conversation when you try to go in, which reads as talking to a
