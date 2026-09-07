@@ -277,9 +277,29 @@ Things Chris hit on a real phone, in the order he hit them.
 - [ ] The message log — the box above the chat that says what has happened — reads badly. The
       colours are wrong on a desktop and it eats the screen on a phone: 340 by 190 pixels of a
       342-pixel-tall window, which is most of the game. `#chatLog` in `style.css`.
+- [ ] The touch controls in the bottom-right corner are the ugliest thing in the game: squares with
+      a purple outline, not aligned with each other, and not cohesive with anything else on the
+      screen. It is also not clear what they do. They want designing rather than tweaking.
+- [ ] On a phone the HUD should sit against the edge of the glass rather than inset from it. A gap
+      between a panel and the edge is not breathing room on a screen this size — it is a strip of
+      screen nothing can use, because the game behind it cannot be played through a corner that
+      small either. (Except where a notch actually needs it: the safe-area insets are there for a
+      real obstruction, not for taste.)
 - [ ] The default zoom on a phone is a view from five hundred metres up. It wants to start close to
       the hero: on a small screen the hero is what you are looking at, and the country round him is
       background.
+
+## Found while playing it on a phone — the world itself
+
+- [x] **The animals and villagers froze.** *(Not the simulation: the client. A world talks
+      constantly — presence ten times a second, the creatures three — so silence means it has gone,
+      whatever the socket believes. And a socket can believe a great deal: a phone that sleeps, a
+      wifi handover, a laptop lid all leave a connection open and dead at once, with nothing
+      arriving and no close ever fired. The client went on faithfully drawing the last thing it was
+      told, which is every animal standing exactly where it was. Six seconds of silence is now taken
+      as a world that has gone: it says so, hands the creatures back to this client so they start
+      moving again, and goes back and knocks on the same door. `src/game/online.test.ts` arranges a
+      world that says nothing, which is the one case a real socket cannot be made to do.)*
 
 ## Deployment
 

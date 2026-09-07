@@ -12,6 +12,16 @@ export type { Clock, Letter, MonsterSnap, PartyMember, Presence, Stall, StallIte
 /** How often we tell the server where we are. */
 const MOVE_INTERVAL = 0.12;
 
+/**
+ * How long a world may say nothing at all before it is taken to have gone, in seconds.
+ *
+ * Presence goes out ten times a second and the creatures three, so a world with anybody in it is
+ * never quiet for long. Six seconds is far past any hiccup and well short of a player deciding the
+ * game is broken — which is what the alternative looks like, because a frozen world is
+ * indistinguishable from a simulation that has stopped.
+ */
+const QUIET = 6;
+
 export interface OnlineEvents {
   onChat: (line: string) => void;
   onSystem: (line: string) => void;
@@ -99,7 +109,20 @@ export class Online {
    */
   private local = false;
   private sinceMove = 0;
+  /**
+   * How long since the world last said anything, in seconds.
+   *
+   * A world talks constantly — presence ten times a second, the creatures near you three times —
+   * so silence means it has gone, whatever the socket believes. And a socket can believe a great
+   * deal: a phone that sleeps, a wifi handover, a laptop lid, all leave a connection that is open
+   * and dead at once, with nothing arriving and no close ever fired. What the player sees then is
+   * a world that has frozen — every animal standing exactly where it was, because the client is
+   * faithfully drawing the last thing it was told.
+   */
+  private sinceHeard = 0;
   private url = '';
+  /** What was joined last, so a world that goes quiet can be rejoined rather than merely mourned. */
+  private joined: { seed: number; clock: Clock } | null = null;
   /** Other people in this world, by id. */
   readonly players = new Map<string, Presence>();
   id = '';
@@ -108,7 +131,16 @@ export class Online {
   folk: string[] = [];
   status: 'offline' | 'connecting' | 'online' = 'offline';
 
-  constructor(private readonly events: OnlineEvents) {}
+  /**
+   * @param linkFor how to reach a world: a url for somebody's server, empty for the one in the next
+   * thread. Handed in rather than reached for so that a test can supply a world that says nothing,
+   * which is the case worth testing and the one that cannot be arranged with a real socket.
+   */
+  constructor(
+    private readonly events: OnlineEvents,
+    private readonly linkFor: (url: string, events: LinkEvents) => Link | null =
+      (url, events) => (url ? socketLink(url, events) : workerLink(events)),
+  ) {}
 
   get connected(): boolean { return this.status === 'online'; }
   get count(): number { return this.players.size; }
@@ -126,12 +158,14 @@ export class Online {
     this.local = url === '';
     this.name = cleanName(name);
     this.status = 'connecting';
+    this.sinceHeard = 0;
+    this.joined = { seed, clock };
 
     const events: LinkEvents = {
       onOpen: () => this.send({
         type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
       }),
-      onMessage: (text) => this.receive(text),
+      onMessage: (text) => { this.sinceHeard = 0; this.receive(text); },
       onClose: (why) => {
         if (this.status !== 'offline' && !this.local) this.events.onSystem(why);
         // nobody is telling us what lives here any more
@@ -141,7 +175,7 @@ export class Online {
         this.link = null;
       },
     };
-    const link = url ? socketLink(url, events) : workerLink(events);
+    const link = this.linkFor(url, events);
     if (!link) {
       this.status = 'offline';
       this.events.onSystem(`Could not reach ${url}.`);
@@ -156,6 +190,11 @@ export class Online {
     this.link.close();
     this.link = null;
     this.players.clear();
+    // Nobody is telling us what lives here any more, so this client takes the wildlife back. Said
+    // here as well as on the socket's own close, because a link that is closed from this side may
+    // never fire one — and a world nothing is simulating is a world where every animal stands
+    // still for ever.
+    this.events.onWorldSilent();
   }
 
   /**
@@ -333,10 +372,36 @@ export class Online {
   /** Tell the server where we are, a few times a second. */
   update(dt: number, me: { x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }): void {
     if (!this.connected) return;
+    // A world that has stopped talking has gone, whatever the socket says about itself. Noticed
+    // here rather than left to the connection, because the failure that matters is the one where
+    // the connection never notices: a phone that slept, a wifi handover, a laptop lid. The socket
+    // stays open, nothing arrives, no close is fired, and the game freezes with every animal
+    // standing exactly where it last was — which is the client faithfully drawing the last thing
+    // it was told, and looks for all the world like a bug in the simulation.
+    this.sinceHeard += dt;
+    if (this.sinceHeard > QUIET) { this.lost(); return; }
     this.sinceMove += dt;
     if (this.sinceMove < MOVE_INTERVAL) return;
     this.sinceMove = 0;
     this.send({ type: 'move', ...me });
+  }
+
+  /**
+   * The world has gone quiet. Say so, let go of it, and go and join it again.
+   *
+   * Rejoining rather than dropping to the world in this tab: they were playing in somebody's world
+   * and the honest thing is to try to get them back into it. If it cannot be reached, the connect
+   * fails the way any connect does and the game says so — and whatever happens, the wildlife starts
+   * moving again, because `onWorldSilent` hands the creatures back to this client until a world is
+   * telling it about them.
+   */
+  private lost(): void {
+    const rejoin = this.joined;
+    this.events.onSystem(this.local
+      ? 'The world in this tab stopped answering. Starting it again.'
+      : 'The world went quiet. Trying it again.');
+    this.disconnect();
+    if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock);
   }
 
   /**
