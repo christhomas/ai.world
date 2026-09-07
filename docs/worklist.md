@@ -363,17 +363,35 @@ Things Chris hit on a real phone, in the order he hit them.
       wide. A maximised browser on a 4K screen has about 2020 pixels of viewport rather than 2160, so
       what Chris will actually see is 2.8×. The phone cannot reach the ramp at all — the floor is 1
       below 720 tall — which is a stronger guarantee than a media query somebody has to remember.)*
-- [ ] Two things the scaling made obvious rather than caused. The corner map is an upscale, not a
+- [x] Two things the scaling made obvious rather than caused. The corner map is an upscale, not a
       bigger map: its canvas is 180 pixels square whatever size it is shown at, so at 3× it is a 4×
       blow-up of the same image, and `minimap.ts` should size its own backing store and its markers
       from the box it is given. And the modal panels — journal, rucksack, options, world map, the
       title screen — do not scale at all, so at 4K a 13-pixel journal sits inside a HUD that has
-      trebled and reads as a different application.
-- [ ] Three more the same, found while doing the above: `#castbar` sits at `bottom: 200px` on a
+      trebled and reads as a different application. *(Both done. The map sizes its
+      backing store from the box the stylesheet gives it and draws its marks as shares of the map
+      rather than counts of pixels — the stylesheet has to state the size, because a canvas that
+      sets its own width grows the box, asks for more pixels, and walks across the screen on a
+      retina display. The base image is only about 176 real pixels of world, so past 2× the extra
+      resolution buys the marks rather than the map, and the blit turns smoothing off when
+      enlarging: a blocky world enlarged should read as tiles, not as a soft photograph. The modal
+      panels now ride the same ramp — journal, rucksack, options and world map measure 1.0 / 1.5 /
+      2.0 / 3.0 at 1280, 1920, 2560 and 3840 wide.)*
+- [x] Three more the same, found while doing the above: `#castbar` sits at `bottom: 200px` on a
       phone, which is directly over the hero; `#toast` and `#duelbar` are still pinned with
       hand-computed offsets in the middle of the picture and want the treatment the log just had;
       and the panel rail mixes colour emoji with monochrome ones, which is the one thing left
-      stopping it reading as a single set.
+      stopping it reading as a single set. *(All three. The toast stands one line above the
+      log, the duel's score joins the readouts down the left, and the cast bar goes bottom-centre
+      where cast bars live — the phone's bands are now rail, duel, toast, log, cast bar, with
+      nothing at all on the hero. The emoji are gone: eleven controls are drawn in `glyphs.ts` on
+      one grid at one stroke width in `currentColor`, so they light with the button and stay crisp
+      at 4K. A filter could never have fixed it — the map, pack and book arrived as full-colour
+      pictures and the cog and arrows as thin strokes, and the difference is weight and detail, not
+      hue. Four wanted redrawing once they were up: the pack read as a padlock, the turn arrows as
+      a damaged letter C, the sword as a scratch with a bead on it, the bow as an arrow in a
+      bracket. The options button is sliders rather than a cog, because what is behind it is a
+      panel of sliders and a cog is a word for everything.)*
 
 ## Deployment
 
