@@ -496,3 +496,16 @@ Things Chris hit on a real phone, in the order he hit them.
       three trees in it. `structures.ts` went past 700 lines doing it, so the paddock is its own
       file and the pier planner — the one job in there about a coast rather than a settlement —
       went to another.)*
+
+## The way it looks, September 8th
+
+- [ ] The title screen is a bad loading screen: three fat rounded boxes with a green button each,
+      an options panel floating in the bottom-right corner in a different visual language and
+      overlapping the third slot, and — on a phone — everything crammed into the top-left third with
+      two-thirds of the glass empty. Wants to be sleeker and to work on both desktop and a phone: a
+      sidebar layout on the desktop.
+- [ ] The whole interface is built out of rounded rectangles with 2px light borders, and it reads as
+      a template rather than as this game. The desktop's right-hand column is the worst of it: a
+      rounded box with wasted space above and beside it. A pixel-art game can look far better than
+      this — the answer is fewer boxes, hairlines instead of borders, and panels that meet the edge
+      of the screen.
