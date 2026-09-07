@@ -533,3 +533,5 @@ Things Chris hit on a real phone, in the order he hit them.
       sitting round a table in there to be talked to like anybody else.
 - [ ] A ship sailed straight through an island. Boats want to collide with a coastline — and getting
       on or off one should only be possible at a dock.
+- [ ] There is no way to open the console on a phone. It is tilde on a keyboard and nothing at all
+      on a thumb, so it wants a button in the touch rail.
