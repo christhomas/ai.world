@@ -446,3 +446,29 @@ Things Chris hit on a real phone, in the order he hit them.
 
 - [x] The operator door has no safety story. *(`OPERATOR_WATCH_TOKEN` may only run the commands
       marked `reads`; both tokens are rate limited, and every command through the door is logged.)*
+
+## Playing it, September 7th
+
+- [x] Nothing on a shop's shelf says what it does. A row read "Iron Sword — 60g" and the only way
+      to find out what that bought you was to buy it. *(Every row now carries what it gives you
+      underneath — `+2 attack`, `heals 5`, `climb two terraces at once` — from the same
+      `itemSummary()` the rucksack and the journal already used, so there is no second table to
+      drift. Where an item grants nothing measurable the note says what it is instead: seeds have
+      no stats, and a player needs to know they go on bare earth beside a village. And it exposed
+      something older — a general store stocks seventeen things and the dialogue box is anchored to
+      the bottom of the screen, so it already stood 90 pixels off the top of a desktop window and
+      251 off a phone. The box is capped at the screen now, the shelf scrolls, and the highlighted
+      row is kept in view.)*
+- [x] The corner map does not show the right place, and the hero is not in the middle of it.
+      *(Three faults compounding. It clamped its crop to the edge of the base image, so near the rim
+      of the world the hero slid off centre. It was north-up while the camera can be swung right
+      round, so a village on your left could be behind you. And the box showing what is on screen
+      was a square drawn round the hero, turned 45° and stretched by a hand-picked 1.4 — which was
+      true only while the camera looked straight down at his feet, and false from the day it learned
+      to aim up at a mountain, which puts him 70% down the frame. The map is now always centred on
+      him, turns so that the way the camera looks is the top of it, and asks the camera itself where
+      the picture meets the ground.)*
+- [ ] At night the hero is lit as though the light comes out of his head. He should be carrying a
+      torch — something like a tiki torch, in his hand, that the light comes from.
+- [ ] A stable reads as an ordinary house. It wants a paddock attached, with goats and horses
+      walking about inside it, so that it is obviously a stable from a distance.
