@@ -10,13 +10,20 @@
  * old screen gave. This costs about a millisecond a frame and starts on the first one.
  */
 
-/** The sky, from the top of the screen down to the horizon. */
+/**
+ * The sky, from the top of the screen down to the horizon.
+ *
+ * The horizon sits at about three-quarters, not at the bottom: the land has to be under it, and
+ * everything above it is for reading words on. The warm end is kept narrow — a wide dusk is
+ * pretty and turns the bottom third of the screen into something nothing can be written over.
+ */
 const SKY: Array<[number, string]> = [
-  [0, '#0a1030'],
-  [0.45, '#1b2b5c'],
-  [0.72, '#3f4a7e'],
-  [0.88, '#8a5a72'],
-  [1, '#d98a5c'],
+  [0, '#070c26'],
+  [0.42, '#0e1740'],
+  [0.66, '#1d2a58'],
+  [0.78, '#4a3f68'],
+  [0.86, '#6d4a5e'],
+  [1, '#8a5340'],
 ];
 
 /**
@@ -27,14 +34,19 @@ const SKY: Array<[number, string]> = [
  * steps get bigger as they come towards you, because that is what perspective does to a terrace.
  */
 const RIDGES = [
-  { fill: '#4a5688', sit: 0.52, rise: 0.13, steps: 5, size: 260, drift: 1.6 },
-  { fill: '#38446f', sit: 0.62, rise: 0.15, steps: 6, size: 190, drift: 3.2 },
-  { fill: '#26305a', sit: 0.74, rise: 0.17, steps: 7, size: 140, drift: 6.0 },
-  { fill: '#151c3c', sit: 0.88, rise: 0.18, steps: 8, size: 95, drift: 11.0 },
+  { fill: '#3b4675', sit: 0.790, rise: 0.080, steps: 5, size: 240, drift: 1.4 },
+  { fill: '#2a3358', sit: 0.845, rise: 0.072, steps: 6, size: 175, drift: 2.8 },
+  { fill: '#1b2340', sit: 0.900, rise: 0.066, steps: 7, size: 128, drift: 5.2 },
+  { fill: '#0c1124', sit: 0.955, rise: 0.060, steps: 8, size: 88, drift: 9.5 },
 ] as const;
 
-/** How wide a terrace is on screen, in pixels, before the ridge's own scale is applied. */
-const TREAD = 26;
+/**
+ * How wide a terrace is on screen, before the ridge's own scale is applied.
+ *
+ * Small, because a wide tread makes a bar chart rather than a hillside: the eye reads a step as a
+ * step only while there are enough of them across a hill to see it is a hill.
+ */
+const TREAD = 13;
 
 /** Stars, and how far down the sky they are allowed to fall. */
 const STARS = 90;
@@ -114,6 +126,16 @@ export function paintTitleSky(canvas: HTMLCanvasElement): () => void {
 
     const seconds = (now - began) / 1000;
     RIDGES.forEach((r, i) => ridge(ctx, w, h, r, seconds * r.drift * dpr, i));
+
+    // and a wash over the whole thing, darkest where the words are. The land is scenery: it has to
+    // be visibly there and it must never be the reason a line of type is hard to read.
+    const scrim = ctx.createLinearGradient(0, 0, 0, h);
+    scrim.addColorStop(0, 'rgba(6, 9, 22, 0.45)');
+    scrim.addColorStop(0.62, 'rgba(6, 9, 22, 0.38)');
+    scrim.addColorStop(0.8, 'rgba(6, 9, 22, 0.12)');
+    scrim.addColorStop(1, 'rgba(6, 9, 22, 0.34)');
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, 0, w, h);
     frame = requestAnimationFrame(draw);
   };
 

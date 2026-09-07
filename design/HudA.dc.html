@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
+    body { margin: 0; font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+    a { color: #ffd76a; } a:hover { color: #fff0b8; }
+  </style>
+</helmet>
+
+<!-- A · CUT STONE. No box has a border. Every panel is a flat dark slab that meets an edge of the
+     screen, and the only lines anywhere are one-pixel hairlines on the inside edge. Square corners,
+     because this is a world made of cut terraces and a rounded corner is a web page. -->
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; color: #eef2ff; background: linear-gradient(160deg, #4f8a46 0%, #57964c 40%, #3f7a54 70%, #2d6a72 100%)">
+
+  <!-- a suggestion of the world under it, so the panels are judged over real ground -->
+  <svg width="1440" height="900" style="position: absolute; inset: 0; opacity: 0.5">
+    <path d="M0 380 H300 V430 H620 V380 H900 V440 H1200 V400 H1440 V900 H0 Z" fill="#3c7a41"/>
+    <path d="M0 560 H240 V610 H520 V560 H840 V620 H1180 V580 H1440 V900 H0 Z" fill="#336b3c"/>
+    <circle cx="1050" cy="300" r="46" fill="#2f6a54"/><circle cx="1130" cy="340" r="38" fill="#2f6a54"/>
+  </svg>
+
+  <!-- ── the readouts: flush to the corner, no box at all ──────────────────────── -->
+  <div style="position: absolute; top: 0; left: 0; background: rgba(6, 9, 22, 0.72); padding: 16px 26px 14px 20px; display: flex; flex-direction: column; gap: 9px; border-right: 1px solid rgba(214,221,255,0.14); border-bottom: 1px solid rgba(214,221,255,0.14)">
+    <div style="display: flex; gap: 3px">
+      <span style="width: 13px; height: 13px; background: #e8434f; display: block"></span><span style="width: 13px; height: 13px; background: #e8434f; display: block"></span><span style="width: 13px; height: 13px; background: #e8434f; display: block"></span><span style="width: 13px; height: 13px; background: #e8434f; display: block"></span><span style="width: 13px; height: 13px; background: #e8434f; display: block"></span><span style="width: 13px; height: 13px; background: #e8434f; display: block"></span><span style="width: 13px; height: 13px; background: #e8434f; display: block"></span><span style="width: 13px; height: 13px; background: #3a2030; display: block"></span><span style="width: 13px; height: 13px; background: #3a2030; display: block"></span>
+    </div>
+    <div style="display: flex; gap: 3px">
+      <span style="width: 13px; height: 7px; background: #4aa3e8; display: block"></span><span style="width: 13px; height: 7px; background: #4aa3e8; display: block"></span><span style="width: 13px; height: 7px; background: #4aa3e8; display: block"></span><span style="width: 13px; height: 7px; background: #4aa3e8; display: block"></span><span style="width: 13px; height: 7px; background: #4aa3e8; display: block"></span><span style="width: 13px; height: 7px; background: #203048; display: block"></span><span style="width: 13px; height: 7px; background: #203048; display: block"></span>
+    </div>
+    <span style="height: 1px; background: rgba(214,221,255,0.14); margin: 3px 0"></span>
+    <div style="display: flex; align-items: baseline; gap: 10px; font-size: 15px; letter-spacing: 1px">
+      <span style="color: #ffd76a">246</span><span style="color: #7f8bb3; font-size: 11px; letter-spacing: 2px">GOLD</span>
+    </div>
+    <div style="display: flex; gap: 14px; font-size: 12px; color: #9aa5cc; letter-spacing: 1px">
+      <span>⚔ 4</span><span>🛡 2</span><span>🎒 11</span>
+    </div>
+  </div>
+
+  <!-- ── the place you have walked into: a rule and a word, not a plaque ───────── -->
+  <div style="position: absolute; top: 34px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 9px">
+    <span style="font-size: 27px; letter-spacing: 11px; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.55), 0 0 22px rgba(0,0,0,0.5)">STONEMERE</span>
+    <span style="width: 190px; height: 2px; background: #ffd76a; box-shadow: 0 1px 0 rgba(0,0,0,0.5)"></span>
+    <span style="font-size: 11px; letter-spacing: 4px; color: #dfe5ff; text-shadow: 0 1px 0 rgba(0,0,0,0.7)">A VILLAGE IN THE MEADOWS</span>
+  </div>
+
+  <!-- ── the corner map: flush to the corner, hairline on the two inside edges ──── -->
+  <div style="position: absolute; top: 0; right: 0; background: rgba(6, 9, 22, 0.72); border-left: 1px solid rgba(214,221,255,0.14); border-bottom: 1px solid rgba(214,221,255,0.14)">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid rgba(214,221,255,0.10)">
+      <span style="font-size: 15px; color: #ffd76a; letter-spacing: 1px">08:14</span>
+      <span style="font-size: 10px; color: #7f8bb3; letter-spacing: 2px">DAY 1 · SPRING</span>
+    </div>
+    <div style="width: 200px; height: 200px; background: #101a2e; position: relative">
+      <svg width="200" height="200"><path d="M40 30 H150 V70 H175 V150 H90 V175 H40 Z" fill="#2e5c37"/><path d="M60 90 H120 V130 H60 Z" fill="#3f7a41"/><path d="M0 150 H60 V200 H0 Z" fill="#1d3a5c"/></svg>
+      <span style="position: absolute; top: 96px; left: 96px; width: 8px; height: 8px; background: #ff4d4d; display: block"></span>
+      <span style="position: absolute; top: 62px; left: 62px; width: 76px; height: 62px; border: 1px solid rgba(255,255,255,0.72)"></span>
+    </div>
+  </div>
+
+  <!-- ── what the world has been saying: bands off the left edge ───────────────── -->
+  <div style="position: absolute; left: 0; bottom: 118px; width: 470px; display: flex; flex-direction: column; gap: 1px">
+    <div style="background: rgba(6, 9, 22, 0.66); border-left: 3px solid #ffd76a; padding: 10px 16px; font-size: 13px; line-height: 1.55; color: #dfe5ff">Bears have been at Elderton for days. It lies to the east, about 300 paces off.</div>
+    <div style="background: rgba(6, 9, 22, 0.58); border-left: 3px solid rgba(214,221,255,0.2); padding: 10px 16px; font-size: 13px; line-height: 1.55; color: #aab4d8">Lise, the storekeeper, has a horse to sell.</div>
+  </div>
+
+  <!-- ── what you can do about it: the one place a control is a shape ──────────── -->
+  <div style="position: absolute; right: 40px; bottom: 40px; display: flex; align-items: flex-end; gap: 14px">
+    <span style="width: 58px; height: 58px; background: rgba(10,13,28,0.62); border: 1px solid rgba(214,221,255,0.34); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #eef2ff">🏹</span>
+    <span style="width: 58px; height: 58px; background: rgba(10,13,28,0.62); border: 1px solid rgba(214,221,255,0.34); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #eef2ff">🛡</span>
+    <span style="width: 86px; height: 86px; background: rgba(150,140,255,0.5); border: 1px solid rgba(214,221,255,0.5); display: flex; align-items: center; justify-content: center; font-size: 12px; letter-spacing: 2px; color: #fff">USE</span>
+  </div>
+
+  <div style="position: absolute; left: 0; bottom: 0; background: rgba(6,9,22,0.7); border-top: 1px solid rgba(214,221,255,0.12); border-right: 1px solid rgba(214,221,255,0.12); padding: 9px 20px; font-size: 11px; color: #5d688c; letter-spacing: 2px">A · CUT STONE — flush slabs, hairlines, square corners, no borders</div>
+</div>
+</x-dc>
+</body>
+</html>

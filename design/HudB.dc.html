@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
+    body { margin: 0; font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+    a { color: #7a4a1a; } a:hover { color: #4a2a08; }
+  </style>
+</helmet>
+
+<!-- B · THE TRAVELLER'S KIT. The interface is the hero's own gear rather than a layer over the
+     picture: paper, ink and a painted signboard. The journal already looks like this, so the rest
+     of the game would be joining it rather than a new idea arriving. Square, hard-edged, warm. -->
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; color: #eef2ff; background: linear-gradient(160deg, #4f8a46 0%, #57964c 40%, #3f7a54 70%, #2d6a72 100%)">
+
+  <svg width="1440" height="900" style="position: absolute; inset: 0; opacity: 0.5">
+    <path d="M0 380 H300 V430 H620 V380 H900 V440 H1200 V400 H1440 V900 H0 Z" fill="#3c7a41"/>
+    <path d="M0 560 H240 V610 H520 V560 H840 V620 H1180 V580 H1440 V900 H0 Z" fill="#336b3c"/>
+    <circle cx="1050" cy="300" r="46" fill="#2f6a54"/><circle cx="1130" cy="340" r="38" fill="#2f6a54"/>
+  </svg>
+
+  <!-- ── the readouts, on a strip of paper pinned to the corner ────────────────── -->
+  <div style="position: absolute; top: 18px; left: 18px; background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418; padding: 14px 20px 13px; display: flex; flex-direction: column; gap: 9px; box-shadow: 3px 3px 0 rgba(26, 20, 32, 0.55)">
+    <div style="display: flex; gap: 3px">
+      <span style="width: 13px; height: 13px; background: #a8202c; display: block"></span><span style="width: 13px; height: 13px; background: #a8202c; display: block"></span><span style="width: 13px; height: 13px; background: #a8202c; display: block"></span><span style="width: 13px; height: 13px; background: #a8202c; display: block"></span><span style="width: 13px; height: 13px; background: #a8202c; display: block"></span><span style="width: 13px; height: 13px; background: #a8202c; display: block"></span><span style="width: 13px; height: 13px; background: #a8202c; display: block"></span><span style="width: 13px; height: 13px; background: #cbbfa0; display: block"></span><span style="width: 13px; height: 13px; background: #cbbfa0; display: block"></span>
+    </div>
+    <div style="display: flex; gap: 3px">
+      <span style="width: 13px; height: 7px; background: #2a5f96; display: block"></span><span style="width: 13px; height: 7px; background: #2a5f96; display: block"></span><span style="width: 13px; height: 7px; background: #2a5f96; display: block"></span><span style="width: 13px; height: 7px; background: #2a5f96; display: block"></span><span style="width: 13px; height: 7px; background: #2a5f96; display: block"></span><span style="width: 13px; height: 7px; background: #cbbfa0; display: block"></span><span style="width: 13px; height: 7px; background: #cbbfa0; display: block"></span>
+    </div>
+    <span style="height: 2px; background: #2a2418; opacity: 0.35; margin: 2px 0"></span>
+    <div style="display: flex; align-items: baseline; gap: 9px; font-size: 15px">
+      <span style="font-weight: 700">246</span><span style="font-size: 11px; letter-spacing: 2px; opacity: 0.6">GOLD</span>
+    </div>
+    <div style="display: flex; gap: 14px; font-size: 12px; opacity: 0.75">
+      <span>⚔ 4</span><span>🛡 2</span><span>🎒 11</span>
+    </div>
+  </div>
+
+  <!-- ── the place you have walked into, as the sign at its edge ───────────────── -->
+  <div style="position: absolute; top: 26px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center">
+    <div style="background: #6b4a2b; padding: 4px; box-shadow: 4px 4px 0 rgba(26,20,32,0.5)">
+      <div style="background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418; padding: 12px 40px 13px; display: flex; flex-direction: column; align-items: center; gap: 5px">
+        <span style="font-size: 25px; letter-spacing: 8px; font-weight: 700">STONEMERE</span>
+        <span style="font-size: 10px; letter-spacing: 4px; opacity: 0.62">A VILLAGE IN THE MEADOWS</span>
+      </div>
+    </div>
+    <span style="width: 14px; height: 26px; background: #5a3f22"></span>
+  </div>
+
+  <!-- ── the map, as a folded chart ────────────────────────────────────────────── -->
+  <div style="position: absolute; top: 18px; right: 18px; background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418; padding: 10px; box-shadow: 3px 3px 0 rgba(26,20,32,0.55)">
+    <div style="display: flex; align-items: baseline; gap: 10px; padding: 0 4px 9px">
+      <span style="font-size: 15px; font-weight: 700">08:14</span>
+      <span style="font-size: 10px; letter-spacing: 2px; opacity: 0.6">DAY 1 · SPRING</span>
+    </div>
+    <div style="width: 200px; height: 200px; background: #d8c9a4; position: relative; box-shadow: inset 0 0 0 2px rgba(42,36,24,0.5)">
+      <svg width="200" height="200"><path d="M40 30 H150 V70 H175 V150 H90 V175 H40 Z" fill="#a8b884"/><path d="M60 90 H120 V130 H60 Z" fill="#8faa6a"/><path d="M0 150 H60 V200 H0 Z" fill="#9ab4c4"/></svg>
+      <span style="position: absolute; top: 96px; left: 96px; width: 8px; height: 8px; background: #a8202c; display: block"></span>
+      <span style="position: absolute; top: 62px; left: 62px; width: 76px; height: 62px; border: 2px solid rgba(42,36,24,0.55)"></span>
+    </div>
+  </div>
+
+  <!-- ── the news, written down ────────────────────────────────────────────────── -->
+  <div style="position: absolute; left: 18px; bottom: 130px; width: 470px; background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418; box-shadow: 3px 3px 0 rgba(26,20,32,0.55)">
+    <div style="padding: 11px 16px; font-size: 13px; line-height: 1.55; border-bottom: 1px solid rgba(42,36,24,0.2)">Bears have been at Elderton for days. It lies to the east, about 300 paces off.</div>
+    <div style="padding: 11px 16px; font-size: 13px; line-height: 1.55; opacity: 0.66">Lise, the storekeeper, has a horse to sell.</div>
+  </div>
+
+  <!-- ── the controls stay dark: a hand covers them, and paper under a thumb is lost ── -->
+  <div style="position: absolute; right: 40px; bottom: 40px; display: flex; align-items: flex-end; gap: 14px">
+    <span style="width: 58px; height: 58px; background: #6b4a2b; border: 3px solid #2a2418; display: flex; align-items: center; justify-content: center; font-size: 20px">🏹</span>
+    <span style="width: 58px; height: 58px; background: #6b4a2b; border: 3px solid #2a2418; display: flex; align-items: center; justify-content: center; font-size: 20px">🛡</span>
+    <span style="width: 86px; height: 86px; background: #c8922e; border: 3px solid #2a2418; display: flex; align-items: center; justify-content: center; font-size: 12px; letter-spacing: 2px; color: #2a2418; font-weight: 700">USE</span>
+  </div>
+
+  <div style="position: absolute; left: 0; bottom: 0; background: rgba(6,9,22,0.7); padding: 9px 20px; font-size: 11px; color: #5d688c; letter-spacing: 2px">B · THE TRAVELLER'S KIT — paper and ink, painted signboards, hard square edges</div>
+</div>
+</x-dc>
+</body>
+</html>

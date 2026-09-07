@@ -499,11 +499,20 @@ Things Chris hit on a real phone, in the order he hit them.
 
 ## The way it looks, September 8th
 
-- [ ] The title screen is a bad loading screen: three fat rounded boxes with a green button each,
+- [x] The title screen is a bad loading screen: three fat rounded boxes with a green button each,
       an options panel floating in the bottom-right corner in a different visual language and
       overlapping the third slot, and — on a phone — everything crammed into the top-left third with
       two-thirds of the glass empty. Wants to be sleeker and to work on both desktop and a phone: a
-      sidebar layout on the desktop.
+      sidebar layout on the desktop. *(Rebuilt in cut stone, the language chosen off a design canvas
+      of four directions. A rail down the left holds the name, what a new world is made of, and the
+      keys — or, on a phone, the one line a thumb needs. The slots are bands rather than boxes: a
+      numeral, the day, the facts in one muted line, and the whole band is the button, because a
+      saved world has exactly one thing you want to do with it. Throwing one away is a small mark at
+      the far end of its own row instead of a red button beside Play. Behind it, `titlesky.ts` draws
+      four terraced ridges under a dusk sky, drifting; drawn rather than grown, because a title
+      screen has to be up on the first frame. The same shape at every size — 1440, 4K, and a phone
+      held sideways where the bands come to 68 pixels and the seed number, which is for a bug report
+      rather than for a player, goes.)*
 - [ ] The whole interface is built out of rounded rectangles with thick light borders, and it reads
       as a template rather than as this game — cobbled-together layers rather than a designed one.
       It is not even good pixel art: a 2px rounded border is a web page's idea of a box, not a

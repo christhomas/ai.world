@@ -1,6 +1,7 @@
 import type { SaveStore, SessionSave, WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
 import { takeTheScreen } from './sideways';
+import { paintTitleSky } from './titlesky';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
@@ -98,23 +99,37 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
     const finish = (choice: SlotChoice) => {
       root.classList.remove('show');
       document.removeEventListener('keydown', onKey);
+      stopSky();
       resolve(choice);
     };
+    /**
+     * A slot is a band you press, not a box with buttons in it.
+     *
+     * The old shape asked two questions of somebody who has one thing in mind: which slot, and
+     * then which of three buttons. A saved world has exactly one thing you want to do with it, so
+     * the whole band does it, and the only other verb — throwing it away — is a small mark at the
+     * far end of its own row rather than a red button sitting next to Play.
+     */
     const render = () => {
       list.innerHTML = SLOT_KEYS.map((_key, i) => {
         const s = saves[i];
         const st = s?.state;
-        const summary = s
-          ? `Day ${st?.day ?? 1} · ${nameOf(s.world)} · seed ${s.seed} · 💰 ${st?.inventory?.gold ?? 50} · ${st?.discovered?.length ?? 0} places found`
-          : 'Empty';
-        return `<div class="slot" data-slot="${i}">
-          <div class="slot-head">Slot ${i + 1} <span class="slot-key">[${i + 1}]</span></div>
-          <div class="slot-summary">${summary}</div>
-          <div class="slot-actions">
-            ${s ? `<button data-act="continue" data-slot="${i}">Continue</button>` : ''}
-            <button data-act="new" data-slot="${i}">New World</button>
-            ${s ? `<button class="danger" data-act="delete" data-slot="${i}">Delete</button>` : ''}
-          </div>
+        const inside = s
+          ? `<span class="slot-of">
+               <span class="slot-day">Day ${st?.day ?? 1}<span class="slot-world">${nameOf(s.world)}</span></span>
+               <span class="slot-facts">
+                 <span>${st?.inventory?.gold ?? 50} gold</span>
+                 <span>${st?.discovered?.length ?? 0} place${(st?.discovered?.length ?? 0) === 1 ? '' : 's'} found</span>
+                 <span class="slot-seed">seed ${s.seed}</span>
+               </span>
+             </span>
+             <span class="slot-go">Continue ▸</span>`
+          : `<span class="slot-of">Empty</span><span class="slot-go">＋ New world</span>`;
+        return `<div class="slot${s ? '' : ' empty'}">
+          <button class="band" data-act="${s ? 'continue' : 'new'}" data-slot="${i}">
+            <span class="slot-no">${i + 1}</span>${inside}
+          </button>
+          ${s ? `<button class="slot-del" data-act="delete" data-slot="${i}" title="Delete this world" aria-label="Delete slot ${i + 1}">✕</button>` : ''}
         </div>`;
       }).join('');
       switches.innerHTML = SWITCHES.map((sw) => `
@@ -152,6 +167,8 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       if (!btn) return;
       pick(Number(btn.dataset.slot), btn.dataset.act!);
     });
+    // the land behind it keeps moving while the choice is being made, and stops when it is
+    const stopSky = paintTitleSky($('titleSky') as HTMLCanvasElement);
     const flip = (el: HTMLElement) => {
       const id = el.dataset.switch!;
       const now = el.getAttribute('aria-checked') !== 'true';

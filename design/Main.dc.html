@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
+    body { margin: 0; font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+    a { color: #ffd76a; } a:hover { color: #fff0b8; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; background: linear-gradient(180deg, #0a1030 0%, #1b2b5c 45%, #3f4a7e 72%, #8a5a72 88%, #d98a5c 100%); color: #eef2ff; position: relative; overflow: hidden">
+
+  <!-- the land: terraces cut flat and stacked, the same shape the world is made of -->
+  <div style="position: absolute; inset: 0; pointer-events: none">
+    <svg width="1440" height="900" viewBox="0 0 1440 900" style="position: absolute; bottom: 0; left: 0">
+      <path d="M0 500 H120 V468 H240 V500 H360 V452 H520 V484 H640 V436 H800 V468 H960 V452 H1120 V484 H1280 V468 H1440 V900 H0 Z" fill="#4a5688"/>
+      <path d="M0 590 H160 V558 H300 V590 H440 V542 H580 V574 H760 V542 H900 V574 H1060 V558 H1220 V590 H1440 V900 H0 Z" fill="#38446f"/>
+      <path d="M0 690 H140 V652 H280 V690 H420 V640 H600 V678 H780 V640 H940 V678 H1100 V652 H1260 V690 H1440 V900 H0 Z" fill="#26305a"/>
+      <path d="M0 800 H180 V760 H340 V800 H500 V748 H700 V788 H880 V748 H1040 V788 H1220 V760 H1440 V900 H0 Z" fill="#151c3c"/>
+    </svg>
+  </div>
+
+  <!-- ── the rail: who you are, and what a new world is made of ───────────────── -->
+  <aside style="position: relative; flex: 0 0 384px; background: rgba(6, 9, 22, 0.88); border-right: 1px solid rgba(214, 221, 255, 0.16); padding: 56px 40px 36px; display: flex; flex-direction: column; gap: 40px">
+
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: baseline; gap: 12px">
+        <span style="width: 10px; height: 28px; background: #ffd76a; display: block"></span>
+        <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: 7px; color: #ffd76a">AI WORLD</h1>
+      </div>
+      <p style="margin: 0 0 0 22px; font-size: 13px; line-height: 1.7; color: #7f8bb3">A small hero.<br>A big seeded world.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span style="font-size: 11px; letter-spacing: 3px; color: #7f8bb3">A NEW WORLD IS MADE OF</span>
+        <span style="flex: 1; height: 1px; background: rgba(214, 221, 255, 0.14)"></span>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: flex-start">
+        <span style="flex: 0 0 auto; width: 40px; height: 20px; background: #35406e; border: 1px solid #6c5ce7; position: relative; margin-top: 2px">
+          <span style="position: absolute; top: 3px; left: 22px; width: 12px; height: 12px; background: #ffd76a; display: block"></span>
+        </span>
+        <span style="font-size: 13px; line-height: 1.5">Mountains<span style="display: block; color: #7f8bb3; font-size: 11px; line-height: 1.6; margin-top: 4px">Cliffs, high passes and the eyries above them. The land comes out more regular.</span></span>
+      </div>
+    </div>
+
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px">
+      <span style="height: 1px; background: rgba(214, 221, 255, 0.14)"></span>
+      <p style="margin: 0; font-size: 11px; line-height: 2; color: #5d688c; letter-spacing: 1px">WASD walk · ENTER talk<br>M map · F free camera</p>
+    </div>
+  </aside>
+
+  <!-- ── the slots: bands, not boxes ───────────────────────────────────────────── -->
+  <main style="position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 72px 0 56px">
+
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 26px">
+      <span style="font-size: 11px; letter-spacing: 3px; color: #7f8bb3">CONTINUE, OR BEGIN</span>
+      <span style="flex: 1; height: 1px; background: rgba(214, 221, 255, 0.14)"></span>
+    </div>
+
+    <!-- a world in progress, and the one the cursor is on -->
+    <div style="display: flex; align-items: center; gap: 26px; padding: 22px 26px 22px 22px; background: rgba(9, 13, 30, 0.72); border-left: 4px solid #ffd76a; box-shadow: 0 2px 24px rgba(0,0,0,0.4)">
+      <span style="font-size: 40px; font-weight: 700; color: #ffd76a; line-height: 1; width: 34px">1</span>
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 20px; letter-spacing: 1px">Day 12 <span style="color: #7f8bb3; font-size: 13px; letter-spacing: 2px; margin-left: 10px">WITH MOUNTAINS</span></span>
+        <span style="display: flex; gap: 22px; font-size: 12px; color: #9aa5cc; letter-spacing: 1px">
+          <span>246 gold</span><span>9 places found</span><span style="color: #5d688c">seed 481207</span>
+        </span>
+      </span>
+      <span style="font-size: 13px; letter-spacing: 3px; color: #ffd76a">CONTINUE ▸</span>
+    </div>
+
+    <span style="height: 1px; background: rgba(214, 221, 255, 0.10)"></span>
+
+    <div style="display: flex; align-items: center; gap: 26px; padding: 22px 26px 22px 22px; border-left: 4px solid transparent">
+      <span style="font-size: 40px; font-weight: 700; color: #3d4670; line-height: 1; width: 34px">2</span>
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 20px; letter-spacing: 1px">Day 3 <span style="color: #7f8bb3; font-size: 13px; letter-spacing: 2px; margin-left: 10px">FLAT COUNTRY</span></span>
+        <span style="display: flex; gap: 22px; font-size: 12px; color: #9aa5cc; letter-spacing: 1px">
+          <span>50 gold</span><span>1 place found</span><span style="color: #5d688c">seed 90114</span>
+        </span>
+      </span>
+      <span style="font-size: 13px; letter-spacing: 3px; color: #7f8bb3">CONTINUE ▸</span>
+    </div>
+
+    <span style="height: 1px; background: rgba(214, 221, 255, 0.10)"></span>
+
+    <!-- empty: an invitation, and visibly a different kind of thing -->
+    <div style="display: flex; align-items: center; gap: 26px; padding: 22px 26px 22px 22px; border-left: 4px solid transparent">
+      <span style="font-size: 40px; font-weight: 400; color: #2c3358; line-height: 1; width: 34px">3</span>
+      <span style="flex: 1; font-size: 15px; letter-spacing: 2px; color: #5d688c">EMPTY</span>
+      <span style="font-size: 13px; letter-spacing: 3px; color: #7fd6a0">＋ NEW WORLD</span>
+    </div>
+
+    <p style="margin: 30px 0 0; font-size: 11px; letter-spacing: 2px; color: #4d5680">PRESS 1, 2 OR 3</p>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

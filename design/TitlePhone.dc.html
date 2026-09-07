@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
+    body { margin: 0; font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+    a { color: #ffd76a; } a:hover { color: #fff0b8; }
+  </style>
+</helmet>
+
+<!-- a phone held sideways: 844 x 390, which is the whole of the glass once the browser is gone -->
+<div style="width: 844px; height: 390px; display: flex; background: linear-gradient(180deg, #0a1030 0%, #1b2b5c 46%, #3f4a7e 74%, #8a5a72 90%, #d98a5c 100%); color: #eef2ff; position: relative; overflow: hidden">
+
+  <div style="position: absolute; inset: 0; pointer-events: none">
+    <svg width="844" height="390" viewBox="0 0 844 390" style="position: absolute; bottom: 0; left: 0">
+      <path d="M0 214 H90 V198 H180 V214 H270 V190 H380 V206 H470 V182 H580 V198 H680 V190 H780 V206 H844 V390 H0 Z" fill="#4a5688"/>
+      <path d="M0 262 H110 V244 H210 V262 H310 V236 H420 V254 H540 V236 H640 V254 H750 V244 H844 V390 H0 Z" fill="#38446f"/>
+      <path d="M0 312 H100 V292 H200 V312 H300 V286 H430 V306 H560 V286 H670 V306 H780 V292 H844 V390 H0 Z" fill="#26305a"/>
+      <path d="M0 356 H130 V336 H240 V356 H350 V330 H500 V350 H620 V330 H740 V350 H844 V390 H0 Z" fill="#151c3c"/>
+    </svg>
+  </div>
+
+  <!-- the rail keeps its job on a phone, it just gets narrower -->
+  <aside style="position: relative; flex: 0 0 232px; background: rgba(6, 9, 22, 0.9); border-right: 1px solid rgba(214, 221, 255, 0.16); padding: 22px 20px 18px; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; align-items: baseline; gap: 9px">
+      <span style="width: 7px; height: 19px; background: #ffd76a; display: block"></span>
+      <h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 4px; color: #ffd76a">AI WORLD</h1>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 11px">
+      <span style="font-size: 9px; letter-spacing: 2px; color: #7f8bb3">A NEW WORLD IS MADE OF</span>
+      <div style="display: flex; gap: 11px; align-items: center">
+        <span style="flex: 0 0 auto; width: 44px; height: 26px; background: #35406e; border: 1px solid #6c5ce7; position: relative">
+          <span style="position: absolute; top: 4px; left: 22px; width: 16px; height: 16px; background: #ffd76a; display: block"></span>
+        </span>
+        <span style="font-size: 12px">Mountains</span>
+      </div>
+    </div>
+
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
+      <span style="height: 1px; background: rgba(214, 221, 255, 0.14)"></span>
+      <p style="margin: 0; font-size: 9px; line-height: 1.9; color: #5d688c; letter-spacing: 1px">TAP A WORLD TO GO IN</p>
+    </div>
+  </aside>
+
+  <main style="position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 18px">
+
+    <!-- 64px tall bands: comfortably over the 44px a thumb needs, and three of them fit -->
+    <div style="display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 16px 0 14px; background: rgba(9, 13, 30, 0.74); border-left: 4px solid #ffd76a">
+      <span style="font-size: 28px; font-weight: 700; color: #ffd76a; width: 22px">1</span>
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 5px">
+        <span style="font-size: 16px">Day 12 <span style="color: #7f8bb3; font-size: 10px; letter-spacing: 2px; margin-left: 8px">MOUNTAINS</span></span>
+        <span style="font-size: 10px; color: #9aa5cc; letter-spacing: 1px">246 gold · 9 places found</span>
+      </span>
+      <span style="font-size: 11px; letter-spacing: 2px; color: #ffd76a">▸</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 16px 0 14px; background: rgba(9, 13, 30, 0.5); border-left: 4px solid transparent">
+      <span style="font-size: 28px; font-weight: 700; color: #3d4670; width: 22px">2</span>
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 5px">
+        <span style="font-size: 16px">Day 3 <span style="color: #7f8bb3; font-size: 10px; letter-spacing: 2px; margin-left: 8px">FLAT</span></span>
+        <span style="font-size: 10px; color: #9aa5cc; letter-spacing: 1px">50 gold · 1 place found</span>
+      </span>
+      <span style="font-size: 11px; letter-spacing: 2px; color: #7f8bb3">▸</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 16px; height: 74px; padding: 0 16px 0 14px; background: rgba(9, 13, 30, 0.5); border-left: 4px solid transparent">
+      <span style="font-size: 28px; color: #2c3358; width: 22px">3</span>
+      <span style="flex: 1; font-size: 12px; letter-spacing: 2px; color: #5d688c">EMPTY</span>
+      <span style="font-size: 11px; letter-spacing: 2px; color: #7fd6a0">＋ NEW</span>
+    </div>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

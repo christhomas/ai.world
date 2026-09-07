@@ -290,55 +290,159 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   border-radius: calc(6 * var(--ui-scale)); cursor: pointer; font-family: inherit;
 }
 #optionsPanel button.wide:hover { background: #3d3d5c; }
+/*
+ * CUT STONE — the one visual language, decided here and used everywhere below.
+ *
+ * The interface used to be rounded rectangles with a thick pale border round each one, which is
+ * what a thing looks like when nobody has decided what it should look like: a template, not this
+ * game. Three rules replace it, and they are all the rules there are:
+ *
+ *   1. A panel is a flat dark slab that MEETS AN EDGE of the screen. It is not a card floating in
+ *      the middle of the picture with a margin all round it — that margin is wasted glass, and on
+ *      a phone there is none to waste.
+ *   2. The only line anywhere is a HAIRLINE on the inside edges — the edges that face the game.
+ *      One pixel of --ui-scale at low opacity. No outline runs all the way round anything.
+ *   3. Corners are SQUARE. This is a world of terraces cut flat and stacked; a rounded corner
+ *      belongs to a web page and reads as one.
+ *
+ * Depth comes from how dark the slab is and from the shadow under it, never from a ring drawn
+ * round it. Emphasis is a solid bar on ONE side — the left, where reading starts — never a border.
+ * The gold is used once per panel at most: it is what the eye is meant to find.
+ */
+:root {
+  /* the slab every panel is cut from, and the hairline on the edges that face the game */
+  --stone: rgba(6, 9, 22, 0.72);
+  --stone-deep: rgba(6, 9, 22, 0.88);
+  --hair: rgba(214, 221, 255, 0.14);
+  --hair-faint: rgba(214, 221, 255, 0.10);
+  --gold: #ffd76a;
+  --ink-dim: #9aa5cc;
+  --ink-far: #7f8bb3;
+  --ink-faint: #5d688c;
+}
+
 #title {
   display: none; position: fixed; inset: 0; z-index: 3000;
-  background: radial-gradient(ellipse at top, #24406b 0%, #0b1230 70%);
-  align-items: center; justify-content: center; color: #fff;
+  background: #0a1030; color: var(--ui-ink);
 }
 #title.show { display: flex; }
-#title .title-card { text-align: center; width: min(calc(560 * var(--ui-scale)), 92vw); }
-#title h1 { font-size: calc(56 * var(--ui-scale)); letter-spacing: calc(4 * var(--ui-scale)); color: #ffd76a; text-shadow: 0 calc(4 * var(--ui-scale)) 0 #6c5ce7, 0 calc(8 * var(--ui-scale)) calc(24 * var(--ui-scale)) rgba(0,0,0,0.6); margin-bottom: calc(6 * var(--ui-scale)); }
-#title .tagline { color: #cfd6ff; margin-bottom: calc(22 * var(--ui-scale)); }
-#title .hint { color: #7f8bb3; font-size: calc(12 * var(--ui-scale)); margin-top: calc(18 * var(--ui-scale)); }
-#slots { display: flex; flex-direction: column; gap: calc(12 * var(--ui-scale)); }
-#slots .slot {
-  background: linear-gradient(180deg, #1c2a6b 0%, #0d1540 100%); border: calc(2 * var(--ui-scale)) solid #8fa0ff; border-radius: calc(8 * var(--ui-scale));
-  padding: calc(12 * var(--ui-scale)) calc(16 * var(--ui-scale)); text-align: left;
-}
-#slots .slot-head { font-weight: bold; color: #ffd76a; }
-#slots .slot-key { color: #7f8bb3; font-weight: normal; font-size: calc(12 * var(--ui-scale)); }
-#slots .slot-summary { color: #cfd6ff; font-size: calc(13 * var(--ui-scale)); margin: calc(4 * var(--ui-scale)) 0 calc(10 * var(--ui-scale)); }
-#slots .slot-actions { display: flex; gap: calc(8 * var(--ui-scale)); }
+/* the land behind it, painted by titlesky.ts */
+#titleSky { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
-/* the switches sit out of the way in the corner, because they are read once and then ignored */
-#titleOptions {
-  position: absolute; right: calc(22 * var(--ui-scale)); bottom: calc(22 * var(--ui-scale)); width: min(calc(300 * var(--ui-scale)), 90vw);
-  background: rgba(16, 18, 34, 0.82); border: var(--ui-scale) solid #2b3157; border-radius: calc(10 * var(--ui-scale));
-  padding: calc(12 * var(--ui-scale)) calc(14 * var(--ui-scale)); text-align: left;
+/* ── the rail: who you are, and what a new world is made of ─────────────────── */
+#titleRail {
+  position: relative; flex: 0 0 calc(384 * var(--ui-scale));
+  background: var(--stone-deep); border-right: var(--ui-scale) solid var(--hair);
+  padding: calc(56 * var(--ui-scale)) calc(40 * var(--ui-scale)) calc(36 * var(--ui-scale));
+  display: flex; flex-direction: column; gap: calc(40 * var(--ui-scale));
 }
-#titleOptions .opt-head { color: #ffd76a; font-weight: bold; font-size: calc(13 * var(--ui-scale)); margin-bottom: calc(8 * var(--ui-scale)); }
-#titleOptions .opt-foot { color: #7f8bb3; font-size: calc(11 * var(--ui-scale)); margin-top: calc(10 * var(--ui-scale)); line-height: 1.45; }
-#titleSwitches { display: flex; flex-direction: column; gap: calc(10 * var(--ui-scale)); }
+#titleRail .brand { display: flex; flex-direction: column; gap: calc(14 * var(--ui-scale)); }
+/* the wordmark is a gold bar and a word. The old one had a hard purple drop shadow under it,
+   which is clip-art rather than type, and it is the first thing anybody sees. */
+#title h1 {
+  font-size: calc(34 * var(--ui-scale)); font-weight: bold; letter-spacing: calc(7 * var(--ui-scale));
+  color: var(--gold); position: relative; padding-left: calc(22 * var(--ui-scale));
+}
+#title h1::before {
+  content: ''; position: absolute; left: 0; top: calc(4 * var(--ui-scale));
+  width: calc(10 * var(--ui-scale)); height: calc(28 * var(--ui-scale)); background: var(--gold);
+}
+#title .tagline {
+  margin-left: calc(22 * var(--ui-scale)); font-size: calc(13 * var(--ui-scale));
+  line-height: 1.7; color: var(--ink-far);
+}
+#titleRail .rail-block { display: flex; flex-direction: column; gap: calc(16 * var(--ui-scale)); }
+#titleRail .rail-foot {
+  margin-top: auto; padding-top: calc(10 * var(--ui-scale)); border-top: var(--ui-scale) solid var(--hair);
+  font-size: calc(11 * var(--ui-scale)); line-height: 2; color: var(--ink-faint); letter-spacing: var(--ui-scale);
+}
+/* the keys are no use to a thumb, so a phone is told the one thing it needs instead */
+#titleRail .rail-foot .on-keys, #titleRail .rail-foot .on-touch { display: none; }
+#titleRail .rail-foot .on-keys { display: inline; }
+body.touch #titleRail .rail-foot .on-keys { display: none; }
+body.touch #titleRail .rail-foot .on-touch { display: inline; }
+
+/* a heading is a small word and a rule running out to the edge, not a box with a title in it */
+#title .rail-head { display: flex; align-items: center; gap: calc(14 * var(--ui-scale)); }
+#title .rail-head span {
+  font-size: calc(11 * var(--ui-scale)); letter-spacing: calc(3 * var(--ui-scale));
+  color: var(--ink-far); text-transform: uppercase; white-space: nowrap;
+}
+#title .rail-head::after { content: ''; flex: 1; height: var(--ui-scale); background: var(--hair); }
+
+/* ── the slots: bands, not boxes ────────────────────────────────────────────── */
+#titleMain {
+  position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center;
+  padding: 0 calc(72 * var(--ui-scale)) 0 calc(56 * var(--ui-scale)); min-width: 0;
+}
+#titleMain > .rail-head { margin-bottom: calc(26 * var(--ui-scale)); }
+#slots { display: flex; flex-direction: column; }
+/* one pixel between bands, which is the whole of the separation they need */
+#slots .slot + .slot { border-top: var(--ui-scale) solid var(--hair-faint); }
+#slots .slot { display: flex; align-items: stretch; }
+#slots .band {
+  flex: 1; display: flex; align-items: center; gap: calc(26 * var(--ui-scale));
+  padding: calc(22 * var(--ui-scale)) calc(26 * var(--ui-scale)) calc(22 * var(--ui-scale)) calc(22 * var(--ui-scale));
+  background: none; border: none; border-left: calc(4 * var(--ui-scale)) solid transparent;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0;
+  transition: background 0.12s, border-color 0.12s;
+}
+#slots .band:hover, #slots .band:focus-visible {
+  background: rgba(9, 13, 30, 0.72); border-left-color: var(--gold); outline: none;
+}
+#slots .slot-no {
+  font-size: calc(40 * var(--ui-scale)); font-weight: bold; line-height: 1;
+  width: calc(34 * var(--ui-scale)); flex: 0 0 auto; color: #3d4670;
+}
+#slots .band:hover .slot-no, #slots .band:focus-visible .slot-no { color: var(--gold); }
+#slots .slot-of { flex: 1; display: flex; flex-direction: column; gap: calc(8 * var(--ui-scale)); min-width: 0; }
+#slots .slot-day { font-size: calc(20 * var(--ui-scale)); letter-spacing: var(--ui-scale); }
+#slots .slot-world {
+  color: var(--ink-far); font-size: calc(13 * var(--ui-scale));
+  letter-spacing: calc(2 * var(--ui-scale)); margin-left: calc(10 * var(--ui-scale)); text-transform: uppercase;
+}
+#slots .slot-facts {
+  display: flex; gap: calc(22 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale));
+  color: var(--ink-dim); letter-spacing: var(--ui-scale); flex-wrap: wrap;
+}
+#slots .slot-seed { color: var(--ink-faint); }
+#slots .slot-go {
+  flex: 0 0 auto; font-size: calc(13 * var(--ui-scale)); letter-spacing: calc(3 * var(--ui-scale));
+  color: var(--ink-far); text-transform: uppercase;
+}
+#slots .band:hover .slot-go, #slots .band:focus-visible .slot-go { color: var(--gold); }
+#slots .slot.empty .slot-go { color: #7fd6a0; }
+#slots .slot.empty .slot-of { font-size: calc(15 * var(--ui-scale)); letter-spacing: calc(2 * var(--ui-scale)); color: var(--ink-faint); }
+/* throwing a world away is a small mark at the end of its own row, not a red button beside Play */
+#slots .slot-del {
+  flex: 0 0 auto; width: calc(46 * var(--ui-scale)); background: none; border: none;
+  border-left: var(--ui-scale) solid var(--hair-faint); color: #4d5680; font: inherit;
+  font-size: calc(15 * var(--ui-scale)); cursor: pointer; transition: color 0.12s, background 0.12s;
+}
+#slots .slot-del:hover { color: #e8626e; background: rgba(122, 42, 42, 0.28); }
+#title .hint {
+  margin-top: calc(30 * var(--ui-scale)); font-size: calc(11 * var(--ui-scale));
+  letter-spacing: calc(2 * var(--ui-scale)); color: #4d5680; text-transform: uppercase;
+}
+
 .tswitch { display: flex; gap: calc(10 * var(--ui-scale)); align-items: flex-start; cursor: pointer; }
 .tswitch:hover .tswitch-track { border-color: #6c5ce7; }
-/* the track and its knob: on slides right and lights up, which is the whole of the affordance */
+/* The track and its knob: on slides right and lights up, which is the whole of the affordance.
+   Square, like everything else — a pill with a round knob in it is the one shape on screen that
+   could not be cut out of this world's ground. */
 .tswitch-track {
-  flex: 0 0 auto; width: calc(34 * var(--ui-scale)); height: calc(18 * var(--ui-scale)); margin-top: calc(2 * var(--ui-scale)); border-radius: calc(9 * var(--ui-scale));
+  flex: 0 0 auto; width: calc(38 * var(--ui-scale)); height: calc(20 * var(--ui-scale)); margin-top: calc(2 * var(--ui-scale));
   background: #232845; border: var(--ui-scale) solid #2b3157; position: relative; transition: background 0.12s;
 }
 .tswitch-track::after {
-  content: ''; position: absolute; top: calc(2 * var(--ui-scale)); left: calc(2 * var(--ui-scale)); width: calc(12 * var(--ui-scale)); height: calc(12 * var(--ui-scale));
-  border-radius: 50%; background: #7f8bb3; transition: left 0.12s, background 0.12s;
+  content: ''; position: absolute; top: calc(3 * var(--ui-scale)); left: calc(3 * var(--ui-scale)); width: calc(12 * var(--ui-scale)); height: calc(12 * var(--ui-scale));
+  background: #7f8bb3; transition: left 0.12s, background 0.12s;
 }
 .tswitch[aria-checked="true"] .tswitch-track { background: #35406e; border-color: #6c5ce7; }
-.tswitch[aria-checked="true"] .tswitch-track::after { left: calc(18 * var(--ui-scale)); background: #ffd76a; }
+.tswitch[aria-checked="true"] .tswitch-track::after { left: calc(21 * var(--ui-scale)); background: var(--gold); }
 .tswitch-label { color: #cfd6ff; font-size: calc(13 * var(--ui-scale)); }
 .tswitch-note { color: #7f8bb3; font-size: calc(11 * var(--ui-scale)); display: block; margin-top: calc(2 * var(--ui-scale)); line-height: 1.4; }
-#slots button {
-  padding: calc(6 * var(--ui-scale)) calc(14 * var(--ui-scale)); background: #2fb36a; color: #fff; border: none; border-radius: calc(6 * var(--ui-scale)); cursor: pointer; font-family: inherit; font-weight: bold;
-}
-#slots button:hover { filter: brightness(1.15); }
-#slots button.danger { background: #7a2a2a; margin-left: auto; font-weight: normal; }
+
 #journal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(620 * var(--ui-scale)), 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
@@ -955,43 +1059,35 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
     top: 68px; left: 112px; right: 132px; width: fit-content; margin-inline: auto;
   }
   #touchPanels .touch-btn { width: 44px; height: 44px; font-size: 19px; }
-  #title h1 { font-size: clamp(32px, 11vw, 56px); }
-  #title .title-card { width: 94vw; }
-  #slots .slot { padding: 10px 12px; }
-  #slots button { padding: 10px 14px; min-height: 44px; }
+  /* the rail keeps its job on a narrow window, it only gets narrower */
+  #titleRail { flex-basis: 232px; padding: 22px 20px 18px; gap: 20px; }
+  #title h1 { font-size: 22px; letter-spacing: 4px; padding-left: 16px; }
+  #title h1::before { width: 7px; height: 19px; top: 2px; }
+  #title .tagline { display: none; }
+  #titleMain { padding: 0 16px; }
+  #slots .band { padding: 12px 14px; gap: 16px; min-height: 64px; }
+  #slots .slot-no { font-size: 26px; width: 22px; }
+  #slots .slot-day { font-size: 16px; }
+  #slots .slot-del { width: 44px; }
 }
 
 /* ---------------------------------------------------------------------------
    The title screen on a short window, which is what a phone held sideways is.
 
-   It was laid out for a desktop: three slots stacked down the middle of a tall
-   page, the switches pinned to the bottom-right corner, and the whole thing
-   centred in a box that does not scroll. On a screen 342 pixels tall that puts
-   the game's name above the top edge, the third slot below the bottom one, and
-   the switches over the second — and no way to reach any of it, because there
-   was nothing to scroll.
-
-   So on a short screen the page scrolls from the top, the slots go side by side
-   — three columns is exactly the shape of a landscape phone — and the switches
-   come out of the corner and into the flow underneath.
+   The rail layout holds: it is the same shape at every size, which is the point
+   of choosing it. What changes is only what there is room to say — the tagline
+   and the switch's explanation go, the bands come down to the 64 pixels a thumb
+   needs, and the keyboard hint goes because there is no keyboard to press.
    --------------------------------------------------------------------------- */
 @media (max-height: 560px) {
-  #title { align-items: flex-start; overflow-y: auto; padding: 10px 12px 16px; }
-  #title .title-card { width: 100%; }
-  #title h1 { font-size: 22px; letter-spacing: 2px; margin-bottom: 2px; text-shadow: 0 2px 0 #6c5ce7; }
-  #title .tagline { font-size: 11px; margin-bottom: 10px; }
-  /* nothing here is pressed on a phone, and it is the line that pushes slot three off the screen */
   #title .hint { display: none; }
-  #slots { flex-direction: row; align-items: stretch; gap: 8px; }
-  #slots .slot { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; padding: 9px 10px; }
-  #slots .slot-head { font-size: 13px; }
-  #slots .slot-key { display: none; }          /* there is no keyboard to press it on */
-  #slots .slot-summary { font-size: 11px; margin: 3px 0 8px; flex: 1 1 auto; line-height: 1.4; }
-  #slots .slot-actions { flex-wrap: wrap; gap: 6px; margin-top: auto; }
-  #slots button { padding: 8px 10px; font-size: 12px; min-height: 40px; flex: 1 1 auto; }
-  #slots button.danger { margin-left: 0; flex: 0 0 auto; }
-  #titleOptions { position: static; width: 100%; margin-top: 10px; padding: 9px 11px; }
-  #titleOptions .opt-foot { margin-top: 6px; }
+  #titleRail { padding: 18px 16px 14px; gap: 16px; }
+  #titleRail .rail-foot { font-size: 9px; line-height: 1.8; }
+  #titleMain > .rail-head { margin-bottom: 12px; }
+  #slots .band { padding: 10px 12px; min-height: 68px; }
+  #slots .slot-facts { gap: 12px; font-size: 10px; }
+  #slots .slot-seed { display: none; }         /* the number is for a bug report, not for a phone */
+  #slots .slot-world { font-size: 10px; margin-left: 8px; }
   .tswitch-note { display: none; }             /* the switch's own label is enough at this size */
 
   /* -------------------------------------------------------------------------

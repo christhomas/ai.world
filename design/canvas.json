@@ -1,0 +1,16 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Title — desktop" },
+    { "file": "TitlePhone.dc.html", "x": 1560, "y": 0, "w": 844, "h": 390, "title": "Title — phone, sideways" },
+    { "file": "HudA.dc.html", "x": 0, "y": 1060, "w": 1440, "h": 900, "title": "A · Cut stone — desktop" },
+    { "file": "HudPhone.dc.html", "x": 1560, "y": 1060, "w": 844, "h": 390, "title": "A · Cut stone — phone, sideways" },
+    { "file": "HudB.dc.html", "x": 0, "y": 2120, "w": 1440, "h": 900, "title": "B · The traveller's kit (not chosen)" }
+  ],
+  "annotations": [
+    { "id": "brief", "x": 0, "y": -190, "w": 620, "text": "Cut stone, chosen.\n\nTop row: the title screen — a rail on the left, the slots as bands rather than boxes, on desktop and on a phone held sideways.\n\nMiddle row: the game itself in the same language, desktop and phone.\n\nBottom: the direction not taken, kept for the record." },
+    { "id": "phone-note", "x": 1560, "y": 1500, "w": 500, "text": "THE PHONE, IN THE SAME THREE RULES\n\nFlush to an edge, hairline on the inside edge only, square corners — which on a phone also buys back the twenty pixels a floating panel wastes on every side.\n\nWhat moved: the readouts and the map go hard into their corners; the panel rail becomes one slab on the top edge with a hairline between each glyph; the place name is type over a gold rule, sitting under the rail rather than over the hero; the log is two bands off the left edge, above where the thumb walks.\n\nThe thumb ring is dashed here only to show where it is — in the game it appears under a finger and the corner is world at rest.\n\nThe middle of the screen is left alone. Nothing is drawn on the hero." },
+    { "id": "a-note", "x": 0, "y": 2000, "w": 470, "text": "A · CUT STONE\n\nPanels are flat slabs flush to a screen edge with a one-pixel hairline on the inside edge only. Square corners — the world is cut terraces.\n\nIt is the language the touch controls already use, so nothing new is invented." },
+    { "id": "b-note", "x": 0, "y": 3060, "w": 470, "text": "B · THE TRAVELLER'S KIT — not chosen\n\nPaper and ink, a painted signboard staked at the village edge. Kept here so the choice is on the record.\n\nAgainst it: paper over sunlit grass is a harder read, and the controls have to stay dark, so it would have meant two languages." }
+  ],
+  "launch": { "view": "canvas" }
+}
