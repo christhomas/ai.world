@@ -99,6 +99,19 @@ const STAIRS_CLEARANCE: Array<[number, number]> = [[2, 0], [-2, 0], [0, 2], [0, 
 export const REACH = { CHEST: 1.8, DOOR: 2.0, STAIRS: 1.4, BUILDING_DOOR: 1.6 } as const;
 
 /**
+ * How far to the side of the mouth you are put when you come back up, in tiles. Beside the hole
+ * rather than standing on it, so the thing you have just climbed out of is in front of you.
+ */
+const OUT_OF_THE_HOLE = 2.5;
+
+/**
+ * How much wider than the room the camera sits when you step indoors, so the walls are inside the
+ * picture rather than pressed against its edges. The camera then holds still and the hero moves
+ * about within it, which is what makes a room read as a room and not as a corridor of view.
+ */
+const FRAMES_THE_ROOM = 1.35;
+
+/**
  * Who wins when a person and a piece of scenery are both within reach of one keypress.
  *
  * The person does, whenever they are the nearer of the two. Market pitches stand in the middle of
@@ -189,8 +202,8 @@ export class Places {
     overworldRenderer.add(player.entity);
     this.ctx.heroGear.attachTo(this.ctx.rig.scene);
     player.setWorld(overworld);
-    player.teleport(visit.poi.x + 2.5, visit.poi.z + 0.5);
-    iso.target.set(visit.poi.x + 2.5, 0.5, visit.poi.z + 0.5);
+    player.teleport(visit.poi.x + OUT_OF_THE_HOLE, visit.poi.z + 0.5);
+    iso.target.set(visit.poi.x + OUT_OF_THE_HOLE, 0.5, visit.poi.z + 0.5);
     iso.limitZoom(CAMERA.MAX_ZOOM);
     this.underground = null;
     this.ctx.cameUp();
@@ -291,7 +304,7 @@ export class Places {
 
     // frame the whole room: the camera holds still and the hero moves inside it
     this.outdoorZoom = iso.zoom;
-    iso.zoom = Math.max(map.w, map.h) * 1.35;
+    iso.zoom = Math.max(map.w, map.h) * FRAMES_THE_ROOM;
     iso.limitZoom(iso.zoom);
     iso.resize();
     iso.target.set(map.w / 2, 0.5, map.h / 2);

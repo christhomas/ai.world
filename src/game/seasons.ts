@@ -47,12 +47,21 @@ export function seasonAffects(biome: Biome): boolean {
   return biome !== Biome.Desert && biome !== Biome.Snow;
 }
 
+/**
+ * What the ground under you does to the season's chance of rain.
+ *
+ * The season decides how wet the year is; the biome decides whether that reaches you. A desert
+ * stays a desert through an English autumn and a swamp is wet in high summer, which is the whole
+ * reason these are not simply the season's own number.
+ */
+const RAIN = { DESERT: 0.15, SWAMP: 1.6 } as const;
+
 /** Deterministic wet/dry for a given day and biome, so weather is part of the world, not a coin flip. */
 export function isWet(seed: number, day: number, biome: Biome): boolean {
   const tint = seasonTint(seasonOf(day));
   let base = tint.wetness;
-  if (biome === Biome.Desert) base *= 0.15;
-  if (biome === Biome.Swamp) base = Math.min(1, base * 1.6);
+  if (biome === Biome.Desert) base *= RAIN.DESERT;
+  if (biome === Biome.Swamp) base = Math.min(1, base * RAIN.SWAMP);
   let h = (seed ^ (day * 2654435761)) >>> 0;
   h = Math.imul(h ^ (h >>> 15), 2246822507);
   h = Math.imul(h ^ (h >>> 13), 3266489909);

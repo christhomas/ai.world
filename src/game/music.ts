@@ -25,6 +25,26 @@ const MOODS: Record<Biome, Mood> = {
 
 const CAVE: Mood = { root: 130.81, scale: SCALES.minor, tempo: 1.4, wave: 'sine' };
 
+/**
+ * What the dark does to the music. Not a mood of its own — the same tune, played the way somebody
+ * would play it with the lamp low: slower, quieter, and dropped an octave once it is properly
+ * night. Nought is noon and one is midnight, so each of these is what full dark is worth.
+ */
+const NIGHT = {
+  /** How much longer a beat lasts at midnight than at noon. */
+  SLOWER: 0.5,
+  /** How much of a note's loudness the dark takes off. */
+  QUIETER: 0.35,
+  /** Dark enough to put the arpeggio down an octave, which is the only thing that reads as night. */
+  DEEP: 0.5,
+} as const;
+
+/**
+ * How far ahead notes are queued, in seconds. Web Audio plays what it has been given whatever the
+ * frame rate is doing, so a frame that takes too long drops a frame and not a note.
+ */
+const LOOKAHEAD = 0.25;
+
 export class Music {
   private ctx: AudioContext | null = null;
   private out: GainNode | null = null;
@@ -94,8 +114,8 @@ export class Music {
   update(): void {
     const ctx = this.ctx;
     if (!ctx || !this.out) return;
-    const beat = this.mood.tempo * (1 + this.night * 0.5);
-    while (this.nextNote < ctx.currentTime + 0.25) {
+    const beat = this.mood.tempo * (1 + this.night * NIGHT.SLOWER);
+    while (this.nextNote < ctx.currentTime + LOOKAHEAD) {
       this.playNote(this.nextNote);
       this.nextNote += beat;
     }
@@ -107,13 +127,15 @@ export class Music {
     // a wandering arpeggio: mostly steps, occasional leaps, octave down at night
     const pattern = [0, 2, 1, 3, 2, 4, 3, 1];
     const degree = scale[pattern[this.step % pattern.length] % scale.length];
-    const octave = this.night > 0.5 ? 0.5 : this.step % 16 < 8 ? 1 : 2;
+    const octave = this.night > NIGHT.DEEP ? 0.5 : this.step % 16 < 8 ? 1 : 2;
     const freq = root * octave * Math.pow(2, degree / 12);
     const osc = ctx.createOscillator();
     osc.type = wave;
     osc.frequency.value = freq;
     const g = ctx.createGain();
-    const peak = 0.06 * (1 - this.night * 0.35);
+    const peak = 0.06 * (1 - this.night * NIGHT.QUIETER);
+    // a plucked note: up in a fortieth of a second, ringing away over the next, and the oscillator
+    // let go a little after the fade so it never ends on a click
     g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(peak, at + 0.04);
     g.gain.exponentialRampToValueAtTime(0.0001, at + 1.1);

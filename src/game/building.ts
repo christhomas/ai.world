@@ -43,6 +43,15 @@ export const BUILD = {
    * settle up, sharp enough that ignoring it is a decision.
    */
   UNPAID_A_DAY: 4,
+  /**
+   * How far along a job has to be before a passer-by would call it a frame, and then a roof.
+   *
+   * Set so each of the three visible stages gets roughly a third of the week the builder takes,
+   * which is what makes walking past twice worth doing: at a quarter done there is something
+   * standing, and past halfway it has a roof on it.
+   */
+  FRAME_AT: 0.25,
+  ROOF_AT: 0.6,
 } as const;
 
 /** A house that has been paid for and is going up. */
@@ -94,8 +103,8 @@ export type Stage = 'pegs' | 'frame' | 'roof' | 'house';
 export function stageAt(job: Commission, day: number): Stage {
   const done = progressOf(job, day);
   if (done >= 1) return 'house';
-  if (done >= 0.6) return 'roof';
-  if (done >= 0.25) return 'frame';
+  if (done >= BUILD.ROOF_AT) return 'roof';
+  if (done >= BUILD.FRAME_AT) return 'frame';
   return 'pegs';
 }
 

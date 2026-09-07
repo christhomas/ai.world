@@ -93,6 +93,13 @@ function rangeTo(tick: Tick<Mind>): number {
   return Math.hypot(tick.world.self.x - aim.x, tick.world.self.z - aim.z);
 }
 
+/**
+ * Every word a behaviour file may use, and nothing else.
+ *
+ * The questions are one-liners and live here, where the list of them is the whole story. The
+ * actions are the named functions below, so this stays a table of what a creature can be told to
+ * do rather than a wall of how each thing is done.
+ */
 export const CREATURE_VERBS: Vocabulary<Mind> = {
   questions: {
     /** Is the hero on the water? */
@@ -141,382 +148,440 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     },
   },
 
+  /**
+   * The verbs themselves are named functions below, grouped the way this list groups them. A new
+   * one is a function of the same shape with its name added here; nothing else has to know.
+   */
   actions: {
-    /**
-     * Hold station on the hero, going round them at `tiles` off.
-     *
-     * The aiming point is `lead` radians further round the ring rather than where the creature
-     * already is, because a target it has effectively arrived at is a target it stops for. Lead
-     * it, and the swimming itself becomes the orbit.
-     */
-    circle: (params) => act(({ world }) => {
-      const { self } = world;
-      const aim = aimOf(world);
-      const ring = number(params, 'tiles', 6);
-      const ahead = Math.atan2(self.z - aim.z, self.x - aim.x) + number(params, 'lead', 0.7);
-      self.tx = aim.x + Math.cos(ahead) * ring;
-      self.tz = aim.z + Math.sin(ahead) * ring;
-      // steering is done once per tick, not over time: succeed, so a latch above does not hold on
-      // to us and never reconsider what else might be worth doing
-      self.state = 'walk';
-      self.timer = Math.max(self.timer, 1);
-    }),
+    // getting about, which is what a creature does with its feet when nothing is after it
+    wander, roam, patrol, goTo,
 
-    /**
-     * Straight at the hero, at a run, for as long as the file says. Success when the seconds are
-     * up; it is the file's business whether that counts as a hit.
-     */
-    charge: (params) => {
-      const key = Symbol('charge');
-      const seconds = number(params, 'seconds', 2.6);
-      return (tick) => {
-        const { self } = tick.world;
-        const aim = aimOf(tick.world);
-        const left = tick.memory.get(key, seconds) - tick.dt;
-        self.tx = aim.x;
-        self.tz = aim.z;
-        self.charging = Math.max(0, left);
-        if (self.state !== 'walk') { self.state = 'walk'; self.timer = seconds; }
-        if (left > 0) { tick.memory.set(key, left); return 'running'; }
-        tick.memory.clear(key);
-        self.charging = 0;
-        return 'success';
-      };
-    },
+    // picking somebody out, closing on them, and the blow itself
+    markPrey, markTrouble, forget, stalk, circle, charge, dive, bite, arrest,
 
-    /**
-     * Bite, if the hero is close enough to bite. Fails when they are not.
-     *
-     * A bite is two moments, not one: the creature commits and rears back, and then, a fraction of
-     * a second later, the blow lands. It used to be a single instant — throw the animation and
-     * take the hearts off in the same tick — which meant the swing you could see was the report of
-     * damage you had already taken. Nothing on screen ever preceded anything, so there was nothing
-     * to react to, and jamming the attack button was not the laziest way to fight but the only
-     * one there was.
-     *
-     * Splitting it costs one field and buys the whole of the defensive game: a wind-up you can
-     * read, a moment where stepping back actually works, and a window a guard can be timed to.
-     * The creature commits at the start of it — it does not re-aim while it swings — so backing
-     * off during the wind-up beats a blow that was already thrown, which is the deal.
-     */
-    bite: (params) => (tick) => {
-      const { self, bite, strike } = tick.world;
-      const aim = aimOf(tick.world);
-      const reach = number(params, 'tiles', BEHAVIOUR.BITE_RANGE);
+    // backing off, and getting over it
+    flee, graze, idle, beHealed,
 
-      // the wind-up lives on the creature rather than in this node's memory, so that a blow which
-      // is interrupted — the thing is frightened off, or killed mid-swing — is over the moment the
-      // creature stops being able to throw it, rather than waiting in a tree to be resumed
-      if (self.winding <= 0) {
-        if (rangeTo(tick) > reach || self.attackCooldown > 0) return 'failure';
-        self.attackCooldown = number(params, 'cooldown', BEHAVIOUR.BITE_COOLDOWN);
-        self.yaw = yawFor(aim.x - self.x, aim.z - self.z);
-        // every creature in the game attacks through this one verb, so it is the only place a
-        // blow has to be thrown for wolves, bears, constables and hired swords all to swing
-        const shape = blowOf(self.kind);
-        throwBlow(self, shape);
-        // how much warning this particular blow gives, which is the blow's own business: a bear's
-        // rear is slow and readable, a shark's lunge is barely there at all
-        self.winding = tellOf(shape, BEHAVIOUR.WIND_UP);
-        return 'running';
-      }
-
-      self.winding = Math.max(0, self.winding - tick.dt);
-      if (self.winding > 0) return 'running';
-
-      // it lands where the creature is now, against wherever the target has got to. A step back
-      // during the wind-up is a step out of it, which is the only defence that needs no button.
-      if (rangeTo(tick) > reach + BEHAVIOUR.BITE_SLIP) return 'failure';
-      const damage = number(params, 'damage', self.kind.dangerous ?? 1);
-      // the hero has hearts and a HUD; anybody else is just another creature to be hurt
-      if (aim.who) strike(self, aim.who, damage); else bite(self, damage);
-      return 'success';
-    },
-
-    /** Turn tail and run, for as long as a fright lasts. */
-    flee: (params) => {
-      const key = Symbol('flee');
-      return (tick) => {
-        const { self, playerX, playerZ, rng } = tick.world;
-        const seconds = tick.memory.get(key, number(params, 'seconds', 2) + rng()) - tick.dt;
-        if (self.state !== 'flee') {
-          const dx = self.x - playerX, dz = self.z - playerZ;
-          const away = Math.hypot(dx, dz) || 1;
-          self.fleeX = dx / away;
-          self.fleeZ = dz / away;
-          self.state = 'flee';
-          self.timer = seconds;
-        }
-        if (seconds > 0) { tick.memory.set(key, seconds); return 'running'; }
-        tick.memory.clear(key);
-        return 'success';
-      };
-    },
-
-    /**
-     * Amble somewhere within reach of the herd's patch. Only picks a new spot once it has arrived
-     * or given up on the last one, so a creature does not twitch between targets every tick.
-     */
-    wander: (params) => act(({ world }) => {
-      const { self } = world;
-      self.indoors = false;
-      if (self.state === 'walk' || self.state === 'hop') return;
-      const hopping = params.gait === 'hop';
-      if (!somewhereNear(world, number(params, 'tiles', 5))) {
-        self.state = 'idle';
-        self.timer = 1;
-        return;
-      }
-      self.state = hopping ? 'hop' : 'walk';
-      self.timer = hopping ? 0.5 : 6;
-    }),
-
-    /** Head down, and stay down for a while: what a grazing animal does most of the time. */
-    graze: (params) => {
-      const key = Symbol('graze');
-      return (tick) => {
-        const { self, rng } = tick.world;
-        const left = tick.memory.get(key, number(params, 'seconds', 3) + rng() * number(params, 'spread', 3)) - tick.dt;
-        self.state = 'graze';
-        if (left > 0) { tick.memory.set(key, left); return 'running'; }
-        tick.memory.clear(key);
-        self.state = 'idle';
-        self.timer = 0.5;
-        return 'success';
-      };
-    },
-
-    /** Walk straight at the hero. What a predator does before it is close enough to bite. */
-    stalk: () => act(({ world }) => {
-      const { self } = world;
-      const aim = aimOf(world);
-      self.tx = aim.x;
-      self.tz = aim.z;
-      if (self.state !== 'walk') { self.state = 'walk'; self.timer = 4; }
-    }),
-
-    /** Round and round above the herd's patch, which is all most birds do. */
-    patrol: (params) => act(({ world, dt }) => {
-      const { self, ground } = world;
-      const herd = self.herd;
-      const radius = number(params, 'tiles', 4) + (self.slot % 3) * 1.5;
-      herd.angle += dt * (self.kind.speed / radius);
-      const around = herd.angle + (self.slot % 3) * 2.1;
-      const nx = herd.ax + Math.cos(around) * radius;
-      const nz = herd.az + Math.sin(around) * radius;
-      self.yaw = yawFor(nx - self.x, nz - self.z);
-      self.x = nx;
-      self.z = nz;
-      self.phase += dt * 5;
-      self.flap = 1;
-      self.walk = 0;
-      self.state = 'fly';
-      const ground0 = ground.heightAt(herd.ax, herd.az);
-      if (ground0 !== null) herd.baseY = ground0;
-      const want = herd.baseY + (self.kind.altitude ?? 7) + Math.sin(self.phase * 0.3) * 0.4;
-      self.y += (want - self.y) * Math.min(1, dt * 2);
-    }),
-
-    /** Straight down at the hero, wings going: a hostile bird's whole plan. */
-    dive: (params) => act(({ world, dt }) => {
-      const { self, ground } = world;
-      const aim = aimOf(world);
-      const dx = aim.x - self.x, dz = aim.z - self.z;
-      const away = Math.hypot(dx, dz) || 1;
-      const step = Math.min(away, self.kind.speed * dt);
-      self.x += (dx / away) * step;
-      self.z += (dz / away) * step;
-      self.yaw = yawFor(dx, dz);
-      self.phase += dt * 12;
-      self.flap = 1;
-      self.state = 'fly';
-      const under = ground.heightAt(self.x, self.z) ?? self.herd.baseY;
-      const close = away < number(params, 'drop', 2);
-      const want = under + (self.kind.altitude ?? 2) * (close ? 0.45 : 1);
-      self.y += (want - self.y) * Math.min(1, dt * 4);
-    }),
-
-    /**
-     * Head for one of the places this villager's day sends them. Running while they are still
-     * walking, success once they are there, failure if their trade has no such place — a village
-     * with no shore has no shore for a sailor to stand on.
-     */
-    goTo: (params) => (tick) => {
-      const { self } = tick.world;
-      const post = self.posts[String(params.post ?? 'square') as Post];
-      if (!post) return 'failure';
-      // the herd anchor is where somebody potters about, so moving it moves their whole day
-      self.herd.ax = post[0];
-      self.herd.az = post[1];
-      // somebody going through their own front door has to reach it; standing about at a post is
-      // near enough at a few paces
-      const close = number(params, 'within', params.enter === true ? 1.2 : 3);
-      const away = Math.hypot(self.x - post[0], self.z - post[1]);
-      if (away > close) {
-        self.indoors = false;
-        self.tx = post[0];
-        self.tz = post[1];
-        if (self.state !== 'walk') { self.state = 'walk'; self.timer = 8; }
-        return 'running';
-      }
-      // arrived. `enter` is what takes somebody off the street and through their own front door:
-      // they step onto the threshold itself, since the next thing they do is stop being drawn
-      if (params.enter === true) {
-        self.x = post[0];
-        self.z = post[1];
-        self.indoors = true;
-        self.walk = 0;
-        // indoors and doing nothing, which is what lets the morning's branch pick them up again
-        self.state = 'idle';
-        self.timer = 0;
-      }
-      return 'success';
-    },
-
-    /** Range further than anybody sensible would, and keep ranging. */
-    roam: (params) => act(({ world }) => {
-      const { self } = world;
-      self.indoors = false;
-      if (self.state === 'walk') return;
-      somewhereNear(world, number(params, 'tiles', 20));
-      self.state = 'walk';
-      self.timer = 12;
-    }),
-
-    /** Close on the nearest wild animal. Fails when there is nothing about worth taking. */
-    stalkQuarry: (params) => (tick) => {
-      const { self, quarry } = tick.world;
-      const prey = quarry(self, number(params, 'within', 30));
-      if (!prey) return 'failure';
-      self.tx = prey.x;
-      self.tz = prey.z;
-      if (self.state !== 'walk') { self.state = 'walk'; self.timer = 10; }
-      return Math.hypot(self.x - prey.x, self.z - prey.z) <= number(params, 'reach', 1.6) ? 'success' : 'running';
-    },
-
-    /** Take what has been run down: it leaves the world, and goes on the hunter's shoulder. */
-    take: (params) => (tick) => {
-      const { self, quarry, remove } = tick.world;
-      const prey = quarry(self, number(params, 'reach', 1.8));
-      if (!prey) return 'failure';
-      remove(prey);
-      self.carrying = { id: prey.kind.drop?.id ?? 'meat', count: 1 };
-      self.state = 'idle';
-      self.timer = 1;
-      return 'success';
-    },
-
-    /**
-     * Hand over what is being carried, and take the coin for it.
-     *
-     * The coin goes to the person as well as to the body standing in the street. The body is
-     * destroyed the moment the player walks out of range, so for as long as this was the only
-     * place it landed, every sale a villager ever made evaporated and the village was never a
-     * penny better off for any of it.
-     */
-    sell: () => (tick) => {
-      const { self } = tick.world;
-      if (!self.carrying) return 'failure';
-      const took = tick.world.worth(self.carrying.id) * self.carrying.count;
-      self.purse += took;
-      tick.world.banked?.(self.person, took);
-      self.carrying = null;
-      self.state = 'idle';
-      self.timer = 1.5;
-      return 'success';
-    },
-
-    /** Spend some of what is in the purse, on whatever this trade spends money on. */
-    spend: (params) => (tick) => {
-      const { self } = tick.world;
-      const cost = number(params, 'cost', params.on === 'gear' ? 40 : 6);
-      if (self.purse < cost) return 'failure';
-      self.purse -= cost;
-      self.state = 'idle';
-      self.timer = 2;
-      return 'success';
-    },
-
-    /**
-     * Pick out somebody to go after: the nearest person, or the hero if they are nearer. Fails
-     * when there is nobody about, which is how a tree says "carry on as you were".
-     *
-     * Everything that acts on a target — stalk, bite, charge, circle — works on whatever was
-     * marked here, so one small vocabulary covers a wolf on a farmer and a wolf on the hero.
-     */
-    markPrey: (params) => (tick) => {
-      const { self, nearestPerson, playerX, playerZ } = tick.world;
-      const reach = number(params, 'within', 10);
-      const person = nearestPerson(self, reach);
-      const toPlayer = Math.hypot(self.x - playerX, self.z - playerZ);
-      if (person && Math.hypot(self.x - person.x, self.z - person.z) < Math.min(reach, toPlayer)) {
-        self.target = person;
-        return 'success';
-      }
-      self.target = null;
-      return toPlayer <= reach ? 'success' : 'failure';
-    },
-
-    /** Look for somebody being attacked, and make them your business. What a constable is for. */
-    markTrouble: (params) => (tick) => {
-      const { self, nearestTrouble } = tick.world;
-      const culprit = nearestTrouble(self, number(params, 'within', 14));
-      if (!culprit) return 'failure';
-      self.target = culprit;
-      return 'success';
-    },
-
-    /**
-     * Lay hands on the hero. Fails while they are out of reach, which is this file's way of
-     * saying keep coming. Measured to the hero rather than to whatever is marked, because an
-     * arrest is only ever of the hero, and the cooldown is what stops one constable taking them
-     * in twice over while the game is still deciding what that means.
-     */
-    arrest: (params) => (tick) => {
-      const { self, playerX, playerZ, arrest } = tick.world;
-      if (self.attackCooldown > 0) return 'failure';
-      if (Math.hypot(self.x - playerX, self.z - playerZ) > number(params, 'tiles', 1.8)) return 'failure';
-      self.attackCooldown = number(params, 'cooldown', 3);
-      throwBlow(self, blowOf(self.kind));
-      self.yaw = yawFor(playerX - self.x, playerZ - self.z);
-      arrest(self);
-      return 'success';
-    },
-
-    /** Forget whoever was marked, and go back to minding the hero like everything else. */
-    forget: () => act(({ world }) => { world.self.target = null; }),
-
-    /**
-     * Sit still and mend. Paid care is quick; the free kind takes three times as long, which is
-     * the whole of the doctor's economy — nobody who asks for help dies, but money buys getting
-     * back to work today rather than tomorrow.
-     */
-    beHealed: (params) => {
-      const key = Symbol('healing');
-      return (tick) => {
-        const { self } = tick.world;
-        const fee = number(params, 'fee', 8);
-        const paying = self.purse >= fee;
-        const takes = number(params, 'seconds', 6) * (paying ? 1 : number(params, 'freeShare', 3));
-        const left = tick.memory.get(key, takes) - tick.dt;
-        self.state = 'idle';
-        self.timer = 1;
-        if (left > 0) { tick.memory.set(key, left); return 'running'; }
-        tick.memory.clear(key);
-        if (paying) self.purse -= fee;
-        self.hp = self.kind.hp ?? self.hp;
-        return 'success';
-      };
-    },
-
-    /** Nothing in particular: whatever this creature does when nothing is happening. */
-    idle: () => act(({ world }) => {
-      const { self } = world;
-      if (self.state === 'flee') { self.state = 'idle'; self.timer = 1; }
-      self.charging = 0;
-    }),
+    // making a living, which is what everybody with a trade is doing all day
+    stalkQuarry, take, sell, spend,
   },
 };
+
+// --- getting about ---
+
+/**
+ * Amble somewhere within reach of the herd's patch. Only picks a new spot once it has arrived
+ * or given up on the last one, so a creature does not twitch between targets every tick.
+ */
+function wander(params: Params): CreatureNode {
+  return act(({ world }) => {
+    const { self } = world;
+    self.indoors = false;
+    if (self.state === 'walk' || self.state === 'hop') return;
+    const hopping = params.gait === 'hop';
+    if (!somewhereNear(world, number(params, 'tiles', 5))) {
+      self.state = 'idle';
+      self.timer = 1;
+      return;
+    }
+    self.state = hopping ? 'hop' : 'walk';
+    self.timer = hopping ? 0.5 : 6;
+  });
+}
+
+/** Range further than anybody sensible would, and keep ranging. */
+function roam(params: Params): CreatureNode {
+  return act(({ world }) => {
+    const { self } = world;
+    self.indoors = false;
+    if (self.state === 'walk') return;
+    somewhereNear(world, number(params, 'tiles', 20));
+    self.state = 'walk';
+    self.timer = 12;
+  });
+}
+
+/** Round and round above the herd's patch, which is all most birds do. */
+function patrol(params: Params): CreatureNode {
+  return act(({ world, dt }) => {
+    const { self, ground } = world;
+    const herd = self.herd;
+    const radius = number(params, 'tiles', 4) + (self.slot % 3) * 1.5;
+    herd.angle += dt * (self.kind.speed / radius);
+    const around = herd.angle + (self.slot % 3) * 2.1;
+    const nx = herd.ax + Math.cos(around) * radius;
+    const nz = herd.az + Math.sin(around) * radius;
+    self.yaw = yawFor(nx - self.x, nz - self.z);
+    self.x = nx;
+    self.z = nz;
+    self.phase += dt * 5;
+    self.flap = 1;
+    self.walk = 0;
+    self.state = 'fly';
+    const ground0 = ground.heightAt(herd.ax, herd.az);
+    if (ground0 !== null) herd.baseY = ground0;
+    const want = herd.baseY + (self.kind.altitude ?? 7) + Math.sin(self.phase * 0.3) * 0.4;
+    self.y += (want - self.y) * Math.min(1, dt * 2);
+  });
+}
+
+/**
+ * Head for one of the places this villager's day sends them. Running while they are still
+ * walking, success once they are there, failure if their trade has no such place — a village
+ * with no shore has no shore for a sailor to stand on.
+ */
+function goTo(params: Params): CreatureNode {
+  return (tick) => {
+    const { self } = tick.world;
+    const post = self.posts[String(params.post ?? 'square') as Post];
+    if (!post) return 'failure';
+    // the herd anchor is where somebody potters about, so moving it moves their whole day
+    self.herd.ax = post[0];
+    self.herd.az = post[1];
+    // somebody going through their own front door has to reach it; standing about at a post is
+    // near enough at a few paces
+    const close = number(params, 'within', params.enter === true ? 1.2 : 3);
+    const away = Math.hypot(self.x - post[0], self.z - post[1]);
+    if (away > close) {
+      self.indoors = false;
+      self.tx = post[0];
+      self.tz = post[1];
+      if (self.state !== 'walk') { self.state = 'walk'; self.timer = 8; }
+      return 'running';
+    }
+    // arrived. `enter` is what takes somebody off the street and through their own front door:
+    // they step onto the threshold itself, since the next thing they do is stop being drawn
+    if (params.enter === true) {
+      self.x = post[0];
+      self.z = post[1];
+      self.indoors = true;
+      self.walk = 0;
+      // indoors and doing nothing, which is what lets the morning's branch pick them up again
+      self.state = 'idle';
+      self.timer = 0;
+    }
+    return 'success';
+  };
+}
+
+// --- going for somebody ---
+
+/**
+ * Pick out somebody to go after: the nearest person, or the hero if they are nearer. Fails
+ * when there is nobody about, which is how a tree says "carry on as you were".
+ *
+ * Everything that acts on a target — stalk, bite, charge, circle — works on whatever was
+ * marked here, so one small vocabulary covers a wolf on a farmer and a wolf on the hero.
+ */
+function markPrey(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, nearestPerson, playerX, playerZ } = tick.world;
+    const reach = number(params, 'within', 10);
+    const person = nearestPerson(self, reach);
+    const toPlayer = Math.hypot(self.x - playerX, self.z - playerZ);
+    if (person && Math.hypot(self.x - person.x, self.z - person.z) < Math.min(reach, toPlayer)) {
+      self.target = person;
+      return 'success';
+    }
+    self.target = null;
+    return toPlayer <= reach ? 'success' : 'failure';
+  };
+}
+
+/** Look for somebody being attacked, and make them your business. What a constable is for. */
+function markTrouble(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, nearestTrouble } = tick.world;
+    const culprit = nearestTrouble(self, number(params, 'within', 14));
+    if (!culprit) return 'failure';
+    self.target = culprit;
+    return 'success';
+  };
+}
+
+/** Forget whoever was marked, and go back to minding the hero like everything else. */
+function forget(): CreatureNode {
+  return act(({ world }) => { world.self.target = null; });
+}
+
+/** Walk straight at the hero. What a predator does before it is close enough to bite. */
+function stalk(): CreatureNode {
+  return act(({ world }) => {
+    const { self } = world;
+    const aim = aimOf(world);
+    self.tx = aim.x;
+    self.tz = aim.z;
+    if (self.state !== 'walk') { self.state = 'walk'; self.timer = 4; }
+  });
+}
+
+/**
+ * Hold station on the hero, going round them at `tiles` off.
+ *
+ * The aiming point is `lead` radians further round the ring rather than where the creature
+ * already is, because a target it has effectively arrived at is a target it stops for. Lead
+ * it, and the swimming itself becomes the orbit.
+ */
+function circle(params: Params): CreatureNode {
+  return act(({ world }) => {
+    const { self } = world;
+    const aim = aimOf(world);
+    const ring = number(params, 'tiles', 6);
+    const ahead = Math.atan2(self.z - aim.z, self.x - aim.x) + number(params, 'lead', 0.7);
+    self.tx = aim.x + Math.cos(ahead) * ring;
+    self.tz = aim.z + Math.sin(ahead) * ring;
+    // steering is done once per tick, not over time: succeed, so a latch above does not hold on
+    // to us and never reconsider what else might be worth doing
+    self.state = 'walk';
+    self.timer = Math.max(self.timer, 1);
+  });
+}
+
+/**
+ * Straight at the hero, at a run, for as long as the file says. Success when the seconds are
+ * up; it is the file's business whether that counts as a hit.
+ */
+function charge(params: Params): CreatureNode {
+  const key = Symbol('charge');
+  const seconds = number(params, 'seconds', 2.6);
+  return (tick) => {
+    const { self } = tick.world;
+    const aim = aimOf(tick.world);
+    const left = tick.memory.get(key, seconds) - tick.dt;
+    self.tx = aim.x;
+    self.tz = aim.z;
+    self.charging = Math.max(0, left);
+    if (self.state !== 'walk') { self.state = 'walk'; self.timer = seconds; }
+    if (left > 0) { tick.memory.set(key, left); return 'running'; }
+    tick.memory.clear(key);
+    self.charging = 0;
+    return 'success';
+  };
+}
+
+/** Straight down at the hero, wings going: a hostile bird's whole plan. */
+function dive(params: Params): CreatureNode {
+  return act(({ world, dt }) => {
+    const { self, ground } = world;
+    const aim = aimOf(world);
+    const dx = aim.x - self.x, dz = aim.z - self.z;
+    const away = Math.hypot(dx, dz) || 1;
+    const step = Math.min(away, self.kind.speed * dt);
+    self.x += (dx / away) * step;
+    self.z += (dz / away) * step;
+    self.yaw = yawFor(dx, dz);
+    self.phase += dt * 12;
+    self.flap = 1;
+    self.state = 'fly';
+    const under = ground.heightAt(self.x, self.z) ?? self.herd.baseY;
+    const close = away < number(params, 'drop', 2);
+    const want = under + (self.kind.altitude ?? 2) * (close ? 0.45 : 1);
+    self.y += (want - self.y) * Math.min(1, dt * 4);
+  });
+}
+
+/**
+ * Bite, if the hero is close enough to bite. Fails when they are not.
+ *
+ * A bite is two moments, not one: the creature commits and rears back, and then, a fraction of
+ * a second later, the blow lands. It used to be a single instant — throw the animation and
+ * take the hearts off in the same tick — which meant the swing you could see was the report of
+ * damage you had already taken. Nothing on screen ever preceded anything, so there was nothing
+ * to react to, and jamming the attack button was not the laziest way to fight but the only
+ * one there was.
+ *
+ * Splitting it costs one field and buys the whole of the defensive game: a wind-up you can
+ * read, a moment where stepping back actually works, and a window a guard can be timed to.
+ * The creature commits at the start of it — it does not re-aim while it swings — so backing
+ * off during the wind-up beats a blow that was already thrown, which is the deal.
+ */
+function bite(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, strike } = tick.world;
+    const aim = aimOf(tick.world);
+    const reach = number(params, 'tiles', BEHAVIOUR.BITE_RANGE);
+
+    // the wind-up lives on the creature rather than in this node's memory, so that a blow which
+    // is interrupted — the thing is frightened off, or killed mid-swing — is over the moment the
+    // creature stops being able to throw it, rather than waiting in a tree to be resumed
+    if (self.winding <= 0) {
+      if (rangeTo(tick) > reach || self.attackCooldown > 0) return 'failure';
+      self.attackCooldown = number(params, 'cooldown', BEHAVIOUR.BITE_COOLDOWN);
+      self.yaw = yawFor(aim.x - self.x, aim.z - self.z);
+      // every creature in the game attacks through this one verb, so it is the only place a
+      // blow has to be thrown for wolves, bears, constables and hired swords all to swing
+      const shape = blowOf(self.kind);
+      throwBlow(self, shape);
+      // how much warning this particular blow gives, which is the blow's own business: a bear's
+      // rear is slow and readable, a shark's lunge is barely there at all
+      self.winding = tellOf(shape, BEHAVIOUR.WIND_UP);
+      return 'running';
+    }
+
+    self.winding = Math.max(0, self.winding - tick.dt);
+    if (self.winding > 0) return 'running';
+
+    // it lands where the creature is now, against wherever the target has got to. A step back
+    // during the wind-up is a step out of it, which is the only defence that needs no button.
+    if (rangeTo(tick) > reach + BEHAVIOUR.BITE_SLIP) return 'failure';
+    const damage = number(params, 'damage', self.kind.dangerous ?? 1);
+    // the hero has hearts and a HUD; anybody else is just another creature to be hurt
+    if (aim.who) strike(self, aim.who, damage); else tick.world.bite(self, damage);
+    return 'success';
+  };
+}
+
+/**
+ * Lay hands on the hero. Fails while they are out of reach, which is this file's way of
+ * saying keep coming. Measured to the hero rather than to whatever is marked, because an
+ * arrest is only ever of the hero, and the cooldown is what stops one constable taking them
+ * in twice over while the game is still deciding what that means.
+ */
+function arrest(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, playerX, playerZ } = tick.world;
+    if (self.attackCooldown > 0) return 'failure';
+    if (Math.hypot(self.x - playerX, self.z - playerZ) > number(params, 'tiles', 1.8)) return 'failure';
+    self.attackCooldown = number(params, 'cooldown', 3);
+    throwBlow(self, blowOf(self.kind));
+    self.yaw = yawFor(playerX - self.x, playerZ - self.z);
+    tick.world.arrest(self);
+    return 'success';
+  };
+}
+
+// --- backing off, and getting over it ---
+
+/** Turn tail and run, for as long as a fright lasts. */
+function flee(params: Params): CreatureNode {
+  const key = Symbol('flee');
+  return (tick) => {
+    const { self, playerX, playerZ, rng } = tick.world;
+    const seconds = tick.memory.get(key, number(params, 'seconds', 2) + rng()) - tick.dt;
+    if (self.state !== 'flee') {
+      const dx = self.x - playerX, dz = self.z - playerZ;
+      const away = Math.hypot(dx, dz) || 1;
+      self.fleeX = dx / away;
+      self.fleeZ = dz / away;
+      self.state = 'flee';
+      self.timer = seconds;
+    }
+    if (seconds > 0) { tick.memory.set(key, seconds); return 'running'; }
+    tick.memory.clear(key);
+    return 'success';
+  };
+}
+
+/** Head down, and stay down for a while: what a grazing animal does most of the time. */
+function graze(params: Params): CreatureNode {
+  const key = Symbol('graze');
+  return (tick) => {
+    const { self, rng } = tick.world;
+    const left = tick.memory.get(key, number(params, 'seconds', 3) + rng() * number(params, 'spread', 3)) - tick.dt;
+    self.state = 'graze';
+    if (left > 0) { tick.memory.set(key, left); return 'running'; }
+    tick.memory.clear(key);
+    self.state = 'idle';
+    self.timer = 0.5;
+    return 'success';
+  };
+}
+
+/** Nothing in particular: whatever this creature does when nothing is happening. */
+function idle(): CreatureNode {
+  return act(({ world }) => {
+    const { self } = world;
+    if (self.state === 'flee') { self.state = 'idle'; self.timer = 1; }
+    self.charging = 0;
+  });
+}
+
+/**
+ * Sit still and mend. Paid care is quick; the free kind takes three times as long, which is
+ * the whole of the doctor's economy — nobody who asks for help dies, but money buys getting
+ * back to work today rather than tomorrow.
+ */
+function beHealed(params: Params): CreatureNode {
+  const key = Symbol('healing');
+  return (tick) => {
+    const { self } = tick.world;
+    const fee = number(params, 'fee', 8);
+    const paying = self.purse >= fee;
+    const takes = number(params, 'seconds', 6) * (paying ? 1 : number(params, 'freeShare', 3));
+    const left = tick.memory.get(key, takes) - tick.dt;
+    self.state = 'idle';
+    self.timer = 1;
+    if (left > 0) { tick.memory.set(key, left); return 'running'; }
+    tick.memory.clear(key);
+    if (paying) self.purse -= fee;
+    self.hp = self.kind.hp ?? self.hp;
+    return 'success';
+  };
+}
+
+// --- making a living ---
+
+/** Close on the nearest wild animal. Fails when there is nothing about worth taking. */
+function stalkQuarry(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, quarry } = tick.world;
+    const prey = quarry(self, number(params, 'within', 30));
+    if (!prey) return 'failure';
+    self.tx = prey.x;
+    self.tz = prey.z;
+    if (self.state !== 'walk') { self.state = 'walk'; self.timer = 10; }
+    return Math.hypot(self.x - prey.x, self.z - prey.z) <= number(params, 'reach', 1.6) ? 'success' : 'running';
+  };
+}
+
+/** Take what has been run down: it leaves the world, and goes on the hunter's shoulder. */
+function take(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, quarry, remove } = tick.world;
+    const prey = quarry(self, number(params, 'reach', 1.8));
+    if (!prey) return 'failure';
+    remove(prey);
+    self.carrying = { id: prey.kind.drop?.id ?? 'meat', count: 1 };
+    self.state = 'idle';
+    self.timer = 1;
+    return 'success';
+  };
+}
+
+/**
+ * Hand over what is being carried, and take the coin for it.
+ *
+ * The coin goes to the person as well as to the body standing in the street. The body is
+ * destroyed the moment the player walks out of range, so for as long as this was the only
+ * place it landed, every sale a villager ever made evaporated and the village was never a
+ * penny better off for any of it.
+ */
+function sell(): CreatureNode {
+  return (tick) => {
+    const { self } = tick.world;
+    if (!self.carrying) return 'failure';
+    const took = tick.world.worth(self.carrying.id) * self.carrying.count;
+    self.purse += took;
+    tick.world.banked?.(self.person, took);
+    self.carrying = null;
+    self.state = 'idle';
+    self.timer = 1.5;
+    return 'success';
+  };
+}
+
+/** Spend some of what is in the purse, on whatever this trade spends money on. */
+function spend(params: Params): CreatureNode {
+  return (tick) => {
+    const { self } = tick.world;
+    const cost = number(params, 'cost', params.on === 'gear' ? 40 : 6);
+    if (self.purse < cost) return 'failure';
+    self.purse -= cost;
+    self.state = 'idle';
+    self.timer = 2;
+    return 'success';
+  };
+}
 
 /** A range rolled from the world's own generator, so two machines roll the same. */
 export const rollSeconds = (tick: Tick<Mind>, low: number, high: number): number =>

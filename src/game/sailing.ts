@@ -74,6 +74,15 @@ export const BOAT = {
   OVERBOARD: 2.4,
   /** The boat floats this far below the water line. */
   DRAFT: 0.12,
+  /** How high the hero stands aboard: the deck, near enough, above the world's nought. */
+  DECK: 0.55,
+  /**
+   * Where somebody thrown out ends up: this far off the hull, abeam, and this far under the
+   * water line. Beside the boat rather than under it, so the thing you have to climb back into is
+   * the thing you can see.
+   */
+  ALONGSIDE: 1.1,
+  AWASH: 0.3,
 } as const;
 
 export interface BoatSave {
@@ -181,9 +190,9 @@ export class Sailing {
       // in the water beside the hull: no steering until you have hauled yourself back aboard
       this.overboardFor = Math.max(0, this.overboardFor - dt);
       const bob = Math.sin(this.overboardFor * 7) * 0.06;
-      player.entity.x = this.x + Math.cos(this.yaw + Math.PI / 2) * 1.1;
-      player.entity.z = this.z - Math.sin(this.yaw + Math.PI / 2) * 1.1;
-      player.entity.y = WORLD.WATER_Y - 0.3 + bob;
+      player.entity.x = this.x + Math.cos(this.yaw + Math.PI / 2) * BOAT.ALONGSIDE;
+      player.entity.z = this.z - Math.sin(this.yaw + Math.PI / 2) * BOAT.ALONGSIDE;
+      player.entity.y = WORLD.WATER_Y - BOAT.AWASH + bob;
       player.entity.yaw = this.yaw;
       player.entity.walk = 0.35;
       return;
@@ -191,7 +200,7 @@ export class Sailing {
     helm(this, input, dt, world);
     player.entity.x = this.x;
     player.entity.z = this.z;
-    player.entity.y = 0.55;
+    player.entity.y = BOAT.DECK;
     player.entity.yaw = this.yaw;
     player.entity.walk = 0;
   }

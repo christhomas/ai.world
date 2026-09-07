@@ -1,7 +1,7 @@
 import type { Rng } from '../core/rng';
 import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
-import { ITEMS, SHOP_DEFS, itemSummary, sellPrice, sellableAt } from './shops';
+import { ITEMS, SHOP_DEFS, type ShopDef, itemSummary, sellPrice, sellableAt } from './shops';
 import type { GameState } from './state';
 import type { Quest } from './quests';
 import { gossipFor } from './gossip';
@@ -290,246 +290,294 @@ function questDialogue(e: Entity, q: Quest, ctx: TalkCtx): DialogueNode {
   };
 }
 
+/**
+ * Everything one conversation across a counter is about: who is talking, what they deal in, and
+ * how many of a thing the player has dialled up to sell.
+ *
+ * It exists so that each turn of the conversation below can be a function you read on its own.
+ * The tree used to be one function of nested closures, which meant the shape of the conversation
+ * was only ever visible as the shape of the code, and buying a lantern lived thirty columns in
+ * from the left margin.
+ */
+interface Counter {
+  e: Entity;
+  ctx: TalkCtx;
+  def: ShopDef;
+  /** What the panel puts above the words, and the face it draws beside them. */
+  speaker: string;
+  emoji: string;
+  face: Speaker | undefined;
+  /** Where this counter stands, for the small talk. */
+  village: string;
+  /**
+   * How many of each thing the player means to sell, keyed by item.
+   *
+   * It has to outlive a single menu because the sell list is rebuilt from scratch every time an
+   * arrow nudges a number, and the number is the whole point of the arrows.
+   */
+  wanted: Map<string, number>;
+}
+
+/** One thing said across the counter, and whatever the player may say back to it. */
+function across(s: Counter, pages: string[], choices?: DialogueChoice[]): DialogueNode {
+  const node: DialogueNode = { speaker: s.speaker, emoji: s.emoji, face: s.face, pages };
+  if (choices) node.choices = choices;
+  return node;
+}
+
+/**
+ * A shopkeeper, from hello to goodbye.
+ *
+ * The conversation is a handful of rooms with doors between them: the counter itself, and from
+ * there the stock, the trestle you sell off, the post shelf, a bed, or the weather. Each is a
+ * function below, and every door is a `next` that names the room it opens onto — so the tree is
+ * read by following the names rather than by counting braces.
+ */
 function shopDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   const def = SHOP_DEFS[e.shop!];
-  const speaker = `${e.name}, ${def.title}`;
-  const emoji = e.kind.emoji;
-  const face = faceFor(e, ctx);
-  const village = e.herd.tag || 'town';
-
-  /** A bed for the night: the sensible answer to a dark road and no hearts left. */
-  const bed = (): DialogueNode => {
-    const room = ctx.room!;
-    if (ctx.state.inventory.gold < room.price) {
-      // root is defined below; reaching it lazily keeps the night's first node buildable
-      return { speaker, emoji, face, pages: [`A room is ${room.price} gold, and you have ${ctx.state.inventory.gold}.`], choices: [{ label: 'Back', next: () => root() }] };
-    }
-    // a bed that costs nothing is one somebody decided you were not to be charged for, and
-    // saying so is the whole point of having earned it
-    const settled = room.price === 0 ? 'Your money is no good here, not after what you did. ' : '';
-    return {
-      speaker, emoji, face,
-      pages: [settled + (room.shared
-        ? 'Upstairs, first on the left. The night is the night — it will pass at its own pace — but you will pass it warm and safe.'
-        : 'Upstairs, first on the left. Sleep as long as you like; I will wake you at dawn.')],
-      choices: [
-        { label: 'Sleep', next: () => ({ speaker, emoji, face, pages: [room.take()] }) },
-        { label: 'Not tonight', next: () => root() },
-      ],
-    };
+  const counter: Counter = {
+    e, ctx, def,
+    speaker: `${e.name}, ${def.title}`,
+    emoji: e.kind.emoji,
+    face: faceFor(e, ctx),
+    village: e.herd.tag || 'town',
+    wanted: new Map(),
   };
+  return isDaytime(ctx.time) ? shopRoot(counter) : afterHours(counter);
+}
 
-  if (!isDaytime(ctx.time)) {
-    // an inn that shuts at night is no inn: the beds are the reason it is open
-    if (e.shop === 'inn' && ctx.room) {
-      return {
-        speaker, emoji, face,
-        pages: ['The kitchen is cold and the taps are off, but the beds are made and the door locks.'],
-        choices: [
-          { label: `Take a room (${ctx.room.price}g)`, next: bed },
-          { label: 'Back out into the dark', next: () => null },
-        ],
-      };
-    }
-    return { speaker, emoji, face, pages: [`The ${def.name.toLowerCase()} is shut for the night. Come back after dawn.`] };
+/**
+ * A shop after dark, which is a closed door — except at an inn, where the beds are the reason it
+ * is open at all, so the innkeeper answers and takes your money for one.
+ */
+function afterHours(s: Counter): DialogueNode {
+  const { ctx } = s;
+  if (s.e.shop === 'inn' && ctx.room) {
+    return across(s, ['The kitchen is cold and the taps are off, but the beds are made and the door locks.'], [
+      { label: `Take a room (${ctx.room.price}g)`, next: () => bedMenu(s) },
+      { label: 'Back out into the dark', next: () => null },
+    ]);
   }
+  return across(s, [`The ${s.def.name.toLowerCase()} is shut for the night. Come back after dawn.`]);
+}
 
-  const purse = () => `You have ${ctx.state.inventory.gold} gold.`;
+/** The counter itself: everything this keeper can be asked for, in one list. */
+function shopRoot(s: Counter): DialogueNode {
+  const { ctx } = s;
+  const innkeeper = s.e.shop === 'inn';
+  return across(s, [pick(ctx.rng, s.def.greetings)], [
+    { label: 'Buy', next: () => buyMenu(s) },
+    { label: 'Sell', next: () => sellMenu(s) },
+    ...(innkeeper && ctx.room ? [{ label: `Take a room (${ctx.room.price}g)`, next: () => bedMenu(s) }] : []),
+    ...(innkeeper && ctx.post ? [{ label: 'The post shelf', next: () => postMenu(s) }] : []),
+    { label: 'Chat', next: () => chatMenu(s) },
+    { label: 'Leave', next: () => null },
+  ]);
+}
 
-  const root = (): DialogueNode => ({
-    speaker, emoji, face,
-    pages: [pick(ctx.rng, def.greetings)],
-    choices: [
-      { label: 'Buy', next: buyMenu },
-      { label: 'Sell', next: sellMenu },
-      ...(e.shop === 'inn' && ctx.room ? [{ label: `Take a room (${ctx.room.price}g)`, next: bed }] : []),
-      ...(e.shop === 'inn' && ctx.post ? [{ label: 'The post shelf', next: postMenu }] : []),
-      { label: 'Chat', next: chat },
+/** A bed for the night: the sensible answer to a dark road and no hearts left. */
+function bedMenu(s: Counter): DialogueNode {
+  const room = s.ctx.room!;
+  const purse = s.ctx.state.inventory.gold;
+  if (purse < room.price) {
+    return across(s, [`A room is ${room.price} gold, and you have ${purse}.`], [
+      { label: 'Back', next: () => shopRoot(s) },
+    ]);
+  }
+  // a bed that costs nothing is one somebody decided you were not to be charged for, and saying
+  // so is the whole point of having earned it
+  const settled = room.price === 0 ? 'Your money is no good here, not after what you did. ' : '';
+  const upstairs = room.shared
+    ? 'Upstairs, first on the left. The night is the night — it will pass at its own pace — but you will pass it warm and safe.'
+    : 'Upstairs, first on the left. Sleep as long as you like; I will wake you at dawn.';
+  return across(s, [settled + upstairs], [
+    { label: 'Sleep', next: () => across(s, [room.take()]) },
+    { label: 'Not tonight', next: () => shopRoot(s) },
+  ]);
+}
+
+/**
+ * Names and things fit on the shelf menu. Beyond this a list stops being a list you can read and
+ * starts being one you scroll, and the post shelf is not worth a scrollbar.
+ */
+const SHELF_ROWS = 8;
+
+/** The inn's shelf: take what is addressed to you, or leave something for somebody else. */
+function postMenu(s: Counter): DialogueNode {
+  const post = s.ctx.post!;
+  return across(s, ['Parcels go on the shelf behind me. Anything left is handed over at any inn in the land.'], [
+    { label: 'Anything for me?', next: () => { post.collect(); return null; } },
+    { label: 'Leave a parcel', next: () => parcelMenu(s) },
+    { label: 'Back', next: () => shopRoot(s) },
+  ]);
+}
+
+/** What is going on the shelf, out of what is in the pack. */
+function parcelMenu(s: Counter): DialogueNode {
+  const post = s.ctx.post!;
+  const carried = [...s.ctx.state.inventory.items.entries()].filter(([id]) => ITEMS[id]);
+  if (carried.length === 0 || post.folk.length === 0) {
+    const why = carried.length === 0 ? 'You have nothing to send.' : 'No one else has passed through this world yet.';
+    return across(s, [why], [{ label: 'Back', next: () => postMenu(s) }]);
+  }
+  return across(s, ['What are you sending?'], [
+    ...carried.slice(0, SHELF_ROWS).map(([id]) => ({
+      label: `${ITEMS[id].emoji} ${ITEMS[id].name}`,
+      next: () => addressMenu(s, id),
+    })),
+    { label: 'Back', next: () => postMenu(s) },
+  ]);
+}
+
+/** Who the parcel is for, out of everybody this world has seen. */
+function addressMenu(s: Counter, itemId: string): DialogueNode {
+  const post = s.ctx.post!;
+  return across(s, [`${ITEMS[itemId].name}, and ${PARCEL_GOLD} gold for the carriage. Who is it for?`], [
+    ...post.folk.slice(0, SHELF_ROWS).map((name) => ({
+      label: name,
+      // the carriage is paid if it can be afforded and waived if it cannot, because a parcel that
+      // refuses to go for want of ten gold is a feature nobody meets twice
+      next: () => { post.send(name, itemId, s.ctx.state.inventory.gold >= PARCEL_GOLD ? PARCEL_GOLD : 0); return null; },
+    })),
+    { label: 'Never mind', next: () => postMenu(s) },
+  ]);
+}
+
+/** What they are asking today, which is the price plus whatever they think of you. */
+function asking(s: Counter, item: { price: number }): number {
+  return Math.round(item.price * (1 + (s.ctx.markup ?? 0)));
+}
+
+/** What is in the purse, said aloud, because a list of prices is no use on its own. */
+function purseLine(s: Counter): string {
+  return `You have ${s.ctx.state.inventory.gold} gold.`;
+}
+
+/** The stock, with today's price against each thing and a tick beside what you already own. */
+function buyMenu(s: Counter): DialogueNode {
+  const dear = (s.ctx.markup ?? 0) > 0;
+  const greeting = dear
+    ? `Here's the stock, and my prices are my prices. ${purseLine(s)}`
+    : `Here's the stock. ${purseLine(s)}`;
+  return across(s, [greeting], [
+    ...s.def.items.map((id) => {
+      const item = ITEMS[id];
+      const owned = s.ctx.state.owns(id) ? ' ✓' : '';
+      return { label: `${item.emoji} ${item.name} — ${asking(s, item)}g${owned}`, next: () => buyOne(s, item.id) };
+    }),
+    { label: 'Back', next: () => shopRoot(s) },
+  ]);
+}
+
+/** Purchases go into the rucksack; wearing them is the player's business. */
+function buyOne(s: Counter, id: string): DialogueNode {
+  const { ctx } = s;
+  const item = ITEMS[id];
+  const price = asking(s, item);
+  if (ctx.state.inventory.gold < price) {
+    return across(s, [`That's ${price} gold, friend. You've only got ${ctx.state.inventory.gold}.`], [
+      { label: 'Back', next: () => buyMenu(s) },
       { label: 'Leave', next: () => null },
-    ],
-  });
+    ]);
+  }
+  ctx.state.inventory.gold -= price;
+  ctx.state.give(item.id, 1);
+  ctx.onInventoryChange();
+  const note = itemSummary(item);
+  return across(s, [
+    `${item.name}, good choice. That's ${price} gold.`,
+    `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`,
+  ], [
+    { label: 'Buy more', next: () => buyMenu(s) },
+    { label: 'Sell something', next: () => sellMenu(s) },
+    { label: 'Done', next: () => null },
+  ]);
+}
 
-  /** The inn's shelf: take what is addressed to you, or leave something for somebody else. */
-  const postMenu = (): DialogueNode => {
-    const post = ctx.post!;
-    return {
-      speaker, emoji, face,
-      pages: ['Parcels go on the shelf behind me. Anything left is handed over at any inn in the land.'],
-      choices: [
-        { label: 'Anything for me?', next: () => { post.collect(); return null; } },
-        { label: 'Leave a parcel', next: parcelMenu },
-        { label: 'Back', next: root },
-      ],
-    };
+/** The trestle: everything in the pack this shop deals in, with a number against each. */
+function sellMenu(s: Counter): DialogueNode {
+  const { ctx } = s;
+  const stock = sellableAt(s.def, ctx.state.inventory.items.entries());
+  if (stock.length === 0) {
+    const refusal = `Nothing in that pack I can use. ${s.def.name === 'Inn' ? 'Fish and food, mind.' : ''}`.trim();
+    return across(s, [refusal], [{ label: 'Back', next: () => shopRoot(s) }]);
+  }
+  const all = stock.reduce((sum, row) => sum + row.price * row.count, 0);
+  // anything sold, dropped or eaten since the last look may have left a number stranded above
+  // what is actually in the pack, and offering to sell nine of six is how a shop loses its money
+  for (const { item, count } of stock) {
+    const asked = s.wanted.get(item.id);
+    if (asked !== undefined) s.wanted.set(item.id, Math.max(1, Math.min(count, asked)));
+  }
+  return across(s, [`Let's see what you've got. ${purseLine(s)}`], [
+    ...stock.map((row) => sellRow(s, row)),
+    ...(stock.length > 1 || stock[0].count > 1 ? [{ label: `Sell the lot (${all}g)`, next: () => sellAll(s, stock) }] : []),
+    { label: 'Back', next: () => shopRoot(s) },
+  ]);
+}
+
+/**
+ * One thing on the trestle, and the dial that says how many of it you mean.
+ *
+ * Selling a stack of twenty pelts used to mean twenty trips through the same three lines of
+ * patter, and the only way out of that was "sell the lot", which empties the pack of everything —
+ * no use at all when you are keeping four apples and selling the rest. Left and right on this row
+ * set the number, so the common case is two taps rather than twenty.
+ */
+function sellRow(s: Counter, { item, count, price }: ReturnType<typeof sellableAt>[number]): DialogueChoice {
+  const n = Math.max(1, Math.min(count, s.wanted.get(item.id) ?? 1));
+  // the arrows are only worth drawing where there is more than one to argue about
+  const dial = count > 1 ? `  ◀ ${n} of ${count} ▶` : '';
+  return {
+    label: `${item.emoji} ${item.name} — ${price * n}g${dial}`,
+    next: () => sellSome(s, item.id, n),
+    adjust: (dir: number): DialogueNode | null => {
+      if (count <= 1) return null;
+      // it wraps rather than stopping at the ends, for the reason stepWithin sets out below
+      s.wanted.set(item.id, stepWithin(n, dir, count));
+      return sellMenu(s);
+    },
   };
+}
 
-  const parcelMenu = (): DialogueNode => {
-    const post = ctx.post!;
-    const carried = [...ctx.state.inventory.items.entries()].filter(([id]) => ITEMS[id]);
-    if (carried.length === 0 || post.folk.length === 0) {
-      return {
-        speaker, emoji, face,
-        pages: [carried.length === 0 ? 'You have nothing to send.' : 'No one else has passed through this world yet.'],
-        choices: [{ label: 'Back', next: postMenu }],
-      };
-    }
-    const forWhom = (itemId: string): DialogueNode => ({
-      speaker, emoji, face,
-      pages: [`${ITEMS[itemId].name}, and ${PARCEL_GOLD} gold for the carriage. Who is it for?`],
-      choices: [
-        ...post.folk.slice(0, 8).map((name) => ({
-          label: name,
-          next: () => { post.send(name, itemId, ctx.state.inventory.gold >= PARCEL_GOLD ? PARCEL_GOLD : 0); return null; },
-        })),
-        { label: 'Never mind', next: postMenu },
-      ],
-    });
-    return {
-      speaker, emoji, face,
-      pages: ['What are you sending?'],
-      choices: [
-        ...carried.slice(0, 8).map(([id]) => ({ label: `${ITEMS[id].emoji} ${ITEMS[id].name}`, next: () => forWhom(id) })),
-        { label: 'Back', next: postMenu },
-      ],
-    };
-  };
+/** Hand over some number of one thing and take the coin for it. */
+function sellSome(s: Counter, id: string, n: number): DialogueNode {
+  const { ctx } = s;
+  const item = ITEMS[id];
+  const sold = ctx.state.take(id, n);
+  if (sold === 0) return sellMenu(s);
+  const paid = sellPrice(item) * sold;
+  ctx.state.inventory.gold += paid;
+  ctx.onInventoryChange();
+  // "4 × Wolf Pelt" rather than "4 Wolf Pelt": the names are singular and pluralising them
+  // properly would mean a plural for every item in the game to avoid writing "4 Breads"
+  const named = sold > 1 ? `${sold} × ${item.name}` : item.name;
+  return across(s, [`${named} for ${paid} gold. Done.`], [
+    { label: 'Sell more', next: () => sellMenu(s) },
+    { label: 'Buy something', next: () => buyMenu(s) },
+    { label: 'Done', next: () => null },
+  ]);
+}
 
-  /** What they are asking today, which is the price plus whatever they think of you. */
-  const asking = (item: { price: number }): number => Math.round(item.price * (1 + (ctx.markup ?? 0)));
+/** Empty the pack of everything this shop deals in, in one go. */
+function sellAll(s: Counter, stock: ReturnType<typeof sellableAt>): DialogueNode {
+  const { ctx } = s;
+  let paid = 0;
+  for (const { item, count } of stock) paid += sellPrice(item) * ctx.state.take(item.id, count);
+  ctx.state.inventory.gold += paid;
+  ctx.onInventoryChange();
+  return across(s, [`The lot for ${paid} gold. Pleasure doing business.`], [
+    { label: 'Buy something', next: () => buyMenu(s) },
+    { label: 'Done', next: () => null },
+  ]);
+}
 
-  const buyMenu = (): DialogueNode => ({
-    speaker, emoji, face,
-    pages: [(ctx.markup ?? 0) > 0
-      ? `Here's the stock, and my prices are my prices. ${purse()}`
-      : `Here's the stock. ${purse()}`],
-    choices: [
-      ...def.items.map((id) => {
-        const item = ITEMS[id];
-        const owned = ctx.state.owns(id) ? ' ✓' : '';
-        return { label: `${item.emoji} ${item.name} — ${asking(item)}g${owned}`, next: () => buy(item.id) };
-      }),
-      { label: 'Back', next: root },
-    ],
-  });
-
-  /** Purchases go into the rucksack; wearing them is the player's business. */
-  const buy = (id: string): DialogueNode => {
-    const item = ITEMS[id];
-    const price = asking(item);
-    if (ctx.state.inventory.gold < price) {
-      return {
-        speaker, emoji, face,
-        pages: [`That's ${price} gold, friend. You've only got ${ctx.state.inventory.gold}.`],
-        choices: [{ label: 'Back', next: buyMenu }, { label: 'Leave', next: () => null }],
-      };
-    }
-    ctx.state.inventory.gold -= price;
-    ctx.state.give(item.id, 1);
-    ctx.onInventoryChange();
-    const note = itemSummary(item);
-    return {
-      speaker, emoji, face,
-      pages: [`${item.name}, good choice. That's ${price} gold.`, `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`],
-      choices: [{ label: 'Buy more', next: buyMenu }, { label: 'Sell something', next: sellMenu }, { label: 'Done', next: () => null }],
-    };
-  };
-
-  /**
-   * The trestle, with a number against each thing on it.
-   *
-   * Selling a stack of twenty pelts used to mean twenty trips through the same three lines of
-   * patter, and the only way out of that was "sell the lot", which empties the pack of everything
-   * — no use at all when you are keeping four apples and selling the rest. Left and right on a row
-   * set how many of that one thing you mean, so the common case is two taps rather than twenty.
-   *
-   * `wanted` carries the numbers between redraws, keyed by item. It has to live outside the node
-   * because the menu is rebuilt from scratch on every nudge.
-   */
-  const wanted = new Map<string, number>();
-
-  const sellMenu = (): DialogueNode => {
-    const stock = sellableAt(def, ctx.state.inventory.items.entries());
-    if (stock.length === 0) {
-      return {
-        speaker, emoji, face,
-        pages: [`Nothing in that pack I can use. ${def.name === 'Inn' ? 'Fish and food, mind.' : ''}`.trim()],
-        choices: [{ label: 'Back', next: root }],
-      };
-    }
-    const all = stock.reduce((sum, s) => sum + s.price * s.count, 0);
-    // anything sold, dropped or eaten since the last look may have left a number stranded above
-    // what is actually in the pack, and offering to sell nine of six is how a shop loses its money
-    for (const { item, count } of stock) {
-      const asked = wanted.get(item.id);
-      if (asked !== undefined) wanted.set(item.id, Math.max(1, Math.min(count, asked)));
-    }
-    return {
-      speaker, emoji, face,
-      pages: [`Let's see what you've got. ${purse()}`],
-      choices: [
-        ...stock.map(({ item, count, price }) => {
-          const n = Math.max(1, Math.min(count, wanted.get(item.id) ?? 1));
-          // the arrows are only worth drawing where there is more than one to argue about
-          const dial = count > 1 ? `  ◀ ${n} of ${count} ▶` : '';
-          return {
-            label: `${item.emoji} ${item.name} — ${price * n}g${dial}`,
-            next: () => sell(item.id, n),
-            adjust: (dir: number): DialogueNode | null => {
-              if (count <= 1) return null;
-              // it wraps rather than stopping at the ends, which is the whole of what makes this
-              // usable: the key handler deliberately ignores auto-repeat, so a stack of twenty
-              // would otherwise be nineteen separate presses to sell whole. Left from one lands on
-              // all of them, which is the number people want most often after one.
-              const moved = stepWithin(n, dir, count);
-              wanted.set(item.id, moved);
-              return sellMenu();
-            },
-          };
-        }),
-        ...(stock.length > 1 || stock[0].count > 1 ? [{ label: `Sell the lot (${all}g)`, next: () => sellAll(stock) }] : []),
-        { label: 'Back', next: root },
-      ],
-    };
-  };
-
-  const sell = (id: string, n: number): DialogueNode => {
-    const item = ITEMS[id];
-    const sold = ctx.state.take(id, n);
-    if (sold === 0) return sellMenu();
-    const paid = sellPrice(item) * sold;
-    ctx.state.inventory.gold += paid;
-    ctx.onInventoryChange();
-    return {
-      speaker, emoji, face,
-      // "4 × Wolf Pelt" rather than "4 Wolf Pelt": the names are singular and pluralising them
-      // properly would mean a plural for every item in the game to avoid writing "4 Breads"
-      pages: [`${sold > 1 ? `${sold} × ${item.name}` : item.name} for ${paid} gold. Done.`],
-      choices: [{ label: 'Sell more', next: sellMenu }, { label: 'Buy something', next: buyMenu }, { label: 'Done', next: () => null }],
-    };
-  };
-
-  const sellAll = (stock: ReturnType<typeof sellableAt>): DialogueNode => {
-    let paid = 0;
-    for (const { item, count } of stock) {
-      const sold = ctx.state.take(item.id, count);
-      paid += sellPrice(item) * sold;
-    }
-    ctx.state.inventory.gold += paid;
-    ctx.onInventoryChange();
-    return {
-      speaker, emoji, face,
-      pages: [`The lot for ${paid} gold. Pleasure doing business.`],
-      choices: [{ label: 'Buy something', next: buyMenu }, { label: 'Done', next: () => null }],
-    };
-  };
-
-  const chat = (): DialogueNode => ({
-    speaker, emoji, face,
-    pages: [e.line(ctx.rng), `Business is steady here in ${village}.`],
-    choices: [{ label: 'Back', next: root }, { label: 'Leave', next: () => null }],
-  });
-
-  return root();
+/** The weather, more or less: a keeper's own line, and how trade is treating them. */
+function chatMenu(s: Counter): DialogueNode {
+  return across(s, [s.e.line(s.ctx.rng), `Business is steady here in ${s.village}.`], [
+    { label: 'Back', next: () => shopRoot(s) },
+    { label: 'Leave', next: () => null },
+  ]);
 }
 
 /**

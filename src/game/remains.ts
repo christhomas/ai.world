@@ -21,6 +21,13 @@ export const REMAINS = {
   REACH: 2.2,
   /** No more than this many at once; the oldest goes first. */
   KEPT: 24,
+  /**
+   * How often the tool of somebody's trade is still in the pack when you get to it.
+   *
+   * Better than even, so going through the remains of a hunter is worth the walk over, and short
+   * of certain, so it is a find rather than a delivery.
+   */
+  HAS_KIT: 0.6,
 } as const;
 
 export interface Pack {
@@ -69,7 +76,7 @@ export class Remains {
     const roll = mulberry32(seed);
     const items = carrying ? [carrying] : [];
     const kit = KIT[trade] ?? [];
-    if (kit.length && roll() < 0.6) items.push(kit[Math.floor(roll() * kit.length)]);
+    if (kit.length && roll() < REMAINS.HAS_KIT) items.push(kit[Math.floor(roll() * kit.length)]);
 
     const pack: Pack = { x, z, who, trade, gold, items, left: REMAINS.LASTS };
     this.packs.push(pack);

@@ -13,6 +13,17 @@ export const HORSE = {
   SADDLE: 0.98,
   /** Reach for buying, mounting and dismounting: generous, because horses shift about. */
   REACH: 3.4,
+  /**
+   * How much of the hero's stride cycle the horse's legs go through. A horse covers the same
+   * ground in fewer, longer strides than a person, so running its legs at the hero's rate makes
+   * it look like a large dog.
+   */
+  GAIT: 0.6,
+  /**
+   * How quickly a horse left standing stops moving its legs, as a share of what is left each
+   * frame. Eased rather than cut, so a horse you step off does not freeze mid-stride.
+   */
+  SETTLES: 0.1,
 } as const;
 
 export interface HorseSave {
@@ -111,7 +122,7 @@ export class Mount {
     const horse = this.entity;
     if (!horse) return;
     if (!this.riding) {
-      horse.walk += (0 - horse.walk) * 0.1;
+      horse.walk += (0 - horse.walk) * HORSE.SETTLES;
       return;
     }
     const ground = world.heightAt(player.x, player.z);
@@ -120,7 +131,7 @@ export class Mount {
     if (ground !== null) horse.y = ground;
     horse.yaw = player.entity.yaw;
     horse.walk = player.entity.walk;
-    horse.phase = player.entity.phase * 0.6;
+    horse.phase = player.entity.phase * HORSE.GAIT;
     player.entity.y = horse.y + this.breed.saddle;
     player.entity.bobY = 0;
   }

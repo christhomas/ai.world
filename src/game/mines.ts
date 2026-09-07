@@ -1,6 +1,6 @@
 import { remember, type Person } from '../world/people';
 import {
-  dayUnderground, freshMine, perilAfter, restOvernight, saidOfMine, toldOfMine, type Mine,
+  MINING, dayUnderground, freshMine, perilAfter, restOvernight, saidOfMine, toldOfMine, type Mine,
 } from './mining';
 
 /**
@@ -240,9 +240,9 @@ export class Mines {
     const mine = this.mines.get(id);
     if (!mine) return null;
     const after = toldOfMine(mine, this.perilOf(id));
-    if (after.dread >= mine.dread - 0.005) return null;
+    if (after.dread >= mine.dread - MINING.DREAD_WORTH_SAYING) return null;
     this.mines.set(id, after);
-    return after.dread <= 0.05
+    return after.dread <= MINING.DREAD_QUIET
       ? `Word goes round ${name} is quiet again. They will be back at the face in the morning.`
       : `They take some convincing about ${name}, but fewer of them are staying home now.`;
   }

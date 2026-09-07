@@ -52,6 +52,22 @@ export const WHALE = {
   WATCH: 70,
   /** A whale coming down this close to your boat throws you out of it. */
   SPLASH: 2.6,
+  /** How much higher the pod's favourite hour goes than the rest: something to be there for. */
+  SHOWING_OFF: 1.35,
+  /** How far the nose comes up at the top of the arc, in radians — a shade over sixty degrees. */
+  PITCH: 1.05,
+  /**
+   * How far out of the water the arc has to have carried it before it counts as airborne, as a
+   * share of the height. Anything less is a back breaking the surface, which is not a breach and
+   * should not be drawn as one.
+   */
+  CLEAR_OF_WATER: 0.08,
+  /**
+   * How far through the arc a whale is when it hits the water again, out of one. Not the very end
+   * of it: whatever is underneath needs to be thrown clear on the way down rather than after the
+   * splash, and this is the frame the spray belongs to.
+   */
+  SPLASHDOWN: 0.86,
 } as const;
 
 /** Real seconds in one hour of the world's clock. */
@@ -160,7 +176,7 @@ export function whaleAt(pod: Pod, index: number, seconds: number): WhaleState {
 
   const through = t / WHALE.ARC;
   // the pod's favourite hour gets the bigger jump: something to arrange an evening around
-  const lift = WHALE.HEIGHT * (hour % 24 === pod.favourite ? 1.35 : 1);
+  const lift = WHALE.HEIGHT * (hour % 24 === pod.favourite ? WHALE.SHOWING_OFF : 1);
   const rise = Math.sin(through * Math.PI);
   const forward = (through - 0.5) * WHALE.REACH;
   return {
@@ -169,8 +185,8 @@ export function whaleAt(pod: Pod, index: number, seconds: number): WhaleState {
     y: WORLD.WATER_Y - WHALE.SUBMERGED + rise * lift,
     yaw: heading,
     // nose to the sky on the way up, nose to the water on the way down
-    pitch: Math.cos(through * Math.PI) * 1.05,
-    airborne: rise > 0.08,
+    pitch: Math.cos(through * Math.PI) * WHALE.PITCH,
+    airborne: rise > WHALE.CLEAR_OF_WATER,
     through,
   };
 }
@@ -180,5 +196,5 @@ export function landingOf(pod: Pod, index: number, seconds: number): { x: number
   const now = whaleAt(pod, index, seconds);
   if (now.through < 0) return null;
   // the frame it re-enters the water: near the end of the arc, and falling
-  return now.through > 0.86 ? { x: now.x, z: now.z } : null;
+  return now.through > WHALE.SPLASHDOWN ? { x: now.x, z: now.z } : null;
 }

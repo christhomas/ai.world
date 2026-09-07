@@ -4,7 +4,19 @@ import { Music } from './music';
 /**
  * All sound is synthesised with Web Audio: no sample files, in keeping with the no-textures rule.
  * The context is created on the first user gesture (browsers require it).
+ *
+ * The bare numbers below are frequencies in hertz, durations in seconds and gains out of one,
+ * handed to `tone` and `burst` whose parameters already name them. They are left as they are on
+ * purpose: `this.tone(420, 0.25, 'sine', 0.06)` beside a comment saying `owl` is a description of
+ * a sound, and putting a name in front of the 420 would only be a longer way of writing it.
  */
+/**
+ * The height of fall, in world units, that water makes as much noise as it ever will at. Anything
+ * taller is the same roar — which is the only reason this is a number and not simply the drop:
+ * without a ceiling a hundred-foot fall would drown the game out from across the valley.
+ */
+const FULL_ROAR = 12;
+
 export class Sound {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -136,6 +148,8 @@ export class Sound {
     const t0 = ctx.currentTime + when;
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
+    // the same two seconds of noise every time would make every footstep the identical footstep,
+    // so each burst is played at its own speed from its own place in the buffer
     src.playbackRate.value = 0.8 + Math.random() * 0.4;
     const f = ctx.createBiquadFilter();
     f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
@@ -160,7 +174,7 @@ export class Sound {
     this.wetness = Math.max(0, Math.min(1, nearness));
     const w = this.water;
     if (!w || !this.ctx) return;
-    const loud = Math.min(1, drop / 12);
+    const loud = Math.min(1, drop / FULL_ROAR);
     w.gain.gain.value = this.wetness * (0.035 + loud * 0.16) * (this.cave ? 0.6 : 1);
     // a fall is broader and lower than a brook, which is most of what tells them apart
     w.filter.frequency.value = 1500 - loud * 950;

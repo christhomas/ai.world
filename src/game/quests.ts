@@ -34,6 +34,26 @@ const FETCHABLE: Record<ShopType, string[]> = {
 
 const DIRS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
 
+/**
+ * What an errand is worth to the village that sets it.
+ *
+ * Both kinds pay a flat sum plus something for the work — the walk in one case, the price of what
+ * you have to go and buy in the other. The fetch multiplier has to clear a shop's own markup with
+ * room to spare, or the errand is a way of losing money politely and nobody runs a second one.
+ */
+const PAY = {
+  /** Nothing nearer the village than this, in tiles, is far enough off to be worth sending for. */
+  WORTH_THE_WALK: 25,
+  /** Going to look at something: this much to begin with, and another gold for every so many tiles. */
+  VISIT: 20,
+  VISIT_A_TILE: 8,
+  /** Above this much at a shop, one of a thing is plenty to send a stranger after. */
+  DEAR: 20,
+  /** Fetching: this many times what it costs over the counter, and a little on top. */
+  FETCH: 2.5,
+  FETCH_FLOOR: 10,
+} as const;
+
 export function compass(dx: number, dz: number): string {
   // north is -z on the map; angle measured from +x
   const a = Math.atan2(dz, dx);
@@ -55,12 +75,12 @@ function visitQuest(v: Village, structures: Structures, rng: () => number): Ques
   let best = null as (typeof structures.pois)[number] | null, bestD = Infinity;
   for (const p of structures.pois) {
     const d = Math.hypot(p.x - v.x, p.z - v.z);
-    if (d > 25 && d < bestD) { bestD = d; best = p; }
+    if (d > PAY.WORTH_THE_WALK && d < bestD) { bestD = d; best = p; }
   }
   if (!best) return null;
   const dir = compass(best.x - v.x, best.z - v.z);
   const paces = Math.round(bestD / 10) * 10;
-  const reward = 20 + Math.round(bestD / 8);
+  const reward = PAY.VISIT + Math.round(bestD / PAY.VISIT_A_TILE);
   const openers = [
     `You look like someone who walks far. Have you heard of the ${best.name}?`,
     `Strangers are rare here. Do a favour for an old ${v.biome === 2 ? 'sand-rat' : 'villager'}?`,
@@ -86,8 +106,8 @@ function fetchQuest(v: Village, rng: () => number): Quest | null {
   const items = FETCHABLE[shopType];
   const itemId = items[Math.floor(rng() * items.length)];
   const item = ITEMS[itemId];
-  const count = item.price > 20 ? 1 : 2;
-  const reward = Math.round(item.price * count * 2.5) + 10;
+  const count = item.price > PAY.DEAR ? 1 : 2;
+  const reward = Math.round(item.price * count * PAY.FETCH) + PAY.FETCH_FLOOR;
   const shopName = SHOP_DEFS[shopType].name.toLowerCase();
   return {
     id: `fetch:${v.name}`, village: v.name, kind: 'fetch', target: itemId, count, reward,

@@ -53,6 +53,33 @@ export const MINING = {
    * finish dealing with.
    */
   CLEARED_BY: 0.016,
+  /**
+   * What a day that went wrong still brings up, as a share of a good one. Not nothing: the crew
+   * came back up, and what was already cut is still in the barrow.
+   */
+  A_BAD_DAY: 0.4,
+  /**
+   * What a death does to how frightened a village is, and what a day somebody merely ran from
+   * does. A funeral is worth more than twice a fright, which is why one bad month can shut a mine
+   * that a bad week only slows.
+   */
+  DREAD_A_DEATH: 0.45,
+  DREAD_A_FRIGHT: 0.2,
+  /**
+   * How much fear a quiet day takes off, which is about a fiftieth. Slow on purpose: any faster
+   * and a bad week is forgotten by the next one, and then clearing a mine out is worth nothing to
+   * anybody because the village was about to go back down anyway.
+   */
+  DREAD_FADES: 0.022,
+  /** Frightened enough that nobody goes down at all, and frightened enough to go down in twos. */
+  DREAD_SHUT: 0.7,
+  DREAD_WARY: 0.35,
+  /** Fear this low is a village that reckons its mine quiet again. */
+  DREAD_QUIET: 0.05,
+  /** A change in fear smaller than this is not worth anybody's breath to report. */
+  DREAD_WORTH_SAYING: 0.005,
+  /** How little of a seam has to be left before people start talking about it running out. */
+  NEARLY_OUT: 0.15,
 } as const;
 
 /** What a mine is, as far as the economy is concerned. */
@@ -123,7 +150,7 @@ export function dayUnderground(
   // the day went wrong. Mostly that means somebody ran; sometimes it means somebody did not.
   const fatal = roll() < MINING.FATAL;
   return {
-    gold: fatal ? 0 : Math.round(gold * 0.4),
+    gold: fatal ? 0 : Math.round(gold * MINING.A_BAD_DAY),
     scared: true,
     lost: fatal,
     // what a dead miner had on him: the day's takings, which were minted and now lie on the floor
@@ -135,12 +162,9 @@ export function dayUnderground(
 export function restOvernight(mine: Mine, today: DayUnderground): Mine {
   const worked = Math.max(0, mine.worked + today.gold + today.dropped - MINING.RECOVERS);
   let dread = mine.dread;
-  if (today.lost) dread = Math.min(1, dread + 0.45);
-  else if (today.scared) dread = Math.min(1, dread + 0.2);
-  // fear fades slowly and on its own terms. Quickly and a bad week is forgotten by the next one,
-  // and then clearing a mine out is worth nothing to anybody because the village was about to go
-  // back down anyway.
-  else dread = Math.max(0, dread - 0.022);
+  if (today.lost) dread = Math.min(1, dread + MINING.DREAD_A_DEATH);
+  else if (today.scared) dread = Math.min(1, dread + MINING.DREAD_A_FRIGHT);
+  else dread = Math.max(0, dread - MINING.DREAD_FADES);
   return { id: mine.id, worked, dread };
 }
 
@@ -159,10 +183,9 @@ export function perilAfter(cleared: number): number {
 /**
  * What word from somebody who has actually been down there does to what the village believes.
  *
- * Fear fades on its own at a fiftieth a day, which is slow on purpose — quickly, and a bad week
- * is forgotten by the next one, and then clearing a mine out is worth nothing because the village
- * was about to go back down anyway. This is the other way fear ends, and the one the player owns:
- * somebody walks into the village and says the workings are quiet now.
+ * Fear fades on its own at MINING.DREAD_FADES a day, and slowly. This is the other way it ends,
+ * and the one the player owns: somebody walks into the village and says the workings are quiet
+ * now, and the village believes them.
  *
  * It can only ever lower dread, never raise it. A man who walked out of a mine alive is not the
  * story that frightens a village — the story that frightens a village is the one who did not, and
@@ -177,8 +200,8 @@ export function toldOfMine(mine: Mine, peril: number): Mine {
 
 /** How the village talks about the place. Silence when there is nothing to say. */
 export function saidOfMine(mine: Mine): string {
-  if (mine.dread >= 0.7) return 'Nobody will go down there now.';
-  if (mine.dread >= 0.35) return 'There is something in the workings. They go down in twos.';
-  if (leftIn(mine) <= 0.15) return 'The seam is all but out. They are working the last of it.';
+  if (mine.dread >= MINING.DREAD_SHUT) return 'Nobody will go down there now.';
+  if (mine.dread >= MINING.DREAD_WARY) return 'There is something in the workings. They go down in twos.';
+  if (leftIn(mine) <= MINING.NEARLY_OUT) return 'The seam is all but out. They are working the last of it.';
   return '';
 }

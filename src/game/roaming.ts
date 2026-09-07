@@ -89,6 +89,15 @@ export const ROAM = {
   /** What a night in the open near a pressed village is multiplied by, at full pressure. */
   NIGHTS_WORSE: 2,
   /**
+   * Pressure at which a village says it is under siege, and at which it says it is being bled.
+   *
+   * The three things somebody who lives there can tell you are the whole of the warning system:
+   * below the lower figure it is a rumour and a restless dog, above the higher one nobody is
+   * going out of doors. Read them as the two lines the player has to learn to hear.
+   */
+  PRESS_SIEGE: 0.6,
+  PRESS_BLED: 0.25,
+  /**
    * The share of a band that can still be standing when the rest of it gives up and scatters.
    * Nothing large enough to be a band fights to the last one: a pack that had to be killed to the
    * final wolf would be a chore, and telling somebody that killing enough of them ends it is a
@@ -364,8 +373,8 @@ export function saidOfPress(band: Band, place: Steading, pressure: number): stri
   // than written, so the verb follows the subject the way it would out of somebody's mouth
   const many = plural(band.kind);
   const [is, has] = many ? ['are', 'have'] : ['is', 'has'];
-  if (pressure >= 0.6) return `${what} ${is} on ${place.name}. Nobody is sleeping and nobody is going out.`;
-  if (pressure >= 0.25) return `${what} ${has} been at ${place.name} for days. We have buried people over it.`;
+  if (pressure >= ROAM.PRESS_SIEGE) return `${what} ${is} on ${place.name}. Nobody is sleeping and nobody is going out.`;
+  if (pressure >= ROAM.PRESS_BLED) return `${what} ${has} been at ${place.name} for days. We have buried people over it.`;
   return `${what} ${has} been seen near ${place.name}. The dogs have not settled since.`;
 }
 
