@@ -525,6 +525,7 @@ export class EntityManager {
     const ctx: SpawnCtx = { tiles, key, rng, out };
 
     this.spawnVillageFolk(ctx);
+    this.spawnPaddocks(ctx);
     // Everything below this line is wildlife, and the world owns that when there is a world to own
     // it: the animals are what two players standing in one field disagree about. The people of a
     // village are not — they are the seed and the register, which everybody has.
@@ -576,6 +577,32 @@ export class EntityManager {
     const kind = KINDS[kindId];
     const size = kind.herd[0] + Math.floor(ctx.rng() * (kind.herd[1] - kind.herd[0] + 1));
     return this.place(ctx, kindId, anchor, size, leash);
+  }
+
+  /**
+   * What is standing in a village's paddock.
+   *
+   * With the people rather than with the wildlife, and so on both sides of a shared world: these
+   * are as much a fixture of the village as the man who keeps them, decided by where the village
+   * was laid out rather than by a roll of the day. Two of the country's own animal and one of the
+   * other, which is enough to read as a paddock with animals in it from the road and few enough
+   * that they are not walking through each other in a seven-tile yard.
+   */
+  private spawnPaddocks(ctx: SpawnCtx): void {
+    const CS = WORLD.CHUNK_SIZE;
+    for (const v of this.villages) {
+      const yard = v.stable;
+      if (!yard) continue;
+      if (Math.floor(yard.x / CS) !== ctx.tiles.cx || Math.floor(yard.z / CS) !== ctx.tiles.cz) continue;
+      // inside the rails, not on them: the fence blocks walking, and a goat standing in one looks
+      // like a goat that has been dropped into it
+      const room = Math.max(1, yard.half - 1);
+      yard.stock.forEach((kindId, n) => {
+        if (!KINDS[kindId]) return;
+        const herd = this.place(ctx, kindId, [yard.x + 0.5, yard.z + 0.5], n === 0 ? 2 : 1, room, room);
+        herd.tag = v.name;
+      });
+    }
   }
 
   /** Villagers on the square (first one is the elder), a congregation by the church, keepers at shop doors. */
@@ -635,13 +662,18 @@ export class EntityManager {
    * to somebody who is actually alive — a village always has more people than it ever shows at
    * once — and if there is nobody spare, they go indoors and are gone.
    */
-  private place(ctx: SpawnCtx, kindId: string, anchor: [number, number], count: number, leash: number): Herd {
+  /**
+   * @param scatter how far from the anchor the first of them may stand. The default is the open
+   * country's, which is wider than a paddock: a goat put down forty feet outside its own fence
+   * spends the rest of the day trying to walk back through it.
+   */
+  private place(ctx: SpawnCtx, kindId: string, anchor: [number, number], count: number, leash: number, scatter = SPAWN.SCATTER): Herd {
     const { rng } = ctx;
     const kind = KINDS[kindId];
     const herd = new Herd(kind, anchor[0], anchor[1], anchor[0], anchor[1], leash);
     for (let n = 0; n < count; n++) {
       for (let attempt = 0; attempt < SPAWN.PLACE_ATTEMPTS; attempt++) {
-        const a = rng() * Math.PI * 2, r = kind.behaviour === 'fly' ? SPAWN.FLIER_RING : rng() * SPAWN.SCATTER;
+        const a = rng() * Math.PI * 2, r = kind.behaviour === 'fly' ? SPAWN.FLIER_RING : rng() * scatter;
         const x = anchor[0] + Math.cos(a) * r, z = anchor[1] + Math.sin(a) * r;
         if (!canStand(this.world, kind, x, z)) continue;
         const e = new Entity(kind, x, z, herd, ctx.key, rng);

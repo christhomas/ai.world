@@ -22,4 +22,6 @@ export const enum StructureKind {
   NoticeBoard = 16, // village board: errands posted where anyone can read them
   CaveMouth = 14, // way into a cave anchor
   Shipwreck = 15, // broken hull on a beach with one hold to loot
+  Fence = 17,  // one tile of paddock rail, facing along the run it belongs to
+  Paddock = 18, // the ground inside the rails: levelled and cleared, still grass
 }

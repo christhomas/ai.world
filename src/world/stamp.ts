@@ -60,6 +60,30 @@ export function stampFootprint(chunk: ChunkData, ox: number, oz: number, s: Stru
   }
 }
 
+/**
+ * The ground inside a paddock: levelled and cleared of what was growing on it, and still grass.
+ *
+ * Strictly inside the rails, never on them. The chunk stamper takes structures in whatever order
+ * its index hands them over, so a clear that reached one tile further — as a building's footprint
+ * does — would sometimes rub out the fence that was stamped before it and sometimes not, which is
+ * the sort of fault that shows up as one gap in one paddock in one seed.
+ */
+export function stampYard(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const h = s.level * WORLD.STEP;
+  for (let dz = -s.hd + 1; dz <= s.hd - 1; dz++) {
+    for (let dx = -s.hw + 1; dx <= s.hw - 1; dx++) {
+      const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
+      if (idx < 0) continue;
+      const t = chunk.type[idx];
+      if (!isStampable(t) || t === TileType.Road) continue;
+      chunk.height[idx] = h;
+      chunk.corners.fill(h, idx * 4, idx * 4 + 4);
+      chunk.prop[idx] = PropKind.None;
+      if (t === TileType.High) chunk.type[idx] = TileType.Ground;
+    }
+  }
+}
+
 /** Door path tiles become flat road at the building's level; squares and floors are left alone. */
 export function stampPath(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
   const h = s.level * WORLD.STEP;
@@ -144,6 +168,8 @@ export function structureProp(s: Structure, storeys = 1): PropKind {
     case StructureKind.NoticeBoard: return PropKind.NoticeBoard;
     case StructureKind.CaveMouth: return PropKind.CaveMouth;
     case StructureKind.Shipwreck: return PropKind.Shipwreck;
+    case StructureKind.Fence: return PropKind.Fence;
+    case StructureKind.Paddock: return PropKind.None;
   }
 }
 
@@ -159,10 +185,12 @@ export function stampStructure(
 ): void {
   switch (s.kind) {
     case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
+    case StructureKind.Paddock: stampYard(chunk, ox, oz, s); break;
     case StructureKind.Sign:
     case StructureKind.Stall:
     case StructureKind.Signpost:
-    case StructureKind.NoticeBoard: stampSingleProp(chunk, ox, oz, s); break;
+    case StructureKind.NoticeBoard:
+    case StructureKind.Fence: stampSingleProp(chunk, ox, oz, s); break;
     case StructureKind.CaveMouth:
     case StructureKind.Shipwreck:
       stampFootprint(chunk, ox, oz, s);

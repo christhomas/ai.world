@@ -163,7 +163,7 @@ function startGame(
     (id) => (ITEMS[id] ? sellPrice(ITEMS[id]) : 2),
     (who) => fallen(who),
     register,
-    (village) => structures.villages.some((v) => v.name === village && stableAt(v, seed) !== null),
+    (village) => structures.villages.some((v) => v.name === village && stableAt(v) !== null),
     () => standing.guilt,
     (by) => arrested(by),
     // high country: on a mountain or against its flank, where the goats and the things that climb

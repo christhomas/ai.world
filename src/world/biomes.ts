@@ -72,6 +72,14 @@ export const enum PropKind {
   Descent = 59,
   Signpost = 55,
   NoticeBoard = 58,
+  /**
+   * One tile of paddock rail, lying along whichever way its structure faces.
+   *
+   * A stable used to be an ordinary house with a man beside it who would sell you a horse, which
+   * from the road is a house. The fence is what makes it a stable: a run of rail with animals
+   * standing about inside it, recognisable at the distance this camera actually looks from.
+   */
+  Fence = 87,
   Seedling = 80,
   CropYoung = 81,
   CropRipe = 82,
@@ -115,6 +123,9 @@ export const BLOCKS_WALKING: ReadonlySet<PropKind> = new Set<PropKind>([
   PropKind.Cactus, PropKind.Boulder, PropKind.DeadTree,
   PropKind.Well, PropKind.Shrine, PropKind.Ruins, PropKind.Tower, PropKind.Campfire, PropKind.GiantTree,
   PropKind.Stall, PropKind.Sign, PropKind.Signpost, PropKind.CaveMouth, PropKind.Shipwreck, PropKind.NoticeBoard,
+  // the whole point of a fence: the animals inside it stay inside it, and so does anybody who
+  // climbs in after them, which is why the paddock is built with a gap in it for a gate
+  PropKind.Fence,
 ]);
 
 /** Anything with a trunk: the kinds a wood is made of. */

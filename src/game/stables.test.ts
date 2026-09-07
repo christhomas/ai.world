@@ -9,12 +9,34 @@ const house = (n: number): Structure => ({
   kind: StructureKind.House, tx: n, tz: 0, hw: 1, hd: 1, level: 0, rot: 0, biome: Biome.Plains, path: [],
 });
 
-/** A village on paper: a name, a country, and however many roofs the test wants it to have. */
-const village = (name: string, biome = Biome.Plains, houses = STABLE.HOUSES): Village => ({
+/**
+ * A village on paper: a name, a country, however many roofs, and whether one of them is a stable.
+ *
+ * Which villages keep one is no longer a roll made in this file — it is decided where the village
+ * is laid out, and it is a paddock standing in the world. `structures.test.ts` is where that is
+ * checked. What is left here is what a stable is once there is one.
+ */
+const village = (name: string, biome = Biome.Plains, houses = ROOFS, keeps = true): Village => ({
   name, board: null, station: null, x: 0, z: 0, radius: 20, level: 0, biome,
   houses: Array.from({ length: houses }, (_, n) => house(n)),
   shops: [], pub: null, church: null, churchDoor: null, stalls: [],
+  stable: keeps
+    ? { house: house(0), doorX: 0, doorZ: 2, x: 8, z: 0, half: 3, gate: [5, 0], stock: KEEPS[biome] }
+    : null,
 });
+
+/** What each country keeps, as the world lays it out. Read here so the two cannot drift apart. */
+const KEEPS: Record<Biome, string[]> = {
+  [Biome.Plains]: ['horse', 'goat'],
+  [Biome.Forest]: ['horse', 'goat'],
+  [Biome.Desert]: ['camel', 'horse'],
+  [Biome.Swamp]: ['goat', 'horse'],
+  [Biome.Mountain]: ['goat', 'horse'],
+  [Biome.Snow]: ['goat', 'horse'],
+};
+
+/** Roofs enough that a village could keep a stable, which the world decides and this file does not. */
+const ROOFS = 5;
 
 /** As much of a sampled tile as a rider looks at. */
 const tile = (type: TileType, level = 0, base = 0) => ({ type, level, base });
@@ -78,40 +100,34 @@ describe('the three animals a stable will sell you', () => {
   });
 });
 
-describe('which villages keep a stable', () => {
-  it('answers the same for the same village in the same world, for ever', () => {
+describe('what a stable is, once a village has one', () => {
+  it('is nothing at all where the village has no paddock', () => {
+    expect(stableAt(village('Ashwold', Biome.Plains, ROOFS, false))).toBeNull();
+  });
+
+  it('answers the same every time it is asked, because it is reading rather than rolling', () => {
     const home = village('Ashwold', Biome.Mountain);
-    const first = stableAt(home, 7);
-    for (let asked = 0; asked < 20; asked++) expect(stableAt(home, 7)).toEqual(first);
-    // and to anybody else's copy of that village, which is the point of deriving it at all
-    expect(stableAt(village('Ashwold', Biome.Mountain), 7)).toEqual(first);
+    const first = stableAt(home);
+    for (let asked = 0; asked < 20; asked++) expect(stableAt(home)).toEqual(first);
+    // and to anybody else's copy of that village, which is the point of it being a fact and not a roll
+    expect(stableAt(village('Ashwold', Biome.Mountain))).toEqual(first);
   });
 
-  it('keeps some villages and not others, and shuffles them in the next world along', () => {
-    const villages = many(300);
-    const here = villages.filter((v) => stableAt(v, 1));
-    const there = villages.filter((v) => stableAt(v, 2));
-
-    expect(here.length).toBeGreaterThan(villages.length * 0.35);
-    expect(here.length).toBeLessThan(villages.length * 0.75);
-    // the two worlds agree about plenty of villages by luck, but never about all of them
-    const moved = villages.filter((v) => Boolean(stableAt(v, 1)) !== Boolean(stableAt(v, 2)));
-    expect(moved.length).toBeGreaterThan(villages.length * 0.1);
-    expect(there.length).toBeGreaterThan(0);
+  it('names the village and the country it stands in', () => {
+    const stable = stableAt(village('Ashwold', Biome.Snow))!;
+    expect(stable.village).toBe('Ashwold');
+    expect(stable.biome).toBe(Biome.Snow);
   });
 
-  it('never puts one in a hamlet with nowhere to put the animals', () => {
-    for (let houses = 0; houses < STABLE.HOUSES; houses++) {
-      const hamlet = many(60).map((v) => ({ ...v, houses: v.houses.slice(0, houses) }));
-      expect(hamlet.filter((v) => stableAt(v, 5))).toEqual([]);
-    }
-    // the same names, big enough, do get stables: it is the size that stopped them and not the roll
-    expect(many(60).filter((v) => stableAt(v, 5)).length).toBeGreaterThan(0);
+  it('drops a breed the game does not have rather than selling a hole', () => {
+    const odd = village('Ashwold');
+    odd.stable!.stock = ['horse', 'wyvern'];
+    expect(stableAt(odd)!.stock).toEqual([BREEDS.horse]);
   });
 
   it('stocks whatever the country round it rides', () => {
     const stabled = (biome: Biome) => {
-      const found = many(60, biome).map((v) => stableAt(v, 3)).find((s) => s !== null);
+      const found = many(60, biome).map((v) => stableAt(v)).find((s) => s !== null);
       if (!found) throw new Error('no village in this country keeps a stable');
       return found;
     };

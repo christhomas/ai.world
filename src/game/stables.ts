@@ -1,6 +1,4 @@
-import { hashString, mulberry32 } from '../core/rng';
-import { SALT, derive } from '../core/salts';
-import { Biome } from '../world/biomes';
+import type { Biome } from '../world/biomes';
 import type { Village } from '../world/structures';
 import { TileType, type TileSample } from '../world/terrain';
 
@@ -22,10 +20,6 @@ import { TileType, type TileSample } from '../world/terrain';
  */
 
 export const STABLE = {
-  /** Roofs a village needs before anybody in it keeps other people's animals for a living. */
-  HOUSES: 5,
-  /** Of the villages big enough for one, the share that actually runs a stable. */
-  SHARE: 0.55,
   /** Terraces above the road at which ordinary ground stops being ground and starts being a climb. */
   ROUGH_RISE: 2,
   /** What you make on your own two feet, which is what every pace below is a multiple of. */
@@ -82,19 +76,6 @@ export const BREEDS: Record<string, Breed> = {
   },
 };
 
-/**
- * What each country's stables keep. A village sells what the country round it rides, which is why
- * you go to the desert for a camel rather than shopping for one at home.
- */
-const KEEPS: Record<Biome, string[]> = {
-  [Biome.Plains]: ['horse', 'goat'],
-  [Biome.Forest]: ['horse', 'goat'],
-  [Biome.Desert]: ['camel', 'horse'],
-  [Biome.Swamp]: ['goat', 'horse'],
-  [Biome.Mountain]: ['goat', 'horse'],
-  [Biome.Snow]: ['goat', 'horse'],
-};
-
 /** A village's stable: whose it is, and what is standing in the stalls. */
 export interface Stable {
   village: string;
@@ -131,22 +112,19 @@ export function breedOf(id: string | null | undefined): Breed {
 }
 
 /**
- * The stable in a village, or null where there is not one. Pure in (village, seed), so the same
- * square answers the same way on every machine and for the life of the world.
+ * The stable in a village, or null where there is not one.
  *
- * A stable needs animals in it that are not yours, which needs a village with enough people to
- * have spare ground and somebody idle enough to muck it out; below that many roofs nobody keeps
- * one, however the roll falls.
+ * Which villages keep one used to be a roll made here, on the village's name. It is now a fact
+ * about the settlement, decided where the settlement is laid out and standing in the world as a
+ * fenced paddock beside a house — because a stable you can buy a horse at and a stable you can
+ * walk up to had drifted into being two different things, and the one you could see was nothing
+ * at all. What is for sale is what is standing in the yard, read off the same list.
  */
-export function stableAt(village: Village, seed: number): Stable | null {
-  if (village.houses.length < STABLE.HOUSES) return null;
-  // the name is mixed in under a label of its own, so whether there is a stable here cannot shift
-  // because some other feature keyed on this village started asking its stream for one more number
-  const roll = mulberry32(derive(seed ^ hashString(`stable:${village.name}`), SALT.STRUCTURES));
-  if (roll() >= STABLE.SHARE) return null;
+export function stableAt(village: Village): Stable | null {
+  if (!village.stable) return null;
   return {
     village: village.name,
     biome: village.biome,
-    stock: KEEPS[village.biome].map((id) => BREEDS[id]),
+    stock: village.stable.stock.map((id) => BREEDS[id]).filter((b): b is Breed => !!b),
   };
 }

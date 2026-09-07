@@ -3,6 +3,10 @@ import { GRAPH } from '../core/config';
 import type { RoadNode } from './graph';
 import { POI_NAMES, PREFIX, SUFFIX } from './names';
 import { StructureKind } from './kinds';
+import { KEEPS, PADDOCK, planPaddock, railsFor, type Stabling } from './paddock';
+import { planPier } from './piers';
+
+export type { Stabling } from './paddock';
 
 export { StructureKind } from './kinds';
 import { mulberry32, shuffle } from '../core/rng';
@@ -130,6 +134,8 @@ export interface Village {
   pub: Pub | null;
   /** The police station, if the village is big enough to be worth keeping law in. */
   station: Station | null;
+  /** The stable and its paddock, in the villages with the ground and the people to keep one. */
+  stable: Stabling | null;
   church: Structure | null;
   /** Tile in front of the church door where the congregation gathers. */
   churchDoor: [number, number] | null;
@@ -417,6 +423,29 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     return { house, doorX, doorZ };
   };
 
+  /**
+   * What each country's stables keep. A village keeps what the country round it rides, which is why
+   * you go to the desert for a camel rather than shopping for one at home.
+   */
+  /**
+   * A stable: a house with a paddock fenced off beside it. `paddock.ts` finds the ground.
+   *
+   * Laid last of everything in a village, so the yard has to fit round what is already standing
+   * rather than the other way about — and the sign only goes up once somewhere has been found,
+   * because a sign is a thing that exists and hanging one for a stable that would not fit leaves a
+   * board over a doorway with nothing behind it.
+   */
+  const assignStable = (houses: Structure[], biome: Biome): Stabling | null => {
+    if (houses.length < PADDOCK.HOUSES) return null;
+    const house = houses[shopCount(houses.length) + 2];
+    if (!house) return null;
+    const plan = planPaddock({ house, seed: graph.seed, all, sampler, sample, plaza: { x: plazaX, z: plazaZ, r: plazaR } });
+    if (!plan) return null;
+    const [doorX, doorZ] = signedDoor(house, biome);
+    all.push(...railsFor(plan, biome));
+    return { house, doorX, doorZ, x: plan.x, z: plan.z, half: plan.half, gate: plan.gate, stock: KEEPS[biome] };
+  };
+
   const buildVillage = (nodeIdx: number, spread: number, maxHouses: number, minHouses: number, squareR: number): Village | null => {
     const n = graph.nodes[nodeIdx];
     const probe = sampler.landProbe(n.x, n.z);
@@ -463,8 +492,10 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     const shops = assignShops(houses, biome);
     const pub = assignPub(houses, biome);
     const station = assignStation(houses, biome);
+    // last, so that the paddock has to fit round everything else rather than the other way about
+    const stable = assignStable(houses, biome);
     plazaR = 0;
-    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub, station, church, churchDoor, board, stalls };
+    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub, station, stable, church, churchDoor, board, stalls };
   };
 
   // --- hub town ---
@@ -634,36 +665,6 @@ const SIGNPOST_SPACING = 90;
 const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
 export function compassDir(dx: number, dz: number): string {
   return COMPASS[Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) & 7];
-}
-
-const PIER_LENGTH = 6;
-const PIER_WALK_MAX = 260;
-
-/**
- * Walk from a start point toward a direction (snapped to an axis) until the land ends, then lay
- * PIER_LENGTH deck tiles into the sea. Null if the walk never reaches a coast.
- */
-function planPier(
-  sampler: TerrainSampler, sample: TileSample, island: string, side: Pier['side'],
-  fromX: number, fromZ: number, dirX: number, dirZ: number,
-): Pier | null {
-  const dx = Math.abs(dirX) >= Math.abs(dirZ) ? Math.sign(dirX) : 0;
-  const dz = dx === 0 ? Math.sign(dirZ) || 1 : 0;
-  let x = Math.floor(fromX), z = Math.floor(fromZ);
-  let lastLandLevel = 1;
-  for (let i = 0; i < PIER_WALK_MAX; i++) {
-    sampler.sampleTile(x, z, sample);
-    const land = sample.type !== TileType.Skip && sample.type !== TileType.Seabed;
-    if (!land) {
-      if (i === 0) return null;
-      const tiles: Array<[number, number]> = [];
-      for (let k = 0; k < PIER_LENGTH; k++) tiles.push([x + dx * k, z + dz * k]);
-      return { island, side, tiles, dx, dz, level: lastLandLevel, dockX: x + dx * PIER_LENGTH, dockZ: z + dz * PIER_LENGTH };
-    }
-    if (sample.type !== TileType.Water && sample.type !== TileType.Bridge) lastLandLevel = Math.max(1, Math.round(sample.level));
-    x += dx; z += dz;
-  }
-  return null;
 }
 
 export function structureBounds(s: Structure): { minX: number; minZ: number; maxX: number; maxZ: number } {

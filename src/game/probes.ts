@@ -253,7 +253,7 @@ export function installProbes(ctx: Probed): void {
     }));
   (debug as { __stables?: () => unknown }).__stables = () =>
     structures.villages.map((v) => {
-      const stable = stableAt(v, seed);
+      const stable = stableAt(v);
       return { village: v.name, houses: v.houses.length, stock: stable?.stock.map((b) => b.id) ?? null };
     });
   (debug as { __pass?: (days: number) => unknown }).__pass = (days) => {

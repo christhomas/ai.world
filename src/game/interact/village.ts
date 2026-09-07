@@ -303,7 +303,7 @@ export function villageInteractions(ctx: Surroundings) {
     if (!hand) return false;
     const village = hand.herd.tag || 'the village';
     const home = structures.villages.find((v) => v.name === hand.herd.tag);
-    const stable = home ? stableAt(home, seed) : null;
+    const stable = home ? stableAt(home) : null;
     if (mount.owned) {
       dialogue.start({ speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', face: faceFor(hand, { register, day: state.day }), pages: [`${mount.name} is a good ${mount.breed.label.toLowerCase()}. Mind the shoes.`] });
       return true;

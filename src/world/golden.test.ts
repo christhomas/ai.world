@@ -36,7 +36,15 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when the roads started to wander (2026-09-07). The web is still grown
+ * Last updated deliberately when villages gained stables you can see (2026-09-07). Two to five
+ * villages in a world now keep one: a house with a fenced paddock beside it and the country's own
+ * animals standing in it. `graph`, `hydro` and `quests` do not move — whether a village keeps a
+ * stable is rolled on the stable house's own tile under a label of its own, so it takes nothing
+ * from the layout's stream and shifts nothing that was laid out before it. `structures` moves by
+ * the paddock and its rails, and `chunks` moves in seed 2 only, where a paddock happens to fall in
+ * one of the four chunks the fingerprint reads: the yard is levelled and cleared of what was
+ * growing on it, which is the difference between a paddock and a fence with three trees in it.
+ * Before that, the same day: the roads started to wander. The web is still grown
  * as straight runs between its nodes and everything laid out against a road — the rivers that avoid
  * one, the villages that sit on one — still measures to that surveyed line, which is why `graph` and
  * `hydro` do not move. What moved is the drawing: a road now leans off its line by a tile or two,
@@ -66,6 +74,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '599864bd', chunks: '34c6a374', quests: '07c8c2d8' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: '1da2777e', chunks: 'a7bdacbb', quests: '2fa87fd6' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'b7f54173', chunks: '34c6a374', quests: '07c8c2d8' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '6a931680', chunks: '7a8c4c06', quests: '2fa87fd6' },
 };

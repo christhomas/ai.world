@@ -480,5 +480,19 @@ Things Chris hit on a real phone, in the order he hit them.
       second, so it tips out to his side whichever way he is facing. It takes the off hand while it
       is out — nobody holds a shield and a torch in one fist — and a lantern, which is better light,
       keeps it in its pocket.)*
-- [ ] A stable reads as an ordinary house. It wants a paddock attached, with goats and horses
-      walking about inside it, so that it is obviously a stable from a distance.
+- [x] A stable reads as an ordinary house. It wants a paddock attached, with goats and horses
+      walking about inside it, so that it is obviously a stable from a distance. *(It was not a
+      building at all: a stable was a roll on a village's name and a man on the square who would
+      sell you a horse, so there was no finding one except by asking everybody in turn. A village
+      that keeps one now lays a fenced paddock beside the stable house — behind it where the ground
+      allows, since the door faces the road — with a gate on the side you come from and two or
+      three of the country's own animals inside. Two things had to be got right. The yard asks a
+      different question of the ground than a building does: `footprintOk` keeps a house's width
+      clear of everything standing, so the paddock was refused by its own stable in every village,
+      and `footprintLevel` wants one exact terrace, which refused it three times in four more. A
+      paddock is a fence round some grass — it may abut the house, and grass gets levelled, up to
+      one terrace of fall. With both asked properly, two to five villages in a world keep one. And
+      the ground inside is cleared as well as levelled, or a paddock laid in a wood is a fence with
+      three trees in it. `structures.ts` went past 700 lines doing it, so the paddock is its own
+      file and the pier planner — the one job in there about a coast rather than a settlement —
+      went to another.)*

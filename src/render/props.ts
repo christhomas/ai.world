@@ -241,6 +241,16 @@ export class PropLibrary {
       part(new THREE.BoxGeometry(0.35, 0.05, 0.08), 0x8a2a2a, [0, 1.18, 0]),
     ]));
 
+    // One tile of paddock rail. Built along z so that a structure's rotation — which everything
+    // else here uses to face a door — turns it to lie along its run, and long enough to meet its
+    // neighbours at the tile edges with nothing to step through between them.
+    this.geometries.set(PropKind.Fence, merge([
+      part(new THREE.BoxGeometry(0.12, 0.95, 0.12), 0x6b4a2b, [0, 0.48, -0.5]),
+      part(new THREE.BoxGeometry(0.12, 0.95, 0.12), 0x6b4a2b, [0, 0.48, 0.5]),
+      part(new THREE.BoxGeometry(0.07, 0.11, 1.0), 0x8a6a3d, [0, 0.78, 0]),
+      part(new THREE.BoxGeometry(0.07, 0.11, 1.0), 0x8a6a3d, [0, 0.44, 0]),
+    ]));
+
     // dungeon furniture: torch hangs from the wall top and reaches into the room (+x)
     this.geometries.set(PropKind.Torch, merge([
       part(new THREE.BoxGeometry(0.12, 0.5, 0.12), 0x4a3a2a, [0.5, -1.35, 0]),
