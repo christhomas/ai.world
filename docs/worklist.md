@@ -214,6 +214,13 @@ the two are separate jobs with a third in between them.
       eight. Dealing each band's circuit at a stride through what lies near home, rather than
       shuffling it, recovers some of that (5/9/1/10) and is not enough. The width wants the roaming
       design revisited, not a constant, and the surface work already tells a lane from a highway.
+      Tried again after the lopsided deck was fixed and the roads began to wander, which took most
+      of the objection away: a spread to 5.4 tiles now gives 8/8/2/7 against a design figure of
+      eight, all inside it. It still fails, and on a different clause — a world holds 22 bands
+      against a busy county's 8, and the test wants three times rather than two and three quarters.
+      Backing off to 4.4 tiles makes it *worse* (9/4/8/8), which is the tell: the crowding is
+      sensitive to exactly where each village lands, so a width is being chosen by which seeds
+      happen to come out well. That is tuning by coincidence, and it is why this stays down.
 - [x] **Seed 12 had three villages no band ever reached over a season**, and so did seed 33.
       *(A band takes the next ground off a shuffled deck of every stop in the world — villages and
       landmarks together — and there are more stops than bands, so a village at the bottom of the
