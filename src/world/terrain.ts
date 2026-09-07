@@ -13,7 +13,8 @@ import { despeckle } from './despeckle';
 import { rollProp } from './props';
 import { CellIndex } from './spatial';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
-import { stampCentreProp, stampFootprint, stampPath, stampPier, stampPlaza, stampSingleProp } from './stamp';
+import { DRY_ENOUGH, bendAt, wanderFactors } from './wander';
+import { stampStructure } from './stamp';
 
 /** What is drawn on top of a tile. Skip = nothing at all (open sea, no floor). */
 export const enum TileType {
@@ -127,6 +128,8 @@ export const BRIDGE_DECK_LIFT = 0.14;
 /** Samples the world at tile resolution. Pure function of (seed, graph, x, z): safe to run in any worker. */
 export class TerrainSampler {
   private readonly edgeIndex: CellIndex;
+  /** How freely the road at each node is drawn off its surveyed line, nought to one. `wander.ts`. */
+  private readonly wanders: Float32Array;
   private readonly riverIndex: CellIndex;
   private readonly riverSegs: RiverSeg[] = [];
   private readonly noise: Simplex2D;
@@ -178,6 +181,10 @@ export class TerrainSampler {
   constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
     this.seed = graph.seed;
     this.mesh = (graph as RoadGraph & { mesh?: WorldMesh }).mesh ?? null;
+    // before anything asks where a road is drawn, because the answer depends on this
+    this.wanders = wanderFactors(graph, this.mesh
+      ? (x, z) => this.waterAway(x, z, DRY_ENOUGH, false) / DRY_ENOUGH
+      : null);
     this.highland = this.mesh ? highlandLift(this.mesh) : [];
     this.ridges = highlandRidges(graph.seed);
     this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
@@ -344,17 +351,38 @@ export class TerrainSampler {
     return { land: lp.land, biome, roadDist: lp.roadDist, hub };
   }
 
-  private nearest(px: number, pz: number, cands: number[]): { edge: number; d: number; t: number } | null {
+  /**
+   * The road nearest a point, how far off it is, and how far along it.
+   *
+   * Two answers, and which you want depends on what you are asking. `drawn` measures to the road as
+   * it is drawn, which wanders (`wander.ts`); without it, to the line it was surveyed along, which
+   * does not. Whatever was *laid out* against a road — the rivers that avoid one, the villages that
+   * sit on one — wants the surveyed line, because bending it under them moves a river across a
+   * square. Whatever is *drawn* wants the drawn one.
+   */
+  private nearest(
+    px: number, pz: number, cands: number[], drawn = false,
+  ): { edge: number; d: number; t: number } | null {
     const { nodes, edges } = this.graph;
-    let best = -1, bestD2 = Infinity, bestT = 0;
+    let best = -1, bestD2 = Infinity, bestT = 0, bestSide = 1;
     for (const i of cands) {
       const e = edges[i];
       const a = nodes[e.a], b = nodes[e.b];
       const [d2, t] = segDist2(px, pz, a.x, a.z, b.x, b.z);
-      if (d2 < bestD2) { bestD2 = d2; best = i; bestT = t; }
+      if (d2 >= bestD2) continue;
+      bestD2 = d2; best = i; bestT = t;
+      // which side of the run the point is on, so that a lean moves the road rather than making a
+      // second one out of it: with an unsigned distance, `|d - bend|` is a band either side
+      bestSide = (b.x - a.x) * (pz - a.z) - (b.z - a.z) * (px - a.x) >= 0 ? 1 : -1;
     }
     if (best < 0) return null;
-    return { edge: best, d: Math.sqrt(bestD2), t: bestT };
+    const d = Math.sqrt(bestD2);
+    if (!drawn) return { edge: best, d, t: bestT };
+    const e = edges[best];
+    const free = this.wanders[e.a] + (this.wanders[e.b] - this.wanders[e.a]) * bestT;
+    if (free <= 0) return { edge: best, d, t: bestT };
+    const bend = bendAt(free, this.noise, px, pz);
+    return { edge: best, d: Math.abs(d * bestSide - bend), t: bestT };
   }
 
   private landWidth(edgeIdx: number, px: number, pz: number): number {
@@ -365,7 +393,7 @@ export class TerrainSampler {
 
   /** Road surface height at an arbitrary point, used for ramp corners. Falls back to the tile's own level. */
   private roadHeightAt(x: number, z: number, cands: number[], fallback: number): number {
-    const hit = this.nearest(x, z, cands);
+    const hit = this.nearest(x, z, cands, true);
     if (!hit) return fallback * WORLD.STEP;
     const e = this.graph.edges[hit.edge];
     const a = this.graph.nodes[e.a], b = this.graph.nodes[e.b];
@@ -408,7 +436,7 @@ export class TerrainSampler {
     out.water = 0; out.shore = 0; out.bank = false; out.level = 0; out.height = 0; out.base = 0;
     out.roadDist = Infinity; out.roadWidth = 0; out.sloped = false;
     if (!cands) cands = this.edgeIndex.query(px - 1, pz - 1, px + 1, pz + 1);
-    const hit = this.nearest(px, pz, cands);
+    const hit = this.nearest(px, pz, cands, true);
     if (!hit) return;
     const { nodes, edges } = this.graph;
     const STEP = WORLD.STEP;
@@ -637,27 +665,10 @@ export class TerrainSampler {
 
   private stampStructures(chunk: ChunkData, ox: number, oz: number): void {
     if (!this.structIndex) return;
-    const hits = this.structIndex.query(ox, oz, ox + chunk.size, oz + chunk.size);
-    for (const si of hits) {
+    for (const si of this.structIndex.query(ox, oz, ox + chunk.size, oz + chunk.size)) {
       const s = this.structures.all[si];
-      switch (s.kind) {
-        case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
-        case StructureKind.Sign:
-        case StructureKind.Stall:
-        case StructureKind.Signpost:
-        case StructureKind.NoticeBoard: stampSingleProp(chunk, ox, oz, s); break;
-        case StructureKind.CaveMouth:
-        case StructureKind.Shipwreck:
-          stampFootprint(chunk, ox, oz, s);
-          stampCentreProp(chunk, ox, oz, s);
-          break;
-        case StructureKind.Pier: stampPier(chunk, ox, oz, s); break;
-        default:
-          stampFootprint(chunk, ox, oz, s);
-          stampPath(chunk, ox, oz, s);
-          // a house is as tall as the village it stands in has managed to become
-          stampCentreProp(chunk, ox, oz, s, this.storeys.get(this.villageHolding(s)) ?? 1);
-      }
+      // a house is as tall as the village it stands in has managed to become
+      stampStructure(chunk, ox, oz, s, this.storeys.get(this.villageHolding(s)) ?? 1);
     }
   }
 }

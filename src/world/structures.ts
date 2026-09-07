@@ -1,5 +1,10 @@
 import { footprintLevel } from './footprint';
 import { GRAPH } from '../core/config';
+import type { RoadNode } from './graph';
+import { POI_NAMES, PREFIX, SUFFIX } from './names';
+import { StructureKind } from './kinds';
+
+export { StructureKind } from './kinds';
 import { mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import type { Biome } from './biomes';
@@ -32,24 +37,6 @@ export function placeKindName(kind: StructureKind): string {
   }
 }
 
-export const enum StructureKind {
-  House = 1,
-  Well = 2,
-  Shrine = 3,
-  Ruins = 4,
-  Tower = 5,
-  Campfire = 6,
-  GiantTree = 7,
-  Plaza = 8,   // town square: flattened disc, no prop of its own
-  Stall = 9,
-  Sign = 10,
-  Church = 11,
-  Pier = 12,   // wooden jetty; tiles listed in `path`
-  Signpost = 13, // fingerpost at a junction, naming the nearest settlements
-  NoticeBoard = 16, // village board: errands posted where anyone can read them
-  CaveMouth = 14, // way into a cave anchor
-  Shipwreck = 15, // broken hull on a beach with one hold to loot
-}
 
 export interface Pier {
   island: string;
@@ -224,16 +211,16 @@ function facing(angle: number): { rot: number; fx: number; fz: number } {
   return { rot, fx: Math.round(Math.cos(rot)), fz: Math.round(Math.sin(rot)) };
 }
 
-const PREFIX = ['Oak', 'Ash', 'Elder', 'Stone', 'Mill', 'Fern', 'Brook', 'Wolf', 'Silver', 'Amber', 'Frost', 'Dune', 'Reed', 'Moss', 'Hawk', 'Bramble', 'Thorn', 'Willow', 'Crag', 'Salt'];
-const SUFFIX = ['ford', 'hollow', 'mere', 'stead', 'wick', 'bury', 'haven', 'ton', 'vale', 'cross', 'field', 'reach', 'holm', 'gate', 'moor'];
 
-const POI_NAMES: Record<number, string[]> = {
-  [StructureKind.Shrine]: ['Shrine of Winds', 'Moonwell Shrine', 'Shrine of the Quiet Stone', 'Sunken Shrine', 'Shrine of Echoes'],
-  [StructureKind.Ruins]: ['Old Ruins', 'Fallen Keep', 'Ruins of Aldra', 'Broken Hall', 'The Forgotten Walls'],
-  [StructureKind.Tower]: ['Watchtower', 'Lonely Spire', 'Beacon Tower', 'Sentinel Post', 'Gull Tower'],
-  [StructureKind.Campfire]: ['Abandoned Camp', "Wanderer's Rest", 'Cold Campfire', "Trapper's Camp", 'Roadside Camp'],
-  [StructureKind.GiantTree]: ['The Great Oak', 'Elder Tree', 'Heartwood', 'The Old One', 'Grandfather Oak'],
-};
+/**
+ * Could a village stand on this node? A wide, deep branch, a good way out from the middle.
+ *
+ * Asked of the graph because the terrain needs the answer before the villages exist: a road is
+ * drawn leaning off its surveyed line, and must not where houses will be set out against that line.
+ */
+export function couldHoldAVillage(node: RoadNode): boolean {
+  return node.depth >= 3 && node.size >= 10 && Math.hypot(node.x, node.z) > GRAPH.HUB_RADIUS * 1.6;
+}
 
 export function generateStructures(sampler: TerrainSampler): Structures {
   const graph = sampler.graph;
@@ -493,9 +480,7 @@ export function generateStructures(sampler: TerrainSampler): Structures {
   }
 
   // --- smaller villages on wide, deep branches ---
-  const sites = graph.nodes
-    .map((n, i) => ({ n, i }))
-    .filter(({ n }) => n.depth >= 3 && n.size >= 10 && Math.hypot(n.x, n.z) > GRAPH.HUB_RADIUS * 1.6);
+  const sites = graph.nodes.map((n, i) => ({ n, i })).filter(({ n }) => couldHoldAVillage(n));
   shuffle(rng, sites);
   for (const { n, i } of sites) {
     if (villages.length >= VILLAGES + 1) break;

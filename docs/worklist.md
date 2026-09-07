@@ -181,8 +181,9 @@ so the shape is known and the pieces are the same ones.
       old level and dragged the ground beside it back down — but not the road. The country is now
       cut down into the valley at the same slope the valley sides climb, so road and fields come
       down together. Worst step beside a road: 21 terraces → 7.)*
-- [~] The roads are too uniform: every one the same width, the same flat colour, the same straight
-      run between two nodes. A trunk road between towns and a lane to a farm should not look alike.
+- [x] The roads are too uniform: every one the same width, the same flat colour, the same straight
+      run between two nodes. *(Two of the three are done — the surface tells a made road from a worn
+      track, and the line wanders. The width stays uniform, and the item below says why.)*
       *(Surface done: a road wide enough to have a middle is drawn as made surface, one that is all
       edge as worn earth, with per-tile wear over both and a scuffed verge where the fields meet
       them. Width is not: widening the spread from 1.8–3.4 tiles to 1.8–5.4 moves every village a
@@ -220,26 +221,18 @@ the two are separate jobs with a third in between them.
       at all. Villages are dealt before landmarks now, and there are more bands than villages, so
       every village is somebody's ground. Across seeds 1, 2, 5, 12 and 33: villages nothing ever
       comes to, three and three, now none anywhere. The test asked one seed and passed for years.)*
-- [~] Make a road wander. **Built twice, measured, and put down twice — now with the real reason.**
-      One line in `TerrainSampler.nearest`, the funnel every road distance in the world goes
-      through: signed distance to the surveyed run, less a slow noise read *at the point* rather
-      than along the road. Reading it at the point is what keeps junctions joined — two roads
-      meeting there ask the field in the same place. It costs nothing measurable, it looks right,
-      and it improves the roaming.
-      The first attempt drowned roads at the coast, so the second gave every node a freedom
-      measured from how far it is from water, faded along each run. That was not enough either, and
-      what it turned up is the thing worth writing down: **the rivers are laid out against the
-      roads.** Hydrology is generated through `landProbe`, which measures to the road — so bending
-      the roads bends the rivers with them, and in seed 1 the bent river runs straight across
-      Thorncross's village centre. The village is then standing in water, and a tile of water is a
-      tile nobody can walk onto, so the whole village is walled off. `traversal.test.ts` catches it
-      by name, one tile short of the square.
-      No village stands in water in any of seeds 1, 2, 3, 5, 12 or 33 as things are, so this is a
-      fragility rather than a bug — but it is the fragility that has to be dealt with first. Either
-      hydrology stops measuring itself against roads, or roads keep two distances: the surveyed one
-      that villages, rivers and props are laid out against, and the wandering one that is drawn.
-      The second is smaller, and it needs every reader of `roadDist` sorted into one camp or the
-      other.
+- [x] **The roads wander.** *(Third time, and the answer was the one written down here after the
+      second: a road keeps two distances. The line it was **surveyed** along, which the rivers that
+      avoid a road and the villages that sit on one are laid out against — bending that is what ran
+      a river across Thorncross's square — and the line it is **drawn** with, which leans off the
+      first by a tile or two. `src/world/wander.ts`. The lean is read at the point rather than along
+      the road, so two roads meeting at a junction are pushed the same way and the junction holds;
+      and every node carries how free it is, fading to nothing near water, where a bent road drowns,
+      and near anywhere a village could stand, where it would run through a parlour. That last is
+      asked of the graph rather than of the villages, because the terrain needs the answer before
+      the villages exist. Costs nothing: a chunk still builds in a millisecond and a world stands up
+      in 141 ms. `graph` and `hydro` do not move at all, which is the whole point; the landmarks are
+      placed against the drawn road and moved with it.)*
 
 ## On a phone
 

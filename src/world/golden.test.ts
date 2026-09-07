@@ -36,7 +36,14 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when the roads stopped being one flat colour: a road wide enough to
+ * Last updated deliberately when the roads started to wander (2026-09-07). The web is still grown
+ * as straight runs between its nodes and everything laid out against a road — the rivers that avoid
+ * one, the villages that sit on one — still measures to that surveyed line, which is why `graph` and
+ * `hydro` do not move. What moved is the drawing: a road now leans off its line by a tile or two,
+ * except near water, where a bent road drowns, and near anywhere a village could stand, where it
+ * would run through a parlour. The landmarks are placed against the drawn road and so moved with it,
+ * and village names moved because naming draws from the same stream that placing houses does.
+ * Before that: when the roads stopped being one flat colour: a road wide enough to
  * have a middle is drawn as made surface and one that is all edge as worn earth, with per-tile
  * wear over both and a scuffed verge where the fields meet them (2026-09-06). Only `chunks` moved,
  * and only its colours — the ground itself is where it was, and nothing was drawn from the random
@@ -59,6 +66,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '24d226fa', chunks: '19333eca', quests: '74df0249' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: '17d1bd6c', chunks: '0cb0c3bb', quests: '10885860' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: '599864bd', chunks: '34c6a374', quests: '07c8c2d8' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '1da2777e', chunks: 'a7bdacbb', quests: '2fa87fd6' },
 };

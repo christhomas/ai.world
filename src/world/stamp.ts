@@ -146,3 +146,32 @@ export function structureProp(s: Structure, storeys = 1): PropKind {
     case StructureKind.Shipwreck: return PropKind.Shipwreck;
   }
 }
+
+/**
+ * Put one structure into a chunk, whatever kind it is.
+ *
+ * The one place that knows which of the stamps above a kind of building wants — a square is poured,
+ * a sign is a prop on a tile, a pier is a deck over water, and a house is a footprint with a path
+ * to the road and a roof whose height is the village's own doing.
+ */
+export function stampStructure(
+  chunk: ChunkData, ox: number, oz: number, s: Structure, storeys = 1,
+): void {
+  switch (s.kind) {
+    case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
+    case StructureKind.Sign:
+    case StructureKind.Stall:
+    case StructureKind.Signpost:
+    case StructureKind.NoticeBoard: stampSingleProp(chunk, ox, oz, s); break;
+    case StructureKind.CaveMouth:
+    case StructureKind.Shipwreck:
+      stampFootprint(chunk, ox, oz, s);
+      stampCentreProp(chunk, ox, oz, s);
+      break;
+    case StructureKind.Pier: stampPier(chunk, ox, oz, s); break;
+    default:
+      stampFootprint(chunk, ox, oz, s);
+      stampPath(chunk, ox, oz, s);
+      stampCentreProp(chunk, ox, oz, s, storeys);
+  }
+}
