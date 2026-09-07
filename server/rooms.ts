@@ -86,6 +86,14 @@ export interface Client {
    */
   leftSurfaceAt: { x: number; z: number } | null;
   /**
+   * The boat this client is sailing, while they are sailing one.
+   *
+   * Held by the world for the same reason the hero is: a boat two people are looking at should be
+   * in one place. It starts where they said they boarded — the world has never been told where a
+   * boat is moored, and that is the one thing about a ride still taken on trust.
+   */
+  boat: { x: number; z: number; yaw: number } | null;
+  /**
    * The hero the server is walking for this client, once it has walked one.
    *
    * Null until the first steer arrives in a world with ground under it. What it holds is a body
@@ -140,7 +148,7 @@ export class Rooms {
     const client: Client = {
       wire, seed, lastSeen: Date.now(), offers: new Map(), party: null, seeing: new Map(),
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
-      hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null,
+      hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null, boat: null,
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },
     };
     room.clients.add(client);

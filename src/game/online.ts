@@ -351,6 +351,14 @@ export class Online {
   }
 
   /**
+   * A hand on the tiller. The world holds the boat while anybody is sailing one and moves it with
+   * the same arithmetic this side does, so a boat is in one place for everybody watching it.
+   */
+  helm(seq: number, forward: number, turn: number, dt: number): void {
+    if (this.connected) this.send({ type: 'helm', seq, forward, turn, ms: Math.round(dt * 1000) });
+  }
+
+  /**
    * The hero has gone underground: which floor, hanging off which anchor, and how deep.
    *
    * The world grows the same floor from its own root seed and the anchor's name, so this carries no

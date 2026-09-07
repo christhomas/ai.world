@@ -3,6 +3,65 @@ import type { TileWorld } from '../entities/entity';
 import type { Player } from '../entities/player';
 
 /** What a boat costs and how it handles. */
+/**
+ * Where a boat is and which way its bow points. Everything either half of the game needs to move
+ * one, and nothing about who is aboard or what they can see.
+ */
+export interface Afloat {
+  x: number;
+  z: number;
+  yaw: number;
+}
+
+/** What a hand on the tiller is asking for: along the bow, and round it. */
+export interface Helm {
+  forward: number;
+  turn: number;
+}
+
+/** Open water: anywhere the ground has nothing to stand on. */
+export function navigable(world: TileWorld, x: number, z: number): boolean {
+  return world.heightAt(x, z) === null;
+}
+
+/**
+ * One step of a boat, worked out the same way wherever it is worked out.
+ *
+ * The same bargain as a hero's stride, and here for the same reason: the client moves the boat the
+ * moment the tiller goes over, the world moves it again when the message arrives, and if the two
+ * disagree by so much as a rounding the boat is hauled backwards at every answer. Nothing in it
+ * knows about keyboards, cameras or sockets — a tiller, a second, and a coast to slide along.
+ *
+ * Clamped the way a stride is, and for the same reason: on the server these numbers came off
+ * somebody else's computer.
+ */
+export function helm(boat: Afloat, input: Helm, dt: number, world: TileWorld): void {
+  const seconds = Math.max(0, Math.min(LONGEST_PULL, dt));
+  if (seconds <= 0) return;
+  const turn = Math.max(-1, Math.min(1, input.turn));
+  const forward = Math.max(-1, Math.min(1, input.forward));
+  boat.yaw += turn * BOAT.TURN * seconds;
+  if (forward === 0) return;
+  const step = forward * BOAT.SPEED * seconds;
+  const nx = boat.x + Math.cos(boat.yaw) * step;
+  const nz = boat.z - Math.sin(boat.yaw) * step;
+  // slide along a coast rather than sticking to it
+  if (navigable(world, nx, nz)) { boat.x = nx; boat.z = nz; }
+  else if (navigable(world, nx, boat.z)) boat.x = nx;
+  else if (navigable(world, boat.x, nz)) boat.z = nz;
+}
+
+/** The longest one pull of the tiller may be, in seconds. A stride has the same ceiling. */
+const LONGEST_PULL = 0.25;
+
+/** Under this the two halves are agreeing, and a nudge would be a permanent shiver. Tiles. */
+const NEVER_MIND = 0.05;
+/** Over this it is not a disagreement about arithmetic, and easing into it would sail through a
+ * headland. Tiles. */
+const TOO_FAR = 6;
+/** How much of a small gap is taken off with each answer. */
+const CLOSE_UP = 0.35;
+
 export const BOAT = {
   PRICE: 220,
   /** Tiles per second under sail: quicker than walking, slower than a horse at gallop. */
@@ -93,7 +152,23 @@ export class Sailing {
 
   /** Can the hull sit here? Open sea and shallows yes, dry land no. */
   navigable(world: TileWorld, x: number, z: number): boolean {
-    return world.heightAt(x, z) === null;
+    return navigable(world, x, z);
+  }
+
+  /**
+   * The world says the boat is here.
+   *
+   * Both halves pull the same tiller through the same `helm`, so this is usually where the boat
+   * already is and the correction is nothing. Where it is not — a message lost, a coast the client
+   * had not streamed — the world is right by definition and the boat is eased across rather than
+   * snapped, because a boat that jumps reads worse than one a stride out of place.
+   */
+  putAt(x: number, z: number): void {
+    const out = Math.hypot(x - this.x, z - this.z);
+    if (out < NEVER_MIND) return;
+    if (out > TOO_FAR) { this.x = x; this.z = z; return; }
+    this.x += (x - this.x) * CLOSE_UP;
+    this.z += (z - this.z) * CLOSE_UP;
   }
 
   /**
@@ -113,16 +188,7 @@ export class Sailing {
       player.entity.walk = 0.35;
       return;
     }
-    this.yaw += input.turn * BOAT.TURN * dt;
-    if (input.forward !== 0) {
-      const step = input.forward * BOAT.SPEED * dt;
-      const nx = this.x + Math.cos(this.yaw) * step;
-      const nz = this.z - Math.sin(this.yaw) * step;
-      // slide along a coast rather than sticking to it
-      if (this.navigable(world, nx, nz)) { this.x = nx; this.z = nz; }
-      else if (this.navigable(world, nx, this.z)) this.x = nx;
-      else if (this.navigable(world, this.x, nz)) this.z = nz;
-    }
+    helm(this, input, dt, world);
     player.entity.x = this.x;
     player.entity.z = this.z;
     player.entity.y = 0.55;

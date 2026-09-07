@@ -575,6 +575,8 @@ function startGame(
    * about and read how often it is not.
    */
   const walking = { answers: 0, corrections: 0, worst: 0 };
+  /** Counts pulls of the tiller, so the world's answers can name the one they have caught up to. */
+  let helmSeq = 0;
 
   // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the
   // interaction layer below owns and hands back once it exists
@@ -640,6 +642,15 @@ function startGame(
     // because both halves walk with the same `stride` over the same ground; where it does not, the
     // world is right and the hero is moved — a lean for a small gap, at once for a large one.
     onWhereYouAre: (seq, x, z) => {
+      // under sail the answer is about the boat rather than about the hero, and the boat is what
+      // the camera and the hero both follow — so this is where a boat is put right
+      if (sailing.sailing) {
+        walking.answers++;
+        const out = Math.hypot(x - sailing.x, z - sailing.z);
+        if (out > 0.05) { walking.corrections++; walking.worst = Math.max(walking.worst, out); }
+        sailing.putAt(x, z);
+        return;
+      }
       if (!outdoors()) return;
       const out = walked.toldWhereHeIs(player.entity, chunks, seq, x, z);
       walking.answers++;
@@ -2183,10 +2194,14 @@ function startGame(
       state.count('cart') > 0,
     ) * (breath.guarding ? BREATH.GUARDED_PACE : 1);
     if (sailing.sailing && !talking) {
-      sailing.update(dt, {
+      const tiller = {
         forward: (input.isDown('w', 'arrowup') ? 1 : 0) - (input.isDown('s', 'arrowdown') ? 1 : 0),
         turn: (input.isDown('a', 'arrowleft') ? 1 : 0) - (input.isDown('d', 'arrowright') ? 1 : 0),
-      }, chunks, player);
+      };
+      sailing.update(dt, tiller, chunks, player);
+      // and the world moves its own boat the same way, so that a boat two people are looking at is
+      // in one place. Sent every frame it is under way, which is the only time it matters.
+      if (tiller.forward !== 0 || tiller.turn !== 0) online.helm(++helmSeq, tiller.forward, tiller.turn, dt);
       iso.target.x += (sailing.x - iso.target.x) * Math.min(1, dt * 6);
       iso.target.z += (sailing.z - iso.target.z) * Math.min(1, dt * 6);
     }

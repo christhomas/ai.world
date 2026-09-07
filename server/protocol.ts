@@ -247,6 +247,14 @@ export type ClientMessage =
    * `seq` counts steers from one client so an answer can name which one it has caught up to.
    */
   | { type: 'steer'; seq: number; dx: number; dz: number; pace: number; ms: number }
+  /**
+   * A hand on the tiller: along the bow, and round it.
+   *
+   * A steer for somebody who is not walking. The world holds the boat while anybody is sailing one
+   * — where it is and which way its bow points — and moves it with the same arithmetic the client
+   * does, so a boat is where everybody watching it says it is. The hero rides along on it.
+   */
+  | { type: 'helm'; seq: number; forward: number; turn: number; ms: number }
   | { type: 'say'; text: string }
   | { type: 'trade-offer'; to: string; gold: number; items: Array<[string, number]> }
   | { type: 'trade-accept'; from: string }

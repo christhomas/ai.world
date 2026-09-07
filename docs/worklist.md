@@ -76,9 +76,16 @@ walk through a wall. Each one wants a reason the server already knows about.
       and every answer dragged him back. The pace on the wire is now one number, the gait and
       whatever is carrying him together, and the ceiling is the fastest thing in the game rather
       than a walk. `src/entities/stride.test.ts` pins what a steer may and may not buy.)*
-- [ ] A boat is still trusted: it is the client's, so where it puts you down is its word. The model
-      is small — turn, forward, and slide along a coast — and the same shape as a stride, so it
-      would move across the way walking did. The ferry is the same question again.
+- [x] A boat is the world's now. *(`helm` is a steer for somebody who is not walking — along the
+      bow and round it — and the world moves its own boat with the same `helm()` the client does,
+      against its own water. Where a boat is *moored* is still the client's word, because nothing
+      has ever told the world that; from the moment somebody boards, the boat is the world's, and
+      stepping off happens beside it — a gangplank is a stride long, and somebody who leaves a boat
+      half a county from where the world has it is put back on it. Measured over a sail out of
+      Elderton: seventy-three answers, one correction, five centimetres.)*
+- [ ] The ferry is the same question once more: it carries the hero between two shores and nothing
+      has ever told the world where it is. Smaller than the boat — it runs a fixed crossing — so it
+      may be simpler to have the world own the crossing outright than to send it anything.
 
 ### Monsters on a dungeon floor
 

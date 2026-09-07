@@ -309,6 +309,31 @@ describe('the simulation holding the ground itself', () => {
     expect(rowan.of('youAre').at(-1)!.x, 'exactly where he walked to').toBeCloseTo(walked, 5);
   });
 
+  it('sails the boat itself, and puts a hero back on it who steps off somewhere else', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    // out on open water, aboard: where a boat is moored is the client's word, and the only one
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'boat', gear: [] });
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'stood', x: -300, z: 40, why: 'ride' });
+    rowan.say({ type: 'move', x: -300, z: 40, yaw: 0, walk: 0, place: 'surface', riding: 'boat', gear: [] });
+    sim.tick(Date.now() + 200);
+
+    // a second of sailing west, which the world works out for itself
+    for (let pull = 1; pull <= 10; pull++) {
+      rowan.say({ type: 'helm', seq: pull, forward: 1, turn: 0, ms: 100 });
+    }
+    const sailed = rowan.of('youAre').at(-1)!;
+    expect(sailed.seq).toBe(10);
+    expect(sailed.x, 'the bow was pointing east, so east it went').toBeGreaterThan(-300);
+
+    // and stepping off a boat happens beside the boat, not half a county away
+    rowan.say({ type: 'stood', x: 200, z: 200, why: 'ride' });
+    const ashore = rowan.of('youAre').at(-1)!;
+    expect(ashore.x).toBeCloseTo(sailed.x, 5);
+    expect(ashore.z).toBeCloseTo(sailed.z, 5);
+  });
+
   it('leaves the client its own authority in a world with no ground', () => {
     const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');

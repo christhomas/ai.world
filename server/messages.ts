@@ -3,6 +3,8 @@ import {
   type ClientMessage, type TradeOffer,
 } from './protocol';
 import type { Entity } from '../src/entities/entity';
+import { WORLD } from '../src/core/config';
+import { BOAT, helm } from '../src/game/sailing';
 import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride';
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
@@ -22,6 +24,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'steer':
       walked(rooms, me, message);
+      return;
+    case 'helm':
+      sailed(rooms, me, message);
       return;
     case 'swing':
       thrown(rooms, me, message);
@@ -74,6 +79,35 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
  */
 const SAME_DOOR = 8;
 
+/** And how far from his boat somebody may step off it, in tiles. A gangplank, and no more. */
+const OFF_THE_BOAT = 6;
+
+/**
+ * A hand on the tiller, and where it takes the boat.
+ *
+ * The same bargain as a walk: the client says what it asked of the boat and the world moves it
+ * against its own water, so two people watching a boat are watching it in one place. The boat
+ * starts wherever they said they boarded — the world has never been told where a boat is moored —
+ * and from there it is the world's until they step off.
+ */
+function sailed(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'helm' }>): void {
+  const water = rooms.groundOf(me.seed);
+  if (!water || me.presence.riding !== 'boat') return;
+  const seq = Math.floor(Number(message.seq) || 0);
+  if (seq <= me.steered) return;
+  me.steered = seq;
+  const p = me.presence;
+  const boat = me.boat ?? (me.boat = { x: p.x, z: p.z, yaw: p.yaw });
+  helm(boat, {
+    forward: Number(message.forward) || 0,
+    turn: Number(message.turn) || 0,
+  }, (Number(message.ms) || 0) / 1000, water);
+  p.x = boat.x; p.z = boat.z; p.yaw = boat.yaw;
+  // the hero rides along on it, so that stepping off is measured from where the boat actually is
+  if (me.hero) { me.hero.x = boat.x; me.hero.z = boat.z; }
+  rooms.send(me, { type: 'youAre', seq, x: boat.x, z: boat.z, y: WORLD.WATER_Y + BOAT.DRAFT, yaw: boat.yaw });
+}
+
 /**
  * The hero has been put somewhere: move the world's own copy of him to match, and say so.
  *
@@ -101,13 +135,20 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
     return;
   }
 
-  // A horse or a boat carries you, and the world does not own either — it has never been told where
-  // a boat is. So a ride is taken as it comes, and it is the last thing on this wire that is.
+  // Boarding a boat, or stepping off one. Where a boat is moored is the client's word — nothing
+  // has ever told the world — so boarding is taken as it comes and the boat becomes the world's
+  // from that moment. Stepping off is measured against it: a gangplank is a stride long, and
+  // somebody who leaves a boat half a county from where the world has it did not step off it.
   if (message.why === 'ride') {
-    p.x = x; p.z = z;
+    const boat = me.boat;
+    const stepping = boat !== null && Math.hypot(x - boat.x, z - boat.z) > OFF_THE_BOAT;
+    p.x = stepping ? boat.x : x;
+    p.z = stepping ? boat.z : z;
+    me.boat = null;
     if (!hero) return;
-    hero.x = x; hero.z = z;
+    hero.x = p.x; hero.z = p.z;
     settle(rooms, me, hero);
+    if (stepping) rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
     return;
   }
 
