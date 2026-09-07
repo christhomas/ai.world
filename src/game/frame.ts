@@ -124,7 +124,7 @@ export interface Framing {
   startTalk: (e: Entity) => void;
   updateHud: (dt: number, area: string, weather?: string) => void;
   mapInput: () => Parameters<WorldMap['draw']>[0];
-  markers: () => Parameters<Minimap['draw']>[5];
+  markers: () => Parameters<Minimap['draw']>[3];
   /** Is a conversation up? It pauses the world the way the full-screen map does. */
   talking: () => boolean;
   /** A conversation types itself out a letter at a time, so it has a clock of its own. */
@@ -434,7 +434,7 @@ export function createFrame(ctx: Framing) {
       `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  creatures ${entities.count}\n` +
       `roads ${graph.edges.length}  radius ${GRAPH.RADIUS}  pos ${x.toFixed(0)},${z.toFixed(0)}`);
 
-    minimap.draw(x, z, iso.zoom, window.innerWidth / window.innerHeight, iso.rotation, markers(), player.x, player.z, !state.can('map'), player.entity.yaw);
+    minimap.draw(player.x, player.z, iso.groundCorners(iso.target.y), markers(), !state.can('map'), player.entity.yaw);
     rig.renderer.render(rig.scene, iso.camera);
     endFrame(dt);
   };

@@ -47,6 +47,10 @@ export function zoomBand(height: number): { start: number; min: number; max: num
 const WHEEL_SHARE = 0.03 / CAMERA.START_ZOOM;
 
 /** Orthographic isometric rig: orbits a ground target, pans in screen space, zooms by frustum size. */
+/** Scratch for `groundCorners`, which runs every frame and should not litter. */
+const CORNER = new THREE.Vector3();
+const FORWARD = new THREE.Vector3();
+
 export class IsoCamera {
   readonly camera: THREE.OrthographicCamera;
   readonly target = new THREE.Vector3();
@@ -194,6 +198,35 @@ export class IsoCamera {
     c.top = this.zoom / 2;
     c.bottom = -this.zoom / 2;
     c.updateProjectionMatrix();
+  }
+
+  /**
+   * The four corners of the picture, where they land on the ground the hero is standing on.
+   *
+   * The corner map used to draw the slice of world on screen as a square centred on the hero,
+   * turned forty-five degrees and stretched by a hand-picked 1.4. That was true only while the
+   * camera looked straight at the hero's feet, and it stopped being true the moment it learned to
+   * aim up at a mountain: the hero then sits three-quarters of the way down the frame, most of
+   * what is on screen is in front of him, and a box drawn round him says otherwise.
+   *
+   * So ask the camera instead of guessing. An orthographic picture has one direction through it,
+   * so each corner is a point on the near plane run along that direction until it meets the
+   * ground — no trigonometry of ours to go stale if the rig is ever re-pitched, re-zoomed or
+   * turned.
+   *
+   * Returned clockwise from the bottom-left of the screen. A flat plane, because the ground is not
+   * one and following it would mean four raycasts a frame for a line drawn six pixels long.
+   */
+  groundCorners(groundY: number): Array<{ x: number; z: number }> {
+    this.camera.getWorldDirection(FORWARD);
+    const out: Array<{ x: number; z: number }> = [];
+    for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+      CORNER.set(nx, ny, 0).unproject(this.camera);
+      // the camera looks down, so this always meets the plane; the guard is for a rig pitched flat
+      const along = Math.abs(FORWARD.y) < 1e-4 ? 0 : (groundY - CORNER.y) / FORWARD.y;
+      out.push({ x: CORNER.x + FORWARD.x * along, z: CORNER.z + FORWARD.z * along });
+    }
+    return out;
   }
 
   private applyPosition(): void {

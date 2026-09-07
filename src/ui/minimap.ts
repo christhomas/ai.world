@@ -27,6 +27,26 @@ const MARK = {
 const CONE_HALF = 0.42;
 
 /**
+ * How far to turn the map so that the way the camera is looking is the top of it.
+ *
+ * Taken from the picture's own corners rather than from the camera's rotation, so there is one
+ * source of truth for which way is forward and no second number to keep in step: the top edge of
+ * the screen is the far edge of the quad, and the way from the near edge to the far one is up.
+ * Zero when there is no picture to take it from, which is the dungeon's map and any test that
+ * draws without one.
+ */
+export function upFrom(view: ReadonlyArray<{ x: number; z: number }>): number {
+  if (view.length < 4) return 0;
+  const [bl, br, tr, tl] = view;
+  const ux = (tl.x + tr.x - bl.x - br.x) / 2, uz = (tl.z + tr.z - bl.z - br.z) / 2;
+  if (ux === 0 && uz === 0) return 0;
+  // map space has x to the right and z down the screen, so straight up is -π/2
+  const spin = -Math.PI / 2 - Math.atan2(uz, ux);
+  // wrapped to a half turn either way: canvas does not care, but a number a reader can hold does
+  return spin <= -Math.PI ? spin + 2 * Math.PI : spin > Math.PI ? spin - 2 * Math.PI : spin;
+}
+
+/**
  * How many pixels the canvas is given, for a box this many CSS pixels across.
  *
  * The floor is the size the map has always been drawn at, so a small window is untouched. The
@@ -71,41 +91,75 @@ export class Minimap {
     this.canvas.height = want;
   }
 
+  /**
+   * @param view the four corners of what is on screen, where they meet the ground, clockwise from
+   * the bottom-left. Empty draws no outline — the dungeon's own map has no such thing to show.
+   */
   draw(
-    camX: number, camZ: number, zoom: number, aspect: number, rotation: number,
-    markers: MapMarker[] = [], playerX = camX, playerZ = camZ, fog = true,
+    playerX: number, playerZ: number, view: ReadonlyArray<{ x: number; z: number }> = [],
+    markers: MapMarker[] = [], fog = true,
     /** Which way the hero is looking, as a rig yaw. Undefined draws no cone. */
     facing?: number,
   ): void {
     const ctx = this.ctx, bs = BASE_SCALE, N = this.size, B = this.base.canvas.width;
     const srcW = Math.min(B, this.localTiles * bs);
-    let sx = (playerX + this.base.pad) * bs - srcW / 2;
-    let sy = (playerZ + this.base.pad) * bs - srcW / 2;
-    sx = Math.max(0, Math.min(B - srcW, sx));
-    sy = Math.max(0, Math.min(B - srcW, sy));
     const k = N / srcW;
-    const toX = (x: number) => ((x + this.base.pad) * bs - sx) * k;
-    const toZ = (z: number) => ((z + this.base.pad) * bs - sy) * k;
+
+    /*
+     * The hero is the middle of the map, and the map turns under him.
+     *
+     * It used to be north-up with the hero somewhere on it, and it clamped the crop to the edges
+     * of the base image, so within eighty tiles of the rim of the world the hero slid off the
+     * middle and the map stopped answering "what is around me" — which is the only question a
+     * corner map is asked. Worse, the game's own camera can be turned, and a map that does not
+     * turn with it puts a village on your left that is in fact behind you.
+     *
+     * So: the crop is always centred on the hero, and everything is drawn through one rotation
+     * about the middle of the canvas that puts the direction the camera is looking at the top of
+     * the map. Near the rim the map runs out rather than sliding — the world genuinely ends there,
+     * and a blank corner says so honestly.
+     */
+    const spin = upFrom(view);
+    // a square wide enough that turning it leaves no empty corner: the diagonal of what is shown
+    const wide = srcW * Math.SQRT2;
+    const sx = (playerX + this.base.pad) * bs - wide / 2;
+    const sy = (playerZ + this.base.pad) * bs - wide / 2;
+    const dest = wide * k;
+    // where a place in the world lands on the turned map, as two numbers rather than a canvas
+    // transform, so that what is drawn at that point can stay the right way up
+    const cos = Math.cos(spin), sin = Math.sin(spin);
+    const px = (x: number, z: number) => N / 2 + ((x - playerX) * cos - (z - playerZ) * sin) * bs * k;
+    const pz = (x: number, z: number) => N / 2 + ((x - playerX) * sin + (z - playerZ) * cos) * bs * k;
+
+    ctx.clearRect(0, 0, N, N);
+    ctx.save();
+    ctx.translate(N / 2, N / 2);
+    ctx.rotate(spin);
+    ctx.translate(-N / 2, -N / 2);
 
     // Blown up, the base image is worth more as tiles than as a blur: it holds less than two pixels
     // to the tile, so smoothing an enlargement of it only makes a soft photograph of a blocky
     // world. Shrunk — a phone's corner, where the map is smaller than its source — it needs the
     // smoothing, or the roads come apart into dashes.
     ctx.imageSmoothingEnabled = N < srcW;
-    ctx.drawImage(this.base.canvas, sx, sy, srcW, srcW, 0, 0, N, N);
-    if (fog) ctx.drawImage(this.fog.canvas, sx, sy, srcW, srcW, 0, 0, N, N);
-    // the marks go on at full resolution whatever the map under them cost
+    const at = N / 2 - dest / 2;
+    ctx.drawImage(this.base.canvas, sx, sy, wide, wide, at, at, dest, dest);
+    if (fog) ctx.drawImage(this.fog.canvas, sx, sy, wide, wide, at, at, dest, dest);
+    ctx.restore();
+
+    // the marks go on at full resolution whatever the map under them cost, and outside the turn,
+    // so a village stays a square rather than becoming a diamond when you swing the camera
     ctx.imageSmoothingEnabled = true;
     const mark = MARK.MARKER * N;
     for (const m of markers) {
       ctx.fillStyle = m.color;
-      ctx.fillRect(toX(m.x) - mark / 2, toZ(m.z) - mark / 2, mark, mark);
+      ctx.fillRect(px(m.x, m.z) - mark / 2, pz(m.x, m.z) - mark / 2, mark, mark);
     }
     // which way they are looking, drawn under the dot so the dot stays the thing you find first
     if (facing !== undefined) {
       ctx.save();
-      ctx.translate(toX(playerX), toZ(playerZ));
-      ctx.rotate(headingOnMap(facing));
+      ctx.translate(N / 2, N / 2);
+      ctx.rotate(headingOnMap(facing) + spin);
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, MARK.CONE_REACH * N, -CONE_HALF, CONE_HALF);
@@ -114,19 +168,25 @@ export class Minimap {
       ctx.fill();
       ctx.restore();
     }
+
+    // the slice of world on screen right now, as the camera actually cuts it rather than as a
+    // square drawn round the hero — which is the same thing only while the camera is looking
+    // straight down at his feet, and is not while it is aimed up at a mountain
+    if (view.length > 2) {
+      ctx.beginPath();
+      ctx.moveTo(px(view[0].x, view[0].z), pz(view[0].x, view[0].z));
+      for (let i = 1; i < view.length; i++) ctx.lineTo(px(view[i].x, view[i].z), pz(view[i].x, view[i].z));
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = MARK.VIEW_LINE * N;
+      ctx.stroke();
+    }
+
+    // and the hero last, on the middle of the canvas, outside the turn: he is the one thing on
+    // this map that never moves, and a circle would not show it if he did
     ctx.fillStyle = '#ff4d4d';
     ctx.beginPath();
-    ctx.arc(toX(playerX), toZ(playerZ), MARK.PLAYER * N, 0, Math.PI * 2);
+    ctx.arc(N / 2, N / 2, MARK.PLAYER * N, 0, Math.PI * 2);
     ctx.fill();
-
-    // the slice of world on screen right now
-    ctx.save();
-    ctx.translate(toX(camX), toZ(camZ));
-    ctx.rotate(rotation + Math.PI / 4);
-    const w = zoom * aspect * bs * k, d = zoom * bs * k * 1.4;
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-    ctx.lineWidth = MARK.VIEW_LINE * N;
-    ctx.strokeRect(-w / 2, -d / 2, w, d);
-    ctx.restore();
   }
 }

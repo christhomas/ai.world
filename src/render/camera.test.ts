@@ -213,3 +213,65 @@ describe('the zoom a save was left at', () => {
     expect(iso.zoom).toBe(was);
   });
 });
+
+/**
+ * Where the picture meets the ground.
+ *
+ * The corner map draws the slice of world on screen. It used to draw it as a square round the hero,
+ * turned forty-five degrees and stretched by a hand-picked 1.4 — true only while the camera looked
+ * straight at his feet, and untrue from the day it learned to aim up at a mountain, which puts the
+ * hero three-quarters of the way down the frame with most of what he can see in front of him.
+ * Asking the camera is the answer that cannot go stale.
+ */
+describe('the ground the camera can see', () => {
+  /** A rig settled at the origin, with the frustum and position it will actually draw with. */
+  const settled = (): InstanceType<typeof IsoCamera> => {
+    const iso = new IsoCamera();
+    iso.target.set(0, 0, 0);
+    iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
+    return iso;
+  };
+  const middle = (q: Array<{ x: number; z: number }>) => ({
+    x: q.reduce((a, c) => a + c.x, 0) / q.length,
+    z: q.reduce((a, c) => a + c.z, 0) / q.length,
+  });
+  const across = (q: Array<{ x: number; z: number }>) => Math.hypot(q[1].x - q[0].x, q[1].z - q[0].z);
+
+  it('is centred on the hero while the camera is looking at his feet', () => {
+    const mid = middle(settled().groundCorners(0));
+    expect(mid.x).toBeCloseTo(0, 6);
+    expect(mid.z).toBeCloseTo(0, 6);
+  });
+
+  it('moves off him when the camera aims over his head at a mountain', () => {
+    const iso = settled();
+    iso.lift = 6;
+    iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
+    const mid = middle(iso.groundCorners(0));
+    // looking up carries your gaze further off, so the middle of the picture goes away from the
+    // camera — which stands on the +x +z side at the default quarter turn — and the hero, staying
+    // where he is, slides down the screen
+    expect(Math.hypot(mid.x, mid.z), 'the middle of the picture is no longer his feet').toBeGreaterThan(1);
+    expect(mid.x).toBeLessThan(0);
+    expect(mid.z).toBeLessThan(0);
+  });
+
+  it('turns with the camera and keeps its size', () => {
+    const iso = settled();
+    const flat = iso.groundCorners(0);
+    iso.rotation += Math.PI / 2;
+    iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 0 } as never, 0, false);
+    const turned = iso.groundCorners(0);
+    expect(across(turned)).toBeCloseTo(across(flat), 6);
+    expect(Math.hypot(turned[0].x - flat[0].x, turned[0].z - flat[0].z), 'a quarter turn moves every corner').toBeGreaterThan(1);
+  });
+
+  it('covers more ground as you pull back, because that is what pulling back is', () => {
+    const iso = settled();
+    const near = across(iso.groundCorners(0));
+    iso.update({ isDown: () => false, dragDX: 0, dragDY: 0, wheelDelta: 1 } as never, 0, false);
+    expect(iso.zoom, 'the wheel actually moved it').toBeGreaterThan(CAMERA.START_ZOOM * 0.5);
+    const far = across(iso.groundCorners(0));
+    expect(far / near).toBeCloseTo(iso.zoom / CAMERA.START_ZOOM, 1);
+  });
+});
