@@ -270,10 +270,13 @@ Things Chris hit on a real phone, in the order he hit them.
       no way to reach any of it. On a short window it now scrolls from the top, the slots go side by
       side — three columns is the shape of a landscape phone — and the switches come out of the
       corner into the flow.)*
-- [ ] On a phone in landscape, take the whole glass: fullscreen, so the browser's own furniture is
-      not eating a fifth of a 342-pixel screen. It has to be asked for from a tap — the tap that
-      enters a world is the one — and it is also what makes the orientation lock possible on
-      Android. iOS gives neither, and keeps the turn-your-phone card as its fallback.
+- [x] On a phone in landscape, take the whole glass. *(Asked for from the tap that enters a world,
+      because that is the one moment a browser will give a page the screen — and because that tap is
+      when the page stops being a page and becomes a game. Fullscreen first and the orientation lock
+      second, in that order, since Chrome on Android will only hold an orientation for a page that
+      is already fullscreen. Checked on an emulated phone and a desktop: the phone asks for both,
+      the desktop asks for neither. iOS gives neither at any price and keeps the turn-your-phone
+      card as its fallback, which works everywhere.)*
 - [ ] The message log — the box above the chat that says what has happened — reads badly. The
       colours are wrong on a desktop and it eats the screen on a phone: 340 by 190 pixels of a
       342-pixel-tall window, which is most of the game. `#chatLog` in `style.css`.
@@ -317,6 +320,20 @@ Things Chris hit on a real phone, in the order he hit them.
       across the field. Measured after: **4 bites in the first ten seconds and 12 in a minute**,
       arriving 4/1/2/1/2/2 — which is the sporadic it was asked to be. All three numbers are in
       `behaviours/creatures.json` with a note saying what each does.)*
+
+## The numbers of the world
+
+- [ ] Move what a creature *is* out of the code and into data, the way what a creature *does*
+      already lives in `behaviours/*.json`. `src/entities/animals.ts` holds every kind's speed, hit
+      points, bite, herd size, climb, price and colours as a typed table in the middle of the
+      source; a `properties/*.json` beside the behaviours would put them where they can be argued
+      about without opening an editor. Watch for: the table is typed and read by tests and by the
+      renderer, so whatever replaces it has to keep both — a schema and a loader, not a bag of
+      `any`. Spawning goes with it — which kinds belong to which biome, how many, at what hour, how
+      far from the hero — because that is a property of a creature as much as its speed is, and it
+      is the other half of what makes a countryside feel the way it does. And `BEHAVIOUR` in
+      `entity.ts` with it: those are the defaults a behaviour file overrides with `with:`, so they
+      belong beside the files that override them rather than in the source that reads them.
 
 ## Deployment
 

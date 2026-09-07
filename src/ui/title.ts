@@ -1,5 +1,6 @@
 import type { SaveStore, SessionSave, WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
+import { takeTheScreen } from './sideways';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 export const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
@@ -127,6 +128,10 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
 
     const pick = (i: number, act: string) => {
       const key = SLOT_KEYS[i];
+      // The tap that enters a world is the one moment a browser will give a page the whole screen,
+      // so it is where it is asked for. On a phone the browser's own furniture is a fifth of the
+      // glass and the game cannot be played through it; on anything else this does nothing at all.
+      if (act !== 'delete') void takeTheScreen();
       if (act === 'delete') {
         if (!saves[i] || !window.confirm(`Delete slot ${i + 1}? This cannot be undone.`)) return;
         saves[i] = undefined;

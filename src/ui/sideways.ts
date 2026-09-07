@@ -116,6 +116,33 @@ export function thisBrowser(card: HTMLElement): Sideways {
   };
 }
 
+/**
+ * Take the whole glass: fullscreen, and then landscape.
+ *
+ * Called from the tap that enters a world, because both of these are things a browser will only do
+ * for somebody who has just touched the screen — and because that tap is the moment the page stops
+ * being a page and becomes a game. On a phone the browser's own furniture is a fifth of a screen
+ * that is three hundred and forty-two pixels tall, and the game cannot be played through it.
+ *
+ * Fullscreen first and the lock second, in that order: Chrome on Android will only hold an
+ * orientation for a page that is fullscreen. Neither is available on an iPhone at any price, and
+ * neither throwing nor a rejected promise is a fault here — the turn-your-phone card is the
+ * fallback, and it works everywhere.
+ */
+export async function takeTheScreen(): Promise<void> {
+  const { width, height } = window.screen ?? { width: window.innerWidth, height: window.innerHeight };
+  if (!isPhoneScreen(width, height, window.matchMedia?.('(pointer: coarse)').matches ?? false)) return;
+  const page = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+  try {
+    if (!document.fullscreenElement) {
+      await (page.requestFullscreen?.({ navigationUI: 'hide' }) ?? page.webkitRequestFullscreen?.());
+    }
+  } catch { /* a browser that will not, which is most of them on a phone */ }
+  const orientation = window.screen?.orientation as
+    (ScreenOrientation & { lock?: (to: string) => Promise<void> }) | undefined;
+  try { await orientation?.lock?.('landscape'); } catch { /* nor will it hold it there */ }
+}
+
 /** Everything that could change which way up a phone is: turning it, and resizing the window. */
 export function whenTurned(on: () => void): () => void {
   const events = ['orientationchange', 'resize'] as const;
