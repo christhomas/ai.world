@@ -290,7 +290,7 @@ export function saidOfWork(work: Work, village: string): string {
 }
 
 /** What he set going as the fight turned, said the way somebody shouting it up the street would. */
-export function saidOfRuin(ruin: Ruin, village: string, atStake: readonly string[]): string {
+function saidOfRuin(ruin: Ruin, village: string, atStake: readonly string[]): string {
   const who = namesSaid(atStake);
   switch (ruin) {
     case 'flood': return `He has opened the river above ${village}. ${who} are on the rooftops and the water is still coming up.`;

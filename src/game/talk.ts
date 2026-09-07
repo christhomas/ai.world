@@ -60,7 +60,7 @@ export interface Post {
 }
 
 /** Gold that rides along with a parcel, so a gift can be more than a thing. */
-export const PARCEL_GOLD = 10;
+const PARCEL_GOLD = 10;
 
 /**
  * A bed for the night. Sleeping is the answer to a long dark: full hearts, a locked door, and

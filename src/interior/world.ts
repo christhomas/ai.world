@@ -3,7 +3,7 @@ import type { TileWorld } from '../entities/entity';
 import { ITile, blocksAt, type InteriorMap } from './generate';
 
 /** Interiors are flat, one terrace up, so the walls read as walls from above. */
-export const FLOOR_LEVEL = 1;
+const FLOOR_LEVEL = 1;
 export const FLOOR_Y = FLOOR_LEVEL * WORLD.STEP;
 export const WALL_HEIGHT = 3;
 

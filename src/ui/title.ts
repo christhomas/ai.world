@@ -3,7 +3,7 @@ import { randomSeed } from '../core/rng';
 import { takeTheScreen } from './sideways';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
-export const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
+const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
 /** Pre-slot saves lived here; migrated into slot 1 on first run. */
 export const LEGACY_KEY = 'ai.world/session';
 

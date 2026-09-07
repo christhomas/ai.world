@@ -5,8 +5,8 @@ import type { TileWorld } from '../entities/entity';
 import { DTile, type DungeonMap } from './generate';
 
 /** Dungeon floors sit one terrace up so pools (bed at 0) read as sunk. */
-export const DUNGEON_FLOOR_LEVEL = 1;
-export const DUNGEON_WALL_LEVEL = 5;
+const DUNGEON_FLOOR_LEVEL = 1;
+const DUNGEON_WALL_LEVEL = 5;
 const FLOOR_Y = DUNGEON_FLOOR_LEVEL * WORLD.STEP;
 const WALL_Y = DUNGEON_WALL_LEVEL * WORLD.STEP;
 

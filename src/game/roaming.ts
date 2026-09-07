@@ -367,7 +367,7 @@ export function tollOf(band: Band, place: Steading, day: number, pressure: numbe
 }
 
 /** How somebody who lives in the place would put what is happening to it. */
-export function saidOfPress(band: Band, place: Steading, pressure: number): string {
+function saidOfPress(band: Band, place: Steading, pressure: number): string {
   const what = nameFor(band);
   // "Something very large have been seen" is how you can tell a sentence was assembled rather
   // than written, so the verb follows the subject the way it would out of somebody's mouth
@@ -465,7 +465,7 @@ export function distanceTo(band: Band, x: number, z: number, day: number): numbe
 }
 
 /** What a band is called, in the words anybody who had seen it would use. */
-export function nameFor(band: Band): string {
+function nameFor(band: Band): string {
   switch (band.kind) {
     case 'wolf': return 'Wolves';
     case 'bear': return 'Bears';

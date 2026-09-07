@@ -540,11 +540,6 @@ export function nearestLift(ranges: Ranges, x: number, z: number, reach = RANGE.
   return most;
 }
 
-/** Whether a point stands on mountain geometry at all: the cheap question, asked far more often. */
-export function inMountains(ranges: Ranges, x: number, z: number): boolean {
-  return mountainAt(ranges, x, z) !== null;
-}
-
 /**
  * Where a triangle's plane is over a point, or null when the point is outside it.
  *
@@ -563,18 +558,6 @@ function heightIn(tris: Float32Array, t: number, x: number, z: number): number |
   const c = 1 - a - b;
   if (a < 0 || b < 0 || c < 0) return null;
   return a * y1 + b * y2 + c * y3;
-}
-
-/** How steep the mountain is under a point, as a fall in world units per tile walked. */
-export function slopeAt(ranges: Ranges, x: number, z: number): number {
-  const here = mountainAt(ranges, x, z);
-  if (here === null) return 0;
-  let most = 0;
-  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-    const near = mountainAt(ranges, x + dx, z + dz);
-    if (near !== null) most = Math.max(most, Math.abs(near - here));
-  }
-  return most;
 }
 
 /** A village with a ring of high country round it, and the roads it already had as the way in. */
@@ -654,17 +637,6 @@ export function liftField(mesh: WorldMesh): Ranges {
 }
 
 /**
- * How many terraces the mountains add at a point, for anything that counts in terraces.
- *
- * The ground is measured in half-unit steps and the rock in world units, and a number that means
- * one thing here and another there is the sort of thing that is only ever found by a river running
- * uphill.
- */
-export function terracesAt(ranges: Ranges, x: number, z: number): number {
-  return Math.max(0, (mountainAt(ranges, x, z) ?? 0) / WORLD.STEP);
-}
-
-/**
  * The mountains of a polygon world, described the way the older mountains were.
  *
  * Eyries and sky islands are placed against mountains — a village in the clouds hangs over one, and
@@ -688,5 +660,3 @@ export function rangesAsMassifs(ranges: Ranges, mesh: WorldMesh | null): Massif[
   }));
 }
 
-/** A terrace's worth of height, so callers can talk in the units the rest of the ground uses. */
-export const terracesOf = (units: number): number => units / WORLD.STEP;

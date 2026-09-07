@@ -85,7 +85,7 @@ export type Wayfarer = keyof typeof TRADE_TOOL;
  * always somebody you could have met in a square, and a trade the game drops stops turning up out
  * here on the same day it stops turning up in there.
  */
-export const WAYFARERS: readonly Wayfarer[] =
+const WAYFARERS: readonly Wayfarer[] =
   (Object.keys(TRADE_TOOL) as Wayfarer[]).filter((id) => TRADES.some((trade) => trade.id === id));
 
 /** What somebody sleeping rough carries to keep off what comes. Nothing a soldier would envy. */
@@ -181,7 +181,7 @@ export function ruinChanceOf(land: Country): number {
  * What somebody of this trade had on them. The tool of the trade is the one certainty: it is the
  * reason they were out here, and the reason a stranger's camp is worth crossing a field for.
  */
-export function spoilsOf(who: string, trade: Wayfarer, roll: Rng): Spoils {
+function spoilsOf(who: string, trade: Wayfarer, roll: Rng): Spoils {
   const items: string[] = [TRADE_TOOL[trade]];
   if (roll() < CAMPS.ARMED) items.push(ARMS[Math.floor(roll() * ARMS.length)]);
   if (roll() < CAMPS.PRIZE) items.push(PRIZES[Math.floor(roll() * PRIZES.length)]);

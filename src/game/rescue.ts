@@ -288,7 +288,7 @@ export function wordsFor(contract: Pick<Contract, 'gold' | 'welcome'>): string {
  * back in a few days walks into children. The failing line is not a promise, because past that
  * point the register stops filling gaps and no amount of coming back will change it.
  */
-export function recoveryWords(fortune: Fortune, village: string): string {
+function recoveryWords(fortune: Fortune, village: string): string {
   if (fortune === 'failing') {
     return `We are too few to fill the houses again, and I will not pretend otherwise. But we will bury our own from now on, and ${village} will still be here to be buried in.`;
   }

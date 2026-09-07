@@ -22,7 +22,7 @@ export type ItemEffect =
 /** Something an item does while it is equipped. */
 export type Ability = 'light' | 'map' | 'climb' | 'fish' | 'dig' | 'fell' | 'kindle' | 'skin' | 'hew' | 'grind' | 'camp';
 
-export const ABILITY_NOTES: Record<Ability, string> = {
+const ABILITY_NOTES: Record<Ability, string> = {
   light: 'lights your way at night',
   map: 'reveals the whole map',
   climb: 'climb two terraces at once',

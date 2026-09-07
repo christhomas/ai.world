@@ -261,5 +261,3 @@ export class DialogueBox {
   }
 }
 
-/** The pixel grid a face is drawn on, so the stylesheet and the canvas agree about its shape. */
-export const FACE_SIZE = FACE;

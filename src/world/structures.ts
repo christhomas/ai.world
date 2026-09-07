@@ -172,7 +172,7 @@ export interface Structures {
 }
 
 export const VILLAGES = 16;
-export const POIS = 28;
+const POIS = 28;
 const SHOP_ORDER: ShopType[] = ['store', 'smith', 'inn', 'apothecary'];
 
 /** Layout tuning for settlements and points of interest. Distances in tiles. */
@@ -628,7 +628,7 @@ const SITE_SPACING = 60;
 const CAVE_NAMES = ['Weeping Cave', 'Bat Hollow', 'Deep Crack', 'Smugglers\' Cave', 'Blackmouth Cave', 'Echo Cave', 'Cold Crawl', 'Miner\'s Fault', 'Rattling Cave', 'Hermit\'s Cave'];
 const WRECK_NAMES = ['Wreck of the Marigold', 'Broken Keel', 'Wreck of the Tern', 'Salt Bones', 'Wreck of the Gull', 'Old Hull', 'Wreck of the Wren', 'Storm\'s Toll'];
 
-export const SIGNPOSTS = 22;
+const SIGNPOSTS = 22;
 const SIGNPOST_SPACING = 90;
 
 const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];

@@ -18,7 +18,7 @@ const PHASES: Record<Phase, PhaseLook> = {
 const DAWN = 0.22, MORNING = 0.32, EVENING = 0.72, NIGHTFALL = 0.82;
 
 /** The day bar's colours, built from the same boundaries the phases use. */
-export function dayBarGradient(): string {
+function dayBarGradient(): string {
   const stop = (t: number) => `${(t * 100).toFixed(0)}%`;
   return `linear-gradient(90deg, ${PHASES.night.colour} 0%, ${PHASES.night.colour} ${stop(DAWN)},`
     + ` ${PHASES.dawn.colour} ${stop(MORNING)}, ${PHASES.day.colour} 50%,`

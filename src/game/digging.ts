@@ -16,7 +16,7 @@ import { TileType, type TileSample } from '../world/terrain';
  * leaves the memory small enough to keep in a session and throw away with it.
  */
 
-export const DIG = {
+const DIG = {
   /** Share of flat meadow that holds anything at all. Most holes are just a hole. */
   BASE: 0.05,
   /** Each terrace a tile stands above its road multiplies the odds again: metal comes out of hillsides, not lawns. */

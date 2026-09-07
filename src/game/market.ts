@@ -3,7 +3,7 @@ import { ITEMS } from './items';
 import type { Village } from '../world/structures';
 
 /** How close you must stand to a pitch to deal at it, in tiles. */
-export const STALL_REACH = 2.2;
+const STALL_REACH = 2.2;
 /** What a trader asks by default: the shop price with a little on top for the trouble. */
 export const MARKUP = 1.5;
 

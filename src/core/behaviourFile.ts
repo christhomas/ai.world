@@ -112,5 +112,3 @@ export function compile<W>(spec: Spec, vocabulary: Vocabulary<W>, roll: Roller<W
   throw new BehaviourError(where, `not a node: ${JSON.stringify(spec).slice(0, 80)}`);
 }
 
-/** Nodes that do nothing, for a file that wants to say so plainly. */
-export const NOTHING = { succeed, fail };

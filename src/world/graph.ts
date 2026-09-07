@@ -368,7 +368,7 @@ const TAU = Math.PI * 2;
 /** Island biome extends this far past the island's nominal radius (covers its coast). */
 const ISLAND_BIOME_MARGIN = 40;
 /** Width of the dithered transition between biomes, in tiles. */
-export const BLEND_TILES = 10;
+const BLEND_TILES = 10;
 
 /**
  * Sector lookup with blend weights: plains inside the hub clearing, otherwise a noise-warped
@@ -441,7 +441,7 @@ export const ISLANDS = {
 } as const;
 
 /** Road tuning for an island of the given radius: smaller, denser, no secondary towns. */
-export function islandConfig(radius: number): RoadConfig {
+function islandConfig(radius: number): RoadConfig {
   return {
     ...GRAPH,
     RADIUS: radius, TOWNS: 0, HUB_RADIUS: 14, ATTRACTOR_SPACING: 14, INFLUENCE: 40, KILL: 11, STEP: 6,
@@ -450,7 +450,7 @@ export function islandConfig(radius: number): RoadConfig {
 }
 
 /** Radius and biome an island gets from its own seed. */
-export function islandTraits(seed: number): { radius: number; biome: Biome } {
+function islandTraits(seed: number): { radius: number; biome: Biome } {
   const rng = mulberry32(seed);
   const radius = ISLANDS.RADIUS_MIN + Math.floor(rng() * ISLANDS.RADIUS_RANGE);
   const biome = ISLANDS.BIOMES[Math.floor(rng() * ISLANDS.BIOMES.length)];

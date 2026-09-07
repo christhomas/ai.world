@@ -166,7 +166,7 @@ export function natureOf(item: Item): Nature {
  * Pure, and it takes the three things it is about and no more. Give the same pelt to the same
  * climber in the plains and in the snow and you get two different numbers, which is the point.
  */
-export function fitness(item: Item, person: Person, biome: Biome, day: number): number {
+function fitness(item: Item, person: Person, biome: Biome, day: number): number {
   const nature = natureOf(item);
   let want = GIFT.INAPT;
   if (nature === 'food') want += GIFT.ANYONE;
@@ -208,7 +208,7 @@ const BONDS: ReadonlyArray<{ from: number; words: string }> = [
 ];
 
 /** How you and somebody stand, said the way they would say it. */
-export function bondWords(warmth: number): string {
+function bondWords(warmth: number): string {
   for (const band of BONDS) if (warmth >= band.from) return band.words;
   return BONDS[BONDS.length - 1].words;
 }
