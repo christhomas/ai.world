@@ -177,14 +177,12 @@ export const EMOTES: Record<string, string> = {
 /** How long a rally point stands on everyone's map, in seconds. */
 export const PING_LIFE = 90;
 
-/** A duel is a friendly bout: nobody loses gear, gold or a life over it. */
-export const DUEL_RANGE = 2.4;
-
 /**
- * A fight with sides is a duel with the men you have already paid for standing in front of you.
- * Nothing is at stake but the bragging, and nobody is in one who has not agreed to be.
+ * How close two people have to be to trade blows in a bout. A duel is a friendly one and a fight
+ * with sides is the same thing with the men you have already paid for standing behind you; neither
+ * costs anybody gear, gold or a life, and both are fought at arm's length.
  */
-export const WARBAND_RANGE = DUEL_RANGE;
+export const DUEL_RANGE = 2.4;
 
 /**
  * One creature as the world's owner sees it.
