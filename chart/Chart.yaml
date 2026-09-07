@@ -8,10 +8,10 @@ type: application
 # pulls, so a chart published without a game to match it points at an image that does not exist, and
 # a game published without a chart is a version nobody can install. `chart.test.ts` fails the build
 # if they disagree.
-version: 0.4.7
+version: 0.4.8
 # What it deploys by default. Overridden by image.tag, so a chart bump and a game release are
 # separate events rather than one number pretending to be two.
-appVersion: "0.4.7"
+appVersion: "0.4.8"
 home: https://github.com/christhomas/ai.world
 sources:
   - https://github.com/christhomas/ai.world
