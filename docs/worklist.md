@@ -285,10 +285,15 @@ Things Chris hit on a real phone, in the order he hit them.
       screen nothing can use, because the game behind it cannot be played through a corner that
       small either. (Except where a notch actually needs it: the safe-area insets are there for a
       real obstruction, not for taste.)
-- [ ] The default zoom on a phone is a view from five hundred metres up. It wants to start close to
-      the hero: on a small screen the hero is what you are looking at, and the country round him is
-      background.
-
+- [x] The default zoom on a phone was a view from five hundred metres up. *(The number was not the
+      problem — the unit was. The zoom band was written in tiles of ground, and a tile is not a
+      fixed size on a screen: thirty tiles leaves the hero forty-five pixels tall on a monitor and
+      fifteen on a phone. It is written as how big the hero should be on the glass now, and the
+      tiles follow from the window: a phone opens at 12.4 rather than 30, and the hero goes from
+      fifteen pixels to forty-two. Nothing changes on any window nine hundred pixels tall or more.)*
+- [ ] On a wide desktop window the chat and the HUD should move to one edge — the right — and run
+      down it, rather than sitting in the middle of the picture. A wide screen has room to spare at
+      the sides and none in the middle, which is where the game is.
 ## Found while playing it on a phone — the world itself
 
 - [x] **The animals and villagers froze.** *(Not the simulation: the client. A world talks
@@ -300,6 +305,18 @@ Things Chris hit on a real phone, in the order he hit them.
       as a world that has gone: it says so, hands the creatures back to this client so they start
       moving again, and goes back and knocks on the same door. `src/game/online.test.ts` arranges a
       world that says nothing, which is the one case a real socket cannot be made to do.)*
+
+## Found while playing it on a phone — the game itself
+
+- [x] **The wolves were relentless.** *("It's like every second of the game you're being chased by
+      wolves. If you stay still for 5 seconds, you're surrounded and killed." Measured: two wolves
+      standing over somebody landed **13 bites in ten seconds**, which kills a full-health hero in
+      under eight. They now bite on a longer jaw — 3.4 seconds rather than 1.6 — and drop back for a
+      couple of seconds after each one, so a pack ebbs and comes again instead of standing in your
+      face chewing. And a hunt starts at seven tiles rather than nine, so they do not come from
+      across the field. Measured after: **4 bites in the first ten seconds and 12 in a minute**,
+      arriving 4/1/2/1/2/2 — which is the sporadic it was asked to be. All three numbers are in
+      `behaviours/creatures.json` with a note saying what each does.)*
 
 ## Deployment
 
