@@ -87,6 +87,15 @@ export const GAMEPLAY = {
 export const CAMERA = {
   SPEED: 24,        // world units per second
   ROT_SPEED: 1.7,   // radians per second
+  /**
+   * The zoom band, in tiles of frustum — but read the hero measurements below with them.
+   *
+   * These three are the band on a screen big enough to hold it, which is anything about nine
+   * hundred CSS pixels tall or more: the view the game has always had on a desktop, and the widest
+   * it ever opens. On anything shorter they are only the outer limit, and what the game actually
+   * uses is worked out from how tall the hero comes out on that particular screen — see
+   * `zoomBand` in render/camera.ts.
+   */
   MIN_ZOOM: 14,
   MAX_ZOOM: 72,
   /**
@@ -96,6 +105,33 @@ export const CAMERA = {
    */
   SHUT_IN_ZOOM: 17,
   START_ZOOM: 30,
+  /**
+   * How big the hero is on the glass, in CSS pixels, which is what the band above is really for.
+   *
+   * Thirty tiles of frustum is a good look at the country on a 1600x900 desktop, where it leaves
+   * the hero about forty-five pixels tall. A phone held sideways is around 750x342, so the same
+   * thirty tiles are spread over a third of the height and he comes out fifteen pixels tall —
+   * which is what "watching the game from five hundred metres in the air" means. A number of tiles
+   * is not the thing that should hold from one screen to the next; the size of the man you are
+   * playing is.
+   *
+   * So the game opens at whichever is nearer: START_ZOOM, or the zoom that gives the hero this
+   * many pixels. A big screen therefore keeps exactly the view it has always had — the tile
+   * numbers win there — and only a screen too small for that comes in closer.
+   *
+   * Forty-two rather than the desktop's forty-five: a hair smaller than the man on the monitor,
+   * because a small screen sees less country at any size and a wolf coming out of the trees should
+   * still arrive with a moment's warning.
+   *
+   * The two limits are the same three sums read backwards: MIN_ZOOM and MAX_ZOOM on a 900-tall
+   * window are a hero ninety-eight pixels tall and one nineteen pixels tall, so those are the
+   * closest and furthest the band goes on any screen. There is no point being able to pull back to
+   * a view where the hero is four pixels high.
+   */
+  HERO_TALL: 2.15,        // world units, boots to the tip of his hat
+  HERO_ON_SCREEN: 42,     // ...how tall he should stand when the game opens
+  HERO_LARGEST: 98,       // ...however far in you push
+  HERO_SMALLEST: 19,      // ...and however far back you pull
   HEIGHT: 70,
   DIST: 70,
   DRAG_SPEED: 0.05,

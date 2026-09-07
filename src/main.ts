@@ -489,8 +489,7 @@ function startGame(
   let startX = 0, startZ = 0;
   if (saved) {
     iso.rotation = saved.cam.rot;
-    iso.zoom = saved.cam.zoom;
-    iso.resize();
+    iso.restoreZoom(saved.cam.zoom);
     if (saved.player) { startX = saved.player.x; startZ = saved.player.z; }
   }
   const px = url.searchParams.get('x'), pz = url.searchParams.get('z');

@@ -2,6 +2,50 @@ import * as THREE from 'three';
 import { CAMERA } from '../core/config';
 import type { Input } from '../core/input';
 
+/**
+ * How much of a standing thing's height the picture actually gets, as a share of it.
+ *
+ * The rig looks down from CAMERA.HEIGHT over CAMERA.DIST, and a screen is at right angles to where
+ * it is looking, so a world-vertical of h takes up h·cos(pitch) of the picture rather than h. At
+ * the forty-five degrees this game looks down from that is about seven tenths. Derived rather than
+ * written down, so that re-pitching the rig moves this with it instead of leaving it wrong.
+ */
+const UPRIGHT = CAMERA.DIST / Math.hypot(CAMERA.DIST, CAMERA.HEIGHT);
+
+/**
+ * The zoom band for a window this many CSS pixels tall: where the game opens, and how far in and
+ * out the player may go from there.
+ *
+ * The frustum is `zoom` world units tall and the window is `height` pixels tall, so a hero
+ * `CAMERA.HERO_TALL` units high stands `HERO_TALL·UPRIGHT·height/zoom` pixels on the glass — turn
+ * that around and a wanted height in pixels is a zoom. Each of the three is that sum against the
+ * tile number it has always had, and the closer of the two wins: on a desktop the tiles win and
+ * nothing whatever changes, and on a phone, where thirty tiles would leave the hero fifteen pixels
+ * tall, the pixels win.
+ *
+ * Pure, and given the height rather than reading the window itself, so the arithmetic can be
+ * checked at a size instead of at a device.
+ */
+export function zoomBand(height: number): { start: number; min: number; max: number } {
+  // a window with no height at all is a headless one mid-layout; the desktop band is the safe answer
+  if (!(height > 0)) return { start: CAMERA.START_ZOOM, min: CAMERA.MIN_ZOOM, max: CAMERA.MAX_ZOOM };
+  const zoomFor = (pixels: number) => CAMERA.HERO_TALL * UPRIGHT * height / pixels;
+  return {
+    start: Math.min(CAMERA.START_ZOOM, zoomFor(CAMERA.HERO_ON_SCREEN)),
+    min: Math.min(CAMERA.MIN_ZOOM, zoomFor(CAMERA.HERO_LARGEST)),
+    max: Math.min(CAMERA.MAX_ZOOM, zoomFor(CAMERA.HERO_SMALLEST)),
+  };
+}
+
+/**
+ * How much zoom a notch of wheel is worth, as a share of where the game opened.
+ *
+ * A share rather than a fixed 0.03 tiles, because a phone's band is about a third as wide as a
+ * desktop's, and a thumb-span of pinch worth a fifth of the band on a monitor would be worth over
+ * half of it on a handset. On a full-size screen this is 0.03 tiles a notch, as it always was.
+ */
+const WHEEL_SHARE = 0.03 / CAMERA.START_ZOOM;
+
 /** Orthographic isometric rig: orbits a ground target, pans in screen space, zooms by frustum size. */
 export class IsoCamera {
   readonly camera: THREE.OrthographicCamera;
@@ -17,9 +61,32 @@ export class IsoCamera {
    * from.
    */
   lift = 0;
-  zoom: number = CAMERA.START_ZOOM;
+  zoom: number = zoomBand(window.innerHeight).start;
   /** How far back this place lets you stand: less sky indoors and underground than in a field. */
   private ceiling: number = CAMERA.MAX_ZOOM;
+  /**
+   * The zoom this rig picked for itself and still owns.
+   *
+   * While the zoom is still exactly that, nobody has had an opinion about it — not the player at
+   * the wheel, not a save, not a room that sized the view to fit itself — so a window that changes
+   * size gets a freshly picked one. A phone opened upright is why: the game covers itself and asks
+   * to be turned, the turn arrives as a resize, and without this the player would spend the game at
+   * the zoom that suited the portrait screen they were told not to play on. The moment anyone does
+   * have an opinion the two part company and the number is theirs to keep.
+   */
+  private ownZoom: number = this.zoom;
+
+  /**
+   * The band for the window as it is now, read fresh rather than kept.
+   *
+   * A window changes size — a phone turns, an address bar slides away, a desktop window is dragged
+   * — and a band worked out once at startup would be about a screen that no longer exists. Nothing
+   * is clamped by merely asking, though, so a window that grows and shrinks by sixty pixels as the
+   * browser chrome comes and goes cannot ratchet a player's own zoom down with it.
+   */
+  private get band(): { start: number; min: number; max: number } {
+    return zoomBand(window.innerHeight);
+  }
 
   constructor() {
     const aspect = window.innerWidth / window.innerHeight;
@@ -71,13 +138,19 @@ export class IsoCamera {
       this.target.z += -rz * input.dragDX * k + fz * input.dragDY * k;
     }
     if (input.wheelDelta !== 0) {
-      this.zoom = Math.max(CAMERA.MIN_ZOOM, Math.min(this.ceiling, this.zoom + input.wheelDelta * 0.03));
+      const band = this.band;
+      const wanted = this.zoom + input.wheelDelta * WHEEL_SHARE * band.start;
+      this.zoom = Math.max(band.min, Math.min(Math.min(this.ceiling, band.max), wanted));
       this.applyFrustum(window.innerWidth / window.innerHeight);
     }
     this.applyPosition();
   }
 
   resize(): void {
+    const band = this.band;
+    if (this.zoom === this.ownZoom && band.start !== this.ownZoom) {
+      this.zoom = this.ownZoom = Math.min(this.ceiling, band.start);
+    }
     this.applyFrustum(window.innerWidth / window.innerHeight);
   }
 
@@ -89,11 +162,29 @@ export class IsoCamera {
    * happen to scroll. Never below MIN_ZOOM, so a very small room cannot lock the camera.
    */
   limitZoom(most: number): void {
-    this.ceiling = Math.max(CAMERA.MIN_ZOOM, most);
+    this.ceiling = Math.max(this.band.min, most);
     if (this.zoom > this.ceiling) {
       this.zoom = this.ceiling;
       this.resize();
     }
+  }
+
+  /**
+   * Take back the zoom a save was left at, as far as this screen allows.
+   *
+   * A save carries a number of tiles, and tiles mean different things on different glass: a player
+   * who left the game at thirty on a monitor and opens it on a phone would be handed back the very
+   * view this band exists to stop — the country from five hundred metres up, with themselves
+   * fifteen pixels tall in the middle of it. So what comes back is held inside the band, which is
+   * the same clamp their own fingers would hit a moment later, rather than thrown away: a player
+   * who liked to play pulled back still gets the furthest this screen goes, and one who played
+   * close still gets close.
+   */
+  restoreZoom(saved: number): void {
+    if (!Number.isFinite(saved)) return;
+    const band = this.band;
+    this.zoom = Math.max(band.min, Math.min(band.max, saved));
+    this.resize();
   }
 
   private applyFrustum(aspect: number): void {
