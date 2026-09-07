@@ -513,12 +513,23 @@ Things Chris hit on a real phone, in the order he hit them.
       screen has to be up on the first frame. The same shape at every size — 1440, 4K, and a phone
       held sideways where the bands come to 68 pixels and the seed number, which is for a bug report
       rather than for a player, goes.)*
-- [ ] The whole interface is built out of rounded rectangles with thick light borders, and it reads
+- [x] The whole interface is built out of rounded rectangles with thick light borders, and it reads
       as a template rather than as this game — cobbled-together layers rather than a designed one.
       It is not even good pixel art: a 2px rounded border is a web page's idea of a box, not a
       drawn one. The worst of it: the desktop's right-hand column, a rounded box with wasted space
       above and beside it; and the banner that names the town you are walking into. This wants one
-      visual language decided and then applied everywhere, not a tweak per panel.
+      visual language decided and then applied everywhere, not a tweak per panel. *(Cut stone,
+      chosen off a design canvas and written down at the top of the stylesheet: a panel is a slab
+      that meets an edge, the only line is a hairline on the edges facing the game, corners are
+      square. Thirty-six rounded corners went; the three that are genuinely round stayed with the
+      reason written beside them — a thumb travels in a circle and the stick's ring is a picture of
+      how far, and a dot in a map key stands for a dot on the map. The three readouts had rings in
+      three different colours, red and yellow and purple, which is exactly what nothing-was-decided
+      looks like; they are one corner now. The town's name was a black plaque with a purple ring
+      hung in the sky — a name is a caption, not an object, so it is set as one: letterspaced over a
+      gold rule, with the compass as its second line rather than as a second plaque overlapping the
+      first. And the accent is used once per panel at most, so an ordinary line of news lost the
+      gold rule it had briefly acquired.)*
 - [ ] The faces on the villagers are bad — the dialogue box draws something anime-ish and it is not
       the standard of the rest of the game. Wants a proper design pass rather than a tweak.
 - [ ] The torch's flame comes away from the torch when the hero walks, and he does not look like he
@@ -535,3 +546,6 @@ Things Chris hit on a real phone, in the order he hit them.
       on or off one should only be possible at a dock.
 - [ ] There is no way to open the console on a phone. It is tilde on a keyboard and nothing at all
       on a thumb, so it wants a button in the touch rail.
+- [ ] Edge — and probably others — never goes full screen, so the browser's own chrome keeps a fifth
+      of the glass. `takeTheScreen()` asks on the tap that enters a world; find out what it is
+      actually doing on those browsers rather than assuming the request was granted.

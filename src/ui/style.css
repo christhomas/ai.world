@@ -79,17 +79,30 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 /* No box of its own until a window is wide enough to want one — see "One column down the right".
    Everything inside it stays pinned to the corner it was pinned to before. */
 #hudRail { display: contents; }
+/*
+ * The place you have just walked into.
+ *
+ * It was a plaque: a black box with a thick purple ring round it, hung in the middle of the sky.
+ * A plaque is a thing somebody screwed to a wall — the name of a village is not an object in the
+ * world, it is a caption, so it is set as one. Letterspaced type over a gold rule, with a shadow
+ * hard enough to hold it against a sunlit field, and no box at all.
+ */
 #areaName {
-  position: fixed; top: calc(20 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.8); border: calc(2 * var(--ui-scale)) solid #6c5ce7;
-  border-radius: calc(8 * var(--ui-scale));
-  padding: calc(10 * var(--ui-scale)) calc(30 * var(--ui-scale)); color: #a29bfe;
-  font-size: calc(16 * var(--ui-scale)); font-weight: bold; z-index: 100; white-space: nowrap;
+  position: fixed; top: calc(26 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
+  padding: 0 0 calc(9 * var(--ui-scale)); color: #fff; white-space: nowrap; z-index: 100;
+  font-size: calc(27 * var(--ui-scale)); letter-spacing: calc(11 * var(--ui-scale));
+  text-align: center; text-indent: calc(11 * var(--ui-scale));   /* the last letter's tracking back */
+  text-shadow: 0 calc(2 * var(--ui-scale)) 0 rgba(0,0,0,0.55), 0 0 calc(22 * var(--ui-scale)) rgba(0,0,0,0.5);
+}
+#areaName::after {
+  content: ''; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: calc(190 * var(--ui-scale)); height: calc(2 * var(--ui-scale));
+  background: var(--gold); box-shadow: 0 var(--ui-scale) 0 rgba(0,0,0,0.5);
 }
 #minimap {
-  position: fixed; top: calc(20 * var(--ui-scale)); right: calc(20 * var(--ui-scale));
-  background: rgba(0,0,0,0.8); border: calc(2 * var(--ui-scale)) solid #6c5ce7;
-  border-radius: calc(8 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)); z-index: 100;
+  position: fixed; top: 0; right: 0; z-index: 100;
+  background: var(--stone);
+  border-left: var(--ui-scale) solid var(--hair); border-bottom: var(--ui-scale) solid var(--hair);
 }
 /* The size has to be said here even though the canvas has a width of its own, because `minimap.ts`
    now sets that width from however large this box turns out to be. Left to the element's own
@@ -101,7 +114,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #clockPanel {
   display: flex; align-items: baseline; gap: calc(6 * var(--ui-scale));
-  padding: calc(2 * var(--ui-scale)) calc(4 * var(--ui-scale)) calc(4 * var(--ui-scale));
+  padding: calc(7 * var(--ui-scale)) calc(10 * var(--ui-scale)) calc(6 * var(--ui-scale));
   color: #cfd6ff; font-size: calc(11 * var(--ui-scale)); white-space: nowrap;
 }
 #clockIcon { font-size: calc(15 * var(--ui-scale)); }
@@ -112,29 +125,28 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #clockDate { margin-left: auto; color: #8f9dc9; }
 #clockBar {
-  position: relative; height: calc(5 * var(--ui-scale));
-  margin: 0 calc(2 * var(--ui-scale)) calc(5 * var(--ui-scale));
-  border-radius: calc(3 * var(--ui-scale));
-  border: var(--ui-scale) solid rgba(255,255,255,0.25);
+  position: relative; height: calc(4 * var(--ui-scale));
+  border-top: var(--ui-scale) solid var(--hair-faint);
   background: #2a3560;   /* the phase gradient is painted from src/ui/clock.ts */
 }
 #clockMarker {
-  position: absolute; top: calc(-3 * var(--ui-scale)); width: calc(3 * var(--ui-scale));
-  height: calc(11 * var(--ui-scale)); margin-left: calc(-1 * var(--ui-scale));
-  background: #ffffff; border-radius: calc(2 * var(--ui-scale)); box-shadow: 0 0 4px rgba(0,0,0,0.8);
+  position: absolute; top: calc(-3 * var(--ui-scale)); width: calc(2 * var(--ui-scale));
+  height: calc(10 * var(--ui-scale)); margin-left: calc(-1 * var(--ui-scale));
+  background: #ffffff; box-shadow: 0 0 calc(4 * var(--ui-scale)) rgba(0,0,0,0.8);
 }
 #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #a29bfe; font-size: calc(24 * var(--ui-scale)); z-index: 2000; }
 #debug {
   position: fixed; bottom: calc(20 * var(--ui-scale)); right: calc(20 * var(--ui-scale));
   color: #8f8fb0; font-size: calc(11 * var(--ui-scale));
-  background: rgba(0,0,0,0.5); padding: calc(6 * var(--ui-scale)) calc(10 * var(--ui-scale));
-  border-radius: calc(6 * var(--ui-scale)); z-index: 100; white-space: pre;
+  background: var(--stone); padding: calc(6 * var(--ui-scale)) calc(10 * var(--ui-scale));
+  z-index: 100; white-space: pre;
 }
 #optionsPanel {
   display: none; position: fixed; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.9); border: calc(2 * var(--ui-scale)) solid #6c5ce7;
-  border-radius: calc(12 * var(--ui-scale)); padding: calc(20 * var(--ui-scale)); min-width: calc(300 * var(--ui-scale));
+  background: var(--stone-deep); border: var(--ui-scale) solid var(--hair);
+  padding: calc(20 * var(--ui-scale)); min-width: calc(300 * var(--ui-scale));
+  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
   color: #fff; z-index: 1500;
 }
 #optionsPanel.show { display: block; animation: popIn 0.3s ease-out; }
@@ -146,13 +158,13 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #optionsPanel .close-hint { text-align: center; color: #666; font-size: calc(11 * var(--ui-scale)); margin-top: calc(15 * var(--ui-scale)); }
 #toast {
   position: fixed; top: calc(70 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.8); border: calc(2 * var(--ui-scale)) solid #f1c40f;
-  border-radius: calc(8 * var(--ui-scale));
+  background: var(--stone-deep); border-left: calc(3 * var(--ui-scale)) solid var(--gold);
   /* over the message log rather than under it: this is the one thing on screen that has just
      happened, and the log is where it will still be in a minute */
   padding: calc(8 * var(--ui-scale)) calc(24 * var(--ui-scale));
-  color: #f1c40f; font-size: calc(15 * var(--ui-scale)); font-weight: bold; z-index: 400;
+  color: var(--gold); font-size: calc(15 * var(--ui-scale)); z-index: 400;
   opacity: 0; transition: opacity 0.4s; pointer-events: none; white-space: nowrap;
+  box-shadow: var(--ui-lift);
 }
 #toast.show { opacity: 1; }
 
@@ -163,12 +175,18 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #breath .warded { color: #ffd76a; }
 #breath .arm { color: #cfe6a0; }
 #breath .winded { color: #ff9d7a; }
+/*
+ * The readouts used to be three boxes, each with a ring round it in a different colour — red for
+ * the hearts, yellow for the purse, purple for the map. Three rings in three colours is what
+ * "cobbled together" looks like: nothing was decided, each was added on its own day. They are one
+ * corner now, hairlined off the game and flush to the glass.
+ */
 #status {
-  position: fixed; top: calc(20 * var(--ui-scale)); left: calc(20 * var(--ui-scale));
-  background: rgba(0,0,0,0.7); border: calc(2 * var(--ui-scale)) solid #e74c3c;
-  border-radius: calc(8 * var(--ui-scale));
-  padding: calc(6 * var(--ui-scale)) calc(12 * var(--ui-scale));
-  color: #fff; z-index: 100; min-width: calc(160 * var(--ui-scale));
+  position: fixed; top: 0; left: 0; z-index: 100;
+  background: var(--stone);
+  border-right: var(--ui-scale) solid var(--hair);
+  padding: calc(10 * var(--ui-scale)) calc(16 * var(--ui-scale)) calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
+  color: #fff; min-width: calc(160 * var(--ui-scale));
 }
 #hearts {
   color: #ff5c5c; font-size: calc(18 * var(--ui-scale)); letter-spacing: var(--ui-scale);
@@ -181,12 +199,13 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #hurt.show { opacity: 1; }
 #inventory {
-  position: fixed; top: calc(84 * var(--ui-scale)); left: calc(20 * var(--ui-scale));
-  background: rgba(0,0,0,0.7); border: calc(2 * var(--ui-scale)) solid #f1c40f;
-  border-radius: calc(8 * var(--ui-scale));
-  padding: calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
-  color: #fff; font-size: calc(13 * var(--ui-scale)); z-index: 100;
-  min-width: calc(120 * var(--ui-scale));
+  position: fixed; top: calc(64 * var(--ui-scale)); left: 0; z-index: 100;
+  background: var(--stone);
+  border-right: var(--ui-scale) solid var(--hair); border-top: var(--ui-scale) solid var(--hair-faint);
+  border-bottom: var(--ui-scale) solid var(--hair);
+  padding: calc(8 * var(--ui-scale)) calc(16 * var(--ui-scale)) calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
+  color: #fff; font-size: calc(13 * var(--ui-scale));
+  min-width: calc(160 * var(--ui-scale));
 }
 #inventory div { line-height: 1.5; }
 #inventory div.usable { cursor: pointer; }
@@ -196,8 +215,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   transform: translateX(-50%);
   width: min(calc(1100 * var(--ui-scale)), 96vw); z-index: 1200;
   background: linear-gradient(180deg, #1c2a6b 0%, #0d1540 100%);
-  border: calc(3 * var(--ui-scale)) solid #e8ecff;
-  outline: calc(3 * var(--ui-scale)) solid #2a3aa0; border-radius: calc(8 * var(--ui-scale));
+  border: var(--ui-scale) solid var(--hair);
   box-shadow: 0 10px 40px rgba(0,0,0,0.7); color: #fff; font-size: calc(17 * var(--ui-scale));
   padding: calc(14 * var(--ui-scale)) calc(16 * var(--ui-scale));
   gap: calc(14 * var(--ui-scale)); align-items: stretch;
@@ -220,14 +238,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   width: calc(132 * var(--ui-scale)); height: calc(154 * var(--ui-scale));
   image-rendering: pixelated; image-rendering: crisp-edges;
   background: linear-gradient(180deg, #46538f 0%, #232d63 100%);
-  border: calc(2 * var(--ui-scale)) solid #8fa0ff; border-radius: calc(6 * var(--ui-scale));
-}
+  border: calc(2 * var(--ui-scale)) solid #8fa0ff; }
 #dialogue .dlg-emoji {
   width: calc(132 * var(--ui-scale)); height: calc(154 * var(--ui-scale));
   font-size: calc(72 * var(--ui-scale)); line-height: calc(154 * var(--ui-scale));
   text-align: center;
   background: rgba(255,255,255,0.08); border: calc(2 * var(--ui-scale)) solid #8fa0ff;
-  border-radius: calc(6 * var(--ui-scale));
 }
 #dialogue .dlg-name {
   color: #ffd76a; font-weight: bold; font-size: calc(15 * var(--ui-scale)); text-align: center;
@@ -245,7 +261,6 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   flex: 1; position: relative; min-height: calc(154 * var(--ui-scale));
   display: flex; flex-direction: column; min-width: 0;
   background: rgba(0,0,0,0.22); border: calc(2 * var(--ui-scale)) solid rgba(143,160,255,0.45);
-  border-radius: calc(6 * var(--ui-scale));
   padding: calc(12 * var(--ui-scale)) calc(14 * var(--ui-scale));
 }
 #dialogue .dlg-text { line-height: 1.55; min-height: calc(52 * var(--ui-scale)); white-space: pre-wrap; flex: 0 0 auto; }
@@ -259,7 +274,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   padding: calc(3 * var(--ui-scale)) calc(6 * var(--ui-scale));
   cursor: pointer; white-space: pre; color: #cfd6ff;
 }
-#dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); border-radius: calc(4 * var(--ui-scale)); }
+#dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); }
 /* what the row gets you, under the row. Indented past the ▶ so the labels still line up, and it
    wraps where a label may not — a shop note runs to nine words and a phone is 96vw wide. */
 #dialogue .dlg-note {
@@ -275,8 +290,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #quests {
   display: none; position: fixed; top: calc(84 * var(--ui-scale)); left: calc(200 * var(--ui-scale));
   max-width: calc(280 * var(--ui-scale));
-  background: rgba(0,0,0,0.7); border: calc(2 * var(--ui-scale)) solid #8fa0ff;
-  border-radius: calc(8 * var(--ui-scale));
+  background: var(--stone); border-left: calc(3 * var(--ui-scale)) solid #8fa0ff;
   padding: calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
   color: #fff; font-size: calc(12 * var(--ui-scale)); z-index: 100;
 }
@@ -286,8 +300,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #quests .title { color: #8fa0ff; font-weight: bold; margin-bottom: calc(4 * var(--ui-scale)); }
 #quests div { line-height: 1.5; }
 #optionsPanel button.wide {
-  width: 100%; padding: calc(8 * var(--ui-scale)); background: #2d2d44; color: #fff; border: calc(2 * var(--ui-scale)) solid #6c5ce7;
-  border-radius: calc(6 * var(--ui-scale)); cursor: pointer; font-family: inherit;
+  width: 100%; padding: calc(8 * var(--ui-scale)); background: #2d2d44; color: #fff; border: calc(2 * var(--ui-scale)) solid #6c5ce7; cursor: pointer; font-family: inherit;
 }
 #optionsPanel button.wide:hover { background: #3d3d5c; }
 /*
@@ -447,7 +460,7 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(620 * var(--ui-scale)), 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
   background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418;
-  border: calc(3 * var(--ui-scale)) solid #8a6a3d; border-radius: calc(8 * var(--ui-scale)); padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
+  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
   box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
 }
 #journal.show { display: block; animation: popIn 0.2s ease-out; }
@@ -460,15 +473,13 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 #journal .j-hint { text-align: center; color: #8a7a5a; font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
 #optionsPanel select {
   width: 100%; padding: calc(5 * var(--ui-scale)) calc(6 * var(--ui-scale)); font: inherit; font-size: calc(12 * var(--ui-scale));
-  color: #e8e2d0; background: #2a2418; border: var(--ui-scale) solid #6b5a3d; border-radius: calc(4 * var(--ui-scale));
-}
+  color: #e8e2d0; background: #2a2418; border: var(--ui-scale) solid #6b5a3d; }
 #optionsPanel #gpuName { font-size: calc(11 * var(--ui-scale)); opacity: 0.75; }
 #optionsPanel #gpuName.software { color: #ffb35c; opacity: 1; }
 #duelbar {
   display: none; position: fixed; left: 50%; top: calc(96 * var(--ui-scale));
   transform: translateX(-50%);
-  background: rgba(30,8,8,0.82); border: calc(2 * var(--ui-scale)) solid #d95d5d;
-  border-radius: calc(8 * var(--ui-scale));
+  background: rgba(24, 8, 12, 0.86); border-left: calc(3 * var(--ui-scale)) solid #d95d5d;
   padding: calc(6 * var(--ui-scale)) calc(18 * var(--ui-scale));
   color: #ffd9d9; font-size: calc(14 * var(--ui-scale)); z-index: 1200; white-space: nowrap;
 }
@@ -477,7 +488,7 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(480 * var(--ui-scale)), 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
   background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418;
-  border: calc(3 * var(--ui-scale)) solid #8a6a3d; border-radius: calc(8 * var(--ui-scale)); padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
+  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
   box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
 }
 #players.show { display: block; animation: popIn 0.2s ease-out; }
@@ -490,13 +501,12 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 #castbar {
   display: none; position: fixed; left: 50%; bottom: calc(120 * var(--ui-scale));
   transform: translateX(-50%);
-  background: rgba(0,0,0,0.75); border: calc(2 * var(--ui-scale)) solid #6fd3ff;
-  border-radius: calc(8 * var(--ui-scale));
+  background: var(--stone-deep); border-left: calc(3 * var(--ui-scale)) solid #6fd3ff;
   padding: calc(8 * var(--ui-scale)) calc(20 * var(--ui-scale));
   color: #cfefff; font-size: calc(14 * var(--ui-scale)); z-index: 1000; white-space: nowrap;
 }
 #castbar.show { display: block; }
-#castbar.bite { border-color: #f1c40f; color: #ffe38a; animation: bob 0.25s infinite alternate; }
+#castbar.bite { border-left-color: #f1c40f; color: #ffe38a; animation: bob 0.25s infinite alternate; }
 #journal ul.j-key { display: flex; flex-wrap: wrap; gap: calc(10 * var(--ui-scale)); }
 #journal ul.j-key li { display: flex; align-items: center; gap: calc(5 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale)); }
 #journal .sw { width: calc(10 * var(--ui-scale)); height: calc(10 * var(--ui-scale)); border: var(--ui-scale) solid #6b3f1d; display: inline-block; }
@@ -504,7 +514,7 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(760 * var(--ui-scale)), 94vw); max-height: 84vh; overflow-y: auto; z-index: 1400;
   background: linear-gradient(180deg, #f6efdc 0%, #e6d9ba 100%); color: #2a2418;
-  border: calc(3 * var(--ui-scale)) solid #8a6a3d; border-radius: calc(8 * var(--ui-scale)); padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
+  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
   box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
 }
 #rucksack.show { display: block; animation: popIn 0.2s ease-out; }
@@ -518,8 +528,7 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 #rucksack .r-slot-name { font-size: calc(10 * var(--ui-scale)); text-transform: uppercase; letter-spacing: var(--ui-scale); color: #8a7a5a; }
 #rucksack .r-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(200 * var(--ui-scale)), 1fr)); gap: calc(6 * var(--ui-scale)); }
 #rucksack .r-item {
-  display: flex; align-items: center; gap: calc(8 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale)); border-radius: calc(5 * var(--ui-scale));
-  background: rgba(255,255,255,0.5); border: var(--ui-scale) solid #c9b58a; font-size: calc(13 * var(--ui-scale));
+  display: flex; align-items: center; gap: calc(8 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale)); background: rgba(255,255,255,0.5); border: var(--ui-scale) solid #c9b58a; font-size: calc(13 * var(--ui-scale));
 }
 #rucksack .r-item.worn { background: #ffe9b8; border-color: #8a6a3d; cursor: pointer; }
 #rucksack .r-item.empty { color: #9a8a6a; font-style: italic; }
@@ -549,26 +558,28 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   background: #0b1230; border-top: calc(2 * var(--ui-scale)) solid #2a3aa0; font-size: calc(11 * var(--ui-scale)); color: #cfd6ff;
 }
 #worldmap .wm-legend span { display: flex; align-items: center; gap: calc(5 * var(--ui-scale)); }
+/* a dot in a key is a dot: it stands for a mark on the map, not for a panel */
 #worldmap .wm-legend i { width: calc(10 * var(--ui-scale)); height: calc(10 * var(--ui-scale)); border-radius: 50%; display: inline-block; }
+/* what lies which way, read as the line under the name rather than as a second plaque hung below
+   the first one — which is what it was, and it overlapped the rule it was hanging from */
 #compass {
-  display: none; position: fixed; top: calc(62 * var(--ui-scale)); left: 50%;
+  display: none; position: fixed; top: calc(74 * var(--ui-scale)); left: 50%;
   transform: translateX(-50%);
-  gap: calc(14 * var(--ui-scale)); background: rgba(0,0,0,0.66);
-  border: var(--ui-scale) solid #4a5a9a; border-radius: calc(6 * var(--ui-scale));
-  padding: calc(4 * var(--ui-scale)) calc(14 * var(--ui-scale));
-  color: #9fb0e0; font-size: calc(12 * var(--ui-scale)); z-index: 100; white-space: nowrap;
+  gap: calc(16 * var(--ui-scale)); padding: 0;
+  color: #dfe5ff; font-size: calc(11 * var(--ui-scale)); letter-spacing: calc(3 * var(--ui-scale));
+  z-index: 100; white-space: nowrap; text-transform: uppercase;
+  text-shadow: 0 var(--ui-scale) 0 rgba(0,0,0,0.7), 0 0 calc(10 * var(--ui-scale)) rgba(0,0,0,0.6);
 }
 #compass .c-primary { color: #7fe0a0; font-weight: bold; }
 .photo-hidden { display: none !important; }
 #photoHint {
   display: none; position: fixed; bottom: calc(18 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.55); color: #cfd6ff; font-size: calc(12 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(16 * var(--ui-scale));
-  border-radius: calc(20 * var(--ui-scale)); z-index: 200; pointer-events: none;
+  background: rgba(0,0,0,0.55); color: #cfd6ff; font-size: calc(12 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(16 * var(--ui-scale)); z-index: 200; pointer-events: none;
 }
 #photoHint.show { display: block; }
 #chatPanel {
-  display: none; position: fixed; left: calc(20 * var(--ui-scale)); bottom: var(--log-bottom);
-  width: calc(340 * var(--ui-scale)); z-index: 300;
+  display: none; position: fixed; left: 0; bottom: var(--log-bottom);
+  width: calc(360 * var(--ui-scale)); z-index: 300;
 }
 #chatPanel.show { display: block; }
 /* The console comes up off the bottom edge, the whole width of the screen, the way one has since
@@ -632,9 +643,8 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   max-width: 100%;
   padding: calc(3 * var(--ui-scale)) calc(10 * var(--ui-scale))
            calc(3 * var(--ui-scale)) calc(8 * var(--ui-scale));
-  border-left: calc(3 * var(--ui-scale)) solid #7f6ff0;
-  border-radius: 0 calc(5 * var(--ui-scale)) calc(5 * var(--ui-scale)) 0;
-  background: rgba(6, 8, 18, 0.74); color: #eef1ff;
+  border-left: calc(3 * var(--ui-scale)) solid rgba(214, 221, 255, 0.28);
+  background: var(--stone); color: #eef1ff;
   /* the words are read over whatever the world happens to be, and a spring field is very bright */
   text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) rgba(0, 0, 0, 0.9);
   transition: opacity 260ms ease;
@@ -664,20 +674,17 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale));
   font-family: inherit; font-size: calc(12 * var(--ui-scale));
   background: rgba(0,0,0,0.8); color: #fff; border: var(--ui-scale) solid #6c5ce7;
-  border-radius: calc(6 * var(--ui-scale));
 }
 #chatInput.show { display: block; }
 #nameplates { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
 .nameplate {
   position: absolute; transform: translate(-50%, -100%);
   background: rgba(0,0,0,0.55); color: #cfe6ff; font-size: calc(11 * var(--ui-scale));
-  padding: var(--ui-scale) calc(6 * var(--ui-scale)); border-radius: calc(8 * var(--ui-scale));
-  white-space: nowrap;
+  padding: var(--ui-scale) calc(6 * var(--ui-scale)); white-space: nowrap;
 }
 #optionsPanel input[type="text"] {
   width: 100%; margin-bottom: calc(6 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale)); font-family: inherit; font-size: calc(12 * var(--ui-scale));
-  background: #14142a; color: #fff; border: var(--ui-scale) solid #6c5ce7; border-radius: calc(6 * var(--ui-scale));
-}
+  background: #14142a; color: #fff; border: var(--ui-scale) solid #6c5ce7; }
 
 /* ------------------------------------------------------------------------
    Played with thumbs
@@ -726,8 +733,7 @@ body.touch #touch {
   font-family: inherit; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   color: var(--ui-ink); background: var(--ui-glass);
-  border: var(--ui-scale) solid var(--ui-rim); border-radius: 50%;
-  box-shadow: var(--ui-lift);
+  border: var(--ui-scale) solid var(--ui-rim); box-shadow: var(--ui-lift);
   text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) rgba(0, 0, 0, 0.75);   /* drawn over the world, not over a page */
   transition: background 90ms linear, border-color 90ms linear;
 }
@@ -740,11 +746,15 @@ body.touch #touch {
 
 /* The stick is drawn where the thumb lands rather than where a designer guessed it would. */
 #touchStick { position: absolute; left: 0; bottom: 0; width: 55%; height: 58%; pointer-events: auto; touch-action: none; }
+/*
+ * The one thing on screen that is round, and the reason is worth writing down: a thumb travels in
+ * a circle, and this ring is a picture of how far it may go. Everything else here is square
+ * because the world is cut squares; this is square to nobody's thumb.
+ */
 #touchStick .stick-base {
-  display: none; position: fixed;
+  display: none; position: fixed; border-radius: 50%;
   width: calc(132 * var(--ui-scale)); height: calc(132 * var(--ui-scale));
-  margin: calc(-66 * var(--ui-scale)) 0 0 calc(-66 * var(--ui-scale));
-  border-radius: 50%; border: var(--ui-scale) solid var(--ui-rim);
+  margin: calc(-66 * var(--ui-scale)) 0 0 calc(-66 * var(--ui-scale)); border: var(--ui-scale) solid var(--ui-rim);
   /* faded at the rim, so the ring reads as a well the nub sits in rather than as a lid over the
      ground the player is about to walk across */
   background: radial-gradient(circle, rgba(10, 13, 28, 0.5) 45%, rgba(10, 13, 28, 0.1) 100%);
@@ -767,7 +777,7 @@ body.touch #touch {
 #touchPanels {
   position: absolute; top: var(--minimap-drop); right: calc(var(--touch-edge) + var(--safe-right));
   display: flex; align-items: center; gap: var(--touch-gap);
-  padding: calc(4 * var(--ui-scale)); border-radius: 999px; pointer-events: auto;
+  padding: calc(4 * var(--ui-scale)); pointer-events: auto;
   background: rgba(8, 11, 24, 0.6); border: var(--ui-scale) solid rgba(214, 221, 255, 0.2);
   box-shadow: var(--ui-lift);
 }
@@ -835,16 +845,14 @@ body.touch #touch {
   width: min(94vw, calc(520 * var(--ui-scale))); grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: calc(6 * var(--ui-scale));
   max-height: calc(100dvh - 24 * var(--ui-scale)); overflow-y: auto; pointer-events: auto;
-  background: rgba(8, 11, 24, 0.95); border: var(--ui-scale) solid var(--ui-rim);
-  border-radius: calc(16 * var(--ui-scale)); padding: calc(8 * var(--ui-scale));
+  background: rgba(8, 11, 24, 0.95); border: var(--ui-scale) solid var(--ui-rim); padding: calc(8 * var(--ui-scale));
   box-shadow: var(--ui-lift);
 }
 #touchMore.show { display: grid; }
 /* a row, not a disc: it is as wide as its own words and it carries them beside the glyph */
 #touch .touch-more-btn {
   min-height: var(--touch-target); padding: 0 calc(12 * var(--ui-scale)); gap: calc(10 * var(--ui-scale));
-  justify-content: flex-start; font-size: calc(13 * var(--ui-scale)); white-space: nowrap;
-  border-radius: calc(10 * var(--ui-scale)); background: rgba(255, 255, 255, 0.05);
+  justify-content: flex-start; font-size: calc(13 * var(--ui-scale)); white-space: nowrap; background: rgba(255, 255, 255, 0.05);
   border-color: transparent; box-shadow: none;
 }
 .touch-more-btn .touch-glyph { font-size: calc(20 * var(--ui-scale)); }
@@ -989,7 +997,7 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
     max-width: 420px; margin-inline: auto;
   }
   #areaName { top: 8px; padding: 5px 10px; font-size: 11px; }
-  #compass { top: 40px; font-size: 10px; gap: 8px; padding: 3px 8px; justify-content: center; flex-wrap: wrap; }
+  #compass { top: 44px; font-size: 9px; gap: 10px; letter-spacing: 2px; justify-content: center; flex-wrap: wrap; }
   /* The momentary banners join the log rather than standing in the middle of the picture.
 
      They were pinned at `top: 140px` and `top: 190px` with a hand-computed left edge, which on a
