@@ -21,27 +21,34 @@
   <div id="gameContainer"></div>
   <div id="areaName">The Crossroads</div>
   <div id="compass"></div>
-  <div id="chatPanel">
-    <div id="chatLog"></div>
-    <input id="chatInput" type="text" maxlength="160" placeholder="Say something, then Enter" />
-  </div>
   <div id="photoHint">
     <span class="on-keys">Photo mode · drag or WASD to move the camera · Space takes the picture · P leaves</span>
-    <span class="on-touch">Photo mode · drag to move the camera · ⏎ takes the picture · ⋯ then Photo mode leaves</span>
+    <span class="on-touch">Photo mode · drag to move the camera · the USE button takes the picture · ⋯ then Photo mode leaves</span>
   </div>
-  <div id="minimap">
-    <div id="clockPanel">
-      <span id="clockIcon">☀️</span>
-      <span id="clockWeather"></span>
-      <span id="clockTime">08:00</span>
-      <span id="clockDate">Day 1 · Spring</span>
+  <!-- Everything the player keeps half an eye on, in the order they read it. On a narrow window
+       this box is `display: contents` and each panel goes back to being pinned to its own corner,
+       exactly as before; on a wide one it becomes a column down the right-hand edge, so the middle
+       of the picture — which is the only part of an aerial view worth looking at — is the game.
+       Kept in one place in the markup so the stack has an order to follow at all. -->
+  <div id="hudRail">
+    <div id="minimap">
+      <div id="clockPanel">
+        <span id="clockIcon">☀️</span>
+        <span id="clockWeather"></span>
+        <span id="clockTime">08:00</span>
+        <span id="clockDate">Day 1 · Spring</span>
+      </div>
+      <div id="clockBar"><div id="clockMarker"></div></div>
+      <canvas id="minimapCanvas" width="180" height="180"></canvas>
     </div>
-    <div id="clockBar"><div id="clockMarker"></div></div>
-    <canvas id="minimapCanvas" width="180" height="180"></canvas>
+    <div id="status"><div id="hearts">♥♥♥♥♥♥♥♥♥♥</div><div id="breath"></div></div>
+    <div id="inventory"></div>
+    <div id="quests"></div>
+    <div id="chatPanel">
+      <div id="chatLog"></div>
+      <input id="chatInput" type="text" maxlength="160" placeholder="Say something, then Enter" />
+    </div>
   </div>
-  <div id="status"><div id="hearts">♥♥♥♥♥♥♥♥♥♥</div><div id="breath"></div></div>
-  <div id="inventory"></div>
-  <div id="quests"></div>
   <div id="journal"></div>
   <div id="players"></div>
   <div id="duelbar"></div>

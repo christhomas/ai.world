@@ -1,26 +1,36 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-/**
- * Where the message log's underside sits, measured up from the bottom of the window.
- *
- * Named because two things have to agree about it: the log is pinned here, and the key list below
- * grows upward and must stop short of it. They were capped independently before — the list at a
- * share of the window height — which held on the window it was tried on and overlapped on a taller
- * one, printing the village's news straight through the controls.
- */
 :root {
   /*
-   * Where the message log's underside sits, measured up from the bottom of the window.
+   * Where the message log's newest line sits, measured up from the bottom of the window.
    *
-   * Two things read it: the log is pinned here, and the key list below grows upward and stops
-   * short of it. The second term is for a short window — the log is 190px tall and the readouts
-   * live in the top corners, so on anything under about 740px the fixed distance would push it up
-   * over the hearts. Whichever is smaller wins.
+   * The log grows upward from here, so this is the one number that decides where the news is
+   * read. It has to clear the conversation panel, which comes up from the bottom edge and is
+   * about 200px tall; and on a short window a fixed 380px would push the log's top out through
+   * the readouts in the corners, which is why the second term shrinks it. Whichever is smaller
+   * wins.
    */
   --log-bottom: min(380px, max(150px, calc(100vh - 380px)));
+
+  /*
+   * One control, described once.
+   *
+   * Every button, the thumb stick and the extra-controls shelf are the same dark glass with the
+   * same hairline round it. That is the whole of what makes them read as a set rather than as
+   * eight things that happened to be added on eight different days. Dark enough in the middle to
+   * read a pale glyph on over a sunlit field, pale enough at the rim to find over a cave floor.
+   */
+  --ui-glass: rgba(10, 13, 28, 0.62);
+  --ui-glass-lit: rgba(150, 140, 255, 0.62);   /* the same control, with a thumb on it */
+  --ui-rim: rgba(214, 221, 255, 0.34);
+  --ui-ink: #eef2ff;
+  --ui-lift: 0 2px 10px rgba(0, 0, 0, 0.45);   /* lifts the glass off whatever it is lying on */
 }
 body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monospace; }
 #gameContainer { width: 100vw; height: 100vh; }
 #gameContainer canvas { display: block; }
+/* No box of its own until a window is wide enough to want one — see "One column down the right".
+   Everything inside it stays pinned to the corner it was pinned to before. */
+#hudRail { display: contents; }
 #areaName {
   position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.8); border: 2px solid #6c5ce7;
@@ -72,7 +82,9 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #toast {
   position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.8); border: 2px solid #f1c40f; border-radius: 8px;
-  padding: 8px 24px; color: #f1c40f; font-size: 15px; font-weight: bold; z-index: 100;
+  /* over the message log rather than under it: this is the one thing on screen that has just
+     happened, and the log is where it will still be in a minute */
+  padding: 8px 24px; color: #f1c40f; font-size: 15px; font-weight: bold; z-index: 400;
   opacity: 0; transition: opacity 0.4s; pointer-events: none; white-space: nowrap;
 }
 #toast.show { opacity: 1; }
@@ -332,13 +344,16 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
    The slide is quick on purpose. Long enough to read as a thing arriving from somewhere, short
    enough that somebody who hit the key to type has already started typing. */
 #chatPanel.console {
+  /* said again because the right-hand rail makes the panel a static item in a column, and a
+     console that came up as part of the column would be a console the width of the column */
+  position: fixed;
   left: 0; right: 0; bottom: 0; width: auto;
   background: rgba(6, 8, 16, 0.9); border-top: 2px solid #6c5ce7;
   padding: 10px 16px 12px; box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
   animation: consoleUp 130ms ease-out;
 }
 #chatPanel.console #chatLog {
-  max-height: 40vh; background: none; border-radius: 0; padding: 0 0 6px;
+  max-height: 40vh; padding-bottom: 6px;
   /* Scrolled, not flexed. `justify-content: flex-end` put the newest line at the bottom and made
      everything above the fold unreachable — the box scrolled to its own end and no further. The
      log is pinned to its bottom by setting scrollTop when a line arrives instead, which leaves the
@@ -350,11 +365,57 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+/* ---------------------------------------------------------------------------
+   What the world has just told you
+
+   This is the game's voice — the reeve's news, a warning, the answer to a
+   question typed into the console — and it was being printed rather than said.
+   One grey slab, every line the same weight in it, the system lines dimmer and
+   in italic, which put the warnings at the bottom of the reading order instead
+   of the top; and 60% black is neither dark enough to read pale text on over
+   bright grass nor light enough to see the field through.
+
+   So: the box has no edges of its own. Each line carries its own darkness, only
+   as wide as its own words, with a coloured rule down its left edge saying who
+   is speaking. An empty log now costs nothing, and a log with two lines in it
+   costs two lines of screen rather than a fixed 190px of grey.
+   --------------------------------------------------------------------------- */
 #chatLog {
-  max-height: 190px; overflow-y: auto; background: rgba(0,0,0,0.6); border-radius: 6px;
-  padding: 6px 10px; color: #dfe6ff; font-size: 12px; line-height: 1.5;
+  max-height: 190px; overflow-y: auto;
+  /* the container itself is not drawn — only the lines standing in it are */
+  background: none; padding: 0;
+  font-size: 13px; line-height: 1.45;
+  /* a column of shrink-to-fit lines, all flush left, so the coloured rules stack into one edge */
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
 }
-#chatLog .sys { color: #8fa0d8; font-style: italic; }
+#chatLog > div {
+  max-width: 100%; padding: 3px 10px 3px 8px;
+  border-left: 3px solid #7f6ff0; border-radius: 0 5px 5px 0;
+  background: rgba(6, 8, 18, 0.74); color: #eef1ff;
+  /* the words are read over whatever the world happens to be, and a spring field is very bright */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  transition: opacity 260ms ease;
+}
+/* The world talking about itself, as against somebody in it talking. It is the half of the log
+   that matters — wolves, nightfall, a death in a village three days away — so it is the half that
+   is lit. It used to be the dimmest thing on the screen. */
+#chatLog > div.sys {
+  border-left-color: #ffc94d; background: rgba(26, 17, 3, 0.76); color: #ffe3aa;
+}
+/* Old news steps back rather than leaving. Only the line that has just arrived is at full
+   strength; two more behind it are still readable, and everything older is a reminder that there
+   is more, which is what the console is for — it drops the fade and shows the lot. */
+#chatPanel:not(.console) #chatLog > div { opacity: 0.5; }
+#chatPanel:not(.console) #chatLog > div:nth-last-child(3) { opacity: 0.72; }
+#chatPanel:not(.console) #chatLog > div:nth-last-child(2) { opacity: 0.88; }
+#chatPanel:not(.console) #chatLog > div:nth-last-child(1) { opacity: 1; }
+/* A line arrives from the side rather than blinking into being: enough movement to catch an eye
+   that was looking at the road instead. */
+@keyframes logLine { from { opacity: 0; transform: translateX(-10px); } }
+#chatLog > div { animation: logLine 170ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  #chatLog > div { animation: none; transition: none; }
+}
 #chatInput {
   display: none; width: 100%; margin-top: 5px; padding: 5px 8px; font-family: inherit; font-size: 12px;
   background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #6c5ce7; border-radius: 6px;
@@ -382,10 +443,16 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 :root {
   --touch-target: 48px;          /* every on-screen button: the 44px floor, plus room to miss */
   --touch-act: 78px;             /* the one action key, pressed more than all the others together */
-  --touch-swing: 60px;
+  --act-reach: 96px;             /* how far the three lesser actions orbit the middle of that one */
   --touch-gap: 8px;
-  --touch-edge: 12px;            /* how far any control sits from the edge of the glass */
-  --minimap-drop: 236px;         /* clear of the corner map at its full size */
+  /* How far any control sits from the edge of the glass. The same 20px the readouts in the corners
+     use, so the rail's right edge and the corner map's are one line rather than eight pixels apart. */
+  --touch-edge: 20px;
+  --minimap-drop: 268px;         /* below the corner map, which reaches 255px down at full size */
+  /* The notch, the rounded corners and the home bar. These are the only insets kept on a phone,
+     because these are the only ones with something actually in the way. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -399,64 +466,109 @@ body.touch #touch {
   pointer-events: none; touch-action: none;
   user-select: none; -webkit-user-select: none;
 }
+/* Every control is a disc, because a fingertip is round and nothing else here needs a corner. The
+   old squares had a 2px #6c5ce7 outline, which is the colour of the panels and read as chrome
+   borrowed from somewhere else; a hairline and a shadow say the same thing more quietly and stay
+   legible against both a sunlit field and a cave floor. */
 #touch button {
   pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent;
   font-family: inherit; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  color: #e8ecff; background: rgba(10,14,32,0.62); border: 2px solid #6c5ce7; border-radius: 12px;
+  color: var(--ui-ink); background: var(--ui-glass);
+  border: 1px solid var(--ui-rim); border-radius: 50%;
+  box-shadow: var(--ui-lift);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);   /* the glyph is drawn over the world, not over a page */
+  transition: background 90ms linear, border-color 90ms linear;
 }
-#touch button:active { background: rgba(108,92,231,0.55); }
+/* Lit rather than shrunk: three of these are placed with a transform, and a press that scaled them
+   would have to undo an arc first. */
+#touch button:active {
+  background: var(--ui-glass-lit); border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--ui-lift), 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
 
 /* The stick is drawn where the thumb lands rather than where a designer guessed it would. */
 #touchStick { position: absolute; left: 0; bottom: 0; width: 55%; height: 58%; pointer-events: auto; touch-action: none; }
 #touchStick .stick-base {
   display: none; position: fixed; width: 132px; height: 132px; margin: -66px 0 0 -66px;
-  border-radius: 50%; border: 2px solid rgba(207,214,255,0.45); background: rgba(10,14,32,0.28);
+  border-radius: 50%; border: 1px solid var(--ui-rim);
+  /* faded at the rim, so the ring reads as a well the nub sits in rather than as a lid over the
+     ground the player is about to walk across */
+  background: radial-gradient(circle, rgba(10, 13, 28, 0.5) 45%, rgba(10, 13, 28, 0.1) 100%);
   pointer-events: none;
 }
 #touchStick .stick-base.show { display: block; }
 #touchStick .stick-nub {
   position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; border-radius: 50%;
-  background: rgba(162,155,254,0.55); border: 2px solid #cfd6ff; transform: translate(-50%, -50%);
+  background: rgba(214, 221, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: var(--ui-lift); transform: translate(-50%, -50%);
 }
 
+/* The panel keys, on one rail.
+
+   They were seven free-standing squares laid out by hand, wrapping onto a second row when they ran
+   out of width, and nothing in the row lined up with anything outside it. A rail with one gap
+   repeated needs no arithmetic to come out straight, and it gives the group a single edge, which
+   is what makes seven unrelated glyphs read as one bar of controls. */
 #touchPanels {
   position: absolute; top: var(--minimap-drop); right: calc(var(--touch-edge) + var(--safe-right));
-  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--touch-gap); max-width: 66vw;
+  display: flex; align-items: center; gap: var(--touch-gap);
+  padding: 4px; border-radius: 999px; pointer-events: auto;
+  background: rgba(8, 11, 24, 0.6); border: 1px solid rgba(214, 221, 255, 0.2);
+  box-shadow: var(--ui-lift);
 }
-.touch-btn { width: var(--touch-target); height: var(--touch-target); font-size: 22px; }
+/* on the rail, so no rim of their own: a border inside a border is what the old set looked like */
+#touch .touch-btn {
+  width: var(--touch-target); height: var(--touch-target); font-size: 22px;
+  background: none; border-color: transparent; box-shadow: none;
+}
 
+/* The action cluster: the big one in the corner, the other three in orbit around it.
+
+   They used to be placed one at a time — `right: calc(act + swing + 26px)`, `bottom: 34px` — which
+   is how they finished up at three sizes and three different heights with nothing sharing an edge.
+   Here the box *is* the big button and the rest hang off its middle at one reach, so the only
+   thing left to choose is an angle. */
 #touchAct {
-  position: absolute; right: calc(var(--touch-edge) + var(--safe-right));
-  bottom: calc(20px + var(--safe-bottom)); width: 200px; height: 130px; pointer-events: none;
+  position: absolute;
+  right: calc(var(--touch-edge) + var(--safe-right));
+  bottom: calc(var(--touch-edge) + var(--safe-bottom));
+  width: var(--touch-act); height: var(--touch-act); pointer-events: none;
 }
-.touch-round { position: absolute; border-radius: 50%; }
-.touch-do { right: 0; bottom: 0; width: var(--touch-act); height: var(--touch-act); font-size: 30px; }
-.touch-swing {
-  right: calc(var(--touch-act) + 16px); bottom: 30px;
-  width: var(--touch-swing); height: var(--touch-swing); font-size: 24px;
-}
-/* the guard sits inside the sword, where the thumb already is: you raise it in the moment you
-   would otherwise have swung, which is the whole decision the button exists for */
-.touch-guard {
-  right: calc(var(--touch-act) + var(--touch-swing) + 26px); bottom: 34px;
+/* the word rather than a glyph: ⏎ is a key on a keyboard the player is not holding */
+.touch-do { position: absolute; inset: 0; font-size: 19px; font-weight: bold; letter-spacing: 1px; }
+/* Straight up is 0deg and the angle runs anticlockwise, which keeps all three inside the quarter
+   circle a right thumb sweeps without the hand leaving the corner. The second rotation is only
+   there to stand the glyph back up after the first one has tipped it over. */
+.touch-orbit {
+  position: absolute; left: 50%; top: 50%;
   width: var(--touch-target); height: var(--touch-target); font-size: 21px;
+  margin: calc(var(--touch-target) / -2) 0 0 calc(var(--touch-target) / -2);
+  transform: rotate(var(--arc)) translateY(calc(-1 * var(--act-reach))) rotate(calc(-1 * var(--arc)));
 }
-/* the bow sits above the sword: the same hand, one reach further, and out of the thumb's way */
-.touch-loose {
-  right: calc(var(--touch-act) + 22px); bottom: calc(30px + var(--touch-swing) + 8px);
-  width: var(--touch-target); height: var(--touch-target); font-size: 21px;
-}
+.touch-swing { --arc: -45deg; }   /* the diagonal: where a thumb goes when it leaves the big button */
+.touch-guard { --arc: -86deg; }   /* furthest round, since it is held rather than struck */
+.touch-loose { --arc: -4deg; }    /* straight up, out of the way of both */
 
+/* The rest of the keyboard, on a shelf that takes the middle of the screen while it is open. Two
+   columns because twelve rows is taller than a phone held sideways, and because a shelf as tall as
+   the window and one button wide looks like a mistake. */
 #touchMore {
-  display: none; position: absolute; right: calc(var(--touch-edge) + var(--safe-right));
-  top: 50%; transform: translateY(-50%); flex-direction: column; gap: 6px;
-  background: rgba(6,10,26,0.92); border: 2px solid #6c5ce7; border-radius: 12px; padding: 8px;
+  display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  /* a fixed width so the two columns come out equal — sized to the longest label there is, which
+     is "Drink a warding draught", rather than letting the grid crop it */
+  width: min(94vw, 520px); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+  max-height: calc(100dvh - 24px); overflow-y: auto; pointer-events: auto;
+  background: rgba(8, 11, 24, 0.95); border: 1px solid var(--ui-rim);
+  border-radius: 16px; padding: 8px; box-shadow: var(--ui-lift);
 }
-#touchMore.show { display: flex; }
-.touch-more-btn {
-  min-height: var(--touch-target); padding: 0 14px; gap: 10px;
-  justify-content: flex-start !important; font-size: 13px; white-space: nowrap;
+#touchMore.show { display: grid; }
+/* a row, not a disc: it is as wide as its own words and it carries them beside the glyph */
+#touch .touch-more-btn {
+  min-height: var(--touch-target); padding: 0 12px; gap: 10px;
+  justify-content: flex-start; font-size: 13px; white-space: nowrap;
+  border-radius: 10px; background: rgba(255, 255, 255, 0.05);
+  border-color: transparent; box-shadow: none;
 }
 .touch-more-btn .touch-glyph { font-size: 20px; }
 
@@ -495,6 +607,68 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
 body.touch #rucksack .r-item,
 body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items: center; }
 
+/* ---------------------------------------------------------------------------
+   One column down the right, on a window with room for one
+
+   An aerial view of a valley is interesting in the middle and empty at the
+   edges, and the interface had it the wrong way round: hearts and pack in one
+   corner, the corner map in another, the errand list floating over the road at
+   x=200, and the message log parked 340px wide halfway down the left — right
+   over the ground the player is walking on. Gathered under the corner map,
+   which was already on the right, the whole lot reads as one piece of furniture
+   and the middle of the picture is the game.
+
+   The breakpoint is measured, not chosen. The column is 250px and stands 20px
+   off the edge, so it is clear of the middle half of the window once
+   `width - 270 >= 0.75 * width`, which is 1080px. Below that a right-hand
+   column would be standing in the picture too, and there is nothing to gain by
+   moving it there. The height floor is measured the same way: the map, the
+   hearts and the pack cost about 450px of the column between them, so 700px
+   leaves a little over 200 for the log — three or four lines, which is a log.
+   On a shorter window it would be one line, and one line is a ticker.
+
+   Requiring both a width and a height also keeps this away from the phone: no
+   window can match `min-height: 700px` and `max-height: 560px`, so the rules
+   below and the rules for a phone held sideways can never meet.
+   --------------------------------------------------------------------------- */
+@media (min-width: 1080px) and (min-height: 700px) {
+  :root { --hud-rail: 250px; --hud-edge: 20px; }
+  #hudRail {
+    display: flex; flex-direction: column; gap: 10px;
+    position: fixed; top: var(--hud-edge); bottom: var(--hud-edge);
+    right: var(--hud-edge); width: var(--hud-rail); z-index: 300;
+    /* the gaps between the panels are still the world, and the world is still walked on */
+    pointer-events: none;
+  }
+  #hudRail > * { pointer-events: auto; flex: 0 0 auto; }
+  /* each panel gives up the corner it was pinned to and takes its place in the stack */
+  #minimap, #status, #inventory, #quests, #chatPanel {
+    position: static; width: auto; max-width: none; min-width: 0;
+  }
+  #minimapCanvas { width: 100%; height: auto; }   /* as wide as the column, and square */
+  /* an errand list is a reminder, not a document: past this it scrolls rather than pushing the
+     rest of the column about */
+  #quests { max-height: 132px; overflow-y: auto; }
+  /* The log falls to the foot of the column, so the newest line is always in the same place
+     however much or little has been said. It is also the one thing here allowed to give way: the
+     map and the readouts are fixed, and when a long errand list leaves less room the log takes
+     the loss rather than the column running off the bottom of the window. */
+  #chatPanel { margin-top: auto; min-height: 0; }
+  #chatPanel.show { display: flex; flex-direction: column; }
+  #hudRail > #chatPanel { flex: 0 1 auto; }
+  #chatLog { max-height: 340px; min-height: 0; }
+  /* the readout swaps corners with the log, because the right-hand bottom corner is now spoken for */
+  #debug { left: var(--hud-edge); right: auto; }
+  /* and so is the right-hand side, for anyone playing this on a large touchscreen */
+  #touchPanels { top: var(--hud-edge); left: var(--hud-edge); right: auto; }
+  /* a conversation fills the room left over rather than the whole window, so it stops where the
+     column starts instead of being drawn straight over the log */
+  #dialogue {
+    left: var(--hud-edge); right: calc(var(--hud-rail) + 2 * var(--hud-edge));
+    width: auto; transform: none;
+  }
+}
+
 /* ------------------------------------------------------------------------
    A screen the size of a hand
 
@@ -503,7 +677,6 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
    panel that cannot scroll is a panel with its bottom half missing.
    ------------------------------------------------------------------------ */
 @media (max-width: 820px), (max-height: 560px) {
-  :root { --minimap-drop: 186px; }
   #debug { display: none; }
   /* The three columns a hand-sized screen has room for: hearts and pack down the left, the
      corner map down the right, and everything the world says about itself between them. */
@@ -541,10 +714,19 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #dialogue .dlg-name { font-size: 12px; }
   #dialogue .dlg-panel { min-height: 84px; padding: 8px 10px; }
   #dialogue .dlg-text { min-height: 40px; line-height: 1.45; }
-  #chatPanel { left: 8px; right: 8px; width: auto; }
-  #chatLog { max-height: 120px; }
-  /* the log rides lower on a small screen, and the key list follows it down */
-  :root { --log-bottom: 240px; }
+  /* The log stops being a banner and becomes a corner.
+
+     Across the whole width and 120px tall it was a third of a landscape phone, laid over the
+     hearts, the place name and the compass all at once — and at 240px up from a 342px-tall
+     window its own top was eighteen pixels off the top of the screen, so the oldest lines were
+     being drawn where nobody could see them. Down the left instead, half the width, and only the
+     last three lines: everything before that is still in the console, one tap away. */
+  #chatPanel { left: 8px; right: auto; width: min(50vw, 360px); }
+  #chatLog { max-height: 82px; font-size: 11px; }
+  #chatPanel:not(.console) #chatLog > div:nth-last-child(n+4) { display: none; }
+  /* Low, but not in the corner: the left thumb rests there, and the stick draws its ring around
+     wherever it lands. This clears the ring and still leaves the whole play area above it. */
+  :root { --log-bottom: 88px; }
   #journal, #players, #rucksack { width: 94vw; max-height: 78vh; padding: 14px; -webkit-overflow-scrolling: touch; }
   #rucksack .r-columns { flex-direction: column; gap: 10px; }
   #rucksack .r-worn { flex: 1 1 auto; width: 100%; }
@@ -553,16 +735,20 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #optionsPanel h3 { margin-bottom: 10px; }
   #worldmap .wm-bar { padding: 8px 12px; gap: 10px; }
   #worldmap .wm-legend { gap: 8px; padding: 6px 12px; font-size: 10px; }
-  /* A landscape phone is 390 tall, and the panel buttons hung 186px down its right-hand side —
+  /* A landscape phone is 342 tall, and the panel buttons hung 186px down its right-hand side —
      which is the middle of the picture, over the very ground the player is walking on, wrapped
      into two rows because eight of them do not fit across two thirds of the glass. The strip under
      the compass is the one band of screen nothing else wants: the pack panel ends to the left of
-     it, the corner map begins to the right, and the thumbs are both at the bottom. */
+     it, the corner map begins to the right, and the thumbs are both at the bottom.
+
+     The rail is given the same left and right edges as the place name and the compass above it and
+     told to centre itself between them, so the three of them share a middle without anyone having
+     worked out where that middle is — and so the rail shrinks back to one button when a panel is
+     open and only the close key is left in it. */
   #touchPanels {
-    top: 92px; left: 152px; right: 138px;
-    max-width: none; justify-content: flex-start; flex-wrap: nowrap;
+    top: 68px; left: 112px; right: 132px; width: fit-content; margin-inline: auto;
   }
-  #touchPanels .touch-btn { width: 40px; height: 40px; font-size: 19px; }
+  #touchPanels .touch-btn { width: 44px; height: 44px; font-size: 19px; }
   #title h1 { font-size: clamp(32px, 11vw, 56px); }
   #title .title-card { width: 94vw; }
   #slots .slot { padding: 10px 12px; }
@@ -601,6 +787,50 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #titleOptions { position: static; width: 100%; margin-top: 10px; padding: 9px 11px; }
   #titleOptions .opt-foot { margin-top: 6px; }
   .tswitch-note { display: none; }             /* the switch's own label is enough at this size */
+
+  /* -------------------------------------------------------------------------
+     The glass ends where the phone ends.
+
+     Everything here was inset eight or twelve pixels from the edge, which on a
+     desktop is breathing room and on a phone is a strip of screen nobody can
+     do anything with: too narrow to see the world through, too close to the
+     frame to be worth a tap, and 8px off a 342px-tall window is more than two
+     per cent of it gone at each end for nothing. So the insets go and the
+     panels keep their own padding, which is the part that was ever doing the
+     work — the words are still not against the glass.
+
+     The safe-area insets stay. Those are the notch, the rounded corners and
+     the home bar: a gap kept for taste is waste, a gap kept for an obstruction
+     is a gap.
+     ------------------------------------------------------------------------- */
+  :root { --touch-edge: 0px; }
+  #status { top: var(--safe-top); left: var(--safe-left); }
+  #inventory { top: calc(var(--safe-top) + 44px); left: var(--safe-left); }
+  #minimap { top: var(--safe-top); right: var(--safe-right); }
+  #areaName { top: var(--safe-top); }
+  #compass { top: calc(var(--safe-top) + 32px); }
+  #touchPanels { top: calc(var(--safe-top) + 58px); }
+  #chatPanel { left: var(--safe-left); }
+  /* Two lines, not three. On a window 342 tall the three-line log ran up into the band the
+     announcements use, and a warning printed over the news it is about to become is worse than
+     either on its own. The console still has the lot. */
+  #chatLog { max-height: 62px; }
+  #chatPanel:not(.console) #chatLog > div:nth-last-child(n+3) { display: none; }
+  :root { --log-bottom: calc(var(--safe-bottom) + 76px); }
+  #dialogue {
+    bottom: var(--safe-bottom);
+    width: calc(100vw - var(--safe-left) - var(--safe-right));
+  }
+
+  /* The action cluster, at the size a thumb needs and no larger. Its reach shrinks with it, so the
+     three orbiting keys stay the same distance apart in fractions of a thumb rather than in
+     pixels: eight of them from the corner is the whole cluster, on a screen 342 tall. */
+  :root { --touch-act: 66px; --act-reach: 74px; --touch-gap: 6px; }
+  /* Six rows of two have to clear 342px between them, so the rows come down to the 44px floor and
+     the labels with them; anything larger and the last pair is below the bottom of the phone. */
+  #touchMore { width: min(94vw, 440px); gap: 5px; }
+  #touch .touch-more-btn { min-height: 44px; font-size: 11px; padding: 0 10px; gap: 8px; }
+  .touch-more-btn .touch-glyph { font-size: 16px; }
 }
 
 /* ---------------------------------------------------------------------------

@@ -80,8 +80,14 @@ const MORE_BUTTONS: readonly Button[] = [
   { key: 'f', glyph: '🎥', label: 'Free camera' },
 ];
 
-/** The three that are pressed constantly, drawn big enough to hit without looking. */
-const ACT = { key: 'enter', glyph: '⏎', label: 'Talk, open, board, harvest, dig, fell' } as const;
+/**
+ * The three that are pressed constantly, drawn big enough to hit without looking.
+ *
+ * The big one is labelled with a word rather than a glyph. It was ⏎, which says what key it sends
+ * and nothing at all about what it does — and it says it in the shape of a key on a keyboard the
+ * player is not holding. It still sends Enter; it just no longer expects anybody to know that.
+ */
+const ACT = { key: 'enter', glyph: 'USE', label: 'Talk, open, board, harvest, dig, fell' } as const;
 const SWING = { key: 'x', glyph: '⚔', label: 'Swing' } as const;
 const LOOSE = { key: 'z', glyph: '🏹', label: 'Loose an arrow' } as const;
 /** Held rather than tapped, because how long it has been up is what decides a parry from a block. */
@@ -223,11 +229,13 @@ export class TouchControls {
   private buildActionCluster(): HTMLElement {
     const cluster = document.createElement('div');
     cluster.id = 'touchAct';
+    // the cluster's box is the big button; the other three are hung off its middle on an arc,
+    // which is the stylesheet's business — all this decides is which three are on it
     cluster.append(
-      this.button(LOOSE, 'touch-round touch-loose'),
-      this.button(GUARD, 'touch-round touch-guard'),
-      this.button(SWING, 'touch-round touch-swing'),
-      this.button(ACT, 'touch-round touch-do'),
+      this.button(LOOSE, 'touch-orbit touch-loose'),
+      this.button(GUARD, 'touch-orbit touch-guard'),
+      this.button(SWING, 'touch-orbit touch-swing'),
+      this.button(ACT, 'touch-do'),
     );
     return cluster;
   }

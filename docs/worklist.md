@@ -277,26 +277,36 @@ Things Chris hit on a real phone, in the order he hit them.
       is already fullscreen. Checked on an emulated phone and a desktop: the phone asks for both,
       the desktop asks for neither. iOS gives neither at any price and keeps the turn-your-phone
       card as its fallback, which works everywhere.)*
-- [ ] The message log — the box above the chat that says what has happened — reads badly. The
-      colours are wrong on a desktop and it eats the screen on a phone: 340 by 190 pixels of a
-      342-pixel-tall window, which is most of the game. `#chatLog` in `style.css`.
-- [ ] The touch controls in the bottom-right corner are the ugliest thing in the game: squares with
-      a purple outline, not aligned with each other, and not cohesive with anything else on the
-      screen. It is also not clear what they do. They want designing rather than tweaking.
-- [ ] On a phone the HUD should sit against the edge of the glass rather than inset from it. A gap
-      between a panel and the edge is not breathing room on a screen this size — it is a strip of
-      screen nothing can use, because the game behind it cannot be played through a corner that
-      small either. (Except where a notch actually needs it: the safe-area insets are there for a
-      real obstruction, not for taste.)
+- [x] The message log read badly and ate the screen. *(One grey slab with every line the same
+      weight and the system lines dimmer and italic — so a warning was the least readable thing on
+      the screen. It has no box now: each line carries its own darkness, only as wide as its own
+      words, with a coloured rule down the left saying who is speaking — purple for a person, gold
+      for the world — and older lines stepping back in opacity. On a phone it shows two lines and
+      takes 360 by 62 pixels against the old 734 by 120, which was 29% of the screen and had its top
+      eighteen pixels drawn off the top edge.)*
+- [x] The touch controls were the ugliest thing in the game. *(One visual language now — dark glass
+      discs with a hairline rim, defined once as variables rather than per button. The action cluster
+      orbits the big button at one reach, so the only number left per button is an angle, and the big
+      one says `USE` rather than naming a key on a keyboard nobody is holding. The panel row became a
+      single rail that shares its centre with the banner above it instead of seven hand-placed
+      squares wrapping onto two rows. Tap targets went from 40 to 44 pixels, which is the floor.
+      Along the way: the `more` shelf was 658 pixels tall on a 342-pixel screen, centred and
+      unscrollable — it is a two-column shelf that fits now.)*
+- [x] The HUD sits against the edge of the glass on a phone. *(Every inset went to the safe-area
+      insets — which are a notch and a home indicator, a real obstruction — and the panels carry
+      their own padding instead. Recovers about a twentieth of a 750 by 342 screen that nothing
+      could use.)*
 - [x] The default zoom on a phone was a view from five hundred metres up. *(The number was not the
       problem — the unit was. The zoom band was written in tiles of ground, and a tile is not a
       fixed size on a screen: thirty tiles leaves the hero forty-five pixels tall on a monitor and
       fifteen on a phone. It is written as how big the hero should be on the glass now, and the
       tiles follow from the window: a phone opens at 12.4 rather than 30, and the hero goes from
       fifteen pixels to forty-two. Nothing changes on any window nine hundred pixels tall or more.)*
-- [ ] On a wide desktop window the chat and the HUD should move to one edge — the right — and run
-      down it, rather than sitting in the middle of the picture. A wide screen has room to spare at
-      the sides and none in the middle, which is where the game is.
+- [x] On a wide desktop window the HUD runs down the right edge. *(A 250-pixel column holding the
+      corner map, the hearts, the pack and the log, with the log at its foot so the newest line is
+      always in the same place. The breakpoint was measured rather than chosen: a column that far in
+      clears the middle half of the window from 1080 pixels wide, and below that nothing changes at
+      all. HUD standing in the middle half of the picture: 10.5% before, 2.0% at 1440 by 900.)*
 ## Found while playing it on a phone — the world itself
 
 - [x] **The animals and villagers froze.** *(Not the simulation: the client. A world talks
@@ -334,6 +344,12 @@ Things Chris hit on a real phone, in the order he hit them.
       is the other half of what makes a countryside feel the way it does. And `BEHAVIOUR` in
       `entity.ts` with it: those are the defaults a behaviour file overrides with `with:`, so they
       belong beside the files that override them rather than in the source that reads them.
+
+- [ ] Three more the same, found while doing the above: `#castbar` sits at `bottom: 200px` on a
+      phone, which is directly over the hero; `#toast` and `#duelbar` are still pinned with
+      hand-computed offsets in the middle of the picture and want the treatment the log just had;
+      and the panel rail mixes colour emoji with monochrome ones, which is the one thing left
+      stopping it reading as a single set.
 
 ## Deployment
 
