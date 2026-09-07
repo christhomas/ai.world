@@ -83,9 +83,15 @@ walk through a wall. Each one wants a reason the server already knows about.
       stepping off happens beside it — a gangplank is a stride long, and somebody who leaves a boat
       half a county from where the world has it is put back on it. Measured over a sail out of
       Elderton: seventy-three answers, one correction, five centimetres.)*
-- [ ] The ferry is the same question once more: it carries the hero between two shores and nothing
-      has ever told the world where it is. Smaller than the boat — it runs a fixed crossing — so it
-      may be simpler to have the world own the crossing outright than to send it anything.
+- [x] **A ferry crossing would have dragged the hero back over the strait.** *(A ferry runs to a
+      timetable — its position is a pure function of the world's clock, so every client already
+      agrees about it without being told — and it carries the hero across without a single step
+      being walked. So no steer was sent, the world's hero stayed on the pier he sailed from, and
+      the first step taken on the far shore was answered with a position back across the water. The
+      landing is now told, the way boarding a boat is.)*
+- [ ] The ferry is *told* rather than checked, and it need not be: its position is a pure function
+      of the clock, and the world has the piers and the islands the timetable is built from. It
+      could work out where a ferry is and refuse a landing that is not at one of its two ends.
 
 ### Monsters on a dungeon floor
 

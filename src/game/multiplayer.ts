@@ -464,7 +464,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
 
   /** Where the hero was last known to be, so a step into somewhere else can be noticed. */
   let lastPlace = '';
-  let lastRide: 'foot' | 'horse' | 'boat' = 'foot';
+  let lastRide: 'foot' | 'horse' | 'boat' | 'ferry' = 'foot';
 
   const syncOnline = (dt: number, heightAt: (x: number, z: number) => number | null): void => {
     others.age(dt);
@@ -477,16 +477,22 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     playerList.refresh(playerListInput);
     const standingIn = placeName();
     const carriedBy = sailing.sailing ? 'boat' : mount.riding ? 'horse' : 'foot';
+    // What is carrying him, for the purpose of noticing that it changed — which includes the ferry,
+    // even though presence has no word for one. A ferry runs to a timetable and carries the hero
+    // across a strait without a single step being walked, so the world's own hero stays on the
+    // pier: the first step taken on the far shore would otherwise be answered with a position back
+    // where he sailed from, and drag him across the water again.
+    const aboard = player.riding ? 'ferry' : carriedBy;
     // Stepping through a door, down a staircase or off a gangplank moves the hero further than any
     // stride, and it is the client that knows it happened — the world has never grown a cellar and
     // does not know where a boat is. So the moment either of those changes, it is told where he is
     // now standing, and it moves its own hero to match rather than guessing from the distance.
-    if (standingIn !== lastPlace || carriedBy !== lastRide) {
+    if (standingIn !== lastPlace || aboard !== lastRide) {
       // which of the two it was matters at the other end: a door lets you out where it let you in
-      // and the world checks that, and a horse carries you wherever it likes and it cannot
-      const ridden = carriedBy !== lastRide;
+      // and the world checks that, and a ride carries you wherever it likes and it cannot
+      const ridden = aboard !== lastRide;
       lastPlace = standingIn;
-      lastRide = carriedBy;
+      lastRide = aboard;
       online.stood(player.x, player.z, ridden ? 'ride' : 'place');
     }
     online.update(dt, {
