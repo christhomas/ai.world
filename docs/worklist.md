@@ -504,8 +504,16 @@ Things Chris hit on a real phone, in the order he hit them.
       overlapping the third slot, and — on a phone — everything crammed into the top-left third with
       two-thirds of the glass empty. Wants to be sleeker and to work on both desktop and a phone: a
       sidebar layout on the desktop.
-- [ ] The whole interface is built out of rounded rectangles with 2px light borders, and it reads as
-      a template rather than as this game. The desktop's right-hand column is the worst of it: a
-      rounded box with wasted space above and beside it. A pixel-art game can look far better than
-      this — the answer is fewer boxes, hairlines instead of borders, and panels that meet the edge
-      of the screen.
+- [ ] The whole interface is built out of rounded rectangles with thick light borders, and it reads
+      as a template rather than as this game — cobbled-together layers rather than a designed one.
+      It is not even good pixel art: a 2px rounded border is a web page's idea of a box, not a
+      drawn one. The worst of it: the desktop's right-hand column, a rounded box with wasted space
+      above and beside it; and the banner that names the town you are walking into. This wants one
+      visual language decided and then applied everywhere, not a tweak per panel.
+- [ ] The faces on the villagers are bad — the dialogue box draws something anime-ish and it is not
+      the standard of the rest of the game. Wants a proper design pass rather than a tweak.
+- [ ] The torch's flame comes away from the torch when the hero walks, and he does not look like he
+      is holding it — it floats beside him with no arm reaching for it.
+- [ ] The villagers and the other people are blocky in the wrong way. Keep them blocky — that is the
+      game — but they want designing rather than assembling.
+- [ ] Villagers and creatures do not touch the ground. They hover over it.
