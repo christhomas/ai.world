@@ -44,7 +44,15 @@ export interface Steer {
    */
   dx: number;
   dz: number;
-  /** A share of the running pace. One is a run, and `Player.STROLL` an amble. */
+  /**
+   * How fast, as a multiple of a hero's running pace: the gait and whatever is carrying him, in one
+   * number. One is a run, `Player.STROLL` an amble, and a horse is more than one.
+   *
+   * One number rather than two on purpose. It used to be the gait here and the mount applied
+   * separately by whoever was doing the walking — which was fine until the world started doing some
+   * of the walking, because it has never seen anybody's horse. A hero on a courser outran the world
+   * by two and a half times and was hauled back for it at every answer.
+   */
   pace: number;
   /** How long it is held for, in seconds. */
   dt: number;
@@ -60,8 +68,16 @@ export interface Steer {
  */
 export const LONGEST_STEP = 0.25;
 
-/** The fastest pace anybody may ask for, so that "pace" cannot be sent as a hundred. */
-export const FASTEST = 1;
+/**
+ * The fastest anybody may ask to go, as a multiple of a hero's own running pace.
+ *
+ * A pace is a gait — a run is one, an amble less — multiplied by whatever is carrying you, and the
+ * quickest thing in the game is a courser on a road with a cart behind it at about three and a
+ * half. The world cannot check what is in somebody's stable any more than it can check what is in
+ * their pack, so it does what it does for the climbing rope: allows the most anything could be, and
+ * leaves the client to be the stricter of the two. What this stops is a pace of a hundred.
+ */
+export const FASTEST = 3.5;
 
 /**
  * Move a hero by one steer, and say whether they got anywhere.
@@ -70,7 +86,7 @@ export const FASTEST = 1;
  * capped, because on the server this is being handed numbers by somebody else's computer. The
  * client passes its own honest ones through the same gate so that both come out the same.
  */
-export function stride(world: TileWorld, e: Entity, steer: Steer, speedScale = 1): boolean {
+export function stride(world: TileWorld, e: Entity, steer: Steer): boolean {
   const len = Math.hypot(steer.dx, steer.dz);
   if (len <= 0) return false;
   const dt = Math.max(0, Math.min(LONGEST_STEP, steer.dt));
@@ -79,7 +95,7 @@ export function stride(world: TileWorld, e: Entity, steer: Steer, speedScale = 1
   if (pace <= 0) return false;
   const dx = steer.dx / len, dz = steer.dz / len;
   e.yaw = yawFor(dx, dz);
-  const step = e.kind.speed * speedScale * pace * dt;
+  const step = e.kind.speed * pace * dt;
   return tryMove(world, e, dx * step, dz * step);
 }
 

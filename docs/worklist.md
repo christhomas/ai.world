@@ -68,9 +68,17 @@ walk through a wall. Each one wants a reason the server already knows about.
       there is anybody else in the world to wind about, exactly as the clock is. A **ride** is taken
       as it comes, and is now the last thing on this wire that is — the world has never been told
       where a boat is.)*
-- [ ] A ride is still trusted: step onto a horse or a boat and the client says where it puts you
-      down. Closing it means the world owning the boat and the horse, which is a phase of its own —
-      they are the two things that carry a hero and neither has ever been the server's.
+- [x] **A hero on a horse outran the world and was hauled back for it.** *(Found while looking at
+      what a ride still trusts. A horse does not carry the hero — he walks, and the horse follows
+      underneath — so a mounted hero was already being walked by the world; but the mount was a
+      multiplier applied beside the steer rather than in it, and the world has never seen anybody's
+      stable. A courser on a road went two and a half times faster on the client than in the world,
+      and every answer dragged him back. The pace on the wire is now one number, the gait and
+      whatever is carrying him together, and the ceiling is the fastest thing in the game rather
+      than a walk. `src/entities/stride.test.ts` pins what a steer may and may not buy.)*
+- [ ] A boat is still trusted: it is the client's, so where it puts you down is its word. The model
+      is small — turn, forward, and slide along a coast — and the same shape as a stride, so it
+      would move across the way walking did. The ferry is the same question again.
 
 ### Monsters on a dungeon floor
 

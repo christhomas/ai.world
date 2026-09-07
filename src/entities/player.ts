@@ -147,8 +147,10 @@ export class Player {
     const pace = input.isDown('shift') ? Player.STROLL : 1;
     // through the same gate the server walks him through, so a guess made here and an answer given
     // there are the same arithmetic rather than two arrangements that agree most of the time
-    this.steered = len > 0 ? { dx, dz, pace, dt } : null;
-    if (this.steered) moved = stride(this.world, e, this.steered, this.speedScale);
+    // the mount goes into the steer rather than beside it, so that what is walked here and what is
+    // walked by the world are one number and cannot drift apart
+    this.steered = len > 0 ? { dx, dz, pace: pace * this.speedScale, dt } : null;
+    if (this.steered) moved = stride(this.world, e, this.steered);
     if (moved) {
       // `walk` is the pace rather than a flag, so the animation follows the legs: below the motion
       // file's `running.from` it is an amble and above it the stride opens out
