@@ -1,0 +1,332 @@
+import { CommandBus, describeResult } from '../core/commandbus';
+import type { EntityManager } from '../entities/manager';
+import type { Player } from '../entities/player';
+import type { IsoCamera } from '../render/camera';
+import type { Chat } from '../ui/chat';
+import { noSuchTopic, topicFor, topicIndex } from '../ui/topics';
+import { BIOMES, biomeAnswersTo } from '../world/biomes';
+import type { Register } from '../world/register';
+import type { SkyIsland } from '../world/skyisland';
+import { StructureKind, compassDir, placeKindName, type Structures } from '../world/structures';
+import type { TerrainSampler } from '../world/terrain';
+import { registerCommands, type CommandWorld } from './commands';
+import type { Eyrie } from './eyries';
+import type { Plots } from './farming';
+import type { Hires } from './hire';
+import type { Online } from './online';
+import type { Places } from './places';
+import type { Remains } from './remains';
+import type { GameState } from './state';
+
+/**
+ * The console, and everything the game can be told to do through it.
+ *
+ * One vocabulary that the server shares, so a console, a tool, a test and — once the simulation
+ * moves across — the server itself all say the same words. `docs/server-authority.md` is where
+ * that is going. The debug handles in `probes.ts` are the same acts under older names and go
+ * through here.
+ */
+export interface Consoled {
+  seed: number;
+  state: GameState;
+  player: Player;
+  iso: IsoCamera;
+  places: Places;
+  structures: Structures;
+  sampler: TerrainSampler;
+  entities: EntityManager;
+  register: Register;
+  online: Online;
+  chat: Chat;
+  plots: Plots;
+  remains: Remains;
+  hires: Hires;
+  eyries: readonly Eyrie[];
+  skyIsles: readonly SkyIsland[];
+  /** Where the hero is standing: the surface, a dungeon floor, or a building. */
+  placeName: () => string;
+  /** And what the country round him is called, which `where` answers with. */
+  areaLabel: () => string;
+  discover: (name: string) => void;
+  flash: (message: string) => void;
+}
+
+/** Somewhere the player asked to be pointed at, and how far off it was when they asked. */
+export interface Bound { name: string; x: number; z: number }
+
+/** How near counts as arrived, in tiles: inside a village square rather than at its sign. */
+const ARRIVED = 6;
+
+export function openConsole(ctx: Consoled) {
+  const {
+    seed, state, player, iso, places, structures, sampler, entities, register, online, chat,
+    plots, remains, hires, eyries, skyIsles, placeName, areaLabel, discover, flash,
+  } = ctx;
+
+  /**
+   * The docks, named after the villages they serve.
+   *
+   * `isle:226,-130 dock` is an id with a word after it, not a name. The nearest village is what a
+   * person would say, and where two docks share one, they are told apart by a number rather than
+   * by their coordinates.
+   */
+  const dockNames = (): Array<{ name: string; kind: string; x: number; z: number }> => {
+    const used = new Map<string, number>();
+    return structures.piers.map((pier) => {
+      const x = pier.tiles[0]?.[0] ?? pier.dockX;
+      const z = pier.tiles[0]?.[1] ?? pier.dockZ;
+      const near = structures.villages
+        .map((v) => ({ v, away: Math.hypot(v.x - x, v.z - z) }))
+        .sort((a, b) => a.away - b.away)[0];
+      const base = near ? `${near.v.name} dock` : 'dock';
+      const seen = (used.get(base) ?? 0) + 1;
+      used.set(base, seen);
+      return { name: seen > 1 ? `${base} ${seen}` : base, kind: 'dock', x, z };
+    });
+  };
+
+  /**
+   * Everywhere in this world with a name on it: the villages, and whatever the map has a word for.
+   *
+   * Sorted so the answer is stable between two runs of the same seed, which matters because it is
+   * read by people and by scripts alike, and a list that shuffles is a list nobody can diff.
+   */
+  const namedPlaces = (like?: string): Array<{ name: string; kind: string; country: string; x: number; z: number }> => {
+    const described = ([
+      ...structures.villages.map((v) => ({ name: v.name, kind: 'village', x: v.x, z: v.z })),
+      ...structures.pois.map((p) => ({ name: p.name, kind: placeKindName(p.kind), x: p.x, z: p.z })),
+      ...structures.caves.map((c) => ({ name: c.name, kind: 'cave', x: c.x, z: c.z })),
+      ...structures.wrecks.map((wk) => ({ name: wk.name, kind: 'wreck', x: wk.x, z: wk.z })),
+      // A pier has no name of its own — it is the dock of whatever it reaches, and what it reaches
+      // is an island known by its coordinates. So it is named for the village nearest it, which is
+      // how anybody standing on one would describe it, and numbered when a village has two.
+      ...dockNames(),
+      ...eyries.map((e) => ({ name: e.name, kind: 'eyrie', x: e.x, z: e.z })),
+      ...skyIsles.map((isle) => ({ name: isle.name, kind: 'sky island', x: isle.crag.x, z: isle.crag.z })),
+    ] as Array<{ name: string; kind: string; x: number; z: number }>)
+      // what country each one stands in, which is the thing a broad search is really asking about:
+      // "the places in the mountains" is a question about the ground, not about their names
+      .map((place) => ({ ...place, biome: sampler.biomeOf(place.x, place.z) }))
+      .map((place) => ({ ...place, country: BIOMES[place.biome].name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!like) return described;
+    const wanted = like.trim().toLowerCase();
+    /** The places that are of the sea rather than on the land, whatever the ground behind them is. */
+    const coastal = (kind: string): boolean => kind === 'dock' || kind === 'wreck' || kind === 'pier';
+    const atSea = ['sea', 'ocean', 'coast', 'shore', 'water'].some((word) => word.startsWith(wanted) || wanted.startsWith(word));
+    return described.filter((place) =>
+      place.name.toLowerCase().includes(wanted)
+      || place.kind.includes(wanted)
+      || biomeAnswersTo(place.biome, wanted)
+      || (atSea && coastal(place.kind)));
+  };
+
+  /**
+   * The place somebody meant. An exact name wins, then one that starts with what was typed, then
+   * one that merely contains it — so `teleport silver` finds Silverholm without `teleport
+   * silverholm` ever being ambiguous.
+   */
+  const namedPlace = (like: string): { name: string; kind: string; x: number; z: number } | null => {
+    const wanted = like.trim().toLowerCase();
+    const all = namedPlaces();
+    const nearestOfKind = all
+      .filter((p) => p.kind.includes(wanted))
+      .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z))[0];
+    // A name beats a kind, and a kind beats nothing: `teleport silverholm` goes to the town, and
+    // `teleport dock` goes to the nearest one, which is what somebody asking for "a dock" means.
+    return all.find((p) => p.name.toLowerCase() === wanted)
+      ?? all.find((p) => p.name.toLowerCase().startsWith(wanted))
+      ?? all.find((p) => p.name.toLowerCase().includes(wanted))
+      ?? nearestOfKind
+      ?? null;
+  };
+
+  /**
+   * Where the player has asked to be pointed, if anywhere.
+   *
+   * One place at a time on purpose: a compass with four needles is a map, and there is already a
+   * map. Cleared by `nav off`, and by arriving — standing on the thing you were walking to is the
+   * moment the arrow stops being useful and starts being clutter.
+   */
+  let bound: Bound | null = null;
+
+  const commandWorld: CommandWorld = {
+    teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); online.stood(x, z, 'teleport'); },
+    teleportTo: (place) => {
+      const found = namedPlace(place);
+      if (!found) throw new Error(`nowhere called ${place} — try: places`);
+      player.teleport(found.x, found.z);
+      iso.target.set(found.x, 0.5, found.z);
+      // the world moves its own hero to match: a teleport is the one jump nothing else can see
+      online.stood(found.x, found.z, 'teleport');
+      return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
+    },
+    places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, country: p.country, x: Math.round(p.x), z: Math.round(p.z) })),
+    // The villages, in the order somebody standing here cares about them. Distance and heading
+    // rather than coordinates, because "Silverholm, 240 paces north-west" is an answer and
+    // "Silverholm, 280, -110" is a lookup.
+    // A word narrows it, and means either the village's own name or the country it stands in:
+    // `towns mountains` and `towns silver` are both questions somebody actually asks.
+    navTo: (place) => {
+      if (place === undefined) {
+        if (!bound) return 'pointing nowhere. Try: nav silverholm';
+        const away = Math.round(Math.hypot(bound.x - player.x, bound.z - player.z));
+        return { name: bound.name, away, heading: compassDir(bound.x - player.x, bound.z - player.z) };
+      }
+      if (place === null) { bound = null; return 'the compass is your own again'; }
+      const found = namedPlace(place);
+      if (!found) throw new Error(`nowhere called ${place} — try: places`);
+      bound = { name: found.name, x: found.x, z: found.z };
+      return { name: found.name, away: Math.round(Math.hypot(found.x - player.x, found.z - player.z)),
+        heading: compassDir(found.x - player.x, found.z - player.z) };
+    },
+    towns: (like) => structures.villages
+      .filter((v) => !like
+        || v.name.toLowerCase().includes(like.trim().toLowerCase())
+        || biomeAnswersTo(v.biome, like))
+      .map((v) => ({
+        name: v.name,
+        away: Math.round(Math.hypot(v.x - player.x, v.z - player.z)),
+        heading: compassDir(v.x - player.x, v.z - player.z),
+        country: BIOMES[v.biome].name,
+        x: Math.round(v.x), z: Math.round(v.z),
+      }))
+      .sort((a, b) => a.away - b.away),
+    descend: () => places.descend(),
+    climbOut: () => places.exitDungeon(),
+    enterShrine: () => {
+      const shrine = structures.pois.find((p) => p.kind === StructureKind.Shrine);
+      if (!shrine) return null;
+      places.enterDungeon(shrine);
+      return shrine.name;
+    },
+    enterInn: () => {
+      for (const village of structures.villages) {
+        const inn = village.shops.find((shop) => shop.type === 'inn');
+        if (!inn) continue;
+        const door = structures.doors.find((d) => d.bx === inn.house.tx && d.bz === inn.house.tz);
+        if (!door) continue;
+        places.enterBuilding(door);
+        return village.name;
+      }
+      return null;
+    },
+    standAtCounter: () => {
+      const spot = places.indoors?.world.map.keeper;
+      if (!spot) return null;
+      player.teleport(spot[0] + 0.5, spot[1] + 1.6);
+      return { x: spot[0] + 0.5, z: spot[1] + 1.6 };
+    },
+    spawn: (kind, away) => {
+      const e = entities.spawnOne(kind, player.x + away, player.z, seed ^ Date.now());
+      return e ? { kind: e.kind.id, x: Math.round(e.x), z: Math.round(e.z), hp: e.hp } : null;
+    },
+    sow: (x, z) => {
+      plots.plant(x, z, 'wheat', state.day + state.time);
+      online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
+      state.version++;
+      return { tile: `${x},${z}`, crop: 'wheat', day: state.day };
+    },
+    drop: () => {
+      remains.leave('Rolf the Hunter', 'hunter', player.x + 1.2, player.z, 23, 'pelt', 4242);
+      return remains.all.length;
+    },
+    discover: (place) => { discover(place); return place; },
+    thin: (village, many) => {
+      const doomed = [...register.living(village)].slice(0, many);
+      for (const person of doomed) register.bury(person.id, state.day);
+      return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
+    },
+    hire: (many) => {
+      // stand somebody's own soldiers up without walking a village: for trying a fight out
+      const folk = structures.villages.flatMap((v) => [...register.living(v.name)]).filter((p) => p.trade === 'soldier');
+      const side = online.id || 'alone';
+      const taken = folk.slice(0, many).map((p) => hires.strike(
+        { who: p.id, name: p.name, asking: 0, terms: [{ fee: 0, share: 0.2 }] },
+        { fee: 0, share: 0.2 }, 999, side,
+      ));
+      return { asked: many, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
+    },
+    // The clock belongs to the world, and the world says what time it is ten times a minute — so
+    // setting it here alone lasted until the next thing the world said, which is why `time 0.5`
+    // answered with half past noon and left the sun where it was. Asked of the world instead, and
+    // the world tells everybody in it, which is one person or it is refused.
+    setTime: (fraction) => {
+      const time = Math.max(0, Math.min(0.999, fraction));
+      state.time = time;
+      online.setClock(state.day, time);
+      return { day: state.day, time };
+    },
+    setDay: (day) => {
+      const today = Math.max(1, Math.round(day));
+      state.day = today;
+      online.setClock(today, state.time);
+      return { day: today, time: state.time };
+    },
+    where: () => ({
+      x: Math.round(player.x * 10) / 10, z: Math.round(player.z * 10) / 10,
+      y: Math.round(player.entity.y * 100) / 100,
+      place: placeName(), area: areaLabel(),
+    }),
+    peaks: () => (sampler.ranges?.peaks ?? []).map((peak) => ({
+      x: Math.round(peak.x), z: Math.round(peak.z), height: Math.round(peak.lift), range: peak.range,
+    })).sort((a, b) => b.height - a.height),
+    entities: () => entities.within(player.x, player.z, 60).map((e) => ({
+      kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
+      x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
+      slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
+      // the fight's own state, without which none of the wind-up work can be checked from
+      // outside: a probe that reads e.winding off this and finds undefined quietly measures
+      // nothing at all and reports it as a result
+      dead: e.dead, hurt: Math.round(e.hurt * 100) / 100,
+      // nought when this client owns it, and the world's own number when the world does
+      worldId: e.worldId,
+      winding: Math.round(e.winding * 1000) / 1000, warned: e.warned,
+    })),
+  };
+  const commands = new CommandBus();
+  registerCommands(commands, commandWorld);
+
+  /**
+   * What a line typed into the console means.
+   *
+   * Four readings, in the order somebody would guess them. A question mark asks the game and the
+   * answer is yours alone; a slash is a gesture if it names one everybody knows and a command
+   * otherwise; anything else is said out loud. Nothing here needs the world to be online — asking
+   * and running work alone, which is most of what they are for.
+   */
+  chat.onSend = (text) => {
+    if (text.startsWith('?')) {
+      const asked = text.slice(1).trim();
+      if (!asked) { for (const line of topicIndex()) chat.line(line, 'sys'); return; }
+      const topic = topicFor(asked);
+      for (const line of topic ? [topic.name.toUpperCase(), ...topic.lines] : noSuchTopic(asked)) chat.line(line, 'sys');
+      return;
+    }
+    if (text.startsWith('/')) {
+      const said = text.slice(1).trim();
+      // a gesture first: everybody knows what a wave is, and /wave is older than the command bus
+      if (online.emote(said.toLowerCase())) return;
+      const result = commands.run(said, 'console');
+      if (!result.ok) chat.line(result.error, 'sys');
+      else if (result.value === undefined) chat.line(`${said} — done`, 'sys');
+      else for (const line of describeResult(result.value)) chat.line(line, 'sys');
+      return;
+    }
+    online.say(text);
+  };
+
+  return {
+    commands,
+    commandWorld,
+    /** Where the compass has been pointed, for whoever draws the needle. */
+    bound: (): Bound | null => bound,
+    /** Arriving is what ends a walk, so it is what puts the arrow away. */
+    arriving: (): void => {
+      if (!bound || Math.hypot(bound.x - player.x, bound.z - player.z) >= ARRIVED) return;
+      flash(`${bound.name} — you are here`);
+      bound = null;
+    },
+  };
+}

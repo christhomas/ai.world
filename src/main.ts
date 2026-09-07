@@ -1,141 +1,75 @@
-import * as THREE from 'three';
-import { GAMEPLAY, GRAPH, WORLD } from './core/config';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
-import { AutoQuality, everChoseQuality, rememberAutoChoice, rememberTheirChoice } from './render/autoquality';
+import { AutoQuality, everChoseQuality, rememberTheirChoice } from './render/autoquality';
 import { QUALITY, createSceneRig } from './render/scene';
-import { WhaleSchool } from './render/whales';
 import { PackField } from './render/remains';
 import { Remains } from './game/remains';
-import { WHALE, displayAt, planPods, podsWithin, whaleAt, type Pod } from './game/whales';
-import { SeaHunt } from './game/seahunt';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
-import { DayCycle } from './render/daycycle';
-import { ChunkManager } from './world/chunkManager';
-import { MountainMaterial, buildMountainMesh } from './render/mountains';
-import { Skyline } from './game/skyline';
-import { noSuchTopic, topicFor, topicIndex } from './ui/topics';
-import { CommandBus, describeResult } from './core/commandbus';
-import { mountainAt, rangesAsMassifs } from './world/ranges';
+import { mountainAt } from './world/ranges';
 import { Wildlife } from './game/wildlife';
-import { registerCommands, type CommandWorld } from './game/commands';
-import { attachIslands, generateRoadGraph, planIslands } from './world/graph';
-import { generateWebGraph } from './world/roadweb';
-import { planEyries } from './game/eyries';
-import { buildSkyIsland, planSkyIslands } from './world/skyisland';
-import { SkyIslands } from './render/skyisland';
 import { Skies } from './game/skies';
-import { Manifest } from './world/manifest';
-import { FERRY, ferryStateAt, formatCountdown, makeFerryLines, worldSeconds, type FerryLine } from './game/ferry';
+import { makeFerryLines } from './game/ferry';
 import { buildBoat } from './render/boat';
-import { StructureKind, compassDir, placeKindName } from './world/structures';
 import { ITEMS, sellPrice } from './game/shops';
-import { COMBAT, spoils, struck, swing } from './game/combat';
-import { carriedTo, costOf, saidOfKnockout } from './game/knockout';
-import { BREATH, Breath, guardCovers } from './game/breath';
+import { Breath } from './game/breath';
 import { createInteractions } from './game/interact';
 import { createMultiplayer } from './game/multiplayer';
 import { createReadouts } from './ui/readouts';
-import { PING_LIFE } from '../server/protocol';
-import { Places, REACH } from './game/places';
-import { SEASON_NAMES, Season, isWet, seasonAffects, seasonOf, seasonTint } from './game/seasons';
+import { Places } from './game/places';
 import { Weather } from './render/weather';
 import { SeasonTintMaterials } from './render/seasontint';
-import { FISHING, Fishing } from './game/fishing';
+import { Fishing } from './game/fishing';
 import { Journal } from './ui/journal';
 import { Clock } from './ui/clock';
-import { Compass, type CompassTarget } from './ui/compass';
+import { Compass } from './ui/compass';
 import { PhotoMode } from './ui/photo';
-import { HORSE, Mount } from './game/mount';
-import { Online, tradableItems, type TradeOffer, type WorldDelta } from './game/online';
+import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
-import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './game/farming';
-import { BUILD, Houses, stageAt } from './game/building';
 import { CropField } from './render/crops';
 import { BuildingSite } from './render/site';
-import { BOAT, Sailing } from './game/sailing';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
-import { bodyMotion } from './entities/motion';
 import { TouchControls } from './ui/touch';
 import { $ } from './ui/dom';
-import { TerrainSampler, TileType } from './world/terrain';
-import { BIOMES, HUB_NAME, SEA_NAME, biomeAnswersTo } from './world/biomes';
-import { villageAt } from './world/structures';
 import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
-import { Fog, renderMapBase, type MapMarker } from './ui/mapbase';
+import { Fog, renderMapBase } from './ui/mapbase';
 import { WorldMap } from './ui/worldmap';
-import { DialogueBox, type DialogueNode } from './ui/dialogue';
+import { DialogueBox } from './ui/dialogue';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from './save/store';
-import { GameState } from './game/state';
-import { DOCTOR, dialogueFor, type TalkCtx } from './game/talk';
 import { generateQuests } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
-import { damageEntity, yawFor, type Entity } from './entities/entity';
 import { EntityRenderer } from './entities/pool';
 import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
-import { Walked } from './game/walked';
-import { BEHAVIOUR, throwBlow } from './entities/entity';
-import type { Blow } from './entities/motion';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
-import { Standing } from './game/standing';
-import { Jail, clockAt, toldOnWaking, windOn } from './game/jail';
-import { Gifts, type Kindness } from './game/gifts';
-import { Rescues } from './game/rescue';
-import { GRUDGE, Grudges, saidOf as saidOfRegard } from './game/grudge';
-import { Nemesis, SENDS, sentBy, type Realm } from './game/nemesis';
-import { ROAM, Roaming, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type Band, wayTo } from './game/roaming';
+import { type Kindness } from './game/gifts';
+import { type Realm } from './game/nemesis';
 import { Director } from './game/director';
-import { MINES, Mines, claimedMines, mineIdOf, type Working } from './game/mines';
-import { feeFor, luxuryFor, storeysFor, type Luxury } from './world/prosperity';
-import { HIRE, Hires } from './game/hire';
-import { Magic, type SpellId } from './game/magic';
-import { BOW, bowInHand, canShoot, quiver, shoot } from './game/archery';
-import { goingOf, paceOf, stableAt, type Going } from './game/stables';
-import { haulPace } from './game/woodcraft';
-import { canBeCut } from './entities/monsters';
-import { PEOPLE as PEOPLE_KINDS } from './entities/quarry';
-import { CampField } from './render/wildcamps';
-import type { WildCamp } from './game/wildcamps';
+import { claimedMines, mineIdOf } from './game/mines';
+import { type Luxury } from './world/prosperity';
+import { Hires } from './game/hire';
+import { stableAt } from './game/stables';
 import { remember } from './world/people';
-import { gone, hauntsOf, toRaise, warningFor, type Haunt } from './game/haunts';
-import { hashString } from './core/rng';
-
-/** How far above his feet the hero's middle is, for the window the mountains keep open. */
-const HERO_EYE = 1.2;
-
-
-/** The world server's own port, which `chore world` also uses. */
-const WORLD_PORT = 8787;
-
-/**
- * Where to look for a world server, in the order somebody would expect: the address in the link,
- * then the one they used last, then the machine that served the page. Nobody should have to type
- * an address to play with the person sitting next to them.
- */
-function defaultServer(url: URL): string {
-  const given = url.searchParams.get('server');
-  if (given) return given;
-  const remembered = localStorage.getItem('ai.world/server');
-  if (remembered) return remembered;
-
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = window.location.hostname || 'localhost';
-  const servedPort = window.location.port;
-  // A world server can hand out the game itself, and when it does, it is on the port the page
-  // came from — the whole point of running one box at home. In development the page comes from
-  // vite on another port, and the server is wherever it always is.
-  const sameOrigin = !import.meta.env.DEV && servedPort !== '';
-  return sameOrigin ? `${scheme}://${host}:${servedPort}` : `${scheme}://${host}:${WORLD_PORT}`;
-}
+import { installProbes } from './game/probes';
+import { openConsole } from './game/console';
+import { createBlows } from './game/blows';
+import { createWatch } from './game/watch';
+import { createTidings } from './game/tidings';
+import { createFrame } from './game/frame';
+import { createMeeting } from './game/meeting';
+import { createConsequences } from './game/consequences';
+import { joinAWorld } from './game/joining';
+import { growCountry } from './game/country';
+import { openTheSave } from './game/keeping';
+import { bindKeys } from './ui/keys';
+import { createAuthority } from './game/authority';
 
 async function boot(): Promise<void> {
   // A phone is held sideways to play this, and it says so before anything else is drawn: the
@@ -192,38 +126,13 @@ function startGame(
   // same press by the time anything below reads them
   const touch = new TouchControls(input);
   const props = new PropLibrary();
-  // chosen when the world was made and written into its save, so it never changes underneath one
-  const meshWorld = world === 'mesh';
-  const graph = meshWorld ? generateWebGraph(seed) : generateRoadGraph(seed);
-  const manifest = new Manifest(seed, saved?.manifest);
-  if (!meshWorld) {
-    if (manifest.byKind('island').length === 0) for (const p of planIslands(graph, seed)) manifest.ensure(p.id, 'island', p.x, p.z);
-    attachIslands(graph, manifest.byKind('island'));
-  }
-  const sampler = new TerrainSampler(graph);
-  /**
-   * The world's mountains, whichever kind this world grew: the road-tree world's domes, or the
-   * polygon world's ranges described in the same terms. Everything that stands something on a
-   * mountain — the eagles, the villages in the clouds, the goats — reads this rather than either.
-   */
-  const highPlaces = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
-  const structures = sampler.structures;
-  const daycycle = new DayCycle(rig);
-  rig.sunDriven = true;
-  const chunks = new ChunkManager(rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial);
-
-  // The mountains go into the scene once and stay there. They are one shape the size of a county,
-  // not something streamed in squares as the hero walks, and they are visible from most of the
-  // world — the whole of a world's mountain country is fewer triangles than a single chunk of
-  // ground, so there is nothing to gain by taking them away again.
-  const rock = new MountainMaterial();
-  if (sampler.ranges) {
-    const range = buildMountainMesh(sampler.ranges, rock.material);
-    if (range) rig.scene.add(range);
-  }
-  // and the camera's own answer to them: it stands further back near a range, because a peak is
-  // taller than the picture is and would otherwise be cut off by the top of its own frustum
-  const skyline = new Skyline(sampler.ranges);
+  const seasonTintMaterials = new SeasonTintMaterials();
+  // the ground this game is played on, and everything standing on it that was settled before
+  // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
+  const {
+    graph, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
+    eyries, skyIsles, skyRenderer,
+  } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   const hud = new Hud(rig, seed);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
   hud.onQualityChange = (level) => {
@@ -278,18 +187,8 @@ function startGame(
    */
   let floorLife: Wildlife | null = null;
   const dialogue = new DialogueBox();
-  /**
-   * The hero's own face, on the right of every conversation. It is seeded by the name they gave
-   * themselves, so it is theirs and stays theirs, and their helmet decides what is on its head.
-   */
-  const heroFace = (): void => dialogue.setHero({
-    id: `hero:${localStorage.getItem('ai.world/name') ?? 'Traveller'}`,
-    trade: state.equipped.head ? 'soldier' : '',
-    stage: 'adult',
-  });
   const sound = new Sound();
   const weather = new Weather(rig.scene);
-  const seasonTintMaterials = new SeasonTintMaterials();
   const fishing = new Fishing();
   const journal = new Journal();
   const clock = new Clock();
@@ -297,14 +196,9 @@ function startGame(
   const photo = new PhotoMode();
   const heroGear = new HeroGear(rig.scene);
   const castbar = $('castbar');
-  chunks.useSeasonTint(seasonTintMaterials);
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
-  const mount = Mount.from(saved?.state?.horse ?? null, lineRng);
 
-  // --- other people ---
   const chat = new Chat();
-
-
 
   /** The world the hero is standing in: the surface, a dungeon floor, or a building. */
   const placeName = (): string => places.underground
@@ -312,104 +206,33 @@ function startGame(
     : places.indoors ? places.indoors.title : 'surface';
 
   /**
-   * What a line typed into the console means.
-   *
-   * Four readings, in the order somebody would guess them. A question mark asks the game and the
-   * answer is yours alone; a slash is a gesture if it names one everybody knows and a command
-   * otherwise; anything else is said out loud. Nothing here needs the world to be online — asking
-   * and running work alone, which is most of what they are for.
-   */
-  chat.onSend = (text) => {
-    if (text.startsWith('?')) {
-      const asked = text.slice(1).trim();
-      if (!asked) { for (const line of topicIndex()) chat.line(line, 'sys'); return; }
-      const topic = topicFor(asked);
-      for (const line of topic ? [topic.name.toUpperCase(), ...topic.lines] : noSuchTopic(asked)) chat.line(line, 'sys');
-      return;
-    }
-    if (text.startsWith('/')) {
-      const said = text.slice(1).trim();
-      // a gesture first: everybody knows what a wave is, and /wave is older than the command bus
-      if (online.emote(said.toLowerCase())) return;
-      const result = commands.run(said, 'console');
-      if (!result.ok) chat.line(result.error, 'sys');
-      else if (result.value === undefined) chat.line(`${said} — done`, 'sys');
-      else for (const line of describeResult(result.value)) chat.line(line, 'sys');
-      return;
-    }
-    online.say(text);
-  };
-
-
-  const plots = new Plots(saved?.state?.plots);
-  /**
    * What the hero has left to swing and guard with. The whole of the defensive game hangs off it:
    * swinging spends it, holding a guard drains it, and it only comes back when you are doing
    * neither — so there is now a reason to stop pressing the button.
    *
-   * Declared up here with the rest of the hero's long-lived state because a bout against another
-   * player obeys the same rules a fight against a wolf does, and the multiplayer wiring below
-   * needs it.
+   * Not saved: it refills in seconds, so a save that remembered it would be remembering nothing.
    */
   const breath = new Breath();
-  /** The builder you are holding, and every house you have had put up. */
-  const houses = Houses.from(saved?.state?.houses);
-  const sailing = Sailing.from(saved?.state?.boat ?? null);
   const ownBoat = buildBoat();
   ownBoat.visible = false;
   rig.scene.add(ownBoat);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
 
-  // --- state ---
-  const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
+  // --- the save, opened out: everything the seed could not have worked out for itself ---
+  const {
+    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines,
+    plots, houses, sailing, mount, persist,
+  } = openTheSave({
+    store, slotKey, seed, world, saved, structures, manifest,
+    rng: lineRng,
+    cam: () => ({ x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom }),
+    at: () => ({ x: player.x, z: player.z }),
+    sky: () => skies.save(),
+  });
   register.advance(state.day);                // a world reopened after a week finds a village changed
-  heroFace();                                 // the face on the right of every conversation
-  /**
-   * Where the hero stands between good and evil. The number lives on the save; this reads it,
-   * and writes it back whenever a deed moves it, so there is one place that decides what a
-   * killing is worth and one place that remembers.
-   */
-  const standing = new Standing(state.standing);
-  /**
-   * Breath, and whatever a spell is currently turning aside. Not saved: it refills in ten seconds,
-   * so a save that remembered it would be remembering nothing.
-   */
-  const magic = new Magic();
-  /**
-   * The cells in the country's police stations: who is in them, and which of them are heaps of
-   * timber. Not saved yet, so a reopened world finds every cell cold and every station standing.
-   */
-  const jail = Jail.from(saved?.state?.jail ?? null);
-  /** Who the hero has been good to, and what each of them has decided about it. */
-  const gifts = new Gifts(saved?.state?.gifts);
-  /** Which villages somebody agreed to save, and what each of them owes them for it. */
-  const rescues = new Rescues(saved?.state?.rescues);
-  /**
-   * What each village holds against the hero. Kept apart from the good and evil scale because
-   * killing a man's cow is that village's business and not the whole country's.
-   */
-  const grudges = new Grudges(saved?.state?.grudges);
-  /** Where Old Nettle is up to: what he is doing, whether he is held, and when he is next abroad. */
-  const nemesis = Nemesis.from(seed, saved?.nemesis);
-  /** Everything his cycle needs to reach into, gathered when it is asked for rather than held. */
+  /** Everything Old Nettle's cycle needs to reach into, gathered when it is asked for rather than held. */
   const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name });
-  /**
-   * The bands that walk the roads. Danger that stays where you left it stops being danger and
-   * becomes scenery, so these move: where one is on a given day is a pure function of the seed,
-   * and only the killing has to be remembered.
-   */
-  const roaming = Roaming.from(seed, structures, saved?.roaming, state.day);
-  /**
-   * The workings under the caves: where the world's money is minted.
-   *
-   * An economy that only circulates runs down, so something has to mint, and it is the mines —
-   * which is also the answer to why there are tunnels under the ground at all. People dug them,
-   * some of them are still down there working, and what they bring up is the gold everybody else
-   * spends. Held here beside the bands because it is the same sort of thing: a fact about the
-   * world rather than about the hero, true whoever happens to be playing.
-   */
-  const mines = Mines.from(seed, saved?.state?.mines, state.day);
   /**
    * Which cave each village calls its mine. A pure function of the structures, so it is worked
    * out once: the ground does not move and neither do the villages standing on it.
@@ -437,10 +260,6 @@ function startGame(
    */
   const fightingInAMine = (): string | null =>
     places.underground?.style === 'cave' ? places.underground.anchorId : null;
-  /** Which bands have people standing in the world for them right now. */
-  const bandsOut = new Map<string, Band>();
-  /** The last thing each village was heard to say about its trouble, so it is not said twice. */
-  const pressSaid = new Map<string, string>();
   /** The soldiers walking with somebody, and what was agreed with each. */
   const hires = new Hires();
   const discovered = state.discovered;
@@ -460,14 +279,12 @@ function startGame(
   // the elder has one errand to give, and it is theirs: the pub keeps its own
   const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
-  // --- ferries ---
+  // the boats that run between the islands, each with a hull in the scene to sail it
   const ferries = makeFerryLines(structures, structures.villages, graph.islands).map((line) => {
     const mesh = buildBoat();
     rig.scene.add(mesh);
     return { line, mesh };
   });
-  let riding: { line: FerryLine; dest: 'from' | 'to' } | null = null;
-  // --- dungeons ---
   /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
@@ -479,13 +296,7 @@ function startGame(
     persist();
   };
 
-
-
-
-
-
-
-  // --- hero + camera ---
+  // where the hero stands when the world opens: where he was left, or where a link says
   let startX = 0, startZ = 0;
   if (saved) {
     iso.rotation = saved.cam.rot;
@@ -523,17 +334,6 @@ function startGame(
   });
 
   /**
-   * Is the hero somewhere the world can see him?
-   *
-   * The server walks him and throws his blows for him out of doors, on his own feet, on ground it
-   * has grown. Indoors, underground, on a horse and at sea it has nothing to walk him on and no
-   * creatures of its own there, so the client stays the authority — and asking it to swing would
-   * be asking it to swing at whatever happens to stand near the last field he was in.
-   */
-  const outdoors = (): boolean =>
-    places.indoors === null && !places.underground && !sailing.sailing && !player.riding;
-
-  /**
    * The world a blow is thrown in, when the world owns it, and null when it does not.
    *
    * The country and every dungeon floor are the world's; the inside of a building is nobody's but
@@ -546,36 +346,14 @@ function startGame(
     mount.restore(chunks, entityRenderer);
   };
 
-  const persist = () => {
-    void store.save<SessionSave>(slotKey, {
-      seed,
-      world,
-      cam: { x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom },
-      player: { x: player.x, z: player.z },
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save() },
-      manifest: manifest.toJSON(),
-      nemesis: nemesis.toJSON(),
-      roaming: roaming.save(),
-      sky: skies.save(),
-    });
-  };
-
-  /**
-   * The hero's side of a hero the world owns: what we pushed, what is still in flight, and what to
-   * do when the answer comes back disagreeing. Built before the multiplayer half because the
-   * answer arrives through it.
-   */
-  const walked = new Walked((steer) => online.steer(steer.seq, steer.dx, steer.dz, steer.pace, steer.dt));
-  /**
-   * How the two halves are getting on, for `window.__walking` and for nothing else.
-   *
-   * Worth having a number for: the whole design rests on the client's guess and the world's answer
-   * being the same arithmetic, and the only honest way to know whether that is true is to walk
-   * about and read how often it is not.
-   */
-  const walking = { answers: 0, corrections: 0, worst: 0 };
-  /** Counts pulls of the tiller, so the world's answers can name the one they have caught up to. */
-  let helmSeq = 0;
+  // which half of the game is the authority, and what this half does when the other one speaks.
+  // Built before the multiplayer half because the world's answers arrive through it.
+  const { walked, walking, outdoors, heeding } = createAuthority({
+    seed, state, player, chunks, entities, places, sailing, sound, wildlife, placeName,
+    floorLife: () => floorLife,
+    steer: (seq, dx, dz, pace, dt) => online.steer(seq, dx, dz, pace, dt),
+    bitten: (attacker, damage) => onAttack(attacker, damage),
+  });
 
   // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the
   // interaction layer below owns and hands back once it exists
@@ -590,71 +368,7 @@ function startGame(
     dialogue, hud, chat, sound, questList, discovered, seed,
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
-    // the world's own creatures, in whichever of its worlds they live: drawn as they arrive, and
-    // the local ones stand down. A snapshot for a place the hero is not in is not ours to draw —
-    // the numbers a floor gives its monsters mean nothing on a hillside.
-    onCreatures: (place, near, gone) => {
-      if (place !== 'surface') {
-        if (place === placeName()) floorLife?.apply(near, gone);
-        return;
-      }
-      if (!entities.toldWhatLives) {
-        entities.toldWhatLives = true;
-        entities.forgetTheWildlife();
-      }
-      wildlife.apply(near, gone);
-    },
-    /**
-     * One of the world's creatures died.
-     *
-     * Everybody drops it from their screen; whoever landed the blow takes what was on it. What a
-     * pelt is worth is decided here rather than by the world, because a purse and a rucksack live
-     * in a player's own save and never travel — the world's business is that the creature is dead.
-     */
-    onCreatureKilled: (place, id, mine) => {
-      const alive = place === 'surface' ? wildlife : place === placeName() ? floorLife : null;
-      if (!alive) return;
-      const body = alive.find(id);
-      if (body && mine) {
-        const won = spoils(state, body, seed);
-        if (won.gold > 0) { state.inventory.gold += won.gold; state.version++; }
-        for (const item of won.loot) state.give(item, 1);
-        if (won.gold > 0 || won.loot.length > 0) sound.chime();
-      }
-      alive.apply([], [id]);
-    },
-    // A creature the world owns has bitten us. The world decided that it happened and how hard;
-    // everything after that — the guard, the parry, the knockback, the hearts — is the same code a
-    // bite has always gone through, because it is the client that holds all of it.
-    onBitten: (place, id, damage) => {
-      const alive = place === 'surface' ? wildlife : place === placeName() ? floorLife : null;
-      const attacker = alive?.find(id);
-      if (attacker) onAttack(attacker, damage);
-    },
-    onWorldSilent: () => {
-      if (!entities.toldWhatLives) return;
-      entities.toldWhatLives = false;
-      wildlife.clear();
-      walked.reset();
-    },
-    // The world has walked our own hero. Almost always this agrees with where we already drew him,
-    // because both halves walk with the same `stride` over the same ground; where it does not, the
-    // world is right and the hero is moved — a lean for a small gap, at once for a large one.
-    onWhereYouAre: (seq, x, z) => {
-      // under sail the answer is about the boat rather than about the hero, and the boat is what
-      // the camera and the hero both follow — so this is where a boat is put right
-      if (sailing.sailing) {
-        walking.answers++;
-        const out = Math.hypot(x - sailing.x, z - sailing.z);
-        if (out > 0.05) { walking.corrections++; walking.worst = Math.max(walking.worst, out); }
-        sailing.putAt(x, z);
-        return;
-      }
-      if (!outdoors()) return;
-      const out = walked.toldWhereHeIs(player.entity, chunks, seq, x, z);
-      walking.answers++;
-      if (out > 0) { walking.corrections++; walking.worst = Math.max(walking.worst, out); }
-    },
+    ...heeding,
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
@@ -674,7 +388,7 @@ function startGame(
     entityRenderer.dispose();
     heroGear.dispose();
     weather.dispose();
-    school.dispose();
+    watch.dispose();
     skyRenderer.dispose();
     packField.dispose();
     cropField.dispose();
@@ -702,7 +416,7 @@ function startGame(
     else { chunks.resume(); sound.quiet(false); loop.start(); }
   });
 
-  // --- HUD / sound hooks ---
+  // the panels, and the noises they make
   hud.setVolume(sound.volume);
   hud.onVolumeChange = (v) => sound.setVolume(v);
   hud.onReturnToTitle = toTitle;
@@ -712,237 +426,31 @@ function startGame(
   dialogue.onType = () => sound.blip();
   dialogue.onMove = () => sound.select();
 
-  // --- talking ---
-  const talkCtx: TalkCtx = {
-    state, rng: lineRng, quests, time: state.time, register, day: state.day,
+  // stopping in front of somebody: everything a person offers you, worked out at the moment you
+  // speak to them
+  const { heroFace, startTalk, talkCtx } = createMeeting({
+    state, player, register, grudges, gifts, online, handover, sound, dialogue, quests, persist,
+    rng: lineRng,
+    villageWelcome: (village) => villageWelcome(village),
     wordOfHim: (person) => interactions.wordOfHim(person),
     saidOfMine,
-    onInventoryChange: () => { sound.chime(); persist(); },
-    onQuestChange: (q: { village: string; id?: string }, status: 'active' | 'done') => {
-      if (status === 'done') {
-        sound.fanfare();
-        hud.flash(`Quest complete for ${q.village}!`);
-        if (q.id) online.shareDeed(q.id);
-      } else sound.select();
-      persist();
-    },
-  };
-  const startTalk = (e: Entity) => {
-    talkCtx.time = state.time;
-    talkCtx.day = state.day;
-    heroFace();                                 // in case they have put a helmet on since last time
-    // a shopkeeper who has heard what you did to somebody's animals takes their opinion out of
-    // your purse, whether or not they were the one who owned them
-    talkCtx.markup = grudges.markup(e.herd.tag, state.day);
-    // an innkeeper you have been good to stops charging you, and does not go back to charging:
-    // that is the difference between a favour and a discount, and it is why generosity is worth
-    // more than the gold it costs
-    const host = e.person !== '' ? register.find(e.person) : undefined;
-    const welcome = (host ? gifts.favourFrom(host) : null) ?? villageWelcome(e.herd.tag);
-    const bed = welcome?.kind === 'lodging' ? 0 : ITEMS.room.price;
-    // a doctor will see to you either way: coin buys the quick way, and everybody else waits.
-    // Somebody who has been good to them is not charged at all, and is told so.
-    const hurt = state.maxHpTotal - state.hp;
-    talkCtx.mending = hurt <= 0 ? undefined : {
-      price: welcome?.kind === 'mend' ? 0 : Math.max(4, Math.round(hurt * DOCTOR.A_HEART)),
-      hearts: hurt,
-      hours: DOCTOR.WAITING,
-      take: (paid: boolean) => {
-        if (paid) state.inventory.gold -= talkCtx.mending!.price;
-        state.hp = state.maxHpTotal;
-        state.version++;
-        if (!paid) {
-          // the hours are real: the world moves on while you sit in the corridor
-          state.time += DOCTOR.WAITING / 24;
-          while (state.time >= 1) { state.time -= 1; state.day++; }
-          register.advance(state.day);
-        }
-        persist();
-        sound.chime();
-        return paid
-          ? 'Stitched, bound and sent on your way inside the hour.'
-          : `You sit in the corner until somebody has time for you. It is ${state.clock().split('·')[1].trim()} by the time you are out, and you are whole again.`;
-      },
-    };
-    // a bed for the night, and in a shared world the night that cannot be skipped
-    talkCtx.room = {
-      price: bed,
-      shared: online.connected,
-      take: () => {
-        state.inventory.gold -= bed;
-        if (online.connected) {
-          // the clock belongs to the world here, so the night passes for everybody or nobody
-          state.hp = state.maxHpTotal;
-          state.version++;
-          persist();
-          sound.chime();
-          return 'You sleep a few hours behind a locked door and wake with your strength back. Outside, the night is still going.';
-        }
-        state.rest();
-        persist();
-        sound.chime();
-        return 'You sleep soundly and wake at dawn, fully rested.';
-      },
-    };
-    // the post shelf only exists in a shared world, and only knows the names that world has seen
-    talkCtx.post = online.connected ? {
-      folk: online.folk,
-      collect: () => online.fetchMail(),
-      send: (to: string, itemId: string, gold: number) => {
-        handover.offer(state, itemId, gold);
-        online.postMail(to, gold, [[itemId, 1]]);
-        persist();
-      },
-    } : undefined;
-    e.yaw = yawFor(player.x - e.x, player.z - e.z);
-    e.state = 'idle';
-    e.timer = 1e9;
-    dialogue.start(dialogueFor(e, talkCtx), () => { e.timer = 1; });
-  };
+    flash: (message) => hud.flash(message),
+  });
+  heroFace();                                 // the face on the right of every conversation
 
-
-
-
-
-  // --- keys ---
   // packs left where people fell, and the bundles that show them
   const remains = new Remains();
   const packField = new PackField(rig.scene);
 
-  /**
-   * A constable has caught up with you.
-   *
-   * The sentence is served rather than skipped: the clock is wound forward, which means the world
-   * moves on without you, villagers age and the market changes while you are inside. That is the
-   * cost of being wanted, and it is more of a punishment than any number would be.
-   */
-  /**
-   * What is underfoot, for deciding how fast a mount travels over it.
-   *
-   * Sampled when the hero crosses into a new tile rather than every frame: the going cannot change
-   * without the tile changing, and terrain sampling is not free.
-   */
-  let goingTile = '';
-  let going: Going = 'open';
-  const goingUnderfoot = (): Going => {
-    const tx = Math.floor(player.x), tz = Math.floor(player.z);
-    const key = `${tx},${tz}`;
-    if (key === goingTile) return going;
-    goingTile = key;
-    const tile = sampler.newSample();
-    sampler.sampleTile(tx, tz, tile);
-    going = goingOf(tile);
-    return going;
-  };
-
-  /**
-   * Somebody's animal has been killed for the meat, and the village it belonged to finds out.
-   *
-   * The village nearest where it fell is the one that owns it, which is not a rule so much as an
-   * observation: a cow does not wander far. Word travels because a village here is twenty people
-   * who carry each other's news, so it lands in the memories of whoever is alive to hold it, and
-   * they will say so when you next stop to talk.
-   */
-  const rustled = (beast: Entity): string => {
-    const near = structures.villages.reduce((best, v) =>
-      Math.hypot(v.x - beast.x, v.z - beast.z) < Math.hypot(best.x - beast.x, best.z - beast.z) ? v : best);
-    grudges.slighted(near.name, state.day);
-    for (const person of [...register.living(near.name)].slice(0, GRUDGE.WORD_REACHES)) {
-      remember(person, { what: 'robbed', who: `${beast.kind.label} of ${near.name}`, day: state.day });
-    }
-    persist();
-    return saidOfRegard(grudges.regard(near.name, state.day), near.name);
-  };
-
-  /**
-   * A constable has caught up with you, and now there is somewhere to put you.
-   *
-   * The sentence is served rather than skipped: the clock is wound forward, so the world moves on
-   * without you, villagers age and the market changes while you are inside. That is more of a
-   * punishment than any number would be. Where no station will take you the old arrangement
-   * stands and you lose the hours in the square.
-   */
-  const arrested = (by: Entity): void => {
-    const hours = standing.sentence();
-    standing.served();
-    state.standing = standing.value;
-    const held = jail.take(structures.villages, by.x, by.z, 'you', hours, clockAt(state), state.day, state.inventory.gold);
-    windOn(state, hours);
-    register.advance(state.day);            // the village grew older while you were not watching
-    // your own hours are served the moment the clock jumps, so the cell is empty behind you
-    if (held) { state.inventory.gold -= held.fine; jail.release(held.village); }
-    const cell = held ? [held.x, held.z] : (by.posts.square ?? [by.x, by.z]);
-    player.teleport(cell[0], cell[1]);
-    iso.target.set(cell[0], 0.5, cell[1]);
-    state.version++;
-    hud.flash(held
-      ? `${by.name} takes you in. ${toldOnWaking(held)}`
-      : `${by.name} takes you in. You come round in the square ${Math.round(hours)} hours later.`);
-    sound.thud();
-    persist();
-  };
-
-  /**
-   * Somebody has been killed by something. They leave what they had where they fell, and if it
-   * happened within sight you are told, because a scream in the middle distance is the point.
-   */
-  const fallen = (who: Entity): void => {
-    // a hired man dies like any other villager: all that ends here is what he was owed
-    const bargain = who.person !== '' ? hireFallen(who.person) : null;
-    // a band is broken by killing enough of it, and stays broken: the ledger is the only thing
-    // about a band that is not derivable from the seed, so it is the only thing that travels
-    const band = bandsOut.get(who.herd.tag);
-    if (band) {
-      roaming.felled(band, who.rosterIndex, state.day);
-      if (roaming.isBroken(band)) {
-        entities.despawnPack(band.id);
-        bandsOut.delete(band.id);
-        hud.flash('The rest of them scatter.');
-      }
-    }
-    // a villager killed by something is off the register for good, and the people who knew them
-    // are the only record of it left
-    if (who.person !== '') {
-      const death = register.bury(who.person, state.day);
-      if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
-    }
-    // what he leaves is a soldier's pack: being in your pay was an arrangement, not a trade
-    const trade = who.trade === HIRE.TREE ? HIRE.TRADE : who.trade;
-    remains.leave(who.name, trade, who.x, who.z, who.purse, who.carrying?.id ?? null, seed ^ Math.floor(who.x * 131 + who.z * 977));
-    if (Math.hypot(who.x - player.x, who.z - player.z) < GAMEPLAY.POI_DISCOVER_RADIUS * 6) {
-      hud.flash(`${who.name} was killed. Their pack is where they fell.`);
-      sound.thud();
-    }
-    if (bargain) hud.flash(`${bargain.name}, who you hired, is dead.`);
-  };
-
-  // the crags with eagles on them: one pair per range big enough to be worth flying over, each
-  // perch shuffled round the shoulder until it stands on ground somebody can actually reach
-  const eyries = planEyries(seed, highPlaces, (x, z) => sampler.probe(x, z).land);
-
-  // --- the villages in the clouds ---
-  // Additional geometry over the world's islands, not a replacement for any of it: the chunks
-  // below are generated and drawn exactly as they were, and the sky islands go into the same
-  // outdoor scene on top of them, so standing at a rim and looking down shows the real country.
-  const skyIsles = planSkyIslands(seed, graph.islands, highPlaces, (x, z) => sampler.probe(x, z).land).map((site) =>
-    buildSkyIsland(
-      site,
-      manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over).seed,
-      (x, z) => sampler.probe(x, z).land,
-    ));
-  const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial);
-  skyRenderer.useSeasonTint(seasonTintMaterials);
-  const groundSample = sampler.newSample();
-  for (const isle of skyIsles) {
-    skyRenderer.add(isle, (x, z) => {
-      // where the fall lands. Taken from the sampler rather than from a loaded chunk because the
-      // island is built before anything has streamed in, and a plume that stops at zero when the
-      // ground under it is four terraces up hangs in the air with a gap under it.
-      sampler.sampleTile(Math.floor(x), Math.floor(z), groundSample);
-      return groundSample.type === TileType.Skip || groundSample.type === TileType.Seabed
-        ? WORLD.WATER_Y : groundSample.height;
-    });
-  }
+  // and what the country does about what the hero just did: a village that has heard about its
+  // cow, a cell with your name on it, a pack on the ground where somebody fell
+  const { rustled, arrested, fallen } = createConsequences({
+    seed, state, player, iso, structures, register, grudges, standing, jail, online, remains,
+    sound, persist,
+    flash: (message) => hud.flash(message),
+    oneFell: (who) => watch.oneFell(who),
+    hireFallen: (person) => hireFallen(person),
+  });
   const skies = new Skies({
     player, iso, ground: chunks,
     flash: (message) => hud.flash(message),
@@ -963,7 +471,7 @@ function startGame(
     gifts, hires, standing, rescues, nemesis,
     callOut: (to) => multiplayer.callOut(to),
     dialogue, hud, chat, sound,
-    raining: () => raining, discover, persist, startTalk, questLine,
+    raining: () => frames.raining(), discover, persist, startTalk, questLine,
     told: (delta) => online.report(delta),
   });
   const { atHand: talkNearest, offerTrade, partyMenu, noticeStall, takeShare, musterHires, hireFallen, hireMenu, tryGive } = interactions;
@@ -983,1170 +491,108 @@ function startGame(
   });
   putOfferToPlayer = interactions.showOffer;
 
-  input.onKey('k', () => { if (!dialogue.isOpen && !chat.isTyping) partyMenu(); });
-  input.onKey('l', () => {
-    if (dialogue.isOpen || chat.isTyping) return;
-    if (!online.connected) { hud.flash('Join a world online to see who else is about.'); return; }
-    playerList.toggle(multiplayer.playerListInput);
+  // whose world this is: the one in the next thread until somebody asks for another
+  joinAWorld({
+    seed, state, online, url,
+    forgetOthers: () => others.clear(),
+    showChat: () => chat.show(),
+    hideChat: () => chat.hide(),
+    flash: (message) => hud.flash(message),
   });
-  input.onKey('r', () => {
-    if (dialogue.isOpen || chat.isTyping) return;
-    if (!online.connected) { hud.flash('Join a world online to rally anybody.'); return; }
-    online.ping(player.x, player.z);
-    rally.push({ x: player.x, z: player.z, name: 'your', left: PING_LIFE });
-    hud.flash(party.size ? 'Rally point marked for your party' : 'Rally point marked for everyone here');
-  });
-  input.onKey('o', () => hud.toggleOptions());
-  input.onKey('f', () => { player.mode = player.mode === 'follow' ? 'free' : 'follow'; });
-  const serverInput = $('serverInput') as HTMLInputElement;
-  const nameInput = $('nameInput') as HTMLInputElement;
-  const onlineStatus = $('onlineStatus');
-  nameInput.value = localStorage.getItem('ai.world/name') ?? '';
-  serverInput.value = defaultServer(url);
   /**
-   * Play alone, against the world in the next thread.
-   *
-   * The simulation runs in a Web Worker beside the page: the same clock, the same market, the same
-   * post shelf and the same code a shared world runs, with one player in it. Started at boot rather
-   * than waiting for somebody to press connect, because a game whose world only exists once you ask
-   * for it is a game with two ways of working — which is the whole thing this is here to stop.
-   *
-   * Joining a real server disconnects this first, and leaving one comes back to it.
-   */
-  const playAlone = (): void => {
-    if (online.connected || online.status === 'connecting') return;
-    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
-  };
-  playAlone();
-  $('connectButton').addEventListener('click', () => {
-    // Leaving a server goes back to the world in this tab rather than to no world at all: the game
-    // is always played against a simulation now, and the only question is whose.
-    if (online.connected) { online.disconnect(); others.clear(); chat.hide(); playAlone(); return; }
-    // An empty address is the world in the next thread: the same simulation the server runs, in a
-    // Web Worker beside the page. Playing alone is playing against the server, which is what stops
-    // single player being a second implementation. See docs/server-authority.md.
-    const address = serverInput.value.trim();
-    localStorage.setItem('ai.world/name', nameInput.value);
-    localStorage.setItem('ai.world/server', address);
-    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
-    chat.show();
-  });
-
-  /**
-   * An invite is this world and this server in one link, because "come and play in mine" should
-   * not mean reading a seed and an address down the phone. The page already reads both back out
-   * of the query string on arrival, so whoever opens it lands in the same world on the same
-   * server without touching the options at all.
-   */
-  $('inviteButton').addEventListener('click', () => {
-    const invite = new URL(window.location.href);
-    invite.search = '';                       // drop wherever the sender happens to be standing
-    invite.hash = '';
-    invite.searchParams.set('seed', String(seed));
-    const address = serverInput.value.trim();
-    if (address) invite.searchParams.set('server', address);
-    // a page served over https cannot open a plain ws:// socket, so an invite carrying one is a
-    // dead link for everybody who follows it from the published site
-    const blocked = window.location.protocol === 'https:' && address.startsWith('ws://');
-    void navigator.clipboard.writeText(invite.href)
-      .then(() => hud.flash(blocked ? 'Link copied, but a ws:// address will not open from an https page — use wss://' : 'Invite link copied'))
-      .catch(() => window.prompt('Copy this invite link', invite.href));
-  });
-
-  input.onKey('t', () => { if (online.connected && !dialogue.isOpen && !chat.isTyping) chat.open(); });
-  // the same gesture either way: hand something over. A villager takes precedence because they
-  // are the one standing in front of you; a player offer is what it falls back to.
-  input.onKey('g', () => { if (!dialogue.isOpen && !chat.isTyping && !tryGive()) offerTrade(); });
-  input.onKey('y', () => { if (!dialogue.isOpen && !chat.isTyping) hireMenu(); });
-
-  input.onKey('p', () => {
-    const on = photo.toggle();
-    player.mode = on ? 'free' : 'follow';
-    if (!on) hud.flash('Photo mode off');
-  });
-  input.onKey('m', () => {
-    worldMap.dungeon = places.underground?.map ?? null;
-    worldMap.toggle(mapInput());
-  });
-  input.onKey('c', () => { if (worldMap.isOpen) worldMap.centre(player.x, player.z); });
-  input.onKey('+', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
-  input.onKey('=', () => { if (worldMap.isOpen) worldMap.zoomBy(1.25); });
-  input.onKey('-', () => { if (worldMap.isOpen) worldMap.zoomBy(0.8); });
-  /** Which houses were standing when the world was last told what to walk into. */
-  let wallsBuilt = '';
-  let swingCooldown = 0;
-  /** A hired man is re-marked now and then, because the world streams him out and back. */
-  let musterIn = 0;
-  const attack = () => {
-    if (dialogue.isOpen || swingCooldown > 0) return;
-    swingCooldown = COMBAT.COOLDOWN;
-    player.entity.attackCooldown = 0.45;
-    // what the hero throws: a blade is swung, and a bare hand alternates fist and boot so a
-    // flurry is not the same arm four times
-    const held = state.worn('hand');
-    const blow: Blow = held && (held.attack ?? 0) > 0
-      ? 'swing'
-      : (player.entity.offhandBlow ? 'kick' : 'punch');
-    throwBlow(player.entity, blow);
-    // a swing costs breath whether or not it finds anything, which is what makes swinging at air
-    // a decision rather than a free action
-    const might = breath.swing();
-    if (might < 1) hud.flash('You are swinging on empty.');
-    /**
-     * What this particular swing is worth, breath and all.
-     *
-     * Creatures get this through `swing()`, which scales the damage itself. Another player is hit
-     * through the duel and warband paths instead, and those were reading `state.attack` straight —
-     * so against a person you paid the breath and still swung at full strength, and the rule that
-     * a flurry has an end quietly did not apply to the only opponent who could notice.
-     *
-     * Both the local prediction and the number that goes on the wire use this, so the two sides of
-     * a bout never disagree about how hard you hit.
-     */
-    const landed = Math.max(1, Math.round(state.attack * might));
-
-    const world = places.underground?.world ?? chunks;
-    const manager = places.underground?.monsters ?? entities;
-    if (duel.active) {
-      const them = online.players.get(duel.opponent);
-      if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
-        duel.landed(landed);
-        online.duelHit(landed);
-        sound.thud();
-        return;
-      }
-    }
-    // a fight with sides lands the same way, except that whatever they have paid for is in front
-    // of them and takes it first
-    if (warband.active && warband.mayStrike(online.id, warband.opponent, hires)) {
-      const them = online.players.get(warband.opponent);
-      if (them && duel.inReach(them, player.x, player.z, player.entity.yaw, COMBAT.ARC)) {
-        warband.landed({ damage: landed, sword: false });
-        online.warbandHit(landed, false);
-        sound.thud();
-        return;
-      }
-    }
-    // Old Nettle is beaten rather than killed: the blow that would finish him raises the choice
-    // instead, which is the whole design. He must never reach nought.
-    const cornered = entities.within(player.x, player.z, COMBAT.RANGE)
-      // against the blow actually being thrown, not against a full-strength one: a winded swing
-      // must not trigger the scene where he goes down, because it would not have put him there
-      .some((e) => e.kind.id === 'nettle' && !e.dead && e.hp <= landed);
-    if (cornered && interactions.heWentDown()) { sound.thud(); return; }
-
-    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, true, standing, null, might);
-    // the ledger moves on every deed, not only on the ones that change what people call you
-    state.standing = standing.value;
-    // and out of doors the world throws the blow itself: we say how hard and how far, it says what
-    // was in the arc. What is drawn above is the guess that keeps a hit feeling like one.
-    const field = battlefield();
-    if (field) online.swing(field, Math.max(1, Math.round(state.attack * might)), COMBAT.RANGE, COMBAT.ARC);
-    if (res.hit.length === 0) {
-      sound.miss();
-      // a blade that finds nothing where something plainly stands has to say why, or the rule
-      // that a sword is no answer to a wight reads as a broken game rather than as the point
-      // a swing that finds nothing where something plainly stands has to say why, or a rule
-      // reads as a broken game. Two rules look the same from behind a sword and are not.
-      const near = entities.within(player.x, player.z, COMBAT.RANGE);
-      if (near.some((e) => !canBeCut(e.kind))) hud.flash('Your blade passes through it.');
-      else if (near.some((e) => !e.kind.hp && !PEOPLE_KINDS.has(e.kind.id))) {
-        hud.flash('It is somebody\'s livestock. You have no quarrel with it.');
-      }
-      return;
-    }
-    sound.hit(madeOf(res.hit[0]));
-    director.saw('fight');
-    // swinging at things teaches you to swing at things: practice, weighted by what you swung at
-    for (const e of res.hit) {
-      const grew = state.practised(e.kind.dangerous ?? 0, res.killed.includes(e));
-      if (grew) hud.flash(grew);
-    }
-    if (res.killed.length > 0) {
-      sound.voice(heftOf(res.killed[0]), true);
-      // what lived in the workings is what made them dangerous, so killing it is the one thing a
-      // player can do that moves a village's whole economy
-      reportCleared(fightingInAMine(), res.killed.length);
-      const rustling: string[] = [];
-      for (const e of res.killed) {
-        interactions.fell(e.kind.id, e.x, e.z);
-        interactions.troubleKilled(e.kind.id, e.x, e.z);
-        if (e.kind.owned === true) rustling.push(rustled(e));
-      }
-      const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
-      const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
-      hud.flash(won.length ? `Defeated ${names} (+${won.join(', ')})` : `Defeated ${names}`);
-      // said after the kill, because what the village now thinks of you outlasts the meat
-      if (rustling.length > 0) hud.flash(rustling[rustling.length - 1]);
-      persist();
-    }
-    // said last so it is the line left on the screen: crossing into a worse standing is the more
-    // important of the two things that just happened
-    if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
-  };
-  let drawCooldown = 0;
-  /**
-   * Loose an arrow. A shot reaches things a swing cannot, because it measures its range as a
-   * slant rather than along the ground: an eagle nine tiles up is nine tiles away to a bow and
-   * out of the world to a sword.
-   */
-  const loose = (): void => {
-    if (dialogue.isOpen || drawCooldown > 0) return;
-    if (!canShoot(state)) {
-      hud.flash(bowInHand(state) ? 'Your quiver is empty.' : 'You need a bow in your hand for that.');
-      return;
-    }
-    drawCooldown = BOW.COOLDOWN;
-    player.entity.attackCooldown = BOW.COOLDOWN;
-    const world = places.underground?.world ?? chunks;
-    const manager = places.underground?.monsters ?? entities;
-    const res = shoot(state, manager, world, player.x, player.z, player.entity.yaw, seed, true, standing);
-    state.standing = standing.value;
-    // an arrow is one arrow, so the world takes the first thing it would reach rather than the arc
-    const field = battlefield();
-    if (field) online.swing(field, state.attack, BOW.RANGE, BOW.ARC, true);
-    if (res.hit.length === 0) { sound.select(); hud.flash(`Missed. ${quiver(state)} arrows left.`); return; }
-    sound.thud();
-    if (res.killed.length > 0) {
-      sound.chime();
-      // what lived in the workings is what made them dangerous, so killing it is the one thing a
-      // player can do that moves a village's whole economy
-      reportCleared(fightingInAMine(), res.killed.length);
-      const rustling: string[] = [];
-      for (const e of res.killed) {
-        interactions.fell(e.kind.id, e.x, e.z);
-        interactions.troubleKilled(e.kind.id, e.x, e.z);
-        if (e.kind.owned === true) rustling.push(rustled(e));
-      }
-      const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
-      const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
-      hud.flash(won.length ? `Shot ${names} (+${won.join(', ')})` : `Shot ${names}`);
-      if (rustling.length > 0) hud.flash(rustling[rustling.length - 1]);
-      persist();
-    }
-    if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
-  };
-
-  /** Say a spell, and put whatever came of it on the screen. */
-  const conjure = (id: SpellId): void => {
-    if (dialogue.isOpen || chat.isTyping) return;
-    const cast = magic.cast(id, state);
-    hud.flash(cast.words);
-    if (!cast.spell) { sound.select(); return; }
-    sound.chime();
-    if (!cast.blow) return;
-    // a spell that strikes is a swing with a longer arm: same arc, same loot, same ledger, so
-    // nothing about killing a thing depends on what killed it
-    const world = places.underground?.world ?? chunks;
-    const manager = places.underground?.monsters ?? entities;
-    const res = swing(state, manager, world, player.x, player.z, player.entity.yaw, seed, true, standing, cast.blow);
-    state.standing = standing.value;
-    // a spell is a swing with a longer arm, and it reaches the world's creatures the same way
-    const field = battlefield();
-    if (field) online.swing(field, cast.blow.damage, cast.blow.range, COMBAT.ARC);
-    if (res.killed.length > 0) {
-      // what lived in the workings is what made them dangerous, so killing it is the one thing a
-      // player can do that moves a village's whole economy
-      reportCleared(fightingInAMine(), res.killed.length);
-      const rustling: string[] = [];
-      for (const e of res.killed) {
-        interactions.fell(e.kind.id, e.x, e.z);
-        interactions.troubleKilled(e.kind.id, e.x, e.z);
-        if (e.kind.owned === true) rustling.push(rustled(e));
-      }
-      hud.flash(`Withered ${res.killed.map((e: Entity) => e.kind.label).join(', ')}`);
-      if (rustling.length > 0) hud.flash(rustling[rustling.length - 1]);
-      persist();
-    }
-    if (res.gold > 0) takeShare(res.gold);
-    if (res.regard) { hud.flash(`You are ${res.regard}.`); persist(); }
-  };
-
-  input.onKey('x', attack);
-  // q and e are held down to turn the camera, so no spell may live on them
-  input.onKey('z', loose);
-  input.onKey('b', () => conjure('ward'));
-  input.onKey('h', () => conjure('blight'));
-  input.onKey('u', () => conjure('light'));
-  input.onKey('v', () => conjure('draught'));
-  input.onKey('n', toTitle);
-  // Escape leaves whatever you are in, and nothing more. It closes the console too, but that is
-  // handled by the input box, which has the keyboard while the console is up.
-  input.onKey('escape', () => { hud.closeOptions(); dialogue.close(); journal.close(); rucksack.close(); worldMap.close(); playerList.close(); });
-  input.onKey('j', () => { if (!dialogue.isOpen) journal.toggle(journalInput); });
-  input.onKey('i', () => { if (!dialogue.isOpen) rucksack.toggle(); });
-  // The console lives on the key it has been on since Quake: one row under Escape, and spare in
-  // every other game. Both of the characters that live on it, because a keyboard laid out for
-  // another country puts the other one under the same thumb.
-  //
-  // Having its own key is what leaves everything else alone: Enter and Space still talk, open and
-  // board, and Escape still means nothing but "leave what I am in".
-  for (const key of ['`', '~']) input.onKey(key, () => {
-    if (dialogue.isOpen || photo.active || worldMap.isOpen) return;
-    chat.toggleConsole();
-  });
-  for (const key of ['enter', ' ']) input.onKey(key, () => {
-    if (chat.isTyping) return;
-    if (photo.active) {
-      // draw one more frame so the buffer holds exactly what is on screen, then read it back
-      rig.renderer.render(rig.scene, iso.camera);
-      const name = photo.save(rig.renderer.domElement, seed);
-      sound.chime();
-      window.setTimeout(() => hud.flash(`Saved ${name}`), 50);
-      return;
-    }
-    if (dialogue.isOpen) dialogue.advance(); else talkNearest();
-  });
-  for (const key of ['arrowup', 'w']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(-1); });
-  for (const key of ['arrowdown', 's']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.move(1); });
-  // left and right change the highlighted row rather than leaving it: how many of a thing you mean
-  // to sell, on a menu that offers a number. Rows without one simply ignore it.
-  for (const key of ['arrowleft', 'a']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.nudge(-1); });
-  for (const key of ['arrowright', 'd']) input.onKey(key, () => { if (dialogue.isOpen) dialogue.nudge(1); });
-  window.addEventListener('resize', () => { rig.resize(); iso.resize(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
-
-  /** Seconds left of the moment after a blow in which nothing else can land on the hero. */
-  let reeling = 0;
-
-  /** What a blow on this creature sounds like: bone rattles, armour rings, everything else gives. */
-  const madeOf = (e: Entity): 'flesh' | 'bone' | 'plate' => {
-    const id = e.kind.id;
-    if (id === 'skeleton' || id === 'wight') return 'bone';
-    if (id === 'nettle' || e.trade === 'constable') return 'plate';
-    return 'flesh';
-  };
-
-  /** Roughly how big a thing is against a person, which is what pitches its voice. */
-  const heftOf = (e: Entity): number => e.kind.scale * (e.kind.hp ? 1 : 0.7);
-
-  /**
-   * How much water is within earshot, and how far the loudest of it is falling.
-   *
-   * Felt outward in a ring rather than kept as a field: what matters is only whether there is
-   * water near enough to hear and whether it is dropping, and a couple of dozen lookups a frame
-   * is cheaper than maintaining anything. The drop is measured between neighbouring surfaces,
-   * which is the same thing the mesher uses to decide it is drawing a waterfall.
-   */
-  const WATER_EARSHOT = 22;
-  const listenForWater = (): void => {
-    let nearest = Infinity;
-    let loudest = 0;
-    for (let r = 2; r <= WATER_EARSHOT; r += 4) {
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2;
-        const x = player.x + Math.cos(a) * r, z = player.z + Math.sin(a) * r;
-        const here = chunks.waterAt(x, z);
-        if (here === null) continue;
-        if (r < nearest) nearest = r;
-        // the fall beside it, if any: how far this surface stands above the next one along
-        const there = chunks.waterAt(x + Math.cos(a) * 2, z + Math.sin(a) * 2);
-        if (there !== null) loudest = Math.max(loudest, Math.abs(here - there));
-      }
-    }
-    const nearness = nearest === Infinity ? 0 : 1 - Math.min(1, nearest / WATER_EARSHOT);
-    heard = { nearness, drop: loudest };
-    sound.setWater(nearness, loudest);
-  };
-  /** What the water listener last worked out, for the debug hook and for nothing else. */
-  let heard = { nearness: 0, drop: 0 };
-
-  /**
-   * Running out of hearts, wherever it happened and whatever did it.
-   *
-   * Every source of damage ends here, which is the point of it being one function: a blow that
-   * empties the hearts and then returns to whatever called it leaves the hero conscious at nought,
-   * with no death, no waking up and nothing on screen — which is how the whale used to sink you.
-   *
-   * It stops the world with a dialogue rather than a flash. Losing a fight is a thing that
-   * happened to you, and three seconds of text at the top of the screen is not enough to tell
-   * somebody why they are suddenly standing in a village they have never seen.
-   */
-  const knockOut = (cause: string) => {
-    const below = places.underground !== null;
-    const den = below ? places.underground!.poi.name : '';
-    if (below) places.exitDungeon();
-    else if (sailing.sailing) sailing.abandon();   // whatever happened at sea, you are not at sea now
-
-    const woke = carriedTo(structures.villages, player.x, player.z);
-    const lost = costOf(state.inventory.gold, GAMEPLAY.KO_GOLD_LOSS);
-    state.inventory.gold -= lost;
-    state.hp = state.maxHpTotal;
-    breath.refill();
-    state.version++;
-    // underground you are left at the mouth of the place you went into; above ground somebody
-    // carries you home. Either way you are somewhere you can walk away from.
-    if (!below && woke) player.teleport(woke.x + 2, woke.z + 2);
-
-    const pages = saidOfKnockout(cause, woke, lost, below);
-    if (below && den) pages[1] = `Somebody dragged you up out of the ${den} and left you at the mouth of it. You are alive.`;
-    sound.thud();
-    dialogue.start({ speaker: 'Knocked out', emoji: '💫', pages, choices: [{ label: 'Get up', next: () => null }] });
-    persist();
-  };
-
-  /**
-   * Say a blow out loud at the moment it is thrown, rather than when it arrives.
-   *
-   * The voice used to sound on the hit, which is the report of damage already taken — no use to
-   * anybody. The wind-up is a warning only if it can be perceived, and the animation is worth
-   * nothing at all for something standing behind you, which is precisely the case a warning is
-   * worth most. A growl at your back is now something you can turn and answer.
-   *
-   * Only for things close enough to matter, so a wood full of distant wolves is not a racket.
-   */
-  const HEARD_WINDING = 14;
-  const announceWindUps = (crowd: readonly Entity[]) => {
-    for (const e of crowd) {
-      if (e.winding <= 0) { e.warned = false; continue; }
-      if (e.warned || e.dead) continue;
-      e.warned = true;
-      sound.voice(heftOf(e));
-    }
-  };
-
-  /**
-   * Killing something in a mine, told to anybody else playing in this world.
-   *
-   * The running total goes on the wire rather than the handful just killed: the delta log keeps one
-   * entry per mine and a later one replaces the earlier, so an increment would be swallowed. A
-   * total survives that, arrives in any order, and can be applied twice without counting twice.
-   */
-  const reportCleared = (id: string | null, many: number) => {
-    mines.slain(id, many);
-    if (id) online.report({ kind: 'cleared', mine: id, many: mines.clearedIn(id) });
-  };
-
-  const onAttack = (attacker: Entity, dmg: number) => {
-    if (dialogue.isOpen) return;
-    // Nothing on the ground reaches somebody standing on a sky island. Every distance in this game
-    // is measured in x and z with no height in it — which is right for a world that is one
-    // heightfield, and wrong for the one place where two pieces of ground share the same
-    // coordinates — so without this a wolf on the island below walks to the square underneath the
-    // village in the clouds and bites whoever is up in it. The pack is still simulated, because
-    // the island below is meant to be alive when you look down at it; it simply cannot land a blow
-    // on somebody a hundred feet over its head.
-    if (skies.aloft) return;
-    // A blow buys you a moment. Without it a swarm lands every one of its hits in the same
-    // instant and a full-health hero dies before the screen has finished flashing, which is
-    // not a fight, it is an announcement.
-    if (reeling > 0) return;
-
-    /**
-     * The arm goes up, or it does not. A guard raised in the fraction of a second after the thing
-     * in front of you commits turns the blow aside completely and leaves whoever threw it
-     * flat-footed; one that has been held since before the swing started only takes the edge off.
-     * Holding the key down deliberately gets you the worse of the two.
-     */
-    const answered = breath.answer(
-      true,
-      // and only if it is coming at a side of you the arm is on. Being hit turns you to face the
-      // thing, so a second blow from the same quarter is one you can answer — an ambush costs you
-      // the first and no more.
-      guardCovers(player.entity.yaw, attacker.x - player.x, attacker.z - player.z),
-    );
-    if (answered === 'parried') {
-      // it went past you, and it is now standing there with its weight in the wrong place
-      attacker.hurt = BREATH.STAGGER;
-      attacker.attackCooldown = BREATH.STAGGER;
-      attacker.winding = 0;
-      const px = attacker.x - player.x, pz = attacker.z - player.z;
-      const gap = Math.hypot(px, pz) || 1;
-      attacker.x += (px / gap) * BEHAVIOUR.KNOCKBACK;
-      attacker.z += (pz / gap) * BEHAVIOUR.KNOCKBACK;
-      // no shape of its own: the arm comes across, which is what a deflection looks like anyway
-      throwBlow(player.entity, 'swing');
-      sound.chime();
-      hud.flash('Parried.');
-      director.saw('fight');
-      return;
-    }
-    const taken = Breath.after(answered, dmg);
-    if (answered === 'blocked') { sound.thud(); hud.flash('Blocked.'); }
-
-    reeling = GAMEPLAY.REELING;
-
-    // and it knocks you back, which is the space you get to react in
-    const dx = player.x - attacker.x, dz = player.z - attacker.z;
-    const len = Math.hypot(dx, dz) || 1;
-    player.shove((dx / len) * GAMEPLAY.KNOCKED_BACK, (dz / len) * GAMEPLAY.KNOCKED_BACK);
-    // and it turns you to face whatever did it. A swing only covers the arc in front of you, so
-    // being bitten from behind used to leave you hitting air with no idea which way to look;
-    // wheeling round on the thing is what a person does anyway, and it is now the difference
-    // between answering an ambush and standing in one.
-    player.entity.yaw = yawFor(attacker.x - player.x, attacker.z - player.z);
-    throwBlow(player.entity, player.entity.blow);   // the hero flinches with everything else
-    player.entity.hurt = BEHAVIOUR.HURT_TIME;
-
-    hud.hurt();
-    sound.thud();
-    if (sailing.sailing && !sailing.overboard && attacker.kind.behaviour === 'circle') {
-      // it came up under the hull: over the side, and now you are in the water with it
-      sailing.throwOverboard();
-      sound.splash();
-      hud.flash(`${attacker.kind.label} hits the boat. You are in the water.`);
-    }
-    if (!struck(state, taken, magic.ward)) return;
-    knockOut(attacker.kind.label);
-  };
-
-
-
-  let areaLabel = 'The Crossroads';
-
-
-
-
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  /** Where the mountains are told the hero is: his feet plus enough to be his middle. */
-  const heroSpot = new THREE.Vector3();
-  let frames = 0, fpsAccum = 0, fps = 0, saveTimer = 0, weatherStrength = 0, raining = false;
-
-  /**
-   * The docks, named after the villages they serve.
-   *
-   * `isle:226,-130 dock` is an id with a word after it, not a name. The nearest village is what a
-   * person would say, and where two docks share one, they are told apart by a number rather than
-   * by their coordinates.
-   */
-  const dockNames = (): Array<{ name: string; kind: string; x: number; z: number }> => {
-    const used = new Map<string, number>();
-    return structures.piers.map((pier) => {
-      const x = pier.tiles[0]?.[0] ?? pier.dockX;
-      const z = pier.tiles[0]?.[1] ?? pier.dockZ;
-      const near = structures.villages
-        .map((v) => ({ v, away: Math.hypot(v.x - x, v.z - z) }))
-        .sort((a, b) => a.away - b.away)[0];
-      const base = near ? `${near.v.name} dock` : 'dock';
-      const seen = (used.get(base) ?? 0) + 1;
-      used.set(base, seen);
-      return { name: seen > 1 ? `${base} ${seen}` : base, kind: 'dock', x, z };
-    });
-  };
-
-  /**
-   * Everywhere in this world with a name on it: the villages, and whatever the map has a word for.
-   *
-   * Sorted so the answer is stable between two runs of the same seed, which matters because it is
-   * read by people and by scripts alike, and a list that shuffles is a list nobody can diff.
-   */
-  const namedPlaces = (like?: string): Array<{ name: string; kind: string; country: string; x: number; z: number }> => {
-    const described = ([
-      ...structures.villages.map((v) => ({ name: v.name, kind: 'village', x: v.x, z: v.z })),
-      ...structures.pois.map((p) => ({ name: p.name, kind: placeKindName(p.kind), x: p.x, z: p.z })),
-      ...structures.caves.map((c) => ({ name: c.name, kind: 'cave', x: c.x, z: c.z })),
-      ...structures.wrecks.map((wk) => ({ name: wk.name, kind: 'wreck', x: wk.x, z: wk.z })),
-      // A pier has no name of its own — it is the dock of whatever it reaches, and what it reaches
-      // is an island known by its coordinates. So it is named for the village nearest it, which is
-      // how anybody standing on one would describe it, and numbered when a village has two.
-      ...dockNames(),
-      ...eyries.map((e) => ({ name: e.name, kind: 'eyrie', x: e.x, z: e.z })),
-      ...skyIsles.map((isle) => ({ name: isle.name, kind: 'sky island', x: isle.crag.x, z: isle.crag.z })),
-    ] as Array<{ name: string; kind: string; x: number; z: number }>)
-      // what country each one stands in, which is the thing a broad search is really asking about:
-      // "the places in the mountains" is a question about the ground, not about their names
-      .map((place) => ({ ...place, biome: sampler.biomeOf(place.x, place.z) }))
-      .map((place) => ({ ...place, country: BIOMES[place.biome].name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    if (!like) return described;
-    const wanted = like.trim().toLowerCase();
-    /** The places that are of the sea rather than on the land, whatever the ground behind them is. */
-    const coastal = (kind: string): boolean => kind === 'dock' || kind === 'wreck' || kind === 'pier';
-    const atSea = ['sea', 'ocean', 'coast', 'shore', 'water'].some((word) => word.startsWith(wanted) || wanted.startsWith(word));
-    return described.filter((place) =>
-      place.name.toLowerCase().includes(wanted)
-      || place.kind.includes(wanted)
-      || biomeAnswersTo(place.biome, wanted)
-      || (atSea && coastal(place.kind)));
-  };
-
-  /**
-   * The place somebody meant. An exact name wins, then one that starts with what was typed, then
-   * one that merely contains it — so `teleport silver` finds Silverholm without `teleport
-   * silverholm` ever being ambiguous.
-   */
-  const namedPlace = (like: string): { name: string; kind: string; x: number; z: number } | null => {
-    const wanted = like.trim().toLowerCase();
-    const all = namedPlaces();
-    const nearestOfKind = all
-      .filter((p) => p.kind.includes(wanted))
-      .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z))[0];
-    // A name beats a kind, and a kind beats nothing: `teleport silverholm` goes to the town, and
-    // `teleport dock` goes to the nearest one, which is what somebody asking for "a dock" means.
-    return all.find((p) => p.name.toLowerCase() === wanted)
-      ?? all.find((p) => p.name.toLowerCase().startsWith(wanted))
-      ?? all.find((p) => p.name.toLowerCase().includes(wanted))
-      ?? nearestOfKind
-      ?? null;
-  };
-
-  // --- commands ---
-  //
-  // Everything the game can be told to do, under one vocabulary that the server shares. The debug
-  // hooks below are the same acts under older names and now go through here, so a console, a tool,
-  // a test and — once the simulation moves across — the server itself all say the same words.
-  // `docs/server-authority.md` is where that is going.
-  /**
-   * Where the player has asked to be pointed, if anywhere.
-   *
-   * One place at a time on purpose: a compass with four needles is a map, and there is already a
-   * map. Cleared by `nav off`, and by arriving — standing on the thing you were walking to is the
-   * moment the arrow stops being useful and starts being clutter.
-   */
-  let bound: { name: string; x: number; z: number } | null = null;
-  /** How near counts as arrived, in tiles: inside a village square rather than at its sign. */
-  const ARRIVED = 6;
-
-  const commandWorld: CommandWorld = {
-    teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); online.stood(x, z, 'teleport'); },
-    teleportTo: (place) => {
-      const found = namedPlace(place);
-      if (!found) throw new Error(`nowhere called ${place} — try: places`);
-      player.teleport(found.x, found.z);
-      iso.target.set(found.x, 0.5, found.z);
-      // the world moves its own hero to match: a teleport is the one jump nothing else can see
-      online.stood(found.x, found.z, 'teleport');
-      return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
-    },
-    places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, country: p.country, x: Math.round(p.x), z: Math.round(p.z) })),
-    // The villages, in the order somebody standing here cares about them. Distance and heading
-    // rather than coordinates, because "Silverholm, 240 paces north-west" is an answer and
-    // "Silverholm, 280, -110" is a lookup.
-    // A word narrows it, and means either the village's own name or the country it stands in:
-    // `towns mountains` and `towns silver` are both questions somebody actually asks.
-    navTo: (place) => {
-      if (place === undefined) {
-        if (!bound) return 'pointing nowhere. Try: nav silverholm';
-        const away = Math.round(Math.hypot(bound.x - player.x, bound.z - player.z));
-        return { name: bound.name, away, heading: compassDir(bound.x - player.x, bound.z - player.z) };
-      }
-      if (place === null) { bound = null; return 'the compass is your own again'; }
-      const found = namedPlace(place);
-      if (!found) throw new Error(`nowhere called ${place} — try: places`);
-      bound = { name: found.name, x: found.x, z: found.z };
-      return { name: found.name, away: Math.round(Math.hypot(found.x - player.x, found.z - player.z)),
-        heading: compassDir(found.x - player.x, found.z - player.z) };
-    },
-    towns: (like) => structures.villages
-      .filter((v) => !like
-        || v.name.toLowerCase().includes(like.trim().toLowerCase())
-        || biomeAnswersTo(v.biome, like))
-      .map((v) => ({
-        name: v.name,
-        away: Math.round(Math.hypot(v.x - player.x, v.z - player.z)),
-        heading: compassDir(v.x - player.x, v.z - player.z),
-        country: BIOMES[v.biome].name,
-        x: Math.round(v.x), z: Math.round(v.z),
-      }))
-      .sort((a, b) => a.away - b.away),
-    descend: () => places.descend(),
-    climbOut: () => places.exitDungeon(),
-    enterShrine: () => {
-      const shrine = structures.pois.find((p) => p.kind === StructureKind.Shrine);
-      if (!shrine) return null;
-      places.enterDungeon(shrine);
-      return shrine.name;
-    },
-    enterInn: () => {
-      for (const village of structures.villages) {
-        const inn = village.shops.find((shop) => shop.type === 'inn');
-        if (!inn) continue;
-        const door = structures.doors.find((d) => d.bx === inn.house.tx && d.bz === inn.house.tz);
-        if (!door) continue;
-        places.enterBuilding(door);
-        return village.name;
-      }
-      return null;
-    },
-    standAtCounter: () => {
-      const spot = places.indoors?.world.map.keeper;
-      if (!spot) return null;
-      player.teleport(spot[0] + 0.5, spot[1] + 1.6);
-      return { x: spot[0] + 0.5, z: spot[1] + 1.6 };
-    },
-    spawn: (kind, away) => {
-      const e = entities.spawnOne(kind, player.x + away, player.z, seed ^ Date.now());
-      return e ? { kind: e.kind.id, x: Math.round(e.x), z: Math.round(e.z), hp: e.hp } : null;
-    },
-    sow: (x, z) => {
-      plots.plant(x, z, 'wheat', state.day + state.time);
-      online.report({ kind: 'sow', tile: `${x},${z}`, crop: 'wheat', day: state.day });
-      state.version++;
-      return { tile: `${x},${z}`, crop: 'wheat', day: state.day };
-    },
-    drop: () => {
-      remains.leave('Rolf the Hunter', 'hunter', player.x + 1.2, player.z, 23, 'pelt', 4242);
-      return remains.all.length;
-    },
-    discover: (place) => { discover(place); return place; },
-    thin: (village, many) => {
-      const doomed = [...register.living(village)].slice(0, many);
-      for (const person of doomed) register.bury(person.id, state.day);
-      return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
-    },
-    hire: (many) => {
-      // stand somebody's own soldiers up without walking a village: for trying a fight out
-      const folk = structures.villages.flatMap((v) => [...register.living(v.name)]).filter((p) => p.trade === 'soldier');
-      const side = online.id || 'alone';
-      const taken = folk.slice(0, many).map((p) => hires.strike(
-        { who: p.id, name: p.name, asking: 0, terms: [{ fee: 0, share: 0.2 }] },
-        { fee: 0, share: 0.2 }, 999, side,
-      ));
-      return { asked: many, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
-    },
-    // The clock belongs to the world, and the world says what time it is ten times a minute — so
-    // setting it here alone lasted until the next thing the world said, which is why `time 0.5`
-    // answered with half past noon and left the sun where it was. Asked of the world instead, and
-    // the world tells everybody in it, which is one person or it is refused.
-    setTime: (fraction) => {
-      const time = Math.max(0, Math.min(0.999, fraction));
-      state.time = time;
-      online.setClock(state.day, time);
-      return { day: state.day, time };
-    },
-    setDay: (day) => {
-      const today = Math.max(1, Math.round(day));
-      state.day = today;
-      online.setClock(today, state.time);
-      return { day: today, time: state.time };
-    },
-    where: () => ({
-      x: Math.round(player.x * 10) / 10, z: Math.round(player.z * 10) / 10,
-      y: Math.round(player.entity.y * 100) / 100,
-      place: placeName(), area: areaLabel,
-    }),
-    peaks: () => (sampler.ranges?.peaks ?? []).map((peak) => ({
-      x: Math.round(peak.x), z: Math.round(peak.z), height: Math.round(peak.lift), range: peak.range,
-    })).sort((a, b) => b.height - a.height),
-    entities: () => entities.within(player.x, player.z, 60).map((e) => ({
-      kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
-      x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
-      slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
-      // the fight's own state, without which none of the wind-up work can be checked from
-      // outside: a probe that reads e.winding off this and finds undefined quietly measures
-      // nothing at all and reports it as a result
-      dead: e.dead, hurt: Math.round(e.hurt * 100) / 100,
-      // nought when this client owns it, and the world's own number when the world does
-      worldId: e.worldId,
-      winding: Math.round(e.winding * 1000) / 1000, warned: e.warned,
-    })),
-  };
-  const commands = new CommandBus();
-  registerCommands(commands, commandWorld);
-
-  // debug handle so headless screenshots can jump the calendar
-  // headless screenshot hooks; stripped from production builds
-  if (import.meta.env.DEV) {
-    const debug = window as unknown as {
-      __state?: unknown; __doors?: unknown; __player?: unknown;
-      __teleport?: (x: number, z: number) => void; __standAtCounter?: () => void;
-    };
-    debug.__state = state;
-    (debug as { __scene?: unknown }).__scene = rig.scene;
-    (debug as { __rig?: unknown }).__rig = rig;
-    (debug as { __iso?: unknown }).__iso = iso;
-    (debug as { __sampler?: unknown }).__sampler = sampler;
-    (debug as { __pods?: () => unknown }).__pods = () => pods;
-    (debug as { __sailing?: unknown }).__sailing = sailing;
-    (debug as { __whaleY?: () => number[] }).__whaleY = () => {
-      const now = worldSeconds(state.day, state.time);
-      return pods.flatMap((pod) => Array.from({ length: pod.size }, (_, i) => Math.round(whaleAt(pod, i, now).y * 100) / 100));
-    };
-    (debug as { __three?: unknown }).__three = THREE;
-    (debug as { __online?: unknown }).__online = online;
-    debug.__doors = structures.doors;
-    (debug as { __villages?: unknown }).__villages = structures.villages;
-    (debug as { __piers?: unknown }).__piers = structures.piers;
-    (debug as { __descent?: () => unknown }).__descent = () => places.underground?.world.map.descent ?? null;
-    (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
-    (debug as { __descend?: () => void }).__descend = () => commandWorld.descend();
-    (debug as { __climbOut?: () => void }).__climbOut = () => commandWorld.climbOut();
-    (debug as { __plots?: () => unknown }).__plots = () => plots.count;
-    (debug as { __houses?: () => unknown }).__houses = () => ({
-      hired: houses.hired,
-      jobs: houses.entries().map((job) => ({ ...job, stage: stageAt(job, state.day + state.time) })),
-    });
-    // put a finished house on the ground where you stand, for checking that a wall is a wall
-    (debug as { __build?: (x: number, z: number) => unknown }).__build = (x, z) => {
-      houses.takeOn('Crossroads Town', BUILD.PRICE, BUILD.PRICE);
-      const job = houses.place(x, z, state.day - BUILD.DAYS - 1);
-      state.version++;
-      return job;
-    };
-    (debug as { __solid?: (x: number, z: number) => boolean }).__solid = (x, z) => chunks.blocked(x, z);
-    (debug as { __place?: () => string }).__place = () => placeName();
-    (debug as { __walking?: () => unknown }).__walking = () => ({
-      ...walking, worst: Math.round(walking.worst * 1000) / 1000,
-    });
-    (debug as { __stalls?: () => unknown }).__stalls = () => {
-      const village = structures.villages
-        .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
-        .sort((a, b) => a.d - b.d)[0]?.v;
-      return village ? { village: village.name, pitches: market.pitchesOf(village) } : null;
-    };
-    (debug as { __enterShrine?: () => void }).__enterShrine = () => { commandWorld.enterShrine(); };
-    // Everything on the floor, whoever owns it: the world's monsters arrive as guests rather than
-    // as entries in this manager's own roster, so reading the roster showed an empty dungeon.
-    (debug as { __monsters?: () => unknown }).__monsters = () =>
-      (places.underground?.monsters.within(player.x, player.z, 999) ?? []).map((m) => ({
-        kind: m.kind.id, world: m.worldId,
-        x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100, hp: m.hp,
-      }));
-    (debug as { __drop?: () => void }).__drop = () => { commandWorld.drop(); };
-    (debug as { __packs?: () => unknown }).__packs = () => remains.all;
-    (debug as { __sow?: (x: number, z: number) => void }).__sow = (x, z) => { commandWorld.sow(x, z); };
-    (debug as { __discover?: (n: string) => void }).__discover = (n) => { commandWorld.discover(n); };
-    (debug as { __reportChest?: (id: string) => void }).__reportChest = (id) => { state.opened.add(id); online.report({ kind: 'chest', id }); state.version++; };
-    (debug as { __shrines?: unknown }).__shrines = structures.pois.filter((p) => p.kind === StructureKind.Shrine).map((p) => ({ name: p.name, x: p.x, z: p.z }));
-    (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
-      entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
-    (debug as { __entities?: () => unknown }).__entities = () => commandWorld.entities();
-    (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => commandWorld.thin(village, n);
-    (debug as { __callOut?: (id: string) => void }).__callOut = (id) => multiplayer.callOut(id);
-    (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
-    (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => commandWorld.spawn(kind, away);
-    (debug as { __blow?: () => unknown }).__blow = () => ({
-      hero: { blow: player.entity.blow, strike: Math.round(player.entity.strike * 100) / 100 },
-      others: entities.within(player.x, player.z, 30)
-        .filter((e) => e.strike > 0)
-        .map((e) => `${e.kind.id}: ${e.blow} ${Math.round(e.strike * 100) / 100}`),
-    });
-    (debug as { __dying?: () => unknown }).__dying = () => entities.theFallen().map((e) => {
-      const body = bodyMotion(e);
-      return {
-        kind: e.kind.id, left: Math.round(e.dying * 100) / 100,
-        roll: Math.round(body.roll * 100) / 100, bob: Math.round(body.bob * 100) / 100,
-      };
-    });
-    (debug as { __eyries?: () => unknown }).__eyries = () => eyries.map((e) => ({
-      id: e.id, name: e.name, x: Math.round(e.x), z: Math.round(e.z), partner: e.partner, fare: e.fare,
-    }));
-    (debug as { __skies?: () => unknown }).__skies = () => ({
-      aloft: skies.aloft?.name ?? null,
-      isles: skyIsles.map((s) => ({
-        id: s.site.id, name: s.name, x: s.site.x, z: s.site.z, y: s.site.y, radius: s.site.radius,
-        perch: s.perch, loft: s.loft, fall: { x: s.fall.x, z: s.fall.z, lipY: Math.round(s.fall.lipY * 100) / 100 },
-      })),
-      crags: skyIsles.map((s) => ({ name: s.name, ...s.crag })),
-    });
-    // Fly up without walking to a crag, so the place can be looked at without playing to it.
-    // Coming back down is the ordinary way down, because that is the path that has to work.
-    (debug as { __sky?: (n?: number) => unknown }).__sky = (n = 0) => {
-      const isle = skyIsles[n];
-      if (!isle) return null;
-      skies.fly(isle, { x: player.x, z: player.z });
-      return { on: isle.name, perch: isle.perch, y: isle.site.y };
-    };
-    (debug as { __ground?: () => unknown }).__ground = () => { skies.descend(); return { on: 'the ground' }; };
-    (debug as { __director?: () => unknown }).__director = () => ({ quietFor: Math.round(director.quietFor), reach: Math.round(director.reach * 100) / 100, last: director.last });
-    (debug as { __water?: () => unknown }).__water = () => ({ ...heard, drop: Math.round(heard.drop * 10) / 10 });
-    (debug as { __bodies?: () => unknown }).__bodies = () => interactions.carcasses();
-    (debug as { __warband?: () => unknown }).__warband = () => ({
-      active: warband.active, opponent: warband.opponentName, muster: warband.muster, readout: warband.readout(),
-    });
-    (debug as { __bands?: () => unknown }).__bands = () => {
-      const abroad = roaming.abroad();
-      return {
-        abroad: abroad.length,
-        near: bandsNear(abroad, player.x, player.z, state.day).map((b) => ({
-          id: b.id, kind: b.kind, left: roaming.alive(b).length, standing: entities.packSizeOf(b.id),
-          at: bandAt(b, state.day),
-        })),
-        pressing: roaming.pressings(structures.villages, state.day).map((p) => `${p.village}: ${p.said}`),
-      };
-    };
-    (debug as { __nettle?: () => unknown }).__nettle = () => ({
-      where: nemesis.whereabouts,
-      scheme: nemesis.scheme,
-      standing: nettleAbout ? { x: Math.round(nettleAbout.x), z: Math.round(nettleAbout.z), hp: nettleAbout.hp } : null,
-      sent: sentOut.filter((e) => !e.dead).map((e) => `${e.kind.id} hp${e.hp}`),
-    });
-    (debug as { __fortunes?: () => unknown }).__fortunes = () =>
-      structures.villages.map((v) => ({ village: v.name, living: register.living(v.name).length, fortune: register.fortune(v.name) }));
-    (debug as { __enterMine?: (village: string) => unknown }).__enterMine = (village) => {
-      const cave = claimed.get(village);
-      if (!cave) return null;
-      places.enterDungeon(cave, 'cave', mineIdOf(cave));
-      return { mine: cave.name, id: mineIdOf(cave) };
-    };
-    (debug as { __mines?: () => unknown }).__mines = () =>
-      minesWorked().map((w) => ({
-        inAMine: fightingInAMine(),
-        village: w.village, mine: w.name, id: w.mine,
-        crew: register.living(w.village).filter((p) => p.trade === 'miner').length,
-        purse: Math.round(register.living(w.village).reduce((sum, p) => sum + p.purse, 0)),
-        dread: Number((mines.at(w.mine)?.dread ?? 0).toFixed(3)),
-        worked: Math.round(mines.at(w.mine)?.worked ?? 0),
-        peril: Number(mines.perilOf(w.mine).toFixed(3)),
-        said: mines.saidOf(w.mine),
-      }));
-    (debug as { __stables?: () => unknown }).__stables = () =>
-      structures.villages.map((v) => {
-        const stable = stableAt(v, seed);
-        return { village: v.name, houses: v.houses.length, stock: stable?.stock.map((b) => b.id) ?? null };
-      });
-    (debug as { __pass?: (days: number) => unknown }).__pass = (days) => {
-      state.day += Math.max(1, Math.floor(days));
-      const changes = register.advance(state.day);
-      return changes.map((c) => `day ${c.day}: ${c.name} ${c.kind}${c.cause ? ` (${c.cause})` : ''} in ${c.village}`);
-    };
-    (debug as { __talkTo?: (name: string) => unknown }).__talkTo = (name) => {
-      const who = entities.within(player.x, player.z, 120).find((e) => e.name === name);
-      if (!who) return null;
-      talkCtx.day = state.day;
-      const node = dialogueFor(who, talkCtx);
-      return { speaker: node.speaker, pages: node.pages, choices: (node.choices ?? []).map((c) => c.label) };
-    };
-    (debug as { __register?: (village?: string) => unknown }).__register = (village) => {
-      const here = village ?? structures.villages
-        .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
-        .sort((a, b) => a.d - b.d)[0]?.v.name ?? '';
-      return {
-        village: here, day: register.today,
-        people: register.living(here).map((p) => ({
-          name: p.name, trade: p.trade, born: p.born, lives: p.lives,
-          mother: p.mother, father: p.father, knows: p.knows.length, memories: p.memories,
-        })),
-      };
-    };
-    debug.__player = player;
-    debug.__teleport = (x, z) => commandWorld.teleport(x, z);
-    // the console's way in: `cmd('teleport 322 53')`, and `cmd('help')` for the rest
-    (debug as { cmd?: (line: string) => unknown }).cmd = (line) => commands.run(line, 'console');
-    // and the way in from outside the browser altogether: a line posted to the dev server arrives
-    // here over Vite's own channel, so a terminal can drive a tab nobody is touching
-    if (import.meta.hot) {
-      import.meta.hot.on('ai-world:command', ({ line }: { line: string }) => {
-        const result = commands.run(line, 'dev');
-        // which world answered. A command goes to every tab the dev server is serving, and two
-        // tabs are the ordinary case — one road world, one polygon world, both obediently
-        // teleporting to the same coordinates, one of which is the middle of the sea.
-        import.meta.hot?.send('ai-world:command-result', { line, result, seed, world });
-        if (!result.ok) console.warn(`command: ${line} — ${result.error}`);
-      });
-    }
-    (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
-    (debug as { __quests?: () => unknown }).__quests = () => questList;
-    (debug as { __markers?: () => unknown }).__markers = () => markers();
-    (debug as { __finishQuest?: (id: string) => void }).__finishQuest = (id) => {
-      const errand = questList.find((q) => q.id === id);
-      if (!errand) return;
-      state.quests.set(id, 'done');
-      state.inventory.gold += errand.reward;
-      state.version++;
-      talkCtx.onQuestChange(errand, 'done');
-    };
-    (debug as { __enterInn?: () => string | null }).__enterInn = () => commandWorld.enterInn() as string | null;
-    // the same door-finding as __enterInn, for any shop: the till is only reachable from inside,
-    // so without this there is no way to drive a sale from a test
-    (debug as { __enterShop?: (type?: string) => string | null }).__enterShop = (type = 'store') => {
-      for (const village of structures.villages) {
-        const shop = village.shops.find((s) => s.type === type);
-        if (!shop) continue;
-        const door = structures.doors.find((d) => d.bx === shop.house.tx && d.bz === shop.house.tz);
-        if (!door) continue;
-        places.enterBuilding(door);
-        return `${village.name}: ${shop.type}`;
-      }
-      return null;
-    };
-    debug.__standAtCounter = () => { commandWorld.standAtCounter(); };
-  }
-
-  // --- whales ---
-  const pods = planPods(sampler, seed);
-  const seaHunt = new SeaHunt(seed);
-  const school = new WhaleSchool(rig.scene);
-  /** The hour we last announced each family in, so one word is one display. */
-  const announced = new Map<Pod, number>();
-
-  /**
-   * Whales, every frame we are above ground: the near pods drawn where the clock says they are,
-   * a word when a display begins within sight, and a soaking for anybody whose boat is under one
-   * when it comes down.
-   */
-  // --- camps somebody else pitched ---
-  const campField = new CampField(rig.scene);
-  /** Camps in the country round the hero, worked out when they cross into a new chunk. */
-  let campChunk = '';
-  let campsNear: WildCamp[] = [];
-  const watchCamps = (): void => {
-    const key = `${Math.floor(player.x / WORLD.CHUNK_SIZE)},${Math.floor(player.z / WORLD.CHUNK_SIZE)}`;
-    if (key !== campChunk) {
-      campChunk = key;
-      const span = WORLD.CHUNK_SIZE * 2;   // a chunk either side of the one they are standing in
-      campsNear = interactions.campsAround(player.x - span, player.z - span, player.x + span, player.z + span);
-    }
-    campField.update(campsNear, interactions.campEmptied, (x, z) => chunks.heightAt(x, z));
-  };
-
-  // --- what keeps the old places ---
-  /** How near the hero has to be for Old Nettle to be worth putting in the world at all. */
-  const NETTLE_WITHIN = 70;
-  /**
-   * How hard the world is currently looking for the player. Everything below is gated on being
-   * near enough, and a player is one person on one road; this widens that gate while nothing has
-   * happened and puts it back the moment something does.
+   * How hard the world is currently looking for the player. A fight, a band on the road and a
+   * scheme in a village all report to it, and everything that stands something up in the world
+   * asks it how far to look — so it is built before any of them.
    */
   const director = new Director();
+
+  const blows = createBlows({
+    seed, state, player, places, chunks, entities, structures, standing, breath, magic, mines,
+    online, duel, warband, hires, sailing, skies, sound, director,
+    talking: () => dialogue.isOpen,
+    typing: () => chat.isTyping,
+    flash: (message) => hud.flash(message),
+    hurt: () => hud.hurt(),
+    converse: (node) => dialogue.start(node),
+    fightingInAMine, battlefield, rustled, persist,
+    fell: (kind, x, z) => interactions.fell(kind, x, z),
+    troubleKilled: (kind, x, z) => interactions.troubleKilled(kind, x, z),
+    heWentDown: () => interactions.heWentDown(),
+    takeShare: (gold) => takeShare(gold),
+  });
+  const { attack, loose, conjure, onAttack, announceWindUps, knockOut } = blows;
+
+  // the console, and everything the game can be told to do through it
+  const { commands, commandWorld, bound, arriving } = openConsole({
+    seed, state, player, iso, places, structures, sampler, entities, register, online, chat,
+    plots, remains, hires, eyries, skyIsles, placeName, discover,
+    areaLabel: () => frames.areaLabel(),
+    flash: (message) => hud.flash(message),
+  });
+
+  // what the world stands up round the hero: the bands, Old Nettle, the keepers, the whales and
+  // the camps somebody else pitched
+  const watch = createWatch({
+    seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
+    sailing, sound, persist,
+    scene: rig.scene,
+    flash: (message) => hud.flash(message),
+    hurt: () => hud.hurt(),
+    knockOut,
+    campsAround: (x0, z0, x1, z1) => interactions.campsAround(x0, z0, x1, z1),
+    campEmptied: (camp) => interactions.campEmptied(camp),
+  });
+
   /** What each village has built for itself, by name. Empty until somewhere gets rich. */
   const villageLuxury = new Map<string, Luxury>();
-  /**
-   * The mines being worked today, and who would hear about a bad day at one.
-   *
-   * Only villages the register has been told about are in it, which is the register's own rule
-   * rather than a new one: a place nobody has walked into has no people in it yet, so it has no
-   * miners either. Rebuilt when another village comes onto the register and not otherwise,
-   * because this runs every frame and the answer only changes when somebody walks somewhere new.
-   */
-  let workings: Working[] = [];
-  let workingsFor = -1;
-  const minesWorked = (): Working[] => {
-    const settled = new Set(register.settled());
-    if (settled.size === workingsFor) return workings;
-    workingsFor = settled.size;
-    workings = [];
-    for (const [village, cave] of claimed) {
-      const home = structures.villages.find((v) => v.name === village);
-      if (!home || !settled.has(village)) continue;
-      // the story reaches the village that works it and its nearest neighbours, which is how
-      // somebody in a pub two valleys over can warn you off a hole you have never seen
-      const heardIn = [village, ...structures.villages
-        .filter((v) => v.name !== village && settled.has(v.name))
-        .sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z))
-        .slice(0, MINES.HEARD_IN - 1)
-        .map((v) => v.name)];
-      workings.push({ village, mine: mineIdOf(cave), name: cave.name, x: cave.x, z: cave.z, heardIn });
-    }
-    return workings;
-  };
-  /** And how far out from the village his lot stand, in tiles. */
-  const NETTLE_RING = 8;
-  const haunts = hauntsOf(seed, structures);
-  /** The one keeper standing in the world, and the place it came out of. You are only ever in one. */
-  let keeper: { haunt: Haunt; entity: Entity } | null = null;
-  /** Places already spoken of, so one visit is one warning rather than a warning a second. */
-  const warned = new Set<string>();
-
-  /** The one of him standing in the world, and nothing while he is in a cell or between schemes. */
-  let nettleAbout: Entity | null = null;
-  /** And his lot, who are most of what anybody ever actually fights. */
-  let sentOut: Entity[] = [];
-  /** Stand a band up when the hero comes near it, and take it away again when they leave. */
-  const watchBands = (): void => {
-    for (const [id, band] of [...bandsOut]) {
-      if (entities.packSizeOf(id) > 0 && !outOfSight(band, player.x, player.z, state.day)) continue;
-      entities.despawnPack(id);
-      bandsOut.delete(id);
-    }
-    for (const band of bandsNear(roaming.abroad(), player.x, player.z, state.day, ROAM.SIGHT * director.reach)) {
-      if (bandsOut.has(band.id)) continue;
-      const at = bandAt(band, state.day);
-      const alive = roaming.alive(band);
-      const pack = entities.spawnPack(band.kind, at.x, at.z, 0, band.seed ^ state.day, band.id, alive.length);
-      if (pack.length === 0) continue;        // no standable ground this frame; it will try again
-      // the number a kill will name, so two clients agree which of them went down
-      pack.forEach((e, i) => { e.rosterIndex = alive[i] ?? i; });
-      director.saw('band');
-      bandsOut.set(band.id, band);
-      hud.flash(warningOfBand(band));
-    }
-  };
-
-  const watchNettle = (): void => {
-    const abroad = nemesis.whereabouts === 'abroad' || nemesis.whereabouts === 'choosing';
-    const where = nemesis.scheme;
-    if (!abroad || !where) {
-      if (nettleAbout) { entities.despawnEntity(nettleAbout); nettleAbout = null; }
-      for (const one of sentOut) if (!one.dead) entities.despawnEntity(one);
-      sentOut = [];
-      return;
-    }
-    const village = structures.villages.find((v) => v.name === where.village);
-    if (!village) return;
-    // only once the hero is near enough to see it happen: he is rare, and being rare is the point
-    if (Math.hypot(village.x - player.x, village.z - player.z) > NETTLE_WITHIN * director.reach) return;
-
-    if (!nettleAbout || nettleAbout.dead) {
-      nettleAbout = entities.spawnOne('nettle', village.x + 3, village.z + 3, seed ^ hashString(where.village));
-      director.saw('nemesis');
-    }
-    // his lot build up while the scheme runs, so arriving early is a different fight from
-    // arriving late. He is rare; these are what makes a scheme dangerous to walk into.
-    sentOut = sentOut.filter((one) => !one.dead);
-    const wanted = sentBy(where, state.day);
-    for (let n = sentOut.length; n < wanted; n++) {
-      const angle = (n / wanted) * Math.PI * 2;
-      const one = entities.spawnOne(
-        SENDS[where.work].kind,
-        village.x + Math.cos(angle) * NETTLE_RING,
-        village.z + Math.sin(angle) * NETTLE_RING,
-        seed ^ hashString(`${where.village}:${where.began}:${n}`),
-      );
-      if (one) sentOut.push(one);
-    }
-  };
-
-  const watchHaunts = (): void => {
-    if (keeper) {
-      const { haunt, entity } = keeper;
-      if (entity.dead || gone(haunt, player.x, player.z, state.time)) {
-        if (!entity.dead) entities.despawnEntity(entity);
-        keeper = null;
-        warned.delete(haunt.id);
-      }
-      return;
-    }
-    const rising = toRaise(haunts, player.x, player.z, state.time);
-    if (!rising) return;
-    const entity = entities.spawnOne(rising.kind, rising.x, rising.z, seed ^ hashString(rising.id));
-    if (!entity) return;
-    keeper = { haunt: rising, entity };
-    if (warned.has(rising.id)) return;
-    warned.add(rising.id);
-    sound.thud();
-    hud.flash(warningFor(rising));
-  };
-
-  const watchWhales = (now: number, dt: number): void => {
-    const near = podsWithin(pods, player.x, player.z, WHALE.WATCH);
-    const splashes = school.update(near, now, dt);
-
-    for (const pod of near) {
-      const { showing, hour } = displayAt(pod, now);
-      if (!showing || announced.get(pod) === hour) continue;
-      announced.set(pod, hour);
-      sound.whalesong();
-      hud.flash(`Whales are breaching — ${compassDir(pod.x - player.x, pod.z - player.z)}, ${Math.round(Math.hypot(pod.x - player.x, pod.z - player.z))} tiles`);
-    }
-
-    if (!sailing.sailing || sailing.overboard) return;
-    for (const splash of splashes) {
-      if (Math.hypot(splash.x - sailing.x, splash.z - sailing.z) > WHALE.SPLASH) continue;
-      // thirty tonnes of whale onto a rowing boat: over the side you go
-      sailing.throwOverboard();
-      sound.splash();
-      hud.hurt();
-      // a blow that empties the hearts has to end somewhere. Dropped on the floor, this one left
-      // the hero treading water at nought hearts for ever, alive and with nothing to do about it
-      if (state.damage(1)) { knockOut('A breaching whale'); break; }
-      hud.flash('A whale comes down across the bow. You are in the water.');
-      persist();
-      break;
-    }
-  };
+  // and everything the country did overnight, which is most of what makes it a country
+  const tidings = createTidings({
+    seed, state, player, places, structures, sampler, register, roaming, nemesis, mines, online,
+    remains, sound, director, claimed, villageLuxury, discovered, realm, persist,
+    builderDay: () => interactions.builderDay(),
+    villageNights: () => interactions.villageNights(),
+    say: (line) => chat.line(line, 'sys'),
+    flash: (message) => hud.flash(message),
+  });
+  const { minesWorked } = tidings;
 
   const { markers, mapInput, areaName, compassTargets, updateHud, journalInput } = createReadouts({
     player, state, structures, sampler, discovered, questList, ferries, sailing, places, rucksack,
     hud, clock, compass,
-    bound: () => bound,
+    bound,
     companyMarkers: multiplayer.markers,
     fogged: () => !state.can('map'),
     cameraTarget: () => iso.target,
     discover,
   });
+
+  // what every key does, in one place
+  bindKeys({
+    seed, input, rig, iso, player, places, online, sound,
+    hud, dialogue, chat, journal, rucksack, worldMap, photo, playerList,
+    attack, loose, conjure, talkNearest, partyMenu, hireMenu, offerTrade, tryGive, toTitle,
+    persist, rally, mapInput, journalInput,
+    partySize: () => party.size,
+    playerListInput: multiplayer.playerListInput,
+  });
+
+  // the handles a headless browser drives this by; stripped from production builds. Hung on at the
+  // end because they reach into everything, and everything now exists.
+  if (import.meta.env.DEV) {
+    installProbes({
+      seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
+      online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines,
+      roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
+      commandWorld, placeName, walking,
+      pods: watch.pods,
+      nettleAbout: watch.nettleAbout,
+      sentOut: watch.sentOut,
+      callOut: (to) => multiplayer.callOut(to),
+      carcasses: () => interactions.carcasses(),
+      markers: () => markers(),
+      heard: () => frames.heard(),
+    });
+  }
 
   /**
    * Watches the frame times and turns the picture down if the machine cannot hold sixty.
@@ -2157,351 +603,26 @@ function startGame(
    */
   const autoQuality = new AutoQuality(qualityWasChosen);
 
-  const loop = new GameLoop((dt, time) => {
-    const stepDown = autoQuality.saw(dt * 1000, rig.quality);
-    if (stepDown) {
-      rig.setQuality(stepDown);
-      rememberAutoChoice();
-      hud.flash(`Graphics turned down to keep up: ${QUALITY[stepDown].label}`);
-    }
-    // the full-screen map pauses the world the way a conversation does
-    if (worldMap.isOpen) {
-      const panX = (input.isDown('d', 'arrowright') ? 1 : 0) - (input.isDown('a', 'arrowleft') ? 1 : 0);
-      const panZ = (input.isDown('s', 'arrowdown') ? 1 : 0) - (input.isDown('w', 'arrowup') ? 1 : 0);
-      worldMap.pan(panX, panZ, dt);
-      worldMap.draw(mapInput());
-    }
-    const talking = dialogue.isOpen || worldMap.isOpen;
-    iso.update(input, dt, player.mode === 'free' && !talking && !places.indoors);
-    // the mountains, twice: how far back the camera stands from them, and the hole they keep open
-    // in front of the hero so that being on the far side of one is not being unable to play
-    skyline.update(iso, player.entity.x, player.entity.z, dt, !places.indoors && !places.underground);
-    heroSpot.set(player.entity.x, player.entity.y + HERO_EYE, player.entity.z);
-    rock.look(heroSpot, iso.camera, iso.target);
-
-    /**
-     * The guard is held, not tapped, and it is polled here rather than bound as a one-shot key so
-     * that how long it has been up is a real number the parry window can be measured against.
-     * Not while riding: a guard on horseback is a different animation and a different fight.
-     */
-    if (!talking && !mount.riding && !sailing.sailing && input.isDown('c')) breath.raise(); else breath.drop();
-    breath.age(dt);
-    player.climb = state.climb;
-    player.speedScale = haulPace(
-      mount.riding ? paceOf(mount.breed, goingUnderfoot()) : 1,
-      mount.riding,
-      state.count('cart') > 0,
-    ) * (breath.guarding ? BREATH.GUARDED_PACE : 1);
-    if (sailing.sailing && !talking) {
-      const tiller = {
-        forward: (input.isDown('w', 'arrowup') ? 1 : 0) - (input.isDown('s', 'arrowdown') ? 1 : 0),
-        turn: (input.isDown('a', 'arrowleft') ? 1 : 0) - (input.isDown('d', 'arrowright') ? 1 : 0),
-      };
-      sailing.update(dt, tiller, chunks, player);
-      // and the world moves its own boat the same way, so that a boat two people are looking at is
-      // in one place. Sent every frame it is under way, which is the only time it matters.
-      if (tiller.forward !== 0 || tiller.turn !== 0) online.helm(++helmSeq, tiller.forward, tiller.turn, dt);
-      iso.target.x += (sailing.x - iso.target.x) * Math.min(1, dt * 6);
-      iso.target.z += (sailing.z - iso.target.z) * Math.min(1, dt * 6);
-    }
-    player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
-    // What the hero was trying to do goes to the world, which walks him itself and says where he
-    // got to; the step above has already walked him here so the game answers the key at once. Only
-    // out of doors and on his own feet: everywhere else the world has no ground to walk him on and
-    // the client is still the authority. `docs/server-authority.md`, phase four.
-    if (outdoors()) {
-      walked.walked(player.steered);
-      walked.settle(player.entity, dt);
-    } else {
-      walked.reset();
-    }
-    // and then look up at the mountain, if there is one. Set rather than added: the hero pulls the
-    // camera back to his own feet every frame, so anything added here accumulates — which it did,
-    // fifty units into the air.
-    iso.lift = skyline.headroom;
-    dialogue.update(dt);
-    rig.water.update(time);
-    if (!talking) { state.tick(dt); magic.tick(dt); }
-    // What a blow costs in time, counted before the frame decides where the hero is standing.
-    //
-    // These used to be counted down at the bottom of the outdoor path, past the two early returns
-    // — so underground and indoors the cooldown was set by the first swing and never came off
-    // again, and the hero got exactly one swing per visit however long they stayed. Which made
-    // clearing a mine out impossible, and that is the one thing the whole mining economy is
-    // waiting on. Found by trying to fight a cave empty and hitting a rat once.
-    swingCooldown = Math.max(0, swingCooldown - dt);
-    drawCooldown = Math.max(0, drawCooldown - dt);
-    // a day turning over is a day in the villages too: lives run out, and children are born
-    for (const word of nemesis.advance(clockAt(state), realm())) chat.line(word.said, 'sys');
-    for (const band of roaming.advance(state.day)) hud.flash(warningOfBand(band));
-    // a band camped on a village's doorstep costs it people, and the same people on every client
-    for (const press of roaming.pressings(structures.villages, state.day)) {
-      const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
-      const living = [...register.living(press.village)];
-      for (let n = 0; n < press.toll && living.length > 0; n++) {
-        const [taken] = living.splice(Math.floor(pick() * living.length), 1);
-        const death = register.bury(taken.id, state.day);
-        if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
-      }
-      // a village under the same band says so once, not every morning until it is dealt with:
-      // news repeated daily stops being news and starts being wallpaper
-      // nobody trades while their neighbours are being buried, which is what makes a village's
-      // prosperity something the player can protect rather than a number that only goes up
-      register.leanedOn(press.village, press.pressure);
-      // and what the village has made of itself: houses grow a storey when their owners can
-      // afford one, which the chunks pick up the next time they are built
-      const folk = register.living(press.village);
-      const worth = folk.reduce((sum, p) => sum + p.purse, 0);
-      sampler.storeys.set(press.village, storeysFor(worth / Math.max(1, folk.length)));
-      villageLuxury.set(press.village, luxuryFor(worth, hashString(press.village)));
-      if (press.pressure >= 0.25 && pressSaid.get(press.village) !== press.said) {
-        pressSaid.set(press.village, press.said);
-        // the news is remembered without the direction, because the direction changes with every
-        // step the player takes and would make the same news new again for ever
-        const where = structures.villages.find((v) => v.name === press.village);
-        const way = where ? wayTo(where, player) : null;
-        chat.line(way ? `${press.said} ${way}` : press.said, 'sys');
-        director.saw('trouble');
-      }
-    }
-    // a builder who has finished and not been paid has said so in the pub by now, and the village
-    // holds it against you for every day it goes on standing there unsettled
-    interactions.builderDay();
-    for (const change of [...register.advance(state.day), ...interactions.villageNights()]) {
-      if (change.kind === 'died' && discovered.has(change.village)) {
-        chat.line(`Word from ${change.village}: ${change.name} has died.`, 'sys');
-      }
-    }
-    /**
-     * A day at the face, in every village that has a mine.
-     *
-     * After the register has caught up, because a mine is worked by people and the register is
-     * who they are. What comes up goes into the miners' own purses, so it leaves again through
-     * their dinner and their upkeep the way anybody else's money does — which is the whole reason
-     * to mint it there rather than crediting a village a number nobody spends.
-     */
-    for (const dug of mines.advance(state.day, minesWorked(), (v) => register.living(v))) {
-      if (dug.lost) {
-        // what he had on him was minted this morning and is now on the floor where he fell, which
-        // is the only reason anybody would go down a mine that has just killed somebody
-        remains.leave(dug.lost.name, 'miner', dug.x, dug.z, dug.dropped, 'nugget', seed ^ Math.floor(dug.x * 131 + dug.z * 977));
-        const death = register.bury(dug.lost.id, dug.day);
-        if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
-      }
-      if (dug.scared && discovered.has(dug.village)) {
-        chat.line(dug.lost
-          ? `Word from ${dug.village}: ${dug.lost.name} did not come up out of ${dug.name}.`
-          : `Word from ${dug.village}: they came running up out of ${dug.name} today.`, 'sys');
-      }
-    }
-    // and the other half of it: a mine the player has fought through is still a mine nobody will
-    // go down until somebody walks into the village and says otherwise. Standing in the square is
-    // that somebody, which is why this is proximity and not a menu
-    for (const working of places.outdoors ? minesWorked() : []) {
-      const home = structures.villages.find((v) => v.name === working.village);
-      if (!home || Math.hypot(home.x - player.x, home.z - player.z) > home.radius) continue;
-      const said = mines.told(working.mine, working.name);
-      if (said !== null) {
-        hud.flash(said); sound.chime();
-        // a village that has been reassured is reassured for everybody, not only for whoever walked in
-        online.report({ kind: 'told', mine: working.mine });
-        persist();
-      }
-    }
-
-    // hold the place for this frame: a bite can end it half way through
-    const indoors = places.indoors;
-    if (indoors) {
-      frames++; fpsAccum += dt;
-      if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
-      // indoors: a fixed view of the room, the hero and whoever keeps the place
-      indoors.renderer.update();
-      heroGear.update(state, player.entity);
-      multiplayer.sync(dt, () => 0.5);
-      updateHud(dt, indoors.title);
-      hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
-      sound.update(dt, player.entity.walk > 0.3 && !talking, true);
-      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      rig.renderer.render(indoors.scene.scene, iso.camera);
-      input.endFrame();
-      saveTimer += dt;
-      if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }
-      return;
-    }
-
-    const below = places.underground;
-    if (below) {
-      frames++; fpsAccum += dt;
-      if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
-      // underground: the hero, the monsters, the lights and the HUD tick
-      below.scene.heroLight.position.set(player.x, player.y + 1.5, player.z);
-      below.scene.heroLight.intensity = state.can('light') || magic.lit ? 9 : 3;
-      // The world runs the monsters on a floor, the way it runs the animals in a field, and this
-      // side eases them between what it is told. Where there is no world listening, the same
-      // manager thinks for them itself: it holds its own monsters rather than guests, and `update`
-      // is what makes them move.
-      below.monsters.update(dt, player.x, player.z, state.armed, onAttack);
-      floorLife?.update(dt);
-      announceWindUps(below.monsters.within(player.x, player.z, HEARD_WINDING));
-      if (places.underground !== below) { input.endFrame(); return; }
-      below.renderer.update();
-      heroGear.update(state, player.entity);
-      multiplayer.sync(dt, (x, z) => below.world.heightAt(x, z));
-      below.map.reveal(player.x, player.z);
-      below.map.draw(player.x, player.z, state.opened, (i) => below.world.chestId(i), below.world.unlocked);
-      updateHud(dt, below.floor > 1 ? `${below.poi.name} Depths · floor ${below.floor}` : `${below.poi.name} Depths`);
-      hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
-      sound.update(dt, player.entity.walk > 0.3 && !talking, true);
-      hud.setDebug(dt, () =>
-        `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
-        `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
-        `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      rig.renderer.render(below.scene.scene, iso.camera);
-      input.endFrame();
-      saveTimer += dt;
-      if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }
-      return;
-    }
-
-    // ferries follow the clock; the hero rides along and steps off when the boat ties up
-    const clockNow = worldSeconds(state.day, state.time);
-    interactions.sailFerries(clockNow, time);
-    watchWhales(clockNow, dt);
-    watchHaunts();
-    watchNettle();
-    watchBands();
-    watchCamps();
-    remains.age(dt);
-    interactions.ageCamps(dt);
-    interactions.runClock(dt);
-    packField.update([...remains.all, ...interactions.carcasses()], (x, z) => chunks.heightAt(x, z));
-    // something takes an interest in a boat that has been in deep water a while
-    const arrived = seaHunt.update(dt, sailing.sailing, player.x, player.z, sampler, entities);
-    if (arrived) {
-      sound.thud();
-      hud.flash(`${arrived} in the water. They are circling.`);
-    }
-    // the clouds turn, and anybody standing on a sky island is checked to be still standing on it
-    skyRenderer.update(dt);
-    skies.update();
-    const { x, z } = iso.target;
-    // the rig writes where the camera is looking onto the scene, and the chunks read it back to
-    // decide which props are worth handing to the GPU, so it has to be said before it is asked
-    rig.follow(x, z, iso.zoom);
-    chunks.update(x, z);
-    // and the sea reads the ground back, so its waves come in parallel to whatever coast is here
-    rig.seaAround(x, z, chunks);
-    // season and weather: both derived from the day counter and the biome underfoot
-    const here = sampler.probe(player.x, player.z);
-    const season = seasonOf(state.day);
-    const tint = seasonTint(season);
-    const wetHere = isWet(seed, state.day, here.biome) ? 1 : 0;
-    weatherStrength += (wetHere - weatherStrength) * Math.min(1, dt * 0.4);
-    raining = weatherStrength > 0.5;
-    if (seasonAffects(here.biome)) seasonTintMaterials.set(tint.ground, tint.frost);
-    else seasonTintMaterials.set([1, 1, 1], 0);
-    weather.set(weatherStrength, season);
-    weather.update(dt, x, z, iso.camera.position.y * 0.35);
-    daycycle.apply({ time: state.time, focusX: x, focusZ: z, heroX: player.x, heroY: player.y, heroZ: player.z, lanternOn: state.can('light') || magic.lit, season: tint, wet: weatherStrength });
-    // Up on a sky island the hero counts as armed whatever is in their hands. A predator that
-    // cannot reach you has no business stalking you, and a pack gathering on the ground beneath
-    // the village to hunt somebody it can never touch is exactly the sort of thing you notice
-    // when you are stood at a rim looking down at them.
-    entities.update(dt, player.x, player.z, state.armed || skies.aloft !== null, onAttack, state.time, sailing.sailing);
-    // what the world says is about, eased towards where it last said it was
-    wildlife.update(dt);
-    // and nothing announces a blow it is in no position to land, so the cloud is quiet
-    if (skies.aloft === null) announceWindUps(entities.within(player.x, player.z, HEARD_WINDING));
-    mount.update(player, chunks);
-
-    multiplayer.sync(dt, (x, z) => chunks.heightAt(x, z));
-    noticeStall();
-    ownBoat.visible = sailing.bought && places.outdoors;
-    if (ownBoat.visible) {
-      ownBoat.position.set(sailing.x, WORLD.WATER_Y - BOAT.DRAFT + Math.sin(time * 1.6 + sailing.x) * 0.03, sailing.z);
-      ownBoat.rotation.y = sailing.yaw;
-    }
-    cropField.update(plots, state.day + state.time, player.x, player.z, (x, z) => chunks.heightAt(x, z));
-    const standing = houses.entries().map((job) => ({ id: job.id, x: job.x, z: job.z, rot: job.rot, stage: stageAt(job, state.day + state.time) }));
-    buildingSite.update(standing, player.x, player.z, (x, z) => chunks.heightAt(x, z));
-    /**
-     * And a finished house is a wall to everybody, not only a picture.
-     *
-     * Only the finished ones. Pegs in the ground and a frame are things you walk through on a
-     * building site, and a site that turned solid the day it was marked out could shut a door
-     * behind somebody standing on their own plot.
-     *
-     * Rebuilt only when the set of houses or their stages actually changes, because this runs
-     * every frame and almost every frame the answer is the same one as last time.
-     */
-    const walls = standing.filter((job) => job.stage === 'house').map((job) => `${job.id}`).join('|');
-    if (walls !== wallsBuilt) {
-      wallsBuilt = walls;
-      const tiles: Array<{ x: number; z: number }> = [];
-      for (const job of standing) {
-        if (job.stage !== 'house') continue;
-        const tx = Math.floor(job.x), tz = Math.floor(job.z);
-        for (let dz = -BUILD.PLOT; dz <= BUILD.PLOT; dz++) {
-          for (let dx = -BUILD.PLOT; dx <= BUILD.PLOT; dx++) tiles.push({ x: tx + dx, z: tz + dz });
-        }
-      }
-      chunks.standsOn(tiles);
-    }
-    entityRenderer.update();
-    heroGear.update(state, player.entity);
-
-    if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) fog.reveal(state.explored);
-    areaLabel = skies.aloft?.name ?? areaName();
-    // arriving is what ends a walk, so it is what puts the arrow away
-    if (bound && Math.hypot(bound.x - player.x, bound.z - player.z) < ARRIVED) {
-      hud.flash(`${bound.name} — you are here`);
-      bound = null;
-    }
-    updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');
-    hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
-    if (fishing.active) {
-      const ev = fishing.update(dt);
-      if (ev === 'bite') sound.chime();
-      if (ev === 'missed') hud.flash('It got away.');
-      castbar.className = fishing.phase === 'bite' ? 'show bite' : fishing.phase === 'waiting' ? 'show' : '';
-      castbar.textContent = fishing.phase === 'bite' ? 'A bite! Press Enter!' : raining ? 'Fishing in the rain… they are rising' : 'Fishing… wait for the bite';
-    } else if (castbar.className !== '') {
-      castbar.className = '';
-    }
-    journal.refresh(journalInput);
-    hud.tick(dt);
-    sound.setScene(here.biome, state.night);
-    sound.update(dt, player.entity.walk > 0.3 && !talking, chunks.isRoad(player.x, player.z));
-    listenForWater();
-    director.advance(dt);
-
-    reeling = Math.max(0, reeling - dt);
-    musterIn -= dt;
-    if (musterIn <= 0) { musterIn = HIRE.MUSTER_EVERY; musterHires(); }
-    if (input.clicked && !talking) {
-      mouse.set((input.clickX / window.innerWidth) * 2 - 1, -(input.clickY / window.innerHeight) * 2 + 1);
-      raycaster.setFromCamera(mouse, iso.camera);
-      const e = entities.pick(raycaster);
-      if (e) {
-        if (Math.hypot(e.x - player.x, e.z - player.z) < GAMEPLAY.CLICK_TALK_RANGE) startTalk(e);
-        else hud.flash(`${e.name} the ${e.kind.label} is too far away`);
-      }
-    }
-
-    frames++; fpsAccum += dt;
-    if (fpsAccum >= 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
-    hud.setDebug(dt, () =>
-      `${fps.toFixed(0)} fps  chunks ${chunks.stats.drawn}/${chunks.stats.loaded}  queue ${chunks.stats.pending}\n` +
-      `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  creatures ${entities.count}\n` +
-      `roads ${graph.edges.length}  radius ${GRAPH.RADIUS}  pos ${x.toFixed(0)},${z.toFixed(0)}`);
-
-    minimap.draw(x, z, iso.zoom, window.innerWidth / window.innerHeight, iso.rotation, markers(), player.x, player.z, !state.can('map'), player.entity.yaw);
-    rig.renderer.render(rig.scene, iso.camera);
-    input.endFrame();
-
-    saveTimer += dt;
-    if (saveTimer > GAMEPLAY.AUTOSAVE_SECONDS) { saveTimer = 0; persist(); }
+  const frames = createFrame({
+    seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
+    skyline, rock, daycycle, weather, seasonTintMaterials, skyRenderer, skies, wildlife,
+    mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
+    buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
+    autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
+    noticeStall, musterHires, startTalk, updateHud, mapInput, markers, areaName,
+    arriving, outdoors, persist,
+    talking: () => dialogue.isOpen,
+    tickDialogue: (dt) => dialogue.update(dt),
+    reveal: () => fog.reveal(state.explored),
+    refreshJournal: () => journal.refresh(journalInput),
+    floorLife: () => floorLife,
+    sync: (dt, heightAt) => multiplayer.sync(dt, heightAt),
+    sailFerries: (clockNow, time) => interactions.sailFerries(clockNow, time),
+    ageCamps: (dt) => interactions.ageCamps(dt),
+    runClock: (dt) => interactions.runClock(dt),
+    carcasses: () => interactions.carcasses(),
   });
+  const loop = new GameLoop((dt, time) => frames.frame(dt, time));
   loop.start();
 }
 

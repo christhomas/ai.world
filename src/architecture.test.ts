@@ -36,8 +36,13 @@ const ALLOWED: Record<string, number> = {
   'world->entities': 2,
   // drawing the hero needs to know what the hero is wearing, and the sky needs the time of day
   'render->game': 8,
-  // a conversation's shape is written by the game and drawn by the ui; the type lives in the ui
-  'game->ui': 12,
+  // A conversation's shape is written by the game and drawn by the ui; the type lives in the ui.
+  // Seven of these are the game's assembly, which came out of main.ts when it was broken up: the
+  // frame loop drives the hud and both maps, the console reads the help topics and writes into
+  // the chat, meeting somebody opens a dialogue, and joining a world reaches for the panel an
+  // address is typed into. Those four files are where the game meets its screen; anything else
+  // that finds it needs the ui is either one of them or is not a rule.
+  'game->ui': 19,
   // A save is a picture of the game's state and of what its world had grown, so storage knows
   // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
   // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,
@@ -80,11 +85,13 @@ describe('the shape of the codebase', () => {
     const big = files('src')
       .map((path) => ({ path, lines: readFileSync(path, 'utf8').split('\n').length }))
       .filter((f) => f.lines > TOO_LONG);
-    // main.ts is assembly and the frame loop, and is allowed to be the longest thing here; the
-    // count is not asserted, because a file being 816 lines rather than 815 is nobody's business
+    // Nothing is exempt. main.ts used to be, because it was one 2,500-line function that held the
+    // frame loop, the fighting, the console and every debug hook at once; it is now assembly and
+    // nothing else, and there is no longer a file in this game you cannot read in one sitting.
+    // Adding a name back to this list is admitting that something has grown past being readable.
     expect(
       big.map((f) => f.path),
       `past ${TOO_LONG} lines:\n  ${big.map((f) => `${f.path} (${f.lines})`).join('\n  ')}`,
-    ).toEqual(['src/main.ts']);
+    ).toEqual([]);
   });
 });
