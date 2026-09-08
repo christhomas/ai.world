@@ -31,6 +31,36 @@ describe('entity movement', () => {
     expect(e.z).toBeCloseTo(3.5);
   });
 
+  /*
+   * The fault this was written for: a hero on a courser covers 4.8 tiles in one server step, and a
+   * move that only asked about the far end of that walked him through a house and out the other
+   * side. It was reported as walking through walls "sometimes", because whether it happened was a
+   * question of how long the frame was.
+   */
+  it('is stopped by a wall thinner than the step it is taking', () => {
+    // a wall a fifth of a tile thick — thinner than any single step, thicker than a slice
+    const thin: TileWorld = {
+      heightAt: () => 1,
+      waterAt: () => null,
+      blocked: (x) => x >= 5 && x < 5.2,
+      isRoad: () => false,
+    };
+    const herd = new Herd(KINDS.hero, 0, 0, 0, 0, 5);
+    const e = new Entity(KINDS.hero, 4, 3, herd, 'k', mulberry32(1));
+    e.y = 1;
+    tryMove(thin, e, 5, 0);
+    expect(e.x, 'walked clean through a wall thinner than one step').toBeLessThan(5);
+    expect(e.x, 'stopped short of a wall it should have walked up to').toBeGreaterThan(4.7);
+  });
+
+  it('sweeps a long move rather than jumping it', () => {
+    const e = new Entity(KINDS.hero, 4.5, 5.5, new Herd(KINDS.hero, 0, 0, 0, 0, 5), 'k', mulberry32(1));
+    e.y = 1;
+    // straight at the tree on tile (5,5), from a tile away: one jump would land beyond it
+    tryMove(world, e, 2, 0);
+    expect(e.x, 'stepped over a whole blocked tile').toBeLessThan(5);
+  });
+
   it('yawFor faces +x rigs along the velocity', () => {
     expect(yawFor(1, 0)).toBeCloseTo(0);
     expect(yawFor(0, 1)).toBeCloseTo(-Math.PI / 2);

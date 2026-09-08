@@ -95,10 +95,7 @@ export class Solids {
 
   /** Is this point inside anything? */
   at(x: number, z: number): boolean {
-    const CS = WORLD.CHUNK_SIZE;
-    const tx = Math.floor(x) - this.cx * CS, tz = Math.floor(z) - this.cz * CS;
-    if (tx < 0 || tz < 0 || tx >= CS || tz >= CS) return false;
-    for (const s of this.buckets[tz * CS + tx]) {
+    for (const s of this.near(x, z)) {
       // into the prop's own frame, where the box is square to the axes
       const dx = x - s.x, dz = z - s.z;
       const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
@@ -106,4 +103,86 @@ export class Solids {
     }
     return false;
   }
+
+  /**
+   * Does the way from one point to another cross anything?
+   *
+   * The question a mover actually has. Asking whether the far end is inside something is a
+   * different question that happens to agree most of the time: it agrees whenever the step is
+   * shorter than what it is walking at, and stops agreeing the moment it is not — a hero on a
+   * courser covers nearly five tiles in one server step, which is a cottage and out the other
+   * side, and a step that only asked about its own far end walked him through it with nothing to
+   * say about the wall it crossed.
+   *
+   * This is the segment against the box, so the answer does not depend on how long the step was.
+   */
+  crosses(x0: number, z0: number, x1: number, z1: number): boolean {
+    for (const s of this.along(x0, z0, x1, z1)) {
+      if (segmentHitsBox(s, x0, z0, x1, z1)) return true;
+    }
+    return false;
+  }
+
+  /** The solids registered on one point's tile. */
+  private near(x: number, z: number): readonly Solid[] {
+    const CS = WORLD.CHUNK_SIZE;
+    const tx = Math.floor(x) - this.cx * CS, tz = Math.floor(z) - this.cz * CS;
+    if (tx < 0 || tz < 0 || tx >= CS || tz >= CS) return EMPTY;
+    return this.buckets[tz * CS + tx];
+  }
+
+  /**
+   * Every solid registered on any tile the segment passes over, each once.
+   *
+   * A box reaches into every tile it overlaps, so walking the tiles under the segment finds
+   * everything it could possibly cross — and a wide prop is registered on several of them, hence
+   * the set. The walk is over the box of tiles the segment spans rather than the tiles it strictly
+   * crosses: a step is at most a tile or two long, so that is a handful of buckets either way and
+   * not worth a line-walk to narrow.
+   */
+  private along(x0: number, z0: number, x1: number, z1: number): Set<Solid> {
+    const CS = WORLD.CHUNK_SIZE;
+    const found = new Set<Solid>();
+    const lowX = Math.floor(Math.min(x0, x1)) - this.cx * CS;
+    const highX = Math.floor(Math.max(x0, x1)) - this.cx * CS;
+    const lowZ = Math.floor(Math.min(z0, z1)) - this.cz * CS;
+    const highZ = Math.floor(Math.max(z0, z1)) - this.cz * CS;
+    for (let tz = Math.max(0, lowZ); tz <= Math.min(CS - 1, highZ); tz++) {
+      for (let tx = Math.max(0, lowX); tx <= Math.min(CS - 1, highX); tx++) {
+        for (const s of this.buckets[tz * CS + tx]) found.add(s);
+      }
+    }
+    return found;
+  }
+}
+
+/** Nothing here, shared rather than made afresh for every question about empty ground. */
+const EMPTY: readonly Solid[] = [];
+
+/**
+ * Does a segment touch a turned box?
+ *
+ * Both ends go into the box's own frame, where it is square to the axes and the whole thing is the
+ * standard slab test: the stretch of the segment that is within the box's width, against the
+ * stretch that is within its depth. If those two stretches overlap, the segment is inside the box
+ * somewhere along its length.
+ */
+function segmentHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number): boolean {
+  const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
+  const ax = (x0 - s.x) * cos - (z0 - s.z) * sin, az = (x0 - s.x) * sin + (z0 - s.z) * cos;
+  const bx = (x1 - s.x) * cos - (z1 - s.z) * sin, bz = (x1 - s.x) * sin + (z1 - s.z) * cos;
+  let lo = 0, hi = 1;
+  for (const [from, to, half] of [[ax, bx, s.hw], [az, bz, s.hd]] as const) {
+    const d = to - from;
+    if (Math.abs(d) < 1e-9) {
+      // no movement across this pair of faces: either it starts between them or it never is
+      if (Math.abs(from) > half) return false;
+      continue;
+    }
+    const near = (-half - from) / d, far = (half - from) / d;
+    lo = Math.max(lo, Math.min(near, far));
+    hi = Math.min(hi, Math.max(near, far));
+    if (lo > hi) return false;
+  }
+  return true;
 }

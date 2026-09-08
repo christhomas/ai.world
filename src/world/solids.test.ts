@@ -60,3 +60,44 @@ describe('a turned box', () => {
     expect(twice.at(between, 8), 'inside the big one').toBe(true);
   });
 });
+
+/*
+ * The fault these were written for: collision asked whether the far end of a step was inside
+ * something. A hero on a courser covers nearly five tiles in one server step — a cottage is 2.5
+ * across — so the far end was on the other side of the house, standing on clear grass, and he went
+ * there. It was reported as walking through walls "sometimes", because whether it happened at all
+ * depended on how long the frame was.
+ */
+describe('crossing a solid rather than landing in one', () => {
+  it('catches a step that goes clean over a box', () => {
+    const solids = solidsFrom(0, 0, [{ kind: PropKind.HousePlains, x: 8.5, z: 8.5, rot: 0 }]);
+    // both ends outside the house, the line straight through the middle of it
+    expect(solids.at(5, 8.5), 'the near end is clear ground').toBe(false);
+    expect(solids.at(12, 8.5), 'and so is the far end').toBe(false);
+    expect(solids.crosses(5, 8.5, 12, 8.5), 'walked through a house').toBe(true);
+  });
+
+  it('lets a step past that misses', () => {
+    const solids = solidsFrom(0, 0, [{ kind: PropKind.HousePlains, x: 8.5, z: 8.5, rot: 0 }]);
+    expect(solids.crosses(5, 4, 12, 4), 'stopped by a house four tiles away').toBe(false);
+  });
+
+  it('turns with the box, so a long house is crossed the way it lies', () => {
+    const along = { kind: PropKind.Stall, x: 8.5, z: 8.5, rot: 0 };
+    const across = { ...along, rot: Math.PI / 2 };
+    // a stall is 1.8 x 1.08: a step over its middle is a crossing whichever way it faces
+    expect(solidsFrom(0, 0, [along]).crosses(6, 8.5, 11, 8.5)).toBe(true);
+    expect(solidsFrom(0, 0, [across]).crosses(6, 8.5, 11, 8.5)).toBe(true);
+    // but a step 0.8 of a tile to the side passes its narrow way round and not its long one
+    expect(solidsFrom(0, 0, [along]).crosses(6, 9.3, 11, 9.3), 'the narrow way round').toBe(false);
+    expect(solidsFrom(0, 0, [across]).crosses(6, 9.3, 11, 9.3), 'the long way round').toBe(true);
+  });
+
+  it('catches a corner clipped between two samples', () => {
+    const solids = solidsFrom(0, 0, [{ kind: PropKind.Boulder, x: 8.5, z: 8.5, rot: 0 }]);
+    // a diagonal that grazes the corner of the box: sampling a step every fifth of a tile can step
+    // over this, which is why the line itself is tested rather than points along it
+    const x0 = 8.5 - 1.07, z0 = 8.5 - 0.79 - 0.6;
+    expect(solids.crosses(x0, z0, x0 + 1.4, z0 + 1.4)).toBe(true);
+  });
+});

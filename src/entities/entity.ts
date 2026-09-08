@@ -265,7 +265,45 @@ export function anybodyAt(near: Iterable<Entity>, x: number, z: number, ignore: 
   return false;
 }
 
+/**
+ * The furthest anything may move without looking at the ground in between, in tiles.
+ *
+ * A move used to be one jump: work out where the step ends, ask whether that spot is standable,
+ * and go there if it is. Nothing was ever asked about the ground between the two ends, so anything
+ * thinner than a step simply was not there. The thinnest solid in the world is `MIN_BLOCK` either
+ * side of its middle — a fence rail, a stall counter, the wall of a house is thicker but a hero on
+ * a courser covers 4.8 tiles in one server step, which is a house and out the other side.
+ *
+ * That made walking through things a matter of *frame rate*, which is why it was reported as
+ * intermittent and impossible to pin down: at sixty frames a step is a twentieth of a tile and
+ * everything stops you, and on a slow frame, a laden horse or a batched steer the same code walks
+ * you through a wall. So a move is now swept in slices no longer than this, and this is shorter
+ * than the thinnest thing anybody can bump into.
+ */
+export const SWEEP = 0.2;
+
+/**
+ * Move something as far as the ground allows, and say whether it got anywhere.
+ *
+ * Long moves are walked in slices rather than jumped, so that what is between the two ends is what
+ * stops you — see `SWEEP`. Each slice slides: the whole move first, then each axis on its own, so
+ * that walking into a wall at an angle carries you along it instead of stopping you dead.
+ */
 export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crowd): boolean {
+  const far = Math.hypot(dx, dz);
+  const slices = far > SWEEP ? Math.ceil(far / SWEEP) : 1;
+  let moved = false;
+  for (let i = 0; i < slices; i++) {
+    // a slice that gets nowhere is the end of the move: the next one is in the same direction from
+    // the same spot, so it would be refused for the same reason
+    if (!slide(world, e, dx / slices, dz / slices, crowd)) break;
+    moved = true;
+  }
+  return moved;
+}
+
+/** One slice of a move: the whole of it if it fits, else along whichever axis does. */
+function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crowd): boolean {
   const k = e.kind;
   /*
    * Whoever is standing there stops you — unless you are already standing in them.
@@ -283,6 +321,9 @@ export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number, cro
     if (mx === 0 && mz === 0) continue;
     const nx = e.x + mx, nz = e.z + mz;
     if (!canStand(world, k, nx, nz, e.y)) continue;
+    // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
+    // length of the step that crossed it
+    if (world.crosses?.(e.x, e.z, nx, nz)) continue;
     // the ground first, because the ground is the cheap question
     if (!stuck && crowd?.occupied(nx, nz, e)) continue;
     e.x = nx; e.z = nz;

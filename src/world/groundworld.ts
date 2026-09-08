@@ -140,6 +140,26 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return this.solids.get(chunkKey(Math.floor(x / CS), Math.floor(z / CS)))?.at(x, z) ?? false;
   }
 
+  /**
+   * Does the way from one point to another cross a solid? The same question the game asks, so that
+   * a wall stops a hero in the same place whichever half of the game is walking him.
+   *
+   * Every chunk the step spans, because a step can cross a chunk edge — at most four, and one
+   * nearly always. Only the boxes: the tile grid is tile-shaped and a mover samples it closely
+   * enough that nothing in it can hide between two samples.
+   */
+  crosses(x0: number, z0: number, x1: number, z1: number): boolean {
+    const CS = WORLD.CHUNK_SIZE;
+    const lowX = Math.floor(Math.min(x0, x1) / CS), highX = Math.floor(Math.max(x0, x1) / CS);
+    const lowZ = Math.floor(Math.min(z0, z1) / CS), highZ = Math.floor(Math.max(z0, z1) / CS);
+    for (let cz = lowZ; cz <= highZ; cz++) {
+      for (let cx = lowX; cx <= highX; cx++) {
+        if (this.solids.get(chunkKey(cx, cz))?.crosses(x0, z0, x1, z1)) return true;
+      }
+    }
+    return false;
+  }
+
   buried(x: number, z: number): boolean {
     if (!this.sampler.ranges) return false;
     const hit = this.tileAt(x, z);

@@ -281,6 +281,28 @@ export class ChunkManager implements TileWorld, ChunkSource {
     return this.loaded.get(chunkKey(hit.t.cx, hit.t.cz))?.solids?.at(x, z) ?? false;
   }
 
+  /**
+   * Does the way from one point to another cross a solid?
+   *
+   * A chunk keeps its own boxes, and a step can start in one chunk and end in the next, so every
+   * chunk the step spans is asked. That is one chunk nearly always and four at the very worst,
+   * because no step is longer than a few tiles and a chunk is sixteen.
+   *
+   * Only the boxes: the tile grid and what the player has built are both tile-shaped, and nothing
+   * a tile wide can hide between the samples a mover takes along its step.
+   */
+  crosses(x0: number, z0: number, x1: number, z1: number): boolean {
+    const CS = WORLD.CHUNK_SIZE;
+    const lowX = Math.floor(Math.min(x0, x1) / CS), highX = Math.floor(Math.max(x0, x1) / CS);
+    const lowZ = Math.floor(Math.min(z0, z1) / CS), highZ = Math.floor(Math.max(z0, z1) / CS);
+    for (let cz = lowZ; cz <= highZ; cz++) {
+      for (let cx = lowX; cx <= highX; cx++) {
+        if (this.loaded.get(chunkKey(cx, cz))?.solids?.crosses(x0, z0, x1, z1)) return true;
+      }
+    }
+    return false;
+  }
+
   /** Plain ground: grass or sand, no road, no floor, nothing already growing on it. */
   isPlantable(x: number, z: number): boolean {
     const hit = this.tileAt(x, z);

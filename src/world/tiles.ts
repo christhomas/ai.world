@@ -39,6 +39,20 @@ export interface TileWorld {
   /** True when a tree / boulder / cactus occupies the tile. */
   blocked(x: number, z: number): boolean;
   /**
+   * True when the way from one point to another crosses something solid.
+   *
+   * `blocked` asks about a point, which is the wrong question for a mover and only looks like the
+   * right one while steps are short: a hero on a courser covers nearly five tiles in one server
+   * step, and a step tested at its far end alone walks through everything between the two ends. So
+   * a mover asks this, and gets an answer that does not depend on how long its step was.
+   *
+   * Optional because not every world has boxes to test a line against — a dungeon is a grid of
+   * rooms, and the tiles either side of a step describe it completely. Where it is missing the
+   * mover falls back to sampling along the step, which a tile grid can be measured with because
+   * nothing in one is thinner than a tile.
+   */
+  crosses?(x0: number, z0: number, x1: number, z1: number): boolean;
+  /**
    * True where a mountain stands over this tile, so the ground here is the inside of a cliff.
    *
    * Optional, because it is only true of the outdoor world of a polygon country. Nothing should
