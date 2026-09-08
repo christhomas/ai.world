@@ -1,5 +1,5 @@
 import { WORLD } from '../core/config';
-import { FOOTPRINTS } from './footprints';
+import { FOOTPRINTS, MIN_BLOCK } from './footprints';
 import { propsOf, type PropAt } from './propstream';
 import type { ChunkData } from './terrain';
 
@@ -45,7 +45,12 @@ export function solidsFrom(cx: number, cz: number, props: Iterable<Pick<PropAt, 
     const box = FOOTPRINTS.get(p.kind);
     if (!box) continue;
     const grew = p.scale ?? 1;
-    out.add({ x: p.x, z: p.z, hw: box.hw * grew, hd: box.hd * grew, rot: p.rot ?? 0 });
+    // nobody can jump, and a stride is longer than some of these are thick — see `MIN_BLOCK`
+    out.add({
+      x: p.x, z: p.z, rot: p.rot ?? 0,
+      hw: Math.max(box.hw * grew, MIN_BLOCK),
+      hd: Math.max(box.hd * grew, MIN_BLOCK),
+    });
   }
   return out;
 }

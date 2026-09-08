@@ -2,7 +2,7 @@ import type { Input } from '../core/input';
 import type { IsoCamera } from '../render/camera';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
-import { Entity, Herd, canStand, tryMove, type TileWorld } from './entity';
+import { Entity, Herd, canStand, tryMove, type Crowd, type TileWorld } from './entity';
 import { newHero, stride, type Steer } from './stride';
 import type { EntityRenderer } from './pool';
 
@@ -12,6 +12,14 @@ export class Player {
   /** 'follow' = WASD moves the hero and the camera tracks; 'free' = the old fly-around camera. */
   mode: 'follow' | 'free' = 'follow';
   private placed = false;
+  /**
+   * Whoever else is standing about, so the hero cannot walk through them.
+   *
+   * Handed in rather than reached for, because the hero walks in three places — here, in the
+   * reconciler when the world corrects him, and on the server — and only two of them have a crowd
+   * to ask. Absent means nobody is in the way, which is true of an empty room.
+   */
+  crowd: Crowd | null = null;
   private hop = 0;
   private static readonly HOP_TIME = 0.28;
   /** While true the hero is carried (ferry): no walking, no ground snapping, camera still follows. */
@@ -150,7 +158,8 @@ export class Player {
     // the mount goes into the steer rather than beside it, so that what is walked here and what is
     // walked by the world are one number and cannot drift apart
     this.steered = len > 0 ? { dx, dz, pace: pace * this.speedScale, dt } : null;
-    if (this.steered) moved = stride(this.world, e, this.steered);
+    // the crowd as well as the ground: a hero walked through cows and through villagers
+    if (this.steered) moved = stride(this.world, e, this.steered, this.crowd ?? undefined);
     if (moved) {
       // `walk` is the pace rather than a flag, so the animation follows the legs: below the motion
       // file's `running.from` it is an amble and above it the stride opens out

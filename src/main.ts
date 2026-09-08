@@ -308,6 +308,9 @@ function startGame(
   const px = url.searchParams.get('x'), pz = url.searchParams.get('z');
   if (px !== null && pz !== null) { startX = Number(px) || 0; startZ = Number(pz) || 0; }
   const player = new Player(chunks, entityRenderer, startX, startZ);
+  // whoever else is standing about, so the hero cannot walk through a cow or a shopkeeper. Set
+  // after the fact because the crowd and the hero each need the other to exist first.
+  player.crowd = entities;
   iso.target.set(startX, 0, startZ);
   if (url.searchParams.get('cam') === 'free') player.mode = 'free';
   const places = new Places({

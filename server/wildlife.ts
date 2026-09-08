@@ -155,6 +155,9 @@ export class Wildlife {
    * held. What it will not do is let any of it reach further than a bow does or hurt more than a
    * blow may be worth.
    */
+  /** Whoever is standing about here, for anything that has to walk round them. */
+  get crowd(): EntityManager { return this.manager; }
+
   swung(blow: Blow): number[] {
     const fx = Math.cos(blow.yaw), fz = -Math.sin(blow.yaw);
     const far = Math.min(FURTHEST_BLOW, Math.max(0, blow.reach));

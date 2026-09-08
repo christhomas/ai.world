@@ -148,7 +148,8 @@ export function createAuthority(ctx: Authority) {
           return;
         }
         if (!outdoors()) return;
-        const out = walked.toldWhereHeIs(player.entity, chunks, seq, x, z);
+        // the crowd too, so replaying a steer cannot push the hero through somebody
+        const out = walked.toldWhereHeIs(player.entity, chunks, seq, x, z, entities);
         walking.answers++;
         if (out > 0) { walking.corrections++; walking.worst = Math.max(walking.worst, out); }
       },

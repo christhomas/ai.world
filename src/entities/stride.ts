@@ -1,6 +1,6 @@
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
-import { Entity, Herd, tryMove, yawFor, type TileWorld } from './entity';
+import { Entity, Herd, tryMove, yawFor, type Crowd, type TileWorld } from './entity';
 
 /**
  * One step of a hero, worked out the same way wherever it is worked out.
@@ -86,7 +86,7 @@ export const FASTEST = 3.5;
  * capped, because on the server this is being handed numbers by somebody else's computer. The
  * client passes its own honest ones through the same gate so that both come out the same.
  */
-export function stride(world: TileWorld, e: Entity, steer: Steer): boolean {
+export function stride(world: TileWorld, e: Entity, steer: Steer, crowd?: Crowd): boolean {
   const len = Math.hypot(steer.dx, steer.dz);
   if (len <= 0) return false;
   const dt = Math.max(0, Math.min(LONGEST_STEP, steer.dt));
@@ -96,7 +96,7 @@ export function stride(world: TileWorld, e: Entity, steer: Steer): boolean {
   const dx = steer.dx / len, dz = steer.dz / len;
   e.yaw = yawFor(dx, dz);
   const step = e.kind.speed * pace * dt;
-  return tryMove(world, e, dx * step, dz * step);
+  return tryMove(world, e, dx * step, dz * step, crowd);
 }
 
 /**

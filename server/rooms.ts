@@ -1,5 +1,6 @@
 import type { Entity } from '../src/entities/entity';
 import type { Blow } from './wildlife';
+import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
 import type { Vault } from './vault';
@@ -36,6 +37,13 @@ export interface Wire {
 export interface CreatureOwner {
   /** A blow in an arc in front of somebody: the world works out what it reached. Returns the dead. */
   swung(blow: Blow): number[];
+  /**
+   * Whoever this world has standing about, so a hero it walks cannot be pushed through them.
+   *
+   * The client checks the same crowd against the same bodies. A step one of them allows and the
+   * other refuses is a correction, and a correction is something the player feels as a tug.
+   */
+  readonly crowd: Crowd;
 }
 
 /** One connected player. */

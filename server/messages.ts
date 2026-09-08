@@ -268,7 +268,10 @@ function walked(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
     dz: Number(message.dz) || 0,
     pace: Number(message.pace) || 0,
     dt: (Number(message.ms) || 0) / 1000,
-  });
+  // and the creatures this world owns, so the hero it walks cannot be pushed through a cow: the
+  // client is checking the same crowd, and a step one of them allows and the other does not is a
+  // correction the player feels as a tug
+  }, rooms.worldOf(me.seed, 'surface')?.crowd);
   settleOnto(ground, hero);
   p.x = hero.x; p.z = hero.z; p.yaw = hero.yaw;
   rooms.send(me, { type: 'youAre', seq, x: hero.x, z: hero.z, y: hero.y, yaw: hero.yaw });

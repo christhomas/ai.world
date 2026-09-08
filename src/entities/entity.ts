@@ -220,13 +220,51 @@ function turnToward(current: number, target: number, maxDelta: number): number {
 }
 
 /** Try to move by (dx,dz); slides along obstacles. Returns true if any movement happened. */
-export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number): boolean {
+/**
+ * How much room a body takes up, as a half-width in tiles.
+ *
+ * Nothing here had one. A hero walked through cows, through villagers and through the shopkeeper
+ * standing at his own counter, because walkability asked the ground about the ground and nothing
+ * asked about who was already there. Taken off the creature's own scale so a rabbit is not a horse,
+ * and floored, because the point of it is that nothing is walk-through.
+ */
+export function bodyOf(kind: AnimalKind): number {
+  return Math.max(0.2, 0.26 * (kind.scale ?? 1));
+}
+
+/** Whoever is already standing somewhere. The manager keeps the crowd; this is all a mover needs. */
+export interface Crowd {
+  /** Is anybody but `ignore` standing at this point? */
+  occupied(x: number, z: number, ignore: Entity): boolean;
+}
+
+/**
+ * Is anybody in `near` but `ignore` standing at this point?
+ *
+ * Here rather than on the manager because it is arithmetic about two bodies and knows nothing about
+ * spawning, herds or chunks — the manager's job is to find who is nearby, and this is what to do
+ * with them. Dead things do not count: a body on the floor is something to step over, and a carcass
+ * that blocked the way would make a fight in a doorway unwinnable.
+ */
+export function anybodyAt(near: Iterable<Entity>, x: number, z: number, ignore: Entity): boolean {
+  const mine = bodyOf(ignore.kind);
+  for (const e of near) {
+    if (e === ignore || e.dead) continue;
+    const room = bodyOf(e.kind) + mine;
+    if (Math.abs(e.x - x) < room && Math.abs(e.z - z) < room) return true;
+  }
+  return false;
+}
+
+export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crowd): boolean {
   const k = e.kind;
   const attempts: Array<[number, number]> = [[dx, dz], [dx, 0], [0, dz]];
   for (const [mx, mz] of attempts) {
     if (mx === 0 && mz === 0) continue;
     const nx = e.x + mx, nz = e.z + mz;
     if (!canStand(world, k, nx, nz, e.y)) continue;
+    // and whoever is already there. Tried after the ground, because the ground is the cheap question
+    if (crowd?.occupied(nx, nz, e)) continue;
     e.x = nx; e.z = nz;
     return true;
   }

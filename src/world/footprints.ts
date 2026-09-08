@@ -33,6 +33,22 @@ import { PropKind } from './biomes';
  */
 export const WALKING_BAND = { low: 0.3, high: 1.4 } as const;
 
+/**
+ * The least ground any solid thing takes up, whatever it measures.
+ *
+ * Not a measurement — a rule, and the reason for it is that nobody can jump. A hero walks 0.058 of
+ * a tile between frames, and the honest measurements include a signpost 0.04 thick, a fence rail at
+ * 0.06 and a noticeboard at 0.1. A stride steps clean over those between one frame and the next, so
+ * a thing you can plainly see is a thing you walk through — which is the whole complaint this began
+ * with, in miniature.
+ *
+ * So everything solid is at least this much of an obstacle. It makes a signpost stubbier than it
+ * looks; a fence you cannot walk through is worth more than a fence of exactly the right thickness
+ * that you can. The measurements stay honest in the table above, and this is applied where the
+ * boxes are built.
+ */
+export const MIN_BLOCK = 0.22;
+
 /** Half-extents in tiles, along the prop's own axes. Anything absent does not block. */
 export const FOOTPRINTS: ReadonlyMap<PropKind, { hw: number; hd: number }> = new Map([
   [PropKind.Oak, { hw: 0.9, hd: 0.82 }],

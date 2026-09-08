@@ -16,7 +16,7 @@ import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
 import { postsOf } from './villagers';
-import { BEHAVIOUR, Entity, Herd, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
+import { BEHAVIOUR, Entity, Herd, anybodyAt, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
 import { residentsOnTheStreet } from './residents';
@@ -433,6 +433,9 @@ export class EntityManager {
    * gift, hire it, or have it answer Enter in front of the person standing behind it. Anything
    * that genuinely wants a body wants a carcass, which is a different list.
    */
+  /** Is anybody but `ignore` standing here? The arithmetic of two bodies is `anybodyAt`. */
+  occupied(x: number, z: number, ignore: Entity): boolean { return anybodyAt(this.within(x, z, 1.6), x, z, ignore); }
+
   within(x: number, z: number, r: number): Entity[] {
     const hits: Array<{ e: Entity; d: number }> = [];
     const near = (e: Entity): void => {

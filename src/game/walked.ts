@@ -1,4 +1,4 @@
-import type { Entity, TileWorld } from '../entities/entity';
+import type { Crowd, Entity, TileWorld } from '../entities/entity';
 import { stride, type Steer } from '../entities/stride';
 
 /**
@@ -109,11 +109,11 @@ export class Walked {
    * The world's answer. Put the hero where it says, walk back everything it had not seen, and say
    * how far out the client turned out to be.
    */
-  toldWhereHeIs(hero: Entity, world: TileWorld, seq: number, x: number, z: number): number {
+  toldWhereHeIs(hero: Entity, world: TileWorld, seq: number, x: number, z: number, crowd?: Crowd): number {
     this.pending = this.pending.filter((s) => s.seq > seq);
     const wasX = hero.x, wasZ = hero.z;
     hero.x = x; hero.z = z;
-    for (const steer of this.pending) stride(world, hero, steer);
+    for (const steer of this.pending) stride(world, hero, steer, crowd);
     const out = Math.hypot(hero.x - wasX, hero.z - wasZ);
     if (out < NEVER_MIND) {
       hero.x = wasX; hero.z = wasZ;
