@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
+import type { WorldKind } from '../src/save/store';
 import { Simulation } from './sim';
 import { IN_SIGHT } from './wildlife';
 import { Forgetful } from './vault';
@@ -35,8 +36,8 @@ class Pretend {
     this.attached = sim.attach(this.wire);
   }
 
-  join(seed: number, name: string, version = PROTOCOL_VERSION): this {
-    this.say({ type: 'join', seed, name, version, day: 2, time: 0.4 });
+  join(seed: number, name: string, version = PROTOCOL_VERSION, world: WorldKind = 'mesh'): this {
+    this.say({ type: 'join', world, seed, name, version, day: 2, time: 0.4 });
     return this;
   }
 
@@ -681,5 +682,44 @@ describe('a world with several people in it', () => {
       const told = who.of('creatures').at(-1);
       expect(told?.near.length ?? 0, `${who.of('welcome')[0].id} has a world round them`).toBeGreaterThan(0);
     }
+  });
+});
+
+/*
+ * The fault this was written for, and the worst one of the lot: the server grew the polygon world
+ * for everybody, whatever world the player was actually in. A seed grows two different countries —
+ * in a slab of seed 3 the polygon world has eight cottages and the road world has none — so a road
+ * world's player was walked about on land he could not see. His own game stopped him at a wall; the
+ * server, which owns where he is standing, had open ground there and corrected him through it. He
+ * was a ghost in his own village, bitten by wolves that were not there, swinging at animals that
+ * were somewhere else.
+ */
+describe('the country the server grows', () => {
+  /** A cottage in the polygon world of seed 3; open ground in its road world. */
+  const HOUSE = { x: 130.5, z: 55.5 };
+
+  it('is the one the player says they are in', () => {
+    const mesh = new Simulation({ vault: new Forgetful(), ground: true });
+    new Pretend(mesh).join(3, 'Rowan', PROTOCOL_VERSION, 'mesh');
+    const onMesh = mesh.groundOf(3)!;
+    onMesh.reach(HOUSE.x, HOUSE.z, 1);
+
+    const road = new Simulation({ vault: new Forgetful(), ground: true });
+    new Pretend(road).join(3, 'Rowan', PROTOCOL_VERSION, 'road');
+    const onRoad = road.groundOf(3)!;
+    onRoad.reach(HOUSE.x, HOUSE.z, 1);
+
+    expect(onMesh.blocked(HOUSE.x, HOUSE.z), 'a cottage of the polygon world').toBe(true);
+    expect(onRoad.blocked(HOUSE.x, HOUSE.z), 'the same spot in the road world is open ground').toBe(false);
+    // and the ground itself is a different height, which is the whole of why this matters
+    expect(onRoad.heightAt(HOUSE.x, HOUSE.z)).not.toBe(onMesh.heightAt(HOUSE.x, HOUSE.z));
+  });
+
+  it('will not let two players into one seed from different countries', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true });
+    new Pretend(sim).join(3, 'Rowan', PROTOCOL_VERSION, 'mesh');
+    const wrong = new Pretend(sim).join(3, 'Wren', PROTOCOL_VERSION, 'road');
+    expect(wrong.of('error').map((e) => e.reason), 'let into a world that is not the one they are in').toHaveLength(1);
+    expect(wrong.open, 'left connected to a world they cannot be in').toBe(false);
   });
 });

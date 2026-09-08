@@ -4,6 +4,7 @@ import {
   type ClientMessage, type Clock, type Presence, type ServerMessage,
   type CreatureSnap, type Letter, type PartyMember, type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
+import type { WorldKind } from '../save/store';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
@@ -118,7 +119,7 @@ export class Online {
   private sinceHeard = 0;
   private url = '';
   /** What was joined last, so a world that goes quiet can be rejoined rather than merely mourned. */
-  private joined: { seed: number; clock: Clock } | null = null;
+  private joined: { seed: number; clock: Clock; world: WorldKind } | null = null;
   /** Other people in this world, by id. */
   readonly players = new Map<string, Presence>();
   id = '';
@@ -147,19 +148,24 @@ export class Online {
    * `url` empty means the world in the next thread: the same simulation, hosted in a Web Worker
    * beside the page rather than on a machine somewhere. Nothing below this line knows the
    * difference, which is what keeps one implementation honest.
+   *
+   * `world` goes with the seed because a seed is not a world: the same number grows a road country
+   * or a polygon one and they share nothing. The server used to assume the polygon one, so a road
+   * world's player was walked about on a land he could not see — see the note on `join` in
+   * `server/protocol.ts`.
    */
-  connect(url: string, seed: number, name: string, clock: Clock): void {
+  connect(url: string, seed: number, name: string, clock: Clock, world: WorldKind): void {
     this.disconnect();
     this.url = url;
     this.local = url === '';
     this.name = cleanName(name);
     this.status = 'connecting';
     this.sinceHeard = 0;
-    this.joined = { seed, clock };
+    this.joined = { seed, clock, world };
 
     const events: LinkEvents = {
       onOpen: () => this.send({
-        type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
+        type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time, world,
       }),
       onMessage: (text) => { this.sinceHeard = 0; this.receive(text); },
       onClose: (why) => {
@@ -391,7 +397,7 @@ export class Online {
       ? 'The world in this tab stopped answering. Starting it again.'
       : 'The world went quiet. Trying it again.');
     this.disconnect();
-    if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock);
+    if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock, rejoin.world);
   }
 
   /**

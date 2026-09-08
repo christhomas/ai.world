@@ -498,7 +498,7 @@ function startGame(
 
   // whose world this is: the one in the next thread until somebody asks for another
   joinAWorld({
-    seed, state, online, url,
+    seed, world, state, online, url,
     forgetOthers: () => others.clear(),
     showChat: () => chat.show(),
     hideChat: () => chat.hide(),

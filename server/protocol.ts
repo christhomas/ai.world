@@ -4,7 +4,9 @@
  * and the short list of things players have changed about the world.
  */
 
-export const PROTOCOL_VERSION = 13;
+import type { WorldKind } from '../src/save/store';
+
+export const PROTOCOL_VERSION = 14;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -216,7 +218,15 @@ export interface CreatureSnap {
 export type EntityState = 'idle' | 'walk' | 'graze' | 'flee' | 'hop' | 'fly' | 'swim';
 
 export type ClientMessage =
-  | { type: 'join'; seed: number; name: string; version: number; day: number; time: number }
+  /**
+   * `world` is which country this seed grows, and it is not decoration: the same seed grows two
+   * completely different lands, and the server used to build one of them for everybody. A player
+   * whose save said 'road' was walked about on the polygon world — houses in different places,
+   * walls where the ground was clear — and since the server owns where a hero is standing, it
+   * dragged him through the walls his own game had stopped him at. He was a ghost in his own
+   * village. So the client says which world it is in, and the server grows that one.
+   */
+  | { type: 'join'; seed: number; name: string; version: number; day: number; time: number; world: WorldKind }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
   /**
    * What the hero was trying to do, rather than where they ended up.

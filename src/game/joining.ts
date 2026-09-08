@@ -1,3 +1,4 @@
+import type { WorldKind } from '../save/store';
 import { $ } from '../ui/dom';
 import type { Online } from './online';
 import type { GameState } from './state';
@@ -36,6 +37,8 @@ export function defaultServer(url: URL): string {
  */
 export interface Joining {
   seed: number;
+  /** Which country this seed grew here, so the server grows the same one. */
+  world: WorldKind;
   state: GameState;
   online: Online;
   /** The address bar's own copy of the link, which an invite is built back out of. */
@@ -49,7 +52,7 @@ export interface Joining {
 }
 
 export function joinAWorld(ctx: Joining): void {
-  const { seed, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
+  const { seed, world, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
 
   const serverInput = $('serverInput') as HTMLInputElement;
   const nameInput = $('nameInput') as HTMLInputElement;
@@ -68,7 +71,7 @@ export function joinAWorld(ctx: Joining): void {
    */
   const playAlone = (): void => {
     if (online.connected || online.status === 'connecting') return;
-    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
+    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world);
   };
   playAlone();
 
@@ -82,7 +85,7 @@ export function joinAWorld(ctx: Joining): void {
     const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
     localStorage.setItem('ai.world/server', address);
-    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time });
+    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world);
     showChat();
   });
 

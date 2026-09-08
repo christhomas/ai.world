@@ -143,6 +143,15 @@ export function installProbes(ctx: Probed): void {
   };
   (debug as { __solid?: (x: number, z: number) => boolean }).__solid = (x, z) => chunks.blocked(x, z);
   (debug as { __place?: () => string }).__place = () => placeName();
+  /*
+   * Which world this is, in the two facts that decide everything about it.
+   *
+   * A seed is not a world: the same number grows a road country or a polygon one, sharing nothing.
+   * When the server was growing the wrong one the symptoms were spectacular and impossible to name
+   * from inside the game — walls in open fields, wolves biting from nowhere — and the first
+   * question anybody needed answering was "which world am I actually in", which nothing could say.
+   */
+  (debug as { __world?: () => unknown }).__world = () => ({ seed, world, online: online.status });
   (debug as { __walking?: () => unknown }).__walking = () => ({
     ...walking, worst: Math.round(walking.worst * 1000) / 1000,
   });

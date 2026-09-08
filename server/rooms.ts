@@ -3,6 +3,7 @@ import type { Blow } from './wildlife';
 import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
+import type { WorldKind } from '../src/save/store';
 import type { Vault } from './vault';
 import { SharedWorld, worldPath } from './world';
 
@@ -120,6 +121,15 @@ export type Party = Set<Client>;
 export interface Room {
   clients: Set<Client>;
   world: SharedWorld;
+  /**
+   * Which country this seed grew.
+   *
+   * A seed is not a world on its own: the same number grows a road world or a polygon one, and
+   * they share nothing — a village in one is open ground in the other. The first player through
+   * the door says which, and everybody after that has to be in the same one or they are not in
+   * the same place at all.
+   */
+  kind: WorldKind;
 }
 
 export class Rooms {
@@ -142,10 +152,10 @@ export class Rooms {
   get(seed: number): Room | undefined { return this.rooms.get(seed); }
 
   /** The room for a seed, read back from disk the first time anybody asks for it. */
-  open(seed: number, start: { day: number; time: number }): Room {
+  open(seed: number, start: { day: number; time: number }, kind: WorldKind): Room {
     let room = this.rooms.get(seed);
     if (!room) {
-      room = { clients: new Set(), world: new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.vault) };
+      room = { clients: new Set(), kind, world: new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.vault) };
       this.rooms.set(seed, room);
     }
     return room;

@@ -7,6 +7,8 @@ import { GroundWorld } from '../src/world/groundworld';
 import { propFootprints } from '../src/render/props';
 import { Wildlife } from './wildlife';
 import { generateWebGraph } from '../src/world/roadweb';
+import { generateRoadGraph } from '../src/world/graph';
+import type { WorldKind } from '../src/save/store';
 import { generateDungeon } from '../src/dungeon/generate';
 import { DungeonWorld } from '../src/dungeon/world';
 import { Manifest } from '../src/world/manifest';
@@ -118,10 +120,19 @@ export class Simulation {
     if (!this.growGround) return null;
     const held = this.ground.get(seed);
     if (held) return held;
-    // Which kind of world a seed grows is the client's business today — it is written into a save
-    // and shared through a link — so the server grows the polygon world, which is the one that has
-    // mountains, villages on real ground, and everything phase three is about.
-    const graph = generateWebGraph(seed);
+    /*
+     * The same country the players of this room are in.
+     *
+     * A seed grows two completely different lands and this used to grow one of them for everybody:
+     * whatever a player's save said, the server built the polygon world and walked their hero
+     * about on it. In a road world that meant the server had open ground where the player could
+     * see a house — and since the server owns where a hero is standing, it corrected him straight
+     * through the wall his own game had stopped him at. A ghost in his own village, and every
+     * other symptom of two worlds at once: wolves biting from nowhere, blows landing on nothing,
+     * walls in the middle of a field.
+     */
+    const kind: WorldKind = this.rooms.get(seed)?.kind ?? 'mesh';
+    const graph = kind === 'mesh' ? generateWebGraph(seed) : generateRoadGraph(seed);
     const sampler = new TerrainSampler(graph);
     const grown = new GroundWorld(sampler, propFootprints());
     this.ground.set(seed, grown);
@@ -362,10 +373,18 @@ export class Simulation {
     }
     const seed = message.seed >>> 0;
     // the first player through the door sets the clock; after that the world keeps its own time
+    const kind: WorldKind = message.world === 'road' ? 'road' : 'mesh';
     const room = this.rooms.open(seed, {
       day: Math.max(1, Math.floor(message.day) || 1),
       time: Number(message.time) || 0.3,
-    });
+    }, kind);
+    // two players of the same seed in different countries are not in the same place at all, and a
+    // world nobody can agree about is worse than a door that will not open
+    if (room.kind !== kind) {
+      wire.send(JSON.stringify({ type: 'error', reason: `That world is open as a ${room.kind === 'mesh' ? 'mountains' : 'road'} world.` } satisfies ServerMessage));
+      wire.close();
+      return null;
+    }
     const joining = this.rooms.admit(wire, room, seed, cleanName(message.name));
 
     this.rooms.send(joining, {
