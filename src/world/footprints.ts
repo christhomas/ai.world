@@ -34,6 +34,17 @@ export interface Footprints {
 }
 
 /**
+ * The footprints of the things that stop you in a particular world.
+ *
+ * Measuring says how big everything is; this says which of them you cannot walk through, and the
+ * two are different questions with different answers in different places. A pew stops you in a
+ * church and there are no pews on a hillside; a flower has a size everywhere and stops nobody.
+ */
+export function blocking(all: Footprints, which: ReadonlySet<PropKind>): Footprints {
+  return { get: (kind) => (which.has(kind) ? all.get(kind) : undefined) };
+}
+
+/**
  * The band a walker meets, in world units: mid-shin to chest.
  *
  * This is what makes boxes usable rather than merely accurate. Below it are the things you step

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import type { PropLibrary } from '../render/props';
 import { Solids, boxesFrom } from './solids';
+import { blocking, type Footprints } from './footprints';
+import { BLOCKS_WALKING } from './biomes';
 import type { PropKind } from './biomes';
 import type { WorkerRequest, WorkerResponse } from './messages';
 import { Standing } from './standing';
@@ -40,6 +42,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * of the house. See `solids.ts`.
    */
   private readonly solids = new Solids();
+  /** What stops a walker out of doors: the measured props, less everything you walk through. */
+  private readonly stops: Footprints;
   private readonly pending = new Map<string, number>();  // key → job id
   private readonly workers: Worker[] = [];
   private readonly idle: Worker[] = [];
@@ -82,6 +86,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     glowMaterial: THREE.Material,
   ) {
     this.propBatch = new PropBatch(scene, props, glowMaterial);
+    this.stops = blocking(props.footprints, BLOCKS_WALKING);
     this.ranges = sampler.ranges;
     const R = WORLD.VIEW_RADIUS;
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) this.offsets.push({ dx, dz });
@@ -177,7 +182,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
         group.add(water);
       }
       // the same boxes the server builds, from the same footprints and the same prop stream
-      this.solids.put(k, boxesFrom(readPropStream(msg.props), this.props.footprints));
+      this.solids.put(k, boxesFrom(readPropStream(msg.props), this.stops));
       this.propBatch.set(k, readPropStream(msg.props));
       this.scene.add(group);
       // the ground of a chunk never moves once it is down, so the frame need not walk it every

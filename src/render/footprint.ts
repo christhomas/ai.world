@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import { BLOCKS_WALKING, PropKind } from '../world/biomes';
+import type { PropKind } from '../world/biomes';
 import { WALKING_BAND, type Footprint, type Footprints } from '../world/footprints';
 
 /**
@@ -50,16 +50,18 @@ export function measureFootprint(geometry: THREE.BufferGeometry): Footprint | nu
 }
 
 /**
- * The footprint of every prop that blocks the way.
+ * The footprint of everything drawn, whether or not anything blocks the way with it.
  *
- * What blocks is a decision and lives with the world as `BLOCKS_WALKING`: a flower is drawn and
- * has a size, and walking through it is right. How *big* the thing you cannot walk through is, is
- * not a decision — it is the mesh — so it is measured here rather than agreed anywhere.
+ * Measuring is a fact and blocking is a decision, and they belong apart: a flower has a size and
+ * walking through it is right, a bed has a size and walking through it is not, and those two are
+ * decided by the world the thing is standing in — `BLOCKS_WALKING` out of doors and
+ * `FURNITURE_BLOCKS` inside. Filtering here would mean the indoor decision could not be made at
+ * all, which is exactly what had happened: indoors blocked furniture by the tile it stood on, so
+ * you walked through the far half of every bed.
  */
 export function footprintsOf(geometries: ReadonlyMap<PropKind, THREE.BufferGeometry>): Footprints {
   const out = new Map<PropKind, Footprint>();
   for (const [kind, geometry] of geometries) {
-    if (!BLOCKS_WALKING.has(kind)) continue;
     const box = measureFootprint(geometry);
     if (box) out.set(kind, box);
   }

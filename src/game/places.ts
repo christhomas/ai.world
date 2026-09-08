@@ -295,7 +295,7 @@ export class Places {
   enterBuilding(door: Doorway): void {
     const { seed, props, iso, player, overworldRenderer, rng } = this.ctx;
     const map = generateInterior(interiorSeed(seed, door.bx, door.bz), door.kind as InteriorKind, door.village);
-    const world = new InteriorWorld(map);
+    const world = new InteriorWorld(map, props.footprints);
     const scene = new InteriorScene(map, props);
     const renderer = new EntityRenderer(scene.scene);
     overworldRenderer.remove(player.entity);

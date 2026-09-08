@@ -2,6 +2,8 @@ import { mulberry32, type Rng } from '../core/rng';
 import { SALT } from '../core/salts';
 import { PropKind } from '../world/biomes';
 import type { ShopType } from '../world/structures';
+import { Solids, boxesFrom } from '../world/solids';
+import { blocking, type Footprints } from '../world/footprints';
 
 /**
  * A building's inside: a walled room laid out from the building's own seed, so the same house
@@ -85,15 +87,37 @@ export function generateInterior(seed: number, kind: InteriorKind, name: string)
 }
 
 /** Furniture and counters block the way; floor, rug and the doorway do not. */
-export function blocksAt(map: InteriorMap, x: number, z: number): boolean {
+/**
+ * What stops you inside a building.
+ *
+ * The room itself is a grid and stays one: a wall is a whole tile and a counter is a whole tile.
+ * The furniture is not, and pretending it was is what let you walk through half of every bed — a
+ * bed is drawn 1.9 tiles long and blocked the one tile it stood on, so the foot of it was scenery.
+ * So furniture is boxed the way everything outside is boxed, off the same measurements of the same
+ * meshes, turned the way the piece is turned.
+ */
+export function blocksAt(map: InteriorMap, x: number, z: number, furniture?: Solids): boolean {
   const tx = Math.floor(x), tz = Math.floor(z);
   if (tx < 0 || tz < 0 || tx >= map.w || tz >= map.h) return true;
   const t = map.tiles[tz * map.w + tx] as ITile;
   if (t === ITile.Wall || t === ITile.Counter) return true;
+  if (furniture) return furniture.at(x, z);
+  // without the measured boxes to hand this is the old tile answer, which is better than none
   return map.furniture.some((f) => f.x === tx && f.z === tz && FURNITURE_BLOCKS.has(f.kind));
 }
 
-const FURNITURE_BLOCKS = new Set<PropKind>([
+/** The furniture of a room as boxes, from the same measurements the world outside uses. */
+export function furnitureBoxes(map: InteriorMap, footprints: Footprints): Solids {
+  const stops = blocking(footprints, FURNITURE_BLOCKS);
+  const solids = new Solids();
+  solids.put('room', boxesFrom(
+    map.furniture.map((f) => ({ kind: f.kind, x: f.x + 0.5, z: f.z + 0.5, rot: f.rot })),
+    stops,
+  ));
+  return solids;
+}
+
+export const FURNITURE_BLOCKS = new Set<PropKind>([
   PropKind.Bed, PropKind.Table, PropKind.Hearth, PropKind.Shelf, PropKind.Barrel, PropKind.Crate,
   PropKind.Forge, PropKind.Anvil, PropKind.WeaponRack, PropKind.Cauldron, PropKind.Altar, PropKind.Pew,
 ]);

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PropLibrary, propFootprints } from '../render/props';
 import { BLOCKS_WALKING, PropKind } from './biomes';
-import { WALKING_BAND } from './footprints';
+import { WALKING_BAND, blocking } from './footprints';
+import { FURNITURE_BLOCKS } from '../interior/generate';
 
 /**
  * What a prop blocks is measured off the prop, so the two cannot disagree.
@@ -23,23 +24,31 @@ describe('the footprints measured off the props', () => {
     const library = new PropLibrary();
     const missing: string[] = [];
     for (const [kind] of library.geometries) {
-      if (!BLOCKS_WALKING.has(kind)) continue;
+      if (!BLOCKS_WALKING.has(kind) && !FURNITURE_BLOCKS.has(kind)) continue;
       if (!footprints.get(kind)) missing.push(`kind ${kind}`);
     }
     library.dispose();
     expect(missing, 'drawn, meant to block, and nothing in the walking band to block with').toEqual([]);
   });
 
-  it('leaves what you walk through alone', () => {
-    // a flower is drawn and has a size, and walking through it is right; that is a decision, and
-    // it lives in BLOCKS_WALKING rather than in whether anybody remembered to measure it
+  it('measures what you walk through too, and lets the world decide', () => {
+    // a flower is drawn and has a size, and walking through it is right. That is a decision, and it
+    // belongs to the world the thing is standing in — out of doors `BLOCKS_WALKING`, indoors
+    // `FURNITURE_BLOCKS` — rather than to whether anybody remembered to measure it. A bed proves
+    // why the two must be separate: nothing blocks with a bed on a hillside, and indoors it is the
+    // thing you have been walking through.
+    const outdoors = blocking(footprints, BLOCKS_WALKING);
     const walkThrough: Array<[string, PropKind]> = [
       ['a flower', PropKind.Flower], ['a tuft of grass', PropKind.Tuft],
       ['a mushroom', PropKind.Mushroom], ['a rug', PropKind.Rug],
     ];
+    // some of these are too low to have anything in the walking band at all, which is its own
+    // answer; what matters is that none of them stops anybody
     for (const [what, kind] of walkThrough) {
-      expect(footprints.get(kind), `${what} has been given a box`).toBeUndefined();
+      expect(outdoors.get(kind), `${what} stops you out of doors`).toBeUndefined();
     }
+    expect(outdoors.get(PropKind.Bed), 'a bed on a hillside').toBeUndefined();
+    expect(blocking(footprints, FURNITURE_BLOCKS).get(PropKind.Bed), 'a bed in a bedroom').toBeTruthy();
   });
 
   it('measures a cottage to its walls, not its step or its eaves', () => {

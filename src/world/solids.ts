@@ -33,6 +33,10 @@ export interface Solid {
 /**
  * The boxes of a set of props.
  *
+ * Whatever `footprints` answers about is what stops you: measuring is a fact, blocking is a
+ * decision, and the decision belongs to the world the thing is standing in — see `blocking` in
+ * `footprints.ts`. A pew stops you in a church and there are no pews on a hillside.
+ *
  * Takes the props rather than fetching them, because the two worlds that need this get them from
  * different places and must not disagree: the game reads the stream its chunk worker already sent
  * for drawing, and the server generates the same props itself with `propsOf`. Same footprints, same

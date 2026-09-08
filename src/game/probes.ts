@@ -167,6 +167,24 @@ export function installProbes(ctx: Probed): void {
    * wolf that is not there any more, because what is drawn is where it was. This is that gap, in
    * tiles, so it can be argued about with a number instead of a feeling.
    */
+  /*
+   * The room the hero is standing in, and what stops him in it.
+   *
+   * Indoors is a different world with its own walls and its own furniture, and nothing could see
+   * into it from outside — `__solid` answers about the hillside, which indoors is a question about
+   * a place the hero is not. So a bed you could walk through was invisible to every probe there
+   * was.
+   */
+  (debug as { __room?: () => unknown }).__room = () => {
+    const room = places.indoors;
+    if (!room) return null;
+    return {
+      name: room.world.map.name,
+      size: [room.world.map.w, room.world.map.h],
+      furniture: room.world.map.furniture.map((f) => ({ kind: f.kind, x: f.x, z: f.z, rot: Math.round(f.rot * 100) / 100 })),
+      solid: (x: number, z: number) => room.world.blocked(x, z),
+    };
+  };
   Object.defineProperty(debug, '__drift', { configurable: true, get: () => drift() });
   Object.defineProperty(debug, '__bites', { configurable: true, get: () => bites });
   (debug as { __walking?: () => unknown }).__walking = () => ({

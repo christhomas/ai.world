@@ -5,6 +5,8 @@ import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld } from '../src/world/groundworld';
 import { propFootprints } from '../src/render/props';
+import { blocking } from '../src/world/footprints';
+import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife } from './wildlife';
 import { generateWebGraph } from '../src/world/roadweb';
 import { generateRoadGraph } from '../src/world/graph';
@@ -150,7 +152,7 @@ export class Simulation {
     const kind: WorldKind = this.rooms.get(seed)?.kind ?? 'mesh';
     const graph = kind === 'mesh' ? generateWebGraph(seed) : generateRoadGraph(seed);
     const sampler = new TerrainSampler(graph);
-    const grown = new GroundWorld(sampler, propFootprints());
+    const grown = new GroundWorld(sampler, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
     // Animals only. The people of a village are worked out from the seed and the register of who
     // has died, so every client already agrees about them without being told — and a villager the

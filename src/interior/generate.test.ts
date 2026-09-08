@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PropKind } from '../world/biomes';
 import { ITile, blocksAt, generateInterior, interiorSeed, interiorTitle } from './generate';
 import { InteriorWorld } from './world';
+import { propFootprints } from '../render/props';
 
 const KINDS = ['house', 'store', 'smith', 'inn', 'apothecary', 'church'] as const;
 
@@ -80,5 +81,64 @@ describe('interiors', () => {
     expect(world.blocked(shelf.x + 0.5, shelf.z + 0.5)).toBe(true);
     expect(world.blocked(map.entry[0] + 0.5, map.entry[1] + 0.5)).toBe(false);
     expect(world.heightAt(-1, 3)).toBeNull();
+  });
+});
+
+/*
+ * Furniture stops you where it is drawn, and a room still works.
+ *
+ * It used to stop you on the one tile it stood on, whatever it was: a bed is drawn 1.9 tiles long,
+ * so the foot of every bed in the world was scenery you could stand inside. Boxing it fixes that
+ * and introduces the opposite risk — a room small enough that the furniture seals it — so both are
+ * tested together.
+ */
+describe('furniture you cannot walk through', () => {
+  const footprints = propFootprints();
+
+  it('stops you at the far end of a bed, not only on its own tile', () => {
+    const map = generateInterior(interiorSeed(1, 5, 7), 'house', 'Testford');
+    const bed = map.furniture.find((f) => f.kind === PropKind.Bed);
+    expect(bed, 'a house with no bed in it').toBeTruthy();
+    const world = new InteriorWorld(map, footprints);
+    const middle = { x: bed!.x + 0.5, z: bed!.z + 0.5 };
+    expect(world.blocked(middle.x, middle.z), 'the tile the bed stands on').toBe(true);
+    // a bed is 0.9 across and 1.9 along its own length, so its ends are most of a tile out from
+    // the tile it stands on — turned the way the bed is turned
+    const box = propFootprints().get(PropKind.Bed)!;
+    expect(box.hd, 'a bed that is not drawn long any more').toBeGreaterThan(0.8);
+    const reach = box.hd * 0.9;
+    const along = { x: -Math.sin(bed!.rot) * reach, z: Math.cos(bed!.rot) * reach };
+    expect(world.blocked(middle.x + along.x, middle.z + along.z), 'the far end of the bed').toBe(true);
+    expect(world.blocked(middle.x - along.x, middle.z - along.z), 'and the near end').toBe(true);
+  });
+
+  it('leaves every room walkable from the door to the keeper', () => {
+    for (const kind of KINDS) {
+      for (const seed of [1, 2, 3, 7, 11]) {
+        const map = generateInterior(interiorSeed(seed, 5, 7), kind, 'Testford');
+        const world = new InteriorWorld(map, footprints);
+        // flood out from where the hero arrives, a quarter tile at a time so a gap narrower than a
+        // doorway is not mistaken for a way through
+        const step = 0.5;
+        const seen = new Set<string>();
+        const queue: Array<[number, number]> = [[map.entry[0] + 0.5, map.entry[1] + 0.5]];
+        while (queue.length > 0) {
+          const [x, z] = queue.pop()!;
+          const key = `${Math.round(x / step)},${Math.round(z / step)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          if (world.blocked(x, z)) continue;
+          for (const [dx, dz] of [[step, 0], [-step, 0], [0, step], [0, -step]]) queue.push([x + dx, z + dz]);
+        }
+        const reached = (x: number, z: number) => seen.has(`${Math.round((x + 0.5) / step)},${Math.round((z + 0.5) / step)}`);
+        expect(reached(map.door[0], map.door[1]), `${kind}/${seed}: walled in, cannot reach the door`).toBe(true);
+        if (map.keeper) {
+          // beside the keeper rather than on them: somebody is standing there
+          const [kx, kz] = map.keeper;
+          const beside = [[kx + 1, kz], [kx - 1, kz], [kx, kz + 1], [kx, kz - 1]].some(([x, z]) => reached(x, z));
+          expect(beside, `${kind}/${seed}: cannot get near whoever keeps the place`).toBe(true);
+        }
+      }
+    }
   });
 });
