@@ -1,4 +1,5 @@
 import { $ } from './dom';
+import { greeting } from '../core/version';
 
 const MAX_LINES = 60;
 
@@ -79,7 +80,11 @@ export class Chat {
 
   /** The console key: down if it is up, up if it is down. */
   toggleConsole(): void {
-    if (this.isConsole) this.close(); else this.open(true);
+    if (this.isConsole) { this.close(); return; }
+    // what this is and which build of it, every time the console comes up. A console is where you
+    // go when something is wrong, and the first thing worth knowing then is what you are running
+    this.line(greeting(), 'sys');
+    this.open(true);
   }
 
   private close(): void {

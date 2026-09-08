@@ -2,6 +2,7 @@ import type { SaveStore, SessionSave, WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
 import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
+import { GAME, today } from '../core/version';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
@@ -89,6 +90,10 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
     const legacy = await store.load<SessionSave>(LEGACY_KEY);
     if (legacy) { saves[0] = legacy; await store.save(SLOT_KEYS[0], legacy); await store.remove(LEGACY_KEY); }
   }
+
+  // which build this is, said plainly. The first question of anything just deployed is which
+  // version is actually being looked at, and the answer should not be "read the tag on the cluster"
+  $('buildLine').textContent = `${GAME.name} v${GAME.version} · built ${GAME.builtOn} · ${today()}`;
 
   const root = $('title');
   const list = $('slots');

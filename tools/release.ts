@@ -40,6 +40,15 @@ const WRITTEN: Array<{ file: string; find: RegExp; write: (v: string) => string 
   { file: 'chart/Chart.yaml', find: /^version: .+$/m, write: (v) => `version: ${v}` },
   { file: 'chart/Chart.yaml', find: /^appVersion: .+$/m, write: (v) => `appVersion: "${v}"` },
   { file: 'deploy/flux/helmrelease.yaml', find: /^      version: '.+'$/m, write: (v) => `      version: '${v}'` },
+  /*
+   * And the package, which the page reads to say what it is.
+   *
+   * It had been left behind at 0.2.0 for nine releases, because nothing looked at it: the chart is
+   * what a cluster installs and the tag is what the image is called. Now the title screen and the
+   * console both print the version, and the honest place for a web page to read its own version is
+   * its package — so it goes in the list, and it cannot drift again without this failing.
+   */
+  { file: 'package.json', find: /^  "version": ".+",$/m, write: (v) => `  "version": "${v}",` },
 ];
 
 function main(): void {
@@ -67,10 +76,10 @@ function main(): void {
     if (!find.test(text)) throw new Error(`${file} does not say what version it is in the way this expects`);
     writeFileSync(file, text.replace(find, write(version)));
   }
-  say('chart, appVersion and the HelmRelease pin all moved');
+  say('chart, appVersion, the HelmRelease pin and the package all moved');
 
   const body = note || `Version ${version}.`;
-  run('git', ['add', 'chart/Chart.yaml', 'deploy/flux/helmrelease.yaml']);
+  run('git', ['add', 'chart/Chart.yaml', 'deploy/flux/helmrelease.yaml', 'package.json']);
   run('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', `Release ${version}\n\n${body}`]);
   run('git', ['tag', '-a', `v${version}`, '-m', `v${version}`]);
   say(`committed and tagged v${version}`);

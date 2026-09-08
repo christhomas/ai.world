@@ -1,5 +1,22 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { commandChannel } from './tools/commandchannel.ts';
+
+/**
+ * What the game is called, what version it is, and when it was built.
+ *
+ * Baked in at build time rather than fetched, because a page that has to ask the network what
+ * version it is cannot tell you when the network is the thing that is wrong — and "which version
+ * am I actually looking at" is the first question asked of a deployment that has just been
+ * released. The version comes from the package, which `chore release` moves along with the chart,
+ * so the number on the title screen is the number of the image that is serving it.
+ */
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { name: string; version: string };
+const BUILD = {
+  __GAME_NAME__: JSON.stringify('AI World'),
+  __GAME_VERSION__: JSON.stringify(pkg.version),
+  __BUILT_ON__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+};
 
 /**
  * Where the built page will be served from. GitHub Pages puts it under /ai.world/; a world server
@@ -14,6 +31,7 @@ export default defineConfig(({ command }) => ({
    * will ever run. That is why the image has to carry `tools/` even though it never serves.
    */
   plugins: [commandChannel()],
+  define: BUILD,
   base: process.env.BASE ?? (command === 'build' ? '/ai.world/' : '/'),
   /**
    * The dev server, pinned.

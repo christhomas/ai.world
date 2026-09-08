@@ -132,15 +132,15 @@ describe('walking into a door', () => {
     steps.step(LEAF(door(10, 10)));
     expect(world.entered, 'in').toHaveLength(1);
 
-    // he arrives one tile inside the room's own door, which is not far enough to have armed it
+    // he arrives a tile inside the room, off the threshold, which is what arms it again
     steps.step({ x: 5.5, z: 8.5 });
-    steps.step({ x: 5.5, z: 9.5 });
-    expect(world.left, 'not straight back out again').toBe(0);
+    expect(world.left, 'standing inside is not leaving').toBe(0);
 
-    // walk properly into the room, then back at the door
-    steps.step({ x: 5.5, z: 6 });
-    steps.step({ x: 5.5, z: 9.4 });
-    expect(world.left, 'out, without pressing anything').toBe(1);
+    // and walking back at the door takes him out, without pressing anything. He does not have to
+    // cross the room first: the old rule made him walk two tiles clear before a door worked again,
+    // which in a shop the size of a shop meant the door often did nothing at all
+    steps.step({ x: 5.5, z: 9.5 });
+    expect(world.left, 'out').toBe(1);
   });
 
   it('does not put him out through a door he is only walking past inside', () => {

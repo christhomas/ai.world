@@ -44,15 +44,6 @@ const DOOR = {
    * it he would have to put his centre inside eight hundredths of a tile of wood.
    */
   BODY: 0.18,
-  /**
-   * And how far he has to get from a door before walking into one counts again.
-   *
-   * This is what keeps a door from being a revolving one. Coming out leaves you standing a tile
-   * beyond the doorway and going in puts you a tile inside it — either way close enough that the
-   * next step could round straight back through. The step is disarmed by every passage through a
-   * door and stays disarmed until the hero is properly clear of the one he is nearest.
-   */
-  CLEAR: 1.9,
 } as const;
 
 /** Somebody who can be at a door: the hero, in the two numbers this cares about. */
@@ -89,7 +80,20 @@ export function onThreshold(door: Doorway, hero: AtDoor): boolean {
  * player puts up has one the moment its roof goes on.
  */
 export function createDoorsteps(places: Places, doors: () => readonly Doorway[]) {
-  /** False from the moment a building is entered or left, until the hero is clear of every door. */
+  /**
+   * A door works again as soon as you have stepped off one.
+   *
+   * Something has to stop a door being a revolving one — going through leaves you standing next to
+   * the doorway you just came through, so without a latch the next frame takes you straight back.
+   * That used to be a distance: get more than so many tiles from the nearest door and it counts
+   * again. It was the wrong rule, and it made the inside of a building unreliable in exactly the
+   * way it was reported — a shop is a small room, so a hero who stayed near the counter never got
+   * far enough away to re-arm, walked into the door, and nothing happened; wander about a bit and
+   * eventually it would work.
+   *
+   * Standing off the threshold is the whole of the condition. There is no distance in it, so there
+   * is no room too small for it, and it cannot be half-satisfied.
+   */
   let armed = false;
 
   return {
@@ -100,27 +104,20 @@ export function createDoorsteps(places: Places, doors: () => readonly Doorway[])
 
       const room = places.indoors;
       if (room) {
-        // the same rule from the inside: the one door of the room he is standing in
-        if (!armed) { if (room.world.fromDoor(hero.x, hero.z) > DOOR.CLEAR) armed = true; return; }
-        // indoors the doorway is a whole tile of the south wall, so the leaf's own depth is the tile
-        if (!room.world.inDoorway(hero.x, hero.z, 0.5 + DOOR.BODY, DOOR.HALF + DOOR.BODY)) return;
+        // the same rule from the inside; indoors the doorway is a whole tile of the south wall, so
+        // the leaf's own thickness is that tile
+        const inIt = room.world.inDoorway(hero.x, hero.z, 0.5 + DOOR.BODY, DOOR.HALF + DOOR.BODY);
+        if (!armed) { armed = !inIt; return; }
+        if (!inIt) return;
         armed = false;
         places.leaveBuilding();
         return;
       }
 
-      let nearest = Infinity;
       let onTheStep: Doorway | null = null;
-      for (const door of doors()) {
-        const away = Math.hypot(door.x - hero.x, door.z - hero.z);
-        if (away < nearest) nearest = away;
-        if (onThreshold(door, hero)) onTheStep = door;
-      }
+      for (const door of doors()) if (onThreshold(door, hero)) { onTheStep = door; break; }
 
-      if (!armed) {
-        if (nearest > DOOR.CLEAR) armed = true;
-        return;
-      }
+      if (!armed) { armed = onTheStep === null; return; }
       if (!onTheStep) return;
       armed = false;
       places.enterBuilding(onTheStep);

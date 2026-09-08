@@ -365,8 +365,14 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   line-height: 1.7; color: var(--ink-far);
 }
 #titleRail .rail-block { display: flex; flex-direction: column; gap: calc(16 * var(--ui-scale)); }
+/* the build, in the quietest type on the screen: wanted when it is wanted, never in the way */
+#titleRail .build {
+  margin-top: auto; font-size: calc(10 * var(--ui-scale)); color: #4d5680;
+  letter-spacing: var(--ui-scale); line-height: 1.6;
+}
+#titleRail .build + .rail-foot { margin-top: calc(10 * var(--ui-scale)); }
 #titleRail .rail-foot {
-  margin-top: auto; padding-top: calc(10 * var(--ui-scale)); border-top: var(--ui-scale) solid var(--hair);
+  padding-top: calc(10 * var(--ui-scale)); border-top: var(--ui-scale) solid var(--hair);
   font-size: calc(11 * var(--ui-scale)); line-height: 2; color: var(--ink-faint); letter-spacing: var(--ui-scale);
 }
 /* the keys are no use to a thumb, so a phone is told the one thing it needs instead */
