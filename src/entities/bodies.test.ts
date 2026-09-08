@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KINDS } from './animals';
 import { Entity, Herd, anybodyAt, bodyOf, tryMove, type TileWorld } from './entity';
+import { MIN_BODY } from './properties';
 import { mulberry32 } from '../core/rng';
 
 /**
@@ -29,11 +30,22 @@ function someone(kind: string, x: number, z: number): Entity {
 }
 
 describe('taking up room', () => {
-  it('gives a bigger creature a bigger body, and nothing a body of nothing', () => {
-    expect(bodyOf(KINDS.cow)).toBeGreaterThan(bodyOf(KINDS.rabbit));
-    for (const kind of ['rabbit', 'villager', 'cow', 'horse', 'wolf']) {
-      expect(bodyOf(KINDS[kind]), `${kind} takes up room`).toBeGreaterThan(0.15);
+  it('measures a body off the parts the creature is drawn from', () => {
+    // the point of measuring rather than guessing: redraw a cow longer and it blocks longer,
+    // without anybody remembering to come back here and change a number
+    expect(bodyOf(KINDS.cow).hw).toBeGreaterThan(bodyOf(KINDS.rabbit).hw);
+    for (const kind of ['rabbit', 'villager', 'cow', 'horse', 'wolf', 'goat']) {
+      const body = bodyOf(KINDS[kind]);
+      expect(body.hw, `${kind} takes up room`).toBeGreaterThanOrEqual(MIN_BODY);
+      expect(body.hd, `${kind} takes up room across`).toBeGreaterThanOrEqual(MIN_BODY);
     }
+  });
+
+  it('keeps a long animal long rather than square', () => {
+    // a horse is 1.31 nose to tail and about a third of that across. Taking the larger number for
+    // both would make it a block two and a half tiles on a side — worse than walking through it
+    const horse = bodyOf(KINDS.horse);
+    expect(horse.hw, 'longer than it is wide').toBeGreaterThan(horse.hd * 1.5);
   });
 
   it('will not let anybody walk into where somebody is standing', () => {
@@ -56,20 +68,39 @@ describe('taking up room', () => {
     expect(anybodyAt([villager], 10, 10, villager)).toBe(false);
   });
 
-  it('stops a stride short of somebody, and lets it slide past', () => {
+  it('stops a stride short of somebody, and never traps anybody', () => {
     const cow = someone('cow', 11, 10);
-    const hero = someone('villager', 10, 10);
+    // clear of it to begin with: a cow is nearly two tiles nose to tail, so ten paces away
+    const hero = someone('villager', 8, 10);
     const crowd = { occupied: (x: number, z: number, ignore: Entity) => anybodyAt([cow], x, z, ignore) };
 
     // straight at the cow, over open ground: the ground allows it and the cow does not
     let blockedOnce = false;
-    for (let i = 0; i < 30; i++) if (!tryMove(meadow, hero, 0.05, 0, crowd)) { blockedOnce = true; break; }
+    // far enough to reach it: a cow's box begins nearly two tiles from its middle
+    for (let i = 0; i < 80; i++) if (!tryMove(meadow, hero, 0.05, 0, crowd)) { blockedOnce = true; break; }
     expect(blockedOnce, 'something was in the way').toBe(true);
-    expect(hero.x, 'and he stopped short of it').toBeLessThan(11 - bodyOf(KINDS.cow));
+    expect(hero.x, 'and he stopped short of it').toBeLessThan(11 - bodyOf(KINDS.cow).hd);
 
-    // and a step that is partly along the cow still gets its sideways half, so nobody sticks
-    const before = hero.z;
-    expect(tryMove(meadow, hero, 0.05, 0.05, crowd)).toBe(true);
-    expect(hero.z, 'slid along it rather than stopping dead').toBeGreaterThan(before);
+    // and he can walk away again
+    const wasX = hero.x;
+    expect(tryMove(meadow, hero, -0.05, 0, crowd), 'back the way he came').toBe(true);
+    expect(hero.x).toBeLessThan(wasX);
+  });
+
+  it('lets somebody who is already inside a body walk out of it', () => {
+    /*
+     * Things do end up inside each other — a creature spawns beside one, a blow knocks somebody
+     * back, the world corrects a hero onto a cow. Asked unconditionally, the crowd would refuse
+     * every direction out of that as well, and being stuck for ever is worse than the
+     * walking-through all of this replaced.
+     */
+    const cow = someone('cow', 10, 10);
+    const hero = someone('villager', 10, 10);
+    const crowd = { occupied: (x: number, z: number, ignore: Entity) => anybodyAt([cow], x, z, ignore) };
+    expect(anybodyAt([cow], hero.x, hero.z, hero), 'standing in the cow').toBe(true);
+    let got = 0;
+    for (let i = 0; i < 60; i++) if (tryMove(meadow, hero, 0.05, 0, crowd)) got++;
+    expect(got, 'walked out rather than being held there').toBeGreaterThan(20);
+    expect(anybodyAt([cow], hero.x, hero.z, hero), 'and is clear of it now').toBe(false);
   });
 });

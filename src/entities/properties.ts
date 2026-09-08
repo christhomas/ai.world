@@ -169,12 +169,52 @@ export const PROPERTIES: Record<string, CreatureProperties> = readAll({
  * a body with no properties beside it fails at load, naming the creature, rather than spawning
  * something with no speed and no hit points.
  */
-export function creature(id: string, parts: PartDef[]): CreatureProperties & { parts: PartDef[] } {
+/**
+ * The band of a creature that another body meets, in its own units before it is scaled.
+ *
+ * The same idea props use. Below it are the things you step over — a paw, a hoof, a tail lying on
+ * the ground — and above it the things you pass under, which for a creature means a horse's head
+ * and an eagle's wings.
+ */
+const BODY_BAND = { low: 0.15, high: 1.2 } as const;
+
+/** The least room anything takes up. A stride covers 0.058, and a body thinner than that is a ghost. */
+export const MIN_BODY = 0.2;
+
+/**
+ * How much ground this creature stands on, measured off the parts it is drawn from.
+ *
+ * Part of the definition rather than a table somewhere else, and that is the whole point: a
+ * creature's size, its shape and what it blocks are one fact about it, so they cannot come apart.
+ * Change the parts and it blocks differently; change `scale` and the box scales with it, because
+ * the scale is applied here to the same numbers the renderer applies it to.
+ *
+ * Length and width are kept apart. A horse is 1.31 nose to tail and about a third of that across —
+ * taking the larger for both would make it a block two and a half tiles on a side, which is worse
+ * than the walking-through it replaced. A creature faces +x, so `hw` is along its length.
+ */
+function bodyFrom(parts: PartDef[], scale: number): { hw: number; hd: number } {
+  let alongX = 0, alongZ = 0;
+  for (const part of parts) {
+    // legs, tails and heads swing, so what is measured is where they are drawn at rest
+    const tall = part.shape === 'ico' ? part.size[0] * 2 : part.size[1];
+    const midY = part.offset[1];
+    if (midY + tall / 2 < BODY_BAND.low || midY - tall / 2 > BODY_BAND.high) continue;
+    // box: [w, h, d]; everything else carries a radius in size[0]
+    const halfX = part.shape === 'box' ? part.size[0] / 2 : part.size[0];
+    const halfZ = part.shape === 'box' ? part.size[2] / 2 : part.size[0];
+    alongX = Math.max(alongX, Math.abs(part.offset[0]) + halfX);
+    alongZ = Math.max(alongZ, Math.abs(part.offset[2]) + halfZ);
+  }
+  return { hw: Math.max(MIN_BODY, alongX * scale), hd: Math.max(MIN_BODY, alongZ * scale) };
+}
+
+export function creature(id: string, parts: PartDef[]): CreatureProperties & { parts: PartDef[]; body: { hw: number; hd: number } } {
   const properties = PROPERTIES[id];
   if (!properties) {
     throw new PropertiesError(`properties/${id}`, `there is a rig for "${id}" but nothing in properties/ that says what it is`);
   }
-  return { ...properties, parts };
+  return { ...properties, parts, body: bodyFrom(parts, properties.scale ?? 1) };
 }
 
 /**

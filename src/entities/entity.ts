@@ -221,15 +221,17 @@ function turnToward(current: number, target: number, maxDelta: number): number {
 
 /** Try to move by (dx,dz); slides along obstacles. Returns true if any movement happened. */
 /**
- * How much room a body takes up, as a half-width in tiles.
+ * How much ground a creature stands on.
  *
- * Nothing here had one. A hero walked through cows, through villagers and through the shopkeeper
- * standing at his own counter, because walkability asked the ground about the ground and nothing
- * asked about who was already there. Taken off the creature's own scale so a rabbit is not a horse,
- * and floored, because the point of it is that nothing is walk-through.
+ * A creature carries its own box — see `creature()` in `properties.ts`, which measures it off the
+ * same parts the renderer draws and scales it by the same `scale`. So its size, its shape and what
+ * it blocks are one fact about it: move it, turn it or scale it and the box goes with it, because it
+ * is not a separate thing that has to be kept in step.
+ *
+ * This is here only so that callers have a name to reach for rather than a field to remember.
  */
-export function bodyOf(kind: AnimalKind): number {
-  return Math.max(0.2, 0.26 * (kind.scale ?? 1));
+export function bodyOf(kind: AnimalKind): { hw: number; hd: number } {
+  return kind.body;
 }
 
 /** Whoever is already standing somewhere. The manager keeps the crowd; this is all a mover needs. */
@@ -247,24 +249,42 @@ export interface Crowd {
  * that blocked the way would make a fight in a doorway unwinnable.
  */
 export function anybodyAt(near: Iterable<Entity>, x: number, z: number, ignore: Entity): boolean {
-  const mine = bodyOf(ignore.kind);
+  const own = bodyOf(ignore.kind);
+  // the mover as a radius rather than a box, because it is turning as it goes and its own length
+  // is not what it leads with; the narrower half is the honest one to push about with
+  const mine = Math.min(own.hw, own.hd);
   for (const e of near) {
     if (e === ignore || e.dead) continue;
-    const room = bodyOf(e.kind) + mine;
-    if (Math.abs(e.x - x) < room && Math.abs(e.z - z) < room) return true;
+    const body = bodyOf(e.kind);
+    // into the creature's own frame, where its box is square to the axes and its length is x
+    const dx = x - e.x, dz = z - e.z;
+    const cos = Math.cos(-e.yaw), sin = Math.sin(-e.yaw);
+    const alongX = Math.abs(dx * cos - dz * sin), alongZ = Math.abs(dx * sin + dz * cos);
+    if (alongX < body.hw + mine && alongZ < body.hd + mine) return true;
   }
   return false;
 }
 
 export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crowd): boolean {
   const k = e.kind;
+  /*
+   * Whoever is standing there stops you — unless you are already standing in them.
+   *
+   * A horse is nearly two tiles nose to tail, and things do end up inside each other: a creature
+   * spawns beside one, a blow knocks somebody back, the world corrects a hero onto a cow. If the
+   * crowd were asked unconditionally then every direction out of that would be refused too, and
+   * being stuck for ever is a worse fault than the walking-through this replaced. So the question
+   * is only asked of somebody who is standing clear to begin with; anybody already overlapping is
+   * free to move, and moves apart within a step or two because nothing is pushing them together.
+   */
+  const stuck = crowd?.occupied(e.x, e.z, e) ?? false;
   const attempts: Array<[number, number]> = [[dx, dz], [dx, 0], [0, dz]];
   for (const [mx, mz] of attempts) {
     if (mx === 0 && mz === 0) continue;
     const nx = e.x + mx, nz = e.z + mz;
     if (!canStand(world, k, nx, nz, e.y)) continue;
-    // and whoever is already there. Tried after the ground, because the ground is the cheap question
-    if (crowd?.occupied(nx, nz, e)) continue;
+    // the ground first, because the ground is the cheap question
+    if (!stuck && crowd?.occupied(nx, nz, e)) continue;
     e.x = nx; e.z = nz;
     return true;
   }

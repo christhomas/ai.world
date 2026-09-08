@@ -46,6 +46,13 @@ export type { Behaviour } from './properties';
 /** A creature entire: what it is, out of `properties/`, and the body it is drawn with. */
 export interface AnimalKind extends CreatureProperties {
   parts: PartDef[];
+  /**
+   * How much ground it stands on: half its length nose to tail, half its width.
+   *
+   * Measured from `parts` by `creature()` and scaled with the creature, so its size, its shape and
+   * what it blocks are one fact that cannot come apart. Nothing else may set it.
+   */
+  readonly body: { readonly hw: number; readonly hd: number };
 }
 
 type P = PartDef;
