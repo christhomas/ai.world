@@ -26,15 +26,26 @@ export function villageInteractions(ctx: Surroundings) {
   const { player, state, structures, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, questLine, quests, handover, discovered, seed } = ctx;
 
   /**
-   * The pub. At its door you get the room before you get the doorway: what the regulars are
-   * saying, and the one errand somebody in there wants doing. The errand is also settled here,
-   * because whoever asked for it is the person still sitting inside.
+   * The landlord, who is inside the pub.
+   *
+   * This used to happen at the pub's door, from outside it: you walked up to a building and the
+   * building started talking — the room's gossip, the errand, a game of darts and a builder's
+   * quote, all delivered by a closed door with nobody standing at it. It read exactly as it was,
+   * which is a menu attached to a wall. The way in was one of the choices *in* the menu, under
+   * "Get a drink", so the door you were being talked at by was also the door you had to ask
+   * permission to open.
+   *
+   * Now the door is a door — walk into it and you are in the room — and everything the door used
+   * to say is said by the person behind the bar, because that is who was saying it all along.
    */
-  const tryPub = (): boolean => {
+  const tryLandlord = (): boolean => {
+    const room = places.indoors;
+    if (!room || room.door.kind !== 'inn') return false;
     for (const village of structures.villages) {
       const pub = village.pub;
       if (!pub) continue;
-      if (Math.hypot(pub.doorX + 0.5 - player.x, pub.doorZ + 0.5 - player.z) > REACH.BUILDING_DOOR) continue;
+      if (village.name !== room.door.village) continue;
+      if (pub.house.tx !== room.door.bx || pub.house.tz !== room.door.bz) continue;
       const talk = pubTalk(village, structures, seed);
       if (!talk) continue;
       const errand = talk.errand;
@@ -100,9 +111,7 @@ export function villageInteractions(ctx: Surroundings) {
           return null;
         } });
       }
-      const door = structures.doors.find((d) => d.village === village.name && d.bx === pub.house.tx && d.bz === pub.house.tz);
-      if (door) choices.push({ label: 'Get a drink', next: () => { places.enterBuilding(door); return null; } });
-      choices.push({ label: 'Walk on', next: () => null });
+      choices.push({ label: 'Nothing, thanks', next: () => null });
 
       dialogue.start({ speaker: talk.name, emoji: '🍺', pages, choices });
       return true;
@@ -110,9 +119,13 @@ export function villageInteractions(ctx: Surroundings) {
     return false;
   };
 
-  /** Enter/Space at a doorway steps inside. The pub answers first: its door is a conversation. */
+  /**
+   * Enter/Space at a doorway steps inside.
+   *
+   * Walking into one does the same thing without being asked — see `doorways.ts`. This is what you
+   * press when you are already standing on the step and would rather not shuffle.
+   */
   const tryDoor = (): boolean => {
-    if (tryPub()) return true;
     for (const door of structures.doors) {
       if (Math.hypot(door.x - player.x, door.z - player.z) > REACH.BUILDING_DOOR) continue;
       places.enterBuilding(door);
@@ -402,5 +415,5 @@ export function villageInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryDoor, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
+  return { tryDoor, tryLandlord, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
 }

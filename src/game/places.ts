@@ -90,6 +90,8 @@ export interface InteriorVisit {
   renderer: EntityRenderer;
   keeper: Entity | null;
   exit: [number, number];
+  /** The doorway this room was entered by, so the game can tell one room from another. */
+  door: Doorway;
   title: string;
 }
 
@@ -310,7 +312,7 @@ export class Places {
     iso.target.set(map.w / 2, 0.5, map.h / 2);
 
     const keeper = map.keeper ? this.placeKeeper(map.keeper, door, renderer, rng) : null;
-    this.indoors = { world, scene, renderer, keeper, exit: [door.x, door.z], title: interiorTitle(door.kind as InteriorKind, door.village) };
+    this.indoors = { world, scene, renderer, keeper, door, exit: [door.x, door.z], title: interiorTitle(door.kind as InteriorKind, door.village) };
     this.ctx.chime();
   }
 

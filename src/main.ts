@@ -59,6 +59,7 @@ import { stableAt } from './game/stables';
 import { remember } from './world/people';
 import { installProbes } from './game/probes';
 import { openConsole } from './game/console';
+import { createDoorsteps } from './game/doorways';
 import { createBlows } from './game/blows';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
@@ -523,6 +524,9 @@ function startGame(
   const { attack, loose, conjure, onAttack, announceWindUps, knockOut } = blows;
 
   // the console, and everything the game can be told to do through it
+  // walking into a door goes in; the key is what you use when you are already standing on the step
+  const doorsteps = createDoorsteps(places, () => structures.doors);
+
   const { commands, commandWorld, bound, arriving } = openConsole({
     seed, state, player, iso, places, structures, sampler, entities, register, online, chat,
     plots, remains, hires, eyries, skyIsles, placeName, discover,
@@ -609,7 +613,7 @@ function startGame(
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
-    noticeStall, musterHires, startTalk, updateHud, mapInput, markers, areaName,
+    noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, areaName,
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,
     tickDialogue: (dt) => dialogue.update(dt),

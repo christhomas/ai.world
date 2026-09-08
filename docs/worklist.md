@@ -569,11 +569,20 @@ Things Chris hit on a real phone, in the order he hit them.
       feet look like two blocks following him about. The leg reaches the boot now. Checked what was
       underneath first: the entity origins were already sitting on the drawn surface to within a
       tenth of a unit, and that tenth is a creature mid-step across a terrace edge.)*
-- [ ] Walking into a house's door should take you inside. At the moment you have to stop and press
-      something.
-- [ ] Some buildings open a conversation when you try to go in, which reads as talking to a
-      building. You should go inside, and the people who were behind that conversation should be
-      sitting round a table in there to be talked to like anybody else.
+- [x] Walking into a house's door should take you inside. At the moment you have to stop and press
+      something. *(`doorways.ts`. The awkward half is not the going in, it is the coming out:
+      leaving a building stands you one tile beyond the doorway, close enough that the next step in
+      any direction would round you straight back inside — out of a shop and into it again before
+      you had finished leaving. So the step is disarmed on arrival and stays disarmed until the
+      hero is clear of every door in the world. The key still works, for when you are already on
+      the step and would rather not shuffle.)*
+- [x] Some buildings open a conversation when you try to go in, which reads as talking to a
+      building. *(The pub. Standing at its door delivered the room's gossip, the errand, a game of
+      darts and a builder's quote — all from a closed door with nobody at it — and the way in was
+      one of the choices in that menu, under "Get a drink", so the door talking at you was also the
+      door you had to ask permission to open. The door is a door now: walk into it and you are in
+      the room, and everything it used to say is said by the landlord behind the bar, who was the
+      one saying it all along.)*
 - [ ] A ship sailed straight through an island. Boats want to collide with a coastline — and getting
       on or off one should only be possible at a dock.
 - [x] There is no way to open the console on a phone. It is tilde on a keyboard and nothing at all

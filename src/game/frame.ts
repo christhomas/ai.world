@@ -133,6 +133,8 @@ export interface Framing {
   updateHud: (dt: number, area: string, weather?: string) => void;
   mapInput: () => Parameters<WorldMap['draw']>[0];
   markers: () => Parameters<Minimap['draw']>[3];
+  /** Walking into a door goes in. Asked once a frame, out of doors, after the hero has moved. */
+  doorsteps: { step: (hero: { x: number; z: number }) => void };
   /** Is a conversation up? It pauses the world the way the full-screen map does. */
   talking: () => boolean;
   /** A conversation types itself out a letter at a time, so it has a clock of its own. */
@@ -156,7 +158,7 @@ export function createFrame(ctx: Framing) {
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
     sailFerries, ageCamps, runClock, carcasses, noticeStall, musterHires, startTalk, updateHud,
-    mapInput, markers, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
+    mapInput, markers, doorsteps, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
     reveal, refreshJournal,
   } = ctx;
 
@@ -406,6 +408,10 @@ export function createFrame(ctx: Framing) {
       chunks.standsOn(tiles);
     }
     entityRenderer.update();
+
+    // after the hero has been moved and before anything is drawn about where he is: if that step
+    // took him onto a doorstep, he is indoors now and the rest of this frame is about a room
+    if (!talking) doorsteps.step(player);
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) reveal();
     areaLabel = skies.aloft?.name ?? areaName();

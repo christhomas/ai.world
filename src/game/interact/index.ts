@@ -47,6 +47,9 @@ export function createInteractions(ctx: Surroundings) {
     if (nettle.tryChoice()) return;
     if (places.indoors) {
       const inside = places.interactIndoors();
+      // the landlord first: in a pub the person behind the bar is the room, and what they have to
+      // say is the gossip, the errand and the darts board rather than a shop's stock list
+      if (inside === 'keeper' && village.tryLandlord()) return;
       if (inside === 'keeper') startTalk(places.indoors.keeper!);
       else if (inside === null) hud.flash('Stand at the door to leave, or at the counter to talk.');
       return;
