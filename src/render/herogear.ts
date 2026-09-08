@@ -16,11 +16,23 @@ type Build = () => THREE.BufferGeometry;
 /** Where each slot hangs relative to the hero's feet, and whether it swings with an arm. */
 interface Mount { offset: [number, number, number]; swing?: 'armL' | 'armR' }
 
+/*
+ * Where each slot hangs, and the two that matter are the hands.
+ *
+ * They used to be at y 0.86 and z 0.3 — but the hand is a block centred at 0.72, a tenth of a unit
+ * across, reaching out to 0.31. So a sword, a lantern and the hero's own walking stick were all
+ * gripped a seventh of a unit above the fist and a little beyond its outer face: not held,
+ * hovering alongside. On the turnaround sheet the stick stands beside him like a fence post with
+ * nobody's hand on it, which is exactly what it was.
+ *
+ * They are in the hand now. The head mount moved up with the head, which rose when the villagers
+ * were given a neck.
+ */
 const MOUNTS: Record<EquipSlot, Mount> = {
-  head: { offset: [0, 1.5, 0] },
+  head: { offset: [0, 1.54, 0] },
   body: { offset: [0, 0.95, 0] },
-  hand: { offset: [0.06, 0.86, -0.3], swing: 'armR' },
-  offhand: { offset: [0.06, 0.9, 0.3], swing: 'armL' },
+  hand: { offset: [0.06, 0.75, -0.25], swing: 'armR' },
+  offhand: { offset: [0.06, 0.75, 0.25], swing: 'armL' },
   feet: { offset: [0, 0.05, 0] },
   trinket: { offset: [-0.02, 0.72, 0.2] },
 };
@@ -45,17 +57,26 @@ const GEAR: Record<string, Build> = {
     part(new THREE.BoxGeometry(0.4, 0.06, 0.4), 0x7a828c, [0, -0.05, 0]),
     part(new THREE.BoxGeometry(0.06, 0.2, 0.12), 0x7a828c, [0.19, 0.06, 0]),
   ]),
-  tunic: () => merge([part(new THREE.BoxGeometry(0.26, 0.42, 0.38), 0xb8894a, [0, 0, 0])]),
+  /*
+   * Body gear, cut to go over the chest rather than through it.
+   *
+   * The torso is 0.27 deep and these were 0.26, 0.27 and 0.28 — so a tunic was thinner than the
+   * body it is worn on and the two surfaces fought over the same pixels, which shows up as the
+   * shirt flickering through the tunic as the camera turns. Each is a little proud of what is
+   * underneath it now, which is what a garment is.
+   */
+  tunic: () => merge([part(new THREE.BoxGeometry(0.3, 0.42, 0.38), 0xb8894a, [0, 0, 0])]),
   jerkin: () => merge([
-    part(new THREE.BoxGeometry(0.27, 0.44, 0.39), 0x6b4a2b, [0, 0, 0]),
-    part(new THREE.BoxGeometry(0.29, 0.07, 0.41), 0x4a3222, [0, -0.16, 0]),
+    part(new THREE.BoxGeometry(0.31, 0.44, 0.39), 0x6b4a2b, [0, 0, 0]),
+    part(new THREE.BoxGeometry(0.33, 0.07, 0.41), 0x4a3222, [0, -0.16, 0]),
   ]),
   mail: () => merge([
-    part(new THREE.BoxGeometry(0.28, 0.46, 0.4), 0x8f97a2, [0, 0, 0]),
-    part(new THREE.BoxGeometry(0.3, 0.05, 0.42), 0x6f7782, [0, 0.1, 0]),
-    part(new THREE.BoxGeometry(0.3, 0.05, 0.42), 0x6f7782, [0, -0.06, 0]),
+    part(new THREE.BoxGeometry(0.32, 0.46, 0.4), 0x8f97a2, [0, 0, 0]),
+    part(new THREE.BoxGeometry(0.34, 0.05, 0.42), 0x6f7782, [0, 0.1, 0]),
+    part(new THREE.BoxGeometry(0.34, 0.05, 0.42), 0x6f7782, [0, -0.06, 0]),
   ]),
-  stick: () => merge([part(new THREE.CylinderGeometry(0.05, 0.06, 0.8, 5), 0x6b4a2b, [0, 0.25, 0])]),
+  // gripped a third of the way up, the way a walking stick is, so the foot of it reaches the ground
+  stick: () => merge([part(new THREE.CylinderGeometry(0.045, 0.055, 0.86, 5), 0x6b4a2b, [0, 0.16, 0])]),
   sword: blade(0.7, 0xc8ccd4, 0xb8a04a),
   steelsword: blade(0.85, 0xe2e8f0, 0xc8b45a),
   axe: () => merge([
@@ -138,7 +159,7 @@ const TORCH = {
    * is. Held further out it was a torch floating beside a man with his arms at his sides — which
    * is what "he does not appear to be holding it" means.
    */
-  HAND: [0.06, 0.9, 0.3] as [number, number, number],
+  HAND: [0.06, 0.78, 0.25] as [number, number, number],
   /** How far the shaft leans away from the body, in radians. It is the lean that clears the hat. */
   LEAN: 0.6,
   /** And how far up the shaft the fire sits. */

@@ -19,13 +19,17 @@ canvas{display:block}
 <script type="module">
 import * as THREE from 'three';
 import { KINDS } from '/src/entities/animals.ts';
+import { HeroGear } from '/src/render/herogear.ts';
+import { GameState } from '/src/game/state.ts';
 
 const W = 260, H = 300;
 const sheet = document.getElementById('sheet');
 
-function build(kind) {
+function build(kind, hidden = new Set()) {
   const g = new THREE.Group();
   for (const p of kind.parts) {
+    // a worn helm hides the hero's own hat, the way it does in the game
+    if (p.tag && hidden.has(p.tag)) continue;
     let geo;
     const s = p.size;
     if (p.shape === 'box') geo = new THREE.BoxGeometry(s[0], s[1], s[2]);
@@ -44,7 +48,29 @@ function build(kind) {
 
 const ANGLES = [['FRONT', 0], ['THREE-QUARTER', -0.7], ['SIDE', -Math.PI / 2], ['BACK', Math.PI]];
 
-for (const name of ['villager', 'shopkeeper']) {
+/**
+ * The hero's gear, drawn by the game's own `HeroGear` rather than by a copy of it here.
+ *
+ * He is not a bare rig: he wears a tunic, boots and a walking stick from the moment a world
+ * starts, and those are separate meshes hung off the same shoulders and hips. A sheet of the rig
+ * without them would be a sheet of somebody nobody ever sees — and it was the gear's boots, not the
+ * rig's feet, that turned out to be the brown slab under him.
+ */
+function dressUp(scene, kind) {
+  const gear = new HeroGear(scene);
+  const state = GameState.fresh();   // tunic, boots and a walking stick, as a world starts him
+  const hero = {
+    x: 0, y: 0, z: 0, yaw: 0, walk: 0, phase: 0, hurt: 0, dying: 0, bobY: 0,
+    kind, hiddenTags: new Set(),
+  };
+  // version 0 on a fresh state matches the gear's own -1 only after one update, so ask twice
+  gear.update(state, hero, false);
+  state.version++;
+  gear.update(state, hero, false);
+  return hero.hiddenTags;
+}
+
+for (const name of ['villager', 'shopkeeper', 'hero']) {
   const kind = KINDS[name];
   if (!kind) continue;
   for (const [label, yaw] of ANGLES) {
@@ -63,9 +89,12 @@ for (const name of ['villager', 'shopkeeper']) {
     const sun = new THREE.DirectionalLight(0xfff3dc, 1.9);
     sun.position.set(4, 6, 3);
     scene.add(sun);
-    const rig = build(kind);
-    rig.rotation.y = yaw - Math.PI / 4;
-    scene.add(rig);
+    const dressed = new THREE.Group();
+    const hidden = name === 'hero' ? dressUp(dressed, kind) : new Set();
+    const rig = build(kind, hidden);
+    dressed.add(rig);
+    dressed.rotation.y = yaw - Math.PI / 4;
+    scene.add(dressed);
     // the ground they stand on, so "touching it" is visible
     const floor = new THREE.Mesh(new THREE.CircleGeometry(1.5, 6), new THREE.MeshLambertMaterial({ color: 0x6f9a58 }));
     floor.rotation.x = -Math.PI / 2;

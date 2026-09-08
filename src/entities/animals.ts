@@ -460,11 +460,21 @@ export const KINDS: Record<string, AnimalKind> = {
   ]),
   hero: creature('hero', [
     ...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x4a3a2a }),
-    // hat, brim, belt, cape: a silhouette you can find in a crowd of villagers
-    cone(0.22, 0.5, [0, 1.78, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.16, 0], tag: 'hat' }),
-    box([0.42, 0.05, 0.42], [0, 1.6, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.16, 0], tag: 'hat' }),
-    box([0.24, 0.07, 0.38], [0, 0.74, 0], 0x5a3a1a),
-    box([0.05, 0.62, 0.36], [-0.14, 0.86, 0], 0xc0392b, { anim: 'cape', pivot: [-0.12, 1.16, 0], tag: 'cape' }),
+    /*
+     * Hat, brim, belt, cape: a silhouette you can find in a crowd of villagers.
+     *
+     * The brim sits on the hair rather than above it. It used to be at 1.6 with the head ending at
+     * 1.48, so it floated a tenth of a unit clear of the crown — a hat hovering over a head, which
+     * from a distance is a hat and from close up is a mistake. The head has since moved up as well,
+     * and the pivots move with it: a hat that turns about a different point from the head it is on
+     * swings loose every time the hero looks round.
+     */
+    // and the cone is a hat rather than a lampshade: half a unit of it on a figure a unit and a
+    // half tall was a third of the hero, which reads at a distance and is absurd close up
+    cone(0.21, 0.34, [0, 1.71, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
+    box([0.42, 0.05, 0.42], [0, 1.54, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
+    box([0.29, 0.07, 0.38], [0, 0.74, 0], 0x5a3a1a),
+    box([0.05, 0.62, 0.36], [-0.16, 0.86, 0], 0xc0392b, { anim: 'cape', pivot: [-0.14, 1.16, 0], tag: 'cape' }),
   ]),
 };
 
