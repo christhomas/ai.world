@@ -118,10 +118,16 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
   return [
     box([0.14, 0.1, 0.16], [0, 1.15, 0], o.skin),
     box([0.3, 0.32, 0.3], [0, headY, 0], o.skin, { anim: 'head', pivot }),
-    // the skull's own hair: a cap, a fringe standing proud of the brow, and the mass behind it
-    box([0.32, 0.14, 0.32], [0, headY + 0.2, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
-    box([0.08, 0.09, 0.32], [0.13, headY + 0.11, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
-    box([0.1, 0.3, 0.31], [-0.13, headY + 0.02, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
+    /*
+     * The skull's own hair: a cap over the crown, a fringe at the brow, and the mass behind it.
+     *
+     * The cap used to sit at headY + 0.2, which is entirely above a head that ends at + 0.16 — so
+     * it was not hair, it was a tall black hat balanced on top, and from behind the whole head read
+     * as one black slab taller than the face. It sits down over the crown now, the way hair does.
+     */
+    box([0.32, 0.12, 0.32], [0, headY + 0.12, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
+    box([0.08, 0.075, 0.32], [0.13, headY + 0.075, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
+    box([0.09, 0.26, 0.31], [-0.135, headY + 0.01, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
     /*
      * An eye is a white with a dark pupil in front of it, not a black cube.
      *
@@ -134,8 +140,9 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
     box([0.04, 0.075, 0.062], [0.145, headY + 0.02, -0.072], 0xf2efe6, { anim: 'head', pivot }),
     box([0.05, 0.05, 0.034], [0.155, headY + 0.014, 0.072], 0x2a2230, { anim: 'head', pivot }),
     box([0.05, 0.05, 0.034], [0.155, headY + 0.014, -0.072], 0x2a2230, { anim: 'head', pivot }),
-    box([0.22, 0.44, 0.36], [0, 0.94, 0], 0xffffff, { tint: o.shirtTint }),
-    box([0.24, 0.11, 0.46], [0, 1.11, 0], 0xffffff, { tint: o.shirtTint }),
+    // deeper than it was: at 0.22 against 0.36 of width, a villager seen from the side was a plank
+    box([0.27, 0.44, 0.36], [0, 0.94, 0], 0xffffff, { tint: o.shirtTint }),
+    box([0.29, 0.11, 0.46], [0, 1.11, 0], 0xffffff, { tint: o.shirtTint }),
     box([0.1, 0.38, 0.1], [0, 0.95, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
     box([0.1, 0.38, 0.1], [0, 0.95, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
     box([0.12, 0.1, 0.12], [0, 0.72, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
@@ -149,10 +156,24 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
      * hip at different radii, so the gap opens and closes and the feet look like two blocks
      * following him about. This is what "they do not touch the ground" was.
      */
-    box([0.13, 0.64, 0.13], [0, 0.4, 0.09], o.pantsColor, { anim: 'legL', pivot: [0, 0.72, 0.09] }),
-    box([0.13, 0.64, 0.13], [0, 0.4, -0.09], o.pantsColor, { anim: 'legR', pivot: [0, 0.72, -0.09] }),
-    box([0.2, 0.08, 0.15], [0.03, 0.04, 0.09], 0x3a2a1a, { anim: 'legL', pivot: [0, 0.72, 0.09] }),
-    box([0.2, 0.08, 0.15], [0.03, 0.04, -0.09], 0x3a2a1a, { anim: 'legR', pivot: [0, 0.72, -0.09] }),
+    // wider than they were, and set further out: two thirteen-hundredths sticks under a body twice
+    // that across read as legs somebody had forgotten to finish
+    box([0.15, 0.64, 0.15], [0, 0.4, 0.095], o.pantsColor, { anim: 'legL', pivot: [0, 0.72, 0.095] }),
+    box([0.15, 0.64, 0.15], [0, 0.4, -0.095], o.pantsColor, { anim: 'legR', pivot: [0, 0.72, -0.095] }),
+    /*
+     * Two feet, not a plank.
+     *
+     * These were 0.2 by 0.15 apiece with their inside edges three hundredths of a unit apart — so
+     * across the pair they covered 0.20 by 0.33, which is very nearly the footprint of the whole
+     * torso, and they overhung the leg front and back. From directly above, which is where this
+     * camera mostly is, that is not a pair of boots: it is one brown slab under the figure, the
+     * same size as the figure, and it reads as something failing to render.
+     *
+     * Smaller, set further apart so there is daylight between them, and with the overhang all in
+     * front where a toe goes rather than split evenly around the ankle.
+     */
+    box([0.17, 0.075, 0.115], [0.025, 0.038, 0.095], 0x3a2a1a, { anim: 'legL', pivot: [0, 0.72, 0.095] }),
+    box([0.17, 0.075, 0.115], [0.025, 0.038, -0.095], 0x3a2a1a, { anim: 'legR', pivot: [0, 0.72, -0.095] }),
   ];
 }
 

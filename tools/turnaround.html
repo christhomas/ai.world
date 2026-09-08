@@ -1,0 +1,80 @@
+<!doctype html>
+<!--
+  A turnaround sheet for the people in this world.
+
+  The game's camera looks down at about sixty degrees, so from inside the game you mostly see the
+  tops of heads: a model can be wrong in the chest, the hips or the feet for a long time without
+  anybody being able to see it. This puts each rig on a patch of grass at eye level and turns it
+  round, which is how the boots were found to be a slab as wide as the torso and the hair to be a
+  hat balanced above the skull rather than sitting on it.
+
+  Open it at /tools/turnaround.html with the dev server running.
+--><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#20283c;font-family:'Courier New',monospace;color:#dfe5ff}
+#sheet{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:2px}
+figure{margin:0;position:relative}
+figcaption{position:absolute;left:6px;top:4px;font-size:11px;letter-spacing:2px;color:#8f9ac4}
+canvas{display:block}
+</style></head><body><div id="sheet"></div>
+<script type="module">
+import * as THREE from 'three';
+import { KINDS } from '/src/entities/animals.ts';
+
+const W = 260, H = 300;
+const sheet = document.getElementById('sheet');
+
+function build(kind) {
+  const g = new THREE.Group();
+  for (const p of kind.parts) {
+    let geo;
+    const s = p.size;
+    if (p.shape === 'box') geo = new THREE.BoxGeometry(s[0], s[1], s[2]);
+    else if (p.shape === 'cyl') geo = new THREE.CylinderGeometry(s[0], s[2], s[1], 6);
+    else if (p.shape === 'cone') geo = new THREE.ConeGeometry(s[2], s[1], 6);
+    else geo = new THREE.IcosahedronGeometry(s[0], 0);
+    const colour = new THREE.Color(p.color);
+    if (p.tint !== undefined) colour.multiply(new THREE.Color(p.tint));
+    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: colour, flatShading: true }));
+    m.position.set(p.offset[0], p.offset[1], p.offset[2]);
+    if (p.rot) m.rotation.set(p.rot[0], p.rot[1], p.rot[2]);
+    g.add(m);
+  }
+  return g;
+}
+
+const ANGLES = [['FRONT', 0], ['THREE-QUARTER', -0.7], ['SIDE', -Math.PI / 2], ['BACK', Math.PI]];
+
+for (const name of ['villager', 'shopkeeper']) {
+  const kind = KINDS[name];
+  if (!kind) continue;
+  for (const [label, yaw] of ANGLES) {
+    const fig = document.createElement('figure');
+    const cap = document.createElement('figcaption');
+    cap.textContent = `${name.toUpperCase()} · ${label}`;
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(2);
+    renderer.setSize(W, H);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x2b3350);
+    const cam = new THREE.PerspectiveCamera(26, W / H, 0.1, 40);
+    cam.position.set(3.0, 1.55, 3.0);
+    cam.lookAt(0, 0.85, 0);
+    scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x30364f, 1.5));
+    const sun = new THREE.DirectionalLight(0xfff3dc, 1.9);
+    sun.position.set(4, 6, 3);
+    scene.add(sun);
+    const rig = build(kind);
+    rig.rotation.y = yaw - Math.PI / 4;
+    scene.add(rig);
+    // the ground they stand on, so "touching it" is visible
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(1.5, 6), new THREE.MeshLambertMaterial({ color: 0x6f9a58 }));
+    floor.rotation.x = -Math.PI / 2;
+    scene.add(floor);
+    renderer.render(scene, cam);
+    fig.appendChild(renderer.domElement);
+    fig.appendChild(cap);
+    sheet.appendChild(fig);
+  }
+}
+document.title = 'ready';
+</script></body></html>

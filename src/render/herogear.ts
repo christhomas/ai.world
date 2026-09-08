@@ -74,13 +74,24 @@ const GEAR: Record<string, Build> = {
     part(new THREE.CylinderGeometry(0.02, 0.03, 1.1, 5), 0xb8945a, [0, 0.4, 0], [1, 1, 1], [0, 0, -0.5]),
     part(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0x5a4632, [0.1, 0.02, 0]),
   ]),
+  /*
+   * Worn boots and greaves, cut to the legs that are actually under them.
+   *
+   * These were 0.26 and 0.28 across apiece at a tenth of a unit either side of the middle — so the
+   * pair spanned 0.46 and 0.48, against a body 0.36 wide and legs 0.15. From this camera, which
+   * looks down at the hero from above, that is not a pair of boots: it is one brown slab wider than
+   * the man standing in it, and it reads as something failing to render. It was reported as exactly
+   * that: "a brown square at the foot of the player".
+   *
+   * They now sit over the rig's own feet with a little to spare, which is what a boot is.
+   */
   boots: () => merge([
-    part(new THREE.BoxGeometry(0.18, 0.14, 0.26), 0x5a3f28, [0, 0, 0.1]),
-    part(new THREE.BoxGeometry(0.18, 0.14, 0.26), 0x5a3f28, [0, 0, -0.1]),
+    part(new THREE.BoxGeometry(0.19, 0.1, 0.135), 0x5a3f28, [0.02, 0, 0.097]),
+    part(new THREE.BoxGeometry(0.19, 0.1, 0.135), 0x5a3f28, [0.02, 0, -0.097]),
   ]),
   greaves: () => merge([
-    part(new THREE.BoxGeometry(0.2, 0.3, 0.28), 0x9aa2ac, [0, 0.1, 0.1]),
-    part(new THREE.BoxGeometry(0.2, 0.3, 0.28), 0x9aa2ac, [0, 0.1, -0.1]),
+    part(new THREE.BoxGeometry(0.18, 0.3, 0.17), 0x9aa2ac, [0, 0.1, 0.097]),
+    part(new THREE.BoxGeometry(0.18, 0.3, 0.17), 0x9aa2ac, [0, 0.1, -0.097]),
   ]),
   charm: () => merge([part(new THREE.IcosahedronGeometry(0.1, 0), 0x6fae4b, [0, 0, 0])]),
   map: () => merge([part(new THREE.BoxGeometry(0.06, 0.18, 0.24), 0xe8dcc0, [0, 0, 0])]),
