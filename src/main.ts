@@ -70,6 +70,7 @@ import { joinAWorld } from './game/joining';
 import { growCountry } from './game/country';
 import { openTheSave } from './game/keeping';
 import { bindKeys } from './game/keys';
+import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
 
 async function boot(): Promise<void> {
@@ -570,14 +571,49 @@ function startGame(
     discover,
   });
 
+  /*
+   * The screen, as the game asks for it.
+   *
+   * This is the one place that knows both halves — that "leave whatever I am in" means closing six
+   * particular panels, and that a conversation is a `DialogueBox`. The keyboard is told none of it:
+   * it asks for a journal, and something here knows where the journal is kept.
+   */
+  const screen: Screen = {
+    busy: () => (chat.isTyping ? 'typing'
+      : dialogue.isOpen ? 'talking'
+      : photo.active ? 'framing'
+      : worldMap.isOpen ? 'reading'
+      : null),
+    say: (line) => hud.flash(line),
+    toggleJournal: () => journal.toggle(journalInput),
+    toggleRucksack: () => rucksack.toggle(),
+    toggleOptions: () => hud.toggleOptions(),
+    toggleMap: () => {
+      worldMap.dungeon = places.underground?.map ?? null;
+      worldMap.toggle(mapInput());
+    },
+    toggleCompany: () => playerList.toggle(multiplayer.playerListInput),
+    togglePhoto: () => photo.toggle(),
+    toggleConsole: () => chat.toggleConsole(),
+    openChat: () => chat.open(),
+    closeEverything: () => {
+      hud.closeOptions(); dialogue.close(); journal.close();
+      rucksack.close(); worldMap.close(); playerList.close();
+    },
+    advanceTalk: () => dialogue.advance(),
+    moveTalk: (by) => dialogue.move(by),
+    nudgeTalk: (by) => dialogue.nudge(by),
+    centreMap: (x, z) => worldMap.centre(x, z),
+    zoomMap: (by) => worldMap.zoomBy(by),
+    takePhoto: () => photo.save(rig.renderer.domElement, seed),
+  };
+
   // what every key does, in one place
   bindKeys({
-    seed, input, rig, iso, player, places, online, sound,
-    hud, dialogue, chat, journal, rucksack, worldMap, photo, playerList,
+    seed, input, rig, iso, player, places, online, sound, screen,
     attack, loose, conjure, talkNearest, partyMenu, hireMenu, offerTrade, tryGive, toTitle,
-    persist, rally, mapInput, journalInput,
+    persist, rally,
     partySize: () => party.size,
-    playerListInput: multiplayer.playerListInput,
   });
 
   // the handles a headless browser drives this by; stripped from production builds. Hung on at the
