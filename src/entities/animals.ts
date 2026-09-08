@@ -140,13 +140,25 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
     box([0.04, 0.075, 0.062], [0.145, headY + 0.02, -0.072], 0xf2efe6, { anim: 'head', pivot }),
     box([0.05, 0.05, 0.034], [0.155, headY + 0.014, 0.072], 0x2a2230, { anim: 'head', pivot }),
     box([0.05, 0.05, 0.034], [0.155, headY + 0.014, -0.072], 0x2a2230, { anim: 'head', pivot }),
-    // deeper than it was: at 0.22 against 0.36 of width, a villager seen from the side was a plank
-    box([0.27, 0.44, 0.36], [0, 0.94, 0], 0xffffff, { tint: o.shirtTint }),
+    /*
+     * Chest and legs the same length.
+     *
+     * The legs were 0.64 against a chest of 0.44 — half as long again — which is why the figure
+     * read as lanky whatever else was done to it: a person is roughly half legs, and this one was
+     * nearer three fifths, all of it below a short body. The hip has come down to 0.62 and the
+     * chest has grown to meet the same shoulders, so the total height is exactly what it was and
+     * only the waistline moved.
+     *
+     * The arms grew with the chest. They used to stop at 0.76, which was above the old hip and is
+     * well above the new one; an arm that ends at the waist reads as a stump. They now reach the
+     * top of the thigh, where a hand hangs.
+     */
+    box([0.27, 0.54, 0.36], [0, 0.89, 0], 0xffffff, { tint: o.shirtTint }),
     box([0.29, 0.11, 0.46], [0, 1.11, 0], 0xffffff, { tint: o.shirtTint }),
-    box([0.1, 0.38, 0.1], [0, 0.95, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
-    box([0.1, 0.38, 0.1], [0, 0.95, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
-    box([0.12, 0.1, 0.12], [0, 0.72, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
-    box([0.12, 0.1, 0.12], [0, 0.72, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    box([0.1, 0.42, 0.1], [0, 0.93, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
+    box([0.1, 0.42, 0.1], [0, 0.93, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    box([0.12, 0.1, 0.12], [0, 0.68, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
+    box([0.12, 0.1, 0.12], [0, 0.68, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
     /*
      * The leg reaches the boot.
      *
@@ -158,8 +170,8 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
      */
     // wider than they were, and set further out: two thirteen-hundredths sticks under a body twice
     // that across read as legs somebody had forgotten to finish
-    box([0.15, 0.64, 0.15], [0, 0.4, 0.095], o.pantsColor, { anim: 'legL', pivot: [0, 0.72, 0.095] }),
-    box([0.15, 0.64, 0.15], [0, 0.4, -0.095], o.pantsColor, { anim: 'legR', pivot: [0, 0.72, -0.095] }),
+    box([0.15, 0.54, 0.15], [0, 0.35, 0.095], o.pantsColor, { anim: 'legL', pivot: [0, 0.62, 0.095] }),
+    box([0.15, 0.54, 0.15], [0, 0.35, -0.095], o.pantsColor, { anim: 'legR', pivot: [0, 0.62, -0.095] }),
     /*
      * Two feet, not a plank.
      *
@@ -172,8 +184,8 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
      * Smaller, set further apart so there is daylight between them, and with the overhang all in
      * front where a toe goes rather than split evenly around the ankle.
      */
-    box([0.17, 0.075, 0.115], [0.025, 0.038, 0.095], 0x3a2a1a, { anim: 'legL', pivot: [0, 0.72, 0.095] }),
-    box([0.17, 0.075, 0.115], [0.025, 0.038, -0.095], 0x3a2a1a, { anim: 'legR', pivot: [0, 0.72, -0.095] }),
+    box([0.17, 0.075, 0.115], [0.025, 0.038, 0.095], 0x3a2a1a, { anim: 'legL', pivot: [0, 0.62, 0.095] }),
+    box([0.17, 0.075, 0.115], [0.025, 0.038, -0.095], 0x3a2a1a, { anim: 'legR', pivot: [0, 0.62, -0.095] }),
   ];
 }
 
@@ -473,8 +485,8 @@ export const KINDS: Record<string, AnimalKind> = {
     // half tall was a third of the hero, which reads at a distance and is absurd close up
     cone(0.21, 0.34, [0, 1.71, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
     box([0.42, 0.05, 0.42], [0, 1.54, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
-    box([0.29, 0.07, 0.38], [0, 0.74, 0], 0x5a3a1a),
-    box([0.05, 0.62, 0.36], [-0.16, 0.86, 0], 0xc0392b, { anim: 'cape', pivot: [-0.14, 1.16, 0], tag: 'cape' }),
+    box([0.31, 0.07, 0.4], [0, 0.66, 0], 0x5a3a1a),
+    box([0.05, 0.6, 0.36], [-0.16, 0.87, 0], 0xc0392b, { anim: 'cape', pivot: [-0.14, 1.16, 0], tag: 'cape' }),
   ]),
 };
 

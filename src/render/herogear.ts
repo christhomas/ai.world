@@ -30,11 +30,11 @@ interface Mount { offset: [number, number, number]; swing?: 'armL' | 'armR' }
  */
 const MOUNTS: Record<EquipSlot, Mount> = {
   head: { offset: [0, 1.54, 0] },
-  body: { offset: [0, 0.95, 0] },
-  hand: { offset: [0.06, 0.75, -0.25], swing: 'armR' },
-  offhand: { offset: [0.06, 0.75, 0.25], swing: 'armL' },
+  body: { offset: [0, 0.89, 0] },
+  hand: { offset: [0.06, 0.68, -0.25], swing: 'armR' },
+  offhand: { offset: [0.06, 0.68, 0.25], swing: 'armL' },
   feet: { offset: [0, 0.05, 0] },
-  trinket: { offset: [-0.02, 0.72, 0.2] },
+  trinket: { offset: [-0.02, 0.66, 0.2] },
 };
 
 const blade = (length: number, colour: number, guard: number): Build => () => merge([
@@ -159,7 +159,7 @@ const TORCH = {
    * is. Held further out it was a torch floating beside a man with his arms at his sides — which
    * is what "he does not appear to be holding it" means.
    */
-  HAND: [0.06, 0.78, 0.25] as [number, number, number],
+  HAND: [0.06, 0.71, 0.25] as [number, number, number],
   /** How far the shaft leans away from the body, in radians. It is the lean that clears the hat. */
   LEAN: 0.6,
   /** And how far up the shaft the fire sits. */
