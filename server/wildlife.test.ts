@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateWebGraph } from '../src/world/roadweb';
+import { propFootprints } from '../src/render/props';
 import { GroundWorld } from '../src/world/groundworld';
 import { TerrainSampler } from '../src/world/terrain';
 import { Wildlife } from './wildlife';
@@ -17,7 +18,7 @@ import { Wildlife } from './wildlife';
 
 /** A world with ground under it, grown around one spot. */
 function worldAt(seed: number, x: number, z: number): { alive: Wildlife; ground: GroundWorld } {
-  const ground = new GroundWorld(new TerrainSampler(generateWebGraph(seed)));
+  const ground = new GroundWorld(new TerrainSampler(generateWebGraph(seed)), propFootprints());
   ground.reach(x, z, 2);
   return { alive: new Wildlife(seed, ground, ground), ground };
 }

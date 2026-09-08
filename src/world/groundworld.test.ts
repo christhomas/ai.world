@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { generateWebGraph } from './roadweb';
+import { propFootprints } from '../render/props';
 import { GroundWorld } from './groundworld';
 import { TerrainSampler } from './terrain';
 
@@ -17,7 +18,7 @@ import { TerrainSampler } from './terrain';
  */
 
 const CS = WORLD.CHUNK_SIZE;
-const world = (seed = 3): GroundWorld => new GroundWorld(new TerrainSampler(generateWebGraph(seed)));
+const world = (seed = 3): GroundWorld => new GroundWorld(new TerrainSampler(generateWebGraph(seed)), propFootprints());
 
 describe('the ground, with nobody drawing it', () => {
   it('makes chunks only where somebody has reached, and says how many it made', () => {
@@ -43,7 +44,7 @@ describe('the ground, with nobody drawing it', () => {
 
   it('agrees with the terrain it was built from, tile for tile', () => {
     const sampler = new TerrainSampler(generateWebGraph(3));
-    const ground = new GroundWorld(sampler);
+    const ground = new GroundWorld(sampler, propFootprints());
     ground.reach(0, 0, 1);
     const sample = sampler.newSample();
     let checked = 0;
@@ -65,7 +66,7 @@ describe('the ground, with nobody drawing it', () => {
 
   it('knows a road when it is standing on one', () => {
     const sampler = new TerrainSampler(generateWebGraph(3));
-    const ground = new GroundWorld(sampler);
+    const ground = new GroundWorld(sampler, propFootprints());
     ground.reach(0, 0, 2);
     const sample = sampler.newSample();
     let roads = 0;

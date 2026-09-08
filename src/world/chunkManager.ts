@@ -177,7 +177,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
         group.add(water);
       }
       // the same boxes the server builds, from the same footprints and the same prop stream
-      this.solids.put(k, boxesFrom(readPropStream(msg.props)));
+      this.solids.put(k, boxesFrom(readPropStream(msg.props), this.props.footprints));
       this.propBatch.set(k, readPropStream(msg.props));
       this.scene.add(group);
       // the ground of a chunk never moves once it is down, so the frame need not walk it every

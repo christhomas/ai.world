@@ -7,6 +7,7 @@ import type { Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
 import { Solids, boxesOf } from './solids';
+import type { Footprints } from './footprints';
 
 /**
  * The ground, for something that walks on it but never draws it.
@@ -35,7 +36,12 @@ export class GroundWorld implements TileWorld, ChunkSource {
    */
   private readonly solids = new Solids();
 
-  constructor(private readonly sampler: TerrainSampler) {}
+  /**
+   * @param footprints how big each kind of prop is, measured off the geometry the game draws. The
+   * server has no meshes and must not guess: it is handed the same measurements the player's own
+   * game took, so a wall is in the same place on both sides of the wire.
+   */
+  constructor(private readonly sampler: TerrainSampler, private readonly footprints: Footprints) {}
 
   /** How many chunks are being held. What the memory of a busy world is made of. */
   get held(): number { return this.loaded.size; }
@@ -170,7 +176,7 @@ export class GroundWorld implements TileWorld, ChunkSource {
     const chunk = this.sampler.generateChunk(cx, cz);
     const tiles = tilesOf(chunk);
     this.loaded.set(chunkKey(cx, cz), tiles);
-    this.solids.put(chunkKey(cx, cz), boxesOf(chunk, this.sampler.seed));
+    this.solids.put(chunkKey(cx, cz), boxesOf(chunk, this.sampler.seed, this.footprints));
     return tiles;
   }
 

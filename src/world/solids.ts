@@ -1,4 +1,4 @@
-import { FOOTPRINTS, MIN_BLOCK } from './footprints';
+import { MIN_BLOCK, type Footprints } from './footprints';
 import { propsOf, type PropAt } from './propstream';
 import type { ChunkData } from './terrain';
 
@@ -38,10 +38,10 @@ export interface Solid {
  * for drawing, and the server generates the same props itself with `propsOf`. Same footprints, same
  * boxes, so a stall stops both of them in the same place — which is the whole of why this exists.
  */
-export function boxesFrom(props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { rot?: number; scale?: number }>): Solid[] {
+export function boxesFrom(props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { rot?: number; scale?: number }>, footprints: Footprints): Solid[] {
   const out: Solid[] = [];
   for (const p of props) {
-    const box = FOOTPRINTS.get(p.kind);
+    const box = footprints.get(p.kind);
     if (!box) continue;
     const grew = p.scale ?? 1;
     // nobody can jump, and a stride is longer than some of these are thick — see `MIN_BLOCK`
@@ -55,8 +55,8 @@ export function boxesFrom(props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { r
 }
 
 /** The same, for a world that holds the chunk itself and has no stream to hand. */
-export function boxesOf(chunk: ChunkData, seed: number): Solid[] {
-  return boxesFrom(propsOf(chunk, seed));
+export function boxesOf(chunk: ChunkData, seed: number, footprints: Footprints): Solid[] {
+  return boxesFrom(propsOf(chunk, seed), footprints);
 }
 
 /**
@@ -123,12 +123,7 @@ export class Solids {
 
   /** Is this point inside anything? */
   at(x: number, z: number): boolean {
-    for (const s of this.near(x, z)) {
-      // into the prop's own frame, where the box is square to the axes
-      const dx = x - s.x, dz = z - s.z;
-      const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
-      if (Math.abs(dx * cos - dz * sin) <= s.hw && Math.abs(dx * sin + dz * cos) <= s.hd) return true;
-    }
+    for (const s of this.near(x, z)) if (pointInBox(s, x, z)) return true;
     return false;
   }
 
@@ -209,6 +204,22 @@ function* tilesUnder(solid: Solid): Generator<number> {
 const EMPTY: readonly Solid[] = [];
 
 /**
+ * Is a point inside a turned box?
+ *
+ * Exported, with the segment test below it, because the index that finds candidate boxes has to be
+ * provably nothing but an index: a test can brute-force these two over every box in the world and
+ * demand the same answers. That is what makes the buckets an optimisation rather than a second
+ * opinion — the class of fault that let a house be solid on one side of a chunk boundary and not
+ * the other.
+ */
+export function pointInBox(s: Solid, x: number, z: number): boolean {
+  // into the prop's own frame, where the box is square to the axes
+  const dx = x - s.x, dz = z - s.z;
+  const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
+  return Math.abs(dx * cos - dz * sin) <= s.hw && Math.abs(dx * sin + dz * cos) <= s.hd;
+}
+
+/**
  * Does a segment touch a turned box?
  *
  * Both ends go into the box's own frame, where it is square to the axes and the whole thing is the
@@ -216,7 +227,7 @@ const EMPTY: readonly Solid[] = [];
  * stretch that is within its depth. If those two stretches overlap, the segment is inside the box
  * somewhere along its length.
  */
-function segmentHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number): boolean {
+export function segmentHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number): boolean {
   const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
   const ax = (x0 - s.x) * cos - (z0 - s.z) * sin, az = (x0 - s.x) * sin + (z0 - s.z) * cos;
   const bx = (x1 - s.x) * cos - (z1 - s.z) * sin, bz = (x1 - s.x) * sin + (z1 - s.z) * cos;

@@ -3,6 +3,7 @@ import { generateWebGraph } from './roadweb';
 import { TerrainSampler } from './terrain';
 import { GroundWorld } from './groundworld';
 import { boxesOf } from './solids';
+import { propFootprints } from '../render/props';
 import { PropKind } from './biomes';
 import { WORLD } from '../core/config';
 
@@ -23,14 +24,14 @@ import { WORLD } from '../core/config';
 describe('every box in a piece of a real world', () => {
   it('is solid inside its own walls', () => {
     const sampler = new TerrainSampler(generateWebGraph(3));
-    const ground = new GroundWorld(sampler);
+    const ground = new GroundWorld(sampler, propFootprints());
     const CS = WORLD.CHUNK_SIZE;
     const LOW = 6, HIGH = 9;
     for (let cz = LOW; cz <= HIGH; cz++) for (let cx = LOW; cx <= HIGH; cx++) ground.reach(cx * CS + 8, cz * CS + 8, 0);
     const holes: string[] = [];
     let checked = 0;
     for (let cz = LOW + 1; cz < HIGH; cz++) for (let cx = LOW + 1; cx < HIGH; cx++) {
-      for (const box of boxesOf(sampler.generateChunk(cx, cz), sampler.seed)) {
+      for (const box of boxesOf(sampler.generateChunk(cx, cz), sampler.seed, propFootprints())) {
         checked++;
         const cos = Math.cos(box.rot), sin = Math.sin(box.rot);
         for (const [ax, az] of [[0, 0], [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9], [0.8, 0.8], [-0.8, 0.8], [0.8, -0.8], [-0.8, -0.8]]) {

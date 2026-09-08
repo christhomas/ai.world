@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PropKind } from '../world/biomes';
 import { CHURCH_WINDOWS, HOUSE_WINDOWS, church, house, merge, part, prism, type HouseStyle } from './geometry';
+import { footprintsOf } from './footprint';
+import type { Footprints } from '../world/footprints';
 
 /**
  * Low-poly prop geometry built from primitives with baked vertex colours.
@@ -11,6 +13,14 @@ export class PropLibrary {
   /** Window-only geometry per building kind, drawn unlit so it can glow at night. */
   readonly glows = new Map<PropKind, THREE.BufferGeometry>();
   readonly material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  /**
+   * How much ground each of these takes up, for whoever has to walk round them.
+   *
+   * Measured off the geometry above at the end of building it, so a prop's box is a property of
+   * the prop and not a row in a table somewhere that has to be kept in step with it. See
+   * `footprint.ts` for what is measured and why it is not the whole mesh.
+   */
+  readonly footprints: Footprints;
 
   constructor() {
     this.geometries.set(PropKind.Oak, merge([
@@ -524,6 +534,8 @@ export class PropLibrary {
       part(new THREE.IcosahedronGeometry(1.05, 1), 0x6a9a3c, [0, 1.45, 0], [1, 0.55, 1]),
       part(new THREE.IcosahedronGeometry(0.65, 1), 0x5f8c36, [0, 1.0, 0], [1.05, 0.9, 1.05]),
     ]));
+
+    this.footprints = footprintsOf(this.geometries);
   }
 
   dispose(): void {
@@ -531,4 +543,26 @@ export class PropLibrary {
     for (const g of this.glows.values()) g.dispose();
     this.material.dispose();
   }
+}
+
+/**
+ * The footprints alone, for the halves of the game that walk things about without drawing them.
+ *
+ * The server owns where every hero and creature is standing and has never built a mesh; it needs
+ * the same boxes the player sees, and the only honest way to have the same boxes is to measure the
+ * same geometry. So it builds the props once, keeps the measurements and lets the meshes go: twenty
+ * milliseconds and five megabytes at boot, of which a few kilobytes are kept.
+ *
+ * Held after the first call because the answer cannot change while the program is running, and
+ * three worlds ask for it.
+ */
+let measured: Footprints | null = null;
+
+export function propFootprints(): Footprints {
+  if (!measured) {
+    const library = new PropLibrary();
+    measured = library.footprints;
+    library.dispose();
+  }
+  return measured;
 }

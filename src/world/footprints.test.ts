@@ -1,63 +1,67 @@
 import { describe, expect, it } from 'vitest';
-import { PropLibrary } from '../render/props';
-import { BLOCKS_WALKING } from './biomes';
-import { FOOTPRINTS, WALKING_BAND } from './footprints';
+import { PropLibrary, propFootprints } from '../render/props';
+import { BLOCKS_WALKING, PropKind } from './biomes';
+import { WALKING_BAND } from './footprints';
 
 /**
- * The table says what a prop blocks; the geometry says what it looks like. This is what stops the
- * two from ever disagreeing.
+ * What a prop blocks is measured off the prop, so the two cannot disagree.
  *
- * They have to be separate — the server walks heroes through a world that has never built a mesh,
- * so it needs numbers rather than triangles — and separate things drift. A prop redrawn a little
- * wider would go on blocking at its old size, silently, which is exactly the class of fault this
- * whole change was made to end: a stall you walk through, a wall you cannot see.
+ * This file used to guard a table: forty-six hand-written rows of half-extents, rebuilt against
+ * every mesh, failing on any that had drifted. That test could only compare the rows it had, and
+ * the fault it never caught was the missing row — a prop drawn, placed, and solid to nobody.
+ *
+ * Now there is nothing to drift, so what is worth testing changed. Not "does the number match the
+ * mesh" — it is taken from the mesh — but whether the *rules* around it still hold: that everything
+ * meant to block has something to block with, that nothing meant to be walked through has picked up
+ * a box, and that the band a walker meets is still the walls of a building rather than its doorstep
+ * or its eaves.
  */
-describe('what a prop blocks against what it is drawn as', () => {
-  /** The half-extents of every face that spans the band a walker meets. */
-  function measure(geometry: import('three').BufferGeometry): { hw: number; hd: number } | null {
-    const p = geometry.getAttribute('position');
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (let t = 0; t + 2 < p.count; t += 3) {
-      const ys = [p.getY(t), p.getY(t + 1), p.getY(t + 2)];
-      // a face counts if it spans the band, not if it has a corner in it: a wall is a box whose
-      // only vertices are at the floor and the ceiling
-      if (Math.max(...ys) < WALKING_BAND.low || Math.min(...ys) > WALKING_BAND.high) continue;
-      for (const i of [t, t + 1, t + 2]) {
-        const x = p.getX(i), z = p.getZ(i);
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (z < minZ) minZ = z;
-        if (z > maxZ) maxZ = z;
-      }
-    }
-    if (minX === Infinity) return null;
-    return { hw: Math.max(-minX, maxX), hd: Math.max(-minZ, maxZ) };
-  }
+describe('the footprints measured off the props', () => {
+  const footprints = propFootprints();
 
-  const library = new PropLibrary();
-
-  it('matches, for every prop that blocks', () => {
-    const wrong: string[] = [];
-    for (const [kind, geometry] of library.geometries) {
+  it('covers everything that is supposed to block', () => {
+    const library = new PropLibrary();
+    const missing: string[] = [];
+    for (const [kind] of library.geometries) {
       if (!BLOCKS_WALKING.has(kind)) continue;
-      const drawn = measure(geometry);
-      const said = FOOTPRINTS.get(kind);
-      if (!drawn) { if (said) wrong.push(`${kind}: nothing in the band, but the table says ${said.hw}x${said.hd}`); continue; }
-      if (!said) { wrong.push(`${kind}: drawn ${drawn.hw.toFixed(2)}x${drawn.hd.toFixed(2)}, missing from the table`); continue; }
-      // the table is rounded to a hundredth of a tile, which is a centimetre and a half of world
-      if (Math.abs(said.hw - drawn.hw) > 0.011 || Math.abs(said.hd - drawn.hd) > 0.011) {
-        wrong.push(`${kind}: drawn ${drawn.hw.toFixed(2)}x${drawn.hd.toFixed(2)}, table says ${said.hw}x${said.hd}`);
-      }
+      if (!footprints.get(kind)) missing.push(`kind ${kind}`);
     }
-    expect(wrong, 'a prop was redrawn without its footprint being remeasured').toEqual([]);
+    library.dispose();
+    expect(missing, 'drawn, meant to block, and nothing in the walking band to block with').toEqual([]);
   });
 
-  it('leaves a doorstep and a tree crown out of it', () => {
-    // the two failures that named the band. A cottage measured to its doorstep would seal its own
-    // door; measured to its eaves it would be the invisible wall this replaced.
-    const cottage = FOOTPRINTS.get(20 as never);
+  it('leaves what you walk through alone', () => {
+    // a flower is drawn and has a size, and walking through it is right; that is a decision, and
+    // it lives in BLOCKS_WALKING rather than in whether anybody remembered to measure it
+    const walkThrough: Array<[string, PropKind]> = [
+      ['a flower', PropKind.Flower], ['a tuft of grass', PropKind.Tuft],
+      ['a mushroom', PropKind.Mushroom], ['a rug', PropKind.Rug],
+    ];
+    for (const [what, kind] of walkThrough) {
+      expect(footprints.get(kind), `${what} has been given a box`).toBeUndefined();
+    }
+  });
+
+  it('measures a cottage to its walls, not its step or its eaves', () => {
+    // the two failures that named the band. Measured to the doorstep a cottage seals its own door;
+    // measured to the eaves it is the ring of invisible wall this whole thing replaced.
+    const cottage = footprints.get(PropKind.HousePlains);
     expect(cottage, 'a cottage blocks').toBeTruthy();
-    expect(cottage!.hw, 'its walls and door leaf, not the step in front of them').toBeLessThan(1.4);
-    expect(cottage!.hw, 'and not just its doorframe either').toBeGreaterThan(1.1);
+    expect(cottage!.hw, 'out as far as the step in front of the door').toBeLessThan(1.4);
+    expect(cottage!.hw, 'no wider than the doorframe').toBeGreaterThan(1.1);
+  });
+
+  it('measures a tree to its trunk and low branches, not its crown', () => {
+    // a wood has to be walkable: an oak's crown is 0.82 out at head height and you walk under it
+    const oak = footprints.get(PropKind.Oak);
+    expect(oak, 'an oak blocks').toBeTruthy();
+    expect(oak!.hw, 'the whole crown, which would close the woods').toBeLessThan(1.0);
+  });
+
+  it('is measured over a band a walker could actually meet', () => {
+    // mid-shin to chest: under it is what you step onto, over it is what you walk under
+    expect(WALKING_BAND.low).toBeGreaterThan(0.1);
+    expect(WALKING_BAND.low).toBeLessThan(WALKING_BAND.high);
+    expect(WALKING_BAND.high).toBeLessThan(1.6);
   });
 });

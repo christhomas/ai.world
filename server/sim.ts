@@ -4,6 +4,7 @@ import { Rooms, type Client, type Room, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld } from '../src/world/groundworld';
+import { propFootprints } from '../src/render/props';
 import { Wildlife } from './wildlife';
 import { generateWebGraph } from '../src/world/roadweb';
 import { generateDungeon } from '../src/dungeon/generate';
@@ -122,7 +123,7 @@ export class Simulation {
     // mountains, villages on real ground, and everything phase three is about.
     const graph = generateWebGraph(seed);
     const sampler = new TerrainSampler(graph);
-    const grown = new GroundWorld(sampler);
+    const grown = new GroundWorld(sampler, propFootprints());
     this.ground.set(seed, grown);
     // Animals only. The people of a village are worked out from the seed and the register of who
     // has died, so every client already agrees about them without being told — and a villager the
