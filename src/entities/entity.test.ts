@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { treeFor } from './behaviours';
-import { BEHAVIOUR, Entity, Herd, STEP_LIMIT, canStand, isDaytime, tryMove, updateEntity, yawFor, type TileWorld } from './entity';
+import { BEHAVIOUR, Entity, Herd, STEP_LIMIT, canStand, isDaytime, spaceNear, tryMove, updateEntity, yawFor, type TileWorld } from './entity';
 
 /** Flat 20x20 world at height 1, with a cliff (height 2) for x >= 10 and a tree at (5,5). */
 const world: TileWorld = {
@@ -165,5 +165,45 @@ describe('a villager\'s working day', () => {
     e.posts = { square: [10, 10] };          // no field, no inn, no house
     tick(e, 0.35);
     expect(e.indoors).toBe(false);           // nothing to send them indoors, so they potter
+  });
+});
+
+/*
+ * Being put inside something, which is the one fault a player cannot walk away from.
+ *
+ * Nothing walks into a solid, but plenty of things are put into one: a hero carried home after a
+ * knock on the head and set down two tiles from the middle of a village, which is sometimes a
+ * market stall. Reported as "I respawn in the middle of an object and I am trapped".
+ */
+describe('somebody put down inside a wall', () => {
+  /** Flat ground everywhere, with a solid block three tiles across in the middle of it. */
+  const walled: TileWorld = {
+    heightAt: (x, z) => (x < 0 || z < 0 || x >= 30 || z >= 30 ? null : 1),
+    waterAt: () => null,
+    blocked: (x, z) => x > 10 && x < 13 && z > 10 && z < 13,
+    isRoad: () => false,
+  };
+
+  it('is let out rather than held in', () => {
+    const e = new Entity(KINDS.hero, 11.5, 11.5, new Herd(KINDS.hero, 0, 0, 0, 0, 5), 'k', mulberry32(1));
+    e.y = 1;
+    // walking west, from the middle of the block
+    for (let n = 0; n < 40 && walled.blocked(e.x, e.z); n++) tryMove(walled, e, -0.2, 0);
+    expect(walled.blocked(e.x, e.z), 'still inside the wall after forty steps').toBe(false);
+    expect(e.x, 'walked out of the world entirely').toBeGreaterThan(5);
+  });
+
+  it('and is not let back in once out', () => {
+    const e = new Entity(KINDS.hero, 9, 11.5, new Herd(KINDS.hero, 0, 0, 0, 0, 5), 'k', mulberry32(1));
+    e.y = 1;
+    for (let n = 0; n < 20; n++) tryMove(walled, e, 0.2, 0);
+    expect(e.x, 'walked into the wall from outside').toBeLessThan(10.1);
+  });
+
+  it('finds somewhere to stand near a spot that will not take him', () => {
+    const clear = spaceNear(walled, KINDS.hero, 11.5, 11.5);
+    expect(clear, 'nowhere at all to put him').toBeTruthy();
+    expect(walled.blocked(clear!.x, clear!.z), 'put down inside the wall again').toBe(false);
+    expect(Math.hypot(clear!.x - 11.5, clear!.z - 11.5), 'carried half way across the map').toBeLessThan(3);
   });
 });

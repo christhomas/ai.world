@@ -2,7 +2,7 @@ import type { Input } from '../core/input';
 import type { IsoCamera } from '../render/camera';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
-import { Entity, Herd, canStand, tryMove, type Crowd, type TileWorld } from './entity';
+import { Entity, Herd, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from './entity';
 import { newHero, stride, type Steer } from './stride';
 import type { EntityRenderer } from './pool';
 
@@ -95,17 +95,25 @@ export class Player {
     if (this.placed) return true;
     const h = this.world.heightAt(e.x, e.z);
     if (h === null) {
-      // look for the nearest standable tile in a widening ring
-      for (let r = 1; r < 12; r++) {
-        for (let a = 0; a < 16; a++) {
-          const ang = (a / 16) * Math.PI * 2;
-          const x = e.x + Math.cos(ang) * r, z = e.z + Math.sin(ang) * r;
-          if (canStand(this.world, e.kind, x, z)) { e.x = x; e.z = z; e.y = this.world.heightAt(x, z)!; this.placed = true; return true; }
-        }
-      }
-      return false;
+      // the ground here has not arrived yet, or is not ground: find some
+      const clear = spaceNear(this.world, e.kind, e.x, e.z, 12);
+      if (!clear) return false;
+      e.x = clear.x; e.z = clear.z;
+      e.y = this.world.heightAt(clear.x, clear.z)!;
+      this.placed = true;
+      return true;
     }
-    if (this.world.blocked(e.x, e.z)) { e.x += 1; return false; }
+    // and not inside anything standing on it. Set down two tiles from the middle of a village is
+    // sometimes set down inside a market stall, and being trapped in one is the one fault a player
+    // has no way round — so the landing is moved to the nearest place a body fits.
+    if (this.world.blocked(e.x, e.z)) {
+      const clear = spaceNear(this.world, e.kind, e.x, e.z);
+      if (!clear) { e.x += 1; return false; }
+      e.x = clear.x; e.z = clear.z;
+      e.y = this.world.heightAt(clear.x, clear.z) ?? h;
+      this.placed = true;
+      return true;
+    }
     e.y = h;
     this.placed = true;
     return true;

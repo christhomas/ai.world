@@ -91,6 +91,8 @@ export interface Probed {
   markers: () => unknown;
   /** How the client's guess and the world's answer are getting on. */
   walking: { answers: number; corrections: number; worst: number };
+  /** The doorstep watcher, so a test can say why a door did or did not open. */
+  doorsteps: { ready: boolean; resting: number };
   /** How far behind the world the drawn creatures are, in tiles. */
   drift: () => Drift;
   /** What has bitten the hero lately, and how far off the biter was drawn. */
@@ -107,7 +109,7 @@ export function installProbes(ctx: Probed): void {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, heard, nettleAbout, sentOut,
+    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, heard, nettleAbout, sentOut,
   } = ctx;
 
   const debug = window as unknown as {
@@ -181,8 +183,14 @@ export function installProbes(ctx: Probed): void {
     return {
       name: room.world.map.name,
       size: [room.world.map.w, room.world.map.h],
+      door: room.world.map.door,
+      entry: room.world.map.entry,
       furniture: room.world.map.furniture.map((f) => ({ kind: f.kind, x: f.x, z: f.z, rot: Math.round(f.rot * 100) / 100 })),
       solid: (x: number, z: number) => room.world.blocked(x, z),
+      /** Whether the hero is standing in the doorway, and what the doorstep is waiting for. */
+      atTheDoor: room.world.inDoorway(player.x, player.z, 0.68, 0.49),
+      resting: Math.round(doorsteps.resting * 10) / 10,
+      armed: doorsteps.ready,
     };
   };
   Object.defineProperty(debug, '__wire', {

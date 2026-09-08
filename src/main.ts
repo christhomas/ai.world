@@ -626,7 +626,7 @@ function startGame(
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-      commandWorld, placeName, walking, bites,
+      commandWorld, placeName, walking, bites, doorsteps,
       drift: () => wildlife.drift(),
       pods: watch.pods,
       nettleAbout: watch.nettleAbout,

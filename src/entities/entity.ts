@@ -316,20 +316,81 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
    * free to move, and moves apart within a step or two because nothing is pushing them together.
    */
   const stuck = crowd?.occupied(e.x, e.z, e) ?? false;
+  /*
+   * And the same mercy for the scenery: somebody standing inside a wall may walk out of it.
+   *
+   * Nothing walks into a solid, but plenty of things are *put* into one — a hero carried home after
+   * a knock on the head and set down two tiles from the village middle, which is sometimes a stall;
+   * a boat run aground; a floor that has been rebuilt under somebody. Once inside, every direction
+   * out of it fails the same test that should have stopped him getting in, and the game has eaten
+   * the player: no message, no way out, nothing to do but reload. That is a worse fault than any
+   * amount of walking through walls, so being already inside something is a reason to be let out
+   * rather than a reason to be held.
+   *
+   * Only the props are waived. The ground still has to be ground: this is a way out of a wall, not
+   * a way into the sea or up a cliff.
+   */
+  const boxedIn = world.blocked(e.x, e.z) && standable(world, k, e.x, e.z);
   const attempts: Array<[number, number]> = [[dx, dz], [dx, 0], [0, dz]];
   for (const [mx, mz] of attempts) {
     if (mx === 0 && mz === 0) continue;
     const nx = e.x + mx, nz = e.z + mz;
-    if (!canStand(world, k, nx, nz, e.y)) continue;
-    // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
-    // length of the step that crossed it
-    if (world.crosses?.(e.x, e.z, nx, nz)) continue;
+    if (boxedIn) {
+      if (!standable(world, k, nx, nz, e.y)) continue;
+    } else {
+      if (!canStand(world, k, nx, nz, e.y)) continue;
+      // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
+      // length of the step that crossed it
+      if (world.crosses?.(e.x, e.z, nx, nz)) continue;
+    }
     // the ground first, because the ground is the cheap question
     if (!stuck && crowd?.occupied(nx, nz, e)) continue;
     e.x = nx; e.z = nz;
     return true;
   }
   return false;
+}
+
+/**
+ * Somewhere near here that this kind can actually stand: here, if here will do.
+ *
+ * Whatever *puts* somebody somewhere — a hero carried home after a knock on the head, a staircase,
+ * a boat, a teleport, the first placing of a new game — is choosing a point on a map, not a place
+ * to stand, and points on a map land inside stalls and under carts. Being put inside a solid used
+ * to mean being trapped in it, which is the one fault a player cannot work around.
+ *
+ * A widening ring rather than a nudge in one direction: pushing east a tile at a time gets out of a
+ * hut and into the sea.
+ */
+export function spaceNear(world: TileWorld, kind: AnimalKind, x: number, z: number, within = 8): { x: number; z: number } | null {
+  if (canStand(world, kind, x, z)) return { x, z };
+  for (let r = 0.5; r <= within; r += 0.5) {
+    // enough points that a ring cannot step over a gap narrower than a doorway
+    const points = Math.max(8, Math.round(r * 12));
+    for (let a = 0; a < points; a++) {
+      const angle = (a / points) * Math.PI * 2;
+      const nx = x + Math.cos(angle) * r, nz = z + Math.sin(angle) * r;
+      if (canStand(world, kind, nx, nz)) return { x: nx, z: nz };
+    }
+  }
+  return null;
+}
+
+/**
+ * Is the ground itself walkable here, whatever is standing on it?
+ *
+ * `canStand` asks two questions at once — is this ground, and is anything in the way — which is
+ * right for a step and wrong for an escape. Somebody inside a wall needs the first answer without
+ * the second.
+ */
+function standable(world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number): boolean {
+  if (swims(kind)) return world.waterAt(x, z) !== null;
+  if (kind.behaviour === 'fly') return true;
+  const h = world.heightAt(x, z);
+  if (h === null) return false;
+  if (!kind.climb && world.buried?.(x, z)) return false;
+  if (fromY !== undefined && Math.abs(h - fromY) > (kind.climb ?? STEP_LIMIT)) return false;
+  return true;
 }
 
 export interface Ctx {

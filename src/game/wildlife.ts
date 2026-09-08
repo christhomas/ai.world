@@ -165,7 +165,9 @@ export class Wildlife {
       this.recent = this.recent * 0.96 + out * 0.04;
       // and separately for what the player could actually reach, because a deer forty tiles off
       // being drawn a little behind costs nobody anything
-      if (hero && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
+      // fliers are left out of the reckoning as well as out of the guess: what this number is for
+      // is whether a blow will land where it looks like it will, and nothing you swing at flies
+      if (hero && body.kind.behaviour !== 'fly' && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
         this.wrongClose.n++;
         this.wrongClose.total += out;
         if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
@@ -262,8 +264,13 @@ export class Wildlife {
     for (const [id, body] of this.bodies) {
       const held = this.wanted.get(id);
       if (!held) continue;
-      // carried forward from where it was last seen, for as long as that is still a fair guess
-      const ahead = Math.min(now - held.at, CARRY_AHEAD * (1 - held.turn));
+      // carried forward from where it was last seen, for as long as that is still a fair guess.
+      // Nothing that flies is carried at all: a vulture rides a thermal in a ring, so its last
+      // direction is a tangent and a third of a second of one puts it outside the ring — measured
+      // at nearly five tiles out, by far the worst of anything in the world. Nobody fights a bird
+      // at altitude seven, and a bird drawn a moment behind reads as a bird.
+      const straight = body.kind.behaviour === 'fly' ? 0 : CARRY_AHEAD * (1 - held.turn);
+      const ahead = Math.min(now - held.at, straight);
       const to = { x: held.x + held.vx * ahead, z: held.z + held.vz * ahead, y: held.y, yaw: held.yaw };
       body.x += (to.x - body.x) * k;
       body.z += (to.z - body.z) * k;
