@@ -128,25 +128,91 @@ const MAP_SUMMIT = 52;
 const MAP_ROCK = 0x8d8d8d;
 const MAP_SNOW = 0xeef2f5;
 
+/**
+ * The dark over the country you have not walked yet.
+ *
+ * What is remembered is a set of chunks — that is what the save holds, and it is the right thing
+ * to hold. What was wrong was drawing it: each chunk was punched out as a hard rectangle, so the
+ * edge of the known world was a staircase with sixteen-tile steps. On the corner map that is a
+ * third of the width per step, and the map turns with the camera, so the steps arrive as a huge
+ * blocky diamond sitting on the picture. It reads as a fault rather than as fog — which is exactly
+ * what it was reported as: a black area that does not show properly.
+ *
+ * So the union of the chunks is kept on a mask of its own and blurred once as it is punched out.
+ * Blurring each rectangle separately would not do: where two chunks meet, each would take about
+ * half of what is left and the seam between them would stay half dark, so the inside of the known
+ * world would be criss-crossed with the grid it was revealed in. One mask, one blur, and the only
+ * soft edge is the outer one.
+ */
+const FOG = {
+  /**
+   * How dark the unknown is.
+   *
+   * Left where it was. Lightening it was tried at the same time as the feather and made the map
+   * worse in a way the feather alone did not: the land beneath came up as a warm brown wash and
+   * the whole picture went muddy, so that neither what you know nor what you do not was clear.
+   * The edge was the fault, not the darkness.
+   */
+  INK: 'rgba(6, 10, 26, 0.88)',
+  /**
+   * How far the edge is feathered, in base-map pixels.
+   *
+   * `BASE_SCALE` pixels to the tile, so this is about six tiles of dusk — wide enough to read as
+   * softness on the corner map, where a hundred and ten tiles cross a hundred and eighty pixels,
+   * and narrow enough not to wash out the world map at full zoom.
+   */
+  FEATHER: 9,
+} as const;
+
 export class Fog {
   readonly canvas: HTMLCanvasElement;
+  /** The union of everywhere that has been walked, in white on black. Never shrinks. */
+  private readonly mask: HTMLCanvasElement;
+  private known = 0;
 
   constructor(private readonly base: MapBase) {
     this.canvas = document.createElement('canvas');
     this.canvas.width = base.canvas.width;
     this.canvas.height = base.canvas.height;
-    const f = this.canvas.getContext('2d')!;
-    f.fillStyle = 'rgba(6, 10, 26, 0.88)';
-    f.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.mask = document.createElement('canvas');
+    this.mask.width = base.canvas.width;
+    this.mask.height = base.canvas.height;
+    this.repaint();
   }
 
   reveal(chunkKeys: Iterable<string>): void {
-    const f = this.canvas.getContext('2d')!;
+    const m = this.mask.getContext('2d')!;
     const CS = WORLD.CHUNK_SIZE, s = BASE_SCALE, o = this.base.pad * BASE_SCALE;
+    m.fillStyle = '#fff';
+    let seen = 0;
     for (const key of chunkKeys) {
       const [cx, cz] = parseChunkKey(key);
-      f.clearRect(o + cx * CS * s, o + cz * CS * s, CS * s, CS * s);
+      m.fillRect(o + cx * CS * s, o + cz * CS * s, CS * s, CS * s);
+      seen++;
     }
+    // the mask only grows, so a call that adds nothing is a call that need not repaint the fog —
+    // and this runs from the frame loop every time a chunk boundary is crossed
+    if (seen === this.known) return;
+    this.known = seen;
+    this.repaint();
+  }
+
+  /** Fill the dark, then take the known world back out of it with one soft-edged stroke. */
+  private repaint(): void {
+    const f = this.canvas.getContext('2d')!;
+    f.setTransform(1, 0, 0, 1, 0, 0);
+    f.globalCompositeOperation = 'source-over';
+    f.filter = 'none';
+    f.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    f.fillStyle = FOG.INK;
+    f.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    if (this.known === 0) return;
+    f.globalCompositeOperation = 'destination-out';
+    // where a browser will not blur, the edge comes out as it always did rather than not at all
+    f.filter = `blur(${FOG.FEATHER}px)`;
+    f.drawImage(this.mask, 0, 0);
+    f.filter = 'none';
+    f.globalCompositeOperation = 'source-over';
   }
 }
 

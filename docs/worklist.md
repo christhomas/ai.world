@@ -563,3 +563,14 @@ Things Chris hit on a real phone, in the order he hit them.
 - [ ] Edge — and probably others — never goes full screen, so the browser's own chrome keeps a fifth
       of the glass. `takeTheScreen()` asks on the tap that enters a world; find out what it is
       actually doing on those browsers rather than assuming the request was granted.
+- [x] The world map does not light up the parts you have discovered — a black area that does not
+      show properly. *(The remembering was right; the drawing was not. Each explored chunk was
+      punched out of the fog as a hard rectangle, so the edge of the known world was a staircase
+      with sixteen-tile steps — and the corner map shows a hundred and ten tiles across, so each
+      step is a third of its width. Turned with the camera it arrived as a blocky diamond sitting
+      on the picture, which reads as a fault rather than as fog. The union of the chunks is kept on
+      a mask of its own now and blurred once as it is punched out: blurring each rectangle
+      separately would leave every seam inside the known world half dark, criss-crossed with the
+      grid it was revealed in. Lightening the dark was tried at the same time and put back — it
+      brought the land up as a warm brown wash and made the whole map muddy. The edge was the
+      fault, not the darkness.)*
