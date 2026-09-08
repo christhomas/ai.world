@@ -276,6 +276,15 @@ export function createFrame(ctx: Framing) {
     if (!talking) { state.tick(dt); magic.tick(dt); }
     // what a blow costs in time, counted before the frame decides where the hero is standing
     blows.cooled(dt);
+    /*
+     * A door, from whichever side he walked at it.
+     *
+     * Above the branch, with the cooldowns, and for the same reason they are: below it this runs
+     * on the out-of-doors path only, so walking into a house would work and walking back out of
+     * one would not — which is exactly how it shipped, and exactly what was reported. A door does
+     * not know which way you are going, and neither should the frame.
+     */
+    if (!talking) doorsteps.step(player);
     tidings.theDaysNews();
 
     // hold the place for this frame: a bite can end it half way through
@@ -408,10 +417,6 @@ export function createFrame(ctx: Framing) {
       chunks.standsOn(tiles);
     }
     entityRenderer.update();
-
-    // after the hero has been moved and before anything is drawn about where he is: if that step
-    // took him onto a doorstep, he is indoors now and the rest of this frame is about a room
-    if (!talking) doorsteps.step(player);
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) reveal();
     areaLabel = skies.aloft?.name ?? areaName();

@@ -628,3 +628,19 @@ Things Chris hit on a real phone, in the order he hit them.
       grid it was revealed in. Lightening the dark was tried at the same time and put back — it
       brought the land up as a warm brown wash and made the whole map muddy. The edge was the
       fault, not the darkness.)*
+
+## Playing it, September 9th
+
+- [x] The door activates going into a building but not coming out, and it fires when you are
+      anywhere in front of the building rather than on the door. *(Two faults. The frame called the
+      doorstep below the branch that ends an indoor frame, so it ran out of doors only — the same
+      trap the blow cooldowns were in, and it is now above the branch with them. And the trigger was
+      a circle of radius 0.62 round the `Doorway` record, which is the tile you stand on to knock:
+      two whole tiles out from the middle of the house, when the door leaf `house()` draws is at
+      1.22. So it was testing a spot three-quarters of a tile out in the street, with a circle wider
+      than the tile it sat on. It is now the leaf's own rectangle — 0.62 wide, 0.08 thick, at 1.22 —
+      grown by the hero's shoulders and nothing else. Mapped: it fires between 1.00 and 1.44 out
+      from the middle of the house and within 0.49 along the wall, and nowhere else.)*
+- [ ] A house's floor tiles are walkable, so the hero can stand inside the walls of a cottage he has
+      not entered — which is how a teleport into one shoves him out through the doorway. Only the
+      middle tile carries the blocking prop.

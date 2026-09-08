@@ -30,9 +30,33 @@ export class InteriorWorld implements TileWorld {
   isRoad(): boolean { return true; }
 
   /** Is the hero standing on the way out? */
-  atDoor(x: number, z: number): boolean {
+  /**
+   * How far from the doorway somebody is standing, in tiles.
+   *
+   * Given as a distance rather than a yes or no because two different questions are asked of it:
+   * the key wants a generous reach, so pressing Enter anywhere near the door leaves; and walking
+   * out wants a tight one, so brushing past the doorway on the way to the counter does not put you
+   * in the street.
+   */
+  fromDoor(x: number, z: number): number {
     const [dx, dz] = this.map.door;
-    return Math.hypot(dx + 0.5 - x, dz + 0.5 - z) < 1.2;
+    return Math.hypot(dx + 0.5 - x, dz + 0.5 - z);
+  }
+
+  atDoor(x: number, z: number): boolean {
+    return this.fromDoor(x, z) < 1.2;
+  }
+
+  /**
+   * Is somebody standing in the doorway itself, rather than merely near it?
+   *
+   * The door is always the middle of the south wall, so the way through it is z and the wall is x.
+   * Narrow along the wall on purpose: walking the length of a shop counter takes you past the
+   * doorway, and that is not the same as leaving.
+   */
+  inDoorway(x: number, z: number, across: number, along: number): boolean {
+    const [dx, dz] = this.map.door;
+    return Math.abs(z - (dz + 0.5)) <= across && Math.abs(x - (dx + 0.5)) <= along;
   }
 
   /** Is the keeper (shopkeeper or priest) within talking distance? */
