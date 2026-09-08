@@ -365,14 +365,20 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   line-height: 1.7; color: var(--ink-far);
 }
 #titleRail .rail-block { display: flex; flex-direction: column; gap: calc(16 * var(--ui-scale)); }
-/* the build, in the quietest type on the screen: wanted when it is wanted, never in the way */
+/*
+ * The build, at the very bottom of the rail.
+ *
+ * Quiet, but readable: it was #4d5680 on a near-black slab, which is about two to one and not a
+ * colour anybody can read a version number out of. Low contrast is not the same as unobtrusive —
+ * small and out of the way does that job, and then the text still has to be legible when you go
+ * looking for it, which is the only time anybody reads a version number at all.
+ */
 #titleRail .build {
-  margin-top: auto; font-size: calc(10 * var(--ui-scale)); color: #4d5680;
-  letter-spacing: var(--ui-scale); line-height: 1.6;
+  margin-top: calc(10 * var(--ui-scale)); font-size: calc(11 * var(--ui-scale));
+  color: var(--ink-dim); letter-spacing: var(--ui-scale); line-height: 1.6;
 }
-#titleRail .build + .rail-foot { margin-top: calc(10 * var(--ui-scale)); }
 #titleRail .rail-foot {
-  padding-top: calc(10 * var(--ui-scale)); border-top: var(--ui-scale) solid var(--hair);
+  margin-top: auto; padding-top: calc(10 * var(--ui-scale)); border-top: var(--ui-scale) solid var(--hair);
   font-size: calc(11 * var(--ui-scale)); line-height: 2; color: var(--ink-faint); letter-spacing: var(--ui-scale);
 }
 /* the keys are no use to a thumb, so a phone is told the one thing it needs instead */
