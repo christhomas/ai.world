@@ -94,6 +94,9 @@ export class GroundWorld implements TileWorld, ChunkSource {
     for (const key of [...this.loaded.keys()]) {
       if (wanted.has(key)) continue;
       this.loaded.delete(key);
+      // and what was standing on it: the boxes are per chunk, so a chunk nobody is near that kept
+      // its solids would be a world that only ever grows
+      this.solids.delete(key);
       dropped++;
     }
     return dropped;
