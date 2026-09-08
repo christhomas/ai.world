@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import type { PropLibrary } from '../render/props';
-import { Solids, solidsFrom } from './solids';
+import { Solids, boxesFrom } from './solids';
 import type { PropKind } from './biomes';
 import type { WorkerRequest, WorkerResponse } from './messages';
 import { Standing } from './standing';
@@ -20,7 +20,6 @@ interface LoadedChunk {
   group: THREE.Group | null;
   tiles: ChunkTiles | null;
   /** What is standing on it, as boxes taken off the props' own geometry. */
-  solids: Solids | null;
 }
 
 /**
@@ -32,6 +31,15 @@ const BURIED_BY = 1.5;
 
 export class ChunkManager implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, LoadedChunk>();
+  /**
+   * What is standing in the world, as boxes: one index for all of it rather than one per chunk.
+   *
+   * Per chunk was a bug with a shape you could walk through. A box was clamped to the sixteen tiles
+   * of the chunk that owned it, so a cottage near a boundary — two and a half tiles across — had
+   * the part of its box over the line registered in nobody's grid, and you walked through that half
+   * of the house. See `solids.ts`.
+   */
+  private readonly solids = new Solids();
   private readonly pending = new Map<string, number>();  // key → job id
   private readonly workers: Worker[] = [];
   private readonly idle: Worker[] = [];
@@ -155,7 +163,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     if (far) { this.pump(); return; }
 
     if (msg.empty) {
-      this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null, solids: null });
+      this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null });
     } else {
       const group = new THREE.Group();
       const land = meshFromData(msg.mesh, this.terrainMaterial);
@@ -169,7 +177,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
         group.add(water);
       }
       // the same boxes the server builds, from the same footprints and the same prop stream
-      const solids = solidsFrom(msg.cx, msg.cz, readPropStream(msg.props));
+      this.solids.put(k, boxesFrom(readPropStream(msg.props)));
       this.propBatch.set(k, readPropStream(msg.props));
       this.scene.add(group);
       // the ground of a chunk never moves once it is down, so the frame need not walk it every
@@ -180,7 +188,6 @@ export class ChunkManager implements TileWorld, ChunkSource {
       this.loaded.set(k, {
         cx: msg.cx, cz: msg.cz, group,
         tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, blocked: msg.blocked, biomes: msg.biomes },
-        solids,
       });
       this.stats.drawn++;
       if (!this.firstChunkSeen) { this.firstChunkSeen = true; this.onFirstChunk?.(); }
@@ -190,6 +197,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   private unload(k: string, c: LoadedChunk): void {
     this.propBatch.remove(k);
+    this.solids.drop(k);
     if (c.group) {
       this.scene.remove(c.group);
       c.group.traverse((o) => {
@@ -278,29 +286,17 @@ export class ChunkManager implements TileWorld, ChunkSource {
     if (!hit) return true;                       // ground that has not arrived is not ground to walk on
     if (hit.t.blocked[hit.i] === 1) return true; // the ground itself: a floor, a wall of rock
     // and then whatever is standing on it, against the box it is actually drawn at
-    return this.loaded.get(chunkKey(hit.t.cx, hit.t.cz))?.solids?.at(x, z) ?? false;
+    return this.solids.at(x, z);
   }
 
   /**
    * Does the way from one point to another cross a solid?
    *
-   * A chunk keeps its own boxes, and a step can start in one chunk and end in the next, so every
-   * chunk the step spans is asked. That is one chunk nearly always and four at the very worst,
-   * because no step is longer than a few tiles and a chunk is sixteen.
-   *
    * Only the boxes: the tile grid and what the player has built are both tile-shaped, and nothing
    * a tile wide can hide between the samples a mover takes along its step.
    */
   crosses(x0: number, z0: number, x1: number, z1: number): boolean {
-    const CS = WORLD.CHUNK_SIZE;
-    const lowX = Math.floor(Math.min(x0, x1) / CS), highX = Math.floor(Math.max(x0, x1) / CS);
-    const lowZ = Math.floor(Math.min(z0, z1) / CS), highZ = Math.floor(Math.max(z0, z1) / CS);
-    for (let cz = lowZ; cz <= highZ; cz++) {
-      for (let cx = lowX; cx <= highX; cx++) {
-        if (this.loaded.get(chunkKey(cx, cz))?.solids?.crosses(x0, z0, x1, z1)) return true;
-      }
-    }
-    return false;
+    return this.solids.crosses(x0, z0, x1, z1);
   }
 
   /** Plain ground: grass or sand, no road, no floor, nothing already growing on it. */

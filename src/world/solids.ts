@@ -1,4 +1,3 @@
-import { WORLD } from '../core/config';
 import { FOOTPRINTS, MIN_BLOCK } from './footprints';
 import { propsOf, type PropAt } from './propstream';
 import type { ChunkData } from './terrain';
@@ -32,21 +31,21 @@ export interface Solid {
 }
 
 /**
- * Every solid thing in a chunk, built from the props standing on it.
+ * The boxes of a set of props.
  *
  * Takes the props rather than fetching them, because the two worlds that need this get them from
  * different places and must not disagree: the game reads the stream its chunk worker already sent
  * for drawing, and the server generates the same props itself with `propsOf`. Same footprints, same
  * boxes, so a stall stops both of them in the same place — which is the whole of why this exists.
  */
-export function solidsFrom(cx: number, cz: number, props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { rot?: number; scale?: number }>): Solids {
-  const out = new Solids(cx, cz);
+export function boxesFrom(props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { rot?: number; scale?: number }>): Solid[] {
+  const out: Solid[] = [];
   for (const p of props) {
     const box = FOOTPRINTS.get(p.kind);
     if (!box) continue;
     const grew = p.scale ?? 1;
     // nobody can jump, and a stride is longer than some of these are thick — see `MIN_BLOCK`
-    out.add({
+    out.push({
       x: p.x, z: p.z, rot: p.rot ?? 0,
       hw: Math.max(box.hw * grew, MIN_BLOCK),
       hd: Math.max(box.hd * grew, MIN_BLOCK),
@@ -56,41 +55,70 @@ export function solidsFrom(cx: number, cz: number, props: Iterable<Pick<PropAt, 
 }
 
 /** The same, for a world that holds the chunk itself and has no stream to hand. */
-export function solidsOf(chunk: ChunkData, seed: number): Solids {
-  return solidsFrom(chunk.cx, chunk.cz, propsOf(chunk, seed));
+export function boxesOf(chunk: ChunkData, seed: number): Solid[] {
+  return boxesFrom(propsOf(chunk, seed));
 }
 
 /**
- * The solid things in one chunk, bucketed by tile so asking about a point is cheap.
+ * Everything solid in the world, bucketed by tile so asking about a point is cheap.
  *
  * A box is registered in every tile it reaches into, which is what lets a stall wider than its own
  * tile stop you on the tiles either side. The lookup is then one bucket — nearly always empty or
  * holding one thing — and an exact test against that.
+ *
+ * The world, rather than one chunk each. It was a grid per chunk, clamped to that chunk's own
+ * sixteen tiles, and a cottage is two and a half tiles across: a house near a chunk edge had the
+ * part of its box that lay over the line registered nowhere at all, because the chunk it belonged
+ * to would not take a tile outside itself and the chunk next door had never heard of it. So you
+ * walked at that house from the far side and went straight through the wall as far as the boundary.
+ * Trees kept working, which is what made it look like nonsense: a tree is under a tile wide and
+ * mostly stays inside its own chunk.
+ *
+ * One index for the world has no edges in it. Chunks come and go by name — `put` when a chunk's
+ * props arrive, `drop` when it is unloaded — and a box put down near a boundary reaches into its
+ * neighbour the way it is drawn.
  */
 export class Solids {
-  private readonly buckets: Solid[][];
+  /** Boxes by world tile. Sparse: most of the world has nothing standing on it. */
+  private readonly buckets = new Map<number, Solid[]>();
+  /** Which chunk put each box down, so a chunk can take its own away again. */
+  private readonly byChunk = new Map<string, Solid[]>();
 
-  constructor(private readonly cx: number, private readonly cz: number) {
-    const CS = WORLD.CHUNK_SIZE;
-    this.buckets = Array.from({ length: CS * CS }, () => []);
-  }
-
-  /** Put a prop into every tile of this chunk its box reaches. */
-  add(solid: Solid): void {
-    const CS = WORLD.CHUNK_SIZE;
-    // the box turned: how far it reaches along the world's own axes
-    const cos = Math.abs(Math.cos(solid.rot)), sin = Math.abs(Math.sin(solid.rot));
-    const reachX = solid.hw * cos + solid.hd * sin;
-    const reachZ = solid.hw * sin + solid.hd * cos;
-    const x0 = Math.floor(solid.x - reachX) - this.cx * CS;
-    const x1 = Math.floor(solid.x + reachX) - this.cx * CS;
-    const z0 = Math.floor(solid.z - reachZ) - this.cz * CS;
-    const z1 = Math.floor(solid.z + reachZ) - this.cz * CS;
-    for (let tz = Math.max(0, z0); tz <= Math.min(CS - 1, z1); tz++) {
-      for (let tx = Math.max(0, x0); tx <= Math.min(CS - 1, x1); tx++) {
-        this.buckets[tz * CS + tx].push(solid);
+  /** Everything one chunk puts in the world, replacing whatever it had before. */
+  put(chunk: string, solids: readonly Solid[]): void {
+    this.drop(chunk);
+    if (solids.length === 0) return;
+    this.byChunk.set(chunk, [...solids]);
+    for (const solid of solids) {
+      for (const key of tilesUnder(solid)) {
+        const bucket = this.buckets.get(key);
+        if (bucket) bucket.push(solid);
+        else this.buckets.set(key, [solid]);
       }
     }
+  }
+
+  /** A chunk is gone: take its boxes with it, wherever they reached. */
+  drop(chunk: string): void {
+    const had = this.byChunk.get(chunk);
+    if (!had) return;
+    this.byChunk.delete(chunk);
+    for (const solid of had) {
+      for (const key of tilesUnder(solid)) {
+        const bucket = this.buckets.get(key);
+        if (!bucket) continue;
+        const at = bucket.indexOf(solid);
+        if (at >= 0) bucket.splice(at, 1);
+        if (bucket.length === 0) this.buckets.delete(key);
+      }
+    }
+  }
+
+  /** How many boxes are standing, for a test that wants to know they were taken away again. */
+  get count(): number {
+    let n = 0;
+    for (const held of this.byChunk.values()) n += held.length;
+    return n;
   }
 
   /** Is this point inside anything? */
@@ -125,10 +153,7 @@ export class Solids {
 
   /** The solids registered on one point's tile. */
   private near(x: number, z: number): readonly Solid[] {
-    const CS = WORLD.CHUNK_SIZE;
-    const tx = Math.floor(x) - this.cx * CS, tz = Math.floor(z) - this.cz * CS;
-    if (tx < 0 || tz < 0 || tx >= CS || tz >= CS) return EMPTY;
-    return this.buckets[tz * CS + tx];
+    return this.buckets.get(tileKey(Math.floor(x), Math.floor(z))) ?? EMPTY;
   }
 
   /**
@@ -141,18 +166,42 @@ export class Solids {
    * not worth a line-walk to narrow.
    */
   private along(x0: number, z0: number, x1: number, z1: number): Set<Solid> {
-    const CS = WORLD.CHUNK_SIZE;
     const found = new Set<Solid>();
-    const lowX = Math.floor(Math.min(x0, x1)) - this.cx * CS;
-    const highX = Math.floor(Math.max(x0, x1)) - this.cx * CS;
-    const lowZ = Math.floor(Math.min(z0, z1)) - this.cz * CS;
-    const highZ = Math.floor(Math.max(z0, z1)) - this.cz * CS;
-    for (let tz = Math.max(0, lowZ); tz <= Math.min(CS - 1, highZ); tz++) {
-      for (let tx = Math.max(0, lowX); tx <= Math.min(CS - 1, highX); tx++) {
-        for (const s of this.buckets[tz * CS + tx]) found.add(s);
+    const lowX = Math.floor(Math.min(x0, x1)), highX = Math.floor(Math.max(x0, x1));
+    const lowZ = Math.floor(Math.min(z0, z1)), highZ = Math.floor(Math.max(z0, z1));
+    for (let tz = lowZ; tz <= highZ; tz++) {
+      for (let tx = lowX; tx <= highX; tx++) {
+        const bucket = this.buckets.get(tileKey(tx, tz));
+        if (bucket) for (const s of bucket) found.add(s);
       }
     }
     return found;
+  }
+}
+
+/**
+ * One tile as one number, so the buckets are keyed by a primitive.
+ *
+ * The offset keeps both halves positive and the stride is wider than any coordinate the world uses,
+ * so no two tiles can share a key — the same trick, and the same reason, as `Standing`.
+ */
+function tileKey(tx: number, tz: number): number {
+  return (tz + OFFSET) * STRIDE + (tx + OFFSET);
+}
+
+const OFFSET = 0x80000;
+const STRIDE = 0x100000;
+
+/** Every tile a box reaches into, as bucket keys. */
+function* tilesUnder(solid: Solid): Generator<number> {
+  // the box turned: how far it reaches along the world's own axes
+  const cos = Math.abs(Math.cos(solid.rot)), sin = Math.abs(Math.sin(solid.rot));
+  const reachX = solid.hw * cos + solid.hd * sin;
+  const reachZ = solid.hw * sin + solid.hd * cos;
+  const x0 = Math.floor(solid.x - reachX), x1 = Math.floor(solid.x + reachX);
+  const z0 = Math.floor(solid.z - reachZ), z1 = Math.floor(solid.z + reachZ);
+  for (let tz = z0; tz <= z1; tz++) {
+    for (let tx = x0; tx <= x1; tx++) yield tileKey(tx, tz);
   }
 }
 

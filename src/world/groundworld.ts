@@ -6,7 +6,7 @@ import { mountainAt } from './ranges';
 import type { Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
-import { Solids, solidsOf } from './solids';
+import { Solids, boxesOf } from './solids';
 
 /**
  * The ground, for something that walks on it but never draws it.
@@ -33,7 +33,7 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * that were not there. The game builds these from the stream its worker sends; this builds them
    * from the same props, generated the same way, so the two worlds agree about where a wall is.
    */
-  private readonly solids = new Map<string, Solids>();
+  private readonly solids = new Solids();
 
   constructor(private readonly sampler: TerrainSampler) {}
 
@@ -94,9 +94,9 @@ export class GroundWorld implements TileWorld, ChunkSource {
     for (const key of [...this.loaded.keys()]) {
       if (wanted.has(key)) continue;
       this.loaded.delete(key);
-      // and what was standing on it: the boxes are per chunk, so a chunk nobody is near that kept
-      // its solids would be a world that only ever grows
-      this.solids.delete(key);
+      // and what was standing on it: a chunk nobody is near that kept its boxes would be a world
+      // that only ever grows
+      this.solids.drop(key);
       dropped++;
     }
     return dropped;
@@ -139,28 +139,18 @@ export class GroundWorld implements TileWorld, ChunkSource {
     if (!hit) return true;                            // ground that has not been made is not ground
     if (hit.tiles.blocked[hit.i] === 1) return true;  // the ground itself: a floor, a wall of rock
     // and then whatever stands on it, against the box it is actually drawn at
-    const CS = WORLD.CHUNK_SIZE;
-    return this.solids.get(chunkKey(Math.floor(x / CS), Math.floor(z / CS)))?.at(x, z) ?? false;
+    return this.solids.at(x, z);
   }
 
   /**
    * Does the way from one point to another cross a solid? The same question the game asks, so that
    * a wall stops a hero in the same place whichever half of the game is walking him.
    *
-   * Every chunk the step spans, because a step can cross a chunk edge — at most four, and one
-   * nearly always. Only the boxes: the tile grid is tile-shaped and a mover samples it closely
-   * enough that nothing in it can hide between two samples.
+   * Only the boxes: the tile grid is tile-shaped and a mover samples it closely enough that
+   * nothing in it can hide between two samples.
    */
   crosses(x0: number, z0: number, x1: number, z1: number): boolean {
-    const CS = WORLD.CHUNK_SIZE;
-    const lowX = Math.floor(Math.min(x0, x1) / CS), highX = Math.floor(Math.max(x0, x1) / CS);
-    const lowZ = Math.floor(Math.min(z0, z1) / CS), highZ = Math.floor(Math.max(z0, z1) / CS);
-    for (let cz = lowZ; cz <= highZ; cz++) {
-      for (let cx = lowX; cx <= highX; cx++) {
-        if (this.solids.get(chunkKey(cx, cz))?.crosses(x0, z0, x1, z1)) return true;
-      }
-    }
-    return false;
+    return this.solids.crosses(x0, z0, x1, z1);
   }
 
   buried(x: number, z: number): boolean {
@@ -180,7 +170,7 @@ export class GroundWorld implements TileWorld, ChunkSource {
     const chunk = this.sampler.generateChunk(cx, cz);
     const tiles = tilesOf(chunk);
     this.loaded.set(chunkKey(cx, cz), tiles);
-    this.solids.set(chunkKey(cx, cz), solidsOf(chunk, this.sampler.seed));
+    this.solids.put(chunkKey(cx, cz), boxesOf(chunk, this.sampler.seed));
     return tiles;
   }
 
