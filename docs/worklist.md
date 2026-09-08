@@ -551,8 +551,16 @@ Things Chris hit on a real phone, in the order he hit them.
       where the rig's hand really is: held further out it was a torch floating beside a man with his
       arms at his sides. What is left of "no arm reaching for it" belongs to the models, which are
       their own item — the rig has no arm that extends.)*
-- [ ] The villagers and the other people are blocky in the wrong way. Keep them blocky — that is the
-      game — but they want designing rather than assembling.
+- [x] The villagers and the other people are blocky in the wrong way. Keep them blocky — that is the
+      game — but they want designing rather than assembling. *(They were a cube with a slab of hair
+      on it, a box for a body and four sticks: arms pinned flat to the body's sides ending in
+      nothing, and legs. Four things make a stack of boxes read as somebody, and all four were
+      missing — a beam of shoulders for the arms to hang off, a block of hand on the end of each
+      arm, a neck so the head is not sitting straight down on the chest, and hair with a fringe and
+      a mass behind the skull so the head has a silhouette. At this distance everything is
+      silhouette. And the eyes: one dark block apiece, which does not read as an eye looking at you
+      so much as a hole — an eye is a white with a pupil standing proud of it, which is two blocks
+      and gives it somewhere to be looking.)*
 - [x] Villagers and creatures do not touch the ground. They hover over it. *(Not the ground — the
       legs. A villager's leg ran from 0.26 up, while his boot lay from 0 to 0.08, so there were
       nearly two tenths of a unit of nothing between the two: an eighth of the whole figure, and

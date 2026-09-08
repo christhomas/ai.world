@@ -89,15 +89,57 @@ function quadruped(o: QuadOpts): P[] {
   return parts;
 }
 
+/**
+ * A person, in boxes.
+ *
+ * The old one was a cube with a slab of hair on it, a box for a body, and four sticks — two arms
+ * pinned flat to the body's sides ending in nothing, and two legs. It read as an assembly rather
+ * than as a figure: no shoulders for the arms to hang from, no hands on the ends of them, no neck,
+ * and hair that sat on the head like a lid rather than growing out of it.
+ *
+ * It is still boxes — that is the game, and a person here should look cut from the same stock as
+ * the houses. What it has now is the four things that make a stack of boxes read as somebody:
+ *
+ *   shoulders   a beam across the top of the chest, wider than the chest, so the arms hang off
+ *               something rather than being stuck to a wall
+ *   hands       a block on the end of each arm. An arm that stops is a stick; an arm that ends in
+ *               a hand is an arm, and at this distance that is one block's worth of difference
+ *   a neck      the head used to sit straight down on the chest, which is what gives a figure that
+ *               hunched, shoulderless look from above — and above is where this camera is
+ *   hair with a back to it  a fringe over the brow and a mass behind the skull, so the head has a
+ *               silhouette. Everything at this distance is silhouette
+ *
+ * Sixteen boxes rather than twelve. They are merged per kind and drawn instanced, so the cost is
+ * four more shapes in one geometry, not four more anything per villager.
+ */
 function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: number; hairTint?: number }): P[] {
+  // the head rides a little higher than it did, and the gap it leaves is the neck
+  const headY = 1.36, pivot: [number, number, number] = [0, 1.2, 0];
   return [
-    box([0.3, 0.32, 0.3], [0, 1.32, 0], o.skin, { anim: 'head', pivot: [0, 1.16, 0] }),
-    box([0.32, 0.16, 0.32], [0, 1.5, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot: [0, 1.16, 0] }),
-    box([0.06, 0.06, 0.05], [0.15, 1.34, 0.07], 0x222222, { anim: 'head', pivot: [0, 1.16, 0] }),
-    box([0.06, 0.06, 0.05], [0.15, 1.34, -0.07], 0x222222, { anim: 'head', pivot: [0, 1.16, 0] }),
+    box([0.14, 0.1, 0.16], [0, 1.15, 0], o.skin),
+    box([0.3, 0.32, 0.3], [0, headY, 0], o.skin, { anim: 'head', pivot }),
+    // the skull's own hair: a cap, a fringe standing proud of the brow, and the mass behind it
+    box([0.32, 0.14, 0.32], [0, headY + 0.2, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
+    box([0.08, 0.09, 0.32], [0.13, headY + 0.11, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
+    box([0.1, 0.3, 0.31], [-0.13, headY + 0.02, 0], o.hair, { tint: o.hairTint, anim: 'head', pivot }),
+    /*
+     * An eye is a white with a dark pupil in front of it, not a black cube.
+     *
+     * One dark block each was what these were, and at the size a villager is actually seen at that
+     * does not read as an eye looking at you — it reads as a hole, or as somebody with black
+     * eyeballs. Two blocks apiece: the white set into the face, and a smaller pupil standing a
+     * little proud of it, which is what gives the eye somewhere to be looking.
+     */
+    box([0.04, 0.075, 0.062], [0.145, headY + 0.02, 0.072], 0xf2efe6, { anim: 'head', pivot }),
+    box([0.04, 0.075, 0.062], [0.145, headY + 0.02, -0.072], 0xf2efe6, { anim: 'head', pivot }),
+    box([0.05, 0.05, 0.034], [0.155, headY + 0.014, 0.072], 0x2a2230, { anim: 'head', pivot }),
+    box([0.05, 0.05, 0.034], [0.155, headY + 0.014, -0.072], 0x2a2230, { anim: 'head', pivot }),
     box([0.22, 0.44, 0.36], [0, 0.94, 0], 0xffffff, { tint: o.shirtTint }),
-    box([0.1, 0.4, 0.1], [0, 0.94, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
-    box([0.1, 0.4, 0.1], [0, 0.94, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    box([0.24, 0.11, 0.46], [0, 1.11, 0], 0xffffff, { tint: o.shirtTint }),
+    box([0.1, 0.38, 0.1], [0, 0.95, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
+    box([0.1, 0.38, 0.1], [0, 0.95, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    box([0.12, 0.1, 0.12], [0, 0.72, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
+    box([0.12, 0.1, 0.12], [0, 0.72, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
     /*
      * The leg reaches the boot.
      *
