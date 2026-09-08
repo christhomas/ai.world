@@ -151,7 +151,9 @@ export function installProbes(ctx: Probed): void {
    * from inside the game — walls in open fields, wolves biting from nowhere — and the first
    * question anybody needed answering was "which world am I actually in", which nothing could say.
    */
-  (debug as { __world?: () => unknown }).__world = () => ({ seed, world, online: online.status });
+  // read rather than called, because half of these are functions and half are not, and the one you
+  // reach for while something is badly wrong should not also ask you to remember which
+  Object.defineProperty(debug, '__world', { configurable: true, get: () => ({ seed, world, online: online.status }) });
   (debug as { __walking?: () => unknown }).__walking = () => ({
     ...walking, worst: Math.round(walking.worst * 1000) / 1000,
   });
