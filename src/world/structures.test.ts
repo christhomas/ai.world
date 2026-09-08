@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { generateRoadGraph } from './graph';
+import { generateWebGraph } from './roadweb';
 import { TerrainSampler, TileType } from './terrain';
 import { StructureKind } from './structures';
 
@@ -136,5 +137,51 @@ describe('the stable and its paddock', () => {
       }
     }
     expect(looked, 'at least one paddock was actually looked at').toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A ferry that sails through an island.
+ *
+ * A ferry is not steered: its position is worked out from the clock, sliding down the straight
+ * line from one jetty to the other. So that line has to be sea — and it was not. The two jetties
+ * each walked out from the middle of their own shore along one axis and stopped at the first
+ * coast, which on a ragged shore puts them on rays that miss, and the line between their ends cut
+ * back across the island. Measured before the fix, crossings ran 61, 65 and 93 of their 121
+ * soundings over dry land: one ferry three-quarters aground.
+ */
+describe('the water a ferry crosses', () => {
+  const SOUNDINGS = 120;
+
+  it('is water all the way, in every world that has a ferry at all', () => {
+    let crossings = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const sampler = new TerrainSampler(generateWebGraph(seed));
+      const sample = sampler.newSample();
+      const piers = sampler.structures.piers;
+      // they are pushed in pairs, island shore first
+      for (let i = 0; i + 1 < piers.length; i += 2) {
+        const from = piers[i], to = piers[i + 1];
+        crossings++;
+        for (let s = 0; s <= SOUNDINGS; s++) {
+          const t = s / SOUNDINGS;
+          const x = Math.floor(from.dockX + (to.dockX - from.dockX) * t);
+          const z = Math.floor(from.dockZ + (to.dockZ - from.dockZ) * t);
+          sampler.sampleTile(x, z, sample);
+          const wet = sample.type === TileType.Skip || sample.type === TileType.Seabed || sample.type === TileType.Water;
+          expect(wet, `seed ${seed}: aground at ${x},${z}, ${Math.round(t * 100)}% of the way across`).toBe(true);
+        }
+      }
+    }
+    expect(crossings, 'and there are ferries to check').toBeGreaterThan(4);
+  });
+
+  it('still gives most islands a way to reach them', () => {
+    // the point of surveying both shores rather than aiming once: refusing every crossing that is
+    // not clear would otherwise leave whole worlds with no ferry at all, which it did at first
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const sampler = new TerrainSampler(generateWebGraph(seed));
+      expect(sampler.structures.piers.length, `seed ${seed} has a ferry`).toBeGreaterThan(0);
+    }
   });
 });

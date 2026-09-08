@@ -583,8 +583,21 @@ Things Chris hit on a real phone, in the order he hit them.
       door you had to ask permission to open. The door is a door now: walk into it and you are in
       the room, and everything it used to say is said by the landlord behind the bar, who was the
       one saying it all along.)*
-- [ ] A ship sailed straight through an island. Boats want to collide with a coastline — and getting
-      on or off one should only be possible at a dock.
+- [x] A ship sailed straight through an island. *(The ferry. It is not steered — its position is
+      worked out from the clock, sliding down the straight line between two jetties — and that line
+      was land for much of its length: measured over three worlds, crossings ran 61, 65 and 93 of
+      their 121 soundings aground, one of them three-quarters of the way. Each jetty walked out
+      from the middle of its own shore along one axis and stopped at the first coast, which on a
+      ragged shore puts the two on rays that miss. Both shores are surveyed now and then paired,
+      and the shortest crossing with clear water all the way is the one built. Refusing the rest
+      cost three of seven worlds their only ferry at first, which is why the survey tries eight
+      directions at four distances along either axis rather than aiming once — with that, every
+      world has more ferries than it did and none of them crosses land.)*
+- [note] The other half of that report — "you should only be able to get on and off a boat at a
+      dock" — is deliberately not done. It is already true of the ferry, which only ties up at its
+      two jetties. Of the little boat you buy it would be a different game: most islands have no
+      jetty at all, so a boat that could only be left at one could never land you anywhere worth
+      rowing to. Say the word if you meant it for that boat too and it is a small change.
 - [x] There is no way to open the console on a phone. It is tilde on a keyboard and nothing at all
       on a thumb, so it wants a button in the touch rail. *(In the extra-controls shelf rather than
       the always-visible rail: you stop to type at a console, and the rail is already eight squares

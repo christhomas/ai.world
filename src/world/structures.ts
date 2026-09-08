@@ -4,7 +4,7 @@ import type { RoadNode } from './graph';
 import { POI_NAMES, PREFIX, SUFFIX } from './names';
 import { StructureKind } from './kinds';
 import { KEEPS, PADDOCK, planPaddock, railsFor, type Stabling } from './paddock';
-import { planPier } from './piers';
+import { pairJetties } from './piers';
 
 export type { Stabling } from './paddock';
 
@@ -558,8 +558,8 @@ export function generateStructures(sampler: TerrainSampler): Structures {
       if (d < nearestD) { nearestD = d; nearest = n; }
     }
     const m = graph.nodes[nearest];
-    const islandPier = planPier(sampler, sample, isl.id, 'island', isl.x, isl.z, m.x - isl.x, m.z - isl.z);
-    const mainPier = planPier(sampler, sample, isl.id, 'mainland', m.x, m.z, isl.x - m.x, isl.z - m.z);
+    // both shores surveyed, then paired: see `pairJetties`, which is where the reasoning lives
+    const { islandPier, mainPier } = pairJetties(sampler, sample, isl, m);
     for (const pier of [islandPier, mainPier]) {
       if (!pier) continue;
       piers.push(pier);
