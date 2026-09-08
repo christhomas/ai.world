@@ -1,5 +1,4 @@
 import { WORLD } from '../core/config';
-import { BLOCKS_WALKING } from './biomes';
 import { TileType, type ChunkData } from './terrain';
 
 
@@ -80,9 +79,22 @@ export function tilesOf(chunk: ChunkData): ChunkTiles {
       types[to] = chunk.type[from];
       waters[to] = chunk.water[from];
       biomes[to] = chunk.biome[from];
-      // a building's floor is somewhere you cannot walk from outside, and a tree is a tree
-      if (chunk.type[from] === TileType.Floor) blocked[to] = 1;
-      else if (BLOCKS_WALKING.has(chunk.prop[from])) blocked[to] = 1;
+      /*
+       * The ground itself, and only that.
+       *
+       * A prop used to make its whole tile solid from here. That is a bit per tile describing a
+       * thing that is not tile-shaped, and it was wrong in both directions: a market stall is drawn
+       * two and a half tiles across and blocked one, so you walked through the counter; a cottage's
+       * three-tile footprint is wider than its 2.4 of wall, so there was a ring of invisible wall
+       * round every house. Props are collided against the box they are actually drawn at now — see
+       * `solids.ts` — and this is left with what is true of the ground: a floor is indoors, and you
+       * do not walk in from the street.
+       *
+       * Even that has gone now. A building's footprint is stamped three tiles wide while its walls
+       * are 2.4 and its plinth 2.6, so `Floor` was the last thing putting a ring of invisible wall
+       * round every cottage — measured at 0.15 of a tile all the way round. The building's own box
+       * covers its walls and everything inside them, which is what a wall is for.
+       */
     }
   }
   return { cx: chunk.cx, cz: chunk.cz, types, heights, waters, blocked, biomes };

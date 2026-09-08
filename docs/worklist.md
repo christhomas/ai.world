@@ -641,6 +641,14 @@ Things Chris hit on a real phone, in the order he hit them.
       than the tile it sat on. It is now the leaf's own rectangle — 0.62 wide, 0.08 thick, at 1.22 —
       grown by the hero's shoulders and nothing else. Mapped: it fires between 1.00 and 1.44 out
       from the middle of the house and within 0.49 along the wall, and nowhere else.)*
-- [ ] A house's floor tiles are walkable, so the hero can stand inside the walls of a cottage he has
-      not entered — which is how a teleport into one shoves him out through the doorway. Only the
-      middle tile carries the blocking prop.
+- [x] Walking through market stalls, and invisible walls with nothing drawn on them. *(One cause,
+      both directions. Collision was a bit per tile: a prop stood on a tile and that whole tile was
+      solid. A stall is drawn two and a half tiles across and blocked one — you walked through the
+      counter. A cottage's footprint is stamped three tiles wide while its walls are 2.4 — a ring of
+      invisible wall round every house, measured at 0.15 of a tile. A one-tile grid cannot describe
+      either, so it has stopped trying: every prop is now collided against the box its own geometry
+      occupies, taken off the same meshes that draw it. Only what is below head height counts, which
+      is the rule that makes boxes usable rather than merely accurate — a canopy, a stall's roof and
+      a cottage's eaves are things you walk under, and taking whole bounding boxes would make a wood
+      impassable. Measured after: the house blocks to 1.2 and is clear at 1.35, against walls drawn
+      to 1.20.)*

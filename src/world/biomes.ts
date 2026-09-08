@@ -126,6 +126,23 @@ export const BLOCKS_WALKING: ReadonlySet<PropKind> = new Set<PropKind>([
   // the whole point of a fence: the animals inside it stay inside it, and so does anybody who
   // climbs in after them, which is why the paddock is built with a gap in it for a gate
   PropKind.Fence,
+  /*
+   * And every building, which was not on this list at all.
+   *
+   * It did not need to be while a building's footprint was stamped as floor and floor was solid —
+   * but that stamp is three tiles wide against 2.4 of wall, which is where the ring of invisible
+   * wall round every cottage came from. The footprint no longer blocks; the walls do, measured off
+   * the same geometry that draws them, so a house stops you where you can see it stopping you.
+   */
+  PropKind.HousePlains, PropKind.HouseForest, PropKind.HouseDesert,
+  PropKind.HouseSwamp, PropKind.HouseMountain, PropKind.HouseSnow,
+  PropKind.TallHousePlains, PropKind.TallHouseForest, PropKind.TallHouseDesert,
+  PropKind.TallHouseSwamp, PropKind.TallHouseMountain, PropKind.TallHouseSnow,
+  PropKind.ChurchPlains, PropKind.ChurchForest, PropKind.ChurchDesert,
+  PropKind.ChurchSwamp, PropKind.ChurchMountain, PropKind.ChurchSnow,
+  // a house of the player's own, at every stage it stands up in — pegs in the ground are not a
+  // wall, so they are not here, but a frame is something you walk round
+  PropKind.HouseFrame, PropKind.HouseRoof, PropKind.HouseYours, PropKind.Sauna,
 ]);
 
 /** Anything with a trunk: the kinds a wood is made of. */

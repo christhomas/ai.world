@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import type { PropLibrary } from '../render/props';
+import { Solids, measureFootprints } from './solids';
 import type { PropKind } from './biomes';
 import type { WorkerRequest, WorkerResponse } from './messages';
 import { Standing } from './standing';
@@ -18,6 +19,8 @@ interface LoadedChunk {
   cz: number;
   group: THREE.Group | null;
   tiles: ChunkTiles | null;
+  /** What is standing on it, as boxes taken off the props' own geometry. */
+  solids: Solids | null;
 }
 
 /**
@@ -57,6 +60,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * what grows where and still takes its props away when it goes; it just no longer draws them.
    */
   private readonly propBatch: PropBatch;
+  private readonly footprints: ReadonlyMap<number, { hw: number; hd: number }>;
 
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
@@ -71,6 +75,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
     glowMaterial: THREE.Material,
   ) {
     this.propBatch = new PropBatch(scene, props, glowMaterial);
+    // measured off the meshes themselves, so a prop that is redrawn is re-measured
+    this.footprints = measureFootprints(props.geometries);
     this.ranges = sampler.ranges;
     const R = WORLD.VIEW_RADIUS;
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) this.offsets.push({ dx, dz });
@@ -152,7 +158,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     if (far) { this.pump(); return; }
 
     if (msg.empty) {
-      this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null });
+      this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null, solids: null });
     } else {
       const group = new THREE.Group();
       const land = meshFromData(msg.mesh, this.terrainMaterial);
@@ -165,6 +171,19 @@ export class ChunkManager implements TileWorld, ChunkSource {
         water.renderOrder = 2;
         group.add(water);
       }
+      /*
+       * The same stream twice: once to draw the props, once to collide with them.
+       *
+       * Reading it here rather than in the worker is what makes the two agree — a prop is put in
+       * the world and made solid from one list of numbers, so nothing has to be kept in step.
+       */
+      const solids = new Solids(msg.cx, msg.cz);
+      for (const p of readPropStream(msg.props)) {
+        const box = this.footprints.get(p.kind);
+        if (!box) continue;
+        const grew = p.scale ?? 1;
+        solids.add({ x: p.x, z: p.z, hw: box.hw * grew, hd: box.hd * grew, rot: p.rot ?? 0 });
+      }
       this.propBatch.set(k, readPropStream(msg.props));
       this.scene.add(group);
       // the ground of a chunk never moves once it is down, so the frame need not walk it every
@@ -175,6 +194,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       this.loaded.set(k, {
         cx: msg.cx, cz: msg.cz, group,
         tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, blocked: msg.blocked, biomes: msg.biomes },
+        solids,
       });
       this.stats.drawn++;
       if (!this.firstChunkSeen) { this.firstChunkSeen = true; this.onFirstChunk?.(); }
@@ -269,7 +289,10 @@ export class ChunkManager implements TileWorld, ChunkSource {
   blocked(x: number, z: number): boolean {
     if (this.built.at(x, z)) return true;
     const hit = this.tileAt(x, z);
-    return hit ? hit.t.blocked[hit.i] === 1 : true;
+    if (!hit) return true;                       // ground that has not arrived is not ground to walk on
+    if (hit.t.blocked[hit.i] === 1) return true; // the ground itself: a floor, a wall of rock
+    // and then whatever is standing on it, against the box it is actually drawn at
+    return this.loaded.get(chunkKey(hit.t.cx, hit.t.cz))?.solids?.at(x, z) ?? false;
   }
 
   /** Plain ground: grass or sand, no road, no floor, nothing already growing on it. */
