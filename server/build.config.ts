@@ -10,6 +10,13 @@ import { defineConfig } from 'vite';
  * has, and it has none of its own, so copying it is a directory rather than a dependency tree.
  *
  * Run from the repository root: `pnpm vite build --config server/build.config.ts`.
+ *
+ * `three` is rolled in rather than left outside, and that is a deliberate cost. The server measures
+ * the props it collides against off the same geometry the game draws — one source of truth for how
+ * big a house is, rather than a table beside it that can drift — and that means the geometry has to
+ * exist here. Left external it became `import "three"` in a bundle whose image copies exactly one
+ * dependency, so the container would have died at startup on a module that was never installed.
+ * Rolled in, the tree shaker keeps the handful of primitives the props are built from.
  */
 
 /** Matches the node the image and the deploy workflow both run. */
@@ -18,6 +25,7 @@ const NODE_TARGET = 'node22';
 const BUNDLE_NAME = 'server.mjs';
 
 export default defineConfig({
+  ssr: { noExternal: ['three'] },
   build: {
     ssr: 'server/index.ts',
     outDir: 'server/dist',
