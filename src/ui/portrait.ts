@@ -52,10 +52,20 @@ const SKIN = ['#ffdfc0', '#f4cba4', '#e0ab7d', '#c08a5c', '#96603a', '#6d4326'];
  */
 const HAIR = [
   '#f0e0b0', '#d9b26a', '#b5763a', '#8f3423', '#6b4423', '#46566f', '#3d2a1a', '#241a14', '#b8bcc8',
-  '#e88ab0', '#7fc6a5', '#8fa8e8', '#b98fe0', '#f2f2f8', '#e8703c', '#5fb0c8', '#c8d84a',
+  // and the few a person in this country might actually have put there: soot, henna, woad, lime
+  '#5a4a6a', '#b0553a', '#4a6a7a', '#e8dcb0',
 ];
 const NATURAL_HAIR = 9;
-const VIVID_CHANCE = 0.3;
+/**
+ * How often somebody has dyed it.
+ *
+ * There used to be eight bright colours here — pink, mint, lilac, teal — at three chances in ten,
+ * because the drawing was an anime's and an anime village is full of them. This world is greens
+ * and sands and browns with nothing brighter in it than a market awning, and a mint-haired
+ * villager in it does not read as a person with dyed hair, it reads as a bug. What is left is what
+ * you could get out of soot, henna, woad or lime, and rarely.
+ */
+const VIVID_CHANCE = 0.12;
 /** Hair must differ from the skin under it by at least this much brightness, or it is a smudge. */
 const CONTRAST = 0.17;
 
@@ -310,42 +320,62 @@ function earring(fill: Fill, b: Build): void {
  * outer corner reads as sharp, dropped reads as gentle, and a plain arc with no white at all
  * reads as somebody smiling with their eyes shut.
  */
+/**
+ * The eyes, which is where a face decides what game it belongs to.
+ *
+ * These were an anime's: a tall white opening with a coloured iris in it, a lozenge pupil, and two
+ * white specular highlights — a glossy wet sphere, drawn with a gradient's worth of tones. Nothing
+ * else in this world is glossy. The ground is flat-shaded polygons with no textures at all and the
+ * villager you are looking at, three feet away in the world behind the box, has two dark cubes for
+ * eyes. Beside that, a portrait with catchlights in it reads as a picture borrowed from somewhere
+ * else, which is what it was.
+ *
+ * So they are cut the way everything else here is cut: a dark block for the opening, one flat tone
+ * of colour in it, and a single square of light. The eye's colour is still there and still tells
+ * two villagers apart — it simply stops pretending to be spherical. What used to be done with
+ * shine is done with shape instead: the lash line's outer end lifts or drops, which is the whole
+ * of the difference between a sharp face and a soft one.
+ */
 function eyes(fill: Fill, p: Palette, b: Build): void {
   const span = b.eyeW * 2 + b.gap;
   const left = b.x + Math.round((b.w - span) / 2);
   const right = left + b.eyeW + b.gap;
-  const { eyeY: y, eyeW: w, eyeH: h } = b;
+  const { eyeY: y, eyeW: w } = b;
+  // shallower than they were: an eye as tall as it is wide is an anime's eye whatever is inside it
+  const h = Math.max(5, b.eyeH - 3);
 
   for (const [at, x] of [left, right].entries()) {
     const mirrored = at === 1;
-    const outer = mirrored ? x + w - 1 : x;
 
     if (p.eyes === 'closed') {
-      // an arc curving upwards — the shape a shut, smiling eye makes, and nothing else
+      // a line that curves up at the outer end — the shape a shut, smiling eye makes
       const mid = y + Math.round(h / 2);
-      columns(fill, x, mid - 2, w, (t) => 2, INK);
-      columns(fill, x + 1, mid - 3, w - 2, (t) => (Math.abs(t - 0.5) < 0.34 ? 2 : 0), INK);
-      fill(x, mid, 2, 2, INK);
-      fill(x + w - 2, mid, 2, 2, INK);
+      fill(x, mid, w, 2, INK);
+      fill(mirrored ? x + w - 3 : x, mid - 1, 3, 2, INK);
       continue;
     }
 
+    // the lash line, and the one thing that carries the expression: which end of it lifts
     const lift = p.eyes === 'sharp' ? -1 : p.eyes === 'soft' ? 1 : 0;
     fill(x, y, w, 2, INK);
-    if (lift !== 0) {
-      // the outer third of the lash line moves, and that is the whole of the expression
-      fill(mirrored ? x + w - 3 : x, y + lift, 3, 2, INK);
-    }
+    if (lift !== 0) fill(mirrored ? x + w - 3 : x, y + lift, 3, 2, INK);
 
-    fill(x, y + 2, w, h - 4, '#ffffff');
-    fill(x, y + 2, w, 1, shade(p.skin, 0.55));            // the lid's shadow on the white
-    fill(x + 1, y + 2, w - 2, h - 5, p.eye);              // the iris fills most of the opening
-    fill(x + 1, y + h - 4, w - 2, 1, shade(p.eye, 0.6));
-    fill(x + Math.round(w / 2) - 1, y + 3, 2, h - 7, '#100c16');   // a tall pupil, not a square
-    fill(mirrored ? x + w - 3 : x + 1, y + 3, 2, 2, '#ffffff');    // the light in it
-    fill(mirrored ? x + 1 : x + w - 3, y + h - 5, 1, 1, '#ffffff');
-    fill(outer, y + 2, 1, h - 4, INK);                    // only the outer corner is drawn in
-    fill(x, y + h - 2, w, 1, shade(p.skin, 0.75));        // the lower lid, barely there
+    /*
+     * The opening is dark, and the colour is a hint in it rather than a slab of it.
+     *
+     * Filled with the eye's own colour at full strength this came out as two saturated blocks in
+     * the middle of a face — a blue that no eye is, at the size of a thumbnail. Real eyes read as
+     * dark at any distance and the villager three feet behind this box has two near-black cubes
+     * for eyes. So the socket is the colour taken most of the way down, and what is left of the
+     * colour is the band the light catches.
+     */
+    fill(x, y + 2, w, h - 2, shade(p.eye, 0.42));
+    fill(x, y + 2, 1, h - 2, INK);
+    fill(x + w - 1, y + 2, 1, h - 2, INK);
+    fill(x + 1, y + 3, w - 2, 2, p.eye);
+    // the pupil is a block, and the light on it is one square rather than a pair of gleams
+    fill(x + Math.round(w / 2) - 1, y + 3, 2, h - 4, '#100c16');
+    fill(mirrored ? x + 1 : x + w - 3, y + 3, 1, 1, shade(p.eye, 1.5));
   }
 }
 

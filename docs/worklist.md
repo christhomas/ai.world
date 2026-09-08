@@ -530,8 +530,18 @@ Things Chris hit on a real phone, in the order he hit them.
       gold rule, with the compass as its second line rather than as a second plaque overlapping the
       first. And the accent is used once per panel at most, so an ordinary line of news lost the
       gold rule it had briefly acquired.)*
-- [ ] The faces on the villagers are bad — the dialogue box draws something anime-ish and it is not
-      the standard of the rest of the game. Wants a proper design pass rather than a tweak.
+- [x] The faces on the villagers are bad — the dialogue box draws something anime-ish and it is not
+      the standard of the rest of the game. *(The eyes were the whole of it: a tall white opening
+      with a coloured iris, a lozenge pupil and two specular highlights — a glossy wet sphere drawn
+      with a gradient's worth of tones, in a world of flat-shaded polygons with no textures at all,
+      where the villager three feet behind the box has two dark cubes for eyes. They are cut the
+      way everything else is now: a dark socket with the colour as a band in it and one square of
+      light. Filling the socket with the eye colour at full strength was tried first and came out
+      as two saturated blocks the size of a thumbnail — a blue no eye is. And the hair lost its
+      pink, mint, lilac and teal: an anime village is full of them and this one is greens and sands
+      with nothing brighter in it than a market awning, so a mint-haired villager read as a bug
+      rather than as somebody who had dyed their hair. What is left is what soot, henna, woad or
+      lime would give you, at one in eight rather than three in ten.)*
 - [x] The torch's flame comes away from the torch when the hero walks, and he does not look like he
       is holding it — it floats beside him with no arm reaching for it. *(The flame hung off a mount
       of its own, a little above the shoulder, while the hand hangs below it — and the arm swing is
