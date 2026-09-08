@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import type { PropLibrary } from '../render/props';
-import { Solids, measureFootprints } from './solids';
+import { Solids, solidsFrom } from './solids';
 import type { PropKind } from './biomes';
 import type { WorkerRequest, WorkerResponse } from './messages';
 import { Standing } from './standing';
@@ -60,7 +60,6 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * what grows where and still takes its props away when it goes; it just no longer draws them.
    */
   private readonly propBatch: PropBatch;
-  private readonly footprints: ReadonlyMap<number, { hw: number; hd: number }>;
 
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
@@ -75,8 +74,6 @@ export class ChunkManager implements TileWorld, ChunkSource {
     glowMaterial: THREE.Material,
   ) {
     this.propBatch = new PropBatch(scene, props, glowMaterial);
-    // measured off the meshes themselves, so a prop that is redrawn is re-measured
-    this.footprints = measureFootprints(props.geometries);
     this.ranges = sampler.ranges;
     const R = WORLD.VIEW_RADIUS;
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) this.offsets.push({ dx, dz });
@@ -171,19 +168,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
         water.renderOrder = 2;
         group.add(water);
       }
-      /*
-       * The same stream twice: once to draw the props, once to collide with them.
-       *
-       * Reading it here rather than in the worker is what makes the two agree — a prop is put in
-       * the world and made solid from one list of numbers, so nothing has to be kept in step.
-       */
-      const solids = new Solids(msg.cx, msg.cz);
-      for (const p of readPropStream(msg.props)) {
-        const box = this.footprints.get(p.kind);
-        if (!box) continue;
-        const grew = p.scale ?? 1;
-        solids.add({ x: p.x, z: p.z, hw: box.hw * grew, hd: box.hd * grew, rot: p.rot ?? 0 });
-      }
+      // the same boxes the server builds, from the same footprints and the same prop stream
+      const solids = solidsFrom(msg.cx, msg.cz, readPropStream(msg.props));
       this.propBatch.set(k, readPropStream(msg.props));
       this.scene.add(group);
       // the ground of a chunk never moves once it is down, so the frame need not walk it every

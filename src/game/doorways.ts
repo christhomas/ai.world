@@ -34,8 +34,15 @@ const DOOR = {
   OUT: 1.22,
   /** Half the width of the leaf, along the wall. */
   HALF: 0.31,
-  /** And half its thickness, through the wall. */
-  THICK: 0.04,
+  /**
+   * And half its thickness, through the wall.
+   *
+   * Wider than the leaf itself. The wall it is cut into is solid now, and stops a walker at 1.26
+   * from the middle of the house — so a threshold measured to the leaf's own eight hundredths would
+   * leave a band of ground barely wider than a step to stand in. This reaches out to where somebody
+   * walking at the door can actually get.
+   */
+  THICK: 0.16,
   /**
    * Half the hero, across the shoulders.
    *

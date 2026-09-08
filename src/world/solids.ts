@@ -1,6 +1,7 @@
-import * as THREE from 'three';
-import { BLOCKS_WALKING, PropKind } from './biomes';
 import { WORLD } from '../core/config';
+import { FOOTPRINTS } from './footprints';
+import { propsOf, type PropAt } from './propstream';
+import type { ChunkData } from './terrain';
 
 /**
  * What you bump into, taken from what is drawn.
@@ -15,16 +16,9 @@ import { WORLD } from '../core/config';
  * A one-tile grid cannot describe either of those, so it stops trying. Every prop now carries the
  * box its own geometry occupies, and a point is inside a thing or it is not.
  *
- * **Only what is below head height counts.** This is the rule that makes boxes usable rather than
- * merely accurate: a tree's canopy is drawn two tiles wide and you walk under it, a stall's roof
- * overhangs its counter, a cottage's eaves stand proud of its walls. Taking the whole bounding box
- * would make a wood impassable and put a metre of invisible wall round every building — which is
- * the bug it is meant to fix, arrived at from the other side. What stops you is what is at your
- * knees and your chest.
+ * What counts as a box is the band a walker meets — see `footprints.ts`, which explains why, and
+ * holds the measurements taken off the meshes themselves.
  */
-
-/** How high a walker is, in world units. Anything drawn above this is something to walk under. */
-const HEAD = 1.6;
 
 /** A thing standing in the world, as a walker meets it: a box on the ground, turned. */
 export interface Solid {
@@ -38,32 +32,27 @@ export interface Solid {
 }
 
 /**
- * The footprint of each kind of prop, measured off its geometry once.
+ * Every solid thing in a chunk, built from the props standing on it.
  *
- * Built from the same meshes the game draws, so a prop that is redrawn is re-measured and nothing
- * has to be kept in step by hand. Kinds that do not block at all are absent.
+ * Takes the props rather than fetching them, because the two worlds that need this get them from
+ * different places and must not disagree: the game reads the stream its chunk worker already sent
+ * for drawing, and the server generates the same props itself with `propsOf`. Same footprints, same
+ * boxes, so a stall stops both of them in the same place — which is the whole of why this exists.
  */
-export function measureFootprints(geometries: ReadonlyMap<PropKind, THREE.BufferGeometry>): Map<PropKind, { hw: number; hd: number }> {
-  const out = new Map<PropKind, { hw: number; hd: number }>();
-  for (const [kind, geometry] of geometries) {
-    if (!BLOCKS_WALKING.has(kind)) continue;
-    const pos = geometry.getAttribute('position');
-    if (!pos) continue;
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (let i = 0; i < pos.count; i++) {
-      // the part of a thing that stops you is the part at your knees and your chest
-      if (pos.getY(i) > HEAD) continue;
-      const x = pos.getX(i), z = pos.getZ(i);
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (z < minZ) minZ = z;
-      if (z > maxZ) maxZ = z;
-    }
-    // a thing drawn entirely overhead — an arch, a canopy on a bare stem — stops nobody
-    if (minX === Infinity) continue;
-    out.set(kind, { hw: Math.max(Math.abs(minX), Math.abs(maxX)), hd: Math.max(Math.abs(minZ), Math.abs(maxZ)) });
+export function solidsFrom(cx: number, cz: number, props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { rot?: number; scale?: number }>): Solids {
+  const out = new Solids(cx, cz);
+  for (const p of props) {
+    const box = FOOTPRINTS.get(p.kind);
+    if (!box) continue;
+    const grew = p.scale ?? 1;
+    out.add({ x: p.x, z: p.z, hw: box.hw * grew, hd: box.hd * grew, rot: p.rot ?? 0 });
   }
   return out;
+}
+
+/** The same, for a world that holds the chunk itself and has no stream to hand. */
+export function solidsOf(chunk: ChunkData, seed: number): Solids {
+  return solidsFrom(chunk.cx, chunk.cz, propsOf(chunk, seed));
 }
 
 /**

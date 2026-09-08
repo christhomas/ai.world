@@ -6,6 +6,7 @@ import { mountainAt } from './ranges';
 import type { Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
+import { Solids, solidsOf } from './solids';
 
 /**
  * The ground, for something that walks on it but never draws it.
@@ -24,6 +25,15 @@ import { tilesOf } from './tiles';
  */
 export class GroundWorld implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, ChunkTiles>();
+  /**
+   * What is standing on each chunk, as boxes.
+   *
+   * The tile grid says what the ground is; this says what is on it. A prop is not tile-shaped, and
+   * pretending otherwise is what let heroes walk through market stalls and stopped them at walls
+   * that were not there. The game builds these from the stream its worker sends; this builds them
+   * from the same props, generated the same way, so the two worlds agree about where a wall is.
+   */
+  private readonly solids = new Map<string, Solids>();
 
   constructor(private readonly sampler: TerrainSampler) {}
 
@@ -123,7 +133,11 @@ export class GroundWorld implements TileWorld, ChunkSource {
 
   blocked(x: number, z: number): boolean {
     const hit = this.tileAt(x, z);
-    return hit ? hit.tiles.blocked[hit.i] === 1 : true;
+    if (!hit) return true;                            // ground that has not been made is not ground
+    if (hit.tiles.blocked[hit.i] === 1) return true;  // the ground itself: a floor, a wall of rock
+    // and then whatever stands on it, against the box it is actually drawn at
+    const CS = WORLD.CHUNK_SIZE;
+    return this.solids.get(chunkKey(Math.floor(x / CS), Math.floor(z / CS)))?.at(x, z) ?? false;
   }
 
   buried(x: number, z: number): boolean {
@@ -140,8 +154,10 @@ export class GroundWorld implements TileWorld, ChunkSource {
   }
 
   private load(cx: number, cz: number): ChunkTiles {
-    const tiles = tilesOf(this.sampler.generateChunk(cx, cz));
+    const chunk = this.sampler.generateChunk(cx, cz);
+    const tiles = tilesOf(chunk);
     this.loaded.set(chunkKey(cx, cz), tiles);
+    this.solids.set(chunkKey(cx, cz), solidsOf(chunk, this.sampler.seed));
     return tiles;
   }
 
