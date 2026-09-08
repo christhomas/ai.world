@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDoorsteps } from './doorways';
+import { REST, createDoorsteps } from './doorways';
 import type { Doorway } from '../world/structures';
 import type { Places } from './places';
 
@@ -116,12 +116,16 @@ describe('walking into a door', () => {
 
     // leaving stands him a tile beyond the doorway, and he takes a step or two from there
     world.places.indoors = null;
-    for (const at of [{ x: 10, z: 10.4 }, { x: 10, z: 10.1 }, { x: 10.2, z: 10.6 }]) steps.step(at);
+    for (const at of [{ x: 10, z: 10.4 }, { x: 10, z: 10.1 }, { x: 10.2, z: 10.6 }]) steps.step(at, 0.1);
     expect(world.entered, 'and stays out').toHaveLength(1);
 
-    // he is let back in once he has actually gone somewhere
-    steps.step({ x: 13, z: 13 });
-    steps.step(LEAF(door(10, 10)));
+    // and not even standing in the doorway itself, for as long as the door is resting
+    steps.step(LEAF(door(10, 10)), 0.1);
+    expect(world.entered, 'straight back in through a door he just came out of').toHaveLength(1);
+
+    // he is let back in once the door has finished with him and he has gone somewhere
+    steps.step({ x: 13, z: 13 }, REST);
+    steps.step(LEAF(door(10, 10)), 0.1);
     expect(world.entered).toHaveLength(2);
   });
 
@@ -132,14 +136,15 @@ describe('walking into a door', () => {
     steps.step(LEAF(door(10, 10)));
     expect(world.entered, 'in').toHaveLength(1);
 
-    // he arrives a tile inside the room, off the threshold, which is what arms it again
-    steps.step({ x: 5.5, z: 8.5 });
+    // he arrives a tile inside the room, off the threshold, which is what arms it again — once the
+    // door has finished resting, which is what stops a held arrow key from spinning him in and out
+    steps.step({ x: 5.5, z: 8.5 }, REST);
     expect(world.left, 'standing inside is not leaving').toBe(0);
 
     // and walking back at the door takes him out, without pressing anything. He does not have to
     // cross the room first: the old rule made him walk two tiles clear before a door worked again,
     // which in a shop the size of a shop meant the door often did nothing at all
-    steps.step({ x: 5.5, z: 9.5 });
+    steps.step({ x: 5.5, z: 9.5 }, 0.1);
     expect(world.left, 'out').toBe(1);
   });
 
@@ -176,5 +181,41 @@ describe('walking into a door', () => {
     steps.step({ x: 20, z: 20 });
     steps.step(LEAF(door(10, 10)));
     expect(world.entered).toEqual([[10, 10]]);
+  });
+});
+
+/*
+ * The report this was written for: "I am somehow triggering the door of a building, but I am
+ * nowhere near a door, it seems to just think I am next to it and triggers repeatedly." Holding a
+ * direction against a wall beside a doorway did exactly that — through, out, through, out, several
+ * times a second — because being off the threshold for a single frame was enough to re-arm it.
+ */
+describe('a door that has just been used', () => {
+  it('ignores you for a while, however you shuffle about on it', () => {
+    const world = rooms();
+    const steps = createDoorsteps(world.as(), () => [door(10, 10)]);
+    steps.step({ x: 14, z: 10 }, 0.016);
+    steps.step(LEAF(door(10, 10)), 0.016);
+    expect(world.entered, 'in').toHaveLength(1);
+    world.places.indoors = null;
+
+    // a second of somebody leaning on the arrow keys: on the step, off it, on it again
+    for (let frame = 0; frame < 60; frame++) {
+      steps.step(frame % 2 === 0 ? LEAF(door(10, 10)) : { x: 10, z: 12 }, 0.016);
+    }
+    expect(world.entered, 'a revolving door').toHaveLength(1);
+  });
+
+  it('works again once it has had its rest', () => {
+    const world = rooms();
+    const steps = createDoorsteps(world.as(), () => [door(10, 10)]);
+    steps.step({ x: 14, z: 10 }, 0.016);
+    steps.step(LEAF(door(10, 10)), 0.016);
+    world.places.indoors = null;
+
+    // stood well clear for the whole of the rest, then walked back at it
+    for (let n = 0; n < Math.ceil(REST / 0.1) + 2; n++) steps.step({ x: 14, z: 10 }, 0.1);
+    steps.step(LEAF(door(10, 10)), 0.1);
+    expect(world.entered, 'a door that never works again').toHaveLength(2);
   });
 });

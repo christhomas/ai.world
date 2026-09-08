@@ -44,6 +44,16 @@ interface Told {
   /** Tiles a second, worked out from the two most recent snapshots. */
   vx: number;
   vz: number;
+  /**
+   * How sharply it just turned, from nought (straight on) to one (turned right round).
+   *
+   * Carrying a creature forward along a straight line is a good guess about something walking and
+   * a poor one about something circling: a vulture rides a thermal in a tight ring, so a third of
+   * a second of its last direction puts it outside the ring altogether — measured at nearly two
+   * tiles out, the worst of anything in the world. So the guess is trusted in proportion to how
+   * straight the thing was going.
+   */
+  turn: number;
   /** When it was said, in seconds. */
   at: number;
 }
@@ -58,7 +68,7 @@ export interface Drift {
   /** How far out the drawn position was each time the world corrected it, since last asked. */
   wrongBy: { worst: number; mean: number; of: number };
   /** The same, for creatures within reach of the hero: the number a fight is decided by. */
-  wrongClose: { worst: number; mean: number; of: number };
+  wrongClose: { worst: number; mean: number; of: number; worstIs: string };
   /** The same, smoothed, for something that wants to show it rather than measure it. */
   recent: number;
 }
@@ -105,7 +115,7 @@ export class Wildlife {
    */
   private wrong = { n: 0, total: 0, worst: 0 };
   /** The same, for the creatures close enough to fight, which is the number that decides a swing. */
-  private wrongClose = { n: 0, total: 0, worst: 0 };
+  private wrongClose = { n: 0, total: 0, worst: 0, worstIs: '' };
   /**
    * The same thing as a running average, for the corner of the screen.
    *
@@ -158,7 +168,7 @@ export class Wildlife {
       if (hero && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
         this.wrongClose.n++;
         this.wrongClose.total += out;
-        if (out > this.wrongClose.worst) this.wrongClose.worst = out;
+        if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
       }
       body.state = snap.state;
       body.walk = snap.walk;
@@ -199,13 +209,13 @@ export class Wildlife {
     const seen = this.wrong, close = this.wrongClose;
     if (clear) {
       this.wrong = { n: 0, total: 0, worst: 0 };
-      this.wrongClose = { n: 0, total: 0, worst: 0 };
+      this.wrongClose = { n: 0, total: 0, worst: 0, worstIs: '' };
     }
     return {
       drawn: this.bodies.size, worst, mean: n > 0 ? total / n : 0, worstIs, far,
       // how wrong the screen was, since the last time anybody asked
       wrongBy: { worst: seen.worst, mean: seen.n > 0 ? seen.total / seen.n : 0, of: seen.n },
-      wrongClose: { worst: close.worst, mean: close.n > 0 ? close.total / close.n : 0, of: close.n },
+      wrongClose: { worst: close.worst, mean: close.n > 0 ? close.total / close.n : 0, of: close.n, worstIs: close.worstIs },
       recent: this.recent,
     };
   }
@@ -225,18 +235,24 @@ export class Wildlife {
   private told(body: Entity, snap: CreatureSnap): Told {
     const now = performance.now() / 1000;
     const was = this.wanted.get(snap.id);
-    let vx = 0, vz = 0;
+    let vx = 0, vz = 0, turn = 0;
     if (was) {
       const gap = now - was.at;
       if (gap > 0.01) {
         vx = (snap.x - was.x) / gap;
         vz = (snap.z - was.z) / gap;
         const speed = Math.hypot(vx, vz);
-        const most = body.kind.speed * FASTEST_GUESS;
+        const most = Math.max(body.kind.speed, body.kind.runSpeed) * FASTEST_GUESS;
         if (speed > most) { vx = (vx / speed) * most; vz = (vz / speed) * most; }
+        // how far off its old course this puts it, as a share of a half turn
+        const old = Math.hypot(was.vx, was.vz);
+        if (old > 0.05 && speed > 0.05) {
+          const alike = (was.vx * vx + was.vz * vz) / (old * Math.hypot(vx, vz));
+          turn = Math.acos(Math.max(-1, Math.min(1, alike))) / Math.PI;
+        }
       }
     }
-    return { x: snap.x, z: snap.z, y: snap.y, yaw: snap.yaw, vx, vz, at: now };
+    return { x: snap.x, z: snap.z, y: snap.y, yaw: snap.yaw, vx, vz, turn, at: now };
   }
 
   /** Walk each drawn creature towards where the world's last word says it is *now*. */
@@ -247,7 +263,7 @@ export class Wildlife {
       const held = this.wanted.get(id);
       if (!held) continue;
       // carried forward from where it was last seen, for as long as that is still a fair guess
-      const ahead = Math.min(now - held.at, CARRY_AHEAD);
+      const ahead = Math.min(now - held.at, CARRY_AHEAD * (1 - held.turn));
       const to = { x: held.x + held.vx * ahead, z: held.z + held.vz * ahead, y: held.y, yaw: held.yaw };
       body.x += (to.x - body.x) * k;
       body.z += (to.z - body.z) * k;

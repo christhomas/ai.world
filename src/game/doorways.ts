@@ -86,6 +86,20 @@ export function onThreshold(door: Doorway, hero: AtDoor): boolean {
  * `doors` is read fresh each frame rather than held, because a door can be built: a house the
  * player puts up has one the moment its roof goes on.
  */
+/**
+ * How long a door ignores you after you have just been through it, in seconds.
+ *
+ * Going through leaves you standing on the far side of the same doorway, so the rule that a door
+ * works when you touch it makes it a revolving one: hold a direction and you are in, out, in, out
+ * several times a second. Being off the threshold re-arms it, which is enough when you walk away
+ * and not enough when you are pressed against the wall beside it — that is the case that was
+ * reported, as a door triggering over and over while its owner was nowhere near it.
+ *
+ * Long enough that a fumbled step cannot go back through, short enough that changing your mind is
+ * not a punishment.
+ */
+export const REST = 5;
+
 export function createDoorsteps(places: Places, doors: () => readonly Doorway[]) {
   /**
    * A door works again as soon as you have stepped off one.
@@ -102,10 +116,16 @@ export function createDoorsteps(places: Places, doors: () => readonly Doorway[])
    * is no room too small for it, and it cannot be half-satisfied.
    */
   let armed = false;
+  /** What is left of the rest a door takes after somebody has been through it, in seconds. */
+  let resting = 0;
 
   return {
     /** Call once a frame, after the hero has been moved, wherever he is. */
-    step(hero: AtDoor): void {
+    step(hero: AtDoor, dt = 0): void {
+      // the rest runs down wherever he is standing, and arming goes on underneath it: walking away
+      // from a door while it is resting still counts as having walked away
+      if (resting > 0) resting = Math.max(0, resting - dt);
+
       // a cave mouth is a different thing with its own prompt, and stairs are not a doorway
       if (places.underground) { armed = false; return; }
 
@@ -115,8 +135,9 @@ export function createDoorsteps(places: Places, doors: () => readonly Doorway[])
         // the leaf's own thickness is that tile
         const inIt = room.world.inDoorway(hero.x, hero.z, 0.5 + DOOR.BODY, DOOR.HALF + DOOR.BODY);
         if (!armed) { armed = !inIt; return; }
-        if (!inIt) return;
+        if (!inIt || resting > 0) return;
         armed = false;
+        resting = REST;
         places.leaveBuilding();
         return;
       }
@@ -125,12 +146,15 @@ export function createDoorsteps(places: Places, doors: () => readonly Doorway[])
       for (const door of doors()) if (onThreshold(door, hero)) { onTheStep = door; break; }
 
       if (!armed) { armed = onTheStep === null; return; }
-      if (!onTheStep) return;
+      if (!onTheStep || resting > 0) return;
       armed = false;
+      resting = REST;
       places.enterBuilding(onTheStep);
     },
 
     /** What the step is waiting for, so a test can say why nothing happened. */
-    get ready(): boolean { return armed; },
+    get ready(): boolean { return armed && resting <= 0; },
+    /** How long this door will go on ignoring you, in seconds. */
+    get resting(): number { return resting; },
   };
 }

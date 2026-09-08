@@ -210,13 +210,28 @@ export class Online {
     this.send({ type: 'swing', place, damage, reach, arc, one });
   }
 
+  /**
+   * What has gone up the wire and what has come down it, counted by kind.
+   *
+   * For the question "did that even leave the building": a blow that lands on nothing looks
+   * identical from in here whether the world refused it, never heard of it, or was never told.
+   */
+  readonly tally = { sent: new Map<string, number>(), heard: new Map<string, number>() };
+
+  private static count(where: Map<string, number>, what: string): void {
+    where.set(what, (where.get(what) ?? 0) + 1);
+  }
+
   private send(message: ClientMessage): void {
-    if (this.link?.ready) this.link.send(JSON.stringify(message));
+    if (!this.link?.ready) return;
+    Online.count(this.tally.sent, message.type);
+    this.link.send(JSON.stringify(message));
   }
 
   private receive(raw: string): void {
     let message: ServerMessage;
     try { message = JSON.parse(raw) as ServerMessage; } catch { return; }
+    Online.count(this.tally.heard, message.type);
     switch (message.type) {
       case 'welcome':
         this.id = message.id;

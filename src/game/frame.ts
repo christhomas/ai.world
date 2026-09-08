@@ -134,7 +134,7 @@ export interface Framing {
   mapInput: () => Parameters<WorldMap['draw']>[0];
   markers: () => Parameters<Minimap['draw']>[3];
   /** Walking into a door goes in. Asked once a frame, out of doors, after the hero has moved. */
-  doorsteps: { step: (hero: { x: number; z: number }) => void };
+  doorsteps: { step: (hero: { x: number; z: number }, dt: number) => void };
   /** Is a conversation up? It pauses the world the way the full-screen map does. */
   talking: () => boolean;
   /** A conversation types itself out a letter at a time, so it has a clock of its own. */
@@ -284,7 +284,7 @@ export function createFrame(ctx: Framing) {
      * one would not — which is exactly how it shipped, and exactly what was reported. A door does
      * not know which way you are going, and neither should the frame.
      */
-    if (!talking) doorsteps.step(player);
+    if (!talking) doorsteps.step(player, dt);
     tidings.theDaysNews();
 
     // hold the place for this frame: a bite can end it half way through

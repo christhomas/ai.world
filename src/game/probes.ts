@@ -185,6 +185,10 @@ export function installProbes(ctx: Probed): void {
       solid: (x: number, z: number) => room.world.blocked(x, z),
     };
   };
+  Object.defineProperty(debug, '__wire', {
+    configurable: true,
+    get: () => ({ sent: Object.fromEntries(online.tally.sent), heard: Object.fromEntries(online.tally.heard) }),
+  });
   Object.defineProperty(debug, '__drift', { configurable: true, get: () => drift() });
   Object.defineProperty(debug, '__bites', { configurable: true, get: () => bites });
   (debug as { __walking?: () => unknown }).__walking = () => ({
@@ -211,7 +215,12 @@ export function installProbes(ctx: Probed): void {
   (debug as { __reportChest?: (id: string) => void }).__reportChest = (id) => { state.opened.add(id); online.report({ kind: 'chest', id }); state.version++; };
   (debug as { __shrines?: unknown }).__shrines = structures.pois.filter((p) => p.kind === StructureKind.Shrine).map((p) => ({ name: p.name, x: p.x, z: p.z }));
   (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
-    entities.within(player.x, player.z, 90).map((e) => ({ kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z }));
+    // hearts and which way it is facing included: a fight cannot be watched from outside without
+    // them, and "did that blow land" was unanswerable while the only readouts were name and place
+    entities.within(player.x, player.z, 90).map((e) => ({
+      kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z,
+      hp: e.hp, dead: e.dead, yaw: Math.round(e.yaw * 100) / 100, id: e.worldId ?? null,
+    }));
   (debug as { __entities?: () => unknown }).__entities = () => commandWorld.entities();
   (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => commandWorld.thin(village, n);
   (debug as { __callOut?: (id: string) => void }).__callOut = (id) => callOut(id);
