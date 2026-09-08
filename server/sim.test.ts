@@ -615,10 +615,15 @@ describe('a floor under the world', () => {
     walkAbout(wren, 0, 0);
     tickFor(sim, 300);
     goDown(wren, 'Barrow:1');
+    // from here on she is underground; what she was told while she was standing on the hillside was
+    // about the hillside, and rightly so
+    const sinceSheWentDown = wren.heard.length;
     tickFor(sim, 900, Date.now() + 300);
 
     // she is underground and hears about the floor; he is above and hears about the country
-    expect(wren.of('creatures').every((c) => c.place === 'Barrow:1')).toBe(true);
+    const hersBelow = wren.heard.slice(sinceSheWentDown).filter((m) => m.type === 'creatures');
+    expect(hersBelow.length, 'she was told nothing at all about where she is').toBeGreaterThan(0);
+    expect(hersBelow.every((c) => c.place === 'Barrow:1')).toBe(true);
     expect(rowan.of('creatures').every((c) => c.place === 'surface')).toBe(true);
   });
 

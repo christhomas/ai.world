@@ -456,7 +456,13 @@ export function createFrame(ctx: Framing) {
     hud.setDebug(dt, () =>
       `${fps.toFixed(0)} fps  chunks ${chunks.stats.drawn}/${chunks.stats.loaded}  queue ${chunks.stats.pending}\n` +
       `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  creatures ${entities.count}\n` +
-      `roads ${graph.edges.length}  radius ${GRAPH.RADIUS}  pos ${x.toFixed(0)},${z.toFixed(0)}`);
+      `roads ${graph.edges.length}  radius ${GRAPH.RADIUS}  pos ${x.toFixed(0)},${z.toFixed(0)}\n` +
+      // what the screen is getting wrong about the world's own creatures, which is the difference
+      // between swinging at a wolf and hitting one
+      (() => {
+        const told = wildlife.drift(false);
+        return `world creatures ${told.drawn}  screen wrong by ${told.recent.toFixed(2)} tiles`;
+      })());
 
     minimap.draw(player.x, player.z, iso.groundCorners(iso.target.y), markers(), !state.can('map'), player.entity.yaw);
     rig.renderer.render(rig.scene, iso.camera);

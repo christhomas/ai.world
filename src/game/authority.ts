@@ -53,6 +53,8 @@ export function createAuthority(ctx: Authority) {
    * do when the answer comes back disagreeing.
    */
   const walked = new Walked((s) => steer(s.seq, s.dx, s.dz, s.pace, s.dt));
+  /** What has bitten the hero lately, and whether anything was drawn where the bite came from. */
+  const bites: Array<{ at: number; id: number; damage: number; away: number | null }> = [];
 
   /**
    * How the two halves are getting on, for `window.__walking` and for nothing else.
@@ -82,6 +84,8 @@ export function createAuthority(ctx: Authority) {
     walked,
     walking,
     outdoors,
+    /** The last few bites the world reported, and how far off the biter was drawn. */
+    bites,
     /** The things the world says, and what this side does about each. */
     heeding: {
       // the world's own creatures, in whichever of its worlds they live: drawn as they arrive, and
@@ -89,14 +93,14 @@ export function createAuthority(ctx: Authority) {
       // the numbers a floor gives its monsters mean nothing on a hillside.
       onCreatures: (place: string, near: CreatureSnap[], gone: number[]): void => {
         if (place !== 'surface') {
-          if (place === placeName()) floorLife()?.apply(near, gone);
+          if (place === placeName()) floorLife()?.apply(near, gone, player.entity);
           return;
         }
         if (!entities.toldWhatLives) {
           entities.toldWhatLives = true;
           entities.forgetTheWildlife();
         }
-        wildlife.apply(near, gone);
+        wildlife.apply(near, gone, player.entity);
       },
 
       /**
@@ -124,6 +128,14 @@ export function createAuthority(ctx: Authority) {
       // bite has always gone through, because it is the client that holds all of it.
       onBitten: (place: string, id: number, damage: number): void => {
         const attacker = theirs(place)?.find(id);
+        // kept whether or not there is anybody to blame it on: "something bit me and there was
+        // nothing there" is a report, and it needs a number behind it
+        bites.push({
+          at: Math.round(performance.now()),
+          id, damage,
+          away: attacker ? Math.hypot(attacker.x - player.entity.x, attacker.z - player.entity.z) : null,
+        });
+        if (bites.length > 30) bites.shift();
         if (attacker) bitten(attacker, damage);
       },
 

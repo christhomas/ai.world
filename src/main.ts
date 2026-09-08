@@ -353,7 +353,7 @@ function startGame(
 
   // which half of the game is the authority, and what this half does when the other one speaks.
   // Built before the multiplayer half because the world's answers arrive through it.
-  const { walked, walking, outdoors, heeding } = createAuthority({
+  const { walked, walking, outdoors, heeding, bites } = createAuthority({
     seed, state, player, chunks, entities, places, sailing, sound, wildlife, placeName,
     floorLife: () => floorLife,
     steer: (seq, dx, dz, pace, dt) => online.steer(seq, dx, dz, pace, dt),
@@ -626,7 +626,8 @@ function startGame(
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-      commandWorld, placeName, walking,
+      commandWorld, placeName, walking, bites,
+      drift: () => wildlife.drift(),
       pods: watch.pods,
       nettleAbout: watch.nettleAbout,
       sentOut: watch.sentOut,

@@ -69,6 +69,22 @@ export const TIMEOUT = 30_000;
  */
 export const CREATURE_INTERVAL = 330;
 
+/**
+ * How close a creature has to be before it is worth describing every tick, in tiles.
+ *
+ * Everything a player fights is within a few tiles of them, and a third of a second is a long time
+ * in a fight: a wolf covers a tile in it. The client draws between what it is told and guesses the
+ * rest, and measured on a live village that guess was out by about a tile — which is the whole of a
+ * wolf. So the player swings where the wolf is drawn, the world answers about where the wolf is,
+ * and nothing connects; the same wolf bites out of what looks like empty grass.
+ *
+ * The fix is not to describe two hundred creatures ten times a second. It is to notice that the
+ * argument for three a second was always about the middle distance — a deer forty tiles off is
+ * perfectly legible at that rate — and that the handful of things close enough to matter are
+ * cheap to send often.
+ */
+export const CLOSE_ENOUGH_TO_FIGHT = 14;
+
 /** How many chunks either side of a player the ground is held for, by default. */
 export const REACH = 3;
 
@@ -287,7 +303,10 @@ export class Simulation {
       const bitten = who.find((c) => c.presence === bite.who);
       if (bitten) this.rooms.send(bitten, { type: 'bitten', place, id: bite.id, damage: bite.damage });
     }
-    if (tell) this.tellAboutCreatures(alive, place, who);
+    // everything in sight, at the rate the middle distance deserves; and what is close enough to
+    // fight, every tick, because that is what the player is aiming at
+    if (tell) this.tellAboutCreatures(alive, place, who, null);
+    this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT);
   }
 
   /**
@@ -312,9 +331,14 @@ export class Simulation {
     }
   }
 
-  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>): void {
+  /**
+   * @param within when given, only creatures this close are described and nothing is reported as
+   * gone — this is the frequent pass over what the player is close enough to fight, and a creature
+   * that has merely walked out of arm's reach has not walked out of sight.
+   */
+  private tellAboutCreatures(alive: Wildlife, place: string, who: ReadonlyArray<Client>, within: number | null): void {
     for (const client of who) {
-      const near = alive.inSightOf(client.presence.x, client.presence.z);
+      const near = alive.inSightOf(client.presence.x, client.presence.z, within ?? undefined);
       const changed: CreatureSnap[] = [];
       const now = new Map<number, string>();
       for (const c of near) {
@@ -322,6 +346,12 @@ export class Simulation {
         const shape = `${c.x},${c.z},${c.y},${c.yaw},${c.walk},${c.state},${c.hp}`;
         now.set(c.id, shape);
         if (client.seeing.get(c.id) !== shape) changed.push(c);
+      }
+      if (within !== null) {
+        // a partial view: correct what it covers and leave the rest of what this client is seeing
+        for (const [id, shape] of now) client.seeing.set(id, shape);
+        if (changed.length > 0) this.rooms.send(client, { type: 'creatures', place, near: changed, gone: [] });
+        continue;
       }
       const gone: number[] = [];
       for (const id of client.seeing.keys()) if (!now.has(id)) gone.push(id);

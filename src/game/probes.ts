@@ -10,6 +10,7 @@ import type { Site, Structures } from '../world/structures';
 import { StructureKind } from '../world/structures';
 import type { TerrainSampler } from '../world/terrain';
 import type { WorldKind } from '../save/store';
+import type { Drift } from './wildlife';
 import type { CommandBus } from '../core/commandbus';
 import type { IsoCamera } from '../render/camera';
 import type { SceneRig } from '../render/scene';
@@ -90,6 +91,10 @@ export interface Probed {
   markers: () => unknown;
   /** How the client's guess and the world's answer are getting on. */
   walking: { answers: number; corrections: number; worst: number };
+  /** How far behind the world the drawn creatures are, in tiles. */
+  drift: () => Drift;
+  /** What has bitten the hero lately, and how far off the biter was drawn. */
+  bites: ReadonlyArray<{ at: number; id: number; damage: number; away: number | null }>;
   /** What the water listener last worked out. Read live: it changes every frame. */
   heard: () => { nearness: number; drop: number };
   /** The one Old Nettle standing in the world, and his lot. Read live: they come and go. */
@@ -102,7 +107,7 @@ export function installProbes(ctx: Probed): void {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-    commandWorld, callOut, placeName, carcasses, markers, walking, heard, nettleAbout, sentOut,
+    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, heard, nettleAbout, sentOut,
   } = ctx;
 
   const debug = window as unknown as {
@@ -154,6 +159,16 @@ export function installProbes(ctx: Probed): void {
   // read rather than called, because half of these are functions and half are not, and the one you
   // reach for while something is badly wrong should not also ask you to remember which
   Object.defineProperty(debug, '__world', { configurable: true, get: () => ({ seed, world, online: online.status }) });
+  /*
+   * How far the drawn world is behind the real one.
+   *
+   * The world owns the creatures and sends where they are three times a second; the game eases
+   * them towards it so they do not jump. Both halves are honest and the player still swings at a
+   * wolf that is not there any more, because what is drawn is where it was. This is that gap, in
+   * tiles, so it can be argued about with a number instead of a feeling.
+   */
+  Object.defineProperty(debug, '__drift', { configurable: true, get: () => drift() });
+  Object.defineProperty(debug, '__bites', { configurable: true, get: () => bites });
   (debug as { __walking?: () => unknown }).__walking = () => ({
     ...walking, worst: Math.round(walking.worst * 1000) / 1000,
   });

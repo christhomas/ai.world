@@ -20,15 +20,100 @@ import type { CreatureSnap } from '../../server/protocol';
  * Positions are eased rather than snapped. Snapshots arrive three times a second and frames are
  * drawn sixty; without the easing a deer teleports twenty times a second, which reads as broken
  * even though every position in it is true.
+ *
+ * And they are carried forward rather than merely eased, which is the difference between a game you
+ * can fight in and one you cannot. Easing towards the last thing the world said means the screen is
+ * always showing where a creature *was*: measured on a live village, a whole tile out on average
+ * and nearly six at worst. A wolf is not a tile wide. So the player swings at what is drawn, the
+ * world answers about what it has, and the blow lands on nothing — while the same wolf bites him
+ * from a tile away, out of what looks like empty grass. Both halves are honest and the game is a
+ * liar.
+ *
+ * So each creature carries the speed the world's own corrections imply, and is drawn where that
+ * says it is now rather than where it was a third of a second ago. It is a guess, and it is wrong
+ * whenever something stops or turns — but it is wrong by a fraction of what standing still is wrong
+ * by, and the next snapshot puts it right.
  */
+
+/** The last thing the world said about a creature, with the speed that implies. */
+interface Told {
+  x: number;
+  z: number;
+  y: number;
+  yaw: number;
+  /** Tiles a second, worked out from the two most recent snapshots. */
+  vx: number;
+  vz: number;
+  /** When it was said, in seconds. */
+  at: number;
+}
+
+/** What the screen is getting wrong about the world's creatures, in tiles. */
+export interface Drift {
+  drawn: number;
+  worst: number;
+  mean: number;
+  worstIs: string;
+  far: Array<{ kind: string; out: number }>;
+  /** How far out the drawn position was each time the world corrected it, since last asked. */
+  wrongBy: { worst: number; mean: number; of: number };
+  /** The same, for creatures within reach of the hero: the number a fight is decided by. */
+  wrongClose: { worst: number; mean: number; of: number };
+  /** The same, smoothed, for something that wants to show it rather than measure it. */
+  recent: number;
+}
 
 /** How quickly a drawn creature catches up with where the world says it is, per second. */
 const CATCH_UP = 9;
 
+/**
+ * How far ahead of the last snapshot a creature may be carried, in seconds.
+ *
+ * Long enough to cover the gap between snapshots, which is what the lag actually is, and no longer:
+ * everything past that is guessing about a creature that may have stopped, and a guess that runs on
+ * is a deer that slides past its own tree and is yanked back.
+ */
+const CARRY_AHEAD = 0.45;
+
+/**
+ * The most of a creature's own pace the guess will credit it with.
+ *
+ * The speed is worked out from two positions and a stopwatch, so a snapshot that arrives late makes
+ * it look as though the creature sprinted. Nothing in the world outruns its own legs, and a bird
+ * gliding is the fastest honest case, so the clamp is a little over its top speed rather than
+ * exactly it.
+ */
+const FASTEST_GUESS = 1.4;
+
+/** How close a creature has to be before being drawn in the wrong place matters, in tiles. */
+const CLOSE = 8;
+
 export class Wildlife {
   private readonly bodies = new Map<number, Entity>();
-  /** Where the world last said each one was, which is what they are easing towards. */
-  private readonly wanted = new Map<number, { x: number; z: number; y: number; yaw: number }>();
+  /**
+   * Where the world last said each one was, how fast it seemed to be going when it said so, and
+   * how long ago that was — which together are where it probably is now.
+   */
+  private readonly wanted = new Map<number, Told>();
+  /**
+   * How wrong the screen turned out to be, each time the world says where something is.
+   *
+   * Measured at the moment a snapshot lands, against where that creature was being drawn a
+   * heartbeat earlier. It is the honest form of "I swung at a wolf and hit nothing": the player
+   * aims at what is drawn and the world answers about what it has, so this is the distance between
+   * the game and the truth, in tiles.
+   */
+  private wrong = { n: 0, total: 0, worst: 0 };
+  /** The same, for the creatures close enough to fight, which is the number that decides a swing. */
+  private wrongClose = { n: 0, total: 0, worst: 0 };
+  /**
+   * The same thing as a running average, for the corner of the screen.
+   *
+   * The tally above is emptied by whoever reads it, which is right for a measurement and useless
+   * for a display: an overlay reading it sixty times a second would empty it before it held
+   * anything. This is smoothed instead, so it can be watched while something is being tuned.
+   */
+  private recent = 0;
 
   /**
    * The renderer draws them; the manager holds them so everything that looks for creatures — a
@@ -49,7 +134,7 @@ export class Wildlife {
   get count(): number { return this.bodies.size; }
 
   /** What the world says is near: new ones appear, known ones are aimed at where they now are. */
-  apply(near: CreatureSnap[], gone: number[]): void {
+  apply(near: CreatureSnap[], gone: number[], hero?: { x: number; z: number }): void {
     for (const snap of near) {
       let body = this.bodies.get(snap.id);
       if (!body) {
@@ -62,10 +147,23 @@ export class Wildlife {
         if (!this.renderer.add(body)) continue;
         this.bodies.set(snap.id, body);
       }
+      // how far out the screen was about this creature, before believing the new position
+      const out = Math.hypot(body.x - snap.x, body.z - snap.z);
+      this.wrong.n++;
+      this.wrong.total += out;
+      if (out > this.wrong.worst) this.wrong.worst = out;
+      this.recent = this.recent * 0.96 + out * 0.04;
+      // and separately for what the player could actually reach, because a deer forty tiles off
+      // being drawn a little behind costs nobody anything
+      if (hero && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
+        this.wrongClose.n++;
+        this.wrongClose.total += out;
+        if (out > this.wrongClose.worst) this.wrongClose.worst = out;
+      }
       body.state = snap.state;
       body.walk = snap.walk;
       body.hp = snap.hp;
-      this.wanted.set(snap.id, { x: snap.x, z: snap.z, y: snap.y, yaw: snap.yaw });
+      this.wanted.set(snap.id, this.told(body, snap));
     }
     for (const id of gone) {
       const body = this.bodies.get(id);
@@ -76,15 +174,81 @@ export class Wildlife {
     }
   }
 
-  /** The creature the world calls by this number, if it is on our screen. */
-  find(id: number): Entity | null { return this.bodies.get(id) ?? null; }
-
-  /** Walk each drawn creature towards where the world last said it was. */
-  update(dt: number): void {
-    const k = Math.min(1, dt * CATCH_UP);
+  /**
+   * How far behind the world each drawn creature is, in tiles.
+   *
+   * The number that matters when somebody says they cannot hit a wolf: a blow is resolved by the
+   * world against where the world has the wolf, and the player is swinging at where it is drawn.
+   * If those two are a body's width apart, the game is lying to the player about where things are.
+   */
+  /**
+   * @param clear empty the running tally, which is what a measurement wants and a display does not.
+   */
+  drift(clear = true): Drift {
+    let worst = 0, total = 0, n = 0, worstIs = '';
+    const far: Array<{ kind: string; out: number }> = [];
     for (const [id, body] of this.bodies) {
       const to = this.wanted.get(id);
       if (!to) continue;
+      const out = Math.hypot(to.x - body.x, to.z - body.z);
+      if (out > worst) { worst = out; worstIs = body.kind.id; }
+      if (out > 0.5) far.push({ kind: body.kind.id, out: Math.round(out * 100) / 100 });
+      total += out;
+      n++;
+    }
+    const seen = this.wrong, close = this.wrongClose;
+    if (clear) {
+      this.wrong = { n: 0, total: 0, worst: 0 };
+      this.wrongClose = { n: 0, total: 0, worst: 0 };
+    }
+    return {
+      drawn: this.bodies.size, worst, mean: n > 0 ? total / n : 0, worstIs, far,
+      // how wrong the screen was, since the last time anybody asked
+      wrongBy: { worst: seen.worst, mean: seen.n > 0 ? seen.total / seen.n : 0, of: seen.n },
+      wrongClose: { worst: close.worst, mean: close.n > 0 ? close.total / close.n : 0, of: close.n },
+      recent: this.recent,
+    };
+  }
+
+  /** The creature the world calls by this number, if it is on our screen. */
+  find(id: number): Entity | null { return this.bodies.get(id) ?? null; }
+
+  /**
+   * What the world said about a creature, and how fast that says it is moving.
+   *
+   * The speed comes from the last two things the world said and the time between them, because the
+   * wire does not carry one: a creature is six numbers on the way over and adding two more to every
+   * one of ninety creatures, three times a second, to say something both ends can work out is a
+   * poor trade. It is clamped to a little over the creature's own pace, so a snapshot that arrives
+   * late cannot make a deer look like an arrow.
+   */
+  private told(body: Entity, snap: CreatureSnap): Told {
+    const now = performance.now() / 1000;
+    const was = this.wanted.get(snap.id);
+    let vx = 0, vz = 0;
+    if (was) {
+      const gap = now - was.at;
+      if (gap > 0.01) {
+        vx = (snap.x - was.x) / gap;
+        vz = (snap.z - was.z) / gap;
+        const speed = Math.hypot(vx, vz);
+        const most = body.kind.speed * FASTEST_GUESS;
+        if (speed > most) { vx = (vx / speed) * most; vz = (vz / speed) * most; }
+      }
+    }
+    return { x: snap.x, z: snap.z, y: snap.y, yaw: snap.yaw, vx, vz, at: now };
+  }
+
+  /** Walk each drawn creature towards where the world's last word says it is *now*. */
+  update(dt: number): void {
+    const k = Math.min(1, dt * CATCH_UP);
+    const now = performance.now() / 1000;
+    for (const [id, body] of this.bodies) {
+      const held = this.wanted.get(id);
+      if (!held) continue;
+      // carried forward from where it was last seen, for as long as that is still a fair guess
+      const ahead = Math.min(now - held.at, CARRY_AHEAD);
+      const to = { x: held.x + held.vx * ahead, z: held.z + held.vz * ahead, y: held.y, yaw: held.yaw };
       body.x += (to.x - body.x) * k;
       body.z += (to.z - body.z) * k;
       body.y += (to.y - body.y) * k;
