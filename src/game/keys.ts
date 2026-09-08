@@ -2,19 +2,19 @@ import type { Input } from '../core/input';
 import type { Player } from '../entities/player';
 import type { IsoCamera } from '../render/camera';
 import type { SceneRig } from '../render/scene';
-import type { Sound } from '../game/audio';
-import type { SpellId } from '../game/magic';
-import type { Online } from '../game/online';
-import type { Places } from '../game/places';
+import type { Sound } from './audio';
+import type { SpellId } from './magic';
+import type { Online } from './online';
+import type { Places } from './places';
 import { PING_LIFE } from '../../server/protocol';
-import type { Chat } from './chat';
-import type { DialogueBox } from './dialogue';
-import type { Hud } from './hud';
-import type { Journal } from './journal';
-import type { PhotoMode } from './photo';
-import type { PlayerList } from './players';
-import type { Rucksack } from './rucksack';
-import type { WorldMap } from './worldmap';
+import type { Chat } from '../ui/chat';
+import type { DialogueBox } from '../ui/dialogue';
+import type { Hud } from '../ui/hud';
+import type { Journal } from '../ui/journal';
+import type { PhotoMode } from '../ui/photo';
+import type { PlayerList } from '../ui/players';
+import type { Rucksack } from '../ui/rucksack';
+import type { WorldMap } from '../ui/worldmap';
 
 /**
  * What every key does, in one place.

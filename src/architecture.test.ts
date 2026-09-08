@@ -42,7 +42,14 @@ const ALLOWED: Record<string, number> = {
   // the chat, meeting somebody opens a dialogue, and joining a world reaches for the panel an
   // address is typed into. Those four files are where the game meets its screen; anything else
   // that finds it needs the ui is either one of them or is not a rule.
-  'game->ui': 19,
+  //
+  // The other eight are `keys.ts`, and they are the price of putting it where it belongs. What a
+  // key does is a fact about the game — Q turns the camera, M opens the map, X swings — so the
+  // bindings sit in `game`, and eight of the things they open are panels: the chat, the dialogue
+  // box, the hud, the journal, photo mode, the player list, the rucksack and the world map. Filed
+  // under `ui` instead the file cost nothing here and lied about what it was: a list of the game's
+  // verbs, kept in the drawer with the widgets.
+  'game->ui': 27,
   // A save is a picture of the game's state and of what its world had grown, so storage knows
   // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
   // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,

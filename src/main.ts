@@ -69,7 +69,7 @@ import { createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
 import { growCountry } from './game/country';
 import { openTheSave } from './game/keeping';
-import { bindKeys } from './ui/keys';
+import { bindKeys } from './game/keys';
 import { createAuthority } from './game/authority';
 
 async function boot(): Promise<void> {

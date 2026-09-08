@@ -65,9 +65,12 @@ const GEAR: Record<string, Build> = {
    * shirt flickering through the tunic as the camera turns. Each is a little proud of what is
    * underneath it now, which is what a garment is.
    */
-  tunic: () => merge([part(new THREE.BoxGeometry(0.3, 0.42, 0.38), 0xb8894a, [0, 0, 0])]),
+  tunic: () => merge([
+    part(new THREE.BoxGeometry(0.3, 0.34, 0.38), 0xb8894a, [0, 0.04, 0]),
+    part(new THREE.BoxGeometry(0.32, 0.05, 0.4), 0x8a6438, [0, -0.15, 0]),   // the belt it is gathered at
+  ]),
   jerkin: () => merge([
-    part(new THREE.BoxGeometry(0.31, 0.44, 0.39), 0x6b4a2b, [0, 0, 0]),
+    part(new THREE.BoxGeometry(0.31, 0.36, 0.39), 0x6b4a2b, [0, 0.04, 0]),
     part(new THREE.BoxGeometry(0.33, 0.07, 0.41), 0x4a3222, [0, -0.16, 0]),
   ]),
   mail: () => merge([
@@ -169,6 +172,47 @@ const TORCH = {
 /** The off hand with a torch in it — the fire is fixed to the shaft rather than hung separately. */
 const TORCH_HAND: Mount = { offset: TORCH.HAND, swing: 'armL' };
 
+/**
+ * The skirt of a garment, which is the part of it that moves.
+ *
+ * A tunic drawn as one box is a sandwich board: it is the same shape standing still and at a dead
+ * run, and a figure whose clothes never move reads as a figure carved out of one piece. The chest
+ * of it does stay still — it is pulled in at a belt — so what is wanted is the hem below the belt
+ * hung on its own hinge, trailing behind as he walks and swaying with his stride.
+ *
+ * Only the body slot has one. A boot does not flutter.
+ */
+const HEMS: Record<string, Build> = {
+  tunic: () => merge([
+    part(new THREE.BoxGeometry(0.3, 0.2, 0.38), 0xb8894a, [0, -0.1, 0]),
+    part(new THREE.BoxGeometry(0.31, 0.035, 0.39), 0x8a6438, [0, -0.195, 0]),   // a darker edge
+  ]),
+  jerkin: () => merge([part(new THREE.BoxGeometry(0.31, 0.18, 0.39), 0x6b4a2b, [0, -0.09, 0])]),
+  mail: () => merge([
+    part(new THREE.BoxGeometry(0.32, 0.16, 0.4), 0x8f97a2, [0, -0.08, 0]),
+    part(new THREE.BoxGeometry(0.33, 0.035, 0.41), 0x6f7782, [0, -0.155, 0]),
+  ]),
+};
+
+/**
+ * How a hem behaves, in radians and in hero units.
+ *
+ * Skirt physics would be a rope of springs and a great deal of book-keeping for a thing seen from
+ * sixty feet up. Two rotations do the whole job: it trails behind by how fast he is going, and it
+ * sways side to side on the same phase his legs swing on, so the cloth and the stride agree. A
+ * standing hero's hem is still, because a hem that waves while its owner stands about is a flag.
+ */
+const HEM = {
+  /** Where it is hinged: the belt, in hero units. */
+  WAIST: 0.68,
+  /** How far it trails behind at a full walk. */
+  TRAIL: 0.42,
+  /** And how far it swings either way, on the legs' own phase. */
+  SWAY: 0.16,
+  /** A breath of movement while standing, so the cloth is cloth rather than board. */
+  IDLE: 0.022,
+} as const;
+
 /** Items whose presence hides part of the hero's own rig. */
 const HIDES: Record<string, string> = { cap: 'hat', helm: 'hat' };
 
@@ -186,6 +230,8 @@ export class HeroGear {
   private readonly worn = new Map<EquipSlot, { mesh: THREE.Mesh; id: string; mount: Mount }>();
   private readonly cache = new Map<string, THREE.BufferGeometry>();
   private shownVersion = -1;
+  /** The skirt of whatever is worn on the body, hung on its own hinge at the waist. */
+  private hem: THREE.Mesh | null = null;
   /** The torch and its flame, made once and shown only after dark. */
   private torch: THREE.Mesh | null = null;
   private flame: THREE.Mesh | null = null;
@@ -256,6 +302,25 @@ export class HeroGear {
       worn.mesh.scale.setScalar(scale);
       void slot;
     }
+    /*
+     * The hem, hung at the waist and trailing.
+     *
+     * Two rotations in the hero's own frame: about local z, which tips it forward and back, and
+     * about local x, which swings it side to side. Applied after the yaw, in the same `YXZ` order
+     * the torch uses, so a hem trails behind the man rather than behind north.
+     *
+     * The sway runs on `hero.phase`, which is what the legs swing on — half the rate, because a
+     * skirt answers a whole stride rather than each step, and cloth that changed direction on every
+     * footfall would flap rather than swing.
+     */
+    if (this.hem) {
+      this.hem.position.set(hero.x, hero.y + hero.bobY + HEM.WAIST * scale, hero.z);
+      const trail = -HEM.TRAIL * hero.walk;
+      const sway = Math.sin(hero.phase * 0.5) * (HEM.SWAY * hero.walk + HEM.IDLE);
+      this.hem.rotation.set(sway, hero.yaw, trail, 'YXZ');
+      this.hem.scale.setScalar(scale);
+    }
+
     if (carry && this.torch && this.flame) {
       // the same arm the off-hand gear hangs from, so the torch swings with the walk like the rest
       const hand = this.torch.position.copy(this.held(hero, TORCH_HAND, swing, scale));
@@ -312,6 +377,17 @@ export class HeroGear {
     hero.hiddenTags.clear();
     for (const [, worn] of this.worn) this.group.remove(worn.mesh);
     this.worn.clear();
+    if (this.hem) { this.group.remove(this.hem); this.hem = null; }
+    // the skirt of whatever is on the body, if that garment has one
+    const body = state.worn('body');
+    const cut = body ? HEMS[body.id] : undefined;
+    if (cut) {
+      let geometry = this.cache.get(`hem:${body!.id}`);
+      if (!geometry) { geometry = cut(); this.cache.set(`hem:${body!.id}`, geometry); }
+      this.hem = new THREE.Mesh(geometry, this.material);
+      this.hem.castShadow = true;
+      this.group.add(this.hem);
+    }
     for (const slot of SLOTS) {
       const item = state.worn(slot);
       if (!item) continue;
