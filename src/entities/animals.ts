@@ -481,10 +481,23 @@ export const KINDS: Record<string, AnimalKind> = {
      * and the pivots move with it: a hat that turns about a different point from the head it is on
      * swings loose every time the hero looks round.
      */
-    // and the cone is a hat rather than a lampshade: half a unit of it on a figure a unit and a
-    // half tall was a third of the hero, which reads at a distance and is absurd close up
-    cone(0.21, 0.34, [0, 1.71, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
-    box([0.42, 0.05, 0.42], [0, 1.54, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
+    /*
+     * The hat, which is what makes him findable in a crowd, built out of the same stock as the
+     * rest of him.
+     *
+     * It used to be a smooth six-sided cone sitting on a square brim the width of his shoulders —
+     * the only cone on any person in a world made entirely of boxes, and a brim that stuck out
+     * further either side of his head than his own arms do. Together they read as a party hat, and
+     * from above, which is where this camera is, mostly what you saw of the hero was a green disc.
+     *
+     * A cap in three steps instead: a crown over the hair, a narrower band above it, a block at the
+     * peak. Still a shape nothing else in the game has, so it still does its job at a hundred
+     * paces, and the brim is a short peak over the face rather than a plate all the way round.
+     */
+    box([0.15, 0.045, 0.3], [0.155, 1.53, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
+    box([0.33, 0.12, 0.33], [0, 1.575, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
+    box([0.24, 0.1, 0.24], [0, 1.685, 0], 0x2fb36a, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
+    box([0.14, 0.08, 0.14], [0, 1.775, 0], 0x1f7a48, { anim: 'head', pivot: [0, 1.2, 0], tag: 'hat' }),
     box([0.31, 0.07, 0.4], [0, 0.66, 0], 0x5a3a1a),
     box([0.05, 0.6, 0.36], [-0.16, 0.87, 0], 0xc0392b, { anim: 'cape', pivot: [-0.14, 1.16, 0], tag: 'cape' }),
   ]),

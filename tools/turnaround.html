@@ -83,8 +83,8 @@ for (const name of ['villager', 'shopkeeper', 'hero']) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x2b3350);
     const cam = new THREE.PerspectiveCamera(26, W / H, 0.1, 40);
-    cam.position.set(3.0, 1.55, 3.0);
-    cam.lookAt(0, 0.85, 0);
+    cam.position.set(3.2, 1.7, 3.2);
+    cam.lookAt(0, 0.95, 0);   // high enough that a hat is in the picture
     scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x30364f, 1.5));
     const sun = new THREE.DirectionalLight(0xfff3dc, 1.9);
     sun.position.set(4, 6, 3);
