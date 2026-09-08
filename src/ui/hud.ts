@@ -5,6 +5,7 @@ import type { GameState } from '../game/state';
 import type { Quest } from '../game/quests';
 
 import { $ } from './dom';
+import { hasTheScreen, toggleFullScreen } from './sideways';
 
 /** Area banner, debug readout, options panel, dialog box. Plain DOM, no framework. */
 export class Hud {
@@ -62,6 +63,22 @@ export class Hud {
     gpuEl.title = gpu.accelerated
       ? 'The graphics chip drawing this world'
       : 'Your browser is drawing this world on the processor. Turn hardware acceleration on in its settings for a much faster game.';
+
+    /*
+     * Full screen, asked for rather than taken.
+     *
+     * A phone is given the whole screen on the tap that enters a world, because a phone browser's
+     * furniture is a fifth of the glass and the game cannot be played through it. A desktop is not
+     * — grabbing the screen off somebody who clicked a save slot is a thing a page should not do.
+     * That left no way to ask, so the game was played inside a window with a tab row, an address
+     * bar and a bookmarks strip over a view of a landscape. Here is the way to ask.
+     */
+    const fullScreen = $('fullScreenButton');
+    const sayScreen = () => { fullScreen.textContent = hasTheScreen() ? 'Leave full screen' : 'Full screen'; };
+    fullScreen.addEventListener('click', () => { void toggleFullScreen().then(sayScreen); });
+    // the player can leave by pressing Escape or F11, which we hear about only this way
+    document.addEventListener('fullscreenchange', sayScreen);
+    sayScreen();
 
     $('titleButton').addEventListener('click', () => this.onReturnToTitle?.());
     this.invEl.addEventListener('click', () => this.onOpenRucksack?.());

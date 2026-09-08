@@ -129,6 +129,39 @@ export function thisBrowser(card: HTMLElement): Sideways {
  * neither throwing nor a rejected promise is a fault here — the turn-your-phone card is the
  * fallback, and it works everywhere.
  */
+/**
+ * Whether the page has the whole screen.
+ *
+ * Asked rather than remembered, because the player can leave full screen by pressing Escape or
+ * F11 and the browser does not have to say so in a way we would hear.
+ */
+export function hasTheScreen(): boolean {
+  const d = document as Document & { webkitFullscreenElement?: Element | null };
+  return !!(document.fullscreenElement ?? d.webkitFullscreenElement);
+}
+
+/**
+ * Give the page the whole screen, or hand it back — wherever the player is, on their say-so.
+ *
+ * `takeTheScreen` below only fires on a phone, and deliberately: a desktop browser that grabbed
+ * the whole screen the moment you clicked a save slot would be a browser doing something you did
+ * not ask for. But that left no way to ask at all, so on Edge and on every other desktop browser
+ * the game was played inside a window with an address bar, a bookmarks strip and a tab row over
+ * it — a fifth of the height of the screen spent on furniture, in a game that is a view of a
+ * landscape.
+ *
+ * Both halves are wrapped: a browser may refuse either, and a refusal here is not worth an error.
+ */
+export async function toggleFullScreen(): Promise<boolean> {
+  const page = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+  const exit = document as Document & { webkitExitFullscreen?: () => Promise<void> };
+  try {
+    if (hasTheScreen()) await (document.exitFullscreen?.() ?? exit.webkitExitFullscreen?.());
+    else await (page.requestFullscreen?.({ navigationUI: 'hide' }) ?? page.webkitRequestFullscreen?.());
+  } catch { /* a browser that will not, which is its right */ }
+  return hasTheScreen();
+}
+
 export async function takeTheScreen(): Promise<void> {
   const { width, height } = window.screen ?? { width: window.innerWidth, height: window.innerHeight };
   if (!isPhoneScreen(width, height, window.matchMedia?.('(pointer: coarse)').matches ?? false)) return;

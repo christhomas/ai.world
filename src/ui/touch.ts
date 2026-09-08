@@ -78,6 +78,15 @@ const MORE_BUTTONS: readonly Button[] = [
   { key: 'v', glyph: '🔮', label: 'Drink a warding draught' },
   { key: 'y', glyph: '🗡', label: 'Your company' },
   { key: 't', glyph: '💬', label: 'Chat' },
+  /*
+   * The console, which on a keyboard is the key under Escape and on a thumb was nothing at all.
+   *
+   * Here rather than in the always-visible rail because it is not wanted mid-stride — you stop to
+   * type at it — and because the rail is already eight squares wide on a screen that is 390 tall.
+   * Note it is not the same door as Chat above: that one only opens in a shared world, so on a
+   * phone playing alone it was the only thing that looked like a way to type and did nothing.
+   */
+  { key: '`', glyph: '⌨', label: 'Console' },
   { key: 'g', glyph: '🤝', label: 'Give, trade or duel' },
   { key: 'k', glyph: '🧭', label: 'Party' },
   { key: 'l', glyph: '👥', label: 'Travellers' },

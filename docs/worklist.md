@@ -558,11 +558,25 @@ Things Chris hit on a real phone, in the order he hit them.
       sitting round a table in there to be talked to like anybody else.
 - [ ] A ship sailed straight through an island. Boats want to collide with a coastline — and getting
       on or off one should only be possible at a dock.
-- [ ] There is no way to open the console on a phone. It is tilde on a keyboard and nothing at all
-      on a thumb, so it wants a button in the touch rail.
-- [ ] Edge — and probably others — never goes full screen, so the browser's own chrome keeps a fifth
+- [x] There is no way to open the console on a phone. It is tilde on a keyboard and nothing at all
+      on a thumb, so it wants a button in the touch rail. *(In the extra-controls shelf rather than
+      the always-visible rail: you stop to type at a console, and the rail is already eight squares
+      wide on a screen 390 tall. Worth noting it is not the same door as the Chat button that was
+      already there — that one only opens in a shared world, so on a phone playing alone it was the
+      one thing that looked like a way to type and did nothing.)*
+- [x] Edge — and probably others — never goes full screen, so the browser's own chrome keeps a fifth
       of the glass. `takeTheScreen()` asks on the tap that enters a world; find out what it is
-      actually doing on those browsers rather than assuming the request was granted.
+      actually doing on those browsers rather than assuming the request was granted. *(It was doing
+      exactly what it was written to do: nothing. It returns immediately unless the screen is a
+      phone's — coarse pointer, and no side longer than 1100 — so on a desktop, and on a tablet,
+      the request was never made at all. That is right as a default: a page that grabs the whole
+      screen because somebody clicked a save slot is doing something it was not asked to. What was
+      missing is any way to ask, so there is now a Full screen button in the options, which works
+      wherever the browser will allow it and says "Leave full screen" once it has. It listens for
+      `fullscreenchange` too, because a player can leave with Escape or F11 and the button would
+      otherwise go on claiming the game was still full screen. Not verified in Edge itself — there
+      is no Edge on this machine — so if it still refuses there, the next thing to look at is
+      whether the request is reaching it at all.)*
 - [x] The world map does not light up the parts you have discovered — a black area that does not
       show properly. *(The remembering was right; the drawing was not. Each explored chunk was
       punched out of the fog as a hard rectangle, so the edge of the known world was a staircase
