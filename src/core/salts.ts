@@ -37,6 +37,7 @@ export const SALT = {
   MOUNTAINS: 0x3a17,        // where the massifs stand, and how high each one gets
   EYRIE: 0xea61,            // which crag each eagle waits on, and which way it faces
   SKY: 0x5c1e,              // which islands have another one floating over them, and its shape
+  LOCAL_ROAD: 0x10ad,       // how a road of the endless country bends, and how high it sits
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

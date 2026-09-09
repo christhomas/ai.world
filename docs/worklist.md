@@ -817,8 +817,14 @@ can each be finished and each leave the game playable.
       ground it can paint, so a box that misses the window cannot answer anything asked from inside
       it. `window.ts` holds those, and the third test is the one that matters — it fails if a window
       ever stops pruning, which would make the first two vacuous.)*
-- [ ] **B7b. Roads and towns from the local country.** The window's roads come from `localroads`
-      rather than from a `RoadGraph` grown to a radius. The seam test of B7a holds.
+- [x] **B7b. Roads and towns from the local country.** The window's roads come from `localroads`
+      rather than from a `RoadGraph` grown to a radius. *(`localgraph.ts`. Three answers had to stop
+      being global: where a road bends is hashed from the road's own name rather than drawn from one
+      stream of numbers in a fixed order; how high a crossroads sits is read off a field slow enough
+      that no road climbs more than a terrace, which is what smoothing along a spanning tree was
+      for; and there is no spanning tree, so `parent`, `depth` and `size` are left at what a lone
+      crossroads would have — the two things that read them, where a river rises and how big a
+      village grows, are B7d and B7e.)*
 - [ ] **B7c. Land and high country, locally.** Face kind from `localmesh`; `highlandLift`'s flood
       over every mountain face in the world becomes a bounded one, capped, giving the same answer
       whichever face it starts from.

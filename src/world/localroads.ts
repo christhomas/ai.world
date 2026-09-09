@@ -282,7 +282,7 @@ export function nameOf(seed: number, id: string): string {
 }
 
 /** A junction's name as a number, so it can be hashed. */
-function hashOfName(id: string): number {
+export function hashOfName(id: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < id.length; i++) {
     h ^= id.charCodeAt(i);
