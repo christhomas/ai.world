@@ -291,8 +291,23 @@ export function askClaude(): Plugin {
         });
       });
 
-      server.config.logger.info('  ➜  Builder: http://localhost:'
-        + `${server.config.server.port ?? 5173}/tools/character-builder.html  (a rig, and Claude to change it)`);
+      /*
+       * Where the builder actually is, said once the server knows.
+       *
+       * `config.server.port` is the port that was *asked for*, which is not where anything ends up
+       * when that port is taken — and on this machine 5173 is held by a virtual machine belonging
+       * to another project entirely, so the asked-for port and the real one differ routinely.
+       * Printing the wrong one is worse than printing nothing: you get an address, you open it, and
+       * the browser says it cannot reach the page, which reads as the tool being broken.
+       *
+       * `resolvedUrls` is filled in after the listener is bound, so this waits for that rather than
+       * guessing.
+       */
+      server.httpServer?.once('listening', () => {
+        const at = server.resolvedUrls?.local[0]?.replace(/\/$/, '');
+        if (!at) return;
+        server.config.logger.info(`  ➜  Builder: ${at}/tools/character-builder.html  (a rig, and Claude to change it)`);
+      });
     },
   };
 }

@@ -40,13 +40,25 @@ tasks:
   builder:
     desc: The character builder — every creature and every prop, with Claude on hand to change one
     vars:
-      PORT: '{{.WEB_PORT}}'
+      # Its own port, and not the game's. 5173 is what every Vite in the world reaches for first,
+      # so on any machine doing more than one thing it is the port most likely to be taken — here
+      # a virtual machine from an unrelated project holds it, and the builder inherited a clash it
+      # had no reason to be in. The tool a person opens least often should not be the one fighting
+      # for the busiest port.
+      PORT: '5273'
     args:
       - name: port
         desc: port to serve it on
     cmds:
-      - 'echo "the character builder is at http://localhost:{{.PORT}}/tools/character-builder.html"'
-      - 'pnpm vite --port {{.PORT}} --strictPort {{.CLI_ARGS}}'
+      # No `--strictPort`, and nothing echoed here. Both were mistakes and they made the same one:
+      # 5173 on this machine is held by a virtual machine from an unrelated project, so the port
+      # asked for is routinely not the port you get. With `--strictPort` the server simply died,
+      # after this line had already printed an address for it — so you were handed a URL that could
+      # never work and a browser saying it could not reach the page.
+      #
+      # Vite moves to the next free port on its own, and prints where it landed. `askclaude.ts`
+      # prints the builder's own address from the bound listener, once there is one to print.
+      - 'pnpm vite --port {{.PORT}} {{.CLI_ARGS}}'
 
   world:
     desc: The world server alone, holding what players share
