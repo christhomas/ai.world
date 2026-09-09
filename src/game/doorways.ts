@@ -37,12 +37,16 @@ const DOOR = {
   /**
    * And half its thickness, through the wall.
    *
-   * Wider than the leaf itself. The wall it is cut into is solid now, and stops a walker at 1.26
-   * from the middle of the house — so a threshold measured to the leaf's own eight hundredths would
-   * leave a band of ground barely wider than a step to stand in. This reaches out to where somebody
-   * walking at the door can actually get.
+   * Wider than the leaf itself, and wider again since a walker began colliding as a body rather
+   * than as a point: the wall stops a hero at 1.26 from the middle of the house *plus his own half
+   * width*, so the nearest his middle can get to the leaf is a fifth of a tile further out than it
+   * used to be. Measured to the leaf's own eight hundredths, the band of ground where a door can be
+   * touched had shrunk to less than a stride, and walking at a door became a thing you could do
+   * three times and miss.
+   *
+   * So this reaches from the leaf out to where a body can actually stand.
    */
-  THICK: 0.16,
+  THICK: 0.34,
   /**
    * Half the hero, across the shoulders.
    *

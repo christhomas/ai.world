@@ -68,6 +68,7 @@ import { createMeeting } from './game/meeting';
 import { createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
 import { growCountry } from './game/country';
+import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
@@ -135,6 +136,10 @@ function startGame(
     graph, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
     eyries, skyIsles, skyRenderer,
   } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  // the page's half of getting the country: what it kept first, and the world for the rest
+  const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
+    chunks, sampler, seed, world, want: (wanted) => online.wantChunks(wanted),
+  });
   const hud = new Hud(rig, seed);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
   hud.onQualityChange = (level) => {
@@ -375,6 +380,14 @@ function startGame(
     // a command from whoever operates this world goes to the same bus a console does
     runCommand: (line, issuer) => { commands.run(line, issuer); },
     ...heeding,
+    /*
+     * A piece of the world, arriving as bytes.
+     *
+     * Unpacked only far enough to know where it belongs; the drawing of it is a worker's business
+     * and the keeping of it is the store's. A chunk for country the player has already walked away
+     * from is dropped by the chunk manager, which is the only thing here that knows where they are.
+     */
+    onParcel,
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
@@ -627,7 +640,7 @@ function startGame(
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-      commandWorld, placeName, walking, bites, doorsteps,
+      commandWorld, placeName, walking, bites, doorsteps, streamTally,
       drift: () => wildlife.drift(),
       pods: watch.pods,
       nettleAbout: watch.nettleAbout,
@@ -654,7 +667,7 @@ function startGame(
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
-    noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, areaName,
+    noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, streamCountry, areaName,
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,
     tickDialogue: (dt) => dialogue.update(dt),

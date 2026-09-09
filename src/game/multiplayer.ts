@@ -88,6 +88,8 @@ export interface MultiplayerContext {
   runCommand: (line: string, issuer: string) => void;
   /** The creatures the world says are near, and the ones that have gone from sight. */
   onCreatures: (place: string, near: CreatureSnap[], gone: number[]) => void;
+  /** A piece of the world itself, in bytes: the ground this page asked for. */
+  onParcel?: (bytes: ArrayBuffer) => void;
   /** One of the world's creatures died; `mine` says whether we killed it. */
   onCreatureKilled: (place: string, id: number, mine: boolean) => void;
   /** One of the world's creatures bit us: work out what that costs, the way a bite always did. */
@@ -144,6 +146,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onDelta: (delta, catchingUp) => applyWorldDelta(delta, catchingUp),
     onCommand: (line, issuer) => ctx.runCommand(line, issuer),
     onCreatures: (place, near, gone) => ctx.onCreatures(place, near, gone),
+    onParcel: (bytes) => ctx.onParcel?.(bytes),
     onCreatureKilled: (place, id, mine) => ctx.onCreatureKilled(place, id, mine),
     onBitten: (place, id, damage) => ctx.onBitten(place, id, damage),
     onWorldSilent: () => ctx.onWorldSilent(),

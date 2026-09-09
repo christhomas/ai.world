@@ -475,6 +475,19 @@ export class Online {
   }
 
   /** Tell everyone about something we changed in the world. */
+  /**
+   * Ask the world for pieces of itself.
+   *
+   * Only what this page does not have: ground it kept from an earlier visit is ground it would be
+   * sent again, so a page walking country it has walked before says nothing at all. Silence when
+   * there is nobody to ask, which is what playing alone with the world in the next thread is not —
+   * there is always somebody to ask, and that is the point of hosting the simulation twice.
+   */
+  wantChunks(chunks: Array<[number, number]>): void {
+    if (chunks.length === 0 || !this.connected) return;
+    this.send({ type: 'want-chunks', chunks });
+  }
+
   report(delta: WorldDelta): void {
     if (this.connected) this.send({ type: 'delta', delta });
   }

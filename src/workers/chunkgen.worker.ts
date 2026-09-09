@@ -5,6 +5,7 @@ import { TerrainSampler } from '../world/terrain';
 import { buildChunkMesh } from '../world/mesher';
 import { tilesOf } from '../world/tiles';
 import { PropKind } from '../world/biomes';
+import { unpackChunk } from '../world/chunkparcel';
 import type { WorkerRequest, WorkerResponse } from '../world/messages';
 
 let sampler: TerrainSampler | null = null;
@@ -21,7 +22,15 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   }
   if (!sampler) return;
   const { cx, cz, id } = msg;
-  const chunk = sampler.generateChunk(cx, cz);
+  /*
+   * The ground either came from the world or is grown here.
+   *
+   * Grown here is the older way and stays as the answer for when there is nothing to ask — a page
+   * whose world has not answered yet should draw the country rather than stand in the dark. What
+   * arrives from the world is preferred wherever it exists, because a country both halves grew
+   * separately is two countries.
+   */
+  const chunk = msg.type === 'mesh' ? unpackChunk(msg.chunk) ?? sampler.generateChunk(cx, cz) : sampler.generateChunk(cx, cz);
   const meshes = buildChunkMesh(chunk, sampler.seed);
   if (!meshes.land) {
     post({ type: 'chunk', id, cx, cz, empty: true });

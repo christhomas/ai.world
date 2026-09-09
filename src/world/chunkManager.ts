@@ -31,8 +31,20 @@ interface LoadedChunk {
 /** How far a mountain has to stand above a tile before nothing belongs there, in world units. */
 const BURIED_BY = 1.5;
 
+/**
+ * How long a chunk waits for the world before the page grows its own, in milliseconds.
+ *
+ * Long enough for the world in the next thread, which answers in a frame or two, and for a server
+ * on the far side of a room. Short enough that a player never sees the wait: a fifth of a second of
+ * ground that is not there yet is ground at the edge of what is drawn, arriving as they walk toward
+ * it.
+ */
+const WAIT_FOR_THE_WORLD = 200;
+
 export class ChunkManager implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, LoadedChunk>();
+  /** Ground the world has sent, waiting for a worker to draw it. */
+  private readonly sent = new Map<string, ArrayBuffer>();
   /**
    * What is standing in the world, as boxes: one index for all of it rather than one per chunk.
    *
@@ -47,7 +59,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
   private readonly pending = new Map<string, number>();  // key → job id
   private readonly workers: Worker[] = [];
   private readonly idle: Worker[] = [];
-  private readonly queue: Array<{ cx: number; cz: number }> = [];
+  private readonly queue: Array<{ cx: number; cz: number; since: number }> = [];
   private nextId = 1;
   private focusCx = Number.NaN;
   private focusCz = Number.NaN;
@@ -121,7 +133,9 @@ export class ChunkManager implements TileWorld, ChunkSource {
     this.queue.length = 0;
     for (const { dx, dz } of this.offsets) {
       const k = chunkKey(cx + dx, cz + dz);
-      if (!this.loaded.has(k) && !this.pending.has(k)) this.queue.push({ cx: cx + dx, cz: cz + dz });
+      if (!this.loaded.has(k) && !this.pending.has(k)) {
+        this.queue.push({ cx: cx + dx, cz: cz + dz, since: performance.now() });
+      }
     }
     for (const [k, c] of this.loaded) {
       if (Math.max(Math.abs(c.cx - cx), Math.abs(c.cz - cz)) > WORLD.UNLOAD_RADIUS) {
@@ -144,13 +158,64 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   private pump(): void {
     if (this.paused) return;
-    while (this.idle.length > 0 && this.queue.length > 0) {
-      const job = this.queue.shift()!;
+    const now = performance.now();
+    for (let at = 0; at < this.queue.length && this.idle.length > 0;) {
+      const job = this.queue[at];
+      const key = chunkKey(job.cx, job.cz);
+      /*
+       * The world gets first refusal, and only for a moment.
+       *
+       * Both halves grow this country from the seed, so the ground the world sends is the ground
+       * that should be drawn — but a page that stood and waited for it would be a page staring at
+       * nothing every time a socket hiccupped. So a chunk waits a breath for the world and is grown
+       * here if nothing comes: the country is right when the world answers and present when it does
+       * not.
+       */
+      if (!this.sent.has(key) && now - job.since < WAIT_FOR_THE_WORLD) { at++; continue; }
+      this.queue.splice(at, 1);
       const w = this.idle.pop()!;
       const id = this.nextId++;
-      this.pending.set(chunkKey(job.cx, job.cz), id);
-      w.postMessage({ type: 'gen', id, cx: job.cx, cz: job.cz } satisfies WorkerRequest);
+      this.pending.set(key, id);
+      /*
+       * The ground the world sent, if it has sent it, and otherwise our own.
+       *
+       * Both halves grow this country from the seed, which is why they can be in different ones —
+       * so where the world's own ground is to hand it is what gets drawn, and the page's generator
+       * becomes what it should always have been: the thing that keeps the game playable while the
+       * world is still answering.
+       */
+      const sent = this.sent.get(key);
+      if (sent) {
+        this.sent.delete(key);
+        w.postMessage({ type: 'mesh', id, cx: job.cx, cz: job.cz, chunk: sent } satisfies WorkerRequest, [sent]);
+      } else {
+        w.postMessage({ type: 'gen', id, cx: job.cx, cz: job.cz } satisfies WorkerRequest);
+      }
     }
+  }
+
+  /**
+   * A chunk of country the world has sent, or one read back out of what this page kept.
+   *
+   * Held until the chunk is meshed rather than meshed at once, because what is drawn is decided by
+   * where the player is: ground that arrives for somewhere they have already walked away from is
+   * ground nobody needs. It is dropped on the same rule as everything else here.
+   */
+  deliver(cx: number, cz: number, bytes: ArrayBuffer): void {
+    const far = Math.max(Math.abs(cx - this.focusCx), Math.abs(cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
+    if (far) return;
+    this.sent.set(chunkKey(cx, cz), bytes);
+    this.pump();
+  }
+
+  /** Which chunks this page would like the world to send, of those it is waiting on. */
+  wanted(): Array<[number, number]> {
+    const out: Array<[number, number]> = [];
+    for (const job of this.queue) {
+      if (this.sent.has(chunkKey(job.cx, job.cz))) continue;
+      out.push([job.cx, job.cz]);
+    }
+    return out;
   }
 
   private onMessage(w: Worker, msg: WorkerResponse): void {

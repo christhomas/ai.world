@@ -95,6 +95,8 @@ export interface Probed {
   walking: { answers: number; corrections: number; worst: number };
   /** The doorstep watcher, so a test can say why a door did or did not open. */
   doorsteps: { ready: boolean; resting: number };
+  /** What the country streaming has done: waiting on, asked for, read back, arrived. */
+  streamTally: { asked: number; kept: number; arrived: number; wanted: number };
   /** How far behind the world the drawn creatures are, in tiles. */
   drift: () => Drift;
   /** What has bitten the hero lately, and how far off the biter was drawn. */
@@ -111,7 +113,8 @@ export function installProbes(ctx: Probed): void {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, heard, nettleAbout, sentOut,
+    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally,
+    heard, nettleAbout, sentOut,
   } = ctx;
 
   const debug = window as unknown as {
@@ -195,6 +198,8 @@ export function installProbes(ctx: Probed): void {
       armed: doorsteps.ready,
     };
   };
+  // where the ground is coming from: the world, or what this page kept
+  Object.defineProperty(debug, '__stream', { configurable: true, get: () => ({ ...streamTally }) });
   Object.defineProperty(debug, '__wire', {
     configurable: true,
     get: () => ({ sent: Object.fromEntries(online.tally.sent), heard: Object.fromEntries(online.tally.heard) }),

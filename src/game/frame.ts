@@ -135,6 +135,8 @@ export interface Framing {
   markers: () => Parameters<Minimap['draw']>[3];
   /** Walking into a door goes in. Asked once a frame, out of doors, after the hero has moved. */
   doorsteps: { step: (hero: { x: number; z: number }, dt: number) => void };
+  /** Fetch the ground this page has not got: from what it kept, or by asking the world for it. */
+  streamCountry: () => void;
   /** Is a conversation up? It pauses the world the way the full-screen map does. */
   talking: () => boolean;
   /** A conversation types itself out a letter at a time, so it has a clock of its own. */
@@ -158,7 +160,7 @@ export function createFrame(ctx: Framing) {
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
     sailFerries, ageCamps, runClock, carcasses, noticeStall, musterHires, startTalk, updateHud,
-    mapInput, markers, doorsteps, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
+    mapInput, markers, doorsteps, streamCountry, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
     reveal, refreshJournal,
   } = ctx;
 
@@ -352,6 +354,8 @@ export function createFrame(ctx: Framing) {
     // decide which props are worth handing to the GPU, so it has to be said before it is asked
     rig.follow(x, z, iso.zoom);
     chunks.update(x, z);
+    // and the country itself: what this page is missing, from what it kept or from the world
+    streamCountry();
     // and the sea reads the ground back, so its waves come in parallel to whatever coast is here
     rig.seaAround(x, z, chunks);
     // season and weather: both derived from the day counter and the biome underfoot
