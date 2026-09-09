@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
@@ -32,6 +33,19 @@ import { TerrainSampler } from './terrain';
  * and the only things in it are the two under test, so a failure names the pair rather than the
  * afternoon.
  */
+
+/**
+ * What the run says about itself, printed at the end.
+ *
+ * The point of this bench is that a machine can answer "is the collision still right" without
+ * anybody watching it happen. That only works if the run says what it covered as well as whether it
+ * passed: a green suite that quietly stopped testing thirty creatures is worse than a red one.
+ */
+const covered: string[] = [];
+const report = (line: string): void => { covered.push(line); };
+
+/** Where the run leaves its account of itself. Printed by `pnpm collisions`. */
+const REPORT = '.collisions.txt';
 
 /** Ground that goes on for ever at one height, with whatever has been put on it. */
 function field(solids: Solids): TileWorld {
@@ -100,24 +114,153 @@ const SPEEDS: Array<{ what: string; dt: number; pace: number }> = [
   { what: 'a courser at full gallop', dt: 0.25, pace: 3.5 },
 ];
 
+/** Where somebody was, move by move. */
+type Trace = Array<{ x: number; z: number }>;
+
 /**
- * Walk somebody at a point until they stop getting closer, and say where they ended up.
+ * Walk somebody at a point until they stop getting anywhere, keeping every position on the way.
+ *
+ * The trace is the whole point. Asking where a walk *ended* misses the fault that matters most:
+ * something that goes clean through a wall and out the far side ends up on open ground, having
+ * passed through the thing it was supposed to hit, and looks from the outside exactly like
+ * something that walked round it. Every move is kept so that every move can be asked about.
  *
  * The step count is worked out from how fast this one actually is rather than fixed, because the
  * bench holds a bear at 0.8 tiles a second and a hero at 5.5: a count that suits one of them has
  * the other still ambling across open ground when the test looks, which reads as "held off by
  * something" and is nothing of the kind.
  */
-function walkAt(world: TileWorld, e: Entity, dx: number, dz: number, dt: number, pace: number): void {
+function walkAt(world: TileWorld, e: Entity, dx: number, dz: number, dt: number, pace: number): Trace {
   const far = Math.hypot(e.x, e.z) + 2;
   const perStep = Math.max(1e-6, e.kind.speed * pace * Math.min(dt, 0.25));
   const steps = Math.min(4000, Math.ceil((far / perStep) * 1.5) + 20);
+  const trace: Trace = [{ x: e.x, z: e.z }];
   for (let n = 0; n < steps; n++) {
     const before = { x: e.x, z: e.z };
     stride(world, e, { dx, dz, pace, dt });
-    if (Math.hypot(e.x - before.x, e.z - before.z) < 1e-4) return;
+    trace.push({ x: e.x, z: e.z });
+    if (Math.hypot(e.x - before.x, e.z - before.z) < 1e-4) break;
   }
+  return trace;
 }
+
+/**
+ * The bench's own answer to "did that move go through this box", owing nothing to the engine.
+ *
+ * Written here rather than borrowed from `solids.ts` on purpose: a test that checks the engine by
+ * asking the engine agrees with itself by construction. This is the same slab clip stated
+ * independently, and the two disagreeing is exactly the news worth having.
+ *
+ * The box is shrunk by a whisker first, because a walker held against a wall slides along its face
+ * and every one of those moves lies exactly on the boundary. Touching a wall is what stopping looks
+ * like; the fault is getting *into* it.
+ */
+const SKIN = 0.02;
+
+function wentInto(box: { hw: number; hd: number }, rot: number, from: { x: number; z: number }, to: { x: number; z: number }): boolean {
+  const hw = box.hw - SKIN, hd = box.hd - SKIN;
+  if (hw <= 0 || hd <= 0) return false;
+  const cos = Math.cos(-rot), sin = Math.sin(-rot);
+  const ax = from.x * cos - from.z * sin, az = from.x * sin + from.z * cos;
+  const bx = to.x * cos - to.z * sin, bz = to.x * sin + to.z * cos;
+  let lo = 0, hi = 1;
+  for (const [start, end, half] of [[ax, bx, hw], [az, bz, hd]] as const) {
+    const d = end - start;
+    if (Math.abs(d) < 1e-9) {
+      if (Math.abs(start) > half) return false;
+      continue;
+    }
+    const near = (-half - start) / d, far = (half - start) / d;
+    lo = Math.max(lo, Math.min(near, far));
+    hi = Math.min(hi, Math.max(near, far));
+    if (lo > hi) return false;
+  }
+  return true;
+}
+
+/**
+ * Did this walk ever get inside the thing it was walking at?
+ *
+ * Two ways of asking, and which one is right depends on whether the mover could have slid.
+ *
+ * A move that is refused outright is retried along each axis on its own, so a walker pressed into a
+ * wall at an angle travels along it in a staircase of little slices. The straight line between two
+ * recorded positions then cuts the corner the walker actually went round — the chord is not the
+ * path, and testing the chord reports a wall-slide as a wall-crossing. Every one of the first
+ * failures this bench produced was that, and the engine was right each time.
+ *
+ * Coming straight at a thing, sliding cannot happen: the sideways component is nought, so the
+ * chord is the path and a segment test is exact. That is where the fault that matters most can be
+ * caught — a step longer than the wall it is walking into, which ends up on clear ground the far
+ * side and looks from the outside exactly like walking round.
+ *
+ * So: square on, the whole segment; at an angle, every position it was actually recorded at.
+ *
+ * A walk that starts inside something is a different case with its own tests, so it is skipped.
+ */
+function passedThrough(
+  box: { hw: number; hd: number }, rot: number, trace: Trace, sliding: boolean,
+): { at: number; from: { x: number; z: number }; to: { x: number; z: number } } | null {
+  if (wentInto(box, rot, trace[0], trace[0])) return null;
+  for (let n = 1; n < trace.length; n++) {
+    const from = sliding ? trace[n] : trace[n - 1];
+    if (wentInto(box, rot, from, trace[n])) return { at: n, from: trace[n - 1], to: trace[n] };
+  }
+  return null;
+}
+
+/**
+ * How deeply two turned boxes are inside each other, in tiles.
+ *
+ * Nought when they are apart or exactly touching. Otherwise the least distance either of them would
+ * have to move to be apart again — the separating axis theorem, on the four axes two rectangles
+ * have between them, which is exact for rectangles.
+ *
+ * This is the measurement the eye makes. The engine collides a walker as a *point*, so a horse
+ * nearly two tiles long stops with its middle at the wall and its nose in the plaster: the point is
+ * outside and the model is not. Both are worth knowing and they are different questions, so this
+ * answers the second one and `wentInto` answers the first.
+ */
+function overlap(
+  a: { hw: number; hd: number }, ax: number, az: number, aRot: number,
+  b: { hw: number; hd: number }, bx: number, bz: number, bRot: number,
+): number {
+  const axes = [aRot, aRot + Math.PI / 2, bRot, bRot + Math.PI / 2];
+  const dx = bx - ax, dz = bz - az;
+  let least = Infinity;
+  for (const angle of axes) {
+    const ux = Math.cos(angle), uz = Math.sin(angle);
+    // each box's reach along this axis, and how far apart their middles are along it
+    const reachA = Math.abs(a.hw * Math.cos(aRot - angle)) + Math.abs(a.hd * Math.sin(aRot - angle));
+    const reachB = Math.abs(b.hw * Math.cos(bRot - angle)) + Math.abs(b.hd * Math.sin(bRot - angle));
+    const apart = Math.abs(dx * ux + dz * uz);
+    const into = reachA + reachB - apart;
+    if (into <= 0) return 0;                 // a gap on any axis is a gap
+    least = Math.min(least, into);
+  }
+  return least;
+}
+
+/**
+ * What a pair did to each other: nothing, a graze, or one standing in the other.
+ *
+ * Low-polygon models are not their boxes and a hair of overlap is what standing next to something
+ * looks like, so a little is `touching` and is reported rather than failed. Deep is `intersected`,
+ * which is two models sitting on top of each other, and that is a fault whatever the arithmetic
+ * says.
+ */
+const TOUCH = 0.06;
+const SUNK = 0.3;
+
+type Verdict = 'passed' | 'touching' | 'intersected';
+
+function verdictOf(depth: number): Verdict {
+  if (depth <= TOUCH) return 'passed';
+  return depth <= SUNK ? 'touching' : 'intersected';
+}
+
+/** Straight along an axis, where a refused move has nowhere to slide to. */
+const squareOn = (dx: number, dz: number): boolean => dx === 0 || dz === 0;
 
 /** The props worth putting on a bench, and what each of them is a case of. */
 const SOLIDS: Array<{ what: string; kind: PropKind }> = [
@@ -161,12 +304,17 @@ describe('walking into things, on a bench with nothing else in it', () => {
               // start well clear, on the far side of whichever way we are walking
               const from = 5;
               const e = walker(id, -dx * from, -dz * from);
-              walkAt(world, e, dx, dz, dt, pace);
-              const inside = world.blocked(e.x, e.z);
+              const trace = walkAt(world, e, dx, dz, dt, pace);
+              const through = passedThrough(box, rot, trace, !squareOn(dx, dz));
               // how far the box reaches back along the way we came, which is the wall we should meet
               const wall = reach(box, rot, -dx, -dz);
               const got = -(e.x * dx + e.z * dz);   // how far short of the middle we stopped
-              if (inside) failures.push(`${id} ended inside ${what} coming from ${dx},${dz} at ${speed}`);
+              const inside = through !== null;
+              if (through) {
+                failures.push(`${id} went through ${what} on move ${through.at} of ${trace.length}, `
+                  + `${through.from.x.toFixed(2)},${through.from.z.toFixed(2)} to ${through.to.x.toFixed(2)},${through.to.z.toFixed(2)}, `
+                  + `coming from ${dx},${dz} at ${speed}`);
+              }
               // and not stopped by nothing: a stride short of the wall is as far as anybody should
               // be held off, and the sweep works in slices of a fifth of a tile
               if (!inside && got > wall + 0.45) {
@@ -175,6 +323,7 @@ describe('walking into things, on a bench with nothing else in it', () => {
             }
           }
         }
+        report(`${WALKERS.length * APPROACHES.length * SPEEDS.length} walks: ${what}, turned ${Math.round((rot * 180) / Math.PI)}°, eight sides, three speeds`);
         expect(failures.slice(0, 6), `${failures.length} of ${WALKERS.length * APPROACHES.length * SPEEDS.length}`).toEqual([]);
       });
     }
@@ -186,6 +335,8 @@ describe('the whole matrix: everything that walks, into everything solid', () =>
     expect(EVERY_MOVER.length, 'nothing to walk with').toBeGreaterThan(20);
     expect(EVERY_SOLID.length, 'nothing to walk into').toBeGreaterThan(30);
     const failures: string[] = [];
+    const models: Record<Verdict, number> = { passed: 0, touching: 0, intersected: 0 };
+    const sunk: Array<{ mover: string; into: PropKind; depth: number; from: string }> = [];
     let cases = 0;
     for (const kind of EVERY_SOLID) {
       const { world, box } = standing(kind, 0);
@@ -193,12 +344,51 @@ describe('the whole matrix: everything that walks, into everything solid', () =>
         for (const [dx, dz] of APPROACHES.slice(0, 4)) {
           cases++;
           const e = walker(id, -dx * 5, -dz * 5);
-          walkAt(world, e, dx, dz, 1 / 60, 1);
-          if (world.blocked(e.x, e.z)) failures.push(`${id} ended inside prop ${kind} coming from ${dx},${dz}`);
+          const trace = walkAt(world, e, dx, dz, 1 / 60, 1);
+          const through = passedThrough(box, 0, trace, !squareOn(dx, dz));
+          if (through) {
+            failures.push(`${id} went through prop ${kind} on move ${through.at}, `
+              + `${through.from.x.toFixed(2)},${through.from.z.toFixed(2)} to ${through.to.x.toFixed(2)},${through.to.z.toFixed(2)}, from ${dx},${dz}`);
+          }
+          // and what the models did, which is a different question from what the points did
+          const body = bodyOf(KINDS[id]);
+          let worst = 0;
+          for (const at of trace) worst = Math.max(worst, overlap(body, at.x, at.z, e.yaw, box, 0, 0, 0));
+          const verdict = verdictOf(worst);
+          models[verdict]++;
+          if (verdict === 'intersected' && sunk.length < 200) {
+            sunk.push({ mover: id, into: kind, depth: worst, from: `${dx},${dz}` });
+          }
           const wall = reach(box, 0, -dx, -dz);
           const got = -(e.x * dx + e.z * dz);
           if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off prop ${kind} whose wall is at ${wall.toFixed(2)}`);
         }
+      }
+    }
+    report(`${cases} walks: every one of ${EVERY_MOVER.length} movers into every one of ${EVERY_SOLID.length} solids, from four sides`);
+    report(`  of those, as models rather than points: ${models.passed} passed, ${models.touching} touching, ${models.intersected} intersected`);
+    /*
+     * The second number is a fact about the game rather than a fault in it, and it is written down
+     * here so that it cannot get quietly worse.
+     *
+     * A walker collides as a *point*. Its middle is stopped at the wall and the model it is drawn
+     * as goes on into the plaster: a bear is 1.2 tiles across the shoulders, so a bear standing
+     * against an oak is a bear a fifth of the way inside it. Nothing walks *through* anything —
+     * that is what the point tests above prove — but plenty of things stand in each other.
+     *
+     * Fixing it is one line of arithmetic in the wrong direction: stopping a body rather than a
+     * point means growing every box by the walker's own width, which is the difference between a
+     * wood you can pick your way through and a wood that is a wall. That is a change to how the
+     * game feels and it belongs to whoever is playing it, not to a test. So the test holds the
+     * line: this may not get worse without somebody saying so.
+     */
+    expect(models.intersected, 'more models are standing inside things than were').toBeLessThanOrEqual(3128);
+    expect(sunk.reduce((most, one) => Math.max(most, one.depth), 0), 'and none of them deeper')
+      .toBeLessThanOrEqual(1.3);
+    if (sunk.length > 0) {
+      const worst = [...sunk].sort((a, b) => b.depth - a.depth).slice(0, 6);
+      for (const one of worst) {
+        report(`  deepest: a ${one.mover} sank ${one.depth.toFixed(2)} tiles into prop ${one.into} coming from ${one.from}`);
       }
     }
     expect(failures.slice(0, 8), `${failures.length} failures across ${cases} pairs`).toEqual([]);
@@ -245,6 +435,7 @@ describe('two things that both move', () => {
         }
       }
     }
+    report(`${EVERY_MOVER.length ** 2 * 2} walks: every mover into every mover, from two sides`);
     expect(failures.slice(0, 6), `${failures.length} of ${EVERY_MOVER.length ** 2 * 2} pairs`).toEqual([]);
   });
 
@@ -358,14 +549,19 @@ describe('the furniture of a room, against everything that walks', () => {
         for (const [dx, dz] of APPROACHES.slice(0, 4)) {
           cases++;
           const e = walker(id, -dx * 4, -dz * 4);
-          walkAt(world, e, dx, dz, 1 / 60, 1);
-          if (world.blocked(e.x, e.z)) failures.push(`${id} ended inside furniture ${kind} from ${dx},${dz}`);
+          const through = passedThrough({ hw: Math.max(box.hw, MIN_BLOCK), hd: Math.max(box.hd, MIN_BLOCK) }, 0,
+            walkAt(world, e, dx, dz, 1 / 60, 1), !squareOn(dx, dz));
+          if (through) {
+            failures.push(`${id} went through furniture ${kind} on move ${through.at}, `
+              + `${through.from.x.toFixed(2)},${through.from.z.toFixed(2)} to ${through.to.x.toFixed(2)},${through.to.z.toFixed(2)}, from ${dx},${dz}`);
+          }
           const wall = reach({ hw: Math.max(box.hw, MIN_BLOCK), hd: Math.max(box.hd, MIN_BLOCK) }, 0, -dx, -dz);
           const got = -(e.x * dx + e.z * dz);
           if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off furniture ${kind}, whose edge is at ${wall.toFixed(2)}`);
         }
       }
     }
+    report(`${cases} walks: three bodies into every one of ${EVERY_STICK.length} solid sticks of furniture`);
     expect(failures.slice(0, 6), `${failures.length} of ${cases}`).toEqual([]);
   });
 
@@ -422,8 +618,36 @@ describe('the things that do not move, against each other', () => {
         }
       }
     }
+    report(`${buildings} buildings checked for anything planted inside them`);
     expect({ enough: buildings > 5, inside: inside.slice(0, 5) }, `${buildings} buildings, ${inside.length} of them inside something`)
       .toEqual({ enough: true, inside: [] });
     expect(CS).toBe(16);
+  });
+});
+
+/**
+ * What the run covered, said out loud.
+ *
+ * Last on purpose: by the time this runs, every case above has reported what it walked. A green
+ * suite that has quietly stopped testing thirty creatures is worse than a red one, so the run
+ * prints its own scope and fails if the scope has collapsed.
+ */
+describe('what this bench covered', () => {
+  it('says so, and is still the size it should be', () => {
+    const walks = covered
+      .map((line) => Number(line.match(/^(\d+) walks/)?.[1] ?? 0))
+      .reduce((a, b) => a + b, 0);
+    /*
+     * Written to a file rather than logged, because a passing test's output is swallowed and the
+     * whole point of this is the run that passes. `pnpm collisions` prints it; a pipeline can keep
+     * it as the artefact that says what was signed off.
+     */
+    writeFileSync(REPORT, [
+      `collision bench — ${walks} walks`,
+      ...covered.map((l) => `  · ${l}`),
+      '',
+    ].join('\n'));
+    expect(covered.length, 'the bench stopped reporting what it did').toBeGreaterThan(20);
+    expect(walks, 'the bench has shrunk to nothing').toBeGreaterThan(5000);
   });
 });
