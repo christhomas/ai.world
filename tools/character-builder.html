@@ -193,10 +193,16 @@ const KITS = [
   ['as he starts', []],
   ['in mail', ['mail', 'helm', 'greaves', 'sword', 'ironshield']],
   ['in plate', ['plate', 'helm', 'greaves', 'sword', 'ironshield']],
+  // the tools, which are the half of the gear nobody could look at: a pick had a price and an
+  // ability for a long time before it had a shape, and nothing had ever drawn one in a hand
+  ['at work', ['pick']],   // a tool rather than equipment: it goes into the hand, not into a slot
 ];
 
 /** The header the dev-server route wants. Its value is nothing; being able to send it is the point. */
 const KNOCK = { 'x-ai-world-builder': '1' };
+
+/** The things that go in a hand without going in a slot. */
+const TOOLS = new Set(['pick', 'shovel', 'saw', 'rod', 'firerocks']);
 
 const el = (id) => document.getElementById(id);
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -321,19 +327,22 @@ function buildRig(kind, hidden, tints) {
 function dress(kind, wearing) {
   const gear = new HeroGear(scene);
   const state = GameState.fresh();
-  for (const id of wearing) { state.give(id, 1); state.equip(id); }
+  // a tool has no slot and cannot be equipped — `items.ts` says why — so it is passed as the thing
+  // in his hand instead, which is how the game shows somebody at work rather than somebody armed
+  const tool = wearing.find((id) => TOOLS.has(id)) ?? null;
+  for (const id of wearing) { if (!TOOLS.has(id)) { state.give(id, 1); state.equip(id); } }
   const hero = {
     x: 0, y: 0, z: 0, yaw: 0, bobY: 0, kind, hiddenTags: new Set(),
     walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0, dying: 0,
     basePalette: kind.palettes[0], tints: [...kind.palettes[0]],
   };
   // version 0 on a fresh state matches the gear's own -1 only after one update, so ask twice
-  gear.update(state, hero, false);
+  gear.update(state, hero, false, tool);
   state.version++;
-  gear.update(state, hero, false);
+  gear.update(state, hero, false, tool);
   // the state goes back as well as the gear: the frame loop keeps updating one from the other, and
   // handing it a second fresh state would look like a change of clothes and undress him
-  return { gear, hero, state };
+  return { gear, hero, state, tool };
 }
 
 /** What is on screen now, so that it can be taken off screen again without leaking it. */
@@ -385,7 +394,7 @@ function show(id) {
   // as wide and as deep as the world will make it block, where its feet are
   footprint.scale.set(kind.body.hw * 2, kind.body.hd * 2, 1);
 
-  standing = { kind, figure, moving, mover, lift, gear: dressed?.gear ?? null, state: dressed?.state ?? null };
+  standing = { kind, figure, moving, mover, lift, gear: dressed?.gear ?? null, state: dressed?.state ?? null, tool: dressed?.tool ?? null };
   frame(box);
   describe(kind);
   el('framing').textContent = framing(kind);
@@ -628,7 +637,9 @@ function tick(now) {
     const body = bodyMotion(e);
     standing.figure.position.y = standing.lift + body.bob * e.kind.scale;
     standing.figure.rotation.set(body.roll, 0, body.lean, 'ZXY');
-    if (standing.gear && standing.state) standing.gear.update(standing.state, e, false);
+    // the tool goes back in every frame: `update` takes what is held as an argument rather than
+    // reading it off the save, so a frame that forgets to say it is a frame that empties the hand
+    if (standing.gear && standing.state) standing.gear.update(standing.state, e, false, standing.tool ?? null);
   }
   controls.update();
   renderer.render(scene, camera);

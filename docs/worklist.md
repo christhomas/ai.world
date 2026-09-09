@@ -1415,3 +1415,50 @@ can each be finished and each leave the game playable.
       the next — the altitude is written in the facts instead. The walk is the game's own
       `cycleTurn` and `bodyMotion` rather than an imitation, which is what catches the arm that only
       passes through a hip at the top of a stride.)*
+
+## The people should not all be the same person
+
+Every villager in this game is the same sixteen boxes in different trousers. Up close that is fine —
+you can read their names — and at the distance this camera watches a street from it means a village
+is a crowd of one man repeated. The trades are all simulated and none of them is visible: eleven
+behaviour trees, each with its own working day, and nothing on the screen says which is which.
+
+Written down together because they are one job, and because the model files that landed tonight are
+what makes it a small one — a creature is `models/creatures/<id>.json` now, so a new sort of person
+is a file rather than a pull request.
+
+- [ ] **Body types.** Fat villagers, thin ones, broad ones. The `biped` generator takes a palette and
+      nothing about the shape of the person wearing it, so every body is identical. This is the one
+      that has to come first, because every model below is built on it.
+- [ ] **A miner**, with a yellow hard hat like a construction worker, and a pickaxe in his hands.
+      *(Half done: `pick` now has a model and `HeroGear` can draw a tool in a hand, which it never
+      could before — a tool has no equipment slot and deliberately so. What is left is the man.)*
+- [ ] **Swing a pickaxe.** `animations/motion.json` already has a `swing` blow, so the motion exists;
+      what does not is a villager at a rock face using it as work rather than as a fight.
+- [ ] **A farmer**, and a cowboy for the farmer who keeps the stable.
+- [ ] **A priest** for the church, who already exists as a person — `places.ts` gives the chapel
+      keeper `trade = 'priest'` — and is drawn as an ordinary shopkeeper.
+- [ ] **A doctor.**
+- [ ] **A constable**, so the law is recognisable before it reaches you.
+- [ ] **A mayor**, with a hat like Henry the Eighth's. The town hall has a clerk in it as of tonight
+      and nobody the town would call its head.
+- [ ] **A miner has no behaviour tree at all.** `behaviours/villagers.json` has eleven — innkeeper,
+      seller, farmer, hunter, constable, doctor, soldier, hired, sailor, climber, explorer — and
+      `miner` is not among them, so a villager whose trade is mining does not go mining. Found while
+      looking for the swing.
+
+## Draw the simulations
+
+> "I think we should draw the simulations as well, which would make the game more immersive"
+
+The pattern behind the mine: a system is fully modelled, correct, tested — and invisible. It has now
+happened three times in one night (the economy flatlined for want of anybody looking, the mine is
+worked by nobody you can see, a villager's memories were evicted before they became an opinion), so
+it is worth its own heading rather than being fixed one case at a time.
+
+- [ ] **An audit: every simulated system, and whether you can see it.** Eighty-one files in
+      `src/game/` — mining, farming, brewing, building, digging, fishing, sailing, hunting,
+      prosperity, births, deaths, crime, rumour. For each: does anything on the screen show it
+      happening? The answer for mining was no, and nobody had noticed for as long as it has existed.
+- [ ] **And then draw the ones that are dark.** In the order of what a player would most like to
+      come across.

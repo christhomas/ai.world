@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SLOTS, type EquipSlot, type Item } from '../game/items';
+import { ITEMS, SLOTS, type EquipSlot, type Item } from '../game/items';
 import type { GameState } from '../game/state';
 import type { Entity } from '../entities/entity';
 import { bodyMotion } from '../entities/motion';
@@ -82,6 +82,29 @@ const GEAR: Record<string, Build> = {
     part(new THREE.CylinderGeometry(0.05, 0.06, 0.9, 5), 0x5a3f28, [0, 0.28, 0]),
     part(new THREE.BoxGeometry(0.1, 0.3, 0.34), 0xb8c0cc, [0.02, 0.62, 0.1]),
     part(new THREE.BoxGeometry(0.08, 0.16, 0.14), 0x9aa2ac, [0.02, 0.56, -0.06]),
+  ]),
+  /**
+   * A pickaxe, which has been an item in this game for a long time and has never been drawn.
+   *
+   * `pick` sits in `items.ts` with a price and the `hew` ability, and nothing anywhere had a shape
+   * for it — so a hero carrying one carried nothing you could see, and the miners the villages send
+   * underground every day were going to need one in their hands.
+   *
+   * A head that is a point at one end and a flat at the other, which is the whole silhouette of a
+   * pick and is what tells it from the war axe two entries up: an axe is a wedge with its mass out
+   * to one side, a pick is a bar through a haft. Read from above at this camera's distance that
+   * difference is the only one there is, so the head is longer than an axe's and thinner.
+   */
+  pick: () => merge([
+    part(new THREE.CylinderGeometry(0.042, 0.05, 0.82, 5), 0x6b4a2b, [0, 0.24, 0]),
+    // the bar, lying across the haft, with the two ends doing different jobs
+    part(new THREE.BoxGeometry(0.07, 0.07, 0.52), 0x9aa2ac, [0.01, 0.6, 0]),
+    // the point, tapering: this is the end that goes into the rock
+    part(new THREE.ConeGeometry(0.05, 0.16, 4), 0xb8c0cc, [0.01, 0.6, 0.32], [1, 1, 1], [Math.PI / 2, 0, 0]),
+    // and the flat, for prising what the point has loosened
+    part(new THREE.BoxGeometry(0.06, 0.11, 0.1), 0xb8c0cc, [0.01, 0.6, -0.31]),
+    // the collar where the head is wedged on, which is what stops it reading as a stick with a bar
+    part(new THREE.BoxGeometry(0.075, 0.09, 0.12), 0x5a4632, [0, 0.6, 0]),
   ]),
   shield: shield(0x8a6a3d, 0x9aa2ac),
   ironshield: shield(0x9aa2ac, 0xd8dce4),
@@ -227,6 +250,8 @@ export class HeroGear {
   private shownVersion = -1;
   /** The hero these colours were put on, so a new one is dressed rather than left as he was born. */
   private dressed: Entity | null = null;
+  /** The tool in his hand this moment, which is not something the save knows about. */
+  private inHand: string | null = null;
   /** The skirt of whatever is worn on the body, hung on its own hinge at the waist. */
   private hem: THREE.Mesh | null = null;
   /** The torch and its flame, made once and shown only after dark. */
@@ -275,12 +300,25 @@ export class HeroGear {
    * in the same fist, and hiding the shield for the night is a smaller lie than growing a third
    * arm.
    */
-  update(state: GameState, hero: Entity, carry = false): void {
+  /**
+   * @param holding a tool in the hand *right now*, by item id, or null for an empty one.
+   *
+   * Tools are not equipment and deliberately so — `items.ts` says outright that there are too many
+   * of them to give each a slot, and a shovel is not a thing you wear. But that left the whole of
+   * the working half of this game undrawn: a pickaxe has had a price and an ability since long
+   * before tonight and there was no way for one to be in anybody's hand, so a hero hewing rock and
+   * a hero standing still were the same picture.
+   *
+   * So what is *worn* comes out of the save, and what is *held* is passed in for the moment it is
+   * being used. Both end up on the same mount, because a hand is a hand.
+   */
+  update(state: GameState, hero: Entity, carry = false, holding: string | null = null): void {
     // the hero himself as well as his kit: he is a new entity after a death or a long journey, and
     // a new entity is painted in the colours he was born in until somebody dresses him again
-    if (state.version !== this.shownVersion || hero !== this.dressed) {
+    if (state.version !== this.shownVersion || hero !== this.dressed || holding !== this.inHand) {
       this.shownVersion = state.version;
       this.dressed = hero;
+      this.inHand = holding;
       this.rebuild(state, hero);
     }
     this.carrying = carry;
@@ -390,7 +428,26 @@ export class HeroGear {
       this.hem.castShadow = true;
       this.group.add(this.hem);
     }
+    /*
+     * The tool in hand, before the worn gear, because it takes the hand.
+     *
+     * Nobody swings a pick with a sword still in the same fist. A held tool displaces whatever the
+     * save says is worn there for as long as it is held, which is the same bargain the torch
+     * already strikes with the off hand after dark.
+     */
+    if (this.inHand) {
+      const tool = ITEMS[this.inHand];
+      const geometry = tool ? this.geometryFor(tool) : null;
+      if (geometry) {
+        const mesh = new THREE.Mesh(geometry, this.material);
+        mesh.castShadow = true;
+        this.group.add(mesh);
+        this.worn.set('hand', { mesh, id: tool.id, mount: MOUNTS.hand });
+      }
+    }
+
     for (const slot of SLOTS) {
+      if (slot === 'hand' && this.inHand) continue;    // the tool has it
       const item = state.worn(slot);
       if (!item) continue;
       const hide = HIDES[item.id];
