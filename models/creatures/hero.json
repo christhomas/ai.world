@@ -1,0 +1,25 @@
+{
+  "note": [
+    "The man you are playing, which is `biped` and then a hat, a belt and a cape: a silhouette you can find in a crowd of villagers.",
+    "He is the only person whose clothes change, and that is what the four tint numbers are for. What he is wearing repaints his own legs, feet and arms rather than hanging a second pair over them, because a palette entry is the only thing an instanced rig can change per person. `render/worn.ts` decides which pieces paint which.",
+    "The parts tagged \"hat\" and \"cape\" are named so they can be hidden: his own hat gives way to a helm."
+  ],
+  "from": "biped",
+  "with": { "skin": "#ffdab9", "hair": "#ffffff", "hairTint": 1, "shirtTint": 0, "pantsColor": "#ffffff", "pantsTint": 2, "bootTint": 3, "armTint": 4 },
+  "parts": [
+    {
+      "note": [
+        "The hat, which is what makes him findable in a crowd, built out of the same stock as the rest of him.",
+        "It used to be a smooth six-sided cone sitting on a square brim the width of his shoulders — the only cone on any person in a world made entirely of boxes, and a brim that stuck out further either side of his head than his own arms do. Together they read as a party hat, and from above, which is where this camera is, mostly what you saw of the hero was a green disc.",
+        "A cap in three steps instead: a crown over the hair, a narrower band above it, a block at the peak. Still a shape nothing else in the game has, so it still does its job at a hundred paces, and this first part is a short peak over the face rather than a plate all the way round.",
+        "It sits on the hair rather than above it. The brim used to be at 1.6 with the head ending at 1.48, so it floated a tenth of a unit clear of the crown — a hat hovering over a head, which from a distance is a hat and from close up is a mistake. All four parts turn about [0, 1.2, 0], which is the head's own pivot: a hat that turns about a different point from the head it is on swings loose every time he looks round."
+      ],
+      "box": [0.15, 0.045, 0.3], "at": [0.155, 1.53, 0], "color": "#1f7a48", "anim": "head", "pivot": [0, 1.2, 0], "tag": "hat"
+    },
+    { "box": [0.33, 0.12, 0.33], "at": [0, 1.575, 0], "color": "#2fb36a", "anim": "head", "pivot": [0, 1.2, 0], "tag": "hat" },
+    { "box": [0.24, 0.1, 0.24], "at": [0, 1.685, 0], "color": "#2fb36a", "anim": "head", "pivot": [0, 1.2, 0], "tag": "hat" },
+    { "box": [0.14, 0.08, 0.14], "at": [0, 1.775, 0], "color": "#1f7a48", "anim": "head", "pivot": [0, 1.2, 0], "tag": "hat" },
+    { "note": "The belt, which is the only line across the middle of him and is what tells his chest from his legs at a distance.", "box": [0.31, 0.07, 0.4], "at": [0, 0.66, 0], "color": "#5a3a1a" },
+    { "box": [0.05, 0.6, 0.36], "at": [-0.16, 0.87, 0], "color": "#c0392b", "anim": "cape", "pivot": [-0.14, 1.16, 0], "tag": "cape" }
+  ]
+}

@@ -49,6 +49,9 @@ COPY src ./src
 COPY animations ./animations
 COPY behaviours ./behaviours
 COPY properties ./properties
+# the bodies, which the server needs for the same reason the properties: it spawns the creatures,
+# and the box each one blocks is measured off the parts it is drawn with rather than written down
+COPY models ./models
 RUN pnpm exec vite build --config server/build.config.ts
 
 # The page, when it is wanted, into a fixed path so the runtime stage can copy it without knowing

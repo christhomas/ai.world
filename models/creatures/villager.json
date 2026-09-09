@@ -1,0 +1,4 @@
+{
+  "from": "biped",
+  "with": { "skin": "#ffdab9", "hair": "#ffffff", "hairTint": 1, "shirtTint": 0, "pantsColor": "#4a3a2a" }
+}

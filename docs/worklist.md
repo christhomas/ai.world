@@ -348,6 +348,35 @@ Things Chris hit on a real phone, in the order he hit them.
       Proof it was a move and not a rewrite: the whole `KINDS` table dumped before and after,
       key-sorted at every depth, identical byte for byte at 104 KB, and the golden fingerprint did
       not budge. `animals.ts` went 661 lines to 404.)*
+- [x] **The rigs went out after them, into `models/creatures/` — a file each, thirty-five of them.**
+      *(The entry above says the rigs stayed in the source because a shape is read by looking at it.
+      That is still true about shapes and turned out to be the wrong reason to keep them in
+      TypeScript. What settled it is the character builder: it asks Claude to change a rig, and the
+      sentence it sent was "the `wolf:` entry somewhere in `src/entities/` — find it rather than
+      guessing", because a page could not reliably say which of three files a creature was drawn in.
+      It sends `models/creatures/wolf.json` now, and `modelFile(id)` in `entities/models.ts` is
+      where that answer lives so a test and a command line can ask the same question the page does.
+
+      A file is a recipe wherever it can be. Two thirds of the bestiary is `biped` or `quadruped`,
+      so most files name the generator and its arguments and lay the shapes that make that animal
+      itself on top — which is what the generators already took as `extras`, in the same order. The
+      four primitives were written out three times, privately, in `animals.ts`, `monsters.ts` and
+      `villain.ts`; there is one copy now, in `rigs.ts`, which is the tidier end state both of those
+      files had a paragraph asking for. `monsters.ts` and `villain.ts` are down to naming which of
+      the kinds they are about; `animals.ts` went 538 lines to 54.
+
+      Angles are radians, except that a right angle may be written `"-1/4"` — a fraction of a full
+      turn, which is exact because halving and quartering a double is exact, and which is a thing a
+      person can read where `-1.5707963267948966` is not. Every value is checked on the way in and
+      every complaint names the file, the field and what was expected, because these files are
+      edited by hand and by Claude and both write a colour as a number sooner or later.
+
+      Proof it was a move and not a rewrite: every creature's part list hashed before and after,
+      canonically — the old rigs carry their keys in whatever order each call site spread them, and
+      that is not part of what a rig is — thirty-five hashes identical, the same order, the same
+      collision box to the digit. The collision bench came back the same report but for its
+      timestamp, still nothing TOUCHING and nothing INTERSECTED, and eight creatures screenshotted
+      through the builder before and after are the same picture.)*
 - [x] The six numbers in `properties/behaviour.json` that nothing read are gone: `FLEE_RADIUS`,
       `HUNT_RADIUS`, `CIRCLE_NOTICE`, `CHARGE_EVERY`, `SEA_BITE_COOLDOWN` and `CIRCLE_CLOSE`.
       *(The first five were superseded when the trees started writing those numbers themselves —

@@ -1,0 +1,22 @@
+{
+  "from": "quadruped",
+  "with": {
+    "body": [0.66, 0.4, 0.34],
+    "bodyY": 0.58,
+    "legH": 0.4,
+    "legW": 0.09,
+    "head": [0.3, 0.22, 0.2],
+    "headOffset": [0.52, 0.78, 0],
+    "neck": [0.16, 0.34, 0.16],
+    "neckOffset": [0.4, 0.68, 0],
+    "neckRot": -0.5,
+    "bodyColor": "#ffffff",
+    "bodyTint": 0,
+    "tail": { "size": [0.05, 0.12, 0.05], "offset": [-0.34, 0.72, 0], "color": "#ffffff", "tint": 0, "rot": [0, 0, -0.6] }
+  },
+  "parts": [
+    { "cone": [0.04, 0.24], "at": [0.48, 0.98, 0.07], "color": "#6b5a4a", "anim": "head", "pivot": [0.37, 0.78, 0], "rot": [0, 0, 0.6] },
+    { "cone": [0.04, 0.24], "at": [0.48, 0.98, -0.07], "color": "#6b5a4a", "anim": "head", "pivot": [0.37, 0.78, 0], "rot": [0, 0, 0.6] },
+    { "box": [0.06, 0.16, 0.05], "at": [0.6, 0.62, 0], "color": "#ffffff", "tint": 0, "anim": "head", "pivot": [0.37, 0.78, 0] }
+  ]
+}

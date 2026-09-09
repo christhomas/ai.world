@@ -50,6 +50,28 @@ export function asText(value: unknown, where: string): string {
 }
 
 /**
+ * A colour as a person writes one down.
+ *
+ * The game holds colours as plain numbers, which is what three.js wants and what a hex literal in
+ * TypeScript already looked like. JSON has no hex literals, so a colour written as a number would
+ * be six digits of decimal that nobody could read as a colour and nobody could change with any
+ * confidence. `"#a06030"` is the same value written the way every other tool a person might have
+ * it open in writes it.
+ *
+ * Here rather than beside the palettes that first needed it, because the rigs need it too: a model
+ * file is nearly all colours, and two readers for one idea is how the two start disagreeing about
+ * whether `#abc` is allowed.
+ */
+export function asColour(value: unknown, where: string): number {
+  // not `asText` first: the likeliest mistake here is a colour written as the number it used to be
+  // in the source, and "expected a string" sends whoever reads it looking for the wrong problem
+  if (typeof value !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value)) {
+    throw new PropertiesError(where, `expected a colour like "#a06030", found ${describe(value)}`);
+  }
+  return Number.parseInt(value.slice(1), 16);
+}
+
+/**
  * One object out of a file, carrying the trail of names that led to it, so that every complaint
  * reads as a place a person can go and open: `properties/beasts.json bear.gold`.
  *
@@ -97,6 +119,14 @@ export class Fields {
 
   text(key: string): string {
     return asText(this.need(key), this.at(key));
+  }
+
+  colour(key: string): number {
+    return asColour(this.need(key), this.at(key));
+  }
+
+  maybeColour(key: string): number | undefined {
+    return this.has(key) ? this.colour(key) : undefined;
   }
 
   flag(key: string): boolean {

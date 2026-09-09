@@ -447,8 +447,36 @@ long the wind-up is, how hard being hit shoves you — which a behaviour tree ov
 one; and `properties/spawning.json` says which kinds live in which country, how often a chunk gets
 any of them, and what comes out after dark. All of it is parsed against a TypeScript type at load,
 so a missing speed or a misspelt behaviour stops the game with the file and the key that is wrong
-rather than producing a wolf with `NaN` hit points. What stayed in the source is the rig that draws
-a creature, because a shape is read by looking at it rather than by being told.
+rather than producing a wolf with `NaN` hit points.
+
+### And so do the bodies
+
+`models/creatures/<name>.json` is what a creature is drawn with — one file each, thirty-five of
+them, and nothing anywhere has to be searched for. Two thirds of the bestiary comes out of a
+generator, so most files are a recipe: the generator by name, the arguments it is called with, and
+the shapes that make this animal itself laid on top.
+
+```json
+{
+  "from": "quadruped",
+  "with": { "body": [0.76, 0.32, 0.28], "bodyY": 0.5, "legH": 0.36, "legW": 0.08,
+            "head": [0.3, 0.22, 0.22], "headOffset": [0.52, 0.62, 0],
+            "bodyColor": "#ffffff", "bodyTint": 0 },
+  "parts": [
+    { "box": [0.16, 0.1, 0.14], "at": [0.7, 0.56, 0], "color": "#ffffff", "tint": 1,
+      "anim": "head", "pivot": [0.37, 0.62, 0] }
+  ]
+}
+```
+
+`from` and `parts` are each optional and a file needs one of them: a chicken is `parts` alone, a
+villager is `from` alone, a wolf is both. A part is one of `box`, `ico`, `cone` or `cyl` carrying
+its size, `at` for where its middle sits, a colour or a `tint` index into the wearer's palette, and
+optionally a pivot, a rotation, an `anim` role for the walk cycle and a `tag` so it can be hidden.
+The root sits on the ground and the creature faces +x. Angles are radians, or a fraction of a turn
+written `"-1/4"`, which is what a beak swung to point forwards actually is. It is checked on the way
+in like everything else, and `modelFile(id)` in `src/entities/models.ts` is how anything asks where
+a body lives — the character builder sends Claude that path rather than telling it to go looking.
 
 ### Layout
 
@@ -460,8 +488,9 @@ src/
   workers/     chunk generation worker
   dungeon/     room and corridor generator, walkability, dungeon scene
   interior/    per-building room layouts, walkability, interior scene
-  entities/    animal and character rigs, instanced renderer, movement, spawning, the player
-               (what a creature decides lives in behaviours/, what it is in properties/)
+  entities/    the two rig generators, instanced renderer, movement, spawning, the player
+               (what a creature decides lives in behaviours/, what it is in properties/,
+               and the body it is drawn with in models/)
   game/        state and equipment, items, shops, quests, combat, fishing, farming,
                ferries, sailing, mounts, seasons, dialogue, audio, and the shared-world
                systems: online client, co-op floors, market, parties, duels
@@ -472,6 +501,7 @@ server/        wire protocol, the WebSocket server, and the world file it keeps 
 behaviours/    what every creature decides, as data: one tree per kind, in the game's own verbs
 properties/    what every creature is, and where it comes from: paces, bites, purses, herds,
                the defaults a behaviour tree overrides, and which kinds live in which country
+models/        the body every creature is drawn with: creatures/<name>.json, one apiece
 chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
 Dockerfile     the world server as an image: one bundled module, `ws`, node, and nothing else
 docker-compose.yml   that image with its worlds on a volume, which is what `chore up` runs
@@ -485,7 +515,8 @@ road-graph density, world radius, town count, river and lake counts, and camera 
 palettes and prop tables live in `src/world/biomes.ts`, items in `src/game/items.ts`, shop stock
 in `src/game/shops.ts`. What a creature is worth, what it hits for and where it lives are not code
 at all any more: they are `properties/*.json`, with the argument for each number written beside it,
-and only the rigs that draw a creature stayed in `src/entities/animals.ts`.
+and nor is the body it is drawn with, which is `models/creatures/<name>.json`. What is left in
+`src/entities/` is the two generators most bodies are built by, in `rigs.ts`.
 
 Three readability passes are written up in `docs/human-code-report-2026-09-03.md`,
 `docs/human-code-report-2026-09-03-pass2.md` and `docs/human-code-report-2026-09-04.md`.
