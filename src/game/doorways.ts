@@ -20,7 +20,7 @@ import type { Places } from './places';
 /*
  * The door itself, taken off the house it is cut into.
  *
- * `house()` in `render/geometry.ts` puts the leaf at 1.22 out from the middle of a cottage, and
+ * `house()` in `entities/buildings.ts` puts the leaf at 1.22 out from the middle of a cottage, and
  * makes it 0.62 wide and 0.08 thick. The `Doorway` record is not that: it is the tile you stand on
  * to knock, two whole tiles out from the middle — so testing against the record was testing a spot
  * three-quarters of a tile into the street, and the door fired at anybody crossing the front of

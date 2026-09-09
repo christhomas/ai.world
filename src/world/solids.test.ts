@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Solids, boxesFrom, pointInBox, segmentHitsBox, type Solid } from './solids';
 import { mulberry32 } from '../core/rng';
 import { PropKind } from './biomes';
-import { propFootprints } from '../render/props';
+import { propFootprints } from '../entities/props';
 
 /**
  * A long thing, turned.

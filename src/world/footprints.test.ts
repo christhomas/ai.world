@@ -1,33 +1,63 @@
 import { describe, expect, it } from 'vitest';
-import { PropLibrary, propFootprints } from '../render/props';
+import { PROPS, propFootprints } from '../entities/props';
+import { build } from '../render/geometry';
+import { measureFootprint } from '../render/footprint';
 import { BLOCKS_WALKING, PropKind } from './biomes';
 import { WALKING_BAND, blocking } from './footprints';
 import { FURNITURE_BLOCKS } from '../interior/generate';
 
 /**
- * What a prop blocks is measured off the prop, so the two cannot disagree.
+ * What a prop blocks is worked out from the prop, so the two cannot disagree.
  *
- * This file used to guard a table: forty-six hand-written rows of half-extents, rebuilt against
- * every mesh, failing on any that had drifted. That test could only compare the rows it had, and
- * the fault it never caught was the missing row — a prop drawn, placed, and solid to nobody.
+ * This file has guarded two different things, and the difference is the point. It began as a
+ * guard over a table: forty-six hand-written rows of half-extents, rebuilt against every mesh,
+ * failing on any that had drifted. That test could only compare the rows it had, and the fault it
+ * never caught was the missing row — a prop drawn, placed, and solid to nobody.
  *
- * Now there is nothing to drift, so what is worth testing changed. Not "does the number match the
- * mesh" — it is taken from the mesh — but whether the *rules* around it still hold: that everything
- * meant to block has something to block with, that nothing meant to be walked through has picked up
- * a box, and that the band a walker meets is still the walls of a building rather than its doorstep
- * or its eaves.
+ * Then the table went and the box was measured off the mesh, which cannot be short of a prop that
+ * exists. That was right and it had a price the game could not see: measuring needed a renderer,
+ * so the world server — which draws nothing — carried a 3D library into its container to find out
+ * how wide a cottage is.
+ *
+ * Now a prop is a part list, the way a creature has always been, and the box falls out of the
+ * parts. So the first test below is the one that keeps the bargain honest: for every prop in the
+ * game, the box worked out from the data and the box read back off the drawn mesh, side by side.
+ * The rest are about the *rules* — that everything meant to block has something to block with,
+ * that nothing meant to be walked through has picked up a box, and that the band a walker meets is
+ * still the walls of a building rather than its doorstep or its eaves.
  */
-describe('the footprints measured off the props', () => {
+describe('the footprints worked out from the props', () => {
   const footprints = propFootprints();
 
+  it('agrees with the mesh, prop by prop', () => {
+    // The two halves of the same fact: `entities/shapes.ts` places the corners of each primitive
+    // from its own arithmetic, and `THREE` places them by building one. A hexagonal trunk is 0.87
+    // of its radius across one way and the full radius the other, a detail-0 icosahedron reaches
+    // 0.851 of its radius and a detail-1 one reaches all of it — get any of that wrong and the box
+    // stops agreeing with the tree. The tolerance is float32 and nothing else: the mesh keeps its
+    // vertices in single precision and the catalogue does not, so the two part company in the
+    // eighth decimal. Measured worst case over the whole catalogue, 8.3e-8, on a shipwreck.
+    const drifted: string[] = [];
+    for (const [kind, def] of PROPS) {
+      const geometry = build(def.parts);
+      const drawn = measureFootprint(geometry);
+      geometry.dispose();
+      if (!drawn || !def.box) {
+        if (drawn !== def.box) drifted.push(`kind ${kind}: data ${JSON.stringify(def.box)}, mesh ${JSON.stringify(drawn)}`);
+        continue;
+      }
+      const off = Math.max(Math.abs(drawn.hw - def.box.hw), Math.abs(drawn.hd - def.box.hd));
+      if (off > 1e-6) drifted.push(`kind ${kind}: data ${def.box.hw}x${def.box.hd}, mesh ${drawn.hw}x${drawn.hd}`);
+    }
+    expect(drifted, 'a prop whose box is not the shape it is drawn as').toEqual([]);
+  });
+
   it('covers everything that is supposed to block', () => {
-    const library = new PropLibrary();
     const missing: string[] = [];
-    for (const [kind] of library.geometries) {
+    for (const [kind] of PROPS) {
       if (!BLOCKS_WALKING.has(kind) && !FURNITURE_BLOCKS.has(kind)) continue;
       if (!footprints.get(kind)) missing.push(`kind ${kind}`);
     }
-    library.dispose();
     expect(missing, 'drawn, meant to block, and nothing in the walking band to block with').toEqual([]);
   });
 

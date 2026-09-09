@@ -3,7 +3,7 @@ import { generateWebGraph } from './roadweb';
 import { TerrainSampler } from './terrain';
 import { GroundWorld } from './groundworld';
 import { boxesOf } from './solids';
-import { propFootprints } from '../render/props';
+import { propFootprints } from '../entities/props';
 import { PropKind } from './biomes';
 import { WORLD } from '../core/config';
 

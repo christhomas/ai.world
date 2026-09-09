@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateWebGraph } from '../src/world/roadweb';
-import { propFootprints } from '../src/render/props';
+import { propFootprints } from '../src/entities/props';
 import { GroundWorld } from '../src/world/groundworld';
 import { TerrainSampler } from '../src/world/terrain';
 import { Wildlife } from './wildlife';

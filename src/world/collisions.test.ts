@@ -4,7 +4,7 @@ import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
 import { Entity, Herd, bodyOf, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
 import { stride } from '../entities/stride';
-import { propFootprints } from '../render/props';
+import { propFootprints } from '../entities/props';
 import { BLOCKS_WALKING, PropKind } from './biomes';
 import { MIN_BLOCK, blocking } from './footprints';
 import { Solids, boxesFrom, pointInBox } from './solids';

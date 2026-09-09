@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { generateWebGraph } from './roadweb';
-import { propFootprints } from '../render/props';
+import { propFootprints } from '../entities/props';
 import { GroundWorld } from './groundworld';
 import { TerrainSampler } from './terrain';
 
