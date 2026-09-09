@@ -1,16 +1,18 @@
 import { mulberry32, type Rng } from '../core/rng';
+import { generateCastle } from './castle';
+import { DTile, type DungeonMap, type Chest, type Door, type Room, type Torch } from './map';
 
 /**
  * Dungeon layout from one seed: rooms scattered on a grid, joined by L-shaped corridors in
  * nearest-first order so the whole thing is connected, stairs in the first room, the big chest in
  * the room farthest from the stairs, torches along the walls, a pool or two.
+ *
+ * What a floor *is* now lives in `map.ts`, and is re-exported here because half the game imports
+ * these names from this file and a rename that changes nothing is churn other people have to read.
  */
-export const enum DTile { Rock = 0, Floor = 1, Water = 2, Stairs = 3, Door = 4, Descent = 5 }
-
-export interface Room { x: number; z: number; w: number; h: number }
-export interface Chest { x: number; z: number; big: boolean; key?: boolean }
-export interface Door { x: number; z: number }
-export interface Torch { x: number; z: number; /** yaw so the bracket faces into the room */ rot: number }
+export { DTile, fullyConnected } from './map';
+export type { Chest, Door, DungeonMap, Furnishing, Levels, Room, Torch } from './map';
+export type { SpawnSpot } from '../entities/spawns';
 
 /** How deep a vault goes, and what waits at the bottom. */
 export const DEPTH = {
@@ -18,25 +20,6 @@ export const DEPTH = {
   /** Monsters per room rise with depth. */
   EXTRA_PACKS_PER_FLOOR: 1,
 } as const;
-
-export interface DungeonMap {
-  size: number;
-  tiles: Uint8Array;
-  rooms: Room[];
-  entrance: [number, number];
-  chests: Chest[];
-  torches: Torch[];
-  /** Locked doors sealing the treasure room; opened by the key chest's key. */
-  doors: Door[];
-  /** Room centres where monsters wait. */
-  monsterSpots: Array<[number, number]>;
-  /** Which floor this is, counting from one at the entrance. */
-  floor: number;
-  /** Stairs further down, on every floor but the last. */
-  descent: [number, number] | null;
-  /** The boss stands here on the final floor. */
-  boss: [number, number] | null;
-}
 
 export const DUNGEON = {
   SIZE: 56,
@@ -63,10 +46,18 @@ export const DUNGEON = {
  * their layout entirely. What separates a thicket is only where you find it and what it is made
  * of: you walk into it through a gap under a great tree rather than down a hole, and it is wood
  * rather than rock all the way through.
+ *
+ * A castle is the odd one and does not come out of this function at all. The other three are one
+ * algorithm with the numbers turned up or down, and a keep is not: it is rooms that share walls,
+ * galleries that go somewhere, towers on the corners and a floor that is not all one height. That
+ * is a different program, and it lives in `castle.ts`. What it is *not* is a different kind of
+ * place — it comes back as the same `DungeonMap`, and is walked, drawn and mapped by the same
+ * three files as everything else down here.
  */
-export type DungeonStyle = 'vault' | 'cave' | 'thicket';
+export type DungeonStyle = 'vault' | 'cave' | 'thicket' | 'castle';
 
 export function generateDungeon(seed: number, style: DungeonStyle = 'vault', floor = 1): DungeonMap {
+  if (style === 'castle') return generateCastle(seed, floor);
   const rng = mulberry32(seed + floor * 7919);
   const cave = style !== 'vault';
   const size = DUNGEON.SIZE;
@@ -178,6 +169,10 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault', flo
     size, tiles, rooms, entrance, chests, torches,
     doors: doors.filter((d) => tiles[idx(d.x, d.z)] === DTile.Door),
     monsterSpots, floor, descent, boss,
+    // A hole in the ground is cut at one depth and is furnished by whatever `DungeonWorld` decides
+    // to stand in it. Both of these are the castle's, and saying so costs an empty array rather
+    // than a branch in everything that reads a floor.
+    levels: null, furniture: [],
   };
 }
 
@@ -237,25 +232,4 @@ function corridor(tiles: Uint8Array, size: number, from: [number, number], to: [
     for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) dig(x0, z);
     for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) dig(x, z1);
   }
-}
-
-/** Flood fill from the stairs; true if every floor/water/stairs tile is reachable (used by tests). */
-export function fullyConnected(map: DungeonMap): boolean {
-  const { size, tiles } = map;
-  const seen = new Uint8Array(size * size);
-  const stack: number[] = [map.entrance[1] * size + map.entrance[0]];
-  seen[stack[0]] = 1;
-  while (stack.length) {
-    const i = stack.pop()!;
-    const x = i % size, z = Math.floor(i / size);
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = x + dx, nz = z + dz;
-      if (nx < 0 || nz < 0 || nx >= size || nz >= size) continue;
-      const j = nz * size + nx;
-      if (seen[j] || tiles[j] === DTile.Rock) continue;   // doors count as passable: the key is always reachable first
-      seen[j] = 1; stack.push(j);
-    }
-  }
-  for (let i = 0; i < tiles.length; i++) if (tiles[i] !== DTile.Rock && !seen[i]) return false;
-  return true;
 }

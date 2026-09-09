@@ -1562,3 +1562,126 @@ it is worth its own heading rather than being fixed one case at a time.
       has one or two, so a sixteen-room cave holds a man. That is probably right — a mine is not a
       colliery — but it means the tunnels still read as empty, and it is worth deciding whether a
       village's mine should draw more of its people down it.
+
+## The castle
+
+A fourth kind of place underground, which is not underground: a keep of four floors standing on
+the map, walked into through its gate, and from every angle but its own an ordinary dungeon. The
+inside of it is `src/dungeon/castle.ts`; the building that stands in the world is somebody else's
+half and is not described here.
+
+- [x] **A castle is a plan, not a warren.** *(`castle.ts`. The three older places underground are
+      one algorithm — scatter rooms, join each to the nearest — and a keep is the opposite: one
+      rectangle divided, so its rooms share walls and its corridors run the length of a wing. Every
+      division reserves a band of floor along the line it cuts on, and that band is a gallery; the
+      split axis strictly alternates, which is not a stylistic choice but the reason the plan comes
+      out connected with no joining pass at all — a child's gallery spans its own rectangle end to
+      end in the direction its parent's runs, so the two always touch. Round the divided block runs
+      a curtain walk two tiles wide, and off it hang four corner towers and a gatehouse, which is
+      the silhouette that says castle at a glance. Seventy-six tiles a side against a vault's
+      fifty-six; twenty rooms a floor and fifteen stretches of gallery; four floors, because
+      `dungeonMonsters` runs out of bands at three and a fifth floor would be a floor with nothing
+      new to fight on it.)*
+- [x] **Three things to solve on every floor, none of which needed a new verb.** *(There is no hint
+      system in this game and there is not going to be one, so a room has to say what it wants by
+      being looked at — which rules out anything remembered, a lever pulled two rooms ago or a
+      sequence of plates, and leaves the two things a player can always see: where the floor is and
+      how high it is. **The barred stair**: the way up is in a chamber whose doorways are
+      portcullises and the warden's key is in a chest you can reach without passing one — the
+      vault's own lock and key, moved off the treasure and onto the stair, which is what makes four
+      floors a climb. **The drowned undercroft**: a chamber flooded to the sills with the prize on
+      an island, crossed on a laid line of stepping stones with false ones scattered either side;
+      the false ones are placed only where every neighbour is water, so they lead nowhere and can
+      never accidentally bridge, and the whole pattern is visible from directly above, which is
+      where this camera is. **The minstrels' gallery**: a walk along one wall of the great hall
+      three terraces up, with one stair to it. Three terraces is the load-bearing number — the
+      hero's `climb` of 0.56 clears one, a climbing rope's 1.06 clears two, and three is a wall to
+      everybody, so the stair is the answer rather than a suggestion. The gallery and the island
+      take turns holding the key, by whether the floor number is odd, so which puzzle you have to
+      finish changes as you climb.)*
+- [x] **Ghosts and monsters.** *(Monsters are the floor's own table, as a vault's are: a spot in
+      `map.monsterSpots` with nothing else said about it is rolled against `dungeonMonsters` for
+      the depth. A ghost is the same list saying what stands there — the spot names `wight` — so a
+      wight is a fact about a room rather than a roll, the way `game/haunts.ts` argues a keeper of
+      a ruin should be, and the chapel, the drowned undercroft and the throne room always hold one
+      while everything else is rolled higher the further up you have climbed. Note the hour: a
+      wight's own behaviour tree has it abroad only between 0.82 and 0.27, so a keep walked at noon
+      is a keep full of things standing perfectly still, and the same keep after dark is not. Capped
+      at one plus the floor, because a wight has no hit points — a blade goes through one — and
+      five of them on a floor is not frightening, it is a floor you cannot afford to be on.)*
+- [x] **A dungeon's walls had no height at all.** *(Found while building the castle's gallery and
+      fixed in `dungeon/world.ts`. `buildChunkMesh` cuts every quad from a chunk's `corners` and
+      never reads `height`; `DungeonWorld.chunkData` filled in `height` and left `corners` at
+      nought, so every vertex of every dungeon sat at y = 0. The rock was still solid to walk into
+      and the minimap still drew it, so nothing failed — there was simply no wall standing up
+      anywhere underground, in any hole in the game. Measured rather than argued: meshing a vault
+      off `main` gives every land vertex a y of exactly nought, and off this branch a span from
+      nought to `WALL_Y`. How long it had been so is not known and is not claimed — `corners` has
+      been the geometry the mesher cuts since long before the mountains became a layer of their
+      own, which is as far back as it was worth digging. `src/dungeon/world.test.ts` is the
+      guard.)*
+
+- [ ] **Nothing in a dungeon is solid except a chest.** *(`DungeonWorld.blocked` knows about chests
+      and nothing else, so a castle's tables, barrels and cell bars are walked straight through —
+      indoors the same props stop you, because `InteriorWorld` measures their footprints. It is why
+      a chamber is only nine per cent furniture: a room packed with things you walk through looks
+      worse than an empty one. Making them solid is not a small change, because the moment
+      furniture fills tiles it can seal a room, and the only thing that presently checks for that
+      is `castlefit.ts`, which was written for chests. Whatever does it should do both.)*
+
+### Wanted for the castle, and not made
+
+Everything in the keep is currently dressed out of props a village and a chapel already own: an
+`Altar` standing in for a throne, a `WeaponRack` for a wall of arms, a `Forge` for a kitchen range.
+Each is the right silhouette from above and the wrong object up close. `dungeon/castlerooms.ts` is
+where the substitution happens, so making these is a second pass and not a redesign. Sizes are in
+tiles across by world units tall.
+
+- **Throne** — 1×1, 1.6 tall. A high seat on the dais at the head of the throne room: the thing the
+  fourth floor exists to be. Stands in for nothing; there is no seat in the game.
+- **Banner** — hangs on a wall face like a `Torch`, 0.9 wide × 2.2 long. Tinted per castle, four to
+  a great hall. What tells you whose keep this is.
+- **Tapestry** — the same idea two tiles wide, for the long wall of a gallery. A cold stone wall
+  with nothing on it is what makes a corridor read as a mine.
+- **SuitOfArmour** — 1×1, 1.9 tall, a standing figure holding a polearm. Lines the state galleries.
+  At the distance this camera looks from you cannot tell one from a monster, which is the point.
+- **LongTable** — 3×1, 0.8 tall. The board down the middle of a great hall. `Table` is a small one
+  and a row of them reads as a canteen.
+- **Brazier** — 1×1, 1.1 tall: a bowl of fire on a tripod, glowing like a `Torch` does. Lights the
+  middle of a hall, where no wall bracket reaches.
+- **Chandelier** — hangs at 3.5, 1.5 across. The one light a great hall should have that a cellar
+  cannot.
+- **Portcullis** — 1×1 spanning a doorway, a grid dropping from the head of the arch. Distinct from
+  `Door`, which is a hinged plank and reads as a cottage. What a castle bars a stair with.
+- **Statue** — 1×1, 2.2 tall, plinth and figure. Marks the corners of a gallery and the head of a
+  stair.
+- **GreatHearth** — 2×1, 2.0 tall. `Hearth` is a cottage fire; a hall wants one you could stand in.
+- **TowerStair** — 1×1, 2.5 tall, a spiral turning up out of sight. What should be standing in a
+  corner tower, instead of the flat `Stairs` plate.
+- **Cobweb** — 1×1, low and pale. The tell that a wing is the haunted one, from the top of the
+  stair rather than after the fight.
+- **Sarcophagus** — 2×1, 0.7 tall. The crypt under the chapel, and where a wight is.
+- **StainedWindow** — a wall face, 1 wide × 2.4 tall, lit from behind. The one thing a castle
+  interior has that a cave never can: an outside.
+
+### Asked of `game/places.ts`, which is not this half's to edit
+
+- **A castle is a `kind`.** `enterDungeon(poi, kind, …)` takes `'dungeon' | 'cave' | 'thicket'`;
+  it needs `'castle'`, which then flows through as the style unchanged, since `generateDungeon`,
+  `DungeonWorld` and `DungeonScene` all already know the word. Nothing else in that function has to
+  change.
+- ~~**Somebody has to raise the ghosts.**~~ Done without it, and deliberately so. A castle's
+  haunted rooms are ordinary entries in `map.monsterSpots` that name their occupant — a third
+  element, `'wight'` — and `EntityManager.spawnMonsters` gives a named spot what it names instead
+  of rolling for it. `enterDungeon` already passes `world.map.monsterSpots` straight through, so
+  the ghosts arrive with no change to that function at all, and none is wanted. A named spot also
+  takes nothing out of the random stream, which is what keeps every vault, cave and thicket in
+  every existing world holding exactly what it held before.
+- **Unlocking a vault does not survive leaving it.** Found while reading that function, and it is
+  not the castle's: `openChest` files the key under `visit.world.anchorId`, which carries the floor
+  — `dungeon:Name:2` — and `enterDungeon` reads it back as `state.keys.has(anchor.id)`, which does
+  not. So the doors shut again every time you come back, on every vault in the game. Which of the
+  two ends is corrected matters to the castle: reading `state.keys.has(world.anchorId)` fixes it
+  and leaves each floor its own lock, and filing the key under the unqualified anchor instead fixes
+  it by opening the barred stair on all four floors of a keep at once, which is three puzzles
+  thrown away.

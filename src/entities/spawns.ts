@@ -21,6 +21,24 @@ import type { ChunkTiles } from '../world/tiles';
 
 export interface SpawnWeight { kind: string; weight: number }
 
+/**
+ * A tile something waits on, and what it is where whoever laid the floor gets to say.
+ *
+ * Two tiles is a spot to be rolled for: a hole in the ground names nothing, and what you meet on
+ * its second floor is whatever the second band of the table holds. Three is a spot that has
+ * already been decided — a castle's chapel keeps a wight, and it keeps the same wight on the
+ * fortieth visit as on the first and for everybody at once, which is the argument `game/haunts.ts`
+ * makes about anything that keeps a place. There is no other way for a floor to make that claim:
+ * the roll is the only thing that decides what stands underground, so a floor that means something
+ * particular has to say so here.
+ *
+ * A named spot draws nothing from the random stream in `spawnMonsters`, and that is deliberate
+ * rather than incidental. Drawing a roll and throwing it away would shift every spot after it, so
+ * one castle naming one of its chapels would quietly rebuild every vault, cave and thicket in
+ * every world anybody had ever saved.
+ */
+export type SpawnSpot = readonly [number, number] | readonly [number, number, string];
+
 /** The names the file uses for the six countries; the game holds a biome as a number. */
 const COUNTRIES: ReadonlyArray<readonly [string, Biome]> = [
   ['plains', Biome.Plains],
