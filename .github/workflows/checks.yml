@@ -59,6 +59,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: collision-bench
-          path: .collisions.txt
+          path: collision-report.txt
           if-no-files-found: warn
           retention-days: 30

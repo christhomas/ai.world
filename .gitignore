@@ -12,4 +12,4 @@ server/data/
 # the design canvas is seeded from design/*.dc.html and published; the seeded page is a
 # two-megabyte build artefact and belongs in the repository no more than dist/ does
 ai-world-interface.html
-.collisions.txt
+collision-report.txt

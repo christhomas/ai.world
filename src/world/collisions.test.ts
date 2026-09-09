@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
@@ -41,11 +41,45 @@ import { TerrainSampler } from './terrain';
  * anybody watching it happen. That only works if the run says what it covered as well as whether it
  * passed: a green suite that quietly stopped testing thirty creatures is worse than a red one.
  */
-const covered: string[] = [];
-const report = (line: string): void => { covered.push(line); };
+/**
+ * One line of the account: a verdict, how many cases earned it, and what they were.
+ *
+ * Verdict first because that is the only thing a person reads at a glance, and the run is meant to
+ * be readable by whoever picks it up out of a pipeline an hour later.
+ */
+interface Line {
+  verdict: 'PASS' | 'TOUCHING' | 'INTERSECTED' | 'FAIL';
+  count: number;
+  what: string;
+  detail?: string[];
+}
 
-/** Where the run leaves its account of itself. Printed by `pnpm collisions`. */
-const REPORT = '.collisions.txt';
+const covered: Line[] = [];
+const report = (line: Line): void => { covered.push(line); };
+
+/** Where the run leaves its account of itself. Printed by `chore collisions`. */
+const REPORT = 'collision-report.txt';
+
+/**
+ * What each `PropKind` is called, read out of the enum that defines them.
+ *
+ * `PropKind` is a `const enum`, which means it has no existence at run time: the numbers are
+ * inlined and there is nothing to look a name up in. A report that says "prop 33" is a report
+ * somebody has to decode, so the names are taken from the source of the enum itself — which cannot
+ * drift from it, needs nothing kept in step, and is a thing only a test would do.
+ */
+function propNames(): Map<number, string> {
+  const source = readFileSync('src/world/biomes.ts', 'utf8');
+  const enumBody = source.slice(source.indexOf('export const enum PropKind {'));
+  const names = new Map<number, string>();
+  for (const [, name, value] of enumBody.slice(0, enumBody.indexOf('}')).matchAll(/(\w+)\s*=\s*(\d+)/g)) {
+    names.set(Number(value), name);
+  }
+  return names;
+}
+
+const NAMES = propNames();
+const nameOf = (kind: number): string => `${NAMES.get(kind) ?? 'prop'}(${kind})`;
 
 /** Ground that goes on for ever at one height, with whatever has been put on it. */
 function field(solids: Solids): TileWorld {
@@ -323,7 +357,12 @@ describe('walking into things, on a bench with nothing else in it', () => {
             }
           }
         }
-        report(`${WALKERS.length * APPROACHES.length * SPEEDS.length} walks: ${what}, turned ${Math.round((rot * 180) / Math.PI)}°, eight sides, three speeds`);
+        report({
+          verdict: failures.length === 0 ? 'PASS' : 'FAIL',
+          count: WALKERS.length * APPROACHES.length * SPEEDS.length,
+          what: `${what}, turned ${Math.round((rot * 180) / Math.PI)}°, from eight sides at three speeds`,
+          detail: failures.slice(0, 4),
+        });
         expect(failures.slice(0, 6), `${failures.length} of ${WALKERS.length * APPROACHES.length * SPEEDS.length}`).toEqual([]);
       });
     }
@@ -365,32 +404,37 @@ describe('the whole matrix: everything that walks, into everything solid', () =>
         }
       }
     }
-    report(`${cases} walks: every one of ${EVERY_MOVER.length} movers into every one of ${EVERY_SOLID.length} solids, from four sides`);
-    report(`  of those, as models rather than points: ${models.passed} passed, ${models.touching} touching, ${models.intersected} intersected`);
+    const worst = [...sunk].sort((a, b) => b.depth - a.depth);
+    report({
+      verdict: failures.length === 0 ? 'PASS' : 'FAIL',
+      count: cases,
+      what: `every one of ${EVERY_MOVER.length} movers walked into every one of ${EVERY_SOLID.length} solids, from four sides`,
+      detail: failures.slice(0, 4),
+    });
+    report({ verdict: 'PASS', count: models.passed, what: 'of those, models that never touched what they stopped at' });
+    report({ verdict: 'TOUCHING', count: models.touching, what: `models grazing what they stopped at, under ${SUNK} of a tile` });
+    report({
+      verdict: 'INTERSECTED',
+      count: models.intersected,
+      what: 'models standing inside what they stopped at — a walker collides as a point, so its middle stops at the wall and the body it is drawn as does not',
+      detail: worst.slice(0, 5).map((one) => `${one.mover} sank ${one.depth.toFixed(2)} tiles into ${nameOf(one.into)}, walking from ${one.from}`),
+    });
     /*
-     * The second number is a fact about the game rather than a fault in it, and it is written down
-     * here so that it cannot get quietly worse.
+     * That third number is a fact about the game rather than a fault in it, and it is written down
+     * so that it cannot get quietly worse.
      *
-     * A walker collides as a *point*. Its middle is stopped at the wall and the model it is drawn
-     * as goes on into the plaster: a bear is 1.2 tiles across the shoulders, so a bear standing
-     * against an oak is a bear a fifth of the way inside it. Nothing walks *through* anything —
-     * that is what the point tests above prove — but plenty of things stand in each other.
+     * A walker collides as a point. Its middle is stopped at the wall and the model it is drawn as
+     * goes on into the plaster: a bear is over a tile across the shoulders, so a bear standing
+     * against an oak is a bear a good way inside it. Nothing walks *through* anything — that is
+     * what the walks above prove — but plenty of things stand in each other.
      *
-     * Fixing it is one line of arithmetic in the wrong direction: stopping a body rather than a
-     * point means growing every box by the walker's own width, which is the difference between a
-     * wood you can pick your way through and a wood that is a wall. That is a change to how the
-     * game feels and it belongs to whoever is playing it, not to a test. So the test holds the
-     * line: this may not get worse without somebody saying so.
+     * Fixing it runs the wrong way: stopping a body rather than a point means growing every box by
+     * the walker's own width, which is the difference between a wood you pick your way through and
+     * a wood that is a wall. That is a change to how the game feels, and it belongs to whoever is
+     * playing it rather than to a test. So the test holds the line where it is.
      */
     expect(models.intersected, 'more models are standing inside things than were').toBeLessThanOrEqual(3128);
-    expect(sunk.reduce((most, one) => Math.max(most, one.depth), 0), 'and none of them deeper')
-      .toBeLessThanOrEqual(1.3);
-    if (sunk.length > 0) {
-      const worst = [...sunk].sort((a, b) => b.depth - a.depth).slice(0, 6);
-      for (const one of worst) {
-        report(`  deepest: a ${one.mover} sank ${one.depth.toFixed(2)} tiles into prop ${one.into} coming from ${one.from}`);
-      }
-    }
+    expect(worst[0]?.depth ?? 0, 'and none of them deeper').toBeLessThanOrEqual(1.3);
     expect(failures.slice(0, 8), `${failures.length} failures across ${cases} pairs`).toEqual([]);
   });
 
@@ -435,7 +479,12 @@ describe('two things that both move', () => {
         }
       }
     }
-    report(`${EVERY_MOVER.length ** 2 * 2} walks: every mover into every mover, from two sides`);
+    report({
+      verdict: failures.length === 0 ? 'PASS' : 'FAIL',
+      count: EVERY_MOVER.length ** 2 * 2,
+      what: 'every mover walked into every mover, from two sides',
+      detail: failures.slice(0, 4),
+    });
     expect(failures.slice(0, 6), `${failures.length} of ${EVERY_MOVER.length ** 2 * 2} pairs`).toEqual([]);
   });
 
@@ -561,7 +610,12 @@ describe('the furniture of a room, against everything that walks', () => {
         }
       }
     }
-    report(`${cases} walks: three bodies into every one of ${EVERY_STICK.length} solid sticks of furniture`);
+    report({
+      verdict: failures.length === 0 ? 'PASS' : 'FAIL',
+      count: cases,
+      what: `three bodies walked into every one of ${EVERY_STICK.length} solid sticks of furniture`,
+      detail: failures.slice(0, 4),
+    });
     expect(failures.slice(0, 6), `${failures.length} of ${cases}`).toEqual([]);
   });
 
@@ -618,7 +672,12 @@ describe('the things that do not move, against each other', () => {
         }
       }
     }
-    report(`${buildings} buildings checked for anything planted inside them`);
+    report({
+      verdict: inside.length === 0 ? 'PASS' : 'FAIL',
+      count: buildings,
+      what: 'buildings in a real village, checked for anything planted inside them',
+      detail: inside.slice(0, 4),
+    });
     expect({ enough: buildings > 5, inside: inside.slice(0, 5) }, `${buildings} buildings, ${inside.length} of them inside something`)
       .toEqual({ enough: true, inside: [] });
     expect(CS).toBe(16);
@@ -633,27 +692,41 @@ describe('the things that do not move, against each other', () => {
  * prints its own scope and fails if the scope has collapsed.
  */
 describe('what this bench covered', () => {
-  it('says so, and is still the size it should be', () => {
-    const walks = covered
-      .map((line) => Number(line.match(/^(\d+) walks/)?.[1] ?? 0))
-      .reduce((a, b) => a + b, 0);
+  it('says so, plainly, and is still the size it should be', () => {
+    const walked = covered.filter((l) => l.verdict === 'PASS' || l.verdict === 'FAIL');
+    const walks = walked.reduce((sum, l) => sum + l.count, 0);
+    const failed = covered.filter((l) => l.verdict === 'FAIL');
+    const sunk = covered.find((l) => l.verdict === 'INTERSECTED');
+
     /*
      * Written to a file rather than logged, because a passing test's output is swallowed and the
-     * whole point of this is the run that passes. `pnpm collisions` prints it; a pipeline can keep
-     * it as the artefact that says what was signed off.
+     * whole point of this is the run that passed. `chore collisions` prints it, and the pipeline
+     * keeps it, so whoever picks it up an hour later can read what was signed off without running
+     * anything.
+     *
+     * Verdict first, then a number, then what it was: nobody reads a paragraph to find out whether
+     * their branch broke the walls.
      */
-    writeFileSync(REPORT, [
-      `collision bench — ${walks} walks — ${new Date().toISOString()}`,
+    const pad = (word: string) => word.padEnd(11);
+    const lines = [
+      `COLLISION BENCH — ${failed.length === 0 ? 'PASS' : 'FAIL'} — ${new Date().toISOString()}`,
       '',
-      'Every creature that walks, walked into every solid thing, from every side, at three speeds.',
-      'A "prop N" is a `PropKind`: the names and numbers are in src/world/biomes.ts.',
-      'Verdicts are about models rather than points — passed under 0.06 tiles of overlap, touching',
-      'under 0.3, intersected beyond it. Nothing may pass *through* anything at all; that is failure.',
+      `  ${walks.toLocaleString()} walks. Nothing may pass through anything: that is the whole of PASS and FAIL.`,
+      '  TOUCHING and INTERSECTED are about the models rather than the arithmetic — how far the body',
+      `  a creature is drawn as ends up inside what its middle stopped against (over ${TOUCH} of a tile`,
+      `  is touching, over ${SUNK} is intersected). Neither is a failure; both are watched.`,
       '',
-      ...covered.map((l) => `  · ${l}`),
-      '',
-    ].join('\n'));
+    ];
+    for (const line of covered) {
+      lines.push(`  ${pad(line.verdict)} ${String(line.count).padStart(6)}  ${line.what}`);
+      for (const detail of line.detail ?? []) lines.push(`  ${' '.repeat(11)}         ${detail}`);
+    }
+    lines.push('', `  Named like oak(1)? Those are PropKind, defined in src/world/biomes.ts.`, '');
+    writeFileSync(REPORT, lines.join('\n'));
+
     expect(covered.length, 'the bench stopped reporting what it did').toBeGreaterThan(20);
     expect(walks, 'the bench has shrunk to nothing').toBeGreaterThan(5000);
+    expect(failed.map((l) => l.what), 'something walked through something').toEqual([]);
+    expect(sunk, 'the model overlap is no longer being watched at all').toBeTruthy();
   });
 });

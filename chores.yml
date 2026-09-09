@@ -136,7 +136,7 @@ tasks:
   collisions:
     desc: Walk every creature into every solid thing, and say what happened
     vars:
-      REPORT: .collisions.txt
+      REPORT: collision-report.txt
     cmds:
       # One command rather than two, so that the account is printed on the way past whether the
       # bench passed or failed — the run that failed is the one somebody wants to read — while the
