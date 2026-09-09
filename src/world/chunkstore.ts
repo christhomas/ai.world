@@ -1,4 +1,4 @@
-import { packChunk, parcelKey, unpackChunk, type Parcel } from '../world/chunkparcel';
+import { packChunk, parcelKey, unpackChunk, type Parcel } from './chunkparcel';
 
 /**
  * The country a page has already been sent, kept so it is never sent twice.
@@ -14,8 +14,11 @@ import { packChunk, parcelKey, unpackChunk, type Parcel } from '../world/chunkpa
  * carries a stamp of what made the country (`worldStamp`), and when generation moves the stamp moves
  * and every kept chunk becomes unreachable at once. There is no invalidation to get wrong.
  *
- * The store itself is handed in rather than reached for, because this has to be testable without a
- * browser and because a page in a private window may have no store at all. Nothing here fails when
+ * It lives with the world rather than with the saves, and the store it writes into is handed in
+ * rather than reached for. That is what keeps it here: a chunk is a fact about the country, and the
+ * only thing about this that belongs to a browser is where the bytes are put — so that part is a
+ * port, which also makes it testable without one, and a page in a private window may have no store
+ * at all. Nothing here fails when
  * there is nowhere to keep anything; it simply keeps nothing, and the world is sent again.
  */
 

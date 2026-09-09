@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ChunkStore, type Keep } from './chunkstore';
-import { packChunk, type Parcel } from '../world/chunkparcel';
+import { packChunk, type Parcel } from './chunkparcel';
 import { WORLD } from '../core/config';
 
 /**
