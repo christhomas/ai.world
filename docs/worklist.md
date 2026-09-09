@@ -1222,7 +1222,7 @@ can each be finished and each leave the game playable.
       instead of rounding them, and asks the register what pressure a village is under rather than
       waiting to be told. The other two are below, because they are decisions rather than
       mistakes.)*
-- [ ] **A6. Ten of the eleven trades in the game are paid the same subsistence floor.**
+- [x] **A6. Ten of the eleven trades in the game are paid the same subsistence floor.**
       `PROSPER.TRADERS` names shopkeeper, innkeeper, smith, apothecary and merchant; the trades a
       villager can actually hold are seller, farmer, hunter, soldier, sailor, miner, climber,
       explorer, constable, doctor and innkeeper. Four of the five higher-paid names do not exist,
@@ -1230,7 +1230,18 @@ can each be finished and each leave the game playable.
       most one of him. Either the set should name the trades that serve everybody else — seller,
       innkeeper, doctor — or the wage should stop pretending to have a shape. A balance decision,
       which is why the bench reports it and does not assert it.
-- [ ] **A7. A village left alone flatlines at 6.5 gold a head, and nothing it earns buys anything.**
+      *(The set names seller, innkeeper and doctor now. The other way — one flat wage — was
+      rejected because it makes every village the same place with a different name: what a village
+      *has*, a market and an inn and a doctor's door, should be why one of them ends the season
+      with a bath house and the one on the rock does not, and that is a reason to walk to one
+      rather than another. It turns out to matter more than a wage table looks: three against two
+      is half again the wage but two and a half times the *saving*, once dinner and upkeep are out,
+      so who a village raises decides what it can build. And the coastal village, whose trade pool
+      is half sellers and doctors because it has no fields, is now reliably the richest place per
+      head and the hungriest — which nobody designed and everybody would recognise. Named as
+      trades rather than as buildings, and `prosperity.test.ts` now holds every name in the set to
+      the list a villager is actually drawn from, so it cannot rot this way twice.)*
+- [x] **A7. A village left alone flatlines at 6.5 gold a head, and nothing it earns buys anything.**
       Not bad luck: it is a fixed point. A day pays 1.5, dinner takes 1, and upkeep takes what is
       left above `KEEPS_BACK`, so every working purse converges on 6.5 and stays there — measured,
       the middle villager in each control village held exactly 6.5 for the last 87 of a hundred
@@ -1242,6 +1253,29 @@ can each be finished and each leave the game playable.
       wired inside the warband loop.** `tidings.ts` only calls `storeysFor` and `luxuryFor` for
       villages `roaming.pressings` hands back, so a village nobody is raiding is never assessed at
       all, and a village that got rich in peace could not grow a storey if it wanted to.
+      *(The wiring first, on its own, because it was a plain bug: assessing a village is its own
+      step now, over every village the register knows about, gated on the day and on the number of
+      villages — a place is settled the moment you walk into it, and one first assessed tomorrow
+      builds its houses a storey short all afternoon. Then the arithmetic. The fixed point was
+      upkeep: at 0.8 against a wage of 1.5 an ordinary day cost three tenths more than it paid, so
+      the only thing between a village and starvation was `KEEPS_BACK` — which stops the spending
+      as a purse runs down and therefore hands the day back exactly the shortfall. The reserve that
+      stopped a man starving was also the ceiling on what he could ever hold. Upkeep is 0.3 and the
+      day pays 2, so a day is worth having; the rule to keep is that upkeep must stay under
+      `A_DAY` minus a meal, and `prosperity.test.ts` lives a purse forward a hundred days to say so.
+      The prices were quoted in a currency no villager could hold — 340 a head is most of the price
+      of a whole house, and a villager earns two a day and dies inside ninety — so a storey is now
+      35 a head and a bath house 800 between the village, both measured off the bench rather than
+      picked. Both ends were walked into: at 30 a head, nineteen of the bench's twenty-one villages
+      ended two storeys tall, and a mark every village earns is not a mark; at 40 only four crossed
+      and all of them in the last five days, which is a number balanced on a knife. What a hundred
+      days looks like now: the middle working villager in an untroubled village holds 16 to 18 at
+      three weeks, 33 to 37 at fifty days and 24 to 45 at a hundred, never twice the same; five of
+      the nine untroubled villages raise second storeys, between day 31 and day 101; five of the
+      twenty-one hold enough between them for a bath house, and the plain inland control never does
+      on any seed. A village under a band loses about half of itself and makes it back. The books
+      still balance to the coin across 2,100 village-days, and the bench now fails if nothing in
+      the world ever gets built.)*
 
 ## Things to make, when the country is finished
 

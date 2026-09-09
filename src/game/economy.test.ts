@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PROSPER } from '../world/prosperity';
 import {
-  DAYS, FOUNDED, LEFT_ALONE, RUNS, VILLAGES, at, coins, who, worth, type Books,
+  DAYS, FOUNDED, LEFT_ALONE, RUNS, VILLAGES, at, coins, eachHead, midPurse, who, worth, type Books,
 } from './economy.bench';
 
 /**
@@ -24,16 +24,21 @@ import {
  * does not import `prosperity.ts` or `food.ts` for the audit, does not know what a wage is, and
  * cannot be right by construction. If the roll says a woman takes one and a half a day and her
  * purse moves by something else, that is the news, and it does not matter which of the two is
- * wrong. (`PROSPER` is imported for the last section only, which is about what the money is *for*
- * and has to know the price of the things it buys. Nothing above it reads a constant.)
+ * wrong. (`PROSPER` is read by the last two sections only — what a village managed to build, and
+ * the account of what the money is *for* — because those are the only questions here that have to
+ * know the price of a thing. Everything that audits the books is above them and reads no constant
+ * at all, which is what keeps it from being right by construction.)
  *
  * The second is that it is mechanical. Running it burns processor time and nobody's attention: it
  * writes an account of what it found to a file, names the village, the day, the number and how far
  * out it is, and a person or an agent picks that up afterwards without having driven anything.
  *
- * It found four things on the morning it was written, two of which were plain bugs and are fixed
- * in `register.ts` and `records.ts`; the other two are in the account it prints and in the work
- * list, because they are decisions about the game rather than mistakes in it.
+ * It found four things on the morning it was written. Two were plain bugs and are fixed in
+ * `register.ts` and `records.ts`. The other two were balance decisions rather than mistakes, so it
+ * reported them and left them: ten of the eleven trades paid the same floor, and every purse in
+ * the world converging on 6.5 so that nothing a villager earned ever bought anything. Both have
+ * since been decided — see A6 and A7 in the work list — and the section that used to print them as
+ * open questions now prints what a village actually built, and fails if the answer is nothing.
  */
 
 /** Where the run leaves its account of itself. Printed by `chore test economy`. */
@@ -401,6 +406,109 @@ describe('a hundred days, at the end of them', () => {
   });
 });
 
+/** What one village managed to build, and the first evening it could have. */
+interface Built {
+  seed: number;
+  village: string;
+  quiet: boolean;
+  /** The day its houses first stood a head above `PROSPER.STOREY`, or null for a village that never did. */
+  storeyOn: number | null;
+  /** And the day it first held `PROSPER.LUXURY` between the whole place. */
+  luxuryOn: number | null;
+}
+
+/**
+ * Every village in every run, against the two lines the money is for.
+ *
+ * Read off the books like everything else here: a second storey is bought out of what a village
+ * holds a head and a bath house out of what it holds between it, which are the two figures
+ * `tidings.ts` hands `storeysFor` and `luxuryFor` every evening. Shared between the test that
+ * judges it and the account that prints it, so the number in the report is the number that passed.
+ */
+function whatWasBuilt(): Built[] {
+  const built: Built[] = [];
+  for (const run of RUNS) {
+    for (const [village, evenings] of run.books) {
+      const storey = evenings.find((evening) => evening.roll.length > 0 && eachHead(evening) >= PROSPER.STOREY);
+      const luxury = evenings.find((evening) => worth(evening) >= PROSPER.LUXURY);
+      built.push({
+        seed: run.seed, village, quiet: LEFT_ALONE.includes(village),
+        storeyOn: storey?.day ?? null, luxuryOn: luxury?.day ?? null,
+      });
+    }
+  }
+  return built;
+}
+
+/** The two or three lines the account carries about it, so the report says what was actually built. */
+function raised(): string[] {
+  const built = whatWasBuilt();
+  const storeys = built.filter((b) => b.storeyOn !== null);
+  const luxuries = built.filter((b) => b.luxuryOn !== null);
+  const soonest = (days: number[]): string => (days.length > 0 ? `day ${Math.min(...days)}` : 'never');
+  return [
+    `${storeys.length} of the ${built.length} villages lived here got their houses up to two storeys, the first of`,
+    `them on ${soonest(storeys.map((b) => b.storeyOn!))}; ${luxuries.length} held enough between them for a bath house, from`,
+    `${soonest(luxuries.map((b) => b.luxuryOn!))}: ${luxuries.map((b) => `${b.village} (seed ${b.seed})`).join(', ') || '—'}.`,
+  ];
+}
+
+/**
+ * What a village does with what it has put by.
+ *
+ * The half of A7 that is about the world rather than the ledger. A village's purses are supposed
+ * to change something a player can walk up to — a house with another storey on it, a bath house
+ * you can pay to use — and until today neither had ever happened once, on any seed, in the life of
+ * the game: `storeysFor` and `luxuryFor` had never returned anything but the floor, because the
+ * prices were quoted in a currency no villager could ever hold.
+ *
+ * So this asks the three questions that make the money mean something. Does anything get built.
+ * Is it rare enough to be worth seeing. And is it earned rather than given — nothing may appear in
+ * the first three weeks, or the storeys are a starting condition rather than a season's work.
+ */
+describe('what a village does with what it has put by', () => {
+  it('gets its houses up, and now and then a bath house, and never in the first three weeks', () => {
+    const built = whatWasBuilt();
+    const storeys = built.filter((b) => b.storeyOn !== null);
+    const luxuries = built.filter((b) => b.luxuryOn !== null);
+    const wrong: string[] = [];
+
+    // three weeks, asked of the villages nothing is done to: a hamlet of three with one seller in
+    // it has a wild average and is not evidence about anything
+    const TOO_SOON = FOUNDED + 21;
+    for (const place of built.filter((b) => b.quiet)) {
+      if (place.storeyOn !== null && place.storeyOn < TOO_SOON) {
+        wrong.push(`${place.village} (seed ${place.seed}) had two storeys by day ${place.storeyOn}: that is a gift, not a season's work`);
+      }
+      if (place.luxuryOn !== null && place.luxuryOn < TOO_SOON) {
+        wrong.push(`${place.village} (seed ${place.seed}) had a bath house by day ${place.luxuryOn}, three weeks off its founding`);
+      }
+    }
+
+    report({
+      verdict: wrong.length === 0 && storeys.length > 0 && luxuries.length > 0 ? 'PASS' : 'FAIL',
+      count: storeys.length,
+      what: `villages that raised a second storey out of their own purses, and ${luxuries.length} that raised a bath house`,
+      detail: wrong.length > 0 ? wrong : built
+        .filter((b) => b.storeyOn !== null || b.luxuryOn !== null)
+        .map((b) => {
+          // a big village can hold the price of a bath house between it and still not be forty a
+          // head, so the two lines are reported apart rather than as one ladder
+          const storey = b.storeyOn !== null ? `two storeys from day ${b.storeyOn}` : 'never two storeys';
+          const bath = b.luxuryOn === null ? ''
+            : `${b.storeyOn !== null ? ', and' : ', but'} a bath house from day ${b.luxuryOn}`;
+          return `seed ${b.seed} ${b.village}: ${storey}${bath}`;
+        }),
+    });
+
+    expect(wrong, 'a village was rich the week it was founded').toEqual([]);
+    expect(storeys.length, 'a hundred days and not one village put a storey on a house').toBeGreaterThan(2);
+    expect(luxuries.length, 'nothing a village earns is ever enough to build anything with').toBeGreaterThan(0);
+    // and it must stay rare: a bath house in every village is a bath house worth nothing
+    expect(luxuries.length, 'every village in the country has a bath house').toBeLessThan(built.length / 2);
+  });
+});
+
 // --- and what the hundred days actually came to ---------------------------------------------
 
 /**
@@ -428,6 +536,7 @@ describe('what the hundred days came to', () => {
       }
     }
     const best = Math.max(...wages.values());
+    const floor = Math.min(...wages.values());
     const paidBest = [...wages].filter(([, wage]) => wage >= best).map(([trade]) => trade);
     report({
       verdict: 'NOTE',
@@ -435,31 +544,36 @@ describe('what the hundred days came to', () => {
       what: 'trades anybody in these villages actually held, and what the roll pays them',
       detail: [
         [...wages].sort((a, b) => b[1] - a[1]).map(([trade, wage]) => `${trade} ${wage}`).join(', '),
-        `Only ${paidBest.join(' and ')} is paid the higher rate. Everybody else in every village is on the`,
-        'subsistence floor, which is why nothing below ever gets anywhere.',
+        `${paidBest.join(', ')} take the higher rate at ${best}; the other ${wages.size - paidBest.length} trades are on ${floor}.`,
+        'It was one trade and one man. The set naming the better-paid trades named shops — shopkeeper,',
+        'smith, apothecary, merchant — and four of those five are not jobs anybody in this world can',
+        'hold, so the higher rate reached the innkeeper and nobody else, at most one to a village.',
       ],
     });
 
-    // 2. where a purse settles, and how long it stays there
+    // 2. what a working purse comes to, and whether it is still moving
     const settled: string[] = [];
     for (const village of LEFT_ALONE) {
       const evenings = first.books.get(village)!;
-      const end = evenings[evenings.length - 1];
-      const working = end.roll.filter((row) => row.trade).map((row) => row.purse).sort((a, b) => a - b);
-      const middle = working.length > 0 ? working[Math.floor(working.length / 2)] : 0;
+      const middle = midPurse(evenings[evenings.length - 1]);
       let unchanged = 0;
       for (let n = evenings.length - 1; n > 0; n--) {
-        const was = evenings[n - 1].roll.filter((row) => row.trade).map((row) => row.purse).sort((a, b) => a - b);
-        if (was.length === 0 || Math.abs(was[Math.floor(was.length / 2)] - middle) > 1e-6) break;
+        if (Math.abs(midPurse(evenings[n - 1]) - middle) > 1e-6) break;
         unchanged++;
       }
-      settled.push(`${village}: the middle working villager holds ${coins(middle)} gold, and has held exactly that for ${unchanged} days`);
+      settled.push(`${village}: the middle working villager holds ${coins(middle)} — ${coins(midPurse(evenings[20]))} at three weeks, ${coins(midPurse(evenings[50]))} at fifty days — and has held tonight's figure for ${unchanged} days`);
     }
     report({
       verdict: 'NOTE',
       count: LEFT_ALONE.length,
-      what: 'villages left alone: where a working purse comes to rest',
-      detail: settled,
+      what: 'villages left alone: what a working purse comes to, and whether it is still moving',
+      detail: [
+        ...settled,
+        'It used to come to rest at exactly 6.5 and hold it for the last 87 days of the hundred, in',
+        'every one of these villages on every seed. Upkeep was larger than what a day had left after',
+        'dinner, so the reserve that stops a man spending himself into starving was also the ceiling',
+        'on what he could ever hold.',
+      ],
     });
 
     // 3. the mint, and what happens to it
@@ -507,17 +621,17 @@ describe('what the hundred days came to', () => {
     const ends = RUNS.flatMap((run) => [...run.books.values()].map((evenings) => evenings[evenings.length - 1]));
     const richest = Math.max(...ends.flatMap((end) => end.roll.map((row) => row.purse)));
     const village = Math.max(...ends.map(worth));
-    const eachOf = Math.max(...ends.map((end) => worth(end) / Math.max(1, end.roll.length)));
+    const eachOf = Math.max(...ends.map(eachHead));
     report({
       verdict: 'NOTE',
       count: Math.round(richest),
-      what: `gold in the richest purse in the world after a hundred days; a second storey costs ${PROSPER.STOREY}`,
+      what: `gold in the richest purse in the world after a hundred days; a second storey wants ${PROSPER.STOREY} a head`,
       detail: [
-        `The best-off village between them holds ${coins(village)} — and a storey is bought out of the village`,
-        `average, which at its highest here is ${coins(eachOf)} a head against the ${PROSPER.STOREY} one costs. The cheapest`,
-        `thing a village can build for itself costs ${PROSPER.LUXURY}. Nobody on any of these seeds came within a`,
-        'factor of ten of either, so the storeys and the saunas that prosperity.ts exists to raise have',
-        'never once been raised, and nothing a villager earns has ever changed anything anybody can see.',
+        `The best-off village between them holds ${coins(village)}, and the best-off a head holds ${coins(eachOf)} against`,
+        `the ${PROSPER.STOREY} its houses grow on. A bath house wants ${PROSPER.LUXURY} between the whole village.`,
+        ...raised(),
+        'It was 340 a head and 3,400 between them, against a best of 33 a head and 528 in the village —',
+        'a factor of ten and a factor of six, so neither had ever been reached in the life of the game.',
       ],
     });
 
