@@ -721,7 +721,12 @@ describe('what this bench covered', () => {
       lines.push(`  ${pad(line.verdict)} ${String(line.count).padStart(6)}  ${line.what}`);
       for (const detail of line.detail ?? []) lines.push(`  ${' '.repeat(11)}         ${detail}`);
     }
-    lines.push('', `  Named like oak(1)? Those are PropKind, defined in src/world/biomes.ts.`, '');
+    lines.push(
+      '',
+      '  Named like Oak(1)? Those are PropKind, defined in src/world/biomes.ts.',
+      `  Written by src/world/collisions.test.ts to ${REPORT}. Run it again with: chore collisions`,
+      '',
+    );
     writeFileSync(REPORT, lines.join('\n'));
 
     expect(covered.length, 'the bench stopped reporting what it did').toBeGreaterThan(20);

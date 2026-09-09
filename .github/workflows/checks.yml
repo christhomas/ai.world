@@ -51,6 +51,19 @@ jobs:
       # types, then the whole suite, then the bench — the same three a commit is gated on locally
       - run: chore check
 
+      # On the run's own page as well as in the artefact, because a report you have to download and
+      # unzip to read is a report nobody reads on the way past.
+      - name: Show the collision report
+        if: always()
+        run: |
+          if [ -f collision-report.txt ]; then
+            {
+              echo '```'
+              cat collision-report.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       # Kept whether it passed or failed, because the run that failed is the one somebody wants to
       # read. It names the pair, the move number and the coordinates either side of it, which is
       # enough to re-run a single case without guessing at what the pipeline was doing.

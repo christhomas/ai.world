@@ -141,7 +141,7 @@ tasks:
       # One command rather than two, so that the account is printed on the way past whether the
       # bench passed or failed — the run that failed is the one somebody wants to read — while the
       # bench's own exit code is what the task exits with, so a pipeline naming this task stops.
-      - 'pnpm vitest run src/world/collisions.test.ts; kept=$?; cat {{.REPORT}} || true; exit $kept'
+      - 'pnpm vitest run src/world/collisions.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
   build:
     desc: Typecheck and build the page into dist/
