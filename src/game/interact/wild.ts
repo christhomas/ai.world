@@ -5,7 +5,6 @@ import { CROPS, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from
 import { FISHING } from '../fishing';
 import { Digging, groundOf, seamAt, type Ground } from '../digging';
 import { mineIdOf } from '../mines';
-import { GRAPH } from '../../core/config';
 import { villageAt } from '../../world/structures';
 import type { Surroundings } from './context';
 
@@ -140,15 +139,23 @@ export function wildInteractions(ctx: Surroundings) {
     return false;
   };
 
-  /** Water within reach of the hero, or null. */
+  /**
+   * Water within reach of the hero, or null.
+   *
+   * The chunks are the only authority here, and asking them is enough: a cast is a couple of tiles
+   * long and the ground that close to the hero is always loaded. There used to be a second arm to
+   * this — the sampler saying "sea", provided the point was inside the world's radius plus a
+   * margin, which was how the open sea past the last chunk was told from the nothing past the edge
+   * of the world. It could never return anything: the line below only hands back a point the
+   * chunks already hold water for, so the sampler's answer was thrown away every time. It went
+   * with the radius, and neither is missed.
+   */
   const waterNearby = (): [number, number] | null => {
     for (let r = 1; r <= FISHING.REACH; r += 0.6) {
       for (let a = 0; a < 12; a++) {
         const ang = (a / 12) * Math.PI * 2;
         const x = player.x + Math.cos(ang) * r, z = player.z + Math.sin(ang) * r;
-        if (chunks.waterAt(x, z) !== null || (!chunks.heightAt(x, z) && sampler.probe(x, z).land === false && Math.hypot(x, z) < GRAPH.RADIUS + 40)) {
-          if (chunks.waterAt(x, z) !== null) return [x, z];
-        }
+        if (chunks.waterAt(x, z) !== null) return [x, z];
       }
     }
     return null;

@@ -47,6 +47,17 @@ export interface MapBase {
 const PROBE_BLOCK = 2;
 
 /**
+ * Sea left round the outside of the drawn country, in tiles.
+ *
+ * The map is as big as the roads it has to draw, and the last road is not the last land: the
+ * ground is a band either side of one, twenty-odd tiles of it at its widest, and the coast and its
+ * shallows lie beyond that. Too little and a map ends in a straight green line where the canvas
+ * stopped rather than where the country did. Too much and every map is mostly empty sea, at four
+ * bytes and one probe of the terrain for every pixel of it.
+ */
+const MAP_MARGIN = 32;
+
+/**
  * The world drawn once into an offscreen canvas: the ground as it actually is, then the roads on
  * top of it. Both the corner minimap and the full-screen map sample from this, so they can never
  * disagree with each other.
@@ -62,7 +73,15 @@ const PROBE_BLOCK = 2;
  * disagree with its own map again.
  */
 export function renderMapBase(graph: RoadGraph, sampler: MapGround): MapBase {
-  const pad = graph.radius + 8;
+  // As far out as the roads go, and no further. It used to be the world's radius plus a few tiles,
+  // which is the same number for a mainland and wrong for everything else: the islands are anchored
+  // past where the mainland reaches, so on a world whose islands stand seven hundred tiles out the
+  // map ended at four hundred and eighty and they were simply not on it. Sailing to one put the
+  // hero off the edge of his own map. A patch of an endless world has no radius to be padded out
+  // to at all, and this asks it the only question that has an answer anywhere: where is the
+  // furthest thing you are asking me to draw.
+  const reach = graph.nodes.reduce((most, n) => Math.max(most, Math.abs(n.x), Math.abs(n.z)), 0);
+  const pad = reach + MAP_MARGIN;
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(pad * 2 * BASE_SCALE);
   canvas.height = canvas.width;

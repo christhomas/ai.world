@@ -899,9 +899,26 @@ can each be finished and each leave the game playable.
       small faces and eight hundred and sixty tiles in the country this game draws, three times the
       longest river and a search over three million tiles of water per port. A ferry is a distance,
       not a number of fields.)*
-- [ ] **B7g. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
+- [x] **B7g. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
       sea test in `wild.ts`, the debug readout, the map's padding and the roaming bands stop
-      measuring from the middle of a world that no longer has one.
+      measuring from the middle of a world that no longer has one. *(It survives as
+      `EDGE_OF_THE_WORLD` in `graph.ts`, because a bounded world still has to be grown to
+      something, and it is imported only by the three things entitled to say a world stops: the
+      road tree, the polygon mesh and the web laid over it. The whales were the real work. Eighteen
+      pods thrown at a ring of the radius until enough of them landed in deep water is a ring, a
+      count and a search, and all three need a finished world; the sea is cut into squares now,
+      each offering one family where its own name says, standing if the water there is deep and no
+      better family wants the same stretch — twenty-odd in a world the size of the old one, and the
+      same density in an ocean a thousand tiles from anywhere. The sea test in `wild.ts` was dead
+      code and had always been: it could never return a point, because the line below it only hands
+      back water the chunks already hold. The map's padding was the one that turned up a bug — the
+      islands are anchored past where the mainland reaches, so a map padded to the radius ended at
+      four hundred and eighty and never had them on it at all, and sizing it by the furthest road
+      it is actually drawing put them on the map for the first time, at twice the pixels. The
+      roaming bands, which this item said measure from the middle, do not: nothing in `roaming.ts`
+      ever read a radius. What they assume is a count of bands and a shuffled deck of every stop in
+      the world, which is the same shape of problem and a separate piece of work, because a band's
+      id is in the save.)*
 
 ### The hero, as he is seen
 

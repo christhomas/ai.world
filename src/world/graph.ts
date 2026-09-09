@@ -32,8 +32,30 @@ export interface RoadEdge {
   loop: boolean;
 }
 
-/** Mutable copy of the GRAPH tuning, so islands can grow with their own settings. */
-export type RoadConfig = { -readonly [K in keyof typeof GRAPH]: number };
+/**
+ * How far a bounded world is grown from its middle, in tiles.
+ *
+ * The one number in the game that asserts a world has an edge, which is why it sits here rather
+ * than among the tunables: importing it is saying "the world I am making is the one that stops",
+ * and only the three things entitled to say that do — this generator, the polygon mesh, and the
+ * road web laid over it. Nothing that plays on the finished ground may read it. A whale placed on
+ * a ring of it, a map padded out to it or a debug line printing it are all the same bug: they
+ * work on a world with a middle and mean nothing in a world grown a patch at a time.
+ *
+ * Every world anybody has saved was grown to this, so it is not a knob any more — turning it
+ * moves the ground under every house in every save.
+ */
+export const EDGE_OF_THE_WORLD = 480;
+
+/**
+ * Mutable copy of the GRAPH tuning, so islands can grow with their own settings, plus the one
+ * thing that is not a tuning: how far this particular world is to be grown. An island is the same
+ * generator asked for a small world, which is the whole reason the radius is an argument at all.
+ */
+export type RoadConfig = { -readonly [K in keyof typeof GRAPH]: number } & { RADIUS: number };
+
+/** The road tree as the game grows it: the tuning, taken out to the edge of the world. */
+const BOUNDED: RoadConfig = { ...GRAPH, RADIUS: EDGE_OF_THE_WORLD };
 
 export interface IslandInfo {
   id: string;
@@ -136,7 +158,7 @@ interface Growth {
   R: number;
 }
 
-export function generateRoadGraph(seed: number, cfg: RoadConfig = GRAPH): RoadGraph {
+export function generateRoadGraph(seed: number, cfg: RoadConfig = BOUNDED): RoadGraph {
   const rng = mulberry32(derive(seed, SALT.ROAD_RNG));
   const noise = new Simplex2D(derive(seed, SALT.ROAD_MASK));
   const g: Growth = { nodes: [], grid: new NodeGrid(cfg.INFLUENCE), rng, R: cfg.RADIUS };

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAMEPLAY, GRAPH, WORLD } from '../core/config';
+import { GAMEPLAY, WORLD } from '../core/config';
 import type { Input } from '../core/input';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
@@ -18,6 +18,7 @@ import type { SkyIslands } from '../render/skyisland';
 import type { Weather } from '../render/weather';
 import type { ChunkManager } from '../world/chunkManager';
 import type { RoadGraph } from '../world/graph';
+import { chunkKey } from '../world/spatial';
 import type { TerrainSampler } from '../world/terrain';
 import type { Hud } from '../ui/hud';
 import type { Minimap } from '../ui/minimap';
@@ -460,7 +461,10 @@ export function createFrame(ctx: Framing) {
     hud.setDebug(dt, () =>
       `${fps.toFixed(0)} fps  chunks ${chunks.stats.drawn}/${chunks.stats.loaded}  queue ${chunks.stats.pending}\n` +
       `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  creatures ${entities.count}\n` +
-      `roads ${graph.edges.length}  radius ${GRAPH.RADIUS}  pos ${x.toFixed(0)},${z.toFixed(0)}\n` +
+      // the chunk stands where the world's radius used to. A radius was only ever the size of a
+      // world that has an edge; the chunk is the square the ground is actually loaded in, which
+      // is a true thing to say about a world grown a patch at a time as well as about a bounded one
+      `roads ${graph.edges.length}  chunk ${chunkKey(Math.floor(x / WORLD.CHUNK_SIZE), Math.floor(z / WORLD.CHUNK_SIZE))}  pos ${x.toFixed(0)},${z.toFixed(0)}\n` +
       // what the screen is getting wrong about the world's own creatures, which is the difference
       // between swinging at a wolf and hitting one
       (() => {

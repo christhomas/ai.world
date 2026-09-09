@@ -1,9 +1,8 @@
-import { GRAPH } from '../core/config';
 import { mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
-import type { IslandInfo, RoadEdge, RoadGraph, RoadNode } from './graph';
+import { EDGE_OF_THE_WORLD, type IslandInfo, type RoadEdge, type RoadGraph, type RoadNode } from './graph';
 import { FaceKind, faceAt, generateMesh, isLand, type MeshFace, type WorldMesh } from './mesh';
 
 /**
@@ -85,7 +84,7 @@ const edgeKey = (a: number, b: number): string => (a < b ? `${a},${b}` : `${b},$
  * the world is made differently. `mesh` comes back on it as well, because what is now the
  * authority on land and sea is the mesh rather than anything in here.
  */
-export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph & { mesh: WorldMesh } {
+export function generateWebGraph(seed: number, radius = EDGE_OF_THE_WORLD): RoadGraph & { mesh: WorldMesh } {
   const mesh = generateMesh(seed, radius);
   const rng = mulberry32(derive(seed, SALT.ROAD_RNG));
 
