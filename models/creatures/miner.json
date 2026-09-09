@@ -2,7 +2,8 @@
   "note": [
     "A miner, and the hat is the whole of him at a hundred paces.",
     "Every villager in this game was the same sixteen boxes in different trousers, so a village of eleven trades read as one man repeated. What tells a trade apart from above is a silhouette, not a colour \u2014 and a hard hat is the one piece of kit in the world that is worn on the head, is a shape nothing else has, and is yellow because it is meant to be seen in the dark.",
-    "Broader than an ordinary villager. A man who swings a pick all day is built like one, and it is also the first thing `build` was put in for."
+    "Broader than an ordinary villager. A man who swings a pick all day is built like one, and it is also the first thing `build` was put in for.",
+    "The pick is part of him rather than something he is handed. Held gear is `HeroGear`, and that is the hero's alone \u2014 everybody else is drawn through the instanced pool, which has one geometry per kind and nowhere to put a tool. Hanging it off the right arm is better than a workaround anyway: the arm is what `swing` turns, so the pick comes over the top with the stroke without anything having to animate it."
   ],
   "from": "biped",
   "with": {
@@ -14,15 +15,15 @@
   },
   "parts": [
     {
-      "note": "the crown, sitting down over the hair rather than balanced on it \u2014 the mistake the hero's hat was corrected for",
+      "note": "the crown, sitting down over the hair rather than balanced on it \u2014 the mistake the hero's hat was corrected for. Wider than the hair it covers (0.32) rather than equal to it: two boxes the same width in the same band of height fight for the same pixels, and the hat shimmers as the camera turns",
       "box": [
-        0.32,
+        0.35,
         0.14,
-        0.32
+        0.35
       ],
       "at": [
         0,
-        1.5,
+        1.52,
         0
       ],
       "color": "#f1c40f",
@@ -62,7 +63,7 @@
       ],
       "at": [
         0,
-        1.585,
+        1.6,
         0
       ],
       "color": "#e0af0b",
@@ -91,6 +92,90 @@
         0,
         1.2,
         0
+      ]
+    },
+    {
+      "note": "the haft, along the arm and reaching past the fist. Bound to armR, so it swings when he does",
+      "box": [
+        0.06,
+        0.5,
+        0.06
+      ],
+      "at": [
+        0.02,
+        0.62,
+        -0.25
+      ],
+      "color": "#6b4a2b",
+      "anim": "armR",
+      "pivot": [
+        0,
+        1.14,
+        -0.25
+      ]
+    },
+    {
+      "note": "the head: a bar across the haft, which is the whole silhouette of a pick and what tells it from an axe",
+      "box": [
+        0.06,
+        0.06,
+        0.34
+      ],
+      "at": [
+        0.02,
+        0.4,
+        -0.25
+      ],
+      "color": "#9aa2ac",
+      "anim": "armR",
+      "pivot": [
+        0,
+        1.14,
+        -0.25
+      ]
+    },
+    {
+      "note": "the point, which is the end that goes into the rock",
+      "cone": [
+        0.045,
+        0.12
+      ],
+      "at": [
+        0.02,
+        0.4,
+        -0.44
+      ],
+      "color": "#b8c0cc",
+      "rot": [
+        "1/4",
+        0,
+        0
+      ],
+      "anim": "armR",
+      "pivot": [
+        0,
+        1.14,
+        -0.25
+      ]
+    },
+    {
+      "note": "and the flat, for prising out what the point has loosened",
+      "box": [
+        0.05,
+        0.09,
+        0.08
+      ],
+      "at": [
+        0.02,
+        0.4,
+        -0.07
+      ],
+      "color": "#b8c0cc",
+      "anim": "armR",
+      "pivot": [
+        0,
+        1.14,
+        -0.25
       ]
     }
   ]
