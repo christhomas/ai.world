@@ -1,0 +1,129 @@
+{
+  "note": [
+    "The mayor, in a hat like Henry the Eighth's, which was asked for by name.",
+    "It is deliberately far too big. A hall's turret is oversized for the same reason and the reason is the camera: at the distance this game is watched from, a hat drawn to scale is a smudge on a head, and the one man in a village who ought to be findable at a glance would be the hardest to find. Wide, flat, and with a feather standing off it so the outline is broken from every side.",
+    "Broad, and gowned. A mayor is not a labourer."
+  ],
+  "from": "biped",
+  "with": {
+    "skin": "#f0d0b0",
+    "hair": "#c8c0b0",
+    "shirtTint": 0,
+    "pantsColor": "#3a1f2a",
+    "build": 1.28
+  },
+  "parts": [
+    {
+      "note": "the brim, wider than his own shoulders, which is the joke and also the point",
+      "box": [
+        0.52,
+        0.06,
+        0.52
+      ],
+      "at": [
+        0,
+        1.52,
+        0
+      ],
+      "color": "#2a1420",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the flat crown, low rather than tall: a bonnet, not a stovepipe",
+      "box": [
+        0.36,
+        0.13,
+        0.36
+      ],
+      "at": [
+        0,
+        1.6,
+        0
+      ],
+      "color": "#3a1c2c",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the band",
+      "box": [
+        0.38,
+        0.05,
+        0.38
+      ],
+      "at": [
+        0,
+        1.53,
+        0
+      ],
+      "color": "#c9a227",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "and the feather, standing off to one side so the hat is not symmetrical from above",
+      "box": [
+        0.06,
+        0.3,
+        0.05
+      ],
+      "at": [
+        -0.12,
+        1.76,
+        0.16
+      ],
+      "color": "#e8e2d0",
+      "rot": [
+        0,
+        0,
+        "1/16"
+      ],
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the gown: a heavy collar and a chain of office, which is what the town hall's clerk does not have",
+      "box": [
+        0.33,
+        0.12,
+        0.46
+      ],
+      "at": [
+        0,
+        1.13,
+        0
+      ],
+      "color": "#3a1c2c"
+    },
+    {
+      "box": [
+        0.06,
+        0.14,
+        0.3
+      ],
+      "at": [
+        0.15,
+        1.0,
+        0
+      ],
+      "color": "#c9a227"
+    }
+  ]
+}

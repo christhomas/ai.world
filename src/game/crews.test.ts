@@ -253,9 +253,18 @@ describe('a shift at the face', () => {
     expect(tradeTree('facework'), 'nobody knows how to work a rock face').not.toBeNull();
     expect(treeFor({ trade: 'facework', kind: { id: 'villager', behaviour: 'wander' } }))
       .toBe(tradeTree('facework'));
-    // and a miner standing in a village street is untouched: his trade has no day of its own, so
-    // he goes on being an ordinary villager above ground
-    expect(tradeTree('miner'), 'a village miner has quietly been given a pick and a rock face').toBeNull();
+    /*
+     * And a miner standing in a village street is not at a rock face.
+     *
+     * This asserted that a miner had no tree at all, which was true when it was written and was
+     * guarding the right mistake: give the `miner` trade the `facework` day and every miner in the
+     * country stands outside his own front door swinging a pick at the grass. He has a surface day
+     * of his own now — up to the high ground at first light, home at dusk — so the guard is that
+     * the two days are different, which is what it was always about.
+     */
+    expect(tradeTree('miner'), 'a miner has no day above ground').not.toBeNull();
+    expect(tradeTree('miner'), 'a village miner has quietly been given a pick and a rock face')
+      .not.toBe(tradeTree('facework'));
   });
 
   it('swings, over and over, and stays where it was put', () => {

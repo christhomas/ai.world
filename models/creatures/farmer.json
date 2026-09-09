@@ -1,0 +1,69 @@
+{
+  "note": [
+    "The farmer: a straw hat and an apron, which is a shape and a colour nothing else in the village has.",
+    "The hat is wide and low, unlike the miner's and the constable's, so the three trades that wear something on their heads are three different outlines from above rather than three colours of the same one."
+  ],
+  "from": "biped",
+  "with": {
+    "skin": "#dda87a",
+    "hair": "#8a6a3d",
+    "shirtTint": 0,
+    "pantsColor": "#5a4632",
+    "build": 1.08
+  },
+  "parts": [
+    {
+      "note": "a broad flat brim, the widest thing on him, and a shallow crown",
+      "box": [
+        0.46,
+        0.04,
+        0.46
+      ],
+      "at": [
+        0,
+        1.5,
+        0
+      ],
+      "color": "#d8b46a",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "box": [
+        0.28,
+        0.1,
+        0.28
+      ],
+      "at": [
+        0,
+        1.55,
+        0
+      ],
+      "color": "#c9a355",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the apron, and it stops at the belt: a full-length one would read as the priest's cassock",
+      "box": [
+        0.3,
+        0.34,
+        0.2
+      ],
+      "at": [
+        0.06,
+        0.86,
+        0
+      ],
+      "color": "#9a7f5a"
+    }
+  ]
+}

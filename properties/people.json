@@ -1,27 +1,65 @@
 {
-  "note": "Everybody in the world with a life rather than a habit — and the hero, who is a creature kind like any other so that everything which knows how to draw, animate and hit a creature knows how to do it to you. Fields are as described in beasts.json.",
+  "note": "Everybody in the world with a life rather than a habit \u2014 and the hero, who is a creature kind like any other so that everything which knows how to draw, animate and hit a creature knows how to do it to you. Fields are as described in beasts.json.",
   "traveller": {
-    "note": "Walks the roads at a fixed pace with no run in it — a traveller never flees, because nothing on a road has ever given them cause to. The palettes are wide so that two on the same road are two people.",
+    "note": "Walks the roads at a fixed pace with no run in it \u2014 a traveller never flees, because nothing on a road has ever given them cause to. The palettes are wide so that two on the same road are two people.",
     "label": "Traveller",
-    "emoji": "🧑",
+    "emoji": "\ud83e\uddd1",
     "scale": 1,
     "speed": 1.3,
     "runSpeed": 1.3,
-    "herd": [1, 2],
+    "herd": [
+      1,
+      2
+    ],
     "behaviour": "travel",
     "timid": false,
     "hp": 5,
     "palettes": [
-      ["#e74c3c", "#2c1810"],
-      ["#3498db", "#8b4513"],
-      ["#2ecc71", "#ffd700"],
-      ["#9b59b6", "#6c5ce7"],
-      ["#f39c12", "#00ced1"],
-      ["#1abc9c", "#ff69b4"],
-      ["#e91e63", "#2c1810"],
-      ["#00bcd4", "#ff4500"]
+      [
+        "#e74c3c",
+        "#2c1810"
+      ],
+      [
+        "#3498db",
+        "#8b4513"
+      ],
+      [
+        "#2ecc71",
+        "#ffd700"
+      ],
+      [
+        "#9b59b6",
+        "#6c5ce7"
+      ],
+      [
+        "#f39c12",
+        "#00ced1"
+      ],
+      [
+        "#1abc9c",
+        "#ff69b4"
+      ],
+      [
+        "#e91e63",
+        "#2c1810"
+      ],
+      [
+        "#00bcd4",
+        "#ff4500"
+      ]
     ],
-    "names": ["Alex", "Nova", "Kai", "Zeph", "Mira", "Tolan", "Wren", "Idris", "Suri", "Bram"],
+    "names": [
+      "Alex",
+      "Nova",
+      "Kai",
+      "Zeph",
+      "Mira",
+      "Tolan",
+      "Wren",
+      "Idris",
+      "Suri",
+      "Bram"
+    ],
     "lines": [
       "Hello!",
       "*waves*",
@@ -35,25 +73,63 @@
   "villager": {
     "note": "Slower than a traveller and with more of a life to lose. Their day is decided by their trade rather than by their kind, which is why the tree that drives them is filed under the job.",
     "label": "Villager",
-    "emoji": "🧑‍🌾",
+    "emoji": "\ud83e\uddd1\u200d\ud83c\udf3e",
     "scale": 1,
     "speed": 1.1,
     "runSpeed": 1.1,
-    "herd": [2, 4],
+    "herd": [
+      2,
+      4
+    ],
     "behaviour": "wander",
     "timid": false,
     "hp": 6,
     "palettes": [
-      ["#c0392b", "#2c1810"],
-      ["#2980b9", "#8b4513"],
-      ["#27ae60", "#ffd700"],
-      ["#8e44ad", "#6c5ce7"],
-      ["#d35400", "#00ced1"],
-      ["#16a085", "#ff69b4"],
-      ["#7f8c8d", "#2c1810"],
-      ["#f1c40f", "#4a2a10"]
+      [
+        "#c0392b",
+        "#2c1810"
+      ],
+      [
+        "#2980b9",
+        "#8b4513"
+      ],
+      [
+        "#27ae60",
+        "#ffd700"
+      ],
+      [
+        "#8e44ad",
+        "#6c5ce7"
+      ],
+      [
+        "#d35400",
+        "#00ced1"
+      ],
+      [
+        "#16a085",
+        "#ff69b4"
+      ],
+      [
+        "#7f8c8d",
+        "#2c1810"
+      ],
+      [
+        "#f1c40f",
+        "#4a2a10"
+      ]
     ],
-    "names": ["Ella", "Tomas", "Greta", "Piet", "Anouk", "Rolf", "Maren", "Jory", "Hild", "Oskar"],
+    "names": [
+      "Ella",
+      "Tomas",
+      "Greta",
+      "Piet",
+      "Anouk",
+      "Rolf",
+      "Maren",
+      "Jory",
+      "Hild",
+      "Oskar"
+    ],
     "lines": [
       "Welcome to {village}!",
       "Not much happens in {village}, and we like it that way.",
@@ -67,42 +143,357 @@
   "shopkeeper": {
     "note": "Barely moves, because a shopkeeper who wanders is a shop you cannot find. No hit points at all: the person you buy from is not a fight anybody gets to have.",
     "label": "Shopkeeper",
-    "emoji": "🧑‍🍳",
+    "emoji": "\ud83e\uddd1\u200d\ud83c\udf73",
     "scale": 1,
     "speed": 0.6,
     "runSpeed": 0.6,
-    "herd": [1, 1],
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "wander",
     "timid": false,
     "palettes": [
-      ["#ffffff", "#2c1810"],
-      ["#f5deb3", "#8b4513"],
-      ["#dcdcdc", "#4a2a10"],
-      ["#e8e0c8", "#6c5ce7"]
+      [
+        "#ffffff",
+        "#2c1810"
+      ],
+      [
+        "#f5deb3",
+        "#8b4513"
+      ],
+      [
+        "#dcdcdc",
+        "#4a2a10"
+      ],
+      [
+        "#e8e0c8",
+        "#6c5ce7"
+      ]
     ],
-    "names": ["Berta", "Hamund", "Lise", "Corvin", "Margit", "Oswin", "Tilda", "Renn"],
-    "lines": ["Welcome, welcome! Have a look around.", "Best prices in {village}, I promise.", "Come back any time."]
+    "names": [
+      "Berta",
+      "Hamund",
+      "Lise",
+      "Corvin",
+      "Margit",
+      "Oswin",
+      "Tilda",
+      "Renn"
+    ],
+    "lines": [
+      "Welcome, welcome! Have a look around.",
+      "Best prices in {village}, I promise.",
+      "Come back any time."
+    ]
   },
   "hero": {
     "note": [
       "You. A creature kind like any other, so everything that already knows how to draw, animate, herd and hit a creature knows how to do it to you.",
       "The climb is the consequential number: 0.56 clears one terrace and nothing else in the world has it. It is what a mountain is for, and it is the free answer to every heavy thing underground.",
       "Five colours rather than two, because his are the only ones that change while the game is running: shirt, hair, trousers, boots, arms. What he is wearing repaints them, since iron on the body means the body is iron rather than a second body drawn over the first.",
-      "The fifth is his own skin, and it stays his skin under everything but plate — a mail shirt has sleeves of cloth or none at all, and bare arms under mail are right. It is here so that a harness has somewhere to put its vambraces."
+      "The fifth is his own skin, and it stays his skin under everything but plate \u2014 a mail shirt has sleeves of cloth or none at all, and bare arms under mail are right. It is here so that a harness has somewhere to put its vambraces."
     ],
     "label": "You",
-    "emoji": "🧝",
+    "emoji": "\ud83e\udddd",
     "scale": 1.06,
     "speed": 5.5,
     "runSpeed": 5.5,
     "climb": 0.56,
-    "herd": [1, 1],
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "wander",
     "timid": false,
     "palettes": [
-      ["#2fb36a", "#f2d15c", "#4a3a2a", "#3a2a1a", "#ffdab9"]
+      [
+        "#2fb36a",
+        "#f2d15c",
+        "#4a3a2a",
+        "#3a2a1a",
+        "#ffdab9"
+      ]
     ],
-    "names": ["You"],
-    "lines": ["..."]
+    "names": [
+      "You"
+    ],
+    "lines": [
+      "..."
+    ]
+  },
+  "miner": {
+    "note": [
+      "A villager who works the seam. His day is `miner` above ground and `facework` below, and the two are different trees for a reason written down in behaviours/villagers.json.",
+      "Alone in his herd, because a trade is one man and not a flock \u2014 the village he belongs to is the herd that matters."
+    ],
+    "label": "Miner",
+    "emoji": "\u26cf\ufe0f",
+    "scale": 1,
+    "speed": 1.1,
+    "runSpeed": 1.1,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 6,
+    "palettes": [
+      [
+        "#8a6a3d",
+        "#2c1810"
+      ],
+      [
+        "#6b5a48",
+        "#3a2a1a"
+      ],
+      [
+        "#7a6a55",
+        "#2a2018"
+      ]
+    ],
+    "names": [
+      "Dolf",
+      "Marek",
+      "Bren",
+      "Hesta",
+      "Ulf",
+      "Nell"
+    ],
+    "lines": [
+      "The seam's been good this week.",
+      "Mind the roof further in.",
+      "Cold work, but it pays.",
+      "We lost a man in there last spring.",
+      "There's gold in that hill, or my father was a liar."
+    ]
+  },
+  "priest": {
+    "note": [
+      "Whoever stands at the altar. He has always existed \u2014 `places.ts` gives a chapel keeper the trade \u2014 and has always been drawn as a shopkeeper."
+    ],
+    "label": "Priest",
+    "emoji": "\u26ea",
+    "scale": 1,
+    "speed": 1.1,
+    "runSpeed": 1.1,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 5,
+    "palettes": [
+      [
+        "#2a2632",
+        "#f4e7c8"
+      ]
+    ],
+    "names": [
+      "Father Aldric",
+      "Father Bede",
+      "Father Corin",
+      "Mother Ilse",
+      "Mother Ravena"
+    ],
+    "lines": [
+      "Peace be with you.",
+      "The stones outside can be read, if you have the coin for it.",
+      "We bury our own here.",
+      "Light a candle for whoever you have lost.",
+      "The chapel is open to anybody."
+    ]
+  },
+  "doctor": {
+    "note": [
+      "The village surgery, which is the quietest house furthest from the market \u2014 that is where `postsOf` puts the doctor's post, and it is where this one stands."
+    ],
+    "label": "Doctor",
+    "emoji": "\ud83e\ude7a",
+    "scale": 1,
+    "speed": 1.1,
+    "runSpeed": 1.1,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 5,
+    "palettes": [
+      [
+        "#eef2f5",
+        "#3a3f4a"
+      ]
+    ],
+    "names": [
+      "Dr Halden",
+      "Dr Voss",
+      "Dr Merel",
+      "Dr Anselm",
+      "Dr Rue"
+    ],
+    "lines": [
+      "Sit down before you fall down.",
+      "I have births and deaths both in my book.",
+      "That will want cleaning.",
+      "Rest is most of it, whatever anybody tells you.",
+      "I can show you the register, for a fee."
+    ]
+  },
+  "constable": {
+    "note": [
+      "The law. Called out by `callOutTheLaw` when somebody is robbed, and until now indistinguishable from the man he was arresting."
+    ],
+    "label": "Constable",
+    "emoji": "\ud83d\udc6e",
+    "scale": 1,
+    "speed": 1.2,
+    "runSpeed": 1.2,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 9,
+    "palettes": [
+      [
+        "#f0f2f4",
+        "#1f2733"
+      ]
+    ],
+    "names": [
+      "Sergeant Bram",
+      "Sergeant Otto",
+      "Constable Vell",
+      "Constable Marsh",
+      "Sergeant Ide"
+    ],
+    "lines": [
+      "Move along.",
+      "We keep a cell for people like you.",
+      "Anything you take here, I hear about.",
+      "Quiet night. Let us keep it that way.",
+      "The charge sheet is at the watch house."
+    ]
+  },
+  "mayor": {
+    "note": [
+      "The head of a town, and the one man in it a player should be able to pick out of a street at a glance. The town hall has had a clerk since the night it was built and nobody to answer to."
+    ],
+    "label": "Mayor",
+    "emoji": "\ud83c\udfa9",
+    "scale": 1,
+    "speed": 0.95,
+    "runSpeed": 0.95,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 6,
+    "palettes": [
+      [
+        "#3a1c2c",
+        "#c9a227"
+      ]
+    ],
+    "names": [
+      "Mayor Alderic",
+      "Mayor Constance",
+      "Mayor Perrin",
+      "Mayor Hesther",
+      "Mayor Godwin"
+    ],
+    "lines": [
+      "This town keeps its books, and you may read them for a fee.",
+      "I have held this office eleven years.",
+      "We are a market town, whatever Ashford says.",
+      "Take your quarrels to the watch house, not to me.",
+      "The roll is at the hall."
+    ]
+  },
+  "farmer": {
+    "note": [
+      "Out to the field early, back through the square at noon \u2014 the day `behaviours/villagers.json` has always given the trade, now with a hat on."
+    ],
+    "label": "Farmer",
+    "emoji": "\ud83c\udf3e",
+    "scale": 1,
+    "speed": 1.1,
+    "runSpeed": 1.1,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 6,
+    "palettes": [
+      [
+        "#9a7f5a",
+        "#5a4632"
+      ],
+      [
+        "#8a7050",
+        "#4a3a2a"
+      ]
+    ],
+    "names": [
+      "Wat",
+      "Suse",
+      "Berta",
+      "Corin",
+      "Alwin",
+      "Mabb"
+    ],
+    "lines": [
+      "The field wants rain.",
+      "Fair weather for it.",
+      "Mind the fences.",
+      "We plant when the ground says so, not the calendar.",
+      "There is more work than there are hands."
+    ]
+  },
+  "cowboy": {
+    "note": [
+      "The farmer who keeps the horses. `manager.ts` already gives one villager in a stabled village the `stablehand` role; this is what he should look like."
+    ],
+    "label": "Stablehand",
+    "emoji": "\ud83e\udd20",
+    "scale": 1,
+    "speed": 1.15,
+    "runSpeed": 1.15,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 6,
+    "palettes": [
+      [
+        "#7a5a3a",
+        "#3f4a5a"
+      ]
+    ],
+    "names": [
+      "Jeb",
+      "Corrin",
+      "Sable",
+      "Hoyt",
+      "Marta"
+    ],
+    "lines": [
+      "She is not for sale. The bay might be.",
+      "Mind where you stand behind them.",
+      "A horse is a week's wages and worth every coin.",
+      "They know the road better than I do.",
+      "We keep four, and two of them are trouble."
+    ]
   }
 }

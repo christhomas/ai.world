@@ -1427,22 +1427,29 @@ Written down together because they are one job, and because the model files that
 what makes it a small one — a creature is `models/creatures/<id>.json` now, so a new sort of person
 is a file rather than a pull request.
 
-- [ ] **Body types.** Fat villagers, thin ones, broad ones. The `biped` generator takes a palette and
+- [x] **Body types.** Fat villagers, thin ones, broad ones. The `biped` generator takes a palette and
       nothing about the shape of the person wearing it, so every body is identical. This is the one
       that has to come first, because every model below is built on it.
-- [ ] **A miner**, with a yellow hard hat like a construction worker, and a pickaxe in his hands.
+- [x] **A miner**, with a yellow hard hat like a construction worker, and a pickaxe in his hands.
       *(Half done: `pick` now has a model and `HeroGear` can draw a tool in a hand, which it never
       could before — a tool has no equipment slot and deliberately so. What is left is the man.)*
+- [ ] **The one line that puts these people in the street.** The seven models exist and nothing
+      spawns them: `manager.ts` places every villager as `KINDS.villager` and hands out trades
+      *after*, so the kind cannot yet be chosen from the trade. `Entity.kind` is readonly and the
+      renderer pools by kind, so this is not a swap after the fact — it wants the resident's trade
+      read before `place()` is called, which is a few lines in `spawnVillageFolk`. Left undone
+      deliberately: `manager.ts` was another agent's territory tonight and is one line under the
+      700-line cap.
 - [ ] **Swing a pickaxe.** `animations/motion.json` already has a `swing` blow, so the motion exists;
       what does not is a villager at a rock face using it as work rather than as a fight.
-- [ ] **A farmer**, and a cowboy for the farmer who keeps the stable.
-- [ ] **A priest** for the church, who already exists as a person — `places.ts` gives the chapel
+- [x] **A farmer**, and a cowboy for the farmer who keeps the stable.
+- [x] **A priest** for the church, who already exists as a person — `places.ts` gives the chapel
       keeper `trade = 'priest'` — and is drawn as an ordinary shopkeeper.
-- [ ] **A doctor.**
-- [ ] **A constable**, so the law is recognisable before it reaches you.
-- [ ] **A mayor**, with a hat like Henry the Eighth's. The town hall has a clerk in it as of tonight
+- [x] **A doctor.**
+- [x] **A constable**, so the law is recognisable before it reaches you.
+- [x] **A mayor**, with a hat like Henry the Eighth's. The town hall has a clerk in it as of tonight
       and nobody the town would call its head.
-- [ ] **A miner has no behaviour tree at all.** `behaviours/villagers.json` has eleven — innkeeper,
+- [x] **A miner has no behaviour tree at all.** `behaviours/villagers.json` has eleven — innkeeper,
       seller, farmer, hunter, constable, doctor, soldier, hired, sailor, climber, explorer — and
       `miner` is not among them, so a villager whose trade is mining does not go mining. Found while
       looking for the swing.
@@ -1562,6 +1569,32 @@ it is worth its own heading rather than being fixed one case at a time.
       has one or two, so a sixteen-room cave holds a man. That is probably right — a mine is not a
       colliery — but it means the tunnels still read as empty, and it is worth deciding whether a
       village's mine should draw more of its people down it.
+
+## The snow lands should stand higher
+
+> "I think the snow lands should have higher elevation, which is kind of a similar way to what we
+> tried to do with mountains in the past. But what I want is to add elevation and higher hills which
+> would make a new attempt at building a non-flat environment"
+
+- [ ] **Snow country stands above the rest.** Snow is a biome today and nothing else — a snow field
+      and a plain are the same ground in different colours, so the country reads as flat everywhere
+      you are not standing on a mountain. It should be high country in its own right, the way
+      mountain country is: the ground itself rising, walkable, with the cold at the top of the climb
+      rather than at an invisible line drawn across a flat map.
+- [ ] **And hills between the two.** This is the wider point and worth attempting on its own. The
+      world has exactly two kinds of ground — flat, and mountain — and nothing in between, so a walk
+      across it is level until it is vertical. `highland.ts` already knows how to raise country
+      rather than rock (`HIGHLAND.PER_STEP`, `REACH`, `SHOULDER`, `RIDGED`), and its comments record
+      why the first attempt at mountains failed: peaks put on a flat plain like a cone dropped from
+      above, when a range is high *country* that tilts up for miles before anything worth calling a
+      summit. Hills are the same argument one size down.
+      *Read `src/world/highland.ts` and `src/world/localland.ts` before starting: the endless country
+      already asks how deep a face is into the high ground and caps it, and hills would be a second,
+      gentler answer to the same question rather than a new mechanism.*
+      *Note the trap this will hit, because it has bitten twice tonight: raising the ground raises
+      the base its tiles are measured from, and anything that asks "is this tile drawn as high
+      ground" stops working — that is how the mesh world lost every one of its caves. `chore
+      collisions` and the golden fingerprint are the two things that will notice.*
 
 ## The castle
 

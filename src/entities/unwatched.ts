@@ -550,6 +550,11 @@ export const LONG_RUN: Record<string, LongRun> = {
    * not anybody is underground to see it. Giving this form a yield as well would mint the same coin
    * twice.
    */
+  /*
+   * A miner's surface day is hours like anybody's — out to the high ground at first light, home at
+   * dusk — so a week of it leaves him wherever the hour says, exactly as it does a farmer.
+   */
+  miner: keepsItsHours,
   facework: staysPut,
   hired: staysPut,
 
