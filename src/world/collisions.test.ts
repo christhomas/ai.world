@@ -5,9 +5,13 @@ import { Entity, Herd, bodyOf, canStand, spaceNear, tryMove, type Crowd, type Ti
 import { stride } from '../entities/stride';
 import { propFootprints } from '../render/props';
 import { BLOCKS_WALKING, PropKind } from './biomes';
-import { blocking } from './footprints';
-import { Solids, boxesFrom } from './solids';
+import { MIN_BLOCK, blocking } from './footprints';
+import { Solids, boxesFrom, pointInBox } from './solids';
 import { inTheWay } from './tiles';
+import { FURNITURE_BLOCKS } from '../interior/generate';
+import { propsOf } from './propstream';
+import { generateWebGraph } from './roadweb';
+import { TerrainSampler } from './terrain';
 
 /**
  * A flat field, two things in it, and a question: what happens when one is walked into the other?
@@ -326,5 +330,98 @@ describe('a step longer than the thing it is walking into', () => {
     tryMove(world, e, 6, 0);
     expect(world.blocked(e.x, e.z), 'ended up inside the rail').toBe(false);
     expect(e.x, 'stepped clean over a fence').toBeLessThan(0);
+  });
+});
+
+/*
+ * Indoors is the same bench with a different list of what stops you.
+ *
+ * How big a thing is, is a fact about its mesh; whether you can walk through it is a decision, and
+ * the decision is different in different rooms — nothing blocks with a bed on a hillside and
+ * indoors a bed is the thing you have been walking through. So the furniture gets the same
+ * treatment as the trees.
+ */
+describe('the furniture of a room, against everything that walks', () => {
+  const EVERY_STICK = [...FURNITURE_BLOCKS].filter((kind) => propFootprints().get(kind) !== undefined);
+
+  it('stops whoever walks into it, from every side', () => {
+    expect(EVERY_STICK.length, 'no furniture is solid at all').toBeGreaterThan(6);
+    const failures: string[] = [];
+    let cases = 0;
+    for (const kind of EVERY_STICK) {
+      const stops = blocking(propFootprints(), FURNITURE_BLOCKS);
+      const solids = new Solids();
+      solids.put('room', boxesFrom([{ kind, x: 0, z: 0, rot: 0 }], stops));
+      const world = field(solids);
+      const box = propFootprints().get(kind)!;
+      for (const id of ['hero', 'villager', 'wolf']) {
+        for (const [dx, dz] of APPROACHES.slice(0, 4)) {
+          cases++;
+          const e = walker(id, -dx * 4, -dz * 4);
+          walkAt(world, e, dx, dz, 1 / 60, 1);
+          if (world.blocked(e.x, e.z)) failures.push(`${id} ended inside furniture ${kind} from ${dx},${dz}`);
+          const wall = reach({ hw: Math.max(box.hw, MIN_BLOCK), hd: Math.max(box.hd, MIN_BLOCK) }, 0, -dx, -dz);
+          const got = -(e.x * dx + e.z * dz);
+          if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off furniture ${kind}, whose edge is at ${wall.toFixed(2)}`);
+        }
+      }
+    }
+    expect(failures.slice(0, 6), `${failures.length} of ${cases}`).toEqual([]);
+  });
+
+  it('and a bed is longer than the tile it stands on, which is the whole of that fault', () => {
+    const bed = propFootprints().get(PropKind.Bed);
+    expect(bed, 'a bed is not measured at all').toBeTruthy();
+    expect(Math.max(bed!.hw, bed!.hd), 'a bed that fits inside one tile').toBeGreaterThan(0.5);
+  });
+});
+
+/*
+ * And the pairs that never move.
+ *
+ * Two trees standing in each other is what a wood is: props are placed a tile at a time and
+ * jittered, an oak's crown is nearly two tiles across, and canopies that overlap are the difference
+ * between a wood and an orchard. Measured on a real world, four pairs in nine chunks, all of them
+ * crowns.
+ *
+ * A building is a different promise, and it has to be stated carefully. A tree beside a cottage
+ * leans over the roof, and its box — which is its crown, because that is what stands in the band a
+ * walker meets — covers ground the cottage is standing on. That is a tree next to a house, and it
+ * is right. What is wrong is a tree *planted* in the floor of one: three of the thirty-seven
+ * buildings in this piece of seed 3 have a crown over them and none has anything growing inside it.
+ *
+ * So the question is where things are planted, not whether their boxes touch.
+ */
+describe('the things that do not move, against each other', () => {
+  it('never puts a building inside anything else', () => {
+    const sampler = new TerrainSampler(generateWebGraph(3));
+    const stops = blocking(propFootprints(), BLOCKS_WALKING);
+    const CS = 16;
+    const inside: string[] = [];
+    let buildings = 0;
+    for (let cz = 3; cz <= 6; cz++) {
+      for (let cx = 7; cx <= 10; cx++) {
+        const chunk = sampler.generateChunk(cx, cz);
+        // a structure sits on its tile middle and carries a rotation; everything that grows is
+        // jittered off the middle and says so by having none
+        const props = [...propsOf(chunk, sampler.seed)];
+        const boxes = props.map((p) => ({ p, box: boxesFrom([p], stops)[0] })).filter((b) => b.box);
+        const isBuilding = (p: { rot: number; scale: number }) => p.scale === 1 && p.stretch === 1;
+        for (const a of boxes) {
+          if (!isBuilding(a.p as never)) continue;
+          buildings++;
+          for (const b of boxes) {
+            if (a === b) continue;
+            // where the other thing is planted, rather than how far it leans
+            if (pointInBox(a.box, b.p.x, b.p.z)) {
+              inside.push(`prop ${b.p.kind} is planted inside a building at ${a.p.x.toFixed(1)},${a.p.z.toFixed(1)}`);
+            }
+          }
+        }
+      }
+    }
+    expect({ enough: buildings > 5, inside: inside.slice(0, 5) }, `${buildings} buildings, ${inside.length} of them inside something`)
+      .toEqual({ enough: true, inside: [] });
+    expect(CS).toBe(16);
   });
 });
