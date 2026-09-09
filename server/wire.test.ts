@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -23,6 +23,12 @@ import { describe, expect, it } from 'vitest';
  */
 
 const source = (path: string): string => readFileSync(path, 'utf8');
+
+/** Where the run leaves its account of itself. Printed by `chore wire`. */
+const REPORT = 'wire-report.txt';
+
+/** One line of that account: a verdict, a count, and what it was about. */
+const covered: string[] = [];
 
 /** The names in one of the protocol's two unions. */
 function kinds(union: 'ClientMessage' | 'ServerMessage'): string[] {
@@ -51,7 +57,9 @@ function heard(paths: string[]): Set<string> {
 describe('the wire', () => {
   it('has a listener for everything a client can say', () => {
     const listening = heard(['server/messages.ts', 'server/sim.ts', 'server/rooms.ts']);
-    const unheard = kinds('ClientMessage').filter((kind) => !listening.has(kind));
+    const said = kinds('ClientMessage');
+    const unheard = said.filter((kind) => !listening.has(kind));
+    covered.push(`${unheard.length === 0 ? 'PASS' : 'FAIL'}  ${String(said.length).padStart(4)}  kinds a client can say, all of them heard by the world`);
     expect(unheard, 'a client can say this and the world does nothing about it').toEqual([]);
   });
 
@@ -65,7 +73,9 @@ describe('the wire', () => {
      * list is a message the world sends into silence.
      */
     const ignored = new Set(['pinged', 'error', 'left']);
-    const unheard = kinds('ServerMessage').filter((kind) => !listening.has(kind) && !ignored.has(kind));
+    const fromTheWorld = kinds('ServerMessage');
+    const unheard = fromTheWorld.filter((kind) => !listening.has(kind) && !ignored.has(kind));
+    covered.push(`${unheard.length === 0 ? 'PASS' : 'FAIL'}  ${String(fromTheWorld.length).padStart(4)}  kinds the world can say, all heard by the game but ${[...ignored].join(', ')}`);
     expect(unheard, 'the world says this and the game does nothing about it').toEqual([]);
   });
 
@@ -87,8 +97,37 @@ describe('the wire', () => {
     expect(reasons.length, 'the ways of being put somewhere have moved').toBeGreaterThan(3);
 
     const handling = source('server/messages.ts');
+    const unnamed = reasons.filter((reason) => !handling.includes(`'${reason}'`));
+    covered.push(`${unnamed.length === 0 ? 'PASS' : 'FAIL'}  ${String(reasons.length).padStart(4)}  ways of being put somewhere — ${reasons.join(', ')} — each named by the world`);
     for (const reason of reasons) {
       expect(handling.includes(`'${reason}'`), `the world does nothing with a stood of "${reason}"`).toBe(true);
     }
+  });
+});
+
+/**
+ * What the wire looks like today, written down.
+ *
+ * The same reason the collision bench writes one: a green run that has quietly stopped checking
+ * half the messages reads exactly like a green run. This says how many of each there are and which
+ * are deliberately unheard, so the shape of the wire is visible without reading the protocol.
+ */
+describe('what this bench covered', () => {
+  it('writes down the state of the wire', () => {
+    const said = kinds('ClientMessage'), heardBack = kinds('ServerMessage');
+    const lines = [
+      `WIRE BENCH — ${covered.every((l) => l.startsWith('PASS')) ? 'PASS' : 'FAIL'} — ${new Date().toISOString()}`,
+      '',
+      `  ${said.length} kinds of message a client can send, ${heardBack.length} the world can send back.`,
+      '  Every one of them has to be heard by somebody, or it is a thing that happens on one side',
+      '  and never on the other — which is what "it puts me back where I died" was.',
+      '',
+      ...covered.map((line) => `  ${line}`),
+      '',
+      `  Written by server/wire.test.ts to ${REPORT}. Run it again with: chore wire`,
+      '',
+    ];
+    writeFileSync(REPORT, lines.join('\n'));
+    expect(covered.length, 'the bench stopped reporting what it did').toBeGreaterThanOrEqual(3);
   });
 });

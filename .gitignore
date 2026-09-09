@@ -13,3 +13,4 @@ server/data/
 # two-megabyte build artefact and belongs in the repository no more than dist/ does
 ai-world-interface.html
 collision-report.txt
+wire-report.txt

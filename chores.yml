@@ -115,19 +115,33 @@ tasks:
       - task: typecheck
       - task: test
       - task: collisions
+      - task: wire
 
   typecheck:
     desc: Types only
     cmds: [pnpm tsc --noEmit]
 
+  # One door to the suites: `chore test` runs the lot, `chore test <name>` runs one of the benches,
+  # and anything else is handed to vitest as a pattern the way it always was.
+  #
+  # The benches have tasks of their own as well — they write reports and a pipeline names them —
+  # and this delegates to those rather than repeating them, so there is one description of how each
+  # is run and one place a report is printed from.
   test:
-    desc: The generators, the systems and the wire
+    desc: Every suite, or one of them by name
     vars:
-      PATTERN: ''
+      SUITE: ''
     args:
-      - name: pattern
-        desc: only run test files whose path matches this
-    cmds: ['pnpm vitest run {{.PATTERN}}']
+      - name: suite
+        desc: 'collisions, wire (or protocol), or a path to match — nothing runs everything'
+    cmds:
+      - |
+        case "{{.SUITE}}" in
+          "")                 pnpm vitest run ;;
+          collisions)         {{.CHORE_EXE}} collisions ;;
+          wire|protocol)      {{.CHORE_EXE}} wire ;;
+          *)                  pnpm vitest run "{{.SUITE}}" ;;
+        esac
 
   # The bench that walks everything into everything. Its own task rather than part of `test`
   # because it is the one a pipeline is meant to name, and because what it leaves behind — an
@@ -142,6 +156,16 @@ tasks:
       # bench passed or failed — the run that failed is the one somebody wants to read — while the
       # bench's own exit code is what the task exits with, so a pipeline naming this task stops.
       - 'pnpm vitest run src/world/collisions.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
+
+  # The other bench: every message the two halves can send each other, and whether anybody is
+  # listening. A message nobody handles type-checks, goes up the wire, and does nothing — which is
+  # what "I wake in the village and get dragged back to the wolf" was. See `server/wire.test.ts`.
+  wire:
+    desc: Check every message between the game and the world has somebody listening
+    vars:
+      REPORT: wire-report.txt
+    cmds:
+      - 'pnpm vitest run server/wire.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
   build:
     desc: Typecheck and build the page into dist/

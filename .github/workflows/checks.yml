@@ -53,25 +53,29 @@ jobs:
 
       # On the run's own page as well as in the artefact, because a report you have to download and
       # unzip to read is a report nobody reads on the way past.
-      - name: Show the collision report
+      - name: Show the reports
         if: always()
         run: |
-          if [ -f collision-report.txt ]; then
-            {
-              echo '```'
-              cat collision-report.txt
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          for report in collision-report.txt wire-report.txt; do
+            if [ -f "$report" ]; then
+              {
+                echo '```'
+                cat "$report"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
 
       # Kept whether it passed or failed, because the run that failed is the one somebody wants to
       # read. It names the pair, the move number and the coordinates either side of it, which is
       # enough to re-run a single case without guessing at what the pipeline was doing.
-      - name: Keep the collision report
+      - name: Keep the reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: collision-bench
-          path: collision-report.txt
+          name: benches
+          path: |
+            collision-report.txt
+            wire-report.txt
           if-no-files-found: warn
           retention-days: 30
