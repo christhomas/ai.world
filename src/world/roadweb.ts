@@ -302,6 +302,8 @@ export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph
     seed, radius, nodes, edges, towns,
     islands, mainlandNodes: nodes.length,
     sectors, sectorOffset: rng() * Math.PI * 2,
+    // the crossroads nearest the middle, which is where the player starts
+    hub,
     mesh,
   };
 }

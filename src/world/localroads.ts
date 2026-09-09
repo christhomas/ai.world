@@ -1,6 +1,6 @@
 import { rand2 } from '../core/rng';
 import { derive } from '../core/salts';
-import { faceOf, onTheHalfwayLine, siteOf, type Corner, type Country, type Face } from './localmesh';
+import { faceOf, facesIn, onTheHalfwayLine, siteOf, type Corner, type Country, type Face } from './localmesh';
 import type { Site } from './scattercells';
 
 /**
@@ -256,6 +256,42 @@ export function townAt(world: Land, junction: Junction): Town | null {
     level: junction.roads >= 4 && size > 0.5 ? 3 : junction.roads >= 3 ? 2 : 1,
   };
 }
+
+/**
+ * Every crossroads standing in a patch.
+ *
+ * The trap this exists to close: a junction is the point where three faces meet, and that point can
+ * be most of a face's width from any of their sites. So a patch that gathered only the faces whose
+ * sites stand in it would miss junctions that are plainly inside it — and would miss different ones
+ * than its neighbour does, which is how two patches come to disagree about where a town is.
+ *
+ * So the faces are gathered wider than the patch and the junctions are filtered by where they are.
+ * Deduplicated by name, since each is found once per face that meets there.
+ */
+export function junctionsIn(world: Land, within: { x0: number; z0: number; x1: number; z1: number }): Junction[] {
+  const reach = world.dials.far * LOOK_ROUND;
+  const wider = {
+    x0: within.x0 - reach, z0: within.z0 - reach, x1: within.x1 + reach, z1: within.z1 + reach,
+  };
+  const found = new Map<string, Junction>();
+  for (const face of facesIn(world, wider)) {
+    for (const junction of junctionsOf(world, face)) {
+      if (junction.x < within.x0 || junction.x > within.x1) continue;
+      if (junction.z < within.z0 || junction.z > within.z1) continue;
+      found.set(junction.id, junction);
+    }
+  }
+  return [...found.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+/**
+ * How far outside a patch its faces are gathered, in the world's own spacing.
+ *
+ * A junction can stand a face's width from the sites that make it, and a face is at most about one
+ * spacing across. Three is generous, and generous is right: the cost is a few more cells of scatter
+ * and the price of being wrong is a town that exists in one patch and not in the one beside it.
+ */
+const LOOK_ROUND = 3;
 
 /**
  * A name for a place, from the place itself.

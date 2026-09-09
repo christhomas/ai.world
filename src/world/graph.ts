@@ -55,6 +55,15 @@ export interface RoadGraph {
   edges: RoadEdge[];
   /** Node indices of town centres: each grew its own local road web, like a small hub. */
   towns: number[];
+  /**
+   * The node the world was grown outward from, if it was grown outward from one.
+   *
+   * Absent in a world with no middle. Everything that reads it is asking the same question — where
+   * does the first village stand, which road must not lean — and a world without an edge has no
+   * answer, rather than having the answer "node nought", which is whichever crossroads happened to
+   * sort first.
+   */
+  hub?: number;
   /** Islands attached by `attachIslands`; empty for a bare mainland. */
   islands: IslandInfo[];
   /** Number of nodes that belong to the mainland (islands are appended after). */
@@ -141,7 +150,7 @@ export function generateRoadGraph(seed: number, cfg: RoadConfig = GRAPH): RoadGr
 
   const sectors = shuffle(rng, [Biome.Plains, Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow]);
   const sectorOffset = rng() * Math.PI * 2;
-  const graph: RoadGraph = { seed, radius: cfg.RADIUS, nodes: g.nodes, edges: [], sectors, sectorOffset, towns, islands: [], mainlandNodes: g.nodes.length };
+  const graph: RoadGraph = { seed, radius: cfg.RADIUS, nodes: g.nodes, edges: [], sectors, sectorOffset, towns, islands: [], mainlandNodes: g.nodes.length, hub: 0 };
 
   assignLevels(graph, seed, cfg);
   buildEdges(graph, cfg);

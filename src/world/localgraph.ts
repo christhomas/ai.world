@@ -97,14 +97,20 @@ export function graphIn(world: Land, within: Within): RoadGraph {
     bend(world.seed, nodes, edges, indexOf.get(ends[0])!, indexOf.get(ends[1])!, road);
   }
 
-  // The towns, which are junctions that said they were towns. Only those inside the window: a town
-  // in the margin belongs to the patch it is in, and would otherwise be founded twice.
+  /*
+   * The towns, which are the junctions that said they were towns.
+   *
+   * Every one the patch can see, margin included, rather than only those standing in it — because
+   * what reads this list is the drawing of the roads, which holds a road straight near a village,
+   * and a town just outside the window still has a village in it. A patch that listed only its own
+   * would put a lean in a road that its neighbour draws straight, and the two would not meet.
+   *
+   * Founding is a different question with a different answer: `townsIn` takes only the towns
+   * standing in the patch, so that a village on a boundary is built once rather than twice.
+   */
   const towns: number[] = [];
   for (const id of named) {
-    const junction = junctions.get(id)!;
-    if (junction.x < within.x0 || junction.x > within.x1) continue;
-    if (junction.z < within.z0 || junction.z > within.z1) continue;
-    if (townAt(world, junction)) towns.push(indexOf.get(id)!);
+    if (townAt(world, junctions.get(id)!)) towns.push(indexOf.get(id)!);
   }
 
   return {

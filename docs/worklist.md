@@ -851,12 +851,25 @@ can each be finished and each leave the game playable.
       *(`structures.ts` grew past what one screen holds on the way, so the jetties, signposts, caves
       and wrecks — everything placed against the villages rather than among them — moved to
       `landmarks.ts`.)*
-- [ ] **B7e2. And then founded from the endless country's own towns.** The list above comes from
-      `townAt`, over a window. Waiting on the sampler being able to stand in a local country at all,
-      which is the next item.
-- [ ] **B7f. A sampler that stands in the endless country.** The last join: land from `localland`
-      rather than from a `WorldMesh`, roads from `localgraph`, water from `localwater`, villages from
-      `townAt`. Until this, every piece above is proven and none of them is playable.
+- [x] **B7e2/B7f. A sampler that stands in the endless country.** `endless.ts`: land from
+      `localland`, roads from `localgraph`, water from `localwater`, villages founded from `townAt`.
+      The mesh turned out to be asked only two questions by everything downstream — *is this dry* and
+      *how high does the country stand* — so the join is an interface with two members. Two patches
+      five hundred tiles across, overlapping by half, paint the ground they share tile for tile.
+      *(Three faults found by that test, all the same fault: a thing at the edge of a patch judged
+      against only what the patch could see. A junction can stand a face's width from the sites that
+      make it, so a patch missed crossroads plainly inside it — `junctionsIn` gathers wider than it
+      answers, and three call sites use it. The roads are held straight near a village, so a patch
+      has to know about towns in its margin as well as its middle. And the drawing pinned the roads
+      round `nodes[0]` as though it were the hub, which in a world with no middle is whichever
+      crossroads sorted first — a graph now says whether it has a hub instead of assuming one.)*
+- [ ] **B7f2. The rock.** The high country is there and walkable; the mountains standing on it are
+      not. A bounded world grows them from its polygons — `growRanges` — and a patch needs the same
+      from its own faces.
+- [ ] **B7f3. Landmarks, locally.** Signposts, caves, wrecks and jetties are still laid out by
+      walking the road tree's nodes in a shuffled order, so they are off in an endless world. Each
+      has a local shape waiting: a signpost knows the villages within a day's walk, a cave belongs
+      to the cliff it is in.
 - [ ] **B7g. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
       sea test in `wild.ts`, the debug readout, the map's padding and the roaming bands stop
       measuring from the middle of a world that no longer has one.
@@ -900,3 +913,20 @@ can each be finished and each leave the game playable.
 - [ ] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
       purses move, nobody ages backwards, every death is written down, a village under pressure gets
       poorer and one left alone does not. The economy has never been checked end to end.
+
+## Things to make, when the country is finished
+
+- [ ] **Teleporting looks like teleporting.** Using teleport should beam the hero up rather than
+      moving him between one frame and the next: he goes pixelated — the rig breaking up into its
+      own blocks, which is what this world is made of anyway — and rises into a bright column of
+      light standing up into the sky. The same in reverse where he arrives. It is the one move in
+      the game with no animation at all, and it is the move a player makes most often while
+      exploring, so it is the thing that most often looks like a bug rather than a power.
+- [ ] **A character builder, as a page.** A list of the people and animals down one side, a real 3D
+      view of the one selected, and a prompt that runs `claude -p` and shows what comes back — so
+      changing a rig is asking for the change and watching it happen. A page rather than a terminal
+      panel: kitty's graphics protocol carries images rather than geometry, so a terminal version
+      would mean rendering headlessly and streaming frames, where a page simply has three.js, orbit
+      controls and a mouse. It opens inside the editor as well. `tools/turnaround.html` is most of
+      the renderer already; what it needs is the list, the prompt, and a dev-server route that
+      shells out and streams the reply back.

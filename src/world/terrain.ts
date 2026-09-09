@@ -13,92 +13,36 @@ import { despeckle } from './despeckle';
 import { rollProp } from './props';
 import { CellIndex } from './spatial';
 import { indexRoads, indexStructures, indexWater, type RiverSeg, type Within } from './window';
-import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
+import { generateStructures, structureBounds, StructureKind, type Settling, type Structure, type Structures } from './structures';
 import { DRY_ENOUGH, bendAt, wanderFactors } from './wander';
 import { stampStructure } from './stamp';
-
-/** What is drawn on top of a tile. Skip = nothing at all (open sea, no floor). */
-export const enum TileType {
-  Skip = 0,
-  Seabed = 1,
-  Ground = 2,
-  GroundAlt = 3,
-  Sand = 4,
-  Road = 5,
-  High = 6,
-  Water = 7,   // river / lake bed; surface height lives in ChunkData.water
-  Bridge = 8,  // road over water
-  Floor = 9,   // under a building; blocked for walkers
-  Plaza = 10,  // town square cobbles; walkable, flat
-  Pier = 11,   // wooden deck over water; walkable, flat
-}
+import {
+  BRIDGE_DECK_LIFT, COAST_PROP_FACTOR, DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, HIGH_ROCK_DENSITY,
+  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand,
+  type ChunkData, type Probe, type SampleGrid, type TileSample,
+} from './ground';
 
 /**
- * One chunk of tiles including a one-tile apron on every side so the mesher can
- * look at neighbours without asking for adjacent chunks. Index = (z + 1) * size + (x + 1)
- * where x,z are 0..CHUNK_SIZE-1 local coords; the apron occupies index -1 and CHUNK_SIZE.
+ * What a tile is, said once, next door.
+ *
+ * Re-exported because everything that reads a tile has always read it from here, and where the
+ * words live is not worth a hundred import lines.
  */
-export interface ChunkData {
-  cx: number;
-  cz: number;
-  size: number;          // CHUNK_SIZE + 2
-  height: Float32Array;  // top surface y in world units (for water tiles: the bed)
-  type: Uint8Array;      // TileType
-  biome: Uint8Array;     // Biome
-  prop: Uint8Array;      // PropKind
-  /** Fixed prop yaw for structures; NaN = random. */
-  propRot: Float32Array;
-  shore: Float32Array;   // for seabed tiles: tiles from the coast (0 = at the coast)
-  /** Heights at the 4 corners (NW, NE, SE, SW). Flat tiles repeat their own height four times. */
-  corners: Float32Array;
-  /**
-   * 1 where the tile is a face of a mountain and is drawn as one leaning surface rather than a
-   * terrace. Terraces are the look of this world and stay exactly as they were; a mountain is
-   * cut from a smooth field, and mixing the two — a flat tile height with sloped corners — draws
-   * tops and walls that disagree and tears the mesh apart.
-   */
-  sloped: Uint8Array;
-  /** Water surface height for Water/Bridge tiles, 0 elsewhere. */
-  water: Float32Array;
-  empty: boolean;
-}
+export {
+  BRIDGE_DECK_LIFT, COAST_PROP_FACTOR, DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, HIGH_ROCK_DENSITY,
+  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand,
+} from './ground';
+export type { ChunkData, Probe, SampleGrid, TileSample } from './ground';
 
-/** Raw terrain at one tile, before structures are stamped on. */
-export interface TileSample {
-  type: TileType;
-  level: number;
-  /** Terrace the road sits on here; High ground is measured from it. */
-  base: number;
-  height: number;
-  water: number;
-  shore: number;
-  biome: Biome;
-  bank: boolean;
-  roadDist: number;
-  roadWidth: number;
-  corners: [number, number, number, number];
-  /** Whether this tile is part of a mountain face, and so drawn as a slope rather than a step. */
-  sloped: boolean;
-}
-
-export interface Probe {
-  land: boolean;
-  biome: Biome;
-  /** Distance to nearest road centreline, Infinity if no road is anywhere near. */
-  roadDist: number;
-  hub: boolean;
-}
-
+/** How wide the cobbles at the middle of the world are, in tiles. */
 const HUB_PLAZA = 5;
-/** Share of ground tiles that use the alternate ground colour. */
 /**
- * What `landWidth` reports in a mesh world: the width of the countryside a road runs through,
- * not the size of the landmass. Kept near the old world's widest so everything tuned against it —
- * river sizes, how far off a road a shrine is set — stays in the range it was tuned for.
+ * What `landWidth` reports in a world whose land is a shape rather than a band round a road: the
+ * width of the countryside a road runs through, not the size of the landmass. Kept near the old
+ * world's widest so everything tuned against it — river sizes, how far off a road a shrine is set —
+ * stays in the range it was tuned for.
  */
 const MESH_LAND_WIDTH = 22;
-
-export const GROUND_ALT_CHANCE = 0.35;
 /**
  * How high the country has to stand before it stops being whatever it was, in terraces.
  *
@@ -108,17 +52,26 @@ export const GROUND_ALT_CHANCE = 0.35;
  */
 const HIGH_ENOUGH_FOR_ROCK = 8;
 const HIGH_ENOUGH_FOR_SNOW = 18;
-/** Neighbours (of 8) that must agree before the de-speckle filter overrides a tile's level. */
-export const DESPECKLE_MAJORITY = 5;
-/** Tiles beyond the road edge kept free of props. */
-export const ROAD_SHOULDER = 1.2;
-/** How far a mountain has to stand above the ground before nothing grows under it, in units. */
-export const PROP_HEADROOM = 1.5;
-export const HIGH_ROCK_DENSITY = 0.06;
-/** Coast sand gets this fraction of the bank prop density. */
-export const COAST_PROP_FACTOR = 0.25;
-/** Bridge decks sit this far above the river surface. */
-export const BRIDGE_DECK_LIFT = 0.14;
+
+
+/**
+ * The country a sampler draws, when it is not a whole world held in memory.
+ *
+ * The mesh is asked exactly two questions by everything below — *is there dry ground here*, and
+ * *how high does the country stand* — and neither of them needs a mesh to answer. An endless world
+ * answers both from a bounded neighbourhood of the place being asked about, so this is the whole of
+ * the join between the two: give a sampler one of these and it draws that country instead.
+ *
+ * What it cannot yet hand over is the rock. A bounded world's mountains are geometry grown from its
+ * polygons, and a country given this way has high ground with nothing standing on it: walkable,
+ * snowed on, drawn on the map, and missing its last few hundred feet.
+ */
+export interface Ground {
+  /** Somewhere you could stand: the same question `isLand` answers of a mesh. */
+  land: (x: number, z: number) => boolean;
+  /** The high country reaching into this patch, in the terms `highlandAt` reads. */
+  highland: Highland[];
+}
 
 /** Samples the world at tile resolution. Pure function of (seed, graph, x, z): safe to run in any worker. */
 export class TerrainSampler {
@@ -142,6 +95,15 @@ export class TerrainSampler {
    * two be compared rather than swapped over blind.
    */
   readonly mesh: WorldMesh | null;
+  /**
+   * The country, when it was handed over rather than grown here.
+   *
+   * Set instead of `mesh` by a world with no edge. Everything that used to ask the mesh whether a
+   * place is dry asks `dry` below, which asks whichever of the two this sampler has.
+   */
+  private readonly country: Ground | null;
+  /** Whether land is decided by the shape of the country at all, rather than by nearness to a road. */
+  private readonly shaped: boolean;
   /**
    * How high each face of the world stands because it is in the mountains, in terraces.
    *
@@ -175,15 +137,20 @@ export class TerrainSampler {
 
   constructor(
     readonly graph: RoadGraph,
-    prebuilt?: { hydro?: Hydrology; structures?: Structures; within?: Within },
+    prebuilt?: {
+      hydro?: Hydrology; structures?: Structures; within?: Within;
+      country?: Ground; settling?: Settling;
+    },
   ) {
     this.seed = graph.seed;
     this.mesh = (graph as RoadGraph & { mesh?: WorldMesh }).mesh ?? null;
+    this.country = prebuilt?.country ?? null;
+    this.shaped = this.mesh !== null || this.country !== null;
     // before anything asks where a road is drawn, because the answer depends on this
-    this.wanders = wanderFactors(graph, this.mesh
+    this.wanders = wanderFactors(graph, this.shaped
       ? (x, z) => this.waterAway(x, z, DRY_ENOUGH, false) / DRY_ENOUGH
       : null);
-    this.highland = this.mesh ? highlandLift(this.mesh) : [];
+    this.highland = this.country ? this.country.highland : this.mesh ? highlandLift(this.mesh) : [];
     this.ridges = highlandRidges(graph.seed);
     this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
     this.biomeNoise = new Simplex2D(derive(graph.seed, SALT.BIOME));
@@ -203,7 +170,7 @@ export class TerrainSampler {
     // this constructor, out of the faces the mesh already marked as mountain country — and a
     // massif raising the heightfield underneath them would be a second, rounder mountain standing
     // inside the first.
-    this.massifs = this.mesh ? [] : planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
+    this.massifs = this.shaped ? [] : planMassifs(graph.seed, graph, graph.towns.map((i) => graph.nodes[i]),
       (x, z) => {
         const probe = this.landProbe(x, z);
         if (!probe || !probe.land) return null;
@@ -219,7 +186,7 @@ export class TerrainSampler {
       // How high the ground is here. In the road-tree world that is a massif; in a polygon world it
       // is the mountain country itself, which is ground and therefore something a river must know
       // about or it will run uphill out of a valley.
-      (x, z, roadDist) => (this.mesh ? this.highlandAt(x, z) : upliftAt(x, z, this.massifs, roadDist)),
+      (x, z, roadDist) => (this.shaped ? this.highlandAt(x, z) : upliftAt(x, z, this.massifs, roadDist)),
       // where they stand is still worth knowing, for where water comes out of the ground
       (x, z) => (high ? nearestLift(high, x, z) : 0),
     );
@@ -232,7 +199,7 @@ export class TerrainSampler {
     this.riverIndex = indexWater(this.riverSegs, this.hydro.lakes, null);
 
     // structures sample raw terrain, so they come last
-    this.structures = prebuilt?.structures ?? generateStructures(this);
+    this.structures = prebuilt?.structures ?? generateStructures(this, prebuilt?.settling);
     this.structIndex = indexStructures(this.structures, null);
 
     // The mountains, last. They stand on the finished ground rather than being part of it, so
@@ -302,17 +269,28 @@ export class TerrainSampler {
    * more than a tile or so of precision.
    */
   private waterAway(x: number, z: number, most: number, looking: boolean): number {
-    const mesh = this.mesh;
-    if (!mesh) return most;
-    // the distance to the nearest place where `isLand` is `looking`: pass false to find the water
-    // from dry ground, true to find the shore from out at sea
+    if (!this.shaped) return most;
+    // the distance to the nearest place where the ground is or is not dry: pass false to find the
+    // water from dry ground, true to find the shore from out at sea
     for (let r = 1; r <= most; r += 1.5) {
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2;
-        if (isLand(mesh, x + Math.cos(a) * r, z + Math.sin(a) * r) === looking) return r;
+        if (this.dry(x + Math.cos(a) * r, z + Math.sin(a) * r) === looking) return r;
       }
     }
     return most;
+  }
+
+  /**
+   * Is there dry ground here?
+   *
+   * Whichever of the two this world has. Only ever asked of a world whose land is a shape rather
+   * than a band around a road; the road-tree world answers it with arithmetic instead, in the two
+   * places that care.
+   */
+  private dry(x: number, z: number): boolean {
+    if (this.country) return this.country.land(x, z);
+    return this.mesh !== null && isLand(this.mesh, x, z);
   }
 
   landProbe(x: number, z: number): LandProbe | null {
@@ -324,14 +302,14 @@ export class TerrainSampler {
     // still has readers though — the rivers size themselves by it and landmarks are placed at a
     // fraction of it — so it stays the width of the country a road runs through rather than
     // becoming the radius of the world, which drowned the map in rivers and bridges.
-    const W = this.mesh ? MESH_LAND_WIDTH : this.landWidth(hit.edge, x, z);
+    const W = this.shaped ? MESH_LAND_WIDTH : this.landWidth(hit.edge, x, z);
     const a = this.graph.nodes[e.a], b = this.graph.nodes[e.b];
     const roadLevel = a.level + (b.level - a.level) * hit.t;
     let ux = b.x - a.x, uz = b.z - a.z;
     const len = Math.hypot(ux, uz) || 1;
     ux /= len; uz /= len;
     return {
-      land: this.mesh ? isLand(this.mesh, x, z) : hit.d < W,
+      land: this.shaped ? this.dry(x, z) : hit.d < W,
       roadDist: hit.d, roadWidth: e.roadWidth, landWidth: W,
       baseLevel: Math.max(1, Math.round(roadLevel)),
       cx: a.x + (b.x - a.x) * hit.t, cz: a.z + (b.z - a.z) * hit.t, ux, uz,
@@ -446,10 +424,10 @@ export class TerrainSampler {
     out.roadWidth = e.roadWidth;
     const d = hit.d;
 
-    const wet = this.mesh ? !isLand(this.mesh, px, pz) : d >= W;
+    const wet = this.shaped ? !this.dry(px, pz) : d >= W;
     if (wet) {
       // how far out to sea we are: measured off the coast with a mesh, off the road without one
-      const away = this.mesh ? this.waterAway(px, pz, WORLD.SEABED_RANGE, true) : d - W;
+      const away = this.shaped ? this.waterAway(px, pz, WORLD.SEABED_RANGE, true) : d - W;
       if (away < WORLD.SEABED_RANGE) {
         out.type = TileType.Seabed;
         out.shore = away;
@@ -499,7 +477,7 @@ export class TerrainSampler {
     let level = Math.min(WORLD.MAX_LEVEL, baseLevel + rise);
 
     const COAST = 2.2;
-    const shoreNear = this.mesh ? this.waterAway(px, pz, COAST, false) < COAST : d > W - COAST;
+    const shoreNear = this.shaped ? this.waterAway(px, pz, COAST, false) < COAST : d > W - COAST;
     let type: TileType;
     if (shoreNear) {
       // coast band: beaches on low ground, cliff coasts on highlands
@@ -670,25 +648,3 @@ export class TerrainSampler {
 }
 
 /** One sampled grid with a two-tile apron; indices are gz * G + gx. */
-export interface SampleGrid {
-  G: number;
-  x0: number;
-  z0: number;
-  type: Uint8Array;
-  biome: Uint8Array;
-  bank: Uint8Array;
-  level: Float32Array;
-  height: Float32Array;
-  water: Float32Array;
-  shore: Float32Array;
-  roadDist: Float32Array;
-  roadWidth: Float32Array;
-  sloped: Uint8Array;
-  base: Int16Array;
-  corners: Float32Array;
-}
-
-/** Tiles whose level the de-speckle filter may compare and adjust. */
-export function isFlatLand(t: TileType): boolean {
-  return t === TileType.Ground || t === TileType.GroundAlt || t === TileType.High || t === TileType.Sand;
-}

@@ -48,7 +48,10 @@ export function wanderFactors(graph: RoadGraph, dryness: ((x: number, z: number)
   // before the villages exist: the towns the web grew round, the hub, and the wide deep branches
   // the village placer chooses from. A road holds its surveyed line near all of them.
   const settled = graph.nodes.filter((n, i) => couldHoldAVillage(n) || graph.towns.includes(i));
-  settled.push(graph.nodes[0]);
+  // and the hub, where the first village stands — in a world that was grown outward from one. A
+  // world with no middle has no such node, and pinning the roads straight round whichever crossroads
+  // happened to sort first would put a kink in a road that its neighbouring patch does not have.
+  if (graph.hub !== undefined) settled.push(graph.nodes[graph.hub]);
   for (let i = 0; i < graph.nodes.length; i++) {
     const n = graph.nodes[i];
     const dry = dryness ? Math.min(1, dryness(n.x, n.z)) : 1;

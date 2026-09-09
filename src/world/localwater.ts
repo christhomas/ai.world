@@ -3,8 +3,8 @@ import { SALT, derive } from '../core/salts';
 import { highlandAt, highlandRidges, type Highland } from './highland';
 import { groundAt } from './localgraph';
 import { highlandNear } from './localland';
-import { facesIn, type Country } from './localmesh';
-import { hashOfName, junctionsOf, type Land } from './localroads';
+import type { Country } from './localmesh';
+import { hashOfName, junctionsIn, type Land } from './localroads';
 import { Simplex2D } from './noise';
 import type { Hydrology, Lake, RiverNode } from './rivers';
 import type { Within } from './window';
@@ -131,17 +131,15 @@ export function springsNear(world: Land, within: Within): Spring[] {
   };
   const slope = slopeOf(world, asked);
   const offered: Spring[] = [];
-  for (const face of facesIn(world, asked)) {
-    for (const junction of junctionsOf(world, face)) {
-      if (!world.land(junction.x, junction.z)) continue;
-      if (heightOn(slope, junction.x, junction.z) < WATER.HIGH_ENOUGH) continue;
-      const key = hashOfName(junction.id);
-      if (rand2(derive(world.seed, OF_A_SPRING), key, 0, OF_A_SPRING) >= WATER.SPRINGS) continue;
-      offered.push({
-        id: junction.id, x: junction.x, z: junction.z,
-        rank: rand2(derive(world.seed, OF_ITS_RANK), key, 0, OF_ITS_RANK),
-      });
-    }
+  for (const junction of junctionsIn(world, asked)) {
+    if (!world.land(junction.x, junction.z)) continue;
+    if (heightOn(slope, junction.x, junction.z) < WATER.HIGH_ENOUGH) continue;
+    const key = hashOfName(junction.id);
+    if (rand2(derive(world.seed, OF_A_SPRING), key, 0, OF_A_SPRING) >= WATER.SPRINGS) continue;
+    offered.push({
+      id: junction.id, x: junction.x, z: junction.z,
+      rank: rand2(derive(world.seed, OF_ITS_RANK), key, 0, OF_ITS_RANK),
+    });
   }
   return offered
     .filter((spring) => !offered.some((other) => beats(other, spring)))
@@ -303,16 +301,14 @@ function cutAgainst(course: RiverNode[], rivers: RiverNode[][]): RiverNode[] {
  */
 function tarnsNear(world: Land, within: Within, rivers: RiverNode[][], lakes: Lake[]): Lake[] {
   const out: Lake[] = [];
-  for (const face of facesIn(world, within)) {
-    for (const junction of junctionsOf(world, face)) {
-      if (!world.land(junction.x, junction.z)) continue;
-      const key = hashOfName(junction.id);
-      const roll = rand2(derive(world.seed, OF_A_TARN), key, 0, OF_A_TARN);
-      if (roll >= WATER.TARNS) continue;
-      const r = WATER.TARN + rand2(derive(world.seed, OF_A_TARN), key, 1, OF_A_TARN) * WATER.TARN_MORE;
-      if (wetNear(junction.x, junction.z, r + 8, rivers, lakes)) continue;
-      out.push({ x: junction.x, z: junction.z, r, level: Math.max(1, Math.round(groundAt(world.seed, junction.x, junction.z))) });
-    }
+  for (const junction of junctionsIn(world, within)) {
+    if (!world.land(junction.x, junction.z)) continue;
+    const key = hashOfName(junction.id);
+    const roll = rand2(derive(world.seed, OF_A_TARN), key, 0, OF_A_TARN);
+    if (roll >= WATER.TARNS) continue;
+    const r = WATER.TARN + rand2(derive(world.seed, OF_A_TARN), key, 1, OF_A_TARN) * WATER.TARN_MORE;
+    if (wetNear(junction.x, junction.z, r + 8, rivers, lakes)) continue;
+    out.push({ x: junction.x, z: junction.z, r, level: Math.max(1, Math.round(groundAt(world.seed, junction.x, junction.z))) });
   }
   return out;
 }

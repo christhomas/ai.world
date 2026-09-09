@@ -111,6 +111,35 @@ function starts(world: Country, face: Face): boolean {
  * is rolled for that pair rather than fixed, which spreads the sizes.
  */
 export function kindOf(world: Country, face: Face): FaceKind {
+  const known = remembered(world);
+  const before = known.get(face.id);
+  if (before !== undefined) return before;
+  const kind = worked(world, face);
+  known.set(face.id, kind);
+  return kind;
+}
+
+/**
+ * What each face of a country has been worked out to be, remembered.
+ *
+ * Not tidiness. Whether a face holds a lake is settled by asking each of its neighbours whether it
+ * would start one, and each of those asks its own neighbours in turn — so one uncached answer is
+ * some forty searches of the ground. The question is asked for every tile of every chunk, and eight
+ * more times per ring while a coastline is felt for. Without this the ground is unaffordable; with
+ * it, the second question about a face is free.
+ *
+ * Kept beside the country rather than in it, and weakly, so that a country going out of use takes
+ * its answers with it.
+ */
+const worldsKinds = new WeakMap<Country, Map<string, FaceKind>>();
+function remembered(world: Country): Map<string, FaceKind> {
+  let known = worldsKinds.get(world);
+  if (!known) { known = new Map(); worldsKinds.set(world, known); }
+  return known;
+}
+
+/** What one face is made of, worked out from the ground rather than recalled. */
+function worked(world: Country, face: Face): FaceKind {
   const bed = bedrock(world.seed, face.x, face.z);
   if (bed !== FaceKind.Land) return bed;
   if (!inland(world, face)) return FaceKind.Land;      // a face on a coast holds no water

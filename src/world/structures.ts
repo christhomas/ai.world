@@ -619,8 +619,19 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     pois.push({ name, kind, x: tx + 0.5, z: tz + 0.5, structure: s });
   }
 
-  // the things that stand between the villages: jetties, signposts, caves and wrecks
-  const between = markTheWay({
+  /*
+   * The things that stand between the villages: jetties, signposts, caves and wrecks.
+   *
+   * Not yet in a world that was handed its own list of places. All four are laid out by walking the
+   * road tree's nodes in a shuffled order — a signpost at every third junction until there are
+   * twenty-two of them, a cave in the first cliff a deep node finds — and both the count and the
+   * order are facts about a whole world. Two patches of an endless one put their signposts in
+   * different places, which is a signpost that exists depending on where you came from.
+   *
+   * They are their own piece of work, and each has a local shape waiting for it: a signpost knows
+   * the villages within a day's walk, a cave belongs to the cliff it is in.
+   */
+  const between = settling ? { piers: [], signposts: [], caves: [], wrecks: [] } : markTheWay({
     sampler, graph, sample, rng, all, villages, footprintOk,
   });
   piers.push(...between.piers);
