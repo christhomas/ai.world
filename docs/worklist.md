@@ -788,7 +788,7 @@ thing drags the whole world back into being generated from the middle outwards.
       is a triple of faces with an empty circumcircle, bounded by circumradius so that all three are
       certain to have looked at each other. Cells now remember which of their candidates stood, and
       countries remember their faces, which took the bench from 115 seconds to 2.5.)*
-- [ ] **B4. Provinces the server owns.** The unit of loading, simulating and persisting becomes the
+- [x] **B4. Provinces the server owns.** The unit of loading, simulating and persisting becomes the
       province rather than the world. Load when somebody is in it, flush and compact when nobody is.
       `GroundWorld.reach`/`keepOnly` and `Simulation`'s per-seed worlds are the shape to grow from.
 - [ ] **B5. Sea links.** A border between land and sea is a port; the link across it is a ferry
