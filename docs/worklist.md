@@ -726,3 +726,38 @@ describing the same world.
       visible: `tools/playtest.cjs` walks on foot only.
 - [ ] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
       CI on the way in, which is where all of this would have been caught.
+
+## The world comes from the world
+
+Both halves grow the landscape from the seed. That is why they can be in different countries, and it
+is why an afternoon went into a bench that checks they are not — `chore test halves`, four thousand
+points of two worlds, asking both the same questions. The bench is worth having. It is also a test
+for a thing that should not be possible.
+
+So: the server grows the world and the page is told. The server already grows those chunks — it has
+to, to walk creatures on them — so this costs sending, not generating.
+
+Measured before starting: a chunk is 3.3 kB raw, 448 bytes packed; 121 of them fill a view, so 53 kB
+on arrival; walking at full pace needs a new ring about every three seconds, near enough 1.6 kB a
+second. The creatures already cost 13.7 kB a second, so this roughly doubles a quiet world's traffic
+and less than that a busy one.
+
+- [x] The wire carries bytes as well as words. `Link` and `Wire` take `string | ArrayBuffer`; a
+      websocket does it natively, a worker port by transfer, so a chunk costs nothing between
+      threads. Nothing sends one yet.
+- [ ] The page asks for a chunk it does not have, and the world answers with it. Request and answer
+      rather than the world pushing, so a page that already has the country says nothing at all.
+- [ ] The page keeps them. The world is deterministic, so a chunk is worth exactly one transfer
+      ever: `idb-keyval` is already a dependency and the saves already live in IndexedDB. Keyed by
+      **the world's own fingerprint** rather than by a version number anybody has to remember —
+      generation changes, the fingerprint changes, every stale chunk becomes unreachable, and there
+      is no invalidation to get wrong. This is the whole of why streaming is affordable: after the
+      first visit a country costs nothing.
+- [ ] The chunk worker stops generating and starts meshing what arrives. It keeps the expensive half
+      — turning tiles into geometry — and loses the half that could disagree with the server.
+- [ ] Structures too: villages, doors, eyries and the rest are derived from the same graph on both
+      sides. Either the graph travels at the join or the structures do. Until then, the halves bench
+      is what stands between a player and being walked about a country he cannot see.
+- [ ] And then the generator has one caller. A world grown in one place cannot be grown differently
+      in another, and `twohalves.test.ts` becomes a test of a thing that cannot happen — which is
+      the right time to read it again and decide what it is still for.
