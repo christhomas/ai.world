@@ -781,9 +781,13 @@ thing drags the whole world back into being generated from the middle outwards.
 - [ ] **B2. A mesh from those points, and the seam test.** Faces from the local sites; a face
       computed from the east must be the face computed from the west, corner for corner. This is the
       unit that decides whether any of the rest is possible.
-- [ ] **B3. Roads and towns, locally.** A road is a border between two faces, so it belongs to the
+- [x] **B3. Roads and towns, locally.** A road is a border between two faces, so it belongs to the
       pair and both sides compute it identically. Towns at junctions, named from the pair-hash so a
-      name is stable without a registry. Bench: a road crossing a border matches from both sides.
+      name is stable without a registry. *(Five wrong versions of the junction rule, each of them
+      local but not symmetric — the lesson is written into `localroads.ts`. What holds: a junction
+      is a triple of faces with an empty circumcircle, bounded by circumradius so that all three are
+      certain to have looked at each other. Cells now remember which of their candidates stood, and
+      countries remember their faces, which took the bench from 115 seconds to 2.5.)*
 - [ ] **B4. Provinces the server owns.** The unit of loading, simulating and persisting becomes the
       province rather than the world. Load when somebody is in it, flush and compact when nobody is.
       `GroundWorld.reach`/`keepOnly` and `Simulation`'s per-seed worlds are the shape to grow from.
