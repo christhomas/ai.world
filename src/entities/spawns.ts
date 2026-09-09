@@ -100,7 +100,9 @@ export function openGround(
 ): [number, number] | null {
   for (let tries = 0; tries < 5; tries++) {
     const spot = tileCentre(tiles, land[Math.floor(rng() * land.length)]);
-    if (!world.buried?.(spot[0], spot[1])) return spot;
+    // not under a mountain, and not where people live: a village's streets are ordinary ground and
+    // went into this pool like any field, so packs were being laid down in the middle of towns
+    if (!world.buried?.(spot[0], spot[1]) && !world.peopled?.(spot[0], spot[1])) return spot;
   }
   return null;
 }

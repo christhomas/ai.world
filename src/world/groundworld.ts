@@ -25,6 +25,16 @@ import type { Footprints } from './footprints';
  * and the ones that get generated are the ones somebody is standing near, which is the whole of the
  * interest management this needs at this stage.
  */
+/**
+ * How far past the last house a wild thing is kept, in tiles.
+ *
+ * A village's radius already reaches a little beyond its buildings, so this is on top of that. Wide
+ * enough that a pack cannot den within sight of a doorway; narrow enough that the country round a
+ * village is still country — at fifty a village would sit in a ring of empty ground, which reads as
+ * a fence nobody built.
+ */
+const KEPT_FROM_PEOPLE = 18;
+
 export class GroundWorld implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, ChunkTiles>();
   /**
@@ -193,6 +203,21 @@ export class GroundWorld implements TileWorld, ChunkSource {
     if (!hit) return false;
     const rock = mountainAt(this.sampler.ranges, x, z);
     return rock !== null && rock > hit.tiles.heights[hit.i] + BURIED_BY;
+  }
+
+  /**
+   * Is this ground people live on, for the purpose of not putting a wolf pack on it?
+   *
+   * A village's own radius plus a margin. The radius is where the houses stop; the margin is the
+   * difference between "not in the square" and "not at the bottom of the garden", and it is the
+   * whole point — a pack that dens one street beyond the last house is still a pack that is in the
+   * town by morning.
+   */
+  peopled(x: number, z: number): boolean {
+    for (const village of this.sampler.structures.villages) {
+      if (Math.hypot(village.x - x, village.z - z) <= village.radius + KEPT_FROM_PEOPLE) return true;
+    }
+    return false;
   }
 
   isRoad(x: number, z: number): boolean {

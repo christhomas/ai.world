@@ -67,6 +67,18 @@ export interface TileWorld {
    * it cannot be seen, so a herd spawned there is a herd nobody will ever meet.
    */
   buried?(x: number, z: number): boolean;
+  /**
+   * Is this ground people live on?
+   *
+   * Optional, and asked by whatever is deciding where a wild thing should be put. Nothing about a
+   * village square says "village" to a tile: the streets and gardens between the houses are
+   * ordinary ground, so ground inside a settlement went into the same pool of open country a wolf
+   * pack picks its den out of — and packs were being laid down in the middle of towns, night after
+   * night, because the ground there is as open as any field.
+   *
+   * A world that does not know where its villages are answers nothing and spawns as it always did.
+   */
+  peopled?(x: number, z: number): boolean;
   isRoad(x: number, z: number): boolean;
 }
 
