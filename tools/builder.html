@@ -1,0 +1,661 @@
+<!doctype html>
+<!--
+  The character builder: every creature in the world, one of them stood in front of you, and Claude
+  on hand to change it.
+
+  `turnaround.html` next door answers "is this rig right?" — four fixed angles, every figure at
+  once, made to be screenshotted. This answers the question after it: "make it right". One creature
+  at a time, turned with the mouse, walking if you want it to, and a box to ask for the change in.
+  Ask for shorter legs and Claude edits the rig in `src/entities/`; Vite sees the file change and
+  reloads this page; the creature in the middle of the screen has shorter legs. That loop is the
+  whole tool, and everything here exists to keep it tight.
+
+  It was built to catch the things a static sheet cannot show. A rig that reads well from four
+  chosen angles and badly from the four between them. A part that only comes apart when the legs
+  swing — an arm that passes through a hip at the top of a stride is invisible until something is
+  walking. And scale, which the turnaround sheet deliberately throws away by drawing every creature
+  the same size: here the rig is drawn at the size it actually is, on a grid of one-tile squares,
+  with the footprint the world will make it block drawn round its feet, so a hare that is secretly
+  as big as a dog says so.
+
+  Open it at /tools/builder.html with the dev server running. It is a page rather than a terminal
+  panel because a page already has three.js, orbit controls and a mouse, and because it opens
+  inside the editor as happily as in a browser.
+-->
+<html><head><meta charset="utf-8"><title>character builder</title><style>
+:root{
+  --ink:#dfe5ff; --dim:#8f9ac4; --panel:#252d44; --edge:#39425f; --deep:#1a2032; --lit:#7fd4a0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--deep);color:var(--ink);font:13px/1.5 'Courier New',monospace;
+  height:100vh;overflow:hidden;
+  display:grid;grid-template-columns:190px 1fr 340px;grid-template-rows:100vh}
+/* narrow enough to be an editor panel: the prompt goes under the view rather than beside it */
+@media (max-width:1080px){
+  body{grid-template-columns:150px 1fr;grid-template-rows:1fr 260px}
+  #list{grid-row:1/3}
+  #ask{grid-column:2;border-left:none;border-top:1px solid var(--edge)}
+}
+
+/* ---- the list ---- */
+#list{overflow-y:auto;background:var(--panel);border-right:1px solid var(--edge)}
+#list h2{margin:0;padding:9px 10px 3px;font-size:10px;letter-spacing:2px;color:var(--dim);font-weight:normal}
+#list button{display:block;width:100%;text-align:left;padding:4px 10px;border:0;background:none;
+  color:var(--ink);font:inherit;cursor:pointer}
+#list button:hover{background:#2f3852}
+#list button[aria-current="true"]{background:#39527a;color:#fff}
+#list .emoji{display:inline-block;width:1.6em}
+
+/* ---- the view ---- */
+#view{position:relative;min-width:0}
+#view canvas{display:block;width:100%;height:100%}
+#facts{position:absolute;left:0;right:0;top:0;padding:8px 12px;pointer-events:none;
+  background:linear-gradient(#1a2032dd,#1a203200)}
+#facts b{font-size:15px;letter-spacing:1px}
+#facts span{color:var(--dim);margin-left:10px}
+#knobs{position:absolute;left:0;right:0;bottom:0;padding:8px 12px;display:flex;gap:14px;
+  align-items:center;flex-wrap:wrap;background:linear-gradient(#1a203200,#1a2032dd)}
+#knobs label{color:var(--dim);display:flex;gap:6px;align-items:center}
+#knobs input[type=range]{width:110px;accent-color:var(--lit)}
+.chip{border:1px solid var(--edge);background:#252d44aa;color:var(--ink);font:inherit;
+  padding:2px 8px;cursor:pointer;border-radius:3px}
+.chip[aria-pressed="true"]{border-color:var(--lit);color:var(--lit)}
+#palettes{display:flex;gap:5px}
+#palettes button{width:auto;height:20px;border:1px solid var(--edge);border-radius:3px;
+  padding:0;cursor:pointer;display:flex;overflow:hidden}
+#palettes button[aria-pressed="true"]{border-color:#fff;outline:1px solid #fff}
+#palettes i{display:block;width:11px;height:100%}
+#flash{position:absolute;left:12px;bottom:44px;color:var(--lit);opacity:0;transition:opacity .4s}
+
+/* ---- the prompt ---- */
+#ask{display:flex;flex-direction:column;min-height:0;background:var(--panel);
+  border-left:1px solid var(--edge)}
+#log{flex:1;overflow-y:auto;padding:10px 12px;min-height:0;white-space:pre-wrap;word-break:break-word}
+#log .said{margin:0 0 10px}
+#log .tool{color:var(--lit);margin:2px 0;font-size:12px}
+#log .tool i{color:var(--dim);font-style:normal}
+#log .note{color:var(--dim);border-top:1px solid var(--edge);padding-top:5px;margin:8px 0}
+#log .asked{color:#e9c46a;margin:0 0 8px}
+#log .wrong{color:#e07a6a}
+#compose{border-top:1px solid var(--edge);padding:8px}
+#prompt{width:100%;height:74px;resize:vertical;background:var(--deep);color:var(--ink);
+  border:1px solid var(--edge);font:inherit;padding:6px}
+#send{margin-top:6px;width:100%;padding:6px;background:#2f5c44;color:#dff5e6;border:1px solid var(--lit);
+  font:inherit;cursor:pointer}
+#send[disabled]{opacity:.5;cursor:default}
+details{color:var(--dim);font-size:12px;margin-top:6px}
+details pre{white-space:pre-wrap;margin:4px 0 0;color:var(--dim)}
+</style></head><body>
+
+<nav id="list"></nav>
+
+<main id="view">
+  <div id="facts"></div>
+  <div id="flash"></div>
+  <div id="knobs">
+    <label>pace <input id="pace" type="range" min="0" max="1" step="0.01" value="0"></label>
+    <div id="palettes"></div>
+    <div id="kits"></div>
+    <button class="chip" id="turn" aria-pressed="false">turn</button>
+    <button class="chip" id="foot" aria-pressed="true">footprint</button>
+  </div>
+</main>
+
+<section id="ask">
+  <div id="log"></div>
+  <div id="compose">
+    <textarea id="prompt" placeholder="shorter legs, and give it a longer tail"></textarea>
+    <button id="send">ask Claude to change this rig</button>
+    <details><summary>what gets sent</summary><pre id="framing"></pre></details>
+  </div>
+</section>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { KINDS } from '/src/entities/animals.ts';
+import { bodyMotion, cycleTurn } from '/src/entities/motion.ts';
+import { HeroGear } from '/src/render/herogear.ts';
+import { GameState } from '/src/game/state.ts';
+import beasts from '/properties/beasts.json';
+import birds from '/properties/birds.json';
+import sea from '/properties/sea.json';
+import people from '/properties/people.json';
+import monsters from '/properties/monsters.json';
+import villain from '/properties/villain.json';
+
+/**
+ * The list down the side, grouped the way `properties/` is grouped.
+ *
+ * Read out of the property files rather than written out here, so a creature added to the world
+ * appears in this list the moment it exists and one taken away stops appearing. The files carry a
+ * `note` at the top for whoever is reading them, which is not a creature; asking KINDS whether it
+ * knows the name drops it without needing to know that.
+ */
+const GROUPS = [
+  ['people', people], ['beasts', beasts], ['birds', birds],
+  ['sea', sea], ['monsters', monsters], ['villain', villain],
+];
+
+/**
+ * What the hero can be shown wearing.
+ *
+ * Armour repaints him rather than hanging boxes on him — a mail shirt means his chest is mail — so
+ * the only way to judge a piece is beside the man who is not wearing it. Mail and plate are both
+ * here because the difference between them is the arms: bare arms under mail are correct, bare
+ * arms under a harness are a man who put on half a suit.
+ */
+const KITS = [
+  ['as he starts', []],
+  ['in mail', ['mail', 'helm', 'greaves', 'sword', 'ironshield']],
+  ['in plate', ['plate', 'helm', 'greaves', 'sword', 'ironshield']],
+];
+
+/** The header the dev-server route wants. Its value is nothing; being able to send it is the point. */
+const KNOCK = { 'x-ai-world-builder': '1' };
+
+const el = (id) => document.getElementById(id);
+const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
+
+// what is being looked at, and how. The creature is in the URL so that a reload — which is how a
+// changed rig arrives — puts you back in front of the same animal rather than at the top of the list
+let chosen = decodeURIComponent(location.hash.slice(1)) || 'hero';
+if (!KINDS[chosen]) chosen = 'hero';
+let palette = 0;
+let kit = 0;
+
+/* ------------------------------------------------------------------ the scene */
+
+const view = el('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x232b40);
+const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
+camera.position.set(2.6, 1.6, 2.6);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotateSpeed = 1.6;
+
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x30364f, 1.5));
+const sun = new THREE.DirectionalLight(0xfff3dc, 1.9);
+sun.position.set(4, 6, 3);
+scene.add(sun);
+
+/*
+ * The ground, and the reason it is a grid.
+ *
+ * Every square is one tile, which is the unit every offset in a rig is written in and the unit the
+ * world is built out of. Without it a creature is only ever as big as the camera makes it look, and
+ * "is this too big?" — the question a rig is most often wrong about — has nothing to be asked
+ * against. The disc under it is so that standing on the ground reads as standing on it.
+ */
+const grid = new THREE.GridHelper(12, 12, 0x4a5678, 0x39425f);
+grid.position.y = 0.001;
+scene.add(grid);
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(6, 32),
+  new THREE.MeshLambertMaterial({ color: 0x53704a }),
+);
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+
+/**
+ * The ground the world makes this creature stand on, drawn round its feet.
+ *
+ * `kind.body` is measured from the parts by `creature()` and scaled with the creature, so its size
+ * and what it blocks are one fact rather than two that can drift apart — but it is a fact you
+ * otherwise cannot see, and a rig whose shape and whose footprint disagree is a creature that gets
+ * stuck in doorways or walks through fences. Flat rather than a box round the whole animal: what
+ * the world actually keeps is two half-widths, and a wireframe box drawn in perspective round a
+ * creature turned out to be genuinely hard to read — it looked like a cage and hid what it was
+ * meant to be measuring.
+ */
+const footprint = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1)),
+  new THREE.LineBasicMaterial({ color: 0xe9c46a }),
+);
+footprint.rotation.x = -Math.PI / 2;
+footprint.position.y = 0.02;   // clear of the grid, which would otherwise swallow it
+scene.add(footprint);
+
+/* --------------------------------------------------------------- one creature */
+
+/**
+ * One rig, built the way the instanced pool builds it.
+ *
+ * Every part is a group sat at its pivot with the shape hung off it at the offset, because that is
+ * exactly the transform `pool.ts` writes — pivot, then the animation turn, then back out to where
+ * the part sits, then whatever fixed rotation it was given. Doing it with nested objects rather
+ * than with matrices is the same arithmetic and lets three.js do it, and it means the walk cycle
+ * here is the game's own `cycleTurn` rather than an imitation of it.
+ *
+ * A part with a `tint` takes its colour from the wearer's palette rather than from the shape — that
+ * is what lets one rig be a brown cow and a white one, and what lets the hero's chest be iron when
+ * he is wearing mail.
+ */
+function buildRig(kind, hidden, tints) {
+  const group = new THREE.Group();
+  const moving = [];
+  for (const p of kind.parts) {
+    if (p.tag && hidden.has(p.tag)) continue;       // a helm takes the place of his own hat
+    const s = p.size;
+    let geo;
+    if (p.shape === 'box') geo = new THREE.BoxGeometry(s[0], s[1], s[2]);
+    else if (p.shape === 'cyl') geo = new THREE.CylinderGeometry(s[0], s[2], s[1], 6);
+    else if (p.shape === 'cone') geo = new THREE.ConeGeometry(s[2], s[1], 6);
+    else geo = new THREE.IcosahedronGeometry(s[0], 0);
+    const colour = p.tint === undefined ? p.color : tints[Math.min(p.tint, tints.length - 1)];
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: colour, flatShading: true }));
+    const pivot = p.pivot ?? p.offset;
+    const joint = new THREE.Group();
+    joint.position.set(pivot[0], pivot[1], pivot[2]);
+    mesh.position.set(p.offset[0] - pivot[0], p.offset[1] - pivot[1], p.offset[2] - pivot[2]);
+    if (p.rot) mesh.rotation.set(p.rot[0], p.rot[1], p.rot[2]);
+    joint.add(mesh);
+    group.add(joint);
+    if (p.anim) moving.push({ joint, role: p.anim });
+  }
+  return { group, moving };
+}
+
+/**
+ * The hero's gear, drawn by the game's own `HeroGear` rather than by a copy of it here.
+ *
+ * He is not a bare rig: he wears a tunic, boots and a walking stick from the moment a world starts.
+ * Dressing him also decides his colours and which of his own parts are hidden, which is why this
+ * runs before the rig is built and hands its answers back.
+ *
+ * The gear group goes into the scene rather than under the figure. That is not tidiness: `HeroGear`
+ * positions every piece in world coordinates and applies both the hero's scale and the bob of his
+ * stride itself, so putting it under a group that also bobs and scales would do both twice.
+ */
+function dress(kind, wearing) {
+  const gear = new HeroGear(scene);
+  const state = GameState.fresh();
+  for (const id of wearing) { state.give(id, 1); state.equip(id); }
+  const hero = {
+    x: 0, y: 0, z: 0, yaw: 0, bobY: 0, kind, hiddenTags: new Set(),
+    walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0, dying: 0,
+    basePalette: kind.palettes[0], tints: [...kind.palettes[0]],
+  };
+  // version 0 on a fresh state matches the gear's own -1 only after one update, so ask twice
+  gear.update(state, hero, false);
+  state.version++;
+  gear.update(state, hero, false);
+  // the state goes back as well as the gear: the frame loop keeps updating one from the other, and
+  // handing it a second fresh state would look like a change of clothes and undress him
+  return { gear, hero, state };
+}
+
+/** What is on screen now, so that it can be taken off screen again without leaking it. */
+let standing = null;
+
+function clear() {
+  if (!standing) return;
+  scene.remove(standing.figure);
+  standing.figure.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+  if (standing.gear) { scene.remove(standing.gear.group); standing.gear.dispose(); }
+  standing = null;
+}
+
+function show(id) {
+  clear();
+  const kind = KINDS[id];
+  const tints = kind.palettes[Math.min(palette, kind.palettes.length - 1)] ?? [];
+  const dressed = kind.id === 'hero' ? dress(kind, KITS[kit][1]) : null;
+  const mover = dressed?.hero ?? {
+    x: 0, y: 0, z: 0, yaw: 0, bobY: 0, kind, hiddenTags: new Set(),
+    walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0, dying: 0,
+    basePalette: kind.palettes[0], tints,
+  };
+  const { group, moving } = buildRig(kind, mover.hiddenTags, mover.tints);
+  // the pool scales the whole rig by the creature's own scale, so a hare and a bear stand here in
+  // the proportion they stand in the world
+  group.scale.setScalar(kind.scale);
+  const figure = new THREE.Group();
+  figure.add(group);
+  scene.add(figure);
+  scene.updateMatrixWorld(true);
+
+  const box = new THREE.Box3().setFromObject(group);
+  /*
+   * A flier stands on the ground here, which is a lie worth telling.
+   *
+   * Its rig is built round the body rather than up from the feet — an eagle's root is its chest,
+   * because in the world it hangs nine tiles up and has no feet on anything — so drawn honestly it
+   * is half buried in the grass. Drawn at its real altitude it would be a speck with the ground out
+   * of shot, and the list would stop being a way of comparing one creature with the next. So it is
+   * set down on the same ground as everything else and the height it really flies at is written in
+   * the facts instead.
+   */
+  const lift = kind.altitude === undefined ? 0 : -box.min.y;
+  figure.position.y = lift;
+  box.translate(new THREE.Vector3(0, lift, 0));
+
+  // as wide and as deep as the world will make it block, where its feet are
+  footprint.scale.set(kind.body.hw * 2, kind.body.hd * 2, 1);
+
+  standing = { kind, figure, moving, mover, lift, gear: dressed?.gear ?? null, state: dressed?.state ?? null };
+  frame(box);
+  describe(kind);
+  el('framing').textContent = framing(kind);
+  document.title = `${kind.label} — builder`;
+}
+
+/**
+ * Point the camera at whatever is now standing there, without changing where you were looking from.
+ *
+ * The direction is kept and only the distance and the height of the target change, so stepping down
+ * the list compares one creature with the last from the same angle. That is the whole reason to have
+ * a list rather than a page each: a rat and a hare are only obviously different side by side.
+ */
+function frame(box) {
+  const size = box.getSize(new THREE.Vector3());
+  const middle = box.getCenter(new THREE.Vector3());
+  const away = Math.max(size.x, size.y, size.z) * 2.1 + 0.6;
+  const from = camera.position.clone().sub(controls.target);
+  if (from.lengthSq() < 1e-6) from.set(2.6, 1.6, 2.6);
+  controls.target.set(0, middle.y, 0);
+  camera.position.copy(controls.target).add(from.setLength(away));
+  controls.update();
+}
+
+/** The numbers worth having on screen while you look at the shape they belong to. */
+function describe(kind) {
+  const bits = [
+    `scale ${kind.scale}`,
+    `${kind.parts.length} parts`,
+    `walks ${kind.speed}, runs ${kind.runSpeed}`,
+    `blocks ${(kind.body.hw * 2).toFixed(2)}×${(kind.body.hd * 2).toFixed(2)} tiles`,
+    kind.behaviour,
+    kind.hp === undefined ? 'cannot be killed' : `${kind.hp} hp`,
+  ];
+  // set down on the grass here; the number is where it actually is
+  if (kind.altitude !== undefined) bits.splice(3, 0, `flies at ${kind.altitude}`);
+  el('facts').innerHTML = `<b>${kind.emoji} ${kind.label}</b>`
+    + bits.map((b) => `<span>${b}</span>`).join('');
+}
+
+/* ------------------------------------------------------------------- the list */
+
+for (const [title, file] of GROUPS) {
+  const ids = Object.keys(file).filter((id) => KINDS[id]);
+  if (!ids.length) continue;
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  el('list').append(heading);
+  for (const id of ids) {
+    const button = document.createElement('button');
+    button.innerHTML = `<span class="emoji">${KINDS[id].emoji}</span>${KINDS[id].label}`;
+    button.onclick = () => choose(id);
+    button.dataset.id = id;
+    el('list').append(button);
+  }
+}
+
+function choose(id) {
+  chosen = id;
+  palette = 0;
+  history.replaceState(null, '', `#${encodeURIComponent(id)}`);
+  for (const b of el('list').children) {
+    if (b.dataset.id) b.setAttribute('aria-current', String(b.dataset.id === id));
+  }
+  drawPalettes();
+  drawKits();
+  show(id);
+}
+
+/* ------------------------------------------------------------------ the knobs */
+
+function drawPalettes() {
+  const wrap = el('palettes');
+  wrap.textContent = '';
+  const sets = KINDS[chosen].palettes;
+  // one button is not a choice, and a herd of one colour should not pretend to be a decision
+  if (sets.length < 2) return;
+  sets.forEach((set, i) => {
+    const b = document.createElement('button');
+    b.title = set.map(hex).join(' ');
+    b.setAttribute('aria-pressed', String(i === palette));
+    b.innerHTML = set.map((c) => `<i style="background:${hex(c)}"></i>`).join('');
+    b.onclick = () => { palette = i; drawPalettes(); show(chosen); };
+    wrap.append(b);
+  });
+}
+
+function drawKits() {
+  const wrap = el('kits');
+  wrap.textContent = '';
+  if (chosen !== 'hero') return;
+  KITS.forEach(([label], i) => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', String(i === kit));
+    b.onclick = () => { kit = i; drawKits(); show(chosen); };
+    wrap.append(b);
+  });
+}
+
+el('turn').onclick = () => {
+  controls.autoRotate = !controls.autoRotate;
+  el('turn').setAttribute('aria-pressed', String(controls.autoRotate));
+};
+el('foot').onclick = () => {
+  footprint.visible = !footprint.visible;
+  el('foot').setAttribute('aria-pressed', String(footprint.visible));
+};
+
+/* ------------------------------------------------------------- the frame loop */
+
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (standing) {
+    const e = standing.mover;
+    const pace = Number(el('pace').value);
+    e.walk = pace;
+    e.flap = pace;
+    /*
+     * How fast the cycle runs, taken from `entity.ts`: something stood still breathes at 1.5 and
+     * something moving steps at four plus three times its speed. Blended by the slider rather than
+     * switched, because the point of the slider is to catch the moment a walk turns into a run —
+     * which is where a leg that swings too far goes through a body.
+     */
+    const speed = e.kind.speed + (e.kind.runSpeed - e.kind.speed) * pace;
+    e.phase += dt * (1.5 + pace * (4 + speed * 3 - 1.5));
+    for (const { joint, role } of standing.moving) {
+      const [x, y, z] = cycleTurn(role, e);
+      joint.rotation.set(x, y, z);
+    }
+    // the weight the whole body carries: the bob of a stride, the tip into a run, the roll onto
+    // each foot. Rig units, so it scales with the animal exactly as a part offset does
+    const body = bodyMotion(e);
+    standing.figure.position.y = standing.lift + body.bob * e.kind.scale;
+    standing.figure.rotation.set(body.roll, 0, body.lean, 'ZXY');
+    if (standing.gear && standing.state) standing.gear.update(standing.state, e, false);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+function resize() {
+  const { clientWidth: w, clientHeight: h } = view;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+resize();
+
+/* --------------------------------------------------------------- asking Claude */
+
+/**
+ * The framing this page wraps around what you type, shown under "what gets sent" so that it is not
+ * a secret.
+ *
+ * It says where the rig lives without naming the file, because it does not reliably know: half the
+ * monsters in `properties/monsters.json` are drawn in `animals.ts` and only the rest in
+ * `monsters.ts`, and a page that guessed would send Claude to the wrong file often enough to be
+ * worse than not guessing. Searching for the name is what a person would do anyway.
+ */
+function framing(kind) {
+  return `You are changing one creature in the low-poly game in this repository.
+
+The creature is "${kind.id}" (${kind.label}). Its rig — the list of parts it is drawn from — is the
+\`${kind.id}:\` entry in src/entities/, in animals.ts or in monsters.ts or villain.ts beside it.
+Find it rather than guessing. What it is rather than what it looks like — speed, palettes, hit
+points — is in properties/*.json instead.
+
+Read the comments at the top of src/entities/animals.ts before you change anything. A part is a
+shape, a size, an offset from the root, a colour or a \`tint\` index into the wearer's palette, and
+an animation role. The root sits on the ground and the creature faces +x.
+
+The change asked for:
+
+${el('prompt').value.trim()}
+
+Do this and nothing else. Keep the house style: comments explain why rather than what, British
+spelling, no bare numbers where a named one would read better. Do not run git and do not commit.
+When you are done, say in two or three sentences what you changed and what it should now look like
+— somebody is watching this creature redraw as you save.`;
+}
+
+const log = el('log');
+let saying = null;      // the paragraph being typed into, if one is
+
+function note(text, wrong = false) {
+  const p = document.createElement('p');
+  p.className = wrong ? 'note wrong' : 'note';
+  p.textContent = text;
+  log.append(p);
+  saying = null;
+  log.scrollTop = log.scrollHeight;
+}
+
+function told(ev) {
+  if (ev.k === 'say') {
+    if (!saying) { saying = document.createElement('p'); saying.className = 'said'; log.append(saying); }
+    saying.textContent += ev.text;
+  } else if (ev.k === 'tool') {
+    const line = document.createElement('div');
+    line.className = 'tool';
+    line.innerHTML = `${ev.name} <i></i>`;
+    line.querySelector('i').textContent = ev.on;
+    log.append(line);
+    saying = null;
+  } else {
+    note(`— ${ev.note}`, !ev.ok);
+    el('send').disabled = false;
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+/**
+ * Read a run, whether it was just started here or was already going when the page loaded.
+ *
+ * The second case is the one that matters. Claude edits a rig, Vite reloads this page, and the
+ * reply being typed into it dies with the page — so the run lives on the server and this follows
+ * it. A reload therefore costs the transcript nothing: it is fetched again from the start, which
+ * is also why opening the builder shows you what you last asked.
+ */
+async function readRun(response) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let rest = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    rest += decoder.decode(value, { stream: true });
+    const lines = rest.split('\n');
+    rest = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line.trim()) told(JSON.parse(line));
+    }
+  }
+}
+
+el('send').onclick = async () => {
+  const wanted = el('prompt').value.trim();
+  if (!wanted) return;
+  el('send').disabled = true;
+  const asked = document.createElement('p');
+  asked.className = 'asked';
+  asked.textContent = `→ ${wanted}`;
+  log.append(asked);
+  saying = null;
+  try {
+    const response = await fetch('/__ask', { method: 'POST', headers: KNOCK, body: framing(KINDS[chosen]) });
+    if (!response.ok) { note(await response.text(), true); el('send').disabled = false; return; }
+    await readRun(response);
+  } catch (err) {
+    // a reload while the answer was arriving is the ordinary case, not a failure: the run is on
+    // the server and the page that comes back picks it up again
+    note(`the connection ended: ${err.message}`, true);
+    el('send').disabled = false;
+  }
+};
+
+el('prompt').addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') el('send').click();
+});
+
+/*
+ * Pick up whatever was being said when this page was last alive.
+ *
+ * `send` stays disabled until the run that is still going says it has finished, so you cannot ask a
+ * second question into the middle of the first — the server would refuse it anyway, and a button
+ * that does nothing is worse than a button that is plainly not ready.
+ */
+(async () => {
+  el('send').disabled = true;
+  try {
+    const response = await fetch('/__ask', { headers: KNOCK });
+    if (response.ok) await readRun(response);
+  } catch { /* no dev-server route: the renderer still works, the prompt does not */ }
+  el('send').disabled = false;
+})();
+
+/*
+ * The reload that is the whole point, announced.
+ *
+ * Vite has no way of telling this page why it is reloading, so the flag is set on the way out and
+ * read on the way in. Without it a rig quietly changing under you looks like the page having a
+ * glitch, and with it the change is the loudest thing on screen for a second and a half.
+ */
+import.meta.hot?.on('vite:beforeFullReload', () => {
+  try { sessionStorage.setItem('builder:reloaded', '1'); } catch { /* a locked-down browser */ }
+});
+if (sessionStorage.getItem('builder:reloaded')) {
+  sessionStorage.removeItem('builder:reloaded');
+  el('flash').textContent = '↻ the rig changed on disk — this is the new one';
+  el('flash').style.opacity = '1';
+  setTimeout(() => { el('flash').style.opacity = '0'; }, 2600);
+}
+
+/**
+ * A way in for whatever is driving this without a mouse.
+ *
+ * A page that can only be worked by hand can only be checked by hand, and the thing most worth
+ * checking about this one is arithmetic you cannot see: how far the camera ended up, whether the
+ * rig it built has the parts the rig it read has. The game has the same hooks for the same reason.
+ */
+window.__builder = {
+  show: (id) => choose(id),
+  state: () => ({
+    id: standing?.kind.id,
+    parts: standing?.figure.children[0].children.length,
+    lift: standing?.lift,
+    away: camera.position.distanceTo(controls.target),
+    target: controls.target.toArray().map((n) => Number(n.toFixed(3))),
+  }),
+};
+
+choose(chosen);
+requestAnimationFrame(tick);
+</script></body></html>

@@ -1042,7 +1042,7 @@ can each be finished and each leave the game playable.
       knockout is somebody dragging your body — a beam there would claim a power at the exact
       moment the game has told you that you had none. The eagle over the range was the near miss and
       is left alone, because it already has a bird and a line of text saying what happened.)*
-- [ ] **A character builder, as a page.** A list of the people and animals down one side, a real 3D
+- [x] **A character builder, as a page.** A list of the people and animals down one side, a real 3D
       view of the one selected, and a prompt that runs `claude -p` and shows what comes back — so
       changing a rig is asking for the change and watching it happen. A page rather than a terminal
       panel: kitty's graphics protocol carries images rather than geometry, so a terminal version
@@ -1050,3 +1050,22 @@ can each be finished and each leave the game playable.
       controls and a mouse. It opens inside the editor as well. `tools/turnaround.html` is most of
       the renderer already; what it needs is the list, the prompt, and a dev-server route that
       shells out and streams the reply back.
+      *(`tools/builder.html`, with `tools/askclaude.ts` as the door it asks through. Three things
+      were learned, and two of them were not about drawing. The first: the run has to belong to the
+      server rather than to the page. Claude edits `animals.ts`, Vite sees the file change and
+      reloads the page — which is the entire point — and the reply being streamed into that page
+      dies with it, taking the process producing it along too. So the answer is kept on this side
+      and the page merely follows it, from wherever it had got to; a reload then costs nothing, and
+      opening the builder shows you what you last asked. The second: `host: true` means "the dev
+      server is local" is not true of this machine, so the loopback check belongs on the route, on
+      the socket's own address, next to a header that no cross-site form can send. The prompt goes
+      to `spawn` as an argument and never through a shell, and `--permission-mode acceptEdits`
+      widens nothing — whatever Claude may run here is what this machine already lets it run at a
+      terminal. The third is the drawing one: every creature is shown at its own `scale`, on a grid
+      of one-tile squares, with its `body` footprint drawn flat under its feet. A wireframe box
+      round the whole animal was tried first and read as a cage; flat is what the world actually
+      keeps anyway. Fliers are set down on the grass rather than drawn nine tiles up, because a
+      speck with the ground out of shot stops the list being a way of comparing one creature with
+      the next — the altitude is written in the facts instead. The walk is the game's own
+      `cycleTurn` and `bodyMotion` rather than an imitation, which is what catches the arm that only
+      passes through a hip at the top of a stride.)*

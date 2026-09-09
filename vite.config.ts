@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
+import { askClaude } from './tools/askclaude.ts';
 import { commandChannel } from './tools/commandchannel.ts';
 
 /**
@@ -30,7 +31,13 @@ export default defineConfig(({ command }) => ({
    * bundled before it is read, and a bundler resolves an import whether or not the thing it names
    * will ever run. That is why the image has to carry `tools/` even though it never serves.
    */
-  plugins: [commandChannel()],
+  /**
+   * And the door for asking Claude: post a prompt to /__ask and the character builder watches the
+   * answer arrive. Both plugins are `apply: 'serve'`, so neither exists in a built game — which
+   * matters more for this one, because it runs a command with text from a page. What holds that
+   * where it is, and why it is acceptable at all, is written at the top of `tools/askclaude.ts`.
+   */
+  plugins: [commandChannel(), askClaude()],
   define: BUILD,
   base: process.env.BASE ?? (command === 'build' ? '/ai.world/' : '/'),
   /**
