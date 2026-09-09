@@ -791,8 +791,11 @@ thing drags the whole world back into being generated from the middle outwards.
 - [x] **B4. Provinces the server owns.** The unit of loading, simulating and persisting becomes the
       province rather than the world. Load when somebody is in it, flush and compact when nobody is.
       `GroundWorld.reach`/`keepOnly` and `Simulation`'s per-seed worlds are the shape to grow from.
-- [ ] **B5. Sea links.** A border between land and sea is a port; the link across it is a ferry
+- [x] **B5. Sea links.** A border between land and sea is a port; the link across it is a ferry
       rather than a road. Islands stop being special and become provinces reached by water.
+      *(Ferries by mutual choice — a crossing exists only where two ports pick each other, which is
+      symmetric where "the nearest port" is not. 989 ports and 194 crossings over twelve hundred
+      tiles of coast.)*
 - [ ] **B6. The page stops growing its own country.** Chunks stream from the world and are kept in
       IndexedDB under the world's own fingerprint. Until this, an endless world cannot be handed
       over at a join.
