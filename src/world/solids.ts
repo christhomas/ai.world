@@ -142,10 +142,22 @@ export class Solids {
    * say about the wall it crossed.
    *
    * This is the segment against the box, so the answer does not depend on how long the step was.
+   *
+   * The tiles the step spans are walked rather than the tiles it strictly crosses: a step is a tile
+   * or two long, so that is a handful of buckets either way. A box wider than a tile is registered
+   * on several of them and so can be tested twice, which is a few arithmetic operations — cheaper
+   * than the set that used to be allocated on every candidate of every slice of every move, of
+   * which there are twenty-odd per walking frame per creature.
    */
   crosses(x0: number, z0: number, x1: number, z1: number): boolean {
-    for (const s of this.along(x0, z0, x1, z1)) {
-      if (segmentHitsBox(s, x0, z0, x1, z1)) return true;
+    const lowX = Math.floor(Math.min(x0, x1)), highX = Math.floor(Math.max(x0, x1));
+    const lowZ = Math.floor(Math.min(z0, z1)), highZ = Math.floor(Math.max(z0, z1));
+    for (let tz = lowZ; tz <= highZ; tz++) {
+      for (let tx = lowX; tx <= highX; tx++) {
+        const bucket = this.buckets.get(tileKey(tx, tz));
+        if (!bucket) continue;
+        for (const s of bucket) if (segmentHitsBox(s, x0, z0, x1, z1)) return true;
+      }
     }
     return false;
   }
@@ -155,27 +167,6 @@ export class Solids {
     return this.buckets.get(tileKey(Math.floor(x), Math.floor(z))) ?? EMPTY;
   }
 
-  /**
-   * Every solid registered on any tile the segment passes over, each once.
-   *
-   * A box reaches into every tile it overlaps, so walking the tiles under the segment finds
-   * everything it could possibly cross — and a wide prop is registered on several of them, hence
-   * the set. The walk is over the box of tiles the segment spans rather than the tiles it strictly
-   * crosses: a step is at most a tile or two long, so that is a handful of buckets either way and
-   * not worth a line-walk to narrow.
-   */
-  private along(x0: number, z0: number, x1: number, z1: number): Set<Solid> {
-    const found = new Set<Solid>();
-    const lowX = Math.floor(Math.min(x0, x1)), highX = Math.floor(Math.max(x0, x1));
-    const lowZ = Math.floor(Math.min(z0, z1)), highZ = Math.floor(Math.max(z0, z1));
-    for (let tz = lowZ; tz <= highZ; tz++) {
-      for (let tx = lowX; tx <= highX; tx++) {
-        const bucket = this.buckets.get(tileKey(tx, tz));
-        if (bucket) for (const s of bucket) found.add(s);
-      }
-    }
-    return found;
-  }
 }
 
 /**

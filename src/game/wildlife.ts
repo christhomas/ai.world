@@ -147,6 +147,7 @@ export class Wildlife {
   apply(near: CreatureSnap[], gone: number[], hero?: { x: number; z: number }): void {
     for (const snap of near) {
       let body = this.bodies.get(snap.id);
+      const knew = body !== undefined;
       if (!body) {
         const kind = KINDS[snap.kind];
         if (!kind) continue;                 // a creature this client has no drawing for
@@ -157,20 +158,28 @@ export class Wildlife {
         if (!this.renderer.add(body)) continue;
         this.bodies.set(snap.id, body);
       }
-      // how far out the screen was about this creature, before believing the new position
-      const out = Math.hypot(body.x - snap.x, body.z - snap.z);
-      this.wrong.n++;
-      this.wrong.total += out;
-      if (out > this.wrong.worst) this.wrong.worst = out;
-      this.recent = this.recent * 0.96 + out * 0.04;
-      // and separately for what the player could actually reach, because a deer forty tiles off
-      // being drawn a little behind costs nobody anything
-      // fliers are left out of the reckoning as well as out of the guess: what this number is for
-      // is whether a blow will land where it looks like it will, and nothing you swing at flies
-      if (hero && body.kind.behaviour !== 'fly' && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
-        this.wrongClose.n++;
-        this.wrongClose.total += out;
-        if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
+      /*
+       * How far out the screen was about this creature, before believing the new position.
+       *
+       * Only for one we were already drawing: a creature that arrived in this very snapshot is
+       * standing exactly where it was said to be, and counting that as a perfect guess would flatter
+       * the average with every deer that walks into view.
+       *
+       * The close tally is the one that matters — whether a blow will land where it looks like it
+       * will — so it leaves out anything that flies, which nobody swings at and which is drawn
+       * behind on purpose, and anything too far off to reach, which costs nobody anything.
+       */
+      if (knew) {
+        const out = Math.hypot(body.x - snap.x, body.z - snap.z);
+        this.wrong.n++;
+        this.wrong.total += out;
+        if (out > this.wrong.worst) this.wrong.worst = out;
+        this.recent = this.recent * 0.96 + out * 0.04;
+        if (hero && body.kind.behaviour !== 'fly' && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
+          this.wrongClose.n++;
+          this.wrongClose.total += out;
+          if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
+        }
       }
       body.state = snap.state;
       body.walk = snap.walk;
@@ -192,9 +201,9 @@ export class Wildlife {
    * The number that matters when somebody says they cannot hit a wolf: a blow is resolved by the
    * world against where the world has the wolf, and the player is swinging at where it is drawn.
    * If those two are a body's width apart, the game is lying to the player about where things are.
-   */
-  /**
+   *
    * @param clear empty the running tally, which is what a measurement wants and a display does not.
+   * A display also asks sixty times a second, so it is given no list of stragglers to build.
    */
   drift(clear = true): Drift {
     let worst = 0, total = 0, n = 0, worstIs = '';
@@ -204,7 +213,7 @@ export class Wildlife {
       if (!to) continue;
       const out = Math.hypot(to.x - body.x, to.z - body.z);
       if (out > worst) { worst = out; worstIs = body.kind.id; }
-      if (out > 0.5) far.push({ kind: body.kind.id, out: Math.round(out * 100) / 100 });
+      if (clear && out > 0.5) far.push({ kind: body.kind.id, out: Math.round(out * 100) / 100 });
       total += out;
       n++;
     }
