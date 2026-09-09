@@ -8,7 +8,6 @@ import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
 import { Solids, boxesOf, type Body } from './solids';
 import type { Parcel } from './chunkparcel';
-import { propsOf } from './propstream';
 import type { Footprints } from './footprints';
 
 /**
@@ -56,12 +55,7 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * the recipe. That is the whole point of sending it.
    */
   parcelOf(cx: number, cz: number): Parcel {
-    const chunk = this.sampler.generateChunk(cx, cz);
-    const props: number[] = [];
-    for (const p of propsOf(chunk, this.sampler.seed)) {
-      props.push(p.kind, p.x, p.y, p.z, p.rot, p.scale, p.stretch, p.lean, p.tint);
-    }
-    return { cx, cz, props: Float32Array.from(props), tiles: tilesOf(chunk) };
+    return this.sampler.generateChunk(cx, cz);
   }
 
   /** The villages of this world: where anybody who goes down is carried to. */

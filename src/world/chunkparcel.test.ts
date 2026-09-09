@@ -4,7 +4,6 @@ import { packChunk, parcelKey, unpackChunk, worldStamp, type Parcel } from './ch
 import { propsOf } from './propstream';
 import { generateWebGraph } from './roadweb';
 import { TerrainSampler } from './terrain';
-import { tilesOf } from './tiles';
 
 /**
  * The ground, as it travels and as it is kept.
@@ -17,37 +16,36 @@ import { tilesOf } from './tiles';
 
 /** A real chunk of a real world, since a made-up one would not have props in it. */
 function realChunk(seed: number, cx: number, cz: number): Parcel {
-  const sampler = new TerrainSampler(generateWebGraph(seed));
-  const chunk = sampler.generateChunk(cx, cz);
-  const props: number[] = [];
-  for (const p of propsOf(chunk, sampler.seed)) {
-    props.push(p.kind, p.x, p.y, p.z, p.rot, p.scale, p.stretch, p.lean, p.tint);
-  }
-  return { cx, cz, props: Float32Array.from(props), tiles: tilesOf(chunk) };
+  return new TerrainSampler(generateWebGraph(seed)).generateChunk(cx, cz);
 }
 
 describe('a chunk of country, packed', () => {
-  it('comes back exactly as it went in', () => {
+  it('comes back exactly as it went in, apron and all', () => {
     const parcel = realChunk(3, 8, 4);
-    expect(parcel.props.length, 'a chunk with nothing on it proves little').toBeGreaterThan(0);
     const back = unpackChunk(packChunk(parcel));
     expect(back, 'the parcel would not unpack at all').toBeTruthy();
     expect(back!.cx).toBe(parcel.cx);
     expect(back!.cz).toBe(parcel.cz);
-    expect([...back!.props]).toEqual([...parcel.props]);
-    expect([...back!.tiles.heights]).toEqual([...parcel.tiles.heights]);
-    expect([...back!.tiles.waters]).toEqual([...parcel.tiles.waters]);
-    expect([...back!.tiles.types]).toEqual([...parcel.tiles.types]);
-    expect([...back!.tiles.biomes]).toEqual([...parcel.tiles.biomes]);
+    expect(back!.size, 'the margin a chunk is meshed with').toBe(parcel.size);
+    for (const name of ['height', 'water', 'propRot', 'shore', 'corners'] as const) {
+      expect([...back![name]], `${name} came back changed`).toEqual([...parcel[name]]);
+    }
+    for (const name of ['type', 'biome', 'prop', 'sloped'] as const) {
+      expect([...back![name]], `${name} came back changed`).toEqual([...parcel[name]]);
+    }
+    // and what is derived from it derives the same, which is the point of sending the chunk itself
+    const mine = [...propsOf(parcel, 3)].map((p) => `${p.kind}:${p.x.toFixed(4)},${p.z.toFixed(4)}`);
+    const theirs = [...propsOf(back!, 3)].map((p) => `${p.kind}:${p.x.toFixed(4)},${p.z.toFixed(4)}`);
+    expect(theirs).toEqual(mine);
+    expect(mine.length, 'a chunk with nothing on it proves little').toBeGreaterThan(0);
   });
 
   it('weighs what a chunk should weigh', () => {
-    const parcel = realChunk(3, 8, 4);
-    const bytes = packChunk(parcel).byteLength;
-    const tiles = WORLD.CHUNK_SIZE * WORLD.CHUNK_SIZE;
-    // the tiles are fixed, the props are what vary
-    expect(bytes).toBe(16 + tiles * 10 + parcel.props.length * 4);
-    expect(bytes, 'a chunk has grown into something a phone would notice').toBeLessThan(8_000);
+    const bytes = packChunk(realChunk(3, 8, 4)).byteLength;
+    const tiles = (WORLD.CHUNK_SIZE + 2) ** 2;
+    // five float arrays, one of them four to a tile, and four arrays of bytes
+    expect(bytes).toBe(20 + (tiles * 4 + tiles * 4) * 4 + tiles * 4);
+    expect(bytes, 'a chunk has grown into something a phone would notice').toBeLessThan(12_000);
   });
 
   it('refuses bytes it does not recognise, rather than believing them', () => {
@@ -64,17 +62,17 @@ describe('a chunk of country, packed', () => {
 describe('the stamp that keeps stale ground out', () => {
   it('is the same for the same country and different for a different one', () => {
     const here = realChunk(3, 0, 0), also = realChunk(3, 0, 0), elsewhere = realChunk(4, 0, 0);
-    expect(worldStamp(also.tiles, also.props)).toBe(worldStamp(here.tiles, here.props));
-    expect(worldStamp(elsewhere.tiles, elsewhere.props)).not.toBe(worldStamp(here.tiles, here.props));
+    expect(worldStamp(also)).toBe(worldStamp(here));
+    expect(worldStamp(elsewhere)).not.toBe(worldStamp(here));
   });
 
   it('moves when the ground moves, which is what makes kept chunks safe', () => {
     const parcel = realChunk(3, 0, 0);
-    const was = worldStamp(parcel.tiles, parcel.props);
+    const was = worldStamp(parcel);
     // the smallest change generation could make: one tile a hair higher
-    const moved = { ...parcel.tiles, heights: Float32Array.from(parcel.tiles.heights) };
-    moved.heights[0] += 0.01;
-    expect(worldStamp(moved, parcel.props), 'the ground changed and the stamp did not').not.toBe(was);
+    const moved = { ...parcel, height: Float32Array.from(parcel.height) };
+    moved.height[0] += 0.01;
+    expect(worldStamp(moved), 'the ground changed and the stamp did not').not.toBe(was);
   });
 
   it('names a kept chunk by the world, what made it, and where it is', () => {

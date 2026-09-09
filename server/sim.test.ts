@@ -820,8 +820,8 @@ describe('a page asking the world for country', () => {
     expect([first!.cx, first!.cz]).toEqual([8, 4]);
     // and it is the world's own ground rather than something made up for the wire
     const mine = sim.groundOf(3)!.parcelOf(8, 4);
-    expect([...first!.tiles.heights]).toEqual([...mine.tiles.heights]);
-    expect([...first!.props]).toEqual([...mine.props]);
+    expect([...first!.height]).toEqual([...mine.height]);
+    expect([...first!.prop]).toEqual([...mine.prop]);
   });
 
   it('will not be talked into handing over the whole world at once', () => {

@@ -22,14 +22,22 @@ function keep(): Keep & { held: Map<string, ArrayBuffer> } {
   };
 }
 
-/** A chunk with something recognisable in it. */
+/** A chunk with something recognisable in it, apron and all. */
 function parcel(cx: number, cz: number, mark = 7): Parcel {
-  const n = WORLD.CHUNK_SIZE * WORLD.CHUNK_SIZE;
-  const heights = new Float32Array(n).fill(mark);
-  const waters = new Float32Array(n);
-  const types = new Uint8Array(n).fill(2);
-  const biomes = new Uint8Array(n).fill(1);
-  return { cx, cz, props: Float32Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9]), tiles: { cx, cz, heights, waters, types, biomes } };
+  const size = WORLD.CHUNK_SIZE + 2;
+  const n = size * size;
+  return {
+    cx, cz, size, empty: false,
+    height: new Float32Array(n).fill(mark),
+    water: new Float32Array(n),
+    propRot: new Float32Array(n).fill(Number.NaN),
+    shore: new Float32Array(n),
+    corners: new Float32Array(n * 4).fill(mark),
+    type: new Uint8Array(n).fill(2),
+    biome: new Uint8Array(n).fill(1),
+    prop: new Uint8Array(n),
+    sloped: new Uint8Array(n),
+  };
 }
 
 describe('country a page has already been sent', () => {
@@ -40,7 +48,7 @@ describe('country a page has already been sent', () => {
       const back = await store.get(2, -1);
       expect(back, 'the chunk was not kept at all').toBeTruthy();
       expect(back!.cx).toBe(2);
-      expect(back!.tiles.heights[0]).toBe(7);
+      expect(back!.height[0]).toBe(7);
       expect(await store.get(2, 0), 'a chunk nobody kept came back anyway').toBeNull();
     })();
   });
@@ -59,9 +67,9 @@ describe('country a page has already been sent', () => {
     await new ChunkStore(shared, 3, 'mesh', 'aaaa1111').put(parcel(0, 0, 7));
     await new ChunkStore(shared, 3, 'road', 'aaaa1111').put(parcel(0, 0, 9));
     await new ChunkStore(shared, 4, 'mesh', 'aaaa1111').put(parcel(0, 0, 11));
-    expect((await new ChunkStore(shared, 3, 'mesh', 'aaaa1111').get(0, 0))!.tiles.heights[0]).toBe(7);
-    expect((await new ChunkStore(shared, 3, 'road', 'aaaa1111').get(0, 0))!.tiles.heights[0]).toBe(9);
-    expect((await new ChunkStore(shared, 4, 'mesh', 'aaaa1111').get(0, 0))!.tiles.heights[0]).toBe(11);
+    expect((await new ChunkStore(shared, 3, 'mesh', 'aaaa1111').get(0, 0))!.height[0]).toBe(7);
+    expect((await new ChunkStore(shared, 3, 'road', 'aaaa1111').get(0, 0))!.height[0]).toBe(9);
+    expect((await new ChunkStore(shared, 4, 'mesh', 'aaaa1111').get(0, 0))!.height[0]).toBe(11);
   });
 });
 
@@ -101,6 +109,6 @@ describe('sweeping up', () => {
 
   it('keeps a chunk small enough to be worth keeping thousands of', () => {
     // the whole scheme rests on a country costing tens of megabytes rather than hundreds
-    expect(packChunk(parcel(0, 0)).byteLength).toBeLessThan(4_000);
+    expect(packChunk(parcel(0, 0)).byteLength).toBeLessThan(12_000);
   });
 });
