@@ -81,7 +81,16 @@ export class Entity {
   tz: number;
   fleeX = 0;
   fleeZ = 0;
-  readonly tints: number[];
+  /**
+   * The palette this one was painted from, which nothing changes.
+   *
+   * Kept beside `tints` because the hero's colours are rewritten by what he is wearing — iron on
+   * the body means the body itself is iron rather than a second body drawn over the first — and
+   * taking the armour off has to put back what was underneath.
+   */
+  readonly basePalette: number[];
+  /** What it is painted in now. A copy, since a kind's palette is shared by everything of that kind. */
+  tints: number[];
   /**
    * What to call them. A creature's is drawn from its kind; a villager's is overwritten at spawn
    * with the name the village register has for whoever is standing there.
@@ -172,7 +181,8 @@ export class Entity {
     readonly chunkKey: string,
     rng: Rng,
   ) {
-    this.tints = kind.palettes[Math.floor(rng() * kind.palettes.length)];
+    this.basePalette = kind.palettes[Math.floor(rng() * kind.palettes.length)];
+    this.tints = [...this.basePalette];
     this.name = kind.names[Math.floor(rng() * kind.names.length)];
     this.phase = rng() * 6.28;
     this.timer = rng() * 2;

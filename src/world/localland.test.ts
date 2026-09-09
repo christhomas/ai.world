@@ -54,8 +54,8 @@ describe('the ground of an endless country', () => {
       seen.set(kind, (seen.get(kind) ?? 0) + 1);
     }
     const total = [...seen.values()].reduce((a, b) => a + b, 0);
-    for (const kind of [FaceKind.Sea, FaceKind.Land, FaceKind.Mountain]) {
-      expect(seen.get(kind) ?? 0, `a country with no ${FaceKind[kind] ?? kind} in it`).toBeGreaterThan(0);
+    for (const [name, kind] of [['sea', FaceKind.Sea], ['land', FaceKind.Land], ['mountains', FaceKind.Mountain]] as const) {
+      expect(seen.get(kind) ?? 0, `a country with no ${name} in it`).toBeGreaterThan(0);
     }
     expect((seen.get(FaceKind.Sea) ?? 0) / total, 'the country is nearly all sea').toBeLessThan(0.9);
   });

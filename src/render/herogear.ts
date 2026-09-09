@@ -4,11 +4,18 @@ import type { GameState } from '../game/state';
 import type { Entity } from '../entities/entity';
 import { bodyMotion } from '../entities/motion';
 import { merge, part } from './geometry';
+import { dressed, isDressing } from './worn';
 
 /**
- * What the hero is wearing, drawn on the hero. The rig itself lives in the shared instanced pool,
- * so gear is a small group of ordinary meshes that follows the hero and swings with their arms.
- * A worn helm hides the hero's own hat; a worn body piece recolours nothing, it sits over the tunic.
+ * What the hero is carrying, drawn in his hands. The rig itself lives in the shared instanced pool,
+ * so this is a small group of ordinary meshes that follows the hero and swings with his arms.
+ *
+ * What he is *wearing* is not here, and used not to be true: armour was a set of boxes hung over
+ * the body, cut a hundredth of a unit proud of whatever they covered so the two surfaces would not
+ * fight over the same pixels. A man in a costume rather than a man in armour. Worn pieces now
+ * repaint the hero's own parts — `worn.ts` — and what is left here is what genuinely is a thing
+ * held: a sword, a shield, a lantern, a torch, and the skirt of a garment, which is the one part of
+ * clothing that has to move on its own.
  */
 
 type Build = () => THREE.BufferGeometry;
@@ -51,33 +58,6 @@ const shield = (colour: number, boss: number): Build => () => merge([
 
 /** One shape per item that is worth seeing on the body. Items without an entry simply do not show. */
 const GEAR: Record<string, Build> = {
-  cap: () => merge([part(new THREE.BoxGeometry(0.36, 0.16, 0.36), 0x8a6a3d, [0, 0.06, 0]), part(new THREE.BoxGeometry(0.2, 0.05, 0.16), 0x6b4a2b, [0.22, 0.02, 0])]),
-  helm: () => merge([
-    part(new THREE.BoxGeometry(0.38, 0.24, 0.38), 0x9aa2ac, [0, 0.08, 0]),
-    part(new THREE.BoxGeometry(0.4, 0.06, 0.4), 0x7a828c, [0, -0.05, 0]),
-    part(new THREE.BoxGeometry(0.06, 0.2, 0.12), 0x7a828c, [0.19, 0.06, 0]),
-  ]),
-  /*
-   * Body gear, cut to go over the chest rather than through it.
-   *
-   * The torso is 0.27 deep and these were 0.26, 0.27 and 0.28 — so a tunic was thinner than the
-   * body it is worn on and the two surfaces fought over the same pixels, which shows up as the
-   * shirt flickering through the tunic as the camera turns. Each is a little proud of what is
-   * underneath it now, which is what a garment is.
-   */
-  tunic: () => merge([
-    part(new THREE.BoxGeometry(0.3, 0.34, 0.38), 0xb8894a, [0, 0.04, 0]),
-    part(new THREE.BoxGeometry(0.32, 0.05, 0.4), 0x8a6438, [0, -0.15, 0]),   // the belt it is gathered at
-  ]),
-  jerkin: () => merge([
-    part(new THREE.BoxGeometry(0.31, 0.36, 0.39), 0x6b4a2b, [0, 0.04, 0]),
-    part(new THREE.BoxGeometry(0.33, 0.07, 0.41), 0x4a3222, [0, -0.16, 0]),
-  ]),
-  mail: () => merge([
-    part(new THREE.BoxGeometry(0.32, 0.46, 0.4), 0x8f97a2, [0, 0, 0]),
-    part(new THREE.BoxGeometry(0.34, 0.05, 0.42), 0x6f7782, [0, 0.1, 0]),
-    part(new THREE.BoxGeometry(0.34, 0.05, 0.42), 0x6f7782, [0, -0.06, 0]),
-  ]),
   // gripped a third of the way up, the way a walking stick is, so the foot of it reaches the ground
   stick: () => merge([part(new THREE.CylinderGeometry(0.045, 0.055, 0.86, 5), 0x6b4a2b, [0, 0.16, 0])]),
   sword: blade(0.7, 0xc8ccd4, 0xb8a04a),
@@ -97,25 +77,6 @@ const GEAR: Record<string, Build> = {
   rod: () => merge([
     part(new THREE.CylinderGeometry(0.02, 0.03, 1.1, 5), 0xb8945a, [0, 0.4, 0], [1, 1, 1], [0, 0, -0.5]),
     part(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0x5a4632, [0.1, 0.02, 0]),
-  ]),
-  /*
-   * Worn boots and greaves, cut to the legs that are actually under them.
-   *
-   * These were 0.26 and 0.28 across apiece at a tenth of a unit either side of the middle — so the
-   * pair spanned 0.46 and 0.48, against a body 0.36 wide and legs 0.15. From this camera, which
-   * looks down at the hero from above, that is not a pair of boots: it is one brown slab wider than
-   * the man standing in it, and it reads as something failing to render. It was reported as exactly
-   * that: "a brown square at the foot of the player".
-   *
-   * They now sit over the rig's own feet with a little to spare, which is what a boot is.
-   */
-  boots: () => merge([
-    part(new THREE.BoxGeometry(0.19, 0.1, 0.135), 0x5a3f28, [0.02, 0, 0.097]),
-    part(new THREE.BoxGeometry(0.19, 0.1, 0.135), 0x5a3f28, [0.02, 0, -0.097]),
-  ]),
-  greaves: () => merge([
-    part(new THREE.BoxGeometry(0.18, 0.3, 0.17), 0x9aa2ac, [0, 0.1, 0.097]),
-    part(new THREE.BoxGeometry(0.18, 0.3, 0.17), 0x9aa2ac, [0, 0.1, -0.097]),
   ]),
   charm: () => merge([part(new THREE.IcosahedronGeometry(0.1, 0), 0x6fae4b, [0, 0, 0])]),
   map: () => merge([part(new THREE.BoxGeometry(0.06, 0.18, 0.24), 0xe8dcc0, [0, 0, 0])]),
@@ -213,7 +174,12 @@ const HEM = {
   IDLE: 0.022,
 } as const;
 
-/** Items whose presence hides part of the hero's own rig. */
+/**
+ * Items whose presence hides part of the hero's own rig.
+ *
+ * The hat is the hero's own, and a helm is not worn over one. What a helm *is* is the head painted
+ * in iron, which `worn.ts` does — so all that is needed here is to take the green cap off first.
+ */
 const HIDES: Record<string, string> = { cap: 'hat', helm: 'hat' };
 
 /** How high the shoulder the arms swing from is, in hero units. */
@@ -230,6 +196,8 @@ export class HeroGear {
   private readonly worn = new Map<EquipSlot, { mesh: THREE.Mesh; id: string; mount: Mount }>();
   private readonly cache = new Map<string, THREE.BufferGeometry>();
   private shownVersion = -1;
+  /** The hero these colours were put on, so a new one is dressed rather than left as he was born. */
+  private dressed: Entity | null = null;
   /** The skirt of whatever is worn on the body, hung on its own hinge at the waist. */
   private hem: THREE.Mesh | null = null;
   /** The torch and its flame, made once and shown only after dark. */
@@ -279,8 +247,11 @@ export class HeroGear {
    * arm.
    */
   update(state: GameState, hero: Entity, carry = false): void {
-    if (state.version !== this.shownVersion) {
+    // the hero himself as well as his kit: he is a new entity after a death or a long journey, and
+    // a new entity is painted in the colours he was born in until somebody dresses him again
+    if (state.version !== this.shownVersion || hero !== this.dressed) {
       this.shownVersion = state.version;
+      this.dressed = hero;
       this.rebuild(state, hero);
     }
     this.carrying = carry;
@@ -375,6 +346,8 @@ export class HeroGear {
 
   private rebuild(state: GameState, hero: Entity): void {
     hero.hiddenTags.clear();
+    // what he is wearing, which is what he is made of rather than something drawn over him
+    hero.tints = dressed(hero.basePalette, (slot) => state.worn(slot));
     for (const [, worn] of this.worn) this.group.remove(worn.mesh);
     this.worn.clear();
     if (this.hem) { this.group.remove(this.hem); this.hem = null; }
@@ -393,6 +366,7 @@ export class HeroGear {
       if (!item) continue;
       const hide = HIDES[item.id];
       if (hide) hero.hiddenTags.add(hide);
+      if (isDressing(item)) continue;               // he is wearing it; he is not carrying it
       const geometry = this.geometryFor(item);
       if (!geometry) continue;
       const mesh = new THREE.Mesh(geometry, this.material);

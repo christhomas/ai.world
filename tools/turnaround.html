@@ -25,7 +25,15 @@ import { GameState } from '/src/game/state.ts';
 const W = 260, H = 300;
 const sheet = document.getElementById('sheet');
 
-function build(kind, hidden = new Set()) {
+/**
+ * One rig, drawn the way the instanced pool draws it.
+ *
+ * A part with a `tint` takes its colour from the wearer's palette rather than from the shape — that
+ * is what lets one rig be a brown cow and a white one, and what lets the hero's chest be iron when
+ * he is wearing mail. This sheet used to read the tint as though it were a colour and multiply by
+ * it, which painted every tinted part black.
+ */
+function build(kind, hidden = new Set(), tints = kind.palettes[0] ?? []) {
   const g = new THREE.Group();
   for (const p of kind.parts) {
     // a worn helm hides the hero's own hat, the way it does in the game
@@ -36,8 +44,9 @@ function build(kind, hidden = new Set()) {
     else if (p.shape === 'cyl') geo = new THREE.CylinderGeometry(s[0], s[2], s[1], 6);
     else if (p.shape === 'cone') geo = new THREE.ConeGeometry(s[2], s[1], 6);
     else geo = new THREE.IcosahedronGeometry(s[0], 0);
-    const colour = new THREE.Color(p.color);
-    if (p.tint !== undefined) colour.multiply(new THREE.Color(p.tint));
+    const colour = new THREE.Color(
+      p.tint === undefined ? p.color : tints[Math.min(p.tint, tints.length - 1)],
+    );
     const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: colour, flatShading: true }));
     m.position.set(p.offset[0], p.offset[1], p.offset[2]);
     if (p.rot) m.rotation.set(p.rot[0], p.rot[1], p.rot[2]);
@@ -56,27 +65,46 @@ const ANGLES = [['FRONT', 0], ['THREE-QUARTER', -0.7], ['SIDE', -Math.PI / 2], [
  * without them would be a sheet of somebody nobody ever sees — and it was the gear's boots, not the
  * rig's feet, that turned out to be the brown slab under him.
  */
-function dressUp(scene, kind) {
+function dressUp(scene, kind, kit = []) {
   const gear = new HeroGear(scene);
   const state = GameState.fresh();   // tunic, boots and a walking stick, as a world starts him
+  // and whatever else this row is meant to show him in
+  for (const id of kit) { state.give(id, 1); state.equip(id); }
   const hero = {
     x: 0, y: 0, z: 0, yaw: 0, walk: 0, phase: 0, hurt: 0, dying: 0, bobY: 0,
     kind, hiddenTags: new Set(),
+    // what he was born in, and what he is painted in now: armour repaints these rather than
+    // hanging a second body over the first, so the sheet has to read them back afterwards
+    basePalette: kind.palettes[0], tints: [...kind.palettes[0]],
   };
   // version 0 on a fresh state matches the gear's own -1 only after one update, so ask twice
   gear.update(state, hero, false);
   state.version++;
   gear.update(state, hero, false);
-  return hero.hiddenTags;
+  return hero;
 }
 
-for (const name of ['villager', 'shopkeeper', 'hero']) {
+/**
+ * Who is on the sheet, and in what.
+ *
+ * The hero twice: as a world starts him, and in iron. Armour is not drawn over him — a mail shirt
+ * means his chest is mail — so the only way to see whether it reads as armour is to look at the man
+ * wearing it beside the man who is not.
+ */
+const ROWS = [
+  ['villager', 'villager', []],
+  ['shopkeeper', 'shopkeeper', []],
+  ['hero', 'hero', []],
+  ['hero in iron', 'hero', ['mail', 'helm', 'greaves', 'sword', 'ironshield']],
+];
+
+for (const [caption, name, kit] of ROWS) {
   const kind = KINDS[name];
   if (!kind) continue;
   for (const [label, yaw] of ANGLES) {
     const fig = document.createElement('figure');
     const cap = document.createElement('figcaption');
-    cap.textContent = `${name.toUpperCase()} · ${label}`;
+    cap.textContent = `${caption.toUpperCase()} · ${label}`;
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(2);
     renderer.setSize(W, H);
@@ -90,8 +118,8 @@ for (const name of ['villager', 'shopkeeper', 'hero']) {
     sun.position.set(4, 6, 3);
     scene.add(sun);
     const dressed = new THREE.Group();
-    const hidden = name === 'hero' ? dressUp(dressed, kind) : new Set();
-    const rig = build(kind, hidden);
+    const worn = name === 'hero' ? dressUp(dressed, kind, kit) : null;
+    const rig = build(kind, worn?.hiddenTags ?? new Set(), worn?.tints);
     dressed.add(rig);
     dressed.rotation.y = yaw - Math.PI / 4;
     scene.add(dressed);

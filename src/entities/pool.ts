@@ -86,12 +86,17 @@ interface PartMesh {
   /** Whether the creature in each slot was drawn hurt, so a flash that ends is noticed. */
   hot: Uint8Array;
   /**
-   * Which palette colour each slot was painted from. A slot holds a leg one frame and an ear the
-   * next once something ahead of it leaves the view, and two parts sharing a mesh may well be
-   * painted from different entries of the same palette — without this, that ear keeps the leg's
-   * colour for as long as the same animal stays in the slot.
+   * What colour each slot was actually painted. A slot holds a leg one frame and an ear the next
+   * once something ahead of it leaves the view, and two parts sharing a mesh may well be painted
+   * from different entries of the same palette — without this, that ear keeps the leg's colour for
+   * as long as the same animal stays in the slot.
+   *
+   * The colour rather than the palette entry it came from, which is a wider net for the same cost:
+   * a creature's own palette can change under it while the entry number does not, and does — the
+   * hero's chest is iron while he is wearing mail and his own cloth again when he takes it off.
+   * Comparing the colour notices that; comparing the entry number cannot.
    */
-  paint: Int8Array;
+  paint: Int32Array;
   /** Set when any colour in this mesh changed, so the buffer is only uploaded when it must be. */
   recoloured: boolean;
 }
@@ -128,7 +133,7 @@ class KindPool {
       scene.add(mesh);
       const part: PartMesh = {
         mesh, parts: defs.length, count: 0,
-        drawn: [], hot: new Uint8Array(room), paint: new Int8Array(room).fill(-1), recoloured: false,
+        drawn: [], hot: new Uint8Array(room), paint: new Int32Array(room).fill(-1), recoloured: false,
       };
       mesh.userData.pool = this;
       mesh.userData.part = part;
@@ -327,14 +332,15 @@ export class EntityRenderer {
           into.mesh.setMatrixAt(k, this.m);
           if (d.tint === undefined) continue;
           const hot = e.hurt > 0 ? 1 : 0;
-          if (into.drawn[k] !== e || into.hot[k] !== hot || into.paint[k] !== d.tint) {
+          const paint = e.tints[Math.min(d.tint, e.tints.length - 1)];
+          if (into.drawn[k] !== e || into.hot[k] !== hot || into.paint[k] !== paint) {
             into.drawn[k] = e;
             into.hot[k] = hot;
-            into.paint[k] = d.tint;
+            into.paint[k] = paint;
             into.recoloured = true;
-            this.writeColour(into, k, e, d.tint);
+            this.writeColour(into, k, e, paint);
           } else if (recolour) {
-            this.writeColour(into, k, e, d.tint);
+            this.writeColour(into, k, e, paint);
           }
         }
       }
@@ -361,8 +367,8 @@ export class EntityRenderer {
   }
 
   /** The colour one creature wears in one slot, washed towards white while it is smarting. */
-  private writeColour(part: PartMesh, index: number, e: Entity, tint: number): void {
-    this.color.setHex(e.tints[Math.min(tint, e.tints.length - 1)]);
+  private writeColour(part: PartMesh, index: number, e: Entity, paint: number): void {
+    this.color.setHex(paint);
     if (e.hurt > 0) this.color.lerp(HURT_COLOR, 0.7);
     part.mesh.setColorAt(index, this.color);
   }

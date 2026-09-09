@@ -119,7 +119,19 @@ function quadruped(o: QuadOpts): P[] {
  * Sixteen boxes rather than twelve. They are merged per kind and drawn instanced, so the cost is
  * four more shapes in one geometry, not four more anything per villager.
  */
-function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: number; hairTint?: number }): P[] {
+function biped(o: {
+  skin: number; hair: number; shirtTint: number; pantsColor: number; hairTint?: number;
+  /**
+   * Which palette entries the trousers and the boots are painted from, for a person whose clothes
+   * change.
+   *
+   * Only the hero has them. What he is wearing repaints his own legs and feet rather than hanging a
+   * second pair over them, and a palette entry is the only thing an instanced rig can change per
+   * person. A villager's trousers are the colour they are cut from, so they stay a plain colour and
+   * cost nothing.
+   */
+  pantsTint?: number; bootTint?: number;
+}): P[] {
   // the head rides a little higher than it did, and the gap it leaves is the neck
   const headY = 1.36, pivot: [number, number, number] = [0, 1.2, 0];
   return [
@@ -177,8 +189,8 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
      */
     // wider than they were, and set further out: two thirteen-hundredths sticks under a body twice
     // that across read as legs somebody had forgotten to finish
-    box([0.15, 0.54, 0.15], [0, 0.35, 0.095], o.pantsColor, { anim: 'legL', pivot: [0, 0.62, 0.095] }),
-    box([0.15, 0.54, 0.15], [0, 0.35, -0.095], o.pantsColor, { anim: 'legR', pivot: [0, 0.62, -0.095] }),
+    box([0.15, 0.54, 0.15], [0, 0.35, 0.095], o.pantsColor, { tint: o.pantsTint, anim: 'legL', pivot: [0, 0.62, 0.095] }),
+    box([0.15, 0.54, 0.15], [0, 0.35, -0.095], o.pantsColor, { tint: o.pantsTint, anim: 'legR', pivot: [0, 0.62, -0.095] }),
     /*
      * Two feet, not a plank.
      *
@@ -191,8 +203,8 @@ function biped(o: { skin: number; hair: number; shirtTint: number; pantsColor: n
      * Smaller, set further apart so there is daylight between them, and with the overhang all in
      * front where a toe goes rather than split evenly around the ankle.
      */
-    box([0.17, 0.075, 0.115], [0.025, 0.038, 0.095], 0x3a2a1a, { anim: 'legL', pivot: [0, 0.62, 0.095] }),
-    box([0.17, 0.075, 0.115], [0.025, 0.038, -0.095], 0x3a2a1a, { anim: 'legR', pivot: [0, 0.62, -0.095] }),
+    box([0.17, 0.075, 0.115], [0.025, 0.038, 0.095], 0x3a2a1a, { tint: o.bootTint, anim: 'legL', pivot: [0, 0.62, 0.095] }),
+    box([0.17, 0.075, 0.115], [0.025, 0.038, -0.095], 0x3a2a1a, { tint: o.bootTint, anim: 'legR', pivot: [0, 0.62, -0.095] }),
   ];
 }
 
@@ -478,7 +490,7 @@ export const KINDS: Record<string, AnimalKind> = {
     box([0.24, 0.5, 0.3], [0.02, 0.62, 0], 0x8a4a2a),
   ]),
   hero: creature('hero', [
-    ...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x4a3a2a }),
+    ...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: W, pantsTint: 2, bootTint: 3 }),
     /*
      * Hat, brim, belt, cape: a silhouette you can find in a crowd of villagers.
      *
