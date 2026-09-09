@@ -13,6 +13,7 @@
 !animations
 !behaviours
 !properties
+!models
 !art
 # the config imports the development command channel from here, and a bundled config resolves its
 # imports whether or not they are ever called

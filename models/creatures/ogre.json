@@ -1,0 +1,22 @@
+{
+  "note": [
+    "The hulking thing that is not wildlife and is not a large man. It is here to be an argument a sword does not settle, so that the kit sold for surviving one — a warding draught, a shield, a head start — has something to be for.",
+    "What decides how a fight with it goes is in properties/monsters.json, with the argument for each number beside it. The numbers here are not that: they are a shape, and a shape is read by looking at it rather than by being told."
+  ],
+  "parts": [
+    { "note": "Short legs set well under the mass, so the whole animal reads as weight rather than height.", "box": [0.36, 0.62, 0.36], "at": [0, 0.31, 0.28], "color": "#ffffff", "tint": 1, "anim": "legL", "pivot": [0, 0.62, 0.28] },
+    { "box": [0.36, 0.62, 0.36], "at": [0, 0.31, -0.28], "color": "#ffffff", "tint": 1, "anim": "legR", "pivot": [0, 0.62, -0.28] },
+    { "box": [0.86, 0.9, 0.94], "at": [0.02, 1.2, 0], "color": "#ffffff", "tint": 0 },
+    { "note": "The hump: from an isometric camera this is most of the silhouette, and it is what says \"not a large man\" at the distance you still have time to turn round at.", "box": [0.66, 0.34, 1.06], "at": [-0.1, 1.66, 0], "color": "#ffffff", "tint": 1 },
+    { "box": [0.44, 0.42, 0.5], "at": [0.3, 1.7, 0], "color": "#ffffff", "tint": 0, "anim": "head", "pivot": [0.02, 1.55, 0] },
+    { "box": [0.09, 0.08, 0.07], "at": [0.5, 1.78, 0.13], "color": "#f5d76e", "anim": "head", "pivot": [0.02, 1.55, 0] },
+    { "box": [0.09, 0.08, 0.07], "at": [0.5, 1.78, -0.13], "color": "#f5d76e", "anim": "head", "pivot": [0.02, 1.55, 0] },
+    { "box": [0.1, 0.18, 0.08], "at": [0.48, 1.54, 0.11], "color": "#e8e0cc", "anim": "head", "pivot": [0.02, 1.55, 0] },
+    { "box": [0.1, 0.18, 0.08], "at": [0.48, 1.54, -0.11], "color": "#e8e0cc", "anim": "head", "pivot": [0.02, 1.55, 0] },
+    { "box": [0.32, 1.05, 0.32], "at": [0.04, 1.1, 0.62], "color": "#ffffff", "tint": 1, "anim": "armL", "pivot": [0.04, 1.62, 0.62] },
+    { "box": [0.32, 1.05, 0.32], "at": [0.04, 1.1, -0.62], "color": "#ffffff", "tint": 1, "anim": "armR", "pivot": [0.04, 1.62, -0.62] },
+    { "ico": 0.26, "at": [0.04, 0.56, 0.62], "color": "#ffffff", "tint": 1, "anim": "armL", "pivot": [0.04, 1.62, 0.62] },
+    { "ico": 0.26, "at": [0.04, 0.56, -0.62], "color": "#ffffff", "tint": 1, "anim": "armR", "pivot": [0.04, 1.62, -0.62] },
+    { "note": "The log it carries, swinging with the arm that holds it: the warning arrives before it does.", "box": [0.28, 1.5, 0.28], "at": [0.34, 0.85, 0.78], "color": "#4a3524", "anim": "armL", "pivot": [0.04, 1.62, 0.62], "rot": [0, 0, 0.45] }
+  ]
+}

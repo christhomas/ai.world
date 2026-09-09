@@ -1,0 +1,23 @@
+{
+  "note": [
+    "Old Nettle. There is exactly one of him, he turns up perhaps five times in the life of a villager, and the whole point of this rig is that the first time you see that outline across a field you know which of those two kinds of evening you are having.",
+    "It is built for one camera. From an isometric view you see the top of a thing before you see its face, so the whole silhouette is a wide flat disc over a vertical line: a hat brim nothing else in the game has, on a body drawn thin enough to disappear behind it. At the distance where an ogre is still a lump and a villager is still a villager, that is already unmistakably him.",
+    "Every part of the hat and the head turns about [0, 1.74, 0], which is the neck. A hat that swings on a different point from the head it is on comes loose every time he looks round, so if you move one of those pivots move all of them."
+  ],
+  "parts": [
+    { "note": "Two stalks for legs, set close together. Nothing else in the game stands on a base this narrow, and it is what makes the brim above look as wide as it does.", "box": [0.13, 0.62, 0.13], "at": [0, 0.31, 0.11], "color": "#ffffff", "tint": 0, "anim": "legL", "pivot": [0, 0.62, 0.11] },
+    { "box": [0.13, 0.62, 0.13], "at": [0, 0.31, -0.11], "color": "#ffffff", "tint": 0, "anim": "legR", "pivot": [0, 0.62, -0.11] },
+    { "note": "The coat: long, and narrow front to back so he reads as an edge rather than a body.", "box": [0.26, 1.06, 0.42], "at": [0, 1.09, 0], "color": "#ffffff", "tint": 0 },
+    { "note": "Shoulders as a thin plank. From above this is the only horizontal below the hat, which is what stops the brim looking like a hat floating on a stick.", "box": [0.16, 0.09, 0.74], "at": [0, 1.64, 0], "color": "#ffffff", "tint": 0 },
+    { "box": [0.11, 0.13, 0.11], "at": [0, 1.75, 0], "color": "#ffffff", "tint": 1 },
+    { "note": "And no face on it. The brim keeps the head in its own shade from every angle the camera has, so eyes would be two pixels nobody ever sees; the absence is the better answer.", "box": [0.21, 0.25, 0.2], "at": [0.02, 1.88, 0], "color": "#ffffff", "tint": 1, "anim": "head", "pivot": [0, 1.74, 0] },
+    { "cyl": [0.6, 0.05], "at": [0, 2.03, 0], "color": "#ffffff", "tint": 2, "anim": "head", "pivot": [0, 1.74, 0] },
+    { "cyl": [0.19, 0.3], "at": [0, 2.2, 0], "color": "#ffffff", "tint": 2, "anim": "head", "pivot": [0, 1.74, 0] },
+    { "note": "Arms hung long, past the knee, and swinging from the shoulder plank.", "box": [0.1, 0.96, 0.1], "at": [0, 1.14, 0.32], "color": "#ffffff", "tint": 0, "anim": "armL", "pivot": [0, 1.62, 0.32] },
+    { "box": [0.1, 0.96, 0.1], "at": [0, 1.14, -0.32], "color": "#ffffff", "tint": 0, "anim": "armR", "pivot": [0, 1.62, -0.32] },
+    { "box": [0.12, 0.12, 0.12], "at": [0, 0.68, 0.32], "color": "#ffffff", "tint": 1, "anim": "armL", "pivot": [0, 1.62, 0.32] },
+    { "box": [0.12, 0.12, 0.12], "at": [0, 0.68, -0.32], "color": "#ffffff", "tint": 1, "anim": "armR", "pivot": [0, 1.62, -0.32] },
+    { "note": "The switch he carries, leaning out from the hand that holds it: the reach arrives before he does.", "box": [0.05, 1.42, 0.05], "at": [0.24, 1, -0.36], "color": "#4d6b34", "anim": "armR", "pivot": [0, 1.62, -0.32], "rot": [0, 0, 0.34] },
+    { "note": "A coat tail that trails behind him, and is the only part of him that ever looks hurried.", "box": [0.05, 1.12, 0.46], "at": [-0.15, 1.06, 0], "color": "#ffffff", "tint": 0, "anim": "cape", "pivot": [-0.13, 1.62, 0] }
+  ]
+}
