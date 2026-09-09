@@ -4,7 +4,7 @@ import { mulberry32 } from '../core/rng';
 import { WORLD } from '../core/config';
 import { KINDS } from '../entities/animals';
 import { bodyBox, canStand } from '../entities/entity';
-import { propFootprints } from '../render/props';
+import { propFootprints } from '../entities/props';
 import { BLOCKS_WALKING } from './biomes';
 import { blocking } from './footprints';
 import { GroundWorld } from './groundworld';

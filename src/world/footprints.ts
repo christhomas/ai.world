@@ -3,11 +3,11 @@ import type { PropKind } from './biomes';
 /**
  * How much ground a prop takes up, as the things that walk round them need it.
  *
- * The measurements themselves are not here: they are taken off the geometry, where the prop is
- * defined, by `render/footprint.ts`. What is here is the two rules that decide what is measured and
- * what the least of it may be — the walking band and the minimum block — because they are rules
- * about walking rather than facts about a mesh, and because the worlds that walk things need them
- * and cannot see a mesh.
+ * The measurements themselves are not here: they belong to the prop, and are worked out from the
+ * parts it is written down as by `entities/shapes.ts`. What is here is the two rules that decide
+ * what is measured and what the least of it may be — the walking band and the minimum block —
+ * because they are rules about walking rather than facts about a shape, and because the worlds
+ * that walk things need them and have never seen a prop drawn.
  *
  * There used to be a table of forty-six rows here, with a test that rebuilt every prop and failed
  * if a row had drifted. It was accurate and it was the wrong shape: a table is a second place the
@@ -25,9 +25,9 @@ export interface Footprint {
 /**
  * The footprint of every prop that blocks the way, by kind.
  *
- * A port rather than a table: the game measures its own props while it builds them, the server
- * measures the same props at boot and throws the meshes away, and a test can hand over whatever it
- * likes. Nothing in `world/` needs to know which of those it is talking to.
+ * A port rather than a table: the game reads the catalogue, the server reads the same catalogue,
+ * and a test can hand over whatever it likes. Nothing in `world/` needs to know which of those it
+ * is talking to, or whether anybody has drawn anything.
  */
 export interface Footprints {
   get(kind: PropKind): Footprint | undefined;

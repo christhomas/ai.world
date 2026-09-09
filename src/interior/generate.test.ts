@@ -4,7 +4,7 @@ import { ITile, blocksAt, generateInterior, interiorSeed, interiorTitle } from '
 import { InteriorWorld } from './world';
 import { generateWebGraph } from '../world/roadweb';
 import { TerrainSampler } from '../world/terrain';
-import { propFootprints } from '../render/props';
+import { propFootprints } from '../entities/props';
 
 const KINDS = ['house', 'store', 'smith', 'inn', 'apothecary', 'church'] as const;
 

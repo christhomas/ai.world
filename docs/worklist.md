@@ -718,12 +718,29 @@ describing the same world.
 
 ### Still open, from the same day
 
-- [ ] A prop is defined by a list of `THREE` primitives, so measuring one needs a renderer — which is
+- [x] A prop is defined by a list of `THREE` primitives, so measuring one needs a renderer — which is
       why the server carries three. Creatures are already part lists that anything can read. Doing
       the same for props would take the geometry out of the server bundle and make a prop's box a
-      property of the prop in the same way a creature's is.
+      property of the prop in the same way a creature's is. *(Done, and the server has put three
+      down: the bundle went from 1,083 kB to 616 kB, 285 to 189 gzipped, and all that is left in it
+      is `ws` and four node builtins. A prop is now a part list in `entities/props.ts`, beside
+      `entities/animals.ts`, which has always been one, with its box worked out from its own parts.
+      Every one of the seventy-five boxes is the number the mesh gave, to eight decimal places, and
+      the thing that made that possible is worth writing down: a part is measured whole, but a ball
+      is measured face by face. A crown of leaves can have its widest point over your head and only
+      its underside in the walking band — a birch measured whole is 6cm wider than the tree that is
+      drawn. `world/footprints.test.ts` now stands the two answers side by side for every prop, so a
+      shape the drawing and the measuring disagree about is a failing test rather than a wall nobody
+      can see. The collision bench is identical either side of it — PASS, nothing touching, nothing
+      intersected — and the golden fingerprint did not move, because where a prop is put has never
+      gone through its box.)*
 - [ ] Nothing in the sweep test covers a mounted hero, who is the case that made stepping over things
-      visible: `tools/playtest.cjs` walks on foot only.
+      visible: `tools/playtest.cjs` walks on foot only. *(Half of this is already done and nobody
+      had noticed: `SPEEDS` in `src/world/collisions.test.ts` walks the hero at a courser's pace of
+      three and a half for a quarter of a second, which is the mounted case as the arithmetic sees
+      it — a horse does not carry the hero, it multiplies his pace. What is missing is the played
+      one, and it needs a way onto a horse from a script: mounting is only reachable through a
+      stable's dialogue, so the playtest wants a probe of its own before it can ride.)*
 - [ ] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
       CI on the way in, which is where all of this would have been caught.
 

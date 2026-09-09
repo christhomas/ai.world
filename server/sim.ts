@@ -4,7 +4,7 @@ import { Rooms, type Client, type Room, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld } from '../src/world/groundworld';
-import { propFootprints } from '../src/render/props';
+import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
 import { BLOCKS_WALKING } from '../src/world/biomes';
