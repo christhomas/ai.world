@@ -521,6 +521,20 @@ export function cleanName(name: string): string {
 }
 
 /** One line per delta, so a log can be read and a duplicate spotted. */
+/**
+ * Where in the world a change happened, when it happened anywhere in particular.
+ *
+ * A sown field is at a place and a reaped one is the same place; a chest, a death and the founding
+ * of a village are facts about the world rather than about a spot on it. Only the first kind can be
+ * kept province by province, so only the first kind says where it is — and the rest say so by
+ * answering null rather than by being guessed at from a name.
+ */
+export function deltaAt(delta: WorldDelta): { x: number; z: number } | null {
+  if (delta.kind !== 'sow' && delta.kind !== 'reap') return null;
+  const [x, z] = delta.tile.split(',').map(Number);
+  return Number.isFinite(x) && Number.isFinite(z) ? { x, z } : null;
+}
+
 export function deltaKey(delta: WorldDelta): string {
   switch (delta.kind) {
     case 'chest': return `chest:${delta.id}`;

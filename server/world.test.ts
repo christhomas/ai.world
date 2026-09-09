@@ -16,7 +16,7 @@ describe('the shared world', () => {
   it('keeps its own time and rolls over at midnight', () => {
     const dir = scratch();
     try {
-      const world = new SharedWorld(1, worldPath(dir, 1), { day: 3, time: 0.9 });
+      const world = new SharedWorld(1, worldPath(dir, 1), { day: 3, time: 0.9 }, dir);
       world.tick(DAY_LENGTH * 0.05);            // a twentieth of a day
       expect(world.clock.day).toBe(3);
       expect(world.clock.time).toBeCloseTo(0.95);
@@ -29,7 +29,7 @@ describe('the shared world', () => {
   it('remembers what changed, ignores repeats, and forgets a reaped tile', () => {
     const dir = scratch();
     try {
-      const world = new SharedWorld(7, worldPath(dir, 7), { day: 1, time: 0.3 });
+      const world = new SharedWorld(7, worldPath(dir, 7), { day: 1, time: 0.3 }, dir);
       expect(world.apply({ kind: 'chest', id: 'vault:1:chest:0' })).toBe(true);
       expect(world.apply({ kind: 'chest', id: 'vault:1:chest:0' })).toBe(false);
       expect(world.apply({ kind: 'sow', tile: '4,9', crop: 'wheat', day: 2 })).toBe(true);
@@ -46,19 +46,19 @@ describe('the shared world', () => {
     const dir = scratch();
     try {
       const path = worldPath(dir, 12);
-      const first = new SharedWorld(12, path, { day: 1, time: 0.2 }, kept);
+      const first = new SharedWorld(12, path, { day: 1, time: 0.2 }, dir, kept);
       first.tick(DAY_LENGTH * 2.5);
       first.apply({ kind: 'found', name: 'Moonwell Shrine' });
       first.apply({ kind: 'key', id: 'dungeon:Moonwell Shrine:1' });
       first.save();
 
-      const second = new SharedWorld(12, path, { day: 99, time: 0.99 }, kept);
+      const second = new SharedWorld(12, path, { day: 99, time: 0.99 }, dir, kept);
       expect(second.clock.day).toBe(first.clock.day);
       expect(second.clock.time).toBeCloseTo(first.clock.time);
       expect(second.log.map(deltaKey).sort()).toEqual(['found:Moonwell Shrine', 'key:dungeon:Moonwell Shrine:1']);
 
       // a different seed does not read somebody else's world
-      const other = new SharedWorld(13, path, { day: 5, time: 0.5 }, kept);
+      const other = new SharedWorld(13, path, { day: 5, time: 0.5 }, dir, kept);
       expect(other.clock.day).toBe(5);
       expect(other.log).toEqual([]);
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -66,7 +66,7 @@ describe('the shared world', () => {
 });
 
 describe('market pitches', () => {
-  const world = () => new SharedWorld(3, worldPath(scratch(), 3), { day: 2, time: 0.4 });
+  const world = () => { const dir = scratch(); return new SharedWorld(3, worldPath(dir, 3), { day: 2, time: 0.4 }, dir); };
 
   it('are rented by name, and only by one trader at a time', () => {
     const w = world();
@@ -106,13 +106,13 @@ describe('market pitches', () => {
     const dir = scratch();
     try {
       const path = worldPath(dir, 21);
-      const first = new SharedWorld(21, path, { day: 1, time: 0.2 }, kept);
+      const first = new SharedWorld(21, path, { day: 1, time: 0.2 }, dir, kept);
       first.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
       first.stall('Rowan', { do: 'stock', id: 'Ashford#0', item: { id: 'apple', price: 10, count: 2 } });
       first.stall('Wren', { do: 'buy', id: 'Ashford#0', index: 0 });
       first.save();
 
-      const second = new SharedWorld(21, path, { day: 1, time: 0.2 }, kept);
+      const second = new SharedWorld(21, path, { day: 1, time: 0.2 }, dir, kept);
       expect(second.stalls[0].owner).toBe('Rowan');
       expect(second.stalls[0].items).toEqual([{ id: 'apple', price: 10, count: 1 }]);
       expect(second.stalls[0].takings).toBe(10);
@@ -122,7 +122,8 @@ describe('market pitches', () => {
 
 describe('the post shelf', () => {
   it('holds a parcel for a name until that name asks for it', () => {
-    const w = new SharedWorld(4, worldPath(scratch(), 4), { day: 6, time: 0.2 });
+    const shelf = scratch();
+    const w = new SharedWorld(4, worldPath(shelf, 4), { day: 6, time: 0.2 }, shelf);
     w.meet('Rowan');
     expect(w.meet('Rowan')).toBe(false);              // the world only meets you once
     w.post({ from: 'Rowan', to: 'Wren', gold: 10, items: [['apple', 1]], day: 6 });
@@ -139,12 +140,12 @@ describe('the post shelf', () => {
     const dir = scratch();
     try {
       const path = worldPath(dir, 31);
-      const first = new SharedWorld(31, path, { day: 1, time: 0.2 }, kept);
+      const first = new SharedWorld(31, path, { day: 1, time: 0.2 }, dir, kept);
       first.meet('Rowan');
       first.post({ from: 'Rowan', to: 'Wren', gold: 5, items: [], day: 1 });
       first.save();
 
-      const second = new SharedWorld(31, path, { day: 1, time: 0.2 }, kept);
+      const second = new SharedWorld(31, path, { day: 1, time: 0.2 }, dir, kept);
       expect(second.folk).toEqual(['Rowan']);
       expect(second.collect('Wren')[0].gold).toBe(5);
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -182,7 +183,7 @@ describe('what the server has kept', () => {
       expect(describeWorlds(dir)[0]).toContain('No worlds saved yet');
       expect(describeWorlds(join(dir, 'nowhere'))[0]).toContain('No worlds saved yet');
 
-      const world = new SharedWorld(5, worldPath(dir, 5), { day: 4, time: 0.5 }, kept);
+      const world = new SharedWorld(5, worldPath(dir, 5), { day: 4, time: 0.5 }, dir, kept);
       world.apply({ kind: 'chest', id: 'vault:1:chest:0' });
       world.meet('Rowan');
       world.stall('Rowan', { do: 'rent', id: 'Ashford#0', village: 'Ashford' });
@@ -197,5 +198,78 @@ describe('what the server has kept', () => {
       expect(line).toContain('1 parcel');
       expect(line).toContain('visited by Rowan');
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+/*
+ * The change that lets a world have no edge.
+ *
+ * What a player leaves behind grows with every acre anybody has walked over, and a world with an
+ * edge could hold all of it in one file. There was a cap of four thousand changes here and a rule
+ * that threw the oldest sowings away when it was reached — a world quietly destroying somebody's
+ * fields because there was nowhere else to put them. A province is somewhere else to put them.
+ */
+describe('what happened at a place, kept where it happened', () => {
+  it('writes a far-off field to its own province, and reads it back when somebody returns', () => {
+    const dir = scratch();
+    const kept = new FileVault();
+    const away = { x: 40_000, z: -25_000 };
+    const first = new SharedWorld(21, worldPath(dir, 21), { day: 1, time: 0.2 }, dir, kept);
+    first.apply({ kind: 'sow', tile: `${away.x},${away.z}`, crop: 'wheat', day: 1 });
+    first.save();
+
+    // a world opened again knows nothing about that country until somebody is near it
+    const second = new SharedWorld(21, worldPath(dir, 21), { day: 1, time: 0.2 }, dir, kept);
+    expect(second.log.some((d) => d.kind === 'sow'), 'a field on the far side of the world was in memory')
+      .toBe(false);
+
+    // and knows all about it the moment they are
+    second.keepNear([away]);
+    const sown = second.log.find((d) => d.kind === 'sow');
+    expect(sown, 'the field was not read back when somebody went to it').toBeTruthy();
+    expect((sown as { tile: string }).tile).toBe(`${away.x},${away.z}`);
+  });
+
+  it('lets go of a province when the last of them leaves, having written it down', () => {
+    const dir = scratch();
+    const kept = new FileVault();
+    const world = new SharedWorld(22, worldPath(dir, 22), { day: 1, time: 0.2 }, dir, kept);
+    world.apply({ kind: 'sow', tile: '2000,2000', crop: 'wheat', day: 1 });
+    expect(world.log.some((d) => d.kind === 'sow')).toBe(true);
+
+    // everybody walks a long way off
+    world.keepNear([{ x: -90_000, z: 90_000 }]);
+    expect(world.log.some((d) => d.kind === 'sow'), 'still carrying country nobody is near').toBe(false);
+
+    // and the field is still there when they come back, because letting go wrote it down
+    world.keepNear([{ x: 2000, z: 2000 }]);
+    expect(world.log.some((d) => d.kind === 'sow'), 'the field was lost when the world let go of it')
+      .toBe(true);
+  });
+
+  it('keeps a reaped field reaped, wherever it was', () => {
+    const dir = scratch();
+    const kept = new FileVault();
+    const world = new SharedWorld(23, worldPath(dir, 23), { day: 1, time: 0.2 }, dir, kept);
+    world.apply({ kind: 'sow', tile: '5000,5000', crop: 'wheat', day: 1 });
+    world.apply({ kind: 'reap', tile: '5000,5000' });
+    world.save();
+
+    const again = new SharedWorld(23, worldPath(dir, 23), { day: 1, time: 0.2 }, dir, kept);
+    again.keepNear([{ x: 5000, z: 5000 }]);
+    expect(again.log.some((d) => d.kind === 'sow'), 'a reaped field came back sown').toBe(false);
+  });
+
+  it('still keeps the world its own facts, which belong nowhere in particular', () => {
+    const dir = scratch();
+    const kept = new FileVault();
+    const world = new SharedWorld(24, worldPath(dir, 24), { day: 1, time: 0.2 }, dir, kept);
+    world.apply({ kind: 'chest', id: 'barrow:1:3' });
+    world.save();
+
+    // a chest is a fact about the world rather than about a spot on it, so it is there from the
+    // moment the world is opened, wherever anybody happens to be standing
+    const again = new SharedWorld(24, worldPath(dir, 24), { day: 1, time: 0.2 }, dir, kept);
+    expect(again.log.some((d) => d.kind === 'chest')).toBe(true);
   });
 });

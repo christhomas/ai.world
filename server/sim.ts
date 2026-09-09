@@ -267,6 +267,9 @@ export class Simulation {
       if (ground && players.length > 0) {
         for (const who of players) ground.reach(who.x, who.z, this.reach);
         ground.keepOnly(players, this.reach + 1);
+        // and the leavings of the country they are in: what has been sown, dug or opened near them
+        // is in memory, and what is not is on disk until somebody walks back to it
+        room.world.keepNear(players);
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {

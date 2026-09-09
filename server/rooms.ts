@@ -163,7 +163,8 @@ export class Rooms {
   open(seed: number, start: { day: number; time: number }, kind: WorldKind): Room {
     let room = this.rooms.get(seed);
     if (!room) {
-      room = { clients: new Set(), kind, world: new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.vault) };
+      const world = new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.dataDir, this.vault);
+      room = { clients: new Set(), kind, world };
       this.rooms.set(seed, room);
     }
     return room;
