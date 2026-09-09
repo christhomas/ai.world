@@ -8,6 +8,7 @@ import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
 import type { Site, Structures } from '../world/structures';
 import { StructureKind } from '../world/structures';
+import { theBirths, theRoll, theStones } from './records';
 import { bodyOf } from '../entities/entity';
 import type { TerrainSampler } from '../world/terrain';
 import type { WorldKind } from '../save/store';
@@ -331,6 +332,28 @@ export function installProbes(ctx: Probed): void {
     talkCtx.day = state.day;
     const node = dialogueFor(who, talkCtx);
     return { speaker: node.speaker, pages: node.pages, choices: (node.choices ?? []).map((c) => c.label) };
+  };
+  /*
+   * What a village's books say, without walking into the building that keeps them.
+   *
+   * The same numbers the clerk, the priest, the sergeant and the apothecary read out — the roll,
+   * the stones, the charge sheet, the births — as rows rather than as sentences. This is how the
+   * economy is checked: whether anybody is earning, whether purses grow, who is starving, who is
+   * being buried and of what. A village that simulates a hundred lives is only worth having if
+   * somebody can look at them.
+   */
+  (debug as { __records?: (village?: string) => unknown }).__records = (village) => {
+    const where = village ?? structures.villages
+      .map((v) => ({ name: v.name, away: Math.hypot(v.x - player.x, v.z - player.z) }))
+      .sort((a, b) => a.away - b.away)[0]?.name;
+    if (!where) return null;
+    const today = state.day;
+    return {
+      village: where,
+      roll: theRoll(register, where, today),
+      stones: theStones(register, where, today),
+      births: theBirths(register, where, today),
+    };
   };
   (debug as { __register?: (village?: string) => unknown }).__register = (village) => {
     const here = village ?? structures.villages

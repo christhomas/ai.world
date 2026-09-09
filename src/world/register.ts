@@ -29,6 +29,26 @@ export interface Change {
   cause?: 'age' | 'violence' | 'hunger';
 }
 
+/**
+ * Somebody the village has buried, as the church writes it down.
+ *
+ * Every death in this world passes through one place, so the roll is kept there and cannot fall out
+ * of step with who is alive. It is bounded because it is a record rather than a history: a village
+ * that has stood for years has buried more people than anybody wants to read, and the parish only
+ * keeps the recent stones legible.
+ */
+export interface Burial {
+  name: string;
+  /** What they did, when they were old enough to do anything. */
+  trade: string;
+  born: number;
+  day: number;
+  cause: 'age' | 'violence' | 'hunger';
+}
+
+/** How many of the dead a village's church keeps. Older stones are there; the ledger has moved on. */
+const STONES_KEPT = 60;
+
 /** A village the register has been told about, so it knows how big to keep it. */
 interface Settlement {
   people: Person[];
@@ -43,6 +63,8 @@ interface Settlement {
   founded: number;
   houses: number;
   trades: string[];
+  /** Who has been buried here, newest last. */
+  buried: Burial[];
 }
 
 /** The day every village is founded on, whenever the player happens to arrive. */
@@ -126,7 +148,7 @@ export class Register {
     const mining = this.worksAMine.has(village);
     const people = foundVillage(this.seed, village, houses, trades, mining ? ['miner'] : []);
     // a village is founded with a few days in the cellar, not starving on its first morning
-    const settlement: Settlement = { people, founded: people.length, houses, trades, food: people.length * 3 };
+    const settlement: Settlement = { people, founded: people.length, houses, trades, food: people.length * 3, buried: [] };
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) this.liveADay(village, settlement, day);
     return settlement.people;
@@ -151,6 +173,18 @@ export class Register {
     const here = this.villages.get(village);
     if (!here) return 'well';
     return fortuneOf(here.people.length, here.founded);
+  }
+
+  /**
+   * Who this village has buried, oldest first.
+   *
+   * Kept rather than worked out because a death is the one thing about a village that cannot be
+   * derived from the seed — and re-living a village from its founding rebuilds this along with
+   * everything else, so a client that learns late about a killing ends up with the same stones as
+   * everybody who watched it happen.
+   */
+  churchyard(village: string): readonly Burial[] {
+    return this.villages.get(village)?.buried ?? [];
   }
 
   /** The day a village emptied, or null for one that still has somebody in it. */
@@ -418,6 +452,10 @@ export class Register {
     if (at < 0) return null;
 
     village.people.splice(at, 1);
+    // the parish register, written where every death already passes so it cannot disagree with
+    // who is alive
+    village.buried.push({ name: person.name, trade: person.trade, born: person.born, day, cause });
+    if (village.buried.length > STONES_KEPT) village.buried.shift();
     for (const survivor of village.people) {
       const knew = survivor.knows.indexOf(person.id);
       if (knew < 0) continue;
