@@ -164,6 +164,20 @@ export class Entity {
   readonly hiddenTags = new Set<string>();
   /** Counts down after a hit; the renderer flashes the creature white while it is positive. */
   hurt = 0;
+  /**
+   * How far this one has come apart: nought whole, one gone entirely.
+   *
+   * A creature is drawn as a couple of dozen blocks, and this is how far those blocks have flown
+   * away from each other — the renderer lifts, turns and shrinks each of them by it, and draws
+   * nothing at all at one. It is what a teleport looks like (`render/beam.ts`), and it is here on
+   * the creature rather than on the hero because the rig it takes apart is every creature's rig
+   * and there is nothing about the hero in it.
+   *
+   * Purely a picture: it does not change where anybody is standing, what can be walked into, or
+   * what can be hit. The one thing it does mean is that you cannot click on somebody who is in
+   * pieces, which is less a rule than an admission that there is nothing there to click.
+   */
+  apart = 0;
   dead = false;
   /**
    * Seconds left of going down. A killed creature used to leave the world on the frame it died,

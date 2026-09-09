@@ -6,6 +6,7 @@ import type { Player } from '../entities/player';
 import type { EntityRenderer } from '../entities/pool';
 import { QUALITY, type SceneRig } from '../render/scene';
 import { rememberAutoChoice, type AutoQuality } from '../render/autoquality';
+import type { Beam } from '../render/beam';
 import type { IsoCamera } from '../render/camera';
 import type { CropField } from '../render/crops';
 import type { DayCycle } from '../render/daycycle';
@@ -85,6 +86,11 @@ export interface Framing {
   rock: MountainMaterial;
   daycycle: DayCycle;
   weather: Weather;
+  /**
+   * What a teleport looks like. Ticked below whatever else the frame is doing, because it is what
+   * puts the hero's rig back together and a hero left half way through one would stay in pieces.
+   */
+  beam: Beam;
   seasonTintMaterials: SeasonTintMaterials;
   skyRenderer: SkyIslands;
   skies: Skies;
@@ -156,7 +162,7 @@ export interface Framing {
 export function createFrame(ctx: Framing) {
   const {
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, daycycle, weather, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
+    skyline, rock, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
@@ -279,6 +285,11 @@ export function createFrame(ctx: Framing) {
     if (!talking) { state.tick(dt); magic.tick(dt); }
     // what a blow costs in time, counted before the frame decides where the hero is standing
     blows.cooled(dt);
+    // and a teleport's beam, which is ticked here — above the three branches below and outside the
+    // pause a conversation puts on the world — because the hero is drawn in pieces while it runs
+    // and it is this that assembles him again. Anywhere a frame can return early past is a place
+    // he could be left invisible.
+    beam.update(dt);
     /*
      * A door, from whichever side he walked at it.
      *
