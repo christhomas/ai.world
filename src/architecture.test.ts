@@ -46,7 +46,13 @@ const ALLOWED: Record<string, number> = {
   // `keys.ts` moved into `game` and cost nothing, which is the point: a key press is a fact about
   // the game, and the eight panels it used to reach into are behind `Screen` — an interface the
   // game declares and `main.ts` satisfies out of the real widgets.
-  'game->ui': 19,
+  //
+  // The twentieth is `enquiry.ts`, which is the shape of one conversation — asking to see a book —
+  // and belongs with `talk.ts` and `interact/village.ts` for the same reason they do. It is here
+  // rather than inside `talk.ts` because that file is already six hundred lines of counter, and a
+  // records desk that a town hall and a watch house are meant to reuse should not have to be dug
+  // back out of a shop.
+  'game->ui': 20,
   // A save is a picture of the game's state and of what its world had grown, so storage knows
   // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
   // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,

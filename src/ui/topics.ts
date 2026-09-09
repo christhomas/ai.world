@@ -53,6 +53,18 @@ export const TOPICS: Topic[] = [
     ],
   },
   {
+    name: 'records',
+    about: 'the books a village keeps',
+    lines: [
+      'Villages write things down, and each book is read where it is kept.',
+      'The priest in the chapel has the churchyard; the apothecary has the births.',
+      'Either will give you the gist of theirs for nothing, because a parish record is public,',
+      'and wants a fee for the book itself: the names, the dates, and what took them.',
+      'It is the same register the village has been living out of, so it is worth a look before',
+      'you decide to stay the night.',
+    ],
+  },
+  {
     name: 'magic',
     about: 'the things that need kit',
     lines: [

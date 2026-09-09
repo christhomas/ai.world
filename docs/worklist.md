@@ -939,7 +939,16 @@ can each be finished and each leave the game playable.
 
 - [x] **A1. The books.** The roll, the stones, the charge sheet and the births, as rows first and
       sentences second, with `__records` to read them without walking anywhere.
-- [ ] **A2. The church reads its own stones**, and the apothecary its births: free gist, paid detail.
+- [x] **A2. The church reads its own stones**, and the apothecary its births: free gist, paid detail.
+      *(`src/game/enquiry.ts` is the counter the books are read across, and it turned out to belong
+      to the building rather than to the keeper: `booksKeptIn` is handed the kind of room the hero
+      is standing in and nothing else, so a town hall and a watch house are one line each and no
+      other change. The keeper does not have to be a shopkeeper — a priest is a congregation member
+      stood at an altar — so the rows are built once and fitted into both a shop counter and a
+      chapel greeting. The fee buys a sitting rather than a subscription: it lasts as long as the
+      conversation, because remembering it would mean a save carrying "has read the stones of
+      Elderton" per village per book for ever. The book is read out three lines to a page, since
+      the panel types at fifty-five characters a second and does not scroll.)*
 - [ ] **A3. A town hall**, which does not exist yet: structure kind, geometry, placement by the
       square, interior, a clerk, and the roll.
 - [ ] **A4. A watch house**, the same, with the charge sheet fed by the gaol.

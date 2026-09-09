@@ -325,7 +325,10 @@ export class Places {
     keeper.y = 0.5;
     keeper.yaw = Math.PI / 2;   // facing the door
     if (trade) { keeper.role = 'shopkeeper'; keeper.shop = door.kind as ShopType; }
-    else keeper.role = door.kind === 'church' ? 'congregation' : 'villager';
+    // whoever is stood at the altar is the priest, and saying so is what makes him somebody you
+    // can ask about the churchyard rather than another villager who happens to be indoors
+    else if (door.kind === 'church') { keeper.role = 'congregation'; keeper.trade = 'priest'; }
+    else keeper.role = 'villager';
     renderer.add(keeper);
     return keeper;
   }
