@@ -1,5 +1,6 @@
 import type { Burial, Register } from '../world/register';
 import { earnedInADay, spentOnLiving } from '../world/prosperity';
+import { FOOD } from '../world/food';
 
 /**
  * What a village writes down about itself, and what it will show you.
@@ -54,9 +55,30 @@ export interface RollRow {
   born: number;
   /** What they have put by, which is the whole of the economy visible in one number. */
   purse: number;
-  /** What they take in a day at their trade, and what a day of living costs them. */
+  /** What they take in a day at their trade, and what their keep costs them beyond eating. */
   earns: number;
   spends: number;
+  /**
+   * And what their dinner costs, which is the rest of what a day takes out of a purse.
+   *
+   * Its own column rather than folded into `spends`, because the two are not the same fact: keep
+   * is paid whenever there is anything to pay it out of, and dinner is only paid by somebody who
+   * actually ate. `chore test economy` is what put it here — the roll declared a villager taking
+   * one and a half a day and spending eight tenths, which reads as a saver, and every one of them
+   * was quietly a third of a coin a day worse off, because the biggest outgoing in a villager's
+   * life was in no book anywhere. A ledger that cannot explain where the money went is not a
+   * ledger. Nought for a child, who is fed by whoever is raising them.
+   */
+  food: number;
+  /**
+   * Days running without a meal, and nought for anybody who ate today.
+   *
+   * The other half of the same hole: a village can starve to death in front of you and its own
+   * books will not say a word about it until the stones go up. Somebody goes without either
+   * because there is nothing in the store or because they could not pay for what there was, and
+   * both are things a player can do something about — but only if the record says so.
+   */
+  hungry: number;
   mother: string;
   father: string;
   knows: number;
@@ -106,7 +128,16 @@ function commonest(of: string[], take: number): Array<[string, number]> {
  * about a person: their trade, their age, their parents, what they have put by and who they know.
  * That is the material for poking about in a village rather than being told a summary of it.
  */
-export function theRoll(register: Register, village: string, today: number, pressure = 0): Ledger<RollRow> {
+/*
+ * The pressure a village is under is asked of the register rather than passed in, because the
+ * register is the thing that knows. It was a parameter defaulting to nought, so every caller who
+ * did not happen to be holding the warband's business — the debug hooks, and anything checking the
+ * books — was told a raided village was taking its usual wage on a morning when it was earning
+ * nothing at all. A book that has to be told the news before it can be right is not a record.
+ */
+export function theRoll(
+  register: Register, village: string, today: number, pressure = register.pressureOn(village),
+): Ledger<RollRow> {
   const living = register.living(village);
   const grown = living.filter((p) => p.trade);
   const trades = commonest(grown.map((p) => p.trade), 3);
@@ -124,10 +155,18 @@ export function theRoll(register: Register, village: string, today: number, pres
       trade: person.trade,
       age: yearsOld(person.born, today),
       born: person.born,
-      purse: Math.round(person.purse),
-      // what the day does to that purse, which is the economy stated rather than inferred
+      // to the coin rather than to the nearest one: the sentence a clerk reads out is rounded, and
+      // the row is not, because a book whose every entry is rounded cannot be added up. A day
+      // moves a purse by tenths, and `chore test economy` holds a hundred of those days to the
+      // penny — which it cannot do if the ledger has already thrown the pennies away
+      purse: person.purse,
+      // what the day does to that purse, which is the economy stated rather than inferred. All
+      // three of them, so that the row adds up on its own: what comes in, what keep costs, what
+      // dinner costs
       earns: earnedInADay(person, pressure),
       spends: spentOnLiving(person),
+      food: person.trade ? FOOD.MEAL : 0,
+      hungry: person.hungry,
       mother: person.mother,
       father: person.father,
       knows: person.knows.length,
@@ -154,9 +193,14 @@ function lineFor(row: RollRow): string {
   const kin = row.mother || row.father
     ? ` Child of ${[row.mother, row.father].filter(Boolean).join(' and ')}.`
     : '';
-  const living = row.trade ? ` Takes ${row.earns} a day, spends ${row.spends}.` : '';
+  // what comes in against what the whole day takes out, keep and dinner together, because the
+  // difference between those two numbers is the only thing anybody reading this wants to know
+  const living = row.trade
+    ? ` Takes ${row.earns} a day, and a day costs ${Math.round((row.spends + row.food) * 10) / 10}.`
+    : '';
   const known = row.knows > 0 ? ` Knows ${row.knows}.` : ' Keeps to themselves.';
-  return `${row.name}, ${row.age}, ${trade}. ${row.purse} gold put by.${living}${kin}${known}`;
+  const going = row.hungry > 0 ? ` Has not eaten in ${row.hungry} days.` : '';
+  return `${row.name}, ${row.age}, ${trade}. ${Math.round(row.purse)} gold put by.${living}${going}${kin}${known}`;
 }
 
 /**

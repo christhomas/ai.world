@@ -38,7 +38,8 @@ describe('the books a village keeps', () => {
     expect(working.some((row) => row.purse > 0), 'sixty days of work and nobody has saved a coin').toBe(true);
     // and the line a player reads says the same number the row does
     const first = working[0];
-    expect(roll.detail.join('\n')).toContain(`${first.purse} gold put by`);
+    // the row keeps the pennies so the books can be added up; the sentence rounds them off
+    expect(roll.detail.join('\n')).toContain(`${Math.round(first.purse)} gold put by`);
   });
 
   it('writes the dead down, with what took them', () => {

@@ -1016,9 +1016,50 @@ can each be finished and each leave the game playable.
 - [ ] **A3. A town hall**, which does not exist yet: structure kind, geometry, placement by the
       square, interior, a clerk, and the roll.
 - [ ] **A4. A watch house**, the same, with the charge sheet fed by the gaol.
-- [ ] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
+- [x] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
       purses move, nobody ages backwards, every death is written down, a village under pressure gets
       poorer and one left alone does not. The economy has never been checked end to end.
+      *(Seven villages on three seeds, a hundred days each: 2,100 village-days and 30,337
+      people-days, audited to the coin. It judges by the books and never by the simulation — it
+      reads `theRoll`, `theStones` and `theBirths`, the same rows a player pays a clerk for, and
+      imports nothing from `prosperity.ts` or `food.ts` — so it cannot be right by construction.
+      Proved by breaking one column on purpose: 1,927 of the 2,100 days went red and named the
+      village, the day and the amount. `src/game/economy.bench.ts` stands the villages up and lives
+      them, `src/game/economy.test.ts` audits them, `economy-report.txt` is what it leaves behind.
+      It found four things. Two were bugs and are fixed. **A pressing never lifted**: nothing in
+      the world ever says a band has gone — `roaming.pressings` returns the villages one is
+      standing over and says nothing about the rest — so one morning's band meant a village that
+      never earned or farmed again. Thornby was empty by its fiftieth day with twenty-one of its
+      twenty-seven stones reading starved, and because `settle` relives a village from its founding,
+      walking into a village a band happened to be near re-lived all forty of its days under
+      today's siege: sixteen graves and nobody alive, on arrival. A pressing is now dated and is
+      about one day, the one the register lives next. **And the biggest outgoing in a villager's
+      life was in no book anywhere**: the roll declared a farmer taking 1.5 and spending 0.8, which
+      reads as a saver, and every one of them was 0.3 a day worse off, because dinner was nowhere
+      in the ledger. The roll now has its own `food` and `hungry` columns, keeps purses to the coin
+      instead of rounding them, and asks the register what pressure a village is under rather than
+      waiting to be told. The other two are below, because they are decisions rather than
+      mistakes.)*
+- [ ] **A6. Ten of the eleven trades in the game are paid the same subsistence floor.**
+      `PROSPER.TRADERS` names shopkeeper, innkeeper, smith, apothecary and merchant; the trades a
+      villager can actually hold are seller, farmer, hunter, soldier, sailor, miner, climber,
+      explorer, constable, doctor and innkeeper. Four of the five higher-paid names do not exist,
+      so the only villager in the world who earns above the floor is an innkeeper, and there is at
+      most one of him. Either the set should name the trades that serve everybody else — seller,
+      innkeeper, doctor — or the wage should stop pretending to have a shape. A balance decision,
+      which is why the bench reports it and does not assert it.
+- [ ] **A7. A village left alone flatlines at 6.5 gold a head, and nothing it earns buys anything.**
+      Not bad luck: it is a fixed point. A day pays 1.5, dinner takes 1, and upkeep takes what is
+      left above `KEEPS_BACK`, so every working purse converges on 6.5 and stays there — measured,
+      the middle villager in each control village held exactly 6.5 for the last 87 of a hundred
+      days. A second storey costs 340 a head and the best village managed 33; a sauna costs 3,400
+      and the best village between them held 528. So `storeysFor` and `luxuryFor` have never once
+      returned anything but the floor, and the whole point of villagers having purses — that the
+      economy should change the world and not only your pocket — has never happened. Found beside
+      it, and worth fixing whatever is decided about the numbers: **the wealth-to-buildings step is
+      wired inside the warband loop.** `tidings.ts` only calls `storeysFor` and `luxuryFor` for
+      villages `roaming.pressings` hands back, so a village nobody is raiding is never assessed at
+      all, and a village that got rich in peace could not grow a storey if it wanted to.
 
 ## Things to make, when the country is finished
 
