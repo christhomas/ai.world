@@ -16,6 +16,12 @@ import { PROTOCOL_VERSION, type ServerMessage } from '../server/protocol';
  *   chore crowd -- ws://aiworld.homelab.local 8 60
  *
  * Read the answer next to `kubectl top pod`, which is the other half of it.
+ *
+ * This measures the network's bill. `tools/ticks.ts` measures the processor's — how many live
+ * agents a machine steps ten times a second, and what a cold province costs to arrive in — by
+ * driving the simulation in-process with no socket in the way. The two are apart because they fail
+ * for different reasons: a server can be well inside its tick budget and still be saturating a
+ * domestic router, and it can be sending almost nothing while missing every other tick.
  */
 
 /**

@@ -984,9 +984,66 @@ can each be finished and each leave the game playable.
 
 ### C — the simulation, when there is more of it than a machine can hold
 
-- [ ] **C1. Measure first.** How many live agents will this hardware tick at ten a second, and how
-      long does a cold province take to catch up on a week? `tools/crowd.ts` is the place. Every
-      threshold below is guesswork until these two numbers exist.
+- [x] **C1. Measure first.** How many live agents will this hardware tick at ten a second, and how
+      long does a cold province take to catch up on a week? `tools/ticks.ts`, run with `chore ticks`,
+      which leaves `tick-report.txt` beside the other benches' reports. It is the processor's half of
+      the pair `crowd.ts` opened: that one measures what a server sends, this one what it thinks.
+
+      *The machine, because it matters: an M3 Pro, twelve cores, shared the whole time with another
+      project's Rust build and five other agents. Load average was 13, then 65, then 27 across the
+      three full runs these numbers come from, and the same rung came out up to 3.2x slower on its
+      worst run than its best. Read the spread; the best run is a brochure.*
+
+      ***Between 3,600 and 7,300 live agents at ten a second.** The factor of two is entirely the
+      neighbours: 7,312 at load average 13, 5,500 at 65, 3,636 at 27. A fourth and shorter run agreed
+      at 7,435 and went on to twenty-two thousand agents at 163ms a tick. Four thousand is the number
+      to plan with on a machine that is shared. The figure that survives a
+      change of hardware is **4 to 10µs per live agent per tick** — about 4 at a couple of hundred
+      agents, 7 at a thousand, 12 at two thousand, 18 to 28 at three and a half. It rises with how
+      thickly they stand rather than with how many there are, because three things in the tick are
+      quadratic in the neighbours: the elbow pass in `contact.ts`, `EntityManager.within` (a linear
+      scan, once per hunter per tick), and `tellAboutCreatures`, which walks every creature once for
+      every client. Spread thin across many worlds it stays at 7 to 9µs all the way out to twenty-two
+      thousand agents — so the ceiling is a budget being spent, not a structure giving way.*
+
+      ***A cold province: there is no catch-up operation at all**, and saying so is half the finding.
+      Nothing anywhere ticks a province with nobody in it — `Simulation.tick` closes an empty room
+      and drops its ground and its creatures with it, and `SharedWorld.tick` moves the clock and
+      stops. So the measurement is the nearest honest proxy, arriving and stepping forward, in the
+      three parts arriving is made of: the terrain sampler is 150–650ms once per world, a province of
+      1,024 chunks is 2 to 8.5 seconds of ground, and the leavings are 0.3–2.7ms for a hundred
+      changes and 7–20ms for ten thousand. Reading a province is cheap. Ticking one is not: the
+      country puts 2.1 creatures on a chunk, so a province holds about 2,150 of them, and a week of
+      world is 50,400 seconds — **one to twelve hours of processor per province per week**, measured
+      at 209 to 738 minutes packed as this bench packs them and about 55 minutes costed at the
+      thinnest per-agent figure it saw anywhere.*
+
+      *What that means for what follows, which is why the measuring came first:*
+
+      - ***C2's closed form is not an optimisation, it is the only thing that reaches.** A
+        province-sized population steps at 1.1x to 3.2x real time — the simulation is barely faster
+        than living through it. Catching up a week inside a second wants fifty thousand times real
+        time. Drop the coarse tier from ten ticks a second to one a minute, which is six hundred
+        times fewer, and it is still twenty-five to seventy-five times too slow. Nothing short of a
+        closed form gets there, and any coarse tier that is "the same code, less often" will not.*
+      - ***The third tier does not exist yet, and it saves half of nothing.** An agent beyond
+        `ACTIVE_RANGE` today costs 3 to 3.5µs a tick against 4 to 7.5µs live, because frozen means a
+        skipped mind and not a skipped body: it is still in the separation sweep and still a row in
+        what every client is told. Frozen has to mean off those lists, not off one branch inside
+        them.*
+      - ***The threshold that is obviously wrong is `Roster`'s four thousand.** It is a per-world cap
+        and this laptop happens to run out of tick budget at about the same population, so today the
+        cap and the hardware agree by coincidence. On a Pi the hardware will say four hundred while
+        the cap goes on saying four thousand. It wants to become a budget rather than a number.*
+      - ***C3 is cheap, and it should be done before C2 rather than after.** Reading a province's
+        leavings is single-digit milliseconds, so a scheduled arrival costs nothing; what it removes
+        is a walk across a border, which means two provinces live at once for as long as the walk
+        lasts, and that is seconds of terrain either side. It is also what makes the closed form
+        writable at all — a behaviour's long-run effect cannot be written down for an agent that
+        might be in any province by the end of it.*
+      - *A Raspberry Pi core is a guess: somewhere between four and eight times slower than one of
+        these. Nobody has run `chore ticks` on the cluster. Run it there and that stops being a
+        guess, and every number above moves by that one factor and nothing else.*
 - [ ] **C2. Three tiers.** Live where a player is; coarse where a province is loaded and nobody is
       watching; frozen otherwise. The rule that makes it work: a behaviour's long-run effect must
       have a closed form, so arriving somewhere untouched for a week is a calculation rather than a
