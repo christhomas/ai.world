@@ -75,38 +75,7 @@ import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
 
-async function boot(): Promise<void> {
-  // A phone is held sideways to play this, and it says so before anything else is drawn: the
-  // title screen is as landscape as the game behind it.
-  keepSideways(thisBrowser($('turnPhone')), whenTurned);
-  const store = new IndexedDbStore();
-  const url = new URL(window.location.href);
-  const urlSeed = url.searchParams.get('seed');
-
-  let slotKey: string, saved: SessionSave | undefined, seed: number, world: WorldKind;
-  if (urlSeed !== null && /^\d+$/.test(urlSeed)) {
-    // share / dev link: play the given seed in a scratch session, skip the title screen
-    seed = Number(urlSeed) >>> 0;
-    slotKey = LEGACY_KEY;
-    saved = await store.load<SessionSave>(LEGACY_KEY);
-    if (saved?.seed !== seed) saved = undefined;
-    world = worldFromLink(url) ?? saved?.world ?? 'road';
-  } else {
-    $('loading').style.display = 'none';
-    const choice = await showTitle(store);
-    slotKey = choice.key; saved = choice.save; seed = choice.seed; world = choice.world;
-    $('loading').style.display = 'block';
-  }
-  startGame(store, slotKey, saved, seed, url, world);
-}
-
-/** `?world=mesh` or `?world=road` on a share link, for growing a scratch world of a given kind. */
-function worldFromLink(url: URL): WorldKind | null {
-  const asked = url.searchParams.get('world');
-  return asked === 'mesh' || asked === 'road' ? asked : null;
-}
-
-function startGame(
+export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number, url: URL,
   /**
    * Which world to grow. It comes from the save whenever there is one, because the same seed grows
@@ -328,6 +297,9 @@ function startGame(
     minimapCanvas: $('minimapCanvas') as HTMLCanvasElement,
     rng: lineRng,
     takeShare: (gold) => splitTakings(gold),
+    // who is down a hole today: `minesWorked` is declared below this, and the closure is only
+    // called on the way into the ground, so there is nothing to hoist
+    crewIn: (anchorId) => mines.whoIsDown(anchorId, minesWorked(), (v) => register.living(v)),
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     setCaveAmbience: (on) => { sound.cave = on; },
@@ -689,10 +661,3 @@ function startGame(
   const loop = new GameLoop((dt, time) => frames.frame(dt, time));
   loop.start();
 }
-
-boot().catch((err) => {
-  console.error(err);
-  const el = $('loading');
-  el.style.display = 'block';
-  el.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
-});

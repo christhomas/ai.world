@@ -538,6 +538,19 @@ export const LONG_RUN: Record<string, LongRun> = {
   sailor: keepsItsHours,
   climber: keepsItsHours,
   explorer: keepsItsHours,
+  /*
+   * A shift at the rock face, and `staysPut` is the true answer rather than the easy one.
+   *
+   * `facework` has no hours in it — a mine does not know what the sky is doing — and a miner is put
+   * at his cut by `game/crews.ts` when somebody walks into the workings, not by a timetable. So a
+   * week of it leaves a man exactly where the crew list says he is, which is what `staysPut` keeps.
+   *
+   * What a week of his *work* does is a different question and is already answered elsewhere:
+   * `game/mines.ts` lives every village's mine forward a day at a time, gold and all, whether or
+   * not anybody is underground to see it. Giving this form a yield as well would mint the same coin
+   * twice.
+   */
+  facework: staysPut,
   hired: staysPut,
 
   // monsters.json and villain.json

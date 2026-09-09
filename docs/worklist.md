@@ -1518,7 +1518,7 @@ it is worth its own heading rather than being fixed one case at a time.
       mine as one less thing living down there, which with people in the tunnels would have let a
       player make a hole safe by murdering the crew that works it. Anybody on the register is not
       what was living down there, and is no longer counted.)*
-- [ ] **The one line nobody has added yet.** `src/game/crews.ts` is proved by `crews.test.ts`
+- [x] **The one line nobody has added yet.** `src/game/crews.ts` is proved by `crews.test.ts`
       calling it directly against a real cave and a real register, but nothing in the running game
       calls it, because `places.ts` belongs to the castle this week. One import, one field, one
       call, and one line in `main.ts`:
@@ -1542,3 +1542,23 @@ it is worth its own heading rather than being fixed one case at a time.
       yet report a death to the one answer there is. Handing that manager the same `register` and
       `onFallen` the overworld's has is a `places.ts` change and would want a thought about what a
       death down there does to the village's dread, which is the whole point of the place.
+
+## Found while wiring the miners in
+
+- [x] **The mesh world had no caves at all, so no mine was ever worked.** Seeds 1, 3, 5 and 7 of the
+      world the game actually plays: signposts, piers and wrecks all present, **caves zero**, and a
+      cave is what a village claims as its mine. So no crew went down, and the seam where every coin
+      in this world is minted was never cut. *(The same fault was found and fixed in the endless
+      country earlier the same night, and the fix was made in only one of the two places: a cave was
+      "the first tile drawn as high ground", and a polygon world raises the base its tiles are
+      measured from rather than a tile's own rise, so nothing ever reads as `High`. Ten caves a world
+      now, four to eight of them claimed as mines.)*
+- [ ] **The `__entities` probe cannot see underground.** It is bound to the overworld's manager at
+      construction, so walking into a mine and asking what is there answers about the fields above
+      it. Nothing is wrong with the game; the instrument is pointed the wrong way, which made
+      checking the crew by hand impossible and is worth fixing before the next thing that lives
+      down a hole.
+- [ ] **A crew is one or two people.** `crewOf` takes the miners living in a village, and a village
+      has one or two, so a sixteen-room cave holds a man. That is probably right — a mine is not a
+      colliery — but it means the tunnels still read as empty, and it is worth deciding whether a
+      village's mine should draw more of its people down it.

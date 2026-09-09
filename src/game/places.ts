@@ -19,6 +19,7 @@ import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import type { Player } from '../entities/player';
 import { DungeonMinimap } from '../ui/dungeonmap';
+import { putTheCrewToWork, type Digger } from './crews';
 import { ITEMS } from './items';
 import type { GameState } from './state';
 import type { HeroGear } from '../render/herogear';
@@ -27,6 +28,8 @@ import type { HeroGear } from '../render/herogear';
 export interface PlaceContext {
   /** Whoever is walking with you takes their share of any coin that comes in. */
   takeShare: (gold: number) => void;
+  /** The village's miners who are down this hole today, so they can be met at the face. */
+  crewIn: (anchorId: string) => readonly Digger[];
   seed: number;
   manifest: Manifest;
   state: GameState;
@@ -187,6 +190,20 @@ export class Places {
         monsters.spawnOne('troll', bx + 0.5, bz + 0.5, anchor.seed + 99);
       }
     }
+    /*
+     * And the village's own miners, at the faces they are working today.
+     *
+     * Outside the `told` block, and for the same reason villagers on a street are: the people of a
+     * village are the seed and the register, which every client has, so nobody has to be told about
+     * them. What the world owns is the animals — those are what two players standing in one field
+     * would disagree about.
+     *
+     * This mine has been worked every day since the world began; the gold is in the village's
+     * purses and the fear is in its gossip. Until now the one place it could not be seen was the
+     * mine, and a hole in a hill where the coin of this world is minted stood empty every time
+     * anybody walked into it.
+     */
+    putTheCrewToWork(monsters, world.map, this.ctx.crewIn(anchorId), anchor.seed);
     this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
     this.ctx.setCaveAmbience(true);
     const depth = floor > 1 ? ` — floor ${floor}` : '';
