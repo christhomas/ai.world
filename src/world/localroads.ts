@@ -1,6 +1,6 @@
 import { rand2 } from '../core/rng';
 import { derive } from '../core/salts';
-import { faceOf, onTheHalfwayLine, type Corner, type Country, type Face } from './localmesh';
+import { faceOf, onTheHalfwayLine, siteOf, type Corner, type Country, type Face } from './localmesh';
 import type { Site } from './scattercells';
 
 /**
@@ -306,9 +306,4 @@ function furthest(corners: Corner[]): [Corner, Corner] {
 /** The sites near a face, which is the neighbourhood everything here is decided in. */
 function sitesAround(world: Country, x: number, z: number, reach = world.dials.far * 3): Site[] {
   return world.scatter.sitesIn({ x0: x - reach, z0: z - reach, x1: x + reach, z1: z + reach });
-}
-
-/** One site by name, looked for around a face that knows it. */
-function siteOf(world: Country, id: string, near: Face): Site | null {
-  return sitesAround(world, near.x, near.z).find((site) => site.id === id) ?? null;
 }

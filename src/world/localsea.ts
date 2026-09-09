@@ -1,4 +1,4 @@
-import { faceOf, onTheHalfwayLine, type Corner, type Face } from './localmesh';
+import { faceOf, onTheHalfwayLine, siteOf, type Corner, type Face } from './localmesh';
 import type { Land } from './localroads';
 
 /**
@@ -154,12 +154,4 @@ function ends(corners: Corner[]): [Corner, Corner] {
     }
   }
   return best;
-}
-
-/** One site by name, looked for around a face that knows it. */
-function siteOf(world: Land, id: string, near: Face): { x: number; z: number; claim: number; id: string } | null {
-  const reach = world.dials.far * 3;
-  return world.scatter.sitesIn({
-    x0: near.x - reach, z0: near.z - reach, x1: near.x + reach, z1: near.z + reach,
-  }).find((site) => site.id === id) ?? null;
 }

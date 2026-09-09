@@ -105,6 +105,19 @@ export function faceAt(country: Country, x: number, z: number): Face | null {
 }
 
 /**
+ * One site by name, looked for around a face that already knows the name.
+ *
+ * A face names its neighbours rather than pointing at them, because a name is stable and an index
+ * into an array of everything is not something an endless world has. Finding one again is a search
+ * of the ground round the face that mentioned it, which is bounded and cheap: the sites of that
+ * patch are already worked out.
+ */
+export function siteOf(country: Country, id: string, near: { x: number; z: number }): Site | null {
+  const reach = country.dials.far * LOOK_OUT;
+  return sitesAround(country, near.x, near.z, reach).find((site) => site.id === id) ?? null;
+}
+
+/**
  * The face belonging to one site.
  *
  * Built by taking a square of ground round the site and cutting away everything closer to a

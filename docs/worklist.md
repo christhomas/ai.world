@@ -825,9 +825,13 @@ can each be finished and each leave the game playable.
       for; and there is no spanning tree, so `parent`, `depth` and `size` are left at what a lone
       crossroads would have — the two things that read them, where a river rises and how big a
       village grows, are B7d and B7e.)*
-- [ ] **B7c. Land and high country, locally.** Face kind from `localmesh`; `highlandLift`'s flood
+- [x] **B7c. Land and high country, locally.** Face kind from `localmesh`; `highlandLift`'s flood
       over every mountain face in the world becomes a bounded one, capped, giving the same answer
-      whichever face it starts from.
+      whichever face it starts from. *(`localland.ts`. Three of the bounded world's four rules are
+      simply gone — no rim to drown, no islands placed by how far out they are, no middle to keep
+      clear. The lakes only needed saying differently: a rule about the ground rather than about the
+      order a list was walked in. And the flood is exact rather than approximate, because the ground
+      stops rising after three faces, so a count that stops at three is the same number.)*
 - [ ] **B7d. Water, locally.** The hard one: a river today is a traversal from a spring to the sea,
       which is exactly what the rule forbids. Flow direction is local — the steepest downhill
       neighbour — and how much water is in it comes from a bounded walk upstream rather than from an

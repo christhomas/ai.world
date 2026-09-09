@@ -237,6 +237,20 @@ export function faceAt(mesh: WorldMesh, x: number, z: number): MeshFace | null {
   return id < 0 ? null : mesh.faces[id];
 }
 
+/**
+ * The same point, pushed about by the noise that turns polygon borders into a coastline.
+ *
+ * Written into a caller's object rather than returned in a new one, for the reason `drift` itself
+ * exists: this runs for every tile of every chunk. The endless country asks for it too — the warp
+ * is a function of the seed and the place and nothing else, so it is the one part of the bounded
+ * world's coastline that a patch can have for nothing.
+ */
+export function roughenInto(seed: number, x: number, z: number, out: { x: number; z: number }): void {
+  roughen(seed, x, z);
+  out.x = x + drift.x * MESH.WARP;
+  out.z = z + drift.z * MESH.WARP;
+}
+
 /** Whether a point is somewhere you could stand: inside a face that is not water. */
 export function isLand(mesh: WorldMesh, x: number, z: number): boolean {
   const face = faceAt(mesh, x, z);

@@ -85,7 +85,7 @@ describe('the roads of one patch of an endless country', () => {
   it('are the same asked for cold as asked for as a corner of something bigger', () => {
     const small: Within = { x0: 300, z0: 300, x1: 380, z1: 380 };
     const alone = graphIn(country(SEED), small);
-    const wide = graphIn(country(SEED), { x0: 0, z0: 0, x1: 800, z1: 800 });
+    const wide = graphIn(country(SEED), { x0: 180, z0: 180, x1: 520, z1: 520 });
     expect([...roadsOf(wide, small).keys()].sort()).toEqual([...roadsOf(alone, small).keys()].sort());
   });
 
