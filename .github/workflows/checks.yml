@@ -1,0 +1,64 @@
+# The gate: types, tests, and the collision bench, on the way in rather than on the way out.
+#
+# Everything that has gone wrong with this game's collisions went wrong in the same way — the
+# arithmetic was right and the world was wrong, and the only thing that noticed was somebody walking
+# about in it. `chore collisions` is that walk, done by a machine: every creature into every solid,
+# from every side, at three speeds, with an account of what it did. It costs a second and a half,
+# and it is the difference between finding a wall in the sky here and finding it in a village.
+#
+# It runs the same task a person runs at their desk. A pipeline with its own private incantation is
+# a pipeline whose failures cannot be reproduced, so this installs `chore` and asks it for `check`,
+# exactly as anybody would.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # so a failing bench can be re-run without pushing anything
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The same task runner the repository is driven by, pinned. `chores.yml` asks for 0.9.0 or
+      # better; this is the version the tasks were last run against by hand.
+      - name: Install chore
+        env:
+          CHORE_VERSION: 0.10.1
+        run: |
+          set -euo pipefail
+          curl -fsSL -o chore.tar.gz \
+            "https://github.com/antimatter-studios/chore/releases/download/v${CHORE_VERSION}/chore-${CHORE_VERSION}-linux-x86_64.tar.gz"
+          tar -xzf chore.tar.gz
+          sudo install -m 0755 chore /usr/local/bin/chore
+          chore --version
+
+      # types, then the whole suite, then the bench — the same three a commit is gated on locally
+      - run: chore check
+
+      # Kept whether it passed or failed, because the run that failed is the one somebody wants to
+      # read. It names the pair, the move number and the coordinates either side of it, which is
+      # enough to re-run a single case without guessing at what the pipeline was doing.
+      - name: Keep the collision report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collision-bench
+          path: .collisions.txt
+          if-no-files-found: warn
+          retention-days: 30

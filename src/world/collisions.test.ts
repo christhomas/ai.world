@@ -643,7 +643,13 @@ describe('what this bench covered', () => {
      * it as the artefact that says what was signed off.
      */
     writeFileSync(REPORT, [
-      `collision bench — ${walks} walks`,
+      `collision bench — ${walks} walks — ${new Date().toISOString()}`,
+      '',
+      'Every creature that walks, walked into every solid thing, from every side, at three speeds.',
+      'A "prop N" is a `PropKind`: the names and numbers are in src/world/biomes.ts.',
+      'Verdicts are about models rather than points — passed under 0.06 tiles of overlap, touching',
+      'under 0.3, intersected beyond it. Nothing may pass *through* anything at all; that is failure.',
+      '',
       ...covered.map((l) => `  · ${l}`),
       '',
     ].join('\n'));

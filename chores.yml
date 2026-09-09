@@ -114,6 +114,7 @@ tasks:
     cmds:
       - task: typecheck
       - task: test
+      - task: collisions
 
   typecheck:
     desc: Types only
@@ -127,6 +128,20 @@ tasks:
       - name: pattern
         desc: only run test files whose path matches this
     cmds: ['pnpm vitest run {{.PATTERN}}']
+
+  # The bench that walks everything into everything. Its own task rather than part of `test`
+  # because it is the one a pipeline is meant to name, and because what it leaves behind — an
+  # account of what it walked and what went wrong — is the thing somebody investigating a failure
+  # asks for. See `src/world/collisions.test.ts`.
+  collisions:
+    desc: Walk every creature into every solid thing, and say what happened
+    vars:
+      REPORT: .collisions.txt
+    cmds:
+      # One command rather than two, so that the account is printed on the way past whether the
+      # bench passed or failed — the run that failed is the one somebody wants to read — while the
+      # bench's own exit code is what the task exits with, so a pipeline naming this task stops.
+      - 'pnpm vitest run src/world/collisions.test.ts; kept=$?; cat {{.REPORT}} || true; exit $kept'
 
   build:
     desc: Typecheck and build the page into dist/
