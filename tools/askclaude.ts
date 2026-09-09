@@ -5,7 +5,7 @@ import type { Plugin, ViteDevServer } from 'vite';
 /**
  * The door the character builder asks Claude through.
  *
- * A page cannot shell out, and the whole point of `tools/builder.html` is that changing a rig is
+ * A page cannot shell out, and the whole point of `tools/character-builder.html` is that changing a rig is
  * asking for the change and watching it happen — so something on this side has to run the command
  * and hand the reply back as it arrives. This is that something, and it is a Vite plugin marked
  * `apply: 'serve'` for the same reason the command channel is: it exists while somebody is
@@ -292,7 +292,7 @@ export function askClaude(): Plugin {
       });
 
       server.config.logger.info('  ➜  Builder: http://localhost:'
-        + `${server.config.server.port ?? 5173}/tools/builder.html  (a rig, and Claude to change it)`);
+        + `${server.config.server.port ?? 5173}/tools/character-builder.html  (a rig, and Claude to change it)`);
     },
   };
 }

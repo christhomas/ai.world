@@ -28,6 +28,26 @@ tasks:
     cmds:
       - 'pnpm vite --port {{.PORT}} --strictPort {{.CLI_ARGS}}'
 
+  # The two pages that are tools rather than the game. Both need the dev server — they import the
+  # game's own modules by path, so opening the file from disk gets you a blank screen and a console
+  # full of bare-specifier errors, which is how somebody finds out the hard way that this is not a
+  # standalone page. And a wrong URL is worse than a broken one here: Vite answers anything it does
+  # not recognise with the game's own index.html, so a mistyped name gives you the game rather than
+  # a 404, and it looks as though the tool is what is broken.
+  #
+  # So there is a command. It serves and it prints the address; there is nothing to remember and
+  # nothing to type wrong.
+  builder:
+    desc: The character builder — every creature and every prop, with Claude on hand to change one
+    vars:
+      PORT: '{{.WEB_PORT}}'
+    args:
+      - name: port
+        desc: port to serve it on
+    cmds:
+      - 'echo "the character builder is at http://localhost:{{.PORT}}/tools/character-builder.html"'
+      - 'pnpm vite --port {{.PORT}} --strictPort {{.CLI_ARGS}}'
+
   world:
     desc: The world server alone, holding what players share
     vars:

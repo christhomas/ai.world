@@ -1218,7 +1218,7 @@ can each be finished and each leave the game playable.
       controls and a mouse. It opens inside the editor as well. `tools/turnaround.html` is most of
       the renderer already; what it needs is the list, the prompt, and a dev-server route that
       shells out and streams the reply back.
-      *(`tools/builder.html`, with `tools/askclaude.ts` as the door it asks through. Three things
+      *(`tools/character-builder.html`, with `tools/askclaude.ts` as the door it asks through. Three things
       were learned, and two of them were not about drawing. The first: the run has to belong to the
       server rather than to the page. Claude edits `animals.ts`, Vite sees the file change and
       reloads the page — which is the entire point — and the reply being streamed into that page
