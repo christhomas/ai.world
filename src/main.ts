@@ -29,6 +29,7 @@ import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
 import { CropField } from './render/crops';
 import { BuildingSite } from './render/site';
+import { Beam } from './render/beam';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
 import { TouchControls } from './ui/touch';
@@ -202,6 +203,9 @@ function startGame(
   const compass = new Compass();
   const photo = new PhotoMode();
   const heroGear = new HeroGear(rig.scene);
+  // what a teleport looks like: the scene the light stands in, the pool the hero's rig comes apart
+  // in, and what he is carrying, which goes with him rather than hangs there through the beam
+  const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
 
@@ -406,6 +410,7 @@ function startGame(
     chunks.dispose();
     entityRenderer.dispose();
     heroGear.dispose();
+    beam.dispose();
     weather.dispose();
     watch.dispose();
     skyRenderer.dispose();
@@ -547,7 +552,7 @@ function startGame(
 
   const { commands, commandWorld, bound, arriving } = openConsole({
     seed, state, player, iso, places, structures, sampler, entities, register, online, chat,
-    plots, remains, hires, eyries, skyIsles, placeName, discover,
+    plots, remains, hires, eyries, skyIsles, beam, placeName, discover,
     areaLabel: () => frames.areaLabel(),
     flash: (message) => hud.flash(message),
   });
@@ -663,7 +668,7 @@ function startGame(
 
   const frames = createFrame({
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, daycycle, weather, seasonTintMaterials, skyRenderer, skies, wildlife,
+    skyline, rock, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,

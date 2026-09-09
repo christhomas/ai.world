@@ -31,6 +31,46 @@ const SHADOW_VOLUME = 0.012;
 const HURT_COLOR = new THREE.Color(0xffffff);
 
 /**
+ * How a creature comes apart when something takes it away — a teleport, today, and nothing else.
+ *
+ * The numbers are in rig units and are multiplied by the creature's own scale, so a bear breaks up
+ * across more ground than a hare does.
+ */
+const COMING_APART = {
+  /**
+   * How far a block rises before it is gone. Twice the hero's own height: less and the pieces look
+   * as though they were dropped rather than drawn up, more and the top ones are off the screen
+   * before they have finished shrinking, which reads as them being cut off.
+   */
+  RISE: 2.4,
+  /**
+   * And how far out from the body's own line it drifts on the way, which is what turns a column of
+   * blocks sliding upward into a body coming apart. Kept under a tile: further and an arm ends up
+   * somewhere an arm could never have been, which reads as debris rather than as him.
+   */
+  SPREAD: 0.55,
+  /** How far a block turns end over end while it goes, in radians. About two fifths of a turn. */
+  TUMBLE: 2.6,
+  /**
+   * The smallest a block is drawn before it vanishes, as a share of its own size. Not nought: an
+   * instance matrix with no scale left in it has columns of zero length, and three divides an
+   * instanced normal by the square of those lengths.
+   */
+  LEAST: 0.06,
+};
+
+/**
+ * The angle each successive part leaves at, in radians — the golden angle.
+ *
+ * The direction a block flies has to be fixed for that block and different from its neighbours',
+ * or an arm and a leg leave together and the whole body reads as one thing sliding sideways. This
+ * spreads consecutive parts as far round the compass as they can be spread, with no table of
+ * directions to keep in step with the rig and no random number, which would differ from frame to
+ * frame and make a part flicker between two directions rather than travel in one.
+ */
+const GOLDEN_ANGLE = 2.399963;
+
+/**
  * Euler angles for an animated part: the walk cycle, with whatever blow is being thrown laid over
  * the top of it, so somebody who swings while running does both rather than snapping out of their
  * stride to hit something. Both come from animations/motion.json.
@@ -212,6 +252,10 @@ export class EntityRenderer {
   private readonly side = new THREE.Vector3(0, 0, 1);
   private readonly facing = new THREE.Vector3(1, 0, 0);
   private readonly tilt = new THREE.Quaternion();
+  /** Scratch for a block flying away from the body it belonged to. */
+  private readonly spin = new THREE.Matrix4();
+  private readonly tumble = new THREE.Euler();
+  private readonly shrink = new THREE.Vector3();
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -251,7 +295,10 @@ export class EntityRenderer {
   entityAt(hit: THREE.Intersection): Entity | null {
     const part = hit.object.userData.part as PartMesh | undefined;
     if (!part || hit.instanceId === undefined || hit.instanceId >= part.count) return null;
-    return part.drawn[hit.instanceId] ?? null;
+    const e = part.drawn[hit.instanceId] ?? null;
+    // a creature that has come apart is a picture rather than a person: the block the ray found is
+    // half way to the sky and nothing behind it can be talked to, swung at or picked up
+    return e && e.apart > 0 ? null : e;
   }
 
   get count(): number {
@@ -282,6 +329,8 @@ export class EntityRenderer {
         // indoors creatures used to be parked below the world; not drawing them is the same
         // sight for none of the work, and a ray cannot reach them either way
         if (e.indoors) continue;
+        // and one that has come all the way apart is not there at all any more
+        if (e.apart >= 1) continue;
         if (view) {
           const dx = e.x - view.x, dz = e.z - view.z;
           if (dx * dx + dz * dz > reach) continue;
@@ -306,7 +355,10 @@ export class EntityRenderer {
         }
         this.scl.set(s, s, s);
         this.root.compose(this.pos, this.quat, this.scl);
-        for (const part of p.parts) {
+        // by index, because a block flying away needs a direction of its own and the only thing
+        // that tells one part of a rig from another is where it sits in the list
+        for (let pi = 0; pi < p.parts.length; pi++) {
+          const part = p.parts[pi];
           const d = part.def;
           // a hidden part simply takes no slot: the hero's own hat costs nothing under a helm
           if (d.tag && e.hiddenTags.has(d.tag)) continue;
@@ -325,8 +377,11 @@ export class EntityRenderer {
             this.m.multiply(this.t);
           }
           if (part.staticRot) this.m.multiply(part.staticRot);
-          // the mesh holds one shape at one size; this is what makes it this part's shape
-          if (part.scale) this.m.scale(part.scale);
+          // the mesh holds one shape at one size; this is what makes it this part's shape. A block
+          // flying away is given that size in the middle of the flight rather than before it, for
+          // the reason written on `comeApart`.
+          if (e.apart > 0) this.comeApart(this.m, part.scale, e.apart, pi, s);
+          else if (part.scale) this.m.scale(part.scale);
           const into = part.into;
           const k = into.count++;
           into.mesh.setMatrixAt(k, this.m);
@@ -364,6 +419,45 @@ export class EntityRenderer {
         }
       }
     }
+  }
+
+  /**
+   * Break one block away from the body it belongs to.
+   *
+   * This is done to the matrix the rig has just finished working out, rather than to a copy of the
+   * creature made somewhere else, and that is the whole reason it lives here: what flies apart is
+   * genuinely the creature's own blocks, at their own sizes, in their own colours, wearing whatever
+   * it is wearing. A cloud of particles standing in for a body would be more code and a worse
+   * picture, in a world that is made of these boxes anyway.
+   *
+   * Three things happen to the block and the order of all three matters.
+   *
+   * It turns first, and it turns *before* it is stretched into the part it is — which is why the
+   * part's own size is passed in here rather than applied by the caller as it is for everything
+   * else. A box stretched and then rotated is not a rotated box: the stretch is along the body's
+   * axes, so the shape shears as it turns. The hero's cape is a slice five hundredths of a unit
+   * thick and it was the one that showed it, spreading into a slab a third of a unit wide half way
+   * through the turn instead of tumbling end over end.
+   *
+   * Then it is shrunk, which is uniform and so can happen at any point after the stretch. And last
+   * it is lifted and pushed outward in the world's own frame, which is why that is written straight
+   * into the translation of the matrix rather than multiplied in: a rise composed on the right
+   * would be a rise along whichever way the creature happens to be facing, and a body that comes
+   * apart differently depending on its heading is a body coming apart wrongly.
+   */
+  private comeApart(m: THREE.Matrix4, size: THREE.Vector3 | null, apart: number, index: number, scale: number): void {
+    const angle = index * GOLDEN_ANGLE;
+    const turn = apart * COMING_APART.TUMBLE;
+    this.tumble.set(turn * Math.cos(angle), turn, turn * Math.sin(angle));
+    this.spin.makeRotationFromEuler(this.tumble);
+    m.multiply(this.spin);
+    if (size) m.scale(size);
+    this.shrink.setScalar(Math.max(COMING_APART.LEAST, 1 - apart));
+    m.scale(this.shrink);
+    const out = COMING_APART.SPREAD * apart * scale;
+    m.elements[12] += Math.cos(angle) * out;
+    m.elements[13] += COMING_APART.RISE * apart * scale;
+    m.elements[14] += Math.sin(angle) * out;
   }
 
   /** The colour one creature wears in one slot, washed towards white while it is smarting. */

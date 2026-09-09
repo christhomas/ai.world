@@ -1,6 +1,7 @@
 import { CommandBus, describeResult } from '../core/commandbus';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
+import type { Beam } from '../render/beam';
 import type { IsoCamera } from '../render/camera';
 import type { Chat } from '../ui/chat';
 import { noSuchTopic, topicFor, topicIndex } from '../ui/topics';
@@ -44,6 +45,22 @@ export interface Consoled {
   hires: Hires;
   eyries: readonly Eyrie[];
   skyIsles: readonly SkyIsland[];
+  /**
+   * What a teleport looks like: the hero coming apart into his own blocks and a column of light
+   * standing where he was.
+   *
+   * Here rather than anywhere else because this is where the two teleports in the game are, and
+   * they are the only moves that get it. The others that put a hero somewhere without walking him
+   * there were each looked at and refused: a staircase and a doorway change the whole scene, so
+   * there is nothing to dissolve out of and nothing to dissolve into; stepping off a ferry, off a
+   * boat or off a horse is a stride rather than a jump; being carried to a village after a
+   * knockout or into a cell after an arrest is somebody dragging your body, and a beam there would
+   * claim a power where the game has just told you that you had none. The eagle over the range is
+   * the near miss — it is a real jump, and it does look like one — but it already has a bird and a
+   * line of text explaining itself, and a column of light would say sorcery where the story says
+   * feathers. `docs/worklist.md` has the argument.
+   */
+  beam: Beam;
   /** Where the hero is standing: the surface, a dungeon floor, or a building. */
   placeName: () => string;
   /** And what the country round him is called, which `where` answers with. */
@@ -61,7 +78,7 @@ const ARRIVED = 6;
 export function openConsole(ctx: Consoled) {
   const {
     seed, state, player, iso, places, structures, sampler, entities, register, online, chat,
-    plots, remains, hires, eyries, skyIsles, placeName, areaLabel, discover, flash,
+    plots, remains, hires, eyries, skyIsles, beam, placeName, areaLabel, discover, flash,
   } = ctx;
 
   /**
@@ -153,11 +170,27 @@ export function openConsole(ctx: Consoled) {
   let bound: Bound | null = null;
 
   const commandWorld: CommandWorld = {
-    teleport: (x, z) => { player.teleport(x, z); iso.target.set(x, 0.5, z); online.stood(x, z, 'teleport'); },
+    /*
+     * A teleport, and the two halves of what it looks like.
+     *
+     * `leaves` is asked before the move and `arrives` after it, so the light stands where he was
+     * standing and he gathers himself where he ends up. Neither of them delays anything: the hero
+     * is at his destination on this line, the way he always was, and what takes a third of a
+     * second is the picture. See `render/beam.ts`.
+     */
+    teleport: (x, z) => {
+      beam.leaves(player.entity);
+      player.teleport(x, z);
+      beam.arrives(player.entity);
+      iso.target.set(x, 0.5, z);
+      online.stood(x, z, 'teleport');
+    },
     teleportTo: (place) => {
       const found = namedPlace(place);
       if (!found) throw new Error(`nowhere called ${place} — try: places`);
+      beam.leaves(player.entity);
       player.teleport(found.x, found.z);
+      beam.arrives(player.entity);
       iso.target.set(found.x, 0.5, found.z);
       // the world moves its own hero to match: a teleport is the one jump nothing else can see
       online.stood(found.x, found.z, 'teleport');

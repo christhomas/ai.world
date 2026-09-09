@@ -949,12 +949,26 @@ can each be finished and each leave the game playable.
 
 ## Things to make, when the country is finished
 
-- [ ] **Teleporting looks like teleporting.** Using teleport should beam the hero up rather than
+- [x] **Teleporting looks like teleporting.** Using teleport should beam the hero up rather than
       moving him between one frame and the next: he goes pixelated — the rig breaking up into its
       own blocks, which is what this world is made of anyway — and rises into a bright column of
       light standing up into the sky. The same in reverse where he arrives. It is the one move in
       the game with no animation at all, and it is the move a player makes most often while
       exploring, so it is the thing that most often looks like a bug rather than a power.
+      *(`render/beam.ts`, and `Entity.apart`, which the creature pool reads to lift, turn and shrink
+      each block of a rig — so what flies apart is the hero's own boxes in his own colours, wearing
+      what he is wearing, and not one new triangle is cut for it. The move itself is still instant:
+      what plays out is a copy of him left behind to come apart, and the man himself gathering
+      together where he landed, both inside a shaft of light. A third of a second, because this is a
+      thing a player does every couple of minutes. Two things had to be got right by looking rather
+      than by reasoning — the block has to be turned before it is stretched into the part it is, or
+      it shears as it tumbles and the cape spreads into a slab; and the light has to be added to
+      what is behind it rather than mixed with it, because a mixed one came out darker than desert
+      sand, which is a strange thing for a light to do. Teleport only: a doorway and a staircase
+      change the whole scene, stepping off a boat is a stride, and being carried home after a
+      knockout is somebody dragging your body — a beam there would claim a power at the exact
+      moment the game has told you that you had none. The eagle over the range was the near miss and
+      is left alone, because it already has a bird and a line of text saying what happened.)*
 - [ ] **A character builder, as a page.** A list of the people and animals down one side, a real 3D
       view of the one selected, and a prompt that runs `claude -p` and shows what comes back — so
       changing a rig is asking for the change and watching it happen. A page rather than a terminal
