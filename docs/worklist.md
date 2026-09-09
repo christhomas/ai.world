@@ -881,10 +881,14 @@ can each be finished and each leave the game playable.
       while a country made of polygons raises the base the tiles are measured from, so ground can
       stand fifteen terraces up and every tile of it still read as ordinary. A country of cliffs
       would have had no caves in it and nothing would have said so.)*
-- [ ] **B7f4. Ports and ferries in a drawn world.** Jetties are still the road tree's, because a
-      pier belongs to an island. `localsea` has the endless answer — a port where the land meets
-      deep water, a ferry where two ports choose each other — and nothing has joined it to the
-      ground yet.
+- [x] **B7f4. Ports and ferries in a drawn world.** *(`pairJetties` turned out never to have needed
+      an island: it takes two bare points and finds the two facing beaches with clear water between
+      them, so a crossing between two ports is the same question with the same answer, and a ferry
+      line finds its two halves without learning a second vocabulary. What did need fixing was the
+      reach — a ferry's range was written in face-widths, which is a sensible ferry in a country of
+      small faces and eight hundred and sixty tiles in the country this game draws, three times the
+      longest river and a search over three million tiles of water per port. A ferry is a distance,
+      not a number of fields.)*
 - [ ] **B7g. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
       sea test in `wild.ts`, the debug readout, the map's padding and the roaming bands stop
       measuring from the middle of a world that no longer has one.

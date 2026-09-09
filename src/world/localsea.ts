@@ -1,4 +1,4 @@
-import { faceOf, onTheHalfwayLine, siteOf, type Corner, type Face } from './localmesh';
+import { faceOf, facesIn, onTheHalfwayLine, siteOf, type Corner, type Face } from './localmesh';
 import type { Land } from './localroads';
 
 /**
@@ -43,14 +43,20 @@ export interface Crossing {
 }
 
 /**
- * How far a ferry will go, in claims.
+ * How far a ferry will go, in tiles.
  *
  * The bound that makes the rule local. A crossing longer than this is a voyage rather than a ferry,
  * and voyages are somebody else's problem — a scheduled sailing between named ports, which is a
  * thing a world can keep a list of because there are few of them, rather than a thing it must
  * discover by looking at all the water there is.
+ *
+ * In tiles rather than in face-widths, which is what it used to be, and the difference is not
+ * cosmetic. Fourteen faces is a sensible ferry in a country of small faces and eight hundred and
+ * sixty tiles in the country this game actually draws — three times the length of the longest
+ * river, and a search over three million tiles of water per port to find it. A ferry is a distance,
+ * not a number of fields, and two hundred tiles is about a minute and a half of sailing.
  */
-const FERRY_REACH = 14;
+const FERRY_ACROSS = 196;
 
 /** How much of a crossing has to be water. A ferry that runs over a sandbank is a road. */
 const SOUNDINGS = [0.2, 0.35, 0.5, 0.65, 0.8] as const;
@@ -114,7 +120,7 @@ export function crossingFrom(world: Land, port: Port): Crossing | null {
 
 /** The port this one would serve: nearest across open water, name deciding a tie. */
 function choiceOf(world: Land, port: Port): Port | null {
-  const reach = world.dials.far * FERRY_REACH;
+  const reach = FERRY_ACROSS;
   const near = world.scatter.sitesIn({
     x0: port.x - reach, z0: port.z - reach, x1: port.x + reach, z1: port.z + reach,
   });
@@ -142,6 +148,34 @@ function wetAllTheWay(world: Land, from: Port, to: Port): boolean {
     if (!world.land(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t)) wet++;
   }
   return wet >= DEEP_ENOUGH;
+}
+
+/**
+ * Every crossing that touches a patch.
+ *
+ * Gathered wider than the patch by a ferry's own length, because a crossing with one end outside it
+ * still puts a jetty inside it — and both ends have to be surveyed for either to exist, since a
+ * crossing is only a crossing where two ports choose each other. Named by the pair, so the two
+ * patches that share it find the same one and it is built once.
+ */
+export function crossingsIn(world: Land, within: { x0: number; z0: number; x1: number; z1: number }): Crossing[] {
+  const wider = {
+    x0: within.x0 - FERRY_ACROSS, z0: within.z0 - FERRY_ACROSS,
+    x1: within.x1 + FERRY_ACROSS, z1: within.z1 + FERRY_ACROSS,
+  };
+  const found = new Map<string, Crossing>();
+  for (const face of facesIn(world, wider)) {
+    if (!world.land(face.x, face.z)) continue;
+    for (const port of portsOf(world, face)) {
+      const crossing = crossingFrom(world, port);
+      if (!crossing) continue;
+      // one of its two ends has to be in the patch, or it belongs to a neighbour entirely
+      const ours = [crossing.from, crossing.to].some((end) =>
+        end.x >= within.x0 && end.x <= within.x1 && end.z >= within.z0 && end.z <= within.z1);
+      if (ours) found.set(crossing.between.join('~'), crossing);
+    }
+  }
+  return [...found.values()].sort((a, b) => (a.between.join() < b.between.join() ? -1 : 1));
 }
 
 /** The two corners furthest apart, which are the ends of a shore. */

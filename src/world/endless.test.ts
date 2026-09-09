@@ -130,6 +130,21 @@ describe('a patch of the endless country', () => {
     expect(marks(east)).toEqual(mine);
   });
 
+  it('runs a ferry where the water is worth crossing, or none at all', () => {
+    const piers = west.structures.piers;
+    // a coast may simply have no crossing worth making, so this asks for consistency rather than
+    // for boats: whatever it built, both ends of it are there and they face each other
+    const byLine = new Map<string, number>();
+    for (const pier of piers) byLine.set(pier.island, (byLine.get(pier.island) ?? 0) + 1);
+    for (const [line, ends] of byLine) {
+      expect(ends, `the ferry ${line} has ${ends} jetties rather than two`).toBe(2);
+    }
+    for (const pier of piers) {
+      expect(pier.tiles.length, 'a jetty with no deck').toBeGreaterThan(0);
+      expect(Math.abs(pier.dx) + Math.abs(pier.dz), 'a jetty pointing nowhere').toBe(1);
+    }
+  });
+
   it('paints the ground two patches share exactly the same way', () => {
     const east = samplerIn(SEED, EAST);
     expect(SHARED.length, 'no shared chunks to compare').toBeGreaterThan(3);

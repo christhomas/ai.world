@@ -54,6 +54,16 @@ export interface Settling {
    * the next one. Names rather than villages, because a town has its name before anybody builds it.
    */
   neighbours?: Array<{ name: string; x: number; z: number }>;
+  /**
+   * The water worth crossing, and where a ferry would run.
+   *
+   * A bounded world has islands, and a pier belongs to one. A world with no edge has neither: it has
+   * ports, where land meets water deep enough to be worth a boat, and a crossing exists where two
+   * ports choose each other. The two ends of a crossing are the two ends of a ferry line, which is
+   * the same shape a mainland jetty and an island jetty make, so nothing downstream has to learn a
+   * second kind of boat.
+   */
+  crossings?: Array<{ id: string; from: { x: number; z: number }; to: { x: number; z: number } }>;
 }
 
 /** A place's name as a number, so the village standing on it can be drawn from it. */

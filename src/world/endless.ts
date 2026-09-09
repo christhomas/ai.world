@@ -5,6 +5,7 @@ import { highlandNear, landOf } from './localland';
 import { junctionsIn, nameOf, townAt, type Land } from './localroads';
 import { waterIn } from './localwater';
 import { rockIn } from './localrock';
+import { crossingsIn } from './localsea';
 import { TerrainSampler } from './terrain';
 import type { Founding } from './structures';
 import type { Within } from './window';
@@ -98,6 +99,9 @@ export function samplerIn(seed: number, within: Within): TerrainSampler {
         x0: within.x0 - LOOKING, z0: within.z0 - LOOKING,
         x1: within.x1 + LOOKING, z1: within.z1 + LOOKING,
       }),
+      crossings: crossingsIn(world, within).map((c) => ({
+        id: c.between.join('~'), from: { x: c.from.x, z: c.from.z }, to: { x: c.to.x, z: c.to.z },
+      })),
     },
     // last, because the rock stands on the finished ground rather than being part of it
     rock: (ground) => rockIn(world, within, ground),

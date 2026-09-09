@@ -193,6 +193,7 @@ export function markThePlaces(o: Places): { piers: Pier[]; signposts: Signpost[]
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
+  const piers = jetties(o);
   const seed = sampler.seed;
 
   for (const post of settling.posts ?? []) {
@@ -207,7 +208,40 @@ export function markThePlaces(o: Places): { piers: Pier[]; signposts: Signpost[]
     }
   }
   void sample; void all; void footprintOk;
-  return { piers: [], signposts, caves, wrecks };
+  return { piers, signposts, caves, wrecks };
+}
+
+/**
+ * A jetty at each end of every crossing the patch can see.
+ *
+ * The same surveying the bounded world does for an island, asked of a different pair. `pairJetties`
+ * already takes two bare points and finds the two facing beaches with clear water between them —
+ * it never needed an island, only somewhere to walk out from — so a crossing between two ports is
+ * the same question with the same answer.
+ *
+ * The two ends keep the names a bounded world gives them, `island` and `mainland`, because that is
+ * how a ferry line finds its two halves and there is nothing to gain from teaching it a second
+ * vocabulary. In an endless country they mean only "the first end" and "the second", and which is
+ * which is settled by the crossing's own name.
+ */
+function jetties(o: Places): Pier[] {
+  const out: Pier[] = [];
+  for (const crossing of o.settling.crossings ?? []) {
+    const { islandPier, mainPier } = pairJetties(
+      o.sampler, o.sample, { id: crossing.id, x: crossing.from.x, z: crossing.from.z }, crossing.to,
+    );
+    // both or neither: a ferry with one jetty is a ferry that arrives nowhere
+    if (!islandPier || !mainPier) continue;
+    for (const pier of [islandPier, mainPier]) {
+      out.push(pier);
+      const [sx, sz] = pier.tiles[0];
+      o.all.push({ kind: StructureKind.Pier, tx: sx, tz: sz, hw: 0, hd: 0, level: pier.level, rot: Math.atan2(-pier.dz, pier.dx), biome: 0 as Biome, path: pier.tiles });
+      // a sign on the shore beside the first plank, saying a boat calls here
+      const signX = sx - pier.dx + (pier.dz !== 0 ? 1 : 0), signZ = sz - pier.dz + (pier.dx !== 0 ? 1 : 0);
+      o.all.push({ kind: StructureKind.Sign, tx: signX, tz: signZ, hw: 0, hd: 0, level: pier.level, rot: Math.atan2(-pier.dz, pier.dx), biome: 0 as Biome, path: [] });
+    }
+  }
+  return out;
 }
 
 /** A signpost beside the road, naming the nearest three places anybody would want. */
