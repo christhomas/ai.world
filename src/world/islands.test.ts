@@ -63,7 +63,7 @@ describe('islands', () => {
 
 describe('caves and wrecks', () => {
   it('are placed on cliffs and beaches, kept apart, and named uniquely', async () => {
-    const { CAVES, WRECKS } = await import('./structures');
+    const { CAVES, WRECKS } = await import('./landmarks');
     const { TileType } = await import('./terrain');
     const g = generateRoadGraph(11);
     const sampler = new TerrainSampler(g);

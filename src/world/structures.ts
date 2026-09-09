@@ -1,10 +1,10 @@
 import { footprintLevel } from './footprint';
 import { GRAPH } from '../core/config';
+import { markTheWay } from './landmarks';
 import type { RoadNode } from './graph';
 import { POI_NAMES, PREFIX, SUFFIX } from './names';
 import { StructureKind } from './kinds';
 import { KEEPS, PADDOCK, planPaddock, railsFor, type Stabling } from './paddock';
-import { pairJetties } from './piers';
 
 export type { Stabling } from './paddock';
 
@@ -206,6 +206,13 @@ const LAYOUT = {
   VILLAGE: { spread: 11, maxHouses: 6, minHouses: 3, squareR: 4 },
 } as const;
 
+/** A place's name as a number, so the village standing on it can be drawn from it. */
+function hashOfPlace(id: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
+
 /** How many of a village's houses are shops: two, plus one each at six and eight houses. */
 function shopCount(houses: number): number {
   return Math.min(houses - 1, 2 + (houses >= 6 ? 1 : 0) + (houses >= 8 ? 1 : 0));
@@ -228,9 +235,49 @@ export function couldHoldAVillage(node: RoadNode): boolean {
   return node.depth >= 3 && node.size >= 10 && Math.hypot(node.x, node.z) > GRAPH.HUB_RADIUS * 1.6;
 }
 
-export function generateStructures(sampler: TerrainSampler): Structures {
+/**
+ * Where a village stands, when it is not the road tree that says so.
+ *
+ * A place with a name of its own. That name is what makes a village a function of itself rather
+ * than of everything founded before it: it names the village, and it seeds the randomness the
+ * layout is drawn from, so the same town builds the same village whether it is the first of a
+ * hundred or the only one anybody asked about.
+ */
+export interface Founding {
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+  level: number;
+  /** How much village: a market town, an ordinary one, or a few cottages. */
+  size: 'hub' | 'town' | 'village';
+}
+
+/**
+ * How a world's settlements are founded, when the default will not do.
+ *
+ * The default is the road tree: villages at the towns it grew, laid out from one stream of
+ * randomness in the order the tree is walked, with a fixed number of them in the world and no two
+ * sharing a name. Every one of those is an answer about a whole world, and an endless one cannot
+ * give any of them — so it hands over its own list instead, and asks that each village be drawn
+ * from its own name.
+ */
+export interface Settling {
+  /** The places to build. Given these, nothing is founded from the road tree at all. */
+  towns: Founding[];
+}
+
+export function generateStructures(sampler: TerrainSampler, settling?: Settling): Structures {
   const graph = sampler.graph;
-  const rng = mulberry32(derive(graph.seed, SALT.STRUCTURES));
+  /**
+   * The randomness a village is laid out from.
+   *
+   * One stream for the whole world when the road tree founds them, which is what it has always
+   * been and what every existing world's houses stand on. One stream per place when a list is
+   * handed in, so that a village is a function of its own name and of nothing else — which is the
+   * only version of this an endless world can have.
+   */
+  let rng = mulberry32(derive(graph.seed, SALT.STRUCTURES));
   const villages: Village[] = [];
   const pois: Poi[] = [];
   const all: Structure[] = [];
@@ -446,8 +493,7 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     return { house, doorX, doorZ, x: plan.x, z: plan.z, half: plan.half, gate: plan.gate, stock: KEEPS[biome] };
   };
 
-  const buildVillage = (nodeIdx: number, spread: number, maxHouses: number, minHouses: number, squareR: number): Village | null => {
-    const n = graph.nodes[nodeIdx];
+  const buildVillage = (n: { x: number; z: number; level: number }, spread: number, maxHouses: number, minHouses: number, squareR: number): Village | null => {
     const probe = sampler.landProbe(n.x, n.z);
     if (!probe || !probe.land) return null;
     const biome = sampler.biomeOf(n.x, n.z);
@@ -498,26 +544,49 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub, station, stable, church, churchDoor, board, stalls };
   };
 
-  // --- hub town ---
-  const hub = buildVillage(0, LAYOUT.HUB.spread, LAYOUT.HUB.maxHouses, LAYOUT.HUB.minHouses, LAYOUT.HUB.squareR);
-  if (hub) { hub.name = 'Crossroads Town'; villages.push(hub); }
+  if (settling) {
+    /*
+     * Villages founded from a list, each drawn from its own name.
+     *
+     * No hub, because an endless world has no middle to put one in; no cap, because a cap is a
+     * fact about a whole world; no spacing against what was built already, because that is the
+     * order dependence this exists to end — the places handed in were kept apart before they got
+     * here, by a rule that does not care what else exists.
+     *
+     * `all` is not cleared between them and does not need to be: the only thing that reads it is
+     * the check that two buildings do not stand on each other, and two villages far enough apart
+     * to be two villages cannot.
+     */
+    for (const town of settling.towns) {
+      rng = mulberry32(derive(graph.seed, SALT.STRUCTURES ^ hashOfPlace(town.id)));
+      const shape = town.size === 'hub' ? LAYOUT.HUB : town.size === 'town' ? LAYOUT.TOWN : LAYOUT.VILLAGE;
+      const v = buildVillage(town, shape.spread, shape.maxHouses, shape.minHouses, shape.squareR);
+      if (!v) continue;
+      v.name = town.name;
+      villages.push(v);
+    }
+  } else {
+    // --- hub town ---
+    const hub = buildVillage(graph.nodes[0], LAYOUT.HUB.spread, LAYOUT.HUB.maxHouses, LAYOUT.HUB.minHouses, LAYOUT.HUB.squareR);
+    if (hub) { hub.name = 'Crossroads Town'; villages.push(hub); }
 
-  // --- towns: the secondary hubs the road graph grew webs around ---
-  for (const t of graph.towns) {
-    const n = graph.nodes[t];
-    if (villages.some((v) => Math.hypot(v.x - n.x, v.z - n.z) < LAYOUT.TOWN_SPACING)) continue;
-    const v = buildVillage(t, LAYOUT.TOWN.spread, LAYOUT.TOWN.maxHouses, LAYOUT.TOWN.minHouses, LAYOUT.TOWN.squareR);
-    if (v) villages.push(v);
-  }
+    // --- towns: the secondary hubs the road graph grew webs around ---
+    for (const t of graph.towns) {
+      const n = graph.nodes[t];
+      if (villages.some((v) => Math.hypot(v.x - n.x, v.z - n.z) < LAYOUT.TOWN_SPACING)) continue;
+      const v = buildVillage(n, LAYOUT.TOWN.spread, LAYOUT.TOWN.maxHouses, LAYOUT.TOWN.minHouses, LAYOUT.TOWN.squareR);
+      if (v) villages.push(v);
+    }
 
-  // --- smaller villages on wide, deep branches ---
-  const sites = graph.nodes.map((n, i) => ({ n, i })).filter(({ n }) => couldHoldAVillage(n));
-  shuffle(rng, sites);
-  for (const { n, i } of sites) {
-    if (villages.length >= VILLAGES + 1) break;
-    if (villages.some((v) => Math.hypot(v.x - n.x, v.z - n.z) < LAYOUT.VILLAGE_SPACING)) continue;
-    const v = buildVillage(i, LAYOUT.VILLAGE.spread, LAYOUT.VILLAGE.maxHouses, LAYOUT.VILLAGE.minHouses, LAYOUT.VILLAGE.squareR);
-    if (v) villages.push(v);
+    // --- smaller villages on wide, deep branches ---
+    const sites = graph.nodes.map((n, i) => ({ n, i })).filter(({ n }) => couldHoldAVillage(n));
+    shuffle(rng, sites);
+    for (const { n } of sites) {
+      if (villages.length >= VILLAGES + 1) break;
+      if (villages.some((v) => Math.hypot(v.x - n.x, v.z - n.z) < LAYOUT.VILLAGE_SPACING)) continue;
+      const v = buildVillage(n, LAYOUT.VILLAGE.spread, LAYOUT.VILLAGE.maxHouses, LAYOUT.VILLAGE.minHouses, LAYOUT.VILLAGE.squareR);
+      if (v) villages.push(v);
+    }
   }
 
   // --- points of interest off the road ---
@@ -550,83 +619,14 @@ export function generateStructures(sampler: TerrainSampler): Structures {
     pois.push({ name, kind, x: tx + 0.5, z: tz + 0.5, structure: s });
   }
 
-  // --- piers: one on each shore per island, pointing at each other ---
-  for (const isl of graph.islands) {
-    let nearest = 0, nearestD = Infinity;
-    for (let n = 0; n < graph.mainlandNodes; n++) {
-      const d = Math.hypot(graph.nodes[n].x - isl.x, graph.nodes[n].z - isl.z);
-      if (d < nearestD) { nearestD = d; nearest = n; }
-    }
-    const m = graph.nodes[nearest];
-    // both shores surveyed, then paired: see `pairJetties`, which is where the reasoning lives
-    const { islandPier, mainPier } = pairJetties(sampler, sample, isl, m);
-    for (const pier of [islandPier, mainPier]) {
-      if (!pier) continue;
-      piers.push(pier);
-      const [sx, sz] = pier.tiles[0];
-      all.push({ kind: StructureKind.Pier, tx: sx, tz: sz, hw: 0, hd: 0, level: pier.level, rot: Math.atan2(-pier.dz, pier.dx), biome: 0 as Biome, path: pier.tiles });
-      // schedule sign on the shore beside the first plank
-      const signX = sx - pier.dx + (pier.dz !== 0 ? 1 : 0), signZ = sz - pier.dz + (pier.dx !== 0 ? 1 : 0);
-      all.push({ kind: StructureKind.Sign, tx: signX, tz: signZ, hw: 0, hd: 0, level: pier.level, rot: Math.atan2(-pier.dz, pier.dx), biome: 0 as Biome, path: [] });
-    }
-  }
-
-  // --- signposts: at junction nodes between settlements, naming the way ---
-  const junctions = graph.nodes
-    .map((n, i) => ({ n, i, degree: graph.edges.filter((e) => e.a === i || e.b === i).length }))
-    .filter(({ n, degree }) => degree >= 3 && villages.every((v) => Math.hypot(v.x - n.x, v.z - n.z) > v.radius));
-  shuffle(rng, junctions);
-  for (const { n } of junctions) {
-    if (signposts.length >= SIGNPOSTS) break;
-    if (signposts.some((s) => Math.hypot(s.x - n.x, s.z - n.z) < SIGNPOST_SPACING)) continue;
-    const probe = sampler.landProbe(n.x, n.z);
-    if (!probe || !probe.land) continue;
-    const side = rng() < 0.5 ? -1 : 1;
-    const off = probe.roadWidth + 1.4;
-    const tx = Math.floor(n.x - probe.uz * off * side), tz = Math.floor(n.z + probe.ux * off * side);
-    const level = footprintOk(tx, tz, 0, 0, null);
-    if (level === null) continue;
-    const near = villages
-      .map((v) => ({ name: v.name, d: Math.hypot(v.x - n.x, v.z - n.z), dir: compassDir(v.x - n.x, v.z - n.z) }))
-      .sort((a, b) => a.d - b.d)
-      .slice(0, 3)
-      .map((v) => ({ name: v.name, dir: v.dir, tiles: Math.round(v.d) }));
-    if (near.length === 0) continue;
-    all.push({ kind: StructureKind.Signpost, tx, tz, hw: 0, hd: 0, level, rot: Math.atan2(-(n.z - tz), n.x - tx), biome: sampler.biomeOf(tx, tz), path: [] });
-    signposts.push({ x: tx + 0.5, z: tz + 0.5, directions: near });
-  }
-
-  // --- caves in the high ground, wrecks on the beaches ---
-  const siteNodes = graph.nodes.map((n, i) => ({ n, i })).filter(({ n }) => n.depth >= 2);
-  shuffle(rng, siteNodes);
-  for (const { n } of siteNodes) {
-    if (caves.length >= CAVES && wrecks.length >= WRECKS) break;
-    const probe = sampler.landProbe(n.x, n.z);
-    if (!probe) continue;
-    const side = rng() < 0.5 ? -1 : 1;
-    // walk outward from the road looking for a cliff face (cave) or a beach (wreck)
-    for (let lat = probe.roadWidth + 3; lat < probe.landWidth + 8; lat += 1.5) {
-      const x = Math.floor(n.x - probe.uz * lat * side), z = Math.floor(n.z + probe.ux * lat * side);
-      if (all.some((s) => Math.abs(s.tx - x) <= s.hw + 3 && Math.abs(s.tz - z) <= s.hd + 3)) continue;
-      if (villages.some((v) => Math.hypot(v.x - x, v.z - z) < v.radius)) break;
-      sampler.sampleTile(x, z, sample);
-      const level = sample.level;
-      if (sample.type === TileType.High && caves.length < CAVES) {
-        if (caves.some((c) => Math.hypot(c.x - x, c.z - z) < SITE_SPACING)) continue;
-        const biome = sampler.biomeOf(x, z);
-        all.push({ kind: StructureKind.CaveMouth, tx: x, tz: z, hw: 1, hd: 1, level, rot: Math.atan2(-(n.z - z), n.x - x), biome, path: [] });
-        caves.push({ id: `cave:${x},${z}`, name: `${CAVE_NAMES[caves.length % CAVE_NAMES.length]}`, x: x + 0.5, z: z + 0.5 });
-        break;
-      }
-      if (sample.type === TileType.Sand && level <= 1 && wrecks.length < WRECKS) {
-        if (wrecks.some((w) => Math.hypot(w.x - x, w.z - z) < SITE_SPACING)) continue;
-        const biome = sampler.biomeOf(x, z);
-        all.push({ kind: StructureKind.Shipwreck, tx: x, tz: z, hw: 2, hd: 1, level, rot: rng() * Math.PI * 2, biome, path: [] });
-        wrecks.push({ id: `wreck:${x},${z}`, name: `${WRECK_NAMES[wrecks.length % WRECK_NAMES.length]}`, x: x + 0.5, z: z + 0.5 });
-        break;
-      }
-    }
-  }
+  // the things that stand between the villages: jetties, signposts, caves and wrecks
+  const between = markTheWay({
+    sampler, graph, sample, rng, all, villages, footprintOk,
+  });
+  piers.push(...between.piers);
+  signposts.push(...between.signposts);
+  caves.push(...between.caves);
+  wrecks.push(...between.wrecks);
 
   // --- doorways: every house, shop and chapel can be walked into ---
   for (const v of villages) {
@@ -653,14 +653,6 @@ export function doorTile(s: Structure): [number, number] {
   return [s.tx + fx * 2, s.tz + fz * 2];
 }
 
-export const CAVES = 10;
-export const WRECKS = 8;
-const SITE_SPACING = 60;
-const CAVE_NAMES = ['Weeping Cave', 'Bat Hollow', 'Deep Crack', 'Smugglers\' Cave', 'Blackmouth Cave', 'Echo Cave', 'Cold Crawl', 'Miner\'s Fault', 'Rattling Cave', 'Hermit\'s Cave'];
-const WRECK_NAMES = ['Wreck of the Marigold', 'Broken Keel', 'Wreck of the Tern', 'Salt Bones', 'Wreck of the Gull', 'Old Hull', 'Wreck of the Wren', 'Storm\'s Toll'];
-
-const SIGNPOSTS = 22;
-const SIGNPOST_SPACING = 90;
 
 const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
 export function compassDir(dx: number, dz: number): string {

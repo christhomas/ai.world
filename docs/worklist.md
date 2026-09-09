@@ -842,11 +842,24 @@ can each be finished and each leave the game playable.
       is. Where two rivers meet, the springs' own names decide which one ends. The cost is the
       gather: a river three hundred tiles long reaches into a patch from three hundred tiles
       outside it, which is why a local river is shorter than a world-sized one.)*
-- [ ] **B7e. Structures, locally.** Villages, eyries and the rest from the towns in the window, which
-      B7b has already made local.
-- [ ] **B7f. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
-      sea test in `wild.ts`, the debug readout and the roaming bands stop measuring from the middle
-      of a world that no longer has one.
+- [x] **B7e. Villages founded from their own names.** The road tree founds them by walking a list
+      and drawing each from one stream of randomness, so a village's layout depends on its position
+      in the walk — found the same town second instead of fifth and its houses stand somewhere else.
+      A world can now be handed the places to build instead, and each village is drawn from the name
+      of the place it stands on: the same order in any order, in any company, and alone. The road
+      tree's own worlds are untouched, which matters because houses stand on saved ground.
+      *(`structures.ts` grew past what one screen holds on the way, so the jetties, signposts, caves
+      and wrecks — everything placed against the villages rather than among them — moved to
+      `landmarks.ts`.)*
+- [ ] **B7e2. And then founded from the endless country's own towns.** The list above comes from
+      `townAt`, over a window. Waiting on the sampler being able to stand in a local country at all,
+      which is the next item.
+- [ ] **B7f. A sampler that stands in the endless country.** The last join: land from `localland`
+      rather than from a `WorldMesh`, roads from `localgraph`, water from `localwater`, villages from
+      `townAt`. Until this, every piece above is proven and none of them is playable.
+- [ ] **B7g. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
+      sea test in `wild.ts`, the debug readout, the map's padding and the roaming bands stop
+      measuring from the middle of a world that no longer has one.
 
 ### The hero, as he is seen
 
