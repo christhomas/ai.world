@@ -10,7 +10,7 @@ import type { ChunkSource, ChunkTiles } from '../world/tiles';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { KINDS } from './animals';
-import { BIOME_ANIMALS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS, dungeonMonsters, openGround, pickKind } from './spawns';
+import { BIOME_ANIMALS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS, dungeonMonsters, openGround, pickKind, type SpawnSpot } from './spawns';
 import { treeFor } from './behaviours';
 import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
@@ -222,16 +222,16 @@ export class EntityManager {
   /** How many creatures have joined this floor's roster, so each gets a number of its own. */
   private enrolled = 0;
 
-  /** Spawn monsters directly (used by dungeons, which have their own tile world). */
-  spawnMonsters(anchors: Array<[number, number]>, seed: number, floor = 1): Entity[] {
+  /** Spawn monsters directly (used by dungeons). A spot that names its occupant gets it: @see SpawnSpot. */
+  spawnMonsters(anchors: ReadonlyArray<SpawnSpot>, seed: number, floor = 1): Entity[] {
     const rng = mulberry32(seed);
     const out: Entity[] = [];
     const key = 'dungeon';
     let list = this.spawned.get(key);
     if (!list) { list = []; this.spawned.set(key, list); }
-    for (const [x, z] of anchors) {
-      const kindId = pickKind(dungeonMonsters(floor), rng());
-      if (!kindId) continue;
+    for (const [x, z, named] of anchors) {
+      const kindId = named ?? pickKind(dungeonMonsters(floor), rng());
+      if (!kindId || !KINDS[kindId]) continue;
       const herd = this.spawnHerdAt(kindId, x, z, rng, key, out);
       if (herd.members.length === 0) continue;
     }
