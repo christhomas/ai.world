@@ -453,6 +453,7 @@ function startGame(
     villageWelcome: (village) => villageWelcome(village),
     wordOfHim: (person) => interactions.wordOfHim(person),
     saidOfMine,
+    indoors: () => places.indoors?.door ?? null,
     flash: (message) => hud.flash(message),
   });
   heroFace();                                 // the face on the right of every conversation

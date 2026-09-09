@@ -2,6 +2,7 @@ import { yawFor, type Entity } from '../entities/entity';
 import type { Player } from '../entities/player';
 import type { Person } from '../world/people';
 import type { Register } from '../world/register';
+import type { Doorway } from '../world/structures';
 import type { DialogueBox } from '../ui/dialogue';
 import type { Sound } from './audio';
 import type { Gifts, Kindness } from './gifts';
@@ -9,6 +10,7 @@ import type { Grudges } from './grudge';
 import type { Handover } from './handover';
 import type { Online } from './online';
 import type { Quest } from './quests';
+import { booksKeptIn } from './enquiry';
 import { ITEMS } from './shops';
 import type { GameState } from './state';
 import { DOCTOR, dialogueFor, type TalkCtx } from './talk';
@@ -43,6 +45,15 @@ export interface Meeting {
   wordOfHim: (person: Person) => string;
   /** And what a village believes about the mine it works. */
   saidOfMine: (village: string) => string;
+  /**
+   * The doorway of the room the hero is standing in, or nothing out of doors.
+   *
+   * Records are kept by buildings rather than by people, so this is what decides whether the
+   * person in front of you has a book to read out of. It is a doorway rather than a place because
+   * a doorway already carries both halves of the answer: what the room is, and whose village it
+   * belongs to.
+   */
+  indoors: () => Doorway | null;
   flash: (message: string) => void;
   persist: () => void;
 }
@@ -50,7 +61,7 @@ export interface Meeting {
 export function createMeeting(ctx: Meeting) {
   const {
     state, player, register, grudges, gifts, online, handover, sound, dialogue, rng, quests,
-    villageWelcome, wordOfHim, saidOfMine, flash, persist,
+    villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist,
   } = ctx;
 
   /**
@@ -145,6 +156,18 @@ export function createMeeting(ctx: Meeting) {
         persist();
       },
     } : undefined;
+    // and the books, which belong to the room rather than to whoever is stood in it: a priest
+    // reads out his own churchyard and an apothecary her own births, each of them only for
+    // somebody standing where the book is kept. Worked out afresh for every conversation, so a fee
+    // paid at one counter buys nothing at the next one and nothing at this one tomorrow.
+    const room = indoors();
+    const kept = room ? booksKeptIn(room.kind, room.village, register, state.day) : [];
+    talkCtx.enquiry = kept.length === 0 ? undefined : {
+      books: kept,
+      purse: () => state.inventory.gold,
+      pay: (fee: number) => { state.inventory.gold -= fee; sound.chime(); persist(); },
+      paid: new Set(),
+    };
     e.yaw = yawFor(player.x - e.x, player.z - e.z);
     e.state = 'idle';
     e.timer = 1e9;

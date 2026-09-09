@@ -5,6 +5,7 @@ import { ITEMS, SHOP_DEFS, type ShopDef, itemSummary, sellPrice, sellableAt } fr
 import type { GameState } from './state';
 import type { Quest } from './quests';
 import { gossipFor } from './gossip';
+import { bookRows, type Enquiry, type Keeper } from './enquiry';
 import { stageOf, type Person } from '../world/people';
 import type { Register } from '../world/register';
 
@@ -30,6 +31,15 @@ export interface TalkCtx {
   markup?: number;
   /** Being patched up, which only a doctor can offer. */
   mending?: Mending;
+  /**
+   * The books kept in the room this conversation is happening in, when it is a room that keeps
+   * any: the churchyard's stones, the apothecary's births.
+   *
+   * Set by whoever opens the conversation rather than worked out here, because it turns on where
+   * the hero is standing and a dialogue has never known that. A priest asked the same question in
+   * the street has no book with him and says so by not offering.
+   */
+  enquiry?: Enquiry;
   /** Who lives in the villages, so a resident can talk about their family and their losses. */
   register?: Register;
   /** The day it is, which is how long ago something was. */
@@ -164,12 +174,7 @@ export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
     if (q) return questDialogue(e, q, ctx);
   }
 
-  if (e.role === 'congregation') {
-    return {
-      speaker: e.name, emoji: k.emoji, face: faceFor(e, ctx),
-      pages: ['Hello, traveller.', ...residentPages(e, ctx, pick(ctx.rng, CONGREGATION_LINES))],
-    };
-  }
+  if (e.role === 'congregation') return chapelDialogue(e, ctx);
   if (k.id === 'villager' || k.id === 'traveller') {
     const greeting = pick(ctx.rng, ['Hello there!', 'Oh! Hello.', 'Well met, traveller.']);
     return {
@@ -178,6 +183,35 @@ export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
     };
   }
   return { speaker: `${e.name} the ${k.label}`, emoji: k.emoji, pages: [e.line(ctx.rng)] };
+}
+
+/**
+ * Somebody at the chapel: the few gathered outside the door, and the priest stood at the altar.
+ *
+ * They share a role and most of what they say, and what separates them is the book. The priest is
+ * in the room where the parish keeps its dead, so he is the one who can be asked about them; the
+ * congregation on the step can tell you only that it is quieter here than the square. Neither of
+ * them is checked against where the hero is standing, because an enquiry only ever arrives when he
+ * is already in the room the book is kept in.
+ */
+function chapelDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
+  const who: Keeper = {
+    speaker: e.trade === 'priest' ? `${e.name}, the Priest` : e.name,
+    emoji: e.kind.emoji,
+    face: faceFor(e, ctx),
+  };
+  const pages = ['Hello, traveller.', ...residentPages(e, ctx, pick(ctx.rng, CONGREGATION_LINES))];
+  const enquiry = ctx.enquiry;
+  if (!enquiry) return { ...who, pages };
+  // the greeting is settled once and said again on every return to it. Rebuilding it would draw a
+  // fresh piece of small talk each time the player backed out of the book, so a priest who had
+  // just told you about his sister would greet you by telling you about somebody else.
+  const root = (): DialogueNode => ({
+    ...who,
+    pages,
+    choices: [...bookRows(who, enquiry, root), { label: 'Leave', next: () => null }],
+  });
+  return root();
 }
 
 /**
@@ -370,6 +404,9 @@ function shopRoot(s: Counter): DialogueNode {
     { label: 'Sell', next: () => sellMenu(s) },
     ...(innkeeper && ctx.room ? [{ label: `Take a room (${ctx.room.price}g)`, next: () => bedMenu(s) }] : []),
     ...(innkeeper && ctx.post ? [{ label: 'The post shelf', next: () => postMenu(s) }] : []),
+    // an apothecary keeps the parish's births beside the jars, and the row for it sits with the
+    // rest of what is on offer rather than being hidden under the small talk
+    ...(ctx.enquiry ? bookRows(s, ctx.enquiry, () => shopRoot(s)) : []),
     { label: 'Chat', next: () => chatMenu(s) },
     { label: 'Leave', next: () => null },
   ]);
