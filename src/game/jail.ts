@@ -1,4 +1,5 @@
 import type { Village } from '../world/structures';
+import type { Charge } from './records';
 
 /**
  * The cell at the back of a village police station: who is in it, how long they have left, and
@@ -34,6 +35,14 @@ export const JAIL = {
   REBUILD_DAYS: 4,
   /** A day nobody has reached, so a station that was never touched is standing on every one of them. */
   NEVER: 0,
+  /**
+   * Names kept on a village's charge sheet, newest last.
+   *
+   * Bounded for the reason the churchyard is bounded: this is a record and not a history. A village
+   * the player has been robbing for a month has taken more people in than anybody would sit and
+   * listen to, and the watch only keeps the recent ones legible.
+   */
+  SHEET_KEPT: 24,
 } as const;
 
 /** Somebody behind a door, and how their sentence stands. */
@@ -60,11 +69,19 @@ interface Cell {
   held: Held | null;
   /** The day the roof is back on, or JAIL.NEVER for a station nobody has broken open. */
   standingAgain: number;
+  /**
+   * Everybody this village has taken in, newest last, and what it cost them.
+   *
+   * The cell forgets a prisoner the moment their hour comes; the sheet does not. That is the whole
+   * difference between being held and having been held, and it is the only thing in the game that
+   * remembers a night the player would rather nobody mentioned.
+   */
+  sheet: Charge[];
 }
 
-/** What a save has to remember about the law: who is inside, and which stations are heaps. */
+/** What a save has to remember about the law: who is inside, which stations are heaps, and the sheet. */
 export interface JailSave {
-  cells: Array<{ village: string; held: Held | null; standingAgain: number }>;
+  cells: Array<{ village: string; held: Held | null; standingAgain: number; sheet?: Charge[] }>;
 }
 
 /** The world clock, as much of it as a sentence touches. */
@@ -133,7 +150,9 @@ export class Jail {
   static from(saved: JailSave | null | undefined): Jail {
     const jail = new Jail();
     for (const cell of saved?.cells ?? []) {
-      jail.cells.set(cell.village, { held: cell.held, standingAgain: cell.standingAgain });
+      // a save written before the watch kept a sheet has none, and starts a fresh one rather than
+      // pretending nobody in that world was ever taken in
+      jail.cells.set(cell.village, { held: cell.held, standingAgain: cell.standingAgain, sheet: cell.sheet ?? [] });
     }
     return jail;
   }
@@ -141,8 +160,19 @@ export class Jail {
   /** The village's cell, made the first time anybody asks about it. */
   private cellOf(village: string): Cell {
     let cell = this.cells.get(village);
-    if (!cell) { cell = { held: null, standingAgain: JAIL.NEVER }; this.cells.set(village, cell); }
+    if (!cell) { cell = { held: null, standingAgain: JAIL.NEVER, sheet: [] }; this.cells.set(village, cell); }
     return cell;
+  }
+
+  /**
+   * Every name the country's watch has written down, which is what the charge sheet is read from.
+   *
+   * Handed over flat, with each row carrying the village it was written in, because that is the
+   * shape `theCharges` wants and because a sergeant reading his own sheet and an agent counting
+   * arrests across a world are the same question asked at two sizes.
+   */
+  charges(): readonly Charge[] {
+    return [...this.cells.values()].flatMap((cell) => cell.sheet);
   }
 
   /**
@@ -211,7 +241,21 @@ export class Jail {
       who, village: village.name, hero, hours, until: now + hours / JAIL.HOURS_A_DAY, fine,
       x: station.doorX + 0.5, z: station.doorZ + 0.5,
     };
-    this.cellOf(village.name).held = held;
+    const cell = this.cellOf(village.name);
+    cell.held = held;
+    /*
+     * And the same act writes the line on the sheet, which is the only place it could be written.
+     *
+     * Every way anybody ends up behind a door in this world goes through here — a constable
+     * catching the hero, a village putting its own villain away — so a sheet kept anywhere else
+     * would be a second list that had to be remembered about, and the one arrest somebody forgot
+     * to report would be the one the player wanted to read about.
+     *
+     * The hero goes down as "You" because that is what the sheet says when you are shown it: the
+     * name on a charge sheet is the name of whoever was charged, and yours is the one you know.
+     */
+    cell.sheet.push({ who: hero ? 'You' : who, village: village.name, day, hours, fine });
+    if (cell.sheet.length > JAIL.SHEET_KEPT) cell.sheet.splice(0, cell.sheet.length - JAIL.SHEET_KEPT);
     return held;
   }
 
@@ -255,8 +299,8 @@ export class Jail {
   toJSON(): JailSave {
     const cells: JailSave['cells'] = [];
     for (const [village, cell] of this.cells) {
-      if (!cell.held && cell.standingAgain === JAIL.NEVER) continue;
-      cells.push({ village, held: cell.held, standingAgain: cell.standingAgain });
+      if (!cell.held && cell.standingAgain === JAIL.NEVER && cell.sheet.length === 0) continue;
+      cells.push({ village, held: cell.held, standingAgain: cell.standingAgain, sheet: cell.sheet });
     }
     return { cells };
   }

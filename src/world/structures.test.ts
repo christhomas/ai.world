@@ -185,3 +185,71 @@ describe('the water a ferry crosses', () => {
     }
   });
 });
+
+/**
+ * The town hall and the watch house, which is where a village keeps what it knows about itself.
+ *
+ * Both are new kinds of building rather than a cottage with a sign on it, because both are meant
+ * to be walked to on purpose: a player who wants the roll has to find the hall, and finding it is
+ * only possible if it looks like a hall from across the square. So what is checked here is the
+ * three things that make that true — that only a place big enough to want one has one, that it
+ * stands on the square with its door onto the cobbles, and that there is a way in.
+ */
+describe('the buildings a village raises for itself', () => {
+  const worlds = [1, 2, 3, 4, 5, 6].map((seed) => new TerrainSampler(generateRoadGraph(seed)).structures);
+  const everywhere = worlds.flatMap((w) => w.villages);
+
+  it('gives one to the towns and none to the hamlets', () => {
+    const withHall = everywhere.filter((v) => v.hall);
+    expect(withHall.length, 'no village in six worlds keeps a roll').toBeGreaterThan(5);
+    expect(withHall.length, 'every village keeps one, which is not a decision').toBeLessThan(everywhere.length);
+    for (const v of withHall) {
+      expect(v.houses.length, `${v.name} raised a hall over ${v.houses.length} houses`).toBeGreaterThanOrEqual(8);
+    }
+    // and most of a world is smaller than that, so the rule is doing work rather than being
+    // technically true of a set nothing falls outside
+    const small = everywhere.filter((v) => v.houses.length < 8);
+    expect(small.length, 'six worlds of nothing but towns').toBeGreaterThan(20);
+    expect(small.filter((v) => v.hall || v.watchHouse), 'a hamlet with a civic building').toEqual([]);
+  });
+
+  it('never keeps a charge sheet without a cell to fill it from', () => {
+    const watching = everywhere.filter((v) => v.watchHouse);
+    expect(watching.length, 'no watch house anywhere in six worlds').toBeGreaterThan(5);
+    for (const v of watching) {
+      expect(v.station, `the sergeant at ${v.name} has nowhere to put anybody`).not.toBeNull();
+    }
+  });
+
+  it('stands them on the square, facing the well, on ground the square can be stepped onto from', () => {
+    for (const w of worlds) {
+      for (const v of w.villages) {
+        for (const civic of [v.hall, v.watchHouse]) {
+          if (!civic) continue;
+          const { building, door } = civic;
+          const away = Math.hypot(building.tx + 0.5 - v.x, building.tz + 0.5 - v.z);
+          expect(away, `${v.name}: a civic building out in the fields, ${away.toFixed(1)} tiles from the well`).toBeLessThan(14);
+          // the door tile is nearer the well than the building is: it faces in, not away
+          expect(Math.hypot(door[0] + 0.5 - v.x, door[1] + 0.5 - v.z), `${v.name}: the door faces away from the square`)
+            .toBeLessThan(away);
+          // one terrace is a stride and two is a wall, so one is as far as the give goes
+          expect(Math.abs(building.level - v.level), `${v.name}: a civic building up a cliff`).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  it('puts a doorway in each of them, so the book inside can be reached', () => {
+    for (const w of worlds) {
+      const doors = new Map(w.doors.map((d) => [`${d.bx},${d.bz}`, d]));
+      for (const v of w.villages) {
+        for (const [civic, kind] of [[v.hall, 'townhall'], [v.watchHouse, 'watchhouse']] as const) {
+          if (!civic) continue;
+          const door = doors.get(`${civic.building.tx},${civic.building.tz}`);
+          expect(door?.kind, `${v.name}: a ${kind} you cannot walk into`).toBe(kind);
+          expect(door?.village, 'a door that does not know whose village it stands in').toBe(v.name);
+        }
+      }
+    }
+  });
+});

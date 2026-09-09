@@ -41,10 +41,11 @@ export function stampPlaza(chunk: ChunkData, ox: number, oz: number, s: Structur
   }
 }
 
-/** Yard ring flattened to the building's level; the footprint itself becomes Floor for houses and churches. */
+/** Yard ring flattened to the building's level; the footprint itself becomes Floor for anything with a door in it. */
 export function stampFootprint(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
   const h = s.level * WORLD.STEP;
-  const building = s.kind === StructureKind.House || s.kind === StructureKind.Church;
+  const building = s.kind === StructureKind.House || s.kind === StructureKind.Church
+    || s.kind === StructureKind.TownHall || s.kind === StructureKind.WatchHouse;
   for (let dz = -s.hd - 1; dz <= s.hd + 1; dz++) {
     for (let dx = -s.hw - 1; dx <= s.hw + 1; dx++) {
       const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
@@ -154,6 +155,8 @@ export function structureProp(s: Structure, storeys = 1): PropKind {
         ? (PropKind.TallHousePlains + s.biome) as PropKind
         : (PropKind.HousePlains + s.biome) as PropKind;
     case StructureKind.Church: return (PropKind.ChurchPlains + s.biome) as PropKind;
+    case StructureKind.TownHall: return (PropKind.TownHallPlains + s.biome) as PropKind;
+    case StructureKind.WatchHouse: return (PropKind.WatchHousePlains + s.biome) as PropKind;
     case StructureKind.Well: return PropKind.Well;
     case StructureKind.Shrine: return PropKind.Shrine;
     case StructureKind.Ruins: return PropKind.Ruins;

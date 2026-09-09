@@ -316,15 +316,25 @@ export class Places {
     this.ctx.chime();
   }
 
+  /**
+   * Whoever is stood behind the counter, and what saying so makes them.
+   *
+   * The trade a person is given here is the whole of what a conversation later has to go on: the
+   * altar makes a priest, the hall makes a clerk, the watch house makes a sergeant. None of them is
+   * chosen — each is a fact about which door was walked through, which is why the room and not the
+   * person is what decides which book comes out.
+   */
   private placeKeeper(spot: [number, number], door: Doorway, renderer: EntityRenderer, rng: Rng): Entity {
-    const trade = door.kind !== 'house' && door.kind !== 'church';
-    const kind = KINDS[trade ? 'shopkeeper' : 'villager'];
+    const civic = door.kind === 'townhall' || door.kind === 'watchhouse';
+    const shop = door.kind !== 'house' && door.kind !== 'church' && !civic;
+    const kind = KINDS[shop || civic ? 'shopkeeper' : 'villager'];
     const herd = new Herd(kind, spot[0], spot[1], spot[0], spot[1], 0);
     herd.tag = door.village;
     const keeper = new Entity(kind, spot[0] + 0.5, spot[1] + 0.5, herd, 'interior', rng);
     keeper.y = 0.5;
     keeper.yaw = Math.PI / 2;   // facing the door
-    if (trade) { keeper.role = 'shopkeeper'; keeper.shop = door.kind as ShopType; }
+    if (shop) { keeper.role = 'shopkeeper'; keeper.shop = door.kind as ShopType; }
+    else if (civic) { keeper.role = 'keeper'; keeper.trade = door.kind === 'townhall' ? 'clerk' : 'sergeant'; }
     // whoever is stood at the altar is the priest, and saying so is what makes him somebody you
     // can ask about the churchyard rather than another villager who happens to be indoors
     else if (door.kind === 'church') { keeper.role = 'congregation'; keeper.trade = 'priest'; }

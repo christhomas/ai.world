@@ -10,7 +10,7 @@ import { blocking, type Footprints } from '../world/footprints';
  * always has the same furniture in the same corners. Interiors are their own little worlds,
  * larger than the shell outside, the way they always are in games of this kind.
  */
-export type InteriorKind = 'house' | 'church' | ShopType;
+export type InteriorKind = 'house' | 'church' | 'townhall' | 'watchhouse' | ShopType;
 
 export const enum ITile { Wall = 0, Floor = 1, Door = 2, Counter = 3, Rug = 4 }
 
@@ -43,10 +43,15 @@ const SIZES: Record<InteriorKind, [number, number]> = {
   inn: [15, 11],
   apothecary: [12, 10],
   church: [13, 15],
+  // wide, because the counter has to cross it and still leave the village room to stand at it
+  townhall: [15, 12],
+  // and small, because the room you are held in should not be a hall
+  watchhouse: [13, 11],
 };
 
 const TITLES: Record<InteriorKind, string> = {
   house: 'Cottage', store: 'General Store', smith: 'Forge', inn: 'Inn', apothecary: 'Apothecary', church: 'Chapel',
+  townhall: 'Town Hall', watchhouse: 'Watch House',
 };
 
 export function interiorTitle(kind: InteriorKind, village: string): string {
@@ -120,6 +125,8 @@ export function furnitureBoxes(map: InteriorMap, footprints: Footprints): Solids
 export const FURNITURE_BLOCKS = new Set<PropKind>([
   PropKind.Bed, PropKind.Table, PropKind.Hearth, PropKind.Shelf, PropKind.Barrel, PropKind.Crate,
   PropKind.Forge, PropKind.Anvil, PropKind.WeaponRack, PropKind.Cauldron, PropKind.Altar, PropKind.Pew,
+  // a cell you could walk out of is a corner of a room
+  PropKind.Bars,
 ]);
 
 /** Deterministic seed for one building from its position, so its inside never changes. */
@@ -197,6 +204,54 @@ const FURNISH: Record<InteriorKind, (f: Furnishing) => [number, number] | null> 
     put(PropKind.Cauldron, w - 3, h - 3);
     put(PropKind.Crate, 2, h - 3);
     put(PropKind.Shelf, 1, h - 4);
+    return keeper;
+  },
+  /**
+   * The town hall: a counter across the width of it, the ledgers on the wall behind, and the half
+   * of the room the village stands in when it is called together.
+   *
+   * Laid out like a shop on purpose. Whatever the building is for, what happens in it is somebody
+   * on one side of a counter asking somebody on the other side for something, and a room that said
+   * otherwise would be a room you had to work out how to use.
+   */
+  townhall: ({ w, h, put, layCounter, floor, doorX }) => {
+    const keeper = layCounter(4, 2, w - 3);
+    // the ledgers, down both flanks behind the counter rather than along the back wall, where the
+    // camera looks at them end-on and they might as well not be there
+    for (const z of [1, 2]) {
+      put(PropKind.Shelf, 1, z);
+      put(PropKind.Shelf, w - 2, z);
+    }
+    put(PropKind.Hearth, Math.floor(w / 2), 1);
+    put(PropKind.Candle, 2, 3);
+    put(PropKind.Candle, w - 3, 3);
+    for (const tx of [3, w - 4]) {
+      put(PropKind.Table, tx, h - 5);
+      put(PropKind.Chair, tx - 1, h - 5, Math.PI / 2);
+      put(PropKind.Chair, tx + 1, h - 5, -Math.PI / 2);
+    }
+    // a strip of carpet from the door to the counter, which is the one thing in the room that says
+    // the walk up to it is meant to feel like a walk up to it
+    for (let z = 5; z < h - 1; z++) floor(doorX, z, ITile.Rug);
+    return keeper;
+  },
+  /**
+   * The watch house: a counter, and the cell taking the back corner of the same room.
+   *
+   * The cell is barred rather than walled because the room has to show what it is for. A wall
+   * would have been a tile of the same colour as every other wall, and the building would have
+   * been a shop with a weapon rack in it.
+   */
+  watchhouse: ({ w, h, put, layCounter, floor, doorX }) => {
+    const keeper = layCounter(5, 2, w - 3);
+    for (let z = 1; z <= 3; z++) put(PropKind.Bars, 5, z, Math.PI / 2);
+    for (let x = 1; x <= 4; x++) put(PropKind.Bars, x, 4);
+    put(PropKind.Bed, 2, 2, Math.PI / 2);
+    put(PropKind.WeaponRack, w - 2, 1, -Math.PI / 2);
+    put(PropKind.Barrel, w - 4, 1);
+    put(PropKind.Crate, 1, h - 3);
+    put(PropKind.Candle, w - 3, 4);
+    floor(doorX, h - 3, ITile.Rug);
     return keeper;
   },
   church: ({ w, h, put, floor }) => {

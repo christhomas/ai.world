@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { PropKind } from '../world/biomes';
-import { CHURCH_WINDOWS, HOUSE_WINDOWS, church, house, merge, part, prism, type HouseStyle } from './geometry';
+import {
+  CHURCH_WINDOWS, HALL_WINDOWS, HOUSE_WINDOWS, WATCH_WINDOWS,
+  church, house, merge, part, prism, townHall, watchHouse, type HouseStyle,
+} from './geometry';
 import { footprintsOf } from './footprint';
 import type { Footprints } from '../world/footprints';
 
@@ -143,6 +146,20 @@ export class PropLibrary {
       const churchKind = kind + (PropKind.ChurchPlains - PropKind.HousePlains);
       this.geometries.set(churchKind, church(style));
       this.glows.set(churchKind, merge(CHURCH_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos))));
+      // the two civic buildings, built out of the same palette off the same offset: a village is
+      // made of one country's materials, and a hall that did not match the houses round it would
+      // look like something that had been carried in
+      const hallKind = kind + (PropKind.TownHallPlains - PropKind.HousePlains);
+      this.geometries.set(hallKind, townHall(style));
+      this.glows.set(hallKind, merge(HALL_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos))));
+      const watchKind = kind + (PropKind.WatchHousePlains - PropKind.HousePlains);
+      this.geometries.set(watchKind, watchHouse(style));
+      // the lamp over the door glows with the windows, because a watch house is the one building
+      // in the village that is supposed to be lit at the hour you need it
+      this.glows.set(watchKind, merge([
+        ...WATCH_WINDOWS.map(([size, pos]) => part(new THREE.BoxGeometry(size[0] * 1.06, size[1] * 1.06, size[2] * 1.06), 0xffffff, pos)),
+        part(new THREE.BoxGeometry(0.24, 0.3, 0.24), 0xffffff, [1.62, 1.82, 0]),
+      ]));
     }
 
     // A bath house: low, broad, timber, with a stone stack going up out of it and steam-coloured
@@ -396,6 +413,15 @@ export class PropLibrary {
     this.geometries.set(PropKind.Rug, merge([
       part(new THREE.BoxGeometry(1.9, 0.04, 1.2), 0x8a3a3a, [0, 0.02, 0]),
       part(new THREE.BoxGeometry(1.6, 0.05, 0.9), 0xc0603a, [0, 0.03, 0]),
+    ]));
+    // One tile of cell front, drawn across x so a run of them laid along a row makes a wall of
+    // bars. Iron rather than the timber everything else indoors is made of, because the one thing
+    // this has to say from above is that it is not furniture.
+    this.geometries.set(PropKind.Bars, merge([
+      part(new THREE.BoxGeometry(1.0, 0.12, 0.14), 0x4a4a52, [0, 0.06, 0]),
+      part(new THREE.BoxGeometry(1.0, 0.12, 0.14), 0x4a4a52, [0, 1.9, 0]),
+      ...[-0.4, -0.2, 0, 0.2, 0.4].map((x) =>
+        part(new THREE.BoxGeometry(0.09, 1.9, 0.09), 0x6a6a72, [x, 0.95, 0])),
     ]));
 
     this.geometries.set(PropKind.CaveMouth, merge([

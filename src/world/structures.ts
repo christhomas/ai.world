@@ -8,8 +8,10 @@ import type { RoadNode } from './graph';
 import { POI_NAMES, PREFIX, SUFFIX } from './names';
 import { StructureKind } from './kinds';
 import { KEEPS, PADDOCK, planPaddock, railsFor, type Stabling } from './paddock';
+import { SQUARE, facing, placeChapel, placeCivic, type Civic, type SquareSide } from './civic';
 
 export type { Stabling } from './paddock';
+export type { Civic } from './civic';
 
 export { StructureKind } from './kinds';
 import { mulberry32, shuffle } from '../core/rng';
@@ -37,6 +39,8 @@ export function placeKindName(kind: StructureKind): string {
     case StructureKind.Tower: return 'tower';
     case StructureKind.GiantTree: return 'giant tree';
     case StructureKind.Church: return 'church';
+    case StructureKind.TownHall: return 'town hall';
+    case StructureKind.WatchHouse: return 'watch house';
     case StructureKind.Campfire: return 'camp';
     case StructureKind.Well: return 'well';
     case StructureKind.Pier: return 'pier';
@@ -115,7 +119,7 @@ export interface Doorway {
   /** Tile just outside the door. */
   x: number;
   z: number;
-  kind: 'house' | 'church' | ShopType;
+  kind: 'house' | 'church' | 'townhall' | 'watchhouse' | ShopType;
   village: string;
   /** Building position, which seeds its interior. */
   bx: number;
@@ -142,6 +146,10 @@ export interface Village {
   church: Structure | null;
   /** Tile in front of the church door where the congregation gathers. */
   churchDoor: [number, number] | null;
+  /** The town hall, in the villages with enough souls on the roll to be worth writing one. */
+  hall: Civic | null;
+  /** And the watch house, in the ones with enough trouble to keep a sheet of it. */
+  watchHouse: Civic | null;
   /** Market pitches around the square, in the order they were laid out. */
   stalls: Array<[number, number]>;
 }
@@ -187,9 +195,6 @@ const SHOP_ORDER: ShopType[] = ['store', 'smith', 'inn', 'apothecary'];
 /** Layout tuning for settlements and points of interest. Distances in tiles. */
 const LAYOUT = {
   NAME_ATTEMPTS: 20,
-  CHURCH_ATTEMPTS: 12,
-  CHURCH_OFFSET: 2.6,          // beyond the square's edge
-  CHURCH_PATH_MAX: 6,
   HOUSE_ATTEMPTS: 80,
   PUB_HOUSES: 4,               // houses a village needs before one of them is the pub
   STATION_HOUSES: 6,           // and before the law is worth a building of its own
@@ -213,13 +218,6 @@ const LAYOUT = {
 function shopCount(houses: number): number {
   return Math.min(houses - 1, 2 + (houses >= 6 ? 1 : 0) + (houses >= 8 ? 1 : 0));
 }
-
-/** Snap an angle to the nearest quarter turn and return it with its unit step. */
-function facing(angle: number): { rot: number; fx: number; fz: number } {
-  const rot = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
-  return { rot, fx: Math.round(Math.cos(rot)), fz: Math.round(Math.sin(rot)) };
-}
-
 
 /**
  * Could a village stand on this node? A wide, deep branch, a good way out from the middle.
@@ -348,31 +346,23 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     return s;
   };
 
-  /** Chapel on the edge of the current square, facing the well, with a short path onto the cobbles. */
-  const placeChurch = (squareR: number, level: number, biome: Biome, roadNormalAngle: number): { church: Structure | null; churchDoor: [number, number] | null } => {
-    for (let attempt = 0; attempt < LAYOUT.CHURCH_ATTEMPTS; attempt++) {
-      // try the two sides of the road first, then random directions
-      const a = attempt < 2 ? roadNormalAngle + attempt * Math.PI : rng() * Math.PI * 2;
-      const dist = squareR + LAYOUT.CHURCH_OFFSET;
-      const cx = Math.floor(plazaX + Math.cos(a) * dist), cz = Math.floor(plazaZ + Math.sin(a) * dist);
-      plazaR = 0; // the church may touch the square
-      const lvl = footprintOk(cx, cz, 1, 1, level);
+  /**
+   * The square this village's own buildings are set against, as `civic.ts` wants it.
+   *
+   * Built fresh for each of them because `squareR` and the terrace are arguments to laying out a
+   * village rather than facts about the module. `ground` is the one interesting part: the square's
+   * own keep-clear rule is lifted for the length of the question, because a building on the square
+   * touches the square — that is what being on it means.
+   */
+  const squareSide = (squareR: number, level: number, biome: Biome): SquareSide => ({
+    x: plazaX, z: plazaZ, r: squareR, level, biome, all,
+    ground: (tx, tz) => {
+      plazaR = 0;
+      const found = footprintOk(tx, tz, 1, 1, null);
       plazaR = squareR;
-      if (lvl === null) continue;
-      const { rot, fx, fz } = facing(Math.atan2(plazaZ - (cz + 0.5), plazaX - (cx + 0.5)));
-      const door: [number, number] = [cx + fx * 2, cz + fz * 2];
-      const path: Array<[number, number]> = [];
-      let px = door[0], pz = door[1];
-      for (let i = 0; i < LAYOUT.CHURCH_PATH_MAX && Math.hypot(px + 0.5 - plazaX, pz + 0.5 - plazaZ) > squareR; i++) {
-        path.push([px, pz]);
-        px += fx; pz += fz;
-      }
-      const church: Structure = { kind: StructureKind.Church, tx: cx, tz: cz, hw: 1, hd: 1, level, rot, biome, path };
-      all.push(church);
-      return { church, churchDoor: door };
-    }
-    return { church: null, churchDoor: null };
-  };
+      return found;
+    },
+  });
 
   /** Market stalls just inside the square's edge, facing the well. */
   const placeStalls = (squareR: number, level: number, biome: Biome): Array<[number, number]> => {
@@ -471,7 +461,8 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     all.push({ kind: StructureKind.Well, tx: ctx, tz: ctz, hw: 0, hd: 0, level, rot: 0, biome, path: [] });
 
     const nx = -probe.uz, nz = probe.ux;
-    const { church, churchDoor } = placeChurch(squareR, level, biome, Math.atan2(nz, nx));
+    const roadNormal = Math.atan2(nz, nx);
+    const chapel = placeChapel(squareSide(squareR, level, biome), rng, roadNormal);
 
     const houses: Structure[] = [];
     for (let attempt = 0; attempt < LAYOUT.HOUSE_ATTEMPTS && houses.length < maxHouses; attempt++) {
@@ -502,10 +493,26 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     const shops = assignShops(houses, biome);
     const pub = assignPub(houses, biome);
     const station = assignStation(houses, biome);
+    /*
+     * The two civic buildings, once the village has been counted: whether a place writes anything
+     * down about itself is a fact about how many people are in it, and that is not known until the
+     * houses are standing. They set off a third of the way round the square from the chapel, one
+     * each way, so the square ends up with a face to three of its sides rather than three
+     * buildings shouldering each other on one.
+     */
+    const side = squareSide(squareR, level, biome);
+    const big = houses.length >= SQUARE.CIVIC_HOUSES;
+    const hall = big ? placeCivic(side, StructureKind.TownHall, roadNormal + Math.PI * 2 / 3, 1) : null;
+    // and no watch house without a cell to fill its sheet from, which is what the station is
+    const watchHouse = big && station ? placeCivic(side, StructureKind.WatchHouse, roadNormal - Math.PI * 2 / 3, -1) : null;
     // last, so that the paddock has to fit round everything else rather than the other way about
     const stable = assignStable(houses, biome);
     plazaR = 0;
-    return { name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub, station, stable, church, churchDoor, board, stalls };
+    return {
+      name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub,
+      station, stable, church: chapel?.building ?? null, churchDoor: chapel?.door ?? null,
+      hall, watchHouse, board, stalls,
+    };
   };
 
   if (settling) {
@@ -612,6 +619,10 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     }
     if (v.church && v.churchDoor) {
       doors.push({ x: v.churchDoor[0] + 0.5, z: v.churchDoor[1] + 0.5, kind: 'church', village: v.name, bx: v.church.tx, bz: v.church.tz });
+    }
+    for (const [civic, kind] of [[v.hall, 'townhall'], [v.watchHouse, 'watchhouse']] as const) {
+      if (!civic) continue;
+      doors.push({ x: civic.door[0] + 0.5, z: civic.door[1] + 0.5, kind, village: v.name, bx: civic.building.tx, bz: civic.building.tz });
     }
   }
 

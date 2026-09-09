@@ -8,7 +8,8 @@ import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
 import type { Site, Structures } from '../world/structures';
 import { StructureKind } from '../world/structures';
-import { theBirths, theRoll, theStones } from './records';
+import { theBirths, theCharges, theRoll, theStones } from './records';
+import type { Jail } from './jail';
 import { bodyOf } from '../entities/entity';
 import type { TerrainSampler } from '../world/terrain';
 import type { WorldKind } from '../save/store';
@@ -77,6 +78,8 @@ export interface Probed {
   /** Asked rather than held: which families are out there depends on where the hero is. */
   pods: () => readonly Pod[];
   mines: Mines;
+  /** The country's cells, and so its charge sheets. */
+  jail: Jail;
   roaming: Roaming;
   nemesis: Nemesis;
   director: Director;
@@ -113,7 +116,7 @@ export function installProbes(ctx: Probed): void {
   const {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
-    roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
+    roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands, jail,
     commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally,
     heard, nettleAbout, sentOut,
   } = ctx;
@@ -369,6 +372,9 @@ export function installProbes(ctx: Probed): void {
       roll: theRoll(register, where, today),
       stones: theStones(register, where, today),
       births: theBirths(register, where, today),
+      // never wanted, because nobody is standing at the counter: that line is the sergeant looking
+      // up at you, and there is no you here
+      charges: theCharges(jail.charges(), where, today, false),
     };
   };
   (debug as { __register?: (village?: string) => unknown }).__register = (village) => {

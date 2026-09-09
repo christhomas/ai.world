@@ -453,7 +453,7 @@ function startGame(
   // stopping in front of somebody: everything a person offers you, worked out at the moment you
   // speak to them
   const { heroFace, startTalk, talkCtx } = createMeeting({
-    state, player, register, grudges, gifts, online, handover, sound, dialogue, quests, persist,
+    state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue, quests, persist,
     rng: lineRng,
     villageWelcome: (village) => villageWelcome(village),
     wordOfHim: (person) => interactions.wordOfHim(person),
@@ -644,7 +644,7 @@ function startGame(
   if (import.meta.env.DEV) {
     installProbes({
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
-      online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines,
+      online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
       commandWorld, placeName, walking, bites, doorsteps, streamTally,
       drift: () => wildlife.drift(),

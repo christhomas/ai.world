@@ -24,4 +24,12 @@ export const enum StructureKind {
   Shipwreck = 15, // broken hull on a beach with one hold to loot
   Fence = 17,  // one tile of paddock rail, facing along the run it belongs to
   Paddock = 18, // the ground inside the rails: levelled and cleared, still grass
+  /**
+   * The two buildings a village raises for itself rather than for a trade: the hall where the roll
+   * is kept and the watch house where the charge sheet is. Both stand on the square, both are
+   * walked into, and both are new kinds rather than a house with a sign on it — a village that has
+   * grown enough to write things down has grown enough to build somewhere to write them.
+   */
+  TownHall = 19,
+  WatchHouse = 20,
 }

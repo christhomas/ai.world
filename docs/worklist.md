@@ -1013,9 +1013,38 @@ can each be finished and each leave the game playable.
       conversation, because remembering it would mean a save carrying "has read the stones of
       Elderton" per village per book for ever. The book is read out three lines to a page, since
       the panel types at fifty-five characters a second and does not scroll.)*
-- [ ] **A3. A town hall**, which does not exist yet: structure kind, geometry, placement by the
+- [x] **A3. A town hall**, which does not exist yet: structure kind, geometry, placement by the
       square, interior, a clerk, and the roll.
-- [ ] **A4. A watch house**, the same, with the charge sheet fed by the gaol.
+      *(A2 was right that the counter cost one `case` and nothing else; what a new building costs is
+      the other eleven places a kind has to be known about, which `grep -rn Church src` lists
+      exactly. The awkward one was placement. A hall wants three flat tiles on the edge of the
+      square, and by the time eight cottages and their door paths are threaded round it there is
+      nowhere left — held to the chapel's rule, three towns in four came out with no hall, for want
+      of anywhere rather than for want of people. Laying it before the houses fixes that and breaks
+      the threshold, because how many people live here is not known until they are standing there;
+      it also ate house sites, so towns dropped below the threshold they had just been given the
+      ground for. What works is to let it search harder than the chapel: the whole ring at fifteen
+      degrees, three distances out from the cobbles tried nearest first, and one terrace of give,
+      which is a stride. Eight houses, because below that the roll is a list of names you could get
+      by asking anybody in the street — and the small villages are capped at six, so a hamlet
+      cannot reach it however the ground falls. The buildings draw nothing from the random stream,
+      which is what let the whole change be checked: set the threshold impossibly high and the
+      golden hashes come back to the digit. And from the top of an isometric camera a hall is a
+      cottage drawn slightly bigger, which is invisible — what makes it findable is a slate roof
+      and a bell-cote deliberately too big for the building under it. `world/civic.ts` came out of
+      `structures.ts` for the square's buildings, chapel included, when the file went past 700.)*
+- [x] **A4. A watch house**, the same, with the charge sheet fed by the gaol.
+      *(The sheet had no source: `theCharges` took rows nothing in the game wrote. It is written in
+      `Jail.commit`, which is the one call every arrest in the world goes through — the constable
+      taking the hero and a village putting its own villain away are the same line — so there is no
+      second list to forget to add to. A cell forgets a prisoner the moment their hour comes, and
+      the sheet is the half that does not; it is bounded per village for the reason the churchyard
+      is. It is also the one village book that is not the register read from another angle, so
+      `booksKeptIn` had to be handed it from outside along with whether the law currently wants the
+      person asking — which is what makes "yours is one of them" mean anything. A village only
+      raises one once it already keeps a cell, so no sergeant anywhere has nothing to write about.
+      Inside, the cell is the back corner of the same room behind iron rather than behind a wall: a
+      lock-up you cannot see into is a cupboard.)*
 - [ ] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
       purses move, nobody ages backwards, every death is written down, a village under pressure gets
       poorer and one left alone does not. The economy has never been checked end to end.

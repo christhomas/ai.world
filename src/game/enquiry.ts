@@ -1,6 +1,6 @@
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
 import type { Register } from '../world/register';
-import { theBirths, theStones, type Ledger } from './records';
+import { theBirths, theCharges, theRoll, theStones, type Charge, type Ledger } from './records';
 
 /**
  * Asking to see a book.
@@ -56,21 +56,40 @@ export interface Enquiry {
 }
 
 /**
+ * What the watch has written down, which is the one book the register cannot answer for.
+ *
+ * Three of the four books are the village register read from a different side — who is alive, who
+ * is buried, who was born. The fourth is not about the village at all: it is about what people did
+ * in it, which nothing in the world knows until somebody is arrested. So it arrives from outside,
+ * along with whether the law is currently after the person asking to see it, because a sergeant
+ * saying "yours is one of them" only means anything if he can look at you while he says it.
+ */
+export interface Law {
+  charges: readonly Charge[];
+  wanted: boolean;
+}
+
+/**
  * Which building keeps which book.
  *
  * The church has its own dead and the apothecary its own newborns, and neither will read you the
- * other's. That is what makes them places to walk into rather than four entries on one menu.
- *
- * The roll and the charge sheet want a town hall and a watch house, and there is no such building
- * in the world yet. When there is, each is one more line here and nothing else: nowhere below this
- * knows what kind of room it is standing in.
+ * other's. That is what makes them places to walk into rather than four entries on one menu. The
+ * town hall and the watch house are the same rule applied twice more, and they cost this file one
+ * `case` each: nowhere below here knows what kind of room it is standing in, and nothing had to be
+ * told about a clerk or a sergeant to let either of them read out of a book.
  */
-export function booksKeptIn(kind: string, village: string, register: Register, today: number): Book[] {
+export function booksKeptIn(kind: string, village: string, register: Register, today: number, law?: Law): Book[] {
   switch (kind) {
     case 'church':
       return [{ ask: 'Ask about the dead', open: () => theStones(register, village, today) }];
     case 'apothecary':
       return [{ ask: 'Ask about the births', open: () => theBirths(register, village, today) }];
+    case 'townhall':
+      return [{ ask: 'Ask about the people here', open: () => theRoll(register, village, today) }];
+    case 'watchhouse':
+      return law
+        ? [{ ask: 'Ask about the charge sheet', open: () => theCharges(law.charges, village, today, law.wanted) }]
+        : [];
     default:
       return [];
   }
