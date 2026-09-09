@@ -1,0 +1,108 @@
+{
+  "note": [
+    "The farmer who keeps the stable, which is a different job and looks it.",
+    "The hat is the farmer's turned up at the sides and given a taller crown, so the two read as the same trade in different weather rather than as two unrelated people. A rolled brim is what separates a man who works a field from a man who works a horse."
+  ],
+  "from": "biped",
+  "with": {
+    "skin": "#d09a6a",
+    "hair": "#4a3020",
+    "shirtTint": 0,
+    "pantsColor": "#3f4a5a",
+    "build": 1.06
+  },
+  "parts": [
+    {
+      "note": "the brim, narrower than a field hand's and turned up at each side rather than flat",
+      "box": [
+        0.42,
+        0.04,
+        0.3
+      ],
+      "at": [
+        0,
+        1.5,
+        0
+      ],
+      "color": "#7a5a3a",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "box": [
+        0.09,
+        0.06,
+        0.08
+      ],
+      "at": [
+        0,
+        1.52,
+        0.18
+      ],
+      "color": "#6b4a2b",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "box": [
+        0.09,
+        0.06,
+        0.08
+      ],
+      "at": [
+        0,
+        1.52,
+        -0.18
+      ],
+      "color": "#6b4a2b",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "and a taller crown than a field hat, which is the whole difference at a distance",
+      "box": [
+        0.28,
+        0.19,
+        0.28
+      ],
+      "at": [
+        0,
+        1.6,
+        0
+      ],
+      "color": "#7a5a3a",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the kerchief at the throat: the one spot of colour, and it reads from directly above",
+      "box": [
+        0.24,
+        0.07,
+        0.28
+      ],
+      "at": [
+        0.02,
+        1.13,
+        0
+      ],
+      "color": "#b0392b"
+    }
+  ]
+}

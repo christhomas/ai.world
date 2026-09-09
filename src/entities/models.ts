@@ -1,3 +1,10 @@
+import miner from '../../models/creatures/miner.json';
+import priest from '../../models/creatures/priest.json';
+import doctor from '../../models/creatures/doctor.json';
+import constable from '../../models/creatures/constable.json';
+import mayor from '../../models/creatures/mayor.json';
+import farmer from '../../models/creatures/farmer.json';
+import cowboy from '../../models/creatures/cowboy.json';
 import ogre from '../../models/creatures/ogre.json';
 import wight from '../../models/creatures/wight.json';
 import nettle from '../../models/creatures/nettle.json';
@@ -262,6 +269,9 @@ const FILES: Record<string, unknown> = {
   cow, sheep, horse, chicken, deer, rabbit, fox, bear, camel, lizard, vulture, frog, duck,
   shark, orca, heron, goat, eagle, hare, wolf, elk,
   traveller, villager, rat, bat, slime, skeleton, troll, yeti, bigfoot, shopkeeper, hero,
+  // the trades, which are the same person in different hats — and the hat is the whole of the
+  // difference at the distance this camera watches a street from
+  miner, priest, doctor, constable, mayor, farmer, cowboy,
 };
 
 /** Every body in the game, by the name the rest of it knows the creature under. */

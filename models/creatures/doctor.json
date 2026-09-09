@@ -1,0 +1,72 @@
+{
+  "note": [
+    "The doctor. Pale coat and a bag, which is the whole vocabulary of the trade anywhere.",
+    "The coat is drawn as a second, slightly larger torso rather than by recolouring the shirt, because it has to read as a garment over a person \u2014 the collar and the hem below the belt are what say coat."
+  ],
+  "from": "biped",
+  "with": {
+    "skin": "#f0d0b0",
+    "hair": "#6b5a48",
+    "shirtTint": 0,
+    "pantsColor": "#3a3f4a",
+    "build": 0.96
+  },
+  "parts": [
+    {
+      "note": "the coat over the chest, a shade proud of the body so the two do not fight for the same pixels",
+      "box": [
+        0.3,
+        0.5,
+        0.4
+      ],
+      "at": [
+        0,
+        0.9,
+        0
+      ],
+      "color": "#eef2f5"
+    },
+    {
+      "note": "and its skirt, below the belt, which is what makes it a coat and not a shirt",
+      "box": [
+        0.3,
+        0.22,
+        0.4
+      ],
+      "at": [
+        0,
+        0.56,
+        0
+      ],
+      "color": "#e4eaee"
+    },
+    {
+      "note": "the collar",
+      "box": [
+        0.31,
+        0.07,
+        0.42
+      ],
+      "at": [
+        0,
+        1.15,
+        0
+      ],
+      "color": "#dfe6ea"
+    },
+    {
+      "note": "the bag, carried at the side: dark, square, and nothing else in a village has one. Held close in, because a footprint is measured off the parts \u2014 a bag at arm's length made the doctor nearly twice as deep as anybody else and he blocked a doorway sideways",
+      "box": [
+        0.15,
+        0.15,
+        0.16
+      ],
+      "at": [
+        -0.02,
+        0.66,
+        0.24
+      ],
+      "color": "#4a2f1c"
+    }
+  ]
+}

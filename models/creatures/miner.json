@@ -1,0 +1,97 @@
+{
+  "note": [
+    "A miner, and the hat is the whole of him at a hundred paces.",
+    "Every villager in this game was the same sixteen boxes in different trousers, so a village of eleven trades read as one man repeated. What tells a trade apart from above is a silhouette, not a colour \u2014 and a hard hat is the one piece of kit in the world that is worn on the head, is a shape nothing else has, and is yellow because it is meant to be seen in the dark.",
+    "Broader than an ordinary villager. A man who swings a pick all day is built like one, and it is also the first thing `build` was put in for."
+  ],
+  "from": "biped",
+  "with": {
+    "skin": "#e8b98f",
+    "hair": "#3a2a1a",
+    "shirtTint": 0,
+    "pantsColor": "#4a4238",
+    "build": 1.18
+  },
+  "parts": [
+    {
+      "note": "the crown, sitting down over the hair rather than balanced on it \u2014 the mistake the hero's hat was corrected for",
+      "box": [
+        0.32,
+        0.14,
+        0.32
+      ],
+      "at": [
+        0,
+        1.5,
+        0
+      ],
+      "color": "#f1c40f",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the brim, wider than the crown all the way round: what makes it a hard hat and not a cap",
+      "box": [
+        0.4,
+        0.05,
+        0.4
+      ],
+      "at": [
+        0,
+        1.44,
+        0
+      ],
+      "color": "#e0af0b",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the rib over the crown, which is the detail that says moulded rather than knitted. Set a fraction above the crown's top face rather than on it: two faces at the same height fight for the same pixels and the hat shimmers as the camera turns",
+      "box": [
+        0.34,
+        0.05,
+        0.09
+      ],
+      "at": [
+        0,
+        1.585,
+        0
+      ],
+      "color": "#e0af0b",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the lamp on the front of it. Not lit \u2014 that is `herogear.ts`'s trick and belongs to the hero \u2014 but it is the shape you look for",
+      "box": [
+        0.07,
+        0.07,
+        0.1
+      ],
+      "at": [
+        0.17,
+        1.49,
+        0
+      ],
+      "color": "#d8dce4",
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    }
+  ]
+}
