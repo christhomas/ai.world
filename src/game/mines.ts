@@ -100,6 +100,19 @@ export function mineIdOf(cave: { id: string }): string {
   return `cave:${cave.id}`;
 }
 
+/**
+ * The people a village sends down: its miners, and nobody else.
+ *
+ * One expression, in one place, because two things ask it now and they must never be allowed to
+ * disagree. `workADay` shares the day's takings among these people; `whoIsDown` puts these people
+ * in the tunnels for anybody who walks in. If the second ever answered with somebody the first did
+ * not, the crew you met at the face would be a set of lookalikes and the gold would have gone to
+ * other men entirely — which is the exact fault this whole file was written to stop.
+ */
+export function crewOf(village: string, folkOf: (village: string) => readonly Person[]): Person[] {
+  return folkOf(village).filter((p) => p.trade === 'miner');
+}
+
 /** One village and the mine it works, as the day loop needs to be told about it. */
 export interface Working {
   /** The village whose people go down. */
@@ -201,6 +214,35 @@ export class Mines {
   clearedIn(id: string): number { return this.cleared.get(id) ?? 0; }
 
   /**
+   * Who is down this hole right now, for whoever has to draw them.
+   *
+   * For a long time the answer to this was written down nowhere and the workings stood empty: the
+   * ledger had a crew going down every morning, sharing out gold, being frightened, being buried,
+   * and a player could walk into the same cave and find nobody in it. The simulation was right and
+   * nothing showed it to anybody.
+   *
+   * The day is not a parameter and must not become one. `folkOf` is the register, asked afresh, and
+   * the register is already at today — so a man the mine swallowed last week, or the player killed,
+   * or old age took, is simply not in the list any more. A day passed in here would be a second
+   * opinion about who is alive, and a second opinion is how a game ends up burying somebody who is
+   * still talking to you.
+   *
+   * A mine no village works has nobody in it, and neither has one the village is too frightened to
+   * go near — the same DREAD_SHUT the place is *described* by, so walking into a hole you were told
+   * nobody would go down and finding it empty is the village turning out to be right. That is a
+   * rule about what is seen and not about what is earned: the economy's own brake on a frightened
+   * village is the willingness roll inside `dayUnderground`, which this neither reads nor moves.
+   */
+  whoIsDown(
+    id: string, workings: readonly Working[], folkOf: (village: string) => readonly Person[],
+  ): Person[] {
+    const working = workings.find((w) => w.mine === id);
+    if (!working) return [];
+    if ((this.mines.get(id)?.dread ?? 0) >= MINING.DREAD_SHUT) return [];
+    return crewOf(working.village, folkOf);
+  }
+
+  /**
    * What somebody else's fighting has done to a mine.
    *
    * The larger of the two counts wins rather than the newer, because two people can be down the
@@ -277,7 +319,7 @@ export class Mines {
   private workADay(
     working: Working, day: number, folkOf: (village: string) => readonly Person[],
   ): Digging[] {
-    const crew = folkOf(working.village).filter((p) => p.trade === 'miner');
+    const crew = crewOf(working.village, folkOf);
     const mine = this.mines.get(working.mine) ?? freshMine(working.mine);
     // one stream per mine, so two mines in the same world never have the same day
     const shift = dayUnderground(this.seed ^ hashOf(working.mine), day, mine, crew.length, this.perilOf(working.mine));
