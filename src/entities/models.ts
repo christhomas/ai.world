@@ -211,7 +211,7 @@ function readQuad(f: Fields): QuadOpts {
   };
 }
 
-const BIPED_KEYS = ['skin', 'hair', 'hairTint', 'shirtTint', 'pantsColor', 'pantsTint', 'bootTint', 'armTint'];
+const BIPED_KEYS = ['skin', 'hair', 'hairTint', 'shirtTint', 'pantsColor', 'pantsTint', 'bootTint', 'armTint', 'build'];
 
 /** The arguments a person is built from. */
 function readBiped(f: Fields): BipedOpts {
@@ -220,6 +220,7 @@ function readBiped(f: Fields): BipedOpts {
     skin: f.colour('skin'), hair: f.colour('hair'), hairTint: f.maybeNum('hairTint'),
     shirtTint: f.num('shirtTint'), pantsColor: f.colour('pantsColor'),
     pantsTint: f.maybeNum('pantsTint'), bootTint: f.maybeNum('bootTint'), armTint: f.maybeNum('armTint'),
+    build: f.maybeNum('build'),
   };
 }
 

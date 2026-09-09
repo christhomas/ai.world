@@ -104,8 +104,50 @@ export function quadruped(o: QuadOpts): P[] {
   return parts;
 }
 
+/**
+ * How a person is built, as a multiplier on the width of the body.
+ *
+ * Every villager in this game was the same sixteen boxes in different trousers. Up close that is
+ * fine — you can read their names — and at the distance this camera watches a street from it means
+ * a village is one man repeated eleven times. A crowd made of one body is not a crowd.
+ *
+ * Only the width, and only of the parts that carry flesh: the chest, the shoulders, the arms, the
+ * legs. Not the height, because height is `scale` and that already exists and moves the whole
+ * figure including its hat; not the head, because a head that grew with the belly reads as a
+ * different species rather than a different diet.
+ *
+ * A number rather than a set of named types, so that a village can be a spread rather than three
+ * kinds of person — and the spread is what makes it a crowd. One is the man the game has always
+ * drawn, which is why every existing rig is unchanged by this.
+ */
+export type Build = number;
+
+/** What a build may be, and why the ends are where they are. */
+export const BUILD = {
+  /**
+   * The narrowest and the broadest a person gets, as a share of the ordinary body.
+   *
+   * Three quarters is a thin man rather than a starved one; a half is a stick, and this world's
+   * arms are already a tenth of a unit across, so halving them leaves a limb thinner than the hand
+   * on the end of it. Four thirds is a heavy man whose arms still hang clear of his sides — past
+   * about one and a half the upper arm intersects the chest at rest, which reads as a mistake and
+   * not as a build.
+   */
+  THINNEST: 0.78,
+  BROADEST: 1.34,
+} as const;
+
 export interface BipedOpts {
   skin: number; hair: number; shirtTint: number; pantsColor: number; hairTint?: number;
+  /**
+   * How broad this person is. One is the ordinary body, and every rig that does not ask for
+   * anything gets exactly the figure it had before builds existed.
+   *
+   * The arms move outward with the chest rather than only growing, because an arm that widened in
+   * place would end up inside the ribs of a heavy man; the legs move outward by less than the chest,
+   * because a heavy man's legs are closer to under him than his shoulders are.
+   */
+  build?: Build;
   /**
    * Which palette entries the trousers, the boots and the arms are painted from, for a person
    * whose clothes change.
@@ -150,6 +192,20 @@ export interface BipedOpts {
 export function biped(o: BipedOpts): P[] {
   // the head rides a little higher than it did, and the gap it leaves is the neck
   const headY = 1.36, pivot: [number, number, number] = [0, 1.2, 0];
+  /*
+   * How broad this one is, and where the limbs sit because of it.
+   *
+   * `wide` is the chest and shoulders. `arm` and `leg` are the limbs' own thickness, which grows
+   * more slowly than the trunk does — a heavy man is mostly heavy about the middle, and arms that
+   * kept pace with the belly read as a strongman rather than a baker. `hang` and `stance` are where
+   * they hang from: the arms move out with the shoulders or they end up inside the ribs, and the
+   * legs move out by less, because a broad man's legs stay nearer to under him than his shoulders.
+   */
+  const wide = o.build ?? 1;
+  const arm = 1 + (wide - 1) * 0.55;
+  const leg = 1 + (wide - 1) * 0.5;
+  const hang = 0.25 * wide;
+  const stance = 0.095 * (1 + (wide - 1) * 0.4);
   return [
     box([0.14, 0.1, 0.16], [0, 1.15, 0], o.skin),
     box([0.3, 0.32, 0.3], [0, headY, 0], o.skin, { anim: 'head', pivot }),
@@ -188,14 +244,14 @@ export function biped(o: BipedOpts): P[] {
      * well above the new one; an arm that ends at the waist reads as a stump. They now reach the
      * top of the thigh, where a hand hangs.
      */
-    box([0.27, 0.54, 0.36], [0, 0.89, 0], 0xffffff, { tint: o.shirtTint }),
-    box([0.29, 0.11, 0.46], [0, 1.11, 0], 0xffffff, { tint: o.shirtTint }),
-    box([0.1, 0.42, 0.1], [0, 0.93, 0.25], o.skin, { tint: o.armTint, anim: 'armL', pivot: [0, 1.14, 0.25] }),
-    box([0.1, 0.42, 0.1], [0, 0.93, -0.25], o.skin, { tint: o.armTint, anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    box([0.27 * wide, 0.54, 0.36 * wide], [0, 0.89, 0], 0xffffff, { tint: o.shirtTint }),
+    box([0.29 * wide, 0.11, 0.46 * wide], [0, 1.11, 0], 0xffffff, { tint: o.shirtTint }),
+    box([0.1, 0.42, 0.1 * arm], [0, 0.93, hang], o.skin, { tint: o.armTint, anim: 'armL', pivot: [0, 1.14, hang] }),
+    box([0.1, 0.42, 0.1 * arm], [0, 0.93, -hang], o.skin, { tint: o.armTint, anim: 'armR', pivot: [0, 1.14, -hang] }),
     // the hands go with the arms: a gauntlet is part of the harness, and a plated sleeve ending in
     // a bare fist is the same half-a-suit the arms were
-    box([0.12, 0.1, 0.12], [0, 0.68, 0.25], o.skin, { tint: o.armTint, anim: 'armL', pivot: [0, 1.14, 0.25] }),
-    box([0.12, 0.1, 0.12], [0, 0.68, -0.25], o.skin, { tint: o.armTint, anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    box([0.12, 0.1, 0.12], [0, 0.68, hang], o.skin, { tint: o.armTint, anim: 'armL', pivot: [0, 1.14, hang] }),
+    box([0.12, 0.1, 0.12], [0, 0.68, -hang], o.skin, { tint: o.armTint, anim: 'armR', pivot: [0, 1.14, -hang] }),
     /*
      * The leg reaches the boot.
      *
@@ -207,8 +263,8 @@ export function biped(o: BipedOpts): P[] {
      */
     // wider than they were, and set further out: two thirteen-hundredths sticks under a body twice
     // that across read as legs somebody had forgotten to finish
-    box([0.15, 0.54, 0.15], [0, 0.35, 0.095], o.pantsColor, { tint: o.pantsTint, anim: 'legL', pivot: [0, 0.62, 0.095] }),
-    box([0.15, 0.54, 0.15], [0, 0.35, -0.095], o.pantsColor, { tint: o.pantsTint, anim: 'legR', pivot: [0, 0.62, -0.095] }),
+    box([0.15, 0.54, 0.15 * leg], [0, 0.35, stance], o.pantsColor, { tint: o.pantsTint, anim: 'legL', pivot: [0, 0.62, stance] }),
+    box([0.15, 0.54, 0.15 * leg], [0, 0.35, -stance], o.pantsColor, { tint: o.pantsTint, anim: 'legR', pivot: [0, 0.62, -stance] }),
     /*
      * Two feet, not a plank.
      *
@@ -221,7 +277,7 @@ export function biped(o: BipedOpts): P[] {
      * Smaller, set further apart so there is daylight between them, and with the overhang all in
      * front where a toe goes rather than split evenly around the ankle.
      */
-    box([0.17, 0.075, 0.115], [0.025, 0.038, 0.095], 0x3a2a1a, { tint: o.bootTint, anim: 'legL', pivot: [0, 0.62, 0.095] }),
-    box([0.17, 0.075, 0.115], [0.025, 0.038, -0.095], 0x3a2a1a, { tint: o.bootTint, anim: 'legR', pivot: [0, 0.62, -0.095] }),
+    box([0.17, 0.075, 0.115], [0.025, 0.038, stance], 0x3a2a1a, { tint: o.bootTint, anim: 'legL', pivot: [0, 0.62, stance] }),
+    box([0.17, 0.075, 0.115], [0.025, 0.038, -stance], 0x3a2a1a, { tint: o.bootTint, anim: 'legR', pivot: [0, 0.62, -stance] }),
   ];
 }
