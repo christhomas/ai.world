@@ -842,6 +842,17 @@ can each be finished and each leave the game playable.
       sea test in `wild.ts`, the debug readout and the roaming bands stop measuring from the middle
       of a world that no longer has one.
 
+### The hero, as he is seen
+
+- [x] **Armour is the hero, not a layer over him.** A worn piece names a part of him and the colour
+      it becomes — iron on the chest means the chest is iron — rather than a box cut a hundredth of a
+      unit proud of the body it hides. `worn.ts`. What is left as geometry is what is genuinely held:
+      a sword, a shield, a lantern, a torch, and the skirt of a garment, which has to move.
+- [ ] **The shield is bigger than the man.** From the front it covers his chest and most of his
+      face. It was cut for a figure seen from further away than this camera now stands.
+- [ ] **The arms are still bare in mail.** Right for a mail shirt, wrong for plate — which is an
+      argument for the arms taking a palette entry too, when there is anything to put on them.
+
 ### C — the simulation, when there is more of it than a machine can hold
 
 - [ ] **C1. Measure first.** How many live agents will this hardware tick at ten a second, and how
