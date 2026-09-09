@@ -724,8 +724,27 @@ describing the same world.
       property of the prop in the same way a creature's is.
 - [ ] Nothing in the sweep test covers a mounted hero, who is the case that made stepping over things
       visible: `tools/playtest.cjs` walks on foot only.
-- [ ] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
-      CI on the way in, which is where all of this would have been caught.
+- [x] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
+      CI on the way in, which is where all of this would have been caught. *(`chore playtest` now
+      serves the page itself when nothing is answering on the port, plays, and puts the server away
+      whether it passed, failed or threw; a dev server somebody already has up is played against and
+      left alone. Its own CI job beside `check` rather than inside it — two minutes against that
+      gate's seconds, and a gate too slow to run before a commit stops being run. Playwright stays
+      out of `package.json` on purpose and the reason still holds: everything that installs this
+      project's dependencies would pay for it, including the server image, twice, once per
+      architecture — so CI borrows one globally and points NODE_PATH at it, exactly as a desk does.
+      Two things came out of making it run rather than out of playing. It printed FAIL and exited 0,
+      so a pipeline could never have stopped on it. And the fight had not been played in a long
+      time: it wanted a clear line of sight up to forty tiles to pick an animal, and a tenth of the
+      ground round that village is trees, so it found nothing to swing at every time and said so
+      quietly. Fixed to ask the question it meant — is there a fence in the two tiles it teleports
+      into — and to close the gap when the chase loses it, since a hero cannot outrun a deer by
+      design and the check is named for whether the blow lands. Nine of nine now. The drift
+      tolerance had to become nameable: the drawn body is carried forward between snapshots, so the
+      gap is partly a count of frames, and the same build read 0.11 on a quiet laptop, 0.46 with the
+      cores busy and 0.62 with them fought over. CI holds 1.5 — under the two tiles a swing reaches,
+      so it is still a ceiling with a meaning — and prints what it got, so the line can be pulled in
+      from evidence.)*
 
 ## The world comes from the world
 

@@ -179,6 +179,38 @@ tasks:
     cmds:
       - 'pnpm vitest run src/world/twohalves.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
+  # The fourth, and the only one that looks at the screen rather than at the arithmetic behind it: a
+  # script plays the game in a browser and says whether what is drawn is what the world has. It
+  # serves the page itself when nothing is answering on the port and puts that server away
+  # afterwards, so this is one command from a cold start; a dev server you already have up is played
+  # against and left alone. It prints its own PASS lines as it goes and names the report at the end,
+  # so nothing here cats it.
+  #
+  # Deliberately not part of `chore check`. It costs two minutes against that gate's few seconds,
+  # and it needs a browser and a borrowed playwright, which `check` needs nothing of — a gate too
+  # slow to run before a commit stops being run at all. CI gives it a job of its own instead.
+  playtest:
+    desc: Play the game in a browser, and check the screen and the simulation agree
+    vars:
+      REPORT: playtest-report.txt
+      PORT: '{{.WEB_PORT}}'
+    args:
+      - name: port
+        desc: port the page is on — a server already answering there is used as it stands
+    env:
+      PORT: '{{.PORT}}'
+      OUT: '{{.REPORT}}'
+    cmds:
+      # Playwright is not a dependency of this project on purpose; the head of the script says why.
+      # Say so plainly rather than letting node's own "cannot find module" be the explanation.
+      - |
+        node -e 'require.resolve("playwright")' 2>/dev/null || {
+          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
+          echo "  NODE_PATH=<a checkout that has playwright> chore playtest"
+          exit 1
+        }
+        node tools/playtest.cjs
+
   build:
     desc: Typecheck and build the page into dist/
     cmds: [pnpm build]
