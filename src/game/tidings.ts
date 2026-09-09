@@ -97,6 +97,40 @@ export function createTidings(ctx: Telling) {
     return workings;
   };
 
+  /**
+   * What each village has made of itself, everywhere, once a day.
+   *
+   * Houses grow a storey when the people living in them can afford one, and a village raises a
+   * bath house out of everything it holds between it; the chunks pick up both the next time they
+   * are built, which is why nothing has to be told that a place has got richer.
+   *
+   * This used to be four lines inside the loop over `roaming.pressings`, so a village was assessed
+   * only on a day a warband happened to be standing over it. A place nobody was raiding was never
+   * looked at at all — which is to say the case the whole feature is about, a village left alone
+   * long enough to prosper, was the one case that could never reach it. Peace is the normal
+   * condition of most of the country and it was the condition with no code behind it.
+   *
+   * Gated on the day, because `theDaysNews` runs out of the frame loop and this walks every person
+   * in every village the register knows about; sixty times a second that is real work for an
+   * answer that changes once. The number of villages is watched as well as the day, and that is
+   * not belt and braces: walking into a new place settles it on the spot, and a village first
+   * assessed tomorrow would build its houses a storey short all this afternoon.
+   */
+  let assessedOn = -1;
+  let assessedVillages = -1;
+  const whatTheyHaveMadeOfThemselves = (): void => {
+    const settled = register.settled();
+    if (assessedOn === state.day && assessedVillages === settled.length) return;
+    assessedOn = state.day;
+    assessedVillages = settled.length;
+    for (const village of settled) {
+      const folk = register.living(village);
+      const worth = folk.reduce((sum, p) => sum + p.purse, 0);
+      sampler.storeys.set(village, storeysFor(worth / Math.max(1, folk.length)));
+      villageLuxury.set(village, luxuryFor(worth, hashString(village)));
+    }
+  };
+
   return {
     minesWorked,
     /** Everything the country did while nobody was looking, once a frame. */
@@ -118,12 +152,6 @@ export function createTidings(ctx: Telling) {
         // nobody trades while their neighbours are being buried, which is what makes a village's
         // prosperity something the player can protect rather than a number that only goes up
         register.leanedOn(press.village, press.pressure);
-        // and what the village has made of itself: houses grow a storey when their owners can
-        // afford one, which the chunks pick up the next time they are built
-        const folk = register.living(press.village);
-        const worth = folk.reduce((sum, p) => sum + p.purse, 0);
-        sampler.storeys.set(press.village, storeysFor(worth / Math.max(1, folk.length)));
-        villageLuxury.set(press.village, luxuryFor(worth, hashString(press.village)));
         if (press.pressure >= ROAM.PRESS_BLED && pressSaid.get(press.village) !== press.said) {
           pressSaid.set(press.village, press.said);
           // the news is remembered without the direction, because the direction changes with every
@@ -164,6 +192,9 @@ export function createTidings(ctx: Telling) {
             : `Word from ${dug.village}: they came running up out of ${dug.name} today.`);
         }
       }
+      // and last, because a day's wages and a day's gold are both in the purses by now: what every
+      // village in the country is worth this evening, and what it has managed to build with it
+      whatTheyHaveMadeOfThemselves();
       // and the other half of it: a mine the player has fought through is still a mine nobody will
       // go down until somebody walks into the village and says otherwise. Standing in the square is
       // that somebody, which is why this is proximity and not a menu
