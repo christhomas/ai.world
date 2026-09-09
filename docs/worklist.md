@@ -948,6 +948,21 @@ can each be finished and each leave the game playable.
 
 ### Noticed while working, not yet chased
 
+- [x] **The roaming bands stop counting the world.** They were the last thing in the game that
+      assumed a world it could count: twenty-four per world, each dealt a ground off a shuffled deck
+      of every stop there is. *(`grounds.ts`. A place holds a band because of what it is, and a band
+      is named after the place it works out of rather than by a slot — which is what lets two people
+      in different corners of a country agree that the pack at Stonemere is the pack at Stonemere.
+      Two clauses had to be added because the plain rule was measurably wrong. Shuffling a deck
+      spreads the grounds whether it means to or not; a hash asked of each place separately does
+      not, and where names fall together a neighbourhood ended up with ten bands working it inside
+      one five-day window against the eight one person can hold. And a village with nothing inside a
+      band's circuit is a village no round can reach, so a village alone in its country keeps its
+      own pack. Forcing every village to be a home was tried first and is what caused the ten;
+      coverage belongs to the round instead — a band prefers the ground near it that nobody holds.
+      A saved game loses its bands: ids that were numbers match no place, so those records lapse
+      quietly and the country is rolled fresh.)*
+
 - [ ] **A web world's first village is not at its hub.** `roadweb` roots its spanning tree at the
       crossroads nearest the middle, and `generateStructures` founds Crossroads Town on node nought,
       which is the lowest-numbered corner on dry land. The two are different places. Nothing is

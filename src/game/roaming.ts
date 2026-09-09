@@ -1,6 +1,9 @@
-import { hashString, mulberry32, shuffle } from '../core/rng';
+import { hashString, mulberry32, rand2, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { compassDir, type Structures } from '../world/structures';
+import { groundOf, groundsOf, holdsABand } from './grounds';
+
+export { groundsOf } from './grounds';
 
 /**
  * Danger that will not stay where you left it.
@@ -41,10 +44,37 @@ export const ROAM = {
   /** Near enough that saying which way it lies would be silly, in tiles. */
   NEARLY_THERE: 30,
   /**
-   * Bands abroad in one world. Set against sixteen villages, so most places have something
-   * working the country near them most of the time and nowhere is permanently safe.
+   * How likely a place is to be somebody's ground, by what sort of place it is.
+   *
+   * This used to be a count — twenty-four bands in a world, dealt one ground each out of a shuffled
+   * deck of every stop there is. That works exactly once, in a world you can count, and an endless
+   * one cannot: there is no deck to shuffle and no twenty-four to deal. So a place holds a band
+   * because of what it is, and a wide country has more of them the way a wide country has more
+   * villages.
+   *
+   * Every village, and some of the country between them. That is not a compromise — it is what the
+   * deck was actually doing, said plainly. It dealt villages before landmarks and there were more
+   * bands than villages, so every village got one and the leftovers went to the ruins; the ordering
+   * was there because shuffled together the villages at the bottom got nothing at all.
+   *
+   * It also has to be every village, and a test says so. A village with no band of its own and no
+   * band's round passing through it is a village nothing ever happens to — Mossholm in seed 1, over
+   * ninety days, when this was three villages in five.
+   *
+   * Measured against the old world: twenty-four bands over sixteen villages and twenty-eight
+   * landmarks. These give the same sixteen and eight or nine of the rest.
    */
-  BANDS: 24,
+  LIVED_IN: 0.75,
+  OUT_THERE: 0.6,
+  /**
+   * How close two grounds may stand, in tiles.
+   *
+   * Only landmarks are held apart by it; a village keeps its band whatever is beside it. Half a
+   * band's circuit, so two packs whose rounds overlap almost entirely are not both worked out of
+   * the same few fields — which is what leaves a neighbourhood with more bands in it than anybody
+   * can deal with while the country beyond is quiet.
+   */
+  APART: 90,
   /** Places in a band's round. Four is enough that where it will be next is not obvious. */
   STOPS: 4,
   /**
@@ -218,23 +248,6 @@ export interface RoamingJson {
   era: Record<string, number>;
 }
 
-/** Which slot a band id names, or -1 for a string that is not one of ours. */
-function slotOf(id: string): number {
-  const slot = Number(id.slice('band:'.length));
-  return id.startsWith('band:') && Number.isInteger(slot) && slot >= 0 && slot < ROAM.BANDS ? slot : -1;
-}
-
-/** The grounds of a world, dealt out in an order that is the same for everybody who asks. */
-function homesOf(seed: number, stops: readonly Stop[]): Stop[] {
-  const deck = shuffle(mulberry32(derive(seed, SALT.ROAM)), [...stops]);
-  // Villages first, then the landmarks. There are more bands than villages, and a band takes the
-  // next ground off the deck, so dealing this way makes every village somebody's ground — which is
-  // what "nowhere is permanently safe" is supposed to mean. Shuffled together, the villages at the
-  // bottom of the deck got no home at all, and one that was also outside everybody's circuit was
-  // never worked by anything: three of seed 12's seventeen, over a whole season.
-  return [...deck.filter((s) => s.lived), ...deck.filter((s) => !s.lived)];
-}
-
 /** Which sort of band a roll makes, by how much of the country each sort is meant to have. */
 function sortOf(roll: number): BandKind {
   let seen = 0;
@@ -259,40 +272,53 @@ export function stopsOf(structures: Structures): Stop[] {
  * Roll one band. Pure in seed, stops, slot and era, so the pack that moves into a broken band's
  * ground is the same pack for everybody without anybody being told what it is.
  */
-export function bandFor(seed: number, stops: readonly Stop[], slot: number, era: number): Band {
-  const rng = mulberry32(derive(seed, SALT.ROAM) ^ Math.imul(slot, 0x9e37) ^ Math.imul(era, 0x85eb));
+export function bandFor(seed: number, stops: readonly Stop[], home: Stop, era: number): Band {
+  // the ground's own name and nothing about where it fell in a list, so the pack at Stonemere is
+  // the same pack whether Stonemere was the first place anybody looked at or the hundredth
+  const rng = mulberry32(derive(seed, SALT.ROAM) ^ hashString(home.name) ^ Math.imul(era, 0x85eb));
   const kind = sortOf(rng());
-  // a ground each while there are grounds to go round, dealt out of the same shuffled deck for
-  // every slot and every era. Bands piling onto one home would heap the world's danger in one
-  // county and leave another empty, and ground that stays dangerous after the pack holding it is
-  // broken is the truer story anyway
-  const home = homesOf(seed, stops)[slot % stops.length];
   const away = (s: Stop) => Math.hypot(s.x - home.x, s.z - home.z);
   // the round is drawn from what lies near home, and only falls back to the nearest places
   // anywhere when home is somewhere nothing else is: a band that could be summoned to the far
   // side of the world would make every region everybody's problem
-  const others = stops.filter((s) => s !== home).sort((a, b) => away(a) - away(b));
+  // by name rather than by identity: `home` is a place, and the same place asked for twice is two
+  // objects. Compared by identity, a ground handed in from anywhere but this exact array put itself
+  // in its own round twice and dropped a stop off the end of it.
+  const others = stops.filter((s) => s.name !== home.name).sort((a, b) => away(a) - away(b));
   const near = others.filter((s) => away(s) <= ROAM.CIRCUIT);
   const reach = near.length >= ROAM.STOPS - 1 ? near : others.slice(0, ROAM.STOPS - 1);
+  /*
+   * The ground nobody holds is walked first.
+   *
+   * This is what makes "nowhere is permanently safe" true without making every village somebody's
+   * home. The deck this replaced dealt a ground to every village because it could count them; a
+   * country with no edge cannot, and forcing every village to be a home instead put nine bands over
+   * one neighbourhood — more than a person can hold — while the country beyond went quiet.
+   *
+   * So coverage is the round's job rather than the home's. A band prefers the places near it that
+   * have no pack of their own, which is a question about its own neighbourhood and nothing wider,
+   * and a village with no band living on it still has one coming through.
+   */
+  const unheld = reach.filter((s) => !holdsABand(seed, s, stops));
+  const held = reach.filter((s) => holdsABand(seed, s, stops));
+  const round = [...shuffle(rng, [...unheld]), ...shuffle(rng, [...held])];
   const sort = ROAM.SORTS[kind];
   return {
-    id: `band:${slot}`,
+    id: `band:${home.name}`,
     era,
     kind,
     size: sort.least + Math.floor(rng() * (sort.most - sort.least + 1)),
-    circuit: [home, ...shuffle(rng, [...reach]).slice(0, ROAM.STOPS - 1)],
+    circuit: [home, ...round.slice(0, ROAM.STOPS - 1)],
     pace: ROAM.PACE_LEAST + rng() * (ROAM.PACE_MOST - ROAM.PACE_LEAST),
     offset: rng() * ROAM.STOPS * ROAM.PACE_MOST,
     seed: (seed ^ Math.floor(rng() * 0xffffff)) >>> 0,
   };
 }
 
-/** Every band a world starts with, before anybody has done anything about any of them. */
+/** Every band a country starts with, before anybody has done anything about any of them. */
 export function planBands(seed: number, structures: Structures): Band[] {
   const stops = stopsOf(structures);
-  const bands: Band[] = [];
-  for (let slot = 0; slot < ROAM.BANDS; slot++) bands.push(bandFor(seed, stops, slot, 0));
-  return bands;
+  return groundsOf(seed, stops).map((home) => bandFor(seed, stops, home, 0));
 }
 
 /**
@@ -507,24 +533,44 @@ export class Roaming {
   private readonly era = new Map<string, number>();
   private day: number;
 
+  /** The places that hold one, worked out once: every list below is over these. */
+  private readonly grounds: Stop[];
+
   constructor(private readonly seed: number, structures: Structures, day = 1) {
     this.stops = stopsOf(structures);
+    this.grounds = groundsOf(seed, this.stops);
     this.day = Math.floor(day);
   }
 
   /** The day this has caught up to. */
   get today(): number { return this.day; }
 
-  /** One band by its slot, in whatever era its ground is presently in. */
-  bandOf(slot: number): Band {
-    return bandFor(this.seed, this.stops, slot, this.era.get(`band:${slot}`) ?? 0);
+  /** One band by the ground it works, in whatever era that ground is presently in. */
+  bandOf(home: Stop): Band {
+    return bandFor(this.seed, this.stops, home, this.era.get(`band:${home.name}`) ?? 0);
   }
 
-  /** Every band in the world, broken ones included: the whole roster, in slot order. */
+  /**
+   * The band working the ground one id names, if this country has such a place.
+   *
+   * Null for a band from a world that was built differently — a saved game whose ids do not match
+   * the country in front of it, which is what happens to anybody who saved before bands were named
+   * after their ground rather than numbered.
+   */
+  groundFor(id: string): Band | null {
+    const home = this.groundNamed(id);
+    return home ? this.bandOf(home) : null;
+  }
+
+  /** The ground of one band id, if this country has such a place. */
+  private groundNamed(id: string): Stop | null {
+    const name = groundOf(id);
+    return name === null ? null : this.grounds.find((stop) => stop.name === name) ?? null;
+  }
+
+  /** Every band in the country, broken ones included: the whole roster, by the name of its ground. */
   roster(): Band[] {
-    const all: Band[] = [];
-    for (let slot = 0; slot < ROAM.BANDS; slot++) all.push(this.bandOf(slot));
-    return all;
+    return this.grounds.map((home) => this.bandOf(home));
   }
 
   /** Every band actually out in the country. A broken one is not in it, and nor is its ground. */
@@ -575,13 +621,13 @@ export class Roaming {
    * A kill against an era that has already been and gone changes nothing: that pack is long dead.
    */
   apply(fell: Fell): boolean {
-    const slot = slotOf(fell.band);
-    if (slot < 0 || (this.era.get(fell.band) ?? 0) !== fell.era) return false;
+    const home = this.groundNamed(fell.band);
+    if (!home || (this.era.get(fell.band) ?? 0) !== fell.era) return false;
     const key = `${fell.band}#${fell.era}#${fell.member}`;
     if (this.lost.has(key)) return false;
     this.lost.add(key);
 
-    const band = this.bandOf(slot);
+    const band = this.bandOf(home);
     if (this.standing(band) <= breaksAt(band) && !this.broken.has(fell.band)) {
       this.broken.set(fell.band, fell.day);
     }
@@ -605,7 +651,10 @@ export class Roaming {
       this.era.set(id, era);
       // the dead pack's losses go with it: nothing about it is true of what has taken its place
       for (const key of [...this.lost]) if (key.startsWith(`${id}#`)) this.lost.delete(key);
-      arrived.push(this.bandOf(slotOf(id)));
+      const home = this.groundNamed(id);
+      // a broken band on ground this country does not have is a leaving from a world that was
+      // built differently; its record goes and nothing arrives
+      if (home) arrived.push(this.bandOf(home));
     }
     return arrived;
   }
