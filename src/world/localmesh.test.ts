@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Simplex2D } from './noise';
-import { faceAt, faceOf, facesIn, type Country } from './localmesh';
-import { sitesIn } from './scattercells';
+import { countryOf, faceAt, faceOf, facesIn, type Country } from './localmesh';
 
 /**
  * The seam test, which is the whole of B2.
@@ -18,11 +17,7 @@ import { sitesIn } from './scattercells';
 
 const country = (seed: number): Country => {
   const shape = new Simplex2D(seed);
-  return {
-    seed,
-    spacing: (x, z) => (shape.fbm(x * 0.004, z * 0.004, 2) + 1) * 0.5,
-    dials: { near: 6, far: 14, tries: 6 },
-  };
+  return countryOf(seed, (x, z) => (shape.fbm(x * 0.004, z * 0.004, 2) + 1) * 0.5, { near: 6, far: 14, tries: 6 });
 };
 
 /** A face as something two runs can be compared by. */
@@ -34,7 +29,7 @@ describe('a face that does not care how much country was made around it', () => 
 
   it('is the same face asked for from anywhere', () => {
     // a site somewhere in open country, found the way anything finds one
-    const site = sitesIn(world.seed, world.spacing, world.dials, { x0: 300, z0: 300, x1: 360, z1: 360 })[0];
+    const site = world.scatter.sitesIn({ x0: 300, z0: 300, x1: 360, z1: 360 })[0];
     expect(site, 'no country here to test').toBeTruthy();
 
     const asItself = faceOf(world, site);

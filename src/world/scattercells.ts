@@ -78,6 +78,114 @@ function candidates(seed: number, cell: number, ci: number, cj: number, dials: C
 }
 
 /**
+ * A world's points, with the cells it has already worked out kept.
+ *
+ * A cell's candidates are a pure function of the seed and the cell, so the second time anybody asks
+ * about a cell the answer is the first answer. That is not an optimisation bolted on afterwards: an
+ * endless world asks about the same handful of cells over and over — every face asks for the ground
+ * around it, every junction asks again about the ground around itself — and without a memory the
+ * work is quadratic in how carefully anything is checked. With one, it is the arithmetic of a few
+ * dozen cells.
+ *
+ * Bounded, because a player who walks a long way would otherwise carry every cell they have ever
+ * seen. The oldest are forgotten and worked out again if wanted, which costs a hash apiece.
+ */
+const CELLS_KEPT = 4096;
+
+export class Scatter {
+  private readonly known = new Map<string, Array<Site & { rank: number }>>();
+  private readonly stood = new Map<string, Site[]>();
+
+  constructor(
+    private readonly seed: number,
+    private readonly spacing: (x: number, z: number) => number,
+    readonly dials: CellDials,
+  ) {}
+
+  /** One cell's candidates, worked out once. */
+  private cell(ci: number, cj: number): Array<Site & { rank: number }> {
+    const key = `${ci}:${cj}`;
+    const known = this.known.get(key);
+    if (known) return known;
+    const made = candidates(this.seed, this.dials.far, ci, cj, this.dials, this.spacing);
+    if (this.known.size >= CELLS_KEPT) {
+      const oldest = this.known.keys().next().value;
+      if (oldest !== undefined) this.known.delete(oldest);
+    }
+    this.known.set(key, made);
+    return made;
+  }
+
+  /**
+   * The points a cell ends up with, worked out once.
+   *
+   * Which candidates stand is settled by the cell and its eight neighbours and by nothing else, so
+   * it is as much a property of the cell as the candidates are. Remembering only the candidates and
+   * settling them afresh for every window was most of the cost of an endless world: a face asks
+   * about the ground around it, a junction asks again, a road asks a third time, and each of those
+   * windows overlaps the same cells and did the same refusing over again.
+   */
+  private standing(ci: number, cj: number): Site[] {
+    const key = `${ci}:${cj}`;
+    const known = this.stood.get(key);
+    if (known) return known;
+    const neighbours: Array<Site & { rank: number }> = [];
+    for (let j = cj - 1; j <= cj + 1; j++) {
+      for (let i = ci - 1; i <= ci + 1; i++) neighbours.push(...this.cell(i, j));
+    }
+    const kept = this.cell(ci, cj)
+      .filter((one) => !refusedBy(one, neighbours))
+      .map((one) => ({ x: one.x, z: one.z, claim: one.claim, id: one.id }));
+    if (this.stood.size >= CELLS_KEPT) {
+      const oldest = this.stood.keys().next().value;
+      if (oldest !== undefined) this.stood.delete(oldest);
+    }
+    this.stood.set(key, kept);
+    return kept;
+  }
+
+  /** The points of a patch of country: the same answer as `sitesIn`, without the repeated work. */
+  sitesIn(window: { x0: number; z0: number; x1: number; z1: number }): Site[] {
+    const cell = this.dials.far;
+    const lowI = Math.floor(window.x0 / cell), highI = Math.floor(window.x1 / cell);
+    const lowJ = Math.floor(window.z0 / cell), highJ = Math.floor(window.z1 / cell);
+    const kept: Site[] = [];
+    for (let cj = lowJ; cj <= highJ; cj++) {
+      for (let ci = lowI; ci <= highI; ci++) {
+        for (const one of this.standing(ci, cj)) {
+          if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
+          kept.push(one);
+        }
+      }
+    }
+    return kept;
+  }
+}
+
+/**
+ * Does somebody better want the same ground?
+ *
+ * "Better" is the hashed rank, so two candidates never both stand and never both fall, and neither
+ * has to know which cell asked first. The room in question is the larger of the two claims, so open
+ * country pushes points apart even where it meets fine-grained country.
+ *
+ * Deliberately one pass rather than a settling: a candidate refused by a better one is refused,
+ * whether or not that better one is itself refused by a third. A settling would pack a few more
+ * points in and would need to know how the neighbours settled, which is the order-dependence this
+ * exists to be rid of.
+ */
+function refusedBy(one: Site & { rank: number }, neighbours: Array<Site & { rank: number }>): boolean {
+  for (const other of neighbours) {
+    if (other.rank <= one.rank) continue;
+    if (other.x === one.x && other.z === one.z) continue;
+    const room = Math.max(one.claim, other.claim);
+    const dx = other.x - one.x, dz = other.z - one.z;
+    if (dx * dx + dz * dz < room * room) return true;
+  }
+  return false;
+}
+
+/**
  * The points of a patch of country, in no particular order and the same every time.
  *
  * Asks the cells the window covers, and the ring around it — because a point just outside can refuse
@@ -90,48 +198,5 @@ export function sitesIn(
   dials: CellDials,
   window: { x0: number; z0: number; x1: number; z1: number },
 ): Site[] {
-  // a cell no smaller than the largest claim, so a candidate can only be refused from next door
-  const cell = dials.far;
-  const lowI = Math.floor(window.x0 / cell) - 1, highI = Math.floor(window.x1 / cell) + 1;
-  const lowJ = Math.floor(window.z0 / cell) - 1, highJ = Math.floor(window.z1 / cell) + 1;
-
-  const near = (ci: number, cj: number): Array<Site & { rank: number }> => {
-    const all: Array<Site & { rank: number }> = [];
-    for (let j = cj - 1; j <= cj + 1; j++) {
-      for (let i = ci - 1; i <= ci + 1; i++) all.push(...candidates(seed, cell, i, j, dials, spacing));
-    }
-    return all;
-  };
-
-  const kept: Site[] = [];
-  for (let cj = lowJ; cj <= highJ; cj++) {
-    for (let ci = lowI; ci <= highI; ci++) {
-      const neighbours = near(ci, cj);
-      for (const one of candidates(seed, cell, ci, cj, dials, spacing)) {
-        /*
-         * It stands unless somebody better wants the same ground.
-         *
-         * "Better" is the hashed rank, so two candidates never both stand and never both fall, and
-         * neither has to know which cell asked first. The room in question is the larger of the two
-         * claims, so open country pushes points apart even where it meets fine-grained country.
-         *
-         * Deliberately one pass rather than a settling: a candidate refused by a better one is
-         * refused, whether or not that better one is itself refused by a third. A settling would
-         * pack a few more points in and would need to know how the neighbours settled, which is the
-         * order-dependence this exists to be rid of.
-         */
-        const refused = neighbours.some((other) => {
-          if (other === one || other.rank <= one.rank) return false;
-          if (other.x === one.x && other.z === one.z) return false;
-          const room = Math.max(one.claim, other.claim);
-          const dx = other.x - one.x, dz = other.z - one.z;
-          return dx * dx + dz * dz < room * room;
-        });
-        if (refused) continue;
-        if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
-        kept.push({ x: one.x, z: one.z, claim: one.claim, id: one.id });
-      }
-    }
-  }
-  return kept;
+  return new Scatter(seed, spacing, dials).sitesIn(window);
 }

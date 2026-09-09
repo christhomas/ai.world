@@ -1,4 +1,4 @@
-import { sitesIn, type CellDials, type Site } from './scattercells';
+import { Scatter, type CellDials, type Site } from './scattercells';
 
 /**
  * The faces of a country with no edge to it.
@@ -52,19 +52,39 @@ export interface Face {
  */
 const LOOK_OUT = 3;
 
-/** Everything the mesher needs about the world it is meshing. */
+/**
+ * Everything the mesher needs about the world it is meshing.
+ *
+ * The scatter is held rather than made per question, and that is not tidiness: every face asks about
+ * the ground around it, every junction asks again about the ground around itself, and a world with
+ * no memory of the cells it has already worked out does that arithmetic over and over. With one, the
+ * second question about a patch is free.
+ */
 export interface Country {
   seed: number;
   /** How fine-grained the ground is here, nought to one, as the world's own noise says. */
   spacing: (x: number, z: number) => number;
   dials: CellDials;
+  scatter: Scatter;
+  /**
+   * The faces already worked out, by the name of the site each belongs to.
+   *
+   * A face is a pure function of the sites around it, and everything asks for the same faces over
+   * and over: a road asks for the face on the other side, a junction asks for all three of its
+   * faces, the thing walking asks for the face under its feet every step. Without this the same
+   * clipping is done dozens of times a frame; with it, once.
+   */
+  faces: Map<string, Face>;
+}
+
+/** A country, with its own memory of the cells it has worked out. */
+export function countryOf(seed: number, spacing: (x: number, z: number) => number, dials: CellDials): Country {
+  return { seed, spacing, dials, scatter: new Scatter(seed, spacing, dials), faces: new Map() };
 }
 
 /** The sites of a patch, with the ring around it a face needs to be sure of its own borders. */
 function sitesAround(country: Country, x: number, z: number, reach: number): Site[] {
-  return sitesIn(country.seed, country.spacing, country.dials, {
-    x0: x - reach, z0: z - reach, x1: x + reach, z1: z + reach,
-  });
+  return country.scatter.sitesIn({ x0: x - reach, z0: z - reach, x1: x + reach, z1: z + reach });
 }
 
 /**
@@ -93,6 +113,8 @@ export function faceAt(country: Country, x: number, z: number): Face | null {
  * bench, because clipping a convex shape by a half-plane is the same job wherever it turns up.
  */
 export function faceOf(country: Country, site: Site): Face {
+  const known = country.faces.get(site.id);
+  if (known) return known;
   const reach = country.dials.far * LOOK_OUT;
   const around = sitesAround(country, site.x, site.z, reach);
 
@@ -124,7 +146,7 @@ export function faceOf(country: Country, site: Site): Face {
     if (onTheHalfwayLine(shape, site, other).length >= 2) neighbours.push(other.id);
   }
 
-  return {
+  const face: Face = {
     id: site.id,
     x: site.x,
     z: site.z,
@@ -132,7 +154,19 @@ export function faceOf(country: Country, site: Site): Face {
     // sorted so that two runs of the same face cannot differ by the order sites happened to arrive
     neighbours: neighbours.sort(),
   };
+  // a face is worked out once; a country a player walks out of is forgotten with the country
+  if (country.faces.size < FACES_KEPT) country.faces.set(site.id, face);
+  return face;
 }
+
+/**
+ * How many faces a country keeps worked out.
+ *
+ * Enough for the country a player can see and a good deal further, small enough that walking for an
+ * hour does not carry the whole journey. Beyond it faces are worked out again, which costs the
+ * clipping and nothing else.
+ */
+const FACES_KEPT = 20_000;
 
 /** Everything in the shape that is nearer `mine` than `theirs`. */
 function cut(shape: Corner[], mine: Site, theirs: Site): Corner[] {
@@ -170,5 +204,5 @@ export function onTheHalfwayLine(shape: Corner[], mine: Site, theirs: Site): Cor
 
 /** Every face whose site falls in a patch of country, for drawing or for walking over. */
 export function facesIn(country: Country, window: { x0: number; z0: number; x1: number; z1: number }): Face[] {
-  return sitesIn(country.seed, country.spacing, country.dials, window).map((site) => faceOf(country, site));
+  return country.scatter.sitesIn(window).map((site) => faceOf(country, site));
 }
