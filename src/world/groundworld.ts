@@ -140,12 +140,12 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return type === TileType.Seabed ? WORLD.WATER_Y : null;
   }
 
-  blocked(x: number, z: number): boolean {
+  blocked(x: number, z: number, room = 0): boolean {
     const hit = this.tileAt(x, z);
     if (!hit) return true;                            // ground that has not been made is not ground
     if (hit.tiles.blocked[hit.i] === 1) return true;  // the ground itself: a floor, a wall of rock
     // and then whatever stands on it, against the box it is actually drawn at
-    return this.solids.at(x, z);
+    return this.solids.at(x, z, room);
   }
 
   /**
@@ -155,8 +155,8 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * Only the boxes: the tile grid is tile-shaped and a mover samples it closely enough that
    * nothing in it can hide between two samples.
    */
-  crosses(x0: number, z0: number, x1: number, z1: number): boolean {
-    return this.solids.crosses(x0, z0, x1, z1);
+  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
+    return this.solids.crosses(x0, z0, x1, z1, room);
   }
 
   buried(x: number, z: number): boolean {

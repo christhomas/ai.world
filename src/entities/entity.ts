@@ -191,7 +191,8 @@ export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: numbe
   if (swims(kind)) return world.waterAt(x, z) !== null;
   if (kind.behaviour === 'fly') return true;
   const h = world.heightAt(x, z);
-  if (h === null || world.blocked(x, z)) return false;
+  // asked as the body it is, not as the point at its middle
+  if (h === null || world.blocked(x, z, roomFor(kind))) return false;
   // Not onto a mountain. The rim of one is gentle for a tile or two before the flank stands up, so
   // a deer following its herd wanders up it and is then stuck on a cliff with nothing to eat; the
   // goats and the things that climb are placed on the high ground rather than walking to it.
@@ -232,6 +233,19 @@ function turnToward(current: number, target: number, maxDelta: number): number {
  */
 export function bodyOf(kind: AnimalKind): { hw: number; hd: number } {
   return kind.body;
+}
+
+/**
+ * How much room a creature takes up around its own middle, in tiles.
+ *
+ * The narrow half of its body rather than the long one, and for the same reason the crowd uses the
+ * narrow half: a body turns as it walks and does not lead with its length, so the honest figure for
+ * "how close can this get to a wall" is the half it is thinnest across. One rule, used by both the
+ * things a walker can bump into.
+ */
+export function roomFor(kind: AnimalKind): number {
+  const body = bodyOf(kind);
+  return Math.min(body.hw, body.hd);
 }
 
 /** Whoever is already standing somewhere. The manager keeps the crowd; this is all a mover needs. */
@@ -330,7 +344,7 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
    * Only the props are waived. The ground still has to be ground: this is a way out of a wall, not
    * a way into the sea or up a cliff.
    */
-  const boxedIn = world.blocked(e.x, e.z) && standable(world, k, e.x, e.z);
+  const boxedIn = world.blocked(e.x, e.z, roomFor(k)) && standable(world, k, e.x, e.z);
   const attempts: Array<[number, number]> = [[dx, dz], [dx, 0], [0, dz]];
   for (const [mx, mz] of attempts) {
     if (mx === 0 && mz === 0) continue;
@@ -343,7 +357,7 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
       // length of the step that crossed it. Not for anything that flies: a bird goes over a cottage
       // rather than round it, which is what `canStand` says by letting it stand anywhere, and a path
       // test that did not know it turned every roof in the world into a wall in the sky.
-      if (k.behaviour !== 'fly' && world.crosses?.(e.x, e.z, nx, nz)) continue;
+      if (k.behaviour !== 'fly' && world.crosses?.(e.x, e.z, nx, nz, roomFor(k))) continue;
     }
     // the ground first, because the ground is the cheap question
     if (!stuck && crowd?.occupied(nx, nz, e)) continue;

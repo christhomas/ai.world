@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
-import { Entity, Herd, bodyOf, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
+import { Entity, Herd, bodyOf, canStand, roomFor, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
 import { stride } from '../entities/stride';
 import { propFootprints } from '../render/props';
 import { BLOCKS_WALKING, PropKind } from './biomes';
@@ -86,11 +86,11 @@ function field(solids: Solids): TileWorld {
   return {
     heightAt: () => 1,
     waterAt: () => null,
-    blocked: (x, z) => solids.at(x, z),
+    blocked: (x, z, room) => solids.at(x, z, room),
     // a road, because one creature in the game only walks on roads and would otherwise stand still
     // through every case below and pass them all by never moving
     isRoad: () => true,
-    crosses: (x0, z0, x1, z1) => solids.crosses(x0, z0, x1, z1),
+    crosses: (x0, z0, x1, z1, room) => solids.crosses(x0, z0, x1, z1, room),
   };
 }
 
@@ -341,7 +341,9 @@ describe('walking into things, on a bench with nothing else in it', () => {
               const trace = walkAt(world, e, dx, dz, dt, pace);
               const through = passedThrough(box, rot, trace, !squareOn(dx, dz));
               // how far the box reaches back along the way we came, which is the wall we should meet
-              const wall = reach(box, rot, -dx, -dz);
+              // the wall, plus the walker's own width: a body stops where its edge meets the box,
+              // not where its middle does
+              const wall = reach(box, rot, -dx, -dz) + roomFor(KINDS[id]);
               const got = -(e.x * dx + e.z * dz);   // how far short of the middle we stopped
               const inside = through !== null;
               if (through) {
@@ -398,7 +400,7 @@ describe('the whole matrix: everything that walks, into everything solid', () =>
           if (verdict === 'intersected' && sunk.length < 200) {
             sunk.push({ mover: id, into: kind, depth: worst, from: `${dx},${dz}` });
           }
-          const wall = reach(box, 0, -dx, -dz);
+          const wall = reach(box, 0, -dx, -dz) + roomFor(KINDS[id]);
           const got = -(e.x * dx + e.z * dz);
           if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off prop ${kind} whose wall is at ${wall.toFixed(2)}`);
         }
@@ -416,25 +418,28 @@ describe('the whole matrix: everything that walks, into everything solid', () =>
     report({
       verdict: 'INTERSECTED',
       count: models.intersected,
-      what: 'models standing inside what they stopped at — a walker collides as a point, so its middle stops at the wall and the body it is drawn as does not',
+      what: 'models standing inside what they stopped at — a walker is stopped as a circle of its narrow half, so a long body still puts its nose in',
       detail: worst.slice(0, 5).map((one) => `${one.mover} sank ${one.depth.toFixed(2)} tiles into ${nameOf(one.into)}, walking from ${one.from}`),
     });
     /*
-     * That third number is a fact about the game rather than a fault in it, and it is written down
-     * so that it cannot get quietly worse.
+     * What is left of the third number, and why it is not nought.
      *
-     * A walker collides as a point. Its middle is stopped at the wall and the model it is drawn as
-     * goes on into the plaster: a bear is over a tile across the shoulders, so a bear standing
-     * against an oak is a bear a good way inside it. Nothing walks *through* anything — that is
-     * what the walks above prove — but plenty of things stand in each other.
+     * A walker used to be stopped as a *point*: its middle met the wall and the body it is drawn as
+     * carried on into the plaster — three thousand of these walks ended with the model inside the
+     * thing, a bear over a tile deep into an oak. It is now stopped as a circle of its own narrow
+     * half, the same figure the crowd has always used to push bodies apart, and that halves it.
      *
-     * Fixing it runs the wrong way: stopping a body rather than a point means growing every box by
-     * the walker's own width, which is the difference between a wood you pick your way through and
-     * a wood that is a wall. That is a change to how the game feels, and it belongs to whoever is
-     * playing it rather than to a test. So the test holds the line where it is.
+     * What is left is the long ones. A horse is nearly two tiles nose to tail and a third of one
+     * across; a circle that fits its width cannot also fit its length, so a horse facing a willow
+     * squarely still has its nose in the tree. Fixing that means colliding two turned rectangles
+     * rather than a circle against one, which needs the walker's heading everywhere collision is
+     * asked about — `canStand` is asked by things that have not turned yet — and buys a horse's
+     * nose. It is written down rather than done.
+     *
+     * The line is held where the arithmetic now puts it, so it cannot drift back.
      */
-    expect(models.intersected, 'more models are standing inside things than were').toBeLessThanOrEqual(3128);
-    expect(worst[0]?.depth ?? 0, 'and none of them deeper').toBeLessThanOrEqual(1.3);
+    expect(models.intersected, 'more models are standing inside things than were').toBeLessThanOrEqual(1656);
+    expect(worst[0]?.depth ?? 0, 'and none of them deeper').toBeLessThanOrEqual(1.1);
     expect(failures.slice(0, 8), `${failures.length} failures across ${cases} pairs`).toEqual([]);
   });
 
@@ -604,7 +609,8 @@ describe('the furniture of a room, against everything that walks', () => {
             failures.push(`${id} went through furniture ${kind} on move ${through.at}, `
               + `${through.from.x.toFixed(2)},${through.from.z.toFixed(2)} to ${through.to.x.toFixed(2)},${through.to.z.toFixed(2)}, from ${dx},${dz}`);
           }
-          const wall = reach({ hw: Math.max(box.hw, MIN_BLOCK), hd: Math.max(box.hd, MIN_BLOCK) }, 0, -dx, -dz);
+          const wall = reach({ hw: Math.max(box.hw, MIN_BLOCK), hd: Math.max(box.hd, MIN_BLOCK) }, 0, -dx, -dz)
+            + roomFor(KINDS[id]);
           const got = -(e.x * dx + e.z * dz);
           if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off furniture ${kind}, whose edge is at ${wall.toFixed(2)}`);
         }
@@ -733,5 +739,61 @@ describe('what this bench covered', () => {
     expect(walks, 'the bench has shrunk to nothing').toBeGreaterThan(5000);
     expect(failed.map((l) => l.what), 'something walked through something').toEqual([]);
     expect(sunk, 'the model overlap is no longer being watched at all').toBeTruthy();
+  });
+});
+
+/*
+ * The risk that comes with stopping bodies rather than points: a wood that closes.
+ *
+ * Every box is now met by the walker's own width, so every gap in the world is that much narrower.
+ * A wood is where that matters — trees are placed a tile at a time and jittered, so the gaps are
+ * about a tile already — and "I cannot get through this wood any more" is the same complaint as an
+ * invisible wall, arriving from the other side.
+ *
+ * Measured on four chunks of seed 3, in straight lanes half a tile apart, walking east twelve
+ * tiles without steering:
+ *
+ *   as a point    hero 6 of 24    bear 6 of 24
+ *   as a body     hero 5 of 24    bear 3 of 24
+ *
+ * Two things in that. A straight lane through woodland was always rare, because it is woodland; and
+ * the cost of the change is one lane for a man and half of them for a bear, which is about the size
+ * of a bear. Nobody walks in a straight line through a wood, so the number that matters is not the
+ * proportion but whether it goes to nought — a wood you must go round is a wall.
+ *
+ * The fence is set below what the country gives today, so it catches a wood closing rather than the
+ * weather.
+ */
+describe('a wood, after everything got wider', () => {
+  it('can still be walked through', () => {
+    const sampler = new TerrainSampler(generateWebGraph(3));
+    const stops = blocking(propFootprints(), BLOCKS_WALKING);
+    const solids = new Solids();
+    let trees = 0;
+    for (let cz = 4; cz <= 5; cz++) {
+      for (let cx = 8; cx <= 9; cx++) {
+        const boxes = boxesFrom(propsOf(sampler.generateChunk(cx, cz), sampler.seed), stops);
+        trees += boxes.length;
+        solids.put(`${cx},${cz}`, boxes);
+      }
+    }
+    expect(trees, 'nothing is growing on this ground at all').toBeGreaterThan(40);
+    const world = field(solids);
+
+    for (const [id, fewest] of [['hero', 3], ['bear', 2]] as const) {
+      let through = 0;
+      const lanes = 24;
+      for (let lane = 0; lane < lanes; lane++) {
+        const e = walker(id, 128.5, 64.5 + lane * 0.5);
+        walkAt(world, e, 1, 0, 1 / 60, 1);
+        if (e.x > 140) through++;                    // twelve tiles of country, give or take a tree
+      }
+      report({
+        verdict: through >= fewest ? 'PASS' : 'FAIL',
+        count: through,
+        what: `lanes of ${lanes} straight across four chunks of real woodland that a ${id} can walk`,
+      });
+      expect(through, `a ${id} cannot get through this country any more`).toBeGreaterThanOrEqual(fewest);
+    }
   });
 });

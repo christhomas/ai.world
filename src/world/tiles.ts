@@ -36,8 +36,19 @@ export interface TileWorld {
   heightAt(x: number, z: number): number | null;
   /** Water surface height if (x,z) is a river/lake tile, else null. */
   waterAt(x: number, z: number): number | null;
-  /** True when a tree / boulder / cactus occupies the tile. */
-  blocked(x: number, z: number): boolean;
+  /**
+   * True when a tree / boulder / cactus occupies the tile.
+   *
+   * `room` is how wide whoever is asking is: the half-width of their own body. Without it a walker
+   * is a point, its middle stops at the wall, and the body it is drawn as stands in the plaster —
+   * measured on the bench, three thousand of five thousand walks ended with the model inside the
+   * thing it had stopped against, a bear over a tile deep into an oak. With it, the thing you can
+   * see is the thing that is stopped.
+   *
+   * The ground itself is not grown by it. A tile is not an object with a size, it is the shape of
+   * the world, and a gap one tile wide is meant to be a gap you can walk down.
+   */
+  blocked(x: number, z: number, room?: number): boolean;
   /**
    * True when the way from one point to another crosses something solid.
    *
@@ -51,7 +62,7 @@ export interface TileWorld {
    * mover falls back to sampling along the step, which a tile grid can be measured with because
    * nothing in one is thinner than a tile.
    */
-  crosses?(x0: number, z0: number, x1: number, z1: number): boolean;
+  crosses?(x0: number, z0: number, x1: number, z1: number, room?: number): boolean;
   /**
    * True where a mountain stands over this tile, so the ground here is the inside of a cliff.
    *

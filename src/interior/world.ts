@@ -38,11 +38,13 @@ export class InteriorWorld implements TileWorld {
 
   waterAt(): number | null { return null; }
 
-  blocked(x: number, z: number): boolean { return blocksAt(this.map, x, z, this.furniture ?? undefined); }
+  blocked(x: number, z: number, room = 0): boolean {
+    return blocksAt(this.map, x, z, this.furniture ?? undefined, room);
+  }
 
   /** The way from one point to another, against the furniture: the same question as out of doors. */
-  crosses(x0: number, z0: number, x1: number, z1: number): boolean {
-    return this.furniture?.crosses(x0, z0, x1, z1) ?? false;
+  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
+    return this.furniture?.crosses(x0, z0, x1, z1, room) ?? false;
   }
 
   isRoad(): boolean { return true; }

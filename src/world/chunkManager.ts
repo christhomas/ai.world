@@ -285,13 +285,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
     this.built.replace(tiles);
   }
 
-  blocked(x: number, z: number): boolean {
+  blocked(x: number, z: number, room = 0): boolean {
     if (this.built.at(x, z)) return true;
     const hit = this.tileAt(x, z);
     if (!hit) return true;                       // ground that has not arrived is not ground to walk on
     if (hit.t.blocked[hit.i] === 1) return true; // the ground itself: a floor, a wall of rock
     // and then whatever is standing on it, against the box it is actually drawn at
-    return this.solids.at(x, z);
+    return this.solids.at(x, z, room);
   }
 
   /**
@@ -300,8 +300,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * Only the boxes: the tile grid and what the player has built are both tile-shaped, and nothing
    * a tile wide can hide between the samples a mover takes along its step.
    */
-  crosses(x0: number, z0: number, x1: number, z1: number): boolean {
-    return this.solids.crosses(x0, z0, x1, z1);
+  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
+    return this.solids.crosses(x0, z0, x1, z1, room);
   }
 
   /** Plain ground: grass or sand, no road, no floor, nothing already growing on it. */

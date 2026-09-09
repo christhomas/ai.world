@@ -125,9 +125,16 @@ export class Solids {
     return n;
   }
 
-  /** Is this point inside anything? */
-  at(x: number, z: number): boolean {
-    for (const s of this.near(x, z)) if (pointInBox(s, x, z)) return true;
+  /**
+   * Is this point inside anything — or, for somebody with a width, within that of it?
+   *
+   * `room` is how much of the asker sticks out around the point it is asked about: a bear is over a
+   * tile across, so a bear whose middle is a hand's breadth from a wall is a bear standing in the
+   * wall. Growing the box by the asker's own width is the whole of collision between two bodies,
+   * stated once, and it costs nothing: the same box test, with a bigger box.
+   */
+  at(x: number, z: number, room = 0): boolean {
+    for (const s of this.near(x, z, room)) if (pointInBox(s, x, z, room)) return true;
     return false;
   }
 
@@ -149,22 +156,36 @@ export class Solids {
    * than the set that used to be allocated on every candidate of every slice of every move, of
    * which there are twenty-odd per walking frame per creature.
    */
-  crosses(x0: number, z0: number, x1: number, z1: number): boolean {
-    const lowX = Math.floor(Math.min(x0, x1)), highX = Math.floor(Math.max(x0, x1));
-    const lowZ = Math.floor(Math.min(z0, z1)), highZ = Math.floor(Math.max(z0, z1));
+  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
+    const lowX = Math.floor(Math.min(x0, x1) - room), highX = Math.floor(Math.max(x0, x1) + room);
+    const lowZ = Math.floor(Math.min(z0, z1) - room), highZ = Math.floor(Math.max(z0, z1) + room);
     for (let tz = lowZ; tz <= highZ; tz++) {
       for (let tx = lowX; tx <= highX; tx++) {
         const bucket = this.buckets.get(tileKey(tx, tz));
         if (!bucket) continue;
-        for (const s of bucket) if (segmentHitsBox(s, x0, z0, x1, z1)) return true;
+        for (const s of bucket) if (segmentHitsBox(s, x0, z0, x1, z1, room)) return true;
       }
     }
     return false;
   }
 
-  /** The solids registered on one point's tile. */
-  private near(x: number, z: number): readonly Solid[] {
-    return this.buckets.get(tileKey(Math.floor(x), Math.floor(z))) ?? EMPTY;
+  /**
+   * The solids that could reach a point — or a body of `room` around it.
+   *
+   * One bucket for a point, which is nearly always empty or holding one thing. A body reaches into
+   * the tiles around it, so it asks for those too: nine at the very worst, and only for something
+   * as wide as a bear.
+   */
+  private near(x: number, z: number, room = 0): readonly Solid[] {
+    if (room <= 0) return this.buckets.get(tileKey(Math.floor(x), Math.floor(z))) ?? EMPTY;
+    const found: Solid[] = [];
+    for (let tz = Math.floor(z - room); tz <= Math.floor(z + room); tz++) {
+      for (let tx = Math.floor(x - room); tx <= Math.floor(x + room); tx++) {
+        const bucket = this.buckets.get(tileKey(tx, tz));
+        if (bucket) found.push(...bucket);
+      }
+    }
+    return found;
   }
 
 }
@@ -207,11 +228,12 @@ const EMPTY: readonly Solid[] = [];
  * opinion — the class of fault that let a house be solid on one side of a chunk boundary and not
  * the other.
  */
-export function pointInBox(s: Solid, x: number, z: number): boolean {
-  // into the prop's own frame, where the box is square to the axes
+export function pointInBox(s: Solid, x: number, z: number, room = 0): boolean {
+  // into the prop's own frame, where the box is square to the axes, and grown by whatever width
+  // the asker carries about with it
   const dx = x - s.x, dz = z - s.z;
   const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
-  return Math.abs(dx * cos - dz * sin) <= s.hw && Math.abs(dx * sin + dz * cos) <= s.hd;
+  return Math.abs(dx * cos - dz * sin) <= s.hw + room && Math.abs(dx * sin + dz * cos) <= s.hd + room;
 }
 
 /**
@@ -222,12 +244,12 @@ export function pointInBox(s: Solid, x: number, z: number): boolean {
  * stretch that is within its depth. If those two stretches overlap, the segment is inside the box
  * somewhere along its length.
  */
-export function segmentHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number): boolean {
+export function segmentHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
   const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
   const ax = (x0 - s.x) * cos - (z0 - s.z) * sin, az = (x0 - s.x) * sin + (z0 - s.z) * cos;
   const bx = (x1 - s.x) * cos - (z1 - s.z) * sin, bz = (x1 - s.x) * sin + (z1 - s.z) * cos;
   let lo = 0, hi = 1;
-  for (const [from, to, half] of [[ax, bx, s.hw], [az, bz, s.hd]] as const) {
+  for (const [from, to, half] of [[ax, bx, s.hw + room], [az, bz, s.hd + room]] as const) {
     const d = to - from;
     if (Math.abs(d) < 1e-9) {
       // no movement across this pair of faces: either it starts between them or it never is
