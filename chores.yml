@@ -251,6 +251,16 @@ tasks:
     cmds:
       - 'pnpm exec tsx tools/crowd.ts {{.CLI_ARGS}}'
 
+  # The other half of that pair, and the processor's side of it: how many live agents this machine
+  # steps ten times a second, and what a cold province costs to arrive in. In-process, so there is
+  # no server to start first. `chore ticks -- 1` for one run instead of three. See `tools/ticks.ts`.
+  ticks:
+    desc: Measure how many live agents this machine ticks at ten a second, and what a province costs
+    vars:
+      REPORT: tick-report.txt
+    cmds:
+      - 'pnpm exec tsx tools/ticks.ts {{.CLI_ARGS}}; kept=$?; echo "report written to {{.REPORT}}"; exit $kept'
+
   bundle:
     desc: Roll the world server into one file, the way the image ships it
     cmds: ['pnpm vite build --config server/build.config.ts']
