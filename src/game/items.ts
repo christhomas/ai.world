@@ -98,6 +98,10 @@ const list: Item[] = [
   { id: 'tunic', name: "Traveller's Tunic", emoji: '👕', price: 18, desc: 'Wool, patched at the elbows.', slot: 'body', defence: 1 },
   { id: 'jerkin', name: 'Leather Jerkin', emoji: '🧥', price: 65, desc: 'Boiled leather, stitched thick.', slot: 'body', defence: 2, hearts: 2 },
   { id: 'mail', name: 'Chain Mail', emoji: '🥋', price: 180, desc: 'A smith spent a winter on this.', slot: 'body', defence: 4, hearts: 4 },
+  // the end of the body slot, and priced to be the last thing anybody buys: the step up from mail
+  // is the same step mail was from a jerkin — twice the coin for half again the guard — so it is a
+  // late purchase rather than the obvious one. It is also the only body piece that armours the arms
+  { id: 'plate', name: 'Plate Harness', emoji: '🦾', price: 340, desc: 'Breastplate, vambraces and all. Nothing gets through it, and everyone hears you coming.', slot: 'body', defence: 6, hearts: 6 },
 
   // --- off hand ---
   { id: 'shield', name: 'Wooden Shield', emoji: '🛡️', price: 45, desc: 'Oak planks bound with iron.', slot: 'offhand', defence: 2 },

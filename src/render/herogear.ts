@@ -50,10 +50,26 @@ const blade = (length: number, colour: number, guard: number): Build => () => me
   part(new THREE.BoxGeometry(0.08, 0.26, 0.09), 0x5a3f28, [0, -0.22, 0]),
 ]);
 
+/**
+ * A shield a man is carrying, rather than a door he is standing behind.
+ *
+ * It was 0.62 tall by 0.46 across, hung a tenth of a unit above the fist. Written out in the
+ * hero's own measurements that is a board from his hip to his collarbone and as wide as his
+ * shoulder beam — and because it hangs a quarter of a unit nearer the camera than he does,
+ * perspective pushes its top edge up over his chin. On the turnaround sheet the front view of the
+ * hero in iron is a shield with a face peering over it. It was cut when the camera sat further
+ * back, where a plank that size was a readable silhouette rather than the whole man.
+ *
+ * Roughly three quarters as tall and three quarters as wide, which is half the area, and lowered
+ * so it rides on the forearm rather than reaching for the shoulder: it now covers him from the
+ * belt to the middle of the chest. Smaller than this and the boss is the only part still legible
+ * from sixty feet up, which is a shield that has turned into a dinner plate; larger and the face
+ * goes again, since the face is the thing the extra height takes first.
+ */
 const shield = (colour: number, boss: number): Build => () => merge([
-  part(new THREE.BoxGeometry(0.09, 0.62, 0.46), colour, [0, 0.1, 0]),
-  part(new THREE.BoxGeometry(0.05, 0.16, 0.46), boss, [0.05, 0.1, 0]),
-  part(new THREE.IcosahedronGeometry(0.09, 0), boss, [0.06, 0.1, 0]),
+  part(new THREE.BoxGeometry(0.08, 0.44, 0.34), colour, [0, 0.08, 0]),
+  part(new THREE.BoxGeometry(0.05, 0.12, 0.34), boss, [0.045, 0.08, 0]),
+  part(new THREE.IcosahedronGeometry(0.07, 0), boss, [0.05, 0.08, 0]),
 ]);
 
 /** One shape per item that is worth seeing on the body. Items without an entry simply do not show. */
@@ -152,6 +168,19 @@ const HEMS: Record<string, Build> = {
   mail: () => merge([
     part(new THREE.BoxGeometry(0.32, 0.16, 0.4), 0x8f97a2, [0, -0.08, 0]),
     part(new THREE.BoxGeometry(0.33, 0.035, 0.41), 0x6f7782, [0, -0.155, 0]),
+  ]),
+  /**
+   * Plate has a fauld rather than a skirt, and the difference is its length.
+   *
+   * Everything else here is cloth or ring hung off a belt, and it is as long as it wants to be
+   * because it drapes. A fauld is a stack of steel lames over the hip that stops well above the
+   * knee — it has to, or the man in it cannot sit on a horse. Given mail's length on the same hinge
+   * it swings like a bell, which is the one thing a plate skirt must never look like, so this one
+   * is half the drop and it hangs a fraction wider, the way a lame overlaps the one above it.
+   */
+  plate: () => merge([
+    part(new THREE.BoxGeometry(0.34, 0.09, 0.42), 0x9aa2ac, [0, -0.045, 0]),
+    part(new THREE.BoxGeometry(0.35, 0.03, 0.43), 0x7b838e, [0, -0.105, 0]),
   ]),
 };
 

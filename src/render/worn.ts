@@ -29,6 +29,8 @@ export const enum Painted {
   Hair = 1,
   Trousers = 2,
   Boots = 3,
+  /** His own skin, until something covers it. Nothing but a full harness ever does. */
+  Arms = 4,
 }
 
 /** What a worn piece makes of the hero: the parts it becomes, and what they are made of. */
@@ -49,12 +51,21 @@ type Covered = 'body' | 'head' | 'feet';
  * A piece may take more than one part — greaves are shin and foot both, because a leg armoured to
  * the ankle over a leather boot is a costume again. Anything not here is either held in a hand or
  * too small to see on a figure this size, and simply leaves him as he was.
+ *
+ * The arms are the part that tells the two iron body pieces apart. Mail leaves them alone, which is
+ * not an oversight: a mail shirt is a shirt, and the sleeves under it are cloth or nothing. A plate
+ * harness is arms as much as chest — take the vambraces off it and what is left is a man who put on
+ * half a suit — so plate is the one piece that paints them, and the only reason the arms can take a
+ * colour at all.
  */
 const DRESSING: Record<string, Dressing> = {
   // cloth and leather over the chest: the shirt itself is that cloth
   tunic: { [Painted.Shirt]: 0xb8894a },
   jerkin: { [Painted.Shirt]: 0x6b4a2b },
   mail: { [Painted.Shirt]: 0x8f97a2 },
+  // and plate, which is the brighter iron the helm and the greaves are already made of, so that a
+  // man in the whole set is made of one metal rather than of a dull chest between bright ends
+  plate: { [Painted.Shirt]: 0x9aa2ac, [Painted.Arms]: 0x9aa2ac },
   // and on the head, where the hair is what a hat or a helm takes the place of
   cap: { [Painted.Hair]: 0x8a6a3d },
   helm: { [Painted.Hair]: 0x9aa2ac },

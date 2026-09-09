@@ -895,10 +895,25 @@ can each be finished and each leave the game playable.
       it becomes — iron on the chest means the chest is iron — rather than a box cut a hundredth of a
       unit proud of the body it hides. `worn.ts`. What is left as geometry is what is genuinely held:
       a sword, a shield, a lantern, a torch, and the skirt of a garment, which has to move.
-- [ ] **The shield is bigger than the man.** From the front it covers his chest and most of his
-      face. It was cut for a figure seen from further away than this camera now stands.
-- [ ] **The arms are still bare in mail.** Right for a mail shirt, wrong for plate — which is an
+- [x] **The shield is bigger than the man.** From the front it covers his chest and most of his
+      face. It was cut for a figure seen from further away than this camera now stands. *(0.62 by
+      0.46 is his hip to his collarbone and the full width of his shoulder beam — but the arithmetic
+      was never the whole of it. A shield hangs a quarter of a unit nearer the camera than the man
+      does, so perspective alone pushes its top edge up over his chin, and any size chosen by
+      measuring the body will be wrong by that much. Three quarters as tall and three quarters as
+      wide — half the area — and dropped so it rides the forearm rather than reaching for the
+      shoulder.)*
+- [x] **The arms are still bare in mail.** Right for a mail shirt, wrong for plate — which is an
       argument for the arms taking a palette entry too, when there is anything to put on them.
+      *(Done as the trousers and boots were: `armTint` on `biped()`, a fifth colour in the hero's
+      palette, and `worn.ts` naming which pieces take it. The palette entry is his own skin, so a
+      hero wearing nothing is unchanged — which is what made this cheap. The hands had to go with
+      the arms: a plated sleeve ending in a bare fist is the same half-a-suit the bare arms were.
+      There was nothing to paint them with, so `plate` exists now — 340 gold, +6 guard, the only
+      body piece that armours anything but the chest. Adding it turned up a limit in the turnaround
+      sheet rather than in the game: a browser keeps about sixteen WebGL contexts, the sheet kept
+      one per figure, and at four rows by four angles it was exactly at the limit — a fifth row and
+      the page never finishes loading, with nothing logged. One renderer, blitted.)*
 
 ### Noticed while working, not yet chased
 

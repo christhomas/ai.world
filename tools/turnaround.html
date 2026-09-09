@@ -87,16 +87,38 @@ function dressUp(scene, kind, kit = []) {
 /**
  * Who is on the sheet, and in what.
  *
- * The hero twice: as a world starts him, and in iron. Armour is not drawn over him — a mail shirt
- * means his chest is mail — so the only way to see whether it reads as armour is to look at the man
- * wearing it beside the man who is not.
+ * The hero three times: as a world starts him, in mail, and in plate. Armour is not drawn over him
+ * — a mail shirt means his chest is mail — so the only way to see whether it reads as armour is to
+ * look at the man wearing it beside the man who is not.
+ *
+ * Mail and plate are both here because the difference between them is the arms, and an arm is the
+ * kind of thing that is only ever wrong from one angle. Bare arms under mail are correct; bare arms
+ * under a harness are the bug the plate row exists to catch.
  */
 const ROWS = [
   ['villager', 'villager', []],
   ['shopkeeper', 'shopkeeper', []],
   ['hero', 'hero', []],
-  ['hero in iron', 'hero', ['mail', 'helm', 'greaves', 'sword', 'ironshield']],
+  ['hero in mail', 'hero', ['mail', 'helm', 'greaves', 'sword', 'ironshield']],
+  ['hero in plate', 'hero', ['plate', 'helm', 'greaves', 'sword', 'ironshield']],
 ];
+
+/**
+ * One renderer for the whole sheet, with each picture copied off it as it is drawn.
+ *
+ * Every figure used to keep its own WebGLRenderer, and its own canvas, live in the page. A browser
+ * will hold about sixteen WebGL contexts at once and then starts throwing the oldest ones away — so
+ * at four rows and four angles the sheet was exactly at the limit, and adding a fifth row stopped
+ * it finishing. Nothing errors and nothing is logged: the page simply never fires `load`, and
+ * whatever is waiting to screenshot it waits for ever.
+ *
+ * The pixels are what this tool is for, not the contexts, so each figure is rendered on the one
+ * canvas and then blitted onto a plain 2D canvas that stays in the page. `preserveDrawingBuffer`
+ * is what makes the copy safe: without it the drawing buffer may be gone by the time we read it.
+ */
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(2);
+renderer.setSize(W, H);
 
 for (const [caption, name, kit] of ROWS) {
   const kind = KINDS[name];
@@ -105,9 +127,6 @@ for (const [caption, name, kit] of ROWS) {
     const fig = document.createElement('figure');
     const cap = document.createElement('figcaption');
     cap.textContent = `${caption.toUpperCase()} · ${label}`;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(2);
-    renderer.setSize(W, H);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x2b3350);
     const cam = new THREE.PerspectiveCamera(26, W / H, 0.1, 40);
@@ -128,7 +147,13 @@ for (const [caption, name, kit] of ROWS) {
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
     renderer.render(scene, cam);
-    fig.appendChild(renderer.domElement);
+    const shot = document.createElement('canvas');
+    shot.width = renderer.domElement.width;
+    shot.height = renderer.domElement.height;
+    shot.style.width = `${W}px`;
+    shot.style.height = `${H}px`;
+    shot.getContext('2d').drawImage(renderer.domElement, 0, 0);
+    fig.appendChild(shot);
     fig.appendChild(cap);
     sheet.appendChild(fig);
   }

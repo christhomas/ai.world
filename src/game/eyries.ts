@@ -157,7 +157,7 @@ export const SKYWARD = {
    * Only the haulage. A sword and a loaf both weigh the same to a bird that size, and pretending
    * otherwise means a weight column in the rucksack and an afternoon of arithmetic for the player.
    */
-  HEAVY: { wood: 4, cart: 40, silverore: 4, nugget: 3, bearpelt: 3, mail: 3, ironshield: 2, axe: 2 } as Record<string, number>,
+  HEAVY: { wood: 4, cart: 40, silverore: 4, nugget: 3, bearpelt: 3, plate: 4, mail: 3, ironshield: 2, axe: 2 } as Record<string, number>,
 } as const;
 
 /** What a pack weighs to an eagle. Everything counts one; the haulage counts what it says. */
