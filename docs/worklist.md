@@ -1562,3 +1562,29 @@ it is worth its own heading rather than being fixed one case at a time.
       has one or two, so a sixteen-room cave holds a man. That is probably right — a mine is not a
       colliery — but it means the tunnels still read as empty, and it is worth deciding whether a
       village's mine should draw more of its people down it.
+
+## The snow lands should stand higher
+
+> "I think the snow lands should have higher elevation, which is kind of a similar way to what we
+> tried to do with mountains in the past. But what I want is to add elevation and higher hills which
+> would make a new attempt at building a non-flat environment"
+
+- [ ] **Snow country stands above the rest.** Snow is a biome today and nothing else — a snow field
+      and a plain are the same ground in different colours, so the country reads as flat everywhere
+      you are not standing on a mountain. It should be high country in its own right, the way
+      mountain country is: the ground itself rising, walkable, with the cold at the top of the climb
+      rather than at an invisible line drawn across a flat map.
+- [ ] **And hills between the two.** This is the wider point and worth attempting on its own. The
+      world has exactly two kinds of ground — flat, and mountain — and nothing in between, so a walk
+      across it is level until it is vertical. `highland.ts` already knows how to raise country
+      rather than rock (`HIGHLAND.PER_STEP`, `REACH`, `SHOULDER`, `RIDGED`), and its comments record
+      why the first attempt at mountains failed: peaks put on a flat plain like a cone dropped from
+      above, when a range is high *country* that tilts up for miles before anything worth calling a
+      summit. Hills are the same argument one size down.
+      *Read `src/world/highland.ts` and `src/world/localland.ts` before starting: the endless country
+      already asks how deep a face is into the high ground and caps it, and hills would be a second,
+      gentler answer to the same question rather than a new mechanism.*
+      *Note the trap this will hit, because it has bitten twice tonight: raising the ground raises
+      the base its tiles are measured from, and anything that asks "is this tile drawn as high
+      ground" stops working — that is how the mesh world lost every one of its caves. `chore
+      collisions` and the golden fingerprint are the two things that will notice.*
