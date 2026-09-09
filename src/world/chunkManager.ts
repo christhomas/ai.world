@@ -21,6 +21,14 @@ interface LoadedChunk {
   cz: number;
   group: THREE.Group | null;
   tiles: ChunkTiles | null;
+  /**
+   * Whether this is ground the page grew for itself because the world had not answered yet.
+   *
+   * Kept so it can be put right. Ground drawn from our own generation is replaced the moment the
+   * world's own arrives, and until it does this is what says which chunks are still somebody's
+   * guess.
+   */
+  grown: boolean;
   /** What is standing on it, as boxes taken off the props' own geometry. */
 }
 
@@ -45,6 +53,21 @@ export class ChunkManager implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, LoadedChunk>();
   /** Ground the world has sent, waiting for a worker to draw it. */
   private readonly sent = new Map<string, ArrayBuffer>();
+  /**
+   * How much of the country now drawn this page grew for itself rather than being sent.
+   *
+   * The one route left by which the two halves of this game can be standing in different countries.
+   * It exists on purpose — a page that waited for the world would stare at nothing every time a
+   * socket hiccupped, and on a first visit the world has a hundred and twenty-one chunks to grow
+   * before it can answer any of them — but a page quietly inventing the country it is walking on is
+   * the exact fault that leaves no trace, because invented ground looks like ground.
+   *
+   * So it is counted, and the count is live rather than cumulative: it climbs while the world is
+   * still working and falls back to nought as the real ground arrives and is drawn over the top.
+   * A page that settles at anything other than nought is a page standing on its own opinion, and
+   * this is where you find that out.
+   */
+  grown = 0;
   /**
    * What is standing in the world, as boxes: one index for all of it rather than one per chunk.
    *
@@ -204,7 +227,22 @@ export class ChunkManager implements TileWorld, ChunkSource {
   deliver(cx: number, cz: number, bytes: ArrayBuffer): void {
     const far = Math.max(Math.abs(cx - this.focusCx), Math.abs(cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
     if (far) return;
-    this.sent.set(chunkKey(cx, cz), bytes);
+    const key = chunkKey(cx, cz);
+    this.sent.set(key, bytes);
+    /*
+     * Ground that arrives after the page gave up waiting is still the ground that should be drawn.
+     *
+     * On a first visit the world has a hundred and twenty-one chunks to grow before it can answer
+     * any of them, which is far longer than a page can stand still for — so most of a first view is
+     * drawn from the page's own generator and the world's own answers turn up afterwards. Without
+     * this they would be filed away for next time and the player would spend the whole of this
+     * visit on ground the world does not agree with.
+     *
+     * Only chunks that were grown here are queued again: one that was drawn from the world's own
+     * bytes is already right, and redrawing it would be an endless round of redrawing.
+     */
+    const drawn = this.loaded.get(key);
+    if (drawn?.grown) this.queue.push({ cx, cz, since: 0 });
     this.pump();
   }
 
@@ -232,8 +270,22 @@ export class ChunkManager implements TileWorld, ChunkSource {
     const far = Math.max(Math.abs(msg.cx - this.focusCx), Math.abs(msg.cz - this.focusCz)) > WORLD.UNLOAD_RADIUS;
     if (far) { this.pump(); return; }
 
+    // ground drawn over: whatever was there stops being this page's own opinion
+    const before = this.loaded.get(k);
+    if (before?.grown) this.grown--;
+    if (msg.grown) this.grown++;
+    /*
+     * And if the world's own ground turned up while this was being drawn, draw it again.
+     *
+     * `deliver` puts a late arrival back in the queue, but only for chunks already on the ground —
+     * one still being meshed is not, so its bytes are filed and nothing would ever ask for them.
+     * That is a narrow window and it caught eleven chunks of a hundred and twenty-one, because a
+     * first view is exactly when the world is slowest and the page busiest.
+     */
+    if (msg.grown && this.sent.has(k)) this.queue.push({ cx: msg.cx, cz: msg.cz, since: 0 });
+
     if (msg.empty) {
-      this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null });
+      this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null, grown: msg.grown === true });
     } else {
       const group = new THREE.Group();
       const land = meshFromData(msg.mesh, this.terrainMaterial);
@@ -256,7 +308,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       group.updateMatrixWorld(true);
       group.matrixWorldAutoUpdate = false;
       this.loaded.set(k, {
-        cx: msg.cx, cz: msg.cz, group,
+        cx: msg.cx, cz: msg.cz, group, grown: msg.grown === true,
         tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, biomes: msg.biomes },
       });
       this.stats.drawn++;

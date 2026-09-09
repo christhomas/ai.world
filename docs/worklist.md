@@ -745,16 +745,26 @@ and less than that a busy one.
 - [x] The wire carries bytes as well as words. `Link` and `Wire` take `string | ArrayBuffer`; a
       websocket does it natively, a worker port by transfer, so a chunk costs nothing between
       threads. Nothing sends one yet.
-- [ ] The page asks for a chunk it does not have, and the world answers with it. Request and answer
+- [x] The page asks for a chunk it does not have, and the world answers with it. Request and answer
       rather than the world pushing, so a page that already has the country says nothing at all.
-- [ ] The page keeps them. The world is deterministic, so a chunk is worth exactly one transfer
+- [x] The page keeps them. The world is deterministic, so a chunk is worth exactly one transfer
       ever: `idb-keyval` is already a dependency and the saves already live in IndexedDB. Keyed by
       **the world's own fingerprint** rather than by a version number anybody has to remember —
       generation changes, the fingerprint changes, every stale chunk becomes unreachable, and there
       is no invalidation to get wrong. This is the whole of why streaming is affordable: after the
       first visit a country costs nothing.
-- [ ] The chunk worker stops generating and starts meshing what arrives. It keeps the expensive half
-      — turning tiles into geometry — and loses the half that could disagree with the server.
+- [x] The chunk worker meshes what arrives, and grows ground only while the world is still
+      answering. *(The fallback stays on purpose — a page that waited would stare at nothing every
+      time a socket hiccupped, and on a first visit the world has a hundred and twenty-one chunks to
+      grow before it can answer any of them. What was wrong is that it never went back: the page
+      drew its own country, filed the world's answers for next time, and spent the whole visit on
+      ground the world did not agree with. Late ground is now drawn over the top, and how much of
+      the country is still the page's own guess is counted on `__stream` as `grown`. It was a
+      hundred and twenty-one out of a hundred and twenty-one. It is nought.)*
+- [ ] And the last of it: `grown` should be nought on a warm world and is not on a cold one. The
+      world generates a first view on demand, which takes longer than a page can stand still for —
+      so the first minute in a new country is spent on ground that is right by luck rather than by
+      agreement. A world that had its first province ready before anybody asked would close it.
 - [ ] Structures too: villages, doors, eyries and the rest are derived from the same graph on both
       sides. Either the graph travels at the join or the structures do. Until then, the halves bench
       is what stands between a player and being walked about a country he cannot see.

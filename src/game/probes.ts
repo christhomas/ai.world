@@ -199,7 +199,17 @@ export function installProbes(ctx: Probed): void {
     };
   };
   // where the ground is coming from: the world, or what this page kept
-  Object.defineProperty(debug, '__stream', { configurable: true, get: () => ({ ...streamTally }) });
+  /**
+   * What this page asked the world for, what it had already, and what it grew itself.
+   *
+   * `grown` is the one worth watching: it is the number of chunks this page drew from its own
+   * generation because the world had not answered, and it is the only way left for the two halves
+   * of the game to be standing in different countries. It should be nought on a connected page.
+   */
+  Object.defineProperty(debug, '__stream', {
+    configurable: true,
+    get: () => ({ ...streamTally, grown: chunks.grown }),
+  });
   Object.defineProperty(debug, '__wire', {
     configurable: true,
     get: () => ({ sent: Object.fromEntries(online.tally.sent), heard: Object.fromEntries(online.tally.heard) }),

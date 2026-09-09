@@ -20,9 +20,18 @@ export type WorkerRequest =
 /** Worker → main thread. */
 export type WorkerResponse =
   | { type: 'ready' }
-  | { type: 'chunk'; id: number; cx: number; cz: number; empty: true }
+  | { type: 'chunk'; id: number; cx: number; cz: number; empty: true; grown?: boolean }
   | {
       type: 'chunk'; id: number; cx: number; cz: number; empty: false;
+      /**
+       * Whether this chunk was grown here rather than sent by the world.
+       *
+       * The one route left by which the two halves can be in different countries. It is deliberate —
+       * a page whose world has not answered should draw the ground rather than stand in the dark —
+       * but it is exactly the fault that leaves no trace, so it is counted where anybody can see it
+       * rather than happening quietly.
+       */
+      grown?: boolean;
       mesh: MeshData;
       water: MeshData | null;
       /** Flat array of [kind, x, y, z, rotY, scale] per prop instance. */

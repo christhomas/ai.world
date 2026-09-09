@@ -30,10 +30,12 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
    * arrives from the world is preferred wherever it exists, because a country both halves grew
    * separately is two countries.
    */
-  const chunk = msg.type === 'mesh' ? unpackChunk(msg.chunk) ?? sampler.generateChunk(cx, cz) : sampler.generateChunk(cx, cz);
+  const sent = msg.type === 'mesh' ? unpackChunk(msg.chunk) : null;
+  const chunk = sent ?? sampler.generateChunk(cx, cz);
+  const grown = sent === null;
   const meshes = buildChunkMesh(chunk, sampler.seed);
   if (!meshes.land) {
-    post({ type: 'chunk', id, cx, cz, empty: true });
+    post({ type: 'chunk', id, cx, cz, empty: true, grown });
     return;
   }
 
@@ -79,5 +81,5 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
     transfer.push(water.positions.buffer, water.normals.buffer, water.colors.buffer, water.indices.buffer);
     if (water.flow) transfer.push(water.flow.buffer);
   }
-  post({ type: 'chunk', id, cx, cz, empty: false, mesh: land, water, props: propArr, heights, types, waters, biomes }, transfer);
+  post({ type: 'chunk', id, cx, cz, empty: false, grown, mesh: land, water, props: propArr, heights, types, waters, biomes }, transfer);
 };
