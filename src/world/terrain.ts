@@ -140,6 +140,14 @@ export class TerrainSampler {
     prebuilt?: {
       hydro?: Hydrology; structures?: Structures; within?: Within;
       country?: Ground; settling?: Settling;
+      /**
+       * The rock of a country that was handed over rather than grown here.
+       *
+       * Given the finished ground, because that is the one thing it cannot work out for itself and
+       * the reason the mountains are built last of everything: they stand on the ground rather than
+       * being part of it, and the ground is not settled until the rivers have finished cutting it.
+       */
+      rock?: (ground: (x: number, z: number) => number) => Ranges;
     },
   ) {
     this.seed = graph.seed;
@@ -207,7 +215,13 @@ export class TerrainSampler {
     // nothing above it asks where the mountains are. The ground is read at the corners and apexes
     // of the polygons only: a few hundred tiles for a whole world, against one per tile if the
     // mountains were a field again.
-    if (this.mesh) {
+    if (this.country && prebuilt?.rock) {
+      const probe = this.newSample();
+      this.ranges = prebuilt.rock((x, z) => {
+        this.sampleTile(Math.round(x), Math.round(z), probe);
+        return probe.height;
+      });
+    } else if (this.mesh) {
       const probe = this.newSample();
       this.ranges = growRanges(
         this.mesh,

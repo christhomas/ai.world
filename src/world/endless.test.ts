@@ -71,6 +71,27 @@ describe('a patch of the endless country', () => {
     expect(seen.get(TileType.Road) ?? 0, 'roads that are drawn nowhere').toBeGreaterThan(0);
   });
 
+  it('stands rock on its high country', () => {
+    const rock = west.ranges;
+    expect(rock, 'no mountains at all').toBeTruthy();
+    expect(rock!.peaks.length, 'high country with nothing standing on it').toBeGreaterThan(0);
+    expect(rock!.tris.length, 'peaks with no rock under them').toBeGreaterThan(900);
+    // a summit stands above the ground it is on, which is the whole difference between a mountain
+    // and a hill drawn in the heightfield
+    for (const peak of rock!.peaks) expect(peak.y).toBeGreaterThan(peak.lift);
+  });
+
+  it('cuts the same rock in the ground two patches share', () => {
+    const east = samplerIn(SEED, EAST);
+    const summits = (s: typeof west): string[] => (s.ranges?.peaks ?? [])
+      .filter((p) => p.x >= 300 && p.x <= 460)
+      .map((p) => `${p.x.toFixed(3)},${p.z.toFixed(3)} ${p.lift.toFixed(3)}`)
+      .sort();
+    const mine = summits(west);
+    expect(mine.length, 'no summits in the ground they share').toBeGreaterThan(0);
+    expect(summits(east)).toEqual(mine);
+  });
+
   it('paints the ground two patches share exactly the same way', () => {
     const east = samplerIn(SEED, EAST);
     expect(SHARED.length, 'no shared chunks to compare').toBeGreaterThan(3);

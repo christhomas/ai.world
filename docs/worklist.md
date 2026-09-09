@@ -863,9 +863,15 @@ can each be finished and each leave the game playable.
       has to know about towns in its margin as well as its middle. And the drawing pinned the roads
       round `nodes[0]` as though it were the hub, which in a world with no middle is whichever
       crossroads sorted first — a graph now says whether it has a hub instead of assuming one.)*
-- [ ] **B7f2. The rock.** The high country is there and walkable; the mountains standing on it are
-      not. A bounded world grows them from its polygons — `growRanges` — and a patch needs the same
-      from its own faces.
+- [x] **B7f2. The rock.** *(`localrock.ts`. Three things had to stop being global: a face's height
+      came from a die rolled for every face in the world in id order, so a mountain's height depended
+      on how many faces sorted before it; it was measured against the widest mountain face there is,
+      so country added elsewhere made this mountain shorter; and a corner was held down by an array
+      of the world's corners. Now a face's height comes from its own name, measured against the size
+      a face of this country's spacing has, and a corner is a crossroads, which `junctionsIn`
+      already answers locally. The subdivision needed nothing: a midpoint is displaced by a hash of
+      the two ends of the side it sits on, written to close a seam inside one mountain, and it closes
+      the seam between two patches for free.)*
 - [ ] **B7f3. Landmarks, locally.** Signposts, caves, wrecks and jetties are still laid out by
       walking the road tree's nodes in a shuffled order, so they are off in an endless world. Each
       has a local shape waiting: a signpost knows the villages within a day's walk, a cave belongs
@@ -884,6 +890,14 @@ can each be finished and each leave the game playable.
       face. It was cut for a figure seen from further away than this camera now stands.
 - [ ] **The arms are still bare in mail.** Right for a mail shirt, wrong for plate — which is an
       argument for the arms taking a palette entry too, when there is anything to put on them.
+
+### Noticed while working, not yet chased
+
+- [ ] **The suite is flaky under load.** Two different tests have failed once each in a full run and
+      passed alone — `serve.test.ts`'s "keeps worlds apart" and, earlier, two of the local-country
+      benches. Timeouts rather than disagreements, so far as anything has been looked at. Worth
+      finding before it is treated as noise, because a real fault that only shows under load looks
+      exactly like this.
 
 ### C — the simulation, when there is more of it than a machine can hold
 

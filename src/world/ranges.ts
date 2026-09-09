@@ -356,7 +356,7 @@ export function buildRanges(mesh: WorldMesh, ground: GroundAt, walled?: WalledVi
  * roughened, and how much it may be roughened depends on how high it already is — a crag belongs
  * near a summit, and the same crag on the valley floor is a boulder in the middle of a road.
  */
-interface Point {
+export interface Point {
   x: number;
   z: number;
   ground: number;
@@ -371,7 +371,7 @@ interface Point {
  * different answers and open a seam down every edge. Because the hash is taken from the sum of the
  * coordinates it is the same whichever way round the side is handed in.
  */
-function cut(
+export function cut(
   a: Point, b: Point, c: Point, depth: number, seed: number, tallest: number,
   tris: number[], owner: number[], id: number,
 ): void {
@@ -390,7 +390,7 @@ function cut(
 }
 
 /** The midpoint of a side, moved off the straight line by an amount that side alone decides. */
-function between(a: Point, b: Point, seed: number, tallest: number): Point {
+export function between(a: Point, b: Point, seed: number, tallest: number): Point {
   const x = (a.x + b.x) / 2;
   const z = (a.z + b.z) / 2;
   const lift = (a.lift + b.lift) / 2;
@@ -459,7 +459,7 @@ function buildWall(
 const WALL_SIDES = 14;
 
 /** Bucket every triangle into the grid cells its bounding box covers. */
-function indexTriangles(tris: Float32Array, radius: number): TriIndex {
+export function indexTriangles(tris: Float32Array, radius: number): TriIndex {
   const reach = radius + RANGE.CELL * 2;
   const cols = Math.ceil((reach * 2) / RANGE.CELL);
   const rows = cols;

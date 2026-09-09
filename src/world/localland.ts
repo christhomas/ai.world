@@ -203,7 +203,7 @@ function depthOf(world: Country, face: Face): number {
 }
 
 /** A face's area, which is what its reach is measured from. The shoelace, as everywhere else. */
-function areaOf(face: Face): number {
+export function areaOf(face: Face): number {
   let twice = 0;
   for (let i = 0; i < face.corners.length; i++) {
     const a = face.corners[i], b = face.corners[(i + 1) % face.corners.length];

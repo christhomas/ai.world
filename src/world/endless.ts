@@ -4,6 +4,7 @@ import { graphIn, levelAt } from './localgraph';
 import { highlandNear, landOf } from './localland';
 import { junctionsIn, nameOf, townAt, type Land } from './localroads';
 import { waterIn } from './localwater';
+import { rockIn } from './localrock';
 import { TerrainSampler } from './terrain';
 import type { Founding } from './structures';
 import type { Within } from './window';
@@ -80,5 +81,7 @@ export function samplerIn(seed: number, within: Within): TerrainSampler {
     country: { land: (x, z) => world.land(x, z), highland: highlandNear(world, within) },
     hydro: waterIn(world, within),
     settling: { towns: townsIn(world, within) },
+    // last, because the rock stands on the finished ground rather than being part of it
+    rock: (ground) => rockIn(world, within, ground),
   });
 }
