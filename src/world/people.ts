@@ -1,5 +1,6 @@
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
+import { formAnOpinion, type Opinion } from './memory';
 
 /**
  * Who lives in a village, and what they are to one another.
@@ -27,7 +28,13 @@ export const LIFE = {
   LONGEST_LIFE: 90,
   /** Nobody keeps more than this many people in mind. */
   KNOWS: 5,
-  /** Nor more than this many things that happened to them. */
+  /**
+   * Nor more than this many things that happened to them, kept as the things themselves.
+   *
+   * It stays at two now that it is not the whole of a memory. What falls off the end is no longer
+   * dropped: `memory.ts` has already folded it into an opinion of whoever it was about, so this is
+   * the last couple of things somebody would raise unasked rather than everything they hold.
+   */
   REMEMBERS: 2,
   /** Children per household at founding, at most. */
   CHILDREN: 2,
@@ -66,6 +73,11 @@ export interface Person {
   /** The last couple of things that happened around them, newest first. */
   memories: Memory[];
   /**
+   * And what those things have added up to: a view per name, bounded and fading. See `memory.ts`
+   * for why the list above cannot be the whole of a memory in a world that has to be written down.
+   */
+  opinions: Opinion[];
+  /**
    * What they have put by, from trading in the same economy the player uses.
    *
    * On the person rather than on the entity standing in the street, because the entity is gone
@@ -101,10 +113,19 @@ export function outOfDays(person: Person, day: number): boolean {
   return ageOf(person, day) >= person.lives;
 }
 
-/** Add a memory, keeping only the last couple. The newest is first. */
+/**
+ * Add a memory, keeping only the last couple as things in themselves. The newest is first.
+ *
+ * The line that truncates used to be the whole of the bound, and it was an eviction: the third
+ * thing to happen to somebody took the first one away and left nothing behind, so ten slights
+ * became no opinion at all. It is a summary now — the opinion is formed here, on the way in, so
+ * whatever falls off the end has already left its mark on how this person regards whoever it was
+ * about. `memory.ts` holds the argument.
+ */
 export function remember(person: Person, memory: Memory): void {
   person.memories.unshift(memory);
   person.memories.length = Math.min(person.memories.length, LIFE.REMEMBERS);
+  formAnOpinion(person, memory);
 }
 
 /**
@@ -187,6 +208,7 @@ function born(
     father: '',
     knows: [],
     memories: [],
+    opinions: [],
     purse: 0,
     hungry: 0,
   };

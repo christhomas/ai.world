@@ -4,7 +4,7 @@ import type { Person } from './people';
 
 const soul = (trade: string, purse = 50): Person => ({
   id: `p${Math.random()}`, name: 'Maren', village: 'Ashford', trade, born: -30, lives: 70,
-  mother: '', father: '', knows: [], memories: [], purse, hungry: 0,
+  mother: '', father: '', knows: [], memories: [], opinions: [], purse, hungry: 0,
 });
 
 /**
