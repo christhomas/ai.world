@@ -42,6 +42,15 @@ export interface Site {
   z: number;
   /** How much room it wanted, which the mesher needs to know what kind of country this is. */
   claim: number;
+  /**
+   * What this one is called, for ever.
+   *
+   * The cell it was thrown in and which throw it was — which is to say, the two facts it was made
+   * from. An endless world cannot keep a register of names, so everything downstream that needs to
+   * refer to a place refers to it by this: the face here, the town on it, the road between it and
+   * its neighbour, the province that owns it. Nothing has to be stored for a name to be stable.
+   */
+  id: string;
 }
 
 /** Salts, so the three things asked of one cell cannot be the same number. */
@@ -63,7 +72,7 @@ function candidates(seed: number, cell: number, ci: number, cj: number, dials: C
     const z = (cj + rand2(of, ci, cj, OF_THE_POINT ^ 0x1f)) * cell;
     // how much room this one wants, from the field the world is shaped by
     const want = dials.near + (dials.far - dials.near) * Math.min(1, Math.max(0, spacing(x, z)));
-    out.push({ x, z, claim: want, rank: rand2(of, ci, cj, OF_THE_RANK) });
+    out.push({ x, z, claim: want, id: `${ci}:${cj}:${k}`, rank: rand2(of, ci, cj, OF_THE_RANK) });
   }
   return out;
 }
@@ -120,7 +129,7 @@ export function sitesIn(
         });
         if (refused) continue;
         if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
-        kept.push({ x: one.x, z: one.z, claim: one.claim });
+        kept.push({ x: one.x, z: one.z, claim: one.claim, id: one.id });
       }
     }
   }
