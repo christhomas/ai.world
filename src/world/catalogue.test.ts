@@ -16,15 +16,23 @@ import { PropKind } from './biomes';
  */
 
 describe('the catalogue of what stands on the world', () => {
-  it('names everything the prop library can draw', async () => {
-    const { PropLibrary } = await import('../render/props');
-    const library = new PropLibrary();
+  it('names every prop the world can put on the ground', async () => {
+    // asked of the prop catalogue rather than of the renderer: a prop is a part list now, so what
+    // the world can draw is a fact about data and does not need a canvas to find out
+    const { PROPS } = await import('../entities/props');
     const named = new Set(CATALOGUE.map((entry) => entry.kind));
     const missing: number[] = [];
-    for (const kind of library.geometries.keys()) {
+    for (const kind of PROPS.keys()) {
       if (kind !== PropKind.None && !named.has(kind)) missing.push(kind);
     }
     expect(missing, `the world draws ${missing.join(', ')} and the catalogue does not name them`)
+      .toEqual([]);
+  });
+
+  it('names nothing the world cannot draw', async () => {
+    const { PROPS } = await import('../entities/props');
+    const orphans = CATALOGUE.filter((entry) => !PROPS.has(entry.kind)).map((e) => e.name);
+    expect(orphans, `the catalogue names ${orphans.join(', ')}, which nothing can put on the ground`)
       .toEqual([]);
   });
 

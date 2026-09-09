@@ -400,6 +400,24 @@ prop(PropKind.Pew, [
   box(0.14, 0.45, 0.4, 0x6b4a2b, [-0.8, 0.22, 0]),
   box(0.14, 0.45, 0.4, 0x6b4a2b, [0.8, 0.22, 0]),
 ]);
+/**
+ * One tile of cell bars, standing across the width of a tile.
+ *
+ * A run of them is what makes the corner of a watch house a lock-up rather than a corner: they were
+ * placed by the interior generator and drawn by nothing at all, so the cell was an ordinary bit of
+ * floor with a bed in it that you could not walk into for reasons the room never showed you.
+ *
+ * Iron, thin, and floor to lintel, with a rail top and bottom so a run of them reads as one thing
+ * from across the room rather than as a row of separate posts.
+ */
+prop(PropKind.Bars, [
+  box(0.9, 0.07, 0.07, 0x4a4a4a, [0, 0.06, 0]),
+  box(0.9, 0.07, 0.07, 0x4a4a4a, [0, 1.9, 0]),
+  box(0.06, 1.9, 0.06, 0x55555b, [-0.34, 0.95, 0]),
+  box(0.06, 1.9, 0.06, 0x55555b, [-0.11, 0.95, 0]),
+  box(0.06, 1.9, 0.06, 0x55555b, [0.11, 0.95, 0]),
+  box(0.06, 1.9, 0.06, 0x55555b, [0.34, 0.95, 0]),
+]);
 prop(PropKind.Candle, [
   cyl(0.12, 0.16, 0.9, 6, 0xb8a878, [0, 0.45, 0]),
   cyl(0.08, 0.08, 0.3, 6, 0xf4efdc, [0, 1.05, 0]),

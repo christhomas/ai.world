@@ -18,6 +18,16 @@
   with the footprint the world will make it block drawn round its feet, so a hare that is secretly
   as big as a dog says so.
 
+  Everything is here, not only the things that are alive. A world is trees, rocks, cottages,
+  chapels, market stalls, beds and anvils as much as it is wolves — a hundred and twenty-six shapes
+  between them — and until the props were added to this list there was no way to look at a house at
+  all. They come from `world/catalogue.ts`, which a test holds to the prop data, so a prop added to
+  the game turns up here and one taken away stops turning up.
+
+  A prop is a shorter story than a creature: one shape planted at its middle, no rig, no walk, no
+  palette. What it does share is the footprint, and that is the thing most worth looking at, because
+  a prop whose box does not match its shape is a tree you bump into a pace before you reach it.
+
   Open it at /tools/builder.html with the dev server running. It is a page rather than a terminal
   panel because a page already has three.js, orbit controls and a mouse, and because it opens
   inside the editor as happily as in a browser.
@@ -123,6 +133,9 @@ import sea from '/properties/sea.json';
 import people from '/properties/people.json';
 import monsters from '/properties/monsters.json';
 import villain from '/properties/villain.json';
+import { PropLibrary } from '/src/render/props.ts';
+import { PROPS } from '/src/entities/props.ts';
+import { CATALOGUE, GROUPS as PROP_GROUPS } from '/src/world/catalogue.ts';
 
 /**
  * The list down the side, grouped the way `properties/` is grouped.
@@ -160,7 +173,9 @@ const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 // what is being looked at, and how. The creature is in the URL so that a reload — which is how a
 // changed rig arrives — puts you back in front of the same animal rather than at the top of the list
 let chosen = decodeURIComponent(location.hash.slice(1)) || 'hero';
-if (!KINDS[chosen]) chosen = 'hero';
+// a creature by its name, a prop by its kind number, and the hero for anything this world has
+// never heard of — a link kept from before something was renamed should open the page, not break it
+if (!KINDS[chosen] && !(chosen.startsWith('prop:') && PROPS.has(Number(chosen.slice(5))))) chosen = 'hero';
 let palette = 0;
 let kit = 0;
 
@@ -302,6 +317,7 @@ function clear() {
 }
 
 function show(id) {
+  if (id.startsWith('prop:')) { showProp(Number(id.slice(5))); return; }
   clear();
   const kind = KINDS[id];
   const tints = kind.palettes[Math.min(palette, kind.palettes.length - 1)] ?? [];
@@ -363,6 +379,66 @@ function frame(box) {
   controls.update();
 }
 
+/**
+ * The world's own prop shapes, built once.
+ *
+ * The same object the game builds to draw a forest: one merged geometry per kind, with the colours
+ * baked into the vertices. Built here rather than described here for the reason that matters —
+ * what you are looking at is what the world puts on the ground, not a second drawing of it that
+ * could drift.
+ */
+const propShapes = new PropLibrary();
+
+/**
+ * One prop, stood on the same grass a creature stands on.
+ *
+ * A prop has no rig, no palette and no walk: it is one shape planted at its own middle, which is
+ * why this is a dozen lines against the creature's hundred. What it does share is the footprint —
+ * the box a walker is stopped by — and that is the thing most worth seeing, because a prop whose
+ * box does not match its shape is a tree you bump into a pace before you reach it.
+ */
+function showProp(kind) {
+  clear();
+  const shape = propShapes.geometries.get(kind);
+  if (!shape) return;
+  const figure = new THREE.Group();
+  const mesh = new THREE.Mesh(shape, propShapes.material);
+  mesh.castShadow = true;
+  figure.add(mesh);
+  // the windows of a house, drawn unlit the way they are after dark
+  const glow = propShapes.glows.get(kind);
+  if (glow) figure.add(new THREE.Mesh(glow, new THREE.MeshBasicMaterial({ vertexColors: true })));
+  scene.add(figure);
+  scene.updateMatrixWorld(true);
+
+  const box = new THREE.Box3().setFromObject(figure);
+  standing = { figure, gear: null, moving: [], kind: null };
+  frame(box);
+  // the box a walker is stopped by, if it has one at all: a rug and a lily pad have none
+  const walked = PROPS.get(kind)?.box ?? null;
+  footprint.visible = walked !== null && el('foot').getAttribute('aria-pressed') === 'true';
+  if (walked) footprint.scale.set(walked.hw * 2, walked.hd * 2, 1);
+  describeProp(kind, box);
+  el('framing').textContent = framingProp(kind);
+}
+
+/** What is worth knowing about a prop while you are looking at it. */
+function describeProp(kind, box) {
+  const entry = CATALOGUE.find((e) => e.kind === kind);
+  const def = PROPS.get(kind);
+  const size = box.getSize(new THREE.Vector3());
+  const bits = [
+    `${def?.parts.length ?? 0} parts`,
+    `stands ${size.y.toFixed(2)} tall`,
+    def?.box
+      ? `blocks ${(def.box.hw * 2).toFixed(2)}×${(def.box.hd * 2).toFixed(2)} tiles`
+      : 'nothing to walk into',
+    def?.glow ? 'lit after dark' : '',
+  ].filter(Boolean);
+  el('facts').innerHTML = `<b>${MARKS[entry?.group] ?? '▫'} ${entry?.name ?? `prop ${kind}`}</b>`
+    + bits.map((b) => `<span>${b}</span>`).join('');
+}
+
 /** The numbers worth having on screen while you look at the shape they belong to. */
 function describe(kind) {
   const bits = [
@@ -396,13 +472,54 @@ for (const [title, file] of GROUPS) {
   }
 }
 
+/** A mark against each group, so the eye can find its way down a list of eighty things. */
+const MARKS = {
+  trees: '🌳', plants: '🌿', stone: '🪨', houses: '🏠', civic: '⛪', trade: '🪧',
+  farm: '🌾', building: '🏗', furniture: '🛏', dungeon: '🔦', wild: '🗿',
+};
+
+/*
+ * And everything that is not alive.
+ *
+ * A world is not only its creatures: it is trees, rocks, houses, churches, market stalls, beds and
+ * anvils — getting on for eighty shapes, every one of which is drawn on top of the ground and none
+ * of which could be looked at until now. They come from `world/catalogue.ts`, which is held to the
+ * prop data by a test, so a prop added to the game turns up in this list and one taken away stops
+ * turning up.
+ *
+ * Named `prop:<number>` rather than by name because `PropKind` is what the game keys everything
+ * by, and a name is a thing this page prints rather than a thing the world knows.
+ */
+for (const { group, name } of PROP_GROUPS) {
+  const entries = CATALOGUE.filter((entry) => entry.group === group && PROPS.has(entry.kind));
+  if (!entries.length) continue;
+  const heading = document.createElement('h2');
+  heading.textContent = name;
+  el('list').append(heading);
+  for (const entry of entries) {
+    const button = document.createElement('button');
+    button.innerHTML = `<span class="emoji">${MARKS[entry.group] ?? '▫'}</span>${entry.name}`;
+    button.onclick = () => choose(`prop:${entry.kind}`);
+    button.dataset.id = `prop:${entry.kind}`;
+    el('list').append(button);
+  }
+}
+
 function choose(id) {
   chosen = id;
   palette = 0;
   history.replaceState(null, '', `#${encodeURIComponent(id)}`);
   for (const b of el('list').children) {
-    if (b.dataset.id) b.setAttribute('aria-current', String(b.dataset.id === id));
+    if (!b.dataset.id) continue;
+    const here = b.dataset.id === id;
+    b.setAttribute('aria-current', String(here));
+    // a list of a hundred and fourteen things is taller than the window, and arriving on a link to
+    // the anvil should not mean scrolling to find out where you are
+    if (here) b.scrollIntoView({ block: 'nearest' });
   }
+  // a prop has no walk, so the pace slider is a knob that does nothing. Hidden rather than left
+  // there doing nothing, which is how a tool teaches you the wrong thing about what it is showing
+  el('pace').closest('label').hidden = id.startsWith('prop:');
   drawPalettes();
   drawKits();
   show(id);
@@ -413,7 +530,8 @@ function choose(id) {
 function drawPalettes() {
   const wrap = el('palettes');
   wrap.textContent = '';
-  const sets = KINDS[chosen].palettes;
+  // a prop has one colouring and no herd to differ from, so there is nothing here to choose
+  const sets = KINDS[chosen]?.palettes ?? [];
   // one button is not a choice, and a herd of one colour should not pretend to be a decision
   if (sets.length < 2) return;
   sets.forEach((set, i) => {
@@ -455,7 +573,9 @@ let last = performance.now();
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (standing) {
+  // a prop has nothing to animate: no rig, no walk, no limbs to swing. It still turns on the
+  // turntable below, because looking at a house from one side is how a house gets a wrong back
+  if (standing?.mover) {
     const e = standing.mover;
     const pace = Number(el('pace').value);
     e.walk = pace;
@@ -504,6 +624,38 @@ resize();
  * `monsters.ts`, and a page that guessed would send Claude to the wrong file often enough to be
  * worse than not guessing. Searching for the name is what a person would do anyway.
  */
+/**
+ * What is wrapped round the words you type, for a prop.
+ *
+ * A different framing from a creature's, because they are different jobs done in different files:
+ * a creature is a rig with a walk and a palette, and a prop is one shape planted in the ground.
+ * Telling Claude which of the two it is looking at, and where that thing lives, is most of the
+ * difference between a change that lands and a change that goes hunting.
+ */
+function framingProp(kind) {
+  const entry = CATALOGUE.find((e) => e.kind === kind);
+  return `You are changing one prop in the low-poly game in this repository.
+
+The prop is the \`PropKind.${entry?.name ?? kind}\` entry — a ${entry?.name ?? 'prop'} — in the
+catalogue in src/entities/props.ts. Find it rather than guessing; the houses and chapels are built
+from the shells in src/entities/buildings.ts, so a change to those changes six things at once.
+
+Read the comments at the top of src/entities/props.ts and src/entities/shapes.ts before you change
+anything. A prop is a list of parts — a shape, a size, an offset from the middle, a colour — and
+nothing else: no rig, no walk, no palette. Its footprint, the box a walker is stopped by, is
+measured off those parts rather than written down, so changing the shape changes what people bump
+into. That is deliberate and you should not work round it.
+
+The change asked for:
+
+${el('prompt').value.trim()}
+
+Do this and nothing else. Keep the house style: comments explain why rather than what, British
+spelling, no bare numbers where a named one would read better. Do not run git and do not commit.
+When you are done, say in two or three sentences what you changed and what it should now look like
+— somebody is watching this prop redraw as you save.`;
+}
+
 function framing(kind) {
   return `You are changing one creature in the low-poly game in this repository.
 
@@ -590,7 +742,9 @@ el('send').onclick = async () => {
   log.append(asked);
   saying = null;
   try {
-    const response = await fetch('/__ask', { method: 'POST', headers: KNOCK, body: framing(KINDS[chosen]) });
+    const response = await fetch('/__ask', { method: 'POST', headers: KNOCK, body: chosen.startsWith('prop:')
+        ? framingProp(Number(chosen.slice(5)))
+        : framing(KINDS[chosen]) });
     if (!response.ok) { note(await response.text(), true); el('send').disabled = false; return; }
     await readRun(response);
   } catch (err) {
