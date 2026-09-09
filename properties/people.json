@@ -87,7 +87,8 @@
     "note": [
       "You. A creature kind like any other, so everything that already knows how to draw, animate, herd and hit a creature knows how to do it to you.",
       "The climb is the consequential number: 0.56 clears one terrace and nothing else in the world has it. It is what a mountain is for, and it is the free answer to every heavy thing underground.",
-      "Four colours rather than two, because his are the only ones that change while the game is running: shirt, hair, trousers, boots. What he is wearing repaints them, since iron on the body means the body is iron rather than a second body drawn over the first."
+      "Five colours rather than two, because his are the only ones that change while the game is running: shirt, hair, trousers, boots, arms. What he is wearing repaints them, since iron on the body means the body is iron rather than a second body drawn over the first.",
+      "The fifth is his own skin, and it stays his skin under everything but plate — a mail shirt has sleeves of cloth or none at all, and bare arms under mail are right. It is here so that a harness has somewhere to put its vambraces."
     ],
     "label": "You",
     "emoji": "🧝",
@@ -99,7 +100,7 @@
     "behaviour": "wander",
     "timid": false,
     "palettes": [
-      ["#2fb36a", "#f2d15c", "#4a3a2a", "#3a2a1a"]
+      ["#2fb36a", "#f2d15c", "#4a3a2a", "#3a2a1a", "#ffdab9"]
     ],
     "names": ["You"],
     "lines": ["..."]

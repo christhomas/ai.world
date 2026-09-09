@@ -122,15 +122,21 @@ function quadruped(o: QuadOpts): P[] {
 function biped(o: {
   skin: number; hair: number; shirtTint: number; pantsColor: number; hairTint?: number;
   /**
-   * Which palette entries the trousers and the boots are painted from, for a person whose clothes
-   * change.
+   * Which palette entries the trousers, the boots and the arms are painted from, for a person
+   * whose clothes change.
    *
-   * Only the hero has them. What he is wearing repaints his own legs and feet rather than hanging a
-   * second pair over them, and a palette entry is the only thing an instanced rig can change per
-   * person. A villager's trousers are the colour they are cut from, so they stay a plain colour and
-   * cost nothing.
+   * Only the hero has them. What he is wearing repaints his own legs, feet and arms rather than
+   * hanging a second pair over them, and a palette entry is the only thing an instanced rig can
+   * change per person. A villager's trousers are the colour they are cut from, so they stay a plain
+   * colour and cost nothing.
+   *
+   * The arms are the late one, and they are worth explaining. Mail leaves them bare and should:
+   * a mail shirt is a shirt, and the man in it has sleeves of cloth or nothing at all. Plate does
+   * not — a harness is vambrace and rerebrace as much as breastplate, and a plated chest over two
+   * pink arms is somebody who put on half a suit. So the arms had to be able to take a colour
+   * before there was anything to paint them with, and `worn.ts` decides which pieces do it.
    */
-  pantsTint?: number; bootTint?: number;
+  pantsTint?: number; bootTint?: number; armTint?: number;
 }): P[] {
   // the head rides a little higher than it did, and the gap it leaves is the neck
   const headY = 1.36, pivot: [number, number, number] = [0, 1.2, 0];
@@ -174,10 +180,12 @@ function biped(o: {
      */
     box([0.27, 0.54, 0.36], [0, 0.89, 0], 0xffffff, { tint: o.shirtTint }),
     box([0.29, 0.11, 0.46], [0, 1.11, 0], 0xffffff, { tint: o.shirtTint }),
-    box([0.1, 0.42, 0.1], [0, 0.93, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
-    box([0.1, 0.42, 0.1], [0, 0.93, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
-    box([0.12, 0.1, 0.12], [0, 0.68, 0.25], o.skin, { anim: 'armL', pivot: [0, 1.14, 0.25] }),
-    box([0.12, 0.1, 0.12], [0, 0.68, -0.25], o.skin, { anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    box([0.1, 0.42, 0.1], [0, 0.93, 0.25], o.skin, { tint: o.armTint, anim: 'armL', pivot: [0, 1.14, 0.25] }),
+    box([0.1, 0.42, 0.1], [0, 0.93, -0.25], o.skin, { tint: o.armTint, anim: 'armR', pivot: [0, 1.14, -0.25] }),
+    // the hands go with the arms: a gauntlet is part of the harness, and a plated sleeve ending in
+    // a bare fist is the same half-a-suit the arms were
+    box([0.12, 0.1, 0.12], [0, 0.68, 0.25], o.skin, { tint: o.armTint, anim: 'armL', pivot: [0, 1.14, 0.25] }),
+    box([0.12, 0.1, 0.12], [0, 0.68, -0.25], o.skin, { tint: o.armTint, anim: 'armR', pivot: [0, 1.14, -0.25] }),
     /*
      * The leg reaches the boot.
      *
@@ -490,7 +498,7 @@ export const KINDS: Record<string, AnimalKind> = {
     box([0.24, 0.5, 0.3], [0.02, 0.62, 0], 0x8a4a2a),
   ]),
   hero: creature('hero', [
-    ...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: W, pantsTint: 2, bootTint: 3 }),
+    ...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: W, pantsTint: 2, bootTint: 3, armTint: 4 }),
     /*
      * Hat, brim, belt, cape: a silhouette you can find in a crowd of villagers.
      *

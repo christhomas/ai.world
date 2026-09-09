@@ -11,7 +11,8 @@ import { Painted, dressed, isDressing } from './worn';
  * palette he was born with rather than from whatever he happens to be painted in.
  */
 
-const BORN = [0x2fb36a, 0xf2d15c, 0x4a3a2a, 0x3a2a1a];
+/** The hero's palette out of `properties/people.json`: shirt, hair, trousers, boots, arms. */
+const BORN = [0x2fb36a, 0xf2d15c, 0x4a3a2a, 0x3a2a1a, 0xffdab9];
 
 /** A hero with the given kit on, and nothing else. */
 function wearing(...kit: string[]): GameState {
@@ -32,6 +33,29 @@ describe('what the hero is wearing', () => {
     expect(tints[Painted.Shirt]).not.toBe(BORN[Painted.Shirt]);
     expect(tints[Painted.Hair]).toBe(BORN[Painted.Hair]);
     expect(tints[Painted.Trousers]).toBe(BORN[Painted.Trousers]);
+  });
+
+  /*
+   * The arms, which are the whole difference between the two iron shirts.
+   *
+   * A mail shirt has sleeves of cloth or none at all, so bare arms under mail are the right
+   * picture and must stay that way — the temptation, once the arms can take a colour, is to paint
+   * everything metal with it. A harness is vambraces as much as breastplate, and the man in one
+   * with two pink arms has put on half a suit.
+   */
+  it('leaves his arms bare under mail and plates them under a harness', () => {
+    const inMail = wearing('mail');
+    expect(dressed(BORN, (slot) => inMail.worn(slot))[Painted.Arms]).toBe(BORN[Painted.Arms]);
+    const inPlate = wearing('plate');
+    const tints = dressed(BORN, (slot) => inPlate.worn(slot));
+    expect(tints[Painted.Arms]).not.toBe(BORN[Painted.Arms]);
+    expect(tints[Painted.Arms]).toBe(tints[Painted.Shirt]);
+  });
+
+  it('gives him his own arms back when the harness comes off', () => {
+    const state = wearing('plate');
+    state.unequip('body');
+    expect(dressed(BORN, (slot) => state.worn(slot))).toEqual(BORN);
   });
 
   it('armours the shin as well as the foot, since greaves are worn over both', () => {
