@@ -19,7 +19,7 @@ const house = (n: number): Structure => ({
 const village = (name: string, biome = Biome.Plains, houses = ROOFS, keeps = true): Village => ({
   name, board: null, station: null, x: 0, z: 0, radius: 20, level: 0, biome,
   houses: Array.from({ length: houses }, (_, n) => house(n)),
-  shops: [], pub: null, church: null, churchDoor: null, stalls: [],
+  shops: [], pub: null, church: null, churchDoor: null, hall: null, watchHouse: null, stalls: [],
   stable: keeps
     ? { house: house(0), doorX: 0, doorZ: 2, x: 8, z: 0, half: 3, gate: [5, 0], stock: KEEPS[biome] }
     : null,

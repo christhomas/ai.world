@@ -18,6 +18,10 @@ const PALETTES: Record<string, Palette> = {
   inn: { floor: 0xb8865a, floorAlt: 0xa8794a, wall: 0xe0cfa8, wallTop: 0x7a5a3a, counter: 0x8a6a3d, rug: 0x8a3a3a, light: 0xffcf8a },
   apothecary: { floor: 0xa89a78, floorAlt: 0x9c8f6f, wall: 0xdcd8bc, wallTop: 0x7a7458, counter: 0x8a6a3d, rug: 0x5a7a4a, light: 0xd6ffcf },
   church: { floor: 0xcfc9b4, floorAlt: 0xc4bda8, wall: 0xe8e4d4, wallTop: 0x9a9484, counter: 0xd8d2c0, rug: 0x8a3a5a, light: 0xfff0c8 },
+  // a hall is boards and panelling with a red carpet up the middle of it, and a watch house is
+  // stone, kept colder than anywhere else you can walk into
+  townhall: { floor: 0xb08d5f, floorAlt: 0xa48252, wall: 0xdccfae, wallTop: 0x6e5436, counter: 0x6b4a2b, rug: 0x8a2f2f, light: 0xffe3b0 },
+  watchhouse: { floor: 0x8f8f8f, floorAlt: 0x848484, wall: 0xa8a49a, wallTop: 0x5e5e5e, counter: 0x5a4632, rug: 0x4a5a6a, light: 0xd0e0ff },
 };
 
 /** Builds the room: a floor, four walls seen from above, and the furniture in it. */

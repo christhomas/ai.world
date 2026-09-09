@@ -16,7 +16,7 @@ const village = (name: string, x = 0, lawful = true): Village => ({
   name, board: null, x, z: 0, radius: 20, level: 0, biome: Biome.Plains,
   houses: [house(0)], shops: [], pub: null, stable: null,
   station: lawful ? { house: house(0), doorX: x, doorZ: 0 } : null,
-  church: null, churchDoor: null, stalls: [],
+  church: null, churchDoor: null, hall: null, watchHouse: null, stalls: [],
 });
 
 /** The villages a seed actually grows, for the questions only a whole world can answer. */
@@ -203,5 +203,65 @@ describe('a station broken open', () => {
     expect(reopened.lawless('Ashmere', 1)).toBe(true);
     expect(reopened.lawless('Ashmere', 1 + JAIL.REBUILD_DAYS)).toBe(false);
     expect(new Jail().toJSON().cells).toEqual([]);    // a country nothing has happened in writes nothing
+  });
+});
+
+/**
+ * The charge sheet, which is the cell's memory.
+ *
+ * A cell forgets a prisoner the moment their hour comes — it has to, or nobody else could be put
+ * in it. The sheet is the other half of that: what a village remembers about having held somebody,
+ * long after they walked out. It is written where the arrest happens, because every way anybody
+ * ends up behind a door goes through that one call, and a sheet kept anywhere else would be a
+ * second list somebody would forget to add to.
+ */
+describe('the charge sheet the watch keeps', () => {
+  it('writes a line when somebody is taken in, and keeps it after they are let out', () => {
+    const jail = new Jail();
+    const oakford = village('Oakford');
+    jail.commit(oakford, 'Sarn', 12, 1, 1, 30);
+    jail.release('Oakford');
+
+    expect(jail.holds('Oakford', 1), 'still holding somebody who was let out').toBeNull();
+    expect(jail.charges()).toEqual([{ who: 'Sarn', village: 'Oakford', day: 1, hours: 12, fine: 30 }]);
+  });
+
+  it('writes the hero down as somebody with a name, so the sheet reads as a sheet', () => {
+    const jail = new Jail();
+    jail.commit(village('Oakford'), 'you', 6, 1, 1, 15, true);
+    expect(jail.charges()[0].who, 'the hero is written down in the third person and lower case').toBe('You');
+  });
+
+  it('carries every village its own sheet, and nobody else\'s', () => {
+    const jail = new Jail();
+    jail.commit(village('Oakford'), 'Sarn', 6, 1, 1);
+    jail.commit(village('Ashmere', 60), 'Bram', 6, 1, 1);
+    expect(jail.charges().filter((c) => c.village === 'Oakford').map((c) => c.who)).toEqual(['Sarn']);
+    expect(jail.charges().filter((c) => c.village === 'Ashmere').map((c) => c.who)).toEqual(['Bram']);
+  });
+
+  it('keeps the recent names and lets the old ones go', () => {
+    const jail = new Jail();
+    const oakford = village('Oakford');
+    for (let n = 0; n < JAIL.SHEET_KEPT + 5; n++) {
+      jail.commit(oakford, `Sarn ${n}`, 2, n, n);
+      jail.release('Oakford');
+    }
+    const sheet = jail.charges();
+    expect(sheet.length, 'a sheet that grows for ever is a history, not a record').toBe(JAIL.SHEET_KEPT);
+    expect(sheet[sheet.length - 1].who, 'the newest name has fallen off the end').toBe(`Sarn ${JAIL.SHEET_KEPT + 4}`);
+    expect(sheet.some((c) => c.who === 'Sarn 0'), 'the oldest name is still on it').toBe(false);
+  });
+
+  it('survives a save, and a save written before there was a sheet at all', () => {
+    const jail = new Jail();
+    jail.commit(village('Oakford'), 'Sarn', 12, 1, 1, 30);
+    const reopened = Jail.from(JSON.parse(JSON.stringify(jail.toJSON())));
+    expect(reopened.charges().map((c) => c.who)).toEqual(['Sarn']);
+
+    // an older save has cells but no sheets in them, and must open rather than throw
+    const older = Jail.from({ cells: [{ village: 'Ashmere', held: null, standingAgain: 4 }] });
+    expect(older.charges()).toEqual([]);
+    expect(older.lawless('Ashmere', 1)).toBe(true);
   });
 });

@@ -8,6 +8,8 @@ import type { Sound } from './audio';
 import type { Gifts, Kindness } from './gifts';
 import type { Grudges } from './grudge';
 import type { Handover } from './handover';
+import type { Jail } from './jail';
+import type { Standing } from './standing';
 import type { Online } from './online';
 import type { Quest } from './quests';
 import { booksKeptIn } from './enquiry';
@@ -30,6 +32,15 @@ export interface Meeting {
   player: Player;
   register: Register;
   grudges: Grudges;
+  /**
+   * The country's cells, which are also where its charge sheets are written.
+   *
+   * Here rather than anywhere nearer the watch house, because the sheet is the one village book
+   * that is not a reading of the register: nothing about a village says who was arrested in it.
+   */
+  jail: Jail;
+  /** And how badly the law wants the person asking to see it. */
+  standing: Standing;
   gifts: Gifts;
   online: Online;
   handover: Handover;
@@ -60,8 +71,8 @@ export interface Meeting {
 
 export function createMeeting(ctx: Meeting) {
   const {
-    state, player, register, grudges, gifts, online, handover, sound, dialogue, rng, quests,
-    villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist,
+    state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue,
+    rng, quests, villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist,
   } = ctx;
 
   /**
@@ -157,11 +168,15 @@ export function createMeeting(ctx: Meeting) {
       },
     } : undefined;
     // and the books, which belong to the room rather than to whoever is stood in it: a priest
-    // reads out his own churchyard and an apothecary her own births, each of them only for
-    // somebody standing where the book is kept. Worked out afresh for every conversation, so a fee
-    // paid at one counter buys nothing at the next one and nothing at this one tomorrow.
+    // reads out his own churchyard, a clerk his own roll, a sergeant his own charge sheet, each of
+    // them only for somebody standing where the book is kept. Worked out afresh for every
+    // conversation, so a fee paid at one counter buys nothing at the next one and nothing at this
+    // one tomorrow — and the sheet is read at the moment it is asked for, because the surest way
+    // to get onto one is to be stood in front of the man who writes it.
     const room = indoors();
-    const kept = room ? booksKeptIn(room.kind, room.village, register, state.day) : [];
+    const kept = room
+      ? booksKeptIn(room.kind, room.village, register, state.day, { charges: jail.charges(), wanted: standing.wanted })
+      : [];
     talkCtx.enquiry = kept.length === 0 ? undefined : {
       books: kept,
       purse: () => state.inventory.gold,

@@ -144,6 +144,24 @@ const CONGREGATION_LINES = [
   'Peace be on your road, stranger.',
 ];
 
+// What the two civic counters say before they are asked anything. Both tell you what the building
+// is for without saying "you may read the roll here", because a greeting that is a menu is not a
+// greeting; a clerk is proud of his book and a sergeant would rather you moved along, and that is
+// the whole of the difference between them.
+const CLERK_LINES = [
+  'The roll is kept here. Everybody in the parish, written down in one hand, and that hand is mine.',
+  'Births, trades, what a man has put by. All of it in the book, and the book flatters nobody.',
+  'Mind the ink. I have been at this since dawn and I would rather not begin again.',
+  'You are not from here, so you are not on it. Ask anyway, if you like.',
+];
+
+const SERGEANT_LINES = [
+  'Watch house. State your business, or stand where I can see you.',
+  'The sheet is a public record. What is on it is not always comfortable. That is not my doing.',
+  'Cell is at the back. Empty more often than you would think, in a village this size.',
+  'We write down everybody we take in. Everybody, and what it cost them.',
+];
+
 const pick = (rng: Rng, list: string[]): string => list[Math.floor(rng() * list.length)];
 
 /**
@@ -175,6 +193,7 @@ export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
   }
 
   if (e.role === 'congregation') return chapelDialogue(e, ctx);
+  if (e.role === 'keeper') return deskDialogue(e, ctx);
   if (k.id === 'villager' || k.id === 'traveller') {
     const greeting = pick(ctx.rng, ['Hello there!', 'Oh! Hello.', 'Well met, traveller.']);
     return {
@@ -200,12 +219,37 @@ function chapelDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
     emoji: e.kind.emoji,
     face: faceFor(e, ctx),
   };
-  const pages = ['Hello, traveller.', ...residentPages(e, ctx, pick(ctx.rng, CONGREGATION_LINES))];
+  return acrossACounter(who, ['Hello, traveller.', ...residentPages(e, ctx, pick(ctx.rng, CONGREGATION_LINES))], ctx);
+}
+
+/**
+ * The clerk at the town hall and the sergeant at the watch house.
+ *
+ * One function for both, because they are one job: somebody stood behind a counter that is not a
+ * shop's, with the book their building keeps behind them. Which book that is, this does not know
+ * and must not — it is decided by the door the hero walked through, and arrives here already
+ * decided, in `ctx.enquiry`.
+ */
+function deskDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
+  const clerk = e.trade === 'clerk';
+  const who: Keeper = {
+    speaker: `${e.name}, the ${clerk ? 'Clerk' : 'Sergeant'}`,
+    emoji: clerk ? '📜' : '🔒',
+    face: faceFor(e, ctx),
+  };
+  return acrossACounter(who, [pick(ctx.rng, clerk ? CLERK_LINES : SERGEANT_LINES)], ctx);
+}
+
+/**
+ * Somebody with a book behind them, and the rows for asking to see it.
+ *
+ * The greeting is settled once and said again on every return to it. Rebuilding it would draw a
+ * fresh piece of small talk each time the player backed out of the book, so a priest who had just
+ * told you about his sister would greet you by telling you about somebody else.
+ */
+function acrossACounter(who: Keeper, pages: string[], ctx: TalkCtx): DialogueNode {
   const enquiry = ctx.enquiry;
   if (!enquiry) return { ...who, pages };
-  // the greeting is settled once and said again on every return to it. Rebuilding it would draw a
-  // fresh piece of small talk each time the player backed out of the book, so a priest who had
-  // just told you about his sister would greet you by telling you about somebody else.
   const root = (): DialogueNode => ({
     ...who,
     pages,

@@ -36,7 +36,18 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when villages gained stables you can see (2026-09-07). Two to five
+ * Last updated deliberately when the towns gained a town hall and a watch house (2026-09-09). A
+ * village of eight houses or more raises a hall on its square, and one that also keeps a cell
+ * raises a watch house beside it — about a fifth of the settlements in a world, which is every
+ * place big enough to have written anything down. `graph`, `hydro` and `quests` do not move, and
+ * that is the load-bearing part: the two buildings walk a fixed ring of directions round the
+ * square rather than rolling for one, so they draw nothing from the layout's random stream and
+ * every village name, every house and every chapel in every existing world is exactly where it
+ * was. Setting the threshold impossibly high reproduces the old hashes to the digit, which is how
+ * that was checked rather than argued. `structures` moves by the two buildings and their paths,
+ * and `chunks` moves because a civic footprint is stamped as floor with a path onto the cobbles,
+ * and the hub's square falls inside the four chunks the fingerprint reads in both seeds.
+ * Before that: villages gained stables you can see (2026-09-07). Two to five
  * villages in a world now keep one: a house with a fenced paddock beside it and the country's own
  * animals standing in it. `graph`, `hydro` and `quests` do not move — whether a village keeps a
  * stable is rolled on the stable house's own tile under a label of its own, so it takes nothing
@@ -74,6 +85,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'b7f54173', chunks: '34c6a374', quests: '07c8c2d8' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: '6a931680', chunks: '7a8c4c06', quests: '2fa87fd6' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'a71b2653', chunks: '3b4f149c', quests: '07c8c2d8' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '54a0557f', chunks: 'f7bb9f69', quests: '2fa87fd6' },
 };

@@ -4,7 +4,7 @@ import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { Register } from '../world/register';
 import { booksKeptIn, type Book, type Enquiry } from './enquiry';
-import { FEES } from './records';
+import { FEES, type Charge } from './records';
 import { GameState } from './state';
 import { dialogueFor } from './talk';
 
@@ -46,6 +46,21 @@ describe('asking to see a village book', () => {
     e.role = 'congregation';
     e.trade = 'priest';
     return e;
+  }
+
+  /** Whoever is behind a counter that is not a shop's: the hall's clerk, the watch house's sergeant. */
+  function desk(trade: 'clerk' | 'sergeant'): Entity {
+    const herd = new Herd(KINDS.shopkeeper, 0, 0, 0, 0, 1);
+    herd.tag = 'Elderton';
+    const e = new Entity(KINDS.shopkeeper, 0, 0, herd, 'desk', mulberry32(11));
+    e.role = 'keeper';
+    e.trade = trade;
+    return e;
+  }
+
+  /** What the watch has written down, which is the one thing the register cannot be asked for. */
+  function law(charges: Charge[] = [{ who: 'You', village: 'Elderton', day: 30, hours: 6, fine: 30 }], wanted = false) {
+    return { charges, wanted };
   }
 
   function apothecary(): Entity {
@@ -125,6 +140,8 @@ describe('asking to see a village book', () => {
     const { register, village, today } = parish();
     expect(booksKeptIn('church', village, register, today).map((b) => b.ask)).toEqual(['Ask about the dead']);
     expect(booksKeptIn('apothecary', village, register, today).map((b) => b.ask)).toEqual(['Ask about the births']);
+    expect(booksKeptIn('townhall', village, register, today).map((b) => b.ask)).toEqual(['Ask about the people here']);
+    expect(booksKeptIn('watchhouse', village, register, today, law()).map((b) => b.ask)).toEqual(['Ask about the charge sheet']);
     expect(booksKeptIn('house', village, register, today), 'somebody keeps records in their kitchen').toEqual([]);
     expect(booksKeptIn('smith', village, register, today), 'the forge keeps a parish register').toEqual([]);
   });
@@ -147,10 +164,69 @@ describe('asking to see a village book', () => {
     expect(book.pages.join('\n')).toMatch(/born day \d+/);
   });
 
+  /*
+   * The two civic counters.
+   *
+   * They are the reason `booksKeptIn` was written to take the kind of room rather than the person
+   * in it, so what is worth checking is that the claim held: the clerk and the sergeant are one
+   * kind of person with one greeting apiece, and everything else about the conversation — the free
+   * gist, the fee, the pages — is the machinery the priest and the apothecary already used.
+   */
+  it('reads the roll at the town hall: how many for nothing, and who they are for the fee', () => {
+    const { register, village, today } = parish();
+    const state = new GameState();
+    state.inventory.gold = 100;
+    const enquiry = counter(state, booksKeptIn('townhall', village, register, today));
+    const root = dialogueFor(desk('clerk'), talking(state, enquiry));
+    expect(root.speaker, 'the clerk is not introduced as the clerk').toContain('Clerk');
+
+    const gist = root.choices!.find((c) => c.label === 'Ask about the people here')!.next()!;
+    expect(gist.pages.join(' '), 'the free answer does not count the village').toMatch(/\d+ souls on the roll/);
+    expect(state.inventory.gold, 'charged for a head count, which is a public record').toBe(100);
+
+    const book = gist.choices!.find((c) => c.label.includes('See the book'))!.next()!;
+    expect(state.inventory.gold).toBe(100 - FEES.ROLL);
+    const read = book.pages.join('\n');
+    const somebody = register.living(village)[0];
+    expect(read, 'paid for the roll and was not told a single name off it').toContain(somebody.name);
+    // the roll is what makes the economy legible, so it has to say the numbers rather than hint
+    expect(read, 'a roll that does not say what anybody is worth').toMatch(/\d+ gold put by/);
+  });
+
+  it('reads the charge sheet at the watch house, and knows the hero is on it', () => {
+    const { register, village, today } = parish();
+    const state = new GameState();
+    state.inventory.gold = 100;
+    const enquiry = counter(state, booksKeptIn('watchhouse', village, register, today, law(undefined, true)));
+    const root = dialogueFor(desk('sergeant'), talking(state, enquiry));
+    expect(root.speaker).toContain('Sergeant');
+
+    const gist = root.choices!.find((c) => c.label === 'Ask about the charge sheet')!.next()!;
+    expect(gist.pages.join(' '), 'the sergeant does not mention that the law wants you').toContain('Yours is one of them');
+    const book = gist.choices!.find((c) => c.label.includes('See the book'))!.next()!;
+    expect(state.inventory.gold).toBe(100 - FEES.CHARGES);
+    expect(book.pages.join('\n')).toContain('You — held 6 hours, fined 30 gold');
+  });
+
+  it('sells nothing at a watch house with an empty sheet, and nothing at all with no law behind it', () => {
+    const { register, village, today } = parish();
+    const state = new GameState();
+    const quiet = counter(state, booksKeptIn('watchhouse', village, register, today, law([])));
+    const gist = dialogueFor(desk('sergeant'), talking(state, quiet))
+      .choices!.find((c) => c.label === 'Ask about the charge sheet')!.next()!;
+    expect(gist.pages.join(' ')).toContain('taken nobody in');
+    expect(gist.choices!.map((c) => c.label), 'selling a look at nought pages').toEqual(['Back']);
+
+    // and without the sheet handed in there is no book at all: the register cannot answer for it
+    expect(booksKeptIn('watchhouse', village, register, today), 'a sheet invented out of the register').toEqual([]);
+  });
+
   it('leaves everybody who is not standing where a book is kept exactly as they were', () => {
     const state = new GameState();
     // the same priest, met in the street: no room, no book, and nothing to ask him for
     expect(dialogueFor(priest(), talking(state)).choices).toBeUndefined();
+    // and a clerk away from his counter is a man with an opinion about ink
+    expect(dialogueFor(desk('clerk'), talking(state)).choices).toBeUndefined();
     // and a shop with no records behind the counter is the shop it always was
     expect(dialogueFor(apothecary(), talking(state)).choices!.map((c) => c.label))
       .toEqual(['Buy', 'Sell', 'Chat', 'Leave']);

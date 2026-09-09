@@ -1,6 +1,9 @@
 import { PropKind } from '../world/biomes';
 import type { Footprint, Footprints } from '../world/footprints';
-import { CHURCH_WINDOWS, HOUSE_WINDOWS, church, glazing, house, type HouseStyle } from './buildings';
+import {
+  CHURCH_WINDOWS, HALL_WINDOWS, HOUSE_WINDOWS, WATCH_WINDOWS,
+  church, glazing, house, townHall, watchHouse, type HouseStyle,
+} from './buildings';
 import { box, cone, cyl, dodec, footprintOf, ico, prism, type PropPart } from './shapes';
 
 /**
@@ -157,6 +160,12 @@ for (const [kind, style] of HOUSE_STYLES) {
   prop(tall, house(style, 2), [...glazing(HOUSE_WINDOWS), ...glazing(HOUSE_WINDOWS, STOREY)]);
   const churchKind = kind + (PropKind.ChurchPlains - PropKind.HousePlains);
   prop(churchKind, church(style), glazing(CHURCH_WINDOWS));
+  // and the two a village builds for itself once there are enough people to need them, out of the
+  // same timber for the same reason a chapel is: what tells them apart is the shape, not the colour
+  const hallKind = kind + (PropKind.TownHallPlains - PropKind.HousePlains);
+  prop(hallKind, townHall(style), glazing(HALL_WINDOWS));
+  const watchKind = kind + (PropKind.WatchHousePlains - PropKind.HousePlains);
+  prop(watchKind, watchHouse(style), glazing(WATCH_WINDOWS));
 }
 
 // A bath house: low, broad, timber, with a stone stack going up out of it and steam-coloured

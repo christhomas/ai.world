@@ -6,7 +6,7 @@ import { generateWebGraph } from '../world/roadweb';
 import { TerrainSampler } from '../world/terrain';
 import { propFootprints } from '../entities/props';
 
-const KINDS = ['house', 'store', 'smith', 'inn', 'apothecary', 'church'] as const;
+const KINDS = ['house', 'store', 'smith', 'inn', 'apothecary', 'church', 'townhall', 'watchhouse'] as const;
 
 describe('interiors', () => {
   it('every kind is a walled room with a door you can reach', () => {

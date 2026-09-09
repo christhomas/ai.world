@@ -63,6 +63,27 @@ export const enum PropKind {
   ChurchSwamp = 43,
   ChurchMountain = 44,
   ChurchSnow = 45,
+  /**
+   * The two civic buildings, laid out in biome order like the houses and the churches above.
+   *
+   * They are built out of the same six palettes for the same reason a chapel is: a village is
+   * built out of whatever the country round it is made of, and a stone hall in a timber village
+   * would read as something that had been dropped there. What tells them apart at a hundred paces
+   * is the shape — a porch of pillars on the hall, a squat lock-up wing on the watch house — and
+   * not the colour.
+   */
+  TownHallPlains = 100,
+  TownHallForest = 101,
+  TownHallDesert = 102,
+  TownHallSwamp = 103,
+  TownHallMountain = 104,
+  TownHallSnow = 105,
+  WatchHousePlains = 106,
+  WatchHouseForest = 107,
+  WatchHouseDesert = 108,
+  WatchHouseSwamp = 109,
+  WatchHouseMountain = 110,
+  WatchHouseSnow = 111,
   // dungeon furniture
   Torch = 50,
   Chest = 51,
@@ -110,6 +131,14 @@ export const enum PropKind {
   Pew = 72,
   Candle = 73,
   Rug = 74,
+  /**
+   * One tile of cell front: uprights between a floor rail and a head rail.
+   *
+   * Interior furniture rather than a wall tile, because a cell you cannot see into is a cupboard.
+   * The bars stop you the way a table does — measured off their own geometry — so the room reads
+   * as one room with a corner of it shut off, which is what a lock-up is.
+   */
+  Bars = 75,
 }
 
 /**
@@ -140,6 +169,10 @@ export const BLOCKS_WALKING: ReadonlySet<PropKind> = new Set<PropKind>([
   PropKind.TallHouseSwamp, PropKind.TallHouseMountain, PropKind.TallHouseSnow,
   PropKind.ChurchPlains, PropKind.ChurchForest, PropKind.ChurchDesert,
   PropKind.ChurchSwamp, PropKind.ChurchMountain, PropKind.ChurchSnow,
+  PropKind.TownHallPlains, PropKind.TownHallForest, PropKind.TownHallDesert,
+  PropKind.TownHallSwamp, PropKind.TownHallMountain, PropKind.TownHallSnow,
+  PropKind.WatchHousePlains, PropKind.WatchHouseForest, PropKind.WatchHouseDesert,
+  PropKind.WatchHouseSwamp, PropKind.WatchHouseMountain, PropKind.WatchHouseSnow,
   // a house of the player's own, at every stage it stands up in — pegs in the ground are not a
   // wall, so they are not here, but a frame is something you walk round
   PropKind.HouseFrame, PropKind.HouseRoof, PropKind.HouseYours, PropKind.Sauna,
