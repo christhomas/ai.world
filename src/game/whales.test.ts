@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { generateRoadGraph } from '../world/graph';
 import { TerrainSampler } from '../world/terrain';
-import { HOUR_SECONDS, WHALE, displayAt, hourAt, landingOf, planPods, podsWithin, whaleAt } from './whales';
+import { HOUR_SECONDS, WHALE, displayAt, hourAt, landingOf, podsIn, podsWithin, whaleAt } from './whales';
 
-const pods = (seed: number) => planPods(new TerrainSampler(generateRoadGraph(seed)), seed);
+/** A square of country, of the size the whole of a bounded world used to be. */
+const square = (r: number) => ({ x0: -r, z0: -r, x1: r, z1: r });
+const pods = (seed: number) => podsIn(new TerrainSampler(generateRoadGraph(seed)), seed, square(480));
 
 describe('where whales live', () => {
   it('puts pods in deep water, well apart, and always in the same places for a seed', () => {
     const sampler = new TerrainSampler(generateRoadGraph(1));
-    const first = planPods(sampler, 1);
+    const first = podsIn(sampler, 1, square(480));
     expect(first.length).toBeGreaterThan(0);
 
     // every family keeps its own mark within the hour, so two in sight do not go at once
@@ -28,9 +30,32 @@ describe('where whales live', () => {
         expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThanOrEqual(WHALE.APART);
       }
     }
-    // the same world, grown again, has the same whales in it
-    expect(planPods(sampler, 1)).toEqual(first);
+    // the same water, asked again, has the same whales in it
+    expect(podsIn(sampler, 1, square(480))).toEqual(first);
     expect(pods(2)).not.toEqual(first);
+  });
+
+  /**
+   * The rule the endless world rests on, asked of the whales: a stretch of sea has the families it
+   * has, whether you ask about it whole or a quarter at a time and in the wrong order. It is the
+   * test that would have failed the old rule outright — eighteen pods thrown at a ring around the
+   * middle of a world are eighteen different pods for every window you ask about.
+   */
+  it('finds the same families whether the sea is asked about whole or in quarters', () => {
+    const sampler = new TerrainSampler(generateRoadGraph(1));
+    const whole = podsIn(sampler, 1, square(480));
+    const quarters = [
+      { x0: 0, z0: 0, x1: 480, z1: 480 },
+      { x0: -480, z0: 0, x1: 0, z1: 480 },
+      { x0: 0, z0: -480, x1: 480, z1: 0 },
+      { x0: -480, z0: -480, x1: 0, z1: 0 },
+    ].flatMap((quarter) => podsIn(sampler, 1, quarter));
+
+    const named = (found: typeof whole) => [...new Set(found.map((p) => `${p.id}@${p.x.toFixed(3)},${p.z.toFixed(3)}`))].sort();
+    expect(named(quarters)).toEqual(named(whole));
+    // and a family found in a quarter is the same animal, not merely in the same place
+    const byId = new Map(quarters.map((p) => [p.id, p]));
+    for (const pod of whole) expect(byId.get(pod.id)).toEqual(pod);
   });
 
   it('only offers the pods you could actually see', () => {
@@ -43,7 +68,7 @@ describe('where whales live', () => {
 
 describe('when whales breach', () => {
   /** A family that starts twenty seconds into each hour. */
-  const pod = { x: 0, z: 0, size: 3, favourite: 5, at: 20, seed: 99 };
+  const pod = { id: 'pod:0:0', x: 0, z: 0, size: 3, favourite: 5, at: 20, seed: 99 };
   /** World seconds at a point in this pod's own display. */
   const during = (into: number) => pod.at + into;
 

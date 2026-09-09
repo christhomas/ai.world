@@ -17,7 +17,7 @@ import { ROAM, bandAt, bandsNear, outOfSight, warningFor as warningOfBand, type 
 import type { Sailing } from './sailing';
 import type { GameState } from './state';
 import { SeaHunt } from './seahunt';
-import { WHALE, displayAt, planPods, podsWithin, type Pod } from './whales';
+import { WHALE, displayAt, podsNear, podsWithin, type Pod } from './whales';
 import type { WildCamp } from './wildcamps';
 
 /**
@@ -65,11 +65,20 @@ export function createWatch(ctx: Watched) {
     sailing, sound, flash, hurt, knockOut, persist, campsAround, campEmptied,
   } = ctx;
 
-  const pods = planPods(sampler, seed);
   const seaHunt = new SeaHunt(seed);
   const school = new WhaleSchool(scene);
+  /**
+   * The families in the sea round the hero, gathered when he crosses into a new chunk — the same
+   * arrangement the camps have, and for the same reason: the answer only changes when he moves,
+   * and a chunk is as far as he can go before it does.
+   *
+   * There used to be one list of every pod in the world, made once when the world was. A sea with
+   * no far side cannot be listed, so it is asked instead.
+   */
+  let podChunk = '';
+  let podsAbout: Pod[] = [];
   /** The hour we last announced each family in, so one word is one display. */
-  const announced = new Map<Pod, number>();
+  const announced = new Map<string, number>();
 
   const campField = new CampField(scene);
   /** Camps in the country round the hero, worked out when they cross into a new chunk. */
@@ -182,13 +191,24 @@ export function createWatch(ctx: Watched) {
    * when it comes down.
    */
   const watchWhales = (now: number, dt: number): void => {
-    const near = podsWithin(pods, player.x, player.z, WHALE.WATCH);
+    const key = `${Math.floor(player.x / WORLD.CHUNK_SIZE)},${Math.floor(player.z / WORLD.CHUNK_SIZE)}`;
+    if (key !== podChunk) {
+      podChunk = key;
+      // as far as he can see whales, plus the chunk he is free to wander inside before this is
+      // asked again — a pod gathered from the far corner of it is still gathered from here
+      podsAbout = podsNear(sampler, seed, player.x, player.z, WHALE.WATCH + WORLD.CHUNK_SIZE * 2);
+      // and forget the families that are no longer out there, so a long voyage does not carry
+      // every pod it ever passed. The cost is that sailing out of sight of one and back inside the
+      // same hour hears about it twice, which is a sentence rather than a fault
+      for (const id of [...announced.keys()]) if (!podsAbout.some((p) => p.id === id)) announced.delete(id);
+    }
+    const near = podsWithin(podsAbout, player.x, player.z, WHALE.WATCH);
     const splashes = school.update(near, now, dt);
 
     for (const pod of near) {
       const { showing, hour } = displayAt(pod, now);
-      if (!showing || announced.get(pod) === hour) continue;
-      announced.set(pod, hour);
+      if (!showing || announced.get(pod.id) === hour) continue;
+      announced.set(pod.id, hour);
       sound.whalesong();
       flash(`Whales are breaching — ${compassDir(pod.x - player.x, pod.z - player.z)}, ${Math.round(Math.hypot(pod.x - player.x, pod.z - player.z))} tiles`);
     }
@@ -210,8 +230,8 @@ export function createWatch(ctx: Watched) {
   };
 
   return {
-    /** The families out there, whatever the clock says they are doing. */
-    pods: pods as readonly Pod[],
+    /** The families in the sea round the hero, whatever the clock says they are doing. */
+    pods: (): readonly Pod[] => podsAbout,
     /** The one Old Nettle in the world, and his lot, for anybody who has to look at them. */
     nettleAbout: (): Entity | null => nettleAbout,
     sentOut: (): readonly Entity[] => sentOut,

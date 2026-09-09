@@ -16,8 +16,17 @@ export const WORLD = {
   MAX_LEVEL: 120,
 } as const;
 
+/**
+ * Road tuning. How dense the roads are, how wide the land either side of one is, how far apart
+ * the towns stand.
+ *
+ * How *far* the roads go is deliberately not in here. That number says a world has an edge, which
+ * is true of a world grown to a radius and of nothing else, so it lives with the generator that
+ * grows one — `EDGE_OF_THE_WORLD` in `world/graph.ts` — and importing it is a statement about
+ * which kind of world you are making. Everything else here is a fact about roads, and roads are
+ * roads in an endless country too.
+ */
 export const GRAPH = {
-  RADIUS: 480,            // world radius in tiles
   ATTRACTOR_SPACING: 16,  // jittered grid spacing for growth targets; smaller = denser roads
   INFLUENCE: 52,          // attractor pulls nearest node within this range
   KILL: 12,               // attractor satisfied when a node is this close

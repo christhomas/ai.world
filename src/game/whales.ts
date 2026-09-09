@@ -1,8 +1,9 @@
-import { mulberry32 } from '../core/rng';
+import { hashString, mulberry32, rand2 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { DAY_LENGTH } from './state';
-import { GRAPH, WORLD } from '../core/config';
+import { WORLD } from '../core/config';
 import type { TerrainSampler } from '../world/terrain';
+import type { Within } from '../world/window';
 
 /**
  * Whales. They live out where the water is deep and nothing else goes, and on every hour of the
@@ -14,8 +15,19 @@ import type { TerrainSampler } from '../world/terrain';
  */
 
 export const WHALE = {
-  /** Pods scattered through one world's deep water. */
-  PODS: 18,
+  /**
+   * How far apart the whaling grounds lie, in tiles: the country is cut into squares this wide and
+   * each of them offers one family, which stands if the water where it fell is deep.
+   *
+   * It replaces a count. There were eighteen pods in a world, which is a number only a world with
+   * an edge can have — and rejection sampling for eighteen spots in deep water is a search over
+   * all the water there is. This says the same thing as a density instead, and a density is a
+   * local fact: a hundred and ten tiles puts twenty-odd families in a world the size of the old
+   * one, where the ring put eighteen, and puts the same again in open ocean a thousand tiles from
+   * anywhere. Smaller and the sea is a whale farm; larger and a player can cross an ocean without
+   * meeting one.
+   */
+  GROUNDS: 110,
   /** Whales in a pod, fewest and most. */
   POD_MIN: 2,
   POD_MAX: 4,
@@ -74,6 +86,14 @@ export const WHALE = {
 export const HOUR_SECONDS = DAY_LENGTH / 24;
 
 export interface Pod {
+  /**
+   * The square of sea it was thrown in, which is its name for ever.
+   *
+   * Whatever has to remember something about a family — that it has already been announced this
+   * hour, say — remembers it by this rather than by holding on to the object, because the pods
+   * around the hero are gathered afresh as he sails and the same family comes back as a new one.
+   */
+  id: string;
   x: number;
   z: number;
   /** How many whales, and which hour of the day this pod likes best (it breaches higher then). */
@@ -98,32 +118,85 @@ export interface WhaleState {
   through: number;
 }
 
+/** Salts, so where a family is thrown and which of two keeps the water are different questions. */
+const OF_THE_GROUND = 0x6bd1;
+const OF_ITS_RANK = 0x2f47;
+
 /**
- * Where the pods live. Deep water only — land in this world grows along the roads, so water far
- * from any road is water far from anything at all.
+ * The families in a patch of sea.
+ *
+ * Deep water only, which is a local test: land grows along the roads, so water far from any road
+ * is water far from anything at all, and how far the nearest road is is a question about the
+ * ground here rather than about the world.
+ *
+ * Where they are is the part that had to change. Whales used to be thrown at a ring of the
+ * world's radius — a third of the way out to two thirds — and kept if they landed in deep water,
+ * eighteen of them, tried for six hundred times. Every clause of that is a fact about a world with
+ * a middle and an edge: the ring, the count, and the search that stops when it has found enough.
+ * So the sea is cut into squares instead. Each square offers one family, thrown where its own
+ * name says, standing if the water there is deep and if no better family wants the same stretch of
+ * sea. Nothing counts anything and nothing is searched for; a patch of ocean has the whales it has
+ * whether it is asked about on its own, as a corner of somewhere bigger, or after a week's sailing.
  */
-export function planPods(sampler: TerrainSampler, seed: number): Pod[] {
-  const rng = mulberry32(derive(seed, SALT.WHALE));
-  const pods: Pod[] = [];
-  const reach = GRAPH.RADIUS * 0.95;
-  for (let tries = 0; tries < 600 && pods.length < WHALE.PODS; tries++) {
-    const angle = rng() * Math.PI * 2;
-    const distance = GRAPH.RADIUS * 0.35 + rng() * reach * 0.6;
-    const x = Math.cos(angle) * distance;
-    const z = Math.sin(angle) * distance;
-    const here = sampler.probe(x, z);
-    if (here.land || here.roadDist < WHALE.DEEP) continue;
-    // pods keep their distance from one another, so a crossing does not pass three at once
-    if (pods.some((p) => Math.hypot(p.x - x, p.z - z) < WHALE.APART)) continue;
-    pods.push({
-      x, z,
-      size: WHALE.POD_MIN + Math.floor(rng() * (WHALE.POD_MAX - WHALE.POD_MIN + 1)),
-      favourite: Math.floor(rng() * 24),
-      at: rng() * (HOUR_SECONDS - WHALE.DISPLAY),
-      seed: (seed ^ Math.floor(rng() * 0xffffff)) >>> 0,
-    });
+export function podsIn(sampler: TerrainSampler, seed: number, within: Within): Pod[] {
+  // Wider than the patch by the room a family keeps, for the same reason the springs are: a pod at
+  // the edge can be turned away by one just outside, and a patch that did not look would keep
+  // whales its neighbour knows are not there. Both sides ask the same question and get one answer.
+  const of = derive(seed, SALT.WHALE);
+  const cell = WHALE.GROUNDS;
+  const lowI = Math.floor((within.x0 - WHALE.APART) / cell), highI = Math.floor((within.x1 + WHALE.APART) / cell);
+  const lowJ = Math.floor((within.z0 - WHALE.APART) / cell), highJ = Math.floor((within.z1 + WHALE.APART) / cell);
+
+  const offered: Array<{ pod: Pod; rank: number }> = [];
+  for (let cj = lowJ; cj <= highJ; cj++) {
+    for (let ci = lowI; ci <= highI; ci++) {
+      const x = (ci + rand2(of, ci, cj, OF_THE_GROUND)) * cell;
+      const z = (cj + rand2(of, ci, cj, OF_THE_GROUND ^ 0x1f)) * cell;
+      const here = sampler.probe(x, z);
+      if (here.land || here.roadDist < WHALE.DEEP) continue;
+      offered.push({ pod: habitsOf(seed, `pod:${ci}:${cj}`, x, z), rank: rand2(of, ci, cj, OF_ITS_RANK) });
+    }
   }
-  return pods;
+  return offered
+    .filter((one) => !offered.some((other) => beats(other, one)))
+    .filter(({ pod }) => pod.x >= within.x0 && pod.x <= within.x1 && pod.z >= within.z0 && pod.z <= within.z1)
+    .map(({ pod }) => pod);
+}
+
+/** The families in the country round a point, which is what anybody watching the sea wants. */
+export function podsNear(sampler: TerrainSampler, seed: number, x: number, z: number, reach: number): Pod[] {
+  return podsIn(sampler, seed, { x0: x - reach, z0: z - reach, x1: x + reach, z1: z + reach });
+}
+
+/**
+ * Does one family take the stretch of sea another wanted? Only if it is too close, and better.
+ *
+ * Pods keep their distance so that a crossing does not pass three at once. Rank first and the name
+ * to settle a tie, so the answer cannot depend on which of the two was asked about.
+ */
+function beats(other: { pod: Pod; rank: number }, one: { pod: Pod; rank: number }): boolean {
+  if (other.pod.id === one.pod.id) return false;
+  if (Math.hypot(other.pod.x - one.pod.x, other.pod.z - one.pod.z) >= WHALE.APART) return false;
+  return other.rank > one.rank || (other.rank === one.rank && other.pod.id < one.pod.id);
+}
+
+/**
+ * What one family is like: how many, which hour it likes best, when in the hour it goes, and its
+ * own stream of numbers.
+ *
+ * Drawn from its own name rather than from one stream walked in order, which is what makes a pod
+ * the same pod whoever asks and in whatever company. Rolled from the same stream in sequence, the
+ * fifth family in a patch was a different animal from the same family found first from the east.
+ */
+function habitsOf(seed: number, id: string, x: number, z: number): Pod {
+  const rng = mulberry32(derive(seed, SALT.WHALE) ^ hashString(id));
+  return {
+    id, x, z,
+    size: WHALE.POD_MIN + Math.floor(rng() * (WHALE.POD_MAX - WHALE.POD_MIN + 1)),
+    favourite: Math.floor(rng() * 24),
+    at: rng() * (HOUR_SECONDS - WHALE.DISPLAY),
+    seed: (seed ^ Math.floor(rng() * 0xffffff)) >>> 0,
+  };
 }
 
 /** The pods close enough to be worth drawing. */

@@ -74,7 +74,8 @@ export interface Probed {
   skies: Skies;
   skyIsles: readonly SkyIsland[];
   eyries: readonly Eyrie[];
-  pods: readonly Pod[];
+  /** Asked rather than held: which families are out there depends on where the hero is. */
+  pods: () => readonly Pod[];
   mines: Mines;
   roaming: Roaming;
   nemesis: Nemesis;
@@ -126,11 +127,11 @@ export function installProbes(ctx: Probed): void {
   (debug as { __rig?: unknown }).__rig = rig;
   (debug as { __iso?: unknown }).__iso = iso;
   (debug as { __sampler?: unknown }).__sampler = sampler;
-  (debug as { __pods?: () => unknown }).__pods = () => pods;
+  (debug as { __pods?: () => unknown }).__pods = () => pods();
   (debug as { __sailing?: unknown }).__sailing = sailing;
   (debug as { __whaleY?: () => number[] }).__whaleY = () => {
     const now = worldSeconds(state.day, state.time);
-    return pods.flatMap((pod) => Array.from({ length: pod.size }, (_, i) => Math.round(whaleAt(pod, i, now).y * 100) / 100));
+    return pods().flatMap((pod) => Array.from({ length: pod.size }, (_, i) => Math.round(whaleAt(pod, i, now).y * 100) / 100));
   };
   (debug as { __three?: unknown }).__three = THREE;
   (debug as { __online?: unknown }).__online = online;
