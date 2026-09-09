@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
 import type { WorldKind } from '../src/save/store';
-import { Simulation } from './sim';
+import { unpackChunk } from '../src/world/chunkparcel';
+import { CHUNKS_AT_ONCE, Simulation } from './sim';
 import { IN_SIGHT } from './wildlife';
 import { Forgetful } from './vault';
 
@@ -787,5 +788,70 @@ describe('a hero carried home after a knock on the head', () => {
     const after = rowan.of('youAre').at(-1)!;
     expect(Math.hypot(after.x - before.x, after.z - before.z), 'carried four hundred tiles by a message')
       .toBeLessThan(2);
+  });
+});
+
+/*
+ * The world handing over pieces of itself.
+ *
+ * Both halves grow the country from the seed, which is why they can be in different ones. The cure
+ * is for the world to grow it and the page to be told — so a page asks for the chunks it does not
+ * have, and what comes back is bytes rather than words, because a chunk written out as text is four
+ * times the size and slower to read than to make again.
+ */
+describe('a page asking the world for country', () => {
+  it('is answered with the ground it asked for, and nothing it did not', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim);
+    const heard: ArrayBuffer[] = [];
+    // the wire this test listens on: words to the usual place, bytes kept here
+    (rowan as unknown as { wire: { send: (parcel: string | ArrayBuffer) => void } }).wire.send = (parcel) => {
+      if (typeof parcel === 'string') rowan.heard.push(JSON.parse(parcel) as never);
+      else heard.push(parcel);
+    };
+    rowan.join(3, 'Rowan');
+    sim.tick(Date.now() + 100);
+
+    rowan.say({ type: 'want-chunks', chunks: [[8, 4], [8, 5]] });
+    expect(heard.length, 'the world sent no country at all').toBe(2);
+
+    const first = unpackChunk(heard[0]);
+    expect(first, 'what came back was not a chunk').toBeTruthy();
+    expect([first!.cx, first!.cz]).toEqual([8, 4]);
+    // and it is the world's own ground rather than something made up for the wire
+    const mine = sim.groundOf(3)!.parcelOf(8, 4);
+    expect([...first!.tiles.heights]).toEqual([...mine.tiles.heights]);
+    expect([...first!.props]).toEqual([...mine.props]);
+  });
+
+  it('will not be talked into handing over the whole world at once', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim);
+    let sent = 0;
+    (rowan as unknown as { wire: { send: (parcel: string | ArrayBuffer) => void } }).wire.send = (parcel) => {
+      if (typeof parcel === 'string') rowan.heard.push(JSON.parse(parcel) as never);
+      else sent++;
+    };
+    rowan.join(3, 'Rowan');
+    sim.tick(Date.now() + 100);
+
+    const greedy: Array<[number, number]> = [];
+    for (let i = 0; i < 5_000; i++) greedy.push([i, 0]);
+    rowan.say({ type: 'want-chunks', chunks: greedy });
+    expect(sent, 'a client asked for five thousand chunks and got them').toBeLessThanOrEqual(CHUNKS_AT_ONCE);
+    expect(sent, 'and got none at all').toBeGreaterThan(0);
+  });
+
+  it('says nothing to a page whose world has no ground grown for it', () => {
+    const sim = new Simulation({ vault: new Forgetful() });        // no ground in this one
+    const rowan = new Pretend(sim);
+    let sent = 0;
+    (rowan as unknown as { wire: { send: (parcel: string | ArrayBuffer) => void } }).wire.send = (parcel) => {
+      if (typeof parcel === 'string') rowan.heard.push(JSON.parse(parcel) as never);
+      else sent++;
+    };
+    rowan.join(3, 'Rowan');
+    rowan.say({ type: 'want-chunks', chunks: [[0, 0]] });
+    expect(sent).toBe(0);
   });
 });

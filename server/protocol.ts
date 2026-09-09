@@ -6,7 +6,7 @@
 
 import type { WorldKind } from '../src/save/store';
 
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -309,6 +309,19 @@ export type ClientMessage =
    * stops being a floor they have left it.
    */
   | { type: 'floor'; place: string; anchor: string; kind: 'dungeon' | 'cave' | 'thicket'; floor: number }
+  /**
+   * Asking the world for a piece of itself.
+   *
+   * Both halves grow the country from the seed today, which is why they can disagree about which
+   * country they are in — and the answer is for the world to grow it and the page to be told. A page
+   * asks for the chunks it does not have; a page that has been here before asks for nothing at all,
+   * because the ground it kept is the ground it would be sent.
+   *
+   * Asked for rather than pushed, and that is the difference between an endless world and a stream:
+   * the world does not decide what anybody needs to see, so it cannot be wrong about it, and a page
+   * with a full store is silent.
+   */
+  | { type: 'want-chunks'; chunks: Array<[number, number]> }
   /**
    * Set the world's clock: what day it is, and how far through it.
    *

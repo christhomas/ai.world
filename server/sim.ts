@@ -5,6 +5,7 @@ import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld } from '../src/world/groundworld';
 import { propFootprints } from '../src/render/props';
+import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife } from './wildlife';
@@ -89,6 +90,15 @@ export const CLOSE_ENOUGH_TO_FIGHT = 14;
 
 /** How many chunks either side of a player the ground is held for, by default. */
 export const REACH = 3;
+
+/**
+ * How many chunks the world will hand over in answer to one asking.
+ *
+ * A view is a hundred and twenty-one, so this is a comfortable armful and well short of what a page
+ * could ask for by mistake or on purpose. Anything beyond it is asked for again next time, which
+ * costs a message and no country.
+ */
+export const CHUNKS_AT_ONCE = 200;
 
 /** The deepest floor anybody may claim to be standing on, so a number is not a way to spend memory. */
 const FLOORS = 40;
@@ -221,6 +231,9 @@ export class Simulation {
         // here rather than in the roster: growing one costs a world, and only the thing that holds
         // the worlds can decide to.
         if (message.type === 'floor') { this.standOn(client, message); return; }
+        // a piece of the world itself, which is bytes rather than words and so is answered here
+        // where the ground is, rather than in the roster which knows only about people
+        if (message.type === 'want-chunks') { this.sendChunks(client, message); return; }
         handle(this.rooms, client, room, message);
       },
       leave: () => {
@@ -363,6 +376,30 @@ export class Simulation {
       client.seeing = now;
       if (changed.length === 0 && gone.length === 0) continue;
       this.rooms.send(client, { type: 'creatures', place, near: changed, gone });
+    }
+  }
+
+  /**
+   * Hand over pieces of the world a page says it does not have.
+   *
+   * The world grows these chunks anyway — it has to, to walk creatures across them — so sending one
+   * costs the packing and the wire and nothing else. A page asks only for what it is missing, and a
+   * page that has been here before asks for nothing, so a country is paid for once by whoever walks
+   * it and never again.
+   *
+   * Capped per message because a client asking for ten thousand chunks is either broken or trying
+   * it on, and the answer to both is the same: as many as anybody could want at once, and no more.
+   */
+  private sendChunks(client: Client, message: Extract<ClientMessage, { type: 'want-chunks' }>): void {
+    const ground = this.groundOf(client.seed);
+    if (!ground) return;
+    const wanted = Array.isArray(message.chunks) ? message.chunks.slice(0, CHUNKS_AT_ONCE) : [];
+    for (const pair of wanted) {
+      if (!Array.isArray(pair) || pair.length !== 2) continue;
+      const cx = Math.trunc(Number(pair[0])), cz = Math.trunc(Number(pair[1]));
+      if (!Number.isFinite(cx) || !Number.isFinite(cz)) continue;
+      const parcel = ground.parcelOf(cx, cz);
+      if (parcel) this.rooms.sendBytes(client, packChunk(parcel));
     }
   }
 

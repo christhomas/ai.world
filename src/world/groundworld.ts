@@ -7,6 +7,8 @@ import type { Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
 import { Solids, boxesOf, type Body } from './solids';
+import type { Parcel } from './chunkparcel';
+import { propsOf } from './propstream';
 import type { Footprints } from './footprints';
 
 /**
@@ -45,6 +47,22 @@ export class GroundWorld implements TileWorld, ChunkSource {
 
   /** How many chunks are being held. What the memory of a busy world is made of. */
   get held(): number { return this.loaded.size; }
+
+  /**
+   * A chunk of this world as something that can be sent: its tiles and what stands on them.
+   *
+   * The same tiles this world walks creatures over and the same props it collides them against, so a
+   * page given one of these is holding the country the server is holding rather than its own copy of
+   * the recipe. That is the whole point of sending it.
+   */
+  parcelOf(cx: number, cz: number): Parcel {
+    const chunk = this.sampler.generateChunk(cx, cz);
+    const props: number[] = [];
+    for (const p of propsOf(chunk, this.sampler.seed)) {
+      props.push(p.kind, p.x, p.y, p.z, p.rot, p.scale, p.stretch, p.lean, p.tint);
+    }
+    return { cx, cz, props: Float32Array.from(props), tiles: tilesOf(chunk) };
+  }
 
   /** The villages of this world: where anybody who goes down is carried to. */
   get villages(): ReadonlyArray<{ x: number; z: number }> { return this.sampler.structures.villages; }

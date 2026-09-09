@@ -170,6 +170,17 @@ export class Rooms {
     return room;
   }
 
+  /**
+   * Hand somebody a piece of the world itself.
+   *
+   * Bytes rather than words, and so it goes out beside the messages rather than as one: a chunk of
+   * country is arrays of heights and tile kinds, and writing them out as text would be four times
+   * the size and slower to read than to make again.
+   */
+  sendBytes(client: Client, bytes: ArrayBuffer): void {
+    if (client.wire.open) client.wire.send(bytes);
+  }
+
   /** Put a newcomer in a room and hand back the client the rest of the server will talk to. */
   admit(wire: Wire, room: Room, seed: number, name: string): Client {
     const client: Client = {
