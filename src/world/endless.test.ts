@@ -37,6 +37,11 @@ for (let cz = 1; cz < 512 / TILES - 1; cz += 3) {
   for (let cx = Math.ceil(256 / TILES) + 1; cx < 512 / TILES - 1; cx += 3) SHARED.push([cx, cz]);
 }
 
+/** How many crossroads the patch has, which is the most signposts it could possibly want. */
+function settlementsIn(s: ReturnType<typeof samplerIn>): number {
+  return s.graph.nodes.length;
+}
+
 function differences(a: ChunkData, b: ChunkData): string[] {
   const out: string[] = [];
   for (const field of ['type', 'biome', 'prop', 'sloped', 'height', 'shore', 'water'] as const) {
@@ -90,6 +95,39 @@ describe('a patch of the endless country', () => {
     const mine = summits(west);
     expect(mine.length, 'no summits in the ground they share').toBeGreaterThan(0);
     expect(summits(east)).toEqual(mine);
+  });
+
+  it('puts signposts, caves and wrecks in the country between its villages', () => {
+    const found = west.structures;
+    expect(found.signposts.length, 'nothing to tell you where you are').toBeGreaterThan(0);
+    expect(found.caves.length + found.wrecks.length, 'a country with nothing to find in it')
+      .toBeGreaterThan(0);
+    // a signpost stands in the open country, so mountainous ground has few and the plains have most
+    expect(found.signposts.length, 'a signpost at every crossroads is a signpost nobody reads')
+      .toBeLessThan(settlementsIn(west));
+    for (const post of found.signposts) {
+      expect(post.directions.length, 'a signpost pointing nowhere').toBeGreaterThan(0);
+      for (const way of post.directions) expect(way.tiles, `${way.name} is no distance away`).toBeGreaterThan(0);
+    }
+  });
+
+  it('marks the country two patches share in the same way', () => {
+    const east = samplerIn(SEED, EAST);
+    const marks = (s: typeof west): string[] => {
+      const out: string[] = [];
+      for (const p of s.structures.signposts) {
+        if (p.x < 290 || p.x > 480) continue;
+        out.push(`post ${p.x.toFixed(2)},${p.z.toFixed(2)} ${p.directions.map((d) => `${d.name} ${d.dir} ${d.tiles}`).join('|')}`);
+      }
+      for (const site of [...s.structures.caves, ...s.structures.wrecks]) {
+        if (site.x < 290 || site.x > 480) continue;
+        out.push(`site ${site.id} ${site.name} ${site.x.toFixed(2)},${site.z.toFixed(2)}`);
+      }
+      return out.sort();
+    };
+    const mine = marks(west);
+    expect(mine.length, 'nothing marks the ground they share').toBeGreaterThan(0);
+    expect(marks(east)).toEqual(mine);
   });
 
   it('paints the ground two patches share exactly the same way', () => {

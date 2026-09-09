@@ -302,8 +302,16 @@ export function generateWebGraph(seed: number, radius = GRAPH.RADIUS): RoadGraph
     seed, radius, nodes, edges, towns,
     islands, mainlandNodes: nodes.length,
     sectors, sectorOffset: rng() * Math.PI * 2,
-    // the crossroads nearest the middle, which is where the player starts
-    hub,
+    /*
+     * Where the world's first village stands, and the roads that must not lean away from it.
+     *
+     * Node nought, which is *not* `hub` above — that is the crossroads nearest the middle, used to
+     * root the spanning tree, and this is the lowest-numbered corner on dry land. They disagree,
+     * and the disagreement is older than this line: `generateStructures` has always founded
+     * Crossroads Town on node nought while the tree was rooted at `hub`. Written down rather than
+     * fixed, because every saved world's first village stands where this says it does.
+     */
+    hub: 0,
     mesh,
   };
 }

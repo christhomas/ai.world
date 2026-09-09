@@ -872,10 +872,19 @@ can each be finished and each leave the game playable.
       already answers locally. The subdivision needed nothing: a midpoint is displaced by a hash of
       the two ends of the side it sits on, written to close a seam inside one mountain, and it closes
       the seam between two patches for free.)*
-- [ ] **B7f3. Landmarks, locally.** Signposts, caves, wrecks and jetties are still laid out by
-      walking the road tree's nodes in a shuffled order, so they are off in an endless world. Each
-      has a local shape waiting: a signpost knows the villages within a day's walk, a cave belongs
-      to the cliff it is in.
+- [x] **B7f3. Landmarks, locally.** *(`markThePlaces`. A crossroads is asked whether it holds a
+      signpost, rather than being the eleventh node a shuffle reached, and nothing is counted: a
+      patch with a great many cliffs has a great many caves. A signpost points at the towns within a
+      day's walk, gathered from wider than the patch, or it is not raised at all. One rule had to
+      change rather than move: a cave was "the first tile drawn as high ground", which does not
+      carry over — the road tree's mountains lift a tile's own rise, so their flanks read as `High`,
+      while a country made of polygons raises the base the tiles are measured from, so ground can
+      stand fifteen terraces up and every tile of it still read as ordinary. A country of cliffs
+      would have had no caves in it and nothing would have said so.)*
+- [ ] **B7f4. Ports and ferries in a drawn world.** Jetties are still the road tree's, because a
+      pier belongs to an island. `localsea` has the endless answer — a port where the land meets
+      deep water, a ferry where two ports choose each other — and nothing has joined it to the
+      ground yet.
 - [ ] **B7g. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
       sea test in `wild.ts`, the debug readout, the map's padding and the roaming bands stop
       measuring from the middle of a world that no longer has one.
@@ -893,11 +902,21 @@ can each be finished and each leave the game playable.
 
 ### Noticed while working, not yet chased
 
-- [ ] **The suite is flaky under load.** Two different tests have failed once each in a full run and
-      passed alone — `serve.test.ts`'s "keeps worlds apart" and, earlier, two of the local-country
-      benches. Timeouts rather than disagreements, so far as anything has been looked at. Worth
-      finding before it is treated as noise, because a real fault that only shows under load looks
-      exactly like this.
+- [ ] **A web world's first village is not at its hub.** `roadweb` roots its spanning tree at the
+      crossroads nearest the middle, and `generateStructures` founds Crossroads Town on node nought,
+      which is the lowest-numbered corner on dry land. The two are different places. Nothing is
+      visibly broken — the player starts where the village is — but the tree is grown outward from
+      somewhere nobody ever stands. Fixing it moves the first village of every saved world, so it
+      wants doing deliberately or not at all.
+
+- [ ] **The suite times out when the machine is busy.** Five different tests have failed a full run
+      and passed alone, and the failures are always `Test timed out in 60000ms` rather than a
+      disagreement. Measured while a Rust build on another project held most of the cores: with
+      `--maxWorkers=4` the same run is green. Vitest spawns one worker per file — a hundred and
+      thirty-six of them — so a busy machine starves each of them below the sixty-second budget of
+      the slowest test in it.
+      Worth fixing rather than living with, because "the suite is green" has to mean something: cap
+      the workers, or give the handful of slow benches a budget of their own, or both.
 
 ### C — the simulation, when there is more of it than a machine can hold
 

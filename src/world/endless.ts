@@ -30,6 +30,16 @@ const DIALS = { near: 34, far: 62, tries: 6 } as const;
 const GRAIN = 0.0026;
 
 /**
+ * How far past a patch its neighbours are looked up, in tiles.
+ *
+ * A signpost points at what is within a day's walk, and most of what is around the edge of a patch
+ * is in the next one. This has to be at least that walk, or a signpost at the edge names fewer
+ * places than the same signpost seen from the patch next door — which would be a signpost that
+ * changes what it says depending on where you came from.
+ */
+const LOOKING = 300;
+
+/**
  * The country of a seed: the sites, the faces, and whether a given spot is dry.
  *
  * Held rather than made per question. Everything below asks the same patch about the same faces
@@ -80,7 +90,15 @@ export function samplerIn(seed: number, within: Within): TerrainSampler {
     within,
     country: { land: (x, z) => world.land(x, z), highland: highlandNear(world, within) },
     hydro: waterIn(world, within),
-    settling: { towns: townsIn(world, within) },
+    settling: {
+      towns: townsIn(world, within),
+      posts: junctionsIn(world, within).map((j) => ({ id: j.id, x: j.x, z: j.z })),
+      // wider than the patch, because a signpost near its edge points at the next patch's villages
+      neighbours: townsIn(world, {
+        x0: within.x0 - LOOKING, z0: within.z0 - LOOKING,
+        x1: within.x1 + LOOKING, z1: within.z1 + LOOKING,
+      }),
+    },
     // last, because the rock stands on the finished ground rather than being part of it
     rock: (ground) => rockIn(world, within, ground),
   });

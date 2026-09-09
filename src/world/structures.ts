@@ -1,6 +1,9 @@
 import { footprintLevel } from './footprint';
 import { GRAPH } from '../core/config';
-import { markTheWay } from './landmarks';
+import { markThePlaces, markTheWay } from './landmarks';
+import { hashOfPlace, type Founding, type Settling } from './settling';
+
+export type { Founding, Settling } from './settling';
 import type { RoadNode } from './graph';
 import { POI_NAMES, PREFIX, SUFFIX } from './names';
 import { StructureKind } from './kinds';
@@ -206,13 +209,6 @@ const LAYOUT = {
   VILLAGE: { spread: 11, maxHouses: 6, minHouses: 3, squareR: 4 },
 } as const;
 
-/** A place's name as a number, so the village standing on it can be drawn from it. */
-function hashOfPlace(id: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return h >>> 0;
-}
-
 /** How many of a village's houses are shops: two, plus one each at six and eight houses. */
 function shopCount(houses: number): number {
   return Math.min(houses - 1, 2 + (houses >= 6 ? 1 : 0) + (houses >= 8 ? 1 : 0));
@@ -233,38 +229,6 @@ function facing(angle: number): { rot: number; fx: number; fz: number } {
  */
 export function couldHoldAVillage(node: RoadNode): boolean {
   return node.depth >= 3 && node.size >= 10 && Math.hypot(node.x, node.z) > GRAPH.HUB_RADIUS * 1.6;
-}
-
-/**
- * Where a village stands, when it is not the road tree that says so.
- *
- * A place with a name of its own. That name is what makes a village a function of itself rather
- * than of everything founded before it: it names the village, and it seeds the randomness the
- * layout is drawn from, so the same town builds the same village whether it is the first of a
- * hundred or the only one anybody asked about.
- */
-export interface Founding {
-  id: string;
-  name: string;
-  x: number;
-  z: number;
-  level: number;
-  /** How much village: a market town, an ordinary one, or a few cottages. */
-  size: 'hub' | 'town' | 'village';
-}
-
-/**
- * How a world's settlements are founded, when the default will not do.
- *
- * The default is the road tree: villages at the towns it grew, laid out from one stream of
- * randomness in the order the tree is walked, with a fixed number of them in the world and no two
- * sharing a name. Every one of those is an answer about a whole world, and an endless one cannot
- * give any of them — so it hands over its own list instead, and asks that each village be drawn
- * from its own name.
- */
-export interface Settling {
-  /** The places to build. Given these, nothing is founded from the road tree at all. */
-  towns: Founding[];
 }
 
 export function generateStructures(sampler: TerrainSampler, settling?: Settling): Structures {
@@ -622,18 +586,16 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
   /*
    * The things that stand between the villages: jetties, signposts, caves and wrecks.
    *
-   * Not yet in a world that was handed its own list of places. All four are laid out by walking the
-   * road tree's nodes in a shuffled order — a signpost at every third junction until there are
-   * twenty-two of them, a cave in the first cliff a deep node finds — and both the count and the
-   * order are facts about a whole world. Two patches of an endless one put their signposts in
-   * different places, which is a signpost that exists depending on where you came from.
+   * Two ways of finding them, because there are two ways of having a world. The road tree walks its
+   * own nodes in a shuffled order and stops when it has enough of each — both the count and the
+   * order are facts about a whole world. A patch asks each place whether it holds one.
    *
-   * They are their own piece of work, and each has a local shape waiting for it: a signpost knows
-   * the villages within a day's walk, a cave belongs to the cliff it is in.
+   * Jetties are in neither yet for an endless world: a pier belongs to an island, and an endless
+   * country has ports and ferries instead, which is `localsea` and its own piece of work.
    */
-  const between = settling ? { piers: [], signposts: [], caves: [], wrecks: [] } : markTheWay({
-    sampler, graph, sample, rng, all, villages, footprintOk,
-  });
+  const between = settling
+    ? markThePlaces({ sampler, sample, all, villages, footprintOk, settling })
+    : markTheWay({ sampler, graph, sample, rng, all, villages, footprintOk });
   piers.push(...between.piers);
   signposts.push(...between.signposts);
   caves.push(...between.caves);
