@@ -1089,8 +1089,34 @@ can each be finished and each leave the game playable.
       week of ticks.
 - [ ] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
       simulated walk, because that is the only thing that keeps provinces independent.
-- [ ] **C4. Memory that compacts.** Bounded per villager, decaying, and summarised on unload — ten
+- [x] **C4. Memory that compacts.** Bounded per villager, decaying, and summarised on unload — ten
       slights become one opinion. Otherwise per-province state grows with the world again.
+      *(`src/world/memory.ts`. The bound was already there and it was the wrong kind: a villager
+      held the last two things that happened to him and the third took the first away, so ten
+      slights became no opinion at all, which is a man forgetting a grudge he obviously still has.
+      An opinion per name now stands beside that list — how he feels, how many things went into it,
+      and the one that struck hardest kept whole — and it is formed when the thing happens rather
+      than when the memory is pushed out, so nothing is lost by the list being short and nothing
+      has to be marked as already counted. Eight names: the five neighbours `LIFE.KNOWS` gives him
+      and three for whoever is passing through. Fading is three quarters a day on the hundred-point
+      scale `standing.ts` uses, which spends the strongest feeling there is in four months and one
+      kindness in a fortnight — slower than a village letting a grudge go, because that is a place
+      going off the boil about a cow and this is one man's view of another. One thing does not
+      fade, a death, and it is exempt from fading and from nothing else: a bound with an exception
+      in it is not a bound, and it is safe not to be, since the parish already keeps sixty stones.
+      The bound holds without anybody unloading anything — a hundred thousand things happening to
+      one village writes the same twenty kilobytes as two thousand do — so compaction on unload is
+      what makes the file shrink again rather than what stops it growing.*
+      *What the audit found is worth more than the mechanism. A villager records six things — a
+      death, a birth, a rescue, a robbery on the road, a gift, a bad day down a mine — and only two
+      are about the player at all. There is no word in that vocabulary for "you killed my brother":
+      what the player does wrong lands on `game/standing.ts` and `game/grudge.ts`, which are the
+      **player's own save**, so a village's opinion of you is currently kept by you. And no villager
+      has ever been written to a save anywhere, so there is nothing to migrate and no old world to
+      open differently. The negative half of the weight table has one entry in it, dread of a mine,
+      and that is the state of the game rather than an oversight — the shape is here for C5 to
+      fill. `Register.compact(day)` is the hook a province's unload wants; `server/world.ts` has no
+      register to call it with yet.)*
 - [ ] **C5. Villagers move to the server.** They are client-derived today, which works only because
       they have no private state. Memory and ownership end that: two clients would disagree about
       what a villager recalls.
