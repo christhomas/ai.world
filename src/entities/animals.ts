@@ -216,7 +216,49 @@ function biped(o: {
   ];
 }
 
+/**
+ * A pack for somebody who is going somewhere.
+ *
+ * A traveller and a villager are the same sixteen boxes in different trousers, which is fine up
+ * close — you can read their names — and useless at the distance this camera watches a road from.
+ * The one thing that is true of a traveller and of nobody else is that they are carrying their
+ * house on their back, so that is what the rig should say from above: a block behind the shoulders
+ * with a bedroll strapped across the top of it, breaking the outline that every other person here
+ * shares.
+ *
+ * Leather and canvas rather than palette tints. The palettes dress the person — shirt and hair —
+ * and a traveller's second tint runs to gold and hot pink; kit is kit, and it is the same brown on
+ * everybody who carries it. Four boxes, merged into the same instanced geometry as the rest.
+ */
+const PACK_LEATHER = 0x6b4a2b, PACK_STRAP = 0x3a2a1a, BEDROLL_CANVAS = 0xe8dcc0;
+
+function knapsack(): P[] {
+  // the chest's back face is at -0.135, and the pack sits against it rather than near it
+  const backOfChest = -0.135, packDeep = 0.17, packX = backOfChest - packDeep / 2;
+  const shoulderTop = 1.165, strapZ = 0.1;
+  return [
+    // narrower than the back it rides on, so it reads as a load on a person and not a second torso
+    box([packDeep, 0.34, 0.28], [packX, 0.95, 0], PACK_LEATHER),
+    // lying across the top of the pack: shorter than the pack is wide, so nothing juts past it
+    cyl(0.075, 0.26, [packX, 1.14, 0], BEDROLL_CANVAS, { rot: [Math.PI / 2, 0, 0] }),
+    // two straps over the shoulder beam, which is what stops the pack looking stuck on
+    box([0.3, 0.05, 0.055], [-0.02, shoulderTop - 0.025, strapZ], PACK_STRAP),
+    box([0.3, 0.05, 0.055], [-0.02, shoulderTop - 0.025, -strapZ], PACK_STRAP),
+  ];
+}
+
 const W = 0xffffff;
+
+/**
+ * A Friesian's markings: not quite the black of the shadows under it, so the patch still reads as
+ * paint on a hide rather than as a hole in the cow.
+ *
+ * Fixed rather than a `tint`, because a cow's palettes are one colour apiece — the tint index is
+ * clamped to what the palette actually has, so a patch asking for a second colour was being handed
+ * the hide colour and vanishing into it. Black-and-white is the whole point of the marking, so it
+ * is stated here and holds on the brown and the tan cows too.
+ */
+const COW_MARKING = 0x1f1f1f;
 
 
 export const KINDS: Record<string, AnimalKind> = {
@@ -231,8 +273,9 @@ export const KINDS: Record<string, AnimalKind> = {
       box([0.16, 0.14, 0.2], [0.72, 0.62, 0], 0xf0b8a8, { anim: 'head', pivot: [0.42, 0.72, 0] }),
       box([0.05, 0.05, 0.08], [0.6, 0.9, 0.12], 0xe8dcc0, { anim: 'head', pivot: [0.42, 0.72, 0] }),
       box([0.05, 0.05, 0.08], [0.6, 0.9, -0.12], 0xe8dcc0, { anim: 'head', pivot: [0.42, 0.72, 0] }),
-      box([0.22, 0.16, 0.03], [0.05, 0.62, 0.25], 0x333333, { tint: 1 }),
-      box([0.18, 0.14, 0.03], [-0.25, 0.55, -0.25], 0x333333, { tint: 1 }),
+      // one patch per flank, set off-centre and at different sizes so the two sides do not mirror
+      box([0.22, 0.16, 0.03], [0.05, 0.62, 0.25], COW_MARKING),
+      box([0.18, 0.14, 0.03], [-0.25, 0.55, -0.25], COW_MARKING),
     ],
   })),
   sheep: creature('sheep', quadruped({
@@ -426,7 +469,8 @@ export const KINDS: Record<string, AnimalKind> = {
       box([0.2, 0.05, 0.05], [0.78, 1.75, -0.22], 0x8a7a5a, { anim: 'head', pivot: [0.61, 1.3, 0] }),
     ],
   })),
-  traveller: creature('traveller', biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x334466 })),
+  // the same person as a villager, carrying the road with him
+  traveller: creature('traveller', [...biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x334466 }), ...knapsack()]),
   villager: creature('villager', biped({ skin: 0xffdab9, hair: W, hairTint: 1, shirtTint: 0, pantsColor: 0x4a3a2a })),
   rat: creature('rat', quadruped({
     body: [0.5, 0.22, 0.22], bodyY: 0.26, legH: 0.14, legW: 0.06, head: [0.22, 0.18, 0.18], headOffset: [0.34, 0.32, 0],
