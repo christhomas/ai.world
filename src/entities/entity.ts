@@ -340,8 +340,10 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
     } else {
       if (!canStand(world, k, nx, nz, e.y)) continue;
       // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
-      // length of the step that crossed it
-      if (world.crosses?.(e.x, e.z, nx, nz)) continue;
+      // length of the step that crossed it. Not for anything that flies: a bird goes over a cottage
+      // rather than round it, which is what `canStand` says by letting it stand anywhere, and a path
+      // test that did not know it turned every roof in the world into a wall in the sky.
+      if (k.behaviour !== 'fly' && world.crosses?.(e.x, e.z, nx, nz)) continue;
     }
     // the ground first, because the ground is the cheap question
     if (!stuck && crowd?.occupied(nx, nz, e)) continue;

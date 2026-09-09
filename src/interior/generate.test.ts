@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PropKind } from '../world/biomes';
 import { ITile, blocksAt, generateInterior, interiorSeed, interiorTitle } from './generate';
 import { InteriorWorld } from './world';
+import { generateWebGraph } from '../world/roadweb';
+import { TerrainSampler } from '../world/terrain';
 import { propFootprints } from '../render/props';
 
 const KINDS = ['house', 'store', 'smith', 'inn', 'apothecary', 'church'] as const;
@@ -140,5 +142,41 @@ describe('furniture you cannot walk through', () => {
         }
       }
     }
+  });
+});
+
+/*
+ * The rooms people actually walk into, rather than six made up for a test.
+ *
+ * Boxing the furniture is the fix for walking through beds and the risk of a room that its own
+ * furniture seals. The kinds-and-seeds sweep above is a fair sample; this is the real thing — every
+ * door of the first villages of a real world, with the interior each one actually opens.
+ */
+describe('every room in a real world', () => {
+  it('can be crossed from where you arrive to the door you came in by', () => {
+    const sampler = new TerrainSampler(generateWebGraph(3));
+    const footprints = propFootprints();
+    const sealed: string[] = [];
+    let checked = 0;
+    for (const door of sampler.structures.doors.slice(0, 40)) {
+      const map = generateInterior(interiorSeed(3, door.bx, door.bz), door.kind as never, door.village);
+      const world = new InteriorWorld(map, footprints);
+      checked++;
+      // flood from where the hero is put down, half a tile at a time
+      const step = 0.5;
+      const seen = new Set<string>();
+      const queue: Array<[number, number]> = [[map.entry[0] + 0.5, map.entry[1] + 0.5]];
+      while (queue.length > 0) {
+        const [x, z] = queue.pop()!;
+        const key = `${Math.round(x / step)},${Math.round(z / step)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (world.blocked(x, z)) continue;
+        for (const [dx, dz] of [[step, 0], [-step, 0], [0, step], [0, -step]]) queue.push([x + dx, z + dz]);
+      }
+      const doorway = `${Math.round((map.door[0] + 0.5) / step)},${Math.round((map.door[1] + 0.5) / step)}`;
+      if (!seen.has(doorway)) sealed.push(`${map.kind} at ${door.bx},${door.bz} in ${door.village}`);
+    }
+    expect({ checked, sealed }, 'a room somebody could be shut into').toEqual({ checked, sealed: [] });
   });
 });

@@ -107,3 +107,38 @@ describe('a creature the world owns', () => {
     expect(hit).toHaveLength(1);
   });
 });
+
+/*
+ * The world measures the blows, so the world has to know what a wall is. A client that draws an
+ * arrow stopping against a cottage while the server quietly kills what stands behind it is worse
+ * than either behaviour on its own — and until this, that is what happened: `swung` was a distance
+ * and an angle, and the ground between the two of them was never asked about.
+ */
+describe('a wall between the blow and the beast', () => {
+  /** The same ground, with one solid slab standing across x = 3. */
+  function walledAt(seed: number): { alive: Wildlife; ground: GroundWorld } {
+    const ground = new GroundWorld(new TerrainSampler(generateWebGraph(seed)), propFootprints());
+    ground.reach(0, 0, 2);
+    const walled: GroundWorld = Object.create(ground);
+    walled.crosses = (x0: number, _z0: number, x1: number): boolean =>
+      Math.min(x0, x1) <= 3.5 && Math.max(x0, x1) >= 3;
+    return { alive: new Wildlife(seed, walled, ground), ground };
+  }
+
+  it('takes the blow away', () => {
+    const { alive } = walledAt(3);
+    alive.put('deer', 5, 0, 7);                     // the far side of the wall
+    const there = alive.listNear(5, 0, 3).map((e) => e.id);
+    expect(there.length, 'nothing was put on the far side').toBeGreaterThan(0);
+    const killed = alive.swung({ x: 0, z: 0, y: 0, yaw: 0, reach: 12, arc: 1.1, damage: 400, one: false });
+    for (const id of there) expect(killed, 'killed through a wall').not.toContain(id);
+  });
+
+  it('and leaves an open line alone', () => {
+    const { alive } = worldAt(3, 0, 0);
+    alive.put('deer', 5, 0, 7);
+    const there = alive.listNear(5, 0, 3).map((e) => e.id);
+    const killed = alive.swung({ x: 0, z: 0, y: 0, yaw: 0, reach: 12, arc: 1.1, damage: 400, one: false });
+    expect(there.some((id) => killed.includes(id)), 'the same blow with nothing in the way').toBe(true);
+  });
+});

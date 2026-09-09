@@ -1,0 +1,330 @@
+import { describe, expect, it } from 'vitest';
+import { mulberry32 } from '../core/rng';
+import { KINDS } from '../entities/animals';
+import { Entity, Herd, bodyOf, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
+import { stride } from '../entities/stride';
+import { propFootprints } from '../render/props';
+import { BLOCKS_WALKING, PropKind } from './biomes';
+import { blocking } from './footprints';
+import { Solids, boxesFrom } from './solids';
+import { inTheWay } from './tiles';
+
+/**
+ * A flat field, two things in it, and a question: what happens when one is walked into the other?
+ *
+ * Every collision fault this game has had was found by playing it and none by the tests, because
+ * the tests asked whether the arithmetic was right and the faults were all somewhere else — a box
+ * clipped at a chunk boundary, a step that jumped over what it should have hit, a bed blocked by
+ * the tile it stood on, an arrow through a wall. Each one was obvious within a minute of walking
+ * about and invisible to a thousand assertions.
+ *
+ * So this is the bench: bare ground, one thing that moves, one thing that does not, and the whole
+ * cross of them — every mover against every solid, from eight directions, at three speeds, turned
+ * three ways. It answers mechanically what used to need somebody driving a browser: does this pair
+ * stop each other, does the stop happen where the thing is drawn, and can anything get inside
+ * anything else.
+ *
+ * It is deliberately not a world. No terrain, no chunks, no server, no renderer: the field is flat
+ * and the only things in it are the two under test, so a failure names the pair rather than the
+ * afternoon.
+ */
+
+/** Ground that goes on for ever at one height, with whatever has been put on it. */
+function field(solids: Solids): TileWorld {
+  return {
+    heightAt: () => 1,
+    waterAt: () => null,
+    blocked: (x, z) => solids.at(x, z),
+    // a road, because one creature in the game only walks on roads and would otherwise stand still
+    // through every case below and pass them all by never moving
+    isRoad: () => true,
+    crosses: (x0, z0, x1, z1) => solids.crosses(x0, z0, x1, z1),
+  };
+}
+
+/** One prop standing at the middle of the bench, turned as asked. */
+function standing(kind: PropKind, rot: number, scale = 1): { world: TileWorld; box: { hw: number; hd: number } } {
+  const stops = blocking(propFootprints(), new Set([kind]));
+  const boxes = boxesFrom([{ kind, x: 0, z: 0, rot, scale }], stops);
+  expect(boxes.length, `nothing solid is drawn for prop kind ${kind}`).toBe(1);
+  const solids = new Solids();
+  solids.put('bench', boxes);
+  return { world: field(solids), box: { hw: boxes[0].hw, hd: boxes[0].hd } };
+}
+
+/** Somebody to walk into it. */
+function walker(id: string, x: number, z: number): Entity {
+  const kind = KINDS[id];
+  expect(kind, `there is no creature called ${id}`).toBeTruthy();
+  const e = new Entity(kind, x, z, new Herd(kind, x, z, x, z, 0), 'bench', mulberry32(1));
+  e.y = 1;
+  return e;
+}
+
+/** How far a box reaches along the world's axes once it is turned: the wall a walker meets. */
+function reach(box: { hw: number; hd: number }, rot: number, dx: number, dz: number): number {
+  // the box's own corners, turned into the world, projected onto the way we are coming from
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  let most = 0;
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    const lx = sx * box.hw, lz = sz * box.hd;
+    const wx = lx * cos - lz * sin, wz = lx * sin + lz * cos;
+    most = Math.max(most, wx * dx + wz * dz);
+  }
+  return most;
+}
+
+/** The eight ways you can walk at something. */
+const APPROACHES: Array<[number, number]> = [
+  [1, 0], [-1, 0], [0, 1], [0, -1],
+  [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2],
+  [Math.SQRT1_2, -Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2],
+];
+
+/**
+ * The three speeds a step is taken at, and why each one is here.
+ *
+ * A frame at sixty is what most play looks like. A quarter of a second is the longest step the game
+ * will take — a stutter, a chunk being built, a batch of steers arriving together — and it is what
+ * `LONGEST_STEP` clamps to. And a courser is the fastest anything moves: pace three and a half for
+ * a quarter of a second is 4.8 tiles in one go, which is a cottage and out the other side, and it
+ * is the case that made walking through walls visible in the first place.
+ */
+const SPEEDS: Array<{ what: string; dt: number; pace: number }> = [
+  { what: 'a frame at sixty', dt: 1 / 60, pace: 1 },
+  { what: 'a quarter-second stutter', dt: 0.25, pace: 1 },
+  { what: 'a courser at full gallop', dt: 0.25, pace: 3.5 },
+];
+
+/**
+ * Walk somebody at a point until they stop getting closer, and say where they ended up.
+ *
+ * The step count is worked out from how fast this one actually is rather than fixed, because the
+ * bench holds a bear at 0.8 tiles a second and a hero at 5.5: a count that suits one of them has
+ * the other still ambling across open ground when the test looks, which reads as "held off by
+ * something" and is nothing of the kind.
+ */
+function walkAt(world: TileWorld, e: Entity, dx: number, dz: number, dt: number, pace: number): void {
+  const far = Math.hypot(e.x, e.z) + 2;
+  const perStep = Math.max(1e-6, e.kind.speed * pace * Math.min(dt, 0.25));
+  const steps = Math.min(4000, Math.ceil((far / perStep) * 1.5) + 20);
+  for (let n = 0; n < steps; n++) {
+    const before = { x: e.x, z: e.z };
+    stride(world, e, { dx, dz, pace, dt });
+    if (Math.hypot(e.x - before.x, e.z - before.z) < 1e-4) return;
+  }
+}
+
+/** The props worth putting on a bench, and what each of them is a case of. */
+const SOLIDS: Array<{ what: string; kind: PropKind }> = [
+  { what: 'a cottage, which is the big square case', kind: PropKind.HousePlains },
+  { what: 'a market stall, which is longer than it is wide', kind: PropKind.Stall },
+  { what: 'an oak, which is the round case', kind: PropKind.Oak },
+  { what: 'a fence rail, which is thinner than a stride', kind: PropKind.Fence },
+  { what: 'a signpost, which is thinner still', kind: PropKind.Sign },
+  { what: 'a church, which is the biggest thing anybody walks up to', kind: PropKind.ChurchPlains },
+];
+
+/** And the things that walk into them, from the smallest to the one that is nearly two tiles long. */
+const WALKERS = ['hero', 'wolf', 'chicken', 'horse'];
+
+/**
+ * Everything that walks, and everything solid, for the matrix of all of them against all of them.
+ *
+ * What is left out is left out for a reason rather than for time. Anything that flies is not
+ * stopped by a fence and is not meant to be — `canStand` lets it over everything, which is what
+ * makes a bird a bird — and anything that swims cannot stand on a field at all. Both have their own
+ * cases at the end.
+ */
+const OVER_OR_THROUGH = new Set(['fly', 'swim', 'circle']);
+
+const EVERY_MOVER = Object.entries(KINDS)
+  .filter(([, kind]) => kind.speed > 0 && !OVER_OR_THROUGH.has(kind.behaviour))
+  .map(([id]) => id);
+
+/** Every prop that is meant to stop somebody, which is the list the world itself blocks on. */
+const EVERY_SOLID = [...BLOCKS_WALKING].filter((kind) => propFootprints().get(kind) !== undefined);
+
+describe('walking into things, on a bench with nothing else in it', () => {
+  for (const { what, kind } of SOLIDS) {
+    for (const rot of [0, Math.PI / 4, Math.PI / 2]) {
+      it(`stops at ${what}, turned ${Math.round((rot * 180) / Math.PI)}°`, () => {
+        const { world, box } = standing(kind, rot);
+        const failures: string[] = [];
+        for (const id of WALKERS) {
+          for (const [dx, dz] of APPROACHES) {
+            for (const { what: speed, dt, pace } of SPEEDS) {
+              // start well clear, on the far side of whichever way we are walking
+              const from = 5;
+              const e = walker(id, -dx * from, -dz * from);
+              walkAt(world, e, dx, dz, dt, pace);
+              const inside = world.blocked(e.x, e.z);
+              // how far the box reaches back along the way we came, which is the wall we should meet
+              const wall = reach(box, rot, -dx, -dz);
+              const got = -(e.x * dx + e.z * dz);   // how far short of the middle we stopped
+              if (inside) failures.push(`${id} ended inside ${what} coming from ${dx},${dz} at ${speed}`);
+              // and not stopped by nothing: a stride short of the wall is as far as anybody should
+              // be held off, and the sweep works in slices of a fifth of a tile
+              if (!inside && got > wall + 0.45) {
+                failures.push(`${id} stopped ${got.toFixed(2)} out from ${what} whose wall is at ${wall.toFixed(2)}, from ${dx},${dz} at ${speed}`);
+              }
+            }
+          }
+        }
+        expect(failures.slice(0, 6), `${failures.length} of ${WALKERS.length * APPROACHES.length * SPEEDS.length}`).toEqual([]);
+      });
+    }
+  }
+});
+
+describe('the whole matrix: everything that walks, into everything solid', () => {
+  it('stops, wherever it comes from', () => {
+    expect(EVERY_MOVER.length, 'nothing to walk with').toBeGreaterThan(20);
+    expect(EVERY_SOLID.length, 'nothing to walk into').toBeGreaterThan(30);
+    const failures: string[] = [];
+    let cases = 0;
+    for (const kind of EVERY_SOLID) {
+      const { world, box } = standing(kind, 0);
+      for (const id of EVERY_MOVER) {
+        for (const [dx, dz] of APPROACHES.slice(0, 4)) {
+          cases++;
+          const e = walker(id, -dx * 5, -dz * 5);
+          walkAt(world, e, dx, dz, 1 / 60, 1);
+          if (world.blocked(e.x, e.z)) failures.push(`${id} ended inside prop ${kind} coming from ${dx},${dz}`);
+          const wall = reach(box, 0, -dx, -dz);
+          const got = -(e.x * dx + e.z * dz);
+          if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off prop ${kind} whose wall is at ${wall.toFixed(2)}`);
+        }
+      }
+    }
+    expect(failures.slice(0, 8), `${failures.length} failures across ${cases} pairs`).toEqual([]);
+  });
+
+  it('and everything that flies goes over the lot of it, which is the rule for birds', () => {
+    const flying = Object.entries(KINDS).filter(([, k]) => k.behaviour === 'fly').map(([id]) => id);
+    expect(flying.length, 'no birds at all').toBeGreaterThan(0);
+    const { world } = standing(PropKind.HousePlains, 0);
+    for (const id of flying) {
+      const e = walker(id, -6, 0);
+      for (let n = 0; n < 400; n++) stride(world, e, { dx: 1, dz: 0, pace: 1, dt: 1 / 60 });
+      expect(e.x, `a ${id} was stopped by a cottage it should have flown over`).toBeGreaterThan(2);
+    }
+  });
+});
+
+describe('two things that both move', () => {
+  /** A crowd of exactly one other body, which is all a pair needs. */
+  const crowdOf = (other: Entity): Crowd => ({
+    occupied: (x, z, ignore) => {
+      if (ignore === other) return false;
+      const body = bodyOf(other.kind);
+      const dx = x - other.x, dz = z - other.z;
+      const cos = Math.cos(-other.yaw), sin = Math.sin(-other.yaw);
+      const alongX = Math.abs(dx * cos - dz * sin), alongZ = Math.abs(dx * sin + dz * cos);
+      return alongX < body.hw && alongZ < body.hd;
+    },
+  });
+
+  it('cannot be walked through, whatever the pair', () => {
+    const world = field(new Solids());
+    const failures: string[] = [];
+    for (const mover of EVERY_MOVER) {
+      for (const still of EVERY_MOVER) {
+        for (const [dx, dz] of APPROACHES.slice(0, 2)) {
+          const target = walker(still, 0, 0);
+          const e = walker(mover, -dx * 6, -dz * 6);
+          const crowd = crowdOf(target);
+          for (let n = 0; n < 400; n++) stride(world, e, { dx, dz, pace: 1, dt: 1 / 60 }, crowd);
+          if (crowd.occupied(e.x, e.z, e)) {
+            failures.push(`a ${mover} ended up standing inside a ${still}, coming from ${dx},${dz}`);
+          }
+        }
+      }
+    }
+    expect(failures.slice(0, 6), `${failures.length} of ${EVERY_MOVER.length ** 2 * 2} pairs`).toEqual([]);
+  });
+
+  it('lets somebody already inside a body walk out of it', () => {
+    const world = field(new Solids());
+    const target = walker('horse', 0, 0);
+    const e = walker('hero', 0.05, 0.05);
+    const crowd = crowdOf(target);
+    expect(crowd.occupied(e.x, e.z, e), 'the test did not start inside anything').toBe(true);
+    for (let n = 0; n < 300; n++) stride(world, e, { dx: 1, dz: 0, pace: 1, dt: 1 / 60 }, crowd);
+    expect(crowd.occupied(e.x, e.z, e), 'stuck inside another body for ever').toBe(false);
+  });
+});
+
+describe('a thing put down inside another thing', () => {
+  for (const { what, kind } of SOLIDS) {
+    it(`can walk out of ${what}, and is not put there in the first place`, () => {
+      const { world } = standing(kind, 0);
+      // the middle of the prop, which is the worst place anything could be set down
+      const clear = spaceNear(world, KINDS.hero, 0, 0);
+      expect(clear, `nowhere to put anybody near ${what}`).toBeTruthy();
+      expect(world.blocked(clear!.x, clear!.z), `put down inside ${what}`).toBe(false);
+
+      const e = walker('hero', 0, 0);
+      expect(world.blocked(e.x, e.z), 'the test did not start inside anything').toBe(true);
+      for (let n = 0; n < 400; n++) stride(world, e, { dx: 1, dz: 0, pace: 1, dt: 1 / 60 });
+      expect(world.blocked(e.x, e.z), `never got out of ${what}`).toBe(false);
+    });
+  }
+});
+
+describe('what a blow can reach across the bench', () => {
+  for (const { what, kind } of SOLIDS) {
+    it(`does not reach through ${what}`, () => {
+      const { world, box } = standing(kind, 0);
+      const past = Math.max(box.hw, box.hd) + 1;
+      expect(inTheWay(world, -past, 0, past, 0), `swung through ${what}`).toBe(true);
+      // and the same two points with the prop out of the way
+      const open = field(new Solids());
+      expect(inTheWay(open, -past, 0, past, 0), 'stopped by nothing at all').toBe(false);
+      // standing inside it, a blow is not taken away: a hero on a stall must still be able to fight
+      expect(inTheWay(world, 0, 0, past, 0), `helpless while standing in ${what}`).toBe(false);
+    });
+  }
+});
+
+describe('the ground itself', () => {
+  it('holds anybody who is standing on nothing', () => {
+    // a hole in the world rather than a prop in it: the other half of what stops a walker
+    const hole: TileWorld = {
+      heightAt: (x) => (x > 2 ? null : 1),
+      waterAt: () => null,
+      blocked: () => false,
+      isRoad: () => false,
+    };
+    for (const id of WALKERS) {
+      const e = walker(id, 0, 0);
+      for (let n = 0; n < 300; n++) stride(hole, e, { dx: 1, dz: 0, pace: 1, dt: 1 / 60 });
+      expect(canStand(hole, e.kind, e.x, e.z), `${id} walked off the edge of the world`).toBe(true);
+      expect(e.x, `${id} walked out over nothing`).toBeLessThan(2.05);
+    }
+  });
+
+  it('is not what stops anybody on open ground', () => {
+    // the control for every case above: with nothing in the way, everybody crosses the bench
+    const world = field(new Solids());
+    for (const id of WALKERS) {
+      const e = walker(id, -6, 0);
+      walkAt(world, e, 1, 0, 1 / 60, 1);
+      expect(e.x, `${id} was stopped by an empty field`).toBeGreaterThan(0);
+    }
+  });
+});
+
+/** The one thing `tryMove` promises that nothing above measures: a long step cannot skip a wall. */
+describe('a step longer than the thing it is walking into', () => {
+  it('is still stopped by it', () => {
+    const { world, box } = standing(PropKind.Fence, 0);
+    const thickness = Math.min(box.hw, box.hd) * 2;
+    expect(thickness, 'a fence rail is not thin any more').toBeLessThan(0.9);
+    const e = walker('hero', -3, 0);
+    // one move the length of the whole bench, which is six times the rail's thickness
+    tryMove(world, e, 6, 0);
+    expect(world.blocked(e.x, e.z), 'ended up inside the rail').toBe(false);
+    expect(e.x, 'stepped clean over a fence').toBeLessThan(0);
+  });
+});

@@ -1,3 +1,4 @@
+import { inTheWay } from '../world/tiles';
 import { BEHAVIOUR, damageEntity, type Entity, type TileWorld } from '../entities/entity';
 import type { EntityManager } from '../entities/manager';
 import { deedOf, spoils, type SwingResult } from './combat';
@@ -94,6 +95,9 @@ export function markFor(
     const aim = ground || 1;
     if ((dx / aim) * fx + (dz / aim) * fz < cone) continue;
     if (Math.hypot(ground, dy) > BOW.RANGE) continue;
+    // and nothing solid in the way: an arrow is stopped by a wall, which is the difference between
+    // a bow and a wish
+    if (inTheWay(world, x, z, e.x, e.z)) continue;
     return e;
   }
   return null;

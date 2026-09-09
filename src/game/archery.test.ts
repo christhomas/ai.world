@@ -161,3 +161,34 @@ describe('shooting a bow', () => {
     expect(shot.spent).toBe(BOW.SPEND);      // the arrow left the string either way
   });
 });
+
+/*
+ * An arrow is stopped by a wall, which is the difference between a bow and a wish. `markFor` picked
+ * its bird by distance and angle and nothing else, so a shot at a wolf on the far side of a cottage
+ * went through the cottage.
+ */
+describe('a wall in the arrow’s way', () => {
+  /** Open sky with one solid slab standing across x = 4. */
+  const walled: TileWorld = {
+    ...flat,
+    crosses: (x0, _z0, x1) => Math.min(x0, x1) <= 4.5 && Math.max(x0, x1) >= 4,
+  };
+
+  it('takes the shot away', () => {
+    const manager = setup();
+    const state = archer();
+    const behind = bird(manager, 6, 0, GROUND + 1);
+    expect(markFor(manager, walled, 0, 0, 0), 'aimed straight through a wall').toBeNull();
+    const shot = shoot(state, manager, walled, 0, 0, 0, 1);
+    expect(shot.hit, 'and hit something through it').toEqual([]);
+    expect(behind.hp, 'which took hearts off it').toBe(99);
+    expect(shot.spent, 'the arrow is still spent: it was loosed').toBeGreaterThan(0);
+  });
+
+  it('and leaves an open shot alone', () => {
+    const manager = setup();
+    const state = archer();
+    const clear = bird(manager, 6, 0, GROUND + 1);
+    expect(markFor(manager, flat, 0, 0, 0), 'the same shot with nothing in the way').toBe(clear);
+  });
+});

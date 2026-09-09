@@ -45,8 +45,15 @@ const say = (name, ok, detail) => { results.push({ name, ok }); console.log(`${o
     await page.waitForTimeout(5000);
     await face(door.x, door.z);
     let place = (await at()).place;
-    for (let i = 0; i < 14 && place === 'surface'; i++) { await walk('w', 220); place = (await at()).place; }
-    return { door, place };
+    let restedOnArrival = 0;
+    for (let i = 0; i < 14 && place === 'surface'; i++) {
+      await walk('w', 220);
+      place = (await at()).place;
+      // read the rest at the moment we land, not after several more attempts to get in: five
+      // seconds is a short time in a script that walks a step at a time
+      if (place !== 'surface') restedOnArrival = await page.evaluate(() => window.__room()?.resting ?? 0);
+    }
+    return { door, place, restedOnArrival };
   };
   // anything with hearts that is not a person and does not fly: something a swing can land on
   // slowest first: a hero can catch a sheep, and cannot catch a deer that has seen him
@@ -137,8 +144,7 @@ const say = (name, ok, detail) => { results.push({ name, ok }); console.log(`${o
   say('walking into a door takes you inside', first_in.place !== 'surface', first_in.place);
 
   if (first_in.place !== 'surface') {
-    const restingRightAfter = await page.evaluate(() => window.__room()?.resting ?? 0);
-    say('and the door rests afterwards', restingRightAfter > 1, `${restingRightAfter}s left`);
+    say('and the door rests afterwards', first_in.restedOnArrival > 1, `${first_in.restedOnArrival}s left on arrival`);
 
     // --- furniture, while we are in here ---
     const furniture = await page.evaluate(() => {
@@ -157,13 +163,22 @@ const say = (name, ok, detail) => { results.push({ name, ok }); console.log(`${o
 
     await page.waitForTimeout(5500);
     let out = first_in.place;
-    for (let i = 0; i < 20 && out !== 'surface'; i++) {
-      await page.evaluate(() => {
+    let lastAt = await at();
+    let veer = 0;
+    for (let i = 0; i < 35 && out !== 'surface'; i++) {
+      // head for the doorway, and when a step gets nowhere — a table, a barrel, the counter — try
+      // a heading either side of it. A room has furniture in it and walking at a door in a straight
+      // line is not how anybody crosses one.
+      await page.evaluate((veer) => {
         const r = window.__room(); const p = window.__player;
-        if (r) window.__iso.rotation = Math.atan2(r.door[1] + 0.5 - p.z, r.door[0] + 0.5 - p.x) + Math.PI;
-      });
+        if (r) window.__iso.rotation = Math.atan2(r.door[1] + 0.5 - p.z, r.door[0] + 0.5 - p.x) + Math.PI + veer;
+      }, veer);
       await walk('w', 220);
-      out = (await at()).place;
+      const now = await at();
+      const moved = Math.hypot(now.x - lastAt.x, now.z - lastAt.z);
+      veer = moved < 0.08 ? (veer === 0 ? 0.9 : -veer) : 0;
+      lastAt = now;
+      out = now.place;
     }
     say('and walking into it again takes you out', out === 'surface', out);
   }

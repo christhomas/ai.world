@@ -78,3 +78,56 @@ describe('combat', () => {
     expect(sheep.dead).toBe(true);
   });
 });
+
+/*
+ * A blow was a distance and an angle, which is all a blow is in the open and not all it is in a
+ * village: a wolf on the far side of a cottage is two tiles away and dead ahead, so a sword reached
+ * it through the wall and an arrow found it through two. The arc says nothing about the ground in
+ * between, so the ground has to be asked.
+ */
+describe('a wall between you and it', () => {
+  /** Flat ground with a solid slab across x = 11, about the thickness of a cottage wall. */
+  const walled: TileWorld = {
+    heightAt: () => 1,
+    waterAt: () => null,
+    blocked: (x) => x > 11 && x < 11.5,
+    isRoad: () => false,
+    // the slab as a segment test: does the way from one point to the other pass through it?
+    crosses: (x0, _z0, x1) => Math.min(x0, x1) <= 11.5 && Math.max(x0, x1) >= 11,
+  };
+
+  /** One creature, standing exactly where the test wants it, with hearts to lose. */
+  const put = (manager: EntityManager, x: number, z: number) => {
+    manager.spawnMonsters([[x, z]], 1);
+    const it = manager.within(x, z, 6)[0];
+    it.x = x; it.z = z; it.hp = 99;
+    return it;
+  };
+
+  it('stops a swing', () => {
+    const { manager } = setup();
+    const beyond = put(manager, 12, 10);            // the far side of the wall
+    const state = new GameState();
+    // a tile short of the wall, facing straight at it, well within reach of what stands behind
+    expect(swing(state, manager, walled, 10.5, 10, 0, 1).hit, 'swung through a wall').toEqual([]);
+    expect(beyond.hp, 'and took hearts off it anyway').toBe(99);
+  });
+
+  it('and does not stop one in the open', () => {
+    const { manager } = setup();
+    const near = put(manager, 11.4, 10);
+    const state = new GameState();
+    const open: TileWorld = { ...walled, crosses: () => false };
+    expect(swing(state, manager, open, 10.5, 10, 0, 1).hit, 'the same swing with nothing in the way')
+      .toContain(near);
+  });
+
+  it('and is waived for somebody standing inside something', () => {
+    const { manager } = setup();
+    const beyond = put(manager, 12, 10);
+    const state = new GameState();
+    // inside the slab: every line out of it crosses it, so the rule would leave him helpless
+    expect(swing(state, manager, walled, 11.2, 10, 0, 1).hit, 'could not swing while inside a wall')
+      .toContain(beyond);
+  });
+});

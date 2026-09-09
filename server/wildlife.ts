@@ -1,3 +1,4 @@
+import { inTheWay } from '../src/world/tiles';
 import { EntityManager } from '../src/entities/manager';
 import { Roster } from '../src/entities/roster';
 import { damageEntity, type Entity } from '../src/entities/entity';
@@ -171,6 +172,9 @@ export class Wildlife {
       const flat = Math.hypot(dx, dz) || 1;
       if ((dx / flat) * fx + (dz / flat) * fz < cone) continue;
       if (blow.one && Math.hypot(flat, e.y - blow.y) > far) continue;
+      // and nothing solid between the two of them: the same rule the client draws by, so a shot
+      // that visibly stops at a wall is not quietly killing whatever stands behind it
+      if (inTheWay(this.ground, blow.x, blow.z, e.x, e.z)) continue;
       if (damageEntity(e, hard, blow.x, blow.z, this.ground)) {
         killed.push(this.numberOf(e));
         this.manager.killEntity(e);

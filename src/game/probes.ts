@@ -8,6 +8,7 @@ import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
 import type { Site, Structures } from '../world/structures';
 import { StructureKind } from '../world/structures';
+import { bodyOf } from '../entities/entity';
 import type { TerrainSampler } from '../world/terrain';
 import type { WorldKind } from '../save/store';
 import type { Drift } from './wildlife';
@@ -228,6 +229,8 @@ export function installProbes(ctx: Probed): void {
     entities.within(player.x, player.z, 90).map((e) => ({
       kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z,
       hp: e.hp, dead: e.dead, yaw: Math.round(e.yaw * 100) / 100, id: e.worldId ?? null,
+      // the box it is collided against, so a test can ask whether two of them are inside each other
+      body: bodyOf(e.kind),
     }));
   (debug as { __entities?: () => unknown }).__entities = () => commandWorld.entities();
   (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => commandWorld.thin(village, n);

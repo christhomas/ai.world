@@ -1,4 +1,5 @@
 import type { Entity } from '../entities/entity';
+import { inTheWay } from '../world/tiles';
 import { damageEntity, type TileWorld } from '../entities/entity';
 import { type EntityManager } from '../entities/manager';
 import { PEOPLE } from '../entities/quarry';
@@ -105,6 +106,7 @@ export function swing(
     const dx = e.x - x, dz = e.z - z;
     const len = Math.hypot(dx, dz) || 1;
     if ((dx / len) * fx + (dz / len) * fz < Math.cos(COMBAT.ARC)) continue;
+    if (inTheWay(world, x, z, e.x, e.z)) continue;
     out.hit.push(e);
     if (e.worldId > 0) {
       // The world owns this animal, and has been told what was swung rather than what it hit: the

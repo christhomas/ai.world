@@ -64,6 +64,30 @@ export interface TileWorld {
 }
 
 /**
+ * Is there something solid between these two points?
+ *
+ * The question a blow and a shot both have and neither used to ask. A swing was a distance and an
+ * angle, which is the whole of what a swing is in the open and not the whole of what it is anywhere
+ * else: a wolf on the far side of a cottage is two tiles away and dead ahead, so a sword reached it
+ * through the wall and an arrow found it through two. Nothing in the geometry of an arc says the
+ * ground between has to be empty, so it has to be said out loud.
+ *
+ * Waived for anybody standing inside something. A hero set down on a market stall, or walking out of
+ * one, is inside a box for a moment — and a rule that says he cannot hit anything while he is in
+ * there turns a bad landing into a helpless one.
+ *
+ * Only the boxes. The tile grid is not consulted, so this is about buildings, stalls, trees and
+ * carts rather than about hills: a hill between two people is a different question and one nobody
+ * has asked yet.
+ */
+export function inTheWay(world: TileWorld, x0: number, z0: number, x1: number, z1: number): boolean {
+  if (!world.crosses) return false;
+  // a step of no length at all, which the slab test answers as "is this point inside a box"
+  if (world.crosses(x0, z0, x0, z0)) return false;
+  return world.crosses(x0, z0, x1, z1);
+}
+
+/**
  * A chunk of ground, as everything that walks on it needs it.
  *
  * The generator answers with an apron round every chunk — a tile of margin on each side, so the
