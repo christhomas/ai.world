@@ -778,7 +778,7 @@ thing drags the whole world back into being generated from the middle outwards.
       each hashing to candidates and ranks, a candidate standing unless a better one wants the same
       ground. Proven the same asked for cold, as a corner of something ten times bigger, in quarters
       in the wrong order, and after generating ground ten thousand tiles away.
-- [ ] **B2. A mesh from those points, and the seam test.** Faces from the local sites; a face
+- [x] **B2. A mesh from those points, and the seam test.** Faces from the local sites; a face
       computed from the east must be the face computed from the west, corner for corner. This is the
       unit that decides whether any of the rest is possible.
 - [x] **B3. Roads and towns, locally.** A road is a border between two faces, so it belongs to the
@@ -796,11 +796,41 @@ thing drags the whole world back into being generated from the middle outwards.
       *(Ferries by mutual choice — a crossing exists only where two ports pick each other, which is
       symmetric where "the nearest port" is not. 989 ports and 194 crossings over twelve hundred
       tiles of coast.)*
-- [ ] **B6. The page stops growing its own country.** Chunks stream from the world and are kept in
+- [x] **B6. The page stops growing its own country.** Chunks stream from the world and are kept in
       IndexedDB under the world's own fingerprint. Until this, an endless world cannot be handed
-      over at a join.
-- [ ] **B7. The radius comes off.** `GRAPH.RADIUS` stops meaning anything; the map becomes a local
-      one; distances, ferries, roaming bands and tidings all stop assuming a bounded world.
+      over at a join. *(121 chunks asked for on a first visit and none on the second, live. Two
+      traps: a batch assembled before the store had answered asked for nothing at all, and a page
+      that meshes before the world has replied meshes ground it invented — so chunks wait a moment
+      on arrival. The doorstep widened with it: a body stops further from a wall than a point did.)*
+**B7. The radius comes off.** `GRAPH.RADIUS` stops meaning anything; the map becomes a local one;
+distances, ferries, roaming bands and tidings all stop assuming a bounded world. Too big to do in
+one go — the ground is grown by a `TerrainSampler` built once for a whole world, holding an index of
+every road, every river, every village and every range there is — so it is cut into the pieces that
+can each be finished and each leave the game playable.
+
+- [x] **B7a. The sampler is built for a window.** It takes the patch of country it is being asked
+      about and indexes only what reaches into it. The contract, and the test: a sampler windowed to
+      a province paints every tile inside that province exactly as a sampler of the whole world
+      does. That does not make generation bounded — it still grows the world and throws most of it
+      away — but it says what bounded has to mean, and everything below keeps it true. *(The
+      argument that a window is free is entirely in the margins: each thing is indexed under the
+      ground it can paint, so a box that misses the window cannot answer anything asked from inside
+      it. `window.ts` holds those, and the third test is the one that matters — it fails if a window
+      ever stops pruning, which would make the first two vacuous.)*
+- [ ] **B7b. Roads and towns from the local country.** The window's roads come from `localroads`
+      rather than from a `RoadGraph` grown to a radius. The seam test of B7a holds.
+- [ ] **B7c. Land and high country, locally.** Face kind from `localmesh`; `highlandLift`'s flood
+      over every mountain face in the world becomes a bounded one, capped, giving the same answer
+      whichever face it starts from.
+- [ ] **B7d. Water, locally.** The hard one: a river today is a traversal from a spring to the sea,
+      which is exactly what the rule forbids. Flow direction is local — the steepest downhill
+      neighbour — and how much water is in it comes from a bounded walk upstream rather than from an
+      accumulation over the whole map.
+- [ ] **B7e. Structures, locally.** Villages, eyries and the rest from the towns in the window, which
+      B7b has already made local.
+- [ ] **B7f. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
+      sea test in `wild.ts`, the debug readout and the roaming bands stop measuring from the middle
+      of a world that no longer has one.
 
 ### C — the simulation, when there is more of it than a machine can hold
 

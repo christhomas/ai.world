@@ -12,6 +12,7 @@ import { VALLEY_SIDE, cutForWater, highlandAt, highlandLift, highlandRidges, typ
 import { despeckle } from './despeckle';
 import { rollProp } from './props';
 import { CellIndex } from './spatial';
+import { indexRoads, indexStructures, indexWater, type RiverSeg, type Within } from './window';
 import { generateStructures, structureBounds, StructureKind, type Structure, type Structures } from './structures';
 import { DRY_ENOUGH, bendAt, wanderFactors } from './wander';
 import { stampStructure } from './stamp';
@@ -88,12 +89,6 @@ export interface Probe {
   hub: boolean;
 }
 
-interface RiverSeg { ax: number; az: number; bx: number; bz: number; la: number; lb: number; wa: number; wb: number }
-
-const CELL = 32;
-const EDGE_MARGIN = GRAPH.MAX_WIDTH * 1.45 + WORLD.SEABED_RANGE + 2;
-const RIVER_MARGIN = HYDRO.RIVER_MAX_WIDTH + HYDRO.BANK + 8;
-const LAKE_MARGIN = HYDRO.BANK + 8;
 const HUB_PLAZA = 5;
 /** Share of ground tiles that use the alternate ground colour. */
 /**
@@ -127,10 +122,10 @@ export const BRIDGE_DECK_LIFT = 0.14;
 
 /** Samples the world at tile resolution. Pure function of (seed, graph, x, z): safe to run in any worker. */
 export class TerrainSampler {
-  private readonly edgeIndex: CellIndex;
+  private edgeIndex: CellIndex;
   /** How freely the road at each node is drawn off its surveyed line, nought to one. `wander.ts`. */
   private readonly wanders: Float32Array;
-  private readonly riverIndex: CellIndex;
+  private riverIndex: CellIndex;
   private readonly riverSegs: RiverSeg[] = [];
   private readonly noise: Simplex2D;
   private readonly biomeNoise: Simplex2D;
@@ -178,7 +173,10 @@ export class TerrainSampler {
    */
   readonly storeys = new Map<string, number>();
 
-  constructor(readonly graph: RoadGraph, prebuilt?: { hydro: Hydrology; structures: Structures }) {
+  constructor(
+    readonly graph: RoadGraph,
+    prebuilt?: { hydro?: Hydrology; structures?: Structures; within?: Within },
+  ) {
     this.seed = graph.seed;
     this.mesh = (graph as RoadGraph & { mesh?: WorldMesh }).mesh ?? null;
     // before anything asks where a road is drawn, because the answer depends on this
@@ -190,13 +188,10 @@ export class TerrainSampler {
     this.noise = new Simplex2D(derive(graph.seed, SALT.TERRAIN));
     this.biomeNoise = new Simplex2D(derive(graph.seed, SALT.BIOME));
 
-    this.edgeIndex = new CellIndex(CELL, graph.edges.length);
-    graph.edges.forEach((e, i) => {
-      const a = graph.nodes[e.a], b = graph.nodes[e.b];
-      this.edgeIndex.insert(i,
-        Math.min(a.x, b.x) - EDGE_MARGIN, Math.min(a.z, b.z) - EDGE_MARGIN,
-        Math.max(a.x, b.x) + EDGE_MARGIN, Math.max(a.z, b.z) + EDGE_MARGIN);
-    });
+    // Whole-world indexes to begin with, whatever window was asked for: the rivers are routed and
+    // the villages founded by asking this sampler about ground that may lie outside it, and a
+    // half-built sampler that answered "nothing here" would put them somewhere else.
+    this.edgeIndex = indexRoads(graph, null);
 
     // The mountains go in before anything reads the ground, and before the water in particular:
     // a river has to know what it is running down. Their anchors come off the road tree rather
@@ -218,7 +213,7 @@ export class TerrainSampler {
     // The mountains, measured from nothing, because the water has to know where the high ground is
     // before there is a settled ground for them to stand on.
     const high = this.mesh ? liftField(this.mesh) : null;
-    this.hydro = prebuilt ? prebuilt.hydro : generateHydrology(
+    this.hydro = prebuilt?.hydro ?? generateHydrology(
       graph,
       (x, z) => this.landProbe(x, z),
       // How high the ground is here. In the road-tree world that is a massif; in a polygon world it
@@ -234,25 +229,11 @@ export class TerrainSampler {
         this.riverSegs.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, la: a.level, lb: b.level, wa: a.width, wb: b.width });
       }
     }
-    this.riverIndex = new CellIndex(CELL, this.riverSegs.length + this.hydro.lakes.length);
-    this.riverSegs.forEach((s, i) => {
-      this.riverIndex.insert(i,
-        Math.min(s.ax, s.bx) - RIVER_MARGIN, Math.min(s.az, s.bz) - RIVER_MARGIN,
-        Math.max(s.ax, s.bx) + RIVER_MARGIN, Math.max(s.az, s.bz) + RIVER_MARGIN);
-    });
-    // lakes share the index; ids past the river segments are lakes
-    this.hydro.lakes.forEach((l, i) => {
-      const m = l.r * 1.3 + LAKE_MARGIN;
-      this.riverIndex.insert(this.riverSegs.length + i, l.x - m, l.z - m, l.x + m, l.z + m);
-    });
+    this.riverIndex = indexWater(this.riverSegs, this.hydro.lakes, null);
 
     // structures sample raw terrain, so they come last
-    this.structures = prebuilt ? prebuilt.structures : generateStructures(this);
-    this.structIndex = new CellIndex(CELL, this.structures.all.length);
-    this.structures.all.forEach((s, i) => {
-      const b = structureBounds(s);
-      this.structIndex!.insert(i, b.minX, b.minZ, b.maxX + 1, b.maxZ + 1);
-    });
+    this.structures = prebuilt?.structures ?? generateStructures(this);
+    this.structIndex = indexStructures(this.structures, null);
 
     // The mountains, last. They stand on the finished ground rather than being part of it, so
     // this has to happen after everything that decides how high the ground is — and can, because
@@ -269,6 +250,21 @@ export class TerrainSampler {
         (x, z) => this.landProbe(x, z)?.roadDist ?? Infinity,
       );
     }
+
+    // and now that the world has been grown, everything that cannot reach the window is let go
+    if (prebuilt?.within) this.narrowTo(prebuilt.within);
+  }
+
+  /**
+   * Let go of everything that cannot reach the window.
+   *
+   * Safe because of how each thing was indexed, which is `window.ts`'s subject: a box that does not
+   * touch the window cannot be returned to any query from inside it.
+   */
+  private narrowTo(within: Within): void {
+    this.edgeIndex = indexRoads(this.graph, within);
+    this.riverIndex = indexWater(this.riverSegs, this.hydro.lakes, within);
+    this.structIndex = indexStructures(this.structures, within);
   }
 
   /** How high the ground stands here because of the country it is in, in terraces. */
