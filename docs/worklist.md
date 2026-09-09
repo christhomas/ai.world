@@ -1087,6 +1087,95 @@ can each be finished and each leave the game playable.
       watching; frozen otherwise. The rule that makes it work: a behaviour's long-run effect must
       have a closed form, so arriving somewhere untouched for a week is a calculation rather than a
       week of ticks.
+
+      *The closed forms are written and checked. They are in `src/entities/unwatched.ts`, with
+      `src/entities/timetable.ts` beside it reading the numbers back out of `behaviours/` so that
+      there is one copy of each rather than two, and `unwatched.test.ts` running the simulation
+      forward beside every form and holding it to what that form says it keeps. **The seam left for
+      the tiers themselves is `catchUp(herd, away)`**: hand it a herd and how long nobody was
+      looking and it is done. It reads no clock, no player list and no province, so whoever wires
+      the tiers up decides when to call it and nothing else.*
+
+      ***A week of a behaviour moves things and does nothing else**, and that was not the expected
+      answer. The obvious expectation — a wolf pack thins a village over a fortnight, a hunter
+      empties the woods — is wrong here, for three separate reasons, and each of them is worth
+      knowing before anybody writes a coarse tier:*
+
+      - ***Wild populations are not state, so predation has nothing to write into.** A chunk's
+        animals are re-derived from the world seed every time it is spawned —
+        `mulberry32(hash3(seed, cx, cz, HERD_CHUNK))` in `ChunkManager.spawnChunk`. Kill a rabbit,
+        walk away, come back, and the roll is the same roll. A closed form that reduced a population
+        would be reducing something that does not exist and would be silently undone by the next
+        spawn. It is a real gap — see the note below — but it is not one to paper over here.*
+      - ***A village's dead are already somebody else's closed form.** `game/rescue.ts` says what a
+        pack or a haunt takes out of a village per night, as a share of who is left, and
+        `game/nemesis.ts` says what Old Nettle costs a village per fortnight. Both are closed forms
+        already, written a layer up where the register lives. A second toll at the behaviour layer
+        would be the same deaths counted twice, which is worse than no toll at all.*
+      - ***Purses, meals and births are the register's day, not a creature's week.*
+        `game/economy.bench.ts` already lives villages forward a hundred days a day at a time out of
+        the books, so a villager's earnings over an unwatched week are accounted for there.*
+
+      *Which leaves the behaviour layer owning exactly what it should: where a thing is, whether it
+      is indoors, and — for a third of the bestiary — nothing whatever. **The coarse tier's job is
+      to place creatures, not to simulate them.** Twenty-three trees came out as four forms:*
+
+      - ***`staysPut`, and it is a result rather than a shrug.** `seaHunter`, `wight`, `hired`,
+        `nettle`. A shark's tree is `not afloat -> idle`, a wight's own note says it "stands exactly
+        where it was left", and both were run for an hour with nobody about and finished on the
+        coordinates they started on to the last decimal. Nettle's fortnight is `nemesis.ts`'s, and a
+        hired sword away from whoever hired it is a dismissal rather than a walk. **These four are
+        free to freeze permanently**, not merely cheaply — which is the third tier the C1
+        measurement said does not exist yet.*
+      - ***`driftsInRange`.** `grazer`, `traveller`, `hopper`, `swimmer`, `prowler`, `monster`,
+        `ogre`. The herd anchor's random walk, solved: `min(leash, drift * sqrt(seconds / gap))`,
+        drawn evenly over the area of that disc, with the creature offset by the same law
+        `somewhereNear` uses. The measurement that makes it work is that **a herd forgets where it
+        started in under a minute** — the anchor's mean displacement on a twelve-tile leash is 5.0
+        tiles after five seconds and flat at 7.0–8.0 from about sixty onwards — so a week and a
+        minute are the same answer and nothing gets harder as the absence gets longer.*
+      - ***`ridesItsCircle`, which is exact.** `flier`. `patrol` is an integration and not a
+        decision, so a week of it is `angle + seconds * speed / radius` written without the loop. An
+        hour of ticks at thirty a second and one call to the form land 8e-9 tiles apart.*
+      - ***`keepsItsHours`, which is also exact.** The wanderer and the ten trades that have hours.
+        A day of `hourBetween` guards over `goTo`s has no randomness in it at all, so at any hour the
+        file says which post somebody is standing at — and the form reads it out of the same file
+        rather than transcribing it. This is the one a player would notice: walking into a village
+        at three in the morning after a fortnight away and finding everybody standing in the street
+        is the loudest possible way of announcing that nobody was home while you were gone.*
+
+      *The comparison tests are the deliverable as much as the forms. `LONG_RUN` is held to
+      `allTrees()` in both directions, the way `world/catalogue.test.ts` holds the catalogue to the
+      prop library, so a new tree with no long-run twin is a failed build with a sentence saying what
+      to write; a tree filed as one that ranges with no `wander` left in it is the same. Beside that,
+      the simulation is run forward and compared on what each form claims: distance from home over
+      288 creatures (the form says 0.96 of what the ticks say, and no kind is out by more than a
+      seventh), containment inside `leash + 0.5 + range`, the herd still standing together, the
+      count unchanged, the eagle's circle to floating point, the shark and the wight not moving, and
+      every trade behind its own door at three in the morning.*
+
+      *Three things found on the way that belong to somebody else:*
+
+      - ***A flier's altitude is a bug, and it is why `y` has no closed form.** `patrol` pulls a bird
+        up towards `altitude` at `dt * 2` a tick while the ground-following at the bottom of
+        `updateEntity` pulls it back down at `dt * 12`. What it settles at is the fixed point of two
+        filters fighting, which means it **depends on the tick length**: an eagle with an altitude of
+        9 sits at 1.85 above ground of height 1, so the eagles are not up in the air at all. The
+        closed form deliberately leaves `y` alone rather than inventing a value for a quantity that
+        does not have a time-independent one.*
+      - ***Nothing anywhere can record that the rabbits are gone.** Wild populations being re-rolled
+        per chunk is fine while the only thing that removes an animal is a player standing there, and
+        it stops being fine the moment a coarse tier lets a hunter work a province for a week. If
+        that is ever wanted it has to go into the live simulation first — a per-chunk or per-province
+        count of what has been taken, in the leavings — and the closed form gets a second term
+        afterwards. Faking it here would have been a number written into a book that does not exist.*
+      - *`WANDER_RADIUS` in `entities/entity.ts` is dead: declared, never read. The radii that decide
+        anything are in `behaviours/`, which is where `timetable.ts` reads them from.*
+- [ ] **C2a. The tiers themselves.** The half of C2 that is left, and it wants C3 first. Which
+      province is live, which is coarse and which is frozen; who calls `catchUp` and when; and the
+      two things the C1 measurement said about the ends of the range — that frozen has to mean off
+      the separation sweep and off what every client is told rather than off one branch inside them,
+      and that `Roster`'s four thousand wants to become a budget rather than a number.
 - [ ] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
       simulated walk, because that is the only thing that keeps provinces independent.
 - [ ] **C4. Memory that compacts.** Bounded per villager, decaying, and summarised on unload — ten
