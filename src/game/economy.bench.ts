@@ -1,0 +1,244 @@
+import type { Post } from '../entities/entity';
+import { tradesFor } from '../entities/trades';
+import { Register } from '../world/register';
+import { Mines, mineIdOf, type Working } from './mines';
+import { theBirths, theRoll, theStones, type RollRow, type StoneRow } from './records';
+
+/**
+ * The villages `chore test economy` lives forward, and the books it keeps of them.
+ *
+ * The other half of the bench. `economy.test.ts` is the audit — what the books have to add up to
+ * — and this is the world those books are about: which villages are stood up, what is being done
+ * to each of them, and a hundred days lived a day at a time with the ledgers read out every
+ * evening. Split from the audit because they are two different jobs and neither is small: this
+ * one has to be faithful to how the game runs a day, and that one must not know anything about it.
+ *
+ * Nothing here judges. It stands villages up, does things to them, and writes down what the
+ * village wrote down.
+ */
+
+/** How long a village is lived for. A hundred days is longer than anybody in one of them lives. */
+export const DAYS = 100;
+
+/** The day every village is founded on, which is the register's own. */
+export const FOUNDED = 1;
+
+/**
+ * The seeds asked about.
+ *
+ * Three rather than one because a village is founded from its seed and its name: how many farmers
+ * it starts with, how old they are and when they die are all draws, and a bench that ran one draw
+ * would be a bench about one village rather than about the arithmetic behind all of them.
+ */
+const SEEDS = [1, 7, 1234];
+
+// --- what a village is, for the purposes of a hundred days ---------------------------------
+
+/**
+ * A place, and what is being done to it.
+ *
+ * Every regime here is a thing the world actually does to villages: a band camps on the doorstep,
+ * a mine gives out, a hamlet has four people in it, a place on a rock has no fields. None of them
+ * is invented for the bench, and each one is a different shape of answer to "does the money work".
+ */
+interface Regime {
+  village: string;
+  houses: number;
+  /** What the place can offer, drawn the way the register draws them: uniformly, one apiece. */
+  posts: Post[];
+  /** A cave on the doorstep, worked every day by whoever the village raised for it. */
+  mine?: boolean;
+  /** A band standing over it: which days, how hard, and how often it takes somebody. */
+  band?: { from: number; until: number; pressure: number; takesEvery: number };
+  /** Where the people come from, for a ruin somebody puts back on its feet. */
+  settledFrom?: string;
+  /**
+   * A place too small to replace its own dead.
+   *
+   * Kept apart from the villages that are read as controls, because what happens to it is not an
+   * economic failure: two people cannot have four children, so a single-household hamlet dies of
+   * old age however rich it is. It is here to be watched rather than to be judged.
+   */
+  hamlet?: boolean;
+}
+
+/** The posts an ordinary inland village has, which is nearly all of them. */
+const INLAND: Post[] = ['square', 'market', 'inn', 'shop', 'doctor', 'field', 'woods', 'gate', 'heights'];
+
+/** And a place on a rock: boats, a market, a bed, and nothing growing anywhere near it. */
+const COASTAL: Post[] = ['square', 'market', 'inn', 'shop', 'doctor', 'shore'];
+
+export const VILLAGES: Regime[] = [
+  { village: 'Ashford', houses: 6, posts: INLAND },
+  { village: 'Oakcross', houses: 9, posts: INLAND },
+  { village: 'Thornby', houses: 6, posts: INLAND, band: { from: 30, until: 40, pressure: 0.6, takesEvery: 3 } },
+  {
+    village: 'Blackmarsh', houses: 6, posts: INLAND, settledFrom: 'Oakcross',
+    band: { from: 30, until: 70, pressure: 0.85, takesEvery: 2 },
+  },
+  { village: 'Fernreach', houses: 6, posts: INLAND, mine: true },
+  { village: 'Saltcombe', houses: 5, posts: COASTAL },
+  { village: 'Windle', houses: 1, posts: INLAND, hamlet: true },
+];
+
+/**
+ * How much worse a raided village's ten days have to be than a quiet one's before the bench will
+ * believe that a band costs a village anything.
+ *
+ * A share of what the place is worth rather than a number of coins, and a quarter of it because
+ * that is well clear of the noise: an ordinary ten days in a quiet village runs a tenth either
+ * way depending on who happened to die in it, and a band takes about two thirds.
+/** The villages nothing is done to, which every other one is read against. */
+export const LEFT_ALONE = VILLAGES
+  .filter((v) => v.band === undefined && !v.mine && !v.hamlet)
+  .map((v) => v.village);
+
+/**
+ * Which trades a place can support, asked of the same function the game asks.
+ *
+ * Written this way rather than with a hand-typed list because the point of several of the findings
+ * below is *which trades exist at all*, and a bench that made its own up could not have found it.
+ * The posts are stated and the trades follow, exactly as they do for a real village.
+ */
+function tradesAt(posts: Post[]): string[] {
+  const here: [number, number] = [0, 0];
+  const at = Object.fromEntries(posts.map((post) => [post, here])) as Partial<Record<Post, [number, number]>>;
+  return tradesFor(at).map((trade) => trade.id);
+}
+
+// --- the books, as they stood at the end of each day ---------------------------------------
+
+/**
+ * One village's books on one evening.
+ *
+ * Rows only. The prose a clerk reads out is a rendering of these and is not audited: a sentence
+ * cannot be added up, which is the reason `records.ts` puts the numbers first.
+ */
+export interface Books {
+  day: number;
+  roll: RollRow[];
+  stones: StoneRow[];
+  /** What the births book has, kept to cross the roll against a second record of the same people. */
+  born: Array<{ name: string; born: number }>;
+}
+
+/**
+ * Who somebody is, across a hundred days.
+ *
+ * The roll carries no id — it is a public record, and a public record names people — so identity
+ * here is a name and the day they were born, which the register already guarantees is unique
+ * within a village. The bench checks that guarantee rather than assuming it: two people the books
+ * cannot tell apart would make every audit below quietly meaningless.
+ */
+export const who = (row: { name: string; born: number }): string => `${row.name} (born ${row.born})`;
+
+/** The whole of one run: every village's books, every evening, and what its mine brought up. */
+export interface Run {
+  seed: number;
+  books: Map<string, Books[]>;
+  /** Gold the mine reported paying into a village, by the day it was paid. */
+  minted: Map<string, Map<number, number>>;
+  /** What each village was founded at, for judging whether it has held itself together. */
+  founded: Map<string, number>;
+}
+
+/**
+ * Live every village forward, keeping the books each evening.
+ *
+ * The order inside a day is `tidings.ts`'s order, because a bench that runs the day in a different
+ * order from the game is a bench about a game nobody plays: the bands are read first and the
+ * register is told what they are doing, then whoever they took is buried, then the day is lived,
+ * then the mines are worked and whoever did not come up is buried too.
+ *
+ * The books are read *before* the day is lived rather than after. That is what makes them a
+ * prediction: the wage in tonight's roll is what tomorrow will pay, and holding tomorrow's purse
+ * to tonight's row is the whole of the audit.
+ */
+function liveAHundredDays(seed: number): Run {
+  const register = new Register(seed);
+  const mines = new Mines(seed, FOUNDED);
+  const books = new Map<string, Books[]>();
+  const minted = new Map<string, Map<number, number>>();
+  const founded = new Map<string, number>();
+
+  register.minesAt(VILLAGES.filter((v) => v.mine).map((v) => v.village));
+  const workings: Working[] = VILLAGES.filter((v) => v.mine).map((v) => ({
+    village: v.village,
+    mine: mineIdOf({ id: `${v.village}-cave` }),
+    name: `the workings above ${v.village}`,
+    x: 0, z: 0,
+    heardIn: [v.village],
+  }));
+
+  for (const regime of VILLAGES) {
+    if (regime.settledFrom) continue;                // a ruin is settled by its neighbour, later
+    register.settle(regime.village, regime.houses, tradesAt(regime.posts));
+    founded.set(regime.village, register.living(regime.village).length);
+    books.set(regime.village, []);
+    minted.set(regime.village, new Map());
+  }
+  // the one that has to exist from the start to be emptied and then put back on its feet
+  for (const regime of VILLAGES.filter((r) => r.settledFrom)) {
+    register.settle(regime.village, regime.houses, tradesAt(regime.posts));
+    founded.set(regime.village, register.living(regime.village).length);
+    books.set(regime.village, []);
+    minted.set(regime.village, new Map());
+  }
+
+  for (let day = FOUNDED + 1; day <= FOUNDED + DAYS; day++) {
+    // what the bands are doing, said before the day is lived, exactly as the game says it
+    for (const regime of VILLAGES) {
+      const band = regime.band;
+      if (band && day >= band.from && day < band.until) register.leanedOn(regime.village, band.pressure);
+    }
+    for (const regime of VILLAGES) books.get(regime.village)!.push(shut(register, regime.village, day - 1));
+
+    // and what they took, which is the register's business and happens before the day turns over
+    for (const regime of VILLAGES) {
+      const band = regime.band;
+      if (!band || day < band.from || day >= band.until) continue;
+      if ((day - band.from) % band.takesEvery !== 0) continue;
+      const here = register.living(regime.village);
+      if (here.length === 0) continue;
+      register.bury(here[(day * 7) % here.length].id, day);
+    }
+
+    register.advance(day);
+
+    for (const dug of mines.advance(day, workings, (village) => register.living(village))) {
+      const bank = minted.get(dug.village)!;
+      bank.set(dug.day, (bank.get(dug.day) ?? 0) + dug.gold);
+      if (dug.lost) register.bury(dug.lost.id, dug.day);
+    }
+
+    // a ruin does not repopulate itself: somebody walks over from the next village along
+    for (const regime of VILLAGES) {
+      if (regime.settledFrom) register.resettle(regime.village, regime.settledFrom, day);
+    }
+  }
+  for (const regime of VILLAGES) books.get(regime.village)!.push(shut(register, regime.village, FOUNDED + DAYS));
+
+  return { seed, books, minted, founded };
+}
+
+/** The books of one village, shut for the night. */
+function shut(register: Register, village: string, day: number): Books {
+  return {
+    day,
+    roll: theRoll(register, village, day).rows,
+    stones: theStones(register, village, day).rows,
+    born: theBirths(register, village, day).rows.map((row) => ({ name: row.name, born: row.born })),
+  };
+}
+
+/** Every run, lived once and read by everything below. */
+export const RUNS = SEEDS.map(liveAHundredDays);
+
+/** A village named the way a report has to name one, so a failure can be gone and looked at. */
+export const at = (run: Run, village: string, day: number): string => `${village} (seed ${run.seed}) on day ${day}`;
+
+/** What a village had between it that evening. */
+export const worth = (books: Books): number => books.roll.reduce((sum, row) => sum + row.purse, 0);
+
+/** How much anything is out by, said the way money is said rather than the way a float is. */
+export const coins = (n: number): string => (Math.round(n * 100) / 100).toString();

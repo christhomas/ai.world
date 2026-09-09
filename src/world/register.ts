@@ -76,17 +76,51 @@ const BIRTH_RATE = 0.06;
 export class Register {
   private readonly villages = new Map<string, Settlement>();
   /**
-   * How hard each village is being leaned on today, nought to one, as roaming.ts reckons it.
+   * How hard each village is being leaned on, nought to one, as roaming.ts reckons it — and the
+   * day somebody said so, which is the whole of what makes it safe to keep.
    *
    * Told rather than worked out: what a warband is doing is the game's business and this only
    * keeps the register. It matters here because nobody trades while their neighbours are being
    * buried, which is what makes a village's prosperity something the player can protect.
+   *
+   * Dated, because nothing in this world ever says a band has *gone*. `roaming.pressings` hands
+   * back the villages a band is standing over and says nothing whatever about the rest, so an
+   * undated pressing is one that never lifts. `chore test economy` found what that cost: one
+   * morning's band over Thornby, and the place was empty by the fiftieth day with twenty-one of
+   * its twenty-seven stones reading starved — nobody had earned or farmed a thing since, because
+   * the register still believed the band was standing there. Worse, `settle` relives a village
+   * from its founding, so walking into a village a band happened to be near meant re-living all
+   * forty of its days under today's siege: sixteen graves and nobody alive, on arrival.
+   *
+   * So a pressing is about one day — the day after it was told, which is the next one the
+   * register will live — and has to be said again tomorrow. The game says it every frame, so a
+   * band that is still there presses again in the morning and one that has moved on stops
+   * mattering without anybody having to notice that it left.
    */
-  private readonly pressure = new Map<string, number>();
+  private readonly pressure = new Map<string, { pressure: number; told: number }>();
 
-  /** Somebody has looked at what the bands are doing today. */
+  /** Somebody has looked at what the bands are doing, and this is what stands over here today. */
   leanedOn(village: string, pressure: number): void {
-    this.pressure.set(village, pressure);
+    this.pressure.set(village, { pressure, told: this.day });
+  }
+
+  /**
+   * How hard a village is being leaned on now, for whoever is writing its books.
+   *
+   * "Now" is the day the register is about to live, because that is the day the answer changes
+   * anything: a pressing that has already been spent on a day gone by is history, and the roll
+   * would be quoting a wage nobody is going to be paid. The game re-tells this every frame, so
+   * the counter always has today's news in front of it.
+   */
+  pressureOn(village: string): number {
+    const told = this.pressure.get(village);
+    return told !== undefined && told.told === this.day ? told.pressure : 0;
+  }
+
+  /** And what it comes to on one particular day, which is the only day it was ever about. */
+  private pressingOn(village: string, day: number): number {
+    const told = this.pressure.get(village);
+    return told !== undefined && told.told + 1 === day ? told.pressure : 0;
   }
 
   /**
@@ -294,10 +328,13 @@ export class Register {
   }
 
   private liveADay(name: string, village: Settlement, day: number): Change[] {
-    this.trade(village, this.pressure.get(name) ?? 0);
+    // one pressing, read once, and handed to both the halves of the day it changes: what a village
+    // earns and what it grows. Read twice out of a map, they could disagree with each other
+    const pressure = this.pressingOn(name, day);
+    this.trade(village, pressure);
     const changes = [
       ...this.buryTheOld(village, day),
-      ...this.dinner(village, day),
+      ...this.dinner(village, day, pressure),
       ...this.fillTheGaps(name, village, day),
       ...this.growUp(name, village, day),
       ...this.takeTheKilled(village, day),
@@ -358,8 +395,7 @@ export class Register {
    * matters because a poor village buries people. Whoever cannot pay for what there is goes
    * without, and long enough without is what kills them.
    */
-  private dinner(village: Settlement, day: number): Change[] {
-    const pressure = this.pressure.get(village.people[0]?.village ?? '') ?? 0;
+  private dinner(village: Settlement, day: number, pressure: number): Change[] {
     village.food = Math.min(
       cellarCap(village.people),
       village.food + grownInADay(village.people, pressure),

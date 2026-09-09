@@ -117,6 +117,7 @@ tasks:
       - task: collisions
       - task: wire
       - task: halves
+      - task: economy
 
   typecheck:
     desc: Types only
@@ -134,7 +135,7 @@ tasks:
       SUITE: ''
     args:
       - name: suite
-        desc: 'collisions, wire (protocol), halves (world), or a path to match — nothing runs everything'
+        desc: 'collisions, wire (protocol), halves (world), economy (villages), or a path to match — nothing runs everything'
     cmds:
       - |
         case "{{.SUITE}}" in
@@ -142,6 +143,7 @@ tasks:
           collisions)         {{.CHORE_EXE}} collisions ;;
           wire|protocol)      {{.CHORE_EXE}} wire ;;
           halves|world)       {{.CHORE_EXE}} halves ;;
+          economy|villages)   {{.CHORE_EXE}} economy ;;
           *)                  pnpm vitest run "{{.SUITE}}" ;;
         esac
 
@@ -178,6 +180,18 @@ tasks:
       REPORT: halves-report.txt
     cmds:
       - 'pnpm vitest run src/world/twohalves.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
+
+  # The fourth bench: a hundred days in seven villages, and the books held to what the purses
+  # actually did. It reads only what a village writes down — the roll, the stones, the births — and
+  # audits every coin against it, so a village that quietly stopped paying anybody, or buried
+  # people without writing it down, or was still being charged rent by a warband that left three
+  # weeks ago, shows up as a village, a day and a number. See `src/game/economy.test.ts`.
+  economy:
+    desc: Live a village forward a hundred days and hold its own books to it
+    vars:
+      REPORT: economy-report.txt
+    cmds:
+      - 'pnpm vitest run src/game/economy.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
   build:
     desc: Typecheck and build the page into dist/
