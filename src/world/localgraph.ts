@@ -119,6 +119,19 @@ export function graphIn(world: Land, within: Within): RoadGraph {
 }
 
 /**
+ * How high the ground stands here, in terraces, before it is cut into terraces.
+ *
+ * The field the terraces are rounded from, and worth having on its own: water runs down a slope
+ * rather than down a staircase, and a river that took its heading from the rounded number would
+ * see one flat step for a hundred tiles and no reason to go anywhere. Rounded, this is the height
+ * a crossroads sits at; unrounded, it is the hill the rivers come off.
+ */
+export function groundAt(seed: number, x: number, z: number): number {
+  const h = (fieldFor(seed).fbm(x * LOCAL.LEVEL_SCALE, z * LOCAL.LEVEL_SCALE, 2) + 1) * 0.5;
+  return 1 + h * LOCAL.LEVEL_RANGE;
+}
+
+/**
  * How high the ground a crossroads stands on is, in terraces.
  *
  * A pure function of the place, which is the whole requirement: two patches that both hold a
@@ -126,8 +139,7 @@ export function graphIn(world: Land, within: Within): RoadGraph {
  * in the other.
  */
 export function levelAt(seed: number, x: number, z: number): number {
-  const h = (fieldFor(seed).fbm(x * LOCAL.LEVEL_SCALE, z * LOCAL.LEVEL_SCALE, 2) + 1) * 0.5;
-  return Math.max(1, 1 + Math.round(h * LOCAL.LEVEL_RANGE));
+  return Math.max(1, Math.round(groundAt(seed, x, z)));
 }
 
 /** The terrace field of a world, made once. Building one per crossroads is most of a patch's time. */

@@ -832,10 +832,16 @@ can each be finished and each leave the game playable.
       clear. The lakes only needed saying differently: a rule about the ground rather than about the
       order a list was walked in. And the flood is exact rather than approximate, because the ground
       stops rising after three faces, so a count that stops at three is the same number.)*
-- [ ] **B7d. Water, locally.** The hard one: a river today is a traversal from a spring to the sea,
-      which is exactly what the rule forbids. Flow direction is local — the steepest downhill
-      neighbour — and how much water is in it comes from a bounded walk upstream rather than from an
-      accumulation over the whole map.
+- [x] **B7d. Water, locally.** The hard one: a river today is a traversal from a spring to the sea,
+      which is exactly what the rule forbids — and worse, each river is stopped by any water built
+      *before it*, so a course depends on how many rivers the world happened to build first.
+      *(`localwater.ts`. A spring is a property of a place, kept apart from its neighbours by the
+      mutual-choice rule the ferries use. A river runs down the slope of the ground rather than
+      along a road, so "never uphill" stops being a running minimum and becomes true by
+      construction — and where the ground stops going down, the water stops, which is what a lake
+      is. Where two rivers meet, the springs' own names decide which one ends. The cost is the
+      gather: a river three hundred tiles long reaches into a patch from three hundred tiles
+      outside it, which is why a local river is shorter than a world-sized one.)*
 - [ ] **B7e. Structures, locally.** Villages, eyries and the rest from the towns in the window, which
       B7b has already made local.
 - [ ] **B7f. And then the radius is deleted.** `GRAPH.RADIUS` out of `config.ts`; the whales, the
