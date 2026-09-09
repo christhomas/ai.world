@@ -116,6 +116,7 @@ tasks:
       - task: test
       - task: collisions
       - task: wire
+      - task: halves
 
   typecheck:
     desc: Types only
@@ -133,13 +134,14 @@ tasks:
       SUITE: ''
     args:
       - name: suite
-        desc: 'collisions, wire (or protocol), or a path to match — nothing runs everything'
+        desc: 'collisions, wire (protocol), halves (world), or a path to match — nothing runs everything'
     cmds:
       - |
         case "{{.SUITE}}" in
           "")                 pnpm vitest run ;;
           collisions)         {{.CHORE_EXE}} collisions ;;
           wire|protocol)      {{.CHORE_EXE}} wire ;;
+          halves|world)       {{.CHORE_EXE}} halves ;;
           *)                  pnpm vitest run "{{.SUITE}}" ;;
         esac
 
@@ -166,6 +168,16 @@ tasks:
       REPORT: wire-report.txt
     cmds:
       - 'pnpm vitest run server/wire.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
+
+  # The third bench: the page and the server grow the same world from the same seed and never send
+  # each other a landscape, so the only thing keeping them in the same country is that they agree.
+  # When they did not, it was three impossible bug reports at once. See `src/world/twohalves.test.ts`.
+  halves:
+    desc: Ask both halves the same questions about the world, and fail on any different answer
+    vars:
+      REPORT: halves-report.txt
+    cmds:
+      - 'pnpm vitest run src/world/twohalves.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
   build:
     desc: Typecheck and build the page into dist/
