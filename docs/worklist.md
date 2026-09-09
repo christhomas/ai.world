@@ -652,3 +652,77 @@ Things Chris hit on a real phone, in the order he hit them.
       a cottage's eaves are things you walk under, and taking whole bounding boxes would make a wood
       impassable. Measured after: the house blocks to 1.2 and is clear at 1.35, against walls drawn
       to 1.20.)*
+
+## Playing it, September 9th — the day the collision boxes were finished
+
+Everything below was reported by playing it, and every one of them was invisible to the tests. The
+tests were about the arithmetic; each of these was about whether the arithmetic and the screen were
+describing the same world.
+
+- [x] Walking through the back of a house, reliably, on some houses and not others. *(The boxes were
+      right and the index was wrong. Each chunk kept a grid of its own sixteen tiles and a box was
+      registered in every tile it reached — clamped to that grid, because there was nowhere else to
+      put a tile outside it. A cottage is 2.52 across, so a house within a tile and a bit of a chunk
+      boundary had the part of its box over the line registered nowhere at all. Ten of the thirty-two
+      houses in the four villages nearest the start of seed 3 straddle a boundary like that. Trees
+      went on working throughout, which is what made the reports look contradictory: an oak is 0.9
+      across and stays inside its own chunk. One index for the world, keyed by world tile, with
+      chunks putting boxes in by name and taking the same boxes out again.)*
+- [x] Stepping clean over things. *(A move asked whether its far end was inside something and said
+      nothing about the way there. A hero walks 5.5 tiles a second and a step may be a quarter of a
+      second, so 1.4 tiles on foot and 4.8 on a courser — a cottage is 2.5. Both ends on clear grass,
+      and through the wall he went. It was frame-rate dependent, which is why it was reported as
+      happening "sometimes". A move is now the segment against the box: both ends into the box's own
+      frame, then the standard slab clip. The tile grid keeps a sampled sweep in slices shorter than
+      the thinnest thing in it.)*
+- [x] Bitten by wolves that are not there; blows that land on nothing. *(One fault, and a number:
+      the screen was drawing creatures 2.01 tiles on average from where the world had them, 5.34 at
+      worst, against a wolf 0.6 across and a swing that reaches about a tile. The client eased
+      towards the last snapshot, so it always drew where a creature had been; and the world described
+      everything at the rate the middle distance deserves. Now each creature is carried forward at
+      the speed the world's own corrections imply — clamped to its own pace, never more than 0.45s,
+      and not at all for anything that flies, which circles — and whatever is within fourteen tiles
+      of a player is described every tick. Measured after: 0.09 to 0.11 of a tile.)*
+- [x] Walking through beds. *(Indoors blocked furniture by the tile it stood on. A bed is drawn 1.9
+      tiles long, so the foot of every bed in the world was scenery. Furniture is boxed now, off the
+      same measurements, turned the way the piece is turned. The opposite risk — a room its own
+      furniture seals — is tested by flooding every kind of room at five seeds from where the hero
+      arrives, and failing if the door or the keeper cannot be reached.)*
+- [x] A door triggering over and over while its owner is nowhere near one. *(Going through leaves you
+      on the far side of the same doorway, and one frame off the threshold re-armed it, so leaning on
+      an arrow key span you in and out several times a second. A door now rests for five seconds
+      after somebody goes through it, with the arming still running underneath — walking away while
+      it rests still counts as having walked away.)*
+- [x] Respawning inside an object and being trapped in it. *(Both halves were true. Whatever puts
+      somebody somewhere names a point on a map, not a place to stand — a hero carried home is set
+      down two tiles from the middle of his village, which is sometimes a market stall — and the
+      placing answered by shoving him a tile east every frame until something gave, which gets you
+      out of a hut and into the sea. It now looks for the nearest spot a body of that kind fits. And
+      being inside a solid is no longer a life sentence: every direction out failed the test that
+      should have stopped him getting in, so anybody already inside something is let out, with the
+      ground still having to be ground.)*
+- [x] A ghost in his own village: walking through walls, wolves biting from nowhere, blows landing on
+      nothing, in a road world. *(A seed is not a world. The same number grows a road country or a
+      polygon one and they share nothing — in one slab of seed 3 the polygon world has eight cottages
+      and the road world none, on ground that is not the same height. The client picked from the
+      save; the server built the polygon one for everybody. Since the server owns where a hero is
+      standing, it walked him about on a land he could not see and corrected him through the walls
+      his own game had stopped him at. `join` carries the world kind now, a room remembers which
+      country it opened as, and two players of one seed from different countries are turned away
+      rather than put somewhere they cannot agree about. Protocol 14.)*
+- [x] The server bundle imported `three` into an image that installs one dependency. *(Introduced by
+      measuring the props on the server, and it would have killed the container at startup on the
+      first deploy. Rolled into the bundle: 594 kB to 1,050 kB. Found by building the bundle and
+      reading it, which is an argument for building the image on the way in rather than on the way
+      out.)*
+
+### Still open, from the same day
+
+- [ ] A prop is defined by a list of `THREE` primitives, so measuring one needs a renderer — which is
+      why the server carries three. Creatures are already part lists that anything can read. Doing
+      the same for props would take the geometry out of the server bundle and make a prop's box a
+      property of the prop in the same way a creature's is.
+- [ ] Nothing in the sweep test covers a mounted hero, who is the case that made stepping over things
+      visible: `tools/playtest.cjs` walks on foot only.
+- [ ] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
+      CI on the way in, which is where all of this would have been caught.
