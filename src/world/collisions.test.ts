@@ -9,7 +9,7 @@ import { MIN_BLOCK, blocking } from './footprints';
 import { Solids, boxesFrom, pointInBox } from './solids';
 import { inTheWay } from './tiles';
 import { FURNITURE_BLOCKS } from '../interior/generate';
-import { propsOf } from './propstream';
+import { propsOf, type PropAt } from './propstream';
 import { generateWebGraph } from './roadweb';
 import { TerrainSampler } from './terrain';
 
@@ -406,9 +406,11 @@ describe('the things that do not move, against each other', () => {
         // jittered off the middle and says so by having none
         const props = [...propsOf(chunk, sampler.seed)];
         const boxes = props.map((p) => ({ p, box: boxesFrom([p], stops)[0] })).filter((b) => b.box);
-        const isBuilding = (p: { rot: number; scale: number }) => p.scale === 1 && p.stretch === 1;
+        // a structure sits on its tile middle unscaled and unstretched; everything that grows is
+        // varied in both, which is what tells the two apart without asking the tile grid again
+        const isBuilding = (p: PropAt) => p.scale === 1 && p.stretch === 1;
         for (const a of boxes) {
-          if (!isBuilding(a.p as never)) continue;
+          if (!isBuilding(a.p)) continue;
           buildings++;
           for (const b of boxes) {
             if (a === b) continue;
