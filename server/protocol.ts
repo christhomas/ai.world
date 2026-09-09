@@ -6,7 +6,7 @@
 
 import type { WorldKind } from '../src/save/store';
 
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -285,7 +285,18 @@ export type ClientMessage =
    * day one of these becomes the server's to run — a teleport is already a command it knows — the
    * message that has to stop being trusted is named rather than hunted for.
    */
-  | { type: 'stood'; x: number; z: number; why: 'teleport' | 'place' | 'ride' }
+  /**
+   * `carried` is waking up after a knock on the head, which is the one placing the world could not
+   * be told about. A hero who goes down is carried to the nearest village and set down in the
+   * square — on his own screen. The world went on holding him where he fell, and since the world
+   * owns where a hero is standing, its next word put him back there: you woke in the village and
+   * were dragged out to the wolf that felled you, every time.
+   *
+   * It is checked rather than believed. The world grows the same villages from the same seed, so it
+   * can ask whether the spot named is a village square of its own world — which is the whole of
+   * what being carried home means, and the whole of what a client may claim by saying it.
+   */
+  | { type: 'stood'; x: number; z: number; why: 'teleport' | 'place' | 'ride' | 'carried' }
   /**
    * The hero has gone underground, and this is the floor he is standing on.
    *

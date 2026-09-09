@@ -449,7 +449,7 @@ export class Online {
    * The hero has been put somewhere rather than having walked there: a teleport, a staircase, a
    * door, a gangplank, a saddle. The world moves its own copy of him and answers with where.
    */
-  stood(x: number, z: number, why: 'teleport' | 'place' | 'ride'): void {
+  stood(x: number, z: number, why: Extract<ClientMessage, { type: 'stood' }>['why']): void {
     if (this.connected) this.send({ type: 'stood', x, z, why });
   }
 

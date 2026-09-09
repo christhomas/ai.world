@@ -46,6 +46,9 @@ export class GroundWorld implements TileWorld, ChunkSource {
   /** How many chunks are being held. What the memory of a busy world is made of. */
   get held(): number { return this.loaded.size; }
 
+  /** The villages of this world: where anybody who goes down is carried to. */
+  get villages(): ReadonlyArray<{ x: number; z: number }> { return this.sampler.structures.villages; }
+
   /** The piers of this world: where anything that floats ties up. */
   get piers(): ReadonlyArray<Pier> { return this.sampler.structures.piers; }
 
@@ -61,6 +64,20 @@ export class GroundWorld implements TileWorld, ChunkSource {
       if (Math.hypot(pier.dockX + 0.5 - x, pier.dockZ + 0.5 - z) <= within) return true;
       const [ex, ez] = pier.tiles[pier.tiles.length - 1];
       if (Math.hypot(ex + 0.5 - x, ez + 0.5 - z) <= within) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Is this the middle of one of this world's villages?
+   *
+   * Asked of a hero who says he was carried home after a knock on the head. Villages are grown from
+   * the seed, so both halves of the game know where they are without being told, and a claim to
+   * have woken in one is a claim the world can check for itself.
+   */
+  atAVillage(x: number, z: number, within: number): boolean {
+    for (const village of this.sampler.structures.villages) {
+      if (Math.hypot(village.x - x, village.z - z) <= within) return true;
     }
     return false;
   }

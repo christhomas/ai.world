@@ -341,7 +341,11 @@ export function createBlows(ctx: Fighting) {
     state.version++;
     // underground you are left at the mouth of the place you went into; above ground somebody
     // carries you home. Either way you are somewhere you can walk away from.
-    if (!below && woke) player.teleport(woke.x + 2, woke.z + 2);
+    if (!below && woke) {
+      player.teleport(woke.x + 2, woke.z + 2);
+      // and the world is told, or it goes on holding him where he fell and hauls him back to it
+      online.stood(player.x, player.z, 'carried');
+    }
 
     const pages = saidOfKnockout(cause, woke, lost, below);
     if (below && den) pages[1] = `Somebody dragged you up out of the ${den} and left you at the mouth of it. You are alive.`;

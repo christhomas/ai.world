@@ -126,6 +126,14 @@ function sailed(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
  * steers still on the wire when somebody teleports are walked on top of the new position, and the
  * hero arrives having taken three paces in whatever direction he left in.
  */
+/**
+ * How near the middle of a village a hero may wake and still have been carried there.
+ *
+ * A square is a few tiles across and whoever carried him puts him down in it rather than on a
+ * marked spot, so this is the size of a square rather than a tolerance.
+ */
+const CARRIED_TO_A_SQUARE = 6;
+
 function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'stood' }>): void {
   const p = me.presence;
   const x = Number(message.x) || 0;
@@ -140,6 +148,28 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
     if (alone) { p.x = x; p.z = z; }
     if (!hero) return;
     if (alone) { hero.x = x; hero.z = z; }
+    settle(rooms, me, hero);
+    rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
+    return;
+  }
+
+  /*
+   * Carried home after a knock on the head.
+   *
+   * The world does not decide that a hero has gone down — hearts live in his own save, which the
+   * server has never held — so it is told, and the telling is checked against the world's own
+   * villages rather than taken. A village square is where somebody carries you; anywhere else is
+   * not being carried home, whatever the message says.
+   *
+   * Without this the placing happened on one screen only, and the world's next word about where the
+   * hero was standing hauled him back to the spot he had been felled on.
+   */
+  if (message.why === 'carried') {
+    const ground = rooms.groundOf(me.seed);
+    if (!(ground instanceof GroundWorld) || !ground.atAVillage(x, z, CARRIED_TO_A_SQUARE)) return;
+    p.x = x; p.z = z;
+    if (!hero) return;
+    hero.x = x; hero.z = z;
     settle(rooms, me, hero);
     rooms.send(me, { type: 'youAre', seq: me.steered, x: hero.x, z: hero.z, y: hero.y, yaw: p.yaw });
     return;

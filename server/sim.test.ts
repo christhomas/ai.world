@@ -728,3 +728,59 @@ describe('the country the server grows', () => {
     expect(wrong.open, 'left connected to a world they cannot be in').toBe(false);
   });
 });
+
+/*
+ * Waking up somewhere, which the world has to be told about or it drags you back.
+ *
+ * A hero who goes down is carried to the nearest village and set down in the square. Hearts live in
+ * a player's own save, so the world is not the one who decides he went down — and until it was
+ * told, it went on holding him where he fell and its next word hauled him out of the village and
+ * back to the wolf. Reported exactly that way: "it briefly puts me in the local village, before
+ * restoring my location to where I was killed".
+ */
+describe('a hero carried home after a knock on the head', () => {
+  const walkTo = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+
+  it('is left where he was put, and the world agrees he is there', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkTo(rowan, 130, 60);
+    sim.tick(Date.now() + 100);
+    // a steer, so the world has a hero of its own to hold
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 100 });
+    const felled = rowan.of('youAre').at(-1)!;
+
+    const village = sim.groundOf(3)!.villages[0];
+    expect(village, 'a world with no villages to be carried to').toBeTruthy();
+    rowan.say({ type: 'stood', x: village.x + 2, z: village.z + 2, why: 'carried' });
+
+    const woke = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(woke.x - village.x, woke.z - village.z), 'not put down in the village at all')
+      .toBeLessThan(6);
+    expect(Math.hypot(woke.x - felled.x, woke.z - felled.z), 'left where he fell').toBeGreaterThan(5);
+
+    // and it stays: the next thing the world says about him is the village, not the wolf
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 100 });
+    const after = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(after.x - village.x, after.z - village.z), 'dragged back out of the village')
+      .toBeLessThan(7);
+  });
+
+  it('and cannot be used to stand anywhere that is not a village', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkTo(rowan, 130, 60);
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 100 });
+    const before = rowan.of('youAre').at(-1)!;
+
+    // the middle of nowhere, claimed as a village square
+    rowan.say({ type: 'stood', x: before.x + 400, z: before.z + 400, why: 'carried' });
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 100 });
+    const after = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(after.x - before.x, after.z - before.z), 'carried four hundred tiles by a message')
+      .toBeLessThan(2);
+  });
+});
