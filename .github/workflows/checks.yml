@@ -9,6 +9,14 @@
 # It runs the same task a person runs at their desk. A pipeline with its own private incantation is
 # a pipeline whose failures cannot be reproduced, so this installs `chore` and asks it for `check`,
 # exactly as anybody would.
+#
+# Two jobs, because they cost different amounts and are wanted at different moments. `check` is
+# seconds and gates a commit. `playtest` opens a browser, plays the game for a minute and a half and
+# says whether what is drawn is what the world has — the only check here that looks at the screen,
+# and the one that would have caught every fault of the day it was written. It is deliberately not
+# inside `chore check`: a gate that costs two minutes stops being run before a commit, and then it
+# is not a gate. Here they run side by side, so the slow one costs the pipeline nothing in wall
+# clock and still turns the whole thing red on its own.
 name: Checks
 
 on:
@@ -78,5 +86,105 @@ jobs:
             collision-report.txt
             wire-report.txt
             halves-report.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+  # The one that actually plays. It walks into a house, watches the world's creatures against where
+  # they are drawn, chases one animal by the number the world knows it by and swings at it, walks
+  # through a door both ways and looks at the furniture from inside — the faults of the day it was
+  # written were all invisible to everything in the job above and obvious in thirty seconds of this.
+  playtest:
+    runs-on: ubuntu-latest
+    # A browser that hangs should cost a quarter of an hour, not the six hours a job is allowed by
+    # default. The run itself is a minute and a half on a laptop.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install chore
+        env:
+          CHORE_VERSION: 0.10.1
+        run: |
+          set -euo pipefail
+          curl -fsSL -o chore.tar.gz \
+            "https://github.com/antimatter-studios/chore/releases/download/v${CHORE_VERSION}/chore-${CHORE_VERSION}-linux-x86_64.tar.gz"
+          tar -xzf chore.tar.gz
+          sudo install -m 0755 chore /usr/local/bin/chore
+          chore --version
+
+      # Playwright is borrowed here exactly as it is borrowed at a desk, and stays out of
+      # `package.json` on purpose. Everything that installs this project's dependencies would
+      # otherwise pay for it: the Pages build, and the server image, which runs `pnpm install
+      # --frozen-lockfile` once per architecture — and a browser toolchain inside a world-server
+      # image is the shape of the thing that nearly killed that container. It would only
+      # half-declare it in any case, because the browser is a separate download keyed by the
+      # playwright version and no lockfile has ever held one. So: installed on its own, pinned, and
+      # pointed at with NODE_PATH, which is the mechanism the script already expects.
+      #
+      # The package's own postinstall is skipped and one browser asked for by name instead. Left to
+      # itself it fetches chromium, firefox and webkit — three hundred megabytes to run none of
+      # them — and the one wanted is Chrome, the same one a desk run opens, so that the pipeline and
+      # the desk are looking through the same renderer rather than at two different pictures.
+      - name: Borrow a playwright
+        env:
+          PLAYWRIGHT_VERSION: 1.52.0
+        run: |
+          set -euo pipefail
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --global "playwright@${PLAYWRIGHT_VERSION}"
+          playwright install --with-deps chrome
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+
+      # No server to start and none to kill: `chore playtest` serves the page itself when nothing is
+      # answering on the port and puts it away afterwards, win or lose. That is the same command a
+      # person runs, which is the whole point — a pipeline nobody can reproduce is a pipeline whose
+      # failures get argued about instead of fixed.
+      #
+      # DRIFT is looser here than the 0.35 a desk holds, and the reason is worth stating rather than
+      # hiding: the drawn body is carried forward by the page between snapshots, so the gap when the
+      # next one lands is partly a count of the frames the page got. A software rasteriser on two
+      # shared cores gets few. The same build on one laptop read 0.11 idle, 0.46 with the cores busy
+      # and 0.62 with them fought over — a measurement of the machine, not of the game.
+      #
+      # 1.5 rather than some number chosen to be green, because 1.5 means something: a swing reaches
+      # two tiles, so a creature drawn further than that from where the world has it is one a blow
+      # cannot land on however it looks, and this stays under that. It is a ceiling, not a target.
+      # Every run prints what it actually got into the summary and the artefact, so once a few runs
+      # have shown what this hardware really does, the line can be pulled in from evidence. Leaving
+      # it at 0.35 and re-running until it went green would be worse than not running it at all.
+      - name: Play the game
+        env:
+          DRIFT: '1.5'
+        run: chore playtest
+
+      - name: Show the report
+        if: always()
+        run: |
+          if [ -f playtest-report.txt ]; then
+            {
+              echo '```'
+              cat playtest-report.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Kept whether it passed or failed. It names the village, the animal, the number of swings and
+      # how close he got, which is enough to go and stand in the same place by hand.
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest
+          path: playtest-report.txt
           if-no-files-found: warn
           retention-days: 30

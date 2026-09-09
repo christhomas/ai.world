@@ -15,5 +15,9 @@ ai-world-interface.html
 collision-report.txt
 wire-report.txt
 halves-report.txt
+<<<<<<< HEAD
 economy-report.txt
 tick-report.txt
+=======
+playtest-report.txt
+>>>>>>> worktree-agent-adc0849fb569c34c7
