@@ -59,10 +59,36 @@ export default defineConfig(({ command }) => ({
    * two or three times slower again — so five seconds failed them on time rather than on any
    * assertion, and which one failed moved around depending on what else was running.
    *
-   * Sixty is a number only a genuine hang can reach; the whole suite finishes inside a minute.
+   * Sixty turned out not to be that number, and the way it failed is worth writing down because it
+   * looked exactly like a bug in the world. Five different tests failed a full run and passed on
+   * their own, always with `Test timed out`, never with a disagreement — and which five it was moved
+   * around from run to run. The cause was outside this repo entirely: another project's Rust build
+   * was holding most of the machine, and a suite that spawns one worker per file was asking for
+   * eleven of them at once on the cores that were left.
+   *
+   * So two changes, and they answer different halves of it.
+   *
+   * `maxWorkers` stops the suite being its own worst enemy. Half the machine runs it in the same
+   * wall-clock time as all of the machine — measured, sixty-five seconds against seventy-nine — 
+   * because past a point the workers are only queueing behind each other, and the half left over is
+   * what the rest of the machine was going to take anyway.
+   *
+   * `isolate: false` reuses a worker across files instead of standing up a fresh environment for
+   * each of the hundred and thirty-six. That is where the rest of the saving is: half a second of
+   * startup apiece, paid a hundred and thirty-six times. It is safe here because nothing in this
+   * suite leaves state behind that another file could read — the caches that do exist are keyed by
+   * the seed or the country they belong to — and it is the first thing to turn off if a test ever
+   * starts passing alone and failing in company, which is the exact shape of that fault.
+   *
+   * And the budget itself doubles. Two minutes is a number only a genuine hang reaches; the suite
+   * finishes in about a minute when the machine is free, and in two when it is not. A budget that a
+   * busy machine can trip is not measuring the code, and a suite that cries wolf is a suite people
+   * stop reading.
    */
   test: {
     include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'tools/**/*.test.ts'],
-    testTimeout: 60_000,
+    testTimeout: 120_000,
+    maxWorkers: '50%',
+    isolate: false,
   },
 }));

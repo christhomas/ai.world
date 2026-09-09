@@ -909,14 +909,17 @@ can each be finished and each leave the game playable.
       somewhere nobody ever stands. Fixing it moves the first village of every saved world, so it
       wants doing deliberately or not at all.
 
-- [ ] **The suite times out when the machine is busy.** Five different tests have failed a full run
+- [x] **The suite times out when the machine is busy.** Five different tests have failed a full run
       and passed alone, and the failures are always `Test timed out in 60000ms` rather than a
       disagreement. Measured while a Rust build on another project held most of the cores: with
       `--maxWorkers=4` the same run is green. Vitest spawns one worker per file — a hundred and
       thirty-six of them — so a busy machine starves each of them below the sixty-second budget of
       the slowest test in it.
-      Worth fixing rather than living with, because "the suite is green" has to mean something: cap
-      the workers, or give the handful of slow benches a budget of their own, or both.
+      *(Fixed: half the machine rather than all of it — measured, sixty-five seconds against
+      seventy-nine, because past a point the workers only queue behind each other — one worker reused
+      across files instead of a fresh environment for each of a hundred and thirty-six, and a budget
+      of two minutes, which is a number only a genuine hang reaches. `isolate: false` is the first
+      thing to turn off if a test ever starts passing alone and failing in company.)*
 
 ### C — the simulation, when there is more of it than a machine can hold
 
