@@ -761,3 +761,65 @@ and less than that a busy one.
 - [ ] And then the generator has one caller. A world grown in one place cannot be grown differently
       in another, and `twohalves.test.ts` becomes a test of a thing that cannot happen — which is
       the right time to read it again and decide what it is still for.
+
+## The endless world, in pieces
+
+Weeks of work, so it is written down as units small enough to finish, each leaving the game
+playable, and each with the thing that proves it. The order matters: everything below B2 is
+downstream of B2 being true.
+
+The rule the whole thing rests on, stated once: **a place's content is settled by a bounded
+neighbourhood**. Never by a traversal, never by how you got there. Break it anywhere and that one
+thing drags the whole world back into being generated from the middle outwards.
+
+### B — the country
+
+- [x] **B1. Points that do not care how you reached them.** `scattercells.ts`: space cut into cells,
+      each hashing to candidates and ranks, a candidate standing unless a better one wants the same
+      ground. Proven the same asked for cold, as a corner of something ten times bigger, in quarters
+      in the wrong order, and after generating ground ten thousand tiles away.
+- [ ] **B2. A mesh from those points, and the seam test.** Faces from the local sites; a face
+      computed from the east must be the face computed from the west, corner for corner. This is the
+      unit that decides whether any of the rest is possible.
+- [ ] **B3. Roads and towns, locally.** A road is a border between two faces, so it belongs to the
+      pair and both sides compute it identically. Towns at junctions, named from the pair-hash so a
+      name is stable without a registry. Bench: a road crossing a border matches from both sides.
+- [ ] **B4. Provinces the server owns.** The unit of loading, simulating and persisting becomes the
+      province rather than the world. Load when somebody is in it, flush and compact when nobody is.
+      `GroundWorld.reach`/`keepOnly` and `Simulation`'s per-seed worlds are the shape to grow from.
+- [ ] **B5. Sea links.** A border between land and sea is a port; the link across it is a ferry
+      rather than a road. Islands stop being special and become provinces reached by water.
+- [ ] **B6. The page stops growing its own country.** Chunks stream from the world and are kept in
+      IndexedDB under the world's own fingerprint. Until this, an endless world cannot be handed
+      over at a join.
+- [ ] **B7. The radius comes off.** `GRAPH.RADIUS` stops meaning anything; the map becomes a local
+      one; distances, ferries, roaming bands and tidings all stop assuming a bounded world.
+
+### C — the simulation, when there is more of it than a machine can hold
+
+- [ ] **C1. Measure first.** How many live agents will this hardware tick at ten a second, and how
+      long does a cold province take to catch up on a week? `tools/crowd.ts` is the place. Every
+      threshold below is guesswork until these two numbers exist.
+- [ ] **C2. Three tiers.** Live where a player is; coarse where a province is loaded and nobody is
+      watching; frozen otherwise. The rule that makes it work: a behaviour's long-run effect must
+      have a closed form, so arriving somewhere untouched for a week is a calculation rather than a
+      week of ticks.
+- [ ] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
+      simulated walk, because that is the only thing that keeps provinces independent.
+- [ ] **C4. Memory that compacts.** Bounded per villager, decaying, and summarised on unload — ten
+      slights become one opinion. Otherwise per-province state grows with the world again.
+- [ ] **C5. Villagers move to the server.** They are client-derived today, which works only because
+      they have no private state. Memory and ownership end that: two clients would disagree about
+      what a villager recalls.
+
+### A — the records, which are how any of the above is checked
+
+- [x] **A1. The books.** The roll, the stones, the charge sheet and the births, as rows first and
+      sentences second, with `__records` to read them without walking anywhere.
+- [ ] **A2. The church reads its own stones**, and the apothecary its births: free gist, paid detail.
+- [ ] **A3. A town hall**, which does not exist yet: structure kind, geometry, placement by the
+      square, interior, a clerk, and the roll.
+- [ ] **A4. A watch house**, the same, with the charge sheet fed by the gaol.
+- [ ] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
+      purses move, nobody ages backwards, every death is written down, a village under pressure gets
+      poorer and one left alone does not. The economy has never been checked end to end.
