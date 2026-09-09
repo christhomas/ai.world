@@ -7,7 +7,7 @@ import villain from '../../properties/villain.json';
 import tuning from '../../properties/behaviour.json';
 import { Fields, PropertiesError, asText, flatten, readAll } from '../core/properties';
 import { BLOW_NAMES, isBlow, type Blow } from './motion';
-import type { PartDef } from './animals';
+import type { AnimRole, PartDef } from './animals';
 
 /**
  * What every creature in the world is, read out of `properties/`.
@@ -193,10 +193,24 @@ export const MIN_BODY = 0.2;
  * taking the larger for both would make it a block two and a half tiles on a side, which is worse
  * than the walking-through it replaced. A creature faces +x, so `hw` is along its length.
  */
+/**
+ * The parts a creature is stopped by, which are not all the parts it is drawn with.
+ *
+ * A collider is made of the mesh, but not of every bit of it. Legs, arms, tails, wings and a cape
+ * are the bits that stick out and swing, and a body that is stopped where its outstretched foreleg
+ * is drawn is a body held off a wall by a leg — which reads as an invisible wall, because the leg
+ * is not where the animal looks like it is. What you bump into is the trunk and the head: the solid
+ * middle of the thing.
+ *
+ * Nothing here is a special case for one creature. It is one line about what a limb is, applied to
+ * every animal in the game by the roles they were already drawn with.
+ */
+const LIMBS = new Set<AnimRole>(['legL', 'legR', 'armL', 'armR', 'tail', 'wingL', 'wingR', 'cape']);
+
 function bodyFrom(parts: PartDef[], scale: number): { hw: number; hd: number } {
   let alongX = 0, alongZ = 0;
   for (const part of parts) {
-    // legs, tails and heads swing, so what is measured is where they are drawn at rest
+    if (part.anim && LIMBS.has(part.anim)) continue;
     const tall = part.shape === 'ico' ? part.size[0] * 2 : part.size[1];
     const midY = part.offset[1];
     if (midY + tall / 2 < BODY_BAND.low || midY - tall / 2 > BODY_BAND.high) continue;

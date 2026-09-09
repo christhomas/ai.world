@@ -6,7 +6,7 @@ import { mountainAt } from './ranges';
 import type { Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
-import { Solids, boxesOf } from './solids';
+import { Solids, boxesOf, type Body } from './solids';
 import type { Footprints } from './footprints';
 
 /**
@@ -140,12 +140,11 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return type === TileType.Seabed ? WORLD.WATER_Y : null;
   }
 
-  blocked(x: number, z: number, room = 0): boolean {
+  blocked(x: number, z: number, body?: Body): boolean {
     const hit = this.tileAt(x, z);
     if (!hit) return true;                            // ground that has not been made is not ground
-    if (hit.tiles.blocked[hit.i] === 1) return true;  // the ground itself: a floor, a wall of rock
     // and then whatever stands on it, against the box it is actually drawn at
-    return this.solids.at(x, z, room);
+    return this.solids.at(x, z, body);
   }
 
   /**
@@ -155,8 +154,8 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * Only the boxes: the tile grid is tile-shaped and a mover samples it closely enough that
    * nothing in it can hide between two samples.
    */
-  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
-    return this.solids.crosses(x0, z0, x1, z1, room);
+  crosses(x0: number, z0: number, x1: number, z1: number, body?: Body): boolean {
+    return this.solids.crosses(x0, z0, x1, z1, body);
   }
 
   buried(x: number, z: number): boolean {

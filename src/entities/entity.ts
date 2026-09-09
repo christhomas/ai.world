@@ -9,6 +9,7 @@ import { lastsFor, mirrors, type Blow } from './motion';
 // The ground belongs to the world layer; creatures read it. Re-exported because half the game asks
 // this file what a TileWorld is, and moving the definition is not a reason to move every import.
 export type { TileWorld } from '../world/tiles';
+import type { Body } from '../world/solids';
 import type { TileWorld } from '../world/tiles';
 
 export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'elder' | 'mount' | 'stablehand';
@@ -187,12 +188,17 @@ export class Entity {
 }
 
 /** Can this kind stand at (x,z), stepping from height `fromY` (or anywhere if undefined)? */
-export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number): boolean {
+/**
+ * @param yaw which way the body is facing, so that what is asked about is the shape it is drawn as.
+ * Left out by whoever is asking about a place rather than about a walk — somewhere to spawn, a spot
+ * to put somebody down — where there is no heading yet and the answer is about the ground.
+ */
+export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number, yaw = 0): boolean {
   if (swims(kind)) return world.waterAt(x, z) !== null;
   if (kind.behaviour === 'fly') return true;
   const h = world.heightAt(x, z);
   // asked as the body it is, not as the point at its middle
-  if (h === null || world.blocked(x, z, roomFor(kind))) return false;
+  if (h === null || world.blocked(x, z, bodyBox(kind, yaw))) return false;
   // Not onto a mountain. The rim of one is gentle for a tile or two before the flank stands up, so
   // a deer following its herd wanders up it and is then stuck on a cliff with nothing to eat; the
   // goats and the things that climb are placed on the high ground rather than walking to it.
@@ -236,16 +242,15 @@ export function bodyOf(kind: AnimalKind): { hw: number; hd: number } {
 }
 
 /**
- * How much room a creature takes up around its own middle, in tiles.
+ * The box a creature collides with: the one it is drawn as, turned the way it is facing.
  *
- * The narrow half of its body rather than the long one, and for the same reason the crowd uses the
- * narrow half: a body turns as it walks and does not lead with its length, so the honest figure for
- * "how close can this get to a wall" is the half it is thinnest across. One rule, used by both the
- * things a walker can bump into.
+ * Not a point, which puts a whole animal inside a wall, and not a circle, which cannot be both as
+ * long as a horse and as narrow as one. The model is a rectangle; what it bumps into is a
+ * rectangle; the two are compared as they are.
  */
-export function roomFor(kind: AnimalKind): number {
+export function bodyBox(kind: AnimalKind, yaw: number): Body {
   const body = bodyOf(kind);
-  return Math.min(body.hw, body.hd);
+  return { hw: body.hw, hd: body.hd, rot: -yaw };
 }
 
 /** Whoever is already standing somewhere. The manager keeps the crowd; this is all a mover needs. */
@@ -344,7 +349,7 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
    * Only the props are waived. The ground still has to be ground: this is a way out of a wall, not
    * a way into the sea or up a cliff.
    */
-  const boxedIn = world.blocked(e.x, e.z, roomFor(k)) && standable(world, k, e.x, e.z);
+  const boxedIn = world.blocked(e.x, e.z, bodyBox(k, e.yaw)) && standable(world, k, e.x, e.z);
   const attempts: Array<[number, number]> = [[dx, dz], [dx, 0], [0, dz]];
   for (const [mx, mz] of attempts) {
     if (mx === 0 && mz === 0) continue;
@@ -352,12 +357,12 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
     if (boxedIn) {
       if (!standable(world, k, nx, nz, e.y)) continue;
     } else {
-      if (!canStand(world, k, nx, nz, e.y)) continue;
+      if (!canStand(world, k, nx, nz, e.y, e.yaw)) continue;
       // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
       // length of the step that crossed it. Not for anything that flies: a bird goes over a cottage
       // rather than round it, which is what `canStand` says by letting it stand anywhere, and a path
       // test that did not know it turned every roof in the world into a wall in the sky.
-      if (k.behaviour !== 'fly' && world.crosses?.(e.x, e.z, nx, nz, roomFor(k))) continue;
+      if (k.behaviour !== 'fly' && world.crosses?.(e.x, e.z, nx, nz, bodyBox(k, e.yaw))) continue;
     }
     // the ground first, because the ground is the cheap question
     if (!stuck && crowd?.occupied(nx, nz, e)) continue;

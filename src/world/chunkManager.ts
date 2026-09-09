@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../core/config';
 import type { PropLibrary } from '../render/props';
-import { Solids, boxesFrom } from './solids';
+import { Solids, boxesFrom, type Body } from './solids';
 import { blocking, type Footprints } from './footprints';
 import { BLOCKS_WALKING } from './biomes';
 import type { PropKind } from './biomes';
@@ -192,7 +192,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       group.matrixWorldAutoUpdate = false;
       this.loaded.set(k, {
         cx: msg.cx, cz: msg.cz, group,
-        tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, blocked: msg.blocked, biomes: msg.biomes },
+        tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, biomes: msg.biomes },
       });
       this.stats.drawn++;
       if (!this.firstChunkSeen) { this.firstChunkSeen = true; this.onFirstChunk?.(); }
@@ -285,13 +285,12 @@ export class ChunkManager implements TileWorld, ChunkSource {
     this.built.replace(tiles);
   }
 
-  blocked(x: number, z: number, room = 0): boolean {
+  blocked(x: number, z: number, body?: Body): boolean {
     if (this.built.at(x, z)) return true;
     const hit = this.tileAt(x, z);
     if (!hit) return true;                       // ground that has not arrived is not ground to walk on
-    if (hit.t.blocked[hit.i] === 1) return true; // the ground itself: a floor, a wall of rock
     // and then whatever is standing on it, against the box it is actually drawn at
-    return this.solids.at(x, z, room);
+    return this.solids.at(x, z, body);
   }
 
   /**
@@ -300,8 +299,8 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * Only the boxes: the tile grid and what the player has built are both tile-shaped, and nothing
    * a tile wide can hide between the samples a mover takes along its step.
    */
-  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
-    return this.solids.crosses(x0, z0, x1, z1, room);
+  crosses(x0: number, z0: number, x1: number, z1: number, body?: Body): boolean {
+    return this.solids.crosses(x0, z0, x1, z1, body);
   }
 
   /** Plain ground: grass or sand, no road, no floor, nothing already growing on it. */
@@ -309,7 +308,6 @@ export class ChunkManager implements TileWorld, ChunkSource {
     const hit = this.tileAt(x, z);
     if (!hit) return false;
     const type = hit.t.types[hit.i];
-    if (hit.t.blocked[hit.i]) return false;
     return type === TileType.Ground || type === TileType.GroundAlt || type === TileType.Sand;
   }
 

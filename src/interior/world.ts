@@ -2,7 +2,7 @@ import { WORLD } from '../core/config';
 import type { TileWorld } from '../entities/entity';
 import { ITile, blocksAt, furnitureBoxes, type InteriorMap } from './generate';
 import type { Footprints } from '../world/footprints';
-import type { Solids } from '../world/solids';
+import type { Body, Solids } from '../world/solids';
 
 /** Interiors are flat, one terrace up, so the walls read as walls from above. */
 const FLOOR_LEVEL = 1;
@@ -38,13 +38,13 @@ export class InteriorWorld implements TileWorld {
 
   waterAt(): number | null { return null; }
 
-  blocked(x: number, z: number, room = 0): boolean {
-    return blocksAt(this.map, x, z, this.furniture ?? undefined, room);
+  blocked(x: number, z: number, body?: Body): boolean {
+    return blocksAt(this.map, x, z, this.furniture ?? undefined, body);
   }
 
   /** The way from one point to another, against the furniture: the same question as out of doors. */
-  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
-    return this.furniture?.crosses(x0, z0, x1, z1, room) ?? false;
+  crosses(x0: number, z0: number, x1: number, z1: number, body?: Body): boolean {
+    return this.furniture?.crosses(x0, z0, x1, z1, body) ?? false;
   }
 
   isRoad(): boolean { return true; }

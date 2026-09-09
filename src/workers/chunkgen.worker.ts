@@ -31,7 +31,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const CS = WORLD.CHUNK_SIZE;
   const size = chunk.size;
   // what anything walking on this chunk needs, packed the one way both halves of the game agree on
-  const { heights, types, waters, blocked, biomes } = tilesOf(chunk);
+  const { heights, types, waters, biomes } = tilesOf(chunk);
   const props: number[] = [];
   for (let lz = 0; lz < CS; lz++) {
     for (let lx = 0; lx < CS; lx++) {
@@ -64,11 +64,11 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const { land, water } = meshes;
   const transfer: Transferable[] = [
     land.positions.buffer, land.normals.buffer, land.colors.buffer, land.indices.buffer,
-    propArr.buffer, heights.buffer, types.buffer, waters.buffer, blocked.buffer, biomes.buffer,
+    propArr.buffer, heights.buffer, types.buffer, waters.buffer, biomes.buffer,
   ];
   if (water) {
     transfer.push(water.positions.buffer, water.normals.buffer, water.colors.buffer, water.indices.buffer);
     if (water.flow) transfer.push(water.flow.buffer);
   }
-  post({ type: 'chunk', id, cx, cz, empty: false, mesh: land, water, props: propArr, heights, types, waters, blocked, biomes }, transfer);
+  post({ type: 'chunk', id, cx, cz, empty: false, mesh: land, water, props: propArr, heights, types, waters, biomes }, transfer);
 };

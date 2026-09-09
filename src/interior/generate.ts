@@ -2,7 +2,7 @@ import { mulberry32, type Rng } from '../core/rng';
 import { SALT } from '../core/salts';
 import { PropKind } from '../world/biomes';
 import type { ShopType } from '../world/structures';
-import { Solids, boxesFrom } from '../world/solids';
+import { Solids, boxesFrom, type Body } from '../world/solids';
 import { blocking, type Footprints } from '../world/footprints';
 
 /**
@@ -96,12 +96,12 @@ export function generateInterior(seed: number, kind: InteriorKind, name: string)
  * So furniture is boxed the way everything outside is boxed, off the same measurements of the same
  * meshes, turned the way the piece is turned.
  */
-export function blocksAt(map: InteriorMap, x: number, z: number, furniture?: Solids, room = 0): boolean {
+export function blocksAt(map: InteriorMap, x: number, z: number, furniture?: Solids, body?: Body): boolean {
   const tx = Math.floor(x), tz = Math.floor(z);
   if (tx < 0 || tz < 0 || tx >= map.w || tz >= map.h) return true;
   const t = map.tiles[tz * map.w + tx] as ITile;
   if (t === ITile.Wall || t === ITile.Counter) return true;
-  if (furniture) return furniture.at(x, z, room);
+  if (furniture) return furniture.at(x, z, body);
   // without the measured boxes to hand this is the old tile answer, which is better than none
   return map.furniture.some((f) => f.x === tx && f.z === tz && FURNITURE_BLOCKS.has(f.kind));
 }

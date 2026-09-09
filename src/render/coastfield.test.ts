@@ -27,7 +27,6 @@ function coastAt(east: number): ChunkSource {
         cx, cz, types,
         heights: new Float32Array(CS * CS),
         waters: new Float32Array(CS * CS),
-        blocked: new Uint8Array(CS * CS),
         biomes: new Uint8Array(CS * CS),
       };
     },

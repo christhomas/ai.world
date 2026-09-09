@@ -28,7 +28,7 @@ export function sortTiles(tiles: ChunkTiles): SortedTiles {
   for (let i = 0; i < CS * CS; i++) {
     const t = tiles.types[i];
     if (t === TileType.Ground || t === TileType.GroundAlt || t === TileType.Sand) {
-      if (!tiles.blocked[i]) land.push(i);
+      land.push(i);
       biomeCount.set(tiles.biomes[i], (biomeCount.get(tiles.biomes[i]) ?? 0) + 1);
     } else if (t === TileType.Water) {
       water.push(i);

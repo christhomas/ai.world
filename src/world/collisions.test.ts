@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
-import { Entity, Herd, bodyOf, canStand, roomFor, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
+import { Entity, Herd, bodyOf, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
 import { stride } from '../entities/stride';
 import { propFootprints } from '../render/props';
 import { BLOCKS_WALKING, PropKind } from './biomes';
@@ -86,11 +86,11 @@ function field(solids: Solids): TileWorld {
   return {
     heightAt: () => 1,
     waterAt: () => null,
-    blocked: (x, z, room) => solids.at(x, z, room),
+    blocked: (x, z, body) => solids.at(x, z, body),
     // a road, because one creature in the game only walks on roads and would otherwise stand still
     // through every case below and pass them all by never moving
     isRoad: () => true,
-    crosses: (x0, z0, x1, z1, room) => solids.crosses(x0, z0, x1, z1, room),
+    crosses: (x0, z0, x1, z1, body) => solids.crosses(x0, z0, x1, z1, body),
   };
 }
 
@@ -243,54 +243,86 @@ function passedThrough(
   return null;
 }
 
-/**
- * How deeply two turned boxes are inside each other, in tiles.
- *
- * Nought when they are apart or exactly touching. Otherwise the least distance either of them would
- * have to move to be apart again — the separating axis theorem, on the four axes two rectangles
- * have between them, which is exact for rectangles.
- *
- * This is the measurement the eye makes. The engine collides a walker as a *point*, so a horse
- * nearly two tiles long stops with its middle at the wall and its nose in the plaster: the point is
- * outside and the model is not. Both are worth knowing and they are different questions, so this
- * answers the second one and `wentInto` answers the first.
- */
-function overlap(
-  a: { hw: number; hd: number }, ax: number, az: number, aRot: number,
-  b: { hw: number; hd: number }, bx: number, bz: number, bRot: number,
-): number {
-  const axes = [aRot, aRot + Math.PI / 2, bRot, bRot + Math.PI / 2];
-  const dx = bx - ax, dz = bz - az;
-  let least = Infinity;
-  for (const angle of axes) {
-    const ux = Math.cos(angle), uz = Math.sin(angle);
-    // each box's reach along this axis, and how far apart their middles are along it
-    const reachA = Math.abs(a.hw * Math.cos(aRot - angle)) + Math.abs(a.hd * Math.sin(aRot - angle));
-    const reachB = Math.abs(b.hw * Math.cos(bRot - angle)) + Math.abs(b.hd * Math.sin(bRot - angle));
-    const apart = Math.abs(dx * ux + dz * uz);
-    const into = reachA + reachB - apart;
-    if (into <= 0) return 0;                 // a gap on any axis is a gap
-    least = Math.min(least, into);
-  }
-  return least;
+/** The four corners of a turned box, going round. */
+function corners(box: { hw: number; hd: number }, x: number, z: number, rot: number): Array<[number, number]> {
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  return ([[1, 1], [1, -1], [-1, -1], [-1, 1]] as const).map(([sx, sz]) => {
+    const lx = sx * box.hw, lz = sz * box.hd;
+    return [x + lx * cos - lz * sin, z + lx * sin + lz * cos] as [number, number];
+  });
 }
 
 /**
- * What a pair did to each other: nothing, a graze, or one standing in the other.
+ * How much of one turned box lies inside another, as a share of the first.
  *
- * Low-polygon models are not their boxes and a hair of overlap is what standing next to something
- * looks like, so a little is `touching` and is reported rather than failed. Deep is `intersected`,
- * which is two models sitting on top of each other, and that is a fault whatever the arithmetic
- * says.
+ * Depth in tiles was the wrong measure and said so as soon as it was read: a tile of overlap is a
+ * chicken swallowed whole and a horse resting its nose on something. What a person means by "those
+ * two are inside each other" is how much of the thing is in there — a hundredth is what low-poly
+ * models do when they stand next to each other, and a half is one sitting on the other.
+ *
+ * The overlap of two convex shapes is one clipped by the other, which for rectangles is four cuts
+ * (Sutherland and Hodgman) and then the shoelace formula for what is left. Exact, thirty lines, and
+ * no special cases.
  */
-const TOUCH = 0.06;
-const SUNK = 0.3;
+function overlapShare(
+  a: { hw: number; hd: number }, ax: number, az: number, aRot: number,
+  b: { hw: number; hd: number }, bx: number, bz: number, bRot: number,
+): number {
+  let shape = corners(a, ax, az, aRot);
+  // cut it by each of the other box's four sides in turn
+  const edges = corners(b, bx, bz, bRot);
+  for (let i = 0; i < edges.length && shape.length > 0; i++) {
+    const [x0, z0] = edges[i], [x1, z1] = edges[(i + 1) % edges.length];
+    /*
+     * Which side of this edge counts as in.
+     *
+     * A cross product says which side a point is on but not which side is which: that depends on
+     * whether the corners go round clockwise or the other way, and getting it backwards clips
+     * everything away and answers nought for every pair — a bench reporting no overlaps anywhere,
+     * which is the most flattering bug it could have had. So the box's own middle settles it: the
+     * middle of a box is inside the box.
+     */
+    const side = (p: [number, number]): number => (x1 - x0) * (p[1] - z0) - (z1 - z0) * (p[0] - x0);
+    const facing = Math.sign(side([bx, bz])) || 1;
+    const inside = (p: [number, number]): number => side(p) * facing;
+    const clipped: Array<[number, number]> = [];
+    for (let n = 0; n < shape.length; n++) {
+      const here = shape[n], next = shape[(n + 1) % shape.length];
+      const dHere = inside(here), dNext = inside(next);
+      if (dHere >= 0) clipped.push(here);
+      if ((dHere >= 0) !== (dNext >= 0)) {
+        const t = dHere / (dHere - dNext);
+        clipped.push([here[0] + (next[0] - here[0]) * t, here[1] + (next[1] - here[1]) * t]);
+      }
+    }
+    shape = clipped;
+  }
+  if (shape.length < 3) return 0;
+  let twiceArea = 0;
+  for (let n = 0; n < shape.length; n++) {
+    const [x0, z0] = shape[n], [x1, z1] = shape[(n + 1) % shape.length];
+    twiceArea += x0 * z1 - x1 * z0;
+  }
+  const own = 4 * a.hw * a.hd;
+  return Math.abs(twiceArea / 2) / own;
+}
+
+/**
+ * What a pair did to each other: stood clear, grazed, or sat on one another.
+ *
+ * As a share of the mover rather than a distance, because that is the question being asked. A
+ * hundredth of a body inside something is two low-poly models standing next to each other and looks
+ * right; a fifth is a nose in a tree, which looks careless; a half is one thing sitting inside
+ * another, which is the fault worth a name.
+ */
+const GRAZE = 0.01;
+const SUNK = 0.2;
 
 type Verdict = 'passed' | 'touching' | 'intersected';
 
-function verdictOf(depth: number): Verdict {
-  if (depth <= TOUCH) return 'passed';
-  return depth <= SUNK ? 'touching' : 'intersected';
+function verdictOf(share: number): Verdict {
+  if (share <= GRAZE) return 'passed';
+  return share <= SUNK ? 'touching' : 'intersected';
 }
 
 /** Straight along an axis, where a refused move has nowhere to slide to. */
@@ -326,6 +358,47 @@ const EVERY_MOVER = Object.entries(KINDS)
 /** Every prop that is meant to stop somebody, which is the list the world itself blocks on. */
 const EVERY_SOLID = [...BLOCKS_WALKING].filter((kind) => propFootprints().get(kind) !== undefined);
 
+/*
+ * The measure has to be right before anything measured with it means anything. A silent nought
+ * from a clipper with its corners the wrong way round reads exactly like a game with no overlaps
+ * in it, which is the most flattering bug a bench could have.
+ */
+describe('the overlap measure itself', () => {
+  const unit = { hw: 0.5, hd: 0.5 };
+
+  it('is all of it when a box is on top of itself', () => {
+    expect(overlapShare(unit, 0, 0, 0, unit, 0, 0, 0)).toBeCloseTo(1, 6);
+  });
+
+  it('is half when a box is half in', () => {
+    expect(overlapShare(unit, 0, 0, 0, unit, 0.5, 0, 0)).toBeCloseTo(0.5, 6);
+  });
+
+  it('is a quarter when it is half in each way', () => {
+    expect(overlapShare(unit, 0, 0, 0, unit, 0.5, 0.5, 0)).toBeCloseTo(0.25, 6);
+  });
+
+  it('is nothing when they are apart, and nothing when they merely touch', () => {
+    expect(overlapShare(unit, 0, 0, 0, unit, 3, 0, 0)).toBe(0);
+    expect(overlapShare(unit, 0, 0, 0, unit, 1, 0, 0)).toBeCloseTo(0, 6);
+  });
+
+  it('turns with the boxes', () => {
+    // a square turned by a quarter is the same square, so the answer may not change
+    expect(overlapShare(unit, 0, 0, Math.PI / 2, unit, 0.5, 0, Math.PI / 2)).toBeCloseTo(0.5, 6);
+    // and a long box across a short one overlaps only where they cross
+    const long = { hw: 2, hd: 0.25 }, across = { hw: 2, hd: 0.25 };
+    expect(overlapShare(long, 0, 0, 0, across, 0, 0, Math.PI / 2)).toBeCloseTo(0.25 * 0.5 / (2 * 0.5), 6);
+  });
+
+  it('is a share of the mover, not of the thing it walked into', () => {
+    const small = { hw: 0.25, hd: 0.25 }, big = { hw: 2, hd: 2 };
+    expect(overlapShare(small, 0, 0, 0, big, 0, 0, 0), 'a small thing wholly inside a big one').toBeCloseTo(1, 6);
+    expect(overlapShare(big, 0, 0, 0, small, 0, 0, 0), 'and the same pair the other way about')
+      .toBeCloseTo((0.5 * 0.5) / (4 * 4), 6);
+  });
+});
+
 describe('walking into things, on a bench with nothing else in it', () => {
   for (const { what, kind } of SOLIDS) {
     for (const rot of [0, Math.PI / 4, Math.PI / 2]) {
@@ -341,9 +414,9 @@ describe('walking into things, on a bench with nothing else in it', () => {
               const trace = walkAt(world, e, dx, dz, dt, pace);
               const through = passedThrough(box, rot, trace, !squareOn(dx, dz));
               // how far the box reaches back along the way we came, which is the wall we should meet
-              // the wall, plus the walker's own width: a body stops where its edge meets the box,
-              // not where its middle does
-              const wall = reach(box, rot, -dx, -dz) + roomFor(KINDS[id]);
+              // the wall, plus how far this body reaches back along the way it came — as it is
+              // turned, because a wolf walking north meets the wall with its nose and not its ribs
+              const wall = reach(box, rot, -dx, -dz) + reach(bodyOf(KINDS[id]), -e.yaw, -dx, -dz);
               const got = -(e.x * dx + e.z * dz);   // how far short of the middle we stopped
               const inside = through !== null;
               if (through) {
@@ -394,13 +467,13 @@ describe('the whole matrix: everything that walks, into everything solid', () =>
           // and what the models did, which is a different question from what the points did
           const body = bodyOf(KINDS[id]);
           let worst = 0;
-          for (const at of trace) worst = Math.max(worst, overlap(body, at.x, at.z, e.yaw, box, 0, 0, 0));
+          for (const at of trace) worst = Math.max(worst, overlapShare(body, at.x, at.z, e.yaw, box, 0, 0, 0));
           const verdict = verdictOf(worst);
           models[verdict]++;
           if (verdict === 'intersected' && sunk.length < 200) {
             sunk.push({ mover: id, into: kind, depth: worst, from: `${dx},${dz}` });
           }
-          const wall = reach(box, 0, -dx, -dz) + roomFor(KINDS[id]);
+          const wall = reach(box, 0, -dx, -dz) + reach(bodyOf(KINDS[id]), -e.yaw, -dx, -dz);
           const got = -(e.x * dx + e.z * dz);
           if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off prop ${kind} whose wall is at ${wall.toFixed(2)}`);
         }
@@ -413,33 +486,28 @@ describe('the whole matrix: everything that walks, into everything solid', () =>
       what: `every one of ${EVERY_MOVER.length} movers walked into every one of ${EVERY_SOLID.length} solids, from four sides`,
       detail: failures.slice(0, 4),
     });
-    report({ verdict: 'PASS', count: models.passed, what: 'of those, models that never touched what they stopped at' });
-    report({ verdict: 'TOUCHING', count: models.touching, what: `models grazing what they stopped at, under ${SUNK} of a tile` });
+    report({ verdict: 'PASS', count: models.passed, what: `of those, models with under ${GRAZE * 100}% of themselves inside what they stopped at` });
+    report({ verdict: 'TOUCHING', count: models.touching, what: `models grazing it — up to ${SUNK * 100}% of themselves in` });
     report({
       verdict: 'INTERSECTED',
       count: models.intersected,
-      what: 'models standing inside what they stopped at — a walker is stopped as a circle of its narrow half, so a long body still puts its nose in',
-      detail: worst.slice(0, 5).map((one) => `${one.mover} sank ${one.depth.toFixed(2)} tiles into ${nameOf(one.into)}, walking from ${one.from}`),
+      what: `models with over ${SUNK * 100}% of themselves inside what they stopped at`,
+      detail: worst.slice(0, 5).map((one) => `${one.mover} had ${(one.depth * 100).toFixed(0)}% of itself inside ${nameOf(one.into)}, walking from ${one.from}`),
     });
     /*
-     * What is left of the third number, and why it is not nought.
+     * Nought, and it took three goes to get there.
      *
-     * A walker used to be stopped as a *point*: its middle met the wall and the body it is drawn as
-     * carried on into the plaster — three thousand of these walks ended with the model inside the
-     * thing, a bear over a tile deep into an oak. It is now stopped as a circle of its own narrow
-     * half, the same figure the crowd has always used to push bodies apart, and that halves it.
+     * A walker was first asked about as a *point*: its middle met the wall and the model carried on
+     * into the plaster — three thousand of these walks ended with the model inside the thing, a
+     * bear over a tile deep into an oak. Then as a circle of its narrow half, which halved it and
+     * could not do better, because a circle that fits a horse's width cannot fit its length.
      *
-     * What is left is the long ones. A horse is nearly two tiles nose to tail and a third of one
-     * across; a circle that fits its width cannot also fit its length, so a horse facing a willow
-     * squarely still has its nose in the tree. Fixing that means colliding two turned rectangles
-     * rather than a circle against one, which needs the walker's heading everywhere collision is
-     * asked about — `canStand` is asked by things that have not turned yet — and buys a horse's
-     * nose. It is written down rather than done.
-     *
-     * The line is held where the arithmetic now puts it, so it cannot drift back.
+     * Now the model is asked about as the model: its own rectangle, turned the way it faces,
+     * against the rectangle of whatever it is walking into. Nothing is inside anything.
      */
-    expect(models.intersected, 'more models are standing inside things than were').toBeLessThanOrEqual(1656);
-    expect(worst[0]?.depth ?? 0, 'and none of them deeper').toBeLessThanOrEqual(1.1);
+    // Nought, now that a model is collided as the box it is drawn as. It stays nought.
+    expect(models.intersected, 'a model is standing inside something again').toBe(0);
+    expect(models.touching, 'and models have started grazing what they stop at').toBe(0);
     expect(failures.slice(0, 8), `${failures.length} failures across ${cases} pairs`).toEqual([]);
   });
 
@@ -610,7 +678,7 @@ describe('the furniture of a room, against everything that walks', () => {
               + `${through.from.x.toFixed(2)},${through.from.z.toFixed(2)} to ${through.to.x.toFixed(2)},${through.to.z.toFixed(2)}, from ${dx},${dz}`);
           }
           const wall = reach({ hw: Math.max(box.hw, MIN_BLOCK), hd: Math.max(box.hd, MIN_BLOCK) }, 0, -dx, -dz)
-            + roomFor(KINDS[id]);
+            + reach(bodyOf(KINDS[id]), -e.yaw, -dx, -dz);
           const got = -(e.x * dx + e.z * dz);
           if (got > wall + 0.45) failures.push(`${id} held ${got.toFixed(2)} off furniture ${kind}, whose edge is at ${wall.toFixed(2)}`);
         }
@@ -719,8 +787,8 @@ describe('what this bench covered', () => {
       '',
       `  ${walks.toLocaleString()} walks. Nothing may pass through anything: that is the whole of PASS and FAIL.`,
       '  TOUCHING and INTERSECTED are about the models rather than the arithmetic — how far the body',
-      `  a creature is drawn as ends up inside what its middle stopped against (over ${TOUCH} of a tile`,
-      `  is touching, over ${SUNK} is intersected). Neither is a failure; both are watched.`,
+      `  a creature is drawn as ends up inside what it stopped against, as a share of itself: over`,
+      `  ${GRAZE * 100}% is touching, over ${SUNK * 100}% is intersected. Neither is a failure; both are watched.`,
       '',
     ];
     for (const line of covered) {

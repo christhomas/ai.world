@@ -22,6 +22,5 @@ export type WorkerResponse =
       heights: Float32Array;
       types: Uint8Array;
       waters: Float32Array;
-      blocked: Uint8Array;
       biomes: Uint8Array;
     };

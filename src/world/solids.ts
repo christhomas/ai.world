@@ -19,6 +19,21 @@ import type { ChunkData } from './terrain';
  * holds the measurements taken off the meshes themselves.
  */
 
+/**
+ * The box a mover carries about with it: its own rectangle, turned the way it faces.
+ *
+ * A walker used to be asked about as a point, and then as a circle of its narrow half. Neither is
+ * the shape of an animal: a horse is nearly two tiles nose to tail and a third of one across, so a
+ * point puts its whole body inside a wall and a circle that fits its width cannot fit its length.
+ * What collides is the model, so what is asked about is the model's own box.
+ */
+export interface Body {
+  hw: number;
+  hd: number;
+  /** Which way it is facing, in radians. */
+  rot: number;
+}
+
 /** A thing standing in the world, as a walker meets it: a box on the ground, turned. */
 export interface Solid {
   x: number;
@@ -133,8 +148,12 @@ export class Solids {
    * wall. Growing the box by the asker's own width is the whole of collision between two bodies,
    * stated once, and it costs nothing: the same box test, with a bigger box.
    */
-  at(x: number, z: number, room = 0): boolean {
-    for (const s of this.near(x, z, room)) if (pointInBox(s, x, z, room)) return true;
+  at(x: number, z: number, body?: Body): boolean {
+    if (!body) {
+      for (const s of this.near(x, z)) if (pointInBox(s, x, z)) return true;
+      return false;
+    }
+    for (const s of this.near(x, z, body)) if (boxesOverlap(s, x, z, body)) return true;
     return false;
   }
 
@@ -156,14 +175,21 @@ export class Solids {
    * than the set that used to be allocated on every candidate of every slice of every move, of
    * which there are twenty-odd per walking frame per creature.
    */
-  crosses(x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
-    const lowX = Math.floor(Math.min(x0, x1) - room), highX = Math.floor(Math.max(x0, x1) + room);
-    const lowZ = Math.floor(Math.min(z0, z1) - room), highZ = Math.floor(Math.max(z0, z1) + room);
+  crosses(x0: number, z0: number, x1: number, z1: number, body?: Body): boolean {
+    const spanX = body ? reachOf(body, 1, 0) : 0;
+    const spanZ = body ? reachOf(body, 0, 1) : 0;
+    const lowX = Math.floor(Math.min(x0, x1) - spanX), highX = Math.floor(Math.max(x0, x1) + spanX);
+    const lowZ = Math.floor(Math.min(z0, z1) - spanZ), highZ = Math.floor(Math.max(z0, z1) + spanZ);
     for (let tz = lowZ; tz <= highZ; tz++) {
       for (let tx = lowX; tx <= highX; tx++) {
         const bucket = this.buckets.get(tileKey(tx, tz));
         if (!bucket) continue;
-        for (const s of bucket) if (segmentHitsBox(s, x0, z0, x1, z1, room)) return true;
+        for (const s of bucket) {
+          const hit = body
+            ? sweptBoxHitsBox(s, x0, z0, x1, z1, body)
+            : segmentHitsBox(s, x0, z0, x1, z1);
+          if (hit) return true;
+        }
       }
     }
     return false;
@@ -176,11 +202,14 @@ export class Solids {
    * the tiles around it, so it asks for those too: nine at the very worst, and only for something
    * as wide as a bear.
    */
-  private near(x: number, z: number, room = 0): readonly Solid[] {
-    if (room <= 0) return this.buckets.get(tileKey(Math.floor(x), Math.floor(z))) ?? EMPTY;
+  private near(x: number, z: number, body?: Body): readonly Solid[] {
+    if (!body) return this.buckets.get(tileKey(Math.floor(x), Math.floor(z))) ?? EMPTY;
+    // the tiles this body touches, which is the gate: two things in tiles that do not touch cannot
+    // be touching either, and everything past this point is the models themselves
+    const spanX = reachOf(body, 1, 0), spanZ = reachOf(body, 0, 1);
     const found: Solid[] = [];
-    for (let tz = Math.floor(z - room); tz <= Math.floor(z + room); tz++) {
-      for (let tx = Math.floor(x - room); tx <= Math.floor(x + room); tx++) {
+    for (let tz = Math.floor(z - spanZ); tz <= Math.floor(z + spanZ); tz++) {
+      for (let tx = Math.floor(x - spanX); tx <= Math.floor(x + spanX); tx++) {
         const bucket = this.buckets.get(tileKey(tx, tz));
         if (bucket) found.push(...bucket);
       }
@@ -234,6 +263,61 @@ export function pointInBox(s: Solid, x: number, z: number, room = 0): boolean {
   const dx = x - s.x, dz = z - s.z;
   const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
   return Math.abs(dx * cos - dz * sin) <= s.hw + room && Math.abs(dx * sin + dz * cos) <= s.hd + room;
+}
+
+/** How far a turned box reaches from its own middle along a direction. */
+function reachOf(box: { hw: number; hd: number; rot: number }, ux: number, uz: number): number {
+  const cos = Math.cos(box.rot), sin = Math.sin(box.rot);
+  return Math.abs(box.hw * (cos * ux + sin * uz)) + Math.abs(box.hd * (cos * uz - sin * ux));
+}
+
+/**
+ * Do two turned boxes overlap: the model against the thing it is walking into.
+ *
+ * The separating axis theorem, which for two rectangles is four axes — each one's own two — and is
+ * exact. If the two are apart along any of them they are apart, and the first one found ends it.
+ *
+ * This is the whole of collision between two things in this world. Everything else is either
+ * finding which boxes are worth asking about, or deciding what a box is.
+ */
+export function boxesOverlap(s: Solid, x: number, z: number, body: Body): boolean {
+  const dx = x - s.x, dz = z - s.z;
+  for (const angle of [s.rot, s.rot + Math.PI / 2, body.rot, body.rot + Math.PI / 2]) {
+    const ux = Math.cos(angle), uz = Math.sin(angle);
+    if (Math.abs(dx * ux + dz * uz) > reachOf(s, ux, uz) + reachOf(body, ux, uz)) return false;
+  }
+  return true;
+}
+
+/**
+ * Does a body, carried from one point to another, meet a box on the way?
+ *
+ * The same theorem again, with the sweep taken as what it is: a box whose middle is a line rather
+ * than a point. On any axis its shadow is the shadow of the line, spread by how far the body
+ * reaches along that axis — so the test is the box against that, on the two axes of each rectangle
+ * and on the one the sweep itself adds. Exact, no circle anywhere in it, and it is what says a
+ * step cannot jump a wall however long the step was.
+ */
+export function sweptBoxHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number, body: Body): boolean {
+  const wayX = x1 - x0, wayZ = z1 - z0;
+  const along = Math.hypot(wayX, wayZ);
+  const axes: Array<[number, number]> = [
+    [Math.cos(s.rot), Math.sin(s.rot)],
+    [-Math.sin(s.rot), Math.cos(s.rot)],
+    [Math.cos(body.rot), Math.sin(body.rot)],
+    [-Math.sin(body.rot), Math.cos(body.rot)],
+  ];
+  // and across the way it is going, which is the only direction the sweep itself adds
+  if (along > 1e-9) axes.push([-wayZ / along, wayX / along]);
+  for (const [ux, uz] of axes) {
+    const solidMiddle = s.x * ux + s.z * uz;
+    const from = x0 * ux + z0 * uz, to = x1 * ux + z1 * uz;
+    const spread = reachOf(body, ux, uz);
+    const low = Math.min(from, to) - spread, high = Math.max(from, to) + spread;
+    const reach = reachOf(s, ux, uz);
+    if (high < solidMiddle - reach || low > solidMiddle + reach) return false;
+  }
+  return true;
 }
 
 /**

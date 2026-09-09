@@ -1,3 +1,4 @@
+import type { Body } from './solids';
 import { WORLD } from '../core/config';
 import type { ChunkData } from './terrain';
 
@@ -12,7 +13,6 @@ export interface ChunkTiles {
   types: Uint8Array;
   heights: Float32Array;
   waters: Float32Array;
-  blocked: Uint8Array;
   biomes: Uint8Array;
 }
 
@@ -37,18 +37,14 @@ export interface TileWorld {
   /** Water surface height if (x,z) is a river/lake tile, else null. */
   waterAt(x: number, z: number): number | null;
   /**
-   * True when a tree / boulder / cactus occupies the tile.
+   * Is anything solid here — and, for somebody who has a shape, is it in the way of that shape?
    *
-   * `room` is how wide whoever is asking is: the half-width of their own body. Without it a walker
-   * is a point, its middle stops at the wall, and the body it is drawn as stands in the plaster —
-   * measured on the bench, three thousand of five thousand walks ended with the model inside the
-   * thing it had stopped against, a bear over a tile deep into an oak. With it, the thing you can
-   * see is the thing that is stopped.
-   *
-   * The ground itself is not grown by it. A tile is not an object with a size, it is the shape of
-   * the world, and a gap one tile wide is meant to be a gap you can walk down.
+   * `body` is the asker's own box, turned the way it faces. Without it the asker is a point, and a
+   * point is not what anybody is: measured on the bench, three thousand of five thousand walks
+   * ended with the model standing inside the thing it had stopped against, a bear over a tile deep
+   * into an oak. With it, what stops is the thing you can see.
    */
-  blocked(x: number, z: number, room?: number): boolean;
+  blocked(x: number, z: number, body?: Body): boolean;
   /**
    * True when the way from one point to another crosses something solid.
    *
@@ -62,7 +58,7 @@ export interface TileWorld {
    * mover falls back to sampling along the step, which a tile grid can be measured with because
    * nothing in one is thinner than a tile.
    */
-  crosses?(x0: number, z0: number, x1: number, z1: number, room?: number): boolean;
+  crosses?(x0: number, z0: number, x1: number, z1: number, body?: Body): boolean;
   /**
    * True where a mountain stands over this tile, so the ground here is the inside of a cliff.
    *
@@ -117,7 +113,6 @@ export function tilesOf(chunk: ChunkData): ChunkTiles {
   const heights = new Float32Array(CS * CS);
   const types = new Uint8Array(CS * CS);
   const waters = new Float32Array(CS * CS);
-  const blocked = new Uint8Array(CS * CS);
   const biomes = new Uint8Array(CS * CS);
 
   for (let lz = 0; lz < CS; lz++) {
@@ -128,21 +123,7 @@ export function tilesOf(chunk: ChunkData): ChunkTiles {
       types[to] = chunk.type[from];
       waters[to] = chunk.water[from];
       biomes[to] = chunk.biome[from];
-      /*
-       * The ground itself, and only that.
-       *
-       * A prop used to make its whole tile solid from here. A tile is the wrong shape for
-       * everything in this world: a market stall drawn two and a half tiles across blocked one, so
-       * you walked through the counter; a cottage's three-tile footprint against 2.4 of wall put a
-       * ring of invisible wall round every house. Props are boxes now — `solids.ts` — and every
-       * world that walks anything builds them the same way.
-       *
-       * A building's floor used to be marked solid here as well, which was the last thing keeping
-       * the ring: the footprint is stamped three tiles wide against 2.4 of wall. The building's own
-       * box covers its walls and everything inside them, so the stamp is no longer needed and its
-       * quarter-tile of nothing is gone with it.
-       */
     }
   }
-  return { cx: chunk.cx, cz: chunk.cz, types, heights, waters, blocked, biomes };
+  return { cx: chunk.cx, cz: chunk.cz, types, heights, waters, biomes };
 }
