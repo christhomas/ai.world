@@ -29,7 +29,12 @@ class Pretend {
     // object literal `this` is the literal, and a getter reading its own name is a stack overflow
     const player = this;
     this.wire = {
-      send: (text) => { player.heard.push(JSON.parse(text) as ServerMessage); },
+      send: (parcel) => {
+        // the tests are about what the world says in words; nothing sends bytes yet, and a test
+        // that quietly swallowed them would be the wrong place to find that out
+        if (typeof parcel !== 'string') throw new Error('the world sent bytes to a test that expects words');
+        player.heard.push(JSON.parse(parcel) as ServerMessage);
+      },
       get open(): boolean { return player.open; },
       close: () => { player.open = false; },
     };

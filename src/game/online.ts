@@ -24,6 +24,13 @@ const MOVE_INTERVAL = 0.12;
 const QUIET = 6;
 
 export interface OnlineEvents {
+  /**
+   * Bytes rather than words: the world itself, when the world starts sending it.
+   *
+   * Nothing sends one yet. It is here so that the day a chunk of country comes down the wire, it
+   * arrives somewhere rather than being dropped by a receiver that only knows how to read.
+   */
+  onParcel?: (bytes: ArrayBuffer) => void;
   onChat: (line: string) => void;
   onSystem: (line: string) => void;
   /** The world's own time, which everyone in it shares. */
@@ -167,7 +174,13 @@ export class Online {
       onOpen: () => this.send({
         type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time, world,
       }),
-      onMessage: (text) => { this.sinceHeard = 0; this.receive(text); },
+      onMessage: (parcel) => {
+        this.sinceHeard = 0;
+        // words are what everything says today; bytes are the world itself, and nothing sends one
+        // yet — so anything that is not words is kept rather than guessed at
+        if (typeof parcel === 'string') this.receive(parcel);
+        else this.events.onParcel?.(parcel);
+      },
       onClose: (why) => {
         if (this.status !== 'offline' && !this.local) this.events.onSystem(why);
         // nobody is telling us what lives here any more

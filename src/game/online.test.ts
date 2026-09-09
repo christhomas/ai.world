@@ -20,7 +20,7 @@ function deadWorld() {
   let heard: LinkEvents | null = null;
   const sent: string[] = [];
   let opened = 0;
-  const link: Link = { ready: true, send: (text) => { sent.push(text); }, close: () => {} };
+  const link: Link = { ready: true, send: (parcel) => { sent.push(String(parcel)); }, close: () => {} };
   return {
     sent,
     get opens() { return opened; },

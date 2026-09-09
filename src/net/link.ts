@@ -10,8 +10,19 @@
  * moment it can, single player and multiplayer start being two games that share a repository.
  * `docs/server-authority.md` has the shape of it.
  */
+/**
+ * What goes over a link.
+ *
+ * Words for everything the two halves say to each other, and bytes for the one thing they cannot
+ * say in words: the world itself. A chunk of country is 3.3 kB of heights and tile kinds, which as
+ * numbers in a JSON array is four times that and unreadable at both ends — so it travels as the
+ * arrays it already is. A websocket carries either natively and a worker port carries either by
+ * transfer, so this is a widening rather than a second channel.
+ */
+export type Parcel = string | ArrayBuffer;
+
 export interface Link {
-  send(text: string): void;
+  send(parcel: Parcel): void;
   close(): void;
   /** Ready to carry a message. Both kinds start false and say so when they are up. */
   readonly ready: boolean;
@@ -19,7 +30,7 @@ export interface Link {
 
 export interface LinkEvents {
   onOpen: () => void;
-  onMessage: (text: string) => void;
+  onMessage: (parcel: Parcel) => void;
   /** The other end has gone, or was never there. `why` is for the player, not for a log. */
   onClose: (why: string) => void;
 }
@@ -33,11 +44,12 @@ export function socketLink(url: string, events: LinkEvents): Link | null {
     return null;
   }
   socket.onopen = () => events.onOpen();
-  socket.onmessage = (e) => events.onMessage(String(e.data));
+  socket.binaryType = 'arraybuffer';
+  socket.onmessage = (e) => events.onMessage(e.data instanceof ArrayBuffer ? e.data : String(e.data));
   socket.onclose = () => events.onClose('Disconnected from the server.');
   socket.onerror = () => events.onClose(`Could not reach ${url}.`);
   return {
-    send: (text) => { if (socket.readyState === WebSocket.OPEN) socket.send(text); },
+    send: (parcel) => { if (socket.readyState === WebSocket.OPEN) socket.send(parcel); },
     close: () => socket.close(),
     get ready(): boolean { return socket.readyState === WebSocket.OPEN; },
   };
@@ -53,11 +65,13 @@ export function socketLink(url: string, events: LinkEvents): Link | null {
 export function workerLink(events: LinkEvents): Link {
   const worker = new Worker(new URL('../workers/sim.worker.ts', import.meta.url), { type: 'module' });
   let up = false;
-  worker.onmessage = (e: MessageEvent<string>) => events.onMessage(e.data);
+  worker.onmessage = (e: MessageEvent<Parcel>) => events.onMessage(e.data);
   worker.onerror = () => events.onClose('The world in this tab stopped.');
   queueMicrotask(() => { up = true; events.onOpen(); });
   return {
-    send: (text) => worker.postMessage(text),
+    // an ArrayBuffer is handed over rather than copied: the sender loses it, which is what makes a
+    // chunk of country cost nothing to pass between threads
+    send: (parcel) => worker.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
     close: () => { up = false; worker.terminate(); },
     get ready(): boolean { return up; },
   };

@@ -29,7 +29,9 @@ const sim = new Simulation({ dataDir: 'worlds', vault: new BrowserVault(), groun
 
 /** The page, as the roster sees it: exactly what a websocket looks like from the same angle. */
 const wire: Wire = {
-  send: (text) => self.postMessage(text),
+  // bytes are handed over rather than copied, which is what makes passing a chunk of country
+  // between the world and the page next door cost nothing
+  send: (parcel) => self.postMessage(parcel, parcel instanceof ArrayBuffer ? [parcel] : []),
   // a worker's port is open for as long as the worker is, and the page ends it by terminating us
   open: true,
   close: () => {},

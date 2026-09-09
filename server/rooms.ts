@@ -15,7 +15,15 @@ import { SharedWorld, worldPath } from './world';
  * all this is, and the rest of the server never learns which it has.
  */
 export interface Wire {
-  send(text: string): void;
+  /**
+   * Words for everything the world says, and bytes for the one thing it cannot say in words.
+   *
+   * A chunk of country is heights and tile kinds — three kilobytes of numbers that would be four
+   * times that written out and read back as text. When the world starts sending the land itself
+   * rather than a seed to grow it from, it goes as the arrays it already is. Both kinds of wire
+   * carry either: a websocket natively, a worker port by handing the memory over.
+   */
+  send(parcel: string | ArrayBuffer): void;
   /** False once the other end has gone, so a room can stop talking to nobody. */
   readonly open: boolean;
   close(): void;
