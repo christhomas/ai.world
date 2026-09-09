@@ -1326,3 +1326,84 @@ can each be finished and each leave the game playable.
       the next — the altitude is written in the facts instead. The walk is the game's own
       `cycleTurn` and `bodyMotion` rather than an imitation, which is what catches the arm that only
       passes through a hip at the top of a stride.)*
+
+## The mine, with people in it — September 10th
+
+- [x] **Nobody is ever digging.** `mines.ts` has worked every village's hole every day since it was
+      written: a crew off the register goes down, the gold comes up and is shared among them to the
+      coin, somebody is frightened off, and now and again somebody does not come back and what he
+      was carrying is left on the floor where he fell. All of it true, all of it written down, and
+      none of it ever drawn — `places.enterDungeon` spawns what makes a mine dangerous and has never
+      once spawned what makes it a mine. So you can walk into the workings a village is being made
+      rich and poor by and find the tunnels empty. It is the same fault as an economy with no
+      source: the model was right and nothing showed it to anybody.
+      *(`src/game/crews.ts`, and `Mines.whoIsDown` beside the ledger that pays them. Three questions
+      and an answer to each. **Who**: the miners the register lists as living in the village that
+      claims this hole — literally the same expression the day's takings are shared by, which is now
+      `crewOf` and called from both places, because a crew worked out twice is a crew that will one
+      day be two different sets of men. No day is passed in and none should be: the register is
+      already at today, so a man the mine swallowed last week is not in the list, and a second
+      opinion about who is alive is how a game ends up burying somebody who is still talking to you.
+      A hole no village works has nobody in it, and neither has one the village is too frightened
+      to go near — the same `DREAD_SHUT` the place is *described* by, so walking into a mine you
+      were told nobody would go down and finding it empty is the village turning out to be right.
+      That is a rule about what is seen and not about what is earned; the economy's own brake on a
+      frightened village is still the willingness roll inside `dayUnderground`, untouched.
+      **Where**: at the faces, not at the room centres monsters get. A room centre is where you
+      meet something; a man at a room centre is a man standing about. So floor tiles are scored by
+      how many of their four sides are rock, corners and dead ends first, kept clear of the steps
+      you arrive on and spread five tiles apart — and if a cramped cave cannot satisfy that the
+      spacing relaxes rather than dropping men, because a missing miner is invisible and that is
+      the worst kind of wrong. He is turned to face one wall squarely, the one with the most rock
+      behind it. Facing the bisector of a corner was tried first: it reads perfectly in a built
+      room and turns a man to face open floor in a cave, because an inside corner there is a notch
+      rather than a corner. Checked across 399 cave seeds and 300 vault seeds — 2,394 faces, every
+      one of them plain floor with rock in front of it, and not one hole that could not seat six.
+      **What digging looks like**: there is no pick swing in `animations/motion.json` and there
+      never has been. What a body knows is a walk, an idle, a flinch, a death and five shapes of
+      blow, and every one of them was written for getting somewhere or hurting something — nothing
+      in the file is work. Rather than invent a sixth motion that nothing else would ever use, the
+      new `dig` verb throws the blow already called `swing`: an arm over the top and down, which is
+      what the hero's sword does and is also exactly what a pick does. It is the nearest honest
+      thing. Nothing is struck — a blow only hurts through `strike` and `dig` never calls it — so a
+      man swings beside you all afternoon and cannot take a heart off anybody. The day itself is
+      `facework` in `behaviours/villagers.json`, filed under a name no village trade uses on
+      purpose: his trade is `miner` and that is what he is called and what he talks about, but
+      giving this day to the trade would put every miner in the country outside his own front door
+      swinging a pick at the grass. It has no hour in it either, because a shift underground does
+      not know what the sky is doing.
+      Talking to one needs nothing new: the entity carries the person's id, so `talk.ts` reads him
+      back off the register and he already has a family, a purse, and — through `saidOfMine` — a
+      line about how the seam has been going. What he has not got is a way to be asked: underground,
+      `interact/index.ts` answers Enter with a chest, a door or the stairs and never looks for a
+      person, and the click path picks against the overworld renderer rather than the floor's. One
+      line in `talkNearest`'s `places.underground` branch would do it, and that file was not this
+      week's to touch.
+      One correction fell out of it and is in: `felled` in `blows.ts` counted every body killed in a
+      mine as one less thing living down there, which with people in the tunnels would have let a
+      player make a hole safe by murdering the crew that works it. Anybody on the register is not
+      what was living down there, and is no longer counted.)*
+- [ ] **The one line nobody has added yet.** `src/game/crews.ts` is proved by `crews.test.ts`
+      calling it directly against a real cave and a real register, but nothing in the running game
+      calls it, because `places.ts` belongs to the castle this week. One import, one field, one
+      call, and one line in `main.ts`:
+      1. `src/game/places.ts`, with the other imports —
+         `import { putTheCrewToWork, type Digger } from './crews';`
+      2. `src/game/places.ts`, one field on `PlaceContext` —
+         `crewIn: (anchorId: string) => readonly Digger[];`
+      3. `src/game/places.ts`, in `enterDungeon`, after `const monsters = new EntityManager(…)` and
+         **outside** the `if (!told)` block, for the reason villagers are not the server's — the
+         people of a village are the seed and the register, and every client has both —
+         `putTheCrewToWork(monsters, world.map, this.ctx.crewIn(anchorId), anchor.seed);`
+      4. `src/main.ts`, in the `new Places({ … })` block —
+         `crewIn: (anchorId) => mines.whoIsDown(anchorId, minesWorked(), (v) => register.living(v)),`
+         `minesWorked` is declared further down the file than `Places` is built; the closure is only
+         ever called on the way into a hole in the ground, so there is nothing to hoist.
+- [ ] **A miner killed underground is not written down anywhere.** The floor's `EntityManager` is
+      built in `places.ts` with no register and no `onFallen`, so an ogre that kills one of the crew
+      in front of you — and it will, because monsters mark the nearest person and the crew are
+      people now — changes nothing and the man is back at his face the next time you walk in.
+      Nothing invents a second answer about who is alive, which was the rule; but the tunnels cannot
+      yet report a death to the one answer there is. Handing that manager the same `register` and
+      `onFallen` the overworld's has is a `places.ts` change and would want a thought about what a
+      death down there does to the village's dread, which is the whole point of the place.

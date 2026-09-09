@@ -155,8 +155,12 @@ export function createBlows(ctx: Fighting) {
    */
   const felled = (killed: readonly Entity[]): string | null => {
     // what lived in the workings is what made them dangerous, so killing it is the one thing a
-    // player can do that moves a village's whole economy
-    reportCleared(fightingInAMine(), killed.length);
+    // player can do that moves a village's whole economy. Anybody on the register is not what
+    // lived down there — he is the village's own, at the face, and cutting him down makes a mine
+    // emptier of people rather than emptier of trouble. Counting him would let a player make a
+    // hole "safe" by murdering the crew that works it, which is the economy read backwards.
+    const lurking = killed.filter((e) => e.person === '').length;
+    if (lurking > 0) reportCleared(fightingInAMine(), lurking);
     let rustling: string | null = null;
     for (const e of killed) {
       fell(e.kind.id, e.x, e.z);

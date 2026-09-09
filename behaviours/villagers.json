@@ -155,5 +155,13 @@
       { "when": { "ask": "hourBetween", "with": { "from": 0.76, "to": 0.9 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
       { "do": "goTo", "with": { "post": "home", "enter": true } }
     ]
+  },
+
+  "facework": {
+    "note": "A shift at the rock face, which is where every coin in this world is minted. Underground only: `src/game/crews.ts` puts the village's miners at the cuts when somebody walks into their mine, and gives each of them a `work` post on the tile he is cutting at. Filed under a name no village trade uses, on purpose — his trade is `miner` and he is called one, but giving this day to the trade itself would put every miner in the country outside his own front door swinging a pick at the grass. No hour in it either: a shift underground does not know what the sky is doing, and a mine you can only find people in between ten and four is a mine you would swear was empty.",
+    "steps": [
+      { "note": "Back to his own cut if anything has shouldered him off it, and near enough is standing at it.", "do": "goTo", "with": { "post": "work", "within": 0.9 } },
+      { "do": "dig", "with": { "every": 1.4 } }
+    ]
   }
 }
