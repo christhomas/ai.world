@@ -356,6 +356,7 @@ function startGame(
   const { walked, walking, outdoors, heeding, bites } = createAuthority({
     seed, state, player, chunks, entities, places, sailing, sound, wildlife, placeName,
     floorLife: () => floorLife,
+    aloft: () => skies.aloft !== null,
     steer: (seq, dx, dz, pace, dt) => online.steer(seq, dx, dz, pace, dt),
     bitten: (attacker, damage) => onAttack(attacker, damage),
   });

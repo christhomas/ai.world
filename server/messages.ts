@@ -201,6 +201,18 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
     return;
   }
 
+  /*
+   * And `place`: a door, a staircase, a gangplank — a step into or out of somewhere the world does
+   * not own.
+   *
+   * Named rather than left as what happens when nothing else matched. The two branches below used
+   * to be the end of a chain of ifs, so a reason nobody had taught this function about behaved like
+   * a doorway: a hero would be remembered as having left the surface by a door he never went
+   * through, and put back at it when he next appeared. A new word on the wire should do nothing
+   * until somebody says what it means.
+   */
+  if (message.why !== 'place') return;
+
   // Going somewhere the world does not own — a door, a staircase. The hero stays where he was and
   // the door is remembered, because that is where he will come back out: the world has no business
   // following anybody into a cellar it has never grown.

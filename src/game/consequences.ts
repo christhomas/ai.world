@@ -88,6 +88,9 @@ export function createConsequences(ctx: Consequence) {
       if (held) { state.inventory.gold -= held.fine; jail.release(held.village); }
       const cell = held ? [held.x, held.z] : (by.posts.square ?? [by.x, by.z]);
       player.teleport(cell[0], cell[1]);
+      // the same telling a knockout needs, for the same reason: the world went on holding him where
+      // he was arrested, and its next word would put him back there
+      online.stood(cell[0], cell[1], 'carried');
       iso.target.set(cell[0], 0.5, cell[1]);
       state.version++;
       flash(held

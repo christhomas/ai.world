@@ -34,6 +34,8 @@ export interface Authority {
   wildlife: Wildlife;
   /** And on whatever floor the hero is standing on, when he is standing on one. */
   floorLife: () => Wildlife | null;
+  /** Whether the hero is up on a sky island, which is a world the server has never grown. */
+  aloft: () => boolean;
   /** Which world the hero is in: the surface, a dungeon floor, or a building. */
   placeName: () => string;
   /** Push what the hero was trying to do to the world that is walking him. */
@@ -44,7 +46,7 @@ export interface Authority {
 
 export function createAuthority(ctx: Authority) {
   const {
-    seed, state, player, chunks, entities, places, sailing, sound, wildlife, floorLife,
+    seed, state, player, chunks, entities, places, sailing, sound, wildlife, floorLife, aloft,
     placeName, steer, bitten,
   } = ctx;
 
@@ -73,8 +75,18 @@ export function createAuthority(ctx: Authority) {
    * creatures of its own there, so the client stays the authority — and asking it to swing would
    * be asking it to swing at whatever happens to stand near the last field he was in.
    */
+  /*
+   * Whether the world is the one walking the hero at this moment.
+   *
+   * It walks him out of doors, on his own feet, on ground it has grown. Not indoors, not down a
+   * staircase, not on a boat, not on a ferry — and not on an island in the sky, which was missing
+   * and is the same fault as the rest: the sky islands are the client's own world, drawn above a
+   * countryside the server is still walking a hero across, so every step taken up there was
+   * answered with a position down on the ground and the player was dragged about an island by a
+   * hero standing in a field.
+   */
   const outdoors = (): boolean =>
-    places.indoors === null && !places.underground && !sailing.sailing && !player.riding;
+    places.indoors === null && !places.underground && !sailing.sailing && !player.riding && !aloft();
 
   /** Whichever of the world's flocks is the one this message is about, and null when neither is. */
   const theirs = (place: string): Wildlife | null =>
