@@ -34,6 +34,15 @@ function wallsOf(style: DungeonWorld['style']): WallCut | undefined {
 const UNDER_ROCK = { sky: 0x05060c, ambient: 0x3a4260, above: 0x384060, below: 0x14141c, strength: 0.8 };
 const WOODED = { sky: 0x0a1408, ambient: 0x35502e, above: 0x4a6a38, below: 0x1a2214, strength: 0.8 };
 const KEEP = { sky: 0x0c0e14, ambient: 0x5a5e70, above: 0x6a7088, below: 0x22242e, strength: 1.05 };
+/*
+ * And a cavern under the sea, which is the one of these that has light coming *in*.
+ *
+ * Green rather than blue, and brighter overhead than underfoot by more than any of the others: what
+ * light there is has come down through fathoms of water, so it arrives from above, cold, and with
+ * the red taken out of it. Dimmer overall than a barrow — you are further from the sun than
+ * anywhere else in the game.
+ */
+const DROWNED = { sky: 0x03131a, ambient: 0x2c5a5e, above: 0x3f8a8a, below: 0x0a1c22, strength: 0.75 };
 
 /** Builds and owns the three.js scene for one dungeon visit. */
 export class DungeonScene {
@@ -52,7 +61,9 @@ export class DungeonScene {
     // ground light is a cold daylight grey rather than a cave's blue, and there is more of it —
     // enough to see the far end of a gallery, which a castle needs and a barrow must not have. Its
     // whole point is that you can tell you are inside a building.
-    const air = world.style === 'thicket' ? WOODED : world.style === 'castle' ? KEEP : UNDER_ROCK;
+    const air = world.style === 'thicket' ? WOODED
+      : world.style === 'castle' ? KEEP
+        : world.style === 'sunken' ? DROWNED : UNDER_ROCK;
     this.scene.background = new THREE.Color(air.sky);
     this.scene.add(new THREE.AmbientLight(air.ambient, air.strength));
     const hemi = new THREE.HemisphereLight(air.above, air.below, 0.7);

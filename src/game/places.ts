@@ -101,7 +101,7 @@ export interface PlaceContext {
  * and behaves exactly as they do — from up here, the gatehouse of a castle is a cave mouth with
  * better masonry. Everything past `enterDungeon` is `dungeon/`'s business.
  */
-export type PlaceStyle = 'dungeon' | 'cave' | 'thicket' | 'castle';
+export type PlaceStyle = 'dungeon' | 'cave' | 'thicket' | 'castle' | 'sunken';
 
 /**
  * A named spot with a way in: a shrine, a cave mouth, or a castle's gatehouse.
@@ -253,7 +253,11 @@ export class Places {
      * anchor's seed is derived from its *id* as well as its kind, and a castle's id is
      * `castle:<name>`, which no vault has ever been called.
      */
-    const anchor = manifest.ensure(anchorId, kind === 'castle' ? 'dungeon' : kind, poi.x, poi.z);
+    // a castle and a drowned cavern have no salt of their own in the seed tree, and do not need
+    // one: an anchor's seed comes from its id as well as its kind, and no vault was ever called
+    // `castle:Kestrelmarch` or `sunken:-1240,880`
+    const anchorKind = kind === 'castle' || kind === 'sunken' ? 'dungeon' : kind;
+    const anchor = manifest.ensure(anchorId, anchorKind, poi.x, poi.z);
     /*
      * What the floor below is made of, handed to `dungeon/`.
      *
@@ -305,7 +309,7 @@ export class Places {
     // used, which is what keeps a game with no server behind it playing exactly as it did.
     // a castle goes over the wire as a dungeon, because that is a word the protocol already knows
     // and the anchor id is what the world actually grows the floor from
-    const told = this.ctx.wentBelow({ place, anchorId, kind: kind === 'castle' ? 'dungeon' : kind, floor, renderer, monsters });
+    const told = this.ctx.wentBelow({ place, anchorId, kind: anchorKind, floor, renderer, monsters });
     monsters.toldWhatLives = told;
     if (!told) {
       monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor);

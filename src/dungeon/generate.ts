@@ -54,7 +54,7 @@ export const DUNGEON = {
  * place — it comes back as the same `DungeonMap`, and is walked, drawn and mapped by the same
  * three files as everything else down here.
  */
-export type DungeonStyle = 'vault' | 'cave' | 'thicket' | 'castle';
+export type DungeonStyle = 'vault' | 'cave' | 'thicket' | 'castle' | 'sunken';
 
 export function generateDungeon(seed: number, style: DungeonStyle = 'vault', floor = 1): DungeonMap {
   if (style === 'castle') return generateCastle(seed, floor);
@@ -108,7 +108,15 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault', flo
   for (const r of rooms) {
     if (r === rooms[0] || r === far) continue;
     if (pools.length < DUNGEON.POOLS && r.w >= 5 && r.h >= 5 && rng() < 0.5) { pools.push(r); continue; }
-    if (rng() < DUNGEON.SMALL_CHEST_CHANCE) {
+    /*
+     * A drowned cavern is worth the swim, which is the whole of why anybody would sail into a
+     * whirlpool on purpose.
+     *
+     * The way in costs half your hearts at least, and there is no way to know beforehand whether it
+     * will cost all of them — so the thing on the other side has to be worth the gamble or the
+     * gamble is simply a mistake with scenery. Twice the small chests of anywhere else.
+     */
+    if (rng() < DUNGEON.SMALL_CHEST_CHANCE * (style === 'sunken' ? 2 : 1)) {
       const cx = r.x + 1 + Math.floor(rng() * (r.w - 2)), cz = r.z + 1 + Math.floor(rng() * (r.h - 2));
       if (tiles[idx(cx, cz)] === DTile.Floor) chests.push({ x: cx, z: cz, big: false });
     }

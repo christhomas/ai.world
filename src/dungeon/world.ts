@@ -1,3 +1,4 @@
+import type { DungeonStyle } from './generate';
 import { WORLD } from '../core/config';
 import { Biome, PropKind } from '../world/biomes';
 import { TileType, type ChunkData } from '../world/terrain';
@@ -36,7 +37,7 @@ export class DungeonWorld implements TileWorld {
 
   constructor(
     readonly map: DungeonMap, readonly anchorId: string,
-    readonly style: 'vault' | 'cave' | 'thicket' | 'castle' = 'cave',
+    readonly style: DungeonStyle = 'cave',
     footprints?: Footprints,
   ) {
     for (const c of map.chests) this.chestTiles.add(c.z * map.size + c.x);

@@ -89,6 +89,10 @@ export interface Framing {
   weather: Weather;
   /** The warm air over the country, drawn so a pilot can see where it is. */
   updraughts: Updraughts;
+  /** The whirlpools: what happens when a hull finds one, and what happens when he comes back up. */
+  swallows: { check: () => void };
+  /** And what they look like from the deck, which is the whole of whether they are a decision. */
+  seaEyes: { update: (dt: number, x: number, z: number, wet: (x: number, z: number) => boolean) => void };
   /**
    * What a teleport looks like. Ticked below whatever else the frame is doing, because it is what
    * puts the hero's rig back together and a hero left half way through one would stay in pieces.
@@ -169,7 +173,7 @@ export function createFrame(ctx: Framing) {
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
-    updraughts,
+    updraughts, swallows, seaEyes,
     sailFerries, ageCamps, runClock, carcasses, noticeStall, musterHires, startTalk, updateHud,
     mapInput, markers, doorsteps, streamCountry, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
     reveal, refreshJournal,
@@ -269,6 +273,9 @@ export function createFrame(ctx: Framing) {
       iso.target.x += (sailing.x - iso.target.x) * Math.min(1, dt * 6);
       iso.target.z += (sailing.z - iso.target.z) * Math.min(1, dt * 6);
     }
+    // the water that goes down, and coming back up out of it. Asked every frame rather than only
+    // while sailing: surfacing from a drowned cavern is the other half of it. See `swallows.ts`.
+    swallows.check();
     player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
     // What the hero was trying to do goes to the world, which walks him itself and says where he
     // got to; the step above has already walked him here so the game answers the key at once. Only
@@ -391,6 +398,8 @@ export function createFrame(ctx: Framing) {
     // weather: they are in the same place tomorrow. See `world/thermals.ts`.
     updraughts.faceThe(iso.camera);
     updraughts.update(dt, x, z, (ax, az) => chunks.heightAt(ax, az));
+    // and the water that goes down, drawn where it turns: see `render/swallows.ts`
+    seaEyes.update(dt, x, z, (ax, az) => chunks.waterAt(ax, az) !== null);
     // the gear goes on before the light does, because after dark the light comes from the torch in
     // the hero's hand and the hand has to have been put somewhere first
     heroGear.update(state, player.entity, state.night > TORCH_OUT && !state.can('light'));

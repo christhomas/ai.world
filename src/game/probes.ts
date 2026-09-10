@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BEHAVIOUR } from '../entities/properties';
 import { thermalsAround } from '../world/thermals';
+import { maelstromsAround } from '../world/maelstroms';
 import { CAMERA } from '../core/config';
 import { PropKind } from '../world/biomes';
 import { nameOfProp } from '../world/catalogue';
@@ -319,6 +320,14 @@ export function installProbes(ctx: Probed): void {
   // the wing, so a headless browser can take off without having to land two keypresses a tenth of
   // a second apart
   (debug as { __wing?: unknown }).__wing = wing;
+  // and where the sea goes down, for the same reason: a whirlpool four hundred tiles away is not
+  // a thing a headless browser can go and find by sailing about
+  (debug as { __swallows?: () => unknown }).__swallows = () =>
+    maelstromsAround(player.x, player.z, 900, seed)
+      // the ones actually at sea: a cell whose spot fell on grass has no whirlpool in it
+      .filter((one) => chunks.waterAt(one.x, one.z) !== null)
+      .map((one) => ({ ...one, away: Math.round(Math.hypot(one.x - player.x, one.z - player.z)) }))
+      .sort((a, b) => a.away - b.away);
   // and where the warm air stands, so a photograph of it can be taken from the right hillside
   (debug as { __thermals?: () => unknown }).__thermals = () =>
     thermalsAround(player.x, player.z, 300, seed)

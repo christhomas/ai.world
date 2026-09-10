@@ -66,7 +66,9 @@ import { openConsole } from './game/console';
 import { createDoorsteps, gatesOf } from './game/doorways';
 import { createBlows } from './game/blows';
 import { Updraughts } from './render/updraughts';
+import { Swallows } from './render/swallows';
 import { createWing } from './game/gliding';
+import { createSwallows } from './game/swallows';
 import { putFerriesOut } from './game/ferry';
 import { liftAt } from './world/thermals';
 import { createWatch } from './game/watch';
@@ -186,6 +188,7 @@ export function startGame(
   // what a teleport looks like: the scene the light stands in, the pool the hero's rig comes apart
   // in, and what he is carrying, which goes with him rather than hangs there through the beam
   const updraughts = new Updraughts(rig.scene, seed);   // the warm air, drawn where a glider finds it
+  const seaEyes = new Swallows(rig.scene, seed);        // and the water that goes down, drawn where it turns
   const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
@@ -625,6 +628,10 @@ export function startGame(
     clock: () => ({ day: state.day, time: state.time }), lift: (x, z) => liftAt(x, z, seed),
     say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
   player.carries(air);
+  // the water that goes down: what it costs to be taken, and the deck he comes back up onto
+  const swallows = createSwallows({
+    seed, state, places, sailing, hull: () => ({ x: sailing.x, z: sailing.z }),
+    say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
   // and what every key does, in one place
   bindKeys({
     seed, input, rig, iso, player, places, online, sound, screen,
@@ -668,7 +675,7 @@ export function startGame(
 
   const frames = createFrame({
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, daycycle, weather, updraughts, beam, seasonTintMaterials, skyRenderer, skies, wildlife,
+    skyline, rock, daycycle, weather, updraughts, swallows, seaEyes, beam, seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
