@@ -331,13 +331,18 @@ export function generateWebGraph(seed: number, radius = EDGE_OF_THE_WORLD): Road
     /*
      * Where the world's first village stands, and the roads that must not lean away from it.
      *
-     * Node nought, which is *not* `hub` above — that is the crossroads nearest the middle, used to
-     * root the spanning tree, and this is the lowest-numbered corner on dry land. They disagree,
-     * and the disagreement is older than this line: `generateStructures` has always founded
-     * Crossroads Town on node nought while the tree was rooted at `hub`. Written down rather than
-     * fixed, because every saved world's first village stands where this says it does.
+     * The same crossroads the spanning tree was rooted at — the one nearest the middle — and for a
+     * while it was not. This said `0`, the lowest-numbered corner on dry land, while the tree was
+     * grown outward from `hub`, so the country radiated from one place and the town everybody
+     * starts in stood somewhere else entirely. Nothing looked broken, because the player is put
+     * where the village is; what was wrong is that the world was arranged around a spot nobody
+     * ever stands on.
+     *
+     * Fixing it moves the first village of every world that was ever saved, which is why it was
+     * written down and left alone for as long as it was. It is done deliberately, on its own, with
+     * the golden fingerprint moved in the same commit and nothing else in it.
      */
-    hub: 0,
+    hub,
     mesh,
   };
 }

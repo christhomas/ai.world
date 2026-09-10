@@ -1092,12 +1092,22 @@ can each be finished and each leave the game playable.
       A saved game loses its bands: ids that were numbers match no place, so those records lapse
       quietly and the country is rolled fresh.)*
 
-- [ ] **A web world's first village is not at its hub.** `roadweb` roots its spanning tree at the
-      crossroads nearest the middle, and `generateStructures` founds Crossroads Town on node nought,
-      which is the lowest-numbered corner on dry land. The two are different places. Nothing is
-      visibly broken — the player starts where the village is — but the tree is grown outward from
-      somewhere nobody ever stands. Fixing it moves the first village of every saved world, so it
-      wants doing deliberately or not at all.
+- [x] **A web world's first village is at its hub, and it turns out it always was.** *(The item
+      was written from reading the code and it was right about the code: `roadweb` rooted its
+      spanning tree at the crossroads nearest the middle, and `generateStructures` founded
+      Crossroads Town on `nodes[0]`, the lowest-numbered corner on dry land. Two different
+      questions, two different answers, and nothing making them agree.
+
+      Measured before changing anything, which is the part worth keeping: **they are the same node**
+      — index nought, at the origin, on every seed tried. The web is laid out with a crossroads at
+      the middle of the world and that crossroads sorts first, so the coincidence has held for as
+      long as there has been a web. Nobody's village moves; the fingerprint does not budge; the
+      fear that this would rewrite every saved world was unfounded.
+
+      Done anyway, because a coincidence is not an answer. `graph.hub` is what the tree was rooted
+      at now, and the hub town is built on `graph.nodes[graph.hub]` — so the day the web gains a
+      node that sorts before the middle one, the town stays where the country radiates from instead
+      of quietly moving to a corner.)*
 
 - [x] **The suite times out when the machine is busy.** Five different tests have failed a full run
       and passed alone, and the failures are always `Test timed out in 60000ms` rather than a

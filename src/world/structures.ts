@@ -548,7 +548,10 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     }
   } else {
     // --- hub town ---
-    const hub = buildVillage(graph.nodes[0], LAYOUT.HUB.spread, LAYOUT.HUB.maxHouses, LAYOUT.HUB.minHouses, LAYOUT.HUB.squareR);
+    // on the crossroads the country was grown outward from, which is what `graph.hub` is for. It
+    // used to be `nodes[0]` — whichever corner sorted first — and the two are different places
+    const centre = graph.nodes[graph.hub ?? 0];
+    const hub = buildVillage(centre, LAYOUT.HUB.spread, LAYOUT.HUB.maxHouses, LAYOUT.HUB.minHouses, LAYOUT.HUB.squareR);
     if (hub) { hub.name = 'Crossroads Town'; villages.push(hub); }
 
     // --- towns: the secondary hubs the road graph grew webs around ---
