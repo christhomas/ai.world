@@ -6,6 +6,9 @@ import { unpackChunk } from '../src/world/chunkparcel';
 import { CHUNKS_AT_ONCE, Simulation } from './sim';
 import { IN_SIGHT } from './wildlife';
 import { Forgetful } from './vault';
+import { DAY_LENGTH } from './protocol';
+import { homelandsOf } from '../src/entities/homeland';
+import { provinceOfHome } from '../src/world/provinces';
 
 /**
  * The simulation on its own, with no sockets and no files anywhere near it.
@@ -409,6 +412,40 @@ describe('the world alive on the server', () => {
     for (let i = 0; i < 60; i++) sim.tick(now += 100);
     const moved = before.filter(({ e, x, z }) => Math.hypot(e.x - x, e.z - z) > 0.2);
     expect(moved.length, 'some of them went somewhere').toBeGreaterThan(0);
+  });
+
+  /**
+   * C2's coarse tier, end to end and through the real objects.
+   *
+   * The three pieces it is made of are each somebody else's — `catchUp` is a closed form in
+   * `unwatched.ts`, `provinceOfHome` is C3's one rule, and `SharedWorld.asleep` is a stamp on a
+   * file — and none of them knows about the other two. This is the wire between them, which is one
+   * line in `Simulation.groundOf`, and the thing that can go wrong with it is that it is never
+   * asked or asks the wrong question. `src/entities/tiers.test.ts` holds the other end: what the
+   * manager does with the answer.
+   */
+  it('tells its creatures how long the ground they were grown on had been nobody\u2019s business', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    sim.tick(Date.now() + 100);
+
+    const alive = sim.livesIn(3)!;
+    const herds = [...homelandsOf(alive.crowd.filed).values()].flat();
+    expect(herds.length, 'the country grew no herds, so there is nothing to ask about').toBeGreaterThan(0);
+    const herd = herds[0];
+    expect(alive.crowd.sleptFor(herd), 'a world nobody has walked out of yet claims its country has been asleep').toBe(0);
+
+    // everybody walks a very long way off, a week passes, and they come back
+    const world = sim.rooms.get(3)!.world;
+    world.keepNear([{ x: -90_000, z: 90_000 }]);
+    world.tick(DAY_LENGTH * 7);
+    world.keepNear([{ x: 0, z: 0 }]);
+
+    expect(alive.crowd.sleptFor(herd), 'the week the province spent as nobody\u2019s business never reached the creatures that live in it')
+      .toBeCloseTo(7 * DAY_LENGTH, 0);
+    expect(alive.crowd.sleptFor(herd), 'the manager was told something other than what the province itself says')
+      .toBe(world.asleep(provinceOfHome(herd)));
   });
 
   it('has nothing alive in a world it is not holding the ground of', () => {

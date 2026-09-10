@@ -1112,7 +1112,7 @@ can each be finished and each leave the game playable.
       - *A Raspberry Pi core is a guess: somewhere between four and eight times slower than one of
         these. Nobody has run `chore ticks` on the cluster. Run it there and that stops being a
         guess, and every number above moves by that one factor and nothing else.*
-- [ ] **C2. Three tiers.** Live where a player is; coarse where a province is loaded and nobody is
+- [x] **C2. Three tiers.** Live where a player is; coarse where a province is loaded and nobody is
       watching; frozen otherwise. The rule that makes it work: a behaviour's long-run effect must
       have a closed form, so arriving somewhere untouched for a week is a calculation rather than a
       week of ticks.
@@ -1200,11 +1200,119 @@ can each be finished and each leave the game playable.
         afterwards. Faking it here would have been a number written into a book that does not exist.*
       - *`WANDER_RADIUS` in `entities/entity.ts` is dead: declared, never read. The radii that decide
         anything are in `behaviours/`, which is where `timetable.ts` reads them from.*
-- [ ] **C2a. The tiers themselves.** The half of C2 that is left, and it wants C3 first. Which
+- [x] **C2a. The tiers themselves.** The half of C2 that is left, and it wants C3 first. Which
       province is live, which is coarse and which is frozen; who calls `catchUp` and when; and the
       two things the C1 measurement said about the ends of the range — that frozen has to mean off
       the separation sweep and off what every client is told rather than off one branch inside them,
       and that `Roster`'s four thousand wants to become a budget rather than a number.
+
+      *`src/entities/tiers.ts` sorts everything the world is holding once a step and hands the lists
+      to the passes that used to each build their own. That is the whole change, and the three tiers
+      are what the lists are:*
+
+      - ***Live** is `ACTIVE_RANGE` and is deliberately untouched.* The same per-creature test in
+        the same order as before, so a creature a player is looking at behaves exactly as it did
+        yesterday. Nothing about C2 is allowed to be visible, and this is where that is spent.
+      - ***Coarse** is the band out to a new `WATCH_RANGE` of 72 tiles.* Nobody thinks for it, so it
+        does not move; it is still described to whoever can see it, because a player is told about
+        creatures sixty tiles off and the world only thinks for them at forty-four, and a tier that
+        forgot that would blink a deer out in front of somebody watching it. **This is the tier that
+        is not a slower tick.** Nothing is stepped at any rate at all.
+      - ***Frozen** is past that — or, far more often, not in the world at all,* because the manager
+        has let the chunk go or the whole province is a file on a disk. It is now off the separation
+        sweep and off the walk that says what each player can see, which is what C1 said a third
+        tier has to be. **A frozen agent went from 0.73µs a tick to 0.03µs**, which is not a
+        discount any more.
+
+      ***The catch-up does not go where the three pieces suggest, and that is the finding.***
+      `catchUp`, `homelandsOf` and `SharedWorld.asleep` read as "when a province wakes, gather its
+      herds and catch them all up". They cannot be wired that way. A province is read off the disk
+      when somebody comes within `KEEP_READY` — 144 tiles — and its chunks are not spawned until
+      they are within `SPAWN_RADIUS`, 64 tiles, **so at the moment a province wakes it has no herds
+      yet**; and sweeping for them afterwards is a walk over every creature in the world on every
+      tick for ever, which is precisely the standing cost C1 says a coarse tier must not have. It
+      goes where a herd is *born* instead — `EntityManager.spawnAround`, one line, `sleptFor` on the
+      manager answered by `SharedWorld.asleep(provinceOfHome(herd))`. That needs no memory of what
+      has already been dealt with, costs nothing at all when nothing has slept, and has the property
+      no sweep could have: **a herd is put where the week would have left it before a single player
+      has been told it exists**, so nothing anybody could see ever moves.
+
+      *Which is also why a creature that merely goes past `WATCH_RANGE` while somebody walks off is
+      left exactly where it was rather than caught up when they walk back. It could have been done
+      and it would have been wrong: the world is holding that creature the whole time and a page
+      draws every creature its own manager has spawned, so putting it somewhere new is putting it
+      somewhere new in front of somebody. The only absence it is safe to account for is the one
+      nothing could have been drawing during, and a province file is exactly the measure of that.*
+
+      ***A province with nothing in it was never written down, and a province's creatures are not
+      among its leavings.*** `writeProvince` wrote a square only if somebody had changed something
+      in it, which is right for leavings and wrong for time: animals are re-rolled from the seed
+      every time a chunk is spawned, so a square of empty hills has nothing to write and a whole
+      week of grazing to account for. Without a stamp on it, every deer outside a worked field would
+      have been handed back standing on the spot it was founded on however long anybody had been
+      gone — which is most of the world. It is stamped now, rows or no rows: a few dozen bytes
+      saying when somebody was last near.
+
+      ***The measurement, and the honest half of it is that one number in the report means anything
+      and the rest measures the neighbours.*** Two pairs of `chore ticks` runs: one seventeen
+      minutes apart at load averages 13.5 and 14.2, and one taken back to back with the work checked
+      out and put back again, at 14.6 and 10.7.
+
+      - **The isolated figure, which is the one this change is about, and it agrees with itself.**
+        2,056 creatures put down beyond the active range on ground the world is still holding used
+        to add **1.51ms to every tick and now add 0.06ms** — 0.73µs an agent against 0.03µs, with a
+        live one at 3.1 to 3.5µs. Both pairs give the same two figures to the digit. It is a
+        difference taken *inside* one run, with and without the frozen creatures, which is why it
+        survives a machine this contended when nothing else does. **Frozen now costs about what a
+        thing that is not there costs**, which is the twenty-fourfold cut C1 said was sitting in
+        those two lists.
+      - **The ladders say opposite things in the two pairs, and that is a finding rather than a
+        failure.** One player a world, spread out: 8.3–9.8µs an agent before and 7.4–8.4 after in
+        the first pair — and 6.4–7.9 before against 8.5–10.1 after in the second, whose unchanged
+        run was the fastest thing this laptop produced all night and whose changed run reported 1.8x
+        between its own best and worst. Holding 7,320 live agents cost 88.3ms then 81.0ms in one
+        pair and 91.1ms then 94.3ms in the other. **The changed code came out both the best run and
+        the worst**, exactly as C3 found for its own change and for the same reason.
+      - **The crowded ladder is the one place both pairs agree on a whole-tick number, and it is
+        small.** Everything there is inside `ACTIVE_RANGE`, so there is nothing to freeze and the
+        only saving is the walk the sweep no longer makes to build its own list: 5 to 15 per cent
+        off every rung but the topmost, in both pairs. Which is the right shape for the claim being
+        made — the tiers do not make a crowd cheaper, they make the country around it free.
+
+      ***What a player would notice, said honestly.*** Two things changed that are not strictly
+      nothing. A herd nobody is thinking for no longer has its members elbowed apart or its anchor
+      drifted — both were moving creatures that are otherwise motionless, forty-four tiles or more
+      away, and a herd only comes to overlap while it is being thought for, so it is already apart
+      by the time it stops. And a village walked into after a week away now has its people at the
+      posts the hour says rather than at the doors they were founded on, which is the one thing C2's
+      closed forms said a player *would* notice and is the whole point of the exercise.
+
+      ***Left, and both deliberately.*** `Roster`'s four thousand is not touched: it is C2b below,
+      with the reasoning, because this change moved what a budget would have to count rather than
+      leaving it where C1 found it. And `EntityManager.within` is the third of C1's three quadratics
+      and is still a scan over everything — it is called once a step per hunter rather than once a
+      step per player, so it is the smallest of the three, and the reason it is hard (a creature is
+      not bound to the chunk it was spawned from, and a hub villager stands seventy-six tiles from
+      his) is written down in `src/entities/neighbours.ts` beside it rather than left to be found
+      again.
+- [ ] **C2b. A budget rather than a number.** `Roster`'s four thousand, which C1 called the
+      threshold that is obviously wrong: it is a per-world cap, and this laptop happens to run out
+      of tick budget at about the same population, so today the cap and the hardware agree by
+      coincidence. On a Pi the hardware will say four hundred while the cap goes on saying four
+      thousand.
+
+      *Deliberately not done alongside C2a, and the reason is that C2a moved the target rather than
+      leaving it where it was. The cap counts everything a world is holding, and after the tiers
+      most of what a world is holding costs nothing — a frozen agent measures 0.03µs a tick against
+      3.5 for a live one — so the machine can now hold a great deal more than it can think for, and
+      the coincidence C1 found is broken rather than fixed. **A budget has to count live agents, and
+      how many of those there are is not something a spawn cap can decide:** it is how thickly they
+      stand around whoever is playing, and the cap has no opinion about that. So it wants three
+      things this change did not — a clock inside the tick, a policy for what to shed when the
+      budget is gone (refusing a spawn part way through a herd is what `Roster.add` does today, and
+      it is the wrong answer), and a decision about whether a world's population may legitimately
+      depend on the machine it is running on, which is a question about the game rather than about
+      the code.*
 - [x] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
       simulated walk, because that is the only thing that keeps provinces independent.
 

@@ -3,7 +3,8 @@ import { generateWebGraph } from '../src/world/roadweb';
 import { propFootprints } from '../src/entities/props';
 import { GroundWorld } from '../src/world/groundworld';
 import { TerrainSampler } from '../src/world/terrain';
-import { Wildlife } from './wildlife';
+import { IN_SIGHT, Wildlife } from './wildlife';
+import { WATCH_RANGE } from '../src/entities/spawning';
 
 /**
  * The creatures the server owns, and the two things it does with them that a player feels: a blow
@@ -140,5 +141,33 @@ describe('a wall between the blow and the beast', () => {
     const there = alive.listNear(5, 0, 3).map((e) => e.id);
     const killed = alive.swung({ x: 0, z: 0, y: 0, yaw: 0, reach: 12, arc: 1.1, damage: 400, one: false });
     expect(there.some((id) => killed.includes(id)), 'the same blow with nothing in the way').toBe(true);
+  });
+});
+
+/**
+ * What a player is told about, and what the world stops looking at.
+ *
+ * The two numbers are set in different files for good reasons — how far somebody can see is the
+ * server's business and how far a creature stays on the world's lists is the simulation's — and
+ * they have one relationship between them that nothing else enforces.
+ */
+describe('the sight a player is allowed and the lists a creature is kept on', () => {
+  it('never lets a creature drop off the lists while somebody can still see it', () => {
+    expect(IN_SIGHT, `a player is told about creatures ${IN_SIGHT} tiles off, and the simulation stops holding one at ${WATCH_RANGE} — so between the two there is country a player is looking at and the world is not describing, and a deer would wink out in front of them. Raise WATCH_RANGE in properties/spawning.json, not this test.`)
+      .toBeLessThan(WATCH_RANGE);
+    // and comfortably, because the two are measured a fraction of a tick apart: the lists are sorted
+    // at the top of a step and a player is told at the bottom of it, with the creatures having moved
+    // in between. A tile or two of margin would be a race; this is a dozen.
+    expect(WATCH_RANGE - IN_SIGHT, 'the margin between the two is thinner than a fast creature covers between being sorted and being described')
+      .toBeGreaterThanOrEqual(8);
+  });
+
+  it('describes what is in sight out of the watched list, so nothing beyond it is walked past', () => {
+    const { alive } = worldAt(3, 0, 0);
+    alive.put('deer', 4, 0, 5);
+    // nobody has stood in this world yet, so nothing has been sorted into a tier and the list is bare
+    expect(alive.inSightOf(0, 0).length, 'a world nobody has stepped yet described creatures anyway, which means the description is not coming from the tiers at all').toBe(0);
+    alive.step(0.05, [standing(0, 0)], DAY);
+    expect(alive.inSightOf(0, 0).some((c) => c.kind === 'deer'), 'the deer standing four tiles from the player is not described once the world has been stepped').toBe(true);
   });
 });

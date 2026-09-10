@@ -28,6 +28,24 @@ export const SPAWN_RADIUS: number = reach.num('SPAWN_RADIUS');
 /** Tiles: beyond this from anybody, creatures freeze rather than being thought for. */
 export const ACTIVE_RANGE: number = reach.num('ACTIVE_RANGE');
 
+/**
+ * Tiles: beyond this from anybody, a creature is on no list at all.
+ *
+ * The difference between the two is the whole of what freezing buys. Inside `ACTIVE_RANGE` a
+ * creature is thought for. Between the two it is not thought for but is still a body the separation
+ * sweep holds apart and still a row every player is told about, because a player can see further
+ * than a creature is thought from — so it stands still, exactly as it always has. Outside this it
+ * is off both of those lists, and the only thing that ever picks it up again is the ground handing
+ * its chunk back, at which point `catchUp` puts it where the time away would have left it.
+ *
+ * Too small and creatures drop off a player's screen while they are watching them, which is why
+ * this must stay wider than `IN_SIGHT` in `server/wildlife.ts` and why a test says so rather than a
+ * comment. Too large and it is `ACTIVE_RANGE` again with extra words: the band it takes off the
+ * lists is all the country between here and the edge of what the world is holding, which at a spawn
+ * radius of four chunks is about half of everything spawned.
+ */
+export const WATCH_RANGE: number = reach.num('WATCH_RANGE');
+
 /** What the law is paid, as a share of a bounty and as flat coin for an arrest. */
 export interface BountyRates {
   RESCUE_SHARE: number;

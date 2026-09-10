@@ -22,10 +22,12 @@ import { buryTheFallen, startDying } from './dying';
 import { residentsOnTheStreet } from './residents';
 import { callOutTheLaw, reseatVillagers } from './village';
 import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
+import { nearest, within } from './neighbours';
 import { blowOf } from './motion';
 import type { EntityView } from './roster';
 import { doorTile, type Village } from '../world/structures';
 import { ACTIVE_RANGE, BOUNTY, SPAWN, SPAWN_RADIUS } from './spawning';
+import { Tiers, arrive, worthKeeping, type Arrival } from './tiers';
 
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
 export class EntityManager {
@@ -58,7 +60,20 @@ export class EntityManager {
    * stops spawning and starts being told; everything else it does, it goes on doing.
    */
   toldWhatLives = false;
+  /**
+   * How long the ground a herd belongs to had been nobody's business when it was handed back.
+   *
+   * In seconds, and nought is the honest answer for most of them. It is a question the manager
+   * cannot answer for itself — a week of absence is written in a province file and a province is
+   * the server's idea rather than a creature's — so whoever holds the world answers it, and on a
+   * server that is `SharedWorld.asleep(provinceOfHome(herd))`. Left alone, nothing is ever caught
+   * up, which is what a dungeon floor wants: a floor is grown when somebody walks into it and
+   * dropped when they leave, so it has no absence to account for.
+   */
+  sleptFor: (herd: Herd) => number = () => 0;
   private readonly herds = new Set<Herd>();
+  /** Who is near enough to somebody to matter this tick, sorted once and used three times. */
+  private readonly tiers = new Tiers();
   private readonly rng: Rng;
   private focusCx = Number.NaN;
   private focusCz = Number.NaN;
@@ -155,13 +170,14 @@ export class EntityManager {
         // the rooms are there, the doors are there, the chests are there, and nothing is home.
         if (key === 'dungeon') continue;
         const [kx, kz] = parseChunkKey(key);
-        if (!this.worthKeeping(kx, kz, cx, cz)) this.despawn(key, list);
+        if (!worthKeeping(kx, kz, cx, cz, this.alsoNear)) this.despawn(key, list);
       }
     }
     // chunks arrive asynchronously, so keep polling the spawn window — round everybody in the
     // world, not only round whoever this manager is following
-    for (const who of this.alsoNear) this.spawnAround(Math.floor(who.x / CS), Math.floor(who.z / CS));
-    this.spawnAround(cx, cz);
+    const when: Arrival | null = time === undefined ? null : { time, seed: this.seed, ground: this.world };
+    for (const who of this.alsoNear) this.spawnAround(Math.floor(who.x / CS), Math.floor(who.z / CS), when);
+    this.spawnAround(cx, cz, when);
 
     const ctx = {
       world: this.world, rng: this.rng, playerX, playerZ, playerArmed,
@@ -194,29 +210,20 @@ export class EntityManager {
       this.lawWasOut = lawOut;
       if (lawOut && this.register) callOutTheLaw(this.herds, this.register);
     }
-    for (const h of this.herds) updateHerd(h, dt, ctx);
-    const r2 = ACTIVE_RANGE * ACTIVE_RANGE;
-    for (const list of this.spawned.values()) {
-      for (const e of list) {
-        if (!this.worthThinking(e, playerX, playerZ, r2)) continue;
-        updateEntity(e, dt, ctx);
-      }
-    }
-    keepBodiesApart(this.spawned.values(), this.herds, playerX, playerZ, ACTIVE_RANGE, dt, this.world);
+    // Everything below this line works off the tiers rather than off everything the world holds,
+    // and that is the whole of C2's third tier: the sweep used to walk every creature in the world
+    // to find the few it had an opinion about, and the herd pass used to run for every herd whether
+    // or not anybody was thinking for its members. Both now get the list instead of building it.
+    this.tiers.sort(this.spawned.values(), playerX, playerZ, this.alsoNear);
+    for (const h of this.tiers.liveHerds) updateHerd(h, dt, ctx);
+    for (const e of this.tiers.live) updateEntity(e, dt, ctx);
+    keepBodiesApart([this.tiers.live], this.tiers.liveHerds, playerX, playerZ, ACTIVE_RANGE, dt, this.world);
     buryTheFallen(this.spawned.values(), dt, (e) => this.despawnEntity(e));
   }
 
   /** Closest creature within `r` tiles of a point. Anyone indoors is not there to talk to. */
   nearest(x: number, z: number, r: number): Entity | null {
-    let best: Entity | null = null, bestD = r * r;
-    for (const list of this.spawned.values()) {
-      for (const e of list) {
-        if (e.indoors || e.dead) continue;
-        const d = (e.x - x) ** 2 + (e.z - z) ** 2;
-        if (d < bestD) { bestD = d; best = e; }
-      }
-    }
-    return best;
+    return nearest(this.spawned.values(), x, z, r);
   }
 
   /** How many creatures have joined this floor's roster, so each gets a number of its own. */
@@ -383,6 +390,17 @@ export class EntityManager {
   get filed(): ReadonlyMap<string, Entity[]> { return this.spawned; }
 
   /**
+   * Everything near enough to somebody that they could be told about it, as of the last step.
+   *
+   * The list a frozen creature is off, and the point of freezing at all. Whoever describes a world
+   * to a player walks this rather than the roster, so the country the world is holding but nobody
+   * is anywhere near is walked past once a tick here instead of once a tick for every player
+   * connected. It is a live view of the manager's own array and is rebuilt by the next `update`, so
+   * it is for reading now and not for keeping.
+   */
+  get watched(): ReadonlyArray<Entity> { return this.tiers.watched; }
+
+  /**
    * The three questions creatures ask of a crowd. The work is in quarry.ts; what stays here is
    * the crowd itself, which only the manager can supply.
    */
@@ -435,24 +453,9 @@ export class EntityManager {
   /** Is anybody but `ignore` standing here? The arithmetic of two bodies is `anybodyAt`. */
   occupied(x: number, z: number, ignore: Entity): boolean { return anybodyAt(this.within(x, z, 1.6), x, z, ignore); }
 
-  /**
-   * Everything alive within `r` tiles, nearest first.
-   *
-   * The dead are left out here rather than at each of the dozen places that ask, because a body
-   * now stays in the world while it falls: without this you could talk to a corpse, hand it a
-   * gift, hire it, or have it answer Enter in front of the person standing behind it. Anything
-   * that genuinely wants a body wants a carcass, which is a different list.
-   */
+  /** Everything alive within `r` tiles, nearest first, this manager's and its guests' alike. */
   within(x: number, z: number, r: number): Entity[] {
-    const hits: Array<{ e: Entity; d: number }> = [];
-    const near = (e: Entity): void => {
-      if (e.dead) return;
-      const d = Math.hypot(e.x - x, e.z - z);
-      if (d <= r) hits.push({ e, d });
-    };
-    for (const list of this.spawned.values()) for (const e of list) near(e);
-    for (const e of this.guests) near(e);
-    return hits.sort((a, b) => a.d - b.d).map((h) => h.e);
+    return within(this.spawned.values(), this.guests, x, z, r);
   }
 
   pick(raycaster: THREE.Raycaster): Entity | null {
@@ -491,39 +494,30 @@ export class EntityManager {
     }
   }
 
-  /** Fill in the creatures around one place, for whatever chunks have arrived there. */
-  private spawnAround(cx: number, cz: number): void {
+  /**
+   * Fill in the creatures around one place, for whatever chunks have arrived there.
+   *
+   * @param when the hour and the seed, for putting a herd where the time nobody was here would have
+   * left it. Null when nothing has told this manager what time it is, and then nothing is caught up
+   * at all — half the closed forms are about which post somebody stands at at three in the morning,
+   * and a form handed a guessed hour would stand a village in the street at the wrong end of a day.
+   */
+  private spawnAround(cx: number, cz: number, when: Arrival | null): void {
     for (let dz = -SPAWN_RADIUS; dz <= SPAWN_RADIUS; dz++) {
       for (let dx = -SPAWN_RADIUS; dx <= SPAWN_RADIUS; dx++) {
         const key = chunkKey(cx + dx, cz + dz);
         if (this.spawned.has(key)) continue;
         const tiles = this.chunks.getTiles(cx + dx, cz + dz);
         if (!tiles) continue;
-        this.spawned.set(key, this.spawnChunk(tiles, key));
+        const born = this.spawnChunk(tiles, key);
+        this.spawned.set(key, born);
+        // The coarse tier, and the whole of it. A chunk comes back with its herds standing exactly
+        // where the seed founded them, however long ago anybody was last here; this is the one
+        // moment at which the time away can be accounted for, and it is before a single player has
+        // been told any of these creatures exist.
+        if (when) arrive(born, this.sleptFor, when);
       }
     }
-  }
-
-  /** Whether a chunk is near anybody at all: the one this manager follows, or another player. */
-  private worthKeeping(kx: number, kz: number, cx: number, cz: number): boolean {
-    if (Math.max(Math.abs(kx - cx), Math.abs(kz - cz)) <= SPAWN_RADIUS + 1) return true;
-    const CS = WORLD.CHUNK_SIZE;
-    for (const who of this.alsoNear) {
-      const ox = Math.floor(who.x / CS), oz = Math.floor(who.z / CS);
-      if (Math.max(Math.abs(kx - ox), Math.abs(kz - oz)) <= SPAWN_RADIUS + 1) return true;
-    }
-    return false;
-  }
-
-  /** Whether a creature is near enough to anybody to be worth thinking for. */
-  private worthThinking(e: Entity, playerX: number, playerZ: number, r2: number): boolean {
-    const dx = e.x - playerX, dz = e.z - playerZ;
-    if (dx * dx + dz * dz <= r2) return true;
-    for (const who of this.alsoNear) {
-      const ox = e.x - who.x, oz = e.z - who.z;
-      if (ox * ox + oz * oz <= r2) return true;
-    }
-    return false;
   }
 
   /** Deterministic per-chunk spawn: land herds, water herds, travellers, and any village folk. */

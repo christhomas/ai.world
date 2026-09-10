@@ -7,9 +7,13 @@
   ],
 
   "reach": {
-    "note": "SPAWN_RADIUS is how many chunks around a player get creatures at all, and ACTIVE_RANGE how far from anybody a creature goes on being thought for. Past that it freezes where it stands rather than being stepped, which is what makes a world of thousands affordable: only the few hundred near somebody are ever alive at once.",
+    "note": [
+      "SPAWN_RADIUS is how many chunks around a player get creatures at all, and ACTIVE_RANGE how far from anybody a creature goes on being thought for. Past that it freezes where it stands rather than being stepped, which is what makes a world of thousands affordable: only the few hundred near somebody are ever alive at once.",
+      "WATCH_RANGE is the outer one, and it is what makes freezing worth anything. A creature past ACTIVE_RANGE used to be a skipped mind and nothing else — still a body in the separation sweep, still a row walked past for every player in the world — which measured at 3.4 microseconds a tick against 11.8 for a live one. Past WATCH_RANGE it is on no list at all. It has to stay comfortably wider than the distance a player is told about creatures from, or a deer would vanish from somebody's screen while they were looking at it; `server/wildlife.test.ts` holds it to that."
+    ],
     "SPAWN_RADIUS": 4,
-    "ACTIVE_RANGE": 44
+    "ACTIVE_RANGE": 44,
+    "WATCH_RANGE": 72
   },
 
   "herds": {
