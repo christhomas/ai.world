@@ -128,6 +128,25 @@ const SEED = 3;
 const STOOD = 300;
 const sampler = new TerrainSampler(generateWebGraph(SEED));
 const ground = new GroundWorld(sampler, propFootprints());
+/**
+ * How far round the player the ground is actually made, in chunks.
+ *
+ * Wide enough to cover everything the manager will try to spawn into, and it has to be said out
+ * loud rather than left to happen. `GroundWorld` answers `heightAt` out of the chunks it has been
+ * told to make and nothing else, and `canStand` reads `heightAt`: ground that has not been made is
+ * not ground, so a creature offered a spot on it cannot stand there and is quietly never born.
+ *
+ * That is not a hypothetical. Without this line the harness below grew nothing but *vultures* —
+ * fliers, and `canStand` returns true for anything that flies without asking the ground at all —
+ * and every test in this file passed on a country of birds while believing it was looking at
+ * herds. It was found when the world gained hills, which moved the country under this spot from
+ * desert to marsh: the frogs and the ducks that live there cannot fly, could not stand on ground
+ * nobody had made, and the file failed with "no creature was checked" — which is the assertion
+ * below doing its job about a hole that had been there all along.
+ */
+const MADE_AROUND = 5;
+ground.reach(STOOD, STOOD, MADE_AROUND);
+
 const held = new Map<string, ReturnType<typeof tilesOf>>();
 const chunks: ChunkSource = {
   getTiles: (cx, cz) => {

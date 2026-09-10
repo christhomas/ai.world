@@ -87,13 +87,50 @@ export function stampYard(chunk: ChunkData, ox: number, oz: number, s: Structure
 }
 
 /**
+ * Is this tile the last ring of the apron — the one that meets the country?
+ *
+ * Rings are counted out from the wall line: nought is the wall itself and everything inside it,
+ * one is the apron the towers overhang, and `CASTLE.APRON` is the outer edge where the castle's
+ * made ground stops and the world's begins.
+ */
+function onTheOutermostRing(s: Structure, dx: number, dz: number): boolean {
+  return Math.max(Math.abs(dx) - s.hw, Math.abs(dz) - s.hd) === CASTLE.APRON;
+}
+
+/**
+ * One terrace of the way from the platform to whatever the country was doing here, and no further.
+ *
+ * The castle's doorstep, and the reason a castle may now be seated on ground that rises two
+ * terraces across it rather than one. The plot is stamped flat whatever it was, so the whole of
+ * what it was comes out as a step round the edge: at a terrace that step is a stride, and at two
+ * it is a wall you cannot climb from the uphill side — which is why `CASTLE.SLACK` was one, and
+ * why one is rare enough in a country with hills in it that three worlds in ten held no castle at
+ * all.
+ *
+ * So the step is halved by being taken twice. The outer ring of the apron sits one terrace towards
+ * the country instead of flush with the ward, which turns a two-terrace wall into two one-terrace
+ * strides with a tile of standing room between them. It is deliberately a terrace and not a ramp:
+ * this world is built of terraces and reads as terraces, and a smooth slope here would be the one
+ * piece of ground in the country that was not.
+ *
+ * `toward` never overshoots. Where the country was already level with the platform, or within a
+ * terrace of it, the ring stays where the country is and there is no step at all.
+ */
+function oneTerraceToward(was: number, platform: number): number {
+  const gap = was - platform;
+  if (Math.abs(gap) <= WORLD.STEP) return was;
+  return platform + Math.sign(gap) * WORLD.STEP;
+}
+
+/**
  * The ground a castle stands on: levelled end to end, cobbled inside the walls, cleared of what
  * was growing there.
  *
  * A castle does not look for flat ground, it makes some — see `castlePlot`, which explains why:
- * twenty-one tiles of one terrace does not occur in this country, so a plot is accepted within a
- * terrace of itself and stamped level. The apron outside the wall is levelled with the rest,
- * because the drum towers overhang it and the gate opens onto it.
+ * twenty-one tiles of one terrace does not occur in this country, so a plot is accepted within two
+ * terraces of itself and stamped level. The apron outside the wall is levelled with it, because the
+ * drum towers overhang it and the gate opens onto it — all but its outermost ring, which is the
+ * castle's own doorstep and is dealt with below.
  *
  * What is *not* cleared is anything somebody put there, and that is the whole subtlety of this
  * function. The chunk stamper takes structures in whatever order its index hands them over, so
@@ -110,8 +147,9 @@ export function stampWard(chunk: ChunkData, ox: number, oz: number, s: Structure
       if (idx < 0) continue;
       const t = chunk.type[idx];
       if (!isStampable(t) || t === TileType.Road) continue;
-      chunk.height[idx] = h;
-      chunk.corners.fill(h, idx * 4, idx * 4 + 4);
+      const level = onTheOutermostRing(s, dx, dz) ? oneTerraceToward(chunk.height[idx], h) : h;
+      chunk.height[idx] = level;
+      chunk.corners.fill(level, idx * 4, idx * 4 + 4);
       if (Number.isNaN(chunk.propRot[idx])) chunk.prop[idx] = PropKind.None;
       // inside the walls it is a yard, and a yard that has been walked on for two hundred years
       if (Math.abs(dx) < s.hw && Math.abs(dz) < s.hd) chunk.type[idx] = TileType.Plaza;

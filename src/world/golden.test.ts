@@ -60,6 +60,14 @@ export function worldFingerprint(seed: number): Record<string, string> {
  * old 105 while seed 2 gains, at 112 of 103. `quests` moves because it is drawn from the
  * structures, and `chunks` because the ground under all four of them is higher and unevener.
  *
+ * `structures` moves a second time for the castles, which the hills nearly took away: a plot needs
+ * a rim of nineteen tiles within a terrace of itself, that stopped being common the moment the
+ * ground had relief in it, and castles fell from fifteen across twelve seeds to ten with four of
+ * those worlds holding none at all. `CASTLE.SLACK` is two now, paid for by a graded doorstep — the
+ * outer ring of the apron sits one terrace towards the country instead of flush with the ward, so
+ * two terraces of difference are met as two strides rather than one wall. Every one of the twelve
+ * seeds has a castle again, and seed 1 has one where a moment ago it had none.
+ *
  * Before that, the same day: the country gained castles. One or two in a world,
  * out on their own a long way from any settlement: a thirteen-tile ward of levelled ground with a
  * curtain wall round it, seven drum towers, a gatehouse you go in by and a keep in the yard —
@@ -120,6 +128,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: '5256f550', hydro: '57d1f709', structures: 'd2ef519c', chunks: '65b262e0', quests: '829c481b' },
-  2: { graph: '91f6d142', hydro: 'e1df1004', structures: 'c2d91afc', chunks: '7f420170', quests: '10f6f7ad' },
+  1: { graph: '5256f550', hydro: '57d1f709', structures: 'a4085842', chunks: '65b262e0', quests: '829c481b' },
+  2: { graph: '91f6d142', hydro: 'e1df1004', structures: 'd9dbd1be', chunks: '7f420170', quests: '10f6f7ad' },
 };
