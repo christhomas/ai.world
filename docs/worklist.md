@@ -527,6 +527,45 @@ Things Chris hit on a real phone, in the order he hit them.
       first. And `blows.ts` still swings at the underground crowd or the country's, so a keeper is
       not yet hittable indoors: that is a decision about murder in a shop, not a probe fix.)*
 
+## A village's descent, September 10th
+
+> "at the town hall, you should be able to see the family tree for the whole village as a graphic
+> you can mouse drag yourself around and see information on each person, this would be interesting
+> from a genealogy standpoint. You could pay for the service"
+
+- [x] **The family tree, sold across a counter.** *(Every part of it was already written down and
+      nothing had ever read it. A `Person` carries `mother` and `father` — by *name* rather than by
+      id, deliberately, because "lineage is for talking about, and the dead are not kept" — so a
+      parent who died forty years ago is still a name on their child's record long after there is
+      any person to point at. The churchyard keeps sixty stones. Between the two, a village's
+      descent was there the whole time.
+
+      Three pieces. `game/lineage.ts` builds it and lays it out; `ui/kin.ts` draws it with the
+      world map's own gestures, because a player who has opened a map has already learned this one;
+      and `enquiry.ts` gains one idea — a book may be **unrolled** rather than read. Every other
+      book is read three lines at a time, which is right for a list and wrong for a family: a roll
+      is a column of names and a descent is a *shape*, and read aloud it is thirty sentences nobody
+      can hold in their head. The counter still does everything it did — the gist for nothing, the
+      fee, the sitting that lasts as long as the conversation — and only the last step differs.
+
+      It is the dearest thing anybody sells here, at 36 gold against the roll's 12, and the price
+      is the work: every other book is one pass over one list, and this is the roll and the
+      churchyard cross-referenced against every parent named on either.
+
+      **The bug worth keeping.** Keyed by name, the first version made a grandson named for his
+      grandfather into one node — so the grandfather became his own descendant, and the walk that
+      settles how deep each generation sits went round that loop once per pass. A village of
+      twenty-eight came out **a hundred and forty-three generations deep**. Found by measuring
+      rather than by looking, because it draws perfectly happily. A name is not a person: `whoWas`
+      turns a parent's name back into whichever bearer of it was alive when the child was born, and
+      the test now asserts the tree is no deeper than the village has had days to be.
+
+      Where it is drawn is a hook (`whereLineageIsDrawn`) rather than a parameter, and that is a
+      trade worth naming: `enquiry.ts` earns its keep by knowing nothing about the game around it —
+      a town hall and a watch house cost it one `case` each — and threading a panel through it
+      would end that. Unset on the server, where the book is still sold, still priced, and simply
+      has nowhere to appear.)*
+
 ## Releasing
 
 - [x] A release is one act: chart version, game version, tag and image all naming the same moment.

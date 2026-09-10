@@ -185,6 +185,8 @@
       <button id="fullScreenButton">Full screen</button>
       <button id="titleButton" class="opt-leave">Save &amp; return to title</button>
     </div>
+    <!-- what this build calls itself, in the one panel anybody opens when something is wrong -->
+    <p class="opt-build" id="optionsBuild"></p>
   </div>
   <div id="title">
     <canvas id="titleSky"></canvas>
@@ -210,7 +212,12 @@
     </main>
   </div>
   <div id="toast"></div>
-  <div id="debug"></div>
+  <!--
+    The stats corner. Two nodes rather than one: the version never changes and the numbers change
+    four times a second, so the version is written once at boot and the readout is free to be
+    replaced wholesale. See `Hud.setDebug`.
+  -->
+  <div id="debug"><span id="debugBuild"></span><span id="debugText"></span></div>
   <script type="module" src="/src/boot.ts"></script>
 </body>
 </html>

@@ -141,6 +141,9 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   background: var(--stone); padding: calc(6 * var(--ui-scale)) calc(10 * var(--ui-scale));
   z-index: 100; white-space: pre;
 }
+/* the build, above the numbers and quieter than them: it is the thing you read once when something
+   is wrong, and the numbers are the thing you watch */
+#debugBuild { display: block; color: var(--ink-faint); }
 /*
  * Options: five kinds of control, laid out as five kinds of control.
  *
@@ -270,6 +273,10 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #optionsPanel .opt-foot button { flex: 1; }
 /* leaving the world is the one thing in here you cannot undo by moving a slider back */
 #optionsPanel .opt-leave { color: var(--gold); border-color: rgba(255, 215, 106, 0.35); }
+#optionsPanel .opt-build {
+  margin: calc(12 * var(--ui-scale)) 0 0; text-align: center;
+  color: var(--ink-faint); font-size: calc(10 * var(--ui-scale));
+}
 
 #optionsPanel button {
   background: rgba(162, 155, 254, 0.12); color: var(--ui-ink);

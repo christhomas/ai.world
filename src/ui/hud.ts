@@ -5,12 +5,13 @@ import type { GameState } from '../game/state';
 import type { Quest } from '../game/quests';
 
 import { $ } from './dom';
+import { GAME } from '../core/version';
 import { hasTheScreen, toggleFullScreen } from './sideways';
 
 /** Area banner, debug readout, options panel, dialog box. Plain DOM, no framework. */
 export class Hud {
   private readonly areaEl = $('areaName');
-  private readonly debugEl = $('debug');
+  private readonly debugText = $('debugText');
   private readonly loadingEl = $('loading');
   private readonly options = $('optionsPanel');
   private readonly invEl = $('inventory');
@@ -35,6 +36,19 @@ export class Hud {
   onQualityChange: ((level: Quality) => void) | null = null;
 
   constructor(rig: SceneRig, seed: number) {
+    /*
+     * What this build calls itself, said twice and written once.
+     *
+     * In the stats corner because that is where somebody is already looking when the game is
+     * behaving oddly, and in the options because that is the panel anybody opens when they are
+     * about to tell somebody else about it. The first question asked of a deployment that has just
+     * gone out is which version is actually on the screen, and until now the answer was to read
+     * the tag on the cluster and hope. The title screen has said it since it was built; the game
+     * itself never did, and the game is where you are when you notice.
+     */
+    $('debugBuild').textContent = `${GAME.name} v${GAME.version}`;
+    $('optionsBuild').textContent = `${GAME.name} v${GAME.version} · built ${GAME.builtOn}`;
+
     const sun = $<HTMLInputElement>('sunlightSlider');
     const hemi = $<HTMLInputElement>('hemisphereSlider');
     const sunV = $('sunlightValue');
@@ -160,11 +174,20 @@ export class Hud {
     if (this.breathEl.innerHTML !== html) this.breathEl.innerHTML = html;
   }
 
+  /**
+   * The stats corner, four times a second.
+   *
+   * The version is written once at boot and lives in its own node, rather than being pasted onto
+   * the front of whatever each of the three callers happens to say. There are three of them —
+   * outdoors, underground, indoors — and each builds its own lines, so a version prepended by the
+   * caller is a version that is right in two places and forgotten in the third the day somebody
+   * adds a fourth.
+   */
   setDebug(dt: number, text: () => string): void {
     this.debugAccum += dt;
     if (this.debugAccum < 0.25) return;
     this.debugAccum = 0;
-    this.debugEl.textContent = text();
+    this.debugText.textContent = text();
   }
 
   /** Short banner, e.g. "Discovered: Watchtower". */
