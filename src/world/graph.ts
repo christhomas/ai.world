@@ -6,6 +6,7 @@ import { SALT, TILE_SALT, derive } from '../core/salts';
 import { cellKey } from './spatial';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
+import { Uplands } from './highland';
 
 /**
  * Road network. A space-colonisation tree grown from the hub in continuous 2D:
@@ -143,7 +144,27 @@ const GROWTH = {
   TOWN_CLEARING: 5,             // no attractors right on top of the town centre
   TOWN_ROAD_WIDTH: 1.3,
   LEVEL_NOISE_SCALE: 0.006,
-  LEVEL_RANGE: 3,               // terraces of variation from noise
+  /**
+   * How many terraces the ground rises and falls across a world, and how far apart the hills are.
+   *
+   * This is the world's hills, and it is worth saying why they are here rather than in a field of
+   * their own. Everything in this game measures its height from the road it is nearest: a tile's
+   * base level, a village square, the floor of a house, the level a river rises at. So a hill added
+   * as a separate field would have to be added to all of those separately and would be missed by
+   * one of them — it was, in the first attempt, and every village square in the world sank three
+   * terraces into the ground while the houses round it stayed up. Raise the road web itself and
+   * there is nothing to keep in step, because there is only one thing.
+   *
+   * Ten terraces is five world units between the floor of a vale and the top of the down above it,
+   * over the hundred and sixty tiles the noise scale gives. It was three, which is a world that
+   * reads as flat unless you are standing on a mountain. Raising it is bounded by the clamp below
+   * rather than by taste: a crossroads stays within a terrace of its parent, so however large this
+   * gets the ground can still only climb a terrace every seven tiles and the country stays
+   * walkable. What does go wrong past about fifteen is the seams — two roads that came at the same
+   * spot from different directions arrive at different heights, and the ground between them steps
+   * rather than slopes.
+   */
+  LEVEL_RANGE: 10,
   WIDTH_PER_LOG_SIZE: 2.4,      // land half-width grows with log2(subtree size)
   ROAD_WIDTH_BASE: 0.9,
   ROAD_WIDTH_PER_LOG_SIZE: 0.13,
@@ -317,12 +338,12 @@ function accumulateSubtreeSizes(nodes: RoadNode[]): void {
 function assignLevels(graph: RoadGraph, seed: number, cfg: RoadConfig): void {
   const { nodes } = graph;
   const levelNoise = new Simplex2D(derive(seed, SALT.BIOME));
+  const stands = standingOf(graph, levelNoise);
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
-    const biome = biomeAt(graph, levelNoise, n.x, n.z);
-    const base = BIOME_BASE[biome];
+    const base = stands.at(n.x, n.z);
     const h = (levelNoise.fbm(n.x * GROWTH.LEVEL_NOISE_SCALE, n.z * GROWTH.LEVEL_NOISE_SCALE, 3) + 1) * 0.5; // [0,1]
-    let level = 1 + base + Math.round(h * GROWTH.LEVEL_RANGE);
+    let level = 1 + Math.round(base + h * GROWTH.LEVEL_RANGE);
     if (Math.hypot(n.x, n.z) < cfg.HUB_RADIUS) level = 1;
     if (n.parent >= 0) {
       const pl = nodes[n.parent].level;
@@ -384,9 +405,45 @@ function addLoops(graph: RoadGraph, rng: Rng, cfg: RoadConfig): void {
   }
 }
 
-const BIOME_BASE: Record<Biome, number> = {
-  [Biome.Plains]: 0, [Biome.Forest]: 0, [Biome.Desert]: 0, [Biome.Swamp]: 0, [Biome.Mountain]: 3, [Biome.Snow]: 2,
+/**
+ * How high the country of each kind stands above the rest, in terraces, before the hills.
+ *
+ * The snow lands' eighteen is the point of the table now, and the number is chosen against what a
+ * road may do rather than for how it looks. Nine world units is a real climb — the roads take about
+ * a hundred and thirty tiles to make it, because a crossroads stays within a terrace of its parent
+ * — so the cold arrives at the top of something you walked up, which is the whole complaint this
+ * answered: a snow field and a plain used to be the same ground in two colours with an invisible
+ * line between them, and there was nowhere in this world you could stand and see that the snow was
+ * up. Two, which is what it was, is one world unit and is not visible at all.
+ *
+ * Read through `standingOf` and never straight, which is what keeps it a climb: see `Uplands`.
+ *
+ * Push it much past twenty-five and the country stops being able to keep up. The roads climb a
+ * terrace every seven tiles at best and the smoothing spreads a rise over two hundred, so an
+ * eighteen is comfortable, a twenty-eight is not, and what fails is not the arithmetic but the
+ * seams — two branches that reached the same place by different routes arrive at different heights.
+ *
+ * Mountain's three is older than any of this and stays: the road-tree world's mountains are massifs
+ * added on top of the ground, and this is only the country under them sitting a little proud.
+ * Exported because the other two worlds' road webs stand their countries at the same heights, and
+ * three tables that had to agree would eventually not.
+ */
+export const BIOME_BASE: Record<Biome, number> = {
+  [Biome.Plains]: 0, [Biome.Forest]: 0, [Biome.Desert]: 0, [Biome.Swamp]: 0, [Biome.Mountain]: 3, [Biome.Snow]: 18,
 };
+
+/**
+ * How high the country stands at a point, smoothed, so a border on the map is a hillside.
+ *
+ * The pie is drawn as wedges with a line between one and the next, and a country cannot stand
+ * eighteen terraces above its neighbour across a line. `Uplands` takes the answer on a lattice and
+ * eases between the posts, which turns the line into a two-hundred-tile climb. `sectorMix` rather
+ * than `biomeAt` because `biomeAt` dithers per tile across the blend band, and a post that landed
+ * in that band would toss a coin for whether the country around it stands nine units higher.
+ */
+export function standingOf(graph: Pie, noise: Simplex2D): Uplands {
+  return new Uplands((x, z) => BIOME_BASE[sectorMix(graph, noise, x, z).biome]);
+}
 
 export interface SectorMix {
   biome: Biome;
@@ -402,11 +459,21 @@ const ISLAND_BIOME_MARGIN = 40;
 const BLEND_TILES = 10;
 
 /**
+ * What the biome pie is made of, which is less than a world.
+ *
+ * Three fields, because those are the three `sectorMix` reads. Said as a type of its own because
+ * the pie has to be drawn before the ground can be, so `roadweb.ts` asks about it while it is
+ * still holding a shuffled list of biomes and an angle and has no graph to put them in — and a
+ * type that admits that is better than a cast that pretends otherwise.
+ */
+export type Pie = Pick<RoadGraph, 'islands' | 'sectors' | 'sectorOffset'>;
+
+/**
  * Sector lookup with blend weights: plains inside the hub clearing, otherwise a noise-warped
  * angular wedge. Near a wedge edge (or the clearing edge) `other`/`t` describe the neighbour
  * bleeding in, so callers can dither tiles or lerp colours instead of drawing a hard line.
  */
-export function sectorMix(graph: RoadGraph, noise: Simplex2D, x: number, z: number): SectorMix {
+export function sectorMix(graph: Pie, noise: Simplex2D, x: number, z: number): SectorMix {
   // islands are one biome each, surrounded by sea, so no blending is needed
   for (const isl of graph.islands) {
     if (Math.hypot(x - isl.x, z - isl.z) < isl.radius + ISLAND_BIOME_MARGIN) return { biome: isl.biome, other: isl.biome, t: 0 };
@@ -587,11 +654,26 @@ export function attachIslands(graph: RoadGraph, anchors: Anchor[]): void {
   }
 }
 
+/**
+ * How high an island's own country may stand, in terraces.
+ *
+ * Three is what the mountain sector has always been given and an island has managed with; the snow
+ * lands' eighteen is a mainland number, earned by having a couple of hundred tiles of country to
+ * climb through, and an island has forty.
+ */
+const ISLAND_BASE_MOST = 3;
+
 /** Island levels follow the island's own biome; the harbour area stays low so a pier can meet the shore. */
 function relevelIsland(graph: RoadGraph, firstNode: number, cx: number, cz: number, biome: Biome, seed: number): void {
   const { nodes } = graph;
   const noise = new Simplex2D(derive(seed, SALT.BIOME));
-  const baseLevel = BIOME_BASE[biome];
+  /*
+   * An island is one biome throughout and there is nothing beyond its shore to climb from, so its
+   * standing height is taken flat rather than smoothed — but capped, because a snow island would
+   * otherwise be a nine-unit rock rising sheer out of the sea with a harbour on it. Whatever the
+   * country, an island keeps the ground a pier can reach.
+   */
+  const baseLevel = Math.min(ISLAND_BASE_MOST, BIOME_BASE[biome]);
   for (let i = firstNode; i < nodes.length; i++) {
     const n = nodes[i];
     const h = (noise.fbm(n.x * GROWTH.LEVEL_NOISE_SCALE, n.z * GROWTH.LEVEL_NOISE_SCALE, 3) + 1) * 0.5;

@@ -18,3 +18,6 @@ halves-report.txt
 economy-report.txt
 tick-report.txt
 playtest-report.txt
+
+# throwaway scripts for looking at the game — screenshots, one-off probes
+.scratch/

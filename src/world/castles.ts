@@ -68,12 +68,23 @@ export const CASTLE = {
   /**
    * Terraces of unevenness the plot may start with before it is levelled flat.
    *
-   * One, and it has to be one. The whole plot is stamped to a single height, so whatever it had is
-   * the size of the step left round its edge — and one terrace is a stride while two is a wall.
-   * At two, a castle on a slope came out standing on a plinth you could not climb from three
-   * sides, and the gate you could walk to was whichever one the ground happened to favour.
+   * Two, and it was one, and the difference is a tile of the apron rather than a change of mind.
+   * The whole plot is stamped to a single height, so whatever unevenness it had comes out as the
+   * step round its edge — one terrace is a stride, two is a wall, and at two a castle on a slope
+   * came out standing on a plinth you could not climb from three sides.
+   *
+   * What makes two safe now is `stampWard`, which no longer stamps the outermost ring of the apron
+   * flush with the ward: it sets that ring one terrace towards the country instead, so a
+   * two-terrace difference is met as two strides with a tile of standing room between them rather
+   * than as one wall. The plinth is what this number used to buy, and it is bought by the doorstep
+   * now.
+   *
+   * The cost of leaving it at one is measured rather than guessed. Once the country gained hills,
+   * a nineteen-tile rim within a single terrace stopped being common: castles fell from fifteen
+   * across twelve seeds to ten, and seeds 1, 9, 10 and 12 held no castle at all. At two every one
+   * of those twelve worlds has one.
    */
-  SLACK: 1,
+  SLACK: 2,
   /**
    * How much rise and fall the plot itself may hold before levelling it would be an act of
    * violence, in terraces.

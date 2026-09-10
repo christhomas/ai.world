@@ -48,11 +48,23 @@ function differences(a: ChunkData, b: ChunkData): string[] {
   return out;
 }
 
-/** The chunks whose tiles all lie inside the window, which are the ones it promises anything about. */
+/**
+ * The chunks whose tiles all lie inside the window, which are the ones it promises anything about.
+ *
+ * The apron counts. A chunk carries a one-tile ring outside itself so the mesher can look at its
+ * neighbours, `differences` below compares whole arrays, and a chunk sitting hard against the edge
+ * of the window has that ring *outside* it — which is ground the window promised nothing about and
+ * where the two samplers may legitimately disagree, because the windowed one has thrown away the
+ * roads out there. It was found when the country stopped being flat: the two agreed to the tile
+ * everywhere inside and differed by eleven terraces at one apron tile a tile past the boundary,
+ * where the nearer road had been pruned and the further one stood in different country.
+ */
 function chunksInside(within: Within): [number, number][] {
   const out: [number, number][] = [];
-  for (let cz = Math.ceil(within.z0 / TILES); cz < Math.floor(within.z1 / TILES); cz++) {
-    for (let cx = Math.ceil(within.x0 / TILES); cx < Math.floor(within.x1 / TILES); cx++) out.push([cx, cz]);
+  const first = (edge: number) => Math.ceil((edge + 1) / TILES);
+  const last = (edge: number) => Math.floor((edge - TILES) / TILES);
+  for (let cz = first(within.z0); cz <= last(within.z1); cz++) {
+    for (let cx = first(within.x0); cx <= last(within.x1); cx++) out.push([cx, cz]);
   }
   return out;
 }

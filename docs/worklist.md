@@ -1803,25 +1803,58 @@ it is worth its own heading rather than being fixed one case at a time.
       cave on three seeds, which is a man a player never meets. Ranked by ring first and seam
       within a ring, he is 11, 12 and 7 tiles in: still at a face worth cutting, and now on the way
       past.)*
-- [ ] **Snow country stands above the rest.** Snow is a biome today and nothing else — a snow field
-      and a plain are the same ground in different colours, so the country reads as flat everywhere
-      you are not standing on a mountain. It should be high country in its own right, the way
-      mountain country is: the ground itself rising, walkable, with the cold at the top of the climb
-      rather than at an invisible line drawn across a flat map.
-- [ ] **And hills between the two.** This is the wider point and worth attempting on its own. The
-      world has exactly two kinds of ground — flat, and mountain — and nothing in between, so a walk
-      across it is level until it is vertical. `highland.ts` already knows how to raise country
-      rather than rock (`HIGHLAND.PER_STEP`, `REACH`, `SHOULDER`, `RIDGED`), and its comments record
-      why the first attempt at mountains failed: peaks put on a flat plain like a cone dropped from
-      above, when a range is high *country* that tilts up for miles before anything worth calling a
-      summit. Hills are the same argument one size down.
-      *Read `src/world/highland.ts` and `src/world/localland.ts` before starting: the endless country
-      already asks how deep a face is into the high ground and caps it, and hills would be a second,
-      gentler answer to the same question rather than a new mechanism.*
-      *Note the trap this will hit, because it has bitten twice tonight: raising the ground raises
-      the base its tiles are measured from, and anything that asks "is this tile drawn as high
-      ground" stops working — that is how the mesh world lost every one of its caves. `chore
-      collisions` and the golden fingerprint are the two things that will notice.*
+- [x] **Snow country stands above the rest, and there are hills between the two.** *(Two numbers and
+      one new idea. `LEVEL_RANGE` from three terraces to ten, so the ground rises and falls by five
+      world units over a hundred and sixty tiles rather than a barely visible one and a half; and
+      `BIOME_BASE[Snow]` from two to eighteen, so the cold is at the top of something you walked up.
+      Both are done to the road web's own levels rather than to a field of their own, because every
+      height in this world is measured from the road it is nearest — a tile's base, a village
+      square, the floor of a house, the terrace a river rises at — so a hill added anywhere else is
+      a hill something gets left behind by. The first attempt did add it elsewhere, and sank every
+      village square in the world three terraces into the ground while the houses round it stayed
+      up.
+
+      The new idea is `Uplands`, at the foot of `highland.ts`. A country cannot stand eighteen
+      terraces above its neighbour across the line the biome pie draws, and that was measured rather
+      than argued: with snow put straight to eighteen, the ground beside one road read 18, 17, 16
+      and beside the next road along 6, 5, 5 — a thirteen-terrace step in open country with nothing
+      to see. So the map is asked on a lattice of eighty tiles, each post averaged over its own
+      nine, and eased between them, which turns the border into a climb some two hundred tiles wide.
+      That is inside what the roads can follow: a crossroads stays within a terrace of its parent,
+      so no road climbs faster than a terrace every seven tiles, and the smoothing asks for one
+      every eleven.
+
+      Two things this broke, both found by measuring rather than by looking.
+
+      **The tiers test had been growing nothing but vultures.** `tiers.test.ts` failed with "no
+      creature was checked", and the ground was blamed first. It was not the ground. The harness
+      builds a `GroundWorld` and never calls `reach` on it, so no chunk of it is ever made — and
+      `canStand` asks `heightAt`, which answers out of the chunks that have been made and nothing
+      else. Every walking creature offered a spot in that harness could not stand on it and was
+      quietly never born; the only things that ever spawned were fliers, for which `canStand`
+      returns true without asking the ground at all. Every test in the file had been passing on a
+      country of birds. The hills merely moved the country under the test's spot from desert to
+      marsh, and frogs cannot fly. One line — `ground.reach(STOOD, STOOD, MADE_AROUND)` — and the
+      file tests what it claims to. With the ground actually made, a hilly world grows fifty-six
+      creatures where a flat one grew sixty-seven, which is a world rather than a regression.
+
+      **The hills nearly took the castles away.** A castle wants a rim of nineteen tiles within one
+      terrace of itself, and that stopped being common the moment the ground had relief in it:
+      fifteen castles across twelve seeds became ten, with four of those worlds holding none at all.
+      `CASTLE.SLACK` is two now, and the plinth that two used to build is paid for by a doorstep —
+      `stampWard` sets the outermost ring of the apron one terrace towards the country instead of
+      flush with the ward, so two terraces of difference are met as two strides with a tile of
+      standing room between them rather than as one wall nobody can climb from the uphill side.
+      Twelve seeds out of twelve have a castle again. Deliberately a terrace and not a ramp: this
+      world is built of terraces and reads as terraces, and a smooth slope would be the one piece of
+      ground in the country that was not.
+
+      The golden fingerprint moves all five hashes, which is the first time anything has, and is
+      what changing the field every height is measured from is supposed to do. The crossroads
+      themselves have not moved — hashing the web without `n.level` reproduces the old figure to the
+      digit — and what does move in the web is eleven loop roads that are no longer built, because
+      `addLoops` has always refused to join two crossroads more than a terrace apart and now has
+      cause to.)*
 
 ## The castle
 
