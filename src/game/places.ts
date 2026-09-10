@@ -131,6 +131,14 @@ export interface InteriorVisit {
   world: InteriorWorld;
   scene: InteriorScene;
   renderer: EntityRenderer;
+  /**
+   * Whoever is in this room, which until now was a question the room could not be asked.
+   *
+   * A floor of a mine has had a crowd of its own since there were monsters on it, and an interior
+   * had a renderer and a single body added straight to it — so a shop was the one place in the
+   * game where "who is near me" had nobody to ask. See `Places.crowd` for what that cost.
+   */
+  crowd: EntityManager;
   keeper: Entity | null;
   exit: [number, number];
   /** The doorway this room was entered by, so the game can tell one room from another. */
@@ -202,10 +210,18 @@ export class Places {
    * head while you stood in a cave, and the only way to find out was to walk into one and see it
    * report a goat.
    *
-   * Null indoors, where a room has a keeper and no manager to ask.
+   * A room used to answer the same way, and for a worse reason: it had no crowd at all, so this
+   * said nobody and every probe fell back on the country. Stood at a watch house desk, `__entities`
+   * listed ducks and sheep in a field two hundred tiles off and not the sergeant a pace in front of
+   * the hero — which is how a whole class of indoor fault would go unseen, because the readout that
+   * would have shown it was describing somewhere else.
+   *
+   * Indoors first, because that is the order a frame decides in: you can be inside a building that
+   * stands over a cellar, and the room is the place you are actually in. Null only out of doors,
+   * where the country's own crowd is the answer and whoever is asking already has it.
    */
   get crowd(): EntityManager | null {
-    return this.underground?.monsters ?? null;
+    return this.indoors?.crowd ?? this.underground?.monsters ?? null;
   }
 
   // --- underground ---
@@ -406,7 +422,8 @@ export class Places {
 
   enterBuilding(door: Doorway): void {
     const { seed, props, iso, player, overworldRenderer, rng } = this.ctx;
-    const map = generateInterior(interiorSeed(seed, door.bx, door.bz), door.kind as InteriorKind, door.village);
+    const room = interiorSeed(seed, door.bx, door.bz);
+    const map = generateInterior(room, door.kind as InteriorKind, door.village);
     const world = new InteriorWorld(map, props.footprints);
     const scene = new InteriorScene(map, props);
     const renderer = new EntityRenderer(scene.scene);
@@ -423,8 +440,31 @@ export class Places {
     iso.resize();
     iso.target.set(map.w / 2, 0.5, map.h / 2);
 
-    const keeper = map.keeper ? this.placeKeeper(map.keeper, door, renderer, rng) : null;
-    this.indoors = { world, scene, renderer, keeper, door, exit: [door.x, door.z], title: interiorTitle(door.kind as InteriorKind, door.village) };
+    /*
+     * The crowd of this room, on the same terms a floor of a mine is given one.
+     *
+     * `[]` villages and no tiles to spawn from, because a room is neither a street nor a chunk of
+     * country: nothing is grown in here, and everybody in here was put here deliberately. The
+     * register and `fallen` are handed over for exactly the reason the tunnels were given them —
+     * so that there is one answer about who is alive, wherever they happened to die. A man killed
+     * behind his own counter has to be as dead in the village's book as one killed in a field.
+     *
+     * Seeded from the room's own seed, which is the seed the room was grown from, so a crowd can
+     * never end up laid out for a different building than the one it is standing in.
+     *
+     * It is worth being plain about what this does not do yet: nothing calls `update` on it, so the
+     * keeper stands as still today as he did before. What it buys straight away is that the room
+     * can be *asked* — every probe that says who is near the hero now answers about this room — and
+     * that there is somewhere for a second person indoors to be.
+     */
+    const crowd = new EntityManager(
+      renderer, world, { getTiles: () => null }, room, [],
+      undefined,
+      (who) => this.ctx.fallen(who),
+      this.ctx.register,
+    );
+    const keeper = map.keeper ? this.placeKeeper(map.keeper, door, crowd, rng) : null;
+    this.indoors = { world, scene, renderer, crowd, keeper, door, exit: [door.x, door.z], title: interiorTitle(door.kind as InteriorKind, door.village) };
     this.ctx.chime();
   }
 
@@ -435,8 +475,12 @@ export class Places {
    * altar makes a priest, the hall makes a clerk, the watch house makes a sergeant. None of them is
    * chosen — each is a fact about which door was walked through, which is why the room and not the
    * person is what decides which book comes out.
+   *
+   * He goes into the room's crowd rather than straight onto its renderer. Drawn was all he used to
+   * be, and being drawn is not being present: nothing could find him, because there was nothing
+   * holding him to be asked.
    */
-  private placeKeeper(spot: [number, number], door: Doorway, renderer: EntityRenderer, rng: Rng): Entity {
+  private placeKeeper(spot: [number, number], door: Doorway, crowd: EntityManager, rng: Rng): Entity {
     const civic = door.kind === 'townhall' || door.kind === 'watchhouse';
     const shop = door.kind !== 'house' && door.kind !== 'church' && !civic;
     /*
@@ -468,7 +512,9 @@ export class Places {
     // can ask about the churchyard rather than another villager who happens to be indoors
     else if (door.kind === 'church') { keeper.role = 'congregation'; }
     else keeper.role = 'villager';
-    renderer.add(keeper);
+    // exactly where he was put and exactly who he was made: `admit` rolls nothing and moves nobody,
+    // which is the whole reason he is taken in rather than spawned
+    crowd.admit(keeper);
     return keeper;
   }
 
