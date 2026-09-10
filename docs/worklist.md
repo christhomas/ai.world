@@ -1541,7 +1541,8 @@ can each be finished and each leave the game playable.
       readonly and the renderer pools by it — the same order `spawnVillageFolk` had to be put into
       for the same reason. `clerk` and `sergeant` are in `BODIES` although no register ever hands
       them out, because they are jobs a building has rather than trades a person is born to.)*
-- [x] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
+- [x] **A3, in full: what a town hall actually cost.** *(Filed under A5's heading by mistake for a
+      day, which is how a work list gets two entries with one number on them.)*
       *(A2 was right that the counter cost one `case` and nothing else; what a new building costs is
       the other eleven places a kind has to be known about, which `grep -rn Church src` lists
       exactly. The awkward one was placement. A hall wants three flat tiles on the edge of the
@@ -1572,7 +1573,7 @@ can each be finished and each leave the game playable.
       raises one once it already keeps a cell, so no sergeant anywhere has nothing to write about.
       Inside, the cell is the back corner of the same room behind iron rather than behind a wall: a
       lock-up you cannot see into is a cupboard.)*
-- [ ] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
+- [x] **A5. `chore economy`.** Live a village forward a hundred days and hold the books to it:
       purses move, nobody ages backwards, every death is written down, a village under pressure gets
       poorer and one left alone does not. The economy has never been checked end to end.
       *(Seven villages on three seeds, a hundred days each: 2,100 village-days and 30,337
@@ -1650,6 +1651,24 @@ can each be finished and each leave the game playable.
       on any seed. A village under a band loses about half of itself and makes it back. The books
       still balance to the coin across 2,100 village-days, and the bench now fails if nothing in
       the world ever gets built.)*
+
+
+### What the hundred days said, that nothing acts on yet
+
+The audit passes, which means the books are honest. What it *reports* is a different thing, and two
+of the notes are the game rather than the arithmetic:
+
+- [ ] **A purse goes into the ground with its owner.** 18,617 gold left the world in somebody's
+      pocket over the hundred days, against 30,301 spent on living — so the largest single outflow
+      in this economy is death, and there is no inheritance anywhere in it. A widow inherits
+      nothing, a village loses a rich man's savings entirely, and the money supply is held up only
+      by the mines. Whether that is right is a question about the game: a world where nothing is
+      passed down is a world that stays poor, and one where everything is passed down concentrates.
+- [ ] **The second storey is reachable and the bath house nearly is.** 15 of 21 villages got their
+      houses to two storeys, the first on day 16; 5 held enough between them for a bath house, from
+      day 22. Before the economy was fixed neither had ever been reached in the life of the game —
+      the numbers were a factor of ten and a factor of six out. Worth re-tuning now that they are
+      reachable, because a thing every village manages by day 22 has stopped being an ambition.
 
 ## Things to make, when the country is finished
 
