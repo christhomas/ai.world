@@ -8,10 +8,12 @@ import type * as THREE from 'three';
  * second one wins, silently, and the first goes on looking as though it is installed. Nothing
  * throws, nothing warns, and the only symptom is a feature that does not happen.
  *
- * That is not hypothetical. The season tint and the cutaway both patch the prop material — the tint
- * from the chunk manager, the cutaway from the prop library's own constructor — and because the
- * chunk manager runs second, the cutaway was compiled out of existence. It took a screenshot of a
- * hero standing behind a cottage, plainly hidden, to find it.
+ * That is not hypothetical. A screen-space cutaway and the season tint both patched the prop
+ * material — the tint from the chunk manager, the cutaway from the prop library's own constructor
+ * — and because the chunk manager runs second, the cutaway was compiled out of existence. It took
+ * a screenshot of a hero standing behind a cottage, plainly hidden, to find it. The cutaway has
+ * since been taken out (it was hiding a collision bug rather than a sight problem), but the trap
+ * it fell into is still there for the next thing that wants to edit a shader somebody else edits.
  *
  * So patches are registered rather than assigned. Each is named, each gets the shader in turn, and
  * the cache key is every name joined — which matters as much as the running order does, because

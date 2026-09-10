@@ -16,9 +16,9 @@ export class SeasonTintMaterials {
   /**
    * Patch a material so it obeys the season uniforms.
    *
-   * Registered rather than assigned, because this is not the only thing that edits these shaders:
-   * the prop material also carries the cutaway, and whichever of the two assigned second used to
-   * erase the other without a word. See `shaderpatch.ts`.
+   * Registered rather than assigned, because a material may carry more than one shader edit and
+   * `three` gives it exactly one `onBeforeCompile`: whichever assigned second used to erase the
+   * other without a word. See `shaderpatch.ts`.
    */
   attach(material: THREE.Material): void {
     patchShader(material, 'season', (shader) => {

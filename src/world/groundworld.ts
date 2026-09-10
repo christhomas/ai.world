@@ -269,6 +269,11 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return this.solids.crosses(x0, z0, x1, z1, body);
   }
 
+  /** How far into whatever it is standing in a body is: the way out of a wall, for a mover. */
+  depth(x: number, z: number, body: Body): number {
+    return this.solids.depth(x, z, body);
+  }
+
   buried(x: number, z: number): boolean {
     if (!this.sampler.ranges) return false;
     const hit = this.tileAt(x, z);

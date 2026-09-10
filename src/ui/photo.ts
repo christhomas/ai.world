@@ -1,5 +1,4 @@
 import { $ } from './dom';
-import { holdCutaway } from '../render/cutaway';
 
 /** Elements hidden while a photograph is taken. */
 const CHROME = ['status', 'inventory', 'quests', 'minimap', 'debug', 'areaName', 'compass', 'toast', 'castbar', 'chatPanel'];
@@ -19,17 +18,6 @@ export class PhotoMode {
     this.on = !this.on;
     for (const id of CHROME) $(id).classList.toggle('photo-hidden', this.on);
     this.hint.classList.toggle('show', this.on);
-    /*
-     * And the hole in the scenery goes away with the interface.
-     *
-     * The cutaway exists so you can see the man you are playing through whatever is in front of
-     * him. A photograph is the one time he is not the point — the camera comes free and what is
-     * being framed is the country — so a wall dissolving round somebody standing at the edge of the
-     * shot is the interface intruding on a picture, which is exactly what this mode is for
-     * preventing. Held rather than turned off, because the frame loop aims it again every frame
-     * and would simply put it back.
-     */
-    holdCutaway(this.on);
     return this.on;
   }
 

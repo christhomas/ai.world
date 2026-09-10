@@ -34,7 +34,6 @@ import { worldSeconds } from './ferry';
 import type { Fishing } from './fishing';
 import { HIRE } from './hire';
 import type { Magic } from './magic';
-import { aimCutaway } from '../render/cutaway';
 import type { Mount } from './mount';
 import type { Online } from './online';
 import type { Places } from './places';
@@ -314,7 +313,6 @@ export function createFrame(ctx: Framing) {
       hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      aimCutaway(rig.renderer, iso.camera, player.entity);
       rig.renderer.render(indoors.scene.scene, iso.camera);
       endFrame(dt);
       return;
@@ -346,7 +344,6 @@ export function createFrame(ctx: Framing) {
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
         `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
         `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      aimCutaway(rig.renderer, iso.camera, player.entity);
       rig.renderer.render(below.scene.scene, iso.camera);
       endFrame(dt);
       return;
@@ -487,13 +484,6 @@ export function createFrame(ctx: Framing) {
       })());
 
     minimap.draw(player.x, player.z, iso.groundCorners(iso.target.y), markers(), !state.can('map'), player.entity.yaw);
-    /*
-     * Point the cutaway at the hero before anything is drawn.
-     *
-     * Every frame rather than when the camera moves, because it is anchored to where he is on the
-     * glass and he moves as much as the camera does. It is three assignments and a projection.
-     */
-    aimCutaway(rig.renderer, iso.camera, player.entity);
     rig.renderer.render(rig.scene, iso.camera);
     endFrame(dt);
   };

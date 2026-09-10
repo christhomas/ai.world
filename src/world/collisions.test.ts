@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
-import { Entity, Herd, bodyOf, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
+import { Entity, Herd, bodyBox, bodyOf, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from '../entities/entity';
 import { stride } from '../entities/stride';
 import { propFootprints } from '../entities/props';
 import { BLOCKS_WALKING, PropKind } from './biomes';
@@ -94,6 +94,8 @@ function field(solids: Solids): TileWorld {
     // through every case below and pass them all by never moving
     isRoad: () => true,
     crosses: (x0, z0, x1, z1, body) => solids.crosses(x0, z0, x1, z1, body),
+    // and how far into something a walker is, which is how it gets itself out again
+    depth: (x, z, body) => solids.depth(x, z, body),
   };
 }
 
@@ -972,5 +974,74 @@ describe('a wood, after everything got wider', () => {
       });
       expect(through, `a ${id} cannot get through this country any more`).toBeGreaterThanOrEqual(fewest);
     }
+  });
+});
+
+/**
+ * Touching a wall must not be a way through it.
+ *
+ * Being inside a solid is survivable on purpose: a hero set down in a market stall would otherwise
+ * have every direction out of it refused by the test that should have stopped him getting in, and
+ * a game that has eaten the player is worse than one he can walk out of a wall in. What that mercy
+ * cost, until this, was every wall in the game — because a body is a rectangle turned the way it
+ * faces, and *turning on the spot* against a wall is enough to catch your own corner on it. From
+ * that step on nothing solid applied, so you walked into the castle and were then shut inside it.
+ *
+ * Reported as: *the problem is that I am inside the building and I should not be there.*
+ *
+ * Both halves are pinned here, because either one alone is easy and wrong: a wall that cannot be
+ * walked through is one line, and so is a wall you can always get out of.
+ */
+describe('a wall you are already touching', () => {
+  /** A curtain wall: eight tiles along x, half a tile thick, standing at the origin. */
+  function curtain(): { world: TileWorld; solids: Solids } {
+    const solids = new Solids();
+    solids.put('wall', [{ x: 0, z: 0, rot: 0, hw: 4, hd: 0.25 }]);
+    return { world: field(solids), solids };
+  }
+
+  it('cannot be turned into a doorway by facing along it', () => {
+    const { world, solids } = curtain();
+    const hero = walker('hero', 0, -0.5);
+    // as close to the south face as the game itself will let him stand, facing along the wall
+    hero.yaw = 0;
+    while (!solids.at(hero.x, hero.z + 0.01, bodyBox(hero.kind, hero.yaw))) hero.z += 0.01;
+    expect(hero.z, 'he is nowhere near the wall').toBeGreaterThan(-0.6);
+    const flush = hero.z;
+
+    // now he turns, and his own turned box catches the wall he is standing against
+    hero.yaw = Math.PI / 4;
+    expect(world.blocked(hero.x, hero.z, bodyBox(hero.kind, hero.yaw)),
+      'turning on the spot no longer catches the wall — this case has stopped testing anything').toBe(true);
+
+    // and walks north, straight at it, for a good four seconds
+    for (let n = 0; n < 240; n++) stride(world, hero, { dx: 0, dz: 1, pace: 1, dt: 1 / 60 });
+    report({
+      verdict: hero.z <= flush + 0.05 ? 'PASS' : 'FAIL',
+      count: Number((hero.z - flush).toFixed(3)),
+      what: 'tiles a hero flush against a curtain wall gained by turning and walking at it',
+    });
+    expect(hero.z, 'he walked through the wall by turning against it first').toBeLessThan(0.25);
+  });
+
+  it('still lets somebody set down inside it walk out of the side they are nearest', () => {
+    const { world } = curtain();
+    // the near face, the middle of the masonry, and the far face: three ways of being stuck in a
+    // wall, and the near side is a different direction for each of them
+    for (const [from, out] of [[-0.1, -1], [0, -1], [0.1, 1]] as const) {
+      const hero = walker('hero', 1.5, from);
+      expect(world.blocked(hero.x, hero.z, bodyBox(hero.kind, hero.yaw)), 'not inside the wall to start with').toBe(true);
+      for (let n = 0; n < 240; n++) stride(world, hero, { dx: 0, dz: out, pace: 1, dt: 1 / 60 });
+      expect(world.blocked(hero.x, hero.z, bodyBox(hero.kind, hero.yaw)),
+        `set down at z=${from} inside a wall, he could not get out of it`).toBe(false);
+    }
+  });
+
+  it('is not crossed by somebody who is standing in it and pushing at the far side', () => {
+    const { world } = curtain();
+    // the other half of the same rule: being inside a wall is a way out of it, never a way through
+    const hero = walker('hero', 1.5, 0.1);
+    for (let n = 0; n < 240; n++) stride(world, hero, { dx: 0, dz: -1, pace: 1, dt: 1 / 60 });
+    expect(hero.z, 'he pushed straight through the wall from the inside').toBeGreaterThan(-0.25);
   });
 });

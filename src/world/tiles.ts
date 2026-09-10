@@ -60,6 +60,20 @@ export interface TileWorld {
    */
   crosses?(x0: number, z0: number, x1: number, z1: number, body?: Body): boolean;
   /**
+   * How far inside a solid a body is standing, in tiles, and nought when it is standing clear.
+   *
+   * What a walker uses to get itself out of something it should never have been inside. Being put
+   * inside a wall happens — a hero carried home and set down in a market stall, a floor rebuilt
+   * under somebody — and every direction out of one fails the same test that should have stopped
+   * them getting in, so a mover that is already overlapping something is let move. Waiving the
+   * walls outright is what turned that mercy into a way *through* them; with a depth the mercy can
+   * be pointed outward, and only steps that come out shallower are allowed.
+   *
+   * Optional, like `crosses`, and for the same reason: a world with no boxes in it has no depth to
+   * report, and a mover that is told nothing falls back to the older, blunter mercy.
+   */
+  depth?(x: number, z: number, body: Body): number;
+  /**
    * True where a mountain stands over this tile, so the ground here is the inside of a cliff.
    *
    * Optional, because it is only true of the outdoor world of a polygon country. Nothing should

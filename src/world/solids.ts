@@ -158,6 +158,30 @@ export class Solids {
   }
 
   /**
+   * How far inside something a body is, in tiles, and nought when it is standing clear.
+   *
+   * The measure a way *out* is worked out from. Being inside a solid has to be survivable — see
+   * `slide` in `entities/entity.ts` for why — but "inside, so nothing blocks you" is a hole big
+   * enough to walk a castle through: stand against a curtain wall facing along it, turn forty-five
+   * degrees so your own turned box catches the wall, and every rule about walls is waived for as
+   * long as you keep going. Which is exactly the fault this was reported as: *I can walk inside the
+   * building and I should not be there*.
+   *
+   * With a depth the mercy can be aimed. A step that comes out shallower than it went in is going
+   * the right way and is allowed; one that goes deeper, or slides along inside the same wall, is
+   * not. Somebody set down inside a stall still walks out of it, and nobody walks in.
+   *
+   * The deepest of whatever it overlaps, because that is the one that has to be got out of. Depth
+   * per solid is the separating axis theorem read the other way round: where the shadows overlap on
+   * every axis, the least of those overlaps is how far in it is.
+   */
+  depth(x: number, z: number, body: Body): number {
+    let worst = 0;
+    for (const s of this.near(x, z, body)) worst = Math.max(worst, overlapDepth(s, x, z, body));
+    return worst;
+  }
+
+  /**
    * Does the way from one point to another cross anything?
    *
    * The question a mover actually has. Asking whether the far end is inside something is a
@@ -204,6 +228,21 @@ export class Solids {
    */
   private near(x: number, z: number, body?: Body): readonly Solid[] {
     if (!body) return this.buckets.get(tileKey(Math.floor(x), Math.floor(z))) ?? EMPTY;
+    /*
+     * A malformed body must not quietly mean "nothing is solid".
+     *
+     * `reachOf` takes the cosine of `body.rot`, so a body without one produces NaN, every bound
+     * below comes out NaN, the `for` never runs, and this returns an empty list — which every
+     * caller reads as open ground. Nothing throws and nothing looks wrong; the world simply stops
+     * having walls in it. It cost an hour of chasing a castle somebody could apparently walk into,
+     * which turned out to be a test harness passing `bodyOf` — the size of a creature — where a
+     * `Body` was wanted, the size and *which way it is facing*.
+     *
+     * TypeScript stops that in the game's own source. It does not stop a value arriving from a
+     * save, a wire, or a test, and a collision system whose failure mode is silence is the wrong
+     * failure mode. Loudly wrong beats quietly permissive.
+     */
+    if (!Number.isFinite(body.rot)) throw new Error(`a body with no facing cannot be collided: rot=${body.rot}`);
     // the tiles this body touches, which is the gate: two things in tiles that do not touch cannot
     // be touching either, and everything past this point is the models themselves
     const spanX = reachOf(body, 1, 0), spanZ = reachOf(body, 0, 1);
@@ -287,6 +326,25 @@ export function boxesOverlap(s: Solid, x: number, z: number, body: Body): boolea
     if (Math.abs(dx * ux + dz * uz) > reachOf(s, ux, uz) + reachOf(body, ux, uz)) return false;
   }
   return true;
+}
+
+/**
+ * How deep the overlap between two turned boxes is, and nought when they do not overlap.
+ *
+ * The same four axes as `boxesOverlap`, but keeping the least overlap rather than stopping at the
+ * first gap: for two rectangles the shallowest axis is the shortest way out, which is what a walker
+ * pushing to get free of a wall is looking for.
+ */
+export function overlapDepth(s: Solid, x: number, z: number, body: Body): number {
+  const dx = x - s.x, dz = z - s.z;
+  let least = Infinity;
+  for (const angle of [s.rot, s.rot + Math.PI / 2, body.rot, body.rot + Math.PI / 2]) {
+    const ux = Math.cos(angle), uz = Math.sin(angle);
+    const over = reachOf(s, ux, uz) + reachOf(body, ux, uz) - Math.abs(dx * ux + dz * uz);
+    if (over <= 0) return 0;
+    if (over < least) least = over;
+  }
+  return least;
 }
 
 /**

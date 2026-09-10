@@ -481,6 +481,11 @@ export class ChunkManager implements TileWorld, ChunkSource {
     return this.solids.crosses(x0, z0, x1, z1, body);
   }
 
+  /** How far into whatever it is standing in a body is: the way out of a wall, for a mover. */
+  depth(x: number, z: number, body: Body): number {
+    return this.solids.depth(x, z, body);
+  }
+
   /** Plain ground: grass or sand, no road, no floor, nothing already growing on it. */
   isPlantable(x: number, z: number): boolean {
     const hit = this.tileAt(x, z);

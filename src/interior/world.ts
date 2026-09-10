@@ -47,6 +47,11 @@ export class InteriorWorld implements TileWorld {
     return this.furniture?.crosses(x0, z0, x1, z1, body) ?? false;
   }
 
+  /** And how far into it, for somebody who has ended up inside a table and has to get out. */
+  depth(x: number, z: number, body: Body): number {
+    return this.furniture?.depth(x, z, body) ?? 0;
+  }
+
   isRoad(): boolean { return true; }
 
   /** Is the hero standing on the way out? */
