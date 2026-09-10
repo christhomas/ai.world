@@ -6,6 +6,9 @@ import type { Rng } from '../core/rng';
 import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
 import { lastsFor, mirrors, type Blow } from './motion';
+// The hours a village keeps are their own small thing now; re-exported because everything has
+// always asked this file for them and moving a definition is not a reason to move every import.
+export { AWAKE, isDaytime } from './waking';
 // The ground belongs to the world layer; creatures read it. Re-exported because half the game asks
 // this file what a TileWorld is, and moving the definition is not a reason to move every import.
 export type { TileWorld } from '../world/tiles';
@@ -518,8 +521,7 @@ function walkTowards(e: Entity, target: [number, number], dt: number, world: Til
   e.walk += (1 - e.walk) * Math.min(1, dt * 10);
   e.phase += dt * 8;
   tryMove(world, e, (dx / dist) * e.kind.speed * dt, (dz / dist) * e.kind.speed * dt);
-  const gy = groundY(world, e.kind, e.x, e.z);
-  if (gy !== null) e.y += (gy - e.y) * Math.min(1, dt * 12);
+  settleOntoTheGround(e, e.kind, world, dt);
   return false;
 }
 
@@ -544,13 +546,6 @@ function startFlee(e: Entity, awayX: number, awayZ: number, rng: Rng): void {
   e.headPitch = 0;
 }
 
-/** Wander radius per behaviour when picking a new target. */
-const WANDER_RADIUS: Record<Behaviour, number> = {
-  graze: 4, wander: 4, swim: 4, fly: 4, prowl: 8, travel: 7, hop: 2.5, hunt: 6,
-  // sea hunters range wide while nothing afloat is holding their attention
-  circle: 16,
-};
-
 /**
  * Take a hit: lose hp, stagger, get knocked back a little. Returns true if this killed it.
  * Survivors that can fight back go straight for the hero.
@@ -564,13 +559,6 @@ export function damageEntity(e: Entity, damage: number, fromX: number, fromZ: nu
   if (e.hp <= 0) { e.dead = true; return true; }
   if (e.kind.timid) { startFlee(e, dx, dz, () => 0.5); }
   return false;
-}
-
-/** Villagers are out between these times; outside them they head home and stay in. */
-export const AWAKE = [0.27, 0.82] as const;
-
-export function isDaytime(time: number): boolean {
-  return time >= AWAKE[0] && time < AWAKE[1];
 }
 
 export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
@@ -692,6 +680,17 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
     e.bobY += (0 - e.bobY) * Math.min(1, dt * 8);
   }
 
+  settleOntoTheGround(e, k, world, dt);
+}
+
+/**
+ * Bring a body down onto the ground — and leave anything airborne alone.
+ *
+ * It ran for everything, and against a flier it was a tug of war it always won. `flight.test.ts`
+ * has the numbers; a bird's height is `patrol`'s business and nothing else's.
+ */
+function settleOntoTheGround(e: Entity, k: AnimalKind, world: TileWorld, dt: number): void {
+  if (k.behaviour === 'fly') return;
   const gy = groundY(world, k, e.x, e.z);
   if (gy !== null) e.y += (gy - e.y) * Math.min(1, dt * 12);
 }
