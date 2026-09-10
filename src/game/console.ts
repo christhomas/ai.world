@@ -306,7 +306,9 @@ export function openConsole(ctx: Consoled) {
     peaks: () => (sampler.ranges?.peaks ?? []).map((peak) => ({
       x: Math.round(peak.x), z: Math.round(peak.z), height: Math.round(peak.lift), range: peak.range,
     })).sort((a, b) => b.height - a.height),
-    entities: () => entities.within(player.x, player.z, 60).map((e) => ({
+    // whichever crowd the hero is actually standing in: a mine's crew and a dungeon's monsters are
+    // in that floor's own manager, and this used to answer about the fields overhead
+    entities: () => (places.crowd ?? entities).within(player.x, player.z, 60).map((e) => ({
       kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
       x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
       slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,

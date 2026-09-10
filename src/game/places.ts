@@ -153,6 +153,21 @@ export class Places {
 
   get outdoors(): boolean { return this.underground === null && this.indoors === null; }
 
+  /**
+   * The creatures wherever the hero actually is.
+   *
+   * A floor of a dungeon has an `EntityManager` of its own — a mine's crew and the things living
+   * down there are not in the overworld's — and anything that captured a manager when the game was
+   * built captured the overworld's for ever. So `__entities` answered about the fields above your
+   * head while you stood in a cave, and the only way to find out was to walk into one and see it
+   * report a goat.
+   *
+   * Null indoors, where a room has a keeper and no manager to ask.
+   */
+  get crowd(): EntityManager | null {
+    return this.underground?.monsters ?? null;
+  }
+
   // --- underground ---
 
   enterDungeon(poi: Underground, kind: 'dungeon' | 'cave' | 'thicket' = 'dungeon', anchorId = `dungeon:${poi.name}`, floor = 1): void {

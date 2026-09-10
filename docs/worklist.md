@@ -1681,11 +1681,12 @@ it is worth its own heading rather than being fixed one case at a time.
       "the first tile drawn as high ground", and a polygon world raises the base its tiles are
       measured from rather than a tile's own rise, so nothing ever reads as `High`. Ten caves a world
       now, four to eight of them claimed as mines.)*
-- [ ] **The `__entities` probe cannot see underground.** It is bound to the overworld's manager at
-      construction, so walking into a mine and asking what is there answers about the fields above
-      it. Nothing is wrong with the game; the instrument is pointed the wrong way, which made
-      checking the crew by hand impossible and is worth fixing before the next thing that lives
-      down a hole.
+- [x] **The `__entities` probe could not see underground.** It was bound to the overworld's manager
+      when the game was built, so standing in a mine and asking what was there answered about the
+      fields overhead — which is why the mine crew could not be checked by hand the night it was
+      wired in. It asks `places.crowd` now, which is the manager of the floor the hero is actually
+      standing on. *Confirmed by walking into Ashstead's mine: `villager:Dirk Elzen` among the rats
+      and the bats, a named man off that village's own register, at the face.*
 - [ ] **A crew is one or two people.** `crewOf` takes the miners living in a village, and a village
       has one or two, so a sixteen-room cave holds a man. That is probably right — a mine is not a
       colliery — but it means the tunnels still read as empty, and it is worth deciding whether a
