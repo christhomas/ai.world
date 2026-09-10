@@ -38,6 +38,7 @@ import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
 import { Fog, renderMapBase } from './ui/mapbase';
 import { KinPanel } from './ui/kin';
+import { screenOf } from './ui/panels';
 import { WorldMap } from './ui/worldmap';
 import { DialogueBox } from './ui/dialogue';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
@@ -614,35 +615,12 @@ export function startGame(
    * particular panels, and that a conversation is a `DialogueBox`. The keyboard is told none of it:
    * it asks for a journal, and something here knows where the journal is kept.
    */
-  const screen: Screen = {
-    busy: () => (chat.isTyping ? 'typing'
-      : dialogue.isOpen ? 'talking'
-      : photo.active ? 'framing'
-      : worldMap.isOpen || kinPanel.isOpen ? 'reading'
-      : null),
-    say: (line) => hud.flash(line),
-    toggleJournal: () => journal.toggle(journalInput),
-    toggleRucksack: () => rucksack.toggle(),
-    toggleOptions: () => hud.toggleOptions(),
-    toggleMap: () => {
-      worldMap.dungeon = places.underground?.map ?? null;
-      worldMap.toggle(mapInput());
-    },
-    toggleCompany: () => playerList.toggle(multiplayer.playerListInput),
-    togglePhoto: () => photo.toggle(),
-    toggleConsole: () => chat.toggleConsole(),
-    openChat: () => chat.open(),
-    closeEverything: () => {
-      hud.closeOptions(); dialogue.close(); journal.close();
-      rucksack.close(); worldMap.close(); playerList.close(); kinPanel.close();
-    },
-    advanceTalk: () => dialogue.advance(),
-    moveTalk: (by) => dialogue.move(by),
-    nudgeTalk: (by) => dialogue.nudge(by),
-    centreMap: (x, z) => worldMap.centre(x, z),
-    zoomMap: (by) => worldMap.zoomBy(by),
-    takePhoto: () => photo.save(rig.renderer.domElement, seed),
-  };
+  const screen = screenOf({
+    hud, chat, dialogue, journal, rucksack, worldMap, kinPanel, playerList, photo, places,
+    canvas: rig.renderer, seed,
+    journalInput, mapInput,
+    companyInput: () => multiplayer.playerListInput,
+  });
 
   // what every key does, in one place
   bindKeys({
