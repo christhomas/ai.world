@@ -641,16 +641,17 @@ export function startGame(
      * `case` each and nothing else. Handing it a panel would end that, so it holds a hook and this
      * is the one place that fills it in.
      */
-    whereLineageIsDrawn((village) => {
+    const drawLineage = (village: string): void => {
       const tree = lineageOf(register, village, state.day);
       kinPanel.show(tree, layOut(tree));
-    });
+    };
+    whereLineageIsDrawn(drawLineage);
 
     installProbes({
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-      commandWorld, placeName, walking, bites, doorsteps, streamTally, mount,
+      commandWorld, placeName, walking, bites, doorsteps, streamTally, mount, drawLineage,
       overworldRenderer: entityRenderer,
       drift: () => wildlife.drift(),
       pods: watch.pods,

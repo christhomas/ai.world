@@ -123,13 +123,26 @@ export class KinPanel {
     this.chosen = null;
     this.shown = true;
     this.el.classList.add('show');
-    this.header.textContent = tree.people.length === 0
-      ? `Nobody has kept a record at ${tree.village}`
-      : `${tree.village}: ${tree.people.length} names over ${tree.generations} generations`;
+    this.header.textContent = this.headline(tree, placed);
     this.resize();
     this.frameAll();
     this.sayNothing();
     this.draw();
+  }
+
+  /**
+   * What the clerk has, and what of it is on the table.
+   *
+   * The two are not the same and saying so is not pedantry: most of a churchyard is people whose
+   * children are also gone, and they are drawn nowhere because a lineage is the lines between
+   * people. A player who paid for this should be told that the missing ones exist rather than left
+   * to wonder why a village of ninety-one names came out as a tree of thirty.
+   */
+  private headline(tree: Lineage, placed: readonly Placed[]): string {
+    if (tree.people.length === 0) return `Nobody has kept a record at ${tree.village}`;
+    const alone = tree.people.length - placed.length;
+    const drawn = `${tree.village}: ${placed.length} of them over ${tree.generations} generations`;
+    return alone > 0 ? `${drawn} · ${alone} more the clerk has, related to nobody left` : drawn;
   }
 
   close(): void {
@@ -201,7 +214,11 @@ export class KinPanel {
       : 'remembered only as a parent';
     lines.push(`<strong>${kin.name}</strong>`);
     lines.push(`<span class="kin-note">${kin.trade || 'no trade'} · ${stood}</span>`);
-    if (kin.age !== null) lines.push(`<span class="kin-note">${kin.age} years old${kin.died !== null ? ' when they died' : ''}</span>`);
+    // "1 years old" is the kind of thing that makes a record read as generated rather than kept
+    if (kin.age !== null) {
+      const years = `${kin.age} ${kin.age === 1 ? 'year' : 'years'} old`;
+      lines.push(`<span class="kin-note">${years}${kin.died !== null ? ' when they died' : ''}</span>`);
+    }
     if (kin.born !== null) lines.push(`<span class="kin-note">born on day ${kin.born}</span>`);
     if (kin.purse !== null) lines.push(`<span class="kin-note">holds ${Math.round(kin.purse)} gold</span>`);
     const folk = [kin.mother, kin.father].filter(Boolean);

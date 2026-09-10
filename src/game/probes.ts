@@ -88,6 +88,15 @@ export interface Probed {
   jail: Jail;
   /** Whatever the hero is riding, so a script can get on a horse without finding a stable first. */
   mount: Mount;
+  /**
+   * Lay a village's descent on the table, without walking into a town hall and paying for it.
+   *
+   * The same argument `__enterCastle` makes: the thing is reachable only through a conversation,
+   * which a person has in ten seconds and a script cannot have at all — so without this there is
+   * no way to look at the family tree from outside the browser, and a drawing nobody can look at
+   * is a drawing nobody checks.
+   */
+  drawLineage: (village: string) => void;
   /** And where a bought horse is drawn, which is the overworld's own pool. */
   overworldRenderer: EntityRenderer;
   roaming: Roaming;
@@ -128,7 +137,7 @@ export function installProbes(ctx: Probed): void {
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands, jail,
     commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally,
-    heard, nettleAbout, sentOut, mount, overworldRenderer,
+    heard, nettleAbout, sentOut, mount, overworldRenderer, drawLineage,
   } = ctx;
 
   const debug = window as unknown as {
@@ -385,6 +394,12 @@ export function installProbes(ctx: Probed): void {
     else mount.restore(chunks, overworldRenderer);
     mount.mount(player);
     return { riding: mount.riding, breed: mount.breed.id, name: mount.name };
+  };
+  (debug as { __lineage?: (village?: string) => unknown }).__lineage = (village) => {
+    const where = village ?? structures.villages[0]?.name;
+    if (!where) return null;
+    drawLineage(where);
+    return { village: where };
   };
   (debug as { __mines?: () => unknown }).__mines = () =>
     minesWorked().map((w) => ({

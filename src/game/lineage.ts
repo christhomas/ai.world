@@ -239,15 +239,30 @@ export interface Placed {
 
 export function layOut(tree: Lineage): Placed[] {
   const parentsOf = new Map<string, string[]>();
+  /*
+   * Only the people who are tied to somebody, which is what a descent is.
+   *
+   * The register keeps sixty stones and most of them belong to somebody whose children are also
+   * dead and gone from the yard — so they are a name with no parent above them and no child below,
+   * and they were being drawn as a row of sixty across the top of the tree. Measured at Crossroads
+   * Town on day 260: ninety-one names, of which the great majority were that. The tree came out
+   * sixty wide and four deep, which at any zoom that fits the width is a band of grey dashes.
+   *
+   * They are still in `people` — the clerk really does have them, and the panel says how many —
+   * but a lineage is the lines between people, and somebody with no line is not in one.
+   */
+  const tied = new Set<string>();
   for (const tie of tree.ties) {
     const list = parentsOf.get(tie.child);
     if (list) list.push(tie.parent); else parentsOf.set(tie.child, [tie.parent]);
+    tied.add(tie.child);
+    tied.add(tie.parent);
   }
 
   const placed: Placed[] = [];
   const at = new Map<string, number>();
   for (let depth = 0; depth < tree.generations; depth++) {
-    const row = tree.people.filter((k) => k.depth === depth);
+    const row = tree.people.filter((k) => k.depth === depth && tied.has(k.id));
     /*
      * Sorted by where their parents ended up, so a family is a family on the screen.
      *
