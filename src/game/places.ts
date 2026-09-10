@@ -114,6 +114,22 @@ export type PlaceStyle = 'dungeon' | 'cave' | 'thicket' | 'castle';
  */
 export interface Underground { name: string; x: number; z: number; out?: [number, number] }
 
+/**
+ * What a floor's lock is called, wherever it is asked about.
+ *
+ * There is one rule and it had two spellings, which is the whole of the fault. The key was filed
+ * under the floor's own id — `dungeon:Redhollow:2`, which is what `DungeonWorld` is built with —
+ * and read back as the *anchor's* id, `dungeon:Redhollow`, so a vault you had unlocked was locked
+ * again the moment you left it. Every vault in the game, since keys existed, and invisible from
+ * the inside: it works perfectly until you walk out and come back.
+ *
+ * The floor is part of it on purpose. A keep has four of them and each has its own barred stair,
+ * so a key found on the first floor opening all four would be three puzzles thrown away.
+ */
+export function lockFor(anchorId: string, floor: number): string {
+  return `${anchorId}:${floor}`;
+}
+
 export interface DungeonVisit {
   world: DungeonWorld;
   /** Which floor we are on, and how we got here, so climbing out returns to daylight. */
@@ -248,7 +264,7 @@ export class Places {
      */
     const style: DungeonStyle = kind === 'dungeon' ? 'vault' : kind;
     const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style, props.footprints);
-    world.unlocked = state.keys.has(anchor.id);
+    world.unlocked = state.keys.has(lockFor(anchor.id, floor));
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
     const renderer = new EntityRenderer(scene.scene);
     overworldRenderer.remove(player.entity);
@@ -350,7 +366,15 @@ export class Places {
     const { state, manifest } = this.ctx;
     const chest = visit.world.map.chests[index];
     const id = visit.world.chestId(index);
-    const seed = manifest.get(visit.world.anchorId)?.seed ?? this.ctx.seed;
+    /*
+     * The anchor's own seed, asked for by the anchor's own name.
+     *
+     * `world.anchorId` carries the floor on it, and the manifest has never held an entry under that
+     * — so this used to miss every time and fall back to the world seed, which made the chests on
+     * every floor of every vault in the country roll the same gold and the same prize for the same
+     * index. Quietly, because a chest that gives you something looks like a chest that worked.
+     */
+    const seed = manifest.get(visit.anchorId)?.seed ?? this.ctx.seed;
     const roll = mulberry32(seed + index + 1);
     const gold = chest.big ? 80 + Math.floor(roll() * 70) : 12 + Math.floor(roll() * 30);
     state.inventory.gold += gold;
@@ -358,9 +382,10 @@ export class Places {
 
     let extra = '';
     if (chest.key) {
-      state.keys.add(visit.world.anchorId);
+      const lock = lockFor(visit.anchorId, visit.floor);
+      state.keys.add(lock);
       visit.world.unlocked = true;
-      this.ctx.report({ kind: 'key', id: visit.world.anchorId });
+      this.ctx.report({ kind: 'key', id: lock });
       extra = ' and a heavy iron key';
     }
     if (chest.big) {

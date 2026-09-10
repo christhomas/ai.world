@@ -2422,14 +2422,15 @@ walking through a table he never walked at.
   the ghosts arrive with no change to that function at all, and none is wanted. A named spot also
   takes nothing out of the random stream, which is what keeps every vault, cave and thicket in
   every existing world holding exactly what it held before.
-- **Unlocking a vault does not survive leaving it.** Found while reading that function, and it is
-  not the castle's: `openChest` files the key under `visit.world.anchorId`, which carries the floor
-  — `dungeon:Name:2` — and `enterDungeon` reads it back as `state.keys.has(anchor.id)`, which does
-  not. So the doors shut again every time you come back, on every vault in the game. Which of the
-  two ends is corrected matters to the castle: reading `state.keys.has(world.anchorId)` fixes it
-  and leaves each floor its own lock, and filing the key under the unqualified anchor instead fixes
-  it by opening the barred stair on all four floors of a keep at once, which is three puzzles
-  thrown away.
+- ~~**Unlocking a vault does not survive leaving it.**~~ Fixed. `openChest` filed the key under
+  `visit.world.anchorId`, which carries the floor — `dungeon:Name:2` — and `enterDungeon` read it
+  back as `state.keys.has(anchor.id)`, which does not, so every vault in the game barred itself
+  again the moment you left. Both ends now say `lockFor(anchorId, floor)`, which keeps each floor
+  its own lock rather than opening all four of a keep's stairs at once; saves already hold the
+  floor-qualified spelling, so a key found before this starts working. Found with it: `openChest`
+  asked the manifest for `world.anchorId`'s seed, which has never been an entry, so every chest in
+  the country was rolling off the world seed and giving the same gold and the same prize for the
+  same index.
 
 ## Found by the castle, fixed the same night
 
