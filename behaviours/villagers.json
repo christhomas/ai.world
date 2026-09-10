@@ -75,10 +75,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       },
       {
@@ -207,10 +219,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       },
       {
@@ -455,10 +479,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       },
       {
@@ -539,10 +575,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       },
       {
@@ -617,10 +665,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       },
       {
@@ -659,10 +719,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       },
       {
@@ -701,10 +773,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       },
       {
@@ -791,10 +875,22 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "inn"
-          }
+          "note": "The evening at the inn, and it is bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never once show a coin crossing the bar is an economy happening in the dark.",
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
         }
       }
     ],

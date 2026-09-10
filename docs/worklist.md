@@ -2534,9 +2534,11 @@ other, and the order is chosen so that each one can be *seen* working before the
             before.
       - [x] **8c. A watched sale is a sale.** `verbs.ts` credited a hunter the price of his meat out
             of nowhere while an unwatched one was paid his neighbours' money.
-      - [ ] **8d. Buying is still invisible.** The village pays its seller, its innkeeper and its
-            doctor every day in the books and nobody is ever seen handing over a coin. Wants a
-            villager who walks to the stall and pays — which is now a `buy` deed away.
+      - [x] **8d. Buying happens where you can see it.** `spend` took money out of the body in the
+            street — which is destroyed the moment you walk away, so it never reached the register —
+            and gave it to nobody. It is a transfer now, to the trade that sells the thing, and the
+            eight trades whose day already ended at the inn now buy their drink instead of merely
+            attending. `boughtInTheVillage` is the mirror of `soldAtMarket`.
       - [ ] **8e. The meat leaving the valley.** The one bit of outside money with no picture at all.
             A drover and a cart. Judged not worth a day's work against 8d; here so it is a decision
             rather than an oversight.

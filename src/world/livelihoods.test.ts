@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { FOOD, broughtIn } from './food';
 import { PROSPER } from './prosperity';
 import {
-  LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, paidForFood, paidForService, shareOut,
-  soldAtMarket, whoFed,
+  LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, boughtInTheVillage, paidForFood,
+  paidForService, shareOut, soldAtMarket, whoFed,
 } from './livelihoods';
 import type { Person } from './people';
 
@@ -321,5 +321,58 @@ describe('a sale made in front of somebody', () => {
     const alone = [person('hunter', 40)];
     expect(soldAtMarket(alone, alone[0].id, 7)).toBe(0);
     expect(alone[0].purse).toBe(40);
+  });
+});
+
+/**
+ * The other half of a market: somebody actually handing over a coin.
+ *
+ * A village pays its seller, its innkeeper and its doctor every day in the books — that is what
+ * `paidForService` is — and until now nobody had ever been seen doing it. The evening at the inn
+ * was a man walking to a door, standing there, and a number going down on a body that is destroyed
+ * the moment a player walks away.
+ */
+describe('a purchase made in front of somebody', () => {
+  it('puts the money in the keeper\'s purse rather than nowhere', () => {
+    const people = [person('farmer', 40), person('innkeeper', 10), person('soldier', 40)];
+    const before = people.reduce((sum, p) => sum + p.purse, 0);
+    expect(boughtInTheVillage(people, people[0].id, 6, 'innkeeper')).toBe(6);
+    expect(people[0].purse).toBe(34);
+    expect(people[1].purse).toBe(16);
+    expect(people.reduce((sum, p) => sum + p.purse, 0)).toBe(before);
+  });
+
+  it('goes to the trade that sells the thing, when there is one', () => {
+    const people = [person('hunter', 90), person('innkeeper', 0), person('seller', 0)];
+    boughtInTheVillage(people, people[0].id, 40, 'seller');
+    expect(people[2].purse, 'gear was bought off the innkeeper').toBe(40);
+    expect(people[1].purse).toBe(0);
+  });
+
+  it('falls back to whoever here sells anything at all', () => {
+    const people = [person('farmer', 40), person('doctor', 0)];
+    boughtInTheVillage(people, people[0].id, 6, 'innkeeper');
+    expect(people[1].purse).toBe(6);
+  });
+
+  it('lets it leave the valley where nobody here sells anything', () => {
+    // the same honest leak `paidForService` has, and the reason a village with no market never
+    // gets rich however long it is left in peace
+    const people = [person('farmer', 40), person('soldier', 40)];
+    expect(boughtInTheVillage(people, people[0].id, 6, 'innkeeper')).toBe(6);
+    expect(people[0].purse).toBe(34);
+    expect(people[1].purse).toBe(40);
+  });
+
+  it('buys nothing at all on a purse that will not cover it', () => {
+    const people = [person('farmer', 2), person('innkeeper', 0)];
+    expect(boughtInTheVillage(people, people[0].id, 6, 'innkeeper')).toBe(0);
+    expect(people[0].purse).toBe(2);
+  });
+
+  it('never has somebody buy a drink off themselves', () => {
+    const people = [person('innkeeper', 40), person('farmer', 0)];
+    expect(boughtInTheVillage(people, people[0].id, 6, 'innkeeper')).toBe(6);
+    expect(people[0].purse, 'the innkeeper drank at his own bar and paid himself').toBe(34);
   });
 });

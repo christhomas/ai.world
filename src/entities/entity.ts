@@ -293,6 +293,8 @@ export interface Ctx {
    * destroyed when the player walks away and the register is what outlives it.
    */
   banked?: (person: string, coin: number) => void;
+  /** And a villager buying something in their own village, from whoever sells it. */
+  spends?: (person: string, coin: number, from: string) => number;
   /** The hero is wanted by the law: what takes a constable off their beat. */
   wanted?: boolean;
   /** A constable has laid hands on a wanted hero. What that means is the game's business. */
@@ -419,6 +421,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         strike: ctx.strike ?? (() => {}),
         worth: ctx.worth ?? (() => 0),
         banked: ctx.banked,
+        spends: ctx.spends,
         wanted: ctx.wanted === true,
         arrest: ctx.arrest ?? (() => {}),
       },

@@ -64,6 +64,13 @@ export interface Mind {
    * sells anything.
    */
   banked?: (person: string, coin: number) => void;
+  /**
+   * And a purchase, the same way: what was actually paid, and to whom.
+   *
+   * Hands back what changed hands rather than what was asked for, so the body in the street can
+   * move its own purse by the same amount and the two cannot drift apart.
+   */
+  spends?: (person: string, coin: number, from: string) => number;
 }
 
 /** Where this creature's attention is: whatever it has marked, or the hero if it has marked nothing. */
@@ -577,13 +584,28 @@ function sell(): CreatureNode {
   };
 }
 
-/** Spend some of what is in the purse, on whatever this trade spends money on. */
+/**
+ * Spend some of what is in the purse, on whatever this trade spends money on — and somebody takes
+ * it.
+ *
+ * It used to take the money out of `self.purse` and give it to nobody, which is two faults in one
+ * line. `self` is the body standing in the street and it is destroyed the moment a player walks
+ * away, so the spending never reached the register and the man was as rich the next morning as he
+ * had been before the pub. And the coin went nowhere, in a village whose whole economy is other
+ * people's money moving: the innkeeper is paid every day in the books and had never once been paid
+ * where anybody could see it.
+ *
+ * `on` says who sells the thing where the game knows — `food` and a bed are the innkeeper's, `gear`
+ * is the seller's. `paid` is what actually changed hands, which can be less than was meant, so the
+ * body in the street and the row on the register move by the same amount and cannot drift apart.
+ */
 function spend(params: Params): CreatureNode {
   return (tick) => {
-    const { self } = tick.world;
+    const { self, spends } = tick.world;
     const cost = number(params, 'cost', params.on === 'gear' ? 40 : 6);
     if (self.purse < cost) return 'failure';
-    self.purse -= cost;
+    const paid = spends?.(self.person, cost, params.on === 'gear' ? 'seller' : 'innkeeper') ?? cost;
+    self.purse -= paid;
     self.state = 'idle';
     self.timer = 2;
     return 'success';

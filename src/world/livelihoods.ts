@@ -1,6 +1,6 @@
 import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
-import { purseOf, sell } from './deeds';
+import { AWAY, buy, purseOf, sell } from './deeds';
 import type { Person } from './people';
 
 /**
@@ -446,4 +446,67 @@ export function soldAtMarket(
   // and a sale that meant one thing in the street and another in a menu is exactly the fault this
   // whole vocabulary was built to end. The reserve is a week of dinners: see `sell`.
   return sell(purseOf(seller), purseOf(buyer), coin, PROSPER.KEEPS_BACK).paid;
+}
+
+/**
+ * A villager buys something in their own village, from whoever sells it.
+ *
+ * The mirror of `soldAtMarket` and the other half of the same complaint. A village pays its
+ * seller, its innkeeper and its doctor every single day in the books — that is what `paidForService`
+ * is — and nobody has ever been seen handing over a coin for any of it. The evening at the inn was
+ * a man walking to a door, standing there, and a number going down: `spend` in `verbs.ts` took the
+ * money out of the body's own purse, which is destroyed the moment a player walks away, and gave it
+ * to nobody at all.
+ *
+ * So it is a transfer, to the trade that sells the thing where the game knows which — a bed and a
+ * drink are the innkeeper's, gear is the seller's — and to whichever trader is here when it does
+ * not. A village with none of the three keeps nothing: the money goes on a pedlar's cart and out of
+ * the valley, the same one honest leak `paidForService` has.
+ *
+ * A villager somebody watched does spend a little more than one nobody watched, exactly as a
+ * watched hunter earns a little more, and for the same reason: he really did go to the pub. What
+ * cannot happen is the village being a coin poorer for having been visited.
+ */
+export function boughtInTheVillage(
+  people: readonly Person[], buyerId: string, coin: number, from?: string,
+): number {
+  const buyer = people.find((p) => p.id === buyerId);
+  if (!buyer || coin <= 0) return 0;
+  const named = from ? people.find((p) => p.trade === from && p.id !== buyerId) : undefined;
+  const keeper = named ?? people.find((p) => TRADERS.includes(p.trade) && p.id !== buyerId);
+  // nobody here sells anything, so it is bought off whoever is passing and leaves the valley
+  const till = keeper ? purseOf(keeper) : AWAY;
+  return buy(purseOf(buyer), till, coin).paid;
+}
+
+/**
+ * As much of the register as a body standing in the street needs.
+ *
+ * Structural rather than the class, so nothing in `entities/` has to import the register to hand a
+ * sale to it, and so a test can stand a village up as an array. `Register` satisfies it as it is.
+ */
+export interface Books {
+  find(id: string): Person | undefined;
+  living(village: string): readonly Person[];
+}
+
+/**
+ * A sale made in the street, reaching the register.
+ *
+ * The two lines that used to sit in the entity manager, moved here because they are about who is
+ * paid rather than about who is drawn — and because the manager is the file this codebase most
+ * often finds itself over the length a person can hold in their head.
+ */
+export function aSaleReached(books: Books | null, person: string, coin: number): number {
+  const who = person ? books?.find(person) : undefined;
+  return who ? soldAtMarket(books?.living(who.village) ?? [], person, coin) : 0;
+}
+
+/** And a purchase, the same way: an evening at the inn is the innkeeper's takings. */
+export function aPurchaseReached(
+  books: Books | null, person: string, coin: number, from: string,
+): number {
+  const who = person ? books?.find(person) : undefined;
+  if (!who) return coin;
+  return boughtInTheVillage(books?.living(who.village) ?? [], person, coin, from);
 }
