@@ -29,6 +29,7 @@ export const TOPICS: Topic[] = [
       'Z looses an arrow · B wards · H blights · U witchlight · V drinks a draught',
       'M map · I rucksack · J journal · F free camera · P photo · O options · N save and leave',
       'T chat · G offer a trade · K party · L who is here · R rally point',
+      'O then Full screen gives the game the whole glass · F11 does the same · Escape hands it back',
       '` drops this console down and puts it away · ? asks it something',
     ],
   },

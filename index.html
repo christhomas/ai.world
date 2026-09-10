@@ -5,6 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>AI World</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <!--
+    Installed to a home screen, this stops having browser furniture over it.
+
+    On every desktop browser and on Android the game can simply ask for the screen — there is a
+    Full screen button in the settings panel, and F11 does the same thing — so none of this is
+    needed there. iPhone Safari is the exception and the whole reason for these four lines: it
+    refuses the Fullscreen API to anything that is not a video, so the only way to play without an
+    address bar over the sky is to add the page to the home screen. `apple-mobile-web-app-capable`
+    is what makes that launch chromeless, and `black-translucent` is what lets the sky run up
+    behind the clock rather than stopping under a white bar. The viewport already carries
+    `viewport-fit=cover` for the same reason.
+
+    None of it changes what this is: an ordinary web page that works at a URL. A manifest is an
+    offer, not a requirement, and a browser that ignores every line of it is a browser this game
+    still plays in.
+  -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="AI World" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#1d4f78" />
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body>

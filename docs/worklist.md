@@ -435,6 +435,32 @@ Things Chris hit on a real phone, in the order he hit them.
 - [x] An optional `envFromSecret` in the chart, so the operator tokens can be given to the server
       without a password travelling through chart values into Flux's storage. Chart 0.2.1.
 
+## Playing it without a browser over it — September 10th
+
+> "Is it not possible to run full screen in the browser without the address bar by showing or
+> hiding it on demand? I got told that maybe the only option was to install as a PWA" — and then:
+> "But if we can do it on a normal web site that would be better"
+
+- [x] **It already could, everywhere but one place.** *(`ui/sideways.ts` has had `toggleFullScreen`
+      for days and the settings panel has had a Full screen button: on every desktop browser and on
+      Android Chrome the page asks for the screen and gets it, and F11 does the same without any of
+      our code. A phone is given the screen automatically on the tap that enters a world. So the
+      answer to "can a normal web site do it" is yes, and it was already doing it — what was missing
+      was any way to find out, so the keys topic in the console now says which button.)*
+- [x] **The exception is an iPhone, and there a manifest is the only answer.** *(iPhone Safari
+      refuses the Fullscreen API to anything that is not a video — there is no flag, no gesture and
+      no permission that changes it — so on an iPhone the address bar comes off only by adding the
+      page to the home screen. `public/manifest.webmanifest` plus four meta tags, and the page is
+      still an ordinary web page at a URL: a manifest is an offer and a browser that ignores every
+      line of it plays this game exactly as before.
+
+      The trap, and the reason `ui/installable.test.ts` exists: this game is served from
+      `/ai.world/`, Vite rewrites the `href`s in `index.html` and rewrites nothing inside a file
+      copied out of `public/`. Every path in the manifest is therefore relative, and a test says so
+      — because a wrong path there fails silently and nobody finds out until somebody installs it
+      and gets a white page. `apple-touch-icon.png` is a real PNG rendered from the favicon rather
+      than the SVG, because iOS ignores the manifest's icons and will not take an SVG for this one.)*
+
 ## Releasing
 
 - [x] A release is one act: chart version, game version, tag and image all naming the same moment.
