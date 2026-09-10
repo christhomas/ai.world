@@ -238,6 +238,14 @@ describe('the crew, put into a real hole in the ground', () => {
     }
   });
 
+  it('draws them as miners, which is the only thing that says what they are doing', () => {
+    for (const e of put) {
+      // the hard hat and the pick: the pick hangs off `armR`, which is what a `swing` turns, so
+      // the tool comes over the top with the stroke without anything having to animate it
+      expect(e.kind.id, `${e.name} is at a rock face dressed as a passer-by`).toBe('miner');
+    }
+  });
+
   it('gives each of them the cut he is working as the place he belongs', () => {
     for (const e of put) {
       const post = e.posts.work;
@@ -265,6 +273,17 @@ describe('a shift at the face', () => {
     expect(tradeTree('miner'), 'a miner has no day above ground').not.toBeNull();
     expect(tradeTree('miner'), 'a village miner has quietly been given a pick and a rock face')
       .not.toBe(tradeTree('facework'));
+    /*
+     * And the body he is drawn as must not decide his day.
+     *
+     * The man at the face is drawn as a `miner` now — the hard hat and the pick are the whole
+     * reason you can tell what he is doing from across a cave — and there is a tree filed under
+     * that name too, which is his *surface* day: up to the high ground at first light. `treeFor`
+     * asks the trade before the kind, so the crew keeps its shift; if that order were ever
+     * reversed, every man underground would set off looking for a hill.
+     */
+    expect(treeFor({ trade: 'facework', kind: { id: 'miner', behaviour: 'wander' } }))
+      .toBe(tradeTree('facework'));
   });
 
   it('swings, over and over, and stays where it was put', () => {

@@ -1659,8 +1659,28 @@ is a file rather than a pull request.
       Stonemere: a cowboy by the stalls, a farmer beside him, ordinary villagers around them.
       `manager.ts` had to pay for it, so the paddocks moved to `paddocks.ts` — a real seam, since
       nothing about what a village keeps in its yard asks about wildlife or chunks.)*
-- [ ] **Swing a pickaxe.** `animations/motion.json` already has a `swing` blow, so the motion exists;
-      what does not is a villager at a rock face using it as work rather than as a fight.
+- [x] **Swing a pickaxe.** *(Half of this was already done and the ledger had not caught up: the
+      `dig` verb throws the `swing` blow, the `facework` tree calls it every 1.4 seconds, and
+      `crews.test.ts` counts the strokes and refuses to let one take a heart off anybody — a man at
+      a face swings all day beside you and cannot hurt you, which is the difference between working
+      and fighting.
+
+      What was actually missing was the man. `DIGGER` in `crews.ts` was `'villager'`, with a comment
+      arguing that the man at the face is one — true, and not an argument for drawing him as
+      somebody else. He is now drawn as a `miner`: hard hat, and a pick bound to `armR`, which is
+      the arm a `swing` turns, so the tool comes over the top with the stroke without anything
+      having to animate it. One word, and the difference is a man making a punching motion at a wall
+      against a man cutting rock.
+
+      The guard that had to come with it: `treeFor` asks the trade before the kind, and there is a
+      tree filed under `miner` — his *surface* day, up to the high ground at first light. If that
+      order were ever reversed, every man underground would set off looking for a hill. A test says
+      so.
+
+      Found on the way: `__blow` and `__entitiesFull` both read the overworld's `EntityManager`,
+      so a probe standing in a mine reported an empty cave. They ask `places.crowd` now, which is
+      the same fix `__entities` had already been given and the same reason — there is one manager
+      per floor, and only one of them is the crowd the hero is in.)*
 - [x] **A farmer**, and a cowboy for the farmer who keeps the stable.
 - [x] **A priest** for the church, who already exists as a person — `places.ts` gives the chapel
       keeper `trade = 'priest'` — and is drawn as an ordinary shopkeeper.

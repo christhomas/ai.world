@@ -97,10 +97,20 @@ function seamBehind(
 }
 
 /**
- * What a miner is drawn as. The same body every villager in the world has, because he is one: the
- * man at the face is on the register, has a family, and will be in the pub tonight.
+ * What a miner is drawn as.
+ *
+ * The `miner` body: a broader man in a yellow hard hat with a pick hanging off his right arm. It
+ * was `villager` until the body existed, on the reasoning that the man at the face is on the
+ * register, has a family and will be in the pub tonight — all true, and none of it an argument
+ * for drawing him as somebody else. He is the one person in this world whose trade is the whole
+ * reason you are looking at him.
+ *
+ * The pick is why this matters more here than in a street. It is bound to `armR`, and `armR` is
+ * what a `swing` turns, so the tool comes over the top with the stroke without anything having to
+ * animate it — which means that changing this one word is the difference between a man standing
+ * at a wall making a punching motion and a man cutting rock.
  */
-const DIGGER = 'villager';
+const DIGGER = 'miner';
 
 /**
  * The name of the day he follows, in `behaviours/villagers.json`.

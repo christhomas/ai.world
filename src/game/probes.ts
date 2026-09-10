@@ -243,10 +243,24 @@ export function installProbes(ctx: Probed): void {
   (debug as { __discover?: (n: string) => void }).__discover = (n) => { commandWorld.discover(n); };
   (debug as { __reportChest?: (id: string) => void }).__reportChest = (id) => { state.opened.add(id); online.report({ kind: 'chest', id }); state.version++; };
   (debug as { __shrines?: unknown }).__shrines = structures.pois.filter((p) => p.kind === StructureKind.Shrine).map((p) => ({ name: p.name, x: p.x, z: p.z }));
+  /**
+   * The crowd the hero is actually standing in.
+   *
+   * There is more than one `EntityManager` in this game — the country has one, and every dungeon
+   * floor, mine and castle keep has its own — and `places.crowd` is whichever of them owns what is
+   * around the hero right now. Every probe that answers "who is near me" has to ask it that way or
+   * it answers about the fields overhead while the hero is four floors down, which reads as an
+   * empty cave and is how a crew of miners went unnoticed for a night.
+   */
+  const crowdAround = (): EntityManager => places.crowd ?? entities;
+
   (debug as { __entitiesFull?: () => unknown }).__entitiesFull = () =>
     // hearts and which way it is facing included: a fight cannot be watched from outside without
-    // them, and "did that blow land" was unanswerable while the only readouts were name and place
-    entities.within(player.x, player.z, 90).map((e) => ({
+    // them, and "did that blow land" was unanswerable while the only readouts were name and place.
+    // Whichever crowd the hero is standing in, for the same reason `__entities` asks that way: a
+    // mine's crew and a dungeon's monsters are a manager of their own, and a probe that only ever
+    // reads the overworld one reports an empty cave to somebody standing in a crowded one
+    crowdAround().within(player.x, player.z, 90).map((e) => ({
       kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z,
       hp: e.hp, dead: e.dead, yaw: Math.round(e.yaw * 100) / 100, id: e.worldId ?? null,
       // the box it is collided against, so a test can ask whether two of them are inside each other
@@ -259,7 +273,7 @@ export function installProbes(ctx: Probed): void {
   (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => commandWorld.spawn(kind, away);
   (debug as { __blow?: () => unknown }).__blow = () => ({
     hero: { blow: player.entity.blow, strike: Math.round(player.entity.strike * 100) / 100 },
-    others: entities.within(player.x, player.z, 30)
+    others: crowdAround().within(player.x, player.z, 30)
       .filter((e) => e.strike > 0)
       .map((e) => `${e.kind.id}: ${e.blow} ${Math.round(e.strike * 100) / 100}`),
   });
