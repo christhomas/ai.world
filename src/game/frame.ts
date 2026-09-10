@@ -17,6 +17,7 @@ import type { SeasonTintMaterials } from '../render/seasontint';
 import type { BuildingSite } from '../render/site';
 import type { SkyIslands } from '../render/skyisland';
 import type { Weather } from '../render/weather';
+import type { Updraughts } from '../render/updraughts';
 import type { ChunkManager } from '../world/chunkManager';
 import type { RoadGraph } from '../world/graph';
 import { chunkKey } from '../world/spatial';
@@ -86,6 +87,8 @@ export interface Framing {
   rock: MountainMaterial;
   daycycle: DayCycle;
   weather: Weather;
+  /** The warm air over the country, drawn so a pilot can see where it is. */
+  updraughts: Updraughts;
   /**
    * What a teleport looks like. Ticked below whatever else the frame is doing, because it is what
    * puts the hero's rig back together and a hero left half way through one would stay in pieces.
@@ -166,6 +169,7 @@ export function createFrame(ctx: Framing) {
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
+    updraughts,
     sailFerries, ageCamps, runClock, carcasses, noticeStall, musterHires, startTalk, updateHud,
     mapInput, markers, doorsteps, streamCountry, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
     reveal, refreshJournal,
@@ -383,6 +387,10 @@ export function createFrame(ctx: Framing) {
     else seasonTintMaterials.set([1, 1, 1], 0);
     weather.set(weatherStrength, season);
     weather.update(dt, x, z, iso.camera.position.y * 0.35);
+    // and the columns of warm air standing over the country, which are landmarks rather than
+    // weather: they are in the same place tomorrow. See `world/thermals.ts`.
+    updraughts.faceThe(iso.camera);
+    updraughts.update(dt, x, z, (ax, az) => chunks.heightAt(ax, az));
     // the gear goes on before the light does, because after dark the light comes from the torch in
     // the hero's hand and the hand has to have been put somewhere first
     heroGear.update(state, player.entity, state.night > TORCH_OUT && !state.can('light'));

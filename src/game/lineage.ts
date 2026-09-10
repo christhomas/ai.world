@@ -330,3 +330,15 @@ export function theLineage(register: Register, village: string, today: number): 
     fee: tree.people.length === 0 ? 0 : FEES.LINEAGE,
   };
 }
+
+/**
+ * A village's descent and the shape to draw it in, in one call.
+ *
+ * The two have always been asked for together — a tree is no use without a layout and a layout is
+ * meaningless without its tree — and doing it in one place means the one caller that draws them is
+ * a line rather than a paragraph.
+ */
+export function lineageDrawing(register: Register, village: string, day: number): [Lineage, ReturnType<typeof layOut>] {
+  const tree = lineageOf(register, village, day);
+  return [tree, layOut(tree)];
+}

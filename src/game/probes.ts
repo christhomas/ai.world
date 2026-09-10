@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BEHAVIOUR } from '../entities/properties';
+import { thermalsAround } from '../world/thermals';
 import { CAMERA } from '../core/config';
 import { PropKind } from '../world/biomes';
 import { nameOfProp } from '../world/catalogue';
@@ -111,6 +112,8 @@ export interface Probed {
   talkCtx: TalkCtx;
   commands: CommandBus;
   commandWorld: CommandWorld;
+  /** The canvas wing: opening it, and whether it is open. */
+  wing: { open: () => boolean; flying: boolean; altitude: number; climbing: boolean };
   callOut: (to: string) => void;
   placeName: () => string;
   carcasses: () => unknown;
@@ -137,7 +140,7 @@ export function installProbes(ctx: Probed): void {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands, jail,
-    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally,
+    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally, wing,
     heard, nettleAbout, sentOut, mount, overworldRenderer, drawLineage,
   } = ctx;
 
@@ -313,6 +316,14 @@ export function installProbes(ctx: Probed): void {
     hit.bar = BEHAVIOUR.BAR_TIME;
     return { kind: hit.kind.id, name: hit.name, hp: hit.hp, of: hit.kind.hp ?? 1, x: hit.x, z: hit.z };
   };
+  // the wing, so a headless browser can take off without having to land two keypresses a tenth of
+  // a second apart
+  (debug as { __wing?: unknown }).__wing = wing;
+  // and where the warm air stands, so a photograph of it can be taken from the right hillside
+  (debug as { __thermals?: () => unknown }).__thermals = () =>
+    thermalsAround(player.x, player.z, 300, seed)
+      .map((one) => ({ x: Math.round(one.x), z: Math.round(one.z), away: Math.round(Math.hypot(one.x - player.x, one.z - player.z)) }))
+      .sort((a, b) => a.away - b.away);
   (debug as { __blow?: () => unknown }).__blow = () => ({
     hero: { blow: player.entity.blow, strike: Math.round(player.entity.strike * 100) / 100 },
     others: crowdAround().within(player.x, player.z, 30)

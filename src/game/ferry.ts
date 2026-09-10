@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+import { buildBoat } from '../render/boat';
 import { DAY_LENGTH } from './state';
 import type { Pier, Structures, Village } from '../world/structures';
 import { yawFor } from '../entities/entity';
@@ -116,4 +118,23 @@ export function formatCountdown(seconds: number): string {
   const s = Math.max(0, Math.ceil(seconds));
   const m = Math.floor(s / 60), r = s % 60;
   return m > 0 ? `${m}m ${String(r).padStart(2, '0')}s` : `${r}s`;
+}
+
+/**
+ * Put the ferries out: the lines a world has, each with a hull in the scene to sail it.
+ *
+ * The pairing of a line and the boat that runs it was assembled in `main.ts`, which meant the one
+ * file that is supposed to be an index of the game knew how a ferry is built. It is two facts about
+ * ferries, so it lives with the ferries.
+ */
+export function putFerriesOut(
+  structures: Structures,
+  islands: Array<{ x: number; z: number; radius: number }>,
+  scene: THREE.Scene,
+): Array<{ line: FerryLine; mesh: THREE.Object3D }> {
+  return makeFerryLines(structures, structures.villages, islands).map((line) => {
+    const mesh = buildBoat();
+    scene.add(mesh);
+    return { line, mesh };
+  });
 }

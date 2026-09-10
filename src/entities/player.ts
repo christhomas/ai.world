@@ -24,6 +24,18 @@ export class Player {
   private hop = 0;
   /** How long until he may jump again, in seconds. See `JUMP.REST`. */
   private landed = 0;
+  /**
+   * The wing, when there is one open.
+   *
+   * Hung on the player rather than owned by him: what a glide *is* belongs to `game/gliding.ts`,
+   * and what this file knows is that while one is open the ground rules are suspended — nothing
+   * settles him, nothing clamps him to a hillside, and the steer that would have been a walk is
+   * a turn of the wing instead.
+   */
+  private wing: {
+    flying: boolean;
+    update: (dt: number, steer: { dx: number; dz: number }, hero: Entity, world: TileWorld) => string;
+  } | null = null;
   private static readonly HOP_TIME = 0.28;
   /** While true the hero is carried (ferry): no walking, no ground snapping, camera still follows. */
   riding = false;
@@ -54,6 +66,8 @@ export class Player {
 
   /** Swap the ground the hero walks on (overworld ↔ dungeon). */
   setWorld(world: TileWorld): void { this.world = world; this.placed = false; }
+  /** And which one that is, for whatever has to ask the ground a question on his behalf. */
+  get ground(): TileWorld { return this.world; }
 
   /**
    * Shove the hero, for a blow that lands on them.
@@ -91,6 +105,19 @@ export class Player {
    * him behind. Answers whether it happened, because the key that asks wants to make a sound only
    * when it did.
    */
+  /**
+   * Hand the player a wing, or take it away again.
+   *
+   * A setter rather than a constructor argument because a glider is a thing somebody buys halfway
+   * through a game, and because the shape of it is `game/gliding.ts`'s business and not this
+   * file's: all that is needed here is something that says whether it is open and moves the hero
+   * when it is.
+   */
+  carries(wing: Player['wing']): void { this.wing = wing; }
+
+  /** Is he in the air under canvas? Everything that clamps a hero to the ground asks this. */
+  get gliding(): boolean { return this.wing?.flying === true; }
+
   jump(): boolean {
     if (this.entity.leap > 0 || this.landed > 0 || this.riding) return false;
     this.entity.leap = JUMP.TIME;
@@ -166,6 +193,32 @@ export class Player {
       this.warped = false;
       iso.target.x = e.x;
       iso.target.z = e.z;
+    }
+    /*
+     * Under canvas, the ground stops having a say.
+     *
+     * Before everything below, because everything below is about walking: settling onto the
+     * terrain, sliding along what is solid, the little hop up a terrace. A glide is none of those —
+     * it is a steer, a sink rate and a height — so it is answered here and the rest is skipped.
+     */
+    if (this.wing?.flying) {
+      const { fx, fz, rx, rz } = iso.basis();
+      let dx = 0, dz = 0;
+      if (input.isDown('w', 'arrowup')) { dx += fx; dz += fz; }
+      if (input.isDown('s', 'arrowdown')) { dx -= fx; dz -= fz; }
+      if (input.isDown('a', 'arrowleft')) { dx -= rx; dz -= rz; }
+      if (input.isDown('d', 'arrowright')) { dx += rx; dz += rz; }
+      this.wing.update(dt, { dx, dz }, e, this.world);
+      // the legs are still: a man hanging in a harness is not walking, whatever the keys say
+      e.walk += (0 - e.walk) * Math.min(1, dt * 8);
+      e.phase += dt * 1.5;
+      this.placed = false;                 // the ground under where he lands is found again
+      if (fixedCamera) return;
+      const k = Math.min(1, dt * 7);
+      iso.target.x += (e.x - iso.target.x) * k;
+      iso.target.z += (e.z - iso.target.z) * k;
+      iso.target.y += (e.y - iso.target.y) * k;
+      return;
     }
     if (this.riding) {
       e.walk += (0 - e.walk) * Math.min(1, dt * 10); e.phase += dt * 1.5; e.bobY = 0;

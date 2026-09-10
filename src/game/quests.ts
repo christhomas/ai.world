@@ -119,3 +119,15 @@ function fetchQuest(v: Village, rng: () => number): Quest | null {
     done: [`${count === 1 ? `A ${item.name}` : `${count} ${item.name}`}! You are a wonder.`, `Take these ${reward} gold with my thanks.`],
   };
 }
+
+/**
+ * One line describing what an errand asks for.
+ *
+ * Here rather than where it was — a helper in `main.ts` — because it is a sentence about a quest
+ * and this is the file about quests. What it is handed is deliberately the shape of an errand
+ * rather than an errand: the pub's and the elder's are different types that agree about these
+ * three fields, and a line about either reads the same.
+ */
+export function questLine(q: { kind: string; target: string; count: number }): string {
+  return q.kind === 'visit' ? `find the ${q.target}` : `bring ${q.count}× ${ITEMS[q.target]?.name ?? q.target}`;
+}

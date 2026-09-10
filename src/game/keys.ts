@@ -46,6 +46,11 @@ export interface Keys {
   tryGive: () => boolean;
   toTitle: () => void;
   persist: () => void;
+  /**
+   * Open the canvas wing, if he is carrying one and is in the air. False when nothing happened,
+   * which is what makes Space mean "jump" the rest of the time.
+   */
+  takeToTheAir: () => boolean;
   /** Rally points last a few seconds and are drawn on both maps. */
   rally: Array<{ x: number; z: number; name: string; left: number }>;
   /** How many are walking with you, which decides who a rally point is for. */
@@ -56,7 +61,7 @@ export function bindKeys(ctx: Keys): void {
   const {
     seed, input, rig, iso, player, places, online, sound, screen,
     attack, loose, conjure, talkNearest, partyMenu, hireMenu, offerTrade, tryGive, toTitle,
-    persist, rally, partySize,
+    persist, rally, partySize, takeToTheAir,
   } = ctx;
   void seed; void places;
 
@@ -142,9 +147,13 @@ export function bindKeys(ctx: Keys): void {
    */
   input.onKey(' ', () => {
     if (screen.busy() !== null) return;
+    // in the air it opens the wing, on the ground it is a jump: one key, and which one it is is
+    // decided by whether his feet are on anything
+    if (takeToTheAir()) return;
     if (player.jump()) sound.blip();
   });
-  for (const key of ['enter', ' ']) input.onKey(key, () => {
+  // Enter alone now: Space is the jump, and the wing. See the note on it above.
+  for (const key of ['enter']) input.onKey(key, () => {
     const who = screen.busy();
     if (who === 'typing') return;
     if (who === 'framing') {

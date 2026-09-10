@@ -11,7 +11,6 @@ import { mountainAt } from './world/ranges';
 import { Wildlife } from './game/wildlife';
 import { bookOf, tellingTheWorld, wordOfARobbery } from './game/folk';
 import { Skies } from './game/skies';
-import { makeFerryLines } from './game/ferry';
 import { buildBoat } from './render/boat';
 import { ITEMS, sellPrice } from './game/shops';
 import { Breath } from './game/breath';
@@ -45,7 +44,7 @@ import { DialogueBox } from './ui/dialogue';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from './save/store';
-import { generateQuests } from './game/quests';
+import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
 import { EntityRenderer } from './entities/pool';
@@ -60,12 +59,16 @@ import { claimedMines, mineIdOf } from './game/mines';
 import { type Luxury } from './world/prosperity';
 import { Hires } from './game/hire';
 import { stableAt } from './game/stables';
-import { layOut, lineageOf } from './game/lineage';
+import { lineageDrawing } from './game/lineage';
 import { whereLineageIsDrawn } from './game/enquiry';
 import { installProbes } from './game/probes';
 import { openConsole } from './game/console';
 import { createDoorsteps, gatesOf } from './game/doorways';
 import { createBlows } from './game/blows';
+import { Updraughts } from './render/updraughts';
+import { createWing } from './game/gliding';
+import { putFerriesOut } from './game/ferry';
+import { liftAt } from './world/thermals';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
 import { createFrame } from './game/frame';
@@ -182,6 +185,7 @@ export function startGame(
   const heroGear = new HeroGear(rig.scene);
   // what a teleport looks like: the scene the light stands in, the pool the hero's rig comes apart
   // in, and what he is carrying, which goes with him rather than hangs there through the beam
+  const updraughts = new Updraughts(rig.scene, seed);   // the warm air, drawn where a glider finds it
   const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
@@ -261,18 +265,11 @@ export function startGame(
     ...elderErrands,
     ...structures.villages.flatMap((v) => pubTalk(v, structures, seed)?.errand ?? []),
   ];
-  /** One line describing what an errand asks for. */
-  const questLine = (q: { kind: string; target: string; count: number }): string =>
-    q.kind === 'visit' ? `find the ${q.target}` : `bring ${q.count}× ${ITEMS[q.target]?.name ?? q.target}`;
   // the elder has one errand to give, and it is theirs: the pub keeps its own
   const quests = new Map(elderErrands.map((q) => [q.village, q]));
 
   // the boats that run between the islands, each with a hull in the scene to sail it
-  const ferries = makeFerryLines(structures, structures.villages, graph.islands).map((line) => {
-    const mesh = buildBoat();
-    rig.scene.add(mesh);
-    return { line, mesh };
-  });
+  const ferries = putFerriesOut(structures, graph.islands, rig.scene);
   /** Name a place the first time the hero reaches it: toast, jingle, minimap mark. */
   const discover = (name: string): void => {
     if (discovered.has(name)) return;
@@ -622,36 +619,32 @@ export function startGame(
     companyInput: () => multiplayer.playerListInput,
   });
 
-  // what every key does, in one place
+  // the canvas wing: open it in mid-air and the ground stops mattering
+  const air = createWing({
+    seed, world: () => player.ground, hero: () => player.entity, hasOne: () => state.can('glide'),
+    clock: () => ({ day: state.day, time: state.time }), lift: (x, z) => liftAt(x, z, seed),
+    say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
+  player.carries(air);
+  // and what every key does, in one place
   bindKeys({
     seed, input, rig, iso, player, places, online, sound, screen,
     attack, loose, conjure, talkNearest, partyMenu, hireMenu, offerTrade, tryGive, toTitle,
-    persist, rally,
+    persist, rally, takeToTheAir: () => air.open(),
     partySize: () => party.size,
   });
 
   // the handles a headless browser drives this by; stripped from production builds. Hung on at the
   // end because they reach into everything, and everything now exists.
   if (import.meta.env.DEV) {
-    /*
-     * Where a clerk's family tree appears.
-     *
-     * Said once, here, because `enquiry.ts` sells the book and deliberately knows nothing about
-     * screens — the whole virtue of that file is that a town hall and a watch house cost it one
-     * `case` each and nothing else. Handing it a panel would end that, so it holds a hook and this
-     * is the one place that fills it in.
-     */
-    const drawLineage = (village: string): void => {
-      const tree = lineageOf(register, village, state.day);
-      kinPanel.show(tree, layOut(tree));
-    };
+    // where a clerk's family tree appears: `enquiry.ts` sells the book and knows nothing about
+    // screens, so it holds a hook and this is the one place that fills it in
+    const drawLineage = (village: string): void => kinPanel.show(...lineageDrawing(register, village, state.day));
     whereLineageIsDrawn(drawLineage);
-
     installProbes({
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
-      commandWorld, placeName, walking, bites, doorsteps, streamTally, mount, drawLineage,
+      commandWorld, placeName, walking, bites, doorsteps, streamTally, mount, drawLineage, wing: air,
       overworldRenderer: entityRenderer,
       drift: () => wildlife.drift(),
       pods: watch.pods,
@@ -675,7 +668,7 @@ export function startGame(
 
   const frames = createFrame({
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife,
+    skyline, rock, daycycle, weather, updraughts, beam, seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
