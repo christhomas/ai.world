@@ -1,6 +1,6 @@
 import { mulberry32, type Rng } from '../core/rng';
 import { beside, chestTiles, settleChests, settleWhatFillsTiles } from './castlefit';
-import { centre, dress, roleFor, shrink, type Space } from './castlerooms';
+import { centre, dress, giveTheStoreyItsRooms, roleFor, shrink, type Space } from './castlerooms';
 import type { SpawnSpot } from '../entities/spawns';
 import { BASE_LEVEL, DTile, reachable, type Chest, type Door, type DungeonMap, type Room } from './map';
 
@@ -149,6 +149,15 @@ export function generateCastle(seed: number, floor = 1): DungeonMap {
   openGalleriesOntoTheRing(plan);
 
   const map = puzzles(plan, floor);
+  /*
+   * And then the storey is told what it is, before anything is furnished.
+   *
+   * After `puzzles` on purpose. That pass takes two of the chambers for itself — the furthest one
+   * becomes the sealed stair or the throne room, the next furthest is flooded — and a chapel that
+   * turned out to be under six feet of water is not a chapel. Whatever is left is what the storey
+   * gets to name.
+   */
+  giveTheStoreyItsRooms(plan, map.entrance);
   const dressing = dress(plan);
   map.torches = dressing.torches;
   map.furniture = dressing.furniture;
@@ -315,7 +324,7 @@ function leaf(plan: Plan, node: Room, gate: [number, number] | null, hall: boole
     const dz = gz < node.z ? 1 : gz >= node.z + node.h ? -1 : 0;
     plan.tiles[(gz + dz) * plan.size + (gx + dx)] = DTile.Floor;
   }
-  plan.spaces.push({ rect: node, sort: hall ? 'hall' : 'chamber', role: hall ? undefined : roleFor(plan.rng) });
+  plan.spaces.push({ rect: node, sort: hall ? 'hall' : 'chamber', role: hall ? undefined : roleFor(plan.rng, plan.floor) });
 }
 
 function carve(plan: Plan, r: Room): void {

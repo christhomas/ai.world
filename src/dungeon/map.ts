@@ -92,6 +92,24 @@ export function levelAt(map: DungeonMap, x: number, z: number): number {
  */
 export const BASE_LEVEL = 1;
 
+/**
+ * The terrace the top of the rock sits on, which is where anything fixed to a wall hangs from.
+ *
+ * Five, chosen against the isometric camera in `dungeon/world.ts` — enough that a wall is a wall,
+ * not so much that the room you are standing in is hidden behind the one in front of it. It lives
+ * here rather than there because two different things need it and only one of them draws walls: a
+ * torch is put on a wall face by the mesher, and a banner is put on one by the dressing, which
+ * knows nothing about meshes and has to say what terrace it hangs from in the map itself.
+ *
+ * Getting that wrong is not subtle and went unnoticed anyway. A hanging with no level on it falls
+ * back to the level of the tile it is over, that tile is rock, and rock reads as `BASE_LEVEL` — so
+ * every banner, tapestry and stained window in every castle was drawn hanging from the floor
+ * downwards, with an inch of pole showing above the flagstones. From above they read as rugs
+ * somebody had dropped against the wall, which is exactly what the note on `Furnishing.level`
+ * below warns about and exactly what happened.
+ */
+export const WALL_LEVEL = 5;
+
 /** Can you walk on this tile at all, doors aside? Water is a barrier underground: nobody swims in a cellar. */
 export function walkableTile(t: DTile, throughDoors: boolean): boolean {
   return t === DTile.Floor || t === DTile.Stairs || t === DTile.Descent || (throughDoors && t === DTile.Door);
