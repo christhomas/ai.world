@@ -496,6 +496,37 @@ Things Chris hit on a real phone, in the order he hit them.
       Saltmarch goes from 144k triangles to 148k. The thing that made it worth doing is that a
       castle now reads as built from the ridge, which was the whole complaint.)*
 
+## Found while looking, September 10th
+
+- [x] **An interior had no crowd at all.** *(There is one `EntityManager` per place — the country
+      has one, and every dungeon floor, mine and castle keep has its own — and an interior had
+      none. `placeKeeper` built a lone `Entity` and added it straight to the visit's renderer, so
+      `__entities()`, `__entitiesFull()` and `__blow()` all reported the *outdoor* crowd while the
+      hero was standing in a shop. Walking into the watch house at Crossroads Town and asking who
+      was there listed ducks and sheep in a field two hundred tiles away, and not the sergeant in
+      front of the hero. A whole class of interior fault could never have been seen.
+
+      A room gets its own crowd now, on the same terms the dungeon floor was given one earlier
+      tonight: no villages, no tiles, but the register and the same `fallen`. `Places.crowd` asks
+      indoors first, then underground, then the country — the order `frame.ts` branches in. The
+      keeper is admitted rather than spawned, and that distinction is the interesting part:
+      `spawnPack` would scatter him off his tile and would ask `canStand` about the ground behind a
+      counter, which can answer no and leave a shop with nobody in it.
+
+      Proved by mutation rather than by assertion alone: with `crowd` put back to the old
+      expression the new test fails with `expected [ 'sheep', 'sheep', 'sheep', 'sheep' ] to
+      include 'shopkeeper'` — the reported fault, verbatim. `manager.ts` paid for it: it was six
+      lines under the cap, so `spawnVillageFolk` moved out to `street.ts`, the same seam
+      `paddocks.ts` came out of, and the moved code was diffed byte for byte after normalising
+      indentation so that no village's random stream moved.
+
+      Left undone and worth knowing: nothing calls `update` on a room's crowd, so the keeper still
+      does not breathe or turn. The only tree his body resolves to is the wanderer, and ticking him
+      today would walk him four tiles off his counter while the game goes on reading the counter
+      tile — you would talk to an empty till. Minding a shop is a behaviour that has to exist
+      first. And `blows.ts` still swings at the underground crowd or the country's, so a keeper is
+      not yet hittable indoors: that is a decision about murder in a shop, not a probe fix.)*
+
 ## Releasing
 
 - [x] A release is one act: chart version, game version, tag and image all naming the same moment.
