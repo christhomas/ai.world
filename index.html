@@ -94,49 +94,97 @@
       <span><i style="background:#ff7a1a"></i>rally</span>
     </div>
   </div>
+  <!--
+    A village's descent, which is the one book a clerk sells that cannot be read aloud. A roll is a
+    column of names and a family is a shape; see `ui/kin.ts`.
+  -->
+  <div id="kinpanel">
+    <div class="wm-bar">
+      <div id="kinTitle">Lineage</div>
+      <div class="wm-keys">drag to move · scroll or pinch to zoom · click somebody for their record · Escape closes</div>
+    </div>
+    <canvas id="kinCanvas"></canvas>
+    <div id="kinCard"></div>
+    <div class="wm-legend">
+      <span><i style="background:#e8e2d0"></i>living</span>
+      <span><i style="background:#8e97a6"></i>buried here</span>
+      <span><i style="background:#5d6472"></i>remembered only</span>
+    </div>
+  </div>
   <div id="castbar"></div>
   <div id="hurt"></div>
+  <!--
+    Options.
+    Every control here used to be a `.slider-group`: the sliders, the dropdown, the two text
+    fields, the four buttons and the read-only seed. One class doing five jobs, so no spacing could
+    be right for any of them — a label sat five units above a slider and five above a button, a
+    value read right-aligned under a range and right-aligned under a server address, and the panel
+    was a single column of things that had nothing to do with each other.
+
+    It is sections now, with the title screen's own vocabulary (`rail-head`) for the headings,
+    because that screen was the one place in this game that had already been designed. The ids are
+    untouched: `hud.ts` and `main.ts` bind every one of them by id, so the arrangement is free to
+    change and the wiring never has to.
+  -->
   <div id="optionsPanel">
-    <h3>Options</h3>
-    <div class="slider-group">
-      <label>Sunlight Intensity</label>
-      <input type="range" id="sunlightSlider" min="0" max="6" step="0.1" value="2.6" />
-      <div class="value-display" id="sunlightValue">2.6</div>
+    <div class="opt-head">
+      <h3>Options</h3>
+      <span class="opt-esc">Esc or O to close</span>
     </div>
-    <div class="slider-group">
-      <label>Sky Light Intensity</label>
-      <input type="range" id="hemisphereSlider" min="0" max="3" step="0.05" value="1.0" />
-      <div class="value-display" id="hemisphereValue">1.0</div>
+
+    <section class="opt-section">
+      <div class="rail-head"><span>Picture</span></div>
+      <div class="opt-row">
+        <label for="qualitySelect">Graphics</label>
+        <select id="qualitySelect">
+          <option value="high">High — everything, full resolution</option>
+          <option value="medium">Medium — shadows, some sharpening</option>
+          <option value="low">Low — no shadows, plain resolution</option>
+        </select>
+      </div>
+      <p class="opt-note" id="gpuName">-</p>
+      <div class="opt-row">
+        <label for="sunlightSlider">Sunlight</label>
+        <input type="range" id="sunlightSlider" min="0" max="6" step="0.1" value="2.6" />
+        <output class="value-display" id="sunlightValue">2.6</output>
+      </div>
+      <div class="opt-row">
+        <label for="hemisphereSlider">Sky light</label>
+        <input type="range" id="hemisphereSlider" min="0" max="3" step="0.05" value="1.0" />
+        <output class="value-display" id="hemisphereValue">1.0</output>
+      </div>
+    </section>
+
+    <section class="opt-section">
+      <div class="rail-head"><span>Sound</span></div>
+      <div class="opt-row">
+        <label for="volumeSlider">Volume</label>
+        <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.6" />
+        <output class="value-display" id="volumeValue">60%</output>
+      </div>
+    </section>
+
+    <section class="opt-section">
+      <div class="rail-head"><span>This world</span></div>
+      <div class="opt-row opt-static">
+        <label>Seed</label>
+        <span class="value-display" id="seedValue">-</span>
+      </div>
+      <div class="opt-fields">
+        <input type="text" id="serverInput" placeholder="ws://host:8787 — or leave empty to play alone" />
+        <input type="text" id="nameInput" placeholder="Your name" />
+      </div>
+      <div class="opt-buttons">
+        <button id="connectButton">Join this world online</button>
+        <button id="inviteButton">Copy an invite link</button>
+      </div>
+      <p class="opt-note" id="onlineStatus">offline</p>
+    </section>
+
+    <div class="opt-foot">
+      <button id="fullScreenButton">Full screen</button>
+      <button id="titleButton" class="opt-leave">Save &amp; return to title</button>
     </div>
-    <div class="slider-group">
-      <label>Graphics</label>
-      <select id="qualitySelect">
-        <option value="high">High — everything, full resolution</option>
-        <option value="medium">Medium — shadows, some sharpening</option>
-        <option value="low">Low — no shadows, plain resolution</option>
-      </select>
-      <div class="value-display" id="gpuName">-</div>
-    </div>
-    <div class="slider-group">
-      <label>Volume</label>
-      <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.6" />
-      <div class="value-display" id="volumeValue">60%</div>
-    </div>
-    <div class="slider-group">
-      <label>Seed</label>
-      <div class="value-display" id="seedValue">-</div>
-    </div>
-    <div class="slider-group">
-      <label>Multiplayer server</label>
-      <input type="text" id="serverInput" placeholder="ws://host:8787 — or leave empty to play alone" />
-      <input type="text" id="nameInput" placeholder="Your name" />
-      <button id="connectButton" class="wide">Join this world online</button>
-      <button id="inviteButton" class="wide">Copy an invite link</button>
-      <div class="value-display" id="onlineStatus">offline</div>
-    </div>
-    <div class="slider-group"><button id="fullScreenButton" class="wide">Full screen</button></div>
-    <div class="slider-group"><button id="titleButton" class="wide">Save &amp; return to title</button></div>
-    <div class="close-hint">Press ESC or O to close</div>
   </div>
   <div id="title">
     <canvas id="titleSky"></canvas>

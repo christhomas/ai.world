@@ -37,6 +37,7 @@ import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
 import { Fog, renderMapBase } from './ui/mapbase';
+import { KinPanel } from './ui/kin';
 import { WorldMap } from './ui/worldmap';
 import { DialogueBox } from './ui/dialogue';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
@@ -58,6 +59,8 @@ import { type Luxury } from './world/prosperity';
 import { Hires } from './game/hire';
 import { stableAt } from './game/stables';
 import { remember } from './world/people';
+import { layOut, lineageOf } from './game/lineage';
+import { whereLineageIsDrawn } from './game/enquiry';
 import { installProbes } from './game/probes';
 import { openConsole } from './game/console';
 import { createDoorsteps } from './game/doorways';
@@ -128,6 +131,9 @@ export function startGame(
   const fog = new Fog(mapBase);
   const minimap = new Minimap($('minimapCanvas') as HTMLCanvasElement, mapBase, fog);
   const worldMap = new WorldMap(mapBase, fog);
+  // where a clerk lays a village's descent out. `enquiry.ts` sells the book and knows nothing about
+  // screens, so this is the one place the two are introduced
+  const kinPanel = new KinPanel();
   const entityRenderer = new EntityRenderer(rig.scene);
   // who lives in the villages: founded from the seed, then born and buried as the days pass
   const register = new Register(seed);       // caught up to the saved day once the state is loaded
@@ -585,7 +591,7 @@ export function startGame(
     busy: () => (chat.isTyping ? 'typing'
       : dialogue.isOpen ? 'talking'
       : photo.active ? 'framing'
-      : worldMap.isOpen ? 'reading'
+      : worldMap.isOpen || kinPanel.isOpen ? 'reading'
       : null),
     say: (line) => hud.flash(line),
     toggleJournal: () => journal.toggle(journalInput),
@@ -601,7 +607,7 @@ export function startGame(
     openChat: () => chat.open(),
     closeEverything: () => {
       hud.closeOptions(); dialogue.close(); journal.close();
-      rucksack.close(); worldMap.close(); playerList.close();
+      rucksack.close(); worldMap.close(); playerList.close(); kinPanel.close();
     },
     advanceTalk: () => dialogue.advance(),
     moveTalk: (by) => dialogue.move(by),
@@ -622,6 +628,19 @@ export function startGame(
   // the handles a headless browser drives this by; stripped from production builds. Hung on at the
   // end because they reach into everything, and everything now exists.
   if (import.meta.env.DEV) {
+    /*
+     * Where a clerk's family tree appears.
+     *
+     * Said once, here, because `enquiry.ts` sells the book and deliberately knows nothing about
+     * screens — the whole virtue of that file is that a town hall and a watch house cost it one
+     * `case` each and nothing else. Handing it a panel would end that, so it holds a hook and this
+     * is the one place that fills it in.
+     */
+    whereLineageIsDrawn((village) => {
+      const tree = lineageOf(register, village, state.day);
+      kinPanel.show(tree, layOut(tree));
+    });
+
     installProbes({
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,

@@ -3,7 +3,7 @@ import { mulberry32 } from '../core/rng';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import { Register } from '../world/register';
-import { booksKeptIn, type Book, type Enquiry } from './enquiry';
+import { booksKeptIn, type Book, type Enquiry, whereLineageIsDrawn } from './enquiry';
 import { FEES, type Charge } from './records';
 import { GameState } from './state';
 import { dialogueFor } from './talk';
@@ -140,7 +140,10 @@ describe('asking to see a village book', () => {
     const { register, village, today } = parish();
     expect(booksKeptIn('church', village, register, today).map((b) => b.ask)).toEqual(['Ask about the dead']);
     expect(booksKeptIn('apothecary', village, register, today).map((b) => b.ask)).toEqual(['Ask about the births']);
-    expect(booksKeptIn('townhall', village, register, today).map((b) => b.ask)).toEqual(['Ask about the people here']);
+    // the town hall is the one counter with two books, and the second is the one that cannot be
+    // read aloud: a roll is a column of names and a descent is a shape
+    expect(booksKeptIn('townhall', village, register, today).map((b) => b.ask))
+      .toEqual(['Ask about the people here', 'Ask who is descended from whom']);
     expect(booksKeptIn('watchhouse', village, register, today, law()).map((b) => b.ask)).toEqual(['Ask about the charge sheet']);
     expect(booksKeptIn('house', village, register, today), 'somebody keeps records in their kitchen').toEqual([]);
     expect(booksKeptIn('smith', village, register, today), 'the forge keeps a parish register').toEqual([]);
@@ -231,4 +234,56 @@ describe('asking to see a village book', () => {
     expect(dialogueFor(apothecary(), talking(state)).choices!.map((c) => c.label))
       .toEqual(['Buy', 'Sell', 'Chat', 'Leave']);
   });
+  /**
+   * The one book that is looked at rather than read out.
+   *
+   * A lineage is a shape, so the counter sells it exactly as it sells the others — the gist for
+   * nothing, a fee, a sitting that lasts as long as the conversation — and then unrolls it on a table
+   * instead of reading thirty sentences nobody could hold in their head. What is worth testing is
+   * that only the last step differs.
+   */
+  describe('a book that is unrolled rather than read', () => {
+    /** A village old enough to be descended from anybody: sixty days is three generations of gaps. */
+    const elderton = (): { register: Register; village: string; today: number } => {
+      const register = new Register(4321);
+      register.settle('Elderton', 8, ['farmer', 'smith', 'baker']);
+      register.advance(120);
+      return { register, village: 'Elderton', today: 120 };
+    };
+
+    it('costs what it costs, and lays itself out when it is paid for', () => {
+      const { register, village, today } = elderton();
+      const state = new GameState();
+      state.inventory.gold = 100;
+      let laidOutFor: string | null = null;
+      whereLineageIsDrawn((name) => { laidOutFor = name; });
+
+      const books = booksKeptIn('townhall', village, register, today);
+      const descent = books.find((b) => b.ask === 'Ask who is descended from whom')!;
+      const enquiry = counter(state, books);
+      const root = dialogueFor(desk('clerk'), talking(state, enquiry));
+
+      const gist = root.choices!.find((c) => c.label === descent.ask)!.next!()!;
+      expect(gist.pages.join(' '), 'the clerk says nothing about what he keeps').toMatch(/generations/);
+      expect(laidOutFor, 'the tree was unrolled before anybody paid for it').toBeNull();
+
+      const offer = gist.choices!.find((c) => c.label.startsWith('See the book'))!;
+      expect(offer.label, 'the descent is not priced').toMatch(/\d+ gold/);
+      const before = state.inventory.gold;
+      offer.next!();
+
+      expect(state.inventory.gold, 'the clerk worked for nothing').toBeLessThan(before);
+      expect(laidOutFor, 'paid for, and nothing was laid out').toBe(village);
+    });
+
+    it('is still sold where there is no screen to lay it on', () => {
+      // the server sells the same books and has nowhere to draw one. The hook is simply unfilled
+      const { register, village, today } = elderton();
+      const descent = booksKeptIn('townhall', village, register, today)
+        .find((b) => b.ask === 'Ask who is descended from whom')!;
+      expect(descent.open().fee, 'a descent nobody can draw is free').toBeGreaterThan(0);
+      expect(() => descent.unroll!()).not.toThrow();
+    });
+  });
 });
+

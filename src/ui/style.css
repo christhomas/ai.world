@@ -141,21 +141,146 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   background: var(--stone); padding: calc(6 * var(--ui-scale)) calc(10 * var(--ui-scale));
   z-index: 100; white-space: pre;
 }
+/*
+ * Options: five kinds of control, laid out as five kinds of control.
+ *
+ * Every one of them used to be a `.slider-group` — the ranges, the dropdown, the server fields,
+ * the buttons and the read-only seed — which is one class doing five jobs, so no spacing could be
+ * right for any of them. A label sat the same five units above a slider as above a button; a value
+ * was right-aligned under a range and right-aligned under an address; and the whole thing was one
+ * column of unrelated things with equal weight.
+ *
+ * Three ideas fix it and none of them is decoration.
+ *
+ * **Sections.** Picture, sound, and this world are three different conversations, and the headings
+ * are the title screen's own `rail-head` — small, spaced capitals with a rule running off to the
+ * right — because that screen was already the one designed surface in this game and a second
+ * vocabulary would have been a second dialect.
+ *
+ * **A grid for a labelled control.** `opt-row` is label, control, value: the labels line up down a
+ * fixed column, the controls all start at the same place, and every value lands in the same
+ * right-hand gutter at the same width. That is what makes a stack of sliders read as a stack
+ * rather than as a pile.
+ *
+ * **A button is not a row.** Buttons sit together at the foot in their own band with a rule above
+ * them, because they *do* something and everything above them only sets something.
+ */
 #optionsPanel {
   display: none; position: fixed; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  background: var(--stone-deep); border: var(--ui-scale) solid var(--hair);
-  padding: calc(20 * var(--ui-scale)); min-width: calc(300 * var(--ui-scale));
+  /*
+   * Opaque, and the game behind it blurred.
+   *
+   * `--stone-deep` is the slab every panel in this game is cut from and it is right for a readout
+   * you glance at over the world. This is not that: it is a page of settings with two text fields
+   * on it, and at 0.88 a cottage roof shows through the middle of a server address. The blur is
+   * what keeps it feeling like it is over the world rather than instead of it.
+   */
+  background: rgba(6, 9, 22, 0.97);
+  backdrop-filter: blur(calc(3 * var(--ui-scale)));
+  border: var(--ui-scale) solid var(--hair);
+  border-radius: calc(3 * var(--ui-scale));
+  /* wide enough that a server address is not scrolled in a box a third of its length */
+  width: min(calc(100vw - 32 * var(--ui-scale)), calc(430 * var(--ui-scale)));
+  max-height: calc(100vh - 48 * var(--ui-scale));
+  overflow-y: auto;
+  padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale)) calc(16 * var(--ui-scale));
   box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
-  color: #fff; z-index: 1500;
+  color: var(--ui-ink); z-index: 1500;
 }
 #optionsPanel.show { display: block; animation: popIn 0.3s ease-out; }
-#optionsPanel h3 { color: #a29bfe; margin-bottom: calc(15 * var(--ui-scale)); text-align: center; }
-#optionsPanel .slider-group { margin-bottom: calc(15 * var(--ui-scale)); }
-#optionsPanel label { display: block; margin-bottom: calc(5 * var(--ui-scale)); color: #ccc; }
-#optionsPanel input[type="range"] { width: 100%; cursor: pointer; }
-#optionsPanel .value-display { text-align: right; color: #a29bfe; font-size: calc(14 * var(--ui-scale)); margin-top: calc(3 * var(--ui-scale)); }
-#optionsPanel .close-hint { text-align: center; color: #666; font-size: calc(11 * var(--ui-scale)); margin-top: calc(15 * var(--ui-scale)); }
+
+/* the title of the panel and the way out of it, on one line: the hint used to be a centred
+   afterthought at the bottom, which is the last place anybody looks for how to leave */
+#optionsPanel .opt-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: calc(12 * var(--ui-scale)); margin-bottom: calc(4 * var(--ui-scale));
+}
+#optionsPanel h3 { color: #a29bfe; margin: 0; font-size: calc(17 * var(--ui-scale)); }
+#optionsPanel .opt-esc { color: var(--ink-faint); font-size: calc(11 * var(--ui-scale)); }
+
+#optionsPanel .opt-section { margin-top: calc(18 * var(--ui-scale)); }
+#optionsPanel .rail-head { display: flex; align-items: center; gap: calc(12 * var(--ui-scale)); }
+#optionsPanel .rail-head span {
+  font-size: calc(10 * var(--ui-scale)); letter-spacing: calc(2.5 * var(--ui-scale));
+  color: var(--ink-far); text-transform: uppercase; white-space: nowrap;
+}
+#optionsPanel .rail-head::after { content: ''; flex: 1; height: var(--ui-scale); background: var(--hair); }
+
+/*
+ * One labelled control: name on the left, the thing itself in the middle, its reading on the right.
+ *
+ * The value column is fixed rather than shrink-to-fit so that "2.6" and "60%" and a four-digit seed
+ * all sit against the same edge. Left to itself the column breathes in and out as a slider moves,
+ * which is a panel that fidgets while you use it.
+ */
+#optionsPanel .opt-row {
+  display: grid; grid-template-columns: calc(84 * var(--ui-scale)) 1fr calc(46 * var(--ui-scale));
+  align-items: center; gap: calc(12 * var(--ui-scale));
+  margin-top: calc(10 * var(--ui-scale));
+}
+#optionsPanel .opt-row label { color: var(--ink-dim); font-size: calc(13 * var(--ui-scale)); }
+/* a control with nothing to set — the seed — leaves the middle column empty rather than stretching
+   its value across it, so the number stays in the gutter every other number is in */
+#optionsPanel .opt-static .value-display { grid-column: 3; }
+#optionsPanel .value-display {
+  text-align: right; color: var(--gold); font-size: calc(13 * var(--ui-scale));
+  font-variant-numeric: tabular-nums;
+}
+
+#optionsPanel input[type="range"] {
+  width: 100%; cursor: pointer; accent-color: #a29bfe;
+  /* the browser default is taller than the row it sits in and pushes the label off centre */
+  height: calc(18 * var(--ui-scale));
+}
+#optionsPanel select,
+#optionsPanel input[type="text"] {
+  width: 100%; box-sizing: border-box;
+  background: rgba(6, 9, 22, 0.9); color: var(--ui-ink);
+  border: var(--ui-scale) solid var(--hair); border-radius: calc(2 * var(--ui-scale));
+  padding: calc(6 * var(--ui-scale)) calc(8 * var(--ui-scale));
+  font-size: calc(12 * var(--ui-scale)); font-family: inherit;
+}
+#optionsPanel select { grid-column: 2 / span 2; }
+#optionsPanel select:focus,
+#optionsPanel input[type="text"]:focus { outline: none; border-color: #a29bfe; }
+
+/* the two server fields, full width and stacked: an address and a name are typed into, not set */
+#optionsPanel .opt-fields {
+  display: flex; flex-direction: column; gap: calc(8 * var(--ui-scale));
+  margin-top: calc(10 * var(--ui-scale));
+}
+#optionsPanel .opt-buttons {
+  display: flex; gap: calc(8 * var(--ui-scale)); margin-top: calc(10 * var(--ui-scale));
+}
+#optionsPanel .opt-buttons button { flex: 1; }
+
+/* a line the panel says rather than a value it holds: the graphics chip, whether you are online */
+#optionsPanel .opt-note {
+  margin: calc(6 * var(--ui-scale)) 0 0; color: var(--ink-far);
+  font-size: calc(11 * var(--ui-scale)); line-height: 1.4;
+}
+#optionsPanel .opt-note.software { color: #ffb36a; }
+
+#optionsPanel .opt-foot {
+  display: flex; gap: calc(8 * var(--ui-scale));
+  margin-top: calc(18 * var(--ui-scale)); padding-top: calc(14 * var(--ui-scale));
+  border-top: var(--ui-scale) solid var(--hair-faint);
+}
+#optionsPanel .opt-foot button { flex: 1; }
+/* leaving the world is the one thing in here you cannot undo by moving a slider back */
+#optionsPanel .opt-leave { color: var(--gold); border-color: rgba(255, 215, 106, 0.35); }
+
+#optionsPanel button {
+  background: rgba(162, 155, 254, 0.12); color: var(--ui-ink);
+  border: var(--ui-scale) solid var(--hair); border-radius: calc(2 * var(--ui-scale));
+  padding: calc(8 * var(--ui-scale)) calc(10 * var(--ui-scale));
+  font-size: calc(12 * var(--ui-scale)); font-family: inherit; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+#optionsPanel button:hover { background: rgba(162, 155, 254, 0.22); border-color: #a29bfe; }
+#optionsPanel button:active { background: rgba(162, 155, 254, 0.3); }
+
 #toast {
   position: fixed; top: calc(70 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
   background: var(--stone-deep); border-left: calc(3 * var(--ui-scale)) solid var(--gold);
@@ -553,6 +678,44 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 #rucksack .r-hint { text-align: center; color: #8a7a5a; font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
 #inventory .hud-stats { color: #cfd6ff; font-size: 11px; }
 #inventory { cursor: pointer; }
+/*
+ * A village's descent, drawn.
+ *
+ * Borrows the map's furniture on purpose — the same bar, the same key strip, the same grabbable
+ * canvas — because it is the same gesture vocabulary pointed at people instead of country, and a
+ * player who has opened the map has already learned how to work this. What it adds is the card in
+ * the corner, which is where the fee actually lands: a name on a tree is a name, and what the
+ * clerk was paid for is everything the register knows about whoever you pointed at.
+ */
+#kinpanel {
+  display: none; position: fixed; inset: 0; z-index: 1600;
+  background: #14161c; color: #e8e2d0; flex-direction: column;
+}
+#kinpanel.show { display: flex; }
+#kinpanel .wm-bar {
+  display: flex; align-items: baseline; gap: calc(16 * var(--ui-scale)); padding: calc(10 * var(--ui-scale)) calc(18 * var(--ui-scale));
+  background: linear-gradient(180deg, #2c2a24 0%, #1a1a20 100%); border-bottom: calc(2 * var(--ui-scale)) solid #8a7a4a;
+}
+#kinTitle { color: #f1c40f; font-weight: bold; font-size: calc(16 * var(--ui-scale)); }
+#kinpanel .wm-keys { color: #9aa0ad; font-size: calc(11 * var(--ui-scale)); }
+#kinCanvas { flex: 1; min-height: 0; width: 100%; display: block; cursor: grab; touch-action: none; }
+#kinpanel .wm-legend {
+  display: flex; flex-wrap: wrap; gap: calc(14 * var(--ui-scale)); padding: calc(8 * var(--ui-scale)) calc(18 * var(--ui-scale));
+  background: #1a1a20; border-top: calc(2 * var(--ui-scale)) solid #4a4438; font-size: calc(11 * var(--ui-scale)); color: #cfc9b8;
+}
+#kinpanel .wm-legend span { display: flex; align-items: center; gap: calc(5 * var(--ui-scale)); }
+#kinpanel .wm-legend i { width: calc(10 * var(--ui-scale)); height: calc(10 * var(--ui-scale)); border-radius: calc(2 * var(--ui-scale)); display: inline-block; }
+/* the record of whoever was pointed at, over the drawing rather than beside it: a panel that
+   reflowed the tree every time somebody was clicked would move the person under the cursor */
+#kinCard {
+  display: none; position: absolute; right: calc(18 * var(--ui-scale)); top: calc(72 * var(--ui-scale));
+  max-width: calc(260 * var(--ui-scale)); padding: calc(12 * var(--ui-scale)) calc(14 * var(--ui-scale));
+  background: rgba(26,26,32,0.94); border: calc(2 * var(--ui-scale)) solid #8a7a4a; border-radius: calc(4 * var(--ui-scale));
+  font-size: calc(12 * var(--ui-scale)); line-height: 1.55; color: #f2ecd8;
+}
+#kinCard.show { display: block; }
+#kinCard .kin-note { color: #b8b2a0; }
+
 #worldmap {
   display: none; position: fixed; inset: 0; z-index: 1600;
   background: #060a16; color: #e8eeff; flex-direction: column;
@@ -889,7 +1052,8 @@ body.touch #debug,
 body.touch .r-hint,
 body.touch .j-hint,
 body.touch #worldmap .wm-keys,
-body.touch #optionsPanel .close-hint { display: none; }
+body.touch #kinpanel .wm-keys,
+body.touch #optionsPanel .opt-esc { display: none; }
 
 /* The same sentence, said in the controls the reader actually has. */
 .on-touch { display: none; }

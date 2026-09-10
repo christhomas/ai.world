@@ -41,10 +41,18 @@ export class Hud {
     const hemiV = $('hemisphereValue');
     sun.value = String(rig.sun.intensity);
     hemi.value = String(rig.hemi.intensity);
+    /*
+     * Both to one decimal, which they were not.
+     *
+     * The sun read `2.6` and the sky read `1.00`, one above the other in the same column, because
+     * each was rounded to the precision of its own slider's step rather than to what a person
+     * reading two numbers together expects. Two decimals also buys nothing here: the sky's step is
+     * a twentieth, so the second digit is only ever a nought or a five.
+     */
     sunV.textContent = rig.sun.intensity.toFixed(1);
-    hemiV.textContent = rig.hemi.intensity.toFixed(2);
+    hemiV.textContent = rig.hemi.intensity.toFixed(1);
     sun.addEventListener('input', () => { sunV.textContent = (+sun.value).toFixed(1); this.onLightChange?.(+sun.value, +hemi.value); });
-    hemi.addEventListener('input', () => { hemiV.textContent = (+hemi.value).toFixed(2); this.onLightChange?.(+sun.value, +hemi.value); });
+    hemi.addEventListener('input', () => { hemiV.textContent = (+hemi.value).toFixed(1); this.onLightChange?.(+sun.value, +hemi.value); });
     $('seedValue').textContent = String(seed);
     const vol = $<HTMLInputElement>('volumeSlider');
     const volV = $('volumeValue');

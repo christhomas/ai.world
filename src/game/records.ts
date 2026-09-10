@@ -97,6 +97,17 @@ export const FEES = {
   STONES: 6,
   CHARGES: 15,
   BIRTHS: 8,
+  /**
+   * The descent of a whole village, which is the dearest thing anybody sells over a counter here.
+   *
+   * Three times the roll, and the price is the work. Every other book is one pass over one list —
+   * who is alive, who is buried, who was born last month — and a clerk hands it over in an
+   * afternoon. A lineage is the roll and the churchyard cross-referenced against every parent named
+   * on either, which in a world that writes with a quill is a week of somebody's evenings. It is
+   * also the only one that answers a question you could not have asked yourself by standing in the
+   * street and counting.
+   */
+  LINEAGE: 36,
 } as const;
 
 /** Years, from the day somebody was born to the day being asked about. */

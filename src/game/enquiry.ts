@@ -1,6 +1,26 @@
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
 import type { Register } from '../world/register';
+import { theLineage } from './lineage';
 import { theBirths, theCharges, theRoll, theStones, type Charge, type Ledger } from './records';
+
+/**
+ * Who lays a village's descent out on the table, when there is somebody to lay it out for.
+ *
+ * A module-level hook rather than another parameter threaded through `booksKeptIn`, and that is a
+ * trade worth naming. The alternative is handing a panel down through every caller of a function
+ * whose entire virtue is that it knows nothing about the game around it — "the building holds the
+ * book, so the same three functions will serve a town hall and a watch house the day either one
+ * exists without being told a thing about them". Passing a screen into it would end that.
+ *
+ * Left unset in a test and in the server, where there is no screen and nothing to unroll onto; the
+ * book is still sold, still priced, and simply has nowhere to appear.
+ */
+let unrollLineage: ((village: string) => void) | null = null;
+
+/** Tell the counter where a descent can be drawn. Called once, by whoever owns the screen. */
+export function whereLineageIsDrawn(unroll: (village: string) => void): void {
+  unrollLineage = unroll;
+}
 
 /**
  * Asking to see a book.
@@ -35,6 +55,20 @@ export interface Book {
    * conversation runs: a village can bury somebody between the gist and the fee.
    */
   open: () => Ledger;
+  /**
+   * What to do instead of reading it out, for the one book that cannot be.
+   *
+   * Every book here is a list and a list is read three lines at a time. A village's descent is not
+   * a list — it is a shape, and the whole reason to pay for it is to see at a glance that two
+   * people who keep different shops had the same mother. Read aloud that is thirty sentences
+   * nobody can hold in their head.
+   *
+   * So a book may say that it is *unrolled* rather than read. The counter still does everything it
+   * does — the gist for nothing, the fee, the sitting that lasts as long as the conversation — and
+   * only the last step differs. Optional, because it is one book in five and the other four are
+   * better off as they are.
+   */
+  unroll?: () => void;
 }
 
 /** A counter with books behind it, and the purse that pays to see one. */
@@ -85,7 +119,17 @@ export function booksKeptIn(kind: string, village: string, register: Register, t
     case 'apothecary':
       return [{ ask: 'Ask about the births', open: () => theBirths(register, village, today) }];
     case 'townhall':
-      return [{ ask: 'Ask about the people here', open: () => theRoll(register, village, today) }];
+      return [
+        { ask: 'Ask about the people here', open: () => theRoll(register, village, today) },
+        {
+          ask: 'Ask who is descended from whom',
+          open: () => theLineage(register, village, today),
+          // the town hall is the right counter for it and the only one: a church knows its own dead
+          // and an apothecary her own newborns, and neither keeps the thread between them. A clerk
+          // whose whole job is the roll is the one person in the village who does
+          unroll: () => unrollLineage?.(village),
+        },
+      ];
     case 'watchhouse':
       return law
         ? [{ ask: 'Ask about the charge sheet', open: () => theCharges(law.charges, village, today, law.wanted) }]
@@ -130,7 +174,9 @@ function theGist(who: Keeper, enquiry: Enquiry, book: Book, back: () => Dialogue
 
 /** The row that opens the book: paid for once, and then simply open. */
 function theOffer(who: Keeper, enquiry: Enquiry, book: Book, ledger: Ledger, back: () => DialogueNode | null): DialogueChoice {
-  if (enquiry.paid.has(book.ask)) return { label: 'Read on', next: () => readOut(who, ledger, back) };
+  if (enquiry.paid.has(book.ask)) {
+    return { label: book.unroll ? 'Look again' : 'Read on', next: () => openIt(who, book, ledger, back) };
+  }
   return {
     label: ledger.fee > 0 ? `See the book itself (${ledger.fee} gold)` : 'See the book itself',
     next: () => {
@@ -144,9 +190,21 @@ function theOffer(who: Keeper, enquiry: Enquiry, book: Book, ledger: Ledger, bac
       }
       enquiry.pay(ledger.fee);
       enquiry.paid.add(book.ask);
-      return readOut(who, ledger, back);
+      return openIt(who, book, ledger, back);
     },
   };
+}
+
+/**
+ * The book, however this one is meant to be taken in: read out, or laid on the table.
+ *
+ * The fee has already been paid by the time anybody gets here, so this is only about *how* — which
+ * is the one thing that differs between a list of names and a family tree.
+ */
+function openIt(who: Keeper, book: Book, ledger: Ledger, back: () => DialogueNode | null): DialogueNode {
+  if (!book.unroll) return readOut(who, ledger, back);
+  book.unroll();
+  return said(who, [ledger.detail[0] ?? 'He unrolls it across the table.'], [{ label: 'Back', next: back }]);
 }
 
 /** The book itself, a few lines at a time. */
