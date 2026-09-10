@@ -22,8 +22,14 @@ import { startServer, type RunningServer } from './serve';
  * real socket in it. A second was enough on an idle laptop and not on a loaded one, which is a
  * flake rather than a failure, and a flake teaches everybody to re-run the suite instead of reading
  * it.
+ *
+ * Doubled again when the polygon world went. Every room the server opens is a road world now, and a
+ * road world costs about eighty milliseconds to grow where the polygon one was nearly free — which
+ * is nothing on its own and is enough, with a socket, a file vault and two other suites sharing the
+ * cores, to take a welcome past four seconds. The number is a bound on a busy machine rather than a
+ * measurement of anything.
  */
-const PATIENCE = 4000;
+const PATIENCE = 8000;
 
 class Player {
   private readonly socket: WebSocket;
@@ -44,7 +50,7 @@ class Player {
     const socket = new WebSocket(`ws://localhost:${port}`);
     await new Promise((open, fail) => { socket.on('open', open); socket.on('error', fail); });
     const player = new Player(socket);
-    player.send({ type: 'join', world: 'mesh' as const, seed, name, version, day: 1, time: 0.3 });
+    player.send({ type: 'join', world: 'road' as const, seed, name, version, day: 1, time: 0.3 });
     return player;
   }
 

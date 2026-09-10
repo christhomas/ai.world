@@ -63,7 +63,7 @@ describe('a world that goes quiet', () => {
     const world = deadWorld();
     const game = watching();
     const online = new Online(game.events, world.linkFor);
-    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'mesh');
+    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
     world.say({ type: 'welcome', id: 'p1', seed: 3, players: [], clock: { day: 1, time: 0.4 }, deltas: [] });
     expect(online.connected).toBe(true);
     expect(world.opens).toBe(1);
@@ -83,7 +83,7 @@ describe('a world that goes quiet', () => {
     const world = deadWorld();
     const game = watching();
     const online = new Online(game.events, world.linkFor);
-    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'mesh');
+    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
     world.say({ type: 'welcome', id: 'p1', seed: 3, players: [], clock: { day: 1, time: 0.4 }, deltas: [] });
 
     // a quarter of a minute, with the world saying something every second, as one does
@@ -100,7 +100,7 @@ describe('a world that goes quiet', () => {
     const game = watching();
     const online = new Online(game.events, world.linkFor);
     // no address is the simulation in the next thread
-    online.connect('', 3, 'Rowan', { day: 1, time: 0.4 }, 'mesh');
+    online.connect('', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
     world.say({ type: 'welcome', id: 'p1', seed: 3, players: [], clock: { day: 1, time: 0.4 }, deltas: [] });
     for (let i = 0; i < 70; i++) online.update(0.1, standing);
     expect(game.said.join(' ')).toContain('this tab');
@@ -109,7 +109,7 @@ describe('a world that goes quiet', () => {
   it('joins with the version it speaks, so a mismatch is the server\'s to refuse', () => {
     const world = deadWorld();
     const online = new Online(watching().events, world.linkFor);
-    online.connect('ws://somewhere', 7, 'Rowan', { day: 2, time: 0.1 }, 'mesh');
+    online.connect('ws://somewhere', 7, 'Rowan', { day: 2, time: 0.1 }, 'road');
     world.open();
     const join = JSON.parse(world.sent[0]) as { type: string; version: number; seed: number };
     expect(join).toMatchObject({ type: 'join', seed: 7, version: PROTOCOL_VERSION });
@@ -127,7 +127,7 @@ describe('a world that goes quiet', () => {
  * world, a dropped connection is something to keep trying.
  */
 describe('a connection that drops', () => {
-  const join = (online: Online) => online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'mesh');
+  const join = (online: Online) => online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
   const welcome = (): ServerMessage =>
     ({ type: 'welcome', id: 'p1', seed: 3, players: [], clock: { day: 1, time: 0.4 }, deltas: [] });
   /** Run the clock, in seconds. */

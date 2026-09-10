@@ -1,7 +1,6 @@
 import type { WorldKind } from '../save/store';
 import { roadTreeWorld, type RoadGraph } from './graph';
 import type { Anchor } from './manifest';
-import { generateWebGraph } from './roadweb';
 
 /**
  * The one place a world is grown, and the reason there is only one.
@@ -47,7 +46,7 @@ import { generateWebGraph } from './roadweb';
  * page saying what it has, and the answer being the same either way is the point.
  */
 export function growWorld(seed: number, kind: WorldKind, islands?: readonly Anchor[]): RoadGraph {
-  if (kind === 'mesh') return generateWebGraph(seed);
+  void kind;                                 // one country now: see `WorldKind`
   return roadTreeWorld(seed, islands ? [...islands] : undefined);
 }
 

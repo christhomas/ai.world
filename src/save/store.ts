@@ -35,12 +35,34 @@ import type { RoamingJson } from '../game/roaming';
  * massif at all, because a massif needs thirty tiles of room from the coast and the road world's
  * land is never wider than twenty-two.
  *
- * It belongs on the save because it decides the entire terrain. The same seed grows two completely
- * different countries, so a world reopened as the other kind would put the ground somewhere else
- * underneath a house, a planted field, and every dungeon and island anchor the manifest is holding.
- * Before this was written down, every world made with `?world=mesh` came back as a road world.
+ * It belonged on the save because it used to decide the entire terrain: the same seed grew two
+ * completely different countries, so a world reopened as the other kind put the ground somewhere
+ * else underneath a house, a planted field, and every anchor the manifest was holding.
+ *
+ * There is one kind now. The polygon world — `?world=mesh`, "with mountains" on the title screen —
+ * is gone: its country was a worse country, and keeping two generators meant every field, every
+ * road and every mountain in this game had to be written twice and agree. What the road tree does
+ * with elevation is better than what the polygon world did with geometry, so the polygon world was
+ * the one to lose.
+ *
+ * The field stays, and so does the type, for two reasons. A save written by an older build names a
+ * world it thinks it is in, and that has to be read and quietly answered with the one that exists
+ * — `kindOf` is where that happens. And a world kind is exactly the shape of thing this game will
+ * want again.
  */
-export type WorldKind = 'road' | 'mesh';
+export type WorldKind = 'road';
+
+/**
+ * The world a save is asking for, as this build can actually grow it.
+ *
+ * Anything that is not a kind we have is the kind we have. A player whose save says `mesh` opens a
+ * road world of the same seed rather than a blank screen: the ground under their house is different
+ * and there is nothing to be done about that, and a game that opens is better than one that will
+ * not.
+ */
+export function kindOf(asked: string | undefined | null): WorldKind {
+  return 'road';
+}
 
 export interface SessionSave {
   seed: number;

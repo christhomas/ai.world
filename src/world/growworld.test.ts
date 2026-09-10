@@ -46,18 +46,15 @@ describe('the one place a world is grown', () => {
     expect(callers, 'a second way of growing a world has appeared').toEqual(['src/world/growworld.ts']);
   });
 
-  it('grows the kind of country it is asked for', () => {
-    // the polygon world carries the mesh its ground is cut out of; the road tree has no such thing,
-    // and that difference is the cheapest way to tell which country came back
-    expect('mesh' in growWorld(1, 'mesh'), 'the mountains world came back without its mesh').toBe(true);
-    expect('mesh' in growWorld(1, 'road'), 'the road world came back with a mesh it cannot have').toBe(false);
-    expect(countryStamp(growWorld(1, 'mesh'))).not.toBe(countryStamp(growWorld(1, 'road')));
+  it('grows one country per seed, and a different one for the next seed', () => {
+    // there is one kind of world now — see `WorldKind` — so what is left to check is that the seed
+    // is what decides a country, which is the promise everything else in this file rests on
     expect(countryStamp(growWorld(1, 'road'))).not.toBe(countryStamp(growWorld(2, 'road')));
+    expect('mesh' in growWorld(1, 'road'), 'the road world came back with a mesh it cannot have').toBe(false);
   });
 
   it('grows the same country twice, which is the whole of what a stamp is worth', () => {
     expect(countryStamp(growWorld(7, 'road'))).toBe(countryStamp(growWorld(7, 'road')));
-    expect(countryStamp(growWorld(7, 'mesh'))).toBe(countryStamp(growWorld(7, 'mesh')));
   });
 
   it('grows a different country when the islands are somewhere else', () => {

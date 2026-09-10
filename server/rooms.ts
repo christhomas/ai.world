@@ -185,7 +185,7 @@ export interface Room {
    * the islands were planned from the seed — its manifest is the only record of where they went,
    * and moving them would move the ground out from under a house somebody built on one.
    */
-  islands: Anchor[];
+  islands: Anchor[] | undefined;
 }
 
 export class Rooms {
@@ -208,7 +208,7 @@ export class Rooms {
   get(seed: number): Room | undefined { return this.rooms.get(seed); }
 
   /** The room for a seed, read back from disk the first time anybody asks for it. */
-  open(seed: number, start: { day: number; time: number }, kind: WorldKind, islands: Anchor[] = []): Room {
+  open(seed: number, start: { day: number; time: number }, kind: WorldKind, islands?: Anchor[]): Room {
     let room = this.rooms.get(seed);
     if (!room) {
       const world = new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.dataDir, this.vault);

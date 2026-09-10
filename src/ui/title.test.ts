@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SessionSave, WorldKind } from '../save/store';
+import { kindOf, type SessionSave, type WorldKind } from '../save/store';
 
 /**
  * The world type decides the whole terrain: the same seed grows two completely different
@@ -7,17 +7,18 @@ import type { SessionSave, WorldKind } from '../save/store';
  * reopening one as the other kind would put the ground somewhere else underneath a house, a
  * planted field, and every dungeon and island anchor the manifest is holding.
  *
- * Before this was recorded, every world made with `?world=mesh` came back as a road world.
+ * There is one kind of world now, and this is what is left of that: a save that names the other one
+ * still opens, as the country that exists.
  */
 
 /** What the title screen does when a slot is taken: the save's own kind, whatever else is asked for. */
 function continuing(save: SessionSave): WorldKind {
-  return save.world ?? 'road';
+  return kindOf(save.world);
 }
 
 describe('which world a save is in', () => {
   it('is whatever the save says, so the ground never moves under a hero', () => {
-    expect(continuing({ seed: 1, world: 'mesh' } as SessionSave)).toBe('mesh');
+    expect(continuing({ seed: 1, world: 'mesh' } as unknown as SessionSave)).toBe('road');
     expect(continuing({ seed: 1, world: 'road' } as SessionSave)).toBe('road');
   });
 

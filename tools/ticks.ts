@@ -106,7 +106,7 @@ function best(runs: Spread[]): Spread {
 function join(sim: Simulation, seed: number, x: number, z: number, name: string): void {
   const attached = sim.attach(mute);
   attached.receive(JSON.stringify({
-    type: 'join', world: 'mesh', seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4,
+    type: 'join', world: 'road', seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4,
   }));
   attached.receive(JSON.stringify({
     type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [],

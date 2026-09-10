@@ -47,7 +47,7 @@ export async function boot(): Promise<void> {
 /** `?world=mesh` or `?world=road` on a share link, for growing a scratch world of a given kind. */
 function worldFromLink(url: URL): WorldKind | null {
   const asked = url.searchParams.get('world');
-  return asked === 'mesh' || asked === 'road' ? asked : null;
+  return asked ? 'road' : null;                 // one country now: see `WorldKind`
 }
 
 boot().catch((err) => {

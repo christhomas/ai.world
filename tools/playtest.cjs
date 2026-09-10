@@ -27,7 +27,7 @@
  * Everything it needs is an environment variable with a sensible default, so nothing here is
  * pinned to one machine:
  *
- *   PORT=5173  WORLD=mesh  SEED=3     the address, assembled
+ *   PORT=5173  WORLD=road  SEED=3     the address, assembled
  *   ADDRESS=...                       or the whole address at once, if you want a different shape
  *   CHANNEL=chrome                    which browser; empty means playwright's own chromium
  *   DRIFT=0.35                        how far a creature may be drawn from where the world has it
@@ -47,7 +47,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 
 const PORT = process.env.PORT || '5173';
-const WORLD = process.env.WORLD || 'mesh';
+const WORLD = process.env.WORLD || 'road';
 const SEED = process.env.SEED || '3';
 const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?world=${WORLD}&seed=${SEED}`;
 // Empty means playwright's own chromium. The default is the real Chrome because that is the one a
@@ -191,7 +191,7 @@ const finish = async () => {
   }, id);
 
   const w = await page.evaluate(() => window.__world);
-  say('the world is the one the link asked for', w.world === 'mesh' && w.online === 'online', JSON.stringify(w));
+  say('the world is the one the link asked for', w.world === 'road' && w.online === 'online', JSON.stringify(w));
 
   // --- walking into things ---
   const house = await page.evaluate(() => { const v = window.__villages[0]; const h = v.houses[0]; return { x: h.tx + 0.5, z: h.tz + 0.5, rot: h.rot }; });
@@ -213,7 +213,23 @@ const finish = async () => {
   say('something solid stands near the village', tree !== null, tree ? `at ${tree.x.toFixed(1)},${tree.z.toFixed(1)}` : '');
 
   // --- creature sync ---
-  await go(133.5, 67.5, 6000);
+  /*
+   * Stand where the animals are, wherever that turns out to be.
+   *
+   * This walked to 133.5, 67.5 — a field in the polygon world, and open sea in the road world that
+   * replaced it, so the hero never arrived and the check measured nothing at all and said so as a
+   * failure. What it actually needs is to be near enough to something living for the world to be
+   * correcting it, so it goes and finds one.
+   */
+  const grazing = await page.evaluate(() => {
+    const p = window.__player;
+    const near = window.__entitiesFull()
+      .filter((e) => !e.dead && e.id !== null)
+      .map((e) => ({ x: e.x, z: e.z, d: Math.hypot(e.x - p.x, e.z - p.z) }))
+      .sort((a, b) => a.d - b.d);
+    return near[0] ?? null;
+  });
+  if (grazing) await go(grazing.x + 3, grazing.z + 3, 6000);
   await page.evaluate(() => window.__drift);
   await page.waitForTimeout(8000);
   const d = await page.evaluate(() => window.__drift);
@@ -256,7 +272,7 @@ const finish = async () => {
   // ground round there is trees, and a line that long crosses one essentially every time. So this
   // found nothing to swing at, said so, and the fight was never played at all. Discovered by
   // running the thing in a pipeline, which is the entire argument for running it in a pipeline.
-  const first = await page.evaluate((kinds) => {
+  let first = await page.evaluate((kinds) => {
     const p = window.__player;
     const clearTo = (x, z) => {
       const fx = x + 2, fz = z + 2;
@@ -273,7 +289,29 @@ const finish = async () => {
       .sort((a, b) => (kinds.indexOf(a.kind) - kinds.indexOf(b.kind)) || (a.d - b.d));
     return all.find((e) => e.d < 40 && e.id !== null && clearTo(e.x, e.z)) ?? null;
   }, PREY);
-  if (!first) say('a blow lands on something', false, 'nothing to swing at');
+  /*
+   * Nothing loose to hit is a fact about where we are standing, not a failure of the fight.
+   *
+   * The village square of seed 3 in the polygon world had animals wandering across it; the road
+   * world's has people, a well and a market. So if the country has offered nothing within forty
+   * tiles with a clear line to it, one is put down — the same way `spawn` puts one down for
+   * anybody at the console — and the check goes on measuring what it is named for, which is
+   * whether a swing lands on the creature it was aimed at.
+   */
+  if (!first) {
+    const put = await page.evaluate(() => window.__spawn('goat', 6));
+    if (put) {
+      await page.waitForTimeout(400);
+      first = await page.evaluate(() => {
+        const p = window.__player;
+        const all = window.__entitiesFull().filter((e) => e.kind === 'goat' && !e.dead && e.hp > 0)
+          .map((e) => ({ id: e.id, kind: e.kind, x: e.x, z: e.z, hp: e.hp, d: Math.hypot(e.x - p.x, e.z - p.z) }))
+          .sort((a, b) => a.d - b.d);
+        return all[0] ?? null;
+      });
+    }
+  }
+  if (!first) say('a blow lands on something', false, 'nothing to swing at, and none would be put down');
   else {
     await go(first.x + 2, first.z + 2, 4000);
     const quarry = first.id;

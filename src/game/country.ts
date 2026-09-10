@@ -66,7 +66,7 @@ export function growCountry(ctx: Growing) {
    * moving them would move the ground out from under a house that was built on one. They go up the
    * wire with the join for the same reason — see `growWorld`.
    */
-  const islands = world === 'mesh' ? [] : islandsOf(manifest, seed);
+  const islands = islandsOf(manifest, seed);
   /*
    * And the country itself, through the one call there is. Not "the same call the world makes" —
    * literally the one call, which is the difference between two halves that agree and two halves

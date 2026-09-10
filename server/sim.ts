@@ -182,7 +182,7 @@ export class Simulation {
      * walls in the middle of a field.
      */
     const room = this.rooms.get(seed);
-    const kind: WorldKind = room?.kind ?? 'mesh';
+    const kind: WorldKind = room?.kind ?? 'road';
     // Through the one call there is, with the islands the page says its world has. Growing a
     // road-tree world without them here and with them there gave the same seed two different
     // countries, and whichever filled a chunk first won; growing it with a *different* set of them
@@ -597,19 +597,28 @@ export class Simulation {
     }
     const seed = message.seed >>> 0;
     // the first player through the door sets the clock; after that the world keeps its own time
-    const kind: WorldKind = message.world === 'road' ? 'road' : 'mesh';
-    const islands = kind === 'mesh' ? [] : cleanIslands(message.islands);
+    // one country now, whatever a client asks for: an older build joining with `mesh` gets the
+    // world that exists rather than a door that will not open. See `WorldKind`.
+    const kind: WorldKind = 'road';
+    /*
+     * A join that says nothing about islands gets the seed's own, not a world with none in it.
+     *
+     * An empty list is an answer — "this world has no islands" — and it grows a different country
+     * from the one a fresh page grows, because a page works its islands out from the seed. The two
+     * were told apart by accident until the polygon world went: mesh rooms passed `[]` and never
+     * used it, and road rooms only ever heard from pages that sent theirs. Now that every room is a
+     * road room, silence has to mean the seed's own or a client that has not been updated puts a
+     * world server in a different country from every player in it.
+     */
+    const said = cleanIslands(message.islands);
+    const islands = said.length > 0 ? said : undefined;
     const room = this.rooms.open(seed, {
       day: Math.max(1, Math.floor(message.day) || 1),
       time: Number(message.time) || 0.3,
     }, kind, islands);
     // two players of the same seed in different countries are not in the same place at all, and a
     // world nobody can agree about is worse than a door that will not open
-    if (room.kind !== kind) {
-      wire.send(JSON.stringify({ type: 'error', reason: `That world is open as a ${room.kind === 'mesh' ? 'mountains' : 'road'} world.` } satisfies ServerMessage));
-      wire.close();
-      return null;
-    }
+
     /*
      * And the same check on the rest of what makes a country, for exactly the same reason.
      *
@@ -620,7 +629,7 @@ export class Simulation {
      * be papered over by picking one, because the one not picked would then be walked about a
      * country he cannot see, which is the whole fault this seam exists to end.
      */
-    if (islandsSaidPlainly(room.islands) !== islandsSaidPlainly(islands)) {
+    if (islandsSaidPlainly(room.islands ?? []) !== islandsSaidPlainly(islands ?? [])) {
       wire.send(JSON.stringify({ type: 'error', reason: 'That world is open with its islands somewhere else.' } satisfies ServerMessage));
       wire.close();
       return null;

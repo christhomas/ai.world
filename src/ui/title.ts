@@ -37,24 +37,18 @@ interface Switch {
   fallback: boolean;
 }
 
-const SWITCHES: readonly Switch[] = [
-  {
-    id: 'mountains',
-    /**
-     * Off by default, and it is the map that decides it rather than the feature list.
-     *
-     * The polygon world is the only one that can grow a mountain, so everything hanging off one —
-     * cliffs, high passes, the eyries — lives behind this switch. But its road web is a hex
-     * lattice, and at map scale that is exactly what it looks like: a honeycomb of near-identical
-     * cells tiling the whole country. The road tree it replaces draws an organic branching sprawl
-     * of land with a coastline worth exploring. Until the polygon world stops reading as a
-     * repeating pattern it is not the one to hand somebody by default, whatever it has in it.
-     */
-    label: 'Mountains',
-    note: 'Cliffs, high passes and the eyries above them. The land comes out more regular, though.',
-    fallback: false,
-  },
-];
+/*
+ * Empty, and worth keeping empty rather than deleting.
+ *
+ * There was one switch: "Mountains", which chose the polygon world. It is gone with that world —
+ * the country it grew read as a honeycomb at map scale, which is what made the choice a choice, and
+ * the answer in the end was to make the good country mountainous rather than to keep the bad one
+ * for its cliffs.
+ *
+ * The machinery stays because a title screen that can offer a choice about a world is a thing this
+ * game will want again, and because it is nine lines. A list with nothing in it draws nothing.
+ */
+const SWITCHES: readonly Switch[] = [];
 
 /** Where a switch remembers itself between visits, so it is set once rather than every time. */
 const switchKey = (id: string) => `ai.world/new/${id}`;
@@ -73,8 +67,8 @@ function setSwitch(id: string, on: boolean): void {
 }
 
 /** How a saved world describes itself in its slot. */
-function nameOf(world: WorldKind | undefined): string {
-  return world === 'mesh' ? 'with mountains' : 'flat country';
+function nameOf(_world: WorldKind | undefined): string {
+  return 'open country';
 }
 
 import { $ } from './dom';
@@ -144,7 +138,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         </div>`).join('');
     };
     /** What the switches currently add up to, read at the moment a world is actually made. */
-    const chosenWorld = (): WorldKind => (switchIsOn('mountains', false) ? 'mesh' : 'road');
+    const chosenWorld = (): WorldKind => 'road';
 
     const pick = (i: number, act: string) => {
       const key = SLOT_KEYS[i];

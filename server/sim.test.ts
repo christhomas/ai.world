@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
 import type { WorldKind } from '../src/save/store';
+import type { Anchor } from '../src/world/manifest';
 import { WAIT_FOR_THE_WORLD, unpackChunk } from '../src/world/chunkparcel';
 import { CHUNKS_AT_ONCE, Simulation, VIEW } from './sim';
 import { generateRoadGraph, islandAnchors } from '../src/world/graph';
@@ -46,7 +47,7 @@ class Pretend {
     this.attached = sim.attach(this.wire);
   }
 
-  join(seed: number, name: string, version = PROTOCOL_VERSION, world: WorldKind = 'mesh'): this {
+  join(seed: number, name: string, version = PROTOCOL_VERSION, world: WorldKind = 'road'): this {
     this.say({ type: 'join', world, seed, name, version, day: 2, time: 0.4 });
     return this;
   }
@@ -60,7 +61,7 @@ class Pretend {
    * it is gets that country grown *now* — which costs the world two-thirds of a second, so no test
    * pays for it by accident.
    */
-  joinAt(seed: number, name: string, x: number, z: number, world: WorldKind = 'mesh'): this {
+  joinAt(seed: number, name: string, x: number, z: number, world: WorldKind = 'road'): this {
     this.say({ type: 'join', world, seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4, x, z });
     return this;
   }
@@ -215,6 +216,19 @@ describe('the simulation, hosted by nothing at all', () => {
   });
 });
 
+/**
+ * Ground in the world of seed 3 that is land, is clear of everything, and has a run to the east.
+ *
+ * It used to be the origin, which is the middle of Crossroads Town — and the middle of a town in
+ * the road world has a well in it. The polygon world had open grass there, so every walking test in
+ * this file was quietly relying on the country that has since been taken out. Named once here so
+ * the next person to move it only has to move it once.
+ */
+const CLEAR_RUN = { x: 0.5, z: -13.5 };
+
+/** The same, a long way off: where a teleport can put a hero and have him walk on from there. */
+const FAR_CLEAR = { x: 340.5, z: -139.5 };
+
 describe('the simulation holding the ground itself', () => {
   it('grows a world when somebody stands in it, and only where they are standing', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
@@ -258,15 +272,15 @@ describe('the simulation holding the ground itself', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
     // the first move is a placing rather than a walk: nothing has walked him anywhere yet
-    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     sim.tick(Date.now() + 100);
 
     // push east for a fifth of a second, which at the hero's pace is about a tile
     rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
     const [first] = rowan.of('youAre');
     expect(first.seq).toBe(1);
-    expect(first.x).toBeCloseTo(1.1, 1);
-    expect(first.z).toBeCloseTo(0, 5);
+    expect(first.x).toBeCloseTo(CLEAR_RUN.x + 1.1, 1);
+    expect(first.z).toBeCloseTo(CLEAR_RUN.z, 5);
     // and the ground he is standing on came with it
     expect(first.y).toBe(sim.groundOf(3)!.heightAt(first.x, first.z));
 
@@ -303,22 +317,22 @@ describe('the simulation holding the ground itself', () => {
   it('takes a jump when it is told it was a jump, and says where that leaves him', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
-    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     sim.tick(Date.now() + 100);
     rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
 
     // a teleport, a staircase, a gangplank: the one kind of move a walk cannot account for
-    rowan.say({ type: 'stood', x: 400, z: -120, why: 'teleport' });
+    rowan.say({ type: 'stood', x: FAR_CLEAR.x, z: FAR_CLEAR.z, why: 'teleport' });
     const put = rowan.of('youAre').at(-1)!;
-    expect(put.x).toBe(400);
-    expect(put.z).toBe(-120);
+    expect(put.x).toBe(FAR_CLEAR.x);
+    expect(put.z).toBe(FAR_CLEAR.z);
 
     // and he walks on from there rather than from where he was
     sim.tick(Date.now() + 200);
     rowan.say({ type: 'steer', seq: 2, dx: 0, dz: 1, pace: 1, ms: 200 });
     const after = rowan.of('youAre').at(-1)!;
-    expect(after.x).toBeCloseTo(400, 5);
-    expect(after.z).toBeGreaterThan(-120);
+    expect(after.x).toBeCloseTo(FAR_CLEAR.x, 5);
+    expect(after.z).toBeGreaterThan(FAR_CLEAR.z);
   });
 
   it('keeps the hero at the door while he is somewhere it does not own', () => {
@@ -888,30 +902,25 @@ describe('a world with several people in it', () => {
  * were somewhere else.
  */
 describe('the country the server grows', () => {
-  /** A cottage in the polygon world of seed 3; open ground in its road world. */
-  const HOUSE = { x: 130.5, z: 55.5 };
-
-  it('is the one the player says they are in', () => {
-    const mesh = new Simulation({ vault: new Forgetful(), ground: true });
-    new Pretend(mesh).join(3, 'Rowan', PROTOCOL_VERSION, 'mesh');
-    const onMesh = mesh.groundOf(3)!;
-    onMesh.reach(HOUSE.x, HOUSE.z, 1);
-
-    const road = new Simulation({ vault: new Forgetful(), ground: true });
-    new Pretend(road).join(3, 'Rowan', PROTOCOL_VERSION, 'road');
-    const onRoad = road.groundOf(3)!;
-    onRoad.reach(HOUSE.x, HOUSE.z, 1);
-
-    expect(onMesh.blocked(HOUSE.x, HOUSE.z), 'a cottage of the polygon world').toBe(true);
-    expect(onRoad.blocked(HOUSE.x, HOUSE.z), 'the same spot in the road world is open ground').toBe(false);
-    // and the ground itself is a different height, which is the whole of why this matters
-    expect(onRoad.heightAt(HOUSE.x, HOUSE.z)).not.toBe(onMesh.heightAt(HOUSE.x, HOUSE.z));
-  });
-
-  it('will not let two players into one seed from different countries', () => {
+  /*
+   * There is one kind of world now, so what is left of this is the islands.
+   *
+   * The fault it guards against is unchanged and is the worst one this seam has: two players in a
+   * seed, in countries that differ, each walking about on ground the other cannot see. It used to
+   * be reachable by picking a different world on the title screen; the only way left is a set of
+   * islands hanging somewhere else, which an older save genuinely can have.
+   */
+  it('will not let two players into one seed with their islands in different places', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true });
-    new Pretend(sim).join(3, 'Rowan', PROTOCOL_VERSION, 'mesh');
-    const wrong = new Pretend(sim).join(3, 'Wren', PROTOCOL_VERSION, 'road');
+    new Pretend(sim).join(3, 'Rowan');
+    const elsewhere: Anchor = {
+      id: 'island:9', kind: 'island', x: 900, z: -400, seed: 12, parent: null, version: 1,
+    };
+    const wrong = new Pretend(sim);
+    wrong.say({
+      type: 'join', seed: 3, name: 'Wren', version: PROTOCOL_VERSION, day: 1, time: 0.3,
+      world: 'road', islands: [elsewhere],
+    });
     expect(wrong.of('error').map((e) => e.reason), 'let into a world that is not the one they are in').toHaveLength(1);
     expect(wrong.open, 'left connected to a world they cannot be in').toBe(false);
   });
@@ -927,6 +936,16 @@ describe('the country the server grows', () => {
  * restoring my location to where I was killed".
  */
 describe('a hero carried home after a knock on the head', () => {
+  /**
+   * Somewhere in this world that is actually ground.
+   *
+   * It was 130, 60, which is a field in the polygon world and open sea in the road one — so when
+   * the polygon world went, these tests started walking a hero about on water and reporting that
+   * the world had not moved him. The middle of the first village is ground by construction, in
+   * every world, for ever.
+   */
+  const ON_LAND = CLEAR_RUN;
+
   const walkTo = (who: Pretend, x: number, z: number): void => {
     who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
   };
@@ -934,7 +953,7 @@ describe('a hero carried home after a knock on the head', () => {
   it('is left where he was put, and the world agrees he is there', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
-    walkTo(rowan, 130, 60);
+    walkTo(rowan, ON_LAND.x, ON_LAND.z);
     sim.tick(Date.now() + 100);
     // a steer, so the world has a hero of its own to hold
     rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 100 });
@@ -959,7 +978,7 @@ describe('a hero carried home after a knock on the head', () => {
   it('and cannot be used to stand anywhere that is not a village', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
-    walkTo(rowan, 130, 60);
+    walkTo(rowan, ON_LAND.x, ON_LAND.z);
     sim.tick(Date.now() + 100);
     rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 100 });
     const before = rowan.of('youAre').at(-1)!;
