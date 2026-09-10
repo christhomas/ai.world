@@ -1494,9 +1494,23 @@ it is worth its own heading rather than being fixed one case at a time.
       was a true finding — `crews.ts` did not exist and nothing put anybody underground — but it was
       found by walking into a mine, not by grepping, and that is the difference.*
 - [ ] **Advertise brewing and digging.** Both are one-reader systems reachable only by standing in
-      the right place with the right tool. Cheapest things on this list to make discoverable and the
-      most likely to be found by accident once they are: a seam that shows in a hillside, a herb
-      patch that reads as a herb patch.
+      the right place with the right tool, and nothing in the world says so — a player can dig a
+      hundred holes in ordinary dirt and finish without learning either exists.
+
+      *Tried and backed out once, and the reason is worth keeping. A tile that grew nothing of its
+      own can show what it is hiding: a flower or a mushroom where herbs grow, a stone at the
+      surface where there is metal under it. That works and it is the right idea. What it needs
+      first is a layer move — `rollProp` lives in `world/` and `herbAt`/`seamAt` live in `game/`,
+      so asking the ground what it holds points the dependency backwards and the architecture test
+      says so.*
+
+      *The fix is not to relax the rule but to notice the rule is right: **what a piece of ground
+      holds is a fact about the world**, exactly like whether it grows a tree, and those two
+      functions are in `game/` for historical reasons rather than good ones. Move the ground half of
+      each — `seamAt`, `richness`, `groundOf`, `Ground`, `SEAM` and `herbAt`, `plenty`, `patchOf`,
+      `Patch`, `GROWTH` — down into `world/`, leave the recipes and the spade in `game/`, and the
+      sign becomes three lines that break nothing. It will also move the golden fingerprint, which
+      is correct: the world will have different things growing on it.*
 ## The mine, with people in it — September 10th
 
 - [x] **Nobody is ever digging.** `mines.ts` has worked every village's hole every day since it was
