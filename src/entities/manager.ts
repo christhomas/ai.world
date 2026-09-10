@@ -12,7 +12,8 @@ import { dungeonMonsters, pickKind, type SpawnSpot } from './spawns';
 import { treeFor } from './behaviours';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
-import { spawnPaddocks } from './paddocks';
+import { spawnLivestock } from './paddocks';
+import { soldAtMarket } from '../world/livelihoods';
 import { spawnVillageFolk } from './street';
 import { spawnWildlife } from './wilds';
 import { BEHAVIOUR, Entity, Herd, anybodyAt, canStand, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
@@ -231,10 +232,13 @@ export class EntityManager {
         attacker, victim, damage,
       ),
       worth: this.priceOf,
-      // a sale reaches the register, which outlives the body that made it
+      // a sale reaches the register, which outlives the body that made it — and it is a sale
+      // rather than a gift: somebody in the village buys what was carried in, out of their own
+      // purse. See `soldAtMarket`, and `livelihoods.ts` for why the alternative was money the
+      // world invented every time a player happened to stand near a hunter
       banked: (person: string, coin: number) => {
         const who = person ? this.register?.find(person) : undefined;
-        if (who) who.purse += coin;
+        if (who) soldAtMarket(this.register?.living(who.village) ?? [], person, coin);
       },
       // asked once a tick and handed to everybody, because a village's constables all heard the
       // same news about the same person on the same morning
@@ -609,7 +613,10 @@ export class EntityManager {
       residentsFor: (v, posts, wanted) => this.residentsFor(v, posts, wanted),
       hasStable: (village) => this.hasStable(village),
     }, ctx);
-    spawnPaddocks({ villages: this.villages, place: (...a) => this.place(...a) }, ctx);
+    spawnLivestock({
+      villages: this.villages, world: this.world, place: (...a) => this.place(...a),
+      herdOf: (village: string) => this.register?.herdOf(village) ?? 0,
+    }, ctx);
     spawnWildlife({
       world: this.world, night: this.night, highland: this.highland,
       awayFromVillages: (x, z) => {

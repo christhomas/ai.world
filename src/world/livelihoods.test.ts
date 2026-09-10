@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { FOOD, broughtIn } from './food';
 import { PROSPER } from './prosperity';
 import {
-  LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, paidForFood, paidForService, shareOut, whoFed,
+  LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, paidForFood, paidForService, shareOut,
+  soldAtMarket, whoFed,
 } from './livelihoods';
 import type { Person } from './people';
 
@@ -73,14 +74,18 @@ describe('keeping cattle', () => {
     expect(day.gold).toBeGreaterThan(0);
   });
 
-  it('reaches the paddocks from a founding herd inside a season', () => {
-    // the whole reason the calving rate is what it is: a village founded today should have a full
-    // paddock to come back to, and not in a year
+  it('fills the paddocks from a founding herd in about a fortnight', () => {
+    /*
+     * What the calving rate is actually for. A village founded today has four head and room for
+     * six, and the gap between those two numbers is the whole reason to walk back out to the field
+     * a week later. Too fast and the herd is full before anybody has left the village; too slow
+     * and it is a number that never visibly moves.
+     */
     let herd: number = LIVELIHOOD.FIRST_HERD;
     let days = 0;
     while (herd < LIVELIHOOD.HERD_PER_FARMER - 0.01 && days < 400) { herd = aDayOfCattle(herd, 1).herd; days++; }
-    expect(days).toBeGreaterThan(14);
-    expect(days).toBeLessThan(90);
+    expect(days).toBeGreaterThan(5);
+    expect(days).toBeLessThan(40);
   });
 
   it('loses the herd when the last farmer is buried', () => {
@@ -277,5 +282,44 @@ describe('a farmer\'s hundred days, in a village with people in it', () => {
     // both have starved somewhere around day seven
     expect(farmer.purse).toBeGreaterThan(0);
     expect(hunter.purse).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The seen half and the unseen half of the world, over the same deer.
+ *
+ * A hunter a player is standing next to sells his catch through `verbs.ts`; a hunter nobody is
+ * watching is paid his share of what the village spent on dinner. For as long as the first of those
+ * credited him the price of the meat out of nowhere, walking up to a village made it richer — which
+ * is the one thing this whole economy is built not to do.
+ */
+describe('a sale made in front of somebody', () => {
+  it('takes the money out of a neighbour rather than out of the air', () => {
+    const people = [person('hunter', 10), person('seller', 200), person('soldier', 200)];
+    const before = people.reduce((sum, p) => sum + p.purse, 0);
+    const paid = soldAtMarket(people, people[0].id, 7);
+    expect(paid).toBe(7);
+    expect(people[0].purse).toBe(17);
+    expect(people.reduce((sum, p) => sum + p.purse, 0)).toBe(before);
+  });
+
+  it('is bought by the market seller, whoever else is standing about', () => {
+    const people = [person('hunter', 0), person('soldier', 900), person('seller', 100)];
+    soldAtMarket(people, people[0].id, 7);
+    expect(people[2].purse).toBe(93);
+    expect(people[1].purse).toBe(900);
+  });
+
+  it('sells for what the village can afford and no more', () => {
+    // a poor village cannot buy the whole deer, and nobody buys it out of next week's dinners
+    const people = [person('hunter', 0), person('seller', PROSPER.KEEPS_BACK + 2)];
+    expect(soldAtMarket(people, people[0].id, 7)).toBe(2);
+    expect(people[1].purse).toBe(PROSPER.KEEPS_BACK);
+  });
+
+  it('makes no sale at all in a village with nobody left to buy', () => {
+    const alone = [person('hunter', 40)];
+    expect(soldAtMarket(alone, alone[0].id, 7)).toBe(0);
+    expect(alone[0].purse).toBe(40);
   });
 });

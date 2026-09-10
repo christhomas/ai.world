@@ -54,12 +54,16 @@ export const LIVELIHOOD = {
   /**
    * What a farmer starts with when a village is founded.
    *
-   * Two, so that a new village has something to build a herd out of and does not spend its first
-   * month with an empty paddock. It also means the herd is worth watching for a while — a village
-   * founded today is at a fifth of its cattle and climbing, which is a thing a player can come
-   * back to in a fortnight and see the difference in.
+   * Four of the six a farmer's paddocks hold, which is a herd rather than a start on one.
+   *
+   * It was two, and two is what the arithmetic wants and what the picture does not. A village with
+   * one farmer — which most of them have — put exactly two cows in its field on the morning a
+   * player first walked into it, and two cows in a field read as a pair of strays rather than as
+   * the thing the place lives off. Four reads as a herd from the road on the first day and still
+   * has somewhere to go: eleven days to fill the paddocks, and a fortnight is exactly the sort of
+   * gap a player leaves between visits.
    */
-  FIRST_HERD: 2,
+  FIRST_HERD: 4,
   /**
    * The share of a herd born again each day.
    *
@@ -401,4 +405,45 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
     starved: meal.starved,
     paid: paidForFood(people, meal.spent, work.meat),
   };
+}
+
+/**
+ * A sale in the street, made by somebody a player is actually watching.
+ *
+ * The one place the seen half of this world and the unseen half meet over money, and until now
+ * they disagreed about it. A hunter you watch walks his deer to the market and `verbs.ts` credited
+ * him what the meat was worth out of thin air; a hunter nobody watches is paid his share of what
+ * the village spent on dinner. Same man, same deer, two different economies — and the visible one
+ * was the one minting money, which is exactly backwards.
+ *
+ * So a sale is a transfer. Somebody in the village buys the deer, and it is their coin the hunter
+ * walks away with. The market seller first, because that is her trade and buying what hunters and
+ * farmers bring in is the whole of it; then the other trades whose business is other people; then
+ * whoever in the village has the deepest purse, because a village with no stall still eats. Nobody
+ * buys themselves out of their own reserve — a week of dinners is kept back, the same reserve
+ * `spentOnLiving` will not spend below — so a poor village simply cannot afford the whole deer,
+ * and the hunter gets what there is.
+ *
+ * That the hunter ends the day better off than an unwatched one is not a leak and is not smoothed
+ * over. He really did carry a deer in while somebody was looking. What must not happen — and now
+ * cannot — is the village as a whole being a coin richer for having been visited.
+ *
+ * Returns what actually changed hands, which the caller wants for the body standing in the street.
+ */
+export function soldAtMarket(
+  people: readonly Person[], sellerId: string, coin: number,
+): number {
+  const seller = people.find((p) => p.id === sellerId);
+  if (!seller || coin <= 0) return 0;
+  const others = people.filter((p) => p.id !== sellerId && p.trade);
+  const rank = (p: Person): number => (p.trade === 'seller' ? 2 : TRADERS.includes(p.trade) ? 1 : 0);
+  // her trade first, then the other trades whose business is other people, then the deepest purse
+  const buyer = [...others].sort((a, b) => rank(b) - rank(a) || b.purse - a.purse)[0];
+  if (!buyer) return 0;
+
+  const afford = Math.max(0, Math.min(coin, buyer.purse - PROSPER.KEEPS_BACK));
+  if (afford <= 0) return 0;
+  buyer.purse -= afford;
+  seller.purse = Math.min(PROSPER.MOST, seller.purse + afford);
+  return afford;
 }
