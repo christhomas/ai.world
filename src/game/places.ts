@@ -19,8 +19,9 @@ import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import type { Player } from '../entities/player';
 import { DungeonMinimap } from '../ui/dungeonmap';
-import { putTheCrewToWork, type Digger } from './crews';
+import { FACEWORK, putTheCrewToWork, type Digger } from './crews';
 import { ITEMS } from './items';
+import type { Register } from '../world/register';
 import type { GameState } from './state';
 import type { HeroGear } from '../render/herogear';
 
@@ -30,6 +31,27 @@ export interface PlaceContext {
   takeShare: (gold: number) => void;
   /** The village's miners who are down this hole today, so they can be met at the face. */
   crewIn: (anchorId: string) => readonly Digger[];
+  /**
+   * Somebody has been killed, and everything that follows from it: off the register for good, a
+   * pack left where they fell, a line in the corner of the screen if it happened in sight.
+   *
+   * The overworld's crowd has had this since there were villagers to lose. A floor's crowd had
+   * neither this nor the register, so an ogre could kill one of the crew in front of you and the
+   * man was back at his face the next time you walked in — the tunnels could not report a death to
+   * the one record there is. They are handed the same two things now, which is the point: nothing
+   * invents a second answer about who is alive.
+   */
+  fallen: (who: Entity) => void;
+  /** Who lives in the villages, so a man killed underground is the man the street knows. */
+  register: Register;
+  /**
+   * And what a death in these workings does to the village that works them.
+   *
+   * Kept apart from `fallen`, because it is a different fact about a different thing: `fallen` is
+   * about a person, and this is about a place. A village hears that somebody did not come up and
+   * is frightened of the hole, whoever it was.
+   */
+  aDeathBelow: (anchorId: string) => void;
   seed: number;
   manifest: Manifest;
   state: GameState;
@@ -225,7 +247,25 @@ export class Places {
     // height a whole valley is seen from is a diagram of a cave rather than a place you are in
     iso.limitZoom(CAMERA.SHUT_IN_ZOOM);
 
-    const monsters = new EntityManager(renderer, world, { getTiles: () => null }, anchor.seed + floor);
+    /*
+     * The crowd of this floor, and it is told who is alive.
+     *
+     * `[]` villages, because nothing underground is a village and `spawnVillageFolk` walks that
+     * list — a floor grows monsters and is handed its crew, and neither of those is a street. What
+     * it does get is the register and the same `fallen` the country's own crowd has, so that a
+     * miner killed at his face is buried once, in the one place anybody asks.
+     */
+    const monsters = new EntityManager(
+      renderer, world, { getTiles: () => null }, anchor.seed + floor, [],
+      undefined,
+      (who) => {
+        this.ctx.fallen(who);
+        // a village is frightened of the hole rather than of the ogre in it, so this is about the
+        // workings and not about whoever it was
+        if (who.trade === FACEWORK) this.ctx.aDeathBelow(anchorId);
+      },
+      this.ctx.register,
+    );
     const place = `${poi.name}:${floor}`;
     // The world owns a floor when there is a world to own it. Told, it says what lives down here
     // and this spawns nothing; alone, the floor is grown from the same seed the world would have

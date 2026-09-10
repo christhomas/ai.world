@@ -1,4 +1,5 @@
 import { BEHAVIOUR, type Entity } from './entity';
+import { PERSON_KINDS } from './properties';
 
 /**
  * Who is worth going for.
@@ -15,8 +16,14 @@ import { BEHAVIOUR, type Entity } from './entity';
 /**
  * Kinds that count as people: what a predator prefers, what a constable protects, and what it is
  * murder rather than hunting to kill.
+ *
+ * Whoever is in `properties/people.json`, and never a list written out here. It was written out
+ * here — `villager`, `traveller`, `shopkeeper`, `hero` — and the night the trades got bodies of
+ * their own that list quietly stopped being true: seven new sorts of person appeared in the file
+ * and none of them in this set, which made a priest fair game for a hunter's arrow and a miner
+ * killed at his face nobody's death to report.
  */
-export const PEOPLE = new Set(['villager', 'traveller', 'shopkeeper', 'hero']);
+export const PEOPLE: ReadonlySet<string> = PERSON_KINDS;
 
 /** The nearest of `near` that `wanted` accepts, measured from `from`, or null if none will do. */
 function closest(from: Entity, near: readonly Entity[], wanted: (e: Entity) => boolean): Entity | null {

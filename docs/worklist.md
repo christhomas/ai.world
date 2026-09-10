@@ -1816,14 +1816,39 @@ it is worth its own heading rather than being fixed one case at a time.
          `crewIn: (anchorId) => mines.whoIsDown(anchorId, minesWorked(), (v) => register.living(v)),`
          `minesWorked` is declared further down the file than `Places` is built; the closure is only
          ever called on the way into a hole in the ground, so there is nothing to hoist.
-- [ ] **A miner killed underground is not written down anywhere.** The floor's `EntityManager` is
-      built in `places.ts` with no register and no `onFallen`, so an ogre that kills one of the crew
-      in front of you — and it will, because monsters mark the nearest person and the crew are
-      people now — changes nothing and the man is back at his face the next time you walk in.
-      Nothing invents a second answer about who is alive, which was the rule; but the tunnels cannot
-      yet report a death to the one answer there is. Handing that manager the same `register` and
-      `onFallen` the overworld's has is a `places.ts` change and would want a thought about what a
-      death down there does to the village's dread, which is the whole point of the place.
+- [x] **A miner killed underground is written down now.** *(Two faults, and the second was the
+      worse one because it was a day old.
+
+      The floor's `EntityManager` was built with no register and no `onFallen`, so an ogre that
+      killed one of the crew in front of you changed nothing and the man was back at his face the
+      next time you walked in. It is handed the same two things the country's own crowd has —
+      `[]` villages, because a floor is not a street and `spawnVillageFolk` walks that list, but
+      the register and the same `fallen`. Nothing invents a second answer about who is alive; the
+      tunnels can simply reach the one there is.
+
+      The second fault is what made the first one invisible. `PEOPLE` in `quarry.ts` — what a
+      predator prefers, what a constable comes running about, and what it is murder rather than
+      hunting to kill — was a hand-written set of four names, and the night the trades were given
+      bodies of their own it silently stopped being true. Seven new sorts of person appeared in
+      `properties/people.json` and none of them in that set, so a miner's death was not a death
+      worth reporting **and a hunter looking for something to shoot would have taken aim at the
+      priest**: `nearestQuarry` asks for anything with hit points that is not a person and is not
+      dangerous. It is read off the file now — a person is not a property a creature carries, it is
+      which file it was written into — and `quarry.test.ts` holds it there, because a list of names
+      beside a directory of names is a list that falls out of step and this one managed it inside a
+      day.
+
+      And what a death down there does to the village, which the item asked for: the same thing a
+      death it never saw does. `restOvernight` has always added `DREAD_A_DEATH` when a crew loses
+      somebody in a day nobody watched, so `Mines.aDeathBelow` adds exactly that constant when it
+      happens in front of you. Two numbers for one thing is how the seen and unseen halves of this
+      world start telling different stories. It only ever raises: fear arrives on its own, and the
+      only thing that brings it down quickly is somebody walking up out of the hole and saying so.
+
+      Not covered end to end: the wiring from a blow underground to the register is typed and not
+      tested. A test for it turned into a test of whether a wolf can be persuaded to kill a man in
+      a bare harness, which is a test of the wolf. What is covered is the rule the wiring depends
+      on — who counts as a person — and what a death does to a mine.)*
 
 ## Found while wiring the miners in
 

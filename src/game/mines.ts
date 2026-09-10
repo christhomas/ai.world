@@ -254,6 +254,25 @@ export class Mines {
   }
 
   /**
+   * Somebody was killed in these workings while the hero was standing there.
+   *
+   * The village's day underground already knows what a death costs — `restOvernight` adds
+   * `DREAD_A_DEATH` when a crew loses somebody — and this is the same event happening in front of
+   * a player instead of in the arithmetic. So it is the same constant, and deliberately: a funeral
+   * is a funeral whether or not anybody was there to see it, and two numbers for one thing is how
+   * the seen half and the unseen half of this world start telling different stories.
+   *
+   * It only ever raises. `heardTold` is the one thing that brings dread down quickly, and it does
+   * that because somebody walked up out of the hole and said so — which is the point of the pair:
+   * fear arrives on its own and leaves only when it is carried out.
+   */
+  aDeathBelow(id: string): void {
+    const mine = this.mines.get(id);
+    if (!mine) return;
+    this.mines.set(id, { ...mine, dread: Math.min(1, mine.dread + MINING.DREAD_A_DEATH) });
+  }
+
+  /**
    * What somebody else's word to a village has done to what it believes.
    *
    * Belief only ever falls this way — the word is that the place is safer than they thought — so

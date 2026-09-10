@@ -300,6 +300,14 @@ export function startGame(
     // who is down a hole today: `minesWorked` is declared below this, and the closure is only
     // called on the way into the ground, so there is nothing to hoist
     crewIn: (anchorId) => mines.whoIsDown(anchorId, minesWorked(), (v) => register.living(v)),
+    // and what happens when one of them does not come back up. The same two things the country's
+    // own crowd was given: one record of who is alive, and one thing that happens when somebody
+    // stops being on it. A floor had neither, so a man killed at his face was back at it the next
+    // time you walked in.
+    fallen: (who) => fallen(who),
+    register,
+    // the anchor a floor hangs off is the mine's own id, which is what `crewIn` above is keyed on
+    aDeathBelow: (anchorId) => mines.aDeathBelow(anchorId),
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     setCaveAmbience: (on) => { sound.cave = on; },

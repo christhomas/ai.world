@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { Register } from '../world/register';
 import { gossipFor } from './gossip';
+import { MINING } from './mining';
 import { MINES, Mines, claimedMines, mineIdOf, type Working } from './mines';
 
 const CAVE = { id: 'cave:10,10', name: 'Bat Hollow', x: 10, z: 10 };
@@ -179,6 +180,46 @@ describe('clearing a mine out', () => {
     expect(quiet).toBeGreaterThan(frightened);
     expect(told).toBeGreaterThan(quiet * 1.25);
     expect(told).toBeGreaterThan(frightened * 2);
+  });
+});
+
+describe('a death you were standing next to', () => {
+  /**
+   * The half of this the arithmetic could never see.
+   *
+   * `restOvernight` has always known what a funeral costs a village — the crew loses somebody, the
+   * mine gains `DREAD_A_DEATH` — but that only ever happened in a day nobody watched. A man killed
+   * at his face in front of the hero went through a different path entirely: the floor's own crowd,
+   * which had no register and nothing to report a death to, so the man was back at his cut the next
+   * time you walked in and the village never heard a thing.
+   */
+  it('frightens the village exactly as much as one it only heard about', () => {
+    const seen = Mines.from(7, alreadyFeared(0.2), 1);
+    seen.aDeathBelow(MINE);
+    expect(seen.at(MINE)!.dread).toBeCloseTo(0.2 + MINING.DREAD_A_DEATH, 6);
+  });
+
+  it('cannot frighten a village past the end of the scale', () => {
+    const mines = Mines.from(7, alreadyFeared(0.9), 1);
+    mines.aDeathBelow(MINE);
+    expect(mines.at(MINE)!.dread).toBe(1);
+  });
+
+  it('shuts the mine, which is what being frightened of a hole means', () => {
+    const register = village();
+    const mines = Mines.from(7, alreadyFeared(0.4), 1);
+    expect(mines.whoIsDown(MINE, [working()], (v) => register.living(v)).length,
+      'nobody was working it to begin with, so there is nothing to stop').toBeGreaterThan(0);
+    mines.aDeathBelow(MINE);
+    expect(mines.at(MINE)!.dread).toBeGreaterThanOrEqual(MINING.DREAD_SHUT);
+    expect(mines.whoIsDown(MINE, [working()], (v) => register.living(v)),
+      'somebody was killed down there this morning and the crew went back after lunch').toEqual([]);
+  });
+
+  it('says nothing about a hole that is not a mine', () => {
+    const mines = new Mines(7, 1);
+    mines.aDeathBelow('cave:nowhere');            // a vault, a castle keep, a hole nobody works
+    expect(mines.at('cave:nowhere')).toBeUndefined();
   });
 });
 

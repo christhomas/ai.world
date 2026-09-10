@@ -147,6 +147,24 @@ export const PROPERTIES: Record<string, CreatureProperties> = readAll({
 }, readCreature);
 
 /**
+ * The kinds that are people, which is the contents of one file.
+ *
+ * A person is not a property a creature carries — nothing in `people.json` says "I am a person" —
+ * it is which file it was written into, and that is the honest place to read it from. It decides
+ * three things: what a predator would rather have than a rabbit, what a constable comes running
+ * about, and what it is murder rather than hunting to kill.
+ *
+ * It was a hand-written set of four in `quarry.ts`, and the night the trades got bodies of their
+ * own it was wrong: a miner, a priest, a doctor, a constable, a mayor, a farmer and a cowboy were
+ * all outside it, so a hunter would have put an arrow in the priest and a miner killed at his own
+ * rock face was filed nowhere at all. A list of names beside a directory of names is a list that
+ * falls out of step, and this one did within a day of the directory growing.
+ */
+export const PERSON_KINDS: ReadonlySet<string> = new Set(
+  Object.keys(people).filter((name) => typeof (people as Record<string, unknown>)[name] === 'object'),
+);
+
+/**
  * A creature, from what it is and the body that draws it.
  *
  * The two halves are joined here rather than in the files that hold the rigs, so that a rig file

@@ -121,7 +121,7 @@ const DIGGER = 'miner';
  * register is still `miner` and that is what he is called and what he talks about; this is only
  * what he is doing this afternoon.
  */
-const FACEWORK = 'facework';
+export const FACEWORK = 'facework';
 
 /**
  * Which of the manager's lists these go in.
