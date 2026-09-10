@@ -93,6 +93,17 @@ export interface Framing {
   swallows: { check: () => void };
   /** And what they look like from the deck, which is the whole of whether they are a decision. */
   seaEyes: { update: (dt: number, x: number, z: number, wet: (x: number, z: number) => boolean) => void };
+  /** Stepping into a shaft, and the holes drawn in the ground so one can be walked to on purpose. */
+  shafts: { step: (dt: number) => void };
+  /** Whether a spot could hold a shaft, asked the same way by the walker and by the drawing. */
+  couldBeAShaft: (x: number, z: number) => boolean;
+  holes: {
+    update: (
+      x: number, z: number,
+      groundAt: (x: number, z: number) => number | null,
+      couldBe: (x: number, z: number) => boolean,
+    ) => void;
+  };
   /**
    * What a teleport looks like. Ticked below whatever else the frame is doing, because it is what
    * puts the hero's rig back together and a hero left half way through one would stay in pieces.
@@ -173,7 +184,7 @@ export function createFrame(ctx: Framing) {
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
-    updraughts, swallows, seaEyes,
+    updraughts, swallows, seaEyes, shafts, holes, couldBeAShaft,
     sailFerries, ageCamps, runClock, carcasses, noticeStall, musterHires, startTalk, updateHud,
     mapInput, markers, doorsteps, streamCountry, areaName, arriving, outdoors, persist, talking: inTalk, tickDialogue,
     reveal, refreshJournal,
@@ -276,6 +287,8 @@ export function createFrame(ctx: Framing) {
     // the water that goes down, and coming back up out of it. Asked every frame rather than only
     // while sailing: surfacing from a drowned cavern is the other half of it. See `swallows.ts`.
     swallows.check();
+    // and the holes in the ground, which take anybody carrying silk and nobody else
+    shafts.step(dt);
     player.update(input, iso, dt, talking || sailing.sailing, places.indoors !== null);
     // What the hero was trying to do goes to the world, which walks him itself and says where he
     // got to; the step above has already walked him here so the game answers the key at once. Only
@@ -400,6 +413,7 @@ export function createFrame(ctx: Framing) {
     updraughts.update(dt, x, z, (ax, az) => chunks.heightAt(ax, az));
     // and the water that goes down, drawn where it turns: see `render/swallows.ts`
     seaEyes.update(dt, x, z, (ax, az) => chunks.waterAt(ax, az) !== null);
+    holes.update(x, z, (ax, az) => chunks.heightAt(ax, az), couldBeAShaft);
     // the gear goes on before the light does, because after dark the light comes from the torch in
     // the hero's hand and the hand has to have been put somewhere first
     heroGear.update(state, player.entity, state.night > TORCH_OUT && !state.can('light'));

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { BEHAVIOUR } from '../entities/properties';
 import { thermalsAround } from '../world/thermals';
 import { maelstromsAround } from '../world/maelstroms';
+import { shaftsAround } from '../world/shafts';
+import { openCountry } from './shafts';
 import { CAMERA } from '../core/config';
 import { PropKind } from '../world/biomes';
 import { nameOfProp } from '../world/catalogue';
@@ -320,6 +322,12 @@ export function installProbes(ctx: Probed): void {
   // the wing, so a headless browser can take off without having to land two keypresses a tenth of
   // a second apart
   (debug as { __wing?: unknown }).__wing = wing;
+  // where the holes in the ground are, and whether each is on ground that could really have one
+  (debug as { __shafts?: () => unknown }).__shafts = () =>
+    shaftsAround(player.x, player.z, 400, seed)
+      .filter((one) => openCountry(chunks, one.x, one.z))
+      .map((one) => ({ ...one, away: Math.round(Math.hypot(one.x - player.x, one.z - player.z)) }))
+      .sort((a, b) => a.away - b.away);
   // and where the sea goes down, for the same reason: a whirlpool four hundred tiles away is not
   // a thing a headless browser can go and find by sailing about
   (debug as { __swallows?: () => unknown }).__swallows = () =>

@@ -20,7 +20,7 @@ export type ItemEffect =
   | { type: 'rest' };
 
 /** Something an item does while it is equipped. */
-export type Ability = 'light' | 'map' | 'climb' | 'fish' | 'dig' | 'fell' | 'kindle' | 'skin' | 'hew' | 'grind' | 'camp' | 'glide';
+export type Ability = 'light' | 'map' | 'climb' | 'fish' | 'dig' | 'fell' | 'kindle' | 'skin' | 'hew' | 'grind' | 'camp' | 'glide' | 'float';
 
 const ABILITY_NOTES: Record<Ability, string> = {
   light: 'lights your way at night',
@@ -35,6 +35,7 @@ const ABILITY_NOTES: Record<Ability, string> = {
   grind: 'reduce what you gather to something you can drink',
   camp: 'make a bed wherever you are standing',
   glide: 'open a wing in mid-air and sail on the wind',
+  float: 'step into a shaft and come down slowly enough to walk away',
 };
 
 export interface Item {
@@ -117,6 +118,7 @@ const list: Item[] = [
   { id: 'mortar', name: 'Mortar and Pestle', emoji: '🥣', price: 38, desc: 'Stone bowl, stone club. What you grind in it stops being a leaf.', tool: true, ability: 'grind' },
   { id: 'tent', name: 'Canvas Tent', emoji: '⛺', price: 55, desc: 'Rolled on your back all day so that you have somewhere to be at night.', tool: true, ability: 'camp' },
   { id: 'glider', name: 'Canvas Wing', emoji: '🪂', price: 180, desc: 'Ash spars and sailcloth, folded to the length of your arm. Jump from somewhere high and open it before you come down.', tool: true, ability: 'glide' },
+  { id: 'parachute', name: 'Folded Silk', emoji: '☂️', price: 140, desc: 'A canopy of oiled silk in a satchel, packed by somebody who knew how. Carry it and a hole in the ground stops being the end of you.', tool: true, ability: 'float' },
 
   // --- feet ---
   { id: 'boots', name: 'Walking Boots', emoji: '🥾', price: 26, desc: 'Broken in by someone else.', slot: 'feet', defence: 1 },

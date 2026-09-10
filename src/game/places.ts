@@ -337,9 +337,19 @@ export class Places {
     this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
     this.ctx.setCaveAmbience(true);
     const depth = floor > 1 ? ` — floor ${floor}` : '';
-    this.ctx.flash(kind === 'cave' ? `You squeeze into the ${poi.name}`
+    /*
+     * "the" only where the name has not brought its own.
+     *
+     * Half the places underground are named for what they are — Redhollow, Kestrelmarch — and half
+     * are named as things: The Sink, The Long Drop, The Weeping Cavern. Prefixing every one of them
+     * produced "You squeeze into the The Sink", which is the sort of sentence that makes a world
+     * feel like a spreadsheet.
+     */
+    const named = /^the\s/i.test(poi.name) ? poi.name : `the ${poi.name}`;
+    this.ctx.flash(kind === 'cave' ? `You squeeze into ${named}`
       : kind === 'castle' ? `You pass under the gate of ${poi.name}${depth}`
-      : `You descend into the ${poi.name}${depth}`);
+      : kind === 'sunken' ? `You come to in ${named}, half drowned${depth}`
+      : `You descend into ${named}${depth}`);
     this.ctx.persist();
   }
 

@@ -67,10 +67,10 @@ import { createDoorsteps, gatesOf } from './game/doorways';
 import { createBlows } from './game/blows';
 import { Updraughts } from './render/updraughts';
 import { Swallows } from './render/swallows';
-import { createWing } from './game/gliding';
-import { createSwallows } from './game/swallows';
+import { Shafts } from './render/shafts';
+import { createWaysIn } from './game/waysin';
+import { openCountry } from './game/shafts';
 import { putFerriesOut } from './game/ferry';
-import { liftAt } from './world/thermals';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
 import { createFrame } from './game/frame';
@@ -189,6 +189,7 @@ export function startGame(
   // in, and what he is carrying, which goes with him rather than hangs there through the beam
   const updraughts = new Updraughts(rig.scene, seed);   // the warm air, drawn where a glider finds it
   const seaEyes = new Swallows(rig.scene, seed);        // and the water that goes down, drawn where it turns
+  const holes = new Shafts(rig.scene, seed);            // and the shafts, drawn so they can be walked to
   const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
@@ -622,15 +623,9 @@ export function startGame(
     companyInput: () => multiplayer.playerListInput,
   });
 
-  // the canvas wing: open it in mid-air and the ground stops mattering
-  const air = createWing({
-    seed, world: () => player.ground, hero: () => player.entity, hasOne: () => state.can('glide'),
-    clock: () => ({ day: state.day, time: state.time }), lift: (x, z) => liftAt(x, z, seed),
-    say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
-  player.carries(air);
-  // the water that goes down: what it costs to be taken, and the deck he comes back up onto
-  const swallows = createSwallows({
-    seed, state, places, sailing, hull: () => ({ x: sailing.x, z: sailing.z }),
+  // the air, the ground and the sea: a wing, a shaft and a whirlpool. See `game/waysin.ts`.
+  const { air, shafts, swallows } = createWaysIn({
+    seed, state, places, player, sailing, chunks, discover,
     say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
   // and what every key does, in one place
   bindKeys({
@@ -675,7 +670,8 @@ export function startGame(
 
   const frames = createFrame({
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, daycycle, weather, updraughts, swallows, seaEyes, beam, seasonTintMaterials, skyRenderer, skies, wildlife,
+    skyline, rock, daycycle, weather, updraughts, swallows, seaEyes, shafts, holes, beam,
+    couldBeAShaft: (x, z) => openCountry(chunks, x, z), seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
