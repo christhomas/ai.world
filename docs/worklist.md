@@ -2512,9 +2512,17 @@ other, and the order is chosen so that each one can be *seen* working before the
       list, and this is the same kind of question asked of everybody at once.
 - [x] **6. Villagers get hungry.** Health that falls with the day and is restored by eating, which is
       the engine under everything below: a villager who must eat is a villager who must earn.
-- [ ] **7. Four ways to earn: dig gold, keep cattle, sell a service, or hunt.** The miners already do
-      the first and are the model for the rest — a herd that breeds at the rate it is eaten, a hunter
-      who brings a deer back to the market, a smith who is paid for work.
+- [x] **7. Four ways to earn: dig gold, keep cattle, sell a service, or hunt.** `world/livelihoods.ts`,
+      and the thing that actually changed is that money now *moves*. It used to be minted for every
+      villager every morning out of nowhere and burnt again at dinner, so no coin ever passed between
+      two people. Now: what the village pays for its dinner goes to whoever grew it (the fields, the
+      woods, the byre); what everybody spends on their keep goes to the seller, the innkeeper and the
+      doctor they spent it with; a farmer's herd calves, the surplus goes to the butcher and what the
+      village cannot eat is sold to the next valley. Money enters in three places — the mine, the meat,
+      and what a trade earns beyond the valley — and leaves in one: a village with no market spends its
+      keep on a passing pedlar. `chore test economy` audits a hundred days of it to the coin. Two tuned
+      numbers moved with the world underneath them: `STOREY` 85 → 195 and `LUXURY` 1,800 → 3,500, both
+      re-measured across the same twenty-one villages to the same shape they always held.
 - [ ] **8. And all of it done where it can be watched.** The miners walk to the face and swing; the
       farmer must walk to the paddock, the hunter into the woods, the seller to the stall. Nothing in
       this economy may happen as a number moving in the dark.

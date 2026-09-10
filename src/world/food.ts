@@ -22,6 +22,17 @@ export const FOOD = {
   /** What one farmer puts on the table in a day, in meals. */
   PER_FARMER: 4,
   /**
+   * And what a hunter carries back out of the woods, in meals.
+   *
+   * Below a farmer, which is the right way round: a field is worked every day and a wood is
+   * walked, and some days there is nothing in it. Three is about a deer every other day once the
+   * bad days are averaged in, which is what the trade's own behaviour tree already does in front
+   * of a player — out to the woods, stalk something, carry it to the market and sell it. This is
+   * the same day for the hunters nobody is watching, and it must stay near what the watched one
+   * actually manages or the two halves of the world tell different stories about the same man.
+   */
+  PER_HUNTER: 3,
+  /**
    * And what everybody else manages for themselves — a kitchen garden, a few hens.
    *
    * Set at one meal a head on purpose: a village with no fields and no farmers feeds itself and
@@ -50,14 +61,35 @@ export const FOOD = {
   KEEPS_DAYS: 12,
 } as const;
 
-/** What a village grew today. */
-export function grownInADay(people: readonly Person[], pressure: number): number {
+/**
+ * What one person puts on the village's table today.
+ *
+ * Named and exported rather than folded into the sum below, because it is now asked twice and the
+ * two askings must never disagree. The larder wants the total; the market wants each person's
+ * share of it, since what somebody is paid for dinner is what they put into it. A second
+ * expression of "what a farmer grows" living in `livelihoods.ts` would be a farmer who is fed by
+ * one number and paid by another.
+ *
+ * Everybody's own garden is in it, children included: a kitchen garden feeds a household rather
+ * than a wage-earner. Counting only the working adults leaves a village of two dozen growing
+ * sixteen dinners a night, and it dies of arithmetic within the season.
+ */
+export function broughtIn(person: Person): number {
+  if (person.trade === 'farmer') return FOOD.PER_HEAD + FOOD.PER_FARMER;
+  if (person.trade === 'hunter') return FOOD.PER_HEAD + FOOD.PER_HUNTER;
+  return FOOD.PER_HEAD;
+}
+
+/**
+ * What a village grew today: the gardens, the fields, the woods, and whatever came off the herd.
+ *
+ * `fromHerd` is handed in rather than worked out, because a herd is a thing a village owns and
+ * this file knows about food. What breeds, what is kept back and what goes to the butcher is
+ * `livelihoods.ts`, which hands the meat over already counted.
+ */
+export function grownInADay(people: readonly Person[], pressure: number, fromHerd = 0): number {
   if (pressure > FOOD.UNTROUBLED) return 0;
-  const farmers = people.filter((p) => p.trade === 'farmer').length;
-  // counted over everybody, children included: a kitchen garden feeds a household rather than a
-  // wage-earner. Counting only the working adults leaves a village of two dozen growing sixteen
-  // dinners a night, and it dies of arithmetic within the season.
-  return farmers * FOOD.PER_FARMER + people.length * FOOD.PER_HEAD;
+  return people.reduce((sum, person) => sum + broughtIn(person), 0) + fromHerd;
 }
 
 /** The most a village will hold before the rest spoils. */

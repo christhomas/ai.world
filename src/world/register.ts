@@ -1,5 +1,5 @@
-import { PROSPER, earnedInADay, spentOnLiving } from './prosperity';
-import { cellarCap, eat, grownInADay } from './food';
+import { PROSPER } from './prosperity';
+import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
@@ -76,6 +76,15 @@ export interface Settlement {
    * of this size can keep — so a village cannot bank a good decade against a bad year.
    */
   food: number;
+  /**
+   * The cattle the village's farmers keep between them.
+   *
+   * A number rather than a list of beasts, for the same reason the larder is a number of meals:
+   * what matters about a herd is that it breeds, that it feeds the place and that the surplus is
+   * worth money in the next valley. Which particular cow is which is the paddock's business and
+   * the paddock is drawn from this.
+   */
+  herd: number;
   /** The day the last of them died, for a place that has been emptied. */
   emptied?: number;
   /** The size it was founded at. Births aim to hold it near this. */
@@ -201,7 +210,13 @@ export class Register {
     const mining = this.worksAMine.has(village);
     const people = foundVillage(this.seed, village, houses, trades, mining ? ['miner'] : []);
     // a village is founded with a few days in the cellar, not starving on its first morning
-    const settlement: Settlement = { people, founded: people.length, houses, trades, food: people.length * 3, buried: [] };
+    const farmers = people.filter((p) => p.trade === 'farmer').length;
+    const settlement: Settlement = {
+      people, founded: people.length, houses, trades, food: people.length * 3, buried: [],
+      // a few head to build a herd out of, so a new village has something in its paddock on the
+      // morning it is founded rather than an empty yard and a month to wait
+      herd: farmers * LIVELIHOOD.FIRST_HERD,
+    };
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) this.liveADay(village, settlement, day);
     return settlement.people;
@@ -247,6 +262,18 @@ export class Register {
   living(village: string): readonly Person[] {
     return this.villages.get(village)?.people ?? [];
   }
+
+  /**
+   * What a village keeps in its paddock and in its cellar.
+   *
+   * Asked of the register rather than worked out, because both have been lived forward day by day
+   * since the place was founded and neither can be reconstructed from anything on the map. The
+   * roll wants them: what a farmer earns is what his beasts and his fields fetched, and whether
+   * the larder ran out decides whether he was paid at all.
+   */
+  herdOf(village: string): number { return this.villages.get(village)?.herd ?? 0; }
+
+  larderOf(village: string): number { return this.villages.get(village)?.food ?? 0; }
 
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
@@ -404,20 +431,37 @@ export class Register {
    * same place as the village that watched it happen. The gap is filled the following morning.
    */
   /**
-   * A day's earnings for everybody still working in a village.
+   * A day's work for everybody still working in a village, and what it did to the herd.
    *
    * Nobody earns while the place is being raided, which is the whole reason a village under
    * pressure stays poor and one left alone slowly does not: prosperity is a thing the player can
    * protect rather than a number that only goes up.
+   *
+   * What is settled here is everything that does not wait for dinner: what a trade brings in from
+   * beyond the village, what the next valley paid for the meat, and everybody's keep going into
+   * the purses of whoever sold it to them. What the village pays for its own dinner cannot be
+   * settled until it has eaten, so `dinner` does that half.
    */
-  private trade(village: Settlement, pressure: number): void {
+  private trade(village: Settlement, pressure: number): Trading {
+    const day = aDaysTrade(village.people, village.herd, pressure);
+    village.herd = day.herd;
+    this.pay(village, day.paid);
+    return day;
+  }
+
+  /**
+   * Move money into and out of the purses of a village, by id.
+   *
+   * The one place a purse is written, so the cap and the floor are applied once. Both are
+   * deliberately kept: a purse that could go negative would be somebody in debt, which this world
+   * has no idea what to do with, and the cap is what stops one long-lived shopkeeper in a quiet
+   * corner ending the century with everything.
+   */
+  private pay(village: Settlement, owed: ReadonlyMap<string, number>): void {
     for (const person of village.people) {
-      const earned = earnedInADay(person, pressure);
-      // and what a life costs beyond dinner. Money that only ever arrives is a score rather than
-      // a currency, and a village of people who never spend anything cannot get poorer for any
-      // reason except being killed.
-      const spent = spentOnLiving(person);
-      person.purse = Math.min(PROSPER.MOST, Math.max(0, person.purse + earned - spent));
+      const much = owed.get(person.id);
+      if (much === undefined || much === 0) continue;
+      person.purse = Math.min(PROSPER.MOST, Math.max(0, person.purse + much));
     }
   }
 
@@ -425,10 +469,10 @@ export class Register {
     // one pressing, read once, and handed to both the halves of the day it changes: what a village
     // earns and what it grows. Read twice out of a map, they could disagree with each other
     const pressure = this.pressingOn(name, day);
-    this.trade(village, pressure);
+    const work = this.trade(village, pressure);
     const changes = [
       ...this.buryTheOld(village, day),
-      ...this.dinner(village, day, pressure),
+      ...this.dinner(village, day, work),
       ...this.fillTheGaps(name, village, day, pressure),
       ...this.growUp(name, village, day),
       ...this.takeTheKilled(village, day),
@@ -489,13 +533,11 @@ export class Register {
    * matters because a poor village buries people. Whoever cannot pay for what there is goes
    * without, and long enough without is what kills them.
    */
-  private dinner(village: Settlement, day: number, pressure: number): Change[] {
-    village.food = Math.min(
-      cellarCap(village.people),
-      village.food + grownInADay(village.people, pressure),
-    );
-    const meal = eat(village.people, village.food);
-    village.food = Math.max(0, village.food - meal.eaten);
+  private dinner(village: Settlement, day: number, work: Trading): Change[] {
+    const meal = aDaysDinner(village.people, village.food, work);
+    village.food = meal.food;
+    // what dinner cost goes to whoever's dinner it was: the fields, the woods and the herd
+    this.pay(village, meal.paid);
     return meal.starved
       .map((p) => this.remove(p, day, 'hunger'))
       .filter((c): c is Change => c !== null);

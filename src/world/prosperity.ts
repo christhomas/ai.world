@@ -25,6 +25,12 @@ export const PROSPER = {
    * at a subsistence rate instead of a village quietly starving because nobody visited it, and it
    * is deliberately far below what an afternoon of real trade brings in.
    *
+   * It is also, since the four livelihoods went in, only the part of a day that arrives from
+   * *beyond* the village — see `earnedInADay` below and `livelihoods.ts` for the other three
+   * quarters of a wage. A miner's seam, a sailor's catch, a soldier's pay off the road: money that
+   * was not in the valley this morning. What a farmer and a hunter take is their neighbours' money
+   * and is not this number at all.
+   *
    * Two, and the half coin it went up by is the whole of A7. Dinner costs one and upkeep three
    * tenths, so at one and a half an ordinary day left two tenths — twelve gold across a working
    * life, less than a night at an inn — and at the upkeep this had before, it left nothing at all
@@ -38,10 +44,16 @@ export const PROSPER = {
    *
    * Half again the ordinary wage, which is a smaller gap than it sounds and a larger one than it
    * looks. What a purse actually grows by is the wage less dinner and less upkeep, so three
-   * against two is not one and a half times as good but two and a half — a trader puts by 1.7 a
-   * day against a farmer's 0.7. The wage table is gentle and the savings table is steep, which is
-   * the right way round: nobody in a village is visibly rich, and the village with a market and an
-   * inn in it is the one that ends the season with a bath house.
+   * against two is not one and a half times as good but two and a half. The wage table is gentle
+   * and the savings table is steep, which is the right way round: nobody in a village is visibly
+   * rich, and the village with a market and an inn in it is the one that ends the season with a
+   * bath house.
+   *
+   * What this now buys these three is the passing trade — a traveller's bed, a stranger's stall
+   * money, a road accident treated — and it is the smaller half of what they take. The larger half
+   * is the whole village's keep, which `livelihoods.ts` hands them because they are the people it
+   * was spent with. That is why a market is worth building rather than merely worth having: the
+   * seller's income now grows with the number of neighbours he has, and this constant does not.
    */
   TRADED: 3,
   /** Nobody earns while the place is being raided; below this pressure, business as usual. */
@@ -79,8 +91,20 @@ export const PROSPER = {
    * And it is a line a village can fall back under. A place with a band standing over it drops
    * below inside a fortnight and climbs out again when the band goes, which is the whole point of
    * the number: what a player can protect, they should also be able to see from the road.
+   *
+   * A hundred and ninety-five, and the jump from eighty-five is the four livelihoods rather than a
+   * change of mind — the third time in this comment that a tuned number went wrong because the
+   * world got richer underneath it, and it is worth counting them. Money used to be minted for
+   * every villager every morning and burnt again at dinner; it now goes round, so what a village
+   * has at the end of a season is what actually came into it and stayed. Villages roughly doubled
+   * what they hold. Measured across the same twenty-one: at 85 all twenty-one cross, at 150
+   * eighteen, at 195 twelve, between day 50 and day 96, and past 240 only six.
+   *
+   * Twelve, in the second and third months, is the same shape the number has always been asked to
+   * hold. That it took a doubling of the threshold to keep it is the point of measuring rather
+   * than reasoning about a number like this.
    */
-  STOREY: 85,
+  STOREY: 195,
   /**
    * What a village's luxuries cost — reckoned against everything the village has between it, not
    * against one purse. Nobody here lives more than ninety days, so no individual could ever afford
@@ -101,8 +125,13 @@ export const PROSPER = {
    * everything else, so it should arrive at the end of a long run of good years and it should be
    * worth walking to when it does — which it is not if every village on the map has one, and is not
    * if you never find any.
+   *
+   * Three and a half thousand, re-measured with the four livelihoods in, for the same reason
+   * `STOREY` moved and off the same twenty-one villages: at 1,800 fifteen of them manage one, at
+   * 3,000 eleven, at 3,500 four — on days 57, 87, 92 and 96 — and at 3,800 two. Four late ones,
+   * again, which is the shape rather than the number.
    */
-  LUXURY: 1800,
+  LUXURY: 3500,
   /**
    * The most anybody keeps by them.
    *
@@ -163,10 +192,39 @@ export const PROSPER = {
  */
 export const TRADERS: readonly string[] = ['seller', 'innkeeper', 'doctor'];
 
-/** What one person earns on one ordinary day. */
+/**
+ * The trades that feed a village rather than earning outside it.
+ *
+ * A farmer and a hunter are the two people in a village whose entire income is their neighbours'
+ * money: what they grow and what they carry in out of the woods is bought, at the market, by the
+ * people who eat it. `livelihoods.ts` pays them out of the pool `eat` collects, and paying them a
+ * wage here as well would be paying them twice for the same dinner — which is precisely the fault
+ * the whole of that file exists to end, money arriving from nowhere on top of money that moved.
+ *
+ * That is why this is a list and not a rule about what a trade "is". Every other trade in the game
+ * has a customer outside the valley: a seam, a shoal, a road, a mountain, a traveller at an inn.
+ * These two do not.
+ */
+const FED_BY_NEIGHBOURS: readonly string[] = ['farmer', 'hunter'];
+
+/**
+ * What one person earns on one ordinary day, from beyond the village.
+ *
+ * **Only from beyond it.** This used to be the whole of a wage and is now one of four ways to get
+ * a coin — see `livelihoods.ts` — and the change of meaning is the point rather than a detail. A
+ * villager's income is now mostly other villagers' money: the food they grew, the service they
+ * sold, the keep their neighbours spend. What is left here is the part that genuinely arrives from
+ * outside, which is what a country needs some of or every village slowly grinds down to nothing.
+ *
+ * So a miner's seam, a sailor's catch, a soldier's pay off the road and an explorer's finds are
+ * here; a traveller's money at the inn, the surgery and the market stall is here, at the higher
+ * rate, because a trader's customers are both the village and everybody passing through it; and a
+ * farmer and a hunter are not here at all, because every coin they see comes from a neighbour.
+ */
 export function earnedInADay(person: Person, pressure: number): number {
   if (pressure > PROSPER.UNTROUBLED) return 0;
   if (!person.trade) return 0;                       // children and the very old keep no purse
+  if (FED_BY_NEIGHBOURS.includes(person.trade)) return 0;
   return TRADERS.includes(person.trade) ? PROSPER.TRADED : PROSPER.A_DAY;
 }
 

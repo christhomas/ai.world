@@ -16,7 +16,7 @@ const person = (trade: string): Person => ({
  */
 describe('what a village is worth', () => {
   it('pays the trades that handle everybody else money best', () => {
-    expect(earnedInADay(person('seller'), 0)).toBeGreaterThan(earnedInADay(person('farmer'), 0));
+    expect(earnedInADay(person('seller'), 0)).toBeGreaterThan(earnedInADay(person('soldier'), 0));
   });
 
   /**
@@ -85,6 +85,14 @@ describe('what a village is worth', () => {
  * So this lives a purse forward the way `register.ts` does — earn, then upkeep, then dinner — and
  * asks the one question the shape of the thing turns on: is he better off in the spring than he
  * was in the winter.
+ *
+ * The purse followed here is a soldier's, and it used to be a farmer's. That is not a tidy-up: a
+ * farmer's income stopped being this file's business the day the four livelihoods went in. What he
+ * takes is his neighbours' money — his share of what the village paid for the dinner he grew — and
+ * `earnedInADay` is now only the part of a wage that arrives from beyond the valley. A soldier is
+ * the trade this question is still about, because his pay off the road is the whole of what he
+ * gets. The same hundred days asked of a farmer, in a village with people in it to sell to, is in
+ * `livelihoods.test.ts`, which is where it now belongs.
  */
 describe('a hundred quiet days in one purse', () => {
   /** One day in the order the register lives it: what he takes, what he spends, then what he eats. */
@@ -102,19 +110,19 @@ describe('a hundred quiet days in one purse', () => {
     expect(PROSPER.A_DAY - FOOD.MEAL - PROSPER.UPKEEP).toBeGreaterThan(0);
   });
 
-  it('is worth more to a farmer at a hundred days than at fifty', () => {
-    expect(lived('farmer', 100)).toBeGreaterThan(lived('farmer', 50) + 10);
+  it('is worth more to a soldier at a hundred days than at fifty', () => {
+    expect(lived('soldier', 100)).toBeGreaterThan(lived('soldier', 50) + 10);
   });
 
   it('does not settle at the reserve, from below it or from above it', () => {
     for (const from of [0, PROSPER.KEEPS_BACK, PROSPER.KEEPS_BACK + PROSPER.UPKEEP * 2, 200]) {
-      expect(lived('farmer', 60, from)).toBeGreaterThan(PROSPER.KEEPS_BACK + 20);
+      expect(lived('soldier', 60, from)).toBeGreaterThan(PROSPER.KEEPS_BACK + 20);
     }
   });
 
   it('rewards the trades that serve everybody else several times over, not half again', () => {
     // the wage is half again; what is left after a day has cost what it costs is far more than that
-    expect(lived('seller', 60)).toBeGreaterThan(lived('farmer', 60) * 2);
+    expect(lived('seller', 60)).toBeGreaterThan(lived('soldier', 60) * 2);
   });
 });
 
@@ -143,6 +151,8 @@ describe('what a life costs beyond dinner', () => {
   });
 
   it('costs less than a working day earns, or nobody could ever get ahead', () => {
-    expect(spentOnLiving(withPurse(500))).toBeLessThan(earnedInADay(person('farmer'), 0));
+    // asked of a soldier for the same reason as above: what a farmer earns is his neighbours'
+    // money and is settled in `livelihoods.ts`, so `earnedInADay` is nought for him by design
+    expect(spentOnLiving(withPurse(500))).toBeLessThan(earnedInADay(person('soldier'), 0));
   });
 });

@@ -1,5 +1,6 @@
 import type { Burial, Register } from '../world/register';
-import { earnedInADay, spentOnLiving } from '../world/prosperity';
+import { spentOnLiving } from '../world/prosperity';
+import { aDaysIncome } from '../world/livelihoods';
 import { FOOD } from '../world/food';
 
 /**
@@ -151,6 +152,16 @@ export function theRoll(
 ): Ledger<RollRow> {
   const living = register.living(village);
   const grown = living.filter((p) => p.trade);
+  /*
+   * What the day is expected to pay each of them, asked once for the whole village.
+   *
+   * It has to be the whole village and it cannot be asked person by person, because most of a
+   * villager's income is now other villagers' money: what the farmer takes depends on how many
+   * mouths there are to sell dinner to, and what the innkeeper takes depends on how many people
+   * are spending their keep. A wage that could be worked out from one row was a wage that came
+   * from nowhere, which is exactly what this stopped being.
+   */
+  const income = aDaysIncome(living, register.herdOf(village), pressure, register.larderOf(village));
   const trades = commonest(grown.map((p) => p.trade), 3);
   const gist = [
     `${village} has ${many(living.length, 'soul', 'souls')} on the roll, of whom ${many(living.length - grown.length, 'is a child', 'are children')}.`,
@@ -174,7 +185,7 @@ export function theRoll(
       // what the day does to that purse, which is the economy stated rather than inferred. All
       // three of them, so that the row adds up on its own: what comes in, what keep costs, what
       // dinner costs
-      earns: earnedInADay(person, pressure),
+      earns: income.get(person.id) ?? 0,
       spends: spentOnLiving(person),
       food: person.trade ? FOOD.MEAL : 0,
       hungry: person.hungry,
