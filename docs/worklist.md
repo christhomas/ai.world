@@ -1463,12 +1463,38 @@ happened three times in one night (the economy flatlined for want of anybody loo
 worked by nobody you can see, a villager's memories were evicted before they became an opinion), so
 it is worth its own heading rather than being fixed one case at a time.
 
-- [ ] **An audit: every simulated system, and whether you can see it.** Eighty-one files in
-      `src/game/` — mining, farming, brewing, building, digging, fishing, sailing, hunting,
-      prosperity, births, deaths, crime, rumour. For each: does anything on the screen show it
-      happening? The answer for mining was no, and nobody had noticed for as long as it has existed.
-- [ ] **And then draw the ones that are dark.** In the order of what a player would most like to
-      come across.
+- [x] **An audit: every simulated system, and whether you can see it.** Done, and the pattern is
+      sharper than expected. What decides whether a system is visible is not its size or its age but
+      **whether anything a player looks at imports it**:
+
+      | system | lines | reaches the screen? |
+      |---|---|---|
+      | farming | 115 | yes — `render/crops.ts` draws the crop, `frame.ts` reads it |
+      | sailing | 217 | yes — `ui/readouts.ts` and `frame.ts` |
+      | camp | 134 | yes — `render/wildcamps.ts` |
+      | fishing | 77 | only through `frame.ts` |
+      | nemesis | 653 | **no** — probes only, which is to say agents but not players |
+      | warband | 403 | **no** — probes only |
+      | rescue | 475 | **no** — nothing at all |
+      | gifts | 363 | **no** — nothing at all |
+      | brewing | 193 | **no** — one reader, `interact/herbs.ts`, and nothing draws it |
+      | digging | 127 | **no** — one reader, `interact/wild.ts`, and nothing draws it |
+
+      *Fifteen hundred lines of simulation — a nemesis who moves about the country every fortnight
+      taking people, warbands that press on villages, rescues that empty a place night by night, and
+      the gifts that decide what a village thinks of you — reach nothing a player can see. The two
+      that reach `probes.ts` and no further are the sharpest case: an agent investigating this world
+      can watch Old Nettle move and a player cannot.*
+- [ ] **Draw the nemesis and the warbands first.** They are the two largest dark systems, they
+      already have a place to be drawn (both are on the map's own coordinates, and `roaming.ts`
+      hands back where a band stands on a given day), and they are the two a player would most want
+      to come across — a band on the road is the reason to take the other road.
+- [ ] **Then the rescue and the gifts**, which are about a village rather than the country, and
+      want a village to look different rather than a thing to appear on a road.
+- [ ] **Brewing and digging are one-reader systems**, reachable only by standing in the right place
+      with the right tool. They are not invisible so much as unadvertised: nothing tells you a
+      hillside is worth digging or that a patch of herbs is a draught. Cheapest of the lot to fix and
+      the most likely to be found by accident once fixed.
 ## The mine, with people in it — September 10th
 
 - [x] **Nobody is ever digging.** `mines.ts` has worked every village's hole every day since it was
