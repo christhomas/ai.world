@@ -4,18 +4,17 @@ import { TileType, type ChunkData } from '../world/terrain';
 import type { TileWorld } from '../entities/entity';
 import { FURNITURE_BLOCKS, blocking, type Footprints } from '../world/footprints';
 import { Solids, boxesFrom, type Body } from '../world/solids';
-import { BASE_LEVEL, DTile, levelAt, type DungeonMap } from './map';
+import { BASE_LEVEL, DTile, levelAt, WALL_LEVEL, type DungeonMap } from './map';
 
 /**
  * How high the rock stands over the floor.
  *
  * The floor itself is `BASE_LEVEL` in `map.ts` — one terrace up, so a pool cut to nought reads as
- * sunk rather than painted on — and everything a castle raises is measured from there. Five is
- * chosen against the isometric camera: enough that a wall is a wall, not so much that the room
- * you are standing in is hidden behind the one in front of it.
+ * sunk rather than painted on — and everything a castle raises is measured from there. The terrace
+ * the rock's top sits on is in the same file, because the dressing has to hang banners from it and
+ * the dressing has never seen a mesh.
  */
-const DUNGEON_WALL_LEVEL = 5;
-const WALL_Y = DUNGEON_WALL_LEVEL * WORLD.STEP;
+const WALL_Y = WALL_LEVEL * WORLD.STEP;
 
 /** Walkability + chunk data for one dungeon; the same shape the overworld hands the hero. */
 export class DungeonWorld implements TileWorld {
@@ -171,10 +170,25 @@ export class DungeonWorld implements TileWorld {
     const out: Array<{ kind: PropKind; x: number; y: number; z: number; rot: number }> = [];
     for (const t of this.map.torches) out.push({ kind: PropKind.Torch, x: t.x + 0.5, y: WALL_Y, z: t.z + 0.5, rot: t.rot });
     if (!this.unlocked) {
+      /*
+       * What a barred way looks like, and it is not the same object in a barrow and in a keep.
+       *
+       * `Door` is a hinged plank in a frame, which is the right thing at the mouth of a treasure
+       * room somebody dug — and in a castle it reads as a cottage. A keep bars a stair with a
+       * grid dropped out of the head of an arch, and the whole of `castle.ts`'s first puzzle is
+       * written round the word portcullis: the room the way up is in has portcullises for
+       * doorways, and until tonight the game drew four front doors there instead.
+       *
+       * Half-height rather than shut, which is the prop's own decision and the reason it works
+       * from this camera: you can see the room beyond it, so it is a thing to deal with rather
+       * than a dead end. What stops you is the tile underneath either way — `heightAt` returns
+       * null on a locked `Door` tile — so this is only about what is drawn.
+       */
+      const bar = this.style === 'castle' ? PropKind.Portcullis : PropKind.Door;
       for (const d of this.map.doors) {
         // a door frame across the corridor: turn it to face along the gap
         const horizontal = this.tile(d.x + 1, d.z) === DTile.Rock || this.tile(d.x - 1, d.z) === DTile.Rock;
-        out.push({ kind: PropKind.Door, x: d.x + 0.5, y: this.surface(d.x, d.z), z: d.z + 0.5, rot: horizontal ? 0 : Math.PI / 2 });
+        out.push({ kind: bar, x: d.x + 0.5, y: this.surface(d.x, d.z), z: d.z + 0.5, rot: horizontal ? 0 : Math.PI / 2 });
       }
     }
     const [ex, ez] = this.map.entrance;

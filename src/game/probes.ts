@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { CAMERA } from '../core/config';
+import { PropKind } from '../world/biomes';
+import { nameOfProp } from '../world/catalogue';
+import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
 import type { ChunkManager } from '../world/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
@@ -463,7 +467,96 @@ export function installProbes(ctx: Probed): void {
       if (!result.ok) console.warn(`command: ${line} — ${result.error}`);
     });
   }
-  (debug as { __zoom?: () => void }).__zoom = () => { iso.zoom = 14; iso.resize(); };
+  /*
+   * Frame a shot. No argument is as close as the camera goes, which is what it always did.
+   *
+   * A number as well, because the thing this is used for is looking at a room, and a room is not
+   * fourteen units across. A castle's great hall is thirty tiles long and its plan is seventy-six,
+   * so photographing either of them at the closest the wheel goes gives you a picture of a table.
+   * The ceiling is lifted with it: indoors and underground the camera is deliberately shut in, and
+   * a zoom set past that ceiling would be pulled straight back the next time anything touched it.
+   */
+  (debug as { __zoom?: (n?: number) => void }).__zoom = (n = 14) => {
+    iso.limitZoom(Math.max(n, CAMERA.MAX_ZOOM));
+    iso.zoom = n;
+    iso.resize();
+  };
+  /**
+   * What is standing on the floor of the castle the hero is in, and where its landmarks are.
+   *
+   * `__enterCastle` got a headless browser through the gate; this is the other half of the same
+   * problem, which is knowing what you are looking at once you are inside. A castle floor is
+   * seventy-six tiles square with twenty rooms on it, and finding the chapel by teleporting about
+   * until a pew comes into shot is not a way to work.
+   *
+   * Landmarks are read off the furniture rather than off the plan on purpose. The generator knows
+   * perfectly well which room it called a chapel, and that answer is worth nothing here: what a
+   * picture has to show is a room a player would call a chapel, which means the room with the
+   * altar in it. Where the two disagree it is the dressing that is wrong, and this is how you find
+   * out.
+   */
+  (debug as { __floor?: () => unknown }).__floor = () => {
+    const visit = places.underground;
+    if (!visit) return null;
+    const { map } = visit.world;
+    const tally = new Map<string, number>();
+    for (const f of map.furniture) {
+      const name = nameOfProp(f.kind);
+      tally.set(name, (tally.get(name) ?? 0) + 1);
+    }
+    const firstOf = (kind: PropKind): [number, number] | null => {
+      const f = map.furniture.find((g) => g.kind === kind);
+      return f ? [f.x, f.z] : null;
+    };
+    /** The middle of everything of one kind, which is where a wing of them reads from. */
+    const heartOf = (of: (x: number, z: number, i: number) => boolean): [number, number] | null => {
+      let n = 0, sx = 0, sz = 0;
+      for (let i = 0; i < map.tiles.length; i++) {
+        const x = i % map.size, z = (i - x) / map.size;
+        if (!of(x, z, i)) continue;
+        n++; sx += x; sz += z;
+      }
+      return n === 0 ? null : [Math.round(sx / n), Math.round(sz / n)];
+    };
+    const clustered = (kind: PropKind): [number, number] | null => {
+      const of = map.furniture.filter((f) => f.kind === kind);
+      if (of.length === 0) return null;
+      // the one with the most of its own kind about it, so a crypt beats a stray coffin
+      const near = (f: { x: number; z: number }) =>
+        of.filter((g) => Math.abs(g.x - f.x) <= 6 && Math.abs(g.z - f.z) <= 6).length;
+      const best = of.reduce((a, b) => (near(b) > near(a) ? b : a));
+      return [best.x, best.z];
+    };
+    return {
+      floor: map.floor,
+      said: [...tally].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k}×${n}`).join(' '),
+      entrance: map.entrance,
+      descent: map.descent,
+      boss: map.boss,
+      rooms: map.rooms.length,
+      chests: map.chests,
+      doors: map.doors,
+      ghosts: map.monsterSpots.filter((s) => s[2]).length,
+      landmarks: {
+        arrival: map.entrance,
+        throne: firstOf(PropKind.Throne),
+        hall: clustered(PropKind.LongTable),
+        chapel: clustered(PropKind.Altar),
+        crypt: clustered(PropKind.Sarcophagus),
+        cells: clustered(PropKind.Bars),
+        cobwebs: clustered(PropKind.Cobweb),
+        tower: firstOf(PropKind.TowerStair),
+        barred: map.doors[0] ? [map.doors[0].x, map.doors[0].z] : null,
+        undercroft: heartOf((_x, _z, i) => map.tiles[i] === DTile.Water),
+        // a corridor is floor that belongs to no room, and the middle of all of it is the
+        // crossing at the heart of the plan — which is the one picture that says whether a
+        // gallery has been dressed as a gallery or as a room with the walls taken out
+        walk: heartOf((x, z, i) => map.tiles[i] === DTile.Floor
+          && !map.rooms.some((r) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.h)),
+        gallery: heartOf((x, z, i) => map.tiles[i] === DTile.Floor && levelAt(map, x, z) > BASE_LEVEL + 1),
+      },
+    };
+  };
   (debug as { __quests?: () => unknown }).__quests = () => questList;
   (debug as { __markers?: () => unknown }).__markers = () => markers();
   (debug as { __finishQuest?: (id: string) => void }).__finishQuest = (id) => {
