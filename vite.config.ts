@@ -33,7 +33,8 @@ export default defineConfig(({ command }) => ({
    */
   /**
    * And the door for asking Claude: post a prompt to /__ask and the character builder watches the
-   * answer arrive. Both plugins are `apply: 'serve'`, so neither exists in a built game — which
+   * answer arrive. Reached through a gateway rather than from this machine? `ASK_FROM` invites the
+   * gateway's address, and `ALLOWED_HOSTS` tells the server the name it is being asked for. Both plugins are `apply: 'serve'`, so neither exists in a built game — which
    * matters more for this one, because it runs a command with text from a page. What holds that
    * where it is, and why it is acceptable at all, is written at the top of `tools/askclaude.ts`.
    */
@@ -53,7 +54,26 @@ export default defineConfig(({ command }) => ({
    * `host` so it answers on IPv4 as well as IPv6: bound to [::1] alone, a browser that resolves
    * localhost to 127.0.0.1 finds nothing there either.
    */
-  server: { port: 5174, strictPort: true, host: true },
+  server: {
+    port: 5174,
+    strictPort: true,
+    host: true,
+    /*
+     * And which names it will answer to, for a dev server reached through a gateway.
+     *
+     * Vite refuses a request whose `Host` is a name it has not been told about — a DNS-rebinding
+     * guard, and a good one — which means a dev server behind a reverse proxy on somebody's own
+     * network answers "Blocked request" to its owner. The names are given from outside rather than
+     * written here, because they are a fact about one person's network and not about this game:
+     *
+     *     ALLOWED_HOSTS=s1.example.com chore dev
+     *
+     * Nothing by default, so a plain `chore dev` is the same server it has always been. Naming
+     * hosts is also not, on its own, a way in to anything: `/__ask` still answers only this machine
+     * and whoever `ASK_FROM` invites by address — see `tools/askclaude.ts`.
+     */
+    allowedHosts: (process.env.ALLOWED_HOSTS ?? '').split(',').map((one) => one.trim()).filter(Boolean),
+  },
   worker: { format: 'es' },
   build: { target: 'es2022', sourcemap: true },
   /**

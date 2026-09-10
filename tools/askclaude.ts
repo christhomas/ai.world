@@ -21,10 +21,12 @@ import type { Plugin, ViteDevServer } from 'vite';
  *   the prompt is an argument, never a shell string.  `spawn` with an argv array and no `shell`,
  *     so there is no quoting to get wrong and no `;` or backtick that means anything at all. The
  *     text is one argument no matter what is in it.
- *   loopback only.  The dev server deliberately answers on the network — `host: true`, so a phone
- *     can play the game — which means "the dev server is local" is not true of this machine. The
- *     check therefore belongs on the route rather than on the server, and it is the socket's own
- *     remote address, not a header anybody could write.
+ *   loopback, and whoever the owner has invited by address.  The dev server deliberately answers on
+ *     the network — `host: true`, so a phone can play the game — which means "the dev server is
+ *     local" is not true of this machine. The check therefore belongs on the route rather than on
+ *     the server, and it is the socket's own remote address, not a header anybody could write. The
+ *     invitation is `ASK_FROM`, an environment variable on the command that starts the server, and
+ *     it takes addresses rather than ranges: see `INVITED`.
  *   a header a form cannot send.  A cross-site `fetch` carrying `x-ai-world-builder` is not a
  *     simple request, so the browser asks permission with a preflight first, and nothing here
  *     answers a preflight. That is what stops a page open in another tab posting here behind your
@@ -52,6 +54,43 @@ const HEADER = 'x-ai-world-builder';
 
 /** The addresses this machine calls itself. Node reports an IPv4 loopback as the third of these. */
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/**
+ * Who else may ask, named one at a time by whoever started the dev server.
+ *
+ * Loopback alone is right for a browser on this machine and wrong for the way this game is actually
+ * played on this network: the page is reached through a gateway on another box, so what arrives
+ * here is the gateway's address and the builder answers 403 to the owner of the machine it is
+ * running on. That is the fault this exists to fix, and the fix has to stay narrow, because what is
+ * on the other side of this route is `claude -p` with the owner's own permissions.
+ *
+ * So: an environment variable, listing addresses, set by the person starting the server. Not a flag
+ * in a file that could be committed, not a private-range rule that quietly admits every device on a
+ * café's wifi, and never a header or a hostname the caller writes for itself. An address that is
+ * not on the list is refused exactly as before, and a server started without the variable is the
+ * loopback-only server this has always been.
+ *
+ *     ASK_FROM=192.168.1.20 chore dev
+ *
+ * Addresses rather than ranges on purpose. A range is a thing you set once and stop thinking
+ * about; a list of addresses is one you have to mean.
+ */
+const INVITED: ReadonlySet<string> = new Set(
+  (process.env.ASK_FROM ?? '').split(',').map((one) => one.trim()).filter(Boolean),
+);
+
+/**
+ * May this address ask?
+ *
+ * Both spellings of an invited address count: node reports a caller that reached an IPv4 socket
+ * over a dual-stack listener as `::ffff:192.168.1.20`, and somebody writing that in a shell will
+ * write `192.168.1.20`.
+ */
+export function mayAsk(from: string, invited: ReadonlySet<string> = INVITED): boolean {
+  if (LOOPBACK.has(from)) return true;
+  const bare = from.startsWith('::ffff:') ? from.slice('::ffff:'.length) : from;
+  return invited.has(from) || invited.has(bare);
+}
 
 /**
  * How long a prompt may be. Not a security boundary — a short prompt can ask for anything a long
@@ -253,9 +292,9 @@ export function askClaude(): Plugin {
     configureServer(server: ViteDevServer) {
       server.middlewares.use(ROUTE, (req, res) => {
         const from = req.socket.remoteAddress ?? '';
-        if (!LOOPBACK.has(from)) {
+        if (!mayAsk(from)) {
           res.statusCode = 403;
-          res.end(`${ROUTE} answers this machine only, and you are ${from}`);
+          res.end(`${ROUTE} answers this machine and whoever ASK_FROM invites, and you are ${from}`);
           return;
         }
         if (req.headers[HEADER] === undefined) {
