@@ -163,7 +163,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     flee, graze, idle, beHealed,
 
     // making a living, which is what everybody with a trade is doing all day
-    stalkQuarry, take, sell, spend,
+    stalkQuarry, take, sell, spend, dig,
   },
 };
 
@@ -580,6 +580,41 @@ function spend(params: Params): CreatureNode {
     self.state = 'idle';
     self.timer = 2;
     return 'success';
+  };
+}
+
+/**
+ * Cut at the rock in front of you, and keep cutting.
+ *
+ * There is no pick-swing in `animations/motion.json` and there never has been. The vocabulary a
+ * body has is a walk, an idle, a flinch, a death and five shapes of blow, and not one of them is
+ * work — every animation in this game was written for getting somewhere or for hurting something.
+ * Rather than invent a sixth and have it be the only motion in the file nothing else uses, this
+ * throws the blow called `swing`: an arm coming over the top and down, which is what the hero's
+ * sword does and is also, exactly, what a pick does. It is the nearest honest thing.
+ *
+ * Nothing is struck. A blow only hurts through `strike`, and this never calls it — so a man at a
+ * face swings all day beside you and cannot take a heart off anybody, which is the difference
+ * between working and fighting and is worth being certain of.
+ *
+ * `every` is the seconds between strokes, and it is spent through `attackCooldown` rather than
+ * through this node's own memory on purpose: a man who is interrupted, hit, or walked away from
+ * loses the rhythm the way anything else in the game loses a swing, rather than resuming a count
+ * held in a tree that no longer applies to him.
+ *
+ * Never succeeds. A face is not something you finish; you knock off at the end of a shift.
+ */
+function dig(params: Params): CreatureNode {
+  return (tick) => {
+    const { self } = tick.world;
+    // stood, not ambling: the whole point of a face is that he is at one
+    self.state = 'idle';
+    self.walk = 0;
+    if (self.attackCooldown <= 0) {
+      self.attackCooldown = number(params, 'every', 1.4);
+      throwBlow(self, 'swing');
+    }
+    return 'running';
   };
 }
 

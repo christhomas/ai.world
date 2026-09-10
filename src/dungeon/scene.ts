@@ -6,6 +6,19 @@ import type { DungeonWorld } from './world';
 
 const MAX_TORCH_LIGHTS = 10;
 
+/**
+ * The air of each sort of place underground: what the sky behind it is, and what light reaches
+ * the floor before anything is set alight.
+ *
+ * Kept as three named sets rather than as nested conditionals because there are three of them now
+ * and a fourth would have been unreadable as a chain of ternaries. `strength` is the one number
+ * worth arguing about: a barrow at 0.8 is a place you carry a light into, and a keep at 1.05 is a
+ * place that has its own.
+ */
+const UNDER_ROCK = { sky: 0x05060c, ambient: 0x3a4260, above: 0x384060, below: 0x14141c, strength: 0.8 };
+const WOODED = { sky: 0x0a1408, ambient: 0x35502e, above: 0x4a6a38, below: 0x1a2214, strength: 0.8 };
+const KEEP = { sky: 0x0c0e14, ambient: 0x5a5e70, above: 0x6a7088, below: 0x22242e, strength: 1.05 };
+
 /** Builds and owns the three.js scene for one dungeon visit. */
 export class DungeonScene {
   readonly scene = new THREE.Scene();
@@ -17,10 +30,16 @@ export class DungeonScene {
   constructor(private readonly world: DungeonWorld, private readonly props: PropLibrary, waterMaterial: THREE.Material, seed: number, opened: Set<string>) {
     // Under a canopy rather than under rock: green light coming through leaves instead of the
     // cold blue of a cave, and a warmer glow from anything burning.
-    const wooded = world.style === 'thicket';
-    this.scene.background = new THREE.Color(wooded ? 0x0a1408 : 0x05060c);
-    this.scene.add(new THREE.AmbientLight(wooded ? 0x35502e : 0x3a4260, 0.8));
-    const hemi = new THREE.HemisphereLight(wooded ? 0x4a6a38 : 0x384060, wooded ? 0x1a2214 : 0x14141c, 0.7);
+    //
+    // A castle is the third case and is lit differently again, because it is the only one of these
+    // that is above ground. Its windows are arrow slits and its halls are lit by fire, so the
+    // ground light is a cold daylight grey rather than a cave's blue, and there is more of it —
+    // enough to see the far end of a gallery, which a castle needs and a barrow must not have. Its
+    // whole point is that you can tell you are inside a building.
+    const air = world.style === 'thicket' ? WOODED : world.style === 'castle' ? KEEP : UNDER_ROCK;
+    this.scene.background = new THREE.Color(air.sky);
+    this.scene.add(new THREE.AmbientLight(air.ambient, air.strength));
+    const hemi = new THREE.HemisphereLight(air.above, air.below, 0.7);
     this.scene.add(hemi);
     this.scene.add(this.heroLight);
 

@@ -1,0 +1,19 @@
+{
+  "from": "quadruped",
+  "with": {
+    "body": [0.7, 0.5, 0.5],
+    "bodyY": 0.55,
+    "legH": 0.3,
+    "legW": 0.1,
+    "head": [0.26, 0.24, 0.22],
+    "headOffset": [0.45, 0.6, 0],
+    "bodyColor": "#ffffff",
+    "bodyTint": 0,
+    "legColor": "#2b2b2b",
+    "headColor": "#2b2b2b"
+  },
+  "parts": [
+    { "box": [0.05, 0.1, 0.05], "at": [0.4, 0.74, 0.1], "color": "#2b2b2b", "anim": "head", "pivot": [0.32, 0.6, 0] },
+    { "box": [0.05, 0.1, 0.05], "at": [0.4, 0.74, -0.1], "color": "#2b2b2b", "anim": "head", "pivot": [0.32, 0.6, 0] }
+  ]
+}

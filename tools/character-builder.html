@@ -6,9 +6,10 @@
   `turnaround.html` next door answers "is this rig right?" — four fixed angles, every figure at
   once, made to be screenshotted. This answers the question after it: "make it right". One creature
   at a time, turned with the mouse, walking if you want it to, and a box to ask for the change in.
-  Ask for shorter legs and Claude edits the rig in `src/entities/`; Vite sees the file change and
-  reloads this page; the creature in the middle of the screen has shorter legs. That loop is the
-  whole tool, and everything here exists to keep it tight.
+  Ask for shorter legs and Claude edits `models/creatures/<name>.json`; Vite sees the file change
+  and reloads this page; the creature in the middle of the screen has shorter legs. That loop is the
+  whole tool, and everything here exists to keep it tight — which is most of why the bodies are one
+  file each: what gets sent can name the file rather than tell Claude to go and find it.
 
   It was built to catch the things a static sheet cannot show. A rig that reads well from four
   chosen angles and badly from the four between them. A part that only comes apart when the legs
@@ -153,6 +154,7 @@ details pre{white-space:pre-wrap;margin:4px 0 0;color:var(--dim)}
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { KINDS } from '/src/entities/animals.ts';
+import { modelFile } from '/src/entities/models.ts';
 import { bodyMotion, cycleTurn } from '/src/entities/motion.ts';
 import { HeroGear } from '/src/render/herogear.ts';
 import { GameState } from '/src/game/state.ts';
@@ -191,10 +193,16 @@ const KITS = [
   ['as he starts', []],
   ['in mail', ['mail', 'helm', 'greaves', 'sword', 'ironshield']],
   ['in plate', ['plate', 'helm', 'greaves', 'sword', 'ironshield']],
+  // the tools, which are the half of the gear nobody could look at: a pick had a price and an
+  // ability for a long time before it had a shape, and nothing had ever drawn one in a hand
+  ['at work', ['pick']],   // a tool rather than equipment: it goes into the hand, not into a slot
 ];
 
 /** The header the dev-server route wants. Its value is nothing; being able to send it is the point. */
 const KNOCK = { 'x-ai-world-builder': '1' };
+
+/** The things that go in a hand without going in a slot. */
+const TOOLS = new Set(['pick', 'shovel', 'saw', 'rod', 'firerocks']);
 
 const el = (id) => document.getElementById(id);
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -319,19 +327,22 @@ function buildRig(kind, hidden, tints) {
 function dress(kind, wearing) {
   const gear = new HeroGear(scene);
   const state = GameState.fresh();
-  for (const id of wearing) { state.give(id, 1); state.equip(id); }
+  // a tool has no slot and cannot be equipped — `items.ts` says why — so it is passed as the thing
+  // in his hand instead, which is how the game shows somebody at work rather than somebody armed
+  const tool = wearing.find((id) => TOOLS.has(id)) ?? null;
+  for (const id of wearing) { if (!TOOLS.has(id)) { state.give(id, 1); state.equip(id); } }
   const hero = {
     x: 0, y: 0, z: 0, yaw: 0, bobY: 0, kind, hiddenTags: new Set(),
     walk: 0, flap: 0, phase: 0, headPitch: 0, hurt: 0, dying: 0,
     basePalette: kind.palettes[0], tints: [...kind.palettes[0]],
   };
   // version 0 on a fresh state matches the gear's own -1 only after one update, so ask twice
-  gear.update(state, hero, false);
+  gear.update(state, hero, false, tool);
   state.version++;
-  gear.update(state, hero, false);
+  gear.update(state, hero, false, tool);
   // the state goes back as well as the gear: the frame loop keeps updating one from the other, and
   // handing it a second fresh state would look like a change of clothes and undress him
-  return { gear, hero, state };
+  return { gear, hero, state, tool };
 }
 
 /** What is on screen now, so that it can be taken off screen again without leaking it. */
@@ -383,7 +394,7 @@ function show(id) {
   // as wide and as deep as the world will make it block, where its feet are
   footprint.scale.set(kind.body.hw * 2, kind.body.hd * 2, 1);
 
-  standing = { kind, figure, moving, mover, lift, gear: dressed?.gear ?? null, state: dressed?.state ?? null };
+  standing = { kind, figure, moving, mover, lift, gear: dressed?.gear ?? null, state: dressed?.state ?? null, tool: dressed?.tool ?? null };
   frame(box);
   describe(kind);
   el('framing').textContent = framing(kind);
@@ -626,7 +637,9 @@ function tick(now) {
     const body = bodyMotion(e);
     standing.figure.position.y = standing.lift + body.bob * e.kind.scale;
     standing.figure.rotation.set(body.roll, 0, body.lean, 'ZXY');
-    if (standing.gear && standing.state) standing.gear.update(standing.state, e, false);
+    // the tool goes back in every frame: `update` takes what is held as an argument rather than
+    // reading it off the save, so a frame that forgets to say it is a frame that empties the hand
+    if (standing.gear && standing.state) standing.gear.update(standing.state, e, false, standing.tool ?? null);
   }
   controls.update();
   renderer.render(scene, camera);
@@ -644,15 +657,6 @@ resize();
 
 /* --------------------------------------------------------------- asking Claude */
 
-/**
- * The framing this page wraps around what you type, shown under "what gets sent" so that it is not
- * a secret.
- *
- * It says where the rig lives without naming the file, because it does not reliably know: half the
- * monsters in `properties/monsters.json` are drawn in `animals.ts` and only the rest in
- * `monsters.ts`, and a page that guessed would send Claude to the wrong file often enough to be
- * worse than not guessing. Searching for the name is what a person would do anyway.
- */
 /**
  * What is wrapped round the words you type, for a prop.
  *
@@ -685,17 +689,30 @@ When you are done, say in two or three sentences what you changed and what it sh
 — somebody is watching this prop redraw as you save.`;
 }
 
+/**
+ * What is wrapped round the words you type, for a creature.
+ *
+ * It used to say the rig was somewhere in `src/entities/` and that Claude should search rather than
+ * guess, because the page could not reliably tell which of three source files a given creature was
+ * drawn in. There is nothing left to guess: every body is a file of its own, `modelFile` says which
+ * one, and the sentence below is a path something can open without looking for it first.
+ */
 function framing(kind) {
   return `You are changing one creature in the low-poly game in this repository.
 
-The creature is "${kind.id}" (${kind.label}). Its rig — the list of parts it is drawn from — is the
-\`${kind.id}:\` entry in src/entities/, in animals.ts or in monsters.ts or villain.ts beside it.
-Find it rather than guessing. What it is rather than what it looks like — speed, palettes, hit
-points — is in properties/*.json instead.
+The creature is "${kind.id}" (${kind.label}). Its body — the list of parts it is drawn from — is
+${modelFile(kind.id)}, and that is the whole of it: there is no rig in src/ to go looking for. What
+it is rather than what it looks like — speed, palettes, hit points — is in properties/*.json
+instead.
 
-Read the comments at the top of src/entities/animals.ts before you change anything. A part is a
+Read the comments at the top of src/entities/models.ts before you change anything. A part is a
 shape, a size, an offset from the root, a colour or a \`tint\` index into the wearer's palette, and
-an animation role. The root sits on the ground and the creature faces +x.
+an animation role. The root sits on the ground and the creature faces +x. A file that says
+\`"from": "biped"\` or \`"from": "quadruped"\` is calling that generator in src/entities/rigs.ts with
+the arguments it names, and its own \`parts\` are laid on top of what the generator returns — so
+editing a generator changes every person, or every four-legged animal, at once. The box the world
+stops walkers with is measured off the parts rather than written down, so moving a shape moves what
+people bump into; that is deliberate and you should not work round it.
 
 The change asked for:
 

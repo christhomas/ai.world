@@ -348,6 +348,35 @@ Things Chris hit on a real phone, in the order he hit them.
       Proof it was a move and not a rewrite: the whole `KINDS` table dumped before and after,
       key-sorted at every depth, identical byte for byte at 104 KB, and the golden fingerprint did
       not budge. `animals.ts` went 661 lines to 404.)*
+- [x] **The rigs went out after them, into `models/creatures/` — a file each, thirty-five of them.**
+      *(The entry above says the rigs stayed in the source because a shape is read by looking at it.
+      That is still true about shapes and turned out to be the wrong reason to keep them in
+      TypeScript. What settled it is the character builder: it asks Claude to change a rig, and the
+      sentence it sent was "the `wolf:` entry somewhere in `src/entities/` — find it rather than
+      guessing", because a page could not reliably say which of three files a creature was drawn in.
+      It sends `models/creatures/wolf.json` now, and `modelFile(id)` in `entities/models.ts` is
+      where that answer lives so a test and a command line can ask the same question the page does.
+
+      A file is a recipe wherever it can be. Two thirds of the bestiary is `biped` or `quadruped`,
+      so most files name the generator and its arguments and lay the shapes that make that animal
+      itself on top — which is what the generators already took as `extras`, in the same order. The
+      four primitives were written out three times, privately, in `animals.ts`, `monsters.ts` and
+      `villain.ts`; there is one copy now, in `rigs.ts`, which is the tidier end state both of those
+      files had a paragraph asking for. `monsters.ts` and `villain.ts` are down to naming which of
+      the kinds they are about; `animals.ts` went 538 lines to 54.
+
+      Angles are radians, except that a right angle may be written `"-1/4"` — a fraction of a full
+      turn, which is exact because halving and quartering a double is exact, and which is a thing a
+      person can read where `-1.5707963267948966` is not. Every value is checked on the way in and
+      every complaint names the file, the field and what was expected, because these files are
+      edited by hand and by Claude and both write a colour as a number sooner or later.
+
+      Proof it was a move and not a rewrite: every creature's part list hashed before and after,
+      canonically — the old rigs carry their keys in whatever order each call site spread them, and
+      that is not part of what a rig is — thirty-five hashes identical, the same order, the same
+      collision box to the digit. The collision bench came back the same report but for its
+      timestamp, still nothing TOUCHING and nothing INTERSECTED, and eight creatures screenshotted
+      through the builder before and after are the same picture.)*
 - [x] The six numbers in `properties/behaviour.json` that nothing read are gone: `FLEE_RADIUS`,
       `HUNT_RADIUS`, `CIRCLE_NOTICE`, `CHARGE_EVERY`, `SEA_BITE_COOLDOWN` and `CIRCLE_CLOSE`.
       *(The first five were superseded when the trees started writing those numbers themselves —
@@ -1087,10 +1116,125 @@ can each be finished and each leave the game playable.
       watching; frozen otherwise. The rule that makes it work: a behaviour's long-run effect must
       have a closed form, so arriving somewhere untouched for a week is a calculation rather than a
       week of ticks.
+
+      *The closed forms are written and checked. They are in `src/entities/unwatched.ts`, with
+      `src/entities/timetable.ts` beside it reading the numbers back out of `behaviours/` so that
+      there is one copy of each rather than two, and `unwatched.test.ts` running the simulation
+      forward beside every form and holding it to what that form says it keeps. **The seam left for
+      the tiers themselves is `catchUp(herd, away)`**: hand it a herd and how long nobody was
+      looking and it is done. It reads no clock, no player list and no province, so whoever wires
+      the tiers up decides when to call it and nothing else.*
+
+      ***A week of a behaviour moves things and does nothing else**, and that was not the expected
+      answer. The obvious expectation — a wolf pack thins a village over a fortnight, a hunter
+      empties the woods — is wrong here, for three separate reasons, and each of them is worth
+      knowing before anybody writes a coarse tier:*
+
+      - ***Wild populations are not state, so predation has nothing to write into.** A chunk's
+        animals are re-derived from the world seed every time it is spawned —
+        `mulberry32(hash3(seed, cx, cz, HERD_CHUNK))` in `ChunkManager.spawnChunk`. Kill a rabbit,
+        walk away, come back, and the roll is the same roll. A closed form that reduced a population
+        would be reducing something that does not exist and would be silently undone by the next
+        spawn. It is a real gap — see the note below — but it is not one to paper over here.*
+      - ***A village's dead are already somebody else's closed form.** `game/rescue.ts` says what a
+        pack or a haunt takes out of a village per night, as a share of who is left, and
+        `game/nemesis.ts` says what Old Nettle costs a village per fortnight. Both are closed forms
+        already, written a layer up where the register lives. A second toll at the behaviour layer
+        would be the same deaths counted twice, which is worse than no toll at all.*
+      - ***Purses, meals and births are the register's day, not a creature's week.*
+        `game/economy.bench.ts` already lives villages forward a hundred days a day at a time out of
+        the books, so a villager's earnings over an unwatched week are accounted for there.*
+
+      *Which leaves the behaviour layer owning exactly what it should: where a thing is, whether it
+      is indoors, and — for a third of the bestiary — nothing whatever. **The coarse tier's job is
+      to place creatures, not to simulate them.** Twenty-three trees came out as four forms:*
+
+      - ***`staysPut`, and it is a result rather than a shrug.** `seaHunter`, `wight`, `hired`,
+        `nettle`. A shark's tree is `not afloat -> idle`, a wight's own note says it "stands exactly
+        where it was left", and both were run for an hour with nobody about and finished on the
+        coordinates they started on to the last decimal. Nettle's fortnight is `nemesis.ts`'s, and a
+        hired sword away from whoever hired it is a dismissal rather than a walk. **These four are
+        free to freeze permanently**, not merely cheaply — which is the third tier the C1
+        measurement said does not exist yet.*
+      - ***`driftsInRange`.** `grazer`, `traveller`, `hopper`, `swimmer`, `prowler`, `monster`,
+        `ogre`. The herd anchor's random walk, solved: `min(leash, drift * sqrt(seconds / gap))`,
+        drawn evenly over the area of that disc, with the creature offset by the same law
+        `somewhereNear` uses. The measurement that makes it work is that **a herd forgets where it
+        started in under a minute** — the anchor's mean displacement on a twelve-tile leash is 5.0
+        tiles after five seconds and flat at 7.0–8.0 from about sixty onwards — so a week and a
+        minute are the same answer and nothing gets harder as the absence gets longer.*
+      - ***`ridesItsCircle`, which is exact.** `flier`. `patrol` is an integration and not a
+        decision, so a week of it is `angle + seconds * speed / radius` written without the loop. An
+        hour of ticks at thirty a second and one call to the form land 8e-9 tiles apart.*
+      - ***`keepsItsHours`, which is also exact.** The wanderer and the ten trades that have hours.
+        A day of `hourBetween` guards over `goTo`s has no randomness in it at all, so at any hour the
+        file says which post somebody is standing at — and the form reads it out of the same file
+        rather than transcribing it. This is the one a player would notice: walking into a village
+        at three in the morning after a fortnight away and finding everybody standing in the street
+        is the loudest possible way of announcing that nobody was home while you were gone.*
+
+      *The comparison tests are the deliverable as much as the forms. `LONG_RUN` is held to
+      `allTrees()` in both directions, the way `world/catalogue.test.ts` holds the catalogue to the
+      prop library, so a new tree with no long-run twin is a failed build with a sentence saying what
+      to write; a tree filed as one that ranges with no `wander` left in it is the same. Beside that,
+      the simulation is run forward and compared on what each form claims: distance from home over
+      288 creatures (the form says 0.96 of what the ticks say, and no kind is out by more than a
+      seventh), containment inside `leash + 0.5 + range`, the herd still standing together, the
+      count unchanged, the eagle's circle to floating point, the shark and the wight not moving, and
+      every trade behind its own door at three in the morning.*
+
+      *Three things found on the way that belong to somebody else:*
+
+      - ***A flier's altitude is a bug, and it is why `y` has no closed form.** `patrol` pulls a bird
+        up towards `altitude` at `dt * 2` a tick while the ground-following at the bottom of
+        `updateEntity` pulls it back down at `dt * 12`. What it settles at is the fixed point of two
+        filters fighting, which means it **depends on the tick length**: an eagle with an altitude of
+        9 sits at 1.85 above ground of height 1, so the eagles are not up in the air at all. The
+        closed form deliberately leaves `y` alone rather than inventing a value for a quantity that
+        does not have a time-independent one.*
+      - ***Nothing anywhere can record that the rabbits are gone.** Wild populations being re-rolled
+        per chunk is fine while the only thing that removes an animal is a player standing there, and
+        it stops being fine the moment a coarse tier lets a hunter work a province for a week. If
+        that is ever wanted it has to go into the live simulation first — a per-chunk or per-province
+        count of what has been taken, in the leavings — and the closed form gets a second term
+        afterwards. Faking it here would have been a number written into a book that does not exist.*
+      - *`WANDER_RADIUS` in `entities/entity.ts` is dead: declared, never read. The radii that decide
+        anything are in `behaviours/`, which is where `timetable.ts` reads them from.*
+- [ ] **C2a. The tiers themselves.** The half of C2 that is left, and it wants C3 first. Which
+      province is live, which is coarse and which is frozen; who calls `catchUp` and when; and the
+      two things the C1 measurement said about the ends of the range — that frozen has to mean off
+      the separation sweep and off what every client is told rather than off one branch inside them,
+      and that `Roster`'s four thousand wants to become a budget rather than a number.
 - [ ] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
       simulated walk, because that is the only thing that keeps provinces independent.
-- [ ] **C4. Memory that compacts.** Bounded per villager, decaying, and summarised on unload — ten
+- [x] **C4. Memory that compacts.** Bounded per villager, decaying, and summarised on unload — ten
       slights become one opinion. Otherwise per-province state grows with the world again.
+      *(`src/world/memory.ts`. The bound was already there and it was the wrong kind: a villager
+      held the last two things that happened to him and the third took the first away, so ten
+      slights became no opinion at all, which is a man forgetting a grudge he obviously still has.
+      An opinion per name now stands beside that list — how he feels, how many things went into it,
+      and the one that struck hardest kept whole — and it is formed when the thing happens rather
+      than when the memory is pushed out, so nothing is lost by the list being short and nothing
+      has to be marked as already counted. Eight names: the five neighbours `LIFE.KNOWS` gives him
+      and three for whoever is passing through. Fading is three quarters a day on the hundred-point
+      scale `standing.ts` uses, which spends the strongest feeling there is in four months and one
+      kindness in a fortnight — slower than a village letting a grudge go, because that is a place
+      going off the boil about a cow and this is one man's view of another. One thing does not
+      fade, a death, and it is exempt from fading and from nothing else: a bound with an exception
+      in it is not a bound, and it is safe not to be, since the parish already keeps sixty stones.
+      The bound holds without anybody unloading anything — a hundred thousand things happening to
+      one village writes the same twenty kilobytes as two thousand do — so compaction on unload is
+      what makes the file shrink again rather than what stops it growing.*
+      *What the audit found is worth more than the mechanism. A villager records six things — a
+      death, a birth, a rescue, a robbery on the road, a gift, a bad day down a mine — and only two
+      are about the player at all. There is no word in that vocabulary for "you killed my brother":
+      what the player does wrong lands on `game/standing.ts` and `game/grudge.ts`, which are the
+      **player's own save**, so a village's opinion of you is currently kept by you. And no villager
+      has ever been written to a save anywhere, so there is nothing to migrate and no old world to
+      open differently. The negative half of the weight table has one entry in it, dread of a mine,
+      and that is the state of the game rather than an oversight — the shape is here for C5 to
+      fill. `Register.compact(day)` is the hook a province's unload wants; `server/world.ts` has no
+      register to call it with yet.)*
 - [ ] **C5. Villagers move to the server.** They are client-derived today, which works only because
       they have no private state. Memory and ownership end that: two clients would disagree about
       what a villager recalls.
@@ -1167,7 +1311,7 @@ can each be finished and each leave the game playable.
       instead of rounding them, and asks the register what pressure a village is under rather than
       waiting to be told. The other two are below, because they are decisions rather than
       mistakes.)*
-- [ ] **A6. Ten of the eleven trades in the game are paid the same subsistence floor.**
+- [x] **A6. Ten of the eleven trades in the game are paid the same subsistence floor.**
       `PROSPER.TRADERS` names shopkeeper, innkeeper, smith, apothecary and merchant; the trades a
       villager can actually hold are seller, farmer, hunter, soldier, sailor, miner, climber,
       explorer, constable, doctor and innkeeper. Four of the five higher-paid names do not exist,
@@ -1175,7 +1319,18 @@ can each be finished and each leave the game playable.
       most one of him. Either the set should name the trades that serve everybody else — seller,
       innkeeper, doctor — or the wage should stop pretending to have a shape. A balance decision,
       which is why the bench reports it and does not assert it.
-- [ ] **A7. A village left alone flatlines at 6.5 gold a head, and nothing it earns buys anything.**
+      *(The set names seller, innkeeper and doctor now. The other way — one flat wage — was
+      rejected because it makes every village the same place with a different name: what a village
+      *has*, a market and an inn and a doctor's door, should be why one of them ends the season
+      with a bath house and the one on the rock does not, and that is a reason to walk to one
+      rather than another. It turns out to matter more than a wage table looks: three against two
+      is half again the wage but two and a half times the *saving*, once dinner and upkeep are out,
+      so who a village raises decides what it can build. And the coastal village, whose trade pool
+      is half sellers and doctors because it has no fields, is now reliably the richest place per
+      head and the hungriest — which nobody designed and everybody would recognise. Named as
+      trades rather than as buildings, and `prosperity.test.ts` now holds every name in the set to
+      the list a villager is actually drawn from, so it cannot rot this way twice.)*
+- [x] **A7. A village left alone flatlines at 6.5 gold a head, and nothing it earns buys anything.**
       Not bad luck: it is a fixed point. A day pays 1.5, dinner takes 1, and upkeep takes what is
       left above `KEEPS_BACK`, so every working purse converges on 6.5 and stays there — measured,
       the middle villager in each control village held exactly 6.5 for the last 87 of a hundred
@@ -1187,6 +1342,29 @@ can each be finished and each leave the game playable.
       wired inside the warband loop.** `tidings.ts` only calls `storeysFor` and `luxuryFor` for
       villages `roaming.pressings` hands back, so a village nobody is raiding is never assessed at
       all, and a village that got rich in peace could not grow a storey if it wanted to.
+      *(The wiring first, on its own, because it was a plain bug: assessing a village is its own
+      step now, over every village the register knows about, gated on the day and on the number of
+      villages — a place is settled the moment you walk into it, and one first assessed tomorrow
+      builds its houses a storey short all afternoon. Then the arithmetic. The fixed point was
+      upkeep: at 0.8 against a wage of 1.5 an ordinary day cost three tenths more than it paid, so
+      the only thing between a village and starvation was `KEEPS_BACK` — which stops the spending
+      as a purse runs down and therefore hands the day back exactly the shortfall. The reserve that
+      stopped a man starving was also the ceiling on what he could ever hold. Upkeep is 0.3 and the
+      day pays 2, so a day is worth having; the rule to keep is that upkeep must stay under
+      `A_DAY` minus a meal, and `prosperity.test.ts` lives a purse forward a hundred days to say so.
+      The prices were quoted in a currency no villager could hold — 340 a head is most of the price
+      of a whole house, and a villager earns two a day and dies inside ninety — so a storey is now
+      35 a head and a bath house 800 between the village, both measured off the bench rather than
+      picked. Both ends were walked into: at 30 a head, nineteen of the bench's twenty-one villages
+      ended two storeys tall, and a mark every village earns is not a mark; at 40 only four crossed
+      and all of them in the last five days, which is a number balanced on a knife. What a hundred
+      days looks like now: the middle working villager in an untroubled village holds 16 to 18 at
+      three weeks, 33 to 37 at fifty days and 24 to 45 at a hundred, never twice the same; five of
+      the nine untroubled villages raise second storeys, between day 31 and day 101; five of the
+      twenty-one hold enough between them for a bath house, and the plain inland control never does
+      on any seed. A village under a band loses about half of itself and makes it back. The books
+      still balance to the coin across 2,100 village-days, and the bench now fails if nothing in
+      the world ever gets built.)*
 
 ## Things to make, when the country is finished
 
@@ -1237,3 +1415,348 @@ can each be finished and each leave the game playable.
       the next — the altitude is written in the facts instead. The walk is the game's own
       `cycleTurn` and `bodyMotion` rather than an imitation, which is what catches the arm that only
       passes through a hip at the top of a stride.)*
+
+## The people should not all be the same person
+
+Every villager in this game is the same sixteen boxes in different trousers. Up close that is fine —
+you can read their names — and at the distance this camera watches a street from it means a village
+is a crowd of one man repeated. The trades are all simulated and none of them is visible: eleven
+behaviour trees, each with its own working day, and nothing on the screen says which is which.
+
+Written down together because they are one job, and because the model files that landed tonight are
+what makes it a small one — a creature is `models/creatures/<id>.json` now, so a new sort of person
+is a file rather than a pull request.
+
+- [x] **Body types.** Fat villagers, thin ones, broad ones. The `biped` generator takes a palette and
+      nothing about the shape of the person wearing it, so every body is identical. This is the one
+      that has to come first, because every model below is built on it.
+- [x] **A miner**, with a yellow hard hat like a construction worker, and a pickaxe in his hands.
+      *(Half done: `pick` now has a model and `HeroGear` can draw a tool in a hand, which it never
+      could before — a tool has no equipment slot and deliberately so. What is left is the man.)*
+- [ ] **The one line that puts these people in the street.** The seven models exist and nothing
+      spawns them: `manager.ts` places every villager as `KINDS.villager` and hands out trades
+      *after*, so the kind cannot yet be chosen from the trade. `Entity.kind` is readonly and the
+      renderer pools by kind, so this is not a swap after the fact — it wants the resident's trade
+      read before `place()` is called, which is a few lines in `spawnVillageFolk`. Left undone
+      deliberately: `manager.ts` was another agent's territory tonight and is one line under the
+      700-line cap.
+- [ ] **Swing a pickaxe.** `animations/motion.json` already has a `swing` blow, so the motion exists;
+      what does not is a villager at a rock face using it as work rather than as a fight.
+- [x] **A farmer**, and a cowboy for the farmer who keeps the stable.
+- [x] **A priest** for the church, who already exists as a person — `places.ts` gives the chapel
+      keeper `trade = 'priest'` — and is drawn as an ordinary shopkeeper.
+- [x] **A doctor.**
+- [x] **A constable**, so the law is recognisable before it reaches you.
+- [x] **A mayor**, with a hat like Henry the Eighth's. The town hall has a clerk in it as of tonight
+      and nobody the town would call its head.
+- [x] **A miner has no behaviour tree at all.** `behaviours/villagers.json` has eleven — innkeeper,
+      seller, farmer, hunter, constable, doctor, soldier, hired, sailor, climber, explorer — and
+      `miner` is not among them, so a villager whose trade is mining does not go mining. Found while
+      looking for the swing.
+
+## Draw the simulations
+
+> "I think we should draw the simulations as well, which would make the game more immersive"
+
+The pattern behind the mine: a system is fully modelled, correct, tested — and invisible. It has now
+happened three times in one night (the economy flatlined for want of anybody looking, the mine is
+worked by nobody you can see, a villager's memories were evicted before they became an opinion), so
+it is worth its own heading rather than being fixed one case at a time.
+
+- [x] **An audit: every simulated system, and whether you can see it.** Done twice, and the second
+      time honestly. The first pass asked which systems are imported by `render/`, `ui/` or `frame.ts`
+      and concluded that fifteen hundred lines of simulation reach nobody. **That was wrong**, and
+      the way it was wrong is worth keeping: it missed `watch.ts`, which stands things up in the
+      world as you approach them; `meeting.ts`, which is what a person says to you; and the whole of
+      `game/interact/`, which is the player's own verbs. A system reaching those is a system you can
+      meet, and I had counted them as dark.
+
+      What the second pass says:
+
+      | system | lines | how a player meets it |
+      |---|---|---|
+      | nemesis | 653 | `watch.ts` stands him up, `interact/nemesis.ts` is what you do about him |
+      | rescue | 475 | `interact/rescue.ts` — a village asks and you answer |
+      | gifts | 363 | `meeting.ts` and `interact/gifts.ts` — you hand somebody a thing |
+      | sailing | 217 | eleven readers, `ui/readouts.ts` among them: the best-served system here |
+      | brewing | 193 | **one reader**, `interact/herbs.ts` |
+      | digging | 127 | **one reader**, `interact/wild.ts` |
+      | warband | 403 | not the roaming bands at all — a player-versus-player contest with hired men |
+
+      *Two real findings survive. `brewing` and `digging` have exactly one way in each: stand in the
+      right place holding the right tool. Nothing in the world advertises either — no hillside looks
+      worth digging, no patch of herbs looks like a draught — so they are not invisible so much as
+      undiscoverable, and a player could finish the game without learning they exist.*
+
+      *And the method is the lesson. "What draws it" is the wrong question in a game where most of
+      what you meet is stood up by a watcher or spoken by a person. The right one is "what path does
+      a player have to it", and it has to be asked of the verbs as well as of the renderer. The mine
+      was a true finding — `crews.ts` did not exist and nothing put anybody underground — but it was
+      found by walking into a mine, not by grepping, and that is the difference.*
+- [ ] **Advertise brewing and digging.** Both are one-reader systems reachable only by standing in
+      the right place with the right tool, and nothing in the world says so — a player can dig a
+      hundred holes in ordinary dirt and finish without learning either exists.
+
+      *Tried and backed out once, and the reason is worth keeping. A tile that grew nothing of its
+      own can show what it is hiding: a flower or a mushroom where herbs grow, a stone at the
+      surface where there is metal under it. That works and it is the right idea. What it needs
+      first is a layer move — `rollProp` lives in `world/` and `herbAt`/`seamAt` live in `game/`,
+      so asking the ground what it holds points the dependency backwards and the architecture test
+      says so.*
+
+      *The fix is not to relax the rule but to notice the rule is right: **what a piece of ground
+      holds is a fact about the world**, exactly like whether it grows a tree, and those two
+      functions are in `game/` for historical reasons rather than good ones. Move the ground half of
+      each — `seamAt`, `richness`, `groundOf`, `Ground`, `SEAM` and `herbAt`, `plenty`, `patchOf`,
+      `Patch`, `GROWTH` — down into `world/`, leave the recipes and the spade in `game/`, and the
+      sign becomes three lines that break nothing. It will also move the golden fingerprint, which
+      is correct: the world will have different things growing on it.*
+## The mine, with people in it — September 10th
+
+- [x] **Nobody is ever digging.** `mines.ts` has worked every village's hole every day since it was
+      written: a crew off the register goes down, the gold comes up and is shared among them to the
+      coin, somebody is frightened off, and now and again somebody does not come back and what he
+      was carrying is left on the floor where he fell. All of it true, all of it written down, and
+      none of it ever drawn — `places.enterDungeon` spawns what makes a mine dangerous and has never
+      once spawned what makes it a mine. So you can walk into the workings a village is being made
+      rich and poor by and find the tunnels empty. It is the same fault as an economy with no
+      source: the model was right and nothing showed it to anybody.
+      *(`src/game/crews.ts`, and `Mines.whoIsDown` beside the ledger that pays them. Three questions
+      and an answer to each. **Who**: the miners the register lists as living in the village that
+      claims this hole — literally the same expression the day's takings are shared by, which is now
+      `crewOf` and called from both places, because a crew worked out twice is a crew that will one
+      day be two different sets of men. No day is passed in and none should be: the register is
+      already at today, so a man the mine swallowed last week is not in the list, and a second
+      opinion about who is alive is how a game ends up burying somebody who is still talking to you.
+      A hole no village works has nobody in it, and neither has one the village is too frightened
+      to go near — the same `DREAD_SHUT` the place is *described* by, so walking into a mine you
+      were told nobody would go down and finding it empty is the village turning out to be right.
+      That is a rule about what is seen and not about what is earned; the economy's own brake on a
+      frightened village is still the willingness roll inside `dayUnderground`, untouched.
+      **Where**: at the faces, not at the room centres monsters get. A room centre is where you
+      meet something; a man at a room centre is a man standing about. So floor tiles are scored by
+      how many of their four sides are rock, corners and dead ends first, kept clear of the steps
+      you arrive on and spread five tiles apart — and if a cramped cave cannot satisfy that the
+      spacing relaxes rather than dropping men, because a missing miner is invisible and that is
+      the worst kind of wrong. He is turned to face one wall squarely, the one with the most rock
+      behind it. Facing the bisector of a corner was tried first: it reads perfectly in a built
+      room and turns a man to face open floor in a cave, because an inside corner there is a notch
+      rather than a corner. Checked across 399 cave seeds and 300 vault seeds — 2,394 faces, every
+      one of them plain floor with rock in front of it, and not one hole that could not seat six.
+      **What digging looks like**: there is no pick swing in `animations/motion.json` and there
+      never has been. What a body knows is a walk, an idle, a flinch, a death and five shapes of
+      blow, and every one of them was written for getting somewhere or hurting something — nothing
+      in the file is work. Rather than invent a sixth motion that nothing else would ever use, the
+      new `dig` verb throws the blow already called `swing`: an arm over the top and down, which is
+      what the hero's sword does and is also exactly what a pick does. It is the nearest honest
+      thing. Nothing is struck — a blow only hurts through `strike` and `dig` never calls it — so a
+      man swings beside you all afternoon and cannot take a heart off anybody. The day itself is
+      `facework` in `behaviours/villagers.json`, filed under a name no village trade uses on
+      purpose: his trade is `miner` and that is what he is called and what he talks about, but
+      giving this day to the trade would put every miner in the country outside his own front door
+      swinging a pick at the grass. It has no hour in it either, because a shift underground does
+      not know what the sky is doing.
+      Talking to one needs nothing new: the entity carries the person's id, so `talk.ts` reads him
+      back off the register and he already has a family, a purse, and — through `saidOfMine` — a
+      line about how the seam has been going. What he has not got is a way to be asked: underground,
+      `interact/index.ts` answers Enter with a chest, a door or the stairs and never looks for a
+      person, and the click path picks against the overworld renderer rather than the floor's. One
+      line in `talkNearest`'s `places.underground` branch would do it, and that file was not this
+      week's to touch.
+      One correction fell out of it and is in: `felled` in `blows.ts` counted every body killed in a
+      mine as one less thing living down there, which with people in the tunnels would have let a
+      player make a hole safe by murdering the crew that works it. Anybody on the register is not
+      what was living down there, and is no longer counted.)*
+- [x] **The one line nobody has added yet.** `src/game/crews.ts` is proved by `crews.test.ts`
+      calling it directly against a real cave and a real register, but nothing in the running game
+      calls it, because `places.ts` belongs to the castle this week. One import, one field, one
+      call, and one line in `main.ts`:
+      1. `src/game/places.ts`, with the other imports —
+         `import { putTheCrewToWork, type Digger } from './crews';`
+      2. `src/game/places.ts`, one field on `PlaceContext` —
+         `crewIn: (anchorId: string) => readonly Digger[];`
+      3. `src/game/places.ts`, in `enterDungeon`, after `const monsters = new EntityManager(…)` and
+         **outside** the `if (!told)` block, for the reason villagers are not the server's — the
+         people of a village are the seed and the register, and every client has both —
+         `putTheCrewToWork(monsters, world.map, this.ctx.crewIn(anchorId), anchor.seed);`
+      4. `src/main.ts`, in the `new Places({ … })` block —
+         `crewIn: (anchorId) => mines.whoIsDown(anchorId, minesWorked(), (v) => register.living(v)),`
+         `minesWorked` is declared further down the file than `Places` is built; the closure is only
+         ever called on the way into a hole in the ground, so there is nothing to hoist.
+- [ ] **A miner killed underground is not written down anywhere.** The floor's `EntityManager` is
+      built in `places.ts` with no register and no `onFallen`, so an ogre that kills one of the crew
+      in front of you — and it will, because monsters mark the nearest person and the crew are
+      people now — changes nothing and the man is back at his face the next time you walk in.
+      Nothing invents a second answer about who is alive, which was the rule; but the tunnels cannot
+      yet report a death to the one answer there is. Handing that manager the same `register` and
+      `onFallen` the overworld's has is a `places.ts` change and would want a thought about what a
+      death down there does to the village's dread, which is the whole point of the place.
+
+## Found while wiring the miners in
+
+- [x] **The mesh world had no caves at all, so no mine was ever worked.** Seeds 1, 3, 5 and 7 of the
+      world the game actually plays: signposts, piers and wrecks all present, **caves zero**, and a
+      cave is what a village claims as its mine. So no crew went down, and the seam where every coin
+      in this world is minted was never cut. *(The same fault was found and fixed in the endless
+      country earlier the same night, and the fix was made in only one of the two places: a cave was
+      "the first tile drawn as high ground", and a polygon world raises the base its tiles are
+      measured from rather than a tile's own rise, so nothing ever reads as `High`. Ten caves a world
+      now, four to eight of them claimed as mines.)*
+- [ ] **The `__entities` probe cannot see underground.** It is bound to the overworld's manager at
+      construction, so walking into a mine and asking what is there answers about the fields above
+      it. Nothing is wrong with the game; the instrument is pointed the wrong way, which made
+      checking the crew by hand impossible and is worth fixing before the next thing that lives
+      down a hole.
+- [ ] **A crew is one or two people.** `crewOf` takes the miners living in a village, and a village
+      has one or two, so a sixteen-room cave holds a man. That is probably right — a mine is not a
+      colliery — but it means the tunnels still read as empty, and it is worth deciding whether a
+      village's mine should draw more of its people down it.
+
+## The snow lands should stand higher
+
+> "I think the snow lands should have higher elevation, which is kind of a similar way to what we
+> tried to do with mountains in the past. But what I want is to add elevation and higher hills which
+> would make a new attempt at building a non-flat environment"
+
+- [ ] **Snow country stands above the rest.** Snow is a biome today and nothing else — a snow field
+      and a plain are the same ground in different colours, so the country reads as flat everywhere
+      you are not standing on a mountain. It should be high country in its own right, the way
+      mountain country is: the ground itself rising, walkable, with the cold at the top of the climb
+      rather than at an invisible line drawn across a flat map.
+- [ ] **And hills between the two.** This is the wider point and worth attempting on its own. The
+      world has exactly two kinds of ground — flat, and mountain — and nothing in between, so a walk
+      across it is level until it is vertical. `highland.ts` already knows how to raise country
+      rather than rock (`HIGHLAND.PER_STEP`, `REACH`, `SHOULDER`, `RIDGED`), and its comments record
+      why the first attempt at mountains failed: peaks put on a flat plain like a cone dropped from
+      above, when a range is high *country* that tilts up for miles before anything worth calling a
+      summit. Hills are the same argument one size down.
+      *Read `src/world/highland.ts` and `src/world/localland.ts` before starting: the endless country
+      already asks how deep a face is into the high ground and caps it, and hills would be a second,
+      gentler answer to the same question rather than a new mechanism.*
+      *Note the trap this will hit, because it has bitten twice tonight: raising the ground raises
+      the base its tiles are measured from, and anything that asks "is this tile drawn as high
+      ground" stops working — that is how the mesh world lost every one of its caves. `chore
+      collisions` and the golden fingerprint are the two things that will notice.*
+
+## The castle
+
+A fourth kind of place underground, which is not underground: a keep of four floors standing on
+the map, walked into through its gate, and from every angle but its own an ordinary dungeon. The
+inside of it is `src/dungeon/castle.ts`; the building that stands in the world is somebody else's
+half and is not described here.
+
+- [x] **A castle is a plan, not a warren.** *(`castle.ts`. The three older places underground are
+      one algorithm — scatter rooms, join each to the nearest — and a keep is the opposite: one
+      rectangle divided, so its rooms share walls and its corridors run the length of a wing. Every
+      division reserves a band of floor along the line it cuts on, and that band is a gallery; the
+      split axis strictly alternates, which is not a stylistic choice but the reason the plan comes
+      out connected with no joining pass at all — a child's gallery spans its own rectangle end to
+      end in the direction its parent's runs, so the two always touch. Round the divided block runs
+      a curtain walk two tiles wide, and off it hang four corner towers and a gatehouse, which is
+      the silhouette that says castle at a glance. Seventy-six tiles a side against a vault's
+      fifty-six; twenty rooms a floor and fifteen stretches of gallery; four floors, because
+      `dungeonMonsters` runs out of bands at three and a fifth floor would be a floor with nothing
+      new to fight on it.)*
+- [x] **Three things to solve on every floor, none of which needed a new verb.** *(There is no hint
+      system in this game and there is not going to be one, so a room has to say what it wants by
+      being looked at — which rules out anything remembered, a lever pulled two rooms ago or a
+      sequence of plates, and leaves the two things a player can always see: where the floor is and
+      how high it is. **The barred stair**: the way up is in a chamber whose doorways are
+      portcullises and the warden's key is in a chest you can reach without passing one — the
+      vault's own lock and key, moved off the treasure and onto the stair, which is what makes four
+      floors a climb. **The drowned undercroft**: a chamber flooded to the sills with the prize on
+      an island, crossed on a laid line of stepping stones with false ones scattered either side;
+      the false ones are placed only where every neighbour is water, so they lead nowhere and can
+      never accidentally bridge, and the whole pattern is visible from directly above, which is
+      where this camera is. **The minstrels' gallery**: a walk along one wall of the great hall
+      three terraces up, with one stair to it. Three terraces is the load-bearing number — the
+      hero's `climb` of 0.56 clears one, a climbing rope's 1.06 clears two, and three is a wall to
+      everybody, so the stair is the answer rather than a suggestion. The gallery and the island
+      take turns holding the key, by whether the floor number is odd, so which puzzle you have to
+      finish changes as you climb.)*
+- [x] **Ghosts and monsters.** *(Monsters are the floor's own table, as a vault's are: a spot in
+      `map.monsterSpots` with nothing else said about it is rolled against `dungeonMonsters` for
+      the depth. A ghost is the same list saying what stands there — the spot names `wight` — so a
+      wight is a fact about a room rather than a roll, the way `game/haunts.ts` argues a keeper of
+      a ruin should be, and the chapel, the drowned undercroft and the throne room always hold one
+      while everything else is rolled higher the further up you have climbed. Note the hour: a
+      wight's own behaviour tree has it abroad only between 0.82 and 0.27, so a keep walked at noon
+      is a keep full of things standing perfectly still, and the same keep after dark is not. Capped
+      at one plus the floor, because a wight has no hit points — a blade goes through one — and
+      five of them on a floor is not frightening, it is a floor you cannot afford to be on.)*
+- [x] **A dungeon's walls had no height at all.** *(Found while building the castle's gallery and
+      fixed in `dungeon/world.ts`. `buildChunkMesh` cuts every quad from a chunk's `corners` and
+      never reads `height`; `DungeonWorld.chunkData` filled in `height` and left `corners` at
+      nought, so every vertex of every dungeon sat at y = 0. The rock was still solid to walk into
+      and the minimap still drew it, so nothing failed — there was simply no wall standing up
+      anywhere underground, in any hole in the game. Measured rather than argued: meshing a vault
+      off `main` gives every land vertex a y of exactly nought, and off this branch a span from
+      nought to `WALL_Y`. How long it had been so is not known and is not claimed — `corners` has
+      been the geometry the mesher cuts since long before the mountains became a layer of their
+      own, which is as far back as it was worth digging. `src/dungeon/world.test.ts` is the
+      guard.)*
+
+- [ ] **Nothing in a dungeon is solid except a chest.** *(`DungeonWorld.blocked` knows about chests
+      and nothing else, so a castle's tables, barrels and cell bars are walked straight through —
+      indoors the same props stop you, because `InteriorWorld` measures their footprints. It is why
+      a chamber is only nine per cent furniture: a room packed with things you walk through looks
+      worse than an empty one. Making them solid is not a small change, because the moment
+      furniture fills tiles it can seal a room, and the only thing that presently checks for that
+      is `castlefit.ts`, which was written for chests. Whatever does it should do both.)*
+
+### Wanted for the castle, and not made
+
+Everything in the keep is currently dressed out of props a village and a chapel already own: an
+`Altar` standing in for a throne, a `WeaponRack` for a wall of arms, a `Forge` for a kitchen range.
+Each is the right silhouette from above and the wrong object up close. `dungeon/castlerooms.ts` is
+where the substitution happens, so making these is a second pass and not a redesign. Sizes are in
+tiles across by world units tall.
+
+- **Throne** — 1×1, 1.6 tall. A high seat on the dais at the head of the throne room: the thing the
+  fourth floor exists to be. Stands in for nothing; there is no seat in the game.
+- **Banner** — hangs on a wall face like a `Torch`, 0.9 wide × 2.2 long. Tinted per castle, four to
+  a great hall. What tells you whose keep this is.
+- **Tapestry** — the same idea two tiles wide, for the long wall of a gallery. A cold stone wall
+  with nothing on it is what makes a corridor read as a mine.
+- **SuitOfArmour** — 1×1, 1.9 tall, a standing figure holding a polearm. Lines the state galleries.
+  At the distance this camera looks from you cannot tell one from a monster, which is the point.
+- **LongTable** — 3×1, 0.8 tall. The board down the middle of a great hall. `Table` is a small one
+  and a row of them reads as a canteen.
+- **Brazier** — 1×1, 1.1 tall: a bowl of fire on a tripod, glowing like a `Torch` does. Lights the
+  middle of a hall, where no wall bracket reaches.
+- **Chandelier** — hangs at 3.5, 1.5 across. The one light a great hall should have that a cellar
+  cannot.
+- **Portcullis** — 1×1 spanning a doorway, a grid dropping from the head of the arch. Distinct from
+  `Door`, which is a hinged plank and reads as a cottage. What a castle bars a stair with.
+- **Statue** — 1×1, 2.2 tall, plinth and figure. Marks the corners of a gallery and the head of a
+  stair.
+- **GreatHearth** — 2×1, 2.0 tall. `Hearth` is a cottage fire; a hall wants one you could stand in.
+- **TowerStair** — 1×1, 2.5 tall, a spiral turning up out of sight. What should be standing in a
+  corner tower, instead of the flat `Stairs` plate.
+- **Cobweb** — 1×1, low and pale. The tell that a wing is the haunted one, from the top of the
+  stair rather than after the fight.
+- **Sarcophagus** — 2×1, 0.7 tall. The crypt under the chapel, and where a wight is.
+- **StainedWindow** — a wall face, 1 wide × 2.4 tall, lit from behind. The one thing a castle
+  interior has that a cave never can: an outside.
+
+### Asked of `game/places.ts`, which is not this half's to edit
+
+- **A castle is a `kind`.** `enterDungeon(poi, kind, …)` takes `'dungeon' | 'cave' | 'thicket'`;
+  it needs `'castle'`, which then flows through as the style unchanged, since `generateDungeon`,
+  `DungeonWorld` and `DungeonScene` all already know the word. Nothing else in that function has to
+  change.
+- ~~**Somebody has to raise the ghosts.**~~ Done without it, and deliberately so. A castle's
+  haunted rooms are ordinary entries in `map.monsterSpots` that name their occupant — a third
+  element, `'wight'` — and `EntityManager.spawnMonsters` gives a named spot what it names instead
+  of rolling for it. `enterDungeon` already passes `world.map.monsterSpots` straight through, so
+  the ghosts arrive with no change to that function at all, and none is wanted. A named spot also
+  takes nothing out of the random stream, which is what keeps every vault, cave and thicket in
+  every existing world holding exactly what it held before.
+- **Unlocking a vault does not survive leaving it.** Found while reading that function, and it is
+  not the castle's: `openChest` files the key under `visit.world.anchorId`, which carries the floor
+  — `dungeon:Name:2` — and `enterDungeon` reads it back as `state.keys.has(anchor.id)`, which does
+  not. So the doors shut again every time you come back, on every vault in the game. Which of the
+  two ends is corrected matters to the castle: reading `state.keys.has(world.anchorId)` fixes it
+  and leaves each floor its own lock, and filing the key under the unqualified anchor instead fixes
+  it by opening the barred stair on all four floors of a keep at once, which is three puzzles
+  thrown away.

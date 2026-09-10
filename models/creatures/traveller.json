@@ -1,0 +1,18 @@
+{
+  "note": [
+    "A traveller and a villager are the same sixteen boxes in different trousers, which is fine up close — you can read their names — and useless at the distance this camera watches a road from.",
+    "The one thing true of a traveller and of nobody else is that they are carrying their house on their back, so that is what the rig says from above: a pack behind the shoulders with a bedroll across the top of it, breaking the outline every other person here shares.",
+    "Leather and canvas rather than palette tints. The palettes dress the person — shirt and hair — and a traveller's second tint runs to gold and hot pink. Kit is kit, and it is the same brown on everybody who carries it."
+  ],
+  "from": "biped",
+  "with": { "skin": "#ffdab9", "hair": "#ffffff", "hairTint": 1, "shirtTint": 0, "pantsColor": "#334466" },
+  "parts": [
+    { "note": "narrower than the back it rides on, so it reads as a load on a person and not a second torso",
+      "box": [0.17, 0.34, 0.28], "at": [-0.22, 0.95, 0], "color": "#6b4a2b" },
+    { "note": "lying across the top of the pack: shorter than the pack is wide, so nothing juts past it",
+      "cyl": [0.075, 0.26], "at": [-0.22, 1.14, 0], "color": "#e8dcc0", "rot": ["1/4", 0, 0] },
+    { "note": "two straps over the shoulder beam, which is what stops the pack looking stuck on",
+      "box": [0.3, 0.05, 0.055], "at": [-0.02, 1.14, 0.1], "color": "#3a2a1a" },
+    { "box": [0.3, 0.05, 0.055], "at": [-0.02, 1.14, -0.1], "color": "#3a2a1a" }
+  ]
+}

@@ -81,13 +81,6 @@ export const VILLAGES: Regime[] = [
   { village: 'Windle', houses: 1, posts: INLAND, hamlet: true },
 ];
 
-/**
- * How much worse a raided village's ten days have to be than a quiet one's before the bench will
- * believe that a band costs a village anything.
- *
- * A share of what the place is worth rather than a number of coins, and a quarter of it because
- * that is well clear of the noise: an ordinary ten days in a quiet village runs a tenth either
- * way depending on who happened to die in it, and a band takes about two thirds.
 /** The villages nothing is done to, which every other one is read against. */
 export const LEFT_ALONE = VILLAGES
   .filter((v) => v.band === undefined && !v.mine && !v.hamlet)
@@ -239,6 +232,26 @@ export const at = (run: Run, village: string, day: number): string => `${village
 
 /** What a village had between it that evening. */
 export const worth = (books: Books): number => books.roll.reduce((sum, row) => sum + row.purse, 0);
+
+/**
+ * And what it had a head, children counted.
+ *
+ * The figure a second storey is measured against, because the houses of a village go up together
+ * and a village is not tall because one innkeeper is rich. Children are in the divisor for the
+ * same reason they are in the divisor when the village grows its dinner: a house holds a family.
+ */
+export const eachHead = (books: Books): number => worth(books) / Math.max(1, books.roll.length);
+
+/**
+ * What the middle working villager held that evening.
+ *
+ * The typical purse rather than the best one, and the number that gave A7 away: it stood at
+ * exactly 6.5 for the last 87 days of a hundred, in every untroubled village on every seed.
+ */
+export const midPurse = (books: Books): number => {
+  const working = books.roll.filter((row) => row.trade).map((row) => row.purse).sort((a, b) => a - b);
+  return working.length > 0 ? working[Math.floor(working.length / 2)] : 0;
+};
 
 /** How much anything is out by, said the way money is said rather than the way a float is. */
 export const coins = (n: number): string => (Math.round(n * 100) / 100).toString();

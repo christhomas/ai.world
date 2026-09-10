@@ -148,7 +148,25 @@ export function markTheWay(o: Between): Marked {
       if (villages.some((v) => Math.hypot(v.x - x, v.z - z) < v.radius)) break;
       sampler.sampleTile(x, z, sample);
       const level = sample.level;
-      if (sample.type === TileType.High && caves.length < CAVES) {
+      /*
+       * High ground, asked of the country rather than of the tile.
+       *
+       * "A tile drawn as high ground" was the rule here for a long time and it finds nothing in a
+       * world made of polygons: the road tree's mountains lift a tile's own rise, so their flanks
+       * read as `High`, while a polygon country raises the *base* the tiles are measured from — the
+       * ground can stand fifteen terraces up and every tile of it still read as ordinary.
+       *
+       * Measured: seeds 1, 3, 5 and 7 of the mesh world had **no caves at all**, and no cave means
+       * no village claims a mine, no crew goes down, and the seam where every coin in this world is
+       * minted was never worked. Signposts and piers were there; only the caves were missing, which
+       * is why nobody noticed.
+       *
+       * The same correction was made to `markThePlaces` below when the endless country was built.
+       * It was not made here, and this is the half the game actually plays.
+       */
+      const inTheHills = sample.type === TileType.High
+        || sampler.highlandAt(x + 0.5, z + 0.5) >= CAVE_COUNTRY;
+      if (inTheHills && caves.length < CAVES) {
         if (caves.some((c) => Math.hypot(c.x - x, c.z - z) < SITE_SPACING)) continue;
         const biome = sampler.biomeOf(x, z);
         all.push({ kind: StructureKind.CaveMouth, tx: x, tz: z, hw: 1, hd: 1, level, rot: Math.atan2(-(n.z - z), n.x - x), biome, path: [] });

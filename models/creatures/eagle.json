@@ -1,0 +1,10 @@
+{
+  "parts": [
+    { "box": [0.5, 0.18, 0.22], "at": [0, 0, 0], "color": "#ffffff", "tint": 0 },
+    { "ico": 0.1, "at": [0.32, 0.06, 0], "color": "#ffffff", "tint": 1, "anim": "head", "pivot": [0.2, 0, 0] },
+    { "cone": [0.03, 0.12], "at": [0.44, 0.04, 0], "color": "#f0c040", "rot": [0, 0, "-1/4"] },
+    { "box": [0.42, 0.04, 1], "at": [0, 0.06, 0.6], "color": "#ffffff", "tint": 0, "anim": "wingL", "pivot": [0, 0.06, 0.1] },
+    { "box": [0.42, 0.04, 1], "at": [0, 0.06, -0.6], "color": "#ffffff", "tint": 0, "anim": "wingR", "pivot": [0, 0.06, -0.1] },
+    { "box": [0.24, 0.04, 0.3], "at": [-0.34, 0.02, 0], "color": "#ffffff", "tint": 1, "anim": "tail" }
+  ]
+}

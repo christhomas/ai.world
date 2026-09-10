@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { PROSPER, earnedInADay, feeFor, luxuryFor, saidOfWealth, spentOnLiving, storeysFor } from './prosperity';
+import { TRADES } from '../entities/trades';
+import { FOOD } from './food';
+import { PROSPER, TRADERS, earnedInADay, feeFor, luxuryFor, saidOfWealth, spentOnLiving, storeysFor } from './prosperity';
 import type { Person } from './people';
 
 const person = (trade: string): Person => ({
   id: 'x', name: 'Maren', village: 'Ashford', trade, born: -30, lives: 70,
-  mother: '', father: '', knows: [], memories: [], purse: 0, hungry: 0,
+  mother: '', father: '', knows: [], memories: [], opinions: [], purse: 0, hungry: 0,
 });
 
 /**
@@ -14,7 +16,22 @@ const person = (trade: string): Person => ({
  */
 describe('what a village is worth', () => {
   it('pays the trades that handle everybody else money best', () => {
-    expect(earnedInADay(person('shopkeeper'), 0)).toBeGreaterThan(earnedInADay(person('farmer'), 0));
+    expect(earnedInADay(person('seller'), 0)).toBeGreaterThan(earnedInADay(person('farmer'), 0));
+  });
+
+  /**
+   * The better-paid trades have to be trades somebody can actually be.
+   *
+   * This is here because they were not. The set read shopkeeper, innkeeper, smith, apothecary and
+   * merchant — the names of a village's *shops* — and four of those five are not jobs the game
+   * hands anybody, so the higher wage reached one innkeeper per village and ten of the eleven
+   * trades in the world were paid the same floor. Nothing failed, nothing looked wrong, and the
+   * wage table had no shape for as long as it took a bench to add the money up.
+   */
+  it('names trades a villager can actually be given, and not the names of shops', () => {
+    const real = TRADES.map((trade) => trade.id);
+    expect(TRADERS.filter((trade) => !real.includes(trade))).toEqual([]);
+    expect(TRADERS.length).toBeGreaterThan(1);
   });
 
   it('pays a child nothing, because a trade is what starts a purse', () => {
@@ -22,8 +39,8 @@ describe('what a village is worth', () => {
   });
 
   it('stops the money entirely while the place is being raided', () => {
-    expect(earnedInADay(person('shopkeeper'), 0.9)).toBe(0);
-    expect(earnedInADay(person('shopkeeper'), 0)).toBeGreaterThan(0);
+    expect(earnedInADay(person('innkeeper'), 0.9)).toBe(0);
+    expect(earnedInADay(person('innkeeper'), 0)).toBeGreaterThan(0);
   });
 
   it('puts a second storey on a house once its owner can afford one', () => {
@@ -48,8 +65,56 @@ describe('what a village is worth', () => {
   });
 
   it('takes a real stretch of quiet days to build anything', () => {
-    // a fortnight of peace should not turn a farmer into a landlord
+    // a fortnight of peace should not turn a farmer into a landlord — and this is his whole wage,
+    // before he has eaten anything out of it
     expect(storeysFor(earnedInADay(person('farmer'), 0) * 14)).toBe(1);
+  });
+});
+
+/**
+ * A working purse climbs, and it never comes to rest.
+ *
+ * The bug this pins was arithmetic and invisible: upkeep was eight tenths of a coin against a wage
+ * of one and a half, so an ordinary day cost three tenths more than it paid, and the only thing
+ * standing between a village and starvation was `KEEPS_BACK` — which stops the spending as the
+ * purse runs down and so hands the day back exactly the difference. Every working purse in the
+ * world converged on 6.5 and held it: the bench measured the middle villager of three untroubled
+ * villages sitting on exactly that for the last 87 days of a hundred, on all three seeds. Nothing
+ * a villager earned ever bought anything, because nothing a villager earned ever stayed.
+ *
+ * So this lives a purse forward the way `register.ts` does — earn, then upkeep, then dinner — and
+ * asks the one question the shape of the thing turns on: is he better off in the spring than he
+ * was in the winter.
+ */
+describe('a hundred quiet days in one purse', () => {
+  /** One day in the order the register lives it: what he takes, what he spends, then what he eats. */
+  const aDay = (soul: Person): void => {
+    soul.purse = Math.max(0, soul.purse + earnedInADay(soul, 0) - spentOnLiving(soul));
+    if (soul.purse >= FOOD.MEAL) soul.purse -= FOOD.MEAL;
+  };
+  const lived = (trade: string, days: number, from = 0): number => {
+    const soul = { ...person(trade), purse: from };
+    for (let day = 0; day < days; day++) aDay(soul);
+    return soul.purse;
+  };
+
+  it('leaves an ordinary working day worth having', () => {
+    expect(PROSPER.A_DAY - FOOD.MEAL - PROSPER.UPKEEP).toBeGreaterThan(0);
+  });
+
+  it('is worth more to a farmer at a hundred days than at fifty', () => {
+    expect(lived('farmer', 100)).toBeGreaterThan(lived('farmer', 50) + 10);
+  });
+
+  it('does not settle at the reserve, from below it or from above it', () => {
+    for (const from of [0, PROSPER.KEEPS_BACK, PROSPER.KEEPS_BACK + PROSPER.UPKEEP * 2, 200]) {
+      expect(lived('farmer', 60, from)).toBeGreaterThan(PROSPER.KEEPS_BACK + 20);
+    }
+  });
+
+  it('rewards the trades that serve everybody else several times over, not half again', () => {
+    // the wage is half again; what is left after a day has cost what it costs is far more than that
+    expect(lived('seller', 60)).toBeGreaterThan(lived('farmer', 60) * 2);
   });
 });
 
@@ -58,7 +123,7 @@ describe('what a village is worth', () => {
  * who never spend anything cannot get poorer for any reason except being killed.
  */
 describe('what a life costs beyond dinner', () => {
-  const withPurse = (purse: number, trade = 'smith') => ({ ...person(trade), purse });
+  const withPurse = (purse: number, trade = 'farmer') => ({ ...person(trade), purse });
 
   it('takes something out of a working purse every day', () => {
     expect(spentOnLiving(withPurse(200))).toBeGreaterThan(0);

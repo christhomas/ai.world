@@ -5,9 +5,9 @@ import people from '../../properties/people.json';
 import monsters from '../../properties/monsters.json';
 import villain from '../../properties/villain.json';
 import tuning from '../../properties/behaviour.json';
-import { Fields, PropertiesError, asText, flatten, readAll } from '../core/properties';
+import { Fields, PropertiesError, asColour, flatten, readAll } from '../core/properties';
 import { BLOW_NAMES, isBlow, type Blow } from './motion';
-import type { AnimRole, PartDef } from './animals';
+import type { AnimRole, PartDef } from './rigs';
 
 /**
  * What every creature in the world is, read out of `properties/`.
@@ -82,27 +82,12 @@ export interface CreatureProperties {
   drop?: { id: string; chance: number };
 }
 
-/**
- * A colour as a person writes one down.
- *
- * The parts of a rig hold colours as plain numbers, which is what three.js wants and what a hex
- * literal in TypeScript already looked like. JSON has no hex literals, so a palette written as
- * numbers would be six digits of decimal that nobody could read as a colour and nobody could
- * change with any confidence. `"#a06030"` is the same value written the way every other tool a
- * person might have it open in writes it.
- */
-function colour(value: unknown, where: string): number {
-  const text = asText(value, where);
-  if (!/^#[0-9a-fA-F]{6}$/.test(text)) throw new PropertiesError(where, `expected a colour like "#a06030", found "${text}"`);
-  return Number.parseInt(text.slice(1), 16);
-}
-
 /** One palette: the two or three colours a single animal is painted from. */
 function palette(value: unknown, where: string): number[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new PropertiesError(where, 'expected a list of at least one colour');
   }
-  return value.map((entry, i) => colour(entry, `${where}[${i}]`));
+  return value.map((entry, i) => asColour(entry, `${where}[${i}]`));
 }
 
 /** One creature, field by field, so that a wrong one is named rather than quietly becoming NaN. */

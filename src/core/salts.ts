@@ -38,6 +38,7 @@ export const SALT = {
   EYRIE: 0xea61,            // which crag each eagle waits on, and which way it faces
   SKY: 0x5c1e,              // which islands have another one floating over them, and its shape
   LOCAL_ROAD: 0x10ad,       // how a road of the endless country bends, and how high it sits
+  UNWATCHED: 0xc105,        // where a creature nobody was watching has got to by the time you arrive
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

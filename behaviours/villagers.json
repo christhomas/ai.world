@@ -2,158 +2,771 @@
   "innkeeper": {
     "note": "Behind the bar all day and half the night. The one trade with somewhere to be after dark.",
     "first": [
-      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.95 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.24,
+            "to": 0.95
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "seller": {
     "note": "A market pitch from dawn until the light goes, then the inn. Buys what hunters and farmers bring in.",
     "first": [
-      { "when": { "ask": "wounded", "with": { "share": 0.5 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "doctor", "within": 2 } }, { "do": "beHealed" }] } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.26, "to": 0.74 } }, "then": { "do": "goTo", "with": { "post": "market" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.74, "to": 0.86 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "wounded",
+          "with": {
+            "share": 0.5
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "doctor",
+                "within": 2
+              }
+            },
+            {
+              "do": "beHealed"
+            }
+          ]
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.26,
+            "to": 0.74
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "market"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.74,
+            "to": 0.86
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "farmer": {
     "note": "Out to the field early, back through the square at noon, the inn of an evening. Badly hurt, the surgery comes first.",
     "first": [
-      { "when": { "ask": "wounded", "with": { "share": 0.5 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "doctor", "within": 2 } }, { "do": "beHealed" }] } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.25, "to": 0.5 } }, "then": { "do": "goTo", "with": { "post": "field" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.5, "to": 0.58 } }, "then": { "do": "goTo", "with": { "post": "square" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.58, "to": 0.78 } }, "then": { "do": "goTo", "with": { "post": "field" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.78, "to": 0.88 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "wounded",
+          "with": {
+            "share": 0.5
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "doctor",
+                "within": 2
+              }
+            },
+            {
+              "do": "beHealed"
+            }
+          ]
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.25,
+            "to": 0.5
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "field"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.5,
+            "to": 0.58
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "square"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.58,
+            "to": 0.78
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "field"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.78,
+            "to": 0.88
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "hunter": {
     "note": "The whole trade in one branch: out to the woods, take something, carry it in, sell it, and spend what it fetched. A mauling sends them to the surgery first.",
     "first": [
-      { "when": { "ask": "wounded", "with": { "share": 0.5 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "doctor", "within": 2 } }, { "do": "beHealed" }] } },
       {
-        "note": "Carrying a kill? Then the market, whatever hour it is — meat does not keep.",
-        "when": { "ask": "carrying" },
+        "when": {
+          "ask": "wounded",
+          "with": {
+            "share": 0.5
+          }
+        },
         "then": {
           "steps": [
-            { "do": "goTo", "with": { "post": "market", "within": 2.5 } },
-            { "do": "sell" }
+            {
+              "do": "goTo",
+              "with": {
+                "post": "doctor",
+                "within": 2
+              }
+            },
+            {
+              "do": "beHealed"
+            }
+          ]
+        }
+      },
+      {
+        "note": "Carrying a kill? Then the market, whatever hour it is \u2014 meat does not keep.",
+        "when": {
+          "ask": "carrying"
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "market",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "sell"
+            }
           ]
         }
       },
       {
         "note": "Coin in the purse and evening drawing in: eat, drink, and buy tomorrow's arrows.",
-        "when": { "ask": "hourBetween", "with": { "from": 0.7, "to": 0.9 } },
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.7,
+            "to": 0.9
+          }
+        },
         "then": {
           "first": [
-            { "when": { "ask": "purse", "with": { "atLeast": 40 } }, "then": { "steps": [{ "do": "goTo", "with": { "post": "shop", "within": 2.5 } }, { "do": "spend", "with": { "on": "gear" } }] } },
-            { "steps": [{ "do": "goTo", "with": { "post": "inn", "within": 2.5 } }, { "do": "spend", "with": { "on": "food" } }] }
+            {
+              "when": {
+                "ask": "purse",
+                "with": {
+                  "atLeast": 40
+                }
+              },
+              "then": {
+                "steps": [
+                  {
+                    "do": "goTo",
+                    "with": {
+                      "post": "shop",
+                      "within": 2.5
+                    }
+                  },
+                  {
+                    "do": "spend",
+                    "with": {
+                      "on": "gear"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "steps": [
+                {
+                  "do": "goTo",
+                  "with": {
+                    "post": "inn",
+                    "within": 2.5
+                  }
+                },
+                {
+                  "do": "spend",
+                  "with": {
+                    "on": "food"
+                  }
+                }
+              ]
+            }
           ]
         }
       },
       {
         "note": "Daylight and nothing on the shoulder: find something.",
-        "when": { "ask": "hourBetween", "with": { "from": 0.25, "to": 0.7 } },
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.25,
+            "to": 0.7
+          }
+        },
         "then": {
           "latch": [
-            { "steps": [{ "do": "goTo", "with": { "post": "woods" } }, { "do": "stalkQuarry" }, { "do": "take" }] }
+            {
+              "steps": [
+                {
+                  "do": "goTo",
+                  "with": {
+                    "post": "woods"
+                  }
+                },
+                {
+                  "do": "stalkQuarry"
+                },
+                {
+                  "do": "take"
+                }
+              ]
+            }
           ]
         }
       },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "constable": {
     "note": "Trouble first, whatever the hour: an animal on a villager is what the job is for, and somebody the law wants is worse. Otherwise the square, the gate, and the inn.",
     "first": [
       {
         "note": "A killer the village has had enough of outranks even a wolf: the wolf is only hungry. Forget whatever was marked, walk them down, and take them in once close enough.",
-        "when": { "ask": "wanted" },
+        "when": {
+          "ask": "wanted"
+        },
         "then": {
           "steps": [
-            { "do": "forget" },
-            { "do": "stalk" },
-            { "anyway": { "do": "arrest", "with": { "tiles": 1.8 } } }
+            {
+              "do": "forget"
+            },
+            {
+              "do": "stalk"
+            },
+            {
+              "anyway": {
+                "do": "arrest",
+                "with": {
+                  "tiles": 1.8
+                }
+              }
+            }
           ]
         }
       },
       {
         "note": "Somebody being savaged outranks everything else in the day.",
         "steps": [
-          { "do": "markTrouble", "with": { "within": 16 } },
-          { "do": "stalk" },
-          { "anyway": { "do": "bite", "with": { "damage": 2, "cooldown": 1.1, "tiles": 1.6 } } }
+          {
+            "do": "markTrouble",
+            "with": {
+              "within": 16
+            }
+          },
+          {
+            "do": "stalk"
+          },
+          {
+            "anyway": {
+              "do": "bite",
+              "with": {
+                "damage": 2,
+                "cooldown": 1.1,
+                "tiles": 1.6
+              }
+            }
+          }
         ]
       },
-      { "do": "forget" },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.6 } }, "then": { "do": "goTo", "with": { "post": "square" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.6, "to": 0.84 } }, "then": { "do": "goTo", "with": { "post": "gate" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.84, "to": 0.95 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "do": "forget"
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.24,
+            "to": 0.6
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "square"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.6,
+            "to": 0.84
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "gate"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.84,
+            "to": 0.95
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "doctor": {
     "note": "In the surgery all day. Anybody who comes in gets seen, whether or not they can pay.",
     "first": [
-      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.86 } }, "then": { "do": "goTo", "with": { "post": "doctor" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.24,
+            "to": 0.86
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "doctor"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "soldier": {
     "note": "The road in and the road out, all day. Somebody has to watch them.",
     "first": [
-      { "when": { "ask": "hourBetween", "with": { "from": 0.22, "to": 0.55 } }, "then": { "do": "goTo", "with": { "post": "gate" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.55, "to": 0.82 } }, "then": { "do": "goTo", "with": { "post": "square" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.82, "to": 0.94 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.22,
+            "to": 0.55
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "gate"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.55,
+            "to": 0.82
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "square"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.82,
+            "to": 0.94
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "hired": {
     "note": "Bought and paid for. Keep at the shoulder of whoever is paying, and put down whatever goes for anybody near them. The gate can wait until the bargain is done.",
     "first": [
       {
         "note": "Something with teeth on somebody is the whole of what a sword arm is for.",
         "steps": [
-          { "do": "markTrouble", "with": { "within": 16 } },
-          { "do": "stalk" },
-          { "anyway": { "do": "bite", "with": { "damage": 3, "cooldown": 1.1, "tiles": 1.6 } } }
+          {
+            "do": "markTrouble",
+            "with": {
+              "within": 16
+            }
+          },
+          {
+            "do": "stalk"
+          },
+          {
+            "anyway": {
+              "do": "bite",
+              "with": {
+                "damage": 3,
+                "cooldown": 1.1,
+                "tiles": 1.6
+              }
+            }
+          }
         ]
       },
-      { "do": "forget" },
-      { "note": "Nothing to fight: an unmarked stalk walks at the hero, which is what following is.", "do": "stalk" }
+      {
+        "do": "forget"
+      },
+      {
+        "note": "Nothing to fight: an unmarked stalk walks at the hero, which is what following is.",
+        "do": "stalk"
+      }
     ]
   },
-
   "sailor": {
     "note": "Down at the water when there is water to be down at, and in the inn when there is not.",
     "first": [
-      { "when": { "ask": "hourBetween", "with": { "from": 0.26, "to": 0.72 } }, "then": { "do": "goTo", "with": { "post": "shore" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.72, "to": 0.92 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.26,
+            "to": 0.72
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "shore"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.72,
+            "to": 0.92
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "climber": {
     "note": "Up before anybody, on the high ground all day, and back down for supper.",
     "first": [
-      { "when": { "ask": "hourBetween", "with": { "from": 0.2, "to": 0.7 } }, "then": { "do": "goTo", "with": { "post": "heights" } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.7, "to": 0.86 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.2,
+            "to": 0.7
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "heights"
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.7,
+            "to": 0.86
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
     ]
   },
-
   "explorer": {
     "note": "Never in the same place twice. Ranges further than anybody and comes back with stories.",
     "first": [
-      { "when": { "ask": "hourBetween", "with": { "from": 0.24, "to": 0.76 } }, "then": { "do": "roam", "with": { "tiles": 26 } } },
-      { "when": { "ask": "hourBetween", "with": { "from": 0.76, "to": 0.9 } }, "then": { "do": "goTo", "with": { "post": "inn" } } },
-      { "do": "goTo", "with": { "post": "home", "enter": true } }
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.24,
+            "to": 0.76
+          }
+        },
+        "then": {
+          "do": "roam",
+          "with": {
+            "tiles": 26
+          }
+        }
+      },
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.76,
+            "to": 0.9
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        }
+      }
+    ]
+  },
+  "facework": {
+    "note": "A shift at the rock face, which is where every coin in this world is minted. Underground only: `src/game/crews.ts` puts the village's miners at the cuts when somebody walks into their mine, and gives each of them a `work` post on the tile he is cutting at. Filed under a name no village trade uses, on purpose \u2014 his trade is `miner` and he is called one, but giving this day to the trade itself would put every miner in the country outside his own front door swinging a pick at the grass. No hour in it either: a shift underground does not know what the sky is doing, and a mine you can only find people in between ten and four is a mine you would swear was empty.",
+    "steps": [
+      {
+        "note": "Back to his own cut if anything has shouldered him off it, and near enough is standing at it.",
+        "do": "goTo",
+        "with": {
+          "post": "work",
+          "within": 0.9
+        }
+      },
+      {
+        "do": "dig",
+        "with": {
+          "every": 1.4
+        }
+      }
+    ]
+  },
+  "miner": {
+    "note": [
+      "Up to the high ground at first light, back down at dusk, and the inn after.",
+      "This is the surface half of a miner's day and it had no tree at all \u2014 a villager whose trade is mining fell through to the wanderer and pottered about the square like everybody else, which is why the trade was invisible from the street as well as from underground.",
+      "`heights` rather than a mine of his own, and that is a real limitation worth writing down: posts are worked out from the village (`entities/villagers.ts`) and a village's claimed mine lives in `game/mines.ts`, which knows nothing about posts. The highest ground within a ring of the village is where caves are, so it is the right direction and the wrong precision \u2014 he walks towards the hills and not to the mouth. Giving `postsOf` the claimed cave would fix it and wants the two to be introduced.",
+      "The shift itself is `facework`, which `game/crews.ts` gives him when somebody walks into the workings. This is what he does when nobody is down there to see him."
+    ],
+    "first": [
+      {
+        "when": {
+          "ask": "wounded",
+          "with": {
+            "share": 0.5
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "doctor",
+                "within": 2
+              }
+            },
+            {
+              "do": "beHealed"
+            }
+          ]
+        }
+      },
+      {
+        "note": "First light to late afternoon on the high ground. A longer day than a farmer's, because the walk out is half of it.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.24,
+            "to": 0.72
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "heights"
+          }
+        }
+      },
+      {
+        "note": "The inn, and he has earned it more visibly than most.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.72,
+            "to": 0.92
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn"
+          }
+        }
+      }
+    ],
+    "steps": [
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home"
+        }
+      }
     ]
   }
 }

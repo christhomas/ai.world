@@ -31,6 +31,7 @@ on:
       - 'animations/**'
       - 'behaviours/**'
       - 'properties/**'
+      - 'models/**'
       - 'art/**'
       - 'package.json'
       - 'pnpm-lock.yaml'

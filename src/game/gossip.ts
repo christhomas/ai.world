@@ -1,5 +1,6 @@
 import type { Rng } from '../core/rng';
 import { ageOf, stageOf, surnameOf, type Person } from '../world/people';
+import { MIND } from '../world/memory';
 import type { Register } from '../world/register';
 
 /**
@@ -14,8 +15,15 @@ import type { Register } from '../world/register';
  * conversation in one village different from the same conversation in the next.
  */
 
-/** How recently something has to have happened for it to be the first thing somebody says. */
-const STILL_RAW = 4;
+/**
+ * How recently something has to have happened for it to be the first thing somebody says.
+ *
+ * Owned by `memory.ts` rather than written here, because compaction throws a specific memory away
+ * once it has stopped being news and the two numbers deciding "news" have to be the same one. Two
+ * of them would drift, and the direction that costs something is compaction forgetting a thing this
+ * conversation would still have raised.
+ */
+const STILL_RAW = MIND.STILL_NEWS;
 
 export interface Gossip {
   /** The one thing they most want to tell you, or nothing much. */

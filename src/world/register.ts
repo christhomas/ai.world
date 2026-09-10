@@ -3,6 +3,7 @@ import { cellarCap, eat, grownInADay } from './food';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Person } from './people';
+import { compactAll } from './memory';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
 
 /**
@@ -508,7 +509,7 @@ export class Register {
       trade: '',                                 // a trade comes with growing up
       born: day,
       lives: Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE)),
-      mother: '', father: '', knows: [], memories: [],
+      mother: '', father: '', knows: [], memories: [], opinions: [],
       purse: 0, hungry: 0,                                  // a baby has nothing; a trade is what starts it
     };
   }
@@ -521,6 +522,25 @@ export class Register {
       hash = Math.imul(hash, 0x01000193);
     }
     return mulberry32(derive(this.seed, SALT.PEOPLE) ^ (hash >>> 0));
+  }
+
+  /**
+   * Settle everybody's memory down to what is worth writing, on the day it is being written.
+   *
+   * This is what stops "only the living" from being a smaller claim than it sounds. A village of
+   * twenty is bounded; twenty people each carrying a history of everything that ever happened near
+   * them is not, and that history is exactly what a province's file would fill up with once
+   * villagers are the server's (C5). Ten slights become one opinion here, at the moment the place
+   * stops being anybody's business.
+   *
+   * The natural caller is a province being written out with nobody in it — `writeProvince` and
+   * `keepNear` in `server/world.ts`. Nothing there holds a register yet, so this is also callable
+   * from wherever a client puts a village down.
+   *
+   * @param day the world day it is being put away on, which is where every fading starts from next
+   */
+  compact(day = this.day): void {
+    for (const village of this.villages.values()) compactAll(village.people, Math.floor(day));
   }
 
   /** What to hold on disk: only the living, which is what keeps this small forever. */

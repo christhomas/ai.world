@@ -7,7 +7,7 @@ import type { SceneRig } from '../render/scene';
 import type { ChunkManager } from '../world/chunkManager';
 import type { Manifest } from '../world/manifest';
 import type { Doorway, ShopType } from '../world/structures';
-import { generateDungeon } from '../dungeon/generate';
+import { generateDungeon, type DungeonStyle } from '../dungeon/generate';
 import { DungeonScene } from '../dungeon/scene';
 import { DungeonWorld } from '../dungeon/world';
 import { generateInterior, interiorSeed, interiorTitle, type InteriorKind } from '../interior/generate';
@@ -19,6 +19,7 @@ import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
 import type { Player } from '../entities/player';
 import { DungeonMinimap } from '../ui/dungeonmap';
+import { putTheCrewToWork, type Digger } from './crews';
 import { ITEMS } from './items';
 import type { GameState } from './state';
 import type { HeroGear } from '../render/herogear';
@@ -27,6 +28,8 @@ import type { HeroGear } from '../render/herogear';
 export interface PlaceContext {
   /** Whoever is walking with you takes their share of any coin that comes in. */
   takeShare: (gold: number) => void;
+  /** The village's miners who are down this hole today, so they can be met at the face. */
+  crewIn: (anchorId: string) => readonly Digger[];
   seed: number;
   manifest: Manifest;
   state: GameState;
@@ -184,14 +187,12 @@ export class Places {
     /*
      * What the floor below is made of, handed to `dungeon/`.
      *
-     * The cast is the seam, and it is deliberate. `DungeonStyle` does not know the word `castle`
-     * yet — that half is being built beside this one — so the value is passed through as the
-     * narrow union the generator currently declares. When `dungeon/generate.ts` learns the word,
-     * this cast becomes a no-op that can be deleted and nothing else here changes. Until then a
-     * castle's rooms are grown by the branch that handles anything that is not a vault, which is a
-     * playable floor rather than a crash.
+     * One word travels from the gate you walked up to all the way down to the room it grows, and
+     * `dungeon` is the only one of the four that is renamed on the way — `vault` is what the
+     * generator has always called the thing under a shrine. The other three are the same word on
+     * both sides of the seam, which is what makes this line the whole of the handover.
      */
-    const style = (kind === 'dungeon' ? 'vault' : kind) as 'vault' | 'cave' | 'thicket';
+    const style: DungeonStyle = kind === 'dungeon' ? 'vault' : kind;
     const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style);
     world.unlocked = state.keys.has(anchor.id);
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
@@ -225,6 +226,20 @@ export class Places {
         monsters.spawnOne('troll', bx + 0.5, bz + 0.5, anchor.seed + 99);
       }
     }
+    /*
+     * And the village's own miners, at the faces they are working today.
+     *
+     * Outside the `told` block, and for the same reason villagers on a street are: the people of a
+     * village are the seed and the register, which every client has, so nobody has to be told about
+     * them. What the world owns is the animals — those are what two players standing in one field
+     * would disagree about.
+     *
+     * This mine has been worked every day since the world began; the gold is in the village's
+     * purses and the fear is in its gossip. Until now the one place it could not be seen was the
+     * mine, and a hole in a hill where the coin of this world is minted stood empty every time
+     * anybody walked into it.
+     */
+    putTheCrewToWork(monsters, world.map, this.ctx.crewIn(anchorId), anchor.seed);
     this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
     this.ctx.setCaveAmbience(true);
     const depth = floor > 1 ? ` — floor ${floor}` : '';

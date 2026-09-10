@@ -1,0 +1,20 @@
+{
+  "from": "quadruped",
+  "with": {
+    "body": [1, 0.46, 0.4],
+    "bodyY": 0.92,
+    "legH": 0.7,
+    "legW": 0.1,
+    "head": [0.34, 0.2, 0.18],
+    "headOffset": [0.9, 1.4, 0],
+    "neck": [0.18, 0.62, 0.18],
+    "neckOffset": [0.6, 1.2, 0],
+    "neckRot": -0.45,
+    "bodyColor": "#ffffff",
+    "bodyTint": 0,
+    "tail": { "size": [0.05, 0.3, 0.05], "offset": [-0.5, 0.85, 0], "color": "#ffffff", "tint": 0 }
+  },
+  "parts": [
+    { "ico": 0.26, "at": [-0.05, 1.2, 0], "color": "#ffffff", "tint": 0 }
+  ]
+}

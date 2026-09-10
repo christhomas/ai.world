@@ -1,4 +1,16 @@
 import { DTile, type DungeonMap } from '../dungeon/generate';
+import { BASE_LEVEL, levelAt } from '../dungeon/map';
+
+/**
+ * How much paler a floor is drawn for each terrace it stands above the rest of it.
+ *
+ * A hole in the ground is all one level and this never comes into it. A castle is not, and the
+ * thing the map has to answer there is "why can I see that walkway and not get onto it" — so the
+ * gallery round a great hall is drawn brighter than the hall itself, the same way a contour line
+ * is not a wall but tells you there is a climb. Small on purpose: at a quarter it stopped reading
+ * as the same floor plan and started reading as two overlaid maps.
+ */
+const PER_TERRACE = 0.12;
 
 /** Top-down dungeon map: rock stays dark, visited floor lights up, chests and stairs are marked. */
 export class DungeonMinimap {
@@ -61,7 +73,9 @@ export class DungeonMinimap {
         if (!this.seen[i]) continue;
         const t = tiles[i] as DTile;
         if (t === DTile.Rock) continue;
-        ctx.fillStyle = t === DTile.Water ? '#2f6f9f' : t === DTile.Door ? (unlocked ? '#8a6a3d' : '#c0392b') : '#6a5a48';
+        ctx.fillStyle = t === DTile.Water ? '#2f6f9f'
+          : t === DTile.Door ? (unlocked ? '#8a6a3d' : '#c0392b')
+            : lit(FLOOR, levelAt(this.map, x, z) - BASE_LEVEL);
         ctx.fillRect(x * scale, z * scale, scale, scale);
       }
     }
@@ -82,4 +96,14 @@ export class DungeonMinimap {
     ctx.fill();
     ctx.restore();
   }
+}
+
+/** The colour of ordinary floor, as the three channels the shading works on. */
+const FLOOR: readonly [number, number, number] = [0x6a, 0x5a, 0x48];
+
+/** The same colour lifted one notch per terrace, clamped so a tall gallery does not go white. */
+function lit(base: readonly [number, number, number], terraces: number): string {
+  const t = Math.min(1, Math.max(0, terraces) * PER_TERRACE);
+  const up = (c: number) => Math.round(c + (255 - c) * t);
+  return `rgb(${up(base[0])},${up(base[1])},${up(base[2])})`;
 }
