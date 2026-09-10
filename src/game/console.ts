@@ -161,11 +161,22 @@ export function openConsole(ctx: Consoled) {
    * with a sentence instead, which also says what to do about it.
    */
   const jumpTo = (x: number, z: number): void => {
-    if (!player.groundNear(x, z)) {
-      const here = placeName();
-      throw new Error(here === 'surface'
-        ? `nothing to stand on at ${Math.round(x)}, ${Math.round(z)}`
-        : `you are inside ${here}, and there is no ${Math.round(x)}, ${Math.round(z)} in here — climb out first`);
+    /*
+     * Only asked of a world with edges, and that limit is the point rather than an oversight.
+     *
+     * Out of doors, ground that has not arrived reads exactly like ground that does not exist —
+     * `heightAt` is null for a chunk nobody has streamed yet — so asking this question on the
+     * surface refuses perfectly good jumps to anywhere the player has not already been. Which is
+     * what it did: the playtest teleports across the county before the county is built, and this
+     * turned that into an error the moment it landed. The surface settles a hero when the ground
+     * turns up, as it always has.
+     *
+     * A dungeon floor, an interior and a keep are all made before you are in them and never grow,
+     * so there the question has an answer and the answer is worth having.
+     */
+    const here = placeName();
+    if (here !== 'surface' && !player.groundNear(x, z)) {
+      throw new Error(`you are inside ${here}, and there is no ${Math.round(x)}, ${Math.round(z)} in here — climb out first`);
     }
     beam.leaves(player.entity);
     player.teleport(x, z);
