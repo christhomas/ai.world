@@ -42,6 +42,8 @@ export interface Screen {
   /** Doors the keyboard opens. Each closes itself again if it is already open. */
   toggleJournal(): void;
   toggleRucksack(): void;
+  /** Everybody in the world and how they are getting on. See `ui/roster.ts`. */
+  toggleRoster(): void;
   toggleOptions(): void;
   toggleMap(): void;
   toggleCompany(): void;

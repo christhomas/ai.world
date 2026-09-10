@@ -122,6 +122,17 @@ export function bindKeys(ctx: Keys): void {
   input.onKey('escape', () => screen.closeEverything());
   input.onKey('j', () => { if (screen.busy() !== 'talking') screen.toggleJournal(); });
   input.onKey('i', () => { if (screen.busy() !== 'talking') screen.toggleRucksack(); });
+  /*
+   * The roster of everybody in the world.
+   *
+   * On a digit because the letters are gone: every one of them is a verb, a panel or a spell, and
+   * `q` and `e` turn the camera. `1` is the first of a row nothing else uses, and a book of
+   * everybody is the sort of thing a player opens rarely and deliberately.
+   *
+   * Not while a conversation is up, for the same reason as the rest: a person in front of you beats
+   * a book.
+   */
+  input.onKey('1', () => { if (screen.busy() !== 'talking') screen.toggleRoster(); });
   // The console lives on the key it has been on since Quake: one row under Escape, and spare in
   // every other game. Both of the characters that live on it, because a keyboard laid out for
   // another country puts the other one under the same thumb.

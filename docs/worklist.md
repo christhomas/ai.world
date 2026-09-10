@@ -2507,7 +2507,7 @@ other, and the order is chosen so that each one can be *seen* working before the
 - [x] **4. A village should hold as many people as it has room for.** Twenty villagers around two
       houses. The population is drawn from the village's size in the graph rather than from what it
       has actually built, so a hamlet gets a crowd.
-- [ ] **5. A roster: every inhabitant, with their health, their name, their family and their purse.**
+- [x] **5. A roster: every inhabitant, with their health, their name, their family and their purse.**
       A tool rather than a panel — the family tree taught that a page you can drag and read beats a
       list, and this is the same kind of question asked of everybody at once.
 - [ ] **6. Villagers get hungry.** Health that falls with the day and is restored by eating, which is

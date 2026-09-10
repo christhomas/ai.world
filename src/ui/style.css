@@ -673,6 +673,42 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   color: #ffd9d9; font-size: calc(14 * var(--ui-scale)); z-index: 1200; white-space: nowrap;
 }
 #duelbar.show { display: block; }
+/*
+ * The roster: every soul in the world on one page.
+ *
+ * Wider than the other panels and scrolled inside itself, because it is a table of everybody rather
+ * than a note about one thing — and a table that made the page scroll would take the game with it.
+ */
+#roster {
+  display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(calc(760 * var(--ui-scale)), 94vw); max-height: 84vh; z-index: 1400;
+  background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418;
+  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(16 * var(--ui-scale)) calc(20 * var(--ui-scale));
+  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
+}
+#roster.show { display: block; animation: popIn 0.2s ease-out; }
+#roster h2 { color: #6b3f1d; margin-bottom: calc(6 * var(--ui-scale)); }
+#roster .j-line { font-size: calc(13 * var(--ui-scale)); color: #4a3a24; }
+#roster .j-hint { text-align: center; color: #8a7a5a; font-size: calc(11 * var(--ui-scale)); margin-top: calc(10 * var(--ui-scale)); }
+.ro-scroll { max-height: 60vh; overflow-y: auto; margin-top: calc(8 * var(--ui-scale)); }
+.ro-table { width: 100%; border-collapse: collapse; font-size: calc(12 * var(--ui-scale)); }
+.ro-table th {
+  text-align: left; position: sticky; top: 0; background: #efe4c8; color: #6b3f1d;
+  padding: calc(4 * var(--ui-scale)) calc(6 * var(--ui-scale)); border-bottom: 1px solid #b9a274;
+}
+.ro-table td { padding: calc(3 * var(--ui-scale)) calc(6 * var(--ui-scale)); border-bottom: 1px solid rgba(138, 106, 61, 0.18); }
+.ro-table tr:hover td { background: rgba(138, 106, 61, 0.12); }
+.ro-family { color: #6a5a3a; }
+.ro-fed { color: #3d6b34; }
+.ro-hungry { color: #a33a22; font-weight: bold; }
+.ro-sort { margin-top: calc(8 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale)); color: #6a5a3a; }
+.ro-sort button {
+  background: #efe4c8; color: #4a3a24; border: 1px solid #b9a274; cursor: pointer;
+  border-radius: calc(3 * var(--ui-scale)); margin-left: calc(4 * var(--ui-scale));
+  padding: calc(2 * var(--ui-scale)) calc(8 * var(--ui-scale)); font-size: calc(11 * var(--ui-scale));
+}
+.ro-sort button.on { background: #8a6a3d; color: #f6efdc; }
+
 #players {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(480 * var(--ui-scale)), 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;

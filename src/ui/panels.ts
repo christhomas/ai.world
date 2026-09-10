@@ -1,3 +1,4 @@
+import { Roster } from './roster';
 import type * as THREE from 'three';
 import type { Screen } from '../game/screen';
 import type { Places } from '../game/places';
@@ -36,6 +37,7 @@ export interface Panels {
   rucksack: Rucksack;
   worldMap: WorldMap;
   kinPanel: KinPanel;
+  roster: Roster;
   playerList: PlayerList;
   photo: PhotoMode;
   places: Places;
@@ -62,11 +64,12 @@ export function screenOf(p: Panels): Screen {
     busy: () => (p.chat.isTyping ? 'typing'
       : p.dialogue.isOpen ? 'talking'
       : p.photo.active ? 'framing'
-      : p.worldMap.isOpen || p.kinPanel.isOpen ? 'reading'
+      : p.worldMap.isOpen || p.kinPanel.isOpen || p.roster.isOpen ? 'reading'
       : null),
     say: (line) => p.hud.flash(line),
     toggleJournal: () => p.journal.toggle(p.journalInput),
     toggleRucksack: () => p.rucksack.toggle(),
+    toggleRoster: () => p.roster.toggle(),
     toggleOptions: () => p.hud.toggleOptions(),
     toggleMap: () => {
       // whichever map the hero is standing in: a dungeon has its own, and it is the one that is
@@ -81,6 +84,7 @@ export function screenOf(p: Panels): Screen {
     closeEverything: () => {
       p.hud.closeOptions(); p.dialogue.close(); p.journal.close();
       p.rucksack.close(); p.worldMap.close(); p.playerList.close(); p.kinPanel.close();
+      p.roster.close();
     },
     advanceTalk: () => p.dialogue.advance(),
     moveTalk: (by) => p.dialogue.move(by),

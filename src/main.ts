@@ -38,6 +38,7 @@ import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
 import { Fog, renderMapBase } from './ui/mapbase';
 import { KinPanel } from './ui/kin';
+import { Roster } from './ui/roster';
 import { screenOf } from './ui/panels';
 import { WorldMap } from './ui/worldmap';
 import { DialogueBox } from './ui/dialogue';
@@ -141,9 +142,11 @@ export function startGame(
   // where a clerk lays a village's descent out. `enquiry.ts` sells the book and knows nothing about
   // screens, so this is the one place the two are introduced
   const kinPanel = new KinPanel();
+  const roster = new Roster();          // everybody in the world, read live off the register
   const entityRenderer = new EntityRenderer(rig.scene);
   // who lives in the villages: founded from the seed, then born and buried as the days pass
   const register = new Register(seed);       // caught up to the saved day once the state is loaded
+  roster.reads(() => register, () => structures.villages.length);
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
     // What a villager is paid for what they sell — the same share of the shop price the player
@@ -617,7 +620,7 @@ export function startGame(
    * it asks for a journal, and something here knows where the journal is kept.
    */
   const screen = screenOf({
-    hud, chat, dialogue, journal, rucksack, worldMap, kinPanel, playerList, photo, places,
+    hud, chat, dialogue, journal, rucksack, worldMap, kinPanel, roster, playerList, photo, places,
     canvas: rig.renderer, seed,
     journalInput, mapInput,
     companyInput: () => multiplayer.playerListInput,
