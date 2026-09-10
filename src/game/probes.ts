@@ -4,7 +4,7 @@ import { thermalsAround } from '../world/thermals';
 import { maelstromsAround } from '../world/maelstroms';
 import { shaftsAround } from '../world/shafts';
 import { openCountry } from './shafts';
-import { CAMERA } from '../core/config';
+import { CAMERA, GAMEPLAY } from '../core/config';
 import { PropKind } from '../world/biomes';
 import { nameOfProp } from '../world/catalogue';
 import { BASE_LEVEL, DTile, levelAt } from '../dungeon/map';
@@ -293,6 +293,29 @@ export function installProbes(ctx: Probed): void {
       body: bodyOf(e.kind),
     }));
   (debug as { __entities?: () => unknown }).__entities = () => commandWorld.entities();
+  /*
+   * Who the game would talk to if you pressed Enter, and why it would not.
+   *
+   * `Enter` ends at `entities.nearest`, and when that answers nothing the player is told "no one
+   * close enough" — which is the same sentence whether there is genuinely nobody there or whether
+   * somebody standing at arm's length is being skipped for a reason. This reports both sides of
+   * that: what the crowd answers, and what the nearest few look like to the rule it uses.
+   */
+  (debug as { __talkable?: () => unknown }).__talkable = () => {
+    const crowd = crowdAround();
+    const found = crowd.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
+    return {
+      range: GAMEPLAY.TALK_RANGE,
+      found: found ? { kind: found.kind.id, name: found.name } : null,
+      near: crowd.within(player.x, player.z, 6)
+        .map((e) => ({
+          kind: e.kind.id, name: e.name, indoors: e.indoors, dead: e.dead, dying: e.dying,
+          away: Math.round(Math.hypot(e.x - player.x, e.z - player.z) * 100) / 100,
+        }))
+        .sort((a, b) => a.away - b.away)
+        .slice(0, 6),
+    };
+  };
   (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => commandWorld.thin(village, n);
   (debug as { __callOut?: (id: string) => void }).__callOut = (id) => callOut(id);
   (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);

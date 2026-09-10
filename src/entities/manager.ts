@@ -276,7 +276,7 @@ export class EntityManager {
 
   /** Closest creature within `r` tiles of a point. Anyone indoors is not there to talk to. */
   nearest(x: number, z: number, r: number): Entity | null {
-    return nearest(this.spawned.values(), x, z, r);
+    return nearest(this.spawned.values(), this.guests, x, z, r);
   }
 
   /** How many creatures have joined this floor's roster, so each gets a number of its own. */

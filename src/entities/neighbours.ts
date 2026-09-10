@@ -57,14 +57,28 @@ export function within(
  * `within`: a shopkeeper behind their own door is in the world and is not in the street. It also
  * does not sort, because the question has one answer.
  */
-export function nearest(filed: Iterable<Entity[]>, x: number, z: number, r: number): Entity | null {
+export function nearest(
+  filed: Iterable<Entity[]>,
+  /**
+   * And whoever else is standing here without belonging to this crowd.
+   *
+   * The world's own people are guests: it holds the villagers now, and a page is handed them to
+   * draw and to walk past rather than owning them. `within` has always counted them and this did
+   * not — so the crowd a player could *see* and the crowd a player could *talk to* were two
+   * different crowds, and pressing Enter beside a villager standing at arm's length answered "no
+   * one close enough to talk to". Every villager in the game, for as long as the world has held
+   * them.
+   */
+  guests: Iterable<Entity>,
+  x: number, z: number, r: number,
+): Entity | null {
   let best: Entity | null = null, bestD = r * r;
-  for (const list of filed) {
-    for (const e of list) {
-      if (e.indoors || e.dead) continue;
-      const d = (e.x - x) ** 2 + (e.z - z) ** 2;
-      if (d < bestD) { bestD = d; best = e; }
-    }
-  }
+  const consider = (e: Entity): void => {
+    if (e.indoors || e.dead) return;
+    const d = (e.x - x) ** 2 + (e.z - z) ** 2;
+    if (d < bestD) { bestD = d; best = e; }
+  };
+  for (const list of filed) for (const e of list) consider(e);
+  for (const e of guests) consider(e);
   return best;
 }
