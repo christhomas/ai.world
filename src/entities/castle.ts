@@ -63,6 +63,70 @@ const STONE = {
 const PLINTH = 0.28;
 
 /**
+ * A wall face cut into courses of blocks, instead of one slab of colour.
+ *
+ * Every wall in this castle was a single box five metres tall, which from the ridge reads as a
+ * cardboard model of a castle rather than as masonry: a castle is *built*, and the one thing that
+ * says so is that you can see what it was built out of. There are no textures in this world and
+ * there should not be — the whole look is flat colour on honest geometry — so the blocks have to
+ * be geometry, the same way the miner's hard hat has a moulded rib rather than a picture of one.
+ *
+ * Each block stands a hair proud of the wall behind it and is shaded a little off the wall's own
+ * colour, so the joints are real shadow rather than drawn lines. The stagger is what makes it read
+ * as a wall rather than as a grid: alternate courses start half a block along, so the vertical
+ * joints break instead of running the full height. That is what a mason does, and the eye knows
+ * it without being told.
+ *
+ * The shade of each block is fixed by where it sits in the wall rather than rolled, because every
+ * curtain wall in the world is the same instanced geometry — a roll would give one pattern to all
+ * forty of them anyway, and a fixed pattern at least cannot flicker.
+ */
+function coursed(
+  along: 'x' | 'z', length: number, height: number, thickness: number, colour: number,
+  at: [number, number, number], courses: number, across: number,
+): PropPart[] {
+  const out: PropPart[] = [];
+  const tall = height / courses;
+  // how far a block stands out of its wall. Small: at this camera a millimetre of relief is a
+  // shadow line, and any more turns a wall into a stack of crates
+  const PROUD = 0.05;
+  for (let c = 0; c < courses; c++) {
+    const y = at[1] - height / 2 + tall * (c + 0.5);
+    // half a block along on alternate courses, with the half-blocks at the ends of those courses
+    // making up the difference — a broken joint is the whole point of a course
+    const shift = c % 2 === 1 ? 0.5 : 0;
+    const edges = [0];
+    for (let b = 1; b < across + (shift ? 1 : 0); b++) {
+      const u = (b - shift) / across;
+      if (u > 1e-6 && u < 1 - 1e-6) edges.push(u);
+    }
+    edges.push(1);
+    for (let b = 0; b + 1 < edges.length; b++) {
+      const u0 = edges[b], u1 = edges[b + 1];
+      const wide = (u1 - u0) * length - JOINT;
+      const mid = -length / 2 + ((u0 + u1) / 2) * length;
+      // a quiet spread: a built wall is one stone cut by one mason, so what varies is weathering
+      const shade = 0.90 + ((c * 7 + b * 3) % 5) * 0.05;
+      const stone = tint(colour, shade);
+      const deep = thickness + PROUD;
+      out.push(along === 'x'
+        ? box(wide, tall - JOINT, deep, stone, [at[0] + mid, y, at[2]])
+        : box(deep, tall - JOINT, wide, stone, [at[0], y, at[2] + mid]));
+    }
+  }
+  return out;
+}
+
+/** How wide the mortar joint between two blocks is. A hair: any more and the wall reads as brick. */
+const JOINT = 0.04;
+
+/** The same colour, lighter or darker, kept as a whole number the way every other colour here is. */
+function tint(colour: number, by: number): number {
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v * by)));
+  return (clamp((colour >> 16) & 0xff) << 16) | (clamp((colour >> 8) & 0xff) << 8) | clamp(colour & 0xff);
+}
+
+/**
  * One tile of curtain wall, built along z so that a structure's rotation lays it along its run.
  *
  * Exactly the bargain `Fence` strikes, and for the same reason: a wall that came in fixed lengths
@@ -79,7 +143,12 @@ const PLINTH = 0.28;
 export function curtainWall(): PropPart[] {
   return [
     box(1.34, PLINTH, 1.04, STONE.plinth, [0, PLINTH / 2, 0]),
+    // the wall itself, and then the same wall laid up in blocks. The slab behind stays: it is what
+    // the arrow loop is cut through and what keeps the face solid where the courses break
     box(1.10, 5.00, 1.00, STONE.face, [0, PLINTH + 2.50, 0]),
+    // along z, because that is the way a wall tile runs before its structure turns it: five courses
+    // of a metre, two blocks to the tile, which at this camera is a block about the size of a door
+    ...coursed('z', 1.00, 5.00, 1.10, STONE.face, [0, PLINTH + 2.50, 0], 5, 2),
     // an arrow loop cut clean through, so it is dark from both sides of the wall
     box(1.16, 1.00, 0.16, STONE.slit, [0, 3.10, 0]),
     box(1.32, 0.24, 1.16, STONE.shade, [0, 5.40, 0]),
@@ -103,6 +172,28 @@ export function castleTower(): PropPart[] {
   return [
     cyl(1.80, 1.96, PLINTH, 8, STONE.plinth, [0, PLINTH / 2, 0]),
     cyl(1.52, 1.72, 9.00, 8, STONE.face, [0, PLINTH + 4.50, 0]),
+    /*
+     * String courses up the drum, so a tower is laid in stone like the wall beside it.
+     *
+     * Rings rather than blocks, and that is the difference between a round wall and a straight one
+     * rather than a shortcut. A drum tower is eight faces wide and its stones run round it, so what
+     * you see from any one side is three or four of them: the joints that read at this distance are
+     * the horizontal ones. Laying individual blocks on a curve would be nine rings of eight stones
+     * apiece for detail nobody can resolve, and would leave the corners of the octagon fighting
+     * each other for the same pixels.
+     *
+     * Each ring stands a hair proud of the shaft and is shaded a little darker, so it is a shadow
+     * line rather than a drawn one — the same trick the curtain wall's blocks use, and the reason
+     * both read as built rather than printed.
+     */
+    ...Array.from({ length: 8 }, (_, n) => {
+      const y = PLINTH + 1.0 + n * 1.0;
+      // the shaft tapers, so a ring has to taper with it or it stands proud at the foot and sinks
+      // in at the head — measured off the same 1.72-to-1.52 batter the shaft is cut with
+      const at = (y - PLINTH) / 9.0;
+      const r = 1.72 + (1.52 - 1.72) * at;
+      return cyl(r + 0.07, r + 0.07, 0.16, 8, STONE.shade, [0, y, 0]);
+    }),
     /*
      * Three loops up the shaft, each turned onto a different face, as the stair inside would put
      * them. A loop is one thin box driven clean through the tower, so it shows on the far side as

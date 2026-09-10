@@ -461,6 +461,41 @@ Things Chris hit on a real phone, in the order he hit them.
       and gets a white page. `apple-touch-icon.png` is a real PNG rendered from the favicon rather
       than the SVG, because iOS ignores the manifest's icons and will not take an SVG for this one.)*
 
+## Walls you can see what they are made of — September 10th
+
+> "I think the castle walls can be better, we can design a block texture like the walls of a real
+> castle instead of flat polygons" — and: "We can have a rock mining tunnel like texture for
+> dungeons and mines too"
+
+- [x] **Both, and neither of them is a texture.** *(There are no textures in this world and there
+      should not be: the whole look is flat colour on honest geometry. So the blocks are geometry,
+      the same way the miner's hard hat has a moulded rib rather than a picture of one. It is the
+      difference between a wall and a drawing of a wall, and at this camera the eye can tell.
+
+      **The castle's own walls** are props, so they are cut in `entities/castle.ts`. A curtain wall
+      was one box five metres tall; it is five courses of two blocks now, each standing a hair
+      proud of the slab behind it and shaded a little off the wall's colour, so the joints are real
+      shadow rather than drawn lines. The stagger is what makes it read: alternate courses start
+      half a block along, so the vertical joints break instead of running the height of the wall.
+      The drum towers get string courses instead of blocks, and that is a decision rather than a
+      shortcut — a tower is eight faces wide and its stones run round it, so what reads at this
+      distance is the horizontal joints; laying individual blocks on a curve would be nine rings of
+      eight stones for detail nobody can resolve, with the corners of the octagon fighting for the
+      same pixels.
+
+      **The rock underground** is terrain, so it is cut in the mesher, behind an optional `WallCut`
+      that nothing above ground passes. `stone` is coursed and staggered; `hewn` is the same
+      subdivision with three times the spread of shade and no stagger at all, because a mine face
+      is where a pick went rather than where a mason laid. A cliff above ground is untouched and a
+      test says so — a hillside is not made of anything, so a hillside of one colour is the truth.
+
+      The slab behind the blocks stays in both cases. It is what an arrow loop is cut through and
+      what keeps the face solid where the courses break.
+
+      Costs, measured: a castle floor's land mesh grows by about half again, and the exterior of
+      Saltmarch goes from 144k triangles to 148k. The thing that made it worth doing is that a
+      castle now reads as built from the ridge, which was the whole complaint.)*
+
 ## Releasing
 
 - [x] A release is one act: chart version, game version, tag and image all naming the same moment.

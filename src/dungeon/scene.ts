@@ -1,10 +1,26 @@
 import * as THREE from 'three';
-import { buildChunkMesh } from '../world/mesher';
+import { buildChunkMesh, type WallCut } from '../world/mesher';
 import { addPropInstances, disposeInstances, meshFromData } from '../render/instancing';
 import type { PropLibrary } from '../render/props';
 import type { DungeonWorld } from './world';
 
 const MAX_TORCH_LIGHTS = 10;
+
+/**
+ * What the walls of each sort of place are made of.
+ *
+ * A castle is built, so its walls are coursed masonry. A cave and a mine are dug, so theirs are
+ * hewn rock — the same subdivision, twice the spread of shade and no courses, because what you are
+ * looking at is where a pick went rather than where a mason laid.
+ *
+ * A thicket has no walls in this sense: what stands round you in one is trees and thorn, drawn as
+ * props, and the ground between them is ordinary country. Cutting blocks into it would put
+ * stonework along the edge of a hedge.
+ */
+function wallsOf(style: DungeonWorld['style']): WallCut | undefined {
+  if (style === 'thicket') return undefined;
+  return style === 'castle' ? 'stone' : 'hewn';
+}
 
 /**
  * The air of each sort of place underground: what the sky behind it is, and what light reaches
@@ -49,7 +65,7 @@ export class DungeonScene {
       for (let cx = 0; cx < per; cx++) {
         const chunk = world.chunkData(cx, cz);
         if (chunk.empty) continue;
-        const meshes = buildChunkMesh(chunk, seed);
+        const meshes = buildChunkMesh(chunk, seed, wallsOf(world.style));
         if (meshes.land) {
           const land = meshFromData(meshes.land, landMat);
           land.castShadow = true;

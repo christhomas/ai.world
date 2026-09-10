@@ -242,7 +242,93 @@ function slopeNormal(me: number[]): [number, number, number] {
   return [-dzx / len, 1 / len, -dzz / len];
 }
 
-export function buildChunkMesh(chunk: ChunkData, seed: number): ChunkMeshes {
+/**
+ * How a wall face is cut, when it is worth cutting at all.
+ *
+ * The world above ground is terraces of turf and rock and reads perfectly well as flat faces: a
+ * hillside is not made of anything, so a hillside made of one colour is honest. A wall is made of
+ * something, and a castle whose curtain is one flat grey polygon four courses high reads as a
+ * cardboard model of a castle rather than as masonry.
+ *
+ * Two kinds, because there are two sorts of wall underground and they are cut by different people.
+ * `stone` is coursed masonry — even courses, blocks of a regular size, the joints of one course
+ * staggered against the next, which is how a wall is built by somebody who means it to stand.
+ * `hewn` is rock a pick went through: no courses to speak of, blocks of no particular size, and
+ * a much wider spread of shade, because what you are looking at is the tool marks.
+ *
+ * Nothing above ground asks for either, and that is deliberate rather than an oversight — the
+ * cost is real (a face becomes eight or ten faces) and a cliff is not masonry.
+ */
+export type WallCut = 'stone' | 'hewn';
+
+/** How tall one course of blocks is, in world units: a terrace, which is what the eye measures against. */
+const COURSE = WORLD.STEP;
+
+/** How many blocks make up the width of one tile of wall. Two: a tile is a metre and a block is half of one. */
+const BLOCKS_ACROSS = 2;
+
+/**
+ * How far the shade of one block may stray from its wall's colour.
+ *
+ * Masonry is quiet — a built wall is one stone, cut and laid by one mason, so the variation is
+ * weathering rather than difference. Hewn rock is loud: it is a face somebody hacked at, and the
+ * light coming off it is broken. Twice the spread and no stagger is most of what makes one read as
+ * built and the other as dug.
+ */
+const BLOCK_SHADE = { stone: 0.09, hewn: 0.28 } as const;
+
+/**
+ * Cut a wall face into blocks and lay them.
+ *
+ * The face is not a rectangle — its top edge runs between two corner heights and its bottom edge
+ * between two more — so every block is found by interpolating along the face rather than by
+ * stepping a grid. `u` runs along the wall and `v` up it, and a block is the quad between four
+ * (u, v) pairs, which keeps the courses parallel to the ground they stand on however the ground
+ * beneath them slopes.
+ *
+ * The stagger is the thing that makes it read. Every other course starts half a block along, so
+ * the vertical joints break rather than running the height of the wall — which is what a mason
+ * does, and what makes the difference between a wall and a grid drawn on a wall.
+ */
+function layBlocks(
+  land: MeshBuilder, cut: WallCut, seed: number, tx: number, tz: number, face: number,
+  ax: number, az: number, bx: number, bz: number,
+  topA: number, topB: number, footA: number, footB: number,
+  nx: number, nz: number, colour: RGB,
+): void {
+  const tall = Math.max(topA - footA, topB - footB);
+  const courses = Math.max(1, Math.round(tall / COURSE));
+  const spread = BLOCK_SHADE[cut];
+  const at = (u: number, v: number): number[] => {
+    const top = topA + (topB - topA) * u;
+    const foot = footA + (footB - footA) * u;
+    return [ax + (bx - ax) * u, foot + (top - foot) * v, az + (bz - az) * u];
+  };
+  for (let c = 0; c < courses; c++) {
+    const v0 = c / courses, v1 = (c + 1) / courses;
+    // masonry staggers by half a block on alternate courses; hewn rock has no courses to stagger
+    const shift = cut === 'stone' && c % 2 === 1 ? 0.5 / BLOCKS_ACROSS : 0;
+    // one extra block when the course is shifted, because the half-block at each end is still a block
+    const edges: number[] = [0];
+    for (let b = 0; b < BLOCKS_ACROSS; b++) {
+      const u = shift + (b + 1) / BLOCKS_ACROSS;
+      if (u < 1 - 1e-6) edges.push(u);
+    }
+    edges.push(1);
+    for (let b = 0; b + 1 < edges.length; b++) {
+      const u0 = edges[b], u1 = edges[b + 1];
+      // a block's own shade, from where it is in the world and where it is in the wall, so the
+      // same wall is the same wall every time it is drawn and no two blocks beside each other
+      // agree by accident
+      const roll = rand2(seed, tx * 4 + face, tz * 4 + c * 2 + b, TILE_SALT.MASONRY);
+      const shade = 1 + (roll - 0.5) * spread;
+      const block: RGB = [colour[0] * shade, colour[1] * shade, colour[2] * shade];
+      land.quad(at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1), nx, 0, nz, block);
+    }
+  }
+}
+
+export function buildChunkMesh(chunk: ChunkData, seed: number, cut?: WallCut): ChunkMeshes {
   if (chunk.empty) return { land: null, water: null };
   const view = new ChunkView(chunk);
   const CS = view.CS;
@@ -292,7 +378,15 @@ export function buildChunkMesh(chunk: ChunkData, seed: number): ChunkMeshes {
         const drop = Math.max(a - na, b - nbh);
         const small = !isBridge && drop <= WORLD.STEP * LIP_FRACTION;
         const xa = wx + side.a[0], za = wz + side.a[1], xb = wx + side.b[0], zb = wz + side.b[1];
-        land.quad([xa, Math.min(na, a), za], [xb, Math.min(nbh, b), zb], [xb, b, zb], [xa, a, za], side.nx, 0, side.nz, small ? lip : cliff);
+        const footA = Math.min(na, a), footB = Math.min(nbh, b);
+        // a ramp's lip is a hand's breadth of ground, not a wall: cutting blocks into it would put
+        // masonry along the edge of every step
+        if (cut && !small) {
+          layBlocks(land, cut, seed, ox + lx, oz + lz, SIDES.indexOf(side),
+            xa, za, xb, zb, a, b, footA, footB, side.nx, side.nz, cliff);
+          continue;
+        }
+        land.quad([xa, footA, za], [xb, footB, zb], [xb, b, zb], [xa, a, za], side.nx, 0, side.nz, small ? lip : cliff);
       }
 
       // --- water surface + waterfalls ---

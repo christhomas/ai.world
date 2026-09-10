@@ -57,6 +57,7 @@ export const TILE_SALT = {
   PROP_TINT: 27,
   DIG_SEAM: 31,        // what a tile of ground holds for anybody who digs it
   ROAD_WEAR: 33,       // how worn one tile of a road's surface is
+  MASONRY: 35,         // which block of a wall face this is, and how it was cut
 } as const;
 
 /** Seed for a named stream. */
