@@ -52,6 +52,18 @@ export const FURNITURE_BLOCKS: ReadonlySet<PropKind> = new Set<PropKind>([
   PropKind.Forge, PropKind.Anvil, PropKind.WeaponRack, PropKind.Cauldron, PropKind.Altar, PropKind.Pew,
   // a cell you could walk out of is a corner of a room
   PropKind.Bars,
+  /*
+   * And what a keep is furnished with, which is the same rule asked of bigger things.
+   *
+   * The floor-standing half only. A banner, a tapestry and a stained window are fixed to rock and
+   * there is already a wall there; a chandelier hangs above head height and a cobweb is in the
+   * corner of a ceiling, so a walker meets neither. What is here is everything you would bark a
+   * shin on: the board down a hall, the seat at the head of it, a fire big enough to stand in, and
+   * the figures — a suit of armour and a statue both stop you, which is half of why they are worth
+   * having in a corridor.
+   */
+  PropKind.Throne, PropKind.LongTable, PropKind.GreatHearth, PropKind.SuitOfArmour,
+  PropKind.Brazier, PropKind.Portcullis, PropKind.Statue, PropKind.TowerStair, PropKind.Sarcophagus,
 ]);
 
 /**

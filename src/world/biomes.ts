@@ -155,6 +155,34 @@ export const enum PropKind {
    * as one room with a corner of it shut off, which is what a lock-up is.
    */
   Bars = 75,
+
+  /*
+   * What a keep is furnished with, which is not what a cottage is furnished with.
+   *
+   * Everything above this line came from a village or a chapel, and a castle was dressed out of it:
+   * an `Altar` standing in for a throne, a `WeaponRack` for a wall of arms, a `Forge` for a kitchen
+   * range. Each was the right silhouette from above and the wrong object up close, which is a fair
+   * trade while a castle is being built and a poor one once it is standing.
+   *
+   * They are grouped here rather than scattered among the furniture because they share a reason for
+   * existing: a hall is bigger than a room, and the things in it are bigger than a room's things. A
+   * `Table` in a great hall reads as a canteen; a `Hearth` in one reads as a fireplace somebody has
+   * mislaid.
+   */
+  Throne = 116,
+  LongTable = 117,
+  GreatHearth = 118,
+  Banner = 119,
+  Tapestry = 120,
+  SuitOfArmour = 121,
+  Brazier = 122,
+  Chandelier = 123,
+  Portcullis = 124,
+  Statue = 125,
+  TowerStair = 126,
+  Cobweb = 127,
+  Sarcophagus = 128,
+  StainedWindow = 129,
 }
 
 /**

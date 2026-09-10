@@ -737,7 +737,7 @@ describe('a dressed dungeon floor, which is furniture and walls together', () =>
       solid += sticks.length;
       // a handful per floor, spread through the list rather than the first few, which would be
       // whatever the dressing happened to lay out first
-      for (let n = 0; n < sticks.length; n += Math.max(1, Math.floor(sticks.length / 6))) {
+      for (let n = 0; n < sticks.length; n += Math.max(1, Math.floor(sticks.length / 24))) {
         const f = sticks[n];
         const box = propFootprints().get(f.kind)!;
         for (const [dx, dz] of APPROACHES.slice(0, 4)) {
@@ -754,9 +754,14 @@ describe('a dressed dungeon floor, which is furniture and walls together', () =>
            * reported as "walked through the table" it is the bench asking a question it did not
            * mean to ask. The subject has to be the only thing on the line.
            */
-          const crossed = [1, 2].some((back) => map.furniture.some((g) =>
-            g !== f && FURNITURE_BLOCKS.has(g.kind)
-            && g.x === f.x - dx * back && g.z === f.z - dz * back));
+          const crossed = [1, 2].some((back) => {
+            const cx = f.x - dx * back, cz = f.z - dz * back;
+            // a tile either side of the line as well, because a thing is not the size of its tile:
+            // a long table is three tiles across, so one standing a tile off the run-up still has
+            // its box in it, and that is the case this missed on seed 29
+            return map.furniture.some((g) => g !== f && FURNITURE_BLOCKS.has(g.kind)
+              && Math.abs(g.x - cx) <= 1 && Math.abs(g.z - cz) <= 1);
+          });
           if (crossed) continue;
           cases++;
           const e = walker('hero', fromX - (f.x + 0.5), fromZ - (f.z + 0.5));

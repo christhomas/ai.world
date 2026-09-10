@@ -20,7 +20,7 @@ import { PropKind } from './biomes';
 /** What sort of thing this is, for somebody looking down a list of them. */
 export type PropGroup =
   | 'trees' | 'plants' | 'stone' | 'houses' | 'civic' | 'trade'
-  | 'farm' | 'building' | 'castle' | 'furniture' | 'dungeon' | 'wild';
+  | 'farm' | 'building' | 'castle' | 'furniture' | 'keep' | 'dungeon' | 'wild';
 
 /** One entry: what it is called, and where a person would look for it. */
 export interface Catalogued {
@@ -133,6 +133,21 @@ export const CATALOGUE: readonly Catalogued[] = [
   { kind: PropKind.Rug, name: 'rug', group: 'furniture' },
   { kind: PropKind.Bars, name: 'cell bars', group: 'furniture' },
 
+  { kind: PropKind.Throne, name: 'throne', group: 'keep' },
+  { kind: PropKind.LongTable, name: 'long table', group: 'keep' },
+  { kind: PropKind.GreatHearth, name: 'great hearth', group: 'keep' },
+  { kind: PropKind.Banner, name: 'banner', group: 'keep' },
+  { kind: PropKind.Tapestry, name: 'tapestry', group: 'keep' },
+  { kind: PropKind.SuitOfArmour, name: 'suit of armour', group: 'keep' },
+  { kind: PropKind.Brazier, name: 'brazier', group: 'keep' },
+  { kind: PropKind.Chandelier, name: 'chandelier', group: 'keep' },
+  { kind: PropKind.Portcullis, name: 'portcullis', group: 'keep' },
+  { kind: PropKind.Statue, name: 'statue', group: 'keep' },
+  { kind: PropKind.TowerStair, name: 'tower stair', group: 'keep' },
+  { kind: PropKind.Cobweb, name: 'cobweb', group: 'keep' },
+  { kind: PropKind.Sarcophagus, name: 'sarcophagus', group: 'keep' },
+  { kind: PropKind.StainedWindow, name: 'stained window', group: 'keep' },
+
   { kind: PropKind.Torch, name: 'wall torch', group: 'dungeon' },
   { kind: PropKind.Chest, name: 'chest', group: 'dungeon' },
   { kind: PropKind.ChestOpen, name: 'open chest', group: 'dungeon' },
@@ -159,6 +174,7 @@ export const GROUPS: ReadonlyArray<{ group: PropGroup; name: string }> = [
   { group: 'building', name: 'a house going up' },
   { group: 'castle', name: 'the castle' },
   { group: 'furniture', name: 'indoors' },
+  { group: 'keep', name: 'inside a keep' },
   { group: 'dungeon', name: 'underground' },
   { group: 'wild', name: 'out in the country' },
 ];

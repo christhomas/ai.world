@@ -8,7 +8,7 @@ import { EntityManager } from '../entities/manager';
 import { Roster } from '../entities/roster';
 import { CASTLE, generateCastle } from './castle';
 import { floorThePlanOffers } from './castlefit';
-import { GHOST, HAUNTS_AT_MOST } from './castlerooms';
+import { GHOST, HANGS_ON_WALLS, HAUNTS_AT_MOST } from './castlerooms';
 import { generateDungeon, DUNGEON } from './generate';
 import { BASE_LEVEL, DTile, levelAt, reachable, type DungeonMap } from './map';
 import { DungeonWorld } from './world';
@@ -112,7 +112,13 @@ describe('a castle', () => {
     // torches are brackets on walls and chests stand on floors, in a castle as in a barrow
     for (const t of map.torches) expect(map.tiles[t.z * map.size + t.x], `a torch at ${t.x},${t.z} is floating in a room`).toBe(DTile.Rock);
     for (const c of map.chests) expect(map.tiles[c.z * map.size + c.x], `a chest at ${c.x},${c.z} is standing in the rock`).toBe(DTile.Floor);
-    for (const f of map.furniture) expect(map.tiles[f.z * map.size + f.x], `furniture at ${f.x},${f.z} is inside a wall`).toBe(DTile.Floor);
+    for (const f of map.furniture) {
+      // a banner, a tapestry and a window are fixed to rock the way a torch is, so the tile under
+      // one is a wall on purpose — reported as "inside a wall" it is the hanging doing its job
+      const on = HANGS_ON_WALLS.has(f.kind) ? DTile.Rock : DTile.Floor;
+      expect(map.tiles[f.z * map.size + f.x],
+        `${HANGS_ON_WALLS.has(f.kind) ? 'a hanging' : 'furniture'} at ${f.x},${f.z} is on the wrong sort of tile`).toBe(on);
+    }
   });
 
   it('can be walked from the gate to every room on every floor', () => {

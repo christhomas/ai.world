@@ -2,6 +2,11 @@ import { PropKind } from '../world/biomes';
 import type { Footprint, Footprints } from '../world/footprints';
 import { castleKeep, castleTower, curtainWall, gatehouse } from './castle';
 import {
+  banner, brazier, brazierFire, chandelier, chandelierFlames, cobweb, greatHearth, hearthFire,
+  longTable, portcullis, sarcophagus, stainedGlass, stainedWindow, statue, suitOfArmour, tapestry,
+  throne, towerStair,
+} from './keep';
+import {
   CHURCH_WINDOWS, HALL_WINDOWS, HOUSE_WINDOWS, WATCH_WINDOWS,
   church, glazing, house, townHall, watchHouse, type HouseStyle,
 } from './buildings';
@@ -575,6 +580,30 @@ prop(PropKind.Willow, [
   ico(1.05, 1, 0x6a9a3c, [0, 1.45, 0], [1, 0.55, 1]),
   ico(0.65, 1, 0x5f8c36, [0, 1.0, 0], [1.05, 0.9, 1.05]),
 ]);
+
+/*
+ * And what a keep is furnished with, out of `keep.ts` for the reason the castle itself is out of
+ * `castle.ts`: this file is already every prop in the world, and a hall's furniture is a thing
+ * somebody will want to open on its own.
+ *
+ * Four of them burn or glow, so they are given a lit list as well — the same arrangement a torch
+ * and a lit window have, where the bright parts are drawn a second time unlit so that they go on
+ * showing when the room round them has gone dark.
+ */
+prop(PropKind.Throne, throne());
+prop(PropKind.LongTable, longTable());
+prop(PropKind.GreatHearth, greatHearth(), hearthFire());
+prop(PropKind.Banner, banner());
+prop(PropKind.Tapestry, tapestry());
+prop(PropKind.SuitOfArmour, suitOfArmour());
+prop(PropKind.Brazier, brazier(), brazierFire());
+prop(PropKind.Chandelier, chandelier(), chandelierFlames());
+prop(PropKind.Portcullis, portcullis());
+prop(PropKind.Statue, statue());
+prop(PropKind.TowerStair, towerStair());
+prop(PropKind.Cobweb, cobweb());
+prop(PropKind.Sarcophagus, sarcophagus());
+prop(PropKind.StainedWindow, stainedWindow(), stainedGlass());
 
 /** Every prop in the game, in the order they were written down. */
 export const PROPS: ReadonlyMap<PropKind, PropDef> = CATALOGUE;

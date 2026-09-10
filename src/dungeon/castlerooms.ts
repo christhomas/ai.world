@@ -119,6 +119,7 @@ export function dress(plan: Dressable): Dressing {
   const out: Dressing = { torches: [], furniture: [], monsterSpots: [] };
   for (const space of plan.spaces) {
     lightWalls(plan, space, out.torches);
+    hangTheWalls(plan, space, out.furniture);
     furnish(plan, space, out.furniture);
     populate(plan, space, out);
   }
@@ -144,11 +145,89 @@ function lightWalls(plan: Dressable, space: Space, out: Torch[]): void {
   }
 }
 
+/**
+ * What hangs on a room's walls, which is a different question from what stands on its floor.
+ *
+ * A banner, a tapestry and a window are fixed to rock rather than set down on flagstones, so they
+ * are placed the way a torch is — on the rock face that looks into the room, turned to face it —
+ * and not by the scatter that puts barrels about. Getting that wrong is very visible: a banner
+ * lying in the middle of a floor reads as a dropped rug.
+ *
+ * It matters more than it sounds. A stone wall with nothing on it is exactly what makes a castle
+ * corridor read as a mine, and the difference between the two is entirely what is hanging up.
+ */
+const HANGINGS: Partial<Record<Sort | Role, readonly PropKind[]>> = {
+  // a great hall is where a house says whose it is
+  hall: [PropKind.Banner, PropKind.Banner, PropKind.Tapestry],
+  throne: [PropKind.Banner, PropKind.Banner, PropKind.StainedWindow],
+  // a long blank corridor is the thing this is most for
+  gallery: [PropKind.Tapestry, PropKind.StainedWindow],
+  chapel: [PropKind.StainedWindow, PropKind.StainedWindow],
+  library: [PropKind.Tapestry],
+  quarters: [PropKind.Tapestry],
+};
+
+/**
+ * Everything that is fixed to rock rather than set down on a floor.
+ *
+ * Derived from the table above rather than written out again, and exported because anything that
+ * checks where furniture stands has to know the difference: a banner on a floor tile is a dropped
+ * rug, and a banner reported as "inside a wall" is a banner doing its job.
+ */
+export const HANGS_ON_WALLS: ReadonlySet<PropKind> =
+  new Set(Object.values(HANGINGS).flatMap((list) => [...(list ?? [])]));
+
+/** How far apart things hang, in tiles. Wider than the torches: a wall of banners is a bunting. */
+const HANGING_SPACING = 9;
+
+/**
+ * Hang whatever this room hangs, on the rock that faces its floor.
+ *
+ * Walks the same four walls `lightWalls` does and for the same reason — those are the faces a
+ * player can see — but starts at a different offset along each of them, so a banner and a torch do
+ * not end up on the same tile fighting for it.
+ */
+function hangTheWalls(plan: Dressable, space: Space, out: Furnishing[]): void {
+  const which = space.sort === 'chamber' ? (space.role ?? 'store') : space.sort;
+  const kinds = HANGINGS[which];
+  if (!kinds || kinds.length === 0) return;
+  const { rect } = space;
+  if (Math.min(rect.w, rect.h) < 3) return;
+  const rock = (x: number, z: number) =>
+    x >= 0 && z >= 0 && x < plan.size && z < plan.size && plan.tiles[z * plan.size + x] === DTile.Rock;
+  const hang = (x: number, z: number, rot: number): void => {
+    if (!rock(x, z) || out.some((f) => f.x === x && f.z === z)) return;
+    out.push({ kind: kinds[Math.floor(plan.rng() * kinds.length)], x, z, rot });
+  };
+  // offset by three from the torches' own start, so the two never ask for the same stone
+  for (let x = rect.x + 4; x < rect.x + rect.w - 1; x += HANGING_SPACING) {
+    hang(x, rect.z, -Math.PI / 2);
+    hang(x, rect.z + rect.h - 1, Math.PI / 2);
+  }
+  for (let z = rect.z + 5; z < rect.z + rect.h - 1; z += HANGING_SPACING) {
+    hang(rect.x, z, 0);
+    hang(rect.x + rect.w - 1, z, Math.PI);
+  }
+}
+
 /** What each sort of room stands on its floor, out of the props that exist today. */
 function furnish(plan: Dressable, space: Space, out: Furnishing[]): void {
-  const kinds = KIT[space.sort === 'chamber' ? (space.role ?? 'store') : space.sort];
+  const which = space.sort === 'chamber' ? (space.role ?? 'store') : space.sort;
+  const kinds = KIT[which];
   if (kinds.length === 0) return;
   const inner = shrink(space.rect, 1);
+
+  // what the room is for, before what the room happens to contain
+  const centre = CENTREPIECE[which];
+  if (centre && inner.w >= 3 && inner.h >= 3) {
+    const x = inner.x + Math.floor(centre.at[0] * (inner.w - 1));
+    const z = inner.z + Math.floor(centre.at[1] * (inner.h - 1));
+    if (plan.tiles[z * plan.size + x] === DTile.Floor) {
+      // facing into the room: a throne at the head of a hall looks down it, and a hearth set
+      // against the far wall has its back to that wall
+      out.push({ kind: centre.kind, x, z, rot: 0 });
+    }
+  }
   const budget = Math.max(1, Math.round(inner.w * inner.h * CLUTTER));
   for (let n = 0; n < budget; n++) {
     const kind = kinds[Math.floor(plan.rng() * kinds.length)];
@@ -169,22 +248,42 @@ function furnish(plan: Dressable, space: Space, out: Furnishing[]): void {
  * trade being made until the props in the work list exist.
  */
 const KIT: Record<Sort | Role, readonly PropKind[]> = {
-  hall: [PropKind.Table, PropKind.Chair, PropKind.Chair, PropKind.Rug, PropKind.Candle],
-  throne: [PropKind.Rug, PropKind.Candle, PropKind.Pew],
-  gallery: [PropKind.Candle],
+  hall: [PropKind.LongTable, PropKind.Chair, PropKind.Brazier, PropKind.Rug, PropKind.Statue],
+  throne: [PropKind.Rug, PropKind.Brazier, PropKind.SuitOfArmour, PropKind.Statue],
+  gallery: [PropKind.SuitOfArmour, PropKind.Candle],
   ring: [],
-  undercroft: [PropKind.Barrel],
-  tower: [PropKind.Barrel, PropKind.Crate, PropKind.WeaponRack],
-  gatehouse: [PropKind.WeaponRack, PropKind.Barrel, PropKind.Table],
+  undercroft: [PropKind.Barrel, PropKind.Sarcophagus],
+  tower: [PropKind.TowerStair, PropKind.Barrel, PropKind.Crate, PropKind.WeaponRack],
+  gatehouse: [PropKind.WeaponRack, PropKind.Barrel, PropKind.Portcullis, PropKind.Table],
   chamber: [PropKind.Crate, PropKind.Barrel],
-  guardroom: [PropKind.Table, PropKind.Chair, PropKind.WeaponRack, PropKind.Barrel],
-  armoury: [PropKind.WeaponRack, PropKind.WeaponRack, PropKind.Anvil, PropKind.Forge],
-  kitchen: [PropKind.Barrel, PropKind.Crate, PropKind.Table, PropKind.Forge, PropKind.Cauldron],
-  chapel: [PropKind.Pew, PropKind.Pew, PropKind.Candle, PropKind.Altar],
+  guardroom: [PropKind.Table, PropKind.Chair, PropKind.WeaponRack, PropKind.Brazier],
+  armoury: [PropKind.WeaponRack, PropKind.WeaponRack, PropKind.Anvil, PropKind.SuitOfArmour],
+  kitchen: [PropKind.Barrel, PropKind.Crate, PropKind.Table, PropKind.GreatHearth, PropKind.Cauldron],
+  chapel: [PropKind.Pew, PropKind.Pew, PropKind.Candle, PropKind.Altar, PropKind.Sarcophagus],
   cells: [PropKind.Bars, PropKind.Bars, PropKind.Crate],
   library: [PropKind.Shelf, PropKind.Shelf, PropKind.Table, PropKind.Chair],
   store: [PropKind.Crate, PropKind.Crate, PropKind.Barrel, PropKind.Shelf],
   quarters: [PropKind.Bed, PropKind.Table, PropKind.Chair, PropKind.Rug],
+};
+
+/**
+ * The one thing a room is *for*, put where the room is built round it.
+ *
+ * Everything in `KIT` is scattered: a barrel goes wherever the roll lands, which is right for a
+ * barrel and wrong for a throne. A high seat that turned up three tiles off-centre with a rug over
+ * it would be a chair somebody had left out. So the piece that gives a room its name is placed
+ * first, on the tile the room was laid out around, and the scatter fills in what is left.
+ *
+ * `at` is a fraction across the room and a fraction down it, so a hall four tiles deep and a hall
+ * fourteen deep both put the thing in the same *place* rather than the same number of tiles in.
+ */
+const CENTREPIECE: Partial<Record<Sort | Role, { kind: PropKind; at: [number, number] }>> = {
+  // the head of the room, backed against the far wall from the door
+  throne: { kind: PropKind.Throne, at: [0.5, 0.12] },
+  // down the middle of the hall, where the board goes
+  hall: { kind: PropKind.LongTable, at: [0.5, 0.5] },
+  // against a wall, because that is where a chimney can be
+  kitchen: { kind: PropKind.GreatHearth, at: [0.5, 0.12] },
 };
 
 /**

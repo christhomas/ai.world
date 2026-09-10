@@ -2077,40 +2077,54 @@ half and is not described here.
       badly. There was no way to look at the inside of a castle from outside the browser at all,
       which is a fair part of why a week went by with the furniture walk-through.)*
 
-### Wanted for the castle, and not made
+### Wanted for the castle — made, September 10th
 
-Everything in the keep is currently dressed out of props a village and a chapel already own: an
-`Altar` standing in for a throne, a `WeaponRack` for a wall of arms, a `Forge` for a kitchen range.
-Each is the right silhouette from above and the wrong object up close. `dungeon/castlerooms.ts` is
-where the substitution happens, so making these is a second pass and not a redesign. Sizes are in
-tiles across by world units tall.
+All fourteen, in `entities/keep.ts`, which is its own file for the reason `castle.ts` is: `props.ts`
+is already six hundred lines of every prop in the world, and a hall's furniture is a thing somebody
+will want to open on its own and work through. They also share one idea, which is why they are one
+file — **a hall is bigger than a room, and what stands in it is bigger than a room's things**. A
+`Table` in a great hall reads as a canteen; a `Hearth` in one reads as a fireplace somebody has
+mislaid. Everything a castle was dressed out of came from a village or a chapel, and each was the
+right silhouette from above and the wrong object up close.
 
-- **Throne** — 1×1, 1.6 tall. A high seat on the dais at the head of the throne room: the thing the
-  fourth floor exists to be. Stands in for nothing; there is no seat in the game.
-- **Banner** — hangs on a wall face like a `Torch`, 0.9 wide × 2.2 long. Tinted per castle, four to
-  a great hall. What tells you whose keep this is.
-- **Tapestry** — the same idea two tiles wide, for the long wall of a gallery. A cold stone wall
-  with nothing on it is what makes a corridor read as a mine.
-- **SuitOfArmour** — 1×1, 1.9 tall, a standing figure holding a polearm. Lines the state galleries.
-  At the distance this camera looks from you cannot tell one from a monster, which is the point.
-- **LongTable** — 3×1, 0.8 tall. The board down the middle of a great hall. `Table` is a small one
-  and a row of them reads as a canteen.
-- **Brazier** — 1×1, 1.1 tall: a bowl of fire on a tripod, glowing like a `Torch` does. Lights the
-  middle of a hall, where no wall bracket reaches.
-- **Chandelier** — hangs at 3.5, 1.5 across. The one light a great hall should have that a cellar
-  cannot.
-- **Portcullis** — 1×1 spanning a doorway, a grid dropping from the head of the arch. Distinct from
-  `Door`, which is a hinged plank and reads as a cottage. What a castle bars a stair with.
-- **Statue** — 1×1, 2.2 tall, plinth and figure. Marks the corners of a gallery and the head of a
-  stair.
-- **GreatHearth** — 2×1, 2.0 tall. `Hearth` is a cottage fire; a hall wants one you could stand in.
-- **TowerStair** — 1×1, 2.5 tall, a spiral turning up out of sight. What should be standing in a
-  corner tower, instead of the flat `Stairs` plate.
-- **Cobweb** — 1×1, low and pale. The tell that a wing is the haunted one, from the top of the
-  stair rather than after the fight.
-- **Sarcophagus** — 2×1, 0.7 tall. The crypt under the chapel, and where a wight is.
-- **StainedWindow** — a wall face, 1 wide × 2.4 tall, lit from behind. The one thing a castle
-  interior has that a cave never can: an outside.
+- **Throne** — a high seat on a dais, and what makes it a throne rather than a chair is that it is
+  too big for a person: a back twice the height of the man in it, arms he could not reach across,
+  a step up to it, and the one piece of gold in the room.
+- **LongTable** — one plank on trestles with a bench down each side, three tiles of it. No legs at
+  the corners, because that is what tells a board from a table at a glance.
+- **GreatHearth** — jambs, a lintel at head height and a fire, two tiles wide. Built against a wall,
+  everything at negative z, so the prop's own rotation puts its back to whichever wall the room has.
+- **Banner** / **Tapestry** / **StainedWindow** — fixed to rock the way a torch is, and placed by a
+  pass of their own (`hangTheWalls`) rather than by the scatter that puts barrels about. A banner
+  lying in the middle of a floor reads as a dropped rug. The window is lit from behind, so it goes
+  on glowing when the room round it is dark — the one thing a castle interior has that a cave never
+  can, which is an outside.
+- **SuitOfArmour** — built to the game's own proportions on purpose: a head at 1.5, shoulders at
+  1.25, a polearm held out to break the silhouette. From the top of a stair you cannot tell it from
+  something that is going to move, and only when you have walked up to it and nothing has happened
+  is it furniture.
+- **Brazier** and **Chandelier** — the lighting problem a great hall has. Torches are brackets and
+  brackets are on walls, so the middle of a room forty feet across is dark whatever you do to the
+  walls. The chandelier hangs at 3.5, which is above where the ceiling would be: nothing in this
+  game draws a ceiling, and a light at head height reads as a lamp on a pole.
+- **Portcullis** — halfway down rather than shut, because a grid resting on the floor is a wall. At
+  half height you can see the room beyond it, which makes it something to deal with rather than a
+  dead end.
+- **Statue**, **TowerStair**, **Cobweb**, **Sarcophagus** — a figure for the turn of a corridor; a
+  spiral of eleven steps going up into the dark, instead of the flat `Stairs` plate; the tell that a
+  wing is the haunted one, read from the doorway rather than after the fight; and a lid shoved a
+  hand's breadth off square, which is the entire story that object has to tell.
+
+Two things that had to change with them. The floor-standing nine are in `FURNITURE_BLOCKS`, so a
+throne stops you like a table does — the hangings and the chandelier are not, because there is
+already a wall behind one and a walker never meets the other. And `CENTREPIECE` puts the piece a
+room is *for* on the tile the room was laid out around, before the scatter fills in the rest: a high
+seat that turned up three tiles off-centre with a rug over it would be a chair somebody had left out.
+
+The collision bench signs it off at a hundred and fifty walks into sixteen hundred solid sticks
+across six floors. Its own guard had to widen on the way: a long table is three tiles across, so one
+standing a tile off a run-up still has its box in it, and the bench was reporting that as the hero
+walking through a table he never walked at.
 
 ### Asked of `game/places.ts`, which is not this half's to edit
 
