@@ -407,10 +407,20 @@ export class SharedWorld {
    * stamp from its last real write, so the next arrival over-counts the sleep by however long the
    * process outlived it — seconds, against the days this is measuring.
    *
+   * A province with nothing in it is written too, and that is a stamp with no rows under it: a few
+   * dozen bytes saying only when somebody was last near. It looks like waste and it is the thing
+   * that makes the coarse tier work at all in open country. **A province's creatures are not among
+   * its leavings** — they are re-rolled from the seed every time a chunk is spawned — so a square of
+   * empty hills has nothing to write and a week of grazing to account for, and without the stamp
+   * every deer in the world outside a worked field would be handed back standing exactly where it
+   * was founded however long anybody had been gone. The bill is one small file per province anybody
+   * has ever walked within a hundred and forty-four tiles of, which is what a world with no edge
+   * costs anyway and is dwarfed by the first field somebody sows in one.
+   *
    * @param leaving the last of them has walked out of it, so the stamp has to be brought up to date
    */
   private writeProvince(id: ProvinceId, province: Province, leaving = false): void {
-    if (!province.dirty && !(leaving && province.deltas.size > 0)) return;
+    if (!province.dirty && !leaving) return;
     province.dirty = false;
     const file: ProvinceFile = { when: this.today, deltas: [...province.deltas.values()] };
     try {

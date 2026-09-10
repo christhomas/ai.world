@@ -451,6 +451,10 @@ function main(): void {
   const noise = Math.max(...busy.map((rung) => worst(rung.runs).p95 / Math.max(0.01, best(rung.runs).p95)));
 
   const frozen = frozenCost(window);
+  // What one agent nobody is thinking for adds to a tick. The whole of C2's third tier is whether
+  // this is a share of a live agent or a rounding error, so the report says which it came out as
+  // rather than asserting the answer it was written knowing.
+  const perFrozen = ((frozen.withThem.p50 - frozen.withoutThem.p50) * 1_000) / Math.max(1, frozen.frozen);
 
   console.log('  a cold province...');
   const colds: ColdProvince[] = [];
@@ -506,24 +510,35 @@ function main(): void {
     '',
     'WHAT A FROZEN AGENT COSTS',
     '',
-    `  ${frozen.frozen} creatures put down beyond the active range, on ground the world is still holding. Nobody`,
-    '  thinks for them; every player is still told about them and every sweep still walks past them.',
+    `  ${frozen.frozen} creatures put down beyond the active range, on ground the world is still holding.`,
+    '  Nobody thinks for them. Whether anybody still *walks past* them is the question, and it is the',
+    '  whole of what a third tier is: a skipped mind is a discount, and a creature off the separation',
+    '  sweep and off what every player is told is an exemption.',
     '',
     `    without them: p50 ${ms(frozen.withoutThem.p50)} for ${frozen.live} live`,
     `    with them:    p50 ${ms(frozen.withThem.p50)} for the same ${frozen.live} live and ${frozen.frozen} frozen`,
     '',
-    `  So a frozen agent costs about ${(((frozen.withThem.p50 - frozen.withoutThem.p50) * 1_000) / Math.max(1, frozen.frozen)).toFixed(2)}µs a tick, against `
+    `  So a frozen agent costs about ${perFrozen.toFixed(2)}µs a tick, against `
       + `${perAgent(frozen.withoutThem, frozen.live).toFixed(1)}µs for a live one.`,
-    '  Freezing an agent today is a discount, not an exemption — a skipped mind, but still a body in',
-    '  every sweep and still a row in what every player is told. A tier that means "costs nothing"',
-    '  has to take the agent out of these lists, not out of one branch inside them.',
+    ...(perFrozen < perAgent(frozen.withoutThem, frozen.live) / 10
+      ? [
+        '  Which is an exemption rather than a discount, and about what a thing that is not there',
+        '  costs. C2 is what did that: past `WATCH_RANGE` a creature is on neither of the two lists',
+        '  that used to walk past it, rather than skipping one branch inside them.',
+      ]
+      : [
+        '  Freezing an agent here is a discount, not an exemption — a skipped mind, but still a body',
+        '  in every sweep and still a row in what every player is told. A tier that means "costs',
+        '  nothing" has to take the agent out of these lists, not out of one branch inside them.',
+      ]),
     '',
     'A COLD PROVINCE',
     '',
-    '  Said plainly first: THERE IS NO CATCH-UP OPERATION. Nothing in this repository ticks a province',
-    '  that has nobody in it. `Simulation.tick` closes a room the moment its last player leaves and',
-    '  drops its ground and its creatures with it; `SharedWorld.tick` moves the clock and does nothing',
-    '  else. What follows is the nearest honest proxy — arriving somewhere, and stepping it forward.',
+    '  Said plainly first: NOTHING TICKS A PROVINCE THAT HAS NOBODY IN IT, and since C2 that is a',
+    '  decision rather than a gap. `Simulation.tick` closes a room the moment its last player leaves',
+    '  and drops its ground and its creatures with it; a province that wakes again is caught up by',
+    '  `catchUp` in one calculation, as the ground hands its herds back. What follows is what that',
+    '  calculation stands in for — arriving somewhere, and stepping it forward the long way.',
     '',
     `  The country: a sampler for a world is ${ms(slowest.sampler)}, and growing ${slowest.chunks} chunks out of it`,
     `  (a province is ${PROVINCE_AREA}) is ${ms(slowest.ground)} — about ${(slowest.ground / Math.max(1, slowest.chunks)).toFixed(2)}ms a chunk.`,

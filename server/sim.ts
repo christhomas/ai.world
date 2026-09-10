@@ -16,6 +16,7 @@ import { generateDungeon } from '../src/dungeon/generate';
 import { DungeonWorld } from '../src/dungeon/world';
 import { Manifest } from '../src/world/manifest';
 import { TerrainSampler } from '../src/world/terrain';
+import { provinceOfHome } from '../src/world/provinces';
 
 /**
  * The simulation: everything the shared world does, and nothing about where it is running.
@@ -169,6 +170,16 @@ export class Simulation {
     // server owned would be one the player could not talk to, because a conversation is a thing the
     // client holds. What players disagree about is the wildlife, so that is what moves across.
     const alive = new Wildlife(seed, grown, grown);
+    // C2's coarse tier, joined up. A herd belongs to the province its home is in and never to the
+    // one it is standing in (`provinceOfHome`, which is C3's whole rule); a province knows how long
+    // it was nobody's business because it was stamped on the way out and read back on the way in
+    // (`SharedWorld.asleep`); and the manager asks that of every herd the ground hands it, the
+    // moment it hands it over. A week away is one calculation for the province and no ticks at all.
+    //
+    // The room is fetched fresh each time rather than closed over: this world's room is opened
+    // before its ground is grown and is closed when its last player leaves, and a stale reference
+    // to a closed room would keep answering with the clock it had when it closed.
+    alive.crowd.sleptFor = (herd) => this.rooms.get(seed)?.world.asleep(provinceOfHome(herd)) ?? 0;
     this.wildlife.set(seed, alive);
     // so that a blow arriving through the roster can find whatever is running the creatures
     this.rooms.ownCreatures(seed, 'surface', alive);

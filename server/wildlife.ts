@@ -104,7 +104,14 @@ export class Wildlife {
   inSightOf(x: number, z: number, reach = IN_SIGHT): CreatureSnap[] {
     const seen: CreatureSnap[] = [];
     const r2 = reach * reach;
-    for (const e of this.roster.all()) {
+    // The manager's watched list rather than the whole roster, and that is C2's third tier arriving
+    // here. A world holds creatures out to five chunks around every player and tells each player
+    // about what is within sixty tiles of them, so walking the roster once per player meant every
+    // player in the world paying for the country round every other player as well as their own. The
+    // watched list is what is within `WATCH_RANGE` of *somebody*, sorted once a step; anything past
+    // that cannot be in sight of anybody and is now not looked at. `IN_SIGHT` has to stay inside
+    // `WATCH_RANGE` for that to be true, and `wildlife.test.ts` holds it there.
+    for (const e of this.manager.watched) {
       const dx = e.x - x, dz = e.z - z;
       if (dx * dx + dz * dz > r2) continue;
       seen.push({

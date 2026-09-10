@@ -325,6 +325,25 @@ describe('a province knows how long it was left alone', () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
+  it('stamps a square with nothing in it, because its creatures are not among its leavings', () => {
+    const dir = scratch();
+    try {
+      const world = new SharedWorld(36, worldPath(dir, 36), { day: 1, time: 0 }, dir, kept);
+      // nothing sown, nothing dug, nothing opened: open hills, which is most of any world
+      world.keepNear([spot]);
+      world.keepNear([FAR]);
+      world.tick(DAY_LENGTH * 6);
+
+      // Six days rather than nought. A province's animals are re-rolled from the seed every time a
+      // chunk is spawned, so they leave no rows behind and a square of empty country has nothing to
+      // write but the hour somebody was last near it — and without that hour every deer outside a
+      // worked field is handed back standing exactly where it was founded, however long anybody has
+      // been gone. The bill is a few dozen bytes a province.
+      expect(world.asleep(there), 'a province with no leavings in it forgot when it stopped being anybody\u2019s business, so the country round it would never be caught up')
+        .toBeCloseTo(6 * DAY_LENGTH, 0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it('reads a province written before there was a stamp, and calls it never away', () => {
     const dir = scratch();
     try {
