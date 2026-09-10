@@ -967,16 +967,47 @@ and less than that a busy one.
       ground the world did not agree with. Late ground is now drawn over the top, and how much of
       the country is still the page's own guess is counted on `__stream` as `grown`. It was a
       hundred and twenty-one out of a hundred and twenty-one. It is nought.)*
-- [ ] And the last of it: `grown` should be nought on a warm world and is not on a cold one. The
-      world generates a first view on demand, which takes longer than a page can stand still for —
-      so the first minute in a new country is spent on ground that is right by luck rather than by
-      agreement. A world that had its first province ready before anybody asked would close it.
-- [ ] Structures too: villages, doors, eyries and the rest are derived from the same graph on both
-      sides. Either the graph travels at the join or the structures do. Until then, the halves bench
-      is what stands between a player and being walked about a country he cannot see.
-- [ ] And then the generator has one caller. A world grown in one place cannot be grown differently
-      in another, and `twohalves.test.ts` becomes a test of a thing that cannot happen — which is
-      the right time to read it again and decide what it is still for.
+- [x] **And the last of it: `grown` is nought on a cold world too.** *(Measured in a real headless
+      page with a cold store and a cold world: the worst `grown` was 132 of 132 and it *stayed*
+      there — the page drew its own country for the whole first visit and never found out. It is
+      nought now, through a whole first view, and a second visit reads `kept 121, asked 0, grown 0`.
+      A world answers a first view in under a millisecond where it took about 650 ms.
+
+      Three changes. The join says where the hero is standing, so the world grows that view while
+      it is still saying hello; `GroundWorld` keeps what it grows, where it used to regenerate a
+      chunk on *every* asking; and the page waits — but only between the welcome and the world
+      saying its country is grown.
+
+      Two real bugs fell out of measuring it, both worse than the timing. `Online.wantChunks`
+      silently dropped asks made before the welcome arrived while the streamer had already written
+      them down as asked-for: 110 of 121 chunks the world was never told about, drawn by the page,
+      never put right, for the whole visit — and it turned on which of two promises settled first,
+      so it happened on some loads and not others. And `ChunkManager.unload` never decremented
+      `grown`, so the one number that says whether the halves agree could not be believed when it
+      was small.
+
+      The cost, stated: a first visit to a new world has about two seconds more loading screen,
+      because the page waits for the world's country rather than drawing its own. Overlapping the
+      two sampler builds means sending the join before the country is grown, which is a reorder of
+      all of `main.ts`.)*
+- [x] **Structures too — or rather, everything the graph is a function of now travels.** *(The kind
+      already did; the islands did not. Where islands hang is planned from the seed for a world made
+      today, but an older save keeps its own in its manifest — so a server growing from the seed
+      alone put the same houses in different fields. Islands are on the join now, and a second
+      player whose islands differ is refused at the door with a reason, which is the rule the world
+      kind already had. Plus `countryStamp`: the world hashes its graph and sends it with the
+      welcome, so the page can *check* rather than assume. That stamp is the only cover the
+      villages, doors and eyries get, since they still do not travel themselves.)*
+- [x] **And then the generator has one caller.** *(There were two expressions that grew a world and
+      they differed — the server grew road worlds without islands, `game/country.ts` grew them with.
+      `src/world/growworld.ts` is the only place either generator is called now, and
+      `growworld.test.ts` reads the source of `src/`, `server/` and `tools/` and fails if a second
+      caller ever appears. That is the measurement rather than the intention: it currently returns
+      exactly one file.
+
+      And `twohalves.test.ts` was read again, as the item asked. It is deliberately demoted: it now
+      guards the page's *fallback* generator — what happens when there is no world to be told by —
+      and the head of the file says so.)*
 
 ## The endless world, in pieces
 
