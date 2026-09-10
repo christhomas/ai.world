@@ -2,7 +2,7 @@ import { mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
-import { EDGE_OF_THE_WORLD, type IslandInfo, type RoadEdge, type RoadGraph, type RoadNode } from './graph';
+import { EDGE_OF_THE_WORLD, standingOf, type IslandInfo, type RoadEdge, type RoadGraph, type RoadNode } from './graph';
 import { FaceKind, faceAt, generateMesh, isLand, type MeshFace, type WorldMesh } from './mesh';
 
 /**
@@ -70,7 +70,17 @@ export const WEB = {
    * the rivers had no downhill to run to and spread over a third of the map with bridges over all
    * of it. A road climbs as it leaves the sea, and mountain country starts higher again.
    */
-  LEVEL_RANGE: 3,
+  /**
+   * Ten terraces of rise and fall across the country, over the hundred and sixty tiles the scale
+   * below gives. It was three, which is a world that reads as flat everywhere you are not standing
+   * on a rock, and the reason for putting the hills here rather than in a field of their own is in
+   * `GROWTH.LEVEL_RANGE` next door: everything in this game measures its height from the road it is
+   * nearest, so the road web is the one place a hill can be added without something being left
+   * behind by it. Bounded by the smoothing below rather than by taste — no road climbs more than a
+   * terrace between one crossroads and the next however large this is — and what goes wrong past
+   * about fifteen is the seams between one road's country and the next one's.
+   */
+  LEVEL_RANGE: 10,
   LEVEL_SCALE: 0.006,
   MOUNTAIN_BASE: 3,
 } as const;
@@ -210,13 +220,30 @@ export function generateWebGraph(seed: number, radius = EDGE_OF_THE_WORLD): Road
     bend(link.a, link.b, !inWeb);
   }
 
+  /*
+   * The biome pie, drawn here rather than at the end of this function where it used to be.
+   *
+   * The ground a crossroads stands on now depends on which country it is in — the snow lands stand
+   * eighteen terraces above the rest — so the pie has to exist before the levels are worked out.
+   * Given a stream of its own rather than taken off `rng` in its new place, so that moving it does
+   * not shift every roll after it: the roads, the loops and the islands of every existing world are
+   * exactly where they were, and only the pie itself and the heights are different.
+   *
+   * No islands in the `Pie` this is handed, because there are none yet — and none is wanted. An
+   * island is relevelled against its own biome later, with its own cap on how high it may stand.
+   */
+  const pieRng = mulberry32(derive(seed, SALT.BIOME ^ 0x5ec7));
+  const sectors = shuffle(pieRng, [Biome.Plains, Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow]);
+  const sectorOffset = pieRng() * Math.PI * 2;
+
   // the ground each crossroads stands on. Rivers run downhill and need somewhere to run from.
   const levelNoise = new Simplex2D(derive(seed, SALT.BIOME));
+  const stands = standingOf({ islands: [], sectors, sectorOffset }, levelNoise);
   for (const node of nodes) {
     const face = faceAt(mesh, node.x, node.z);
-    const base = face?.kind === FaceKind.Mountain ? WEB.MOUNTAIN_BASE : 0;
+    const rock = face?.kind === FaceKind.Mountain ? WEB.MOUNTAIN_BASE : 0;
     const h = (levelNoise.fbm(node.x * WEB.LEVEL_SCALE, node.z * WEB.LEVEL_SCALE, 3) + 1) * 0.5;
-    node.level = Math.max(1, 1 + base + Math.round(h * WEB.LEVEL_RANGE));
+    node.level = Math.max(1, 1 + rock + Math.round(stands.at(node.x, node.z) + h * WEB.LEVEL_RANGE));
   }
   // and then smoothed along the tree, so no road climbs more than a terrace between one
   // crossroads and the next and every one of them stays walkable
@@ -296,11 +323,11 @@ export function generateWebGraph(seed: number, radius = EDGE_OF_THE_WORLD): Road
     });
   }
 
-  const sectors = shuffle(rng, [Biome.Plains, Biome.Forest, Biome.Desert, Biome.Swamp, Biome.Mountain, Biome.Snow]);
   return {
     seed, radius, nodes, edges, towns,
     islands, mainlandNodes: nodes.length,
-    sectors, sectorOffset: rng() * Math.PI * 2,
+    // drawn much earlier, because the height of the ground depends on it
+    sectors, sectorOffset,
     /*
      * Where the world's first village stands, and the roads that must not lean away from it.
      *

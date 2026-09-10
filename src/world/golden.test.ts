@@ -36,7 +36,31 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when the country gained castles (2026-09-10). One or two in a world,
+ * Last updated deliberately when the country stopped being flat (2026-09-10), and this is the one
+ * change so far that moves all five. It is worth saying exactly what moved and what did not.
+ *
+ * Two things were done and both were done to the road web's own levels, which is the field every
+ * height in this world is measured from — a tile's base, a village square, the floor of a house,
+ * the terrace a river rises at. The hills: `GROWTH.LEVEL_RANGE` from three terraces to ten, so the
+ * ground rises and falls by five world units over a hundred and sixty tiles instead of a barely
+ * visible one and a half. The snow lands: `BIOME_BASE[Snow]` from two to eighteen, read through
+ * `Uplands` so that the border on the map becomes a two-hundred-tile climb rather than a
+ * nine-unit wall, which is what makes the cold something you walk up to.
+ *
+ * `graph` moves, and only by the levels: the crossroads of both seeds stand at exactly the same
+ * two thousand four hundred and thirty-six places, with the same subtree sizes, the same towns and
+ * the same biome pie. Hashing the web without `n.level` reproduces the old figure to the digit,
+ * which is how that was checked rather than argued. What does change in the web is eleven of its
+ * loop roads, which are no longer built — `addLoops` has always refused to join two crossroads
+ * more than a terrace apart, and in a country with real relief it now sometimes has cause to.
+ * `hydro` moves because a river runs down the ground and the ground is different: the springs are
+ * the same crossroads, the courses are not. `structures` moves because a house is only built where
+ * three tiles of ground share a terrace, and where that is true has moved with the hills; the
+ * villages are still seventeen and still on their crossroads, and seed 1 keeps 98 houses of its
+ * old 105 while seed 2 gains, at 112 of 103. `quests` moves because it is drawn from the
+ * structures, and `chunks` because the ground under all four of them is higher and unevener.
+ *
+ * Before that, the same day: the country gained castles. One or two in a world,
  * out on their own a long way from any settlement: a thirteen-tile ward of levelled ground with a
  * curtain wall round it, seven drum towers, a gatehouse you go in by and a keep in the yard —
  * about fifty structures apiece. Only `structures` moves. `graph`, `hydro` and `quests` are
@@ -96,6 +120,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'f428fc67', chunks: '50e695f6', quests: '07c8c2d8' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: 'b9e90d86', chunks: '191ff6e9', quests: '2fa87fd6' },
+  1: { graph: '5256f550', hydro: '57d1f709', structures: 'd2ef519c', chunks: '65b262e0', quests: '829c481b' },
+  2: { graph: '91f6d142', hydro: 'e1df1004', structures: 'c2d91afc', chunks: '7f420170', quests: '10f6f7ad' },
 };
