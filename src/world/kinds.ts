@@ -32,4 +32,17 @@ export const enum StructureKind {
    */
   TownHall = 19,
   WatchHouse = 20,
+  /**
+   * The five pieces a castle is set out as. See `world/castles.ts`, which lays them out.
+   *
+   * Everything above this line is one building on one tile. A castle is not a building — it is a
+   * levelled ward with a wall round it, and the wall alone is forty of these — so it is the first
+   * thing here that is a *plan* rather than a thing. The ward is the ground: flattened, cobbled
+   * inside the walls, and drawn as nothing at all, exactly as a town square is.
+   */
+  CastleWard = 21,
+  CastleWall = 22,
+  CastleTower = 23,
+  CastleGate = 24,
+  CastleKeep = 25,
 }

@@ -20,7 +20,7 @@ import { PropKind } from './biomes';
 /** What sort of thing this is, for somebody looking down a list of them. */
 export type PropGroup =
   | 'trees' | 'plants' | 'stone' | 'houses' | 'civic' | 'trade'
-  | 'farm' | 'building' | 'furniture' | 'dungeon' | 'wild';
+  | 'farm' | 'building' | 'castle' | 'furniture' | 'dungeon' | 'wild';
 
 /** One entry: what it is called, and where a person would look for it. */
 export interface Catalogued {
@@ -110,6 +110,12 @@ export const CATALOGUE: readonly Catalogued[] = [
   { kind: PropKind.HouseRoof, name: 'roofed', group: 'building' },
   { kind: PropKind.HouseYours, name: 'your house', group: 'building' },
 
+  // a group of their own, because they are only ever seen together and are only ever a castle
+  { kind: PropKind.CastleKeep, name: 'keep', group: 'castle' },
+  { kind: PropKind.CastleGate, name: 'gatehouse', group: 'castle' },
+  { kind: PropKind.CastleTower, name: 'castle tower', group: 'castle' },
+  { kind: PropKind.CastleWall, name: 'curtain wall', group: 'castle' },
+
   { kind: PropKind.Bed, name: 'bed', group: 'furniture' },
   { kind: PropKind.Table, name: 'table', group: 'furniture' },
   { kind: PropKind.Chair, name: 'chair', group: 'furniture' },
@@ -151,6 +157,7 @@ export const GROUPS: ReadonlyArray<{ group: PropGroup; name: string }> = [
   { group: 'trade', name: 'trade' },
   { group: 'farm', name: 'the farm' },
   { group: 'building', name: 'a house going up' },
+  { group: 'castle', name: 'the castle' },
   { group: 'furniture', name: 'indoors' },
   { group: 'dungeon', name: 'underground' },
   { group: 'wild', name: 'out in the country' },

@@ -115,6 +115,12 @@ export function openConsole(ctx: Consoled) {
       ...structures.pois.map((p) => ({ name: p.name, kind: placeKindName(p.kind), x: p.x, z: p.z })),
       ...structures.caves.map((c) => ({ name: c.name, kind: 'cave', x: c.x, z: c.z })),
       ...structures.wrecks.map((wk) => ({ name: wk.name, kind: 'wreck', x: wk.x, z: wk.z })),
+      // A castle is named at its gate rather than at its middle, and it is the only place here
+      // that is. Everywhere else on this list is a spot you can stand on; the middle of a castle
+      // is the yard, and the keep stands two tiles behind it with four and a half tiles of stone
+      // to its name — so `teleport blackgard` aimed at the middle would land the hero inside the
+      // keep wall. The gate tile is where anybody arriving at a castle arrives anyway.
+      ...structures.castles.map((c) => ({ name: c.name, kind: 'castle', x: c.gateX, z: c.gateZ })),
       // A pier has no name of its own — it is the dock of whatever it reaches, and what it reaches
       // is an island known by its coordinates. So it is named for the village nearest it, which is
       // how anybody standing on one would describe it, and numbered when a village has two.

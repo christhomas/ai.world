@@ -1,5 +1,6 @@
 import { PropKind } from '../world/biomes';
 import type { Footprint, Footprints } from '../world/footprints';
+import { castleKeep, castleTower, curtainWall, gatehouse } from './castle';
 import {
   CHURCH_WINDOWS, HALL_WINDOWS, HOUSE_WINDOWS, WATCH_WINDOWS,
   church, glazing, house, townHall, watchHouse, type HouseStyle,
@@ -229,6 +230,17 @@ prop(PropKind.Tower, [
   box(0.1, 0.5, 0.2, 0x2a1a10, [0.82, 3.2, 0]),
   box(0.1, 0.5, 0.2, 0x2a1a10, [-0.82, 4.0, 0]),
 ]);
+/*
+ * The castle, in its four pieces. Written out in `castle.ts` for the same reason the cottage and
+ * the chapel are written out in `buildings.ts`: the four of them together are three hundred parts,
+ * which is half this file again, and a keep is a thing somebody will want to open on its own and
+ * change the roof of.
+ */
+prop(PropKind.CastleWall, curtainWall());
+prop(PropKind.CastleTower, castleTower());
+prop(PropKind.CastleGate, gatehouse());
+prop(PropKind.CastleKeep, castleKeep());
+
 prop(PropKind.Campfire, [
   ...[0, 1.57, 3.14, 4.71].map((a) => ico(0.18, 0, 0x7a7a7a, [Math.cos(a) * 0.55, 0.12, Math.sin(a) * 0.55])),
   cyl(0.08, 0.08, 0.9, 5, 0x5a3a22, [0, 0.1, 0], [1, 1, 1], [0, 0, Math.PI / 2]),

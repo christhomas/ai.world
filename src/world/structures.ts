@@ -1,5 +1,6 @@
 import { footprintLevel } from './footprint';
 import { GRAPH } from '../core/config';
+import { CASTLE, type Castle } from './castles';
 import { markThePlaces, markTheWay } from './landmarks';
 import { hashOfPlace, type Founding, type Settling } from './settling';
 
@@ -12,6 +13,7 @@ import { SQUARE, facing, placeChapel, placeCivic, type Civic, type SquareSide } 
 
 export type { Stabling } from './paddock';
 export type { Civic } from './civic';
+export type { Castle } from './castles';
 
 export { StructureKind } from './kinds';
 import { mulberry32, shuffle } from '../core/rng';
@@ -44,6 +46,11 @@ export function placeKindName(kind: StructureKind): string {
     case StructureKind.Campfire: return 'camp';
     case StructureKind.Well: return 'well';
     case StructureKind.Pier: return 'pier';
+    case StructureKind.CastleGate: return 'gatehouse';
+    case StructureKind.CastleKeep: return 'keep';
+    case StructureKind.CastleTower: return 'castle tower';
+    case StructureKind.CastleWall: return 'curtain wall';
+    case StructureKind.CastleWard: return 'castle ward';
     default: return 'landmark';
   }
 }
@@ -186,6 +193,8 @@ export interface Structures {
   signposts: Signpost[];
   caves: Site[];
   wrecks: Site[];
+  /** The castles: rare, enormous, and each the mouth of its own anchor. See `castles.ts`. */
+  castles: Castle[];
 }
 
 export const VILLAGES = 16;
@@ -247,6 +256,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
+  const castles: Castle[] = [];
   const doors: Doorway[] = [];
   const usedNames = new Set<string>();
   const sample: TileSample = sampler.newSample();
@@ -607,6 +617,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
   signposts.push(...between.signposts);
   caves.push(...between.caves);
   wrecks.push(...between.wrecks);
+  castles.push(...between.castles);
 
   // --- doorways: every house, shop and chapel can be walked into ---
   for (const v of villages) {
@@ -626,7 +637,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     }
   }
 
-  return { doors, villages, pois, all, piers, signposts, caves, wrecks };
+  return { doors, villages, pois, all, piers, signposts, caves, wrecks, castles };
 }
 
 /** The tile just outside a building's door. */
@@ -646,6 +657,12 @@ export function compassDir(dx: number, dz: number): string {
 export function structureBounds(s: Structure): { minX: number; minZ: number; maxX: number; maxZ: number } {
   let minX = s.tx - s.hw - 1, maxX = s.tx + s.hw + 1, minZ = s.tz - s.hd - 1, maxZ = s.tz + s.hd + 1;
   if (s.kind === StructureKind.Sign || s.kind === StructureKind.Stall) { minX = s.tx; maxX = s.tx; minZ = s.tz; maxZ = s.tz; }
+  // a castle's ward levels an apron outside its own walls, and a chunk that holds only that apron
+  // still has to be handed the ward or the last ring of ground round the castle stays where it was
+  if (s.kind === StructureKind.CastleWard) {
+    const reach = s.hw + CASTLE.APRON + 1;
+    minX = s.tx - reach; maxX = s.tx + reach; minZ = s.tz - reach; maxZ = s.tz + reach;
+  }
   for (const [x, z] of s.path) {
     if (x < minX) minX = x; if (x > maxX) maxX = x;
     if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;

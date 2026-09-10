@@ -68,14 +68,31 @@ export interface PlaceContext {
   cameUp: () => void;
 }
 
-/** A named spot with a way down: a shrine, or a cave mouth. */
-export interface Underground { name: string; x: number; z: number }
+/**
+ * The style of place a floor is, which is the seam between the world above and the world below.
+ *
+ * `dungeon`, `cave` and `thicket` are the three that have always been here. `castle` is the fourth
+ * and behaves exactly as they do — from up here, the gatehouse of a castle is a cave mouth with
+ * better masonry. Everything past `enterDungeon` is `dungeon/`'s business.
+ */
+export type PlaceStyle = 'dungeon' | 'cave' | 'thicket' | 'castle';
+
+/**
+ * A named spot with a way in: a shrine, a cave mouth, or a castle's gatehouse.
+ *
+ * `out` is where you are put when you come back up, and it exists because of the castle. Every
+ * other way underground is a hole a couple of tiles across, so stepping a fixed distance off it
+ * lands you on open ground; a gatehouse is three tiles deep and you go in through its face, so
+ * that same fixed step lands you inside the stonework, which is a thing you cannot walk out of.
+ * Anything that knows better than the default says so here.
+ */
+export interface Underground { name: string; x: number; z: number; out?: [number, number] }
 
 export interface DungeonVisit {
   world: DungeonWorld;
   /** Which floor we are on, and how we got here, so climbing out returns to daylight. */
   floor: number;
-  style: 'dungeon' | 'cave' | 'thicket';
+  style: PlaceStyle;
   anchorId: string;
   scene: DungeonScene;
   renderer: EntityRenderer;
@@ -152,10 +169,29 @@ export class Places {
 
   // --- underground ---
 
-  enterDungeon(poi: Underground, kind: 'dungeon' | 'cave' | 'thicket' = 'dungeon', anchorId = `dungeon:${poi.name}`, floor = 1): void {
+  enterDungeon(poi: Underground, kind: PlaceStyle = 'dungeon', anchorId = `dungeon:${poi.name}`, floor = 1): void {
     const { manifest, state, props, rig, iso, player, overworldRenderer, minimapCanvas } = this.ctx;
-    const anchor = manifest.ensure(anchorId, kind, poi.x, poi.z);
-    const style = kind === 'dungeon' ? 'vault' : kind;
+    /*
+     * A castle's floors hang off a `dungeon` anchor, and the seeds still come out different.
+     *
+     * The manifest's kinds are what salt an anchor's seed, and a castle has no salt of its own —
+     * adding one would mean a new `AnchorKind`, a new entry in the salt table and a new generator
+     * version, all of which belong to the seed tree rather than to this. It does not need one: an
+     * anchor's seed is derived from its *id* as well as its kind, and a castle's id is
+     * `castle:<name>`, which no vault has ever been called.
+     */
+    const anchor = manifest.ensure(anchorId, kind === 'castle' ? 'dungeon' : kind, poi.x, poi.z);
+    /*
+     * What the floor below is made of, handed to `dungeon/`.
+     *
+     * The cast is the seam, and it is deliberate. `DungeonStyle` does not know the word `castle`
+     * yet — that half is being built beside this one — so the value is passed through as the
+     * narrow union the generator currently declares. When `dungeon/generate.ts` learns the word,
+     * this cast becomes a no-op that can be deleted and nothing else here changes. Until then a
+     * castle's rooms are grown by the branch that handles anything that is not a vault, which is a
+     * playable floor rather than a crash.
+     */
+    const style = (kind === 'dungeon' ? 'vault' : kind) as 'vault' | 'cave' | 'thicket';
     const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style);
     world.unlocked = state.keys.has(anchor.id);
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
@@ -178,7 +214,9 @@ export class Places {
     // The world owns a floor when there is a world to own it. Told, it says what lives down here
     // and this spawns nothing; alone, the floor is grown from the same seed the world would have
     // used, which is what keeps a game with no server behind it playing exactly as it did.
-    const told = this.ctx.wentBelow({ place, anchorId, kind, floor, renderer, monsters });
+    // a castle goes over the wire as a dungeon, because that is a word the protocol already knows
+    // and the anchor id is what the world actually grows the floor from
+    const told = this.ctx.wentBelow({ place, anchorId, kind: kind === 'castle' ? 'dungeon' : kind, floor, renderer, monsters });
     monsters.toldWhatLives = told;
     if (!told) {
       monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor);
@@ -190,7 +228,9 @@ export class Places {
     this.underground = { world, floor, style: kind, anchorId, scene, renderer, monsters, map: new DungeonMinimap(minimapCanvas, world.map), poi };
     this.ctx.setCaveAmbience(true);
     const depth = floor > 1 ? ` — floor ${floor}` : '';
-    this.ctx.flash(kind === 'cave' ? `You squeeze into the ${poi.name}` : `You descend into the ${poi.name}${depth}`);
+    this.ctx.flash(kind === 'cave' ? `You squeeze into the ${poi.name}`
+      : kind === 'castle' ? `You pass under the gate of ${poi.name}${depth}`
+      : `You descend into the ${poi.name}${depth}`);
     this.ctx.persist();
   }
 
@@ -204,8 +244,9 @@ export class Places {
     overworldRenderer.add(player.entity);
     this.ctx.heroGear.attachTo(this.ctx.rig.scene);
     player.setWorld(overworld);
-    player.teleport(visit.poi.x + OUT_OF_THE_HOLE, visit.poi.z + 0.5);
-    iso.target.set(visit.poi.x + OUT_OF_THE_HOLE, 0.5, visit.poi.z + 0.5);
+    const [outX, outZ] = visit.poi.out ?? [visit.poi.x + OUT_OF_THE_HOLE, visit.poi.z + 0.5];
+    player.teleport(outX, outZ);
+    iso.target.set(outX, 0.5, outZ);
     iso.limitZoom(CAMERA.MAX_ZOOM);
     this.underground = null;
     this.ctx.cameUp();
