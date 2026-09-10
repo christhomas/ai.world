@@ -67,6 +67,19 @@ export class Player {
     this.placed = false;                 // let the ground be found again under the new spot
   }
 
+  /**
+   * Is there anywhere to stand near this point, in the world he is walking in *now*?
+   *
+   * Asked before a jump, because a jump does not change which world he is in. Teleporting to a
+   * surface coordinate while standing on the third floor of a vault asks that floor whether it has
+   * any ground at 322, 53 — it has not, and it never will — so he arrived nowhere: no ground under
+   * him, `settle` refusing to place him, and the game quietly holding an invisible man in the dark.
+   * A jump that cannot land is better refused with a sentence than taken.
+   */
+  groundNear(x: number, z: number): boolean {
+    return spaceNear(this.world, this.entity.kind, x, z) !== null;
+  }
+
   teleport(x: number, z: number): void {
     this.entity.x = x; this.entity.z = z;
     this.placed = false;

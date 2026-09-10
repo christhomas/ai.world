@@ -151,6 +151,28 @@ export function openConsole(ctx: Consoled) {
    * one that merely contains it — so `teleport silver` finds Silverholm without `teleport
    * silverholm` ever being ambiguous.
    */
+  /**
+   * Both teleports, and the one thing they both have to check first.
+   *
+   * A jump does not change which world the hero is walking in. Asked for a surface coordinate from
+   * the third floor of a vault, it used to hand that floor a point it has no ground at and never
+   * will — so nothing could place him: no floor under his feet, `settle` refusing him every frame,
+   * and the game holding an invisible man in the dark with the console reporting success. Refused
+   * with a sentence instead, which also says what to do about it.
+   */
+  const jumpTo = (x: number, z: number): void => {
+    if (!player.groundNear(x, z)) {
+      const here = placeName();
+      throw new Error(here === 'surface'
+        ? `nothing to stand on at ${Math.round(x)}, ${Math.round(z)}`
+        : `you are inside ${here}, and there is no ${Math.round(x)}, ${Math.round(z)} in here — climb out first`);
+    }
+    beam.leaves(player.entity);
+    player.teleport(x, z);
+    beam.arrives(player.entity);
+    iso.target.set(x, 0.5, z);
+  };
+
   const namedPlace = (like: string): { name: string; kind: string; x: number; z: number } | null => {
     const wanted = like.trim().toLowerCase();
     const all = namedPlaces();
@@ -185,19 +207,13 @@ export function openConsole(ctx: Consoled) {
      * second is the picture. See `render/beam.ts`.
      */
     teleport: (x, z) => {
-      beam.leaves(player.entity);
-      player.teleport(x, z);
-      beam.arrives(player.entity);
-      iso.target.set(x, 0.5, z);
+      jumpTo(x, z);
       online.stood(x, z, 'teleport');
     },
     teleportTo: (place) => {
       const found = namedPlace(place);
       if (!found) throw new Error(`nowhere called ${place} — try: places`);
-      beam.leaves(player.entity);
-      player.teleport(found.x, found.z);
-      beam.arrives(player.entity);
-      iso.target.set(found.x, 0.5, found.z);
+      jumpTo(found.x, found.z);
       // the world moves its own hero to match: a teleport is the one jump nothing else can see
       online.stood(found.x, found.z, 'teleport');
       return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
