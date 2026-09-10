@@ -50,17 +50,43 @@ export interface Street {
 }
 
 /** Villagers on the square (first one is the elder), a congregation by the church, keepers at shop doors. */
+/**
+ * How many of a village's people are out on the street at once.
+ *
+ * It was two to four, whatever the village. A hamlet of two houses and a town of fifteen put the
+ * same crowd on the square, which is wrong in both directions at once: the hamlet is a street party
+ * and the town is deserted. Reported from the small end — "there are sometimes 20 villagers walking
+ * around, but the town has two houses".
+ *
+ * Drawn from what the place has actually built, because that is the one number that says how big it
+ * is: a household is a house, so a village with four houses has four families and perhaps two of
+ * them out at any hour. The bounds either side are what keep it a village rather than a diorama —
+ * never nobody at all, and never a crowd, because everything else about a village square is built
+ * for a handful of people rather than a market day.
+ */
+export function howManyAreOut(houses: number, roll: number): number {
+  const OUT_PER_HOUSE = 0.55;
+  const FEWEST = 1, MOST = 7;
+  // a whole number of people, with the fraction settled by the roll rather than rounded away: three
+  // houses is one or two out depending on the hour, which is what a village looks like
+  const share = Math.max(0, houses) * OUT_PER_HOUSE;
+  const some = Math.floor(share) + (roll < share - Math.floor(share) ? 1 : 0);
+  return Math.max(FEWEST, Math.min(MOST, some));
+}
+
 export function spawnVillageFolk(o: Street, ctx: SpawnCtx): void {
   const CS = WORLD.CHUNK_SIZE;
   const inChunk = (x: number, z: number) => Math.floor(x / CS) === ctx.tiles.cx && Math.floor(z / CS) === ctx.tiles.cz;
   for (const v of o.villages) {
+    // how many of this village are about today, asked once: the street and the church door are two
+    // halves of one crowd rather than two crowds
+    const wanted = howManyAreOut(v.houses.length, ctx.rng());
     if (inChunk(v.x, v.z)) {
       // the register first, because a body is chosen before an entity exists and the trade is
       // what chooses it. The stablehand is the one the register does not name: keeping the horses
       // is a job handed out here rather than a trade somebody is born to
 
       const posts = postsOf(v, o.world);
-      const wanted = 2 + Math.floor(ctx.rng() * 3);
       const residents = o.residentsFor(v, posts, wanted);
       const stabled = o.hasStable(v.name);
       const herd = o.place(ctx, 'villager', [v.x, v.z], wanted, Math.max(8, v.radius * 0.7),
@@ -95,8 +121,22 @@ export function spawnVillageFolk(o: Street, ctx: SpawnCtx): void {
         }
       });
     }
-    if (v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
-      const herd = o.place(ctx, 'villager', [v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5], 3 + Math.floor(ctx.rng() * 2), SPAWN.CONGREGATION_LEASH);
+    /*
+     * And whoever is at the church door — drawn from the same village, not conjured beside it.
+     *
+     * This was three or four bodies at every church in the world, on top of everybody on the
+     * street, and it did not look at the village at all. A hamlet of two houses got a congregation
+     * the size of its entire population and then some; count the doctor, the constable and a
+     * traveller passing through and the square held twenty people for four families. Reported
+     * exactly that way — "there are sometimes 20 villagers walking around, but the town has two
+     * houses".
+     *
+     * Half of what is out on the street, so a church gathers a few of a big village and none at all
+     * of a small one. A hamlet's chapel standing empty is right: there is nobody to spare.
+     */
+    const congregation = Math.min(3, Math.floor(wanted / 2));
+    if (congregation > 0 && v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
+      const herd = o.place(ctx, 'villager', [v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5], congregation, SPAWN.CONGREGATION_LEASH);
       herd.tag = v.name;
       for (const e of herd.members) e.role = 'congregation';
     }

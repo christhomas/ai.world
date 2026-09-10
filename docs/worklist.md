@@ -2504,7 +2504,7 @@ other, and the order is chosen so that each one can be *seen* working before the
 - [x] **3. What a body leaves behind should look like what it is.** A kill drops a brown sphere
       whatever it was: meat, hide and gold are all the same lump. What is on the ground has to match
       what goes into the pack.
-- [ ] **4. A village should hold as many people as it has room for.** Twenty villagers around two
+- [x] **4. A village should hold as many people as it has room for.** Twenty villagers around two
       houses. The population is drawn from the village's size in the graph rather than from what it
       has actually built, so a hamlet gets a crowd.
 - [ ] **5. A roster: every inhabitant, with their health, their name, their family and their purse.**

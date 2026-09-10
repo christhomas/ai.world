@@ -34,6 +34,16 @@ export interface Wilds {
    * generator and this only wants to know which list to spawn from.
    */
   highland: (x: number, z: number) => boolean;
+  /**
+   * How far the nearest village middle is from a point, in tiles.
+   *
+   * Only the travellers ask. A traveller is somebody *between* places, and a chunk with a road
+   * through it is a chunk with a road through it whether or not there is a town on top of it — so
+   * every chunk around a village was rolling for wanderers and the square filled up with them. Six
+   * at Stoneton, on top of its own people, which is most of what "twenty villagers and two houses"
+   * turned out to be.
+   */
+  awayFromVillages: (x: number, z: number) => number;
   /** A herd of a kind's natural size around an anchor. */
   herd: (ctx: SpawnCtx, kindId: string, anchor: [number, number], leash: number) => Herd;
   place: (
@@ -41,6 +51,14 @@ export interface Wilds {
     scatter?: number, bodyFor?: (n: number) => string,
   ) => Herd;
 }
+
+/**
+ * How close to a village a traveller may be put down, in tiles.
+ *
+ * Outside the village and its fields rather than merely outside its houses: a wanderer who appears
+ * at the end of the street has not travelled anywhere, and the point of them is the road.
+ */
+const NOT_AT_A_VILLAGE = 40;
 
 /** Land herds, water herds, whatever hunts after dark, and the odd traveller on the road. */
 export function spawnWildlife(o: Wilds, ctx: SpawnCtx, sorted: SortedTiles): void {
@@ -75,6 +93,11 @@ export function spawnWildlife(o: Wilds, ctx: SpawnCtx, sorted: SortedTiles): voi
     if (hunter) o.herd(ctx, hunter, tileCentre(tiles, sorted.water[Math.floor(rng() * sorted.water.length)]), SPAWN.DEEP_LEASH);
   }
   if (sorted.road.length >= SPAWN.MIN_ROAD_TILES && rng() < SPAWN.TRAVELLER_CHANCE) {
-    o.place(ctx, 'traveller', tileCentre(tiles, sorted.road[Math.floor(rng() * sorted.road.length)]), 1 + Math.floor(rng() * 2), SPAWN.TRAVELLER_LEASH);
+    const on = tileCentre(tiles, sorted.road[Math.floor(rng() * sorted.road.length)]);
+    // the road between places, not the square at the end of it: a village has its own people, and
+    // whoever is passing through can be met on the way in
+    if (o.awayFromVillages(on[0], on[1]) > NOT_AT_A_VILLAGE) {
+      o.place(ctx, 'traveller', on, 1 + Math.floor(rng() * 2), SPAWN.TRAVELLER_LEASH);
+    }
   }
 }

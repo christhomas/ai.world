@@ -1,3 +1,4 @@
+import { howManyAreOut } from './street';
 import { describe, expect, it } from 'vitest';
 import { generateWebGraph } from '../world/roadweb';
 import { TerrainSampler } from '../world/terrain';
@@ -88,5 +89,37 @@ describe('who a village puts in its street', () => {
     expect(fresh.manager.within(fresh.village.x, fresh.village.z, 40).some((e) => e.person === hired),
       'a man in somebody else\'s pay was put back in his own village square')
       .toBe(false);
+  });
+});
+
+/**
+ * How many of a village's people are out at once.
+ *
+ * It used to be two to four whatever the village, so a hamlet of two houses and a town of fifteen
+ * put the same crowd on the square. Reported from the small end: "there are sometimes 20 villagers
+ * walking around, but the town has two houses".
+ */
+describe('the crowd on a village square', () => {
+  it('grows with what the village has built', () => {
+    const at = (houses: number) => howManyAreOut(houses, 0.5);
+    expect(at(2)).toBeLessThan(at(6));
+    expect(at(6)).toBeLessThan(at(14));
+  });
+
+  it('is never nobody, and never a market day', () => {
+    for (const houses of [0, 1, 2, 5, 9, 20, 400]) {
+      for (const roll of [0, 0.25, 0.5, 0.99]) {
+        const out = howManyAreOut(houses, roll);
+        expect(out, `${houses} houses is a ghost town`).toBeGreaterThanOrEqual(1);
+        expect(out, `${houses} houses is a crowd`).toBeLessThanOrEqual(7);
+        expect(Number.isInteger(out), 'half a villager').toBe(true);
+      }
+    }
+  });
+
+  it('settles the fraction with the roll rather than rounding it away', () => {
+    // three houses is one or two out depending on the hour, which is what a village looks like
+    const shy = howManyAreOut(3, 0.9), busy = howManyAreOut(3, 0.1);
+    expect(busy).toBe(shy + 1);
   });
 });

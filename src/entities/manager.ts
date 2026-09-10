@@ -612,6 +612,11 @@ export class EntityManager {
     spawnPaddocks({ villages: this.villages, place: (...a) => this.place(...a) }, ctx);
     spawnWildlife({
       world: this.world, night: this.night, highland: this.highland,
+      awayFromVillages: (x, z) => {
+        let nearest = Infinity;
+        for (const v of this.villages) nearest = Math.min(nearest, Math.hypot(v.x - x, v.z - z));
+        return nearest;
+      },
       herd: (c, kindId, anchor, leash) => this.spawnHerd(c, kindId, anchor, leash),
       place: (...a) => this.place(...a),
     }, ctx, sorted);
