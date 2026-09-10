@@ -144,6 +144,19 @@ export class Online {
   ) {}
 
   get connected(): boolean { return this.status === 'online'; }
+
+  /**
+   * Connected to somebody *else's* world, as against the one in this tab.
+   *
+   * The difference matters to exactly one caller and it matters completely. Every game is now
+   * connected to a world from the moment it opens — playing alone is playing against the same
+   * simulation, hosted in a worker beside the page — so "are we connected" stopped being the
+   * question the join button was asking. It went on asking it, and so the button that joins a
+   * server did nothing but leave the world in this tab and rejoin it: the address was read, and
+   * never used. Two windows, an invite link, both players "online", and neither able to see the
+   * other.
+   */
+  get away(): boolean { return this.connected && !this.local; }
   get count(): number { return this.players.size; }
 
   /**

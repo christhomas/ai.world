@@ -123,6 +123,24 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   font-size: calc(17 * var(--ui-scale)); font-weight: bold; color: #ffd76a;
   letter-spacing: var(--ui-scale);
 }
+/*
+ * The invite link, shown as well as copied.
+ *
+ * Read-only rather than disabled: a disabled field cannot be selected, and selecting it by hand is
+ * the fallback for every browser that refuses the clipboard — which is most of them, on a page that
+ * has not been clicked recently enough for the browser to believe the copy was asked for.
+ */
+.opt-link {
+  width: 100%;
+  margin-top: calc(6 * var(--ui-scale));
+  font-size: calc(11 * var(--ui-scale));
+  color: #cfd6ff;
+  background: rgba(10, 14, 26, 0.75);
+  border: 1px solid rgba(120, 140, 200, 0.35);
+  border-radius: calc(4 * var(--ui-scale));
+  padding: calc(5 * var(--ui-scale)) calc(7 * var(--ui-scale));
+}
+
 #clockDate { margin-left: auto; color: #8f9dc9; }
 /*
  * The world has gone and the game is knocking on its door again.

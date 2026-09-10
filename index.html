@@ -183,6 +183,10 @@
         <button id="connectButton">Join this world online</button>
         <button id="inviteButton">Copy an invite link</button>
       </div>
+      <!-- The link itself, not only a promise that it is on the clipboard. A copy you cannot see is
+           a copy you cannot check, and the first question anybody asks of an invite is what is in
+           it — which server, which seed. Filled by the button; select-all on a click. -->
+      <input type="text" id="inviteLink" class="opt-link" readonly hidden aria-label="Invite link" />
       <p class="opt-note" id="onlineStatus">offline</p>
     </section>
 

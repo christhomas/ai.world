@@ -209,3 +209,42 @@ describe('a connection that drops', () => {
     expect(online.reaching).toBe(true);
   });
 });
+
+/**
+ * Being in somebody else's world, as against the one in this tab.
+ *
+ * Every game is connected from the moment it opens — playing alone is playing against the same
+ * simulation in a worker beside the page — so "are we connected" stopped being a question worth
+ * asking, and the join button went on asking it. It always answered yes, so the button always took
+ * its leave-the-server branch: it read the address, threw it away, and rejoined the local world.
+ * Two windows, an invite link, both players online, and neither able to see the other. This is the
+ * one line that tells the two apart.
+ */
+describe('whose world it is', () => {
+  const welcome = (): ServerMessage =>
+    ({ type: 'welcome', id: 'p1', seed: 3, players: [], clock: { day: 1, time: 0.4 }, deltas: [] });
+
+  it('is this tab\'s when no address was given', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    online.connect('', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
+    world.say(welcome());
+    expect(online.connected).toBe(true);
+    expect(online.away, 'the world in this tab counted as somebody else\'s').toBe(false);
+  });
+
+  it('is somebody else\'s when there is an address', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
+    world.say(welcome());
+    expect(online.away, 'a server was joined and the game did not think it was away').toBe(true);
+  });
+
+  it('is nobody\'s while it is still knocking', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
+    expect(online.away, 'counted as away before the world had answered').toBe(false);
+  });
+});
