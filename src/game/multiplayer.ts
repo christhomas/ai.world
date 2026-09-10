@@ -76,6 +76,14 @@ export interface MultiplayerContext {
   seed: number;
   /** Which world the hero is standing in: the surface, a dungeon floor, or a building. */
   placeName: () => string;
+  /**
+   * How badly the law wants the hero, nought to one.
+   *
+   * Told to the world several times a second, because the constables in its villages are its own and
+   * this is the one thing they need that it has no way of seeing. It stays here as well: the
+   * sentence, the fine and the cell are the player's own book-keeping and always were.
+   */
+  guiltOf: () => number;
   persist: () => void;
   /** Name a place the first time anybody reaches it. */
   discover: (name: string) => void;
@@ -98,6 +106,8 @@ export interface MultiplayerContext {
   onCreatureKilled: (place: string, id: number, mine: boolean) => void;
   /** One of the world's creatures bit us: work out what that costs, the way a bite always did. */
   onBitten: (place: string, id: number, damage: number) => void;
+  /** A constable in one of the world's villages has taken us in; the cell and the hours are ours. */
+  onArrested: (id: number) => void;
   /** The world stopped telling us what lives here, so the game goes back to deciding for itself. */
   onWorldSilent: () => void;
   /** The world has walked our hero: put him where it says, and walk back what it had not seen. */
@@ -155,6 +165,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onCountryGrown: (stamp) => ctx.onCountryGrown(stamp),
     onCreatureKilled: (place, id, mine) => ctx.onCreatureKilled(place, id, mine),
     onBitten: (place, id, damage) => ctx.onBitten(place, id, damage),
+    onArrested: (id) => ctx.onArrested(id),
     onWorldSilent: () => ctx.onWorldSilent(),
     onWhereYouAre: (seq, x, z, y) => ctx.onWhereYouAre(seq, x, z, y),
     onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
@@ -488,6 +499,9 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       x: player.x, z: player.z, yaw: player.entity.yaw, walk: player.entity.walk,
       place: standingIn, riding: carriedBy,
       gear: SLOTS.map((slot) => state.worn(slot)?.id ?? '').filter(Boolean),
+      // and how badly the law wants him. The constables are the world's now and this is theirs to
+      // act on; what being taken in costs is still worked out here, on the save that holds it.
+      guilt: ctx.guiltOf(),
     });
     others.sync(online.players.values(), standingIn);
     others.settle(heightAt);

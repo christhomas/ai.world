@@ -64,7 +64,11 @@ describe('the wire', () => {
   });
 
   it('has a listener for everything the world can say', () => {
-    const listening = heard(['src/game/online.ts']);
+    // `heard.ts` and not `online.ts`: the switch over every kind of message came out of the class
+    // that carries them, for the same reason `server/messages.ts` is not `server/rooms.ts`. Both
+    // are named because the vocabulary is declared in one and a couple of things are still done
+    // about it in the other.
+    const listening = heard(['src/game/heard.ts', 'src/game/online.ts']);
     /*
      * The three the client is allowed to ignore, and why.
      *

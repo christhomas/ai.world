@@ -244,11 +244,10 @@ export function compact(person: Person, day: number): void {
 /**
  * Everybody in a place, at the moment the place is put away.
  *
- * This is the hook a province's unload wants: `SharedWorld.writeProvince` and `keepNear` in
- * `server/world.ts` are where a province stops being anybody's business, and villagers are still
- * client-derived so nothing there holds a `Person` to hand it yet. Call it with whoever lived in
- * the province being written, on the day it was written, and what goes to disk is opinions rather
- * than a history.
+ * The hook a province's unload wants, and it is called now: `keepNear` in `server/world.ts` is
+ * where a province stops being anybody's business, and the world holds the register it settles.
+ * Called with whoever lived in the province being written, on the day it was written, and what goes
+ * to disk is opinions rather than a history.
  */
 export function compactAll(people: Iterable<Person>, day: number): void {
   for (const person of people) compact(person, day);

@@ -15,17 +15,15 @@ export type { TileWorld } from '../world/tiles';
 import type { Body } from '../world/solids';
 import type { TileWorld } from '../world/tiles';
 
-// `keeper` is somebody behind a counter that is not a shop's; `places.ts` says which and why.
-export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'keeper' | 'elder' | 'mount' | 'stablehand';
-
 /** Places a villager's working day sends them, named so a behaviour file can say where. */
 export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods' | 'doctor';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
-// What a creature is doing travels between the halves of the game now, so the wire owns the list
-// and this re-exports it: two lists that must agree are one list with extra steps.
-export type { EntityState } from '../../server/protocol';
-import type { EntityState } from '../../server/protocol';
+// What a creature is doing and what a villager is *for* both travel between the halves of the game
+// now, so the wire owns both lists and this re-exports them: two lists that must agree are one list
+// with extra steps.
+export type { EntityRole, EntityState } from '../../server/protocol';
+import type { EntityRole, EntityState } from '../../server/protocol';
 
 /**
  * The tuning every creature shares, out of `properties/behaviour.json`.

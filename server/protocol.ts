@@ -6,6 +6,8 @@
 
 import type { WorldKind } from '../src/save/store';
 import type { Anchor } from '../src/world/manifest';
+import type { Memory } from '../src/world/people';
+import type { Opinion } from '../src/world/memory';
 
 export const PROTOCOL_VERSION = 17;
 
@@ -213,10 +215,75 @@ export interface CreatureSnap {
   state: EntityState;
   /** Hearts left, for anything that can be fought. */
   hp: number;
+  /**
+   * Who this creature is, when it is somebody rather than something.
+   *
+   * Sent once, when a client is first told about them, and again only when it changes — which for
+   * a villager is a death, a birth, a trade taken up, or something he will not forget. Everything
+   * above this line is different every third of a second and everything in here is the same for
+   * days, so paying for the second at the rate of the first would be most of a villager's cost on
+   * the wire spent saying his name again.
+   */
+  who?: VillagerSnap;
+}
+
+/**
+ * A villager, as the world that owns him describes him.
+ *
+ * The bodies used to be worked out on every client, from the seed and the register of who has
+ * died, and that was honest for as long as a villager had nothing of his own — two clients running
+ * the same arithmetic over the same numbers arrive at the same man. It stopped being honest when he
+ * got a memory: what he thinks of *you* depends on what you did, and what you did happened on your
+ * screen. So the world holds one of him, and this is what it says about him.
+ *
+ * `village` is the herd's tag, which is how a conversation knows which place it is standing in.
+ * `mind` is the whole of what he recalls — the last couple of things themselves, and what they have
+ * added up to. It is small by construction (`LIFE.REMEMBERS` and `MIND.OPINIONS`), which is the
+ * reason `memory.ts` bounds it at all: an unbounded memory is a thing that cannot be sent.
+ */
+export interface VillagerSnap {
+  /** Which villager on the register this is, so a client can look up his family and his purse. */
+  person: string;
+  name: string;
+  trade: string;
+  role: EntityRole;
+  village: string;
+  /**
+   * The trades this village was founded on, as the world read them off the land around it.
+   *
+   * Sent rather than worked out, and it is the one thing here that had to be. A village offers the
+   * trades the country round it will support — a shore only where there is water, heights only where
+   * the ground climbs, a gate only where a road comes in — and that answer depends on how much of
+   * the country the reader has actually grown. The world holds seven chunks round each player and a
+   * page holds a hundred and twenty-one, so the two would read the same village differently, found
+   * it with different trades, and end up with different names on the same people.
+   *
+   * The founding rolls off this list, so a client that founds a village from anything but the list
+   * the world used is holding a different village. It says so.
+   */
+  trades: string[];
+  mind: Mind;
+}
+
+/** What a villager holds: the last couple of things, and what everything has come to. */
+export interface Mind {
+  memories: Memory[];
+  opinions: Opinion[];
 }
 
 /** What a creature is doing. The client draws each of these differently. */
 export type EntityState = 'idle' | 'walk' | 'graze' | 'flee' | 'hop' | 'fly' | 'swim';
+
+/**
+ * What a creature is *for*, which is the difference between a man and a body.
+ *
+ * Here rather than in `entities/entity.ts` for the same reason `EntityState` is: it crosses the
+ * wire now, and two lists that have to agree are one list with extra steps.
+ *
+ * `keeper` is somebody behind a counter that is not a shop's — a clerk, a sergeant, a priest at an
+ * altar; `src/game/places.ts` says which and why.
+ */
+export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | 'keeper' | 'elder' | 'mount' | 'stablehand';
 
 export type ClientMessage =
   /**
@@ -245,7 +312,17 @@ export type ClientMessage =
    * while it is still saying hello and the asking is answered out of memory.
    */
   | { type: 'join'; seed: number; name: string; version: number; day: number; time: number; world: WorldKind; islands?: Anchor[]; x?: number; z?: number }
-  | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
+  /**
+   * `guilt` is how badly the law wants this player, from nought to one.
+   *
+   * Sent because the constables are the world's now and guilt is not: what the hero has done wrong
+   * lives in his own save, which the server has never held and has no business holding. So the one
+   * number a village needs in order to turn a man out into the street is told rather than kept, and
+   * it rides on the message that is already going out several times a second. Left off by a client
+   * that does not send it, which reads as nought — a world where nobody is wanted, which is the
+   * honest answer for a client that never mentions it.
+   */
+  | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[]; guilt?: number }
   /**
    * What the hero was trying to do, rather than where they ended up.
    *
@@ -341,6 +418,33 @@ export type ClientMessage =
    */
   | { type: 'want-chunks'; chunks: Array<[number, number]> }
   /**
+   * Something happened that a villager will not forget, and this is him being told about it.
+   *
+   * The one thing about a villager that no client could ever work out for itself. Who lives where,
+   * what they do and when they die all follow from the seed and a short list of deaths, so every
+   * client already agrees about them — but what a man thinks of *you* depends on what you did, and
+   * what you did happened on your screen and nobody else's. Two clients holding their own answer to
+   * that is two villages, and the one you are standing in is whichever machine you are sitting at.
+   *
+   * So the world keeps the register that holds it. A gift, a rescue, a robbery on the road, a bad
+   * day down a mine: each is a line here, applied to the world's own villager, and it comes back
+   * down to everybody as part of what he is.
+   *
+   * `about` is a name rather than an id, exactly as a memory is: a name still means something after
+   * the person or the place it belonged to is gone, and can never dangle.
+   */
+  | { type: 'recall'; who: string; what: Memory['what']; about: string }
+  /**
+   * A villager has been paid to walk with somebody, or has stopped.
+   *
+   * A hired man leaves the village. He is not one of the world's villagers any more — he goes
+   * indoors with you, down staircases the world has never grown and onto boats it does not know
+   * about, and he follows *you* rather than whichever player the world happened to be thinking
+   * about this tick. So the world takes him off the street and the client that hired him stands one
+   * of its own up in his place, which is the same arrangement a horse and a boat already have.
+   */
+  | { type: 'retain'; who: string; on: boolean }
+  /**
    * Set the world's clock: what day it is, and how far through it.
    *
    * Refused by a world that has other people in it — the time of day is the one thing everybody in
@@ -422,6 +526,15 @@ export type ServerMessage =
    * client says what it was worth — the same division as everywhere else on this wire.
    */
   | { type: 'bitten'; place: string; id: number; damage: number }
+  /**
+   * A constable has laid hands on you, and this is which one.
+   *
+   * The same division as a bite. The world decided it happened — its villages, its constables, its
+   * street — and what being taken in costs is the client's own book-keeping: the hours served, the
+   * fine, the cell to wake up in, none of which the server has ever held. `id` is the creature the
+   * client is already drawing, so it has a name to put on the message.
+   */
+  | { type: 'arrested'; id: number }
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
   /**
    * The country you joined is grown, and this is its fingerprint.
@@ -668,6 +781,32 @@ export function cleanSwing(swing: unknown): { damage: number; sword: boolean } |
   const damage = Math.floor(Number(sent?.damage));
   if (!Number.isFinite(damage) || damage < 1) return null;
   return { damage: clamp(damage, 1, LIMITS.DAMAGE), sword: sent?.sword === true };
+}
+
+/**
+ * The things a villager has a word for. Anything else is not a memory, whatever a client calls it.
+ *
+ * Written out rather than derived from the type, because a type is gone by the time the message
+ * arrives and the whole job of this file is to be the thing that is still there at run time.
+ */
+const RECALLS: ReadonlySet<string> = new Set(['died', 'born', 'saved', 'robbed', 'given', 'feared']);
+
+/**
+ * Guard something a villager is being asked to remember.
+ *
+ * A client says what happened; it does not get to say anything that is not one of the six things
+ * this world knows how to be affected by, and it does not get to hand a village a name the length
+ * of a book. Nothing here checks whether it is *true* — a client claiming to have saved somebody's
+ * life is claiming something the server cannot see and has no way to verify, exactly as it claims
+ * how hard it hit. What it may not do is make the world's state a shape nothing else can read.
+ */
+export function cleanRecall(sent: unknown): { who: string; what: Memory['what']; about: string } | null {
+  const said = sent as { who?: unknown; what?: unknown; about?: unknown } | null | undefined;
+  const who = String(said?.who ?? '').slice(0, LIMITS.THING_ID);
+  const what = String(said?.what ?? '');
+  const about = String(said?.about ?? '').slice(0, LIMITS.VILLAGE);
+  if (!who || !about || !RECALLS.has(what)) return null;
+  return { who, what: what as Memory['what'], about };
 }
 
 /** Guard against a client sending something misshapen. */

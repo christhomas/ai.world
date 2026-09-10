@@ -565,6 +565,83 @@ describe('telling players what is alive near them', () => {
     expect(hers.filter((id) => his.has(id)).length).toBeGreaterThan(hers.length / 2);
   });
 
+  /**
+   * The people of a village, which travel differently from the deer in the field behind them.
+   *
+   * A creature is a position and a kind, and both are different every third of a second. A villager
+   * is also a name, a trade, a village and everything he holds — none of which changes for days. Sent
+   * at the rate of his footsteps he would cost more on the wire than the herd he lives beside and say
+   * nothing new in any of it, so he is described once and then only when something about him is
+   * actually different.
+   */
+  const villagersTold = (who: Pretend): Array<{ id: number; person: string }> =>
+    who.of('creatures').flatMap((m) => m.near)
+      .filter((c) => c.who && c.who.person !== '')
+      .map((c) => ({ id: c.id, person: c.who!.person }));
+
+  it('tells a player who a villager is once, and does not go on repeating his name', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const square = sim.groundOf(3)!.villages[0];
+    walkAbout(rowan, square.x, square.z);
+    tickFor(sim, 3_000);
+
+    const named = villagersTold(rowan);
+    expect(named.length, 'nobody at all was standing in the village square').toBeGreaterThan(0);
+    const times = new Map<number, number>();
+    for (const one of named) times.set(one.id, (times.get(one.id) ?? 0) + 1);
+    expect([...times.values()].filter((n) => n > 1), 'a villager was introduced more than once, so his name and his whole memory are going out at the rate of his footsteps')
+      .toEqual([]);
+
+    // and they were still being drawn the whole time, which is what makes the above a saving rather
+    // than a villager who stopped being described at all
+    const drawn = rowan.of('creatures').flatMap((m) => m.near).filter((c) => times.has(c.id)).length;
+    expect(drawn, 'the villagers were named and then never mentioned again, which is not a saving, it is a bug')
+      .toBeGreaterThan(times.size);
+  });
+
+  it('says his name again the moment something happens to him that he will not forget', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const square = sim.groundOf(3)!.villages[0];
+    walkAbout(rowan, square.x, square.z);
+    tickFor(sim, 2_000);
+    const [first] = villagersTold(rowan);
+    expect(first, 'nobody was standing in the village square').toBeDefined();
+
+    // the whole of C5 in one round trip: a kindness done on this screen, taken by the world, and
+    // handed back to everybody who can see the man it was done to
+    rowan.say({ type: 'recall', who: first.person, what: 'given', about: 'Rowan' });
+    tickFor(sim, 2_000, Date.now() + 3_000);
+    const held = rowan.of('creatures').flatMap((m) => m.near)
+      .filter((c) => c.who?.person === first.person)
+      .at(-1)?.who?.mind;
+    expect(held?.memories[0]?.what, 'the world took the memory and never told anybody the man was holding it').toBe('given');
+    expect(held?.opinions[0]?.who, 'and the view he formed of whoever did it never travelled either').toBe('Rowan');
+  });
+
+  it('takes a villager off its own street when a client reports his death', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const square = sim.groundOf(3)!.villages[0];
+    walkAbout(rowan, square.x, square.z);
+    tickFor(sim, 2_000);
+    const [dead] = villagersTold(rowan);
+    expect(dead, 'nobody was standing in the village square').toBeDefined();
+
+    // a roaming band on somebody's screen, which is the one thing about a village nothing here
+    // could have worked out — and the world holds the book that decides who is put out at the well
+    rowan.say({ type: 'delta', delta: { kind: 'died', who: dead.person, village: '', day: 2 } });
+    tickFor(sim, 4_000, Date.now() + 3_000);
+    const still = rowan.of('creatures').flatMap((m) => m.near)
+      .filter((c) => c.who?.person === dead.person && c.who!.name !== '');
+    // he may be described again for a moment while the street is re-seated, but the man the world
+    // was told is dead must not be somebody it is still handing out as one of the living
+    expect(sim.livesIn(3)!.register!.find(dead.person), 'the world went on holding a man a client had buried')
+      .toBeUndefined();
+    expect(still.every((c) => c.id === still[0].id), 'and it never introduced him again as somebody new').toBe(true);
+  });
+
   it('costs what it was measured to cost, per player per second', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
@@ -577,6 +654,22 @@ describe('telling players what is alive near them', () => {
     // domestic router and a Raspberry Pi can carry a world, so it is written down rather than felt
     expect(messages.length, 'about three a second').toBeGreaterThan(5);
     expect(bytes / 3, 'bytes a second, one player').toBeLessThan(40_000);
+  });
+
+  it('and costs about the same standing in a village, where everybody has a name', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const square = sim.groundOf(3)!.villages[0];
+    walkAbout(rowan, square.x, square.z);
+    tickFor(sim, 3_000);
+
+    const bytes = rowan.of('creatures').reduce((n, m) => n + JSON.stringify(m).length, 0);
+    // The number the whole of C5 is affordable or not on. A villager is a name, a trade, a village,
+    // the list of trades that village was founded on and everything he holds — several times what a
+    // deer costs — and there are twenty of him in a square. Sent at the rate of his footsteps that
+    // would be most of the wire; sent once and then only when he changes, a square full of people
+    // costs about what an empty field does.
+    expect(bytes / 3, 'bytes a second standing in a village square, one player').toBeLessThan(40_000);
   });
 });
 

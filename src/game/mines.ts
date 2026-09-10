@@ -1,4 +1,4 @@
-import { remember, type Person } from '../world/people';
+import { remember, type Person, type Remembering } from '../world/people';
 import {
   MINING, dayUnderground, freshMine, perilAfter, restOvernight, saidOfMine, toldOfMine, type Mine,
 } from './mining';
@@ -168,6 +168,14 @@ export interface MinesJson {
 }
 
 export class Mines {
+  /**
+   * How a bad day at the face reaches the people who hear about it.
+   *
+   * Plain remembering on its own, which is right for a game with no world behind it. Where a world
+   * is holding the villagers it is replaced with one that says so as well, because the men who will
+   * not go back down are the world's men and everybody should meet the same ones.
+   */
+  remembers: Remembering = remember;
   /** Every mine anybody has worked, by anchor id. */
   private readonly mines = new Map<string, Mine>();
   /** And how much of what lived in each has been killed, which is the only number a player owns. */
@@ -379,7 +387,7 @@ export class Mines {
       const folk = [...folkOf(village)]
         .sort((a, b) => Number(b.trade === 'miner') - Number(a.trade === 'miner'));
       for (const person of folk.slice(0, MINES.TOLD)) {
-        remember(person, { what: 'feared', who: working.name, day });
+        this.remembers(person, { what: 'feared', who: working.name, day });
       }
     }
   }

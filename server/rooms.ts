@@ -1,5 +1,6 @@
 import type { Entity } from '../src/entities/entity';
-import type { Blow } from './wildlife';
+import type { Register } from '../src/world/register';
+import type { Blow, Standing } from './wildlife';
 import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
@@ -48,6 +49,16 @@ export interface CreatureOwner {
   /** A blow in an arc in front of somebody: the world works out what it reached. Returns the dead. */
   swung(blow: Blow): number[];
   /**
+   * Who lives in this world's villages, when it has any.
+   *
+   * The roster has no business knowing what a register is either, and it holds this for the same
+   * reason it holds the rest: a message about a villager arrives through it and has to find its way
+   * to whatever is holding him. Null on a dungeon floor, where nothing is anybody's neighbour.
+   */
+  readonly register: Register | null;
+  /** Somebody has paid a villager to walk with them, or has stopped paying. */
+  retain(person: string, on: boolean): void;
+  /**
    * Whoever this world has standing about, so a hero it walks cannot be pushed through them.
    *
    * The client checks the same crowd against the same bodies. A step one of them allows and the
@@ -75,6 +86,32 @@ export interface Client {
    * a deer that has not moved is paying for a fact the client already has.
    */
   seeing: Map<number, string>;
+  /**
+   * And which of them it has been told the *name* of, and everything else that makes one a person.
+   *
+   * Beside `seeing` rather than folded into it because the two change at completely different rates.
+   * Where a creature is standing is different three times a second; who he is is the same for days,
+   * and a villager whose name and whole memory went out at the rate of his footsteps would cost more
+   * on the wire than the herd in the field behind him and say nothing new in any of it.
+   */
+  knows: Map<number, string>;
+  /**
+   * As much of this player as the creatures of a world need, kept rather than made each tick.
+   *
+   * One object per client, refreshed in place: what the world hands back when something happens to
+   * somebody — a wolf's bite, a constable's hand on the shoulder — is this very object, so the
+   * simulation matches it by identity rather than by guessing which player it must have meant.
+   */
+  standing: Standing;
+  /**
+   * How badly the law wants this player, from nought to one.
+   *
+   * Told rather than kept. What a hero has done wrong lives in his own save — the world has never
+   * held a standing, a fine or a sentence, and has no business starting — but the constables in its
+   * villages are its own now, and one number is the whole of what they need in order to come out
+   * into the street. Nought for a client that never mentions it, which is a player nobody is after.
+   */
+  guilt: number;
   /** Ids this client has asked to travel with, so an answer can be trusted. */
   invited: Set<string>;
   /** Ids this client has challenged to a bout, for the same reason. */
@@ -196,6 +233,7 @@ export class Rooms {
   admit(wire: Wire, room: Room, seed: number, name: string): Client {
     const client: Client = {
       wire, seed, lastSeen: Date.now(), offers: new Map(), party: null, seeing: new Map(),
+      knows: new Map(), standing: { x: 0, z: 0, gear: [], guilt: 0 }, guilt: 0,
       invited: new Set(), challenged: new Set(), duel: null, mustered: new Set(), warband: null, swords: 0,
       hero: null, steered: 0, standingIn: 'surface', leftSurfaceAt: null, boat: null,
       presence: { id: `p${this.nextId++}`, name, x: 0, z: 0, yaw: 0, walk: 0, gear: [], place: 'surface', riding: 'foot' },

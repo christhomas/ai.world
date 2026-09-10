@@ -1,6 +1,9 @@
 import { GAMEPLAY } from '../../core/config';
 import { HIRE, quoteFor, wordsFor, type Bargain, type Hires, type Quote, type Terms } from '../hire';
 import { faceFor } from '../talk';
+import { COMPANY } from '../../entities/manager';
+import { bodyForTrade } from '../../entities/trades';
+import { hashString } from '../../core/rng';
 import type { Entity } from '../../entities/entity';
 import type { Surroundings } from './context';
 
@@ -17,7 +20,7 @@ import type { Surroundings } from './context';
  */
 export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
   const {
-    player, state, entities, register, structures, hires, online, dialogue, hud, sound, seed, persist,
+    player, state, entities, register, structures, hires, online, places, dialogue, hud, sound, seed, persist,
   } = ctx;
 
   /**
@@ -131,6 +134,14 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
   };
 
   /**
+   * The bodies this client stands up for the men it has paid, by the id on the register.
+   *
+   * Empty in a game where the villagers are this page's own, which is a game with nothing behind
+   * it: there is a body in the street already and the bargain is pressed onto it.
+   */
+  const company = new Map<string, Entity>();
+
+  /**
    * Put the hired back on the tree they are following.
    *
    * A villager is despawned as soon as you walk far enough off and spawned again later as somebody
@@ -145,6 +156,80 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
       if (own === '') continue;
       e.trade = hires.follows(e.person, own);
     }
+    if (entities.toldWhatLives) keepTheCompany();
+    else disbandTheCompany();
+  };
+
+  /**
+   * Stand up the men this page has hired, where the villagers belong to a world.
+   *
+   * A hired man leaves his village, and that is not a figure of speech — it is the reason this
+   * exists. He follows *you*: indoors, down a staircase into a cellar the world has never grown,
+   * onto a boat it does not know the position of, and past three other players it would have to
+   * choose between if it were the one walking him. None of that is a thing a shared world can do,
+   * and all of it is a thing this page does for the horse and the boat already.
+   *
+   * So the world is told to take him off the street and this page stands one of its own up in his
+   * place — the same man off the same register, wearing the body his trade wears, walking the tree a
+   * bought day gives him. When the bargain ends he is despawned here and the world puts him back
+   * where he came from, which is a village that has been one man short for as long as you had him.
+   */
+  const keepTheCompany = (): void => {
+    // Not while the hero is somewhere they cannot follow him. A hired man walks the country; he does
+    // not come down a staircase or into a shop, and the hero's coordinates in either of those are a
+    // different world's — putting him beside them would drop a soldier into a field at whatever
+    // point of the map a cellar happens to be laid out around.
+    if (places.indoors !== null || places.underground) return;
+    const roster = hires.roster(side());
+    const paid = new Set(roster.map((b) => b.who));
+    for (const [who, body] of [...company]) {
+      if (paid.has(who) && !body.dead && body.dying <= 0) {
+        // and if the hero got somewhere in one step that no walk could cover — a teleport, a
+        // staircase, a landing off a ferry — the man he is paying catches up. Out past earshot he is
+        // frozen along with the rest of the far country, so without this he stands where he was left
+        // for the rest of the game, which is not what being in somebody's pay looks like.
+        if (Math.hypot(body.x - player.x, body.z - player.z) > HIRE.EARSHOT) {
+          body.x = player.entity.x;
+          body.z = player.entity.z;
+        }
+        continue;
+      }
+      entities.despawnEntity(body);
+      company.delete(who);
+      online.retain(who, false);
+    }
+    for (const bargain of roster) {
+      if (company.has(bargain.who)) continue;
+      const person = register.find(bargain.who);
+      if (!person) continue;
+      // where the world is still drawing him, if it is, so he does not blink across the square on
+      // the way into your pay; beside the hero otherwise, which is where somebody you hired belongs
+      const drawn = entities.within(player.x, player.z, HIRE.EARSHOT).find((e) => e.person === bargain.who);
+      const at = drawn ?? player.entity;
+      const [stood] = entities.spawnPack(
+        bodyForTrade(person.trade), at.x, at.z, 0, seed ^ hashString(bargain.who), COMPANY, 1,
+      );
+      if (!stood) continue;
+      stood.person = person.id;
+      stood.name = person.name;
+      stood.role = 'villager';
+      stood.trade = HIRE.TREE;
+      stood.herd.tag = person.village;
+      company.set(bargain.who, stood);
+      online.retain(bargain.who, true);
+    }
+  };
+
+  /**
+   * The world has stopped talking, so the villages are this page's own again.
+   *
+   * The men in your pay go back to being what they were before there was anything to tell: whoever
+   * the street happens to be showing, with the bargain pressed onto him by `muster` above. Nothing
+   * is said to anybody, because there is nobody to say it to — that is what the silence means.
+   */
+  const disbandTheCompany = (): void => {
+    for (const body of company.values()) entities.despawnEntity(body);
+    company.clear();
   };
 
   /**

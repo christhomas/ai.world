@@ -3,7 +3,8 @@ import { Entity, Herd } from '../entities/entity';
 import type { EntityRenderer } from '../entities/pool';
 import type { EntityManager } from '../entities/manager';
 import { mulberry32 } from '../core/rng';
-import type { CreatureSnap } from '../../server/protocol';
+import type { Register } from '../world/register';
+import type { CreatureSnap, VillagerSnap } from '../../server/protocol';
 
 /**
  * The creatures the world says are there, drawn.
@@ -98,6 +99,25 @@ const FASTEST_GUESS = 1.4;
 /** How close a creature has to be before being drawn in the wrong place matters, in tiles. */
 const CLOSE = 8;
 
+/**
+ * The book of who lives where, on this side, and how to open a village in it.
+ *
+ * Both halves keep one and both grow it the same way, which is what lets a villager cross the wire
+ * as an id: the man the world means is already on this page, with his family, his neighbours and
+ * his purse, and all that has to travel is the part nobody could have worked out.
+ */
+export interface TheBook {
+  register: Register;
+  /**
+   * Found this village, if it is not open yet, on the trades the world founded it on.
+   *
+   * Handed in rather than done here because it takes a `Village` — how many houses it has — and
+   * this file has no business knowing what a village is. `Register.settle` is safe to call every
+   * time: the second call hands back the people the first one made.
+   */
+  settle: (village: string, trades: string[]) => void;
+}
+
 export class Wildlife {
   private readonly bodies = new Map<number, Entity>();
   /**
@@ -130,7 +150,20 @@ export class Wildlife {
    * swing, a hunt, an arrow, the console's `entities` — finds them like any other. What they do is
    * still decided by the world.
    */
-  constructor(private readonly renderer: EntityRenderer, manager: EntityManager) {
+  constructor(
+    private readonly renderer: EntityRenderer,
+    manager: EntityManager,
+    /**
+     * Who lives in the villages, on this side.
+     *
+     * The same book the world holds: both are grown from the same seed and lived forward through
+     * the same deaths, so everything about a villager already agrees except the one part that was
+     * never derivable — what he holds about *you*, which happened on one screen. That part arrives
+     * with him and is written in here, so a conversation reads it out of the register exactly where
+     * it always did and nothing above this file learns that the man is somebody else's.
+     */
+    private readonly book: TheBook | null = null,
+  ) {
     // Everything that asks the manager what is nearby finds these too: a swing, an arrow, a hunt,
     // the console. What they do is still decided by the world that owns them.
     //
@@ -184,6 +217,7 @@ export class Wildlife {
       body.state = snap.state;
       body.walk = snap.walk;
       body.hp = snap.hp;
+      if (snap.who) this.thisIsWho(body, snap.who);
       this.wanted.set(snap.id, this.told(body, snap));
     }
     for (const id of gone) {
@@ -233,6 +267,35 @@ export class Wildlife {
 
   /** The creature the world calls by this number, if it is on our screen. */
   find(id: number): Entity | null { return this.bodies.get(id) ?? null; }
+
+  /**
+   * A creature the world says is somebody: put his name on him, and what he holds back in the book.
+   *
+   * Two halves, and they go to two different places on purpose. What makes him a body somebody can
+   * walk up to and talk to — his name, his trade, his part in the village, which village — goes on
+   * the entity, because that is what everything from the dialogue box to the hire menu reads. What
+   * he *recalls* goes into the register, because that is where a conversation looks for it and
+   * because it belongs to the man rather than to the body standing in the street: he is despawned
+   * every time you walk out of the village and stood up again when you come back, and a memory kept
+   * on the body would last exactly that long.
+   *
+   * Arriving late is safe. A villager the register has not settled yet is simply not found, and the
+   * next snapshot that mentions him tries again — the world re-sends this whenever what it holds
+   * about him changes, which includes the first time it ever mentions him to this client.
+   */
+  private thisIsWho(body: Entity, who: VillagerSnap): void {
+    body.person = who.person;
+    body.name = who.name;
+    body.trade = who.trade;
+    body.role = who.role;
+    body.herd.tag = who.village;
+    if (who.person === '' || !this.book) return;
+    // the village first, and founded on the world's own list of trades rather than on one read off
+    // whatever country this page happens to have grown: a village founded on a different list is a
+    // different village, with different names on the same people
+    if (who.village !== '') this.book.settle(who.village, who.trades);
+    this.book.register.told(who.person, who.mind);
+  }
 
   /**
    * What the world said about a creature, and how fast that says it is moving.

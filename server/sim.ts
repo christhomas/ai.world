@@ -1,7 +1,7 @@
 import { handle } from './messages';
 import {
   LIMITS, PROTOCOL_VERSION, cleanIslands, cleanName, islandsSaidPlainly,
-  type ClientMessage, type CreatureSnap, type ServerMessage,
+  type ClientMessage, type CreatureSnap, type ServerMessage, type WorldDelta,
 } from './protocol';
 import { Rooms, type Client, type Room, type Wire } from './rooms';
 import type { Vault } from './vault';
@@ -11,7 +11,9 @@ import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
 import { BLOCKS_WALKING } from '../src/world/biomes';
-import { Wildlife } from './wildlife';
+import { Wildlife, type Standing } from './wildlife';
+import type { Entity } from '../src/entities/entity';
+import { peopleOf } from './people';
 import { countryStamp, growWorld } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
 import type { WorldKind } from '../src/save/store';
@@ -192,11 +194,31 @@ export class Simulation {
     this.stamps.set(seed, countryStamp(graph));
     const grown = new GroundWorld(sampler, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
-    // Animals only. The people of a village are worked out from the seed and the register of who
-    // has died, so every client already agrees about them without being told — and a villager the
-    // server owned would be one the player could not talk to, because a conversation is a thing the
-    // client holds. What players disagree about is the wildlife, so that is what moves across.
-    const alive = new Wildlife(seed, grown, grown);
+    // The people too, now. They were held back for a long time on the argument that a village is the
+    // seed and the register and every client already agrees about it — which was true until a
+    // villager was given something of his own to remember, and then it was two men of the same name
+    // holding two different views of you. `server/people.ts` says how one is assembled.
+    const folk = peopleOf(seed, sampler, Math.floor(room?.world.clock.day ?? 1), {
+      onFallen: (who, id) => this.buried(seed, who, id),
+      onArrest: (by, whom) => this.tellOfArrest(seed, by, whom),
+    });
+    const alive = new Wildlife(seed, grown, grown, folk);
+    // and the book goes to the world, which is the one thing that knows when a place has stopped
+    // being anybody's business — the moment ten slights are worth settling into one opinion
+    room?.world.keepsTheRegister(folk.register);
+    // Everybody this world has already buried, before anybody is put in a street.
+    //
+    // A death is the one fact about a village that cannot be worked out, so it has always been kept
+    // in the world's log; the book is new here and has to be caught up with it, or a world reopened
+    // after a hard winter stands its dead back up at the well. Applied rather than buried, because
+    // these are deaths on days already gone and the register knows how to live a village again with
+    // one in its right place.
+    for (const delta of room?.world.log ?? []) {
+      if (delta.kind !== 'died') continue;
+      folk.register.apply({
+        kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
+      });
+    }
     // C2's coarse tier, joined up. A herd belongs to the province its home is in and never to the
     // one it is standing in (`provinceOfHome`, which is C3's whole rule); a province knows how long
     // it was nobody's business because it was stamped on the way out and read back on the way in
@@ -310,6 +332,11 @@ export class Simulation {
       }
 
       room.world.tick(seconds);
+      // The book catches up before anybody walks a villager anywhere. A day turning over buries the
+      // old, fills the gaps, grows the children up and pays everybody for a day's work, and the
+      // street is brought back into line with it on the next step — so the order is the register
+      // first and the people second, exactly as it is on a client.
+      this.wildlife.get(seed)?.register?.advance(room.world.clock.day);
       if (room.world.sweepStalls()) this.rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
       // who is where. A world is several worlds at once — the country, and a floor under every
       // staircase somebody is standing on — and each of them is stepped for the people in it.
@@ -374,16 +401,68 @@ export class Simulation {
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
   ): void {
+    // Each of them as much of a player as the creatures need: where, what they are wearing, and how
+    // badly the law wants them. The object is the client's own and is refreshed rather than remade,
+    // so anything the world says happened to one of these — a bite, an arrest — can be handed back
+    // as the very object it was about and matched by identity rather than by guessing.
+    const standing = who.map((c) => {
+      c.standing.x = c.presence.x;
+      c.standing.z = c.presence.z;
+      c.standing.gear = c.presence.gear;
+      c.standing.guilt = c.guilt;
+      return c.standing;
+    });
     // told rather than taken: hearts live in a player's own save, so the world says a wolf bit you
     // and how hard, and your own game works out what your guard was worth and which way it threw you
-    for (const bite of alive.step(dt, who.map((c) => c.presence), time)) {
-      const bitten = who.find((c) => c.presence === bite.who);
+    for (const bite of alive.step(dt, standing, time)) {
+      const bitten = who.find((c) => c.standing === bite.who);
       if (bitten) this.rooms.send(bitten, { type: 'bitten', place, id: bite.id, damage: bite.damage });
     }
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
     if (tell) this.tellAboutCreatures(alive, place, who, null);
     this.tellAboutCreatures(alive, place, who, CLOSE_ENOUGH_TO_FIGHT);
+  }
+
+  /**
+   * Somebody who lived in one of this world's villages has been killed by something.
+   *
+   * The one fact about a village that nothing could have worked out for itself, which is why it has
+   * always been the one fact that travelled. It used to be reported by whichever client happened to
+   * be watching; the villagers are the world's now, so it starts here — the book loses him, the log
+   * of what has changed carries him, and every client applies the same death on the same day and
+   * ends up holding the same village.
+   *
+   * They are told twice on purpose, and the two say different things. The delta is that he is off
+   * the register for good. The `killed` is that a body fell here, which is what leaves a pack in the
+   * grass and puts a line on the screen of whoever was near enough to hear it — and those are
+   * decided by each player's own save, which the world has never held.
+   */
+  private buried(seed: number, who: Entity, id: number): void {
+    const room = this.rooms.get(seed);
+    if (!room || who.person === '') return;
+    const day = Math.floor(room.world.clock.day);
+    this.wildlife.get(seed)?.register?.bury(who.person, day);
+    const delta: WorldDelta = { kind: 'died', who: who.person, village: who.herd.tag, day };
+    room.world.apply(delta);
+    this.rooms.broadcast(seed, { type: 'delta', delta, from: '' });
+    this.rooms.broadcast(seed, { type: 'killed', place: 'surface', id, by: '' });
+  }
+
+  /**
+   * A constable has laid hands on one of the players.
+   *
+   * Only the man it happened to is told, and only that it happened: how long he is held, what it
+   * costs him and which cell he wakes in are his own game's arithmetic, on his own save, exactly as
+   * a bite is. The constable travels as the number the client is already drawing him under, so it
+   * has a name to put in the sentence.
+   */
+  private tellOfArrest(seed: number, by: number, whom: Standing): void {
+    const room = this.rooms.get(seed);
+    if (!room) return;
+    for (const client of room.clients) {
+      if (client.standing === whom) { this.rooms.send(client, { type: 'arrested', id: by }); return; }
+    }
   }
 
   /**
@@ -422,7 +501,18 @@ export class Simulation {
         // what a client would draw differently: where it is, which way it faces, what it is doing
         const shape = `${c.x},${c.z},${c.y},${c.yaw},${c.walk},${c.state},${c.hp}`;
         now.set(c.id, shape);
-        if (client.seeing.get(c.id) !== shape) changed.push(c);
+        // And who he is, for the few of them who are anybody. It changes on a scale of days — a
+        // trade taken up, a face swapped in when somebody dies in the night, something he will not
+        // forget — while everything above changes three times a second, so it is sent when it is new
+        // to this client and taken off again when it is not. A villager who cost his name and his
+        // whole memory on the wire every third of a second would cost more than the herd he lives
+        // beside, and say nothing.
+        if (c.who) {
+          const told = JSON.stringify(c.who);
+          if (client.knows.get(c.id) === told) delete c.who;
+          else client.knows.set(c.id, told);
+        }
+        if (client.seeing.get(c.id) !== shape || c.who) changed.push(c);
       }
       if (within !== null) {
         // a partial view: correct what it covers and leave the rest of what this client is seeing
@@ -432,6 +522,9 @@ export class Simulation {
       }
       const gone: number[] = [];
       for (const id of client.seeing.keys()) if (!now.has(id)) gone.push(id);
+      // and whoever has gone is forgotten as a person too, so that walking back into a village is
+      // being told who is standing in it rather than being handed bodies with no names on them
+      for (const id of gone) client.knows.delete(id);
       client.seeing = now;
       if (changed.length === 0 && gone.length === 0) continue;
       this.rooms.send(client, { type: 'creatures', place, near: changed, gone });
