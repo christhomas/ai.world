@@ -1463,38 +1463,40 @@ happened three times in one night (the economy flatlined for want of anybody loo
 worked by nobody you can see, a villager's memories were evicted before they became an opinion), so
 it is worth its own heading rather than being fixed one case at a time.
 
-- [x] **An audit: every simulated system, and whether you can see it.** Done, and the pattern is
-      sharper than expected. What decides whether a system is visible is not its size or its age but
-      **whether anything a player looks at imports it**:
+- [x] **An audit: every simulated system, and whether you can see it.** Done twice, and the second
+      time honestly. The first pass asked which systems are imported by `render/`, `ui/` or `frame.ts`
+      and concluded that fifteen hundred lines of simulation reach nobody. **That was wrong**, and
+      the way it was wrong is worth keeping: it missed `watch.ts`, which stands things up in the
+      world as you approach them; `meeting.ts`, which is what a person says to you; and the whole of
+      `game/interact/`, which is the player's own verbs. A system reaching those is a system you can
+      meet, and I had counted them as dark.
 
-      | system | lines | reaches the screen? |
+      What the second pass says:
+
+      | system | lines | how a player meets it |
       |---|---|---|
-      | farming | 115 | yes — `render/crops.ts` draws the crop, `frame.ts` reads it |
-      | sailing | 217 | yes — `ui/readouts.ts` and `frame.ts` |
-      | camp | 134 | yes — `render/wildcamps.ts` |
-      | fishing | 77 | only through `frame.ts` |
-      | nemesis | 653 | **no** — probes only, which is to say agents but not players |
-      | warband | 403 | **no** — probes only |
-      | rescue | 475 | **no** — nothing at all |
-      | gifts | 363 | **no** — nothing at all |
-      | brewing | 193 | **no** — one reader, `interact/herbs.ts`, and nothing draws it |
-      | digging | 127 | **no** — one reader, `interact/wild.ts`, and nothing draws it |
+      | nemesis | 653 | `watch.ts` stands him up, `interact/nemesis.ts` is what you do about him |
+      | rescue | 475 | `interact/rescue.ts` — a village asks and you answer |
+      | gifts | 363 | `meeting.ts` and `interact/gifts.ts` — you hand somebody a thing |
+      | sailing | 217 | eleven readers, `ui/readouts.ts` among them: the best-served system here |
+      | brewing | 193 | **one reader**, `interact/herbs.ts` |
+      | digging | 127 | **one reader**, `interact/wild.ts` |
+      | warband | 403 | not the roaming bands at all — a player-versus-player contest with hired men |
 
-      *Fifteen hundred lines of simulation — a nemesis who moves about the country every fortnight
-      taking people, warbands that press on villages, rescues that empty a place night by night, and
-      the gifts that decide what a village thinks of you — reach nothing a player can see. The two
-      that reach `probes.ts` and no further are the sharpest case: an agent investigating this world
-      can watch Old Nettle move and a player cannot.*
-- [ ] **Draw the nemesis and the warbands first.** They are the two largest dark systems, they
-      already have a place to be drawn (both are on the map's own coordinates, and `roaming.ts`
-      hands back where a band stands on a given day), and they are the two a player would most want
-      to come across — a band on the road is the reason to take the other road.
-- [ ] **Then the rescue and the gifts**, which are about a village rather than the country, and
-      want a village to look different rather than a thing to appear on a road.
-- [ ] **Brewing and digging are one-reader systems**, reachable only by standing in the right place
-      with the right tool. They are not invisible so much as unadvertised: nothing tells you a
-      hillside is worth digging or that a patch of herbs is a draught. Cheapest of the lot to fix and
-      the most likely to be found by accident once fixed.
+      *Two real findings survive. `brewing` and `digging` have exactly one way in each: stand in the
+      right place holding the right tool. Nothing in the world advertises either — no hillside looks
+      worth digging, no patch of herbs looks like a draught — so they are not invisible so much as
+      undiscoverable, and a player could finish the game without learning they exist.*
+
+      *And the method is the lesson. "What draws it" is the wrong question in a game where most of
+      what you meet is stood up by a watcher or spoken by a person. The right one is "what path does
+      a player have to it", and it has to be asked of the verbs as well as of the renderer. The mine
+      was a true finding — `crews.ts` did not exist and nothing put anybody underground — but it was
+      found by walking into a mine, not by grepping, and that is the difference.*
+- [ ] **Advertise brewing and digging.** Both are one-reader systems reachable only by standing in
+      the right place with the right tool. Cheapest things on this list to make discoverable and the
+      most likely to be found by accident once they are: a seam that shows in a hillside, a herb
+      patch that reads as a herb patch.
 ## The mine, with people in it — September 10th
 
 - [x] **Nobody is ever digging.** `mines.ts` has worked every village's hole every day since it was
