@@ -1493,24 +1493,18 @@ it is worth its own heading rather than being fixed one case at a time.
       a player have to it", and it has to be asked of the verbs as well as of the renderer. The mine
       was a true finding — `crews.ts` did not exist and nothing put anybody underground — but it was
       found by walking into a mine, not by grepping, and that is the difference.*
-- [ ] **Advertise brewing and digging.** Both are one-reader systems reachable only by standing in
-      the right place with the right tool, and nothing in the world says so — a player can dig a
-      hundred holes in ordinary dirt and finish without learning either exists.
-
-      *Tried and backed out once, and the reason is worth keeping. A tile that grew nothing of its
-      own can show what it is hiding: a flower or a mushroom where herbs grow, a stone at the
-      surface where there is metal under it. That works and it is the right idea. What it needs
-      first is a layer move — `rollProp` lives in `world/` and `herbAt`/`seamAt` live in `game/`,
-      so asking the ground what it holds points the dependency backwards and the architecture test
-      says so.*
-
-      *The fix is not to relax the rule but to notice the rule is right: **what a piece of ground
-      holds is a fact about the world**, exactly like whether it grows a tree, and those two
-      functions are in `game/` for historical reasons rather than good ones. Move the ground half of
-      each — `seamAt`, `richness`, `groundOf`, `Ground`, `SEAM` and `herbAt`, `plenty`, `patchOf`,
-      `Patch`, `GROWTH` — down into `world/`, leave the recipes and the spade in `game/`, and the
-      sign becomes three lines that break nothing. It will also move the golden fingerprint, which
-      is correct: the world will have different things growing on it.*
+- [x] **Advertise brewing and digging.** A tile that grows nothing of its own now shows what it is
+      hiding: a flower or a mushroom where herbs grow, a stone at the surface where there is metal
+      under it. *(Two things had to happen first. The ground half of both systems moved down to
+      `world/seams.ts` — what a piece of ground holds is a fact about the world, exactly like whether
+      it grows a tree, and `digging.ts` had said so in its own opening comment for as long as it has
+      existed; the spade, the mortar and the recipes stayed in `game/`. Then the threshold, which was
+      walked into from both ends: at 0.3 nothing qualifies and the sign silently does nothing — the
+      stones left are the ones the biome grows as scenery, which is how the first attempt looked as
+      though it worked — and at 0.05 every tile that takes a spade is marked, 901 stones in eleven
+      thousand tiles, which is a scree slope. In between it is very nearly a yes-or-no question about
+      the country, because `rise` is `level - base` and those are equal on anything that is not a
+      slope.)*
 ## The mine, with people in it — September 10th
 
 - [x] **Nobody is ever digging.** `mines.ts` has worked every village's hole every day since it was

@@ -1,65 +1,13 @@
-import { hash3, mulberry32 } from '../core/rng';
-import { SALT } from '../core/salts';
-import { Biome } from '../world/biomes';
-import { TileType, type TileSample } from '../world/terrain';
+import { BREW, herbAt, patchOf, plenty, type Patch } from '../world/seams';
 import type { GameState } from './state';
 
-/**
- * Herbs: where the leaf grows, and what a mortar makes of it.
- *
- * Whether a tile is holding a herb is rolled from the world seed and the tile's own coordinates,
- * exactly as a buried seam is, so two players kneeling on the same river bank find the same plant
- * and nothing has to travel between them. Damp ground and woodland are generous with it; the
- * dunes and the bare highland rock very nearly are not.
- *
- * The decision worth explaining is that a picked patch comes back. A seam is spent for good
- * because the metal has been carried away, but a plant is not, and a country where every herb you
- * need is somewhere you have already been is a country that quietly runs out of medicine. So a
- * picking is remembered by the day it happened rather than for ever: the ground is bare for a few
- * days, and then it is not.
- */
+/** One tile, as the map of picked patches keys them. */
+const key = (tx: number, tz: number): string => `${Math.floor(tx)},${Math.floor(tz)}`;
 
-export const BREW = {
-  /** Share of ordinary meadow holding a herb. Most ground is only grass. */
-  BASE: 0.06,
-  /** A river bank or a lake shore multiplies it: damp is the ground the leaf actually wants. */
-  DAMP: 2.2,
-  /** No ground is ever better than this, however wet and shaded it gets. */
-  RICHEST: 0.5,
-  /** Of the patches that grow at all, this share is worth two leaves rather than one. */
-  HANDFUL: 0.25,
-  /** Days before a picked patch has grown back. Short enough to walk a circuit of them. */
-  REGROW: 3,
-  /**
-   * Patches one sitting remembers picking. Past it the oldest is forgotten and comes back early,
-   * which is the cheaper mistake: the alternative is a set that grows for as long as you walk.
-   */
-  PICKED: 512,
-} as const;
+// Where a leaf grows is a fact about the world and lives there; this is the mortar and the recipes.
+export { BREW, herbAt, patchOf, plenty } from '../world/seams';
+export type { Patch } from '../world/seams';
 
-/**
- * How much better than meadow each country is for herbs. The wood and the marsh keep the damp and
- * the shade the leaf lives on; the dunes and the high rock keep neither, and it shows.
- */
-const GROWTH: Record<Biome, number> = {
-  [Biome.Plains]: 1,
-  [Biome.Forest]: 1.8,
-  [Biome.Desert]: 0.12,
-  [Biome.Swamp]: 2.1,
-  [Biome.Mountain]: 0.2,
-  [Biome.Snow]: 0.35,
-};
-
-/** What growing cares about at a tile: the country, whether it is damp, and whether roots take. */
-export interface Patch {
-  biome: Biome;
-  /** A bank or a shore, which is where the ground stays wet between one rain and the next. */
-  damp: boolean;
-  /** Ground a plant can root in: bare earth and sand, never rock, road, deck, floor or water. */
-  rooted: boolean;
-}
-
-/** What a mortar turns one heap of things into. */
 export interface Recipe {
   id: string;
   name: string;
@@ -99,39 +47,22 @@ export const RECIPE: Record<string, Recipe> = Object.fromEntries(RECIPES.map((r)
 /** As much of a rucksack as brewing needs to see. */
 export type Pack = Pick<GameState, 'count' | 'take' | 'give'>;
 
-/** Tiles a plant roots in: bare earth and sand, never bare rock, water, road, deck or floor. */
-function rootsIn(type: TileType): boolean {
-  return type === TileType.Ground || type === TileType.GroundAlt || type === TileType.Sand;
-}
-
-const key = (tx: number, tz: number): string => `${Math.floor(tx)},${Math.floor(tz)}`;
-
-/** Read a sampled tile the way somebody looking for a leaf reads it. */
-export function patchOf(tile: Pick<TileSample, 'type' | 'biome' | 'bank'>): Patch {
-  return { biome: tile.biome, damp: tile.bank, rooted: rootsIn(tile.type) };
-}
-
-/** How likely this ground is to be growing anything, 0 where nothing roots. */
-export function plenty(patch: Patch): number {
-  if (!patch.rooted) return 0;
-  return Math.min(BREW.RICHEST, BREW.BASE * GROWTH[patch.biome] * (patch.damp ? BREW.DAMP : 1));
-}
 
 /**
- * How many leaves one tile is holding, 0 for most of the country. Pure in (seed, tile), so the
- * same bank answers the same way on every machine and for the life of the world.
+ * Herbs: where the leaf grows, and what a mortar makes of it.
+ *
+ * Whether a tile is holding a herb is rolled from the world seed and the tile's own coordinates,
+ * exactly as a buried seam is, so two players kneeling on the same river bank find the same plant
+ * and nothing has to travel between them. Damp ground and woodland are generous with it; the
+ * dunes and the bare highland rock very nearly are not.
+ *
+ * The decision worth explaining is that a picked patch comes back. A seam is spent for good
+ * because the metal has been carried away, but a plant is not, and a country where every herb you
+ * need is somewhere you have already been is a country that quietly runs out of medicine. So a
+ * picking is remembered by the day it happened rather than for ever: the ground is bare for a few
+ * days, and then it is not.
  */
-export function herbAt(seed: number, tx: number, tz: number, patch: Patch): number {
-  const chance = plenty(patch);
-  if (chance <= 0) return 0;
-  const roll = mulberry32(hash3(seed, Math.floor(tx), Math.floor(tz), SALT.HERBS));
-  if (roll() >= chance) return 0;
-  // the country decides how often a patch is there at all; how much of it there is, is the luck
-  // of the particular square of ground
-  return roll() < BREW.HANDFUL ? 2 : 1;
-}
 
-/** What a recipe still wants, by item, and how many short you are. Empty when you could grind now. */
 export function missing(recipe: Recipe, pack: Pack): Array<{ id: string; short: number }> {
   const out: Array<{ id: string; short: number }> = [];
   for (const [id, need] of Object.entries(recipe.needs)) {

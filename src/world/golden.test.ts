@@ -85,6 +85,6 @@ describe('generation fingerprint', () => {
 });
 
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'a71b2653', chunks: '3b4f149c', quests: '07c8c2d8' },
-  2: { graph: 'e006116b', hydro: '7fa41781', structures: '54a0557f', chunks: 'f7bb9f69', quests: '2fa87fd6' },
+  1: { graph: 'cee2dffc', hydro: '008cbfe6', structures: 'a71b2653', chunks: '50e695f6', quests: '07c8c2d8' },
+  2: { graph: 'e006116b', hydro: '7fa41781', structures: '54a0557f', chunks: '191ff6e9', quests: '2fa87fd6' },
 };
