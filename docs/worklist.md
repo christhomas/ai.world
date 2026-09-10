@@ -1626,13 +1626,13 @@ is a file rather than a pull request.
 - [x] **A miner**, with a yellow hard hat like a construction worker, and a pickaxe in his hands.
       *(Half done: `pick` now has a model and `HeroGear` can draw a tool in a hand, which it never
       could before — a tool has no equipment slot and deliberately so. What is left is the man.)*
-- [ ] **The one line that puts these people in the street.** The seven models exist and nothing
-      spawns them: `manager.ts` places every villager as `KINDS.villager` and hands out trades
-      *after*, so the kind cannot yet be chosen from the trade. `Entity.kind` is readonly and the
-      renderer pools by kind, so this is not a swap after the fact — it wants the resident's trade
-      read before `place()` is called, which is a few lines in `spawnVillageFolk`. Left undone
-      deliberately: `manager.ts` was another agent's territory tonight and is one line under the
-      700-line cap.
+- [x] **The seven models are in the street.** *(Not one line, in the end. Every villager spawned as
+      one kind and was handed a trade afterwards, and `Entity.kind` is readonly with the renderer
+      pooling by it — so a body cannot be changed after the fact, it has to be chosen before the
+      entity exists. The register is asked first now and its answer picks the body. Seen in
+      Stonemere: a cowboy by the stalls, a farmer beside him, ordinary villagers around them.
+      `manager.ts` had to pay for it, so the paddocks moved to `paddocks.ts` — a real seam, since
+      nothing about what a village keeps in its yard asks about wildlife or chunks.)*
 - [ ] **Swing a pickaxe.** `animations/motion.json` already has a `swing` blow, so the motion exists;
       what does not is a villager at a rock face using it as work rather than as a fight.
 - [x] **A farmer**, and a cowboy for the farmer who keeps the stable.

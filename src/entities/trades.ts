@@ -88,3 +88,26 @@ export function pickTrade(posts: Partial<Record<Post, [number, number]>>, rng: R
 export function tradeNamed(id: string): Trade | undefined {
   return TRADES.find((trade) => trade.id === id);
 }
+
+/**
+ * Which body a trade is drawn with.
+ *
+ * A village was eleven trades and one body, so the whole working day of the place — a farmer out to
+ * his field at dawn, a constable called when somebody is robbed, a miner up to the high ground —
+ * was invisible from three paces. Seven of them have a shape of their own now, and the rule
+ * throughout is that the silhouette carries it rather than the colour: at the distance this camera
+ * watches a street from, a hat is legible and a shirt is not.
+ *
+ * The four that are not here are not oversights. A seller, a hunter, a soldier and an explorer look
+ * like villagers because that is what they are — a hat apiece would be seven hats in a village of
+ * five people, and a crowd where everybody is marked is a crowd where nobody is.
+ */
+const BODIES: Record<string, string> = {
+  miner: 'miner', farmer: 'farmer', doctor: 'doctor',
+  constable: 'constable', priest: 'priest', mayor: 'mayor',
+};
+
+/** The body for a trade, or the plain villager everybody else is. */
+export function bodyForTrade(trade: string | undefined): string {
+  return (trade && BODIES[trade]) ?? 'villager';
+}

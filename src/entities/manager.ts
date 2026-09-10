@@ -16,6 +16,8 @@ import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
 import { postsOf } from './villagers';
+import { bodyForTrade } from './trades';
+import { spawnPaddocks } from './paddocks';
 import { BEHAVIOUR, Entity, Herd, anybodyAt, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
@@ -529,7 +531,7 @@ export class EntityManager {
     const ctx: SpawnCtx = { tiles, key, rng, out };
 
     this.spawnVillageFolk(ctx);
-    this.spawnPaddocks(ctx);
+    spawnPaddocks({ villages: this.villages, place: (...a) => this.place(...a) }, ctx);
     // Everything below this line is wildlife, and the world owns that when there is a world to own
     // it: the animals are what two players standing in one field disagree about. The people of a
     // village are not — they are the seed and the register, which everybody has.
@@ -583,46 +585,26 @@ export class EntityManager {
     return this.place(ctx, kindId, anchor, size, leash);
   }
 
-  /**
-   * What is standing in a village's paddock.
-   *
-   * With the people rather than with the wildlife, and so on both sides of a shared world: these
-   * are as much a fixture of the village as the man who keeps them, decided by where the village
-   * was laid out rather than by a roll of the day. Two of the country's own animal and one of the
-   * other, which is enough to read as a paddock with animals in it from the road and few enough
-   * that they are not walking through each other in a seven-tile yard.
-   */
-  private spawnPaddocks(ctx: SpawnCtx): void {
-    const CS = WORLD.CHUNK_SIZE;
-    for (const v of this.villages) {
-      const yard = v.stable;
-      if (!yard) continue;
-      if (Math.floor(yard.x / CS) !== ctx.tiles.cx || Math.floor(yard.z / CS) !== ctx.tiles.cz) continue;
-      // inside the rails, not on them: the fence blocks walking, and a goat standing in one looks
-      // like a goat that has been dropped into it
-      const room = Math.max(1, yard.half - 1);
-      yard.stock.forEach((kindId, n) => {
-        if (!KINDS[kindId]) return;
-        const herd = this.place(ctx, kindId, [yard.x + 0.5, yard.z + 0.5], n === 0 ? 2 : 1, room, room);
-        herd.tag = v.name;
-      });
-    }
-  }
-
   /** Villagers on the square (first one is the elder), a congregation by the church, keepers at shop doors. */
   private spawnVillageFolk(ctx: SpawnCtx): void {
     const CS = WORLD.CHUNK_SIZE;
     const inChunk = (x: number, z: number) => Math.floor(x / CS) === ctx.tiles.cx && Math.floor(z / CS) === ctx.tiles.cz;
     for (const v of this.villages) {
       if (inChunk(v.x, v.z)) {
-        const herd = this.place(ctx, 'villager', [v.x, v.z], 2 + Math.floor(ctx.rng() * 3), Math.max(8, v.radius * 0.7));
+        // the register first, because a body is chosen before an entity exists and the trade is
+        // what chooses it. The stablehand is the one the register does not name: keeping the horses
+        // is a job handed out here rather than a trade somebody is born to
+
+        const posts = postsOf(v, this.world);
+        const wanted = 2 + Math.floor(ctx.rng() * 3);
+        const residents = this.residentsFor(v, posts, wanted);
+        const stabled = this.hasStable(v.name);
+        const herd = this.place(ctx, 'villager', [v.x, v.z], wanted, Math.max(8, v.radius * 0.7),
+          SPAWN.SCATTER, (n) => (n === 1 && stabled ? 'cowboy' : bodyForTrade(residents[n]?.trade)));
         herd.tag = v.name;
         if (herd.members.length > 0) herd.members[0].role = 'elder';
         // one of them keeps the horses, in the villages that have any
-        if (herd.members.length > 1 && this.hasStable(v.name)) herd.members[1].role = 'stablehand';
-        // everybody gets a house, a trade, and the places that trade takes them
-        const posts = postsOf(v, this.world);
-        const residents = this.residentsFor(v, posts, herd.members.length);
+        if (herd.members.length > 1 && stabled) herd.members[1].role = 'stablehand';
         herd.members.forEach((e, i) => {
           const house = v.houses[i % Math.max(1, v.houses.length)];
           const home: [number, number] = house
@@ -663,16 +645,28 @@ export class EntityManager {
    * country's, which is wider than a paddock: a goat put down forty feet outside its own fence
    * spends the rest of the day trying to walk back through it.
    */
-  private place(ctx: SpawnCtx, kindId: string, anchor: [number, number], count: number, leash: number, scatter = SPAWN.SCATTER): Herd {
+  /**
+   * @param bodyFor which body the nth of them wears, when they are not all the same.
+   *
+   * `kind` is readonly and the renderer pools by it, so a body cannot be changed after the fact:
+   * it has to be chosen before the entity exists. `trades.ts` says which body a trade wears.
+   */
+  private place(
+    ctx: SpawnCtx, kindId: string, anchor: [number, number], count: number, leash: number,
+    scatter = SPAWN.SCATTER, bodyFor?: (n: number) => string,
+  ): Herd {
     const { rng } = ctx;
     const kind = KINDS[kindId];
     const herd = new Herd(kind, anchor[0], anchor[1], anchor[0], anchor[1], leash);
     for (let n = 0; n < count; n++) {
+      // the herd keeps the kind it was asked for — it is what decides how they move together — and
+      // only the body changes, which is why a village of seven trades is still one herd
+      const wears = bodyFor ? KINDS[bodyFor(n)] ?? kind : kind;
       for (let attempt = 0; attempt < SPAWN.PLACE_ATTEMPTS; attempt++) {
         const a = rng() * Math.PI * 2, r = kind.behaviour === 'fly' ? SPAWN.FLIER_RING : rng() * scatter;
         const x = anchor[0] + Math.cos(a) * r, z = anchor[1] + Math.sin(a) * r;
         if (!canStand(this.world, kind, x, z)) continue;
-        const e = new Entity(kind, x, z, herd, ctx.key, rng);
+        const e = new Entity(wears, x, z, herd, ctx.key, rng);
         e.y = kind.behaviour === 'fly'
           ? (this.world.heightAt(x, z) ?? 0) + (kind.altitude ?? 7)
           : (this.world.waterAt(x, z) ?? this.world.heightAt(x, z) ?? 0);
@@ -688,5 +682,5 @@ export class EntityManager {
   }
 }
 
-interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[] }
+export interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[] }
 
