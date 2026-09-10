@@ -12,7 +12,7 @@ import type { CropField } from '../render/crops';
 import type { DayCycle } from '../render/daycycle';
 import type { HeroGear } from '../render/herogear';
 import type { MountainMaterial } from '../render/mountains';
-import type { PackField } from '../render/remains';
+import { dropsFor, type DropField } from '../render/drops';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import type { BuildingSite } from '../render/site';
 import type { SkyIslands } from '../render/skyisland';
@@ -123,7 +123,7 @@ export interface Framing {
   houses: Houses;
   fishing: Fishing;
   heroGear: HeroGear;
-  packField: PackField;
+  packField: DropField;
   /** Packs left where people fell, which age on the ground until nobody remembers them. */
   remains: Remains;
   cropField: CropField;
@@ -151,7 +151,7 @@ export interface Framing {
   sailFerries: (clockNow: number, time: number) => void;
   ageCamps: (dt: number) => void;
   runClock: (dt: number) => void;
-  carcasses: () => readonly { x: number; z: number }[];
+  carcasses: () => readonly { x: number; z: number; kind: string }[];
   noticeStall: () => void;
   musterHires: () => void;
   startTalk: (e: Entity) => void;
@@ -382,7 +382,14 @@ export function createFrame(ctx: Framing) {
     remains.age(dt);
     ageCamps(dt);
     runClock(dt);
-    packField.update([...remains.all, ...carcasses()], (x, z) => chunks.heightAt(x, z));
+    /*
+     * What is lying about, each drawn as the thing it is.
+     *
+     * A body with its hide still on is a carcass; a pack is somebody's belongings, and one that is
+     * mostly coin is drawn as coin. The rule is that what you can see is what you would pick up —
+     * see `render/drops.ts`, and the day everything on the ground was the same brown lump.
+     */
+    packField.update(dropsFor(carcasses(), remains.all), (x, z) => chunks.heightAt(x, z));
     watch.hunted(dt);
     // the clouds turn, and anybody standing on a sky island is checked to be still standing on it
     skyRenderer.update(dt);

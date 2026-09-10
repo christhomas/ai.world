@@ -115,6 +115,8 @@ export interface Probed {
   talkCtx: TalkCtx;
   commands: CommandBus;
   commandWorld: CommandWorld;
+  /** Put a body on the ground where one can be looked at. Dev only, like everything in this file. */
+  leaveOne: (kind: string, x: number, z: number) => void;
   /** The canvas wing: opening it, and whether it is open. */
   wing: { open: () => boolean; flying: boolean; altitude: number; climbing: boolean };
   callOut: (to: string) => void;
@@ -143,7 +145,7 @@ export function installProbes(ctx: Probed): void {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands, jail,
-    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally, wing,
+    commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally, wing, leaveOne,
     heard, nettleAbout, sentOut, mount, overworldRenderer, drawLineage,
   } = ctx;
 
@@ -351,6 +353,17 @@ export function installProbes(ctx: Probed): void {
       .filter((one) => openCountry(chunks, one.x, one.z))
       .map((one) => ({ ...one, away: Math.round(Math.hypot(one.x - player.x, one.z - player.z)) }))
       .sort((a, b) => a.away - b.away);
+  /*
+   * Leave something on the ground, without having to kill anything for it.
+   *
+   * What a body leaves behind is drawn as the thing it is now — a carcass, a hide, coins, a pack —
+   * and photographing that meant hunting an animal that runs away, at a frame rate that makes
+   * hunting hard. This puts one down beside the hero, which is what looking at it requires.
+   */
+  (debug as { __leave?: (kind?: string) => unknown }).__leave = (kind = 'deer') => {
+    leaveOne(kind, player.x + 2, player.z);
+    return { kind, x: Math.round(player.x + 2), z: Math.round(player.z) };
+  };
   // and where the sea goes down, for the same reason: a whirlpool four hundred tiles away is not
   // a thing a headless browser can go and find by sailing about
   (debug as { __swallows?: () => unknown }).__swallows = () =>

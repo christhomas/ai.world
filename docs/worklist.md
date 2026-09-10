@@ -2501,7 +2501,7 @@ other, and the order is chosen so that each one can be *seen* working before the
       I'm below the ground".
 - [x] **2. A ferry has no pier where you board it.** The boat ties up at a spot with nothing drawn
       under it, so the one place in the world that reaches out over the water is invisible.
-- [ ] **3. What a body leaves behind should look like what it is.** A kill drops a brown sphere
+- [x] **3. What a body leaves behind should look like what it is.** A kill drops a brown sphere
       whatever it was: meat, hide and gold are all the same lump. What is on the ground has to match
       what goes into the pack.
 - [ ] **4. A village should hold as many people as it has room for.** Twenty villagers around two

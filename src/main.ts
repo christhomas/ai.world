@@ -3,7 +3,7 @@ import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from './render/autoquality';
 import { QUALITY, createSceneRig } from './render/scene';
-import { PackField } from './render/remains';
+import { DropField } from './render/drops';
 import { Remains } from './game/remains';
 import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
@@ -483,7 +483,7 @@ export function startGame(
 
   // packs left where people fell, and the bundles that show them
   const remains = new Remains();
-  const packField = new PackField(rig.scene);
+  const packField = new DropField(rig.scene);
 
   // every memory made on this page goes through one door, and the world is on the far side of it
   const recall = tellingTheWorld((who, what, about) => online.recall(who, what, about));
@@ -647,6 +647,7 @@ export function startGame(
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
       commandWorld, placeName, walking, bites, doorsteps, streamTally, mount, drawLineage, wing: air,
+      leaveOne: (kind, x, z) => interactions.fell(kind, x, z),
       overworldRenderer: entityRenderer,
       drift: () => wildlife.drift(),
       pods: watch.pods,
