@@ -3,8 +3,8 @@ import { PROPS, propFootprints } from '../entities/props';
 import { build } from '../render/geometry';
 import { measureFootprint } from '../render/footprint';
 import { BLOCKS_WALKING, PropKind } from './biomes';
-import { WALKING_BAND, blocking } from './footprints';
-import { FURNITURE_BLOCKS } from '../interior/generate';
+import { FURNITURE_BLOCKS, WALKING_BAND, blocking } from './footprints';
+import { } from '../interior/generate';
 
 /**
  * What a prop blocks is worked out from the prop, so the two cannot disagree.

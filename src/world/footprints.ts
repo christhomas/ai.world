@@ -1,4 +1,4 @@
-import type { PropKind } from './biomes';
+import { PropKind } from './biomes';
 
 /**
  * How much ground a prop takes up, as the things that walk round them need it.
@@ -32,6 +32,27 @@ export interface Footprint {
 export interface Footprints {
   get(kind: PropKind): Footprint | undefined;
 }
+
+/**
+ * The things you cannot walk through when they are standing in a room.
+ *
+ * A fact about props rather than about any one kind of room, which is why it lives here and not
+ * beside the generator that first needed it. It began in `interior/generate.ts`, because a shop
+ * was the first place in this game with furniture in it; a dungeon has tables, barrels and cell
+ * bars too, and the answer to "does a barrel stop you" cannot be allowed to depend on which side
+ * of a door the barrel is on.
+ *
+ * What is *not* in it matters as much as what is. A rug, a candle, a chair and a banner are all
+ * things a room has and none of them is a thing you walk into: a chair is pushed aside, a rug is
+ * walked over, and a candle is not an obstacle at any size. Adding one of those here would make
+ * a dressed room a maze.
+ */
+export const FURNITURE_BLOCKS: ReadonlySet<PropKind> = new Set<PropKind>([
+  PropKind.Bed, PropKind.Table, PropKind.Hearth, PropKind.Shelf, PropKind.Barrel, PropKind.Crate,
+  PropKind.Forge, PropKind.Anvil, PropKind.WeaponRack, PropKind.Cauldron, PropKind.Altar, PropKind.Pew,
+  // a cell you could walk out of is a corner of a room
+  PropKind.Bars,
+]);
 
 /**
  * The footprints of the things that stop you in a particular world.

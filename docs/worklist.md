@@ -1985,13 +1985,46 @@ half and is not described here.
       own, which is as far back as it was worth digging. `src/dungeon/world.test.ts` is the
       guard.)*
 
-- [ ] **Nothing in a dungeon is solid except a chest.** *(`DungeonWorld.blocked` knows about chests
-      and nothing else, so a castle's tables, barrels and cell bars are walked straight through —
-      indoors the same props stop you, because `InteriorWorld` measures their footprints. It is why
-      a chamber is only nine per cent furniture: a room packed with things you walk through looks
-      worse than an empty one. Making them solid is not a small change, because the moment
-      furniture fills tiles it can seal a room, and the only thing that presently checks for that
-      is `castlefit.ts`, which was written for chests. Whatever does it should do both.)*
+- [x] **A dungeon's furniture is solid now, and the floor is still walkable.** *(`DungeonWorld` was
+      the only world in the game whose furniture had never been measured: `blocked` knew about
+      chests and nothing else, so a castle's tables, barrels, weapon racks and cell bars were walked
+      straight through while the identical table indoors stopped you. It measures them the way
+      `InteriorWorld` does now — the same boxes, at the same walking band — so a barrel takes up a
+      barrel's worth of floor rather than the whole square metre the map happens to be stored in.
+
+      `FURNITURE_BLOCKS` moved to `world/footprints.ts` on the way, because whether a barrel stops
+      you is a fact about barrels and must not depend on which side of a door the barrel is on.
+
+      The hard half was the one the item predicted: the moment furniture fills tiles it can seal a
+      room, and it did — seed 3 lost a hundred and forty-eight tiles on its first floor. `castlefit.ts`
+      is about everything that fills a tile now rather than only chests, and three things had to be
+      right about it:
+
+      **A cell is meant to be shut.** Bars are counted as part of the plan rather than as furniture,
+      so the floor behind them was never on offer and nothing tries to nudge a gaol open. The rule
+      is exported as `floorThePlanOffers` and the castle's own test asks *that* rather than working
+      it out again, because two answers to "what is this floor meant to offer" is how a check and
+      the thing it checks end up disagreeing about whether a castle is broken.
+
+      **Only what is in the way is on trial.** The settle used to try everything on the floor and
+      take the first move that helped. With three chests that was fine; with a hundred and thirty
+      sticks of furniture the first improvement is almost never the one that matters, and forty
+      passes were spent shuffling barrels in other rooms while the sealed wing stayed sealed.
+
+      **A line of furniture is one obstacle.** The case that proved it is the drowned undercroft:
+      an island of floor reached by stepping stones one tile wide, with two barrels standing on the
+      line. Neither can be nudged, because every neighbour is water, and removing either alone
+      changes nothing because the other still seals it — so nothing was ever removed and seed 11
+      lost its undercroft, its chest and eight tiles. Blame travels along touching furniture now, up
+      to a causeway's length, and the last resort takes the whole line out at once.
+
+      Signed off by the collision bench, which is where this belongs: a hero walked into the
+      furniture of six dressed castle floors carrying seven hundred and fifty-two solid sticks
+      between them, a hundred and thirty-three walks, nothing through anything. The second half of
+      that pair is in the same file — every one of those floors can still be walked end to end.
+
+      Left for later: the density. A chamber is nine per cent furniture because furniture you walk
+      through looks worse than none, and that reason has now gone.)*
 
 ### Wanted for the castle, and not made
 

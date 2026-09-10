@@ -2,6 +2,8 @@ import { WORLD } from '../core/config';
 import { Biome, PropKind } from '../world/biomes';
 import { TileType, type ChunkData } from '../world/terrain';
 import type { TileWorld } from '../entities/entity';
+import { FURNITURE_BLOCKS, blocking, type Footprints } from '../world/footprints';
+import { Solids, boxesFrom, type Body } from '../world/solids';
 import { BASE_LEVEL, DTile, levelAt, type DungeonMap } from './map';
 
 /**
@@ -19,12 +21,28 @@ const WALL_Y = DUNGEON_WALL_LEVEL * WORLD.STEP;
 export class DungeonWorld implements TileWorld {
   private readonly chestTiles = new Set<number>();
   private readonly doorTiles = new Set<number>();
+  /**
+   * The furniture as boxes, when whoever built this world had the measurements to hand.
+   *
+   * The same arrangement `InteriorWorld` has, and it was the difference between the two: indoors a
+   * table stopped you, and underground the identical table did not, because nothing down here had
+   * ever been measured. A castle's great hall could be walked through end to end as though it were
+   * furnished with photographs. Optional for the same reason it is optional in a room — a test or
+   * a headless server that only wants to know where the walls are should not have to build a prop
+   * library first — and a world without it falls back to the tile answer below.
+   */
+  private readonly furniture: Solids | null;
   /** Set once the hero finds the key; doors then open. */
   unlocked = false;
 
-  constructor(readonly map: DungeonMap, readonly anchorId: string, readonly style: 'vault' | 'cave' | 'thicket' | 'castle' = 'cave') {
+  constructor(
+    readonly map: DungeonMap, readonly anchorId: string,
+    readonly style: 'vault' | 'cave' | 'thicket' | 'castle' = 'cave',
+    footprints?: Footprints,
+  ) {
     for (const c of map.chests) this.chestTiles.add(c.z * map.size + c.x);
     for (const d of map.doors) this.doorTiles.add(d.z * map.size + d.x);
+    this.furniture = footprints ? furnitureBoxes(map, footprints) : null;
   }
 
   tile(x: number, z: number): DTile | null {
@@ -70,8 +88,25 @@ export class DungeonWorld implements TileWorld {
     return this.tile(x, z) === DTile.Water ? WORLD.WATER_Y : null;
   }
 
-  blocked(x: number, z: number): boolean {
-    return this.chestTiles.has(Math.floor(z) * this.map.size + Math.floor(x));
+  /**
+   * What you cannot walk into: the treasure, and the furniture standing between it and you.
+   *
+   * A chest fills its whole tile because you must not be able to stand inside the treasure. The
+   * furniture is measured instead — the same boxes a room uses, at the same walking band — so a
+   * barrel takes up a barrel's worth of floor and a long table takes up a table's, rather than
+   * either of them claiming a square metre because that is the unit the map is stored in.
+   */
+  blocked(x: number, z: number, body?: Body): boolean {
+    if (this.chestTiles.has(Math.floor(z) * this.map.size + Math.floor(x))) return true;
+    if (this.furniture) return this.furniture.at(x, z, body);
+    // nothing measured: the tile answer, which is better than pretending the room is empty
+    const tx = Math.floor(x), tz = Math.floor(z);
+    return this.map.furniture.some((f) => f.x === tx && f.z === tz && FURNITURE_BLOCKS.has(f.kind));
+  }
+
+  /** The way from one point to another, against the furniture: the same question as out of doors. */
+  crosses(x0: number, z0: number, x1: number, z1: number, body?: Body): boolean {
+    return this.furniture?.crosses(x0, z0, x1, z1, body) ?? false;
   }
 
   isRoad(): boolean { return false; }
@@ -182,4 +217,22 @@ export class DungeonWorld implements TileWorld {
   nearStairs(x: number, z: number, range: number): boolean {
     return Math.hypot(this.map.entrance[0] + 0.5 - x, this.map.entrance[1] + 0.5 - z) < range;
   }
+}
+
+/**
+ * The furniture of a floor as boxes, from the same measurements the world outside uses.
+ *
+ * A copy of `furnitureBoxes` in `interior/generate.ts` in shape and not in substance: a room's
+ * furniture carries no level and a castle's does — a banner hangs on a wall face and a table in a
+ * cellar stands two terraces below the hall over it — but neither of those is a thing `Solids`
+ * asks about, because a box is a footprint on a floor and the floor it is on is the tile's.
+ */
+function furnitureBoxes(map: DungeonMap, footprints: Footprints): Solids {
+  const stops = blocking(footprints, FURNITURE_BLOCKS);
+  const solids = new Solids();
+  solids.put('floor', boxesFrom(
+    map.furniture.map((f) => ({ kind: f.kind, x: f.x + 0.5, z: f.z + 0.5, rot: f.rot })),
+    stops,
+  ));
+  return solids;
 }

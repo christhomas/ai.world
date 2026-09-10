@@ -1,5 +1,5 @@
 import { mulberry32, type Rng } from '../core/rng';
-import { beside, chestTiles, settleChests } from './castlefit';
+import { beside, chestTiles, settleChests, settleWhatFillsTiles } from './castlefit';
 import { centre, dress, roleFor, shrink, type Space } from './castlerooms';
 import type { SpawnSpot } from '../entities/spawns';
 import { BASE_LEVEL, DTile, reachable, type Chest, type Door, type DungeonMap, type Room } from './map';
@@ -152,6 +152,16 @@ export function generateCastle(seed: number, floor = 1): DungeonMap {
   const dressing = dress(plan);
   map.torches = dressing.torches;
   map.furniture = dressing.furniture;
+  /*
+   * And then the floor is asked whether it can still be walked.
+   *
+   * After the dressing rather than inside `puzzles`, and that is the whole reason this line exists
+   * twice. `puzzles` settles the chests while the floor is still bare, because where a chest ends
+   * up decides where the key can be; the furniture arrives afterwards and is just as solid, so a
+   * floor that was finishable with two chests on it can be sealed by a barrel. Asked again here,
+   * with everything standing that will be standing when somebody walks in.
+   */
+  settleWhatFillsTiles(map, CASTLE.HERO_CLIMB);
   // Nothing waits where you arrive, and nothing shares the sealed room with its lord. Both are
   // measured rather than filtered by tile, because a room's monsters are put at its middle and
   // the boss stands a tile off that: an exact match would have caught neither.

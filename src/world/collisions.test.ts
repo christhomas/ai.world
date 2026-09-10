@@ -6,11 +6,14 @@ import { Entity, Herd, bodyOf, canStand, spaceNear, tryMove, type Crowd, type Ti
 import { stride } from '../entities/stride';
 import { propFootprints } from '../entities/props';
 import { BLOCKS_WALKING, PropKind } from './biomes';
-import { MIN_BLOCK, blocking } from './footprints';
+import { FURNITURE_BLOCKS, MIN_BLOCK, blocking } from './footprints';
 import { Solids, boxesFrom, pointInBox } from './solids';
 import { inTheWay } from './tiles';
-import { FURNITURE_BLOCKS } from '../interior/generate';
 import { propsOf, type PropAt } from './propstream';
+import { CASTLE, generateCastle } from '../dungeon/castle';
+import { floorThePlanOffers } from '../dungeon/castlefit';
+import { reachable } from '../dungeon/map';
+import { DungeonWorld } from '../dungeon/world';
 import { generateWebGraph } from './roadweb';
 import { TerrainSampler } from './terrain';
 
@@ -703,6 +706,87 @@ describe('the furniture of a room, against everything that walks', () => {
     const bed = propFootprints().get(PropKind.Bed);
     expect(bed, 'a bed is not measured at all').toBeTruthy();
     expect(Math.max(bed!.hw, bed!.hd), 'a bed that fits inside one tile').toBeGreaterThan(0.5);
+  });
+});
+
+describe('a dressed dungeon floor, which is furniture and walls together', () => {
+  /**
+   * The bench's answer to the fault this suite exists for, one floor down.
+   *
+   * Indoors a table stopped you and underground the identical table did not, because a dungeon's
+   * furniture had never been measured — `DungeonWorld.blocked` knew about chests and nothing else.
+   * A castle's great hall could be walked end to end as though it were furnished with photographs,
+   * and that is why a chamber was only nine per cent furniture: a room full of things you walk
+   * through looks worse than an empty one.
+   *
+   * Measured here rather than in `dungeon/`, because it is the same question this whole file asks
+   * of everything else — can a body get through a thing it should not — and the answer has to come
+   * from the same walk. What the castle's own tests keep is the other half: that the floor is still
+   * finishable once the furniture is solid.
+   */
+  const FLOORS = [3, 11, 29].flatMap((seed) => [1, 3].map((floor) => ({ seed, floor })));
+
+  it('stops whoever walks into what is standing in it', () => {
+    const failures: string[] = [];
+    let cases = 0, solid = 0;
+    for (const { seed, floor } of FLOORS) {
+      const map = generateCastle(seed, floor);
+      const world = new DungeonWorld(map, 'bench', 'castle', propFootprints());
+      world.unlocked = true;
+      const sticks = map.furniture.filter((f) => FURNITURE_BLOCKS.has(f.kind) && propFootprints().get(f.kind));
+      solid += sticks.length;
+      // a handful per floor, spread through the list rather than the first few, which would be
+      // whatever the dressing happened to lay out first
+      for (let n = 0; n < sticks.length; n += Math.max(1, Math.floor(sticks.length / 6))) {
+        const f = sticks[n];
+        const box = propFootprints().get(f.kind)!;
+        for (const [dx, dz] of APPROACHES.slice(0, 4)) {
+          // only from a side with floor to walk over: a wall behind the barrel proves nothing
+          const fromX = f.x + 0.5 - dx * 2.5, fromZ = f.z + 0.5 - dz * 2.5;
+          if (world.heightAt(fromX, fromZ) === null) continue;
+          cases++;
+          const e = walker('hero', fromX - (f.x + 0.5), fromZ - (f.z + 0.5));
+          e.x = fromX; e.z = fromZ;
+          const trace = walkAt(world, e, dx, dz, 1 / 60, 1);
+          // `passedThrough` measures against a box at the origin, and this one is out on a floor,
+          // so the walk is read in the furniture's own frame rather than the map's
+          const moved = trace.map((at) => ({ x: at.x - (f.x + 0.5), z: at.z - (f.z + 0.5) }));
+          const through = passedThrough({ hw: Math.max(box.hw, MIN_BLOCK), hd: Math.max(box.hd, MIN_BLOCK) },
+            f.rot, moved, !squareOn(dx, dz));
+          if (through) {
+            failures.push(`hero walked through ${nameOf(f.kind)} at ${f.x},${f.z} on seed ${seed} floor ${floor}, from ${dx},${dz}`);
+          }
+        }
+      }
+    }
+    report({
+      verdict: failures.length === 0 ? 'PASS' : 'FAIL',
+      count: cases,
+      what: `a hero walked into the furniture of ${FLOORS.length} dressed castle floors carrying ${solid} solid sticks between them`,
+      detail: failures.slice(0, 4),
+    });
+    expect(solid, 'no castle floor has any solid furniture on it at all').toBeGreaterThan(200);
+    expect(failures.slice(0, 6), `${failures.length} of ${cases}`).toEqual([]);
+  });
+
+  it('is still a floor you can walk all of, which is the price of making it solid', () => {
+    for (const { seed, floor } of FLOORS) {
+      const map = generateCastle(seed, floor);
+      const offered = floorThePlanOffers(map, CASTLE.HERO_CLIMB);
+      const taken = new Set<number>([
+        ...map.chests.map((c) => c.z * map.size + c.x),
+        ...map.furniture.filter((f) => FURNITURE_BLOCKS.has(f.kind)).map((f) => f.z * map.size + f.x),
+      ]);
+      const held = reachable(map, map.entrance, true, CASTLE.HERO_CLIMB, taken);
+      const lost: string[] = [];
+      for (let i = 0; i < offered.length; i++) {
+        if (offered[i] === 1 && held[i] === 0 && !taken.has(i)) {
+          const x = i % map.size;
+          lost.push(`${x},${(i - x) / map.size}`);
+        }
+      }
+      expect(lost, `seed ${seed} floor ${floor}: the dressing shut off ${lost.length} tiles at ${lost.slice(0, 6).join(' ')}`).toEqual([]);
+    }
   });
 });
 

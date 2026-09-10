@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
+import { PropKind } from '../world/biomes';
+import { FURNITURE_BLOCKS } from '../world/footprints';
 import { KINDS } from '../entities/animals';
 import { canStand } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
 import { Roster } from '../entities/roster';
 import { CASTLE, generateCastle } from './castle';
+import { floorThePlanOffers } from './castlefit';
 import { GHOST, HAUNTS_AT_MOST } from './castlerooms';
 import { generateDungeon, DUNGEON } from './generate';
 import { BASE_LEVEL, DTile, levelAt, reachable, type DungeonMap } from './map';
@@ -117,16 +120,30 @@ describe('a castle', () => {
       for (let floor = 1; floor <= CASTLE.FLOORS; floor++) {
         const map = generateCastle(seed, floor);
         const seen = walked(map, true);
+        /*
+         * What the plan itself offers, which is what the dressing is held to.
+         *
+         * Asked of `castlefit.ts` rather than worked out again here, and that matters: it is the
+         * same answer the settle charges the furniture against, so this test states exactly the
+         * promise that code makes. The promise is that a table, a barrel or a weapon rack costs
+         * the floor nothing — but that a cell may, because bars are solid on purpose and a gaol
+         * you can walk out of is a corner of a room.
+         */
+        const offered = floorThePlanOffers(map, CASTLE.HERO_CLIMB);
         const stranded: string[] = [];
         for (let i = 0; i < map.tiles.length; i++) {
           const t = map.tiles[i] as DTile;
           if (t === DTile.Rock || t === DTile.Water || seen[i]) continue;
           const x = i % map.size, z = (i - x) / map.size;
           // A chest fills its own tile, so the tile under one is never walked on — reaching a
-          // chest means standing beside it, which the chest test measures. And the false stepping
-          // stones in the drowned undercroft are meant to be out of reach: that is the puzzle.
+          // chest means standing beside it, which the chest test measures. Furniture fills its
+          // tile for exactly the same reason, and a barrel standing in a corner is not a room
+          // nobody can reach: it is a barrel. And the false stepping stones in the drowned
+          // undercroft are meant to be out of reach: that is the puzzle.
           // Anything else out of reach is a room nobody will ever see.
           if (map.chests.some((c) => c.x === x && c.z === z)) continue;
+          if (map.furniture.some((f) => f.x === x && f.z === z && FURNITURE_BLOCKS.has(f.kind))) continue;
+          if (!offered[i]) continue;                      // shut in by the plan or by a cell's bars
           const island = [[1, 0], [-1, 0], [0, 1], [0, -1]]
             .every(([dx, dz]) => map.tiles[(z + dz) * map.size + (x + dx)] === DTile.Water);
           if (!island) stranded.push(`${x},${z}`);

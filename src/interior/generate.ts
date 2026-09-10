@@ -3,7 +3,7 @@ import { SALT } from '../core/salts';
 import { PropKind } from '../world/biomes';
 import type { ShopType } from '../world/structures';
 import { Solids, boxesFrom, type Body } from '../world/solids';
-import { blocking, type Footprints } from '../world/footprints';
+import { FURNITURE_BLOCKS, blocking, type Footprints } from '../world/footprints';
 
 /**
  * A building's inside: a walled room laid out from the building's own seed, so the same house
@@ -121,13 +121,6 @@ export function furnitureBoxes(map: InteriorMap, footprints: Footprints): Solids
   ));
   return solids;
 }
-
-export const FURNITURE_BLOCKS = new Set<PropKind>([
-  PropKind.Bed, PropKind.Table, PropKind.Hearth, PropKind.Shelf, PropKind.Barrel, PropKind.Crate,
-  PropKind.Forge, PropKind.Anvil, PropKind.WeaponRack, PropKind.Cauldron, PropKind.Altar, PropKind.Pew,
-  // a cell you could walk out of is a corner of a room
-  PropKind.Bars,
-]);
 
 /** Deterministic seed for one building from its position, so its inside never changes. */
 export function interiorSeed(worldSeed: number, tx: number, tz: number): number {

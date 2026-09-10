@@ -230,7 +230,7 @@ export class Places {
      * both sides of the seam, which is what makes this line the whole of the handover.
      */
     const style: DungeonStyle = kind === 'dungeon' ? 'vault' : kind;
-    const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style);
+    const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style, props.footprints);
     world.unlocked = state.keys.has(anchor.id);
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
     const renderer = new EntityRenderer(scene.scene);
