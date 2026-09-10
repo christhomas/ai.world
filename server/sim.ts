@@ -257,6 +257,12 @@ export class Simulation {
         if (now - client.lastSeen > this.timeout) { client.wire.close(); this.rooms.leave(client); }
       }
       if (room.clients.size === 0) {
+        // the loudest "nobody is here" there is, so the provinces are put away properly rather than
+        // dropped with the room: written, stamped with the hour the last of them left, and their
+        // villagers' memories settled. Without it the stamp on a world everybody has quit would be
+        // whenever it was last changed, and the next player through the door would be handed a
+        // stretch of absence that started before anybody had actually gone.
+        room.world.keepNear([]);
         this.rooms.close(seed);
         this.ground.delete(seed);
         this.wildlife.delete(seed);
@@ -274,15 +280,24 @@ export class Simulation {
       const tellNow = this.sinceCreatures >= CREATURE_INTERVAL;
       if (tellNow) this.sinceCreatures = 0;
 
+      // The leavings of the country they are standing in: what has been sown, dug or opened near
+      // them is in memory, and what is not is on disk until somebody walks back to it.
+      //
+      // Outside the ground's block below on purpose, and unconditional on purpose. A province is
+      // state rather than terrain, so a host that does not grow the country still has to let go of
+      // the squares nobody is on — both hosts happen to pass `ground: true` today, which is exactly
+      // how a coupling like that goes years without being noticed. And an empty list is a real
+      // answer rather than a case to skip: with the whole party down a staircase there is nobody on
+      // the surface at all, so every province is written and let go, and the time they spend down
+      // there is time the country above them was genuinely asleep. `SharedWorld.asleep` is where
+      // that lands, and a coarse tier will want it to be the truth rather than the tidy answer.
+      room.world.keepNear(players);
       // the ground exists where somebody is standing, and nowhere else: a chunk nobody is near is a
       // chunk with nobody to tell about it
       const ground = this.groundOf(seed);
       if (ground && players.length > 0) {
         for (const who of players) ground.reach(who.x, who.z, this.reach);
         ground.keepOnly(players, this.reach + 1);
-        // and the leavings of the country they are in: what has been sown, dug or opened near them
-        // is in memory, and what is not is on disk until somebody walks back to it
-        room.world.keepNear(players);
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {

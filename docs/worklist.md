@@ -1205,8 +1205,93 @@ can each be finished and each leave the game playable.
       two things the C1 measurement said about the ends of the range — that frozen has to mean off
       the separation sweep and off what every client is told rather than off one branch inside them,
       and that `Roster`'s four thousand wants to become a budget rather than a number.
-- [ ] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
+- [x] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
       simulated walk, because that is the only thing that keeps provinces independent.
+
+      ***The rule is one line and the whole of C3 is the line: an agent's province is
+      `provinceOf(herd.homeX, herd.homeZ)`, and never `provinceOf(e.x, e.z)`.*** A herd's home is
+      `readonly` on the class, set by the constructor and never assigned again, so the answer cannot
+      change under anybody and there is nothing to keep in step. `provinceOfHome` in
+      `src/world/provinces.ts` is that, `homelandsOf` in `src/entities/homeland.ts` gathers a
+      manager's herds under it, and `SharedWorld.asleep(id)` says how long nobody was looking. Those
+      three and `catchUp(herd, away)` are the four things a coarse tier needs, and none of them
+      knows about the others.
+
+      ***Nothing in this game walks between provinces, and that is structural rather than lucky.***
+      Every herd has a leash, `updateHerd` refuses any step that would cross it, and `spreadAfter`
+      in `unwatched.ts` saturates at the same leash — so the closed forms cannot take an agent out
+      of its province either, which is what makes them writable. The audit that matters is what was
+      found on the other side of the line, because three of the four things that look like agents
+      turn out not to be province-resident at all:
+
+      - **A roaming band was already a scheduled arrival, and was before C3 was written.**
+        `bandAt(band, day)` is pure in the band and the day; `watch.ts` stands a pack up wherever it
+        says the band is when the hero comes within `ROAM.SIGHT` and takes it away when he leaves.
+        Nobody simulates the walk between stops and nobody synchronises one. The pattern C3 asks for
+        is `game/roaming.ts`, and it wanted no changes.
+      - **A dungeon floor is not in any province, and this is the trap worth naming.** Its
+        coordinates are its own, so `provinceOf(e.x, e.z)` answers cheerfully and files a rat on the
+        third floor under whatever open field shares its numbers. So the question is asked of the
+        *filing* — the manager already keys what it holds by chunk or by place — and only the
+        chunk-keyed lists have a province. Sea packs, mine crews and bands are excluded by the same
+        rule and for the same reason: each is placed when somebody arrives and taken away when they
+        leave, so none has an absence to account for.
+      - **The hero is excluded because he is watched.** He genuinely walks, borders included, and
+        `keepNear` deliberately holds both provinces around him while he does. Being in two at once
+        is what being looked at costs, and it is affordable because there are a handful of players
+        and thousands of everything else.
+
+      ***A player crossing a border sees nothing, and the reason is one inequality:*** `ACTIVE_RANGE
+      + PROVINCE_REACH <= KEEP_READY`, which today is 44 + 96 ≤ 144. `PROVINCE_REACH` is how far
+      outside its own square an agent may stand, and the window it has to sit in turned out to be
+      narrow at both ends. The floor is 76 — a hub villager's posts stand out to 1.9 village radii
+      of 26 and he ranges another 26 about whichever one the hour left him at, measured through the
+      real `postsOf` over a real country rather than copied out of it. The ceiling is 100, which is
+      `KEEP_READY` less `ACTIVE_RANGE`: any creature a player can be told about may be that far the
+      wrong side of its own line, and its province has to have been read before it comes into view.
+      96 is six chunks, with twenty tiles of room at the bottom and four at the top. Both ends are
+      tests rather than assertions, so widening a village or telling a player about creatures further
+      off is a failed build.
+
+      ***The measurement, and the machine was hopeless.*** Four `chore ticks` runs, and the honest
+      finding is that they measure the neighbours rather than the change. In order: unchanged at
+      load average 9.5, holding 3,644 live agents at ten a second (72.7ms p95) at 3.9–31.7µs an
+      agent. Changed at load 25, *missing* at 1,803 — a qemu at 101% and somebody else's Rust build.
+      Then, to get a pair worth comparing, the work was stashed and the two run back to back:
+      unchanged at load 20, holding 7,322 (98.9ms) at 4.7–18.2µs, and changed at load 17, holding
+      10,973 (81.4ms) at 3.7–17.7µs. **The changed code came out both the worst run and the best
+      one**, and the ordering follows the load and nothing else. The rung that is least sensitive to
+      neighbours — 58 agents, one player — reads 4.1, 4.2, 4.7 and 4.2µs across the four, which is
+      flat.
+
+      *Which is what should have been expected, and the reason is worth writing down rather than
+      leaving to the numbers: **nothing was added to the tick at all**. `provinceOfHome` is a floor
+      and a string, called when somebody asks a question and never inside a step. The only per-tick
+      change is that `keepNear` moved out of the block that grows terrain, and it was already being
+      called from inside it. C1 said a scheduled arrival would cost nothing because reading a
+      province is single-digit milliseconds; it costs less than that, because there is no arrival to
+      schedule until something moves.*
+
+      *Two things were found and fixed on the way, and both were latent rather than theoretical.*
+      *`keepNear` was called only when the host grows the ground — both hosts pass `ground: true`
+      today, which is exactly how a coupling like that goes years unnoticed — so a world that held
+      state without holding terrain would never have let go of a province. And a province was
+      written only when its rows had changed, which meant one put away on day 9, walked through on
+      day 10 and put away again still said day 9, and the next arrival would have been handed a week
+      nobody was away for. It is rewritten on the way out now even when the rows are the same rows.*
+
+      *`Register.compact` is called from `keepNear`, once, when the last province of a pass is let
+      go — not inside `writeProvince`, because a register is the world's rather than a province's
+      and compacting it per square walked out of is the same pass over the villages repeated. The
+      register is a sixth constructor argument and is null on every path today: villagers are still
+      client-derived, which is C5's to move, and this is the hook waiting for it.*
+
+      *Left for C2a: everything about **when**. Which province is live, coarse or frozen, and who
+      calls `catchUp` — the three pieces are on the table and nothing puts them together. Left for
+      C5: a register to hand `SharedWorld`, at which point the compaction hook stops being a hook.
+      Left alone deliberately: `Wildlife` still spawns and drops creatures by distance from a
+      player and knows nothing about provinces, which is right — a province decides who accounts for
+      a herd's week, not whether it is standing in the world this second.*
 - [x] **C4. Memory that compacts.** Bounded per villager, decaying, and summarised on unload — ten
       slights become one opinion. Otherwise per-province state grows with the world again.
       *(`src/world/memory.ts`. The bound was already there and it was the wrong kind: a villager

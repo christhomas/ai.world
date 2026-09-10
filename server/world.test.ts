@@ -9,6 +9,7 @@ import { DAY_LENGTH, SharedWorld, worldPath } from './world';
 const kept = new FileVault();
 import { describeWorlds } from './worlds';
 import { cleanDelta, cleanLetter, cleanStallItem, deltaKey } from './protocol';
+import { provinceOf, provincePath } from '../src/world/provinces';
 
 const scratch = () => mkdtempSync(join(tmpdir(), 'aiworld-'));
 
@@ -271,5 +272,97 @@ describe('what happened at a place, kept where it happened', () => {
     // moment the world is opened, wherever anybody happens to be standing
     const again = new SharedWorld(24, worldPath(dir, 24), { day: 1, time: 0.2 }, dir, kept);
     expect(again.log.some((d) => d.kind === 'chest')).toBe(true);
+  });
+});
+
+/*
+ * How long a province was nobody's business.
+ *
+ * The one number a province could not previously produce, and the one a coarse tier cannot do
+ * without: `catchUp` in `src/entities/unwatched.ts` takes a herd and a stretch of time, and until
+ * this the stretch was simply gone — a room closes the moment its last player leaves and takes its
+ * ground and its creatures with it, so nothing anywhere remembered when that was.
+ */
+describe('a province knows how long it was left alone', () => {
+  const FAR = { x: -90_000, z: 90_000 };
+  const spot = { x: 3000, z: 3000 };
+  const there = provinceOf(spot.x, spot.z);
+
+  it('says nought for one nobody has ever walked out of', () => {
+    const dir = scratch();
+    try {
+      const world = new SharedWorld(31, worldPath(dir, 31), { day: 4, time: 0.5 }, dir, kept);
+      expect(world.asleep(there), 'a province was asleep before anybody had left it').toBe(0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('counts the days between the last of them leaving and the first coming back', () => {
+    const dir = scratch();
+    try {
+      const world = new SharedWorld(32, worldPath(dir, 32), { day: 1, time: 0 }, dir, kept);
+      world.apply({ kind: 'sow', tile: `${spot.x},${spot.z}`, crop: 'wheat', day: 1 });
+      world.keepNear([FAR]);                       // everybody walks away, and it is written down
+      world.tick(DAY_LENGTH * 5);                  // five days of world with nobody there for it
+      expect(world.asleep(there)).toBeCloseTo(5 * DAY_LENGTH, 0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('measures from the last time they left rather than the first', () => {
+    const dir = scratch();
+    try {
+      const world = new SharedWorld(33, worldPath(dir, 33), { day: 1, time: 0 }, dir, kept);
+      world.apply({ kind: 'sow', tile: `${spot.x},${spot.z}`, crop: 'wheat', day: 1 });
+      world.keepNear([FAR]);
+      world.tick(DAY_LENGTH * 5);
+      world.keepNear([spot]);                      // somebody walks back through it, changing nothing
+      world.tick(DAY_LENGTH * 2);
+      world.keepNear([FAR]);                       // and out again, on day eight
+      world.tick(DAY_LENGTH);
+      // one day rather than eight. The stamp is rewritten on the way out even when the rows are the
+      // same rows, which is the whole reason `writeProvince` no longer trusts `dirty` alone.
+      expect(world.asleep(there), 'the sleep was measured from the first departure, not the last')
+        .toBeCloseTo(DAY_LENGTH, 0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('reads a province written before there was a stamp, and calls it never away', () => {
+    const dir = scratch();
+    try {
+      // the shape provinces were written in before this: a bare array of rows and nothing else
+      const vault = new FileVault();
+      vault.write(provincePath(dir, 34, there), JSON.stringify([
+        { kind: 'sow', tile: `${spot.x},${spot.z}`, crop: 'wheat', day: 1 },
+      ]));
+      const world = new SharedWorld(34, worldPath(dir, 34), { day: 40, time: 0.5 }, dir, vault);
+      world.keepNear([spot]);
+      expect(world.log.some((d) => d.kind === 'sow'), 'an old province file was not read').toBe(true);
+      // nought rather than thirty-nine days: the safe wrong answer is to catch nothing up, and not
+      // to catch something up by an amount that was never written down
+      expect(world.asleep(there), 'a file with no stamp was given one it never had').toBe(0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('settles what the villagers recall when a province stops being anybody\'s business', () => {
+    const dir = scratch();
+    try {
+      // C4 left `Register.compact(day)` wanting a caller, and this is the moment it wanted: a
+      // province being written with nobody there. Nothing on the server holds a register until C5
+      // moves the villagers across, so the hook takes one and this stands in for it.
+      const days: number[] = [];
+      const world = new SharedWorld(35, worldPath(dir, 35), { day: 1, time: 0 }, dir, kept, {
+        compact: (day: number) => days.push(day),
+      });
+      world.apply({ kind: 'sow', tile: `${spot.x},${spot.z}`, crop: 'wheat', day: 1 });
+      world.keepNear([spot]);
+      expect(days, 'the register was settled while somebody was still standing there').toEqual([]);
+
+      world.tick(DAY_LENGTH * 2.5);
+      world.keepNear([FAR]);
+      expect(days, 'the register was not settled when the last of them left').toEqual([3]);
+
+      // and not again for a square that was already let go: there is nothing left to put away
+      world.keepNear([FAR]);
+      expect(days, 'the register was settled again over an empty world').toEqual([3]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

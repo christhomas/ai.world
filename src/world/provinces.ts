@@ -16,6 +16,13 @@ import { WORLD } from '../core/config';
  * the two is how a world grows seams, so they are separate here by construction and the tests below
  * say so.
  *
+ * They are also who an agent belongs to, which is the second job and was added later. A herd is one
+ * province's business for its whole life — the province its *home* is in, not the one it happens to
+ * be standing in — and nothing ever walks from one to another. That is what makes a province
+ * something a machine can pick up on its own: the alternative is a wolf halfway across a border,
+ * which means two provinces are alive for as long as the walk lasts and neither can be caught up
+ * without the other. `provinceOfHome` and `PROVINCE_REACH` at the bottom are that rule.
+ *
  * The size is a compromise with only two ends. Small provinces mean more files, more loading and
  * more flushing as somebody walks; large ones mean carrying country nobody is near. Five hundred and
  * twelve tiles is thirty-two chunks square — about a minute and a half of walking end to end, which
@@ -72,6 +79,84 @@ export function provincesNear(x: number, z: number, reach: number): ProvinceId[]
  * remembers.
  */
 export const KEEP_READY = WORLD.CHUNK_SIZE * (WORLD.UNLOAD_RADIUS + 2);
+
+/**
+ * Anything that belongs somewhere: a herd, a village, a den.
+ *
+ * Two numbers structurally rather than the `Herd` this is nearly always asked about, because
+ * `world` may not import `entities` — the layer test allows two of those and both are already
+ * spent — and because it should not want to. Which province a thing belongs to is a fact about a
+ * pair of coordinates and nothing whatever about creatures.
+ *
+ * `readonly` is the load-bearing word. A `Herd`'s `homeX` and `homeZ` are readonly on the class,
+ * fixed by the constructor and never assigned again, and that is the whole of why the answer below
+ * cannot change under anybody.
+ */
+export interface Homed {
+  readonly homeX: number;
+  readonly homeZ: number;
+}
+
+/**
+ * The province an agent belongs to, and the only answer to that question.
+ *
+ * It is deliberately *not* `provinceOf(e.x, e.z)`, which is the answer everything else would reach
+ * for and is wrong. Where a creature is standing moves; a herd wanders, and a herd whose anchor
+ * happens to drift eight tiles over a line would change hands twice a minute — which means two
+ * provinces have to be loaded to know whose it is, and that is exactly the independence provinces
+ * exist to buy. Where it *belongs* does not move, so this is settled once, when the herd is made,
+ * and is the same answer on every machine that has ever seen it.
+ *
+ * Derived rather than stored for the usual reason: a copy of this on the herd would be a second
+ * thing that can be wrong, and there is no third state for it to be in.
+ */
+export function provinceOfHome(home: Homed): ProvinceId {
+  return provinceOf(home.homeX, home.homeZ);
+}
+
+/**
+ * How far outside its own province an agent may stand, in tiles.
+ *
+ * Belonging to one province does not mean staying inside it, and it must not: a wolf that vanished
+ * at an invisible line would be a far worse thing than anything this is fixing. A herd spawned
+ * against a border grazes over it, and it is still its own province's business while it does. What
+ * has to be true is that the overhang is *bounded*, because everything else rests on that.
+ *
+ * The window this has to sit in is narrower than it looks, and both ends are the game's numbers
+ * rather than anybody's taste.
+ *
+ * The floor is seventy-six. The widest thing that lives in a province today is a villager of a hub:
+ * his posts stand out to 1.9 times a village radius of 26, and the hours that are not postings let
+ * him range up to another 26 about wherever the last one left him. A bound under that would put a
+ * man outside the only province that knows who he is.
+ *
+ * The ceiling is a hundred, and it is `KEEP_READY` less `ACTIVE_RANGE`. A player is told about
+ * creatures out to the range they are thought in; any one of those may be this far the wrong side
+ * of its own line; and the province that owns it must already be to hand, or walking towards a
+ * border means reading a file at the moment somebody can see over it. A hundred and forty-four
+ * ready, forty-four of it spent on sight, and a hundred left. The other ceiling is half a province
+ * — past 256 an agent could overhang a province that does not touch its own, and catching one up
+ * would mean loading three — but sight is the binding one by a factor of two and a half.
+ *
+ * Ninety-six is six chunks, which is inside that window with four tiles to spare at the top and
+ * twenty at the bottom. `provinces.test.ts` holds both ends to the game's own leashes, ranges and
+ * village radii, so making a village twice as big — or telling a player about creatures further off
+ * — is a failed build rather than a creature that quietly belongs nowhere.
+ */
+export const PROVINCE_REACH = 96;
+
+/**
+ * Do these two provinces touch — or are they the same one?
+ *
+ * The check that makes the bound above worth having. An agent may be outside its own province and
+ * may not be *far* outside it, and "not far" said exactly is "in a province that shares a border or
+ * a corner with the one it belongs to". Which is what lets a province be caught up on its own: the
+ * ground its agents can reach is its own and its eight neighbours', and never a ninth.
+ */
+export function adjoins(a: ProvinceId, b: ProvinceId): boolean {
+  const one = provinceAt(a), two = provinceAt(b);
+  return Math.abs(one.px - two.px) <= 1 && Math.abs(one.pz - two.pz) <= 1;
+}
 
 /** Where a province's leavings are written. One file each, named as the province is. */
 export function provincePath(dataDir: string, seed: number, id: ProvinceId): string {
