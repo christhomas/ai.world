@@ -69,6 +69,9 @@ export interface Consoled {
   flash: (message: string) => void;
 }
 
+/** How far outside a castle's gate a teleport puts you, in tiles. See the note where it is used. */
+const CASTLE_APPROACH = 4;
+
 /** Somewhere the player asked to be pointed at, and how far off it was when they asked. */
 export interface Bound { name: string; x: number; z: number }
 
@@ -120,7 +123,23 @@ export function openConsole(ctx: Consoled) {
       // is the yard, and the keep stands two tiles behind it with four and a half tiles of stone
       // to its name — so `teleport blackgard` aimed at the middle would land the hero inside the
       // keep wall. The gate tile is where anybody arriving at a castle arrives anyway.
-      ...structures.castles.map((c) => ({ name: c.name, kind: 'castle', x: c.gateX, z: c.gateZ })),
+      /*
+       * A castle is aimed at the ground *in front of* its gate rather than at the gate itself.
+       *
+       * The gate tile is a doorstep now — walking onto it takes you inside — so a teleport that
+       * lands on it is answered by a loading screen before the player has seen the castle at all.
+       * Four tiles further out along the way the gate faces is close enough to be arriving at the
+       * place and far enough to be standing outside it.
+       */
+      ...structures.castles.map((c) => {
+        const outX = c.gateX - c.x, outZ = c.gateZ - c.z;
+        const away = Math.hypot(outX, outZ) || 1;
+        return {
+          name: c.name, kind: 'castle',
+          x: c.gateX + (outX / away) * CASTLE_APPROACH,
+          z: c.gateZ + (outZ / away) * CASTLE_APPROACH,
+        };
+      }),
       // A pier has no name of its own — it is the dock of whatever it reaches, and what it reaches
       // is an island known by its coordinates. So it is named for the village nearest it, which is
       // how anybody standing on one would describe it, and numbered when a village has two.

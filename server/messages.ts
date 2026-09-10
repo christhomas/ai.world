@@ -222,7 +222,21 @@ function putThere(rooms: Rooms, me: Client, message: Extract<ClientMessage, { ty
   // the door is remembered, because that is where he will come back out: the world has no business
   // following anybody into a cellar it has never grown.
   if (me.standingIn === 'surface' && hero) {
-    me.leftSurfaceAt = { x: hero.x, z: hero.z };
+    /*
+     * The door is where the world had him — unless he is standing near enough to what he claims for
+     * the two to be the same doorway.
+     *
+     * Taking the claim outright would be a way to travel: say you stepped through a door at the far
+     * side of the county, come back out, and the world puts you there. Ignoring it outright is what
+     * used to happen, and it hauled a hero back across the county whenever anything but walking had
+     * moved him — a teleport that had not yet been read, a gangplank, a staircase — because for one
+     * frame the world's hero and the man at the door are two different places.
+     *
+     * So: believe it when it agrees with what the world can see, which covers the frame of drift
+     * and covers nothing else.
+     */
+    const claimed = Math.hypot(x - hero.x, z - hero.z) <= SAME_DOOR;
+    me.leftSurfaceAt = claimed ? { x, z } : { x: hero.x, z: hero.z };
     p.x = x; p.z = z;
     return;
   }

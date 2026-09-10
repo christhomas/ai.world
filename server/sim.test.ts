@@ -955,6 +955,53 @@ describe('the country the server grows', () => {
  * back to the wolf. Reported exactly that way: "it briefly puts me in the local village, before
  * restoring my location to where I was killed".
  */
+/**
+ * Going somewhere the world does not own, and coming back out of it.
+ *
+ * A door lets you out where it let you in, so the world remembers the doorway a hero left the
+ * surface by and puts him back at it if he reappears somewhere else. It remembered the wrong one
+ * whenever something other than walking had moved him — a teleport, a staircase, a gangplank —
+ * because it recorded where *it* had the hero rather than where the message said he was, and those
+ * two come apart for exactly one frame. Reported as: "when I try to move, it sends me back to where
+ * I teleported from".
+ */
+describe('a doorway the world was told about', () => {
+  const walkTo = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+
+  it('is the one the hero says he went in by, not the one the world last saw him at', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkTo(rowan, CLEAR_RUN.x, CLEAR_RUN.z);
+    sim.tick(Date.now() + 100);
+    rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 100 });
+
+    // carried a long way off by something the world is not walking him with, and *then* he steps
+    // through a door there — which is a teleport followed by a doorstep, in that order
+    const far = { x: FAR_CLEAR.x, z: FAR_CLEAR.z };
+    rowan.say({ type: 'stood', x: far.x, z: far.z, why: 'teleport' });
+    rowan.say({ type: 'stood', x: far.x, z: far.z, why: 'place' });
+    rowan.say({ type: 'move', x: 4, z: 4, yaw: 0, walk: 0, place: 'Kestrelmarch:1', riding: 'foot', gear: [] });
+    // the world says nothing about a hero it is not walking
+    expect(rowan.of('youAre').at(-1)!.x, 'the world followed him inside').toBeCloseTo(far.x, 1);
+
+    // and comes back out at the door he went in by. `stood` first and the `move` after it, which is
+    // the order the client sends them in — the place it is *leaving* is what makes this the way out
+    rowan.say({ type: 'stood', x: far.x, z: far.z, why: 'place' });
+    rowan.say({ type: 'move', x: far.x, z: far.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    const out = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(out.x - far.x, out.z - far.z), 'dragged back to where he was before the jump')
+      .toBeLessThan(2);
+
+    // and a step from there stays there rather than being answered from the old place
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 100 });
+    const after = rowan.of('youAre').at(-1)!;
+    expect(Math.hypot(after.x - far.x, after.z - far.z), 'the next step hauled him across the county')
+      .toBeLessThan(3);
+  });
+});
+
 describe('a hero carried home after a knock on the head', () => {
   /**
    * Somewhere in this world that is actually ground.

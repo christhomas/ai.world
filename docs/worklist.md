@@ -2493,7 +2493,7 @@ relief does.
 Eight things, in the order they are being done. The first two are faults; the rest build on each
 other, and the order is chosen so that each one can be *seen* working before the next is started.
 
-- [ ] **1. Teleporting to a castle drops you inside it, and climbing out puts you under the ground.**
+- [x] **1. Teleporting to a castle drops you inside it, and climbing out puts you under the ground.**
       `teleport <castle>` aims at the gate tile, which is now a doorstep, so the jump is answered by
       going in. Coming back out leaves the hero below the terrain and the next step snaps him back to
       where he teleported from — which says the world and the page disagree about where he is
