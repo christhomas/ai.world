@@ -2487,3 +2487,34 @@ tuneable until it is done.
 (`upliftRawAt`). It works and it is dead code — `TerrainSampler.massifs` is empty in this world,
 because the road world takes its height from `highlandAt` instead. It goes back in the day the
 relief does.
+
+## The list, September 10th — the village economy and what stands in its way
+
+Eight things, in the order they are being done. The first two are faults; the rest build on each
+other, and the order is chosen so that each one can be *seen* working before the next is started.
+
+- [ ] **1. Teleporting to a castle drops you inside it, and climbing out puts you under the ground.**
+      `teleport <castle>` aims at the gate tile, which is now a doorstep, so the jump is answered by
+      going in. Coming back out leaves the hero below the terrain and the next step snaps him back to
+      where he teleported from — which says the world and the page disagree about where he is
+      standing. Reported: "it puts me directly into the castle and when I climb back out, it appears
+      I'm below the ground".
+- [ ] **2. A ferry has no pier where you board it.** The boat ties up at a spot with nothing drawn
+      under it, so the one place in the world that reaches out over the water is invisible.
+- [ ] **3. What a body leaves behind should look like what it is.** A kill drops a brown sphere
+      whatever it was: meat, hide and gold are all the same lump. What is on the ground has to match
+      what goes into the pack.
+- [ ] **4. A village should hold as many people as it has room for.** Twenty villagers around two
+      houses. The population is drawn from the village's size in the graph rather than from what it
+      has actually built, so a hamlet gets a crowd.
+- [ ] **5. A roster: every inhabitant, with their health, their name, their family and their purse.**
+      A tool rather than a panel — the family tree taught that a page you can drag and read beats a
+      list, and this is the same kind of question asked of everybody at once.
+- [ ] **6. Villagers get hungry.** Health that falls with the day and is restored by eating, which is
+      the engine under everything below: a villager who must eat is a villager who must earn.
+- [ ] **7. Four ways to earn: dig gold, keep cattle, sell a service, or hunt.** The miners already do
+      the first and are the model for the rest — a herd that breeds at the rate it is eaten, a hunter
+      who brings a deer back to the market, a smith who is paid for work.
+- [ ] **8. And all of it done where it can be watched.** The miners walk to the face and swing; the
+      farmer must walk to the paddock, the hunter into the woods, the seller to the stall. Nothing in
+      this economy may happen as a number moving in the dark.
