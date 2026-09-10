@@ -57,8 +57,27 @@ export const FOOD = {
   MEAL: 1,
   /** How long somebody lasts on an empty stomach before it kills them. */
   STARVES_AFTER: 7,
-  /** A village cellar holds this many days of food for its size; the rest spoils. */
+  /** A village cellar holds this many days of food for its size; the rest goes to market. */
   KEEPS_DAYS: 12,
+  /**
+   * What the next valley pays for a meal this one cannot keep.
+   *
+   * The number that makes growing food worth doing. A village grows forty-six meals a day and eats
+   * twenty-six — every village, every day, for the whole life of the game — and for as long as the
+   * cellar simply capped, twenty of those meals were thrown on the ground every morning. That is
+   * why hunting did not pay: a hunter carried three meals a day into a place already drowning in
+   * food, and the only money he could be paid out of was what his neighbours spent on their own
+   * dinner. A trade whose product is free is a trade nobody should be doing.
+   *
+   * Under what a meal costs at home rather than over it, and deliberately. This is a glut being
+   * shifted — everybody's fields come in at once — and it has to be carried to somebody else's
+   * market by somebody. What it has to buy is that a surplus is worth *something*, which is the
+   * difference between a farm and a hobby.
+   *
+   * Measured rather than chosen: see `livelihoods.test.ts`, which holds every trade in the game to
+   * clearing what a day costs it, and `prosperity.ts`, whose two thresholds moved with it.
+   */
+  ABROAD: 0.45,
 } as const;
 
 /**

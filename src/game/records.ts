@@ -1,6 +1,6 @@
 import type { Burial, Register } from '../world/register';
 import { spentOnLiving } from '../world/prosperity';
-import { aDaysIncome } from '../world/livelihoods';
+import { aDaysIncome, pitchFor } from '../world/livelihoods';
 import { FOOD } from '../world/food';
 
 /**
@@ -186,7 +186,9 @@ export function theRoll(
       // three of them, so that the row adds up on its own: what comes in, what keep costs, what
       // dinner costs
       earns: income.get(person.id) ?? 0,
-      spends: spentOnLiving(person),
+      // the keep, and what it costs to have somewhere to sell from. Both, or the row does not add
+      // up and the village holds more than its own books can account for
+      spends: spentOnLiving(person) + pitchFor(person),
       food: person.trade ? FOOD.MEAL : 0,
       hungry: person.hungry,
       mother: person.mother,

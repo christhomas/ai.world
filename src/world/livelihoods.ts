@@ -100,6 +100,25 @@ export const LIVELIHOOD = {
    */
   PRICE_PER_BEAST: 9,
   /**
+   * What it costs to sell for a living: a pitch at the market, and getting the goods to it.
+   *
+   * The cost the model did not have. A farmer and a hunter were being paid for what they produced
+   * and charged nothing whatever for turning it into money — no stall, no carriage, no wastage —
+   * while a miner's day was priced and a traveller's inn bill was priced. A trade with revenue and
+   * no costs is not a trade, it is a tap.
+   *
+   * The rule this has to satisfy is the one that makes any of it worth doing: **what selling earns
+   * has to beat what selling costs.** Named as a constant so the test can hold it to that rather
+   * than take it on trust — `livelihoods.test.ts` puts every trade in the game through a day and
+   * fails if any of them is a way of getting poorer.
+   *
+   * Charged to the three trades that take a pitch — the farmer, the hunter and the seller — and
+   * paid into the same pool everybody's keep goes into, because a market belongs to the village
+   * and the people who keep it are the people who are paid out of it. A seller pays her own pitch
+   * and takes most of it back, which is what owning your pitch means.
+   */
+  SELLING: 0.4,
+  /**
    * The share of a herd that goes to market rather than being kept back to breed.
    *
    * Only the surplus over what the paddocks hold, which is exactly the user's sentence: the cows
@@ -108,6 +127,33 @@ export const LIVELIHOOD = {
    * else needs saying, and no constant is needed for it — it falls out of the cap.
    */
 } as const;
+
+/**
+ * The trades that make their living by selling something, and so pay for somewhere to sell it.
+ *
+ * The farmer and the hunter because their whole income is the market, and the seller because the
+ * pitch is literally hers. Not the innkeeper or the doctor: an inn and a surgery are a room in a
+ * building somebody already lives in, and charging them a market pitch would be charging them for
+ * a stall they have never stood at.
+ */
+const SELL_FOR_A_LIVING: readonly string[] = ['farmer', 'hunter', 'seller'];
+
+/**
+ * What somebody pays today for somewhere to sell from, which is nothing for most people.
+ *
+ * Exported because three things have to agree about it and two of them are books: what a day
+ * actually charges, what the roll says a day costs, and what the roll says a day pays. It was
+ * charged and not reported for one run of the bench, and the bench found it immediately — a
+ * village holding two hundred gold more than its own books could account for.
+ *
+ * Nobody pays a pitch out of their last week of dinners, the same reserve `spentOnLiving` keeps
+ * back: a hunter down to his last few coins goes hunting to eat rather than to sell, which is the
+ * other half of the trade and needs no market at all.
+ */
+export function pitchFor(person: Person): number {
+  if (!SELL_FOR_A_LIVING.includes(person.trade)) return 0;
+  return Math.min(LIVELIHOOD.SELLING, Math.max(0, person.purse - PROSPER.KEEPS_BACK));
+}
 
 /** What a day of keeping cattle came to. */
 export interface Herding {
@@ -308,8 +354,21 @@ export function aDaysTrade(
     add(id, much);
   }
 
-  // and everybody's keep, out of their purse and into the purses of whoever sold it to them
-  for (const [id, much] of paidForService(people, keep())) add(id, much);
+  /*
+   * Everybody's keep, and the pitch money of whoever sells for a living, into the purses of the
+   * people who keep the market and the inn.
+   *
+   * The two are collected together because they go to the same place and are the same kind of
+   * thing: money spent inside the village on what the village provides. Splitting them would be
+   * two pools with one set of claimants.
+   */
+  let pitches = 0;
+  for (const person of people) {
+    const pitch = pitchFor(person);
+    pitches += pitch;
+    add(person.id, -pitch);
+  }
+  for (const [id, much] of paidForService(people, keep() + pitches)) add(id, much);
 
   return {
     herd: cattle.herd,
@@ -364,15 +423,26 @@ export function aDaysIncome(
   const canPay = people.filter(
     (p) => p.trade && p.purse + (day.paid.get(p.id) ?? 0) >= FOOD.MEAL,
   ).length;
-  const larder = Math.min(cellarCap(people), store + day.grown);
-  const pool = Math.min(canPay, Math.floor(larder)) * FOOD.MEAL;
+  /*
+   * A caller with no village behind it says nothing about the store, and that has to mean "assume
+   * there is enough" rather than "assume an infinite glut". Left as arithmetic on `Infinity` it
+   * came out as a surplus of infinity, a pool of infinity, and every share in the village NaN —
+   * which is what the test that guards this found within a minute of the surplus going in.
+   */
+  const known = Number.isFinite(store);
+  const larder = known ? Math.min(cellarCap(people), store + day.grown) : Infinity;
+  const pool = Math.min(canPay, Math.floor(Math.min(larder, canPay))) * FOOD.MEAL;
+  // plus what the cellar will not hold, which goes to the next valley rather than on the ground
+  const spare = known ? Math.max(0, store + day.grown - larder) : 0;
 
-  for (const [id, much] of paidForFood(people, pool, day.meat)) {
+  for (const [id, much] of paidForFood(people, pool + spare * FOOD.ABROAD, day.meat)) {
     income.set(id, (income.get(id) ?? 0) + much);
   }
-  // and the keep is already in `paid` as a debit, which is where it belongs: the roll says what a
-  // day takes in and what it costs on separate lines, and this is the taking-in line
-  for (const one of people) income.set(one.id, (income.get(one.id) ?? 0) + spentOnLiving(one));
+  // the keep and the pitch are both in `paid` as debits, which is where they belong: the roll says
+  // what a day takes in and what it costs on separate lines, and this is the taking-in line
+  for (const one of people) {
+    income.set(one.id, (income.get(one.id) ?? 0) + spentOnLiving(one) + pitchFor(one));
+  }
   return income;
 }
 
@@ -380,9 +450,11 @@ export function aDaysIncome(
 export interface Dinner {
   /** What is left in the store this evening. */
   food: number;
+  /** Meals the cellar would not hold, which went to the next valley instead of on the ground. */
+  sold: number;
   /** Who has now gone long enough without to have died of it. */
   starved: Person[];
-  /** And what dinner cost, going to whoever's dinner it was. */
+  /** And what dinner cost, going to whoever's dinner it was — plus what the surplus fetched. */
   paid: Map<string, number>;
 }
 
@@ -399,13 +471,29 @@ export interface Dinner {
  * for the register to act on, because burying somebody is the register's business.
  */
 export function aDaysDinner(people: readonly Person[], store: number, work: Trading): Dinner {
-  const food = Math.min(cellarCap(people), store + work.grown);
+  const all = store + work.grown;
+  const food = Math.min(cellarCap(people), all);
+  /*
+   * What the cellar will not hold goes to market instead of on the ground.
+   *
+   * This is the line that makes growing food worth doing, and for the whole life of the game it
+   * was a `Math.min` and nothing else. A village grows forty-six meals a day and eats twenty-six;
+   * the cellar fills inside a fortnight and every morning after that threw twenty meals away. That
+   * is why hunting cleared nineteen hundredths of a coin a day against a trade that pays two: not
+   * because a hunter is bad at hunting, but because his product was free.
+   *
+   * The village's own store is filled first and the surplus is what is left after that, so a place
+   * that is hungry sells nothing — which is the right way round, and means a bad season shows up
+   * as a village that has stopped earning as well as one that has stopped eating.
+   */
+  const spare = Math.max(0, all - food);
   const meal = eat(people, food);
-  return {
-    food: Math.max(0, food - meal.eaten),
-    starved: meal.starved,
-    paid: paidForFood(people, meal.spent, work.meat),
-  };
+  const paid = paidForFood(people, meal.spent, work.meat);
+  // and the money for it comes from the next valley, because that is where the food went
+  for (const [id, much] of paidForFood(people, spare * FOOD.ABROAD, work.meat)) {
+    paid.set(id, (paid.get(id) ?? 0) + much);
+  }
+  return { food: Math.max(0, food - meal.eaten), sold: spare, starved: meal.starved, paid };
 }
 
 /**

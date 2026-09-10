@@ -2543,6 +2543,32 @@ other, and the order is chosen so that each one can be *seen* working before the
             A drover and a cart. Judged not worth a day's work against 8d; here so it is a decision
             rather than an oversight.
 
+- [x] **10. A trade has to clear what it costs.** Asked for on 2026-09-11: if a villager pays for a
+      market pitch they have to make more than the pitch back, or hunting and farming are a way of
+      getting poorer — and if they hunt to eat instead, the food has to beat the day. Either way
+      there is a profit in it. Measured, and the game failed it outright: a **hunter cleared 0.19 a
+      day** against a soldier's 1.35, while his own tree had him spend 40 gold on gear — two hundred
+      days of hunting to afford kit, in a life of ninety. The farmer failed it from the other side,
+      clearing 6.45 and charged nothing whatever for turning what he grew into money.
+
+      One line was the cause. A village grows 46 meals a day and eats 26, and the cellar simply
+      capped — twenty meals a day went on the ground, in every village, every day, for the life of
+      the game. Hunting did not pay because a hunter's product was free. The surplus is sold to the
+      next valley now (`FOOD.ABROAD`), and taking a pitch costs something (`LIVELIHOOD.SELLING`).
+      Hunter 0.19 → 5.87 gross. `livelihoods.test.ts` holds every trade in the game to clearing its
+      own day, both ways: in coin if it sells, in food if it eats what it catches.
+
+      Two things fell out of it. The bench's "no village holds more than its books say came in"
+      check had been quietly incomplete for its whole life — `resettle` walks people between
+      villages **carrying their purses**, and 2,630 gold had walked into Blackmarsh that no roll
+      ever earned; the bound was slack enough to hide it until food producers started being paid
+      properly. And `STOREY` 195 → 210, `LUXURY` 3,500 → 3,950, re-measured to the same shape.
+
+      **Open, and surfaced rather than tuned away:** the spread is now farmer 18.2 a day against a
+      sailor's 3.0. Every trade profits, which is what was asked for, but food is six times the best
+      living in the game and two farmers hold much of a village's worth. Whether that is right —
+      food *is* the base of the whole economy — or wants flattening is a design call, not a bug.
+
 - [ ] **9. One vocabulary for everybody.** Asked for on 2026-09-11: if the player acts on the world
       through the same named verbs the villagers and creatures do, there is one thing to test, one
       thing to automate, and a villager can do anything the hero can. Three layers were found and

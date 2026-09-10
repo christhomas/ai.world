@@ -455,11 +455,28 @@ describe('a hundred days, at the end of them', () => {
         const founded = run.founded.get(village)!;
         const starved = end.stones.filter((stone) => stone.cause === 'hunger').length;
 
-        // everything the books ever said came in, over the whole run, mine included
+        /*
+         * Everything that ever came in: what the books said was earned, what the mine minted, and
+         * what walked through the gate in somebody's pocket.
+         *
+         * That last one is not a detail and leaving it out made this check quietly wrong for the
+         * life of the bench. `register.resettle` moves grown people from a crowded village into an
+         * emptied one and they take their purses with them — this is the only way a ruin ever comes
+         * back — so a village that was resettled holds money that its own roll never earned. It
+         * went unnoticed because the bound was slack: while a villager earned two a day it did not
+         * matter that a few hundred gold had walked in. The day food producers started being paid
+         * for the surplus they had always been throwing away, Blackmarsh on seed 1234 was found
+         * holding 1,940 against 1,812 ever earned — and 2,630 had walked in.
+         *
+         * Departures are deliberately not netted off. Somebody leaving with their purse only makes
+         * this bound looser, and a loose bound in the safe direction is what a sanity check wants.
+         */
         let could = 0;
         for (let n = 0; n < evenings.length - 1; n++) {
           for (const row of evenings[n].roll) could += row.earns;
           could += run.minted.get(village)!.get(evenings[n + 1].day) ?? 0;
+          const before = new Set(evenings[n].roll.map(who));
+          for (const row of evenings[n + 1].roll) if (!before.has(who(row))) could += row.purse;
         }
         if (worth(end) > could + 1e-3) {
           wrong.push(`${at(run, village, end.day)}: holds ${coins(worth(end))} and its books account for ${coins(could)} ever coming in`);

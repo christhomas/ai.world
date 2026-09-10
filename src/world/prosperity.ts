@@ -103,8 +103,13 @@ export const PROSPER = {
    * Twelve, in the second and third months, is the same shape the number has always been asked to
    * hold. That it took a doubling of the threshold to keep it is the point of measuring rather
    * than reasoning about a number like this.
+   *
+   * Two hundred and ten, the morning after, because a village stopped throwing away twenty meals a
+   * day. It had always grown far more than it ate and capped the cellar; the surplus is sold now,
+   * which is what makes growing food a trade rather than a hobby. Measured again on the same
+   * twenty-one: at 195 sixteen of them cross, at 210 eleven between day 50 and day 98, at 230 nine.
    */
-  STOREY: 195,
+  STOREY: 210,
   /**
    * What a village's luxuries cost — reckoned against everything the village has between it, not
    * against one purse. Nobody here lives more than ninety days, so no individual could ever afford
@@ -130,8 +135,14 @@ export const PROSPER = {
    * `STOREY` moved and off the same twenty-one villages: at 1,800 fifteen of them manage one, at
    * 3,000 eleven, at 3,500 four — on days 57, 87, 92 and 96 — and at 3,800 two. Four late ones,
    * again, which is the shape rather than the number.
+   *
+   * And 3,950 once the surplus was being sold instead of spoiled: at 3,500 eight of them manage a
+   * bath house, at 3,950 four, on days 60, 64, 80 and 95, and at 4,550 two. The same four late
+   * ones. What is worth noticing is how little it moved — a hundred days of selling a glut makes a
+   * village's *people* better off far more than it makes the village rich, which is the right way
+   * round for a place where the money is in purses and there is no treasury anywhere.
    */
-  LUXURY: 3500,
+  LUXURY: 3950,
   /**
    * The most anybody keeps by them.
    *

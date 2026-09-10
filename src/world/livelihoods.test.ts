@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { FOOD, broughtIn } from './food';
-import { PROSPER } from './prosperity';
+import { FOOD, broughtIn, cellarCap } from './food';
+import { PROSPER, spentOnLiving } from './prosperity';
 import {
   LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, boughtInTheVillage, paidForFood,
-  paidForService, shareOut, soldAtMarket, whoFed,
+  aDaysDinner, paidForService, pitchFor, shareOut, soldAtMarket, whoFed,
 } from './livelihoods';
 import type { Person } from './people';
 
@@ -208,8 +208,10 @@ describe('what the roll quotes against a name', () => {
       (sum, p) => sum + (['seller'].includes(p.trade) ? PROSPER.TRADED : p.trade === 'soldier' ? PROSPER.A_DAY : 0),
       0,
     );
-    const keep = people.length * PROSPER.UPKEEP;
+    const keep = people.reduce((sum, p) => sum + PROSPER.UPKEEP + pitchFor(p), 0);
     const dinner = people.filter((p) => p.trade).length * FOOD.MEAL;
+    // the pitch is in there with the keep: the roll quotes what a day takes in on one line and
+    // what it costs on another, and both costs belong on the second
     expect(total(income)).toBeCloseTo(wages + keep + dinner, 8);
   });
 });
@@ -233,28 +235,31 @@ describe('a farmer\'s hundred days, in a village with people in it', () => {
     person('soldier', 0), person('miner', 0), person('', 0), person('', 0),
   ];
 
-  /** One day in the order the register lives it: the morning's work, then dinner. */
-  const aDay = (people: Person[], herd: number): number => {
+  /*
+   * One day in the order the register lives it: the morning's work, then dinner.
+   *
+   * Through `aDaysTrade` and `aDaysDinner` rather than a hand-rolled version of the two, because a
+   * test harness that is its own copy of the day is a test that goes on passing after the day has
+   * changed underneath it. This one did: it kept charging for dinner and paying the growers while
+   * knowing nothing about the surplus going to market, so the morning the hunter started paying
+   * for a pitch he simply got poorer here and nowhere else.
+   */
+  const aDay = (people: Person[], herd: number, store: number): [number, number] => {
     const work = aDaysTrade(people, herd, 0);
     for (const [id, much] of work.paid) {
       const who = people.find((p) => p.id === id)!;
       who.purse = Math.max(0, who.purse + much);
     }
-    // dinner: everybody who can pay for one buys one, and the money goes to whoever grew it
-    let pool = 0;
-    for (const one of people) {
-      if (one.trade && one.purse >= FOOD.MEAL) { one.purse -= FOOD.MEAL; pool += FOOD.MEAL; }
-    }
-    for (const [id, much] of paidForFood(people, pool, work.meat)) {
-      people.find((p) => p.id === id)!.purse += much;
-    }
-    return work.herd;
+    const meal = aDaysDinner(people, store, work);
+    for (const [id, much] of meal.paid) people.find((p) => p.id === id)!.purse += much;
+    return [work.herd, meal.food];
   };
 
   const lived = (days: number): Person[] => {
     const people = village();
     let herd: number = LIVELIHOOD.FIRST_HERD;
-    for (let day = 0; day < days; day++) herd = aDay(people, herd);
+    let store = people.length * 3;
+    for (let day = 0; day < days; day++) [herd, store] = aDay(people, herd, store);
     return people;
   };
 
@@ -374,5 +379,89 @@ describe('a purchase made in front of somebody', () => {
     const people = [person('innkeeper', 40), person('farmer', 0)];
     expect(boughtInTheVillage(people, people[0].id, 6, 'innkeeper')).toBe(6);
     expect(people[0].purse, 'the innkeeper drank at his own bar and paid himself').toBe(34);
+  });
+});
+
+/**
+ * The rule that decides whether any of this is worth doing: **a trade has to clear what it costs.**
+ *
+ * Asked for in so many words on 2026-09-11 — if a villager pays for a market pitch, they have to
+ * make more than the pitch back, or hunting and farming are a way of getting poorer; and if they
+ * hunt to eat instead, the food has to be worth more than the day it took. Either way there is a
+ * profit in it, or nobody with any sense would do the work.
+ *
+ * The game failed this outright when it was asked. A hunter cleared **nineteen hundredths of a
+ * coin a day** against a soldier's one and a third, while his own behaviour tree had him spend
+ * forty gold on gear — two hundred days of hunting to afford kit, in a life of ninety. And the
+ * farmer failed it from the other side: he cleared six and a half and was charged nothing at all
+ * for turning what he grew into money.
+ *
+ * The cause was one line. A village grows forty-six meals a day and eats twenty-six, and the
+ * cellar capped: twenty meals a day went on the ground, every day, in every village, for the whole
+ * life of the game. Hunting did not pay because a hunter's product was free.
+ */
+describe('every trade clears what a day costs it', () => {
+  /** A village big enough to hold one of everything, at a day when its cellar has filled. */
+  const working = (): Person[] => [
+    person('farmer', 60), person('farmer', 60), person('hunter', 60), person('hunter', 60),
+    person('seller', 60), person('innkeeper', 60), person('doctor', 60), person('soldier', 60),
+    person('miner', 60), person('constable', 60), person('sailor', 60), person('explorer', 60),
+    person('climber', 60), person(''), person(''), person(''), person(''),
+  ];
+
+  /** What a day pays each of them, with the cellar full — which is where a village lives. */
+  const aDay = (people: Person[]) => {
+    const herd = LIVELIHOOD.HERD_PER_FARMER * people.filter((p) => p.trade === 'farmer').length;
+    return aDaysIncome(people, herd, 0, cellarCap(people));
+  };
+
+  it('leaves nobody in the village worse off for having worked', () => {
+    const people = working();
+    const income = aDay(people);
+    for (const soul of people.filter((p) => p.trade)) {
+      const costs = spentOnLiving(soul) + pitchFor(soul) + FOOD.MEAL;
+      const takes = income.get(soul.id) ?? 0;
+      expect(takes, `a ${soul.trade} takes ${takes.toFixed(2)} and a day costs ${costs.toFixed(2)}`)
+        .toBeGreaterThan(costs);
+    }
+  });
+
+  it('pays the trades that sell for a living more than selling costs them', () => {
+    // the user's own arithmetic: a pitch is only worth taking if what you sell off it beats it
+    const people = working();
+    const income = aDay(people);
+    for (const soul of people.filter((p) => pitchFor(p) > 0)) {
+      expect(income.get(soul.id) ?? 0).toBeGreaterThan(pitchFor(soul) * 2);
+    }
+  });
+
+  it('leaves no trade so far ahead of the rest that the others are pointless', () => {
+    // the other half of the rule. A spread is the point — a village with a market should be worth
+    // walking to — but a trade paying ten times another is a game with one job in it
+    const people = working();
+    const income = aDay(people);
+    const takes = people.filter((p) => p.trade).map((p) => income.get(p.id) ?? 0);
+    expect(Math.max(...takes) / Math.min(...takes)).toBeLessThan(8);
+  });
+
+  it('feeds a hunter who never sells a thing', () => {
+    /*
+     * The other way of making a profit, and the one that needs no market at all: hunt to eat.
+     * What he carries out of the woods has to beat what the day costs him in food, or a man with
+     * an empty purse starves beside a wood full of deer.
+     */
+    const hunter = person('hunter', 0);
+    expect(broughtIn(hunter)).toBeGreaterThan(FOOD.MEAL);
+    // and it has to beat what anybody manages without leaving their own garden, or hunting is a
+    // long walk for what a few hens would have given him
+    expect(broughtIn(hunter)).toBeGreaterThan(broughtIn(person('soldier', 0)));
+  });
+
+  it('is why a village grows more than it eats: the surplus is the wage', () => {
+    const people = working();
+    const grown = aDaysTrade(people, LIVELIHOOD.HERD_PER_FARMER * 2, 0).grown;
+    expect(grown, 'a village that grows only what it eats has nothing to sell').toBeGreaterThan(people.length);
+    // and it is worth something, which for the whole life of the game it was not
+    expect(FOOD.ABROAD).toBeGreaterThan(0);
   });
 });
