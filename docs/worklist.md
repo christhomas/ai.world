@@ -2510,7 +2510,7 @@ other, and the order is chosen so that each one can be *seen* working before the
 - [x] **5. A roster: every inhabitant, with their health, their name, their family and their purse.**
       A tool rather than a panel — the family tree taught that a page you can drag and read beats a
       list, and this is the same kind of question asked of everybody at once.
-- [ ] **6. Villagers get hungry.** Health that falls with the day and is restored by eating, which is
+- [x] **6. Villagers get hungry.** Health that falls with the day and is restored by eating, which is
       the engine under everything below: a villager who must eat is a villager who must earn.
 - [ ] **7. Four ways to earn: dig gold, keep cattle, sell a service, or hunt.** The miners already do
       the first and are the model for the rest — a herd that breeds at the rate it is eaten, a hunter

@@ -162,8 +162,24 @@ export function foundVillage(
 ): Person[] {
   const rng = mulberry32(derive(seed, SALT.PEOPLE) ^ hashName(village));
   const people: Person[] = [];
-  const lifeOf = (): number =>
-    Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE));
+  /**
+   * How long somebody founded on day one has left, counted from the day they were born.
+   *
+   * The `already` is the whole of it, and leaving it out emptied every village in the world. A life
+   * is sixty to ninety days; a founder is handed an age of up to fifty on the morning the village
+   * is founded. Measured from birth, that is a village where half the adults die within a month —
+   * and they die *together*, faster than the six per cent a day a village replaces itself at, so it
+   * crosses the line below which `fillTheGaps` gives up and never comes back.
+   *
+   * Measured on seed 1 before this: thirty people on day one, twenty-one by day five, nine by day
+   * twenty, seven by day sixty, with nobody hungry and nobody killed. Not a hard winter — arithmetic.
+   *
+   * So the roll is what they have *left*, and their age is added to it. A village founded with
+   * grandparents in it still has them for a season, and its deaths arrive spread out, which is what
+   * a birth rate can keep up with.
+   */
+  const lifeOf = (already: number): number =>
+    already + Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE));
 
   const families: string[] = [];
   for (let house = 0; house < Math.max(1, houses); house++) {
@@ -173,12 +189,15 @@ export function foundVillage(
     const under = (person: Person): Person => { household.push(firstNameOf(person)); return person; };
 
     // a couple, somewhere in the middle of their lives
-    const mother = under(born(rng, people.length, village, trades, -Math.round(20 + rng() * 30), lifeOf(), family, household));
-    const father = under(born(rng, people.length + 1, village, trades, -Math.round(20 + rng() * 30), lifeOf(), family, household));
+    const motherBorn = -Math.round(20 + rng() * 30);
+    const fatherBorn = -Math.round(20 + rng() * 30);
+    const mother = under(born(rng, people.length, village, trades, motherBorn, lifeOf(-motherBorn), family, household));
+    const father = under(born(rng, people.length + 1, village, trades, fatherBorn, lifeOf(-fatherBorn), family, household));
     people.push(mother, father);
 
     for (let n = 0; n < Math.floor(rng() * (LIFE.CHILDREN + 1)); n++) {
-      const child = under(born(rng, people.length, village, trades, -Math.round(rng() * LIFE.CHILD_UNTIL), lifeOf(), family, household));
+      const childBorn = -Math.round(rng() * LIFE.CHILD_UNTIL);
+      const child = under(born(rng, people.length, village, trades, childBorn, lifeOf(-childBorn), family, household));
       child.mother = mother.name;
       child.father = father.name;
       child.trade = '';                        // a trade comes with growing up

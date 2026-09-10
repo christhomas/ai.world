@@ -323,15 +323,10 @@ export function installProbes(ctx: Probed): void {
   (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
   (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => commandWorld.spawn(kind, away);
   /*
-   * Hurt whoever is nearest, without hitting them.
+   * Hurt whoever is nearest, without hitting them: the flash and the bar, with none of the fight.
    *
-   * For looking at what a hit *looks* like — the flash, the bar over the head — which is otherwise
-   * surprisingly hard to photograph: a wolf runs, a villager walks off, and a swing that misses
-   * proves nothing about the drawing. This puts the wound on without the fight, so a screenshot can
-   * be taken of a creature at half health standing still.
-   *
-   * Deliberately not `damageEntity`: no knockback, no fleeing, nobody turning on you. It is the
-   * numbers a blow would leave behind and none of the consequences, which is what a picture needs.
+   * Deliberately not `damageEntity` — no knockback, nobody turning on you — because what this is
+   * for is photographing a wounded creature standing still.
    */
   (debug as { __hurt?: (damage?: number) => unknown }).__hurt = (damage = 1) => {
     const near = crowdAround().within(player.x, player.z, 30)
@@ -353,13 +348,9 @@ export function installProbes(ctx: Probed): void {
       .filter((one) => openCountry(chunks, one.x, one.z))
       .map((one) => ({ ...one, away: Math.round(Math.hypot(one.x - player.x, one.z - player.z)) }))
       .sort((a, b) => a.away - b.away);
-  /*
-   * Leave something on the ground, without having to kill anything for it.
-   *
-   * What a body leaves behind is drawn as the thing it is now — a carcass, a hide, coins, a pack —
-   * and photographing that meant hunting an animal that runs away, at a frame rate that makes
-   * hunting hard. This puts one down beside the hero, which is what looking at it requires.
-   */
+  // Leave a body on the ground without hunting one: what a drop looks like is checked by looking,
+  // and an animal that runs away at four frames a second cannot be photographed.
+
   (debug as { __leave?: (kind?: string) => unknown }).__leave = (kind = 'deer') => {
     leaveOne(kind, player.x + 2, player.z);
     return { kind, x: Math.round(player.x + 2), z: Math.round(player.z) };
@@ -549,8 +540,23 @@ export function installProbes(ctx: Probed): void {
       village: here, day: register.today,
       people: register.living(here).map((p) => ({
         name: p.name, trade: p.trade, born: p.born, lives: p.lives,
+        // what they have and whether they have eaten: the economy is the reason for this probe as
+        // much as the family tree is, and a village's health is a column of numbers
+        purse: p.purse, hungry: p.hungry,
         mother: p.mother, father: p.father, knows: p.knows.length, memories: p.memories,
       })),
+      /** Who this village has buried, and what took them: the other half of a population. */
+      buried: register.churchyard(here).slice(-8).map((b) => ({ name: b.name, day: b.day, cause: b.cause })),
+      /** Everybody the register holds, wherever they live: the whole world in one count. */
+      world: (() => {
+        const all = register.everybody();
+        return {
+          alive: all.length,
+          purse: all.reduce((sum, p) => sum + p.purse, 0),
+          hungry: all.filter((p) => p.hungry > 0).length,
+          villages: register.settled().length,
+        };
+      })(),
     };
   };
   debug.__player = player;

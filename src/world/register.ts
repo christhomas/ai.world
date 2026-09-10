@@ -2,6 +2,7 @@ import { PROSPER, earnedInADay, spentOnLiving } from './prosperity';
 import { cellarCap, eat, grownInADay } from './food';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
+import { handOnWhatTheyHad } from './inheritance';
 import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Memory, type Person } from './people';
 import { compactAll, type Opinion } from './memory';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
@@ -68,7 +69,7 @@ export interface Burial {
 const STONES_KEPT = 60;
 
 /** A village the register has been told about, so it knows how big to keep it. */
-interface Settlement {
+export interface Settlement {
   people: Person[];
   /**
    * Meals in the store. Grown by whoever farms, eaten every day, and spoiling past what a cellar
@@ -428,7 +429,7 @@ export class Register {
     const changes = [
       ...this.buryTheOld(village, day),
       ...this.dinner(village, day, pressure),
-      ...this.fillTheGaps(name, village, day),
+      ...this.fillTheGaps(name, village, day, pressure),
       ...this.growUp(name, village, day),
       ...this.takeTheKilled(village, day),
     ];
@@ -505,17 +506,23 @@ export class Register {
     return gone.map((p) => this.remove(p, day, 'age')).filter((c): c is Change => c !== null);
   }
 
-  /**
-   * A village replaces what it has lost, at a pace. A hard winter of wolf attacks means a run of
-   * births rather than a slow slide into an empty place, and a village at full size has none.
-   */
-  private fillTheGaps(name: string, village: Settlement, day: number): Change[] {
+  /** A village replaces what it has lost, at a pace: a hard winter means a run of births. */
+  private fillTheGaps(name: string, village: Settlement, day: number, pressure: number): Change[] {
     const missing = village.founded - village.people.length;
     if (missing <= 0) return [];
-    // a village past saving does not save itself. That is what makes arriving in time matter:
-    // below the line there are not enough hands to keep the place going, and no amount of waiting
-    // will change it, only somebody dealing with whatever is doing the killing
-    if (!canRecover(fortuneOf(village.people.length, village.founded))) return [];
+    /*
+     * No births while it is being raided, and births again the moment it is not.
+     *
+     * This used to test how far the village had fallen: below a line, none ever again — so a place
+     * stayed barren after the thing killing it was dealt with, and every troubled village drained
+     * away. Seed 1's Crossroads Town: thirty people, seven by day sixty, none by day one hundred
+     * and twenty. Pressure is the honest test, and it makes a rescue worth making up to the last
+     * family.
+     */
+    if (pressure > PROSPER.UNTROUBLED) return [];
+    // and a place with nobody left in it is a ruin rather than a village: somebody has to be there
+    // for anybody to be born
+    if (village.people.length === 0) return [];
 
     const rng = this.streamFor(name, day);
     const wanted = Math.min(missing, Math.max(1, Math.round(village.founded * BIRTH_RATE)));
@@ -647,52 +654,3 @@ export class Register {
   }
 }
 
-/**
- * What a dead villager's purse does next, which until now was nothing at all.
- *
- * Measured over a hundred days across twenty-one villages: 18,617 gold went into the ground with
- * its owners, against 30,301 spent on living. Death was the largest single drain in this economy
- * and there was no inheritance anywhere in the world — so a village that had been settled for a
- * century was no better off than one founded last week, and the only thing holding the money
- * supply up was whatever the mines minted. A hundred years of a village changed nothing about it.
- *
- * The rule is the one a person would guess. What somebody held goes to their family in the same
- * village — an adult of their own surname first, because a household is what actually inherits,
- * and any relative at all if there is no grown one — and where there is nobody left of the name it
- * is shared out among everybody still living there. Nothing is ever destroyed and nothing is
- * created: the sum of every purse in a village is the same either side of a funeral, less whatever
- * the dead had already spent.
- *
- * Shared out rather than banked, because there is no village pot to bank it in. A `Settlement`
- * holds food, houses, trades and people, and inventing a treasury for this would be inventing a
- * thing nothing else in the game can see or spend. Sharing it puts the money where it can be
- * spent, which is what makes it show up as a second storey rather than as a number in a file.
- *
- * Called from `remove`, which is the single place every death in this world goes through — age,
- * hunger and violence alike — so there is no way to die that skips it.
- */
-function handOnWhatTheyHad(person: Person, village: Settlement, day: number): { left: number; to: string } {
-  const estate = Math.round(person.purse * 100) / 100;
-  if (estate <= 0 || village.people.length === 0) return { left: Math.max(0, estate), to: '' };
-  person.purse = 0;
-
-  const name = surnameOf(person);
-  const family = name ? village.people.filter((p) => surnameOf(p) === name) : [];
-  const grown = family.filter((p) => stageOf(p, day) === 'adult');
-  const heir = grown[0] ?? family[0] ?? null;
-  if (heir) {
-    heir.purse += estate;
-    remember(heir, { what: 'inherited', who: person.name, day });
-    return { left: estate, to: heir.name };
-  }
-
-  // nobody of the name is left, so the village has it. Rounded down a share at a time with the
-  // remainder going to the first of them, because a hundredth of a coin that nothing can spend is
-  // money quietly leaving the world through the back door — which is the fault this whole
-  // function exists to close.
-  const share = Math.floor((estate / village.people.length) * 100) / 100;
-  let over = estate;
-  for (const survivor of village.people) { survivor.purse += share; over -= share; }
-  village.people[0].purse += Math.max(0, Math.round(over * 100) / 100);
-  return { left: estate, to: '' };
-}

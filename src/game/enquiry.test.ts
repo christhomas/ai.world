@@ -164,7 +164,7 @@ describe('asking to see a village book', () => {
     const book = gist.choices!.find((c) => c.label.includes('See the book'))!.next()!;
     expect(state.inventory.gold).toBe(100 - FEES.BIRTHS);
     expect(book.pages.length, 'a dozen births handed over as one wall of text').toBeGreaterThan(1);
-    expect(book.pages.join('\n')).toMatch(/born day \d+/);
+    expect(book.pages.join('\n')).toMatch(/born day \d+|here since the village was founded/);
   });
 
   /*

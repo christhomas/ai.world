@@ -60,6 +60,21 @@ export const NEMESIS = {
   /** Days between the people a running scheme takes out of the village it has settled on. */
   TOLL_EVERY: 2,
   /**
+   * How many one scheme may take before it has done its worst, in people.
+   *
+   * Unbounded, this emptied the world. A scheme takes somebody every two days for as long as it
+   * runs, and a scheme runs until the player deals with it — which is fine for a player who is
+   * there and fatal for a world left alone. Measured on seed 1: Crossroads Town went from thirty
+   * people to seven inside sixty days without a wolf touching it, every death recorded as violence,
+   * and a village that far past its founding size never recovers because `fillTheGaps` gives up.
+   *
+   * Four is a village losing a piece of itself — enough that the square talks about nothing else,
+   * few enough that the place is still there when somebody comes to deal with him. After that the
+   * scheme has had what it came for and stops taking, which is also how it should read: a thing
+   * that is finished rather than a tap left running.
+   */
+  TOLL_MOST: 4,
+  /**
    * How many are in the water, under the rock, or the wrong side of the fire. Enough that the
    * names read as a village losing a piece of itself, few enough that it can survive it twice.
    */
@@ -241,6 +256,8 @@ export interface NemesisSave {
   next: number;
   ran: number;
   tolled: number;
+  /** How many this scheme has taken. Absent on saves written before a scheme had a worst. */
+  took?: number;
 }
 
 /** A stream of his own for one moment of one scheme, so two clients take the same person. */
@@ -363,6 +380,8 @@ export class Nemesis {
   private ran = 0;
   /** The day the last toll was taken, so a client arriving late takes exactly the ones it missed. */
   private tolled = 0;
+  /** How many this scheme has taken so far, so that it has an end. See `NEMESIS.TOLL_MOST`. */
+  private took = 0;
 
   constructor(private readonly seed: number) {}
 
@@ -376,6 +395,9 @@ export class Nemesis {
     him.next = saved.next;
     him.ran = saved.ran;
     him.tolled = saved.tolled;
+    // a save written before a scheme had an end says nothing about how many it had taken; nought is
+    // the safe reading, and the worst it can cost is one scheme's worth
+    him.took = saved.took ?? 0;
     return him;
   }
 
@@ -537,6 +559,7 @@ export class Nemesis {
       next: this.next,
       ran: this.ran,
       tolled: this.tolled,
+      took: this.took,
     };
   }
 
@@ -551,6 +574,7 @@ export class Nemesis {
     this.ran++;
     this.where = 'abroad';
     this.tolled = day;
+    this.took = 0;                              // a new scheme, and a fresh reckoning of its worst
     return [{ kind: 'scheme', village: plan.village, who: NEMESIS.NAME, day, said: saidOfWork(plan.work, plan.village) }];
   }
 
@@ -570,8 +594,11 @@ export class Nemesis {
 
     while (day - this.tolled >= NEMESIS.TOLL_EVERY) {
       this.tolled += NEMESIS.TOLL_EVERY;
+      // a scheme has a worst, and stops when it has done it: see `TOLL_MOST`
+      if (this.took >= NEMESIS.TOLL_MOST) continue;
       const took = this.folkOf(realm.register, scheme.village, this.tolled, `toll:${scheme.number}:${this.tolled}`)[0];
       if (!took) continue;
+      this.took++;
       realm.register.bury(took.id, this.tolled);
       words.push({
         kind: 'taken', village: scheme.village, who: took.name, day: this.tolled,

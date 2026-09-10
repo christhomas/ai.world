@@ -350,7 +350,10 @@ export function theBirths(register: Register, village: string, today: number): L
     gist,
     detail: rows.map((row) => {
       const kin = row.mother || row.father ? ` to ${[row.mother, row.father].filter(Boolean).join(' and ')}` : '';
-      return `${row.name}, born day ${row.born}${kin}. ${row.age === 0 ? 'An infant.' : `${row.age} years old.`}`;
+      // A village's founders were here before there was a book to write them in, so their day is
+      // negative — "born day -2" is a clerk's artefact rather than a thing anybody would say.
+      const when = row.born > 0 ? `born day ${row.born}` : 'here since the village was founded';
+      return `${row.name}, ${when}${kin}. ${row.age === 0 ? 'An infant.' : `${row.age} years old.`}`;
     }),
     rows,
     fee: living.length === 0 ? 0 : FEES.BIRTHS,
