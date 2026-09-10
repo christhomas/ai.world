@@ -375,6 +375,14 @@ export class EntityManager {
   }
 
   /**
+   * What this manager holds, under the chunk or the place each of it was filed under.
+   *
+   * Handed out because that filing is the answer to a question this class should not have to grow
+   * a second opinion about: which of these things belongs to a province. `homeland.ts` reads it.
+   */
+  get filed(): ReadonlyMap<string, Entity[]> { return this.spawned; }
+
+  /**
    * The three questions creatures ask of a crowd. The work is in quarry.ts; what stays here is
    * the crowd itself, which only the manager can supply.
    */
@@ -424,7 +432,9 @@ export class EntityManager {
     if ((victim.kind.dangerous ?? 0) > 0) victim.target = attacker;
   }
 
-  /** Every live creature within `r` tiles, nearest first. */
+  /** Is anybody but `ignore` standing here? The arithmetic of two bodies is `anybodyAt`. */
+  occupied(x: number, z: number, ignore: Entity): boolean { return anybodyAt(this.within(x, z, 1.6), x, z, ignore); }
+
   /**
    * Everything alive within `r` tiles, nearest first.
    *
@@ -433,9 +443,6 @@ export class EntityManager {
    * gift, hire it, or have it answer Enter in front of the person standing behind it. Anything
    * that genuinely wants a body wants a carcass, which is a different list.
    */
-  /** Is anybody but `ignore` standing here? The arithmetic of two bodies is `anybodyAt`. */
-  occupied(x: number, z: number, ignore: Entity): boolean { return anybodyAt(this.within(x, z, 1.6), x, z, ignore); }
-
   within(x: number, z: number, r: number): Entity[] {
     const hits: Array<{ e: Entity; d: number }> = [];
     const near = (e: Entity): void => {
@@ -468,7 +475,6 @@ export class EntityManager {
     this.spawned.delete(key);
   }
 
-  /** Deterministic per-chunk spawn: land herds, water herds, travellers, and any village folk. */
   /**
    * Take away the wildlife this client invented for itself, keeping the people.
    *
@@ -520,6 +526,7 @@ export class EntityManager {
     return false;
   }
 
+  /** Deterministic per-chunk spawn: land herds, water herds, travellers, and any village folk. */
   private spawnChunk(tiles: ChunkTiles, key: string): Entity[] {
     const rng = mulberry32(hash3(this.seed, tiles.cx, tiles.cz, SALT.HERD_CHUNK));
     const sorted = sortTiles(tiles);
@@ -568,7 +575,6 @@ export class EntityManager {
     return out;
   }
 
-  /** A herd of a kind's natural size around an anchor. */
   /** The people a village would have out today, given who is alive and who is already outside. */
   private residentsFor(v: Village, posts: Partial<Record<Post, [number, number]>>, wanted: number): Person[] {
     if (!this.register) return [];
@@ -576,6 +582,7 @@ export class EntityManager {
     return residentsOnTheStreet(this.register, v, posts, wanted, alreadyOut, this.guiltOf() > 0);
   }
 
+  /** A herd of a kind's natural size around an anchor. */
   private spawnHerd(ctx: SpawnCtx, kindId: string, anchor: [number, number], leash: number): Herd {
     const kind = KINDS[kindId];
     const size = kind.herd[0] + Math.floor(ctx.rng() * (kind.herd[1] - kind.herd[0] + 1));
@@ -657,14 +664,6 @@ export class EntityManager {
     }
   }
 
-  /**
-   * Nobody stands in the street after they have left the register.
-   *
-   * A villager can be there for days, and in that time the person they are can die of old age or
-   * be killed somewhere the player never saw. When that happens the body in the street is given
-   * to somebody who is actually alive — a village always has more people than it ever shows at
-   * once — and if there is nobody spare, they go indoors and are gone.
-   */
   /**
    * @param scatter how far from the anchor the first of them may stand. The default is the open
    * country's, which is wider than a paddock: a goat put down forty feet outside its own fence
