@@ -227,6 +227,8 @@ export function theStones(register: Register, village: string, today: number): L
     day: one.day,
     daysAgo: Math.max(0, Math.floor(today - one.day)),
     cause: one.cause,
+    left: one.left,
+    to: one.to,
   }));
   return {
     title: `The stones of ${village}`,
@@ -245,13 +247,30 @@ export interface StoneRow {
   day: number;
   daysAgo: number;
   cause: Burial['cause'];
+  /** What they left behind them, and who has it now — the village itself, when nobody of the name was left. */
+  left: number;
+  to: string;
 }
 
+/**
+ * One stone, read out.
+ *
+ * The bequest is on the end and only when there was one, because it is the part of a stone anybody
+ * actually cares about — who a place's money went to is who a place's families are, and a player
+ * paying a priest for the churchyard is paying to find that out. A pauper's stone says nothing
+ * about it rather than saying "left nothing", which is a thing you do not put on a grave.
+ */
 function stoneFor(row: StoneRow): string {
   const how = row.cause === 'violence' ? 'Killed' : row.cause === 'hunger' ? 'Starved' : 'Of age';
   const trade = row.trade ? `, ${row.trade}` : '';
-  return `${row.name}${trade}, ${row.age}. ${how}, ${row.daysAgo === 0 ? 'today' : `${row.daysAgo} days ago`}.`;
+  const willed = row.left <= 0 ? ''
+    : row.to ? ` Left ${coin(row.left)} to ${row.to}.`
+    : ` Left ${coin(row.left)} to the village.`;
+  return `${row.name}${trade}, ${row.age}. ${how}, ${row.daysAgo === 0 ? 'today' : `${row.daysAgo} days ago`}.${willed}`;
 }
+
+/** Money as a stone would put it: whole coins, because a churchyard does not deal in tenths. */
+const coin = (much: number): string => `${Math.round(much)} gold`;
 
 /** Somebody the watch has taken in, as the sheet has it. */
 export interface Charge {

@@ -94,6 +94,16 @@ export const MIND = {
  */
 const WEIGHT: Record<Memory['what'], number> = {
   saved: 45,
+  /*
+   * What somebody left you, which is a larger thing than a gift and a smaller one than your life.
+   *
+   * Twice a gift, because a bequest is a gift that cannot be repaid and was the last thing that
+   * person did; well under a rescue, because being pulled out of a fight is a debt of a different
+   * order. It is a memory of the *dead*, which is the unusual part — the opinion it forms is about
+   * somebody who is not coming back, and that is the point of holding it: a village where the
+   * well-thought-of dead are remembered is a village with a past.
+   */
+  inherited: 20,
   given: 10,
   born: 6,
   feared: -16,

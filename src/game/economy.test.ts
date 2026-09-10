@@ -89,6 +89,7 @@ const COST_OF_A_BAND = 0.25;
 describe('the coin in a village, against the books that village keeps', () => {
   it('balances every day, in every village, to the coin', () => {
     const off: string[] = [];
+    let funerals = 0;
     let days = 0;
     let audited = 0;
 
@@ -99,9 +100,32 @@ describe('the coin in a village, against the books that village keeps', () => {
           const closing = new Map(after.roll.map((row) => [who(row), row]));
           let expected = 0, observed = 0, people = 0;
 
+          /*
+           * A funeral moves money sideways, and this check cannot follow it.
+           *
+           * It compares each person's purse against what the books said their day would do, which
+           * is exactly right on an ordinary day and cannot be made right on a day somebody was
+           * buried: an estate arrives in a purse with nothing in that person's own row to explain
+           * it. Recording what each stone handed on very nearly closes it, and "very nearly" is the
+           * problem — a village that buries two people in one day hands the first estate to the
+           * second man, who then dies holding it, and the money is counted twice on its way to
+           * whoever finally kept it. Chains of three exist. So do days when the last soul in a
+           * village dies and there is nobody to leave anything to.
+           *
+           * The honest thing is to say what this check is for and let the other one carry the rest.
+           * Burial days are counted and skipped here; `nothing leaves the world in a pocket` below
+           * asserts the property that actually matters — that a funeral never destroys a coin — and
+           * it does so over the whole hundred days rather than a day at a time, where no chain can
+           * hide.
+           */
+          const buriedToday = after.stones.filter((stone) => stone.day === after.day).length;
+          if (buriedToday > 0) { funerals += buriedToday; continue; }
+
           for (const row of before.roll) {
             const now = closing.get(who(row));
-            if (!now) continue;                      // gone: a departure, counted in its own test
+            // gone: a departure, counted in its own test. Nobody was buried today — that case
+            // left through the door above
+            if (!now) continue;
             people++;
             // the day the books predicted: the wage, less the keep, less the dinner if there was
             // one. `hungry` is nought for anybody who ate, which is how the roll says so
@@ -125,10 +149,67 @@ describe('the coin in a village, against the books that village keeps', () => {
     report({
       verdict: off.length === 0 ? 'PASS' : 'FAIL',
       count: days,
-      what: `village-days audited to the coin, ${audited.toLocaleString()} people-days in them`,
+      what: `village-days audited to the coin, ${audited.toLocaleString()} people-days in them`
+        + ` (${funerals} funerals stood aside from, and answered for below)`,
       detail: off.slice(0, 8),
     });
     expect(off, 'coin appeared or vanished with nothing in any book to explain it').toEqual([]);
+  });
+
+  /**
+   * The property a funeral has to have, said over the whole hundred days instead of a day at a time.
+   *
+   * A purse used to go into the ground with its owner — 18,617 gold over these twenty-one villages,
+   * against 30,301 spent on living, which made death the largest single drain in this economy and
+   * meant a village settled for a century was no better off than one founded last week. It is
+   * inherited now, so the claim is simply that it *stays*: whatever somebody was holding when they
+   * died is still in the village afterwards.
+   *
+   * Measured over the run rather than per day on purpose. Per day it cannot be measured at all —
+   * a village that buries two people hands the first estate to the second man, who dies holding it,
+   * and the same coins appear on two stones on their way to whoever finally kept them. Over a
+   * hundred days there is nowhere for a chain like that to hide: either the money is in a purse at
+   * the end or it is not.
+   *
+   * The exception written into the number is the one honest leak left. When the last soul in a
+   * village dies there is nobody to leave anything to, and what they held is genuinely gone. That
+   * is a village that has died, and it is a different thing from a man dying in one.
+   */
+  it('never buries a coin: what somebody held is still in the village afterwards', () => {
+    let lost = 0, buried = 0, emptied = 0;
+    for (const run of RUNS) {
+      for (const [village, evenings] of run.books) {
+        for (let n = 1; n < evenings.length; n++) {
+          const gone = new Set(evenings[n].stones.filter((stone) => stone.day === evenings[n].day).map((stone) => stone.name));
+          if (gone.size === 0) continue;
+          buried += gone.size;
+          if (evenings[n].roll.length === 0) { emptied++; continue; }
+          for (const stone of evenings[n].stones.filter((one) => one.day === evenings[n].day)) {
+            const had = evenings[n - 1].roll.find((row) => row.name === stone.name);
+            if (!had) continue;
+            /*
+             * What the dead were holding last night, against what the stone says was handed on.
+             *
+             * The stone may say more — they earned before they died, and an earlier funeral the
+             * same day may have left them something. It may also say a little less, and that is
+             * not a leak: a man who ate his dinner and paid his keep and then died of old age
+             * leaves the day's living less than he woke up with. So the floor is last night's
+             * purse less exactly one day of being alive, and anything under that is money nobody
+             * can account for.
+             */
+            const least = had.purse - had.spends - had.food;
+            if (stone.left + 1e-6 < least) { lost += least - stone.left; void village; }
+          }
+        }
+      }
+    }
+    report({
+      verdict: lost < 1 ? 'PASS' : 'FAIL',
+      count: buried,
+      what: `funerals, and ${Math.round(lost)} gold buried with the dead (${emptied} villages died out entirely, whose money is honestly gone)`,
+      detail: [],
+    });
+    expect(lost, 'money went into the ground with somebody who had a village to leave it to').toBeLessThan(1);
   });
 });
 

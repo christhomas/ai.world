@@ -63,18 +63,24 @@ export const PROSPER = {
    * have before, and at thirty-five fifteen of the twenty-one villages the bench lives ended up two
    * storeys tall, the first of them on day sixteen. A mark every village earns is not a mark.
    *
-   * Fifty-five, re-measured across the same twenty-one villages. At thirty-five, fifteen of them
-   * cross and the earliest on day 16; at forty-five, nine, earliest day 21; at fifty-five, six,
-   * from day 29 out to day 95; at sixty-five, three, and all of them in the middle of the run. Six
-   * in twenty-one is about the share the original number was aiming at — an ordinary village stays
-   * low and the ones that have done well go up — and the spread from day 29 to day 95 is what says
-   * a village *becomes* prosperous rather than being born so.
+   * Fifty-five was the answer for a world where a purse went into the ground with its owner, and
+   * that stopped being the world within the hour: villages inherit now, so what a place has earned
+   * over a century stays in it, and every village in the bench doubled what it holds. Eighty-five,
+   * measured again across the same twenty-one: at 70, sixteen of them cross; at 85, twelve, between
+   * day 42 and day 86; at 100, ten, several of them only in the last week; past 120 nothing is ever
+   * built at all.
+   *
+   * Twelve in twenty-one is a larger share than the number ever carried before, and that is the
+   * point rather than a slip. A village that keeps what its dead earned *should* end up two storeys
+   * tall if it survives long enough — that is what inheritance is for. What the number still has to
+   * buy is that it takes a while and that not everybody manages it, and days 42 to 86 is a second
+   * or third month rather than a founding gift.
    *
    * And it is a line a village can fall back under. A place with a band standing over it drops
    * below inside a fortnight and climbs out again when the band goes, which is the whole point of
    * the number: what a player can protect, they should also be able to see from the road.
    */
-  STOREY: 55,
+  STOREY: 85,
   /**
    * What a village's luxuries cost — reckoned against everything the village has between it, not
    * against one purse. Nobody here lives more than ninety days, so no individual could ever afford
@@ -85,14 +91,18 @@ export const PROSPER = {
    * was 3,400, which the richest village on any seed missed by a factor of six; then eight hundred,
    * which was where the range separated before the mines were minting anything.
    *
-   * Nine hundred, and what moved it is not how many villages get one — five of twenty-one either
-   * way — but *when*. At eight hundred all five had theirs by day 37 and nothing changed for the
-   * remaining nine weeks; at nine hundred they arrive on days 28, 32, 82, 99 and 100. That is the
-   * whole difference between a fact about a village and something that happens to it while you are
-   * playing. At a thousand only two cross and at twelve hundred none does, so this is the top of
-   * the range rather than a point in the middle of it.
+   * Eighteen hundred, and the jump from nine hundred is inheritance rather than a change of mind:
+   * a village that keeps what its dead earned holds twice what it used to, so every threshold
+   * priced against a purse had to move with it. Measured across the same twenty-one villages: at
+   * 1,400 nine of them manage a bath house; at 1,800 four, arriving on days 74, 77, 92 and 101; at
+   * 2,200 only two and both in the last week of the run.
+   *
+   * Four late ones is the shape this wants. A bath house is the thing a village builds when it has
+   * everything else, so it should arrive at the end of a long run of good years and it should be
+   * worth walking to when it does — which it is not if every village on the map has one, and is not
+   * if you never find any.
    */
-  LUXURY: 900,
+  LUXURY: 1800,
   /**
    * The most anybody keeps by them.
    *

@@ -1658,12 +1658,40 @@ can each be finished and each leave the game playable.
 The audit passes, which means the books are honest. What it *reports* is a different thing, and two
 of the notes are the game rather than the arithmetic:
 
-- [ ] **A purse goes into the ground with its owner.** 18,617 gold left the world in somebody's
-      pocket over the hundred days, against 30,301 spent on living — so the largest single outflow
-      in this economy is death, and there is no inheritance anywhere in it. A widow inherits
-      nothing, a village loses a rich man's savings entirely, and the money supply is held up only
-      by the mines. Whether that is right is a question about the game: a world where nothing is
-      passed down is a world that stays poor, and one where everything is passed down concentrates.
+- [x] **A purse no longer goes into the ground with its owner.** *(Asked, and answered: the family
+      inherits, and where nobody of the name is left the village shares it out. 18,617 gold used to
+      be buried over a hundred days against 30,301 spent on living — death was the largest single
+      drain in this economy, and it meant a village settled for a century was no better off than one
+      founded last week.
+
+      The rule is the one a person would guess: an adult of the dead man's own surname first,
+      because a household is what actually inherits; any relative at all if there is no grown one;
+      and failing that, shared among everybody still living there. There is no village pot to bank
+      it in — a `Settlement` holds food, houses, trades and people — and inventing a treasury would
+      be inventing a thing nothing else in the game can see or spend. Sharing it puts the money
+      where it can be *used*, which is what makes it show up as a second storey rather than as a
+      number in a file. It goes through `remove`, which is the single place every death in this
+      world passes — age, hunger and violence alike — so there is no way to die that skips it.
+
+      A stone records it now: what they left and who has it. That is worth having for its own sake —
+      "Bren Halloway, miner, 61. Of age, 4 days ago. Left 64 gold to Nell Halloway." is the kind of
+      thing a player pays a priest to hear, and who a place's money went to is who a place's
+      families are. It also turned out to be the only way to *audit* it: `chore economy` judges the
+      world by the books a player can pay for and never by the simulation, and it guessed the
+      transfer wrong three times running, because whether a man earns and whether he pays his keep
+      on the day he dies depends on which of the three ways he went.
+
+      The audit had to change twice more. The daily balance check now stands aside from burial days
+      and says how many it stood aside from: a village that buries two people hands the first estate
+      to the second man, who dies holding it, and the same coins appear on two stones on their way
+      to whoever finally kept them — chains of three exist. In its place is the assertion that
+      actually matters, over the whole run where no chain can hide: **what somebody held is still in
+      the village afterwards**. The one honest leak left is written into it — when the last soul in
+      a village dies there is nobody to leave anything to, and that is a village dying rather than a
+      man dying in one. The memory kind `inherited` is worth twice a gift and well under a rescue: a
+      bequest cannot be repaid and was the last thing that person did, and the opinion it forms is
+      of somebody who is not coming back, which is how a village comes to have a past.)*
+
 - [x] **The second storey and the bath house, re-tuned against a world with working mines.**
       *(Both numbers were measured when they were set and both had stopped being right, in the
       ordinary way a tuned number goes wrong: nobody touched them, the world got richer underneath

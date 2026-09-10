@@ -44,7 +44,7 @@ export type Stage = 'baby' | 'child' | 'adult';
 
 /** Something that happened, worth carrying about. Named, so it outlives whoever it is about. */
 export interface Memory {
-  what: 'died' | 'born' | 'saved' | 'robbed' | 'given' | 'feared';
+  what: 'died' | 'born' | 'saved' | 'robbed' | 'given' | 'feared' | 'inherited';
   /**
    * The name of the person it happened to — or of the place, for the things that happen to a
    * place rather than to anybody. A mine that swallowed somebody is remembered by the mine's
