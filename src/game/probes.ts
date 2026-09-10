@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BEHAVIOUR } from '../entities/properties';
 import { CAMERA } from '../core/config';
 import { PropKind } from '../world/biomes';
 import { nameOfProp } from '../world/catalogue';
@@ -290,6 +291,28 @@ export function installProbes(ctx: Probed): void {
   (debug as { __callOut?: (id: string) => void }).__callOut = (id) => callOut(id);
   (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
   (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => commandWorld.spawn(kind, away);
+  /*
+   * Hurt whoever is nearest, without hitting them.
+   *
+   * For looking at what a hit *looks* like — the flash, the bar over the head — which is otherwise
+   * surprisingly hard to photograph: a wolf runs, a villager walks off, and a swing that misses
+   * proves nothing about the drawing. This puts the wound on without the fight, so a screenshot can
+   * be taken of a creature at half health standing still.
+   *
+   * Deliberately not `damageEntity`: no knockback, no fleeing, nobody turning on you. It is the
+   * numbers a blow would leave behind and none of the consequences, which is what a picture needs.
+   */
+  (debug as { __hurt?: (damage?: number) => unknown }).__hurt = (damage = 1) => {
+    const near = crowdAround().within(player.x, player.z, 30)
+      .filter((e) => !e.dead && e.kind.id !== 'hero')
+      .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
+    const hit = near[0];
+    if (!hit) return null;
+    hit.hp = Math.max(1, hit.hp - damage);
+    hit.hurt = BEHAVIOUR.HURT_TIME;
+    hit.bar = BEHAVIOUR.BAR_TIME;
+    return { kind: hit.kind.id, name: hit.name, hp: hit.hp, of: hit.kind.hp ?? 1, x: hit.x, z: hit.z };
+  };
   (debug as { __blow?: () => unknown }).__blow = () => ({
     hero: { blow: player.entity.blow, strike: Math.round(player.entity.strike * 100) / 100 },
     others: crowdAround().within(player.x, player.z, 30)

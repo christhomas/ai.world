@@ -32,8 +32,12 @@
     "BITE_SLIP": 0.4
   },
   "hurt": {
-    "note": "HURT_TIME is the stagger after taking a hit and KNOCKBACK how far it shoves you, in tiles. Together they are what stops two things standing inside each other trading blows at the frame rate: being hit costs you a moment and some ground, whoever you are.",
+    "note": [
+      "HURT_TIME is the stagger after taking a hit and KNOCKBACK how far it shoves you, in tiles. Together they are what stops two things standing inside each other trading blows at the frame rate: being hit costs you a moment and some ground, whoever you are.",
+      "BAR_TIME is how long the health bar over a creature's head stays up after the last blow, and it is much longer than the stagger because it is answering a different question. The stagger says that one landed; the bar says how the fight is going, and a fight is three or four swings. Long enough to watch it drain over several of them, short enough that walking away from something ends it."
+    ],
     "HURT_TIME": 0.35,
+    "BAR_TIME": 4,
     "KNOCKBACK": 0.7
   },
   "crowding": {

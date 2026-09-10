@@ -177,6 +177,15 @@ export class Entity {
   /** Counts down after a hit; the renderer flashes the creature white while it is positive. */
   hurt = 0;
   /**
+   * And how long its health bar stays up, which is a much longer count than the flash.
+   *
+   * Two timers rather than one because they are two different pieces of news. The flash says *that*
+   * landed and is over in a third of a second, which is about as long as a blow reads for; the bar
+   * says *how it is going*, and a fight is three or four swings, so a bar that came and went with
+   * the flash would never once show a number going down. See `render/healthbars.ts`.
+   */
+  bar = 0;
+  /**
    * How far this one has come apart: nought whole, one gone entirely.
    *
    * A creature is drawn as a couple of dozen blocks, and this is how far those blocks have flown
@@ -349,6 +358,8 @@ function startFlee(e: Entity, awayX: number, awayZ: number, rng: Rng): void {
 export function damageEntity(e: Entity, damage: number, fromX: number, fromZ: number, world: TileWorld): boolean {
   e.hp -= damage;
   e.hurt = BEHAVIOUR.HURT_TIME;
+  // and the bar comes up, wherever the blow came from: a hero's sword, an arrow, a wolf on a deer
+  e.bar = BEHAVIOUR.BAR_TIME;
   const dx = e.x - fromX, dz = e.z - fromZ;
   const len = Math.hypot(dx, dz) || 1;
   tryMove(world, e, (dx / len) * BEHAVIOUR.KNOCKBACK, (dz / len) * BEHAVIOUR.KNOCKBACK);
@@ -368,6 +379,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   e.timer -= dt;
 
   if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
+  if (e.bar > 0) e.bar = Math.max(0, e.bar - dt);
   if (e.strike > 0) e.strike = Math.max(0, e.strike - dt);
   e.attackCooldown -= dt;
 

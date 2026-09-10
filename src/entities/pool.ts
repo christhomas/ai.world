@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { worldView } from '../render/scene';
+import { HealthBars, heightOf } from '../render/healthbars';
 import type { AnimRole, AnimalKind, PartDef } from './animals';
 import type { Entity } from './entity';
 import { bodyLean, bodyMotion, cycleTurn, limbTurn, strikeAt } from './motion';
@@ -146,8 +147,11 @@ class KindPool {
   readonly meshes: PartMesh[] = [];
   readonly entities: Entity[] = [];
   colorsDirty = false;
+  /** How far above its feet the top of this kind reaches, in rig units: where a bar floats. */
+  readonly top: number;
 
   constructor(readonly kind: AnimalKind, scene: THREE.Scene) {
+    this.top = heightOf(kind);
     const grouped = new Map<string, PartDef[]>();
     for (const def of kind.parts) {
       const key = meshKey(def);
@@ -257,7 +261,12 @@ export class EntityRenderer {
   private readonly tumble = new THREE.Euler();
   private readonly shrink = new THREE.Vector3();
 
-  constructor(private readonly scene: THREE.Scene) {}
+  /** What is left of whatever is being fought, drawn over its head. */
+  private readonly bars: HealthBars;
+
+  constructor(private readonly scene: THREE.Scene) {
+    this.bars = new HealthBars(scene);
+  }
 
   private pool(kind: AnimalKind): KindPool {
     let p = this.pools.get(kind.id);
@@ -314,9 +323,12 @@ export class EntityRenderer {
    * left are packed into the front of each buffer, so both the maths and the draw are paid for
    * only what is on screen.
    */
-  update(): void {
+  update(camera?: THREE.Camera): void {
     const view = worldView(this.scene);
     const reach = view ? view.radius * view.radius : 0;
+    // the bars go where the creatures go, so they are filled in on the same walk of the same list:
+    // anything skipped here is off screen, indoors or in pieces, and none of those has a bar
+    if (camera) this.bars.begin(camera);
     for (const p of this.pools.values()) {
       const n = p.entities.length;
       // a creature's palette can change under a slot without the slot changing hands, so add and
@@ -336,6 +348,7 @@ export class EntityRenderer {
           if (dx * dx + dz * dz > reach) continue;
         }
         const s = e.kind.scale;
+        if (camera) this.bars.add(e, p.top, s);
         // how the whole body carries itself: the bob of a stride, the roll onto each foot, the
         // lean into a run. Rig units, so it scales with the animal like any part offset does.
         const body = bodyMotion(e);
@@ -419,7 +432,11 @@ export class EntityRenderer {
         }
       }
     }
+    if (camera) this.bars.done();
   }
+
+  /** How many creatures are showing what they have left, for the draw line to say. */
+  get barsShowing(): number { return this.bars.showing; }
 
   /**
    * Break one block away from the body it belongs to.

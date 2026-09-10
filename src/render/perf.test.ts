@@ -26,10 +26,17 @@ function creature(kindId: string, x: number, z: number): Entity {
   return new Entity(kind, x, z, herd, 'test', rng);
 }
 
-/** Every instanced mesh a renderer put into a scene, in the order the pools built them. */
+/**
+ * Every instanced mesh a renderer put into a scene *to draw creatures with*, in the order the
+ * pools built them.
+ *
+ * The health bars are left out. They are instanced quads over the creatures' heads with no part
+ * behind them, and everything below counts parts, instances and uploads — so a bar in the list is
+ * either a crash or a wrong number, depending on which helper reaches it first.
+ */
 function meshes(scene: THREE.Scene): THREE.InstancedMesh[] {
   const out: THREE.InstancedMesh[] = [];
-  scene.traverse((o) => { if (o instanceof THREE.InstancedMesh) out.push(o); });
+  scene.traverse((o) => { if (o instanceof THREE.InstancedMesh && !o.userData.bar) out.push(o); });
   return out;
 }
 

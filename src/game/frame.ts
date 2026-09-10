@@ -306,7 +306,7 @@ export function createFrame(ctx: Framing) {
     if (indoors) {
       countFrame(dt);
       // indoors: a fixed view of the room, the hero and whoever keeps the place
-      indoors.renderer.update();
+      indoors.renderer.update(iso.camera);
       heroGear.update(state, player.entity);
       sync(dt, () => 0.5);
       updateHud(dt, indoors.title);
@@ -332,7 +332,7 @@ export function createFrame(ctx: Framing) {
       floorLife()?.update(dt);
       announceWindUps(below.monsters);
       if (places.underground !== below) { input.endFrame(); return; }
-      below.renderer.update();
+      below.renderer.update(iso.camera);
       heroGear.update(state, player.entity);
       sync(dt, (x, z) => below.world.heightAt(x, z));
       below.map.reveal(player.x, player.z);
@@ -432,7 +432,7 @@ export function createFrame(ctx: Framing) {
       }
       chunks.standsOn(tiles);
     }
-    entityRenderer.update();
+    entityRenderer.update(iso.camera);
 
     if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) reveal();
     areaLabel = skies.aloft?.name ?? areaName();

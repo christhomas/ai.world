@@ -251,6 +251,7 @@ export interface BehaviourDefaults {
   WIND_UP: number;
   BITE_SLIP: number;
   HURT_TIME: number;
+  BAR_TIME: number;
   KNOCKBACK: number;
   PERSONAL: number;
   ELBOW: number;
@@ -275,6 +276,7 @@ export const BEHAVIOUR: BehaviourDefaults = {
   WIND_UP: defaults.num('WIND_UP'),
   BITE_SLIP: defaults.num('BITE_SLIP'),
   HURT_TIME: defaults.num('HURT_TIME'),
+  BAR_TIME: defaults.num('BAR_TIME'),
   KNOCKBACK: defaults.num('KNOCKBACK'),
   PERSONAL: defaults.num('PERSONAL'),
   ELBOW: defaults.num('ELBOW'),
