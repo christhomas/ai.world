@@ -12,12 +12,10 @@ import { TileType } from '../world/terrain';
 import { KINDS } from './animals';
 import { BIOME_ANIMALS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS, dungeonMonsters, openGround, pickKind, type SpawnSpot } from './spawns';
 import { treeFor } from './behaviours';
-import { pickTrade, tradesFor } from './trades';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
-import { postsOf } from './villagers';
-import { bodyForTrade } from './trades';
 import { spawnPaddocks } from './paddocks';
+import { spawnVillageFolk } from './street';
 import { BEHAVIOUR, Entity, Herd, anybodyAt, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
@@ -27,9 +25,26 @@ import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { nearest, within } from './neighbours';
 import { blowOf } from './motion';
 import type { EntityView } from './roster';
-import { doorTile, type Village } from '../world/structures';
+import type { Village } from '../world/structures';
 import { ACTIVE_RANGE, BOUNTY, SPAWN, SPAWN_RADIUS } from './spawning';
 import { Tiers, arrive, worthKeeping, type Arrival } from './tiers';
+
+/**
+ * The list a place's own people are filed under, as against a chunk of open country.
+ *
+ * The word is `dungeon` because a floor of a vault was the first place that ever needed one, and
+ * the name has since travelled to the wire and to `roster`, where changing it would be a protocol
+ * change made for a spelling. What it *means* is a place: somewhere held for exactly as long as
+ * somebody is standing in it, and let go of the moment they walk out. A shop is one of those as
+ * much as a mine is.
+ *
+ * It matters which list somebody is in. Every other key is read as a chunk of the country by the
+ * sweep at the top of `update`, and a key that is not a chunk comes out of `parseChunkKey` as
+ * nowhere — which is never worth keeping. So anybody filed under a name of their own would be
+ * swept away on the first step across the room, which is the hardest kind of fault to see from
+ * outside: the person is made, they are handed back, and then they are not there.
+ */
+export const A_PLACE = 'dungeon';
 
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
 export class EntityManager {
@@ -334,6 +349,38 @@ export class EntityManager {
   }
 
   /**
+   * Take somebody who already exists into this crowd, exactly where they are standing.
+   *
+   * Everything else here makes a person as well as places one: a kind is named, a spot is rolled
+   * somewhere near an anchor, and what comes out is a stranger. A building's keeper is the other
+   * way round. The room decides who he is before he exists — `Entity.kind` is readonly and the
+   * trade is what chooses the body, so a sergeant has to be known to be a sergeant before there is
+   * anybody there at all — and then he stands on the one tile behind his own counter and nowhere
+   * else. Rolled through `spawnPack` he would be scattered off that tile, and worse: the spawn asks
+   * `canStand` about the ground beside a counter, which can perfectly well answer no, and the shop
+   * would then have nobody in it at all.
+   *
+   * So this places nobody and asks nothing. It takes what it is handed, files it under the place,
+   * gives it to the renderer and gives it a roster number — which between them are the whole of
+   * what belonging to a crowd means: found by `within`, thought for by `update`, and buried through
+   * the same `onFallen` as everybody else. It is the opposite end of the same idea as `guests`,
+   * which is for creatures that are drawn here and thought for somewhere else.
+   */
+  admit(who: Entity, key: string = A_PLACE): Entity {
+    let list = this.spawned.get(key);
+    if (!list) { list = []; this.spawned.set(key, list); }
+    // a body built outside is not necessarily in its own herd's list yet, and a herd nobody has
+    // ever added is a herd `updateHerd` never runs
+    if (!who.herd.members.includes(who)) who.herd.members.push(who);
+    this.herds.add(who.herd);
+    // whether the pool had room is the renderer's business: somebody it could not draw is still
+    // standing there, and can still be talked to, which is what he is there for
+    this.renderer.add(who);
+    this.enrol(list, [who]);
+    return who;
+  }
+
+  /**
    * A creature has been killed: let it fall before it leaves.
    *
    * This is the difference between dying and being removed. Everything that kills something comes
@@ -530,7 +577,12 @@ export class EntityManager {
     if (sorted.land.length === 0 && sorted.water.length === 0 && sorted.road.length === 0) return out;
     const ctx: SpawnCtx = { tiles, key, rng, out };
 
-    this.spawnVillageFolk(ctx);
+    spawnVillageFolk({
+      villages: this.villages, world: this.world,
+      place: (...a) => this.place(...a),
+      residentsFor: (v, posts, wanted) => this.residentsFor(v, posts, wanted),
+      hasStable: (village) => this.hasStable(village),
+    }, ctx);
     spawnPaddocks({ villages: this.villages, place: (...a) => this.place(...a) }, ctx);
     // Everything below this line is wildlife, and the world owns that when there is a world to own
     // it: the animals are what two players standing in one field disagree about. The people of a
@@ -583,61 +635,6 @@ export class EntityManager {
     const kind = KINDS[kindId];
     const size = kind.herd[0] + Math.floor(ctx.rng() * (kind.herd[1] - kind.herd[0] + 1));
     return this.place(ctx, kindId, anchor, size, leash);
-  }
-
-  /** Villagers on the square (first one is the elder), a congregation by the church, keepers at shop doors. */
-  private spawnVillageFolk(ctx: SpawnCtx): void {
-    const CS = WORLD.CHUNK_SIZE;
-    const inChunk = (x: number, z: number) => Math.floor(x / CS) === ctx.tiles.cx && Math.floor(z / CS) === ctx.tiles.cz;
-    for (const v of this.villages) {
-      if (inChunk(v.x, v.z)) {
-        // the register first, because a body is chosen before an entity exists and the trade is
-        // what chooses it. The stablehand is the one the register does not name: keeping the horses
-        // is a job handed out here rather than a trade somebody is born to
-
-        const posts = postsOf(v, this.world);
-        const wanted = 2 + Math.floor(ctx.rng() * 3);
-        const residents = this.residentsFor(v, posts, wanted);
-        const stabled = this.hasStable(v.name);
-        const herd = this.place(ctx, 'villager', [v.x, v.z], wanted, Math.max(8, v.radius * 0.7),
-          SPAWN.SCATTER, (n) => (n === 1 && stabled ? 'cowboy' : bodyForTrade(residents[n]?.trade)));
-        herd.tag = v.name;
-        if (herd.members.length > 0) herd.members[0].role = 'elder';
-        // one of them keeps the horses, in the villages that have any
-        if (herd.members.length > 1 && stabled) herd.members[1].role = 'stablehand';
-        herd.members.forEach((e, i) => {
-          const house = v.houses[i % Math.max(1, v.houses.length)];
-          const home: [number, number] = house
-            ? [doorTile(house)[0] + 0.5, doorTile(house)[1] + 0.5]
-            : [v.x, v.z];
-          const angle = (i / Math.max(1, herd.members.length)) * Math.PI * 2;
-          e.posts = {
-            ...posts,
-            home,
-            work: [v.x + Math.cos(angle) * (v.radius * 0.55), v.z + Math.sin(angle) * (v.radius * 0.55)],
-          };
-          // the elder and the stablehand have their own reasons to be where they are; everybody
-          // else in the village keeps a trade, and their trade keeps their day
-          if (e.role === 'none') {
-            e.role = 'villager';
-            e.trade = pickTrade(posts, ctx.rng);
-          }
-          // and whoever this is, they are somebody the village register knows by name
-          const resident = residents[i];
-          if (resident) {
-            e.person = resident.id;
-            e.name = resident.name;
-            if (resident.trade !== '') e.trade = resident.trade;
-          }
-        });
-      }
-      if (v.churchDoor && inChunk(v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5)) {
-        const herd = this.place(ctx, 'villager', [v.churchDoor[0] + 0.5, v.churchDoor[1] + 0.5], 3 + Math.floor(ctx.rng() * 2), SPAWN.CONGREGATION_LEASH);
-        herd.tag = v.name;
-        for (const e of herd.members) e.role = 'congregation';
-      }
-      // shopkeepers are inside their shops; the street outside is for villagers
-    }
   }
 
   /**
