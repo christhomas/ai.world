@@ -52,13 +52,22 @@ function rooms(roomDoor: [number, number] = [5, 9]) {
         Math.abs(z - (roomDoor[1] + 0.5)) <= across && Math.abs(x - (roomDoor[0] + 0.5)) <= along,
     },
   };
+  const castles: Array<[string, number, number]> = [];
   const places = {
     indoors: null as unknown,
     underground: null as unknown,
     enterBuilding: (d: Doorway) => { entered.push([d.x, d.z]); places.indoors = inside; },
     leaveBuilding: () => { left++; places.indoors = null; },
+    enterDungeon: (poi: { name: string; x: number; z: number }, kind: string, id: string) => {
+      castles.push([id, poi.x, poi.z]);
+      void kind;
+    },
   };
-  return { places, entered, get left() { return left; }, as: () => places as unknown as Places };
+  return {
+    places, entered, castles,
+    get left() { return left; },
+    as: () => places as unknown as Places,
+  };
 }
 
 describe('walking into a door', () => {
@@ -217,5 +226,61 @@ describe('a door that has just been used', () => {
     for (let n = 0; n < Math.ceil(REST / 0.1) + 2; n++) steps.step({ x: 14, z: 10 }, 0.1);
     steps.step(LEAF(door(10, 10)), 0.1);
     expect(world.entered, 'a door that never works again').toHaveLength(2);
+  });
+});
+
+/**
+ * A castle's gate is a door like any other.
+ *
+ * It used to be a keypress, a sentence and a choice — three deliberate acts to walk through an
+ * open arch, in a game where every cottage opens by being walked into. What makes it worth a test
+ * of its own is the coming out rather than the going in: leaving a castle puts the hero back on
+ * the gate tile, which is the one place standing still would take him straight back in.
+ */
+describe('walking into a castle gate', () => {
+  const GATE = { id: 'castle:Kestrelmarch', name: 'Kestrelmarch', x: 40.5, z: 12.5 };
+
+  it('goes in, once the hero has been clear of it', () => {
+    const world = rooms();
+    const steps = createDoorsteps(world.as(), () => [], () => [GATE]);
+
+    // the first frame of a world could be anywhere, including a gateway
+    steps.step({ x: GATE.x, z: GATE.z });
+    expect(world.castles, 'in before he had ever been out').toEqual([]);
+
+    steps.step({ x: GATE.x + 4, z: GATE.z });          // away, which arms it
+    steps.step({ x: GATE.x, z: GATE.z });
+    expect(world.castles, 'walking into the gate did nothing').toEqual([['castle:Kestrelmarch', GATE.x, GATE.z]]);
+  });
+
+  it('does not take you back in the moment you come out onto it', () => {
+    const world = rooms();
+    const steps = createDoorsteps(world.as(), () => [], () => [GATE]);
+    steps.step({ x: GATE.x + 4, z: GATE.z });
+    steps.step({ x: GATE.x, z: GATE.z });
+    expect(world.castles.length).toBe(1);
+
+    // he is put back on the gate tile when he leaves, and stands there for a good while
+    for (let n = 0; n < 60; n++) steps.step({ x: GATE.x, z: GATE.z }, 1 / 60);
+    expect(world.castles.length, 'the gate was a revolving door').toBe(1);
+  });
+
+  it('lets you back in after you have stepped off and the gate has rested', () => {
+    const world = rooms();
+    const steps = createDoorsteps(world.as(), () => [], () => [GATE]);
+    steps.step({ x: GATE.x + 4, z: GATE.z });
+    steps.step({ x: GATE.x, z: GATE.z });
+    for (let n = 0; n < Math.ceil(REST * 60) + 2; n++) steps.step({ x: GATE.x + 4, z: GATE.z }, 1 / 60);
+    steps.step({ x: GATE.x, z: GATE.z });
+    expect(world.castles.length, 'shut out of a castle he had walked away from').toBe(2);
+  });
+
+  it('is not opened by brushing the wall beside it', () => {
+    const world = rooms();
+    const steps = createDoorsteps(world.as(), () => [], () => [GATE]);
+    steps.step({ x: GATE.x + 6, z: GATE.z });
+    // the curtain wall runs away either side of the gatehouse; walking the frontage is not going in
+    for (const along of [-3, -2, 2, 3]) steps.step({ x: GATE.x + along, z: GATE.z });
+    expect(world.castles, 'admitted by walking past the walls').toEqual([]);
   });
 });

@@ -64,7 +64,7 @@ import { layOut, lineageOf } from './game/lineage';
 import { whereLineageIsDrawn } from './game/enquiry';
 import { installProbes } from './game/probes';
 import { openConsole } from './game/console';
-import { createDoorsteps } from './game/doorways';
+import { createDoorsteps, gatesOf } from './game/doorways';
 import { createBlows } from './game/blows';
 import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
@@ -562,9 +562,8 @@ export function startGame(
   });
   const { attack, loose, conjure, onAttack, announceWindUps, knockOut } = blows;
 
-  // the console, and everything the game can be told to do through it
-  // walking into a door goes in; the key is what you use when you are already standing on the step
-  const doorsteps = createDoorsteps(places, () => structures.doors);
+  // walking into a door goes in, and a castle's gate is a door like any other
+  const doorsteps = createDoorsteps(places, () => structures.doors, () => gatesOf(structures.castles), discover);
 
   const { commands, commandWorld, bound, arriving } = openConsole({
     seed, state, player, iso, places, structures, sampler, entities, register, online, chat,

@@ -104,7 +104,50 @@ export function onThreshold(door: Doorway, hero: AtDoor): boolean {
  */
 export const REST = 5;
 
-export function createDoorsteps(places: Places, doors: () => readonly Doorway[]) {
+/**
+ * A castle's gate, as this file needs it: a place to stand and the anchor behind it.
+ *
+ * The same shape as a doorway and a different thing, which is why it is its own list. A house's
+ * door is a leaf in a wall of a building the world knows the middle of; a gatehouse is three tiles
+ * of stone with a passage through it, and where you stand to go in was worked out when the castle
+ * was laid out — `Castle.gateX`/`gateZ`, two tiles clear of the stonework.
+ */
+export interface Gateway {
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+}
+
+/**
+ * How near the gate spot counts as being at the gate, in tiles.
+ *
+ * Wider than a door's leaf on purpose. A doorway is a thing you walk *at*, square on, and the leaf
+ * is a hand's breadth of wood; a gate is a passage you walk *into*, and the tile in front of it is
+ * where anybody heading for the castle ends up. Three quarters of a tile is that tile and its own
+ * edges, and it is well clear of the walls either side, so there is no way to be admitted by
+ * brushing the curtain wall.
+ */
+const GATE_STEP = 0.75;
+
+/** The gates of a world's castles, as a doorstep needs them. */
+export function gatesOf(castles: readonly { id: string; name: string; gateX: number; gateZ: number }[]): Gateway[] {
+  return castles.map((c) => ({ id: c.id, name: c.name, x: c.gateX, z: c.gateZ }));
+}
+
+export function createDoorsteps(
+  places: Places,
+  doors: () => readonly Doorway[],
+  /**
+   * The castles, if the world has any and anybody has told this about them.
+   *
+   * A default of none, because a dungeon floor, an interior and every test in this file have no
+   * castles in them and should not have to say so.
+   */
+  gates: () => readonly Gateway[] = () => [],
+  /** A place seen for the first time goes in the journal, the way the gate's own prompt used to. */
+  discover: (name: string) => void = () => {},
+) {
   /**
    * A door works again as soon as you have stepped off one.
    *
@@ -148,12 +191,37 @@ export function createDoorsteps(places: Places, doors: () => readonly Doorway[])
 
       let onTheStep: Doorway | null = null;
       for (const door of doors()) if (onThreshold(door, hero)) { onTheStep = door; break; }
+      /*
+       * And a castle gate, which is a door like any other now rather than a conversation.
+       *
+       * It used to be Enter, and then a dialogue, and then a choice — three deliberate acts to
+       * walk through an open arch, when every cottage in the country opens by being walked into.
+       * The passage is the way in and standing in it is the whole of the intent.
+       *
+       * It shares the arming latch and the rest with the doors, and has to: coming out of a castle
+       * puts you back on the gate tile, so without them the gate would be a revolving door with a
+       * loading screen in it.
+       */
+      let atTheGate: Gateway | null = null;
+      if (!onTheStep) {
+        for (const gate of gates()) {
+          if (Math.abs(gate.x - hero.x) <= GATE_STEP && Math.abs(gate.z - hero.z) <= GATE_STEP) { atTheGate = gate; break; }
+        }
+      }
 
-      if (!armed) { armed = onTheStep === null; return; }
-      if (!onTheStep || resting > 0) return;
+      if (!armed) { armed = onTheStep === null && atTheGate === null; return; }
+      if ((!onTheStep && !atTheGate) || resting > 0) return;
       armed = false;
       resting = REST;
-      places.enterBuilding(onTheStep);
+      if (atTheGate) {
+        discover(atTheGate.name);
+        places.enterDungeon(
+          { name: atTheGate.name, x: atTheGate.x, z: atTheGate.z, out: [atTheGate.x, atTheGate.z] },
+          'castle', atTheGate.id,
+        );
+        return;
+      }
+      places.enterBuilding(onTheStep!);
     },
 
     /** What the step is waiting for, so a test can say why nothing happened. */

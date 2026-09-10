@@ -59,26 +59,14 @@ export function wildInteractions(ctx: Surroundings) {
       return true;
     }
     /*
-     * And a castle's gatehouse, which is the same thing done in dressed stone.
+     * A castle's gatehouse is deliberately not here any more.
      *
-     * Measured to the tile in front of the gate rather than to the middle of the castle: the ward
-     * is thirteen tiles across and the keep stands in the middle of it, so anything that asked how
-     * near you were to the castle would have offered you the door from the far side of its own
-     * walls. `gateX`/`gateZ` is the one spot you can stand and be at the door, and it is the same
-     * spot you are put back on when you come out — see `Underground.out`.
+     * It used to be: press Enter within three tiles of the gate, read a sentence, choose "Go in".
+     * Three deliberate acts to walk through an open arch, when every cottage in the country opens
+     * by being walked into. It is a doorstep now — see `Gateway` in `game/doorways.ts` — which
+     * also puts the way in and the way out on the same latch, so coming out of a castle onto its
+     * own gate tile does not immediately take you back in.
      */
-    for (const castle of structures.castles) {
-      if (Math.hypot(castle.gateX - player.x, castle.gateZ - player.z) > 3.4) continue;
-      discover(castle.name);
-      const gate = { name: castle.name, x: castle.gateX, z: castle.gateZ, out: [castle.gateX, castle.gateZ] as [number, number] };
-      dialogue.start({ speaker: castle.name, emoji: '🏰', pages: [
-        'The portcullis is up a hand\'s breadth and the passage behind it goes back further than the wall is thick. Nobody challenges you.',
-      ], choices: [
-        { label: 'Go in', next: () => { places.enterDungeon(gate, 'castle', `castle:${castle.name}`); return null; } },
-        { label: 'Not today', next: () => null },
-      ] });
-      return true;
-    }
     return false;
   };
 
