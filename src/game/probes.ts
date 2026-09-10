@@ -7,6 +7,8 @@ import { bodyMotion } from '../entities/motion';
 import type { Register } from '../world/register';
 import type { SkyIsland } from '../world/skyisland';
 import type { Site, Structures } from '../world/structures';
+import type { EntityRenderer } from '../entities/pool';
+import type { Mount } from './mount';
 import { StructureKind } from '../world/structures';
 import { theBirths, theCharges, theRoll, theStones } from './records';
 import type { Jail } from './jail';
@@ -80,6 +82,10 @@ export interface Probed {
   mines: Mines;
   /** The country's cells, and so its charge sheets. */
   jail: Jail;
+  /** Whatever the hero is riding, so a script can get on a horse without finding a stable first. */
+  mount: Mount;
+  /** And where a bought horse is drawn, which is the overworld's own pool. */
+  overworldRenderer: EntityRenderer;
   roaming: Roaming;
   nemesis: Nemesis;
   director: Director;
@@ -118,7 +124,7 @@ export function installProbes(ctx: Probed): void {
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands, jail,
     commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally,
-    heard, nettleAbout, sentOut,
+    heard, nettleAbout, sentOut, mount, overworldRenderer,
   } = ctx;
 
   const debug = window as unknown as {
@@ -354,6 +360,27 @@ export function installProbes(ctx: Probed): void {
     places.enterDungeon({ name: castle.name, x: castle.x, z: castle.z, out: [castle.gateX, castle.gateZ] },
       'castle', castle.id);
     return { castle: castle.name, id: castle.id };
+  };
+  /**
+   * Get on a horse, or off one, without going to a stable and having a conversation about it.
+   *
+   * Mounting is only reachable through a stable's dialogue, which a person does in ten seconds and
+   * a script cannot do at all — and a mounted hero is the case that made stepping over things
+   * visible in the first place, so the played test has never once ridden. Buys a horse where the
+   * hero is standing if he has none, which is the only part a stable was really for.
+   *
+   * Returns what he is on and how fast it goes, because "am I actually mounted" is the question a
+   * test asks next and reading it off the screen is guesswork.
+   */
+  (debug as { __ride?: (on?: boolean) => unknown }).__ride = (on = true) => {
+    if (!on) {
+      mount.dismount(player, chunks);
+      return { riding: mount.riding };
+    }
+    if (!mount.owned) mount.buy(player.x, player.z, chunks, overworldRenderer);
+    else mount.restore(chunks, overworldRenderer);
+    mount.mount(player);
+    return { riding: mount.riding, breed: mount.breed.id, name: mount.name };
   };
   (debug as { __mines?: () => unknown }).__mines = () =>
     minesWorked().map((w) => ({

@@ -220,6 +220,31 @@ const finish = async () => {
   say('creatures within reach are drawn where they are', d.wrongClose.of > 0 && d.wrongClose.mean < DRIFT,
     `${d.wrongClose.of} corrections, mean ${d.wrongClose.mean.toFixed(2)}, worst ${d.wrongClose.worst.toFixed(2)} (${d.wrongClose.worstIs}), against ${DRIFT}`);
 
+  // --- and the same wall, at a gallop ---
+  /*
+   * The mounted case, which is the one that made stepping over things visible in the first place
+   * and which this script has never once played.
+   *
+   * A horse does not carry the hero, it multiplies his pace — so what changes is the length of a
+   * step, and a step longer than the thing it is walking into is exactly how a wall gets stepped
+   * over. The collision bench walks the arithmetic at a courser's pace already; this is the played
+   * half, at whatever frame rate this machine actually manages, which is where the sweep is
+   * genuinely under load.
+   *
+   * `__ride` exists because mounting is only reachable through a stable's dialogue: a person does
+   * that in ten seconds and a script cannot do it at all.
+   */
+  const rode = await page.evaluate(() => window.__ride(true));
+  say('the hero can get on a horse', rode && rode.riding === true, JSON.stringify(rode));
+  await go(house.x - Math.cos(house.rot) * 6, house.z - Math.sin(house.rot) * 6);
+  await face(house.x, house.z);
+  await walk('w', 5000);
+  const rider = await at();
+  const galloped = Math.hypot(rider.x - house.x, rider.z - house.z);
+  say('a house stops a horse at its wall too', galloped > 1.1 && galloped < 3,
+    `closest ${galloped.toFixed(2)} tiles from its middle, riding`);
+  await page.evaluate(() => window.__ride(false));
+
   // --- a fight ---
   // something with nothing solid between us: a goat in a paddock is behind a fence, and the test
   // would be measuring the fence.

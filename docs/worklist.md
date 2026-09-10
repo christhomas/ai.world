@@ -824,16 +824,23 @@ describing the same world.
       can see. The collision bench is identical either side of it — PASS, nothing touching, nothing
       intersected — and the golden fingerprint did not move, because where a prop is put has never
       gone through its box.)*
-- [ ] Nothing in the sweep test covers a mounted hero, who is the case that made stepping over things
-      visible: `tools/playtest.cjs` walks on foot only. *(Half of this is already done and nobody
-      had noticed: `SPEEDS` in `src/world/collisions.test.ts` walks the hero at a courser's pace of
-      three and a half for a quarter of a second, which is the mounted case as the arithmetic sees
-      it — a horse does not carry the hero, it multiplies his pace. What is missing is the played
-      one, and it needs a way onto a horse from a script: mounting is only reachable through a
-      stable's dialogue, so the playtest wants a probe of its own before it can ride.)*
-- [ ] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
-      CI on the way in, which is where all of this would have been caught.
-      visible: `tools/playtest.cjs` walks on foot only.
+- [x] The sweep test rides. *(Half of it was already done and nobody had noticed: `SPEEDS` in
+      `src/world/collisions.test.ts` walks the hero at a courser's pace of three and a half for a
+      quarter of a second, which is the mounted case as the arithmetic sees it — a horse does not
+      carry the hero, it multiplies his pace, so what changes is the length of a step and a step
+      longer than the thing it walks into is how a wall gets stepped over.
+
+      The played half needed a way onto a horse from a script, because mounting is only reachable
+      through a stable's dialogue: a person does that in ten seconds and a script cannot do it at
+      all. `__ride` buys one where the hero stands if he has none, which is the only part a stable
+      was really for. The playtest now walks into the same wall twice, once on foot and once at a
+      gallop — 1.62 tiles from the middle walking, 1.58 riding — at whatever frame rate the machine
+      actually manages, which is where the sweep is under real load.
+
+      Where it goes in the script turned out to matter, and finding that out cost a run: put before
+      the creature-drift check it took the hero away from the spot the drift is measured at and the
+      check reported nought corrections, which reads as a broken world and was a broken test. It
+      rides after the drift is measured. 11/11.)*
 - [x] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
       CI on the way in, which is where all of this would have been caught. *(`chore playtest` now
       serves the page itself when nothing is answering on the port, plays, and puts the server away
