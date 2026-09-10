@@ -773,14 +773,34 @@ describe('hunting something the world owns', () => {
     }
   });
 
-  it('has nothing to swing with until the world is walking the hero', () => {
+  it('is thrown from where a hero says he is, until the world has walked him', () => {
+    /*
+     * This test used to say the opposite, and the opposite made the game unplayable.
+     *
+     * The rule was: no hero of the world's own, no blow. It reads as good sense — a client should
+     * not swing from a place it merely claims — and it cost every player who stood still and hit
+     * something, which is the most ordinary act in the game and the first one after a reconnect.
+     * Nothing was hurt, nothing died, nothing could be skinned, and the world said nothing about
+     * why.
+     *
+     * What is given up by trusting the presence here is small. It is only ever consulted before the
+     * first steer, because from then on the world walks the hero and a `move` from an outside hero
+     * is ignored rather than believed. The world already throws every blow struck indoors and
+     * underground from exactly this number.
+     */
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');
-    walkAbout(rowan, 0, 0);
+    walkAbout(rowan, CLEAR_RUN.x, CLEAR_RUN.z);
     tickFor(sim, 600);
-    // never steered, so the world has never stood him anywhere: a blow from nowhere lands nowhere
+    const prey = rowan.of('creatures').at(-1)!.near[0];
+    expect(prey, 'there is something to hunt').toBeDefined();
+    rowan.say({
+      type: 'move', x: CLEAR_RUN.x, z: CLEAR_RUN.z,
+      yaw: Math.atan2(-(prey.z - CLEAR_RUN.z), prey.x - CLEAR_RUN.x),
+      walk: 0, place: 'surface', riding: 'foot', gear: [],
+    });
     for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'swing', ...wide });
-    expect(rowan.of('killed')).toHaveLength(0);
+    expect(rowan.of('killed').length, 'a hero the world had never walked could not hit anything').toBeGreaterThan(0);
   });
 });
 

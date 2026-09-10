@@ -1,6 +1,7 @@
 import type { Entity } from '../entities/entity';
 import { inTheWay } from '../world/tiles';
 import { damageEntity, type TileWorld } from '../entities/entity';
+import { BEHAVIOUR } from '../entities/properties';
 import { type EntityManager } from '../entities/manager';
 import { PEOPLE } from '../entities/quarry';
 import { mulberry32 } from '../core/rng';
@@ -114,11 +115,16 @@ export function swing(
       // is a guess, because a hit that waits for a round trip does not feel like one, and the
       // spoils come back the way they always do — through what the world says next.
       e.hurt = 0.35;
+      // and the bar over its head, which is the same guess told a second way. Without this line
+      // the health bars only ever appeared on creatures this page owned — which, since the world
+      // started holding the wildlife, is almost none of them.
+      e.bar = BEHAVIOUR.BAR_TIME;
       continue;
     }
     if (!authoritative) {
       // somebody else runs this floor: tell them, and show the blow landing
       e.hurt = 0.35;
+      e.bar = BEHAVIOUR.BAR_TIME;
       if (e.rosterIndex >= 0) out.reported.push({ index: e.rosterIndex, damage });
       continue;
     }

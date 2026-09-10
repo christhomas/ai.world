@@ -262,9 +262,24 @@ function thrown(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
   if (String(message.place) !== place) return;
   const world = rooms.worldOf(me.seed, place);
   if (!world) return;
-  // underground the world walks nobody, so the blow is thrown from where they say they are; on the
-  // surface it is thrown from the hero the world has been walking, and a client's word is not asked
-  const from = place === 'surface' ? me.hero : me.presence;
+  /*
+   * Where the blow was thrown from.
+   *
+   * Underground the world walks nobody, so it is thrown from where they say they are. On the
+   * surface it is thrown from the hero the world has been walking — and, when there is no such
+   * hero, from where they say they are as well.
+   *
+   * That last clause is the whole of a bug that made the game unplayable: the world only builds a
+   * hero of its own when a *steer* arrives, so a player who had not walked since joining had none.
+   * Every swing they threw was dropped here without a word — nothing was hurt, nothing died, and
+   * nothing could be skinned. Standing still and hitting something is the most ordinary thing in
+   * the game, and after a reconnect it was the first thing anybody would do.
+   *
+   * Falling back to the presence gives up nothing worth having. The world already trusts it for
+   * every blow struck indoors and underground, and a hero it has never walked is a hero it has no
+   * better opinion about than his own.
+   */
+  const from = place === 'surface' ? (me.hero ?? me.presence) : me.presence;
   if (!from) return;
   const killed = world.swung({
     x: from.x, z: from.z, y: 'y' in from ? from.y : 0, yaw: me.presence.yaw,
