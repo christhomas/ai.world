@@ -1576,9 +1576,41 @@ can each be finished and each leave the game playable.
       and that is the state of the game rather than an oversight — the shape is here for C5 to
       fill. `Register.compact(day)` is the hook a province's unload wants; `server/world.ts` has no
       register to call it with yet.)*
-- [ ] **C5. Villagers move to the server.** They are client-derived today, which works only because
-      they have no private state. Memory and ownership end that: two clients would disagree about
-      what a villager recalls.
+- [x] **C5. Villagers move to the server.** *(They were client-derived, which worked only because
+      they had no private state — and that stopped being true the night they were given opinions,
+      purses and memory. Two clients would have disagreed about what a villager recalls.
+
+      A villager travels as an ordinary creature snapshot plus one optional block: register id,
+      name, trade, role, village, the trades the village was founded on, and his whole mind. Sent
+      once and re-sent only when it changes, and the measurement is why: identity over five seconds
+      in a village is 1.4 kB, against 60.2 kB if it rode on every snapshot. Standing in a village
+      costs 11.4 kB/s and 11% of a core; open country costs more, because there are more animals in
+      it. Three new messages — a memory made on a client and taken by the world's register, a hired
+      man leaving, an arrest by a world-owned constable.
+
+      **The finding worth keeping: the two halves founded the same village differently.** A
+      village's trades are read off the land around it, and how much land you can see depends on
+      how much you have grown — the world holds seven chunks round a player and a page holds a
+      hundred and twenty-one. The founding *rolls off that list*, so the same twenty-five people
+      came out doing different jobs on the two machines. The world says which trades it founded on
+      now, and the page re-founds from them.
+
+      Two more fell out of measuring it: a death a client reported never reached the world's book —
+      it was only ever a log row, so a man a roaming band killed was still being put out at the
+      well — and a world that went quiet handed back an empty countryside, because forgetting the
+      wildlife emptied the chunk lists but kept the keys, so the page believed it had already
+      populated them.
+
+      Three files came out to pay for the length cap, and all three are real seams: `wilds.ts` (what
+      a square of open country has living on it — the third sibling of `street.ts` and
+      `paddocks.ts`), `heard.ts` (the switch over every kind of message the world sends, which is a
+      different job from carrying the words), and `folk.ts` gaining the acts that make a memory.
+
+      Named and not fixed: a mine's crew is still client-side; band pressure is told only to the
+      page's register, and sending it would be lossy by construction because it is dated to one
+      day — the real answer is bands and mines crossing too; the world's register is not persisted,
+      so what a villager recalls about a player is lost across a restart; and a told villager
+      arrives with no posts.)*
 
 ### A — the records, which are how any of the above is checked
 
