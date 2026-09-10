@@ -32,6 +32,17 @@ export interface Body {
   hd: number;
   /** Which way it is facing, in radians. */
   rot: number;
+  /**
+   * How high a thing may stand and still be passed over, in world units. Nought for anybody on the
+   * ground, which is nearly everybody nearly always.
+   *
+   * On the body rather than on every question asked about it, because the alternative is a fourth
+   * argument threaded through `blocked`, `crosses` and `depth` on four worlds and every test that
+   * fakes one — and because it belongs to the mover in exactly the way its width does. A hero in
+   * the middle of a jump is a different shape from a hero standing still: he is the same box, a
+   * foot off the ground. See `entities/leap.ts`.
+   */
+  over?: number;
 }
 
 /** A thing standing in the world, as a walker meets it: a box on the ground, turned. */
@@ -43,6 +54,14 @@ export interface Solid {
   hd: number;
   /** How far it is turned, in radians. */
   rot: number;
+  /**
+   * How high the part of it that stops you reaches, in world units.
+   *
+   * What a jump is measured against. Nought means nothing is known about its height, and nothing
+   * known is treated as too high to clear — a solid whose maker forgot to measure it should stop
+   * people, not become a hole in the world.
+   */
+  high?: number;
 }
 
 /**
@@ -63,11 +82,13 @@ export function boxesFrom(props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { r
     const box = footprints.get(p.kind);
     if (!box) continue;
     const grew = p.scale ?? 1;
-    // nobody can jump, and a stride is longer than some of these are thick — see `MIN_BLOCK`
+    // a stride is longer than some of these are thick — see `MIN_BLOCK`
     out.push({
       x: p.x, z: p.z, rot: p.rot ?? 0,
       hw: Math.max(box.hw * grew, MIN_BLOCK),
       hd: Math.max(box.hd * grew, MIN_BLOCK),
+      // and how high it stands, grown with it: a stall at twice the size is twice the obstacle
+      high: box.high * grew,
     });
   }
   return out;
@@ -153,7 +174,7 @@ export class Solids {
       for (const s of this.near(x, z)) if (pointInBox(s, x, z)) return true;
       return false;
     }
-    for (const s of this.near(x, z, body)) if (boxesOverlap(s, x, z, body)) return true;
+    for (const s of this.near(x, z, body)) if (!cleared(s, body) && boxesOverlap(s, x, z, body)) return true;
     return false;
   }
 
@@ -177,7 +198,9 @@ export class Solids {
    */
   depth(x: number, z: number, body: Body): number {
     let worst = 0;
-    for (const s of this.near(x, z, body)) worst = Math.max(worst, overlapDepth(s, x, z, body));
+    for (const s of this.near(x, z, body)) {
+      if (!cleared(s, body)) worst = Math.max(worst, overlapDepth(s, x, z, body));
+    }
     return worst;
   }
 
@@ -209,6 +232,7 @@ export class Solids {
         const bucket = this.buckets.get(tileKey(tx, tz));
         if (!bucket) continue;
         for (const s of bucket) {
+          if (body && cleared(s, body)) continue;
           const hit = body
             ? sweptBoxHitsBox(s, x0, z0, x1, z1, body)
             : segmentHitsBox(s, x0, z0, x1, z1);
@@ -282,6 +306,17 @@ function* tilesUnder(solid: Solid): Generator<number> {
   for (let tz = z0; tz <= z1; tz++) {
     for (let tx = x0; tx <= x1; tx++) yield tileKey(tx, tz);
   }
+}
+
+/**
+ * Is this body over the top of this solid?
+ *
+ * The whole of what a jump changes about collision, and it is one comparison. A solid with no
+ * measured height is never cleared, so anything the measuring missed goes on stopping people.
+ */
+function cleared(s: Solid, body: Body): boolean {
+  const over = body.over ?? 0;
+  return over > 0 && (s.high ?? Infinity) <= over;
 }
 
 /** Nothing here, shared rather than made afresh for every question about empty ground. */

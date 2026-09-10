@@ -7,6 +7,7 @@ import type { Entity } from '../src/entities/entity';
 import { WORLD } from '../src/core/config';
 import { GroundWorld } from '../src/world/groundworld';
 import { BOAT, helm } from '../src/game/sailing';
+import { JUMP } from '../src/entities/leap';
 import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride';
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
@@ -292,6 +293,23 @@ function thrown(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
  * A world with no ground under it — the simulation grows one only when it is asked to — leaves the
  * client its own authority, and the game plays exactly as it did.
  */
+/**
+ * The world's own copy of somebody's hero, allowed everything a page allows.
+ *
+ * Two permissions, both given for the same reason and neither of them a guess. The rope is in
+ * somebody's pack, which lives in their save and has never crossed the wire; the jump is a key on
+ * their keyboard, which the world has never seen either. Refusing a step the client allowed drags a
+ * player backwards through a fence they plainly got over; allowing one the client refused costs
+ * nothing, because the client stopped them itself. So the world is the more generous of the two by
+ * exactly the amount it cannot see — see `stride.ts` on `ROPED_CLIMB`, which made this bargain
+ * first.
+ */
+function standingHero(x: number, z: number): ReturnType<typeof newHero> {
+  const hero = newHero(x, z, ROPED_CLIMB);
+  hero.clears = JUMP.CLEARS;
+  return hero;
+}
+
 function walked(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type: 'steer' }>): void {
   const ground = rooms.groundOf(me.seed);
   if (!ground) return;
@@ -300,7 +318,7 @@ function walked(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
   // hero backwards, and the client has long since drawn past it
   if (seq <= me.steered) return;
   const p = me.presence;
-  const hero = me.hero ?? (me.hero = newHero(p.x, p.z, ROPED_CLIMB));
+  const hero = me.hero ?? (me.hero = standingHero(p.x, p.z));
   // The ground grows around where somebody is standing, a tick behind them, so for a moment after
   // a teleport there is nothing under the hero to walk on. Answering then would be answering with
   // wherever he was before the jump, and the client would be dragged back to it. So say nothing:

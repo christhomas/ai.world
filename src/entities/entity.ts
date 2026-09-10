@@ -174,6 +174,16 @@ export class Entity {
   hp: number;
   /** Rig parts to leave undrawn, by tag: a helm replaces the hero's own hat. */
   readonly hiddenTags = new Set<string>();
+  /**
+   * What is left of a jump, in seconds, and how high this one may clear standing on the ground.
+   *
+   * `leap` runs down like every other timer here and is nought for everything that walks: only a
+   * hero jumps, and only on the page. `clears` is a standing permission and is nought for
+   * everybody on the page — the server sets it on its own copy of a hero, because it cannot see
+   * the keyboard and must not refuse a step the page allowed. See `entities/leap.ts`.
+   */
+  leap = 0;
+  clears = 0;
   /** Counts down after a hit; the renderer flashes the creature white while it is positive. */
   hurt = 0;
   /**
@@ -380,6 +390,9 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
 
   if (e.hurt > 0) e.hurt = Math.max(0, e.hurt - dt);
   if (e.bar > 0) e.bar = Math.max(0, e.bar - dt);
+  // nothing but a hero jumps, but a hero walked by something other than `Player` — the reconciler,
+  // a test — still has to come down
+  if (e.leap > 0) e.leap = Math.max(0, e.leap - dt);
   if (e.strike > 0) e.strike = Math.max(0, e.strike - dt);
   e.attackCooldown -= dt;
 

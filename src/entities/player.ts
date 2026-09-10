@@ -3,6 +3,7 @@ import type { IsoCamera } from '../render/camera';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { Entity, Herd, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from './entity';
+import { JUMP, leapHeight } from './leap';
 import { newHero, stride, type Steer } from './stride';
 import type { EntityRenderer } from './pool';
 
@@ -21,6 +22,8 @@ export class Player {
    */
   crowd: Crowd | null = null;
   private hop = 0;
+  /** How long until he may jump again, in seconds. See `JUMP.REST`. */
+  private landed = 0;
   private static readonly HOP_TIME = 0.28;
   /** While true the hero is carried (ferry): no walking, no ground snapping, camera still follows. */
   riding = false;
@@ -78,6 +81,20 @@ export class Player {
    */
   groundNear(x: number, z: number): boolean {
     return spaceNear(this.world, this.entity.kind, x, z) !== null;
+  }
+
+  /**
+   * Off the ground, for as long as a jump lasts.
+   *
+   * Refused while he is already in the air or has only just landed, and while he is being carried:
+   * a hero on a horse or a boat is a passenger, and a passenger who jumps leaves the thing carrying
+   * him behind. Answers whether it happened, because the key that asks wants to make a sound only
+   * when it did.
+   */
+  jump(): boolean {
+    if (this.entity.leap > 0 || this.landed > 0 || this.riding) return false;
+    this.entity.leap = JUMP.TIME;
+    return true;
   }
 
   teleport(x: number, z: number): void {
@@ -196,7 +213,19 @@ export class Player {
       if (this.hop <= 0 && Math.abs(h - e.y) > 0.3) this.hop = Player.HOP_TIME;
       e.y += (h - e.y) * Math.min(1, dt * (this.hop > 0 ? 22 : 14));
     }
-    if (this.hop > 0) {
+    /*
+     * How far off his own ground he is drawn: a jump, a terrace hop, or settling back to nothing.
+     *
+     * A jump wins over the hop rather than adding to it. Stepping up a terrace *while* jumping is
+     * exactly when both would fire, and two arcs summed put him twice as high as either was worth
+     * — which reads as the ground throwing him rather than as him jumping.
+     */
+    if (this.landed > 0) this.landed = Math.max(0, this.landed - dt);
+    if (e.leap > 0) {
+      e.leap = Math.max(0, e.leap - dt);
+      e.bobY = leapHeight(e.leap);
+      if (e.leap <= 0) this.landed = JUMP.REST;
+    } else if (this.hop > 0) {
       this.hop -= dt;
       e.bobY = Math.sin(Math.PI * (1 - Math.max(0, this.hop) / Player.HOP_TIME)) * 0.3;
     } else {

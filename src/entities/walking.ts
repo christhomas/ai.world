@@ -1,4 +1,5 @@
 import { STEP_LIMIT } from './properties';
+import { JUMP } from './leap';
 import { swims, type Entity } from './entity';
 import type { AnimalKind } from './animals';
 import type { Body } from '../world/solids';
@@ -23,12 +24,15 @@ import type { TileWorld } from '../world/tiles';
  * Left out by whoever is asking about a place rather than about a walk — somewhere to spawn, a spot
  * to put somebody down — where there is no heading yet and the answer is about the ground.
  */
-export function canStand(world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number, yaw = 0): boolean {
+export function canStand(
+  world: TileWorld, kind: AnimalKind, x: number, z: number, fromY?: number, yaw = 0, over = 0,
+): boolean {
   if (swims(kind)) return world.waterAt(x, z) !== null;
   if (kind.behaviour === 'fly') return true;
   const h = world.heightAt(x, z);
-  // asked as the body it is, not as the point at its middle
-  if (h === null || world.blocked(x, z, bodyBox(kind, yaw))) return false;
+  // asked as the body it is, not as the point at its middle — and at the height it is at, which is
+  // the ground for everybody except somebody in the middle of a jump
+  if (h === null || world.blocked(x, z, bodyBox(kind, yaw, over))) return false;
   // Not onto a mountain. The rim of one is gentle for a tile or two before the flank stands up, so
   // a deer following its herd wanders up it and is then stuck on a cliff with nothing to eat; the
   // goats and the things that climb are placed on the high ground rather than walking to it.
@@ -64,9 +68,9 @@ export function bodyOf(kind: AnimalKind): { hw: number; hd: number } {
  * long as a horse and as narrow as one. The model is a rectangle; what it bumps into is a
  * rectangle; the two are compared as they are.
  */
-export function bodyBox(kind: AnimalKind, yaw: number): Body {
+export function bodyBox(kind: AnimalKind, yaw: number, over = 0): Body {
   const body = bodyOf(kind);
-  return { hw: body.hw, hd: body.hd, rot: -yaw };
+  return { hw: body.hw, hd: body.hd, rot: -yaw, over };
 }
 
 /** Whoever is already standing somewhere. The manager keeps the crowd; this is all a mover needs. */
@@ -146,6 +150,19 @@ export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number, cro
  */
 const DEEPER = 1e-4;
 
+/**
+ * How high a thing may stand and still not be in this creature's way, in world units.
+ *
+ * Two ways to be over something and they are the same number. `leap` is a hero in the middle of a
+ * jump on somebody's screen; `clears` is standing permission, which is how the server walks a hero
+ * — it has never seen the keyboard and cannot know whether the jump happened, so it allows what the
+ * page allows and leaves the page to be the stricter of the two. The same bargain, and for the same
+ * reason, as `ROPED_CLIMB` in `stride.ts`.
+ */
+function clearing(e: Entity): number {
+  return e.leap > 0 ? JUMP.CLEARS : e.clears;
+}
+
 /** One slice of a move: the whole of it if it fits, else along whichever axis does. */
 function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crowd): boolean {
   const k = e.kind;
@@ -174,7 +191,10 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
    * Only the props are waived. The ground still has to be ground: this is a way out of a wall, not
    * a way into the sea or up a cliff.
    */
-  const boxedIn = world.blocked(e.x, e.z, bodyBox(k, e.yaw)) && standable(world, k, e.x, e.z);
+  // how high off his own ground he is: nought for everybody, except a hero in mid-jump — see
+  // `entities/leap.ts` — and a hero on the server, who is allowed everything the page allows
+  const over = clearing(e);
+  const boxedIn = world.blocked(e.x, e.z, bodyBox(k, e.yaw, over)) && standable(world, k, e.x, e.z);
   /*
    * And the mercy is pointed outward rather than granted outright.
    *
@@ -205,7 +225,7 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
    * A world with no depth to report keeps the older, blunter mercy.
    */
   const wasIn = boxedIn && world.depth && k.behaviour !== 'fly'
-    ? world.depth(e.x, e.z, bodyBox(k, e.yaw))
+    ? world.depth(e.x, e.z, bodyBox(k, e.yaw, over))
     : 0;
   const attempts: Array<[number, number]> = [[dx, dz], [dx, 0], [0, dz]];
   for (const [mx, mz] of attempts) {
@@ -215,14 +235,14 @@ function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crow
       if (!standable(world, k, nx, nz, e.y)) continue;
       // no deeper than it already is, with a whisker of slack so that a step across the middle of
       // something is not refused by the last bit of a float
-      if (wasIn > 0 && world.depth!(nx, nz, bodyBox(k, e.yaw)) > wasIn + DEEPER) continue;
+      if (wasIn > 0 && world.depth!(nx, nz, bodyBox(k, e.yaw, over)) > wasIn + DEEPER) continue;
     } else {
-      if (!canStand(world, k, nx, nz, e.y, e.yaw)) continue;
+      if (!canStand(world, k, nx, nz, e.y, e.yaw, over)) continue;
       // and the way there, not only the far end of it: a box is crossed or it is not, whatever the
       // length of the step that crossed it. Not for anything that flies: a bird goes over a cottage
       // rather than round it, which is what `canStand` says by letting it stand anywhere, and a path
       // test that did not know it turned every roof in the world into a wall in the sky.
-      if (k.behaviour !== 'fly' && world.crosses?.(e.x, e.z, nx, nz, bodyBox(k, e.yaw))) continue;
+      if (k.behaviour !== 'fly' && world.crosses?.(e.x, e.z, nx, nz, bodyBox(k, e.yaw, over))) continue;
     }
     // the ground first, because the ground is the cheap question
     if (!stuck && crowd?.occupied(nx, nz, e)) continue;

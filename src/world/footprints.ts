@@ -20,6 +20,15 @@ import { PropKind } from './biomes';
 export interface Footprint {
   hw: number;
   hd: number;
+  /**
+   * How high the part of it that stops you reaches, in world units.
+   *
+   * Measured off the same pieces the box is, for the same reason: what a walker meets is what a
+   * jump has to clear, and the top of an oak is not the top of its trunk. It is here so that a
+   * crate, a fence rail and a market stall's counter can be got over and a wall cannot — see
+   * `JUMP` in `entities/leap.ts`.
+   */
+  high: number;
 }
 
 /**

@@ -230,11 +230,22 @@ function placedPieces(p: PropPart): Placed[][] {
  */
 export function footprintOf(parts: readonly PropPart[]): Footprint | null {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  /*
+   * And how high the thing that stops you stands, which is what says whether it can be got over.
+   *
+   * The top of the pieces that block rather than the top of the prop, and the difference is an
+   * oak: its crown is four units up and its trunk is one, and what a walker meets — and what a
+   * jump would have to clear — is the trunk. A rule that took the whole bounding box would make
+   * every tree in the country as unjumpable as a curtain wall, which is true of a tree and true
+   * for the wrong reason.
+   */
+  let top = 0;
   for (const p of parts) {
     for (const piece of placedPieces(p)) {
       let low = Infinity, high = -Infinity;
       for (const [, y] of piece) { low = Math.min(low, y); high = Math.max(high, y); }
       if (high < WALKING_BAND.low || low > WALKING_BAND.high) continue;
+      top = Math.max(top, high);
       for (const [x, , z] of piece) {
         minX = Math.min(minX, x); maxX = Math.max(maxX, x);
         minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
@@ -242,5 +253,5 @@ export function footprintOf(parts: readonly PropPart[]): Footprint | null {
     }
   }
   if (minX === Infinity) return null;
-  return { hw: Math.max(-minX, maxX), hd: Math.max(-minZ, maxZ) };
+  return { hw: Math.max(-minX, maxX), hd: Math.max(-minZ, maxZ), high: top };
 }

@@ -128,6 +128,22 @@ export function bindKeys(ctx: Keys): void {
     if (who === 'talking' || who === 'framing' || who === 'reading') return;
     screen.toggleConsole();
   });
+  /*
+   * Space jumps, and Enter is what talks.
+   *
+   * They used to be the same key, both meaning "do the thing in front of me", which left the most
+   * universally understood key on a keyboard doing the second job of another one. A jump wants a
+   * key nobody has to be told about, and everything Space did Enter still does — so what is given
+   * up is a duplicate and what is gained is the verb.
+   *
+   * Not while a dialogue, the console or the map has the keyboard: Space is a page-down, an
+   * advance and a shutter in those, and a hero who hopped every time you read a line of
+   * conversation would be a joke at his own expense.
+   */
+  input.onKey(' ', () => {
+    if (screen.busy() !== null) return;
+    if (player.jump()) sound.blip();
+  });
   for (const key of ['enter', ' ']) input.onKey(key, () => {
     const who = screen.busy();
     if (who === 'typing') return;

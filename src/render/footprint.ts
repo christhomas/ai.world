@@ -26,10 +26,14 @@ import { WALKING_BAND, type Footprint } from '../world/footprints';
 export function measureFootprint(geometry: THREE.BufferGeometry): Footprint | null {
   const p = geometry.getAttribute('position');
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  // and how high the blocking part of it stands, which is the other half of the same measurement:
+  // see `footprintOf`, whose answers this is held against
+  let top = 0;
   for (let t = 0; t + 2 < p.count; t += 3) {
     const low = Math.min(p.getY(t), p.getY(t + 1), p.getY(t + 2));
     const high = Math.max(p.getY(t), p.getY(t + 1), p.getY(t + 2));
     if (high < WALKING_BAND.low || low > WALKING_BAND.high) continue;
+    if (high > top) top = high;
     for (const i of [t, t + 1, t + 2]) {
       const x = p.getX(i), z = p.getZ(i);
       if (x < minX) minX = x;
@@ -40,5 +44,5 @@ export function measureFootprint(geometry: THREE.BufferGeometry): Footprint | nu
   }
   if (minX === Infinity) return null;
   // half-extents about the prop's own middle, which is where it is planted
-  return { hw: Math.max(-minX, maxX), hd: Math.max(-minZ, maxZ) };
+  return { hw: Math.max(-minX, maxX), hd: Math.max(-minZ, maxZ), high: top };
 }
