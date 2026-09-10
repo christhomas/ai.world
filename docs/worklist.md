@@ -2580,8 +2580,22 @@ other, and the order is chosen so that each one can be *seen* working before the
             beds, bath houses, houses and hired swords by subtracting from a number at fifteen sites,
             and every coin of it left the world — the one actor exempt from an economy the villagers
             had already been made to obey. All fifteen now name a payee.
-      - [ ] **9c. The rest of the vocabulary.** `take`, `hire`, `build`, `skin`, `talk` — the acts
-            that are not about money. Convert them as they are touched rather than in one sitting.
+      - [x] **9c-1. Things changing hands.** `world/goods.ts`: `Pack`, so a rucksack, a strongbox
+            and a hunter's shoulder are one shape; `handOver`, which moves what was *taken* and never
+            what was asked for, because those differing by one is how a game mints goods; and `GONE`
+            for the ground, the fire and the river. The strongbox and the hunter's shoulder are
+            converted. A shoulder holds one kind of thing and drops what it had, which is what a man
+            with two hands does.
+      - [x] **9c-2. The list itself.** `world/vocabulary.ts` names every deed and every place a deed
+            can act on, and `vocabulary.test.ts` holds the two to each other in both directions — a
+            deed exported and unnamed fails, a name with nothing behind it fails. Same rule
+            `catalogue.test.ts` holds the prop library to, and here for the same reason: `TRADERS`
+            spent a long time naming four jobs nobody in this world can hold.
+      - [ ] **9c-3. The acts that are not money or goods.** `hire`, `build`, `sow`, `skin`, `heal`,
+            `arrest`, `enter`, `ride`. Convert as they are touched.
+      - [ ] **9c-4. `verbs.ts` split again if it grows.** The trade verbs came out into
+            `entities/living.ts` at 705 lines; the split is invisible from `behaviours/` and
+            `vocabulary.test.ts` is what keeps it that way.
       - [ ] **9d. The hero as an Entity with a tree.** The stated goal: a scripted playtest that
             drives a real hero through the same verbs. Nothing is being built for it yet; the deed
             layer is what keeps it cheap when it is.

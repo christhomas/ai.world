@@ -1,5 +1,6 @@
 import { BUILD, builderIn, canBuildAt, deposit, isFinished, owed, saidOfJob, type Commission } from '../building';
-import { buy, holds } from '../../world/deeds';
+import { buy, give, holds } from '../../world/deeds';
+import { boxOf, handOver, packOf } from '../../world/goods';
 import { villageTill } from '../tills';
 import { ITEMS } from '../items';
 import { footprintLevel } from '../../world/footprint';
@@ -250,8 +251,7 @@ export function builderInteractions(ctx: Surroundings) {
       pages: carried.length || state.inventory.gold > 0 ? ['What goes in?'] : ['You are carrying nothing to leave.'],
       choices: [
         ...(state.inventory.gold > 0 ? [{ label: `All your gold (${state.inventory.gold}g)`, next: () => {
-          box.gold += state.inventory.gold;
-          state.inventory.gold = 0;
+          give(holds(state.inventory), holds(box), state.inventory.gold);
           state.version++;
           sound.select();
           persist();
@@ -260,8 +260,9 @@ export function builderInteractions(ctx: Surroundings) {
         ...carried.slice(0, SHOWN).map(([id, n]) => ({
           label: `${ITEMS[id].emoji} ${ITEMS[id].name}${n > 1 ? ` (${n})` : ''}`,
           next: () => {
-            state.take(id, 1);
-            box.items[id] = (box.items[id] ?? 0) + 1;
+            // one deed rather than a take and an add that have to agree about the number: see
+            // `handOver`, which moves what was actually taken and never what was asked for
+            handOver(packOf(state.inventory.items), boxOf(box.items), id, 1);
             sound.select();
             persist();
             return chest(job);
@@ -280,8 +281,7 @@ export function builderInteractions(ctx: Surroundings) {
       pages: stored.length || box.gold > 0 ? ['What comes out?'] : ['There is nothing in it.'],
       choices: [
         ...(box.gold > 0 ? [{ label: `The gold (${box.gold}g)`, next: () => {
-          state.inventory.gold += box.gold;
-          box.gold = 0;
+          give(holds(box), holds(state.inventory), box.gold);
           state.version++;
           sound.jingle();
           persist();
@@ -290,9 +290,7 @@ export function builderInteractions(ctx: Surroundings) {
         ...stored.slice(0, SHOWN).map(([id, n]) => ({
           label: `${ITEMS[id].emoji} ${ITEMS[id].name}${n > 1 ? ` (${n})` : ''}`,
           next: () => {
-            box.items[id] = n - 1;
-            if (box.items[id] <= 0) delete box.items[id];
-            state.give(id, 1);
+            handOver(boxOf(box.items), packOf(state.inventory.items), id, 1);
             sound.select();
             persist();
             return chest(job);
