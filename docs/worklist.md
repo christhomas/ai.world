@@ -1664,11 +1664,24 @@ of the notes are the game rather than the arithmetic:
       nothing, a village loses a rich man's savings entirely, and the money supply is held up only
       by the mines. Whether that is right is a question about the game: a world where nothing is
       passed down is a world that stays poor, and one where everything is passed down concentrates.
-- [ ] **The second storey is reachable and the bath house nearly is.** 15 of 21 villages got their
-      houses to two storeys, the first on day 16; 5 held enough between them for a bath house, from
-      day 22. Before the economy was fixed neither had ever been reached in the life of the game —
-      the numbers were a factor of ten and a factor of six out. Worth re-tuning now that they are
-      reachable, because a thing every village manages by day 22 has stopped being an ambition.
+- [x] **The second storey and the bath house, re-tuned against a world with working mines.**
+      *(Both numbers were measured when they were set and both had stopped being right, in the
+      ordinary way a tuned number goes wrong: nobody touched them, the world got richer underneath
+      them. A village with a worked mine near it mints eight hundred to a thousand gold over a
+      hundred days that it did not have before the mines were fixed.
+
+      `STOREY` 35 → 55. At 35, fifteen of the twenty-one villages the bench lives ended up two
+      storeys tall and the first on day 16, which is a mark every village earns and therefore not a
+      mark. Measured across the same villages: 45 gives nine, earliest day 21; 55 gives six, from
+      day 29 out to day 95; 65 gives three, all of them mid-run. Six in twenty-one is the share the
+      original number was aiming at, and the spread is what says a village *becomes* prosperous
+      rather than being born so.
+
+      `LUXURY` 800 → 900, and what moved it is not how many villages get a bath house — five of
+      twenty-one either way — but when. At 800 all five had theirs by day 37 and nothing changed
+      for the remaining nine weeks; at 900 they arrive on days 28, 32, 82, 99 and 100. That is the
+      difference between a fact about a village and something that happens to it while you are
+      playing. At 1,000 only two cross and at 1,200 none does.)*
 
 ## Things to make, when the country is finished
 

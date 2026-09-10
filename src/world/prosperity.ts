@@ -56,35 +56,43 @@ export const PROSPER = {
    * head in the village — and the bench found the best village in three seeds averaging 33 a head,
    * a factor of ten short. `storeysFor` had never once returned two in the life of the game.
    *
-   * Thirty-five is measured rather than chosen, and both ends were walked into on the way. On these
-   * three seeds an untroubled village runs 16 a head at three weeks old, 20 to 30 by fifty days and
-   * 23 to 48 by a hundred. At thirty, nineteen of the twenty-one villages the bench lives ended up
-   * two storeys tall — the failure at the other end from the old one, because a mark every village
-   * earns is not a mark. At forty only four of the nine untroubled villages crossed at all and
-   * every one of them did it in the last five days of the run, which is a number balanced on a
-   * knife rather than a number that means something. At thirty-five five of the nine cross, between
-   * day 31 and day 101, and the plain inland control never does on any seed: an ordinary village
-   * stays low and the ones that have done well go up.
+   * Thirty-five was measured rather than chosen, and it stopped being right the night the mines
+   * started working. That is worth saying plainly, because it is the ordinary way a tuned number
+   * goes wrong: nobody touched this, the world got richer underneath it. A village with a worked
+   * mine near it mints eight hundred to a thousand gold over a hundred days that it simply did not
+   * have before, and at thirty-five fifteen of the twenty-one villages the bench lives ended up two
+   * storeys tall, the first of them on day sixteen. A mark every village earns is not a mark.
+   *
+   * Fifty-five, re-measured across the same twenty-one villages. At thirty-five, fifteen of them
+   * cross and the earliest on day 16; at forty-five, nine, earliest day 21; at fifty-five, six,
+   * from day 29 out to day 95; at sixty-five, three, and all of them in the middle of the run. Six
+   * in twenty-one is about the share the original number was aiming at — an ordinary village stays
+   * low and the ones that have done well go up — and the spread from day 29 to day 95 is what says
+   * a village *becomes* prosperous rather than being born so.
    *
    * And it is a line a village can fall back under. A place with a band standing over it drops
    * below inside a fortnight and climbs out again when the band goes, which is the whole point of
    * the number: what a player can protect, they should also be able to see from the road.
    */
-  STOREY: 35,
+  STOREY: 55,
   /**
    * What a village's luxuries cost — reckoned against everything the village has between it, not
    * against one purse. Nobody here lives more than ninety days, so no individual could ever afford
    * one; a village of two dozen, left alone, can.
    *
    * A bath house costs what it costs however many people are chipping in, which is what makes it a
-   * thing big villages get and small ones do not, rather than a thing everybody gets eventually.
-   * Eight hundred is where the measured range separates: over a hundred days the six-house
-   * villages peak between 500 and 780 between them, and the nine-house one and the one with a mine
-   * under it pass 900. It was 3,400, which the richest village on any seed missed by a factor of
-   * six. Push it much below the top of an ordinary village's good year and every village in the
-   * country has a bath house, and a bath house stops being worth walking to.
+   * thing big villages get and small ones do not, rather than a thing everybody gets eventually. It
+   * was 3,400, which the richest village on any seed missed by a factor of six; then eight hundred,
+   * which was where the range separated before the mines were minting anything.
+   *
+   * Nine hundred, and what moved it is not how many villages get one — five of twenty-one either
+   * way — but *when*. At eight hundred all five had theirs by day 37 and nothing changed for the
+   * remaining nine weeks; at nine hundred they arrive on days 28, 32, 82, 99 and 100. That is the
+   * whole difference between a fact about a village and something that happens to it while you are
+   * playing. At a thousand only two cross and at twelve hundred none does, so this is the top of
+   * the range rather than a point in the middle of it.
    */
-  LUXURY: 800,
+  LUXURY: 900,
   /**
    * The most anybody keeps by them.
    *
