@@ -1,6 +1,7 @@
 import type { Rng } from '../core/rng';
 import { shuffle } from '../core/rng';
 import type { Biome } from './biomes';
+import { CASTLE_NAMES, seatACastle, type Castle } from './castles';
 import type { RoadGraph } from './graph';
 import { pairJetties } from './piers';
 import { rand2 } from '../core/rng';
@@ -9,16 +10,18 @@ import { StructureKind, type Pier, type Settling, type Signpost, type Site, type
 import { TileType, type TerrainSampler, type TileSample } from './terrain';
 
 /**
- * What stands between the villages: jetties, signposts, caves and wrecks.
+ * What stands between the villages: jetties, signposts, caves, wrecks and castles.
  *
  * Everything here is placed against the settlements rather than among them — a signpost is only
- * useful where there is nothing to see, a wreck belongs on an empty beach, and a cave is somewhere
- * you find rather than somewhere you are shown. So they are laid out last, when the villages are
- * known and the ground they left is what is available.
+ * useful where there is nothing to see, a wreck belongs on an empty beach, a cave is somewhere you
+ * find rather than somewhere you are shown, and a castle is the seat of somebody who does not live
+ * in the village. So they are laid out last, when the villages are known and the ground they left
+ * is what is available.
  *
  * Cut out of `structures.ts`, which had grown past what one screen holds. There is nothing subtle
- * about the boundary: these four read the finished village list and add to the same pile of
- * buildings, and none of the village machinery reads them back.
+ * about the boundary: these five read the finished village list and add to the same pile of
+ * buildings, and none of the village machinery reads them back. The castle's own layout is a piece
+ * of work in itself and lives in `castles.ts`; what is here is only when and where one is raised.
  */
 
 export const CAVES = 10;
@@ -30,12 +33,40 @@ const WRECK_NAMES = ['Wreck of the Marigold', 'Broken Keel', 'Wreck of the Tern'
 const SIGNPOSTS = 22;
 const SIGNPOST_SPACING = 90;
 
+/**
+ * How many castles a bounded world holds, and how far apart they have to be.
+ *
+ * Two, and a day's hard ride between them. A castle is the seat of somebody who holds the country
+ * round it, so two of them in sight of each other is not a country with two castles in it — it is
+ * a border, and this world has no borders to be a fact about.
+ *
+ * Two is also about all the ground gives. Counted across five worlds, a plot that will take a
+ * castle and has nothing already standing on it turns up between one and sixteen times in a whole
+ * country, and every one of those is off the same handful of crossroads — so the cap is a ceiling
+ * rather than a quota, and one seed in five comes out with a single castle, which is the honest
+ * answer for that country rather than a bug.
+ *
+ * The road tree counts them because counting is what the road tree does — a world with an edge has
+ * a fixed number of everything. The endless country cannot count and does not; see `CROWNED`.
+ */
+const CASTLES = 2;
+const CASTLE_SPACING = 320;
+
 const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
 export function compassDir(dx: number, dz: number): string {
   return COMPASS[Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) & 7];
 }
 
-/** Everything the four of them need, which is the finished villages and the ground under them. */
+/** What stands between the villages, once it has been found. */
+export interface Marked {
+  piers: Pier[];
+  signposts: Signpost[];
+  caves: Site[];
+  wrecks: Site[];
+  castles: Castle[];
+}
+
+/** Everything the five of them need, which is the finished villages and the ground under them. */
 export interface Between {
   sampler: TerrainSampler;
   graph: RoadGraph;
@@ -48,12 +79,13 @@ export interface Between {
   footprintOk: (tx: number, tz: number, hw: number, hd: number, level: number | null) => number | null;
 }
 
-export function markTheWay(o: Between): { piers: Pier[]; signposts: Signpost[]; caves: Site[]; wrecks: Site[] } {
+export function markTheWay(o: Between): Marked {
   const { sampler, graph, sample, rng, all, villages, footprintOk } = o;
   const piers: Pier[] = [];
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
+  const castles: Castle[] = [];
 
   // --- piers: one on each shore per island, pointing at each other ---
   for (const isl of graph.islands) {
@@ -151,11 +183,40 @@ export function markTheWay(o: Between): { piers: Pier[]; signposts: Signpost[]; 
     }
   }
 
-  return { piers, signposts, caves, wrecks };
+  /*
+   * --- castles: two in a world, and last of everything ---
+   *
+   * Last on purpose, and it is load-bearing rather than tidy. Everything above draws from the
+   * layout's one stream of randomness, and a stream is a queue: a castle that rolled for its
+   * direction before the caves were placed would move every cave, wreck and signpost in every
+   * world anybody has ever walked through, for no reason but that it came first in the file. Put
+   * at the end it takes numbers nobody else was going to take, and the only thing that moves is
+   * the castle.
+   *
+   * It also means a castle has to fit round what is already standing rather than the other way
+   * about, which is the right answer for something that wants twenty-one tiles: a wreck on a beach
+   * has nowhere else to be, and a castle has a whole county.
+   */
+  const seats = graph.nodes.map((n) => n).filter((n) => n.depth >= 2);
+  shuffle(rng, seats);
+  for (const n of seats) {
+    if (castles.length >= CASTLES) break;
+    if (castles.some((c) => Math.hypot(c.x - n.x, c.z - n.z) < CASTLE_SPACING)) continue;
+    const side = rng() < 0.5 ? -1 : 1;
+    // named off the crossroads it was found from rather than off a counter, so the two castles in
+    // a world are not the first two entries of a list; stepped on if that name is already taken
+    let pick = nameKey(`castle:${n.x},${n.z}`) % CASTLE_NAMES.length;
+    while (castles.some((c) => c.name === CASTLE_NAMES[pick])) pick = (pick + 1) % CASTLE_NAMES.length;
+    const name = CASTLE_NAMES[pick];
+    const raised = seatACastle({ sampler, sample, all, villages, x: n.x, z: n.z }, side, `castle:${name}`, name);
+    if (raised) castles.push(raised);
+  }
+
+  return { piers, signposts, caves, wrecks, castles };
 }
 
 /**
- * The same four things, asked of places rather than found by walking a tree.
+ * The same five things, asked of places rather than found by walking a tree.
  *
  * The difference is only in the choosing. A signpost stands at a crossroads because that crossroads
  * is out in the country and its own name says so — not because it was the eleventh node a shuffle
@@ -178,6 +239,7 @@ export interface Places {
 /** Salts, so the questions asked of a crossroads cannot be the same number. */
 const OF_A_POST = 0x51a7;
 const OF_A_HOLE = 0x2ca4;
+const OF_A_CROWN = 0x7b39;
 
 /** Share of the crossroads out in the country that carry a signpost, and how far one points. */
 const POSTED = 0.34;
@@ -206,11 +268,39 @@ const LOOK_OUT_TO = 40;
  */
 const CAVE_COUNTRY = 8;
 
-export function markThePlaces(o: Places): { piers: Pier[]; signposts: Signpost[]; caves: Site[]; wrecks: Site[] } {
+/**
+ * The share of crossroads out in the country whose ground is even asked whether it holds a castle.
+ *
+ * One in thirty. It has to be a small number and it cannot be as small as it feels it ought to be,
+ * because this is not the rarity — the ground is. Of the crossroads that get asked, only a few in
+ * a hundred have twenty-one tiles of country within a terrace of itself and nothing already built
+ * on it. Set it by the share and not by the answer: an endless country cannot count what it has,
+ * and a rule that tried would give a different country to every patch that looked at it.
+ *
+ * The number this leaves is deliberately below the road tree's own. Counted: six road-tree worlds
+ * span about nine hundred tiles square each and hold one or two castles apiece, which is one per
+ * four hundred and fifty thousand tiles; one in thirty comes out at one per one and three quarter
+ * million, four times as empty. Matching the road tree was tried — one in eight, which is what the
+ * arithmetic asks for — and it is the wrong world. Forty-two castles turned up in nine patches,
+ * and with a hundred and twenty-eight names to go round, two of them were called Bramblewatch and
+ * stood a hundred and sixty tiles apart, which is close enough to ride between in an afternoon and
+ * find the same rooms and the same treasure in both. A castle's name is its anchor (see
+ * `CASTLE_NAMES`), so how many castles a country holds and how many names there are cannot be
+ * chosen apart. Sparse is the side of that to be wrong on: a country with no edge is not short of
+ * room, and something you come across after a long ride is what a castle ought to be.
+ *
+ * Nothing here is told how many castles exist, or where the others are. A place with the ground
+ * for one and a name that says yes gets a castle, and two neighbouring counties that both say yes
+ * get two — which is the deal the endless world strikes with every landmark it has.
+ */
+const CROWNED = 1 / 30;
+
+export function markThePlaces(o: Places): Marked {
   const { sampler, sample, all, villages, footprintOk, settling } = o;
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
+  const castles: Castle[] = [];
   const piers = jetties(o);
   const seed = sampler.seed;
 
@@ -225,8 +315,27 @@ export function markThePlaces(o: Places): { piers: Pier[]; signposts: Signpost[]
       lookAround(o, post, key, caves, wrecks);
     }
   }
-  void sample; void all; void footprintOk;
-  return { piers, signposts, caves, wrecks };
+  /*
+   * And the castles, in a pass of their own after the rest.
+   *
+   * Separate from the loop above rather than a third `if` inside it, because a castle takes
+   * twenty-one tiles of country and everything else takes one: asked in the same breath, a castle
+   * would sometimes be refused by a signpost that was put up a moment earlier on the same
+   * crossroads, and which of them got there first would depend on nothing but the order the two
+   * questions happen to be written in. Asked afterwards, a castle always has to fit round what is
+   * already there, in every patch, whatever order the patches were generated in.
+   */
+  for (const post of settling.posts ?? []) {
+    const key = nameKey(post.id);
+    if (rand2(derive(seed, OF_A_CROWN), key, 0, OF_A_CROWN) >= CROWNED) continue;
+    const side = rand2(derive(seed, OF_A_CROWN), key, 1, OF_A_CROWN) < 0.5 ? -1 : 1;
+    // the name comes from the place, so two patches that both reach this crossroads agree on it
+    const name = CASTLE_NAMES[key % CASTLE_NAMES.length];
+    const raised = seatACastle({ sampler, sample, all, villages, x: post.x, z: post.z }, side, `castle:${name}`, name);
+    if (raised) castles.push(raised);
+  }
+  void footprintOk;
+  return { piers, signposts, caves, wrecks, castles };
 }
 
 /**

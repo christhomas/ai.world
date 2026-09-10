@@ -65,6 +65,11 @@ export function createReadouts(ctx: ReadoutContext) {
   const markers = (): MapMarker[] => {
     const out: MapMarker[] = [
       ...structures.villages.map((v) => ({ x: v.x, z: v.z, color: '#ffffff', label: v.name })),
+      // Castles are on the map before you have been to one, which caves and wrecks are not. A cave
+      // is a hole somebody has to find; a castle is twenty-two tiles of stone with a flag on it,
+      // and the whole country knows where it is. It is also the thing you steer a long ride by,
+      // which only works if it is there before you set off.
+      ...structures.castles.map((c) => ({ x: c.x, z: c.z, color: '#efe6d0', label: c.name, icon: 'castle' as const })),
       ...structures.pois.filter((p) => discovered.has(p.name)).map((p) => ({ x: p.x, z: p.z, color: '#f1c40f', label: p.name })),
       ...structures.caves.filter((c) => discovered.has(c.name)).map((c) => ({ x: c.x, z: c.z, color: '#b07fd6', label: c.name })),
       ...structures.wrecks.filter((w) => discovered.has(w.name)).map((w) => ({ x: w.x, z: w.z, color: '#d68f5a', label: w.name })),
@@ -162,7 +167,10 @@ export function createReadouts(ctx: ReadoutContext) {
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
-    sites: [...structures.caves, ...structures.wrecks],
+    // castles among them, because the journal is the list of places you have been to and a castle
+    // is the most memorable of them — it is on the map before you find one, but being *there* is
+    // still a thing that happened, and the journal is the only place that says so
+    sites: [...structures.caves, ...structures.wrecks, ...structures.castles],
     playerX: player.x, playerZ: player.z,
   });
 

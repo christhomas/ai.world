@@ -243,6 +243,64 @@ export interface MapMarker {
   label?: string;
   /** Bigger dot and a ring: quest targets and the like. */
   emphasis?: boolean;
+  /**
+   * Drawn as its own shape instead of a dot.
+   *
+   * Everything on this map is a dot because everything on this map is a place, and the only thing
+   * that told them apart was colour — which works while there are six sorts of place and stops
+   * working the moment one of them is not like the others. A castle is thirteen tiles across and
+   * twenty-two tall, and it is the thing you navigate a county by; a yellow dot the same size as
+   * a wrecked boat is not what it is. So it gets a shape.
+   */
+  icon?: 'castle';
+}
+
+/**
+ * A castle, as a mark on either map: a battlemented block, and a pennant if there is room for one.
+ *
+ * Here rather than in one of the two maps because both draw it, and the whole reason this module
+ * exists is that the corner map and the full-screen map must not be able to disagree about what
+ * the world looks like. `w` is how wide the block is in canvas pixels; everything else is a share
+ * of that, so the same shape reads at eight pixels in a corner and at forty across a full screen.
+ *
+ * The dark outline is not decoration. This is drawn over a map of the ground, which is pale sand
+ * in the south and white snow in the north, and a pale keep on pale ground is nothing at all.
+ */
+export function castleMark(ctx: CanvasRenderingContext2D, px: number, py: number, w: number, color: string): void {
+  const h = w * 0.66, s = w / 5, m = h * 0.34;
+  const left = px - w / 2, top = py - h / 2, foot = py + h / 2;
+  ctx.beginPath();
+  ctx.moveTo(left, top);
+  // three merlons and the two gaps between them, walked left to right along the top
+  for (const step of [1, 2, 3, 4]) {
+    ctx.lineTo(left + s * step, top + (step % 2 ? 0 : m));
+    ctx.lineTo(left + s * step, top + (step % 2 ? m : 0));
+  }
+  ctx.lineTo(left + w, top);
+  ctx.lineTo(left + w, foot);
+  ctx.lineTo(left, foot);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1, w * 0.09);
+  ctx.strokeStyle = 'rgba(10, 14, 26, 0.85)';
+  ctx.stroke();
+  // a pennant off the middle tower, which is what says "castle" rather than "wall" — but only
+  // where it would be more than a smudge, so the corner map gets the block on its own
+  if (w < 14) return;
+  ctx.beginPath();
+  ctx.moveTo(px, top);
+  ctx.lineTo(px, top - h * 0.7);
+  ctx.lineWidth = Math.max(1, w * 0.07);
+  ctx.strokeStyle = 'rgba(10, 14, 26, 0.85)';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(px, top - h * 0.7);
+  ctx.lineTo(px + w * 0.34, top - h * 0.55);
+  ctx.lineTo(px, top - h * 0.4);
+  ctx.closePath();
+  ctx.fillStyle = '#c0392b';
+  ctx.fill();
 }
 
 /**

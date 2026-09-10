@@ -84,6 +84,22 @@ export const enum PropKind {
   WatchHouseSwamp = 109,
   WatchHouseMountain = 110,
   WatchHouseSnow = 111,
+  /**
+   * The four pieces a castle is built out of, and the only building in the world that is more
+   * than one prop.
+   *
+   * Everything else here stands on a single tile: a cottage is a cottage, a chapel is a chapel.
+   * A castle cannot be, because a prop's footprint is one box and a castle's is thirteen tiles
+   * across — drawn that way it would be a slab you could neither see over nor walk up to the gate
+   * of. So the wall comes a tile at a time, like a paddock rail does, and the tower, the gatehouse
+   * and the keep are set on the tiles the wall leaves for them. One palette, no biome variants:
+   * a castle is not built out of whatever the country round it is made of, which is most of what
+   * says it was not built by the village.
+   */
+  CastleWall = 112,
+  CastleTower = 113,
+  CastleGate = 114,
+  CastleKeep = 115,
   // dungeon furniture
   Torch = 50,
   Chest = 51,
@@ -176,6 +192,9 @@ export const BLOCKS_WALKING: ReadonlySet<PropKind> = new Set<PropKind>([
   // a house of the player's own, at every stage it stands up in — pegs in the ground are not a
   // wall, so they are not here, but a frame is something you walk round
   PropKind.HouseFrame, PropKind.HouseRoof, PropKind.HouseYours, PropKind.Sauna,
+  // and the castle, every piece of it. A curtain wall that let anybody through is a fence, and the
+  // gatehouse has to stop you or there is nowhere to stand and be asked whether you are going in
+  PropKind.CastleWall, PropKind.CastleTower, PropKind.CastleGate, PropKind.CastleKeep,
 ]);
 
 /** Anything with a trunk: the kinds a wood is made of. */

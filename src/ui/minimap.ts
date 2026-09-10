@@ -1,4 +1,4 @@
-import { BASE_SCALE, headingOnMap, type Fog, type MapBase, type MapMarker } from './mapbase';
+import { BASE_SCALE, castleMark, headingOnMap, type Fog, type MapBase, type MapMarker } from './mapbase';
 
 /**
  * The map the corner map was drawn for, in pixels.
@@ -15,6 +15,15 @@ const REFERENCE = 180;
 const MARK = {
   /** A village, a landmark, an errand: a square, this far across. */
   MARKER: 6 / REFERENCE,
+  /**
+   * And a castle, which is a battlemented block rather than a square, at nearly twice the width.
+   *
+   * Twice, because a castle is the one mark on this map that is *bigger than the map's own
+   * resolution*: thirteen tiles of ward with an apron round it is about twenty pixels of base
+   * image, which is three times what the square would have covered. Drawn the same size as a
+   * cottage, the mark would have been smaller than the thing it stands for.
+   */
+  CASTLE: 11 / REFERENCE,
   /** The hero, as a dot of this radius. */
   PLAYER: 3 / REFERENCE,
   /** How far the facing cone reaches out from the dot. */
@@ -152,6 +161,10 @@ export class Minimap {
     ctx.imageSmoothingEnabled = true;
     const mark = MARK.MARKER * N;
     for (const m of markers) {
+      if (m.icon === 'castle') {
+        castleMark(ctx, px(m.x, m.z), pz(m.x, m.z), MARK.CASTLE * N, m.color);
+        continue;
+      }
       ctx.fillStyle = m.color;
       ctx.fillRect(px(m.x, m.z) - mark / 2, pz(m.x, m.z) - mark / 2, mark, mark);
     }

@@ -58,6 +58,27 @@ export function wildInteractions(ctx: Surroundings) {
       ] });
       return true;
     }
+    /*
+     * And a castle's gatehouse, which is the same thing done in dressed stone.
+     *
+     * Measured to the tile in front of the gate rather than to the middle of the castle: the ward
+     * is thirteen tiles across and the keep stands in the middle of it, so anything that asked how
+     * near you were to the castle would have offered you the door from the far side of its own
+     * walls. `gateX`/`gateZ` is the one spot you can stand and be at the door, and it is the same
+     * spot you are put back on when you come out — see `Underground.out`.
+     */
+    for (const castle of structures.castles) {
+      if (Math.hypot(castle.gateX - player.x, castle.gateZ - player.z) > 3.4) continue;
+      discover(castle.name);
+      const gate = { name: castle.name, x: castle.gateX, z: castle.gateZ, out: [castle.gateX, castle.gateZ] as [number, number] };
+      dialogue.start({ speaker: castle.name, emoji: '🏰', pages: [
+        'The portcullis is up a hand\'s breadth and the passage behind it goes back further than the wall is thick. Nobody challenges you.',
+      ], choices: [
+        { label: 'Go in', next: () => { places.enterDungeon(gate, 'castle', `castle:${castle.name}`); return null; } },
+        { label: 'Not today', next: () => null },
+      ] });
+      return true;
+    }
     return false;
   };
 

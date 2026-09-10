@@ -1,5 +1,6 @@
 import { WORLD } from '../core/config';
 import { PropKind } from './biomes';
+import { CASTLE } from './castles';
 import { StructureKind, type Structure } from './structures';
 import { TileType, type ChunkData } from './terrain';
 
@@ -81,6 +82,40 @@ export function stampYard(chunk: ChunkData, ox: number, oz: number, s: Structure
       chunk.corners.fill(h, idx * 4, idx * 4 + 4);
       chunk.prop[idx] = PropKind.None;
       if (t === TileType.High) chunk.type[idx] = TileType.Ground;
+    }
+  }
+}
+
+/**
+ * The ground a castle stands on: levelled end to end, cobbled inside the walls, cleared of what
+ * was growing there.
+ *
+ * A castle does not look for flat ground, it makes some — see `castlePlot`, which explains why:
+ * twenty-one tiles of one terrace does not occur in this country, so a plot is accepted within a
+ * terrace of itself and stamped level. The apron outside the wall is levelled with the rest,
+ * because the drum towers overhang it and the gate opens onto it.
+ *
+ * What is *not* cleared is anything somebody put there, and that is the whole subtlety of this
+ * function. The chunk stamper takes structures in whatever order its index hands them over, so
+ * this can as easily run after the keep and the towers as before them — and a clear that took
+ * everything would rub out half its own castle in some chunks and not others. A grown thing is
+ * jittered onto its tile and carries no rotation; anything with a rotation was placed. `propRot`
+ * says which, and it is NaN until somebody sets it.
+ */
+export function stampWard(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
+  const h = s.level * WORLD.STEP;
+  for (let dz = -s.hd - CASTLE.APRON; dz <= s.hd + CASTLE.APRON; dz++) {
+    for (let dx = -s.hw - CASTLE.APRON; dx <= s.hw + CASTLE.APRON; dx++) {
+      const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
+      if (idx < 0) continue;
+      const t = chunk.type[idx];
+      if (!isStampable(t) || t === TileType.Road) continue;
+      chunk.height[idx] = h;
+      chunk.corners.fill(h, idx * 4, idx * 4 + 4);
+      if (Number.isNaN(chunk.propRot[idx])) chunk.prop[idx] = PropKind.None;
+      // inside the walls it is a yard, and a yard that has been walked on for two hundred years
+      if (Math.abs(dx) < s.hw && Math.abs(dz) < s.hd) chunk.type[idx] = TileType.Plaza;
+      else if (t === TileType.High) chunk.type[idx] = TileType.Ground;
     }
   }
 }
@@ -173,6 +208,11 @@ export function structureProp(s: Structure, storeys = 1): PropKind {
     case StructureKind.Shipwreck: return PropKind.Shipwreck;
     case StructureKind.Fence: return PropKind.Fence;
     case StructureKind.Paddock: return PropKind.None;
+    case StructureKind.CastleWard: return PropKind.None;
+    case StructureKind.CastleWall: return PropKind.CastleWall;
+    case StructureKind.CastleTower: return PropKind.CastleTower;
+    case StructureKind.CastleGate: return PropKind.CastleGate;
+    case StructureKind.CastleKeep: return PropKind.CastleKeep;
   }
 }
 
@@ -189,10 +229,17 @@ export function stampStructure(
   switch (s.kind) {
     case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
     case StructureKind.Paddock: stampYard(chunk, ox, oz, s); break;
+    case StructureKind.CastleWard: stampWard(chunk, ox, oz, s); break;
     case StructureKind.Sign:
     case StructureKind.Stall:
     case StructureKind.Signpost:
     case StructureKind.NoticeBoard:
+    // every piece of a castle stands on the flat the ward already made, and clears nothing of its
+    // own: a wall that levelled a yard round itself would level the tower beside it out of the way
+    case StructureKind.CastleWall:
+    case StructureKind.CastleTower:
+    case StructureKind.CastleGate:
+    case StructureKind.CastleKeep:
     case StructureKind.Fence: stampSingleProp(chunk, ox, oz, s); break;
     case StructureKind.CaveMouth:
     case StructureKind.Shipwreck:

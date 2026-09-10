@@ -1,5 +1,5 @@
 import { $ } from './dom';
-import { BASE_SCALE, type Fog, type MapBase, type MapMarker, headingOnMap } from './mapbase';
+import { BASE_SCALE, castleMark, type Fog, type MapBase, type MapMarker, headingOnMap } from './mapbase';
 import type { DungeonMinimap } from './dungeonmap';
 
 const ZOOM = { MIN: 0.35, MAX: 5, STEP: 1.25, START: 1.6 } as const;
@@ -211,6 +211,22 @@ export class WorldMap {
     for (const m of input.markers) {
       const { px, py } = this.toScreen(m.x, m.z);
       if (px < -80 || py < -40 || px > canvas.width + 80 || py > canvas.height + 40) continue;
+      /*
+       * A castle is drawn as a castle, at a size that grows with the zoom until it is the size of
+       * the thing it stands for.
+       *
+       * The floor is what matters. Zoomed right out, a whole world fits on the screen and a castle
+       * is a fifth of a pixel of ground — but it is still the landmark you are steering a
+       * cross-country ride by, so the mark stops shrinking at something you can pick out of a
+       * field of village dots. Zoomed in, it grows to cover its own footprint, and lines up with
+       * the walls you can see on the ground under it.
+       */
+      if (m.icon === 'castle') {
+        const w = Math.max(CASTLE_MARK.MIN, CASTLE_MARK.TILES * ppt);
+        castleMark(ctx, px, py, w, m.color);
+        if (m.label) this.nameIt(m.label, px, py, w * 0.5);
+        continue;
+      }
       const r = m.emphasis ? 6 : 4;
       if (m.emphasis) {
         ctx.strokeStyle = m.color;
@@ -223,13 +239,7 @@ export class WorldMap {
       ctx.beginPath();
       ctx.arc(px, py, r, 0, Math.PI * 2);
       ctx.fill();
-      if (m.label && this.zoom > 0.6) {
-        ctx.fillStyle = 'rgba(8, 12, 24, 0.75)';
-        const width = ctx.measureText(m.label).width;
-        ctx.fillRect(px + r + 3, py - 9, width + 8, 18);
-        ctx.fillStyle = '#f2e9d2';
-        ctx.fillText(m.label, px + r + 7, py + 1);
-      }
+      if (m.label && this.zoom > 0.6) this.nameIt(m.label, px, py, r);
     }
 
     // the hero: a dot with a ring so it is never lost in the clutter, and a cone off it so the
@@ -257,7 +267,28 @@ export class WorldMap {
     ctx.arc(me.px, me.py, 5, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  /** A name beside a mark, on a slab of ink so it reads over sand, snow or sea. */
+  private nameIt(label: string, px: number, py: number, clear: number): void {
+    const { ctx } = this;
+    ctx.fillStyle = 'rgba(8, 12, 24, 0.75)';
+    const width = ctx.measureText(label).width;
+    ctx.fillRect(px + clear + 3, py - 9, width + 8, 18);
+    ctx.fillStyle = '#f2e9d2';
+    ctx.fillText(label, px + clear + 7, py + 1);
+  }
 }
+
+/**
+ * How big a castle's mark is drawn on the full-screen map.
+ *
+ * `TILES` is the castle's own width on the ground, apron and all, so that at any zoom past the
+ * point where it matters the mark and the walls beneath it are the same size — the map stops being
+ * a diagram of where things are and starts being a picture of them. `MIN` is the floor: eleven
+ * pixels is a mark you can find on a screen showing four hundred tiles, which is the zoom anybody
+ * planning a ride across the country is actually looking at.
+ */
+const CASTLE_MARK = { TILES: 17, MIN: 11 } as const;
 
 /** How far apart the first two fingers are, in CSS pixels. */
 function gapBetween(touches: TouchList): number {

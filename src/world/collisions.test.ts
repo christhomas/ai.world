@@ -335,7 +335,13 @@ const SOLIDS: Array<{ what: string; kind: PropKind }> = [
   { what: 'an oak, which is the round case', kind: PropKind.Oak },
   { what: 'a fence rail, which is thinner than a stride', kind: PropKind.Fence },
   { what: 'a signpost, which is thinner still', kind: PropKind.Sign },
-  { what: 'a church, which is the biggest thing anybody walks up to', kind: PropKind.ChurchPlains },
+  { what: 'a church, which is the biggest thing a village builds', kind: PropKind.ChurchPlains },
+  // and the keep, which is the biggest solid object in the game: four and a half tiles across the
+  // base, against a cottage's two and a half. A box that size is worth walking into from the
+  // corners as well, because the bench sets a walker down five tiles out and on the diagonal that
+  // is only half a tile clear of the stone — which is exactly where a footprint drawn a shade too
+  // wide stops being a wall and starts being somewhere a horse is standing inside
+  { what: 'a castle keep, which is the biggest solid thing in the game', kind: PropKind.CastleKeep },
 ];
 
 /** And the things that walk into them, from the smallest to the one that is nearly two tiles long. */
