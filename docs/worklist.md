@@ -566,6 +566,48 @@ Things Chris hit on a real phone, in the order he hit them.
       would end that. Unset on the server, where the book is still sold, still priced, and simply
       has nowhere to appear.)*
 
+## Getting close to the hero — September 10th
+
+> "we need to be able to support being much closer to the player, almost over their shoulder if you
+> want to get into tight spaces like this" — and: "perhaps we can have a occlusion box fixed to the
+> screen, almost like a camera, which will cut away geometry that it intersects"
+
+- [x] **The camera comes right in.** *(It stopped at fourteen tiles of frustum, which is the width
+      of a castle ward — so the closest a player could stand was "the whole courtyard fills the
+      screen". Six now. The models were never the problem: at six tiles a keep's cell block reads
+      beautifully, and always did, because the props were built to be looked at from the character
+      builder's own distance.
+
+      Two numbers had to move, not one, and that is worth knowing because it has caught somebody
+      before: the band takes whichever of `MIN_ZOOM` and the hero-pixel limit is further out, so
+      raising one alone does nothing. `MIN_ZOOM` 14 → 6 and `HERO_LARGEST` 98 → 230.)*
+- [x] **And a cutaway, so what is in front of him gets out of the way.** *(At forty-five degrees a
+      wall hides as many tiles of ground behind it as it is units tall. A terrace is half a unit and
+      hides half a tile; a castle's curtain is 6.1 and hides six, which is half a ward. So being
+      close enough for a courtyard to be a place means being hidden by the wall you walked through.
+
+      A fragment is discarded if it is nearer the camera than the hero, within a radius of him on
+      the glass, and above the ground he is standing on. **The third test is the one that earns its
+      place.** The naive version takes the floor with it, because on a forty-five degree view the
+      ground in front of somebody genuinely is nearer the camera than they are — so you punch a hole
+      through the floor at their feet. The proper repair is to build the cutaway volume, intersect
+      it with the ground and subtract, which is real geometry every frame; the cheap one is to
+      notice that the ground in front of you is at your feet and a wall is not. Terrain is left
+      unpatched as well, which costs nothing — half a tile per terrace — and removes the case
+      entirely.
+
+      Dithered rather than cut: a hard circle reads as a hole punched in the picture, and an ordered
+      dither over the outer half reads as the wall thinning out.
+
+      **The fault it uncovered is the one worth keeping.** `three` gives a material one
+      `onBeforeCompile`, and the season tint already used it — assigned from the chunk manager,
+      after the prop library had installed the cutaway in its own constructor. The second assignment
+      silently erased the first. Nothing threw, nothing warned, and the only symptom was a feature
+      that did not happen; it took a screenshot of a hero plainly hidden behind a cottage to find.
+      `shaderpatch.ts` registers named edits and runs them all, with the cache key made of every
+      name — because `three` caches programs by that key and two differently-patched materials must
+      not be taken for each other.)*
+
 ## Releasing
 
 - [x] A release is one act: chart version, game version, tag and image all naming the same moment.

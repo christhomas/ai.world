@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { patchShader } from './shaderpatch';
 
 /**
  * Season tint for vertex-coloured materials. A multiply alone can only darken or shift hue, so
@@ -12,10 +13,15 @@ export class SeasonTintMaterials {
     uSeasonBlend: { value: 0 },
   };
 
-  /** Patch a material so it obeys the season uniforms. Call once per material. */
+  /**
+   * Patch a material so it obeys the season uniforms.
+   *
+   * Registered rather than assigned, because this is not the only thing that edits these shaders:
+   * the prop material also carries the cutaway, and whichever of the two assigned second used to
+   * erase the other without a word. See `shaderpatch.ts`.
+   */
   attach(material: THREE.Material): void {
-    material.customProgramCacheKey = () => 'ai-world-season';
-    material.onBeforeCompile = (shader) => {
+    patchShader(material, 'season', (shader) => {
       shader.uniforms.uSeasonMul = this.uniforms.uSeasonMul;
       shader.uniforms.uSeasonSnow = this.uniforms.uSeasonSnow;
       shader.uniforms.uSeasonBlend = this.uniforms.uSeasonBlend;
@@ -26,8 +32,7 @@ uniform vec3 uSeasonSnow;
 uniform float uSeasonBlend;`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb = mix(diffuseColor.rgb * uSeasonMul, uSeasonSnow, uSeasonBlend);`);
-    };
-    material.needsUpdate = true;
+    });
   }
 
   set(mul: [number, number, number], blend: number): void {

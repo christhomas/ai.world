@@ -105,7 +105,22 @@ export const CAMERA = {
    * uses is worked out from how tall the hero comes out on that particular screen — see
    * `zoomBand` in render/camera.ts.
    */
-  MIN_ZOOM: 14,
+  /**
+   * Six, and it was fourteen — which is the width of a castle ward, so the closest a player could
+   * stand was "the whole courtyard fills the screen".
+   *
+   * The limit was never about how the game looks close up: at six tiles of frustum a keep's cell
+   * block reads beautifully — the bars, the brazier, the man's face — and it always did, because
+   * the props were built to be looked at from the character builder's own distance. What kept the
+   * band open was the fear of what a low camera cannot see past, and that fear is worth stating
+   * exactly rather than carrying around: at this rig's forty-five degrees a wall hides as many
+   * tiles of ground behind it as it is units tall. A room's wall is 2.5 units and hides two and a
+   * half tiles, which is nothing. A castle's curtain is 6.1 and hides six, which is half a ward.
+   *
+   * So the close end is opened, and the thing that actually needs solving is the outdoor case —
+   * see the note on `SHUT_IN_ZOOM` below. Somewhere enclosed you may now push right in.
+   */
+  MIN_ZOOM: 6,
   MAX_ZOOM: 72,
   /**
    * The furthest you may stand back somewhere enclosed. Underground you kept the whole sky's worth
@@ -139,7 +154,17 @@ export const CAMERA = {
    */
   HERO_TALL: 2.15,        // world units, boots to the tip of his hat
   HERO_ON_SCREEN: 42,     // ...how tall he should stand when the game opens
-  HERO_LARGEST: 98,       // ...however far in you push
+  /**
+   * How tall he stands at the closest the band goes: 230 pixels on a nine-hundred-pixel window,
+   * which is a quarter of the height of the glass.
+   *
+   * It was ninety-eight, and that number was what actually stopped anybody getting close rather
+   * than `MIN_ZOOM` — the band takes whichever of the two is further out, so raising one without
+   * the other does nothing at all. Worth saying because it is the second time that pair has caught
+   * somebody: the tile numbers and the pixel numbers are two spellings of the same limit and both
+   * have to move.
+   */
+  HERO_LARGEST: 230,      // ...however far in you push
   HERO_SMALLEST: 19,      // ...and however far back you pull
   HEIGHT: 70,
   DIST: 70,
