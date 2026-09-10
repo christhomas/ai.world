@@ -1474,24 +1474,41 @@ can each be finished and each leave the game playable.
       not bound to the chunk it was spawned from, and a hub villager stands seventy-six tiles from
       his) is written down in `src/entities/neighbours.ts` beside it rather than left to be found
       again.
-- [ ] **C2b. A budget rather than a number.** `Roster`'s four thousand, which C1 called the
-      threshold that is obviously wrong: it is a per-world cap, and this laptop happens to run out
-      of tick budget at about the same population, so today the cap and the hardware agree by
-      coincidence. On a Pi the hardware will say four hundred while the cap goes on saying four
-      thousand.
+- [x] **C2b. A budget rather than a number.** *(The question C1 left open was a question about the
+      game, and it was put and answered: **how many creatures exist is the world's business, and how
+      many are thought for is the machine's.** Two players standing in one field must see the same
+      deer — that is the whole reason the world owns the wildlife — so nothing may depend on the
+      hardware except how much of it any one machine thinks about.
 
-      *Deliberately not done alongside C2a, and the reason is that C2a moved the target rather than
-      leaving it where it was. The cap counts everything a world is holding, and after the tiers
-      most of what a world is holding costs nothing — a frozen agent measures 0.03µs a tick against
-      3.5 for a live one — so the machine can now hold a great deal more than it can think for, and
-      the coincidence C1 found is broken rather than fixed. **A budget has to count live agents, and
-      how many of those there are is not something a spawn cap can decide:** it is how thickly they
-      stand around whoever is playing, and the cap has no opinion about that. So it wants three
-      things this change did not — a clock inside the tick, a policy for what to shed when the
-      budget is gone (refusing a spawn part way through a herd is what `Roster.add` does today, and
-      it is the wrong answer), and a decision about whether a world's population may legitimately
-      depend on the machine it is running on, which is a question about the game rather than about
-      the code.*
+      `pace.ts` times the live pass and moves a budget to fit a fifth of a tick. A share rather
+      than a number of milliseconds, because a server ticks ten times a second and a page draws
+      sixty and neither should have to know what the other does. `Tiers.sort` then keeps the nearest
+      that fit and hands the rest to the coarse tier — by distance, so what a player is looking at
+      is always what is being thought for, and a creature shed here is one that was about to be
+      walked by the closed forms a few tiles further out anyway. Nothing is despawned, nothing is
+      refused, and `watched` — what a player can be told about — is untouched.
+
+      Three things the numbers had to be chosen against. It eases at eight per cent a tick in both
+      directions, because a budget that drops the instant one tick runs long drops on the frame that
+      meshed a chunk, and one that climbs quickly oscillates and makes the far edge of the band
+      twitch between thinking and not. It never goes below sixty, which is about what stands round
+      you in a busy village. And it is charged per creature rather than as a ratio of the whole
+      tick, so a frame that ran long for some other reason does not shed creatures that were never
+      the problem.
+
+      The test found the fault worth keeping: a clock that reports nought was being read as a
+      machine of infinite speed, so the budget climbed to its ceiling and handed the whole world to
+      the live tier — which is exactly what a throttled background tab or a `Date.now` with a
+      millisecond of resolution actually reports. A measurement of nought is a clock that cannot
+      see, and the right thing to do with it is nothing.
+
+      `Roster`'s four thousand stays, re-documented as what it should always have been: a ceiling
+      saying a world holding that many has gone wrong, rather than a decision about how busy a world
+      ought to be. Its own old complaint — that refusing a spawn part way through a herd leaves a
+      flock of two where the world meant eight — is written down and not fixed, because at four
+      thousand it is unreachable in play and the honest fix is for a herd to be admitted or refused
+      whole.)*
+
 - [x] **C3. Agents belong to one province.** Travel between them is a scheduled arrival, never a
       simulated walk, because that is the only thing that keeps provinces independent.
 

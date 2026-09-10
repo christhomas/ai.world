@@ -15,17 +15,18 @@ import { stageOf, type Person } from '../world/people';
 import { spawnPaddocks } from './paddocks';
 import { spawnVillageFolk } from './street';
 import { spawnWildlife } from './wilds';
-import { BEHAVIOUR, Entity, Herd, anybodyAt, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
+import { BEHAVIOUR, Entity, Herd, anybodyAt, canStand, isDaytime, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
 import { residentsOnTheStreet } from './residents';
 import { callOutTheLaw, reseatVillagers } from './village';
-import { PEOPLE, nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
+import { nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
 import { nearest, within } from './neighbours';
-import { blowOf } from './motion';
 import type { EntityView } from './roster';
 import type { Village } from '../world/structures';
-import { ACTIVE_RANGE, BOUNTY, SPAWN, SPAWN_RADIUS } from './spawning';
+import { ACTIVE_RANGE, SPAWN, SPAWN_RADIUS } from './spawning';
+import { Pace, now } from './pace';
+import { arrestPay, oneHurtsAnother } from './violence';
 import { Tiers, arrive, worthKeeping, type Arrival } from './tiers';
 
 /**
@@ -109,6 +110,8 @@ export class EntityManager {
   private readonly herds = new Set<Herd>();
   /** Who is near enough to somebody to matter this tick, sorted once and used three times. */
   private readonly tiers = new Tiers();
+  /** How many creatures this machine can afford to think for, measured from its own clock. */
+  private readonly pace = new Pace();
   private readonly rng: Rng;
   private focusCx = Number.NaN;
   private focusCz = Number.NaN;
@@ -223,7 +226,10 @@ export class EntityManager {
       removeEntity: (prey: Entity) => this.killEntity(prey),
       nearestPerson: (from: Entity, within: number) => this.nearestPerson(from, within),
       nearestTrouble: (from: Entity, within: number) => this.nearestTrouble(from, within),
-      strike: (attacker: Entity, victim: Entity, damage: number) => this.strike(attacker, victim, damage),
+      strike: (attacker: Entity, victim: Entity, damage: number) => oneHurtsAnother(
+        { world: this.world, fallen: (who) => this.onFallen(who), remove: (who) => this.killEntity(who) },
+        attacker, victim, damage,
+      ),
       worth: this.priceOf,
       // a sale reaches the register, which outlives the body that made it
       banked: (person: string, coin: number) => {
@@ -251,9 +257,19 @@ export class EntityManager {
     // and that is the whole of C2's third tier: the sweep used to walk every creature in the world
     // to find the few it had an opinion about, and the herd pass used to run for every herd whether
     // or not anybody was thinking for its members. Both now get the list instead of building it.
-    this.tiers.sort(this.spawned.values(), playerX, playerZ, this.alsoNear);
+    /*
+     * And how many of them this machine can afford to think for, which is C2b.
+     *
+     * The clock decides, not a constant: the live pass is timed and the budget follows it, so a
+     * laptop thinks for a few hundred creatures and a Pi for fewer, and both are holding the same
+     * world. Nothing is despawned and nothing refused — see `pace.ts` for why that distinction is
+     * the whole of the design.
+     */
+    this.tiers.sort(this.spawned.values(), playerX, playerZ, this.alsoNear, this.pace.many);
+    const began = now();
     for (const h of this.tiers.liveHerds) updateHerd(h, dt, ctx);
     for (const e of this.tiers.live) updateEntity(e, dt, ctx);
+    this.pace.measured((now() - began) / 1000, dt, this.tiers.live.length);
     keepBodiesApart([this.tiers.live], this.tiers.liveHerds, playerX, playerZ, ACTIVE_RANGE, dt, this.world);
     buryTheFallen(this.spawned.values(), dt, (e) => this.despawnEntity(e));
   }
@@ -485,38 +501,10 @@ export class EntityManager {
     return nearestTrouble(from, this.within(from.x, from.z, within), this.heroX, this.heroZ);
   }
 
-  /**
-   * A constable has caught up with somebody the law wants, and taken them in.
-   *
-   * The pay is the law's own, on the same purse as every other bounty: putting down the wolf that
-   * was on a farmer and putting away the man who was is the same job, and a worse criminal is
-   * worth more of it. What being taken in actually costs the hero is the game's business.
-   */
+  /** A constable has caught up with somebody the law wants. The pay is `violence.ts`'s to reckon. */
   private takeIn(constable: Entity): void {
-    const guilt = Math.max(0, Math.min(1, this.guiltOf()));
-    constable.purse += Math.round(BOUNTY.ARREST + guilt * BOUNTY.ARREST_WORST);
+    constable.purse += arrestPay(this.guiltOf());
     this.onArrest(constable);
-  }
-
-  /**
-   * One creature hurting another. The victim fights back or runs, and anything killed leaves the
-   * world; the hero's own hearts are handled elsewhere, because they have a HUD and a save.
-   */
-  private strike(attacker: Entity, victim: Entity, damage: number): void {
-    throwBlow(attacker, blowOf(attacker.kind));
-    if (damageEntity(victim, damage, attacker.x, attacker.z, this.world)) {
-      if (PEOPLE.has(victim.kind.id)) this.onFallen(victim);
-      // what a killed animal is worth to whoever killed it: a constable's bounty, a hunter's pelt
-      const bounty = victim.kind.gold?.[0] ?? 0;
-      if (bounty > 0 && PEOPLE.has(attacker.kind.id)) {
-        attacker.purse += attacker.trade === 'constable' ? bounty : Math.round(bounty * BOUNTY.RESCUE_SHARE);
-      }
-      this.killEntity(victim);
-      attacker.target = null;
-      return;
-    }
-    // being bitten is a good reason to notice who is biting you
-    if ((victim.kind.dangerous ?? 0) > 0) victim.target = attacker;
   }
 
   /** Is anybody but `ignore` standing here? The arithmetic of two bodies is `anybodyAt`. */

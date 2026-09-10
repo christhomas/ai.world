@@ -30,6 +30,27 @@ export interface EntityView {
 export class Roster implements EntityView {
   private readonly alive = new Set<Entity>();
 
+  /**
+   * The most a world will hold at once — a backstop, and no longer a policy.
+   *
+   * C1 called this "the threshold that is obviously wrong" and it was right: four thousand is a
+   * per-world cap that happened to match what one laptop could tick, so the cap and the hardware
+   * agreed by coincidence. On a Pi the hardware would have said four hundred while this went on
+   * saying four thousand.
+   *
+   * What answers that now is `pace.ts`, and it answers a different question. **How many creatures
+   * exist is the world's business and how many are thought for is the machine's** — so the budget
+   * sheds *thinking*, by distance, and never population, because two players standing in one field
+   * must see the same deer. This number stays as what it should always have been: a ceiling that
+   * says a world holding four thousand creatures has gone wrong somewhere, not a decision about
+   * how busy a world ought to be.
+   *
+   * The old complaint against it stands and is not fixed here: refusing a spawn part way through a
+   * herd leaves a flock of two where the world meant eight. It is left because at four thousand it
+   * is unreachable in play — nothing measured has come within a factor of two of it — and because
+   * the honest fix is for a herd to be admitted or refused whole, which is a change to how a herd
+   * is placed rather than to what it is counted against.
+   */
   constructor(private readonly most = 4_000) {}
 
   add(e: Entity): boolean {

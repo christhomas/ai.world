@@ -96,16 +96,29 @@ export class Tiers {
   readonly liveHerds = new Set<Herd>();
 
   /**
+   * How far each of `live` is from the nearest person, squared, in the same order.
+   *
+   * Kept beside the list rather than worked out again, because the budget below needs it and the
+   * sort has just paid for it. Squared throughout: nothing here takes a square root, since the only
+   * question ever asked of these is which is nearer than which.
+   */
+  private readonly away: number[] = [];
+
+  /**
    * Sort everything the world is holding, by how far it is from the nearest person.
    *
    * The focus is separate from the rest for the reason it is separate everywhere else in the
    * manager: a game has one hero and a server has as many heroes as it has players, and the
    * cheapest check is the one against whoever this manager is following.
    */
-  sort(filed: Iterable<Entity[]>, focusX: number, focusZ: number, alsoNear: ReadonlyArray<Standing>): void {
+  sort(
+    filed: Iterable<Entity[]>, focusX: number, focusZ: number, alsoNear: ReadonlyArray<Standing>,
+    budget = Infinity,
+  ): void {
     this.live.length = 0;
     this.watched.length = 0;
     this.liveHerds.clear();
+    this.away.length = 0;
     const live2 = ACTIVE_RANGE * ACTIVE_RANGE, watch2 = WATCH_RANGE * WATCH_RANGE;
     for (const list of filed) {
       for (const e of list) {
@@ -119,9 +132,47 @@ export class Tiers {
         this.watched.push(e);
         if (near2 > live2) continue;
         this.live.push(e);
-        this.liveHerds.add(e.herd);
+        this.away.push(near2);
       }
     }
+    this.shedToFit(budget);
+    for (const e of this.live) this.liveHerds.add(e.herd);
+  }
+
+  /**
+   * Think for the nearest of them, and hand the rest to the tier they were going to reach anyway.
+   *
+   * This is C2b, and what it is *not* is the important half. Nothing is despawned, nothing is
+   * refused, and the world's population does not change — a machine that cannot think for
+   * everything near a player is still holding everything near that player, and everyone else in
+   * the world is still looking at the same creatures. What changes is where the live band ends,
+   * and only on the machine that cannot afford it.
+   *
+   * By distance, because a creature shed here is one the coarse tier picks up: it is walked by the
+   * closed forms instead of tick by tick, which is exactly what was going to happen to it a few
+   * tiles further out. Shedding the far edge in first means the thing a player is looking at is
+   * always the thing being thought for.
+   *
+   * Cheap on the ordinary path and worth saying so, because this runs every tick of every frame:
+   * when the budget is not binding — which it is not on any machine that can afford the crowd it is
+   * standing in — this is one comparison and returns.
+   */
+  private shedToFit(budget: number): void {
+    if (this.live.length <= budget) return;
+    /*
+     * Partial rather than a full sort. `nth` is the distance of the last creature that fits, found
+     * by selection in linear time; a full sort of the live band is n log n every tick to answer a
+     * question about one threshold. On a busy village square the difference is a few hundred
+     * comparisons against a few thousand.
+     */
+    const cut = nth(this.away.slice(), Math.floor(budget));
+    let kept = 0;
+    for (let i = 0; i < this.live.length; i++) {
+      // `<=` with a count guard rather than `<`, so a ring of creatures all at the same distance —
+      // a herd standing together, which is the normal case — does not shed all of itself at once
+      if (this.away[i] <= cut && kept < budget) this.live[kept++] = this.live[i];
+    }
+    this.live.length = kept;
   }
 }
 
@@ -176,4 +227,30 @@ export function arrive(born: ReadonlyArray<Entity>, sleptFor: (herd: Herd) => nu
     placed += catchUp(e.herd, { ...when, seconds }).placed;
   }
   return placed;
+}
+
+/**
+ * The nth smallest of a list, in linear time, rearranging the list as it goes.
+ *
+ * Quickselect. It is here rather than borrowed because the alternative in a hot path is sorting a
+ * few thousand numbers every tick to read one of them, and because the list handed in is a scratch
+ * copy that nobody else can see — which is what makes rearranging it free.
+ */
+function nth(all: number[], n: number): number {
+  if (all.length === 0) return Infinity;
+  const want = Math.max(0, Math.min(all.length - 1, n));
+  let low = 0, high = all.length - 1;
+  while (low < high) {
+    const pivot = all[(low + high) >> 1];
+    let i = low, j = high;
+    while (i <= j) {
+      while (all[i] < pivot) i++;
+      while (all[j] > pivot) j--;
+      if (i <= j) { const t = all[i]; all[i] = all[j]; all[j] = t; i++; j--; }
+    }
+    if (want <= j) high = j;
+    else if (want >= i) low = i;
+    else return all[want];
+  }
+  return all[low];
 }
