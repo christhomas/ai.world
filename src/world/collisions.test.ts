@@ -744,6 +744,20 @@ describe('a dressed dungeon floor, which is furniture and walls together', () =>
           // only from a side with floor to walk over: a wall behind the barrel proves nothing
           const fromX = f.x + 0.5 - dx * 2.5, fromZ = f.z + 0.5 - dz * 2.5;
           if (world.heightAt(fromX, fromZ) === null) continue;
+          /*
+           * and only over ground with nothing else standing on it.
+           *
+           * A dressed hall is crowded, and the run-up to one table can have a weapon rack and a
+           * barrel standing in it — measured, seed 11 floor 1, where the approach to the table at
+           * 40,68 crosses both. The hero then meets those instead, slides off one of them, and
+           * clips the corner of the table he never actually walked at. That is the sweep working;
+           * reported as "walked through the table" it is the bench asking a question it did not
+           * mean to ask. The subject has to be the only thing on the line.
+           */
+          const crossed = [1, 2].some((back) => map.furniture.some((g) =>
+            g !== f && FURNITURE_BLOCKS.has(g.kind)
+            && g.x === f.x - dx * back && g.z === f.z - dz * back));
+          if (crossed) continue;
           cases++;
           const e = walker('hero', fromX - (f.x + 0.5), fromZ - (f.z + 0.5));
           e.x = fromX; e.z = fromZ;

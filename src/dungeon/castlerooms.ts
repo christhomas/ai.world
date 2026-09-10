@@ -64,12 +64,24 @@ const LIT_CORRIDOR = 2;
 /**
  * How much of a chamber's floor is furniture, at most.
  *
- * Nothing underground stops a walker — `DungeonWorld.blocked` knows about chests and nothing else
- * — so a room packed with tables is a room you walk through the tables of, which looks worse than
- * an empty one. This keeps a room readable from the top of an isometric camera: enough to say what
- * the room is, not so much that the floor disappears.
+ * Nine per cent, until the furniture became solid. The old reasoning is worth keeping because it
+ * was right at the time: nothing underground stopped a walker, so a room packed with tables was a
+ * room you walked through the tables of, and that looks worse than an empty one. Furniture is
+ * measured now — `DungeonWorld` builds the same boxes a room does — so the argument for keeping a
+ * hall bare has gone with it.
+ *
+ * Eighteen is twice what it was and it is what the difference looks like: at nine, the great hall
+ * of Saltmarch is a bare floor with a bench in it; at eighteen it is a hall with tables, barrels
+ * and benches you walk between. Measured, not guessed: a hundred and eighty-four solid sticks a
+ * floor becomes two hundred and thirty-four, and across twenty-four dressed floors not one tile of
+ * any of them is shut off, because `settleWhatFillsTiles` is what stands between the dressing and
+ * a sealed room.
+ *
+ * What holds it here rather than higher is the camera. Past about a quarter the floor stops being
+ * visible between the things standing on it, and a room read from above at this angle needs the
+ * floor to read as floor.
  */
-const CLUTTER = 0.09;
+const CLUTTER = 0.18;
 
 /** Everything the dressing pass works out, handed back in one piece. */
 export interface Dressing {

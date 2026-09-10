@@ -338,6 +338,23 @@ export function installProbes(ctx: Probed): void {
     places.enterDungeon(cave, 'cave', mineIdOf(cave));
     return { mine: cave.name, id: mineIdOf(cave) };
   };
+  /**
+   * Walk straight into a castle by name, the way `__enterMine` walks into a mine.
+   *
+   * A castle is entered through its gatehouse, which means standing on one tile and pressing a
+   * key, and that is a thing a person does easily and a headless probe does badly. Without this
+   * there is no way to look at the inside of a castle from outside the browser at all — which is
+   * how a floor's furniture went a week without anybody noticing you could walk through it.
+   */
+  (debug as { __enterCastle?: (name: string) => unknown }).__enterCastle = (name) => {
+    const want = name.toLowerCase();
+    const castle = structures.castles.find((c) => c.name.toLowerCase() === want);
+    if (!castle) return null;
+    // out at the gate, which is where anybody leaving a castle is put
+    places.enterDungeon({ name: castle.name, x: castle.x, z: castle.z, out: [castle.gateX, castle.gateZ] },
+      'castle', castle.id);
+    return { castle: castle.name, id: castle.id };
+  };
   (debug as { __mines?: () => unknown }).__mines = () =>
     minesWorked().map((w) => ({
       inAMine: fightingInAMine(),

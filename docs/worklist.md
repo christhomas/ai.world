@@ -2023,8 +2023,24 @@ half and is not described here.
       between them, a hundred and thirty-three walks, nothing through anything. The second half of
       that pair is in the same file — every one of those floors can still be walked end to end.
 
-      Left for later: the density. A chamber is nine per cent furniture because furniture you walk
-      through looks worse than none, and that reason has now gone.)*
+      And then the density, which was the reason the item was written. A chamber was nine per cent
+      furniture *because* you walked through it; that argument is spent, so `CLUTTER` is eighteen.
+      At nine, the great hall of Saltmarch is a bare floor with a bench in it; at eighteen it is a
+      hall with tables, barrels and benches you walk between. A hundred and eighty-four solid sticks
+      a floor becomes two hundred and thirty-four, and across twenty-four dressed floors not one
+      tile is shut off. What holds it there rather than higher is the camera: past about a quarter
+      the floor stops reading as floor.
+
+      The bench caught something on the way up, and it was the bench being wrong rather than the
+      game. A crowded hall means the run-up to one table can have a weapon rack and a barrel
+      standing in it — seed 11 floor 1 — so the hero met those, slid off one, and clipped the corner
+      of a table he never walked at. Reported as "walked through the table", which it was not. An
+      approach is only used now when the subject is the only thing on the line.
+
+      `__enterCastle` was added to the probes to do any of this, because a castle is entered by
+      standing on one tile and pressing a key, which a person does easily and a headless probe does
+      badly. There was no way to look at the inside of a castle from outside the browser at all,
+      which is a fair part of why a week went by with the furniture walk-through.)*
 
 ### Wanted for the castle, and not made
 
