@@ -46,6 +46,27 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * from the same props, generated the same way, so the two worlds agree about where a wall is.
    */
   private readonly solids = new Solids();
+  /**
+   * The country grown so it can be handed over, whether or not anything is walking on it.
+   *
+   * Kept apart from `loaded` above because the two answer different questions and want different
+   * amounts of country. `loaded` is what creatures are walked across, and it is deliberately narrow
+   * — a few chunks either side of a player, because everything in it is being thought about. This
+   * is what a page can *ask* for, which is the whole of what a page can see, and it is wider.
+   *
+   * It exists because the world used to grow a chunk afresh every single time one was asked for.
+   * A chunk costs two and a half milliseconds, a first view is a hundred and twenty-one of them,
+   * and a page gives the world a fifth of a second before it draws the ground itself — so the
+   * arithmetic never worked out and the first minute in a new country was spent standing on the
+   * page's own guess. Holding them is what lets the world be ready before it is asked, which is
+   * the only version of this that comes out right: `Simulation.welcome` grows a joining player's
+   * first view while it is still saying hello.
+   *
+   * Eleven kilobytes packed, twenty-seven as the arrays it is made of, so a player's whole view is
+   * about three megabytes of country. That is the trade, and it is a good one: the alternative is
+   * paying for the same chunk again for every player who asks and every time they ask.
+   */
+  private readonly parcels = new Map<string, Parcel>();
 
   /**
    * @param footprints how big each kind of prop is, measured off the geometry the game draws. The
@@ -65,8 +86,59 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * the recipe. That is the whole point of sending it.
    */
   parcelOf(cx: number, cz: number): Parcel {
-    return this.sampler.generateChunk(cx, cz);
+    return this.parcels.get(chunkKey(cx, cz)) ?? this.sampler.generateChunk(cx, cz);
   }
+
+  /**
+   * Grow the country round a place so that it can be handed over the moment it is asked for.
+   *
+   * The difference between this and `reach` is who it is for. `reach` makes ground for the world's
+   * own creatures to walk on; this makes ground for somebody else to be *told* about, and the two
+   * want different radii — a page can see further than the world thinks about.
+   *
+   * Called before anybody has asked for anything, which is the entire point. A page joins, says
+   * where it is standing, and the world grows that view while it is still saying hello; by the time
+   * the page has finished starting up and asks, the answer is already sitting here. Grown for a
+   * chunk that is already held costs nothing, so this is safe to call every tick.
+   *
+   * @returns how many chunks had to be grown, which is nought on a world that is already ready.
+   */
+  ready(x: number, z: number, chunks: number): number {
+    const CS = WORLD.CHUNK_SIZE;
+    const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
+    let made = 0;
+    for (let dz = -chunks; dz <= chunks; dz++) {
+      for (let dx = -chunks; dx <= chunks; dx++) {
+        const key = chunkKey(cx + dx, cz + dz);
+        if (this.parcels.has(key)) continue;
+        this.parcels.set(key, this.sampler.generateChunk(cx + dx, cz + dz));
+        made++;
+      }
+    }
+    return made;
+  }
+
+  /** Forget the country nobody can see, on the same rule and for the same reason as `keepOnly`. */
+  keepReadyNear(near: Array<{ x: number; z: number }>, chunks: number): number {
+    const CS = WORLD.CHUNK_SIZE;
+    const wanted = new Set<string>();
+    for (const spot of near) {
+      const cx = Math.floor(spot.x / CS), cz = Math.floor(spot.z / CS);
+      for (let dz = -chunks; dz <= chunks; dz++) {
+        for (let dx = -chunks; dx <= chunks; dx++) wanted.add(chunkKey(cx + dx, cz + dz));
+      }
+    }
+    let dropped = 0;
+    for (const key of [...this.parcels.keys()]) {
+      if (wanted.has(key)) continue;
+      this.parcels.delete(key);
+      dropped++;
+    }
+    return dropped;
+  }
+
+  /** How much country is standing by to be handed over. The memory of a busy world's other half. */
+  get standingBy(): number { return this.parcels.size; }
 
   /** The villages of this world: where anybody who goes down is carried to. */
   get villages(): ReadonlyArray<{ x: number; z: number }> { return this.sampler.structures.villages; }
@@ -226,7 +298,10 @@ export class GroundWorld implements TileWorld, ChunkSource {
   }
 
   private load(cx: number, cz: number): ChunkTiles {
-    const chunk = this.sampler.generateChunk(cx, cz);
+    // whatever was grown to be handed over will do to walk on as well: the world that is ready for
+    // a page and the world its own creatures cross are the same country, and growing it twice would
+    // be paying twice for one answer
+    const chunk = this.parcels.get(chunkKey(cx, cz)) ?? this.sampler.generateChunk(cx, cz);
     const tiles = tilesOf(chunk);
     this.loaded.set(chunkKey(cx, cz), tiles);
     this.solids.put(chunkKey(cx, cz), boxesOf(chunk, this.sampler.seed, this.footprints));

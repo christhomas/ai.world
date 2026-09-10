@@ -6,10 +6,10 @@ import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import { SkyIslands } from '../render/skyisland';
 import { ChunkManager } from '../world/chunkManager';
-import { generateRoadGraph, planIslands, roadTreeWorld } from '../world/graph';
+import { generateRoadGraph, planIslands } from '../world/graph';
+import { growWorld } from '../world/growworld';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
-import { generateWebGraph } from '../world/roadweb';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { WorldKind } from '../save/store';
@@ -57,16 +57,23 @@ export function growCountry(ctx: Growing) {
   const { seed, world, savedManifest, rig, props, seasonTintMaterials } = ctx;
 
   // chosen when the world was made and written into its save, so it never changes underneath one
-  const meshWorld = world === 'mesh';
   const manifest = new Manifest(seed, savedManifest);
   /*
-   * The same call the world makes, so both halves grow one country.
+   * The islands this world has, which is the one thing about a country the seed does not settle.
    *
-   * The manifest still has the last word, and that is the reason the anchors are handed in rather
-   * than worked out inside: a world saved before this code may have its islands somewhere else, and
-   * moving them would move the ground out from under a house that was built on one.
+   * The manifest has the last word, and that is the reason they are worked out here and handed in:
+   * a world saved before the islands were planned from the seed may have them somewhere else, and
+   * moving them would move the ground out from under a house that was built on one. They go up the
+   * wire with the join for the same reason — see `growWorld`.
    */
-  const graph = meshWorld ? generateWebGraph(seed) : roadTreeWorld(seed, islandsOf(manifest, seed));
+  const islands = world === 'mesh' ? [] : islandsOf(manifest, seed);
+  /*
+   * And the country itself, through the one call there is. Not "the same call the world makes" —
+   * literally the one call, which is the difference between two halves that agree and two halves
+   * that cannot disagree. `src/world/growworld.ts` says why that distinction cost this project two
+   * unplayable worlds.
+   */
+  const graph = growWorld(seed, world, islands);
   const sampler = new TerrainSampler(graph);
   /**
    * The world's mountains, whichever kind this world grew: the road-tree world's domes, or the
@@ -122,7 +129,7 @@ export function growCountry(ctx: Growing) {
   }
 
   return {
-    graph, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
+    graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
     eyries, skyIsles, skyRenderer,
   };
 }

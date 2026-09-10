@@ -9,6 +9,7 @@ import type { WorkerRequest, WorkerResponse } from './messages';
 import { Standing } from './standing';
 import { TileType } from './terrain';
 import { mountainAt, type Ranges } from './ranges';
+import { WAIT_FOR_THE_WORLD } from './chunkparcel';
 
 import type { ChunkSource, ChunkTiles, TileWorld } from './tiles';
 import type { TerrainSampler } from './terrain';
@@ -40,14 +41,35 @@ interface LoadedChunk {
 const BURIED_BY = 1.5;
 
 /**
- * How long a chunk waits for the world before the page grows its own, in milliseconds.
+ * How long the page will hold off entirely while a world is standing a new country up, in
+ * milliseconds.
  *
- * Long enough for the world in the next thread, which answers in a frame or two, and for a server
- * on the far side of a room. Short enough that a player never sees the wait: a fifth of a second of
- * ground that is not there yet is ground at the edge of what is drawn, arriving as they walk toward
- * it.
+ * The fifth of a second above is a guard against a socket that has gone quiet, and it was doing
+ * that job well and one other job badly. A world with nobody in it has no country at all: asked for
+ * its first chunk it has to build a terrain sampler — about a third of a second — and then grow a
+ * hundred and twenty-one chunks at two and a half milliseconds each. Two-thirds of a second before
+ * the first answer, against a fifth of a second of patience, so the guard meant for a hiccup fired
+ * on every new world and the opening view of every new country was the page's own guess.
+ *
+ * The world now grows that view when somebody joins rather than when somebody asks, and says so
+ * when it is done. Between hello and that word, this is how long the page believes it. It is not a
+ * blind wait: the world has answered once already to say hello, so silence is silence and this
+ * clock only runs while there is something on the other end.
+ *
+ * Ten seconds, and the number is bigger than it looks like it should be because standing a country
+ * up is dearer than it looks. A polygon world's terrain sampler takes a third of a second; a road
+ * tree's takes between one and a half and two and a half on a laptop with nothing else running, and
+ * over five under a software rasteriser with the machine busy — which was measured, at five seconds
+ * flat, by watching this fire and eight chunks of the page's own ground go down a moment before the
+ * world's arrived. A Raspberry Pi is slower again.
+ *
+ * What it costs to be wrong in each direction is not symmetric, which is why it errs long. Too
+ * short and the thing this exists to prevent happens anyway. Too long and a player looks at the
+ * loading screen for a few seconds more in the one case where the world has said hello and then
+ * stopped — and past this it is exactly that, a world that has stopped, so the page draws the
+ * country rather than the dark.
  */
-const WAIT_FOR_THE_WORLD = 200;
+const WAIT_FOR_A_NEW_COUNTRY = 10_000;
 
 export class ChunkManager implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, LoadedChunk>();
@@ -68,6 +90,16 @@ export class ChunkManager implements TileWorld, ChunkSource {
    * this is where you find that out.
    */
   grown = 0;
+  /**
+   * When the page stops giving a world that says it is still growing the benefit of the doubt.
+   *
+   * Nought means nobody has said any such thing, which is the ordinary state of affairs and leaves
+   * the fifth of a second above as the only rule. It is set when a world says hello and cleared
+   * when it says its country is grown, so the window it opens is exactly the length of one world
+   * standing one country up — the one stretch of a game's life when the page's own generator is
+   * certain to be drawing ground that is about to be replaced.
+   */
+  private countryDue = 0;
   /**
    * What is standing in the world, as boxes: one index for all of it rather than one per chunk.
    *
@@ -193,8 +225,14 @@ export class ChunkManager implements TileWorld, ChunkSource {
        * nothing every time a socket hiccupped. So a chunk waits a breath for the world and is grown
        * here if nothing comes: the country is right when the world answers and present when it does
        * not.
+       *
+       * The breath is longer while a world has said hello and not yet said its country is grown,
+       * because that is the one stretch where a silence is not a fault. Standing a country up takes
+       * a world several times a page's patience, so without this the opening view of every new
+       * world was drawn from the page's own generator and replaced a moment later.
        */
-      if (!this.sent.has(key) && now - job.since < WAIT_FOR_THE_WORLD) { at++; continue; }
+      const stillComing = now - job.since < WAIT_FOR_THE_WORLD || now < this.countryDue;
+      if (!this.sent.has(key) && stillComing) { at++; continue; }
       this.queue.splice(at, 1);
       const w = this.idle.pop()!;
       const id = this.nextId++;
@@ -243,6 +281,23 @@ export class ChunkManager implements TileWorld, ChunkSource {
      */
     const drawn = this.loaded.get(key);
     if (drawn?.grown) this.queue.push({ cx, cz, since: 0 });
+    this.pump();
+  }
+
+  /**
+   * A world has said hello, and until it says its country is grown this page will wait for it.
+   *
+   * Said by whatever is holding the connection rather than worked out here, because this class has
+   * never known whether there is a world at all — it draws chunks, and where they come from is
+   * somebody else's business. All it does with the news is stop guessing for a while.
+   */
+  aWorldIsGrowingIt(): void {
+    this.countryDue = performance.now() + WAIT_FOR_A_NEW_COUNTRY;
+  }
+
+  /** And the word that the country is grown: the waiting is over, whatever it found. */
+  theCountryIsGrown(): void {
+    this.countryDue = 0;
     this.pump();
   }
 
@@ -318,6 +373,12 @@ export class ChunkManager implements TileWorld, ChunkSource {
   }
 
   private unload(k: string, c: LoadedChunk): void {
+    // ground that is no longer drawn is no longer this page's opinion about anything. Without this
+    // the count only ever climbed: every chunk the page grew for itself and then walked away from
+    // stayed on the tally for the rest of the session, so a page that had long since settled onto
+    // the world's own country still reported a handful of its own — and the one number that says
+    // whether the two halves are in the same place could never be believed when it was small.
+    if (c.grown) this.grown--;
     this.propBatch.remove(k);
     this.solids.drop(k);
     if (c.group) {

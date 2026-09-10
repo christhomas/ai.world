@@ -4,6 +4,7 @@ import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
 import type { WorldKind } from '../src/save/store';
+import type { Anchor } from '../src/world/manifest';
 import type { Vault } from './vault';
 import { SharedWorld, worldPath } from './world';
 
@@ -138,6 +139,16 @@ export interface Room {
    * the same place at all.
    */
   kind: WorldKind;
+  /**
+   * Where this world's islands hang, as the first player through the door has them.
+   *
+   * The other half of the same rule as `kind`, and here for the same reason: a country is settled
+   * by the seed, the kind and these, and anything not settled by all three is two countries wearing
+   * one number. They are the client's to say because the client may be playing a world saved before
+   * the islands were planned from the seed — its manifest is the only record of where they went,
+   * and moving them would move the ground out from under a house somebody built on one.
+   */
+  islands: Anchor[];
 }
 
 export class Rooms {
@@ -160,11 +171,11 @@ export class Rooms {
   get(seed: number): Room | undefined { return this.rooms.get(seed); }
 
   /** The room for a seed, read back from disk the first time anybody asks for it. */
-  open(seed: number, start: { day: number; time: number }, kind: WorldKind): Room {
+  open(seed: number, start: { day: number; time: number }, kind: WorldKind, islands: Anchor[] = []): Room {
     let room = this.rooms.get(seed);
     if (!room) {
       const world = new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.dataDir, this.vault);
-      room = { clients: new Set(), kind, world };
+      room = { clients: new Set(), kind, islands, world };
       this.rooms.set(seed, room);
     }
     return room;

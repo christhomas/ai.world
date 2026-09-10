@@ -5,6 +5,7 @@ import {
   type CreatureSnap, type Letter, type PartyMember, type Stall, type StallItem, type TradeOffer, type WorldDelta,
 } from '../../server/protocol';
 import type { WorldKind } from '../save/store';
+import type { Anchor } from '../world/manifest';
 import type { GameState } from './state';
 import { ITEMS } from './items';
 
@@ -23,6 +24,22 @@ const MOVE_INTERVAL = 0.12;
  */
 const QUIET = 6;
 
+/**
+ * The rest of what a world has to be told at the door, beyond a seed and a kind.
+ *
+ * Both exist because a world told nothing has to guess, and both guesses were wrong in ways nobody
+ * could see. Told nothing about the islands it grows the seed's own, which is a different country
+ * from a save that has its own written down. Told nothing about where the hero stands it has
+ * nowhere to grow, so it waits to be asked and answers too late to be believed. Optional, because a
+ * page that says neither still plays: it gets the seed's country grown on demand, as pages used to.
+ */
+export interface CountryHere {
+  /** Where the hero is standing, so the world can have that ground ready before it is asked. */
+  at?: { x: number; z: number };
+  /** Where this world's islands hang, which the seed alone does not settle for an older save. */
+  islands?: readonly Anchor[];
+}
+
 export interface OnlineEvents {
   /**
    * Bytes rather than words: the world itself, when the world starts sending it.
@@ -31,6 +48,21 @@ export interface OnlineEvents {
    * arrives somewhere rather than being dropped by a receiver that only knows how to read.
    */
   onParcel?: (bytes: ArrayBuffer) => void;
+  /**
+   * A world has answered and is standing this country up, so the page can stop guessing at it.
+   *
+   * On the welcome rather than on the socket opening, because an open socket says a machine
+   * answered and this says a world did.
+   */
+  onCountryComing: () => void;
+  /**
+   * The country is grown, and this is the world's own fingerprint of it: stop waiting, and check.
+   *
+   * The ground travels down the wire so it cannot be wrong; the villages, the doors and the eyries
+   * are still worked out on each side from its own copy of the country, and this is the one moment
+   * the two answers can be compared for the price of eight characters.
+   */
+  onCountryGrown: (stamp: string) => void;
   onChat: (line: string) => void;
   onSystem: (line: string) => void;
   /** The world's own time, which everyone in it shares. */
@@ -161,7 +193,7 @@ export class Online {
    * world's player was walked about on a land he could not see — see the note on `join` in
    * `server/protocol.ts`.
    */
-  connect(url: string, seed: number, name: string, clock: Clock, world: WorldKind): void {
+  connect(url: string, seed: number, name: string, clock: Clock, world: WorldKind, country: CountryHere = {}): void {
     this.disconnect();
     this.url = url;
     this.local = url === '';
@@ -173,6 +205,9 @@ export class Online {
     const events: LinkEvents = {
       onOpen: () => this.send({
         type: 'join', seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time, world,
+        // the rest of what a country is made of, so the world grows this one and not its own idea
+        islands: country.islands ? [...country.islands] : undefined,
+        x: country.at?.x, z: country.at?.z,
       }),
       onMessage: (parcel) => {
         this.sinceHeard = 0;
@@ -249,6 +284,8 @@ export class Online {
       case 'welcome':
         this.id = message.id;
         this.status = 'online';
+        // a world, not just a machine, and it is standing this country up: see `aWorldIsGrowingIt`
+        this.events.onCountryComing();
         for (const p of message.players) this.players.set(p.id, p);
         this.events.onClock(message.clock);
         // catch up on everything that happened here before we arrived
@@ -256,6 +293,9 @@ export class Online {
         if (!this.local) {
           this.events.onSystem(`Joined world ${message.seed} as ${this.name}. ${message.players.length} other traveller${message.players.length === 1 ? '' : 's'} here, ${message.deltas.length} thing${message.deltas.length === 1 ? '' : 's'} already changed.`);
         }
+        break;
+      case 'country':
+        this.events.onCountryGrown(message.stamp);
         break;
       case 'youAre':
         this.events.onWhereYouAre(message.seq, message.x, message.z, message.y);
@@ -482,10 +522,18 @@ export class Online {
    * sent again, so a page walking country it has walked before says nothing at all. Silence when
    * there is nobody to ask, which is what playing alone with the world in the next thread is not —
    * there is always somebody to ask, and that is the point of hosting the simulation twice.
+   *
+   * @returns whether anybody heard it, which is the whole reason this returns anything. There is a
+   * window at the start of every game between the link opening and the welcome arriving, and asking
+   * inside it went nowhere: dropped here for want of a world, with the caller having already
+   * written the chunk down as asked for. A hundred and ten of a hundred and twenty-one chunks the
+   * world was never told about, drawn by the page and never put right, for the whole visit — and
+   * unseen, because it turns on which of two promises settles first.
    */
-  wantChunks(chunks: Array<[number, number]>): void {
-    if (chunks.length === 0 || !this.connected) return;
+  wantChunks(chunks: Array<[number, number]>): boolean {
+    if (chunks.length === 0 || !this.connected) return false;
     this.send({ type: 'want-chunks', chunks });
+    return true;
   }
 
   report(delta: WorldDelta): void {

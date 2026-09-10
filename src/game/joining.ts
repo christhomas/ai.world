@@ -1,4 +1,5 @@
 import type { WorldKind } from '../save/store';
+import type { Anchor } from '../world/manifest';
 import { $ } from '../ui/dom';
 import type { Online } from './online';
 import type { GameState } from './state';
@@ -39,6 +40,23 @@ export interface Joining {
   seed: number;
   /** Which country this seed grew here, so the server grows the same one. */
   world: WorldKind;
+  /**
+   * And where its islands hang, for the same reason and with a wrinkle of its own.
+   *
+   * The kind is a choice somebody made when the world was new. These are planned from the seed for
+   * any world made today, but a world saved before that code existed keeps its own in its manifest
+   * — so the seed is not enough to say where they are, and a server left to work it out would grow
+   * a different country for such a save. See `growWorld`.
+   */
+  islands: readonly Anchor[];
+  /**
+   * Where the hero is standing at the moment of joining.
+   *
+   * Asked for as a function rather than a pair of numbers because joining happens twice — once at
+   * boot and again whenever somebody types an address — and by the second time the hero has walked.
+   * What the world does with it is have that country grown before it is asked for it.
+   */
+  where: () => { x: number; z: number };
   state: GameState;
   online: Online;
   /** The address bar's own copy of the link, which an invite is built back out of. */
@@ -52,7 +70,9 @@ export interface Joining {
 }
 
 export function joinAWorld(ctx: Joining): void {
-  const { seed, world, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
+  const { seed, world, islands, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
+  /** The rest of what a world has to be told at the door: which country, and which acre of it. */
+  const here = () => ({ at: where(), islands });
 
   const serverInput = $('serverInput') as HTMLInputElement;
   const nameInput = $('nameInput') as HTMLInputElement;
@@ -71,7 +91,7 @@ export function joinAWorld(ctx: Joining): void {
    */
   const playAlone = (): void => {
     if (online.connected || online.status === 'connecting') return;
-    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world);
+    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here());
   };
   playAlone();
 
@@ -85,7 +105,7 @@ export function joinAWorld(ctx: Joining): void {
     const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
     localStorage.setItem('ai.world/server', address);
-    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world);
+    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here());
     showChat();
   });
 
