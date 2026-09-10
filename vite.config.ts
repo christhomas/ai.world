@@ -95,7 +95,28 @@ export default defineConfig(({ command }) => ({
   test: {
     include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'tools/**/*.test.ts'],
     testTimeout: 120_000,
-    maxWorkers: '50%',
+    /*
+     * Half the machine, unless somebody says otherwise — and there is a good reason to.
+     *
+     * `50%` is right for one suite on an idle desk and wrong the moment several are running at
+     * once, because each of them asks for half of the *whole* machine rather than half of what is
+     * left. Worse than that on this machine, and the detail matters: an M3 Pro's twelve cores are
+     * six performance and six efficiency, so half of twelve was never six equal workers — the
+     * second three run on the slow half, and a suite budgeted against the fast half is already
+     * being optimistic before anybody else shows up.
+     *
+     * Measured while four agents were each running the full suite: ten vitest processes, six
+     * workers apiece, a load average of two hundred and eighty-nine, and a headless playtest that
+     * failed three checks purely on starvation — creature drift at 1.35 tiles against a limit of
+     * 0.35, nineteen swings to land one blow, a door that never opened. Every one of those reads
+     * as a bug in the game and none of them was, which is the expensive part: a starved
+     * measurement does not look starved, it looks broken.
+     *
+     * So the share is a number anybody can turn down from outside: `VITEST_WORKERS=2 chore test`
+     * when the machine is shared. It stays at half by default because the common case is still one
+     * person running one suite, and that case should not have to know this exists.
+     */
+    maxWorkers: process.env.VITEST_WORKERS ?? '50%',
     isolate: false,
   },
 }));
