@@ -167,7 +167,10 @@ export function createReadouts(ctx: ReadoutContext) {
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),
-    sites: [...structures.caves, ...structures.wrecks],
+    // castles among them, because the journal is the list of places you have been to and a castle
+    // is the most memorable of them — it is on the map before you find one, but being *there* is
+    // still a thing that happened, and the journal is the only place that says so
+    sites: [...structures.caves, ...structures.wrecks, ...structures.castles],
     playerX: player.x, playerZ: player.z,
   });
 

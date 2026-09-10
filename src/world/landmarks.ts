@@ -274,14 +274,24 @@ const CAVE_COUNTRY = 8;
  * One in thirty. It has to be a small number and it cannot be as small as it feels it ought to be,
  * because this is not the rarity — the ground is. Of the crossroads that get asked, only a few in
  * a hundred have twenty-one tiles of country within a terrace of itself and nothing already built
- * on it, so the two rules together come out at roughly what a bounded world's flat count of two
- * gives over the same acreage. Set it by the share, not by the answer: an endless country cannot
- * count what it has, and a rule that tried would give a different country to every patch that
- * looked at it.
+ * on it. Set it by the share and not by the answer: an endless country cannot count what it has,
+ * and a rule that tried would give a different country to every patch that looked at it.
  *
- * Nothing here is told how many castles exist, or where the others are. A place with the ground for
- * one and a name that says yes gets a castle, and two neighbouring counties that both say yes get
- * two — which is the deal the endless world strikes with every landmark it has.
+ * The number this leaves is deliberately below the road tree's own. Counted: six road-tree worlds
+ * span about nine hundred tiles square each and hold one or two castles apiece, which is one per
+ * four hundred and fifty thousand tiles; one in thirty comes out at one per one and three quarter
+ * million, four times as empty. Matching the road tree was tried — one in eight, which is what the
+ * arithmetic asks for — and it is the wrong world. Forty-two castles turned up in nine patches,
+ * and with a hundred and twenty-eight names to go round, two of them were called Bramblewatch and
+ * stood a hundred and sixty tiles apart, which is close enough to ride between in an afternoon and
+ * find the same rooms and the same treasure in both. A castle's name is its anchor (see
+ * `CASTLE_NAMES`), so how many castles a country holds and how many names there are cannot be
+ * chosen apart. Sparse is the side of that to be wrong on: a country with no edge is not short of
+ * room, and something you come across after a long ride is what a castle ought to be.
+ *
+ * Nothing here is told how many castles exist, or where the others are. A place with the ground
+ * for one and a name that says yes gets a castle, and two neighbouring counties that both say yes
+ * get two — which is the deal the endless world strikes with every landmark it has.
  */
 const CROWNED = 1 / 30;
 

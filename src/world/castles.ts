@@ -120,10 +120,20 @@ export const CASTLE = {
  * Built as a cross product rather than written out as a list, and that is not laziness. A castle's
  * name *is* its anchor — everything inside one hangs off `castle:<name>`, for ever — so two castles
  * that share a name share their floors and their treasure. A hand-written list of a dozen good
- * names is a dozen ways for that to happen; a hundred and twenty-eight makes it something you have
- * to go looking for. A bounded world takes them without repeating; an endless country takes one
- * from the crossroads' own name, which is the only way two patches of it can agree on what a place
- * is called without either of them knowing what the other found.
+ * names is a dozen ways for that to happen; a hundred and twenty-eight makes it rare. A bounded
+ * world takes them without repeating; an endless country takes one from the crossroads' own name,
+ * which is the only way two patches of it can agree on what a place is called without either of
+ * them knowing what the other found.
+ *
+ * Rare and not impossible, and it is worth saying which, because how many names there are is not
+ * a question that can be settled on its own. A country with no edge holds a castle about every one
+ * and three quarter million tiles — eight turned up in fourteen and a half million — and at that
+ * spacing two that share a name are usually thousands of tiles apart, further than anybody rides.
+ * Usually is the honest word: the first stretch of country surveyed had two Blackgates in it, six
+ * hundred tiles apart, and whoever visits both finds the same rooms in each. No finite list avoids
+ * that; a longer one only moves the distance. It is the pair of numbers that has to hold, and the
+ * other half of the pair is `CROWNED` in `landmarks.ts` — which was measured against this list and
+ * left deliberately sparse because of it.
  *
  * The parts are chosen to run together without a doubled letter or a mouthful: "keep" after
  * "Black" and "fast" after "Wolf" were both in here and both had to go.

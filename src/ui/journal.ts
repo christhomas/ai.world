@@ -63,7 +63,13 @@ export class Journal {
 
     const found = [
       ...d.pois.filter((p) => state.discovered.has(p.name)).map((p) => ({ name: p.name, x: p.x, z: p.z, icon: '⭐' })),
-      ...d.sites.filter((s) => state.discovered.has(s.name)).map((s) => ({ name: s.name, x: s.x, z: s.z, icon: s.id.startsWith('cave') ? '🕳️' : '🚢' })),
+      // what sort of place it was is read off the front of its id, which is the one thing every
+      // site carries — a wreck is the only one of the three with no prefix of its own, so it is
+      // what is left over rather than something asked for
+      ...d.sites.filter((s) => state.discovered.has(s.name)).map((s) => ({
+        name: s.name, x: s.x, z: s.z,
+        icon: s.id.startsWith('cave') ? '🕳️' : s.id.startsWith('castle') ? '🏰' : '🚢',
+      })),
     ].sort((a, b) => Math.hypot(a.x - d.playerX, a.z - d.playerZ) - Math.hypot(b.x - d.playerX, b.z - d.playerZ))
       .map((p) => `<li>${p.icon} ${p.name} — ${dist(p.x, p.z)} tiles ${bearing(p.x, p.z)}</li>`);
 
