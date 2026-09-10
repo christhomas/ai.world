@@ -190,7 +190,17 @@ export function stampSingleProp(chunk: ChunkData, ox: number, oz: number, s: Str
   chunk.propRot[idx] = s.rot;
 }
 
-/** Jetty planks: flat wooden deck at the shore's level, laid over sea, sand or shallow water. */
+/**
+ * Jetty planks: flat wooden deck at the shore's level, laid over sea, sand or shallow water.
+ *
+ * The corners matter as much as the height, and for a long time only the height was set. A tile's
+ * `height` is what anybody standing on it is standing on; its four `corners` are what is *drawn* —
+ * that separation is what makes a terrace a terrace and a ramp a ramp. So a pier was three units
+ * of walkable deck whose picture was still lying flat on the seabed at nought: you walked out over
+ * the water on nothing at all, and the ferry you were boarding sat at the end of an invisible jetty.
+ *
+ * Reported as the pier simply not being drawn, which is exactly what it was.
+ */
 export function stampPier(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
   const h = s.level * WORLD.STEP;
   for (const [x, z] of s.path) {
@@ -200,6 +210,11 @@ export function stampPier(chunk: ChunkData, ox: number, oz: number, s: Structure
     if (t === TileType.Bridge || t === TileType.Road || t === TileType.Floor) continue;
     chunk.type[idx] = TileType.Pier;
     chunk.height[idx] = h;
+    // and the deck itself: flat, all four corners at the same height, which is what a plank is
+    chunk.corners[idx * 4] = h;
+    chunk.corners[idx * 4 + 1] = h;
+    chunk.corners[idx * 4 + 2] = h;
+    chunk.corners[idx * 4 + 3] = h;
     chunk.water[idx] = 0;
     chunk.prop[idx] = PropKind.None;
   }

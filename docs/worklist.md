@@ -2499,7 +2499,7 @@ other, and the order is chosen so that each one can be *seen* working before the
       where he teleported from — which says the world and the page disagree about where he is
       standing. Reported: "it puts me directly into the castle and when I climb back out, it appears
       I'm below the ground".
-- [ ] **2. A ferry has no pier where you board it.** The boat ties up at a spot with nothing drawn
+- [x] **2. A ferry has no pier where you board it.** The boat ties up at a spot with nothing drawn
       under it, so the one place in the world that reaches out over the water is invisible.
 - [ ] **3. What a body leaves behind should look like what it is.** A kill drops a brown sphere
       whatever it was: meat, hide and gold are all the same lump. What is on the ground has to match
