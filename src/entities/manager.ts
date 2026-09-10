@@ -21,7 +21,7 @@ import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
 import { residentsOnTheStreet } from './residents';
 import { callOutTheLaw, reseatVillagers } from './village';
-import { nearestPerson, nearestQuarry, nearestTrouble } from './quarry';
+import { nearestPerson, nearestQuarry, nearestStock, nearestTrouble } from './quarry';
 import { nearest, within } from './neighbours';
 import type { EntityView } from './roster';
 import type { Village } from '../world/structures';
@@ -226,6 +226,7 @@ export class EntityManager {
       quarry: (from: Entity, within: number) => this.nearestQuarry(from, within),
       removeEntity: (prey: Entity) => this.killEntity(prey),
       nearestPerson: (from: Entity, within: number) => this.nearestPerson(from, within),
+      stock: (f: Entity, w: number, b: number) => nearestStock(f, this.within(f.x, f.z, w), b),
       nearestTrouble: (from: Entity, within: number) => this.nearestTrouble(from, within),
       strike: (attacker: Entity, victim: Entity, damage: number) => oneHurtsAnother(
         { world: this.world, fallen: (who) => this.onFallen(who), remove: (who) => this.killEntity(who) },

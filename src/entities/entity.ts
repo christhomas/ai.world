@@ -280,6 +280,8 @@ export interface Ctx {
   removeEntity?: (prey: Entity) => void;
   /** The nearest person to somebody: what a wolf is really looking for. */
   nearestPerson?: (from: Entity, within: number) => Entity | null;
+  /** The nearest of this village's own beasts, past whatever is already at arm's length. */
+  stock?: (from: Entity, within: number, beyond: number) => Entity | null;
   /** The nearest creature attacking somebody, for anybody whose job is to stop that. */
   nearestTrouble?: (from: Entity, within: number) => Entity | null;
   /** One creature hurting another, with nobody's hearts involved. */
@@ -412,6 +414,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         quarry: ctx.quarry ?? (() => null),
         remove: ctx.removeEntity ?? (() => {}),
         nearestPerson: ctx.nearestPerson ?? (() => null),
+        stock: ctx.stock ?? (() => null),
         nearestTrouble: ctx.nearestTrouble ?? (() => null),
         strike: ctx.strike ?? (() => {}),
         worth: ctx.worth ?? (() => 0),

@@ -31,6 +31,13 @@ export interface Mind {
   bite: (e: Entity, damage: number) => void;
   /** Fraction of the day, for anybody whose work has hours. */
   time: number;
+  /**
+   * The nearest of this village's own beasts, past whatever is already at arm's length.
+   *
+   * The `beyond` is not a detail — see `nearestStock`. Without it a farmer walks to the nearest
+   * cow and stands there all morning, because it goes on being the nearest cow.
+   */
+  stock: (from: Entity, within: number, beyond: number) => Entity | null;
   /** The nearest wild animal worth taking, for somebody who hunts for a living. */
   quarry: (from: Entity, within: number) => Entity | null;
   /** Take a creature out of the world: a hunter's catch, and nothing else. */
@@ -163,7 +170,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     flee, graze, idle, beHealed,
 
     // making a living, which is what everybody with a trade is doing all day
-    stalkQuarry, take, sell, spend, dig,
+    stalkQuarry, take, sell, spend, dig, tendStock,
   },
 };
 
@@ -580,6 +587,50 @@ function spend(params: Params): CreatureNode {
     self.state = 'idle';
     self.timer = 2;
     return 'success';
+  };
+}
+
+/**
+ * Walk from one of your beasts to the next, and stand a while with each.
+ *
+ * What keeping cattle looks like from the road, and the farmer's answer to the miner's `dig`. The
+ * herd went into the field before he did — the register has counted it, calved it and sold its
+ * surplus for a while now — and what a player found when they walked out there was four cows and a
+ * man standing at the gate with his hands in his pockets. A trade you can watch is the whole of
+ * this item, and standing near your work is not doing it.
+ *
+ * Deliberately not an animation. There is no milking, no mucking out and no herding in
+ * `animations/motion.json`, and the vocabulary a body has is a walk, an idle, a flinch, a death
+ * and five shapes of blow. `dig` solved the same problem by borrowing the nearest honest motion —
+ * a pick coming over the top is exactly the sword's `swing` — and there is no such luck here: a
+ * man crouching at a cow is not any blow in the file. So this is made of the two things a body
+ * genuinely has, walking and standing, arranged into the shape of somebody working through a
+ * herd. Read from twenty paces up, which is where this camera watches from, that is what it is.
+ *
+ * Never succeeds, only runs or fails. A morning at the herd is not a task with an end, and a
+ * `steps` that parks on this keeps him there until the hour changes and the branch above stops
+ * being true — which is exactly how the miner holds his face all day.
+ */
+function tendStock(params: Params): CreatureNode {
+  const key = Symbol('tending');
+  return (tick) => {
+    const { self, stock, rng } = tick.world;
+    const reach = number(params, 'reach', 2.2);
+    // standing with one of them. The pause is what makes it a round of the herd rather than a
+    // man jogging between cows for the whole morning
+    const left = tick.memory.get(key, 0) - tick.dt;
+    if (left > 0) { tick.memory.set(key, left); self.state = 'idle'; return 'running'; }
+
+    const beast = stock(self, number(params, 'within', 26), reach);
+    if (!beast) return 'failure';                 // no cattle here: whatever is above this decides
+    self.tx = beast.x;
+    self.tz = beast.z;
+    if (self.state !== 'walk') { self.state = 'walk'; self.timer = 10; }
+    if (Math.hypot(self.x - beast.x, self.z - beast.z) > reach) return 'running';
+    tick.memory.set(key, number(params, 'seconds', 4) + rng() * number(params, 'spread', 4));
+    self.state = 'idle';
+    self.timer = 1;
+    return 'running';
   };
 }
 

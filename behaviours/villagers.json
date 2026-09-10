@@ -91,7 +91,7 @@
     ]
   },
   "farmer": {
-    "note": "Out to the field early, back through the square at noon, the inn of an evening. Badly hurt, the surgery comes first.",
+    "note": "Out to the field early and round the herd all morning, back through the square at noon, the field again, the inn of an evening. Badly hurt, the surgery comes first. The cattle are the village's own, off the register, so a village with none simply has him standing in his field as he always did.",
     "first": [
       {
         "when": {
@@ -124,10 +124,29 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "field"
-          }
+          "note": "At the field: walk the herd, beast to beast. A village with no cattle falls through to standing in it.",
+          "first": [
+            {
+              "steps": [
+                {
+                  "do": "goTo",
+                  "with": {
+                    "post": "field",
+                    "within": 6
+                  }
+                },
+                {
+                  "do": "tendStock"
+                }
+              ]
+            },
+            {
+              "do": "goTo",
+              "with": {
+                "post": "field"
+              }
+            }
+          ]
         }
       },
       {
@@ -154,10 +173,29 @@
           }
         },
         "then": {
-          "do": "goTo",
-          "with": {
-            "post": "field"
-          }
+          "note": "At the field: walk the herd, beast to beast. A village with no cattle falls through to standing in it.",
+          "first": [
+            {
+              "steps": [
+                {
+                  "do": "goTo",
+                  "with": {
+                    "post": "field",
+                    "within": 6
+                  }
+                },
+                {
+                  "do": "tendStock"
+                }
+              ]
+            },
+            {
+              "do": "goTo",
+              "with": {
+                "post": "field"
+              }
+            }
+          ]
         }
       },
       {
@@ -210,7 +248,7 @@
         }
       },
       {
-        "note": "Carrying a kill? Then the market, whatever hour it is \u2014 meat does not keep.",
+        "note": "Carrying a kill? Then the market, whatever hour it is — meat does not keep.",
         "when": {
           "ask": "carrying"
         },
@@ -679,7 +717,7 @@
     ]
   },
   "facework": {
-    "note": "A shift at the rock face, which is where every coin in this world is minted. Underground only: `src/game/crews.ts` puts the village's miners at the cuts when somebody walks into their mine, and gives each of them a `work` post on the tile he is cutting at. Filed under a name no village trade uses, on purpose \u2014 his trade is `miner` and he is called one, but giving this day to the trade itself would put every miner in the country outside his own front door swinging a pick at the grass. No hour in it either: a shift underground does not know what the sky is doing, and a mine you can only find people in between ten and four is a mine you would swear was empty.",
+    "note": "A shift at the rock face, which is where every coin in this world is minted. Underground only: `src/game/crews.ts` puts the village's miners at the cuts when somebody walks into their mine, and gives each of them a `work` post on the tile he is cutting at. Filed under a name no village trade uses, on purpose — his trade is `miner` and he is called one, but giving this day to the trade itself would put every miner in the country outside his own front door swinging a pick at the grass. No hour in it either: a shift underground does not know what the sky is doing, and a mine you can only find people in between ten and four is a mine you would swear was empty.",
     "steps": [
       {
         "note": "Back to his own cut if anything has shouldered him off it, and near enough is standing at it.",
@@ -700,8 +738,8 @@
   "miner": {
     "note": [
       "Up to the high ground at first light, back down at dusk, and the inn after.",
-      "This is the surface half of a miner's day and it had no tree at all \u2014 a villager whose trade is mining fell through to the wanderer and pottered about the square like everybody else, which is why the trade was invisible from the street as well as from underground.",
-      "`heights` rather than a mine of his own, and that is a real limitation worth writing down: posts are worked out from the village (`entities/villagers.ts`) and a village's claimed mine lives in `game/mines.ts`, which knows nothing about posts. The highest ground within a ring of the village is where caves are, so it is the right direction and the wrong precision \u2014 he walks towards the hills and not to the mouth. Giving `postsOf` the claimed cave would fix it and wants the two to be introduced.",
+      "This is the surface half of a miner's day and it had no tree at all — a villager whose trade is mining fell through to the wanderer and pottered about the square like everybody else, which is why the trade was invisible from the street as well as from underground.",
+      "`heights` rather than a mine of his own, and that is a real limitation worth writing down: posts are worked out from the village (`entities/villagers.ts`) and a village's claimed mine lives in `game/mines.ts`, which knows nothing about posts. The highest ground within a ring of the village is where caves are, so it is the right direction and the wrong precision — he walks towards the hills and not to the mouth. Giving `postsOf` the claimed cave would fix it and wants the two to be introduced.",
       "The shift itself is `facework`, which `game/crews.ts` gives him when somebody walks into the workings. This is what he does when nobody is down there to see him."
     ],
     "first": [

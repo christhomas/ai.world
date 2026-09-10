@@ -46,6 +46,25 @@ export function nearestQuarry(from: Entity, near: readonly Entity[]): Entity | n
     Boolean(e.kind.hp) && !PEOPLE.has(e.kind.id) && !(e.kind.dangerous ?? 0));
 }
 
+/**
+ * The nearest beast this village keeps, not counting the one somebody is already standing over.
+ *
+ * What a farmer walks between all morning. `beyond` is the whole of it: without it he reaches the
+ * nearest cow and stands there for the rest of the day, because it goes on being the nearest cow.
+ * Skipping whatever is already within arm's reach makes him choose a different one each time he
+ * arrives, and choosing the nearest of the rest is what turns that into a round of the herd rather
+ * than a walk across the field and back.
+ *
+ * `owned` is what separates a farmer's cow from a deer, and the herd's tag is what separates his
+ * cattle from the next village's. A beast belonging to nobody — a mountain goat, a wild plains cow
+ * — is not his to tend, and the plains are full of them.
+ */
+export function nearestStock(from: Entity, near: readonly Entity[], beyond: number): Entity | null {
+  return closest(from, near, (e) =>
+    Boolean(e.kind.owned) && e.herd.tag !== '' && e.herd.tag === from.herd.tag
+    && Math.hypot(e.x - from.x, e.z - from.z) > beyond);
+}
+
 /** The nearest person: somebody a wolf would rather have than a rabbit. */
 export function nearestPerson(from: Entity, near: readonly Entity[]): Entity | null {
   return closest(from, near, (e) => !e.indoors && PEOPLE.has(e.kind.id));

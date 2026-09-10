@@ -37,6 +37,7 @@ const runVerb = (
     self, ground: green, playerX: 999, playerZ: 999, playerAfloat: false, playerArmed: false,
     rng: mulberry32(9), bite: () => {}, time: 0.5,
     quarry: () => null, remove: () => {}, nearestPerson: () => null, nearestTrouble: () => null,
+    stock: () => null,
     strike: () => {}, worth: (id) => (id === 'pelt' ? 26 : 4),
     wanted: false, arrest: () => {},
     ...over,
