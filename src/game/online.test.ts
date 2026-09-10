@@ -28,6 +28,8 @@ function deadWorld() {
     say(message: ServerMessage): void { heard?.onMessage(JSON.stringify(message)); },
     /** The world answers the door, which a real socket never does before it has been handed back. */
     open(): void { heard?.onOpen(); },
+    /** And the socket falls over, which is the other way a world ends. */
+    shut(why = 'The world closed the connection.'): void { heard?.onClose(why); },
     linkFor(_url: string, events: LinkEvents): Link {
       heard = events;
       opened++;
@@ -111,5 +113,99 @@ describe('a world that goes quiet', () => {
     world.open();
     const join = JSON.parse(world.sent[0]) as { type: string; version: number; seed: number };
     expect(join).toMatchObject({ type: 'join', seed: 7, version: PROTOCOL_VERSION });
+  });
+});
+
+/**
+ * A connection that drops, rather than one that goes quiet.
+ *
+ * The quiet case above already went back and knocked again; a socket that closes did not. It went
+ * offline and stayed there, silently, for as long as the tab was open — so a player who walked
+ * through a tunnel came out the other side into a world that had stopped, with the game showing
+ * nothing at all about why. Everything that gets between a page and a server looks from in here
+ * exactly like the player pressing leave, so the intent is what decides: while they mean to be in a
+ * world, a dropped connection is something to keep trying.
+ */
+describe('a connection that drops', () => {
+  const join = (online: Online) => online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'mesh');
+  const welcome = (): ServerMessage =>
+    ({ type: 'welcome', id: 'p1', seed: 3, players: [], clock: { day: 1, time: 0.4 }, deltas: [] });
+  /** Run the clock, in seconds. */
+  const wait = (online: Online, seconds: number) => {
+    for (let i = 0; i < Math.round(seconds * 10); i++) online.update(0.1, standing);
+  };
+
+  it('is tried again, and says so while it is trying', () => {
+    const world = deadWorld();
+    const game = watching();
+    const online = new Online(game.events, world.linkFor);
+    join(online);
+    world.say(welcome());
+    expect(online.reaching, 'in the world and still saying it is looking for one').toBe(false);
+
+    world.shut();
+    expect(online.connected).toBe(false);
+    // not said on the instant: joining takes a moment and so does a hiccup, and a badge that blinks
+    // on every page load is one nobody reads. See `GRACE`.
+    expect(online.reaching, 'it cried off before it had even tried').toBe(false);
+
+    // not on the very next frame either: a machine that is not there is not helped by being asked
+    // faster
+    wait(online, 0.5);
+    expect(world.opens, 'it hammered the door').toBe(1);
+
+    wait(online, 2);
+    expect(online.reaching, 'the world went and the game gave no sign of caring').toBe(true);
+    expect(world.opens, 'it never knocked again').toBe(2);
+    world.say(welcome());
+    expect(online.connected).toBe(true);
+    expect(online.reaching, 'back in, and still flying the flag').toBe(false);
+  });
+
+  it('waits longer each time, and gives up on nothing', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    join(online);
+    world.say(welcome());
+
+    let opens = world.opens;
+    const waits: number[] = [];
+    for (let attempt = 0; attempt < 4; attempt++) {
+      world.shut();
+      let waited = 0;
+      // a minute of patience is plenty: the longest this ever waits is half of one
+      while (world.opens === opens && waited < 60) { online.update(0.1, standing); waited += 0.1; }
+      expect(world.opens, 'it stopped trying altogether').toBe(opens + 1);
+      waits.push(waited);
+      opens = world.opens;
+    }
+    for (let i = 1; i < waits.length; i++) {
+      expect(waits[i], 'the wait between tries never grew').toBeGreaterThan(waits[i - 1]);
+    }
+    expect(Math.max(...waits), 'and it grew without bound').toBeLessThanOrEqual(31);
+  });
+
+  it('stops the moment somebody actually leaves', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    join(online);
+    world.say(welcome());
+
+    online.disconnect();
+    expect(online.reaching, 'still hunting for a world nobody asked to be in').toBe(false);
+    wait(online, 60);
+    expect(world.opens, 'it went back for a world the player had left').toBe(1);
+  });
+
+  it('does not sit for ever at a door nobody answers', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    join(online);
+    // never a welcome and never a close: a machine that is up with nothing listening on the port,
+    // or a portal swallowing the handshake. The connect used to stay `connecting` until the tab
+    // was shut.
+    wait(online, 20);
+    expect(world.opens, 'it waited at the first door for ever').toBeGreaterThan(1);
+    expect(online.reaching).toBe(true);
   });
 });

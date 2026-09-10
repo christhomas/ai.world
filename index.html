@@ -57,6 +57,11 @@
     <div id="minimap">
       <div id="clockPanel">
         <span id="clockIcon">☀️</span>
+        <!-- Only ever visible when the world has gone: a game that is talking to a world says so by
+             saying nothing. Beside the sun rather than out at the end of the row, because the end of
+             the row is where a panel runs out of width and a badge nobody can see is no badge at
+             all. See `Online.reaching` and `Hud.setLink`. -->
+        <span id="netlink" hidden title="Lost the world — trying to get back in">📶</span>
         <span id="clockWeather"></span>
         <span id="clockTime">08:00</span>
         <span id="clockDate">Day 1 · Spring</span>

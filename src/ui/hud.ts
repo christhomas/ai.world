@@ -27,6 +27,9 @@ export class Hud {
   private readonly breathEl = $('breath');
   private readonly hurtEl = $('hurt');
   private hurtTimer = 0;
+  private readonly linkEl = $('netlink');
+  /** What the badge is doing, so a frame that changes nothing touches no DOM. */
+  private linkShown = false;
   private shownVersion = -1;
   /** Clicking the pouch opens the rucksack. */
   onOpenRucksack: (() => void) | null = null;
@@ -160,6 +163,22 @@ export class Hud {
    * is worth saving. Without it a spell is a line of text that has already gone: you cannot tell
    * whether you can afford to run, which is the only question the ward exists to answer.
    */
+  /**
+   * Whether the game is out of touch with the world it is playing in.
+   *
+   * One flashing glyph and no words. What it is telling you is that the game *knows* — a world that
+   * has gone quiet freezes every animal exactly where it stood, which from the outside is
+   * indistinguishable from a simulation that has broken, and the difference between the two is the
+   * whole of what a player needs to be told. Shown only while there is a world to be out of touch
+   * with: a game played alone has no connection to lose, and a badge that sits there for ever
+   * saying so would be furniture.
+   */
+  setLink(reaching: boolean): void {
+    if (reaching === this.linkShown) return;
+    this.linkShown = reaching;
+    this.linkEl.hidden = !reaching;
+  }
+
   setBreath(wind: number, warded: number, arm = 1, guarding = false): void {
     const row = (share: number) => {
       const full = Math.max(0, Math.min(10, Math.round(share * 10)));

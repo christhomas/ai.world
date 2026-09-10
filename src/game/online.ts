@@ -31,6 +31,30 @@ const MOVE_INTERVAL = 0.12;
 const QUIET = 6;
 
 /**
+ * How long to wait before trying a lost world again, in seconds, and how far that backs off.
+ *
+ * A connection does not usually come back on the instant it went: a wifi handover takes a couple of
+ * seconds, a laptop lid takes as long as it takes, and a server being restarted takes a minute. So
+ * the first try is quick, because most drops are momentary and getting straight back in is what a
+ * player wants; and each try after that waits longer, because hammering a machine that is not there
+ * helps nobody and a phone doing it on a train does it all the way to the terminus.
+ *
+ * Capped, rather than doubling for ever: somebody who leaves the tab open over lunch should be back
+ * in the world within half a minute of the server returning, not an hour later.
+ */
+const RETRY = { FIRST: 1, GROWTH: 2, LONGEST: 30 };
+
+/**
+ * How long out of touch before the player is told about it, in seconds.
+ *
+ * Joining takes a moment, and so does a hiccup, and a badge that appears for two frames every time
+ * a page opens is worse than no badge: it teaches people to ignore it. Two seconds is longer than
+ * any handshake worth waiting for and far shorter than the point at which a frozen world starts to
+ * look like a broken one.
+ */
+const GRACE = 2;
+
+/**
  * The rest of what a world has to be told at the door, beyond a seed and a kind.
  *
  * Both exist because a world told nothing has to guess, and both guesses were wrong in ways nobody
@@ -84,6 +108,29 @@ export class Online {
   /** Everyone else this world has seen, whether or not they are here now. */
   folk: string[] = [];
   status: 'offline' | 'connecting' | 'online' = 'offline';
+  /**
+   * Whether the player means to be in a world, which is a different question from being in one.
+   *
+   * Everything that gets between a page and a server — a lid, a tunnel, a server being restarted —
+   * looks from in here exactly like the player pressing leave, and the two want opposite treatment.
+   * So the intent is kept: while this is true a lost connection is something to keep trying, and it
+   * is only put down when somebody actually asks to leave.
+   */
+  private wanted = false;
+  /** Seconds until the next attempt, and how many have failed, which is what makes it back off. */
+  private retryIn = 0;
+  private tries = 0;
+  /**
+   * How long this attempt has been knocking, in seconds.
+   *
+   * A socket that is refused fires a close and is dealt with; a socket that is *ignored* does
+   * neither — a server whose machine is up but whose process is gone, a captive portal swallowing
+   * the handshake — and the connect sits in `connecting` for as long as the tab is open. Timed, so
+   * that a knock nobody answers is a knock to try again rather than a state to live in.
+   */
+  private knocking = 0;
+  /** How long there has been no world, in seconds, which is what the badge waits on. See `GRACE`. */
+  private outFor = 0;
 
   /**
    * @param linkFor how to reach a world: a url for somebody's server, empty for the one in the next
@@ -112,7 +159,10 @@ export class Online {
    * `server/protocol.ts`.
    */
   connect(url: string, seed: number, name: string, clock: Clock, world: WorldKind, country: CountryHere = {}): void {
-    this.disconnect();
+    this.drop();
+    this.wanted = true;
+    this.retryIn = 0;
+    this.knocking = 0;
     this.url = url;
     this.local = url === '';
     this.name = cleanName(name);
@@ -141,6 +191,8 @@ export class Online {
         this.status = 'offline';
         this.players.clear();
         this.link = null;
+        // and if they meant to be here, they still do: wait a little and knock again
+        if (this.wanted) this.retryIn = this.backoff();
       },
     };
     const link = this.linkFor(url, events);
@@ -152,7 +204,30 @@ export class Online {
     this.link = link;
   }
 
+  /**
+   * Leave, and mean it: no retry, whatever happens next.
+   *
+   * What the player asks for by pressing the button, and what the server asks for by telling us to
+   * go. Everything else that ends a connection goes through `drop`, which lets go of the link and
+   * leaves the intent standing.
+   */
   disconnect(): void {
+    this.wanted = false;
+    this.retryIn = 0;
+    this.tries = 0;
+    this.drop();
+  }
+
+  /**
+   * Whether the game is trying to get back into a world it lost.
+   *
+   * For the HUD, which shows it: a player whose world has gone quiet should be told that the game
+   * knows, rather than left to work it out from the animals standing still.
+   */
+  get reaching(): boolean { return this.wanted && this.status !== 'online' && this.outFor > GRACE; }
+
+  /** Let go of the link without letting go of the intention. */
+  private drop(): void {
     if (!this.link) return;
     this.status = 'offline';
     this.link.close();
@@ -163,6 +238,13 @@ export class Online {
     // never fire one — and a world nothing is simulating is a world where every animal stands
     // still for ever.
     this.events.onWorldSilent();
+  }
+
+  /** How long to wait before the next try, longer each time and never longer than `RETRY.LONGEST`. */
+  private backoff(): number {
+    const wait = RETRY.FIRST * RETRY.GROWTH ** this.tries;
+    this.tries++;
+    return Math.min(RETRY.LONGEST, wait);
   }
 
   /**
@@ -207,7 +289,8 @@ export class Online {
     Online.count(this.tally.heard, message.type);
     heard({
       events: this.events, players: this.players, id: this.id, name: this.name, local: this.local,
-      admitted: (id) => { this.id = id; this.status = 'online'; },
+      // in: whatever it took to get here, the next drop starts counting from the beginning again
+      admitted: (id) => { this.id = id; this.status = 'online'; this.tries = 0; },
       metThem: (names) => { this.folk = names.filter((name) => name !== this.name); },
       leave: () => this.disconnect(),
     }, message);
@@ -215,13 +298,29 @@ export class Online {
 
   /** Tell the server where we are, a few times a second. */
   update(dt: number, me: { x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[]; guilt?: number }): void {
-    if (!this.connected) return;
+    if (!this.connected) {
+      this.outFor += dt;
+      if (!this.wanted || !this.joined) return;
+      if (this.status === 'connecting') {
+        // a door nobody is answering: stop waiting at it and go round again
+        this.knocking += dt;
+        if (this.knocking > QUIET) { this.drop(); this.retryIn = this.backoff(); }
+        return;
+      }
+      // knocking again, on the clock rather than on every frame: see `RETRY`
+      this.retryIn -= dt;
+      if (this.retryIn > 0) return;
+      const again = this.joined;
+      this.connect(this.url, again.seed, this.name, again.clock, again.world);
+      return;
+    }
     // A world that has stopped talking has gone, whatever the socket says about itself. Noticed
     // here rather than left to the connection, because the failure that matters is the one where
     // the connection never notices: a phone that slept, a wifi handover, a laptop lid. The socket
     // stays open, nothing arrives, no close is fired, and the game freezes with every animal
     // standing exactly where it last was — which is the client faithfully drawing the last thing
     // it was told, and looks for all the world like a bug in the simulation.
+    this.outFor = 0;
     this.sinceHeard += dt;
     if (this.sinceHeard > QUIET) { this.lost(); return; }
     this.sinceMove += dt;
@@ -244,8 +343,9 @@ export class Online {
     this.events.onSystem(this.local
       ? 'The world in this tab stopped answering. Starting it again.'
       : 'The world went quiet. Trying it again.');
-    this.disconnect();
+    this.drop();
     if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock, rejoin.world);
+    else this.wanted = false;
   }
 
   /**

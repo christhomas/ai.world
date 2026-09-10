@@ -311,6 +311,7 @@ export function createFrame(ctx: Framing) {
       sync(dt, () => 0.5);
       updateHud(dt, indoors.title);
       hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
+      hud.setLink(online.reaching);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
       rig.renderer.render(indoors.scene.scene, iso.camera);
@@ -339,6 +340,7 @@ export function createFrame(ctx: Framing) {
       below.map.draw(player.x, player.z, state.opened, (i) => below.world.chestId(i), below.world.unlocked);
       updateHud(dt, below.floor > 1 ? `${below.poi.name} Depths · floor ${below.floor}` : `${below.poi.name} Depths`);
       hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
+      hud.setLink(online.reaching);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () =>
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
@@ -439,6 +441,7 @@ export function createFrame(ctx: Framing) {
     arriving();
     updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');
     hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
+    hud.setLink(online.reaching);
     if (fishing.active) {
       const ev = fishing.update(dt);
       if (ev === 'bite') sound.chime();

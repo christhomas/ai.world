@@ -124,6 +124,33 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   letter-spacing: var(--ui-scale);
 }
 #clockDate { margin-left: auto; color: #8f9dc9; }
+/*
+ * The world has gone and the game is knocking on its door again.
+ *
+ * A flash rather than a message, because it is a state and not an event: a message that scrolls
+ * away leaves somebody watching a frozen field with no idea whether the game knows, and it is the
+ * not knowing that reads as a broken game. The bar walks back up as each try goes out, so a player
+ * can see the game is still trying rather than merely still stuck.
+ *
+ * Struck through, because a wifi glyph on its own is what a working connection looks like.
+ */
+#netlink {
+  position: relative;
+  font-size: calc(13 * var(--ui-scale));
+  padding: calc(2 * var(--ui-scale)) calc(4 * var(--ui-scale));
+  border-radius: calc(4 * var(--ui-scale));
+  background: rgba(255, 90, 70, 0.22);
+  animation: netflash 1.4s ease-in-out infinite;
+}
+#netlink::after {
+  content: ''; position: absolute; left: 10%; right: 10%; top: 48%;
+  border-top: calc(2 * var(--ui-scale)) solid #ff6a5a;
+  transform: rotate(-28deg);
+}
+@keyframes netflash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
 #clockBar {
   position: relative; height: calc(4 * var(--ui-scale));
   border-top: var(--ui-scale) solid var(--hair-faint);
