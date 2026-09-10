@@ -1687,17 +1687,14 @@ it is worth its own heading rather than being fixed one case at a time.
       wired in. It asks `places.crowd` now, which is the manager of the floor the hero is actually
       standing on. *Confirmed by walking into Ashstead's mine: `villager:Dirk Elzen` among the rats
       and the bats, a named man off that village's own register, at the face.*
-- [ ] **A crew is one or two people.** `crewOf` takes the miners living in a village, and a village
-      has one or two, so a sixteen-room cave holds a man. That is probably right — a mine is not a
-      colliery — but it means the tunnels still read as empty, and it is worth deciding whether a
-      village's mine should draw more of its people down it.
-
-## The snow lands should stand higher
-
-> "I think the snow lands should have higher elevation, which is kind of a similar way to what we
-> tried to do with mountains in the past. But what I want is to add elevation and higher hills which
-> would make a new attempt at building a non-flat environment"
-
+- [x] **A crew is one or two people, so the tunnels read as empty.** *(Not fixed by adding miners —
+      the register was tuned the other way on purpose, and its own comment records why: a version
+      that gave Fernreach five miners out of twelve adults made it "a mine with a village". The
+      fault was where the one man stood. Faces were ranked by seam alone, so he took whichever wall
+      had the most rock behind it anywhere on the map — measured, 16, 12 and 21 tiles into a 56-tile
+      cave on three seeds, which is a man a player never meets. Ranked by ring first and seam
+      within a ring, he is 11, 12 and 7 tiles in: still at a face worth cutting, and now on the way
+      past.)*
 - [ ] **Snow country stands above the rest.** Snow is a biome today and nothing else — a snow field
       and a plain are the same ground in different colours, so the country reads as flat everywhere
       you are not standing on a mountain. It should be high country in its own right, the way

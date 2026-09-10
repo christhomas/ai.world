@@ -304,3 +304,37 @@ describe('a shift at the face', () => {
     ).toBeLessThan(1);
   });
 });
+
+/**
+ * A crew is one or two men, so where they stand decides whether anybody ever meets them.
+ *
+ * A village keeps one or two miners on purpose — the register was tuned that way after a version
+ * that gave one village five out of twelve adults and made it, in its own comment, "a mine with a
+ * village". So a crew is a man in sixteen rooms, and ranked by seam alone he stands wherever the
+ * thickest rock happens to be: measured, 16, 12 and 21 tiles into a 56-tile map on three seeds. A
+ * player walks in, meets rats, and leaves believing the workings are abandoned.
+ */
+describe('where a lone miner is put', () => {
+  it('is somewhere a player walking in would pass', () => {
+    for (const seed of [1, 5, 9]) {
+      const map = generateDungeon(seed, 'cave', 1);
+      const [ex, ez] = map.entrance;
+      const one = facesIn(map, 1, seed)[0];
+      expect(one, `seed ${seed} offered nowhere to work`).toBeTruthy();
+      const away = Math.hypot(one.x - ex, one.z - ez);
+      // measured after the ring ranking: 11, 12 and 7 against 16, 12 and 21 before it
+      expect(away, `the only miner is ${away.toFixed(0)} tiles in, which is a mine that reads as empty`)
+        .toBeLessThan(16);
+    }
+  });
+
+  it('still puts him at a face worth cutting rather than the nearest wall', () => {
+    // the ring is coarse on purpose: within one, the thickest seam still wins. A man at the first
+    // scrap of wall inside the door would be standing in a doorway hitting a partition.
+    const map = generateDungeon(5, 'cave', 1);
+    const [ex, ez] = map.entrance;
+    const one = facesIn(map, 1, 5)[0];
+    expect(Math.hypot(one.x - ex, one.z - ez), 'he is standing on top of the stairs')
+      .toBeGreaterThanOrEqual(CREW.CLEAR_OF_STAIRS);
+  });
+});

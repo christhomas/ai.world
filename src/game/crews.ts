@@ -53,6 +53,15 @@ export const CREW = {
    * world have no room left in them for anybody.
    */
   CLEAR_OF_STAIRS: 6,
+  /**
+   * How coarsely "how far in" is measured, in tiles, when choosing between faces.
+   *
+   * Faces are ranked by ring and then by seam, so that a crew is met rather than merely placed.
+   * Wide rings and everybody stands at the door; narrow ones and the ranking becomes a plain
+   * distance, which puts a man at the nearest scrap of wall whether it is worth cutting or not.
+   * Twelve is about a room and a half, so the first ring is the chambers off the entrance.
+   */
+  RING: 12,
 } as const;
 
 /**
@@ -172,7 +181,7 @@ export function facesIn(map: DungeonMap, wanted: number, seed: number): Face[] {
   const barred = new Set(map.chests.map((c) => c.z * size + c.x));
   const [ex, ez] = map.entrance;
 
-  const candidates: Array<{ face: Face; rock: number; order: number }> = [];
+  const candidates: Array<{ face: Face; rock: number; deep: number; order: number }> = [];
   for (let z = 0; z < size; z++) {
     for (let x = 0; x < size; x++) {
       // plain floor only: the stairs, the way down, a doorway and a pool are all somewhere to be
@@ -197,13 +206,29 @@ export function facesIn(map: DungeonMap, wanted: number, seed: number): Face[] {
       candidates.push({
         face: { x: x + 0.5, z: z + 0.5, yaw: yawFor(cut[0], cut[1]) },
         rock: walls.length,
+        // how far in he would be working, in rings rather than tiles — see the sort below
+        deep: Math.floor(Math.hypot(x - ex, z - ez) / CREW.RING),
         // a stable shuffle, so two mines with the same shape do not put their men in the same
         // corner of it, and so the answer never depends on the order the tiles were walked in
         order: hash3(seed, x, z),
       });
     }
   }
-  candidates.sort((a, b) => b.rock - a.rock || a.order - b.order);
+  /*
+   * The best faces, and then the ones somebody would actually walk past.
+   *
+   * A village keeps one or two miners — the register was tuned that way on purpose, after a version
+   * that gave Fernreach five out of twelve adults and made it "a mine with a village" — so a crew
+   * is one man in sixteen rooms. Ranked by rock alone he stands wherever the thickest seam happens
+   * to be, which is as likely as not the far corner of the last chamber, and a player walks in,
+   * meets rats, and leaves believing the workings are abandoned.
+   *
+   * So depth is a coarse ring rather than a distance: within a ring, the thickest seam still wins,
+   * which is what a miner would choose. Between rings, nearer the way in wins, which is what a
+   * player would find. Rings rather than raw distance because sorting by distance would put him at
+   * the nearest scrap of wall regardless of whether it was worth cutting.
+   */
+  candidates.sort((a, b) => a.deep - b.deep || b.rock - a.rock || a.order - b.order);
 
   let best: Face[] = [];
   for (const apart of SPACINGS) {
