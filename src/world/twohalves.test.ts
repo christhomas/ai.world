@@ -9,6 +9,7 @@ import { BLOCKS_WALKING } from './biomes';
 import { blocking } from './footprints';
 import { GroundWorld } from './groundworld';
 import { generateWebGraph } from './roadweb';
+import { generateRoadGraph, islandAnchors, roadTreeWorld } from './graph';
 import { Solids, boxesFrom } from './solids';
 import { propsOf } from './propstream';
 import { TerrainSampler, TileType } from './terrain';
@@ -168,12 +169,34 @@ describe('the same world, grown on both sides', () => {
      * source together, and a server that goes back to choosing for itself fails here.
      */
     const sim = readFileSync('server/sim.ts', 'utf8');
-    expect(sim.includes('generateRoadGraph'), 'the server can no longer grow a road world at all').toBe(true);
-    expect(sim.includes("kind === 'mesh' ? generateWebGraph(seed) : generateRoadGraph(seed)"),
+    expect(sim.includes("kind === 'mesh' ? generateWebGraph(seed) : roadTreeWorld(seed)"),
       'the server has gone back to picking the world itself').toBe(true);
     const protocol = readFileSync('server/protocol.ts', 'utf8');
     expect(protocol.includes('world: WorldKind'), 'the join no longer says which world it is in').toBe(true);
     covered.push('PASS      1  the world kind travels with the join, and the server grows what it is told');
+  });
+
+  it('and grows the same road country on both sides, islands and all', () => {
+    /*
+     * The second half of the same fault, and the one this bench could not see.
+     *
+     * Choosing the right *kind* of world is not enough: the page attached the islands to its road
+     * tree and the server did not, so the same seed grew two countries and whichever filled a chunk
+     * first won. Seed 1's third village is Elderholm without them and Brambleholm with them. It was
+     * found as a hero standing in a named village in an empty field — the people from one world,
+     * the ground from the other.
+     *
+     * Every other test in this file builds `generateWebGraph` on both sides, which is why none of
+     * them noticed: they compared two copies of the same half. This one grows a road world the way
+     * each side grows it and asks whether they are the same place.
+     */
+    for (const seed of [1, 3, 7]) {
+      const page = new TerrainSampler(roadTreeWorld(seed, islandAnchors(generateRoadGraph(seed), seed)));
+      const world = new TerrainSampler(roadTreeWorld(seed));
+      const names = (s: TerrainSampler): string => s.structures.villages.map((v) => `${v.name}@${v.x.toFixed(1)},${v.z.toFixed(1)}`).join(' ');
+      expect(names(world), `seed ${seed} is two different countries`).toBe(names(page));
+    }
+    covered.push('PASS      3  a road world is the same country on the page and in the world, islands included');
   });
 });
 

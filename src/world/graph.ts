@@ -1,5 +1,5 @@
 import { GRAPH } from '../core/config';
-import type { Anchor } from './manifest';
+import { ANCHOR_VERSION, type Anchor } from './manifest';
 import { hash3 } from '../core/rng';
 import { mulberry32, rand2, shuffle, type Rng } from '../core/rng';
 import { SALT, TILE_SALT, derive } from '../core/salts';
@@ -538,6 +538,40 @@ function hashStringLite(str: string): number {
  * Grow each island's own road tree from its anchor seed and append it to the mainland graph:
  * nodes translated to the anchor, indices re-based, the island hub registered as a town.
  */
+/**
+ * A road-tree world, islands and all — the one call both halves of the game should make.
+ *
+ * They did not. The page grew its world in `game/country.ts` and attached the islands; the server
+ * grew its own in `server/sim.ts` and did not, so the same seed made two different countries and
+ * whichever filled a chunk first won. Seed 1's third village is Elderholm on one side and
+ * Brambleholm on the other. A player found it as a hero standing in a named village in an empty
+ * field: the people were the seed's, the houses were the other world's.
+ *
+ * `chore halves` could not catch it, and that is the part worth remembering — both sides of that
+ * bench build the bare graph, so it compared two copies of the same half.
+ *
+ * The islands are planned from the seed and nothing else, so this is the same answer the manifest
+ * holds for any world made by this code. A caller with a saved manifest should still prefer what it
+ * saved — an older world may have islands somewhere else, and moving them would move the ground
+ * under a house — which is why the anchors are a parameter rather than a decision made in here.
+ */
+export function roadTreeWorld(seed: number, anchors?: Anchor[]): RoadGraph {
+  const graph = generateRoadGraph(seed);
+  attachIslands(graph, anchors ?? islandAnchors(graph, seed));
+  return graph;
+}
+
+/** Where a world's islands are, as anchors, straight from the seed. */
+export function islandAnchors(graph: RoadGraph, seed: number): Anchor[] {
+  return planIslands(graph, seed).map((p) => ({
+    id: p.id, kind: 'island' as const, x: p.x, z: p.z, seed: p.seed,
+    // an island hangs off the world rather than off another anchor, and its version is the
+    // manifest's for that kind — these two exist so a saved anchor can be recognised later, and an
+    // anchor made from the seed alone has the same answers a saved one would have had
+    parent: null, version: ANCHOR_VERSION.island,
+  }));
+}
+
 export function attachIslands(graph: RoadGraph, anchors: Anchor[]): void {
   for (const a of anchors) {
     const { radius, biome } = islandTraits(a.seed);

@@ -10,7 +10,7 @@ import { blocking } from '../src/world/footprints';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife } from './wildlife';
 import { generateWebGraph } from '../src/world/roadweb';
-import { generateRoadGraph } from '../src/world/graph';
+import { roadTreeWorld } from '../src/world/graph';
 import type { WorldKind } from '../src/save/store';
 import { generateDungeon } from '../src/dungeon/generate';
 import { DungeonWorld } from '../src/dungeon/world';
@@ -161,7 +161,10 @@ export class Simulation {
      * walls in the middle of a field.
      */
     const kind: WorldKind = this.rooms.get(seed)?.kind ?? 'mesh';
-    const graph = kind === 'mesh' ? generateWebGraph(seed) : generateRoadGraph(seed);
+    // islands and all, through the one call the page makes: growing a road-tree world without them
+    // here and with them there gave the same seed two different countries, and whichever filled a
+    // chunk first won. `roadTreeWorld` says the rest.
+    const graph = kind === 'mesh' ? generateWebGraph(seed) : roadTreeWorld(seed);
     const sampler = new TerrainSampler(graph);
     const grown = new GroundWorld(sampler, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);

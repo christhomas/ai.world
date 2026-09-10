@@ -6,7 +6,7 @@ import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import { SkyIslands } from '../render/skyisland';
 import { ChunkManager } from '../world/chunkManager';
-import { attachIslands, generateRoadGraph, planIslands } from '../world/graph';
+import { generateRoadGraph, planIslands, roadTreeWorld } from '../world/graph';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { generateWebGraph } from '../world/roadweb';
@@ -40,17 +40,33 @@ export interface Growing {
   seasonTintMaterials: SeasonTintMaterials;
 }
 
+/**
+ * A world's islands: the ones it was saved with, or the ones its seed says it should have.
+ *
+ * Written down the moment they are known, so a world saved today is saved with them and a world
+ * saved yesterday keeps the ones it had.
+ */
+function islandsOf(manifest: Manifest, seed: number) {
+  const saved = manifest.byKind('island');
+  if (saved.length > 0) return saved;
+  for (const p of planIslands(generateRoadGraph(seed), seed)) manifest.ensure(p.id, 'island', p.x, p.z);
+  return manifest.byKind('island');
+}
+
 export function growCountry(ctx: Growing) {
   const { seed, world, savedManifest, rig, props, seasonTintMaterials } = ctx;
 
   // chosen when the world was made and written into its save, so it never changes underneath one
   const meshWorld = world === 'mesh';
-  const graph = meshWorld ? generateWebGraph(seed) : generateRoadGraph(seed);
   const manifest = new Manifest(seed, savedManifest);
-  if (!meshWorld) {
-    if (manifest.byKind('island').length === 0) for (const p of planIslands(graph, seed)) manifest.ensure(p.id, 'island', p.x, p.z);
-    attachIslands(graph, manifest.byKind('island'));
-  }
+  /*
+   * The same call the world makes, so both halves grow one country.
+   *
+   * The manifest still has the last word, and that is the reason the anchors are handed in rather
+   * than worked out inside: a world saved before this code may have its islands somewhere else, and
+   * moving them would move the ground out from under a house that was built on one.
+   */
+  const graph = meshWorld ? generateWebGraph(seed) : roadTreeWorld(seed, islandsOf(manifest, seed));
   const sampler = new TerrainSampler(graph);
   /**
    * The world's mountains, whichever kind this world grew: the road-tree world's domes, or the

@@ -1945,3 +1945,19 @@ tiles across by world units tall.
   and leaves each floor its own lock, and filing the key under the unqualified anchor instead fixes
   it by opening the barred stair on all four floors of a keep at once, which is three puzzles
   thrown away.
+
+## Found by the castle, fixed the same night
+
+- [x] **The page and the world grew different countries.** `attachIslands` was called in
+      `game/country.ts` and not in `server/sim.ts`, so a road-tree world had islands on one side and
+      not the other — seed 1's third village is Elderholm without them and Brambleholm with them —
+      and whichever half filled a chunk first won. Found as a hero standing in a named village in an
+      empty field: the people from one world, the ground from the other. *(Both halves call
+      `roadTreeWorld(seed)` now. The manifest still has the last word on the page, because a world
+      saved before this may have its islands elsewhere and moving them would move the ground out
+      from under a house.)*
+- [x] **And `chore halves` could not have caught it.** Every test in that bench builds
+      `generateWebGraph` on both sides, so it was comparing two copies of the same half; the one
+      test that looked at the road world checked the *source text* of `sim.ts` for a particular
+      expression. It grows a road world each way and compares the villages now, which is the check
+      that would have found this.
