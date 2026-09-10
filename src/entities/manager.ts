@@ -4,18 +4,17 @@ import { hash3, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { chunkKey, parseChunkKey } from '../world/spatial';
 export type { ChunkSource, ChunkTiles } from '../world/tiles';
-import { sortTiles, tileCentre, type SortedTiles } from './chunkspots';
+import { sortTiles } from './chunkspots';
 export { tileCentre } from './chunkspots';
 import type { ChunkSource, ChunkTiles } from '../world/tiles';
-import { Biome } from '../world/biomes';
-import { TileType } from '../world/terrain';
 import { KINDS } from './animals';
-import { BIOME_ANIMALS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS, dungeonMonsters, openGround, pickKind, type SpawnSpot } from './spawns';
+import { dungeonMonsters, pickKind, type SpawnSpot } from './spawns';
 import { treeFor } from './behaviours';
 import type { Register } from '../world/register';
 import { stageOf, type Person } from '../world/people';
 import { spawnPaddocks } from './paddocks';
 import { spawnVillageFolk } from './street';
+import { spawnWildlife } from './wilds';
 import { BEHAVIOUR, Entity, Herd, anybodyAt, canStand, damageEntity, isDaytime, throwBlow, updateEntity, updateHerd, type Post, type TileWorld } from './entity';
 import { keepBodiesApart } from './contact';
 import { buryTheFallen, startDying } from './dying';
@@ -46,6 +45,17 @@ import { Tiers, arrive, worthKeeping, type Arrival } from './tiers';
  */
 export const A_PLACE = 'dungeon';
 
+/**
+ * And the other list of that kind: where the men this player has paid are filed.
+ *
+ * A place in exactly the sense above, and the place is *you*: a hired man is under no chunk because
+ * he walks with you across all of them, and he is kept for as long as the bargain is.
+ */
+export const COMPANY = 'hired';
+
+/** The lists that are places, which the country sweeps below must let alone. */
+const PLACES: ReadonlySet<string> = new Set([A_PLACE, COMPANY]);
+
 /** Per-chunk tile arrays the manager needs for spawning; provided by ChunkManager. */
 export class EntityManager {
   private readonly spawned = new Map<string, Entity[]>();
@@ -75,6 +85,10 @@ export class EntityManager {
    * The simulation owns the creatures now — on a server, or in the thread next door — and a client
    * that also spawns its own would draw two of every deer, one of which nobody else can see. So it
    * stops spawning and starts being told; everything else it does, it goes on doing.
+   *
+   * The people of a village were the exception until a villager was given something of his own to
+   * remember; `street.ts` has that argument. Nothing at all is spawned here now when somebody else
+   * is holding the world — villagers, paddocks and wildlife alike.
    */
   toldWhatLives = false;
   /**
@@ -88,6 +102,10 @@ export class EntityManager {
    * dropped when they leave, so it has no absence to account for.
    */
   sleptFor: (herd: Herd) => number = () => 0;
+  /**
+   * People on the register who are not to be put out into the street, by id. See `residentsFor`.
+   */
+  spokenFor: ReadonlySet<string> = new Set();
   private readonly herds = new Set<Herd>();
   /** Who is near enough to somebody to matter this tick, sorted once and used three times. */
   private readonly tiers = new Tiers();
@@ -174,18 +192,20 @@ export class EntityManager {
     if (time !== undefined) this.night = !isDaytime(time);
     const cx = Math.floor(playerX / CS), cz = Math.floor(playerZ / CS);
     if (this.night !== wasNight) {
-      // day flipped: let chunks respawn so the night shift can arrive (or go home)
-      for (const [key, list] of this.spawned) if (key !== 'dungeon') this.despawn(key, list);
+      // day flipped: let chunks respawn so the night shift can arrive (or go home). Places are left
+      // alone — a floor and the men in your pay are not a night's worth of country to be rolled
+      // again, and throwing them away here would take a paid soldier off the road at every dusk.
+      for (const [key, list] of this.spawned) if (!PLACES.has(key)) this.despawn(key, list);
     }
     if (cx !== this.focusCx || cz !== this.focusCz || this.alsoNear.length > 0) {
       this.focusCx = cx; this.focusCz = cz;
       for (const [key, list] of this.spawned) {
-        // `dungeon` is a place rather than a chunk, and a place is kept as long as somebody is
-        // standing in it. It read as a chunk at nowhere, nowhere is never worth keeping, and so a
-        // floor lost every monster on it the first time this ran — which is the first frame, because
-        // the focus starts at nowhere too. An empty dungeon is a hard thing to notice from outside:
-        // the rooms are there, the doors are there, the chests are there, and nothing is home.
-        if (key === 'dungeon') continue;
+        // A place is kept as long as its owner wants it rather than as long as it is near. `A_PLACE`
+        // read as a chunk at nowhere, nowhere is never worth keeping, and so a floor lost every
+        // monster on it the first time this ran — which is the first frame, because the focus starts
+        // at nowhere too. An empty dungeon is a hard thing to notice from outside: the rooms are
+        // there, the doors are there, the chests are there, and nothing is home.
+        if (PLACES.has(key)) continue;
         const [kx, kz] = parseChunkKey(key);
         if (!worthKeeping(kx, kz, cx, cz, this.alsoNear)) this.despawn(key, list);
       }
@@ -528,18 +548,29 @@ export class EntityManager {
   }
 
   /**
-   * Take away the wildlife this client invented for itself, keeping the people.
+   * Take away everything this client invented for itself.
    *
-   * Called when the world takes over the animals. Without it the deer this client made go on
-   * standing in the field beside the ones the world sent, and only one of each pair is there as far
-   * as anybody else is concerned. The villagers stay: nobody else is spawning those.
+   * Called when the world takes over, and again when it stops talking: the same act in both
+   * directions, because a chunk this forgets is a chunk that gets rolled again by whichever half is
+   * deciding at the time. Without it the deer this client made go on standing in the field beside
+   * the ones the world sent, and only one of each pair is there as far as anybody else is concerned.
+   *
+   * It used to keep the people, on the argument `street.ts` sets out and no longer holds, so the
+   * street is emptied along with the field. A floor's monsters and a pack of sea hunters are put
+   * down by hand rather than rolled per chunk, and after this has run, so it is not about them.
    */
-  forgetTheWildlife(): void {
+  forgetWhatWeInvented(): void {
     for (const [key, list] of this.spawned) {
-      // somebody with a name in the register, or a job in a village: those are the client's
-      const people = list.filter((e) => e.person !== '' || e.role !== 'none');
-      for (const e of list) if (!people.includes(e)) this.despawnEntity(e);
-      this.spawned.set(key, people);
+      // except the men this player has paid for. They are not the world's and never were — it has
+      // been told to take them off the street precisely so that they can be this page's own — so
+      // taking them away here would be dismissing somebody's company because a world spoke.
+      if (key === COMPANY) continue;
+      for (const e of [...list]) this.despawnEntity(e);
+      // the chunk is forgotten rather than emptied, so that it is rolled again the next time this
+      // page is the one deciding. Left as an empty list it would be a square of country this
+      // manager believes it has already populated, and a world that went quiet would hand back a
+      // countryside with nothing in it until the hero walked far enough away to lose the chunk.
+      this.spawned.delete(key);
     }
   }
 
@@ -577,6 +608,13 @@ export class EntityManager {
     if (sorted.land.length === 0 && sorted.water.length === 0 && sorted.road.length === 0) return out;
     const ctx: SpawnCtx = { tiles, key, rng, out };
 
+    // Nothing at all when somebody else is holding this world. The animals went across first, on
+    // the argument that they are what two players standing in one field disagree about; the people
+    // stayed behind on the argument that they are the seed and the register and so nobody disagrees
+    // about them. That second argument was true right up until a villager was given something of
+    // his own to remember, and then it was two men of the same name in two different moods.
+    if (this.toldWhatLives) return out;
+
     spawnVillageFolk({
       villages: this.villages, world: this.world,
       place: (...a) => this.place(...a),
@@ -584,49 +622,26 @@ export class EntityManager {
       hasStable: (village) => this.hasStable(village),
     }, ctx);
     spawnPaddocks({ villages: this.villages, place: (...a) => this.place(...a) }, ctx);
-    // Everything below this line is wildlife, and the world owns that when there is a world to own
-    // it: the animals are what two players standing in one field disagree about. The people of a
-    // village are not — they are the seed and the register, which everybody has.
-    if (this.toldWhatLives) return out;
-    // after dark, something else is out on the land
-    if (this.night && sorted.land.length >= SPAWN.MIN_LAND_TILES && rng() < SPAWN.NIGHT_PACK_CHANCE) {
-      const table = NIGHT_PREDATORS[sorted.biome];
-      const kindId = table[Math.floor(rng() * table.length)];
-      const den = openGround(this.world, tiles, sorted.land, rng);
-      if (den) this.spawnHerd(ctx, kindId, den, SPAWN.NIGHT_LEASH);
-    }
-    if (sorted.land.length >= SPAWN.MIN_LAND_TILES) {
-      const rolls = rng() < SPAWN.HERD_CHANCE ? (rng() < SPAWN.SECOND_HERD_CHANCE ? 2 : 1) : 0;
-      for (let h = 0; h < rolls; h++) {
-        // high ground has its own list: a massif can stand in any country, so what decides what
-        // lives here is the height rather than the biome the map happens to call it
-        const spot = openGround(this.world, tiles, sorted.land, rng);
-        if (!spot) break;
-        const table = this.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS : BIOME_ANIMALS[sorted.biome];
-        const kindId = pickKind(table, rng());
-        if (!kindId) break;
-        this.spawnHerd(ctx, kindId, spot, SPAWN.HERD_LEASH);
-      }
-    }
-    if (sorted.water.length >= SPAWN.MIN_WATER_TILES && rng() < SPAWN.WATER_HERD_CHANCE) {
-      const kindId = pickKind(WATER_ANIMALS[sorted.biome], rng());
-      if (kindId) this.spawnHerd(ctx, kindId, tileCentre(tiles, sorted.water[Math.floor(rng() * sorted.water.length)]), SPAWN.WATER_LEASH);
-    }
-    // nothing but water in this chunk means open sea, where something else is waiting
-    if (sorted.land.length === 0 && sorted.water.length >= SPAWN.MIN_WATER_TILES && rng() < SPAWN.DEEP_PACK_CHANCE) {
-      const hunter = pickKind(DEEP_ANIMALS, rng());
-      if (hunter) this.spawnHerd(ctx, hunter, tileCentre(tiles, sorted.water[Math.floor(rng() * sorted.water.length)]), SPAWN.DEEP_LEASH);
-    }
-    if (sorted.road.length >= SPAWN.MIN_ROAD_TILES && rng() < SPAWN.TRAVELLER_CHANCE) {
-      this.place(ctx, 'traveller', tileCentre(tiles, sorted.road[Math.floor(rng() * sorted.road.length)]), 1 + Math.floor(rng() * 2), SPAWN.TRAVELLER_LEASH);
-    }
+    spawnWildlife({
+      world: this.world, night: this.night, highland: this.highland,
+      herd: (c, kindId, anchor, leash) => this.spawnHerd(c, kindId, anchor, leash),
+      place: (...a) => this.place(...a),
+    }, ctx, sorted);
     return out;
   }
 
-  /** The people a village would have out today, given who is alive and who is already outside. */
+  /**
+   * The people a village would have out today, given who is alive and who is elsewhere.
+   *
+   * Elsewhere is two things and they are the same thing: already standing outside, or away in
+   * somebody's pay. A hired man has left his village — he walks with the traveller who bought his
+   * day, indoors and down staircases and onto boats — so a street that went on showing him at the
+   * well would be showing a man who is two counties off.
+   */
   private residentsFor(v: Village, posts: Partial<Record<Post, [number, number]>>, wanted: number): Person[] {
     if (!this.register) return [];
     const alreadyOut = new Set([...this.herds].flatMap((h) => h.members.map((e) => e.person)));
+    for (const hired of this.spokenFor) alreadyOut.add(hired);
     return residentsOnTheStreet(this.register, v, posts, wanted, alreadyOut, this.guiltOf() > 0);
   }
 

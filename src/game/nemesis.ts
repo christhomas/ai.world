@@ -1,7 +1,7 @@
 import { hashString, mulberry32, shuffle, type Rng } from '../core/rng';
 import { derive } from '../core/salts';
 import { KINDS } from '../entities/animals';
-import { LIFE, remember, type Person } from '../world/people';
+import { LIFE, remember, type Person, type Remembering } from '../world/people';
 import { grownFolk } from '../world/fortunes';
 import type { Register } from '../world/register';
 import type { Village } from '../world/structures';
@@ -223,6 +223,14 @@ export interface Realm {
   villages: readonly Village[];
   /** What somebody pulled out of the water will call you afterwards. */
   hero: string;
+  /**
+   * How being pulled out of the water reaches the man it happened to.
+   *
+   * Optional, and plain remembering when it is left out. Being saved is the largest single thing one
+   * person can do for another in this game and is weighted like it, so it is exactly the sort of
+   * thing that must not stay on one screen when a world is holding the villagers.
+   */
+  recall?: Remembering;
 }
 
 /** What a save has to remember about him: where he is up to, and what he is in the middle of. */
@@ -503,7 +511,7 @@ export class Nemesis {
     for (const id of pulled) {
       const person = realm.register.find(id);
       if (!person) continue;
-      remember(person, { what: 'saved', who: realm.hero, day });
+      (realm.recall ?? remember)(person, { what: 'saved', who: realm.hero, day });
       saved.push(person.name);
     }
     const lost = this.buryThese(realm, drowned, day);

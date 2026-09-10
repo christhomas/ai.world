@@ -42,12 +42,27 @@ export interface Authority {
   steer: (seq: number, dx: number, dz: number, pace: number, dt: number) => void;
   /** A creature the world owns has bitten us, and a bite is a bite whoever threw it. */
   bitten: (attacker: Entity, damage: number) => void;
+  /**
+   * A constable the world owns has taken us in, and being taken in is what it always was.
+   *
+   * The village decided it; the hours, the fine and the cell are worked out on this side, on the
+   * save that holds all three. Exactly the division a bite already has.
+   */
+  arrested: (by: Entity) => void;
+  /**
+   * Somebody who lived in a village has been killed by something.
+   *
+   * The world buries him — he is off its register and everybody is told — and this is what each
+   * player's own game makes of it: a pack left where he fell, a bargain ended, and a line on the
+   * screen of anybody near enough to have heard it. All three are that player's own.
+   */
+  fallen: (who: Entity) => void;
 }
 
 export function createAuthority(ctx: Authority) {
   const {
     seed, state, player, chunks, entities, places, sailing, sound, wildlife, floorLife, aloft,
-    placeName, steer, bitten,
+    placeName, steer, bitten, arrested, fallen,
   } = ctx;
 
   /**
@@ -110,7 +125,7 @@ export function createAuthority(ctx: Authority) {
         }
         if (!entities.toldWhatLives) {
           entities.toldWhatLives = true;
-          entities.forgetTheWildlife();
+          entities.forgetWhatWeInvented();
         }
         wildlife.apply(near, gone, player.entity);
       },
@@ -126,6 +141,11 @@ export function createAuthority(ctx: Authority) {
         const alive = theirs(place);
         if (!alive) return;
         const body = alive.find(id);
+        // A person rather than an animal, and that is a different kind of news. The world has
+        // already taken him off its register and told everybody so; what each player's own game
+        // does about it — the pack in the grass, the bargain that ends, the shout in the middle
+        // distance — is theirs, and it is the same `fallen` that has always done it.
+        if (body && body.person !== '') fallen(body);
         if (body && mine) {
           const won = spoils(state, body, seed);
           if (won.gold > 0) { state.inventory.gold += won.gold; state.version++; }
@@ -151,9 +171,27 @@ export function createAuthority(ctx: Authority) {
         if (attacker) bitten(attacker, damage);
       },
 
+      /**
+       * A constable has caught up with us.
+       *
+       * Nothing happens if he is not on this screen, which is not a case worth guarding against so
+       * much as one worth being honest about: an arrest is a man laying a hand on you, and if there
+       * is nobody drawn there then this client has not been told about him and has no name to put
+       * in the sentence.
+       */
+      onArrested: (id: number): void => {
+        const constable = wildlife.find(id);
+        if (constable) arrested(constable);
+      },
+
       onWorldSilent: (): void => {
         if (!entities.toldWhatLives) return;
         entities.toldWhatLives = false;
+        // and the country this page has been standing in is forgotten, so that it is rolled again
+        // from the seed rather than left as the empty squares the world's arrival made of it. It is
+        // the same call the handover used on the way in, which is the point: whichever half is
+        // deciding, it starts from ground nobody has already populated.
+        entities.forgetWhatWeInvented();
         wildlife.clear();
         walked.reset();
       },

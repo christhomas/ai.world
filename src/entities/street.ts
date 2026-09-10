@@ -12,15 +12,21 @@ import type { SpawnCtx } from './manager';
  *
  * Out of the manager for the same reason `paddocks.ts` came out of it, and it is the other half of
  * the same idea: what a village keeps in its yard, and who a village has out of doors. Both are
- * fixtures of the place rather than rolls of the day — decided by where the village was laid out
- * and by who the register says is alive — which is why both are spawned whether or not a world is
- * telling this client what lives where, and why they sit side by side in `spawnChunk` above the
- * line where the wildlife starts.
+ * fixtures of the place rather than rolls of the day, decided by where the village was laid out and
+ * by who the register says is alive, which is why they sit side by side in `spawnChunk`.
+ *
+ * They used to sit *above* the line where the wildlife starts, and be spawned whether or not a world
+ * was telling this client what lives where. The argument was that a village is the seed and the
+ * register and every machine already agrees about it — true right up until a villager was given
+ * something of his own to remember, at which point it was two men of the same name in two different
+ * moods. This runs in one place now: the world that holds the villages calls it, and everybody else
+ * is told. A page with nothing behind it calls it itself and is the world, which is what playing
+ * alone has always been.
  *
  * The seam is real: nothing in here asks about chunks, about wildlife, or about what is near the
  * hero. It asks a village who it has, and puts them where their day would have them. What it
- * cannot answer for itself it is handed — who is alive and not already outside is a question about
- * the register, and the register belongs to the manager.
+ * cannot answer for itself it is handed — who is alive, not already outside and not away in
+ * somebody's pay is a question about the register, and the register belongs to the manager.
  */
 
 /** What this needs of the manager: the villages, the ground, and the few things only it can answer. */

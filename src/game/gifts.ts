@@ -1,5 +1,5 @@
 import { Biome } from '../world/biomes';
-import { remember, stageOf, type Memory, type Person } from '../world/people';
+import { remember, stageOf, type Memory, type Person, type Remembering } from '../world/people';
 import { SEED_TO_CROP } from './farming';
 import { isFur } from './furs';
 import { ITEMS, type Item } from './items';
@@ -250,6 +250,15 @@ export interface Given {
  * else's business and travels with the save rather than with the world.
  */
 export class Gifts {
+  /**
+   * How a kindness reaches the man it was done for.
+   *
+   * Plain remembering on its own, which is the whole of it in a game with nobody else in it. Where a
+   * world is holding the villagers it is replaced with one that says so as well: an apple handed
+   * over on this screen is a thing that man holds about you wherever anybody meets him.
+   */
+  remembers: Remembering = remember;
+
   private readonly bonds = new Map<string, Bond>();
 
   /** @param saved what the save had, or nothing for somebody who has never given anything away */
@@ -293,7 +302,7 @@ export class Gifts {
     bond.warmth += warmth;
     bond.today += warmth;
     bond.given[itemId] = had + 1;
-    remember(person, this.memoryOf(from, day));
+    this.remembers(person, this.memoryOf(from, day));
 
     return {
       warmth,

@@ -9,6 +9,7 @@ import { IsoCamera } from './render/camera';
 import { PropLibrary } from './render/props';
 import { mountainAt } from './world/ranges';
 import { Wildlife } from './game/wildlife';
+import { bookOf, tellingTheWorld, wordOfARobbery } from './game/folk';
 import { Skies } from './game/skies';
 import { makeFerryLines } from './game/ferry';
 import { buildBoat } from './render/boat';
@@ -59,7 +60,6 @@ import { claimedMines, mineIdOf } from './game/mines';
 import { type Luxury } from './world/prosperity';
 import { Hires } from './game/hire';
 import { stableAt } from './game/stables';
-import { remember } from './world/people';
 import { layOut, lineageOf } from './game/lineage';
 import { whereLineageIsDrawn } from './game/enquiry';
 import { installProbes } from './game/probes';
@@ -163,7 +163,7 @@ export function startGame(
    * draws what it is told. Two players in one field then see the same deer, which is the whole of
    * what phase three of docs/server-authority.md is for.
    */
-  const wildlife = new Wildlife(entityRenderer, entities);
+  const wildlife = new Wildlife(entityRenderer, entities, bookOf(register, structures.villages));
   /**
    * And the world's creatures on whatever floor the hero is standing on, when he is standing on one.
    *
@@ -220,7 +220,7 @@ export function startGame(
   });
   register.advance(state.day);                // a world reopened after a week finds a village changed
   /** Everything Old Nettle's cycle needs to reach into, gathered when it is asked for rather than held. */
-  const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name });
+  const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name, recall });
   /**
    * Which cave each village calls its mine. A pure function of the structures, so it is worked
    * out once: the ground does not move and neither do the villages standing on it.
@@ -356,6 +356,8 @@ export function startGame(
     aloft: () => skies.aloft !== null,
     steer: (seq, dx, dz, pace, dt) => online.steer(seq, dx, dz, pace, dt),
     bitten: (attacker, damage) => onAttack(attacker, damage),
+    arrested: (by) => arrested(by),
+    fallen: (who) => fallen(who),
   });
 
   // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the
@@ -407,6 +409,7 @@ export function startGame(
       chat.line(said, 'sys');
     },
     placeName, persist, discover, showOffer: (offer, fromName) => putOfferToPlayer(offer, fromName),
+    guiltOf: () => standing.guilt,
   });
   const { online, market, party, duel, warband, others, handover, rally, playerList } = multiplayer;
   /**
@@ -481,11 +484,15 @@ export function startGame(
   const remains = new Remains();
   const packField = new PackField(rig.scene);
 
+  // every memory made on this page goes through one door, and the world is on the far side of it
+  const recall = tellingTheWorld((who, what, about) => online.recall(who, what, about));
+  gifts.remembers = mines.remembers = recall;
+
   // and what the country does about what the hero just did: a village that has heard about its
   // cow, a cell with your name on it, a pack on the ground where somebody fell
   const { rustled, arrested, fallen } = createConsequences({
     seed, state, player, iso, structures, register, grudges, standing, jail, online, remains,
-    sound, persist,
+    sound, persist, recall,
     flash: (message) => hud.flash(message),
     oneFell: (who) => watch.oneFell(who),
     hireFallen: (person) => hireFallen(person),
@@ -520,14 +527,8 @@ export function startGame(
   interactions.onVisitor((kind, x, z) => {
     entities.spawnOne(kind, x, z, seed ^ Math.floor(x * 131 + z * 977));
   });
-  // a camp its owner was coming back to has been gone through, and the nearest village hears of it
-  interactions.onTheft((camp) => {
-    const near = structures.villages.reduce((best, v) =>
-      Math.hypot(v.x - camp.x, v.z - camp.z) < Math.hypot(best.x - camp.x, best.z - camp.z) ? v : best);
-    const folk = register.living(near.name);
-    if (folk.length === 0) return;
-    remember(folk[Math.floor(lineRng() * folk.length)], { what: 'robbed', who: camp.who, day: state.day });
-  });
+  interactions.onTheft((camp) =>
+    wordOfARobbery(structures.villages, register, recall, camp, state.day, lineRng));
   putOfferToPlayer = interactions.showOffer;
 
   // whose world this is: the one in the next thread until somebody asks for another

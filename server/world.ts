@@ -121,16 +121,17 @@ export class SharedWorld {
     /**
      * Who lives in the villages, when anybody here does.
      *
-     * Null on every path today and deliberately so: villagers are still worked out on each client
-     * from the seed and the register of who has died, which is C5's to move. The hook is here
-     * because C4 asked for it by name — a villager's memory is bounded but it is not *small*, and
+     * The hook C4 asked for by name — a villager's memory is bounded but it is not *small*, and
      * `Register.compact` is what turns ten slights into one opinion so that a province's file stops
      * growing with everything that has ever happened near somebody. The moment it wants calling is
-     * the moment a province stops being anybody's business, which is `keepNear` below, and that
-     * moment lives here rather than on a client. So it waits here, one argument wide, and C5 hands
-     * it a register instead of teaching this class a second way to find one.
+     * the moment a province stops being anybody's business, which is `keepNear` below.
+     *
+     * A constructor argument and a setter both, because of the order a world is stood up in: a room
+     * is opened the moment somebody knocks, and the villages are not grown until the ground under
+     * them is. So the simulation hands one over afterwards, and a test that only wants to watch the
+     * compaction happen can pass one in.
      */
-    private readonly register: { compact(day: number): void } | null = null,
+    private register: { compact(day: number): void } | null = null,
   ) {
     const loaded = this.load();
     this.clock = loaded?.clock ?? start;
@@ -143,6 +144,18 @@ export class SharedWorld {
   /** Everyone this world has ever seen. */
   get folk(): string[] {
     return [...this.seen].sort();
+  }
+
+  /**
+   * The book of who lives in this world's villages, once somebody has grown them.
+   *
+   * Handed over rather than made here because founding a village needs the land it stands on, and
+   * this class has never held any land: it holds what could not be worked out from the seed. What it
+   * wants a register *for* is the one moment it is the only thing that knows about — a province
+   * being written out with nobody near it, which is when ten slights become one opinion.
+   */
+  keepsTheRegister(register: { compact(day: number): void }): void {
+    this.register = register;
   }
 
   /**

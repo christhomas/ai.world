@@ -301,10 +301,12 @@ export class Places {
     /*
      * And the village's own miners, at the faces they are working today.
      *
-     * Outside the `told` block, and for the same reason villagers on a street are: the people of a
-     * village are the seed and the register, which every client has, so nobody has to be told about
-     * them. What the world owns is the animals — those are what two players standing in one field
-     * would disagree about.
+     * Outside the `told` block, and it is the last crowd of people in the game that is. The men on a
+     * street are the world's now — a villager with a memory of his own is a villager two clients
+     * would disagree about — but a mine's crew is put down by hand rather than rolled per chunk, and
+     * the floor it is put down on is grown by whoever walked into it. Moving them across means the
+     * world working the mines too, and the mines are a day's arithmetic on a register rather than a
+     * thing anybody stands next to. That is its own item.
      *
      * This mine has been worked every day since the world began; the gold is in the village's
      * purses and the fear is in its gossip. Until now the one place it could not be seen was the

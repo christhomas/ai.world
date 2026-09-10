@@ -129,6 +129,20 @@ export function remember(person: Person, memory: Memory): void {
 }
 
 /**
+ * How something that happened reaches the person it happened to.
+ *
+ * `remember` itself in a game with no world behind it: it goes into his head, and there is nobody
+ * else who needs to know because there is nobody else. Where a world is holding the villagers it
+ * goes into his head here *and* is said out loud, because the man standing in the street is the
+ * world's and his memory has to be the world's too — otherwise the village you are in is whichever
+ * machine you happen to be sitting at.
+ *
+ * The default is the quiet one everywhere it is offered, so nothing that has not been wired up to a
+ * world behaves any differently from the way it always did.
+ */
+export type Remembering = (person: Person, memory: Memory) => void;
+
+/**
  * The families a village is founded with, grown from the world seed and the village's name.
  *
  * They are not all born on day one. Ages are spread across a life so a village starts with

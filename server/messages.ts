@@ -1,5 +1,6 @@
 import {
   EMOTES, LIMITS, PARTY_LIMIT, clamp, cleanChat, cleanDelta, cleanLetter, cleanStallItem, cleanSwing, cleanSwords,
+  cleanRecall,
   type ClientMessage, type TradeOffer,
 } from './protocol';
 import type { Entity } from '../src/entities/entity';
@@ -46,6 +47,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'delta':
       worldChange(rooms, me, room, message);
+      return;
+    case 'recall': case 'retain':
+      aboutAVillager(rooms, me, room, message);
       return;
     case 'stall-rent': case 'stall-stock': case 'stall-buy': case 'stall-collect': case 'stall-close':
       market(rooms, me, room, message);
@@ -351,9 +355,14 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
         // what they were told about the last place is not about this one, and the numbers may even
         // be the same numbers: start again rather than send a difference against another world
         me.seeing = new Map();
+        me.knows = new Map();
       }
       p.riding = message.riding;
       p.gear = message.gear.slice(0, LIMITS.GEAR).map((id) => String(id).slice(0, LIMITS.ITEM_ID));
+      // and how badly the law wants him, which is the one thing about a hero the world cannot see
+      // and a village needs. Held to the scale the game uses either way, so a client cannot turn
+      // every constable in the world out by sending a large number.
+      me.guilt = clamp(Number(message.guilt) || 0, 0, 1);
       return;
     }
     case 'say': {
@@ -382,11 +391,55 @@ function whereAndWhat(rooms: Rooms, me: Client, room: Room, message: ClientMessa
   }
 }
 
+/**
+ * The two things a player can do to one of the world's villagers that the world cannot see.
+ *
+ * Both are about a man rather than about a place, so neither is a delta: a delta is a row in a log
+ * that is kept for ever, and what a villager holds is bounded on purpose — ten slights become one
+ * opinion — so writing every gift anybody ever gave into the world's log would be the unbounded
+ * growth `memory.ts` exists to stop, wearing a different hat. What happens instead is that the
+ * world's own register takes it, and everybody near enough to see the man is told what he holds now.
+ *
+ * Neither is checked for truth, and neither could be. A client saying it pulled somebody out from
+ * under a wolf is saying something that happened on its screen, out of the world's sight, exactly as
+ * it says how hard it hit. What is checked is the shape: one of six things, a name of a sane length,
+ * and somebody who is actually alive in this world to remember it.
+ */
+function aboutAVillager(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
+  const world = rooms.worldOf(me.seed, 'surface');
+  if (!world) return;
+  if (message.type === 'retain') {
+    world.retain(String(message.who).slice(0, LIMITS.THING_ID), message.on === true);
+    return;
+  }
+  if (message.type !== 'recall') return;
+  const said = cleanRecall(message);
+  if (!said) return;
+  world.register?.recall(said.who, said.what, said.about, room.world.clock.day);
+}
+
 /** The short log of what players have altered about the world, passed on to everybody else in it. */
 function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
   if (message.type !== 'delta') return;
   const delta = cleanDelta(message.delta);
   if (!delta || !room.world.apply(delta)) return;
+  /*
+   * A death is not only a row in a log any more.
+   *
+   * It was, for as long as the villagers were worked out on every client: the log was replayed into
+   * each client's own book and that was the end of it. The world holds a book of its own now, and it
+   * is the one deciding who stands in a street — so a villager somebody's roaming band killed this
+   * morning would go on being put out at the well by a world that had never been told.
+   *
+   * Applied rather than buried, because the death may have happened on a day already gone: the
+   * register knows how to live a village again from its founding with the death in its right place,
+   * which is what makes a client that learns late end up holding the village everybody else has.
+   */
+  if (delta.kind === 'died') {
+    rooms.worldOf(me.seed, 'surface')?.register?.apply({
+      kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
+    });
+  }
   rooms.broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me);
 }
 

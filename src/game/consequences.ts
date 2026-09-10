@@ -2,7 +2,7 @@ import { GAMEPLAY } from '../core/config';
 import type { Entity } from '../entities/entity';
 import type { Player } from '../entities/player';
 import type { IsoCamera } from '../render/camera';
-import { remember } from '../world/people';
+import type { Remembering } from '../world/people';
 import type { Register } from '../world/register';
 import type { Structures } from '../world/structures';
 import type { Sound } from './audio';
@@ -34,6 +34,14 @@ export interface Consequence {
   jail: Jail;
   online: Online;
   remains: Remains;
+  /**
+   * How a thing that happened reaches the villagers it happened near.
+   *
+   * Handed in rather than reached for, because it is not simply remembering any more: where a world
+   * is holding the villagers, a memory made here has to be said out loud or it is a memory only this
+   * screen has. `main.ts` builds the one door.
+   */
+  recall: Remembering;
   sound: Sound;
   flash: (message: string) => void;
   /** One of a band standing in the world is dead, which is the band's own business. */
@@ -46,7 +54,7 @@ export interface Consequence {
 export function createConsequences(ctx: Consequence) {
   const {
     seed, state, player, iso, structures, register, grudges, standing, jail, online, remains,
-    sound, flash, oneFell, hireFallen, persist,
+    sound, flash, oneFell, hireFallen, persist, recall,
   } = ctx;
 
   return {
@@ -63,7 +71,7 @@ export function createConsequences(ctx: Consequence) {
         Math.hypot(v.x - beast.x, v.z - beast.z) < Math.hypot(best.x - beast.x, best.z - beast.z) ? v : best);
       grudges.slighted(near.name, state.day);
       for (const person of [...register.living(near.name)].slice(0, GRUDGE.WORD_REACHES)) {
-        remember(person, { what: 'robbed', who: `${beast.kind.label} of ${near.name}`, day: state.day });
+        recall(person, { what: 'robbed', who: `${beast.kind.label} of ${near.name}`, day: state.day });
       }
       persist();
       return saidOfRegard(grudges.regard(near.name, state.day), near.name);

@@ -3,7 +3,8 @@ import { generateWebGraph } from '../src/world/roadweb';
 import { propFootprints } from '../src/entities/props';
 import { GroundWorld } from '../src/world/groundworld';
 import { TerrainSampler } from '../src/world/terrain';
-import { IN_SIGHT, Wildlife } from './wildlife';
+import { IN_SIGHT, Wildlife, type Folk } from './wildlife';
+import { peopleOf } from './people';
 import { WATCH_RANGE } from '../src/entities/spawning';
 
 /**
@@ -32,6 +33,9 @@ function worldAt(seed: number, x: number, z: number): { alive: Wildlife; ground:
  * the light does not change under it. These tests want the wolf they placed, so the sun stays up.
  */
 const DAY = 0.5;
+
+/** And the other side of it, for the one test that wants a village to be filled again. */
+const NIGHT = 0.95;
 
 /** Somebody standing still, with whatever they are wearing. */
 const standing = (x: number, z: number, gear: string[] = []) => ({ x, z, gear });
@@ -169,5 +173,105 @@ describe('the sight a player is allowed and the lists a creature is kept on', ()
     expect(alive.inSightOf(0, 0).length, 'a world nobody has stepped yet described creatures anyway, which means the description is not coming from the tiers at all').toBe(0);
     alive.step(0.05, [standing(0, 0)], DAY);
     expect(alive.inSightOf(0, 0).some((c) => c.kind === 'deer'), 'the deer standing four tiles from the player is not described once the world has been stepped').toBe(true);
+  });
+});
+
+/**
+ * The people of a village, which the world holds now.
+ *
+ * They were the client's for a long time and the argument for it was a good one: who lives in a
+ * village follows from the seed and a short list of deaths, so every machine already agrees about
+ * them without a byte crossing. It stopped being true the day a villager was given something of his
+ * own to remember — what he thinks of *you* follows from what you did, and what you did happened on
+ * your screen — and then it was two men of the same name in two different moods, and the village you
+ * were standing in was whichever machine you were sitting at.
+ *
+ * So the wire carries him: who he is, what he is doing there, and what he holds. This is that.
+ */
+describe('a villager the world owns', () => {
+  /** A world with a village in it, and the country round that village grown. */
+  function villageAt(seed: number): { alive: Wildlife; folk: Folk; at: { x: number; z: number } } {
+    const sampler = new TerrainSampler(generateWebGraph(seed));
+    const ground = new GroundWorld(sampler, propFootprints());
+    const folk = peopleOf(seed, sampler, 1, { onFallen: () => {}, onArrest: () => {} });
+    const village = folk.villages[0];
+    ground.reach(village.x, village.z, 3);
+    return { alive: new Wildlife(seed, ground, ground, folk), folk, at: { x: village.x, z: village.z } };
+  }
+
+  /** Stand in the square long enough for the chunks round it to have been walked over once. */
+  function stand(alive: Wildlife, at: { x: number; z: number }, steps = 20): void {
+    for (let n = 0; n < steps; n++) alive.step(0.05, [standing(at.x, at.z)], DAY);
+  }
+
+  it('is put in the street by the world, and arrives as somebody rather than as a body', () => {
+    const { alive, folk, at } = villageAt(3);
+    stand(alive, at);
+    const people = alive.inSightOf(at.x, at.z).filter((c) => c.who?.person);
+    expect(people.length, 'the world put nobody in the village square at all').toBeGreaterThan(0);
+
+    const who = people[0].who!;
+    expect(who.village, 'a villager arrived with no village on him, so nothing can tell where he is from').toBe(folk.villages[0].name);
+    expect(who.name, 'a villager arrived with no name').not.toBe('');
+    expect(folk.register.find(who.person), 'the world sent an id that is not on its own register').toBeDefined();
+    expect(who.trades.length, 'the trades the village was founded on did not travel, so a client founding it again founds a different village').toBeGreaterThan(0);
+  });
+
+  it('carries what he holds, so what happened on one screen is what everybody meets', () => {
+    const { alive, folk, at } = villageAt(3);
+    stand(alive, at);
+    const before = alive.inSightOf(at.x, at.z).find((c) => c.who?.person);
+    expect(before, 'nobody to tell anything to').toBeDefined();
+    const id = before!.who!.person;
+    expect(before!.who!.mind.memories, 'a villager nothing has happened to is carrying memories').toHaveLength(0);
+
+    // the one thing about a villager no machine could work out for itself: a kindness done to him
+    expect(folk.register.recall(id, 'given', 'Traveller', 4), 'the world would not take the memory').toBe(true);
+
+    const after = alive.inSightOf(at.x, at.z).find((c) => c.who?.person === id);
+    expect(after?.who?.mind.memories[0]?.what, 'what the villager was told to remember never reached the wire').toBe('given');
+    expect(after?.who?.mind.opinions[0]?.who, 'and nor did the view he formed of whoever did it').toBe('Traveller');
+  });
+
+  it('goes indoors and stops being described, because a man in a wall is worse than no man', () => {
+    const { alive, at } = villageAt(3);
+    stand(alive, at);
+    const out = alive.inSightOf(at.x, at.z).filter((c) => c.who?.person);
+    expect(out.length).toBeGreaterThan(0);
+    for (const e of alive.all()) e.indoors = true;
+    expect(alive.inSightOf(at.x, at.z).filter((c) => c.who?.person), 'a villager who has gone inside is still being sent out to be drawn in the street')
+      .toHaveLength(0);
+  });
+
+  it('turns a constable out when the world is told the law wants somebody', () => {
+    const wanted = { alive: villageAt(3).alive, at: villageAt(3).at };
+    // guilt is the one thing about a hero the world cannot see: it lives in his own save, and a
+    // village needs exactly this much of it to decide whether to put a man in a helmet in the street
+    for (let n = 0; n < 40; n++) {
+      wanted.alive.step(0.05, [{ ...standing(wanted.at.x, wanted.at.z), guilt: 0.8 }], DAY);
+    }
+    const law = wanted.alive.inSightOf(wanted.at.x, wanted.at.z).filter((c) => c.who?.trade === 'constable');
+    expect(law.length, 'the law never came out, so a world-owned village has no police force at all')
+      .toBeGreaterThan(0);
+  });
+
+  it('leaves the village altogether when somebody pays him to walk with them', () => {
+    const { alive, at } = villageAt(3);
+    stand(alive, at);
+    const hired = alive.inSightOf(at.x, at.z).find((c) => c.who?.person)!.who!.person;
+
+    alive.retain(hired, true);
+    stand(alive, at, 40);
+    expect(alive.inSightOf(at.x, at.z).some((c) => c.who?.person === hired), 'a man in somebody else\'s pay is still standing about in his village square')
+      .toBe(false);
+
+    // and the village can have him back once the bargain ends. Not on the spot: a street is filled
+    // when its chunk is spawned and holds the same faces until something re-rolls it, which is what
+    // the sun going down does — so what is pinned here is that he is free again rather than gone.
+    alive.retain(hired, false);
+    for (let n = 0; n < 40; n++) alive.step(0.05, [standing(at.x, at.z)], NIGHT);
+    for (let n = 0; n < 40; n++) alive.step(0.05, [standing(at.x, at.z)], DAY);
+    expect(alive.inSightOf(at.x, at.z).some((c) => c.who?.person === hired), 'the village never took its man back after he was released')
+      .toBe(true);
   });
 });

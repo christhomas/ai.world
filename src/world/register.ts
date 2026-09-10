@@ -2,8 +2,8 @@ import { PROSPER, earnedInADay, spentOnLiving } from './prosperity';
 import { cellarCap, eat, grownInADay } from './food';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
-import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Person } from './people';
-import { compactAll } from './memory';
+import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Memory, type Person } from './people';
+import { compactAll, type Opinion } from './memory';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
 
 /**
@@ -206,6 +206,33 @@ export class Register {
     return settlement.people;
   }
 
+  /**
+   * Found a village on somebody else's list of trades, replacing one founded on a different list.
+   *
+   * The world's word about a village, arriving after this page has already had a go at the same
+   * question. Which trades a place can support is read off the land around it — a shore only where
+   * there is water, heights only where the ground climbs — so the answer depends on how much of the
+   * country the reader has grown, and the founding *rolls off that list*: a village founded on nine
+   * trades and the same village founded on six are the same names doing different jobs.
+   *
+   * That is not hypothetical and it is not rare. A page opens its own book the moment it puts
+   * anybody in a street, which it does for the second or so before a world has said anything at all
+   * — and it does it holding a hundred and twenty-one chunks of country where the world holds seven.
+   * Measured in Stonemere: the page founded it on six trades and the world on ten, and the same
+   * twenty-five people came out with different jobs on the two sides of the wire.
+   *
+   * Re-founding rather than patching, because the trades are an input to the founding and not a
+   * field on it. What survives is everything that was told rather than derived: the deaths are
+   * replayed from `killed` on the way forward, which is the same machinery a client uses when it
+   * learns late about a killing.
+   */
+  foundOn(village: string, houses: number, trades: string[]): void {
+    const known = this.villages.get(village);
+    if (known && known.trades.length === trades.length && known.trades.every((t, at) => t === trades[at])) return;
+    if (known) this.villages.delete(village);
+    this.settle(village, houses, trades);
+  }
+
   /** The day the register has caught up to. */
   get today(): number { return this.day; }
 
@@ -250,6 +277,18 @@ export class Register {
   }
 
   /**
+   * The trades a village was founded on, or nothing for one nobody has settled.
+   *
+   * Read back because the founding rolls off this list and a village founded off a different one is
+   * a different village — different names on the same people. The list is worked out from the land
+   * round the place, and how much land a reader can see depends on how much of it they have grown,
+   * so the answer has to be handed from whoever founded it to anybody who has to found it again.
+   */
+  tradesOf(village: string): string[] {
+    return this.villages.get(village)?.trades ?? [];
+  }
+
+  /**
    * Move spare grown people from one village into an empty one.
    *
    * A ruin does not repopulate itself: somebody has to walk there. So this is the only way a lost
@@ -291,6 +330,42 @@ export class Register {
       if (found) return found;
     }
     return undefined;
+  }
+
+  /**
+   * Something happened that one of these people will not forget.
+   *
+   * The one door into a villager's memory from outside the register, and it exists because a memory
+   * is the one thing about a villager that no client can work out for itself. Who lives here, what
+   * they do and when they die all follow from the seed and a short list of deaths; what a man thinks
+   * of *you* follows from what you did, and what you did happened on your screen.
+   *
+   * So the world that owns the villagers owns this, and everybody else is told. A client with no
+   * world behind it calls it on its own register and is the world, which is what playing alone is.
+   *
+   * @returns whether there was anybody of that name still alive to remember it
+   */
+  recall(id: string, what: Memory['what'], about: string, day = this.day): boolean {
+    const person = this.find(id);
+    if (!person) return false;
+    remember(person, { what, who: about, day: Math.floor(day) });
+    return true;
+  }
+
+  /**
+   * What the world says one of these people holds, put back where a conversation will find it.
+   *
+   * The receiving end of the above. A client derives the same villager the world did — same seed,
+   * same deaths, same days lived — so everything about him already agrees except the part that was
+   * never derivable, and this is that part arriving. It replaces rather than merges, because the
+   * world's copy is the whole of what he holds by definition: anything this client thought he
+   * remembered and the world does not is a thing this client made up.
+   */
+  told(id: string, mind: { memories: Memory[]; opinions: Opinion[] }): void {
+    const person = this.find(id);
+    if (!person) return;
+    person.memories = mind.memories;
+    person.opinions = mind.opinions;
   }
 
   /**
