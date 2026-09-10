@@ -8,6 +8,8 @@ import { GAMEPLAY } from '../../core/config';
 import { faceFor } from '../talk';
 import { REACH, personWins } from '../places';
 import { feeFor } from '../../world/prosperity';
+import { buy, give, holds } from '../../world/deeds';
+import { personTill, tradeTill, villageTill } from '../tills';
 import { DARTS, playLeg, saidOfLeg } from '../darts';
 import { levelFor } from '../prowess';
 import { hashString } from '../../core/rng';
@@ -73,9 +75,15 @@ export function villageInteractions(ctx: Surroundings) {
           if (state.inventory.gold < DARTS.STAKE) {
             return { speaker: talk.name, emoji: '🍺', pages: [`A leg is ${DARTS.STAKE} gold, and you have ${state.inventory.gold}.`] };
           }
-          state.inventory.gold -= DARTS.STAKE;
+          // the house takes the stake, and the house is whoever keeps the inn
+          buy(holds(state.inventory), tradeTill(register, village.name, 'innkeeper'), DARTS.STAKE);
           const leg = playLeg(hashString(`${village.name}:${state.day}:${state.inventory.gold}`), levelFor(state.practice));
-          if (leg.won) { state.inventory.gold += DARTS.WINNINGS; sound.chime(); } else sound.thud();
+          // and pays out of the same till it took the stake into, so a night of darts moves money
+          // between two purses rather than minting it
+          if (leg.won) {
+            give(tradeTill(register, village.name, 'innkeeper'), holds(state.inventory), DARTS.WINNINGS);
+            sound.chime();
+          } else sound.thud();
           state.version++;
           persist();
           return {
@@ -102,7 +110,10 @@ export function villageInteractions(ctx: Surroundings) {
             const left = state.count(errand.target) - errand.count;
             if (left > 0) state.inventory.items.set(errand.target, left); else state.inventory.items.delete(errand.target);
           }
-          state.inventory.gold += errand.reward;
+          // the village pays for its own errand, out of the purses of the people who wanted it
+          // done. It cannot always cover the whole of it, and a village that comes up short pays
+          // what it has — which is a poor village being poor rather than a bug
+          give(villageTill(register, village.name), holds(state.inventory), errand.reward);
           state.quests.set(errand.id, 'done');
           state.version++;
           sound.jingle();
@@ -338,7 +349,10 @@ export function villageInteractions(ctx: Surroundings) {
             if (state.inventory.gold < breed.price) {
               return { speaker: `${hand.name}, the Stablehand`, emoji: '🧑‍🌾', pages: [`Come back with ${breed.price} gold.`] };
             }
-            state.inventory.gold -= breed.price;
+            // to the man who sold it. `hand` is an entity standing in the yard and `hand.person`
+            // is his row on the register, which is what outlives the body being despawned the
+            // moment you walk away — see `tills.ts`
+            buy(holds(state.inventory), personTill(register, hand.person, village), breed.price);
             state.version++;
             const named = mount.buy(hand.x + 1.5, hand.z, chunks, entityRenderer, breed);
             sound.jingle();
@@ -400,7 +414,10 @@ export function villageInteractions(ctx: Surroundings) {
         {
           label: `Pay (${fee}g)`,
           next: () => {
-            state.inventory.gold -= fee;
+            // the village built it out of what it made this year, and the village is paid for it:
+            // spread across its people rather than landing on the attendant, who is a line of
+            // dialogue rather than anybody on the register
+            buy(holds(state.inventory), villageTill(register, village.name), fee);
             state.heal(state.maxHpTotal);
             state.version++;
             sound.chime();

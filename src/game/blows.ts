@@ -1,4 +1,5 @@
 import { GAMEPLAY } from '../core/config';
+import { AWAY, buy, holds } from '../world/deeds';
 import { BEHAVIOUR, throwBlow, yawFor, type Entity, type TileWorld } from '../entities/entity';
 import type { EntityManager } from '../entities/manager';
 import type { Blow } from '../entities/motion';
@@ -339,7 +340,10 @@ export function createBlows(ctx: Fighting) {
 
     const woke = carriedTo(structures.villages, player.x, player.z);
     const lost = costOf(state.inventory.gold, GAMEPLAY.KO_GOLD_LOSS);
-    state.inventory.gold -= lost;
+    // whoever went through your pockets while you were down is not anybody this game models, and
+    // that is the honest answer rather than a shrug: a bandit on a road at night is not on any
+    // register and the money is simply gone. `AWAY` is how that is written down
+    buy(holds(state.inventory), AWAY, lost);
     state.hp = state.maxHpTotal;
     breath.refill();
     state.version++;

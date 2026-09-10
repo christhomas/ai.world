@@ -2526,3 +2526,34 @@ other, and the order is chosen so that each one can be *seen* working before the
 - [ ] **8. And all of it done where it can be watched.** The miners walk to the face and swing; the
       farmer must walk to the paddock, the hunter into the woods, the seller to the stall. Nothing in
       this economy may happen as a number moving in the dark.
+      - [x] **8a. The cattle are in the field**, as many as the register says, and gone when the last
+            farmer is. `entities/paddocks.ts`.
+      - [x] **8b. The farmer works them.** The three trades whose day goes somewhere — farmer, hunter,
+            seller — are put out before anybody else, and `tendStock` walks him beast to beast.
+            Measured: he ends the morning a tile from the middle of the herd, against twenty-one
+            before.
+      - [x] **8c. A watched sale is a sale.** `verbs.ts` credited a hunter the price of his meat out
+            of nowhere while an unwatched one was paid his neighbours' money.
+      - [ ] **8d. Buying is still invisible.** The village pays its seller, its innkeeper and its
+            doctor every day in the books and nobody is ever seen handing over a coin. Wants a
+            villager who walks to the stall and pays — which is now a `buy` deed away.
+      - [ ] **8e. The meat leaving the valley.** The one bit of outside money with no picture at all.
+            A drover and a cart. Judged not worth a day's work against 8d; here so it is a decision
+            rather than an oversight.
+
+- [ ] **9. One vocabulary for everybody.** Asked for on 2026-09-11: if the player acts on the world
+      through the same named verbs the villagers and creatures do, there is one thing to test, one
+      thing to automate, and a villager can do anything the hero can. Three layers were found and
+      only the third is worth unifying — what an act *does*, apart from who ordered it and how it
+      was drawn.
+      - [x] **9a. The deeds themselves.** `world/deeds.ts`: `Holder`, `transfer`, `buy`, `sell`,
+            `give`, and `AWAY` for the rest of the world, which is a source as well as a sink.
+      - [x] **9b. Who the player pays.** `game/tills.ts`. The hero had been buying horses, ferries,
+            beds, bath houses, houses and hired swords by subtracting from a number at fifteen sites,
+            and every coin of it left the world — the one actor exempt from an economy the villagers
+            had already been made to obey. All fifteen now name a payee.
+      - [ ] **9c. The rest of the vocabulary.** `take`, `hire`, `build`, `skin`, `talk` — the acts
+            that are not about money. Convert them as they are touched rather than in one sitting.
+      - [ ] **9d. The hero as an Entity with a tree.** The stated goal: a scripted playtest that
+            drives a real hero through the same verbs. Nothing is being built for it yet; the deed
+            layer is what keeps it cheap when it is.

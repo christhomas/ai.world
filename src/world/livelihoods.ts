@@ -1,5 +1,6 @@
 import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
+import { purseOf, sell } from './deeds';
 import type { Person } from './people';
 
 /**
@@ -441,9 +442,8 @@ export function soldAtMarket(
   const buyer = [...others].sort((a, b) => rank(b) - rank(a) || b.purse - a.purse)[0];
   if (!buyer) return 0;
 
-  const afford = Math.max(0, Math.min(coin, buyer.purse - PROSPER.KEEPS_BACK));
-  if (afford <= 0) return 0;
-  buyer.purse -= afford;
-  seller.purse = Math.min(PROSPER.MOST, seller.purse + afford);
-  return afford;
+  // through the shared deed rather than by moving two numbers, because the hero sells things too
+  // and a sale that meant one thing in the street and another in a menu is exactly the fault this
+  // whole vocabulary was built to end. The reserve is a week of dinners: see `sell`.
+  return sell(purseOf(seller), purseOf(buyer), coin, PROSPER.KEEPS_BACK).paid;
 }

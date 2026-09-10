@@ -1,4 +1,6 @@
 import { GAMEPLAY } from '../../core/config';
+import { buy, give, holds } from '../../world/deeds';
+import { personTill } from '../tills';
 import { HIRE, quoteFor, wordsFor, type Bargain, type Hires, type Quote, type Terms } from '../hire';
 import { faceFor } from '../talk';
 import { COMPANY } from '../../entities/manager';
@@ -52,7 +54,9 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
       hud.flash(`${quote.name} looks at what you are carrying, and goes back to watching the road.`);
       return;
     }
-    state.inventory.gold -= bargain.fee;
+    // to the man himself. A fee that left the world was a soldier who fought for nothing and a
+    // village no richer for having a sword in it worth buying
+    buy(holds(state.inventory), personTill(ctx.register, e.person), bargain.fee);
     state.version++;
     // a man's trade is what decides his day, so buying his day is a change of trade
     e.trade = HIRE.TREE;
@@ -127,7 +131,9 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
     if (gold <= 0) return;
     const payout = hires.divide(gold, side());
     if (payout.paid <= 0) return;
-    state.inventory.gold -= payout.paid;
+    // each man takes his own cut into his own purse, which is what agreeing a share meant. `who`
+    // is his row on the register, so it is still his the week after you part company
+    for (const cut of payout.cuts) give(holds(state.inventory), personTill(ctx.register, cut.who), cut.gold);
     state.version++;
     hud.flash(`${payout.cuts.map((c) => `${c.name} takes ${c.gold}`).join(', ')} of it.`);
     persist();

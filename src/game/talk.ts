@@ -1,4 +1,7 @@
 import type { Rng } from '../core/rng';
+import { capitalise, stepWithin } from './dials';
+import { AWAY, buy, give, holds } from '../world/deeds';
+import { personTill } from './tills';
 import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
 import { ITEMS, SHOP_DEFS, type ShopDef, itemSummary, sellPrice, sellableAt } from './shops';
@@ -575,7 +578,9 @@ function buyOne(s: Counter, id: string): DialogueNode {
       { label: 'Leave', next: () => null },
     ]);
   }
-  ctx.state.inventory.gold -= price;
+  // the shopkeeper is paid, and he is somebody: `e.person` is his row on the register, which
+  // outlives the body behind the counter
+  buy(holds(ctx.state.inventory), personTill(ctx.register ?? null, s.e.person, s.village), price);
   ctx.state.give(item.id, 1);
   ctx.onInventoryChange();
   const note = itemSummary(item);
@@ -642,7 +647,10 @@ function sellSome(s: Counter, id: string, n: number): DialogueNode {
   const sold = ctx.state.take(id, n);
   if (sold === 0) return sellMenu(s);
   const paid = sellPrice(item) * sold;
-  ctx.state.inventory.gold += paid;
+  // from outside the valley rather than out of his purse: a villager holds tens of gold and you
+  // walk in with hundreds of gold of pelts, which go on to a city this game never draws. Out of
+  // his purse it is a village that will not buy your furs, or one a morning's hunting empties
+  give(AWAY, holds(ctx.state.inventory), paid);
   ctx.onInventoryChange();
   // "4 × Wolf Pelt" rather than "4 Wolf Pelt": the names are singular and pluralising them
   // properly would mean a plural for every item in the game to avoid writing "4 Breads"
@@ -659,7 +667,7 @@ function sellAll(s: Counter, stock: ReturnType<typeof sellableAt>): DialogueNode
   const { ctx } = s;
   let paid = 0;
   for (const { item, count } of stock) paid += sellPrice(item) * ctx.state.take(item.id, count);
-  ctx.state.inventory.gold += paid;
+  give(AWAY, holds(ctx.state.inventory), paid);        // from outside the valley; see `sellSome`
   ctx.onInventoryChange();
   return across(s, [`The lot for ${paid} gold. Pleasure doing business.`], [
     { label: 'Buy something', next: () => buyMenu(s) },
@@ -675,23 +683,5 @@ function chatMenu(s: Counter): DialogueNode {
   ]);
 }
 
-/**
- * Move a quantity by one, wrapping round the ends of its range.
- *
- * Wrapping rather than stopping is the whole of what makes the sell dial usable. The key handler
- * deliberately ignores auto-repeat, so a stack of twenty would be nineteen separate presses to
- * sell whole; from one, a single press of left lands on all of them, which is the number people
- * want most often after one.
- *
- * @param n where the dial is now, from 1 to count
- * @param dir -1 or 1
- * @param count how many there are, which is the top of the range
- */
-export function stepWithin(n: number, dir: number, count: number): number {
-  if (count <= 1) return 1;
-  return ((n - 1 + dir) % count + count) % count + 1;
-}
-
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
+// where the sell dial's arithmetic lives now; re-exported so a caller need not care that it moved
+export { stepWithin } from './dials';

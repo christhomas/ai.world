@@ -1,4 +1,6 @@
 import { BUILD, builderIn, canBuildAt, deposit, isFinished, owed, saidOfJob, type Commission } from '../building';
+import { buy, holds } from '../../world/deeds';
+import { villageTill } from '../tills';
 import { ITEMS } from '../items';
 import { footprintLevel } from '../../world/footprint';
 import type { Structure, Village } from '../../world/structures';
@@ -49,10 +51,7 @@ const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.tim
  * paying a place that no longer exists.
  */
 function paidInto(ctx: Surroundings, village: string, gold: number): void {
-  const folk = ctx.register.living(village);
-  if (folk.length === 0) return;
-  const each = gold / folk.length;
-  for (const person of folk) person.purse = Math.min(PROSPER.MOST, person.purse + each);
+  villageTill(ctx.register, village).give(gold);
 }
 
 /**
@@ -80,8 +79,9 @@ export function builderPubChoices(ctx: Surroundings, village: Village): Dialogue
         if (state.inventory.gold < deposit()) {
           return { speaker: name, emoji: '🔨', pages: [`It is ${deposit()} gold to start and you have ${state.inventory.gold}. Come back when you have it.`] };
         }
-        state.inventory.gold -= deposit();
-        paidInto(ctx, village.name, deposit());
+        // one act rather than two halves that have to agree: the gold leaves the rucksack
+        // and arrives in the village, and `villageTill` decides who in it is the better off
+        buy(holds(state.inventory), villageTill(ctx.register, village.name), deposit());
         houses.takeOn(village.name, BUILD.PRICE, deposit());
         state.version++;
         sound.select();

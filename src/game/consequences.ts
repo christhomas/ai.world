@@ -1,4 +1,6 @@
 import { GAMEPLAY } from '../core/config';
+import { buy, holds } from '../world/deeds';
+import { villageTill } from './tills';
 import type { Entity } from '../entities/entity';
 import type { Player } from '../entities/player';
 import type { IsoCamera } from '../render/camera';
@@ -93,7 +95,12 @@ export function createConsequences(ctx: Consequence) {
       windOn(state, hours);
       register.advance(state.day);            // the village grew older while you were not watching
       // your own hours are served the moment the clock jumps, so the cell is empty behind you
-      if (held) { state.inventory.gold -= held.fine; jail.release(held.village); }
+      // the fine goes to the village that held you: it is their constable, their cell and their
+      // afternoon, and a fine that left the world was a village policing you for nothing
+      if (held) {
+        buy(holds(state.inventory), villageTill(register, held.village), held.fine);
+        jail.release(held.village);
+      }
       const cell = held ? [held.x, held.z] : (by.posts.square ?? [by.x, by.z]);
       player.teleport(cell[0], cell[1]);
       // the same telling a knockout needs, for the same reason: the world went on holding him where

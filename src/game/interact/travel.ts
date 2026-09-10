@@ -8,6 +8,8 @@ import { LOFT, NOWHERE_TO_SEND, loftFlights, type Destination } from '../loft';
 import { chunkKey } from '../../world/spatial';
 import type { SkyIsland } from '../../world/skyisland';
 import type { Surroundings } from './context';
+import { AWAY, buy, holds } from '../../world/deeds';
+import { nearestVillageTill } from '../tills';
 
 /**
  * Getting about by water: the ferries that run to their own timetable, and a boat of your own.
@@ -87,7 +89,9 @@ export function travelInteractions(ctx: Surroundings) {
           if (state.inventory.gold < BOAT.PRICE) {
             return { speaker: 'Boatwright', emoji: '🛶', pages: [`Come back with ${BOAT.PRICE} gold.`] };
           }
-          state.inventory.gold -= BOAT.PRICE;
+          // the boatwright is a voice on a pier rather than anybody on the register, so the money
+          // goes to the village the pier belongs to and is spread across it
+          buy(holds(state.inventory), nearestVillageTill(ctx.register, structures.villages, pier.dockX, pier.dockZ), BOAT.PRICE);
           state.version++;
           sailing.buy(pier.dockX + 0.5 + pier.dx, pier.dockZ + 0.5 + pier.dz, Math.atan2(-pier.dz, pier.dx));
           sound.jingle();
@@ -152,7 +156,9 @@ export function travelInteractions(ctx: Surroundings) {
         {
           label: `Fly (${here.fare}g)`,
           next: () => {
-            state.inventory.gold -= here.fare;
+            // an eagle keeps no purse. This is one of the few places money honestly leaves the
+            // world, and `AWAY` is how that is said out loud rather than by accident
+            buy(holds(state.inventory), AWAY, here.fare);
             state.version++;
             player.teleport(there.x, there.z);
             sound.chime();
@@ -208,7 +214,7 @@ export function travelInteractions(ctx: Surroundings) {
       return bird(`It spreads its wings, thinks better of it, and folds them. That pack weighs ${load.weight} to a bird that can lift ${SKYWARD.LIFT}, and the ${worst.toLowerCase()} is most of it.`);
     }
     if (state.inventory.gold < fare) return bird(`${fare} gold to go up, and you have ${state.inventory.gold}.`);
-    state.inventory.gold -= fare;
+    buy(holds(state.inventory), AWAY, fare);           // paid to a bird; see above
     state.version++;
     skies.fly(isle, from);
     return null;
@@ -286,7 +292,7 @@ export function travelInteractions(ctx: Surroundings) {
             if (state.inventory.gold < f.fare) {
               return { speaker: 'Loftkeeper', emoji: '🪶', pages: [`${f.fare} gold for that one, and you have ${state.inventory.gold}.`] };
             }
-            state.inventory.gold -= f.fare;
+            buy(holds(state.inventory), AWAY, f.fare);     // paid to a bird; see above
             state.version++;
             skies.descend({ x: f.x, z: f.z }, `The bird sets you down at ${f.name} and is gone before you have your feet.`);
             return null;
