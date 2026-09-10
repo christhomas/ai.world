@@ -34,10 +34,19 @@ import { patchShader } from './shaderpatch';
  *
  * In world units rather than pixels so that it stays the same size relative to the man rather than
  * to the screen: a hole of eighty pixels is a porthole when you are zoomed out and swallows the
- * room when you are close. Two units is a little wider than the hero is tall, which is enough to
- * see him and what he is standing next to without dissolving the wall he is beside.
+ * room when you are close.
+ *
+ * Three, and it was two, which is the difference between seeing the hero and seeing where he is.
+ * At two the cottage roof opens just enough to find him behind it and no more, so he stands in a
+ * hole with no sense of what is around him — half of what this is for. At three the roof comes off
+ * and you can see the floor he is walking on and the wall he is beside.
+ *
+ * Four was tried and is too much: the whole building goes, far wall included, and the house next
+ * door begins to fade with it. The bound is that whatever is being cut should still read as the
+ * thing it is. A house with its roof off is a house; a house with nothing left of it is a hole in
+ * the village.
  */
-const RADIUS = 2.0;
+const RADIUS = 3.0;
 
 /**
  * How much nearer than the hero a thing must be before it is cut, in world units.
