@@ -17,6 +17,7 @@ import { EntityManager } from '../entities/manager';
 import { EntityRenderer } from '../entities/pool';
 import { Entity, Herd } from '../entities/entity';
 import { KINDS } from '../entities/animals';
+import { bodyForTrade } from '../entities/trades';
 import type { Player } from '../entities/player';
 import { DungeonMinimap } from '../ui/dungeonmap';
 import { FACEWORK, putTheCrewToWork, type Digger } from './crews';
@@ -438,17 +439,34 @@ export class Places {
   private placeKeeper(spot: [number, number], door: Doorway, renderer: EntityRenderer, rng: Rng): Entity {
     const civic = door.kind === 'townhall' || door.kind === 'watchhouse';
     const shop = door.kind !== 'house' && door.kind !== 'church' && !civic;
-    const kind = KINDS[shop || civic ? 'shopkeeper' : 'villager'];
+    /*
+     * What this person does, worked out before they exist rather than after.
+     *
+     * `Entity.kind` is readonly and the renderer pools by it, so a body cannot be changed once
+     * somebody is standing there — the trade has to be known first. It is the same order
+     * `spawnVillageFolk` had to be put into when the trades got bodies of their own, and for the
+     * same reason: what a person does is what decides what they are drawn as.
+     *
+     * A sergeant behind the desk of a watch house was a shopkeeper until now, which is a sergeant
+     * nobody can tell from a grocer, and the priest at the altar was one too.
+     */
+    const trade = door.kind === 'townhall' ? 'clerk'
+      : door.kind === 'watchhouse' ? 'sergeant'
+      : door.kind === 'church' ? 'priest'
+      : undefined;
+    const body = trade ? bodyForTrade(trade) : shop ? 'shopkeeper' : 'villager';
+    const kind = KINDS[body];
     const herd = new Herd(kind, spot[0], spot[1], spot[0], spot[1], 0);
     herd.tag = door.village;
     const keeper = new Entity(kind, spot[0] + 0.5, spot[1] + 0.5, herd, 'interior', rng);
     keeper.y = 0.5;
     keeper.yaw = Math.PI / 2;   // facing the door
+    if (trade) keeper.trade = trade;
     if (shop) { keeper.role = 'shopkeeper'; keeper.shop = door.kind as ShopType; }
-    else if (civic) { keeper.role = 'keeper'; keeper.trade = door.kind === 'townhall' ? 'clerk' : 'sergeant'; }
+    else if (civic) { keeper.role = 'keeper'; }
     // whoever is stood at the altar is the priest, and saying so is what makes him somebody you
     // can ask about the churchyard rather than another villager who happens to be indoors
-    else if (door.kind === 'church') { keeper.role = 'congregation'; keeper.trade = 'priest'; }
+    else if (door.kind === 'church') { keeper.role = 'congregation'; }
     else keeper.role = 'villager';
     renderer.add(keeper);
     return keeper;

@@ -1519,7 +1519,21 @@ can each be finished and each leave the game playable.
       the panel types at fifty-five characters a second and does not scroll.)*
 - [x] **A3. A town hall**, which does not exist yet: structure kind, geometry, placement by the
       square, interior, a clerk, and the roll.
-- [ ] **A4. A watch house**, the same, with the charge sheet fed by the gaol.
+- [x] **A4. A watch house**, the same, with the charge sheet fed by the gaol. *(Found already
+      standing: the structure, its placement beside the square, the interior with its cell and its
+      counter, the sergeant behind the desk and `theCharges` read across it were all built the night
+      the town hall was, and the ledger simply never caught up. Verified by walking into the one at
+      Crossroads Town rather than by reading the code, which is the only way that answer is worth
+      anything.
+
+      What was missing was the man. Every keeper of a building — the sergeant, the town hall's
+      clerk, the priest at the altar — was drawn as a `shopkeeper`, which is a sergeant nobody can
+      tell from a grocer. They are drawn as their trade now: the constable's body for the sergeant,
+      the mayor's for the clerk (that body was made for a town hall), the priest's for the priest.
+      `placeKeeper` works the trade out *before* it builds the entity, because `Entity.kind` is
+      readonly and the renderer pools by it — the same order `spawnVillageFolk` had to be put into
+      for the same reason. `clerk` and `sergeant` are in `BODIES` although no register ever hands
+      them out, because they are jobs a building has rather than trades a person is born to.)*
 - [x] **A5. `chore test economy`.** Live a village forward a hundred days and hold the books to it:
       *(A2 was right that the counter cost one `case` and nothing else; what a new building costs is
       the other eleven places a kind has to be known about, which `grep -rn Church src` lists

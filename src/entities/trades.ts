@@ -105,6 +105,20 @@ export function tradeNamed(id: string): Trade | undefined {
 const BODIES: Record<string, string> = {
   miner: 'miner', farmer: 'farmer', doctor: 'doctor',
   constable: 'constable', priest: 'priest', mayor: 'mayor',
+  /*
+   * And the two the register never hands out, because they are jobs a *building* has rather than
+   * trades a person is born to.
+   *
+   * A clerk is whoever is behind the desk of a town hall and a sergeant is whoever is behind the
+   * desk of a watch house — `places.ts` names them when it stands somebody up inside one, and
+   * neither name appears anywhere in `trades.json`. They are here because this is the one table
+   * that answers "what does somebody doing this job look like", and a sergeant drawn as a
+   * shopkeeper is a sergeant nobody can tell from a grocer.
+   *
+   * The clerk gets the mayor's body, which is the body that was made for a town hall: a hat like
+   * Henry the Eighth's, on the one person in the building.
+   */
+  clerk: 'mayor', sergeant: 'constable',
 };
 
 /** The body for a trade, or the plain villager everybody else is. */
