@@ -1,5 +1,8 @@
 import { handle } from './messages';
-import { LIMITS, PROTOCOL_VERSION, cleanName, type ClientMessage, type CreatureSnap, type ServerMessage } from './protocol';
+import {
+  LIMITS, PROTOCOL_VERSION, cleanIslands, cleanName, islandsSaidPlainly,
+  type ClientMessage, type CreatureSnap, type ServerMessage,
+} from './protocol';
 import { Rooms, type Client, type Room, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
@@ -9,8 +12,8 @@ import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife } from './wildlife';
-import { generateWebGraph } from '../src/world/roadweb';
-import { roadTreeWorld } from '../src/world/graph';
+import { countryStamp, growWorld } from '../src/world/growworld';
+import { WORLD } from '../src/core/config';
 import type { WorldKind } from '../src/save/store';
 import { generateDungeon } from '../src/dungeon/generate';
 import { DungeonWorld } from '../src/dungeon/world';
@@ -93,6 +96,20 @@ export const CLOSE_ENOUGH_TO_FIGHT = 14;
 export const REACH = 3;
 
 /**
+ * How much country the world keeps grown and ready to hand over, in chunks either side of a player.
+ *
+ * Wider than `REACH` on purpose, and they are two different jobs. `REACH` is what the world's own
+ * creatures walk on, and it is narrow because everything inside it is being thought about. This is
+ * what a page can *see*, and a page that could see less than it can ask for would be a page waiting
+ * on ground the world had decided not to have ready.
+ *
+ * So it is the page's own view radius, read from the config both halves share, rather than a number
+ * the server picked. The world holding exactly the country its players are looking at is the whole
+ * of what makes a first view arrive inside the fifth of a second a page will wait.
+ */
+export const VIEW = WORLD.VIEW_RADIUS;
+
+/**
  * How many chunks the world will hand over in answer to one asking.
  *
  * A view is a hundred and twenty-one, so this is a comfortable armful and well short of what a page
@@ -111,6 +128,8 @@ export class Simulation {
   private readonly reach: number;
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
+  /** The fingerprint of each of those countries, so a joining page can check it grew the same one. */
+  private readonly stamps = new Map<number, string>();
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
   private readonly wildlife = new Map<number, Wildlife>();
   /**
@@ -160,12 +179,17 @@ export class Simulation {
      * other symptom of two worlds at once: wolves biting from nowhere, blows landing on nothing,
      * walls in the middle of a field.
      */
-    const kind: WorldKind = this.rooms.get(seed)?.kind ?? 'mesh';
-    // islands and all, through the one call the page makes: growing a road-tree world without them
-    // here and with them there gave the same seed two different countries, and whichever filled a
-    // chunk first won. `roadTreeWorld` says the rest.
-    const graph = kind === 'mesh' ? generateWebGraph(seed) : roadTreeWorld(seed);
+    const room = this.rooms.get(seed);
+    const kind: WorldKind = room?.kind ?? 'mesh';
+    // Through the one call there is, with the islands the page says its world has. Growing a
+    // road-tree world without them here and with them there gave the same seed two different
+    // countries, and whichever filled a chunk first won; growing it with a *different* set of them
+    // would do it again, which is why they travel with the join. `growworld.ts` says the rest.
+    const graph = growWorld(seed, kind, room?.islands);
     const sampler = new TerrainSampler(graph);
+    // and the fingerprint of it, so a joining page can be told which country it is standing in
+    // rather than assuming its own answer was the same one
+    this.stamps.set(seed, countryStamp(graph));
     const grown = new GroundWorld(sampler, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
     // Animals only. The people of a village are worked out from the seed and the register of who
@@ -279,6 +303,7 @@ export class Simulation {
         room.world.keepNear([]);
         this.rooms.close(seed);
         this.ground.delete(seed);
+        this.stamps.delete(seed);
         this.wildlife.delete(seed);
         this.rooms.forgetGround(seed);
         continue;
@@ -310,6 +335,11 @@ export class Simulation {
       // chunk with nobody to tell about it
       const ground = this.groundOf(seed);
       if (ground && players.length > 0) {
+        // First the country they can see, then the country they can be bitten in. In that order
+        // because the second is a subset of the first and is taken out of it for nothing: a chunk
+        // grown to be handed over is the same chunk a wolf walks on.
+        for (const who of players) ground.ready(who.x, who.z, VIEW);
+        ground.keepReadyNear(players, VIEW + 1);
         for (const who of players) ground.reach(who.x, who.z, this.reach);
         ground.keepOnly(players, this.reach + 1);
         // and the creatures on it, following the players about
@@ -475,14 +505,30 @@ export class Simulation {
     const seed = message.seed >>> 0;
     // the first player through the door sets the clock; after that the world keeps its own time
     const kind: WorldKind = message.world === 'road' ? 'road' : 'mesh';
+    const islands = kind === 'mesh' ? [] : cleanIslands(message.islands);
     const room = this.rooms.open(seed, {
       day: Math.max(1, Math.floor(message.day) || 1),
       time: Number(message.time) || 0.3,
-    }, kind);
+    }, kind, islands);
     // two players of the same seed in different countries are not in the same place at all, and a
     // world nobody can agree about is worse than a door that will not open
     if (room.kind !== kind) {
       wire.send(JSON.stringify({ type: 'error', reason: `That world is open as a ${room.kind === 'mesh' ? 'mountains' : 'road'} world.` } satisfies ServerMessage));
+      wire.close();
+      return null;
+    }
+    /*
+     * And the same check on the rest of what makes a country, for exactly the same reason.
+     *
+     * The kind is the loud half of "a seed is not a world" and the islands are the quiet half. A
+     * world saved before the islands were planned from the seed carries its own in its manifest,
+     * and two players whose manifests differ are as far apart as two players in different kinds of
+     * world — the same houses in different fields, the same names on different ground. It cannot
+     * be papered over by picking one, because the one not picked would then be walked about a
+     * country he cannot see, which is the whole fault this seam exists to end.
+     */
+    if (islandsSaidPlainly(room.islands) !== islandsSaidPlainly(islands)) {
+      wire.send(JSON.stringify({ type: 'error', reason: 'That world is open with its islands somewhere else.' } satisfies ServerMessage));
       wire.close();
       return null;
     }
@@ -504,7 +550,37 @@ export class Simulation {
     if (waiting > 0) this.rooms.send(joining, { type: 'mail-here', from: `${waiting} parcel${waiting === 1 ? '' : 's'}` });
 
     this.rooms.broadcast(seed, { type: 'joined', player: joining.presence }, joining);
+    this.readyFor(joining, message);
     return joining;
+  }
+
+  /**
+   * Grow the country a joining player is about to ask for, before they ask for it.
+   *
+   * This is the last of the streaming, and it is entirely about arithmetic that never worked out.
+   * A page waits a fifth of a second for the world and then draws the ground itself, because a page
+   * that waited would stare at nothing every time a socket hiccupped. A world starting from nothing
+   * takes about a third of a second to stand its terrain up and another third to grow the hundred
+   * and twenty-one chunks of a first view — so the guard written for a hiccup was firing on every
+   * new country, and the first minute anywhere new was spent on ground that was right by luck.
+   *
+   * Nothing here is faster than it was. It happens *earlier*: at the join rather than at the first
+   * asking, while the page is still starting up its own renderer, and the chunks are kept instead
+   * of being thrown away and grown again for every page that wants one. By the time a page asks,
+   * the answer is packing bytes it already has.
+   *
+   * The `country` that goes out afterwards is the page's cue that the waiting is over — and the
+   * fingerprint of the country the world grew, which is the only chance the two halves get to
+   * compare the villages, doors and eyries that still do not travel.
+   *
+   * A join that does not say where it is standing gets the country but not the first view. There is
+   * nowhere to grow, and guessing a place would be growing the wrong one.
+   */
+  private readyFor(client: Client, message: Extract<ClientMessage, { type: 'join' }>): void {
+    const ground = this.groundOf(client.seed);
+    const x = Number(message.x), z = Number(message.z);
+    if (ground && Number.isFinite(x) && Number.isFinite(z)) ground.ready(x, z, VIEW);
+    this.rooms.send(client, { type: 'country', stamp: this.stamps.get(client.seed) ?? '' });
   }
 }
 

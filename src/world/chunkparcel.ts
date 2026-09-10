@@ -28,6 +28,22 @@ import type { ChunkData } from './terrain';
 export type Parcel = ChunkData;
 
 /**
+ * How long a page waits for the world before it draws a chunk itself, in milliseconds.
+ *
+ * Long enough for the world in the next thread, which answers in a frame or two, and for a server
+ * on the far side of a room. Short enough that a player never sees the wait: a fifth of a second of
+ * ground that is not there yet is ground at the edge of what is drawn, arriving as they walk toward
+ * it.
+ *
+ * It lives here rather than beside the page's chunk manager because it is not only the page's
+ * business any more. It is the world's deadline: everything the world does to have a first view
+ * ready before it is asked for one — growing it at the join, keeping the chunks it grew — is
+ * arithmetic against this number, and `server/sim.test.ts` measures a whole view against it. Two
+ * copies of it would agree right up until the day somebody changed one.
+ */
+export const WAIT_FOR_THE_WORLD = 200;
+
+/**
  * A stamp of what made this country, so a chunk kept from an older world is never read as a new one.
  *
  * The trap in keeping chunks is silent staleness: generation changes, a page reads back the ground

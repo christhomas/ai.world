@@ -8,8 +8,10 @@ import { propFootprints } from '../entities/props';
 import { BLOCKS_WALKING } from './biomes';
 import { blocking } from './footprints';
 import { GroundWorld } from './groundworld';
+import { cleanIslands } from '../../server/protocol';
 import { generateWebGraph } from './roadweb';
-import { generateRoadGraph, islandAnchors, roadTreeWorld } from './graph';
+import { generateRoadGraph, islandAnchors } from './graph';
+import { growWorld } from './growworld';
 import { Solids, boxesFrom } from './solids';
 import { propsOf } from './propstream';
 import { TerrainSampler, TileType } from './terrain';
@@ -35,6 +37,29 @@ import { tilesOf } from './tiles';
  *
  * It is deliberately not about whether either answer is *right*. It is about whether they are the
  * same, which is the only thing that matters when one of them owns where you are standing.
+ *
+ * ---
+ *
+ * What it is still for, now that the ground travels.
+ *
+ * The sentence this file opens with stopped being true while it was being written. A chunk of
+ * country goes down the wire today: the page asks for what it has not got, the world sends the
+ * tiles it is walking creatures across, and the page draws those rather than its own. Two halves
+ * that are handed the same arrays cannot disagree about the height of a tile, and the seed grows
+ * one country because there is now one expression in the game that grows one at all — see
+ * `growworld.test.ts`, which is the test of that.
+ *
+ * So this bench is no longer the thing standing between a player and a country he cannot see. What
+ * it is now is a test of the page's own generator, which is still there and still runs. A page
+ * whose world has not answered draws the country rather than standing in the dark, and everything
+ * below is the question of whether *that* country is the one the world would have sent. It is the
+ * same four thousand points and the same disagreements; what has changed is that a failure here is
+ * now a fault in a fallback rather than in the game.
+ *
+ * That is a demotion and it is worth being plain about it, because a bench nobody can say the
+ * purpose of is a bench that gets deleted for the wrong reason or kept for none. The fallback is
+ * load-bearing — it is what a hiccupping socket looks like instead of a black screen — and nothing
+ * else in this repository would notice if it drifted.
  */
 
 /** Where the run leaves its account of itself. Printed by `chore test halves`. */
@@ -158,22 +183,34 @@ describe('the same world, grown on both sides', () => {
     });
   }
 
-  it('and grows the country the player is in, not the one the server prefers', () => {
+  it('and is handed the whole of the country at the join, not a seed to guess from', () => {
     /*
      * The fault itself, kept as a case rather than as a memory.
      *
      * A seed is not a world: the same number grows a road country or a polygon one and they share
      * nothing. The server used to build the polygon one for everybody, so half the players were
      * walked about a land they could not see. What stops that coming back is not this file's
-     * arithmetic but the world kind travelling with the join — so the two are read out of the
-     * source together, and a server that goes back to choosing for itself fails here.
+     * arithmetic — it is that everything a country is a function of travels with the join, so the
+     * one call that grows one cannot be handed different arguments on the two sides.
+     *
+     * Three things, and the join line is read out of the source so that dropping any of them is a
+     * failed build rather than a country nobody can see. The kind, because a seed grows two of
+     * them. The islands, because where they hang is planned from the seed today and written into a
+     * manifest for a world saved before that was true. And where the hero is standing, which is
+     * not part of the country at all — it is what lets the world grow that acre of it before the
+     * page asks, which is the difference between the page being sent the ground and the page
+     * drawing its own and being corrected.
      */
-    const sim = readFileSync('server/sim.ts', 'utf8');
-    expect(sim.includes("kind === 'mesh' ? generateWebGraph(seed) : roadTreeWorld(seed)"),
-      'the server has gone back to picking the world itself').toBe(true);
     const protocol = readFileSync('server/protocol.ts', 'utf8');
-    expect(protocol.includes('world: WorldKind'), 'the join no longer says which world it is in').toBe(true);
-    covered.push('PASS      1  the world kind travels with the join, and the server grows what it is told');
+    const join = protocol.split('\n').find((line) => line.includes("{ type: 'join';")) ?? '';
+    expect(join, 'the join no longer says which world it is in').toContain('world: WorldKind');
+    expect(join, 'the join no longer says where this world put its islands').toContain('islands?: Anchor[]');
+    expect(join, 'the join no longer says where the hero is standing').toContain('x?: number');
+    // and the one call itself, which `growworld.test.ts` holds to being the only one there is
+    const sim = readFileSync('server/sim.ts', 'utf8');
+    expect(sim, 'the server has gone back to picking the world itself')
+      .toContain('growWorld(seed, kind, room?.islands)');
+    covered.push('PASS      1  the country travels with the join, and the world grows what it is told');
   });
 
   it('and grows the same road country on both sides, islands and all', () => {
@@ -186,13 +223,22 @@ describe('the same world, grown on both sides', () => {
      * found as a hero standing in a named village in an empty field — the people from one world,
      * the ground from the other.
      *
-     * Every other test in this file builds `generateWebGraph` on both sides, which is why none of
-     * them noticed: they compared two copies of the same half. This one grows a road world the way
-     * each side grows it and asks whether they are the same place.
+     * Every other test in this file builds the same graph on both sides, which is why none of them
+     * noticed: they compared two copies of the same half. This one grows a road world the way each
+     * side grows it and asks whether they are the same place.
+     *
+     * The way each side grows it has since become one call with the islands as an argument, and the
+     * islands travel — so what is worth testing here is the journey. The page's anchors are written
+     * out as JSON, read back, and put through the guard that every join goes through, which is
+     * exactly what happens to them between one half and the other. A guard that quietly rounded a
+     * coordinate or dropped a seed would put the two halves back in different countries by a route
+     * no amount of care in the generator could close.
      */
     for (const seed of [1, 3, 7]) {
-      const page = new TerrainSampler(roadTreeWorld(seed, islandAnchors(generateRoadGraph(seed), seed)));
-      const world = new TerrainSampler(roadTreeWorld(seed));
+      const mine = islandAnchors(generateRoadGraph(seed), seed);
+      const asTheyArrive = cleanIslands(JSON.parse(JSON.stringify(mine)) as unknown);
+      const page = new TerrainSampler(growWorld(seed, 'road', mine));
+      const world = new TerrainSampler(growWorld(seed, 'road', asTheyArrive));
       const names = (s: TerrainSampler): string => s.structures.villages.map((v) => `${v.name}@${v.x.toFixed(1)},${v.z.toFixed(1)}`).join(' ');
       expect(names(world), `seed ${seed} is two different countries`).toBe(names(page));
     }

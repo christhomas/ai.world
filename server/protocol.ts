@@ -5,8 +5,9 @@
  */
 
 import type { WorldKind } from '../src/save/store';
+import type { Anchor } from '../src/world/manifest';
 
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -225,8 +226,25 @@ export type ClientMessage =
    * walls where the ground was clear — and since the server owns where a hero is standing, it
    * dragged him through the walls his own game had stopped him at. He was a ghost in his own
    * village. So the client says which world it is in, and the server grows that one.
+   *
+   * `islands` and `x`/`z` are the rest of that same sentence, added later and for the same reason.
+   *
+   * A country is a function of three things — the seed, the kind, and where the islands hang — and
+   * two of them travelled while the third did not. Where the islands hang is planned from the seed
+   * for any world made today, so the two halves agreed; a world saved before that code existed has
+   * them written into its own manifest, and there the two halves would quietly grow two different
+   * countries again. Now everything the generator is given comes up the wire, so `growWorld` cannot
+   * be handed different arguments on the two sides. A join that leaves them out gets the seed's own
+   * answer, which is what every world made by this code has.
+   *
+   * `x` and `z` are where the hero is standing, and they are here so that the world can have that
+   * country grown before it is asked for it. A page waits a fifth of a second for the world and then
+   * draws the ground itself; a world that starts growing when the first chunk is asked for takes
+   * two-thirds of a second to answer, so every new country used to begin with a view of the page's
+   * own guess. Told where somebody is at the moment they join, the world grows their first view
+   * while it is still saying hello and the asking is answered out of memory.
    */
-  | { type: 'join'; seed: number; name: string; version: number; day: number; time: number; world: WorldKind }
+  | { type: 'join'; seed: number; name: string; version: number; day: number; time: number; world: WorldKind; islands?: Anchor[]; x?: number; z?: number }
   | { type: 'move'; x: number; z: number; yaw: number; walk: number; place: string; riding: Presence['riding']; gear: string[] }
   /**
    * What the hero was trying to do, rather than where they ended up.
@@ -405,6 +423,28 @@ export type ServerMessage =
    */
   | { type: 'bitten'; place: string; id: number; damage: number }
   | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
+  /**
+   * The country you joined is grown, and this is its fingerprint.
+   *
+   * Two things at once, and they are the two things this whole seam is about.
+   *
+   * It is a starting gun. A page draws its own ground when the world has not answered, because a
+   * page that waited would stare at nothing every time a socket hiccupped — but on a first visit the
+   * world has a hundred and twenty-one chunks to grow and takes far longer than the page's patience,
+   * so the guard meant for a hiccup was firing on every new country. Between the welcome and this,
+   * the page knows the world is working rather than silent, and waits; after it, the ordinary
+   * fifth of a second stands.
+   *
+   * And it is evidence. `stamp` is the world's own country hashed — see `countryStamp` — and the
+   * page compares it with the hash of the country it grew. The ground itself travels, so the two
+   * halves cannot disagree about the height of a tile; everything *derived* from the country still
+   * does not travel, so a village, a door or an eyrie is right only for as long as the two graphs
+   * are the same graph. Sending both sides' answer to one cheap question is what turns that from a
+   * hope into something the game can notice and say out loud.
+   *
+   * Empty on a world that grows no ground at all, which is a test harness rather than a game.
+   */
+  | { type: 'country'; stamp: string }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }
   | { type: 'presence'; players: Presence[] }
@@ -473,6 +513,42 @@ export function cleanStallItem(item: StallItem): StallItem | null {
   return { id, price: clamp(price, 1, LIMITS.PRICE), count: clamp(count, 1, LIMITS.STACK) };
 }
 
+/**
+ * Guard the islands off the wire: a handful of anchors, each one plain numbers and a short name.
+ *
+ * These are the one part of a country a client gets to choose, so they are the one part somebody
+ * could use to make the world do work on their behalf. Each anchor grows a road tree of its own,
+ * so a join carrying ten thousand of them would be a world server told to grow ten thousand
+ * islands by a message that costs nothing to send. Hence the cap — a world has a handful and the
+ * bound is generous against that — and hence every field being taken apart and put back rather
+ * than believed.
+ *
+ * An anchor that does not survive this is dropped rather than the whole join being refused. A join
+ * with no usable islands grows the seed's own, which is the right country for every world this
+ * code has ever made and the safe answer for anything else.
+ */
+export function cleanIslands(raw: unknown): Anchor[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Anchor[] = [];
+  for (const one of raw.slice(0, LIMITS.ISLANDS)) {
+    const a = one as Partial<Anchor>;
+    const id = String(a?.id ?? '').slice(0, LIMITS.THING_ID);
+    const x = Number(a?.x), z = Number(a?.z), seed = Number(a?.seed);
+    if (!id || a?.kind !== 'island') continue;
+    if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(seed)) continue;
+    out.push({
+      id, kind: 'island', x: clamp(x, -1e6, 1e6), z: clamp(z, -1e6, 1e6), seed: seed >>> 0,
+      parent: null, version: Math.max(1, Math.floor(Number(a?.version)) || 1),
+    });
+  }
+  return out;
+}
+
+/** The name two joins have to agree on to be in the same country: the islands, said the same way. */
+export function islandsSaidPlainly(islands: readonly Anchor[]): string {
+  return islands.map((a) => `${a.id}@${Math.round(a.x)},${Math.round(a.z)}:${a.seed}`).sort().join(' ');
+}
+
 /** Guard a parcel off the wire: a real recipient, sane gold, and a handful of items at most. */
 export function cleanLetter(letter: Letter): Letter | null {
   const to = cleanName(String(letter?.to ?? ''));
@@ -515,6 +591,13 @@ export const LIMITS = {
   TRADE_ITEMS: 12,
   /** How many of one thing can sit in a stack, on a stall or in a parcel. */
   STACK: 99,
+  /**
+   * Islands one join may hand the world.
+   *
+   * A world plans four or five and the oldest saves have no more, so this is generous by a factor
+   * of six. It is a cap on work rather than on size: every anchor costs the world a road tree.
+   */
+  ISLANDS: 32,
   /** The most anybody may ask for something, and the hardest blow anybody may claim to land. */
   PRICE: 9999,
   DAMAGE: 99,

@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
 import type { WorldKind } from '../src/save/store';
-import { unpackChunk } from '../src/world/chunkparcel';
-import { CHUNKS_AT_ONCE, Simulation } from './sim';
+import { WAIT_FOR_THE_WORLD, unpackChunk } from '../src/world/chunkparcel';
+import { CHUNKS_AT_ONCE, Simulation, VIEW } from './sim';
+import { generateRoadGraph, islandAnchors } from '../src/world/graph';
 import { IN_SIGHT } from './wildlife';
 import { Forgetful } from './vault';
 import { DAY_LENGTH } from './protocol';
@@ -50,6 +51,20 @@ class Pretend {
     return this;
   }
 
+  /**
+   * The same, saying where the hero is standing.
+   *
+   * Apart from `join` above on purpose, because the two are asking the world for different things.
+   * A join that says nothing about where it is gets a country grown on demand, which is what every
+   * client did before the ground travelled and what an old one still does. A join that says where
+   * it is gets that country grown *now* — which costs the world two-thirds of a second, so no test
+   * pays for it by accident.
+   */
+  joinAt(seed: number, name: string, x: number, z: number, world: WorldKind = 'mesh'): this {
+    this.say({ type: 'join', world, seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4, x, z });
+    return this;
+  }
+
   say(message: ClientMessage): void {
     this.attached.receive(JSON.stringify(message));
   }
@@ -82,6 +97,43 @@ describe('the simulation, hosted by nothing at all', () => {
     const old = new Pretend(sim).join(7, 'Rowan', PROTOCOL_VERSION - 1);
     expect(old.of('error')).toHaveLength(1);
     expect(old.of('welcome')).toHaveLength(0);
+  });
+
+  it('turns away somebody whose islands are somewhere else', () => {
+    /*
+     * The quiet half of "a seed is not a world".
+     *
+     * The loud half is the kind: a road country and a polygon one out of the same number, and a
+     * player joined into the wrong one is walked about a land he cannot see. This is the same fault
+     * a size smaller. Where a world's islands hang is planned from the seed today, but a world
+     * saved before that code existed keeps its own in its manifest — so two players of one seed can
+     * be carrying two different countries, with the same houses standing in different fields and the
+     * same names on different ground.
+     *
+     * There is no picking one. Whichever is not picked is the player being walked about a country
+     * he cannot see, which is the whole fault this seam exists to end. So it is a closed door with
+     * a reason on it, the same as the kind.
+     */
+    const sim = new Simulation({ vault: new Forgetful() });
+    const seed = 5;
+    const own = islandAnchors(generateRoadGraph(seed), seed);
+    const moved = own.map((a, i) => (i === 0 ? { ...a, x: a.x + 40 } : a));
+    expect(own.length, 'this seed has no islands to disagree about').toBeGreaterThan(0);
+
+    const rowan = new Pretend(sim);
+    rowan.say({ type: 'join', world: 'road', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, islands: own });
+    expect(rowan.of('welcome'), 'the first one through the door was refused').toHaveLength(1);
+
+    const wren = new Pretend(sim);
+    wren.say({ type: 'join', world: 'road', seed, name: 'Wren', version: PROTOCOL_VERSION, day: 2, time: 0.4, islands: moved });
+    expect(wren.of('welcome'), 'two players were let into one world with different islands').toHaveLength(0);
+    expect(wren.of('error')[0].reason).toContain('islands');
+    expect(wren.open, 'and the door was left open behind them').toBe(false);
+
+    // and somebody carrying the same country as the first is let in, which is everybody
+    const third = new Pretend(sim);
+    third.say({ type: 'join', world: 'road', seed, name: 'Ash', version: PROTOCOL_VERSION, day: 2, time: 0.4, islands: own });
+    expect(third.of('welcome'), 'the same country was turned away from itself').toHaveLength(1);
   });
 
   it('puts two players in one world and lets them hear each other', () => {
@@ -877,6 +929,69 @@ describe('a page asking the world for country', () => {
     rowan.say({ type: 'want-chunks', chunks: greedy });
     expect(sent, 'a client asked for five thousand chunks and got them').toBeLessThanOrEqual(CHUNKS_AT_ONCE);
     expect(sent, 'and got none at all').toBeGreaterThan(0);
+  });
+
+  it('has a joining player\'s first view grown before they ask for a chunk of it', () => {
+    /*
+     * The last of the streaming, and the one that was pure arithmetic.
+     *
+     * A page waits a fifth of a second for the world and then draws the ground itself, because a
+     * page that waited would stare at nothing every time a socket hiccupped. A world with nobody in
+     * it has no country at all: asked for its first chunk it stands a terrain sampler up — about a
+     * third of a second — and then grows a hundred and twenty-one chunks at two and a half
+     * milliseconds each. Two-thirds of a second against a fifth, so the guard written for a hiccup
+     * fired on every new world and the opening view of every new country was the page's own guess.
+     *
+     * Nothing is faster now. It happens earlier: the join says where the hero is standing and the
+     * world grows that view while it is still saying hello. Nothing has been asked for here and
+     * nothing has ticked.
+     */
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).joinAt(31, 'Rowan', 400, 400);
+
+    const view = (VIEW * 2 + 1) ** 2;
+    expect(sim.groundOf(31)!.standingBy, 'the world waited to be asked before growing anything')
+      .toBeGreaterThanOrEqual(view);
+    // and it said so, which is the page's cue to stop drawing ground it is about to be sent
+    const [country] = rowan.of('country');
+    expect(country, 'the world never told the page its country was grown').toBeTruthy();
+    expect(country.stamp, 'the world grew a country and could not say which one').not.toBe('');
+  });
+
+  it('and answers the whole of it inside the time a page will wait', () => {
+    /*
+     * The same thing measured from the other end, because "grown beforehand" is only worth
+     * anything if the answering is then quick. What is left to do when the asking arrives is
+     * packing bytes the world already has: eleven kilobytes a chunk, a hundred and twenty-one of
+     * them, no generation at all.
+     *
+     * The ceiling is the page's own patience — the one number both halves read out of
+     * `chunkparcel.ts` — so a change that pushes this over it is a change that puts the opening
+     * view of every new country back on the page's own generator. What it actually took is printed,
+     * because a ceiling with no measurement under it is a ceiling nobody can move on evidence.
+     */
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim);
+    let sent = 0;
+    (rowan as unknown as { wire: { send: (parcel: string | ArrayBuffer) => void } }).wire.send = (parcel) => {
+      if (typeof parcel === 'string') rowan.heard.push(JSON.parse(parcel) as never);
+      else sent++;
+    };
+    rowan.joinAt(32, 'Rowan', 400, 400);
+
+    const CS = 16;
+    const cx = Math.floor(400 / CS), cz = Math.floor(400 / CS);
+    const view: Array<[number, number]> = [];
+    for (let dz = -VIEW; dz <= VIEW; dz++) for (let dx = -VIEW; dx <= VIEW; dx++) view.push([cx + dx, cz + dz]);
+
+    const started = performance.now();
+    rowan.say({ type: 'want-chunks', chunks: view });
+    const took = performance.now() - started;
+
+    expect(sent, 'the world did not hand over the view it was asked for').toBe(view.length);
+    console.log(`  a first view of ${view.length} chunks answered in ${took.toFixed(1)}ms (a page waits ${WAIT_FOR_THE_WORLD}ms)`);
+    expect(took, `${view.length} chunks took ${took.toFixed(1)}ms, and a page gives the world ${WAIT_FOR_THE_WORLD}ms`)
+      .toBeLessThan(WAIT_FOR_THE_WORLD);
   });
 
   it('says nothing to a page whose world has no ground grown for it', () => {
