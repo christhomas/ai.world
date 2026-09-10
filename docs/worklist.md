@@ -2447,3 +2447,43 @@ walking through a table he never walked at.
       test that looked at the road world checked the *source text* of `sim.ts` for a particular
       expression. It grows a road world each way and compares the villages now, which is the check
       that would have found this.
+
+## The mountains, and why the road world will not simply be raised — September 10th
+
+One generator now: the polygon world went in 0.37.0, and with it the only thing in this game that
+could grow a cliff. What replaces it has to be relief in the road world itself, and the first
+attempt at that is worth writing down because it failed in a specific and instructive way.
+
+**What was tried.** `BIOME_BASE[Mountain]` from 3 terraces to 44, which is exactly the knob the
+snow lands already use to stand eighteen terraces above the plain. The world duly went from eleven
+units tall to twenty-five.
+
+**What it cost.** Walls. Measured across six hundred tiles of seed 1: the worst step between two
+neighbouring tiles of land went from 2.0 units — which is a cliff you walk round, and there are a
+few of those in the shipping world — to 10.4, which is a wall you cannot get on or off. And the
+worst of them were *along the roads*: at 34,-263 the road stands at 19 and the ground a tile away
+is at 14.5.
+
+**Why.** A tile's height is `roadLevel + country + rise`, where `roadLevel` is interpolated along
+the nearest road edge, `country` is the smoothed biome standing (`Uplands`), and `rise` grows with
+distance from the road. Two things follow. The tree clamps a crossroads to within one terrace of
+its *parent* and says nothing about a crossroads on another branch a dozen tiles away, so raising
+the country multiplies the difference between two roads that pass each other. And a tile takes its
+level from *one* edge — the nearest — so where the nearest edge changes from one road to another,
+the height jumps by whatever those two roads disagree about.
+
+**What was tried next and also failed.** A relaxation pass over the graph pulling any two
+crossroads within ninety tiles to within a terrace per three tiles of each other. It made the worst
+step *worse* (15.5), which says the cliff is not primarily between node levels — it is in the
+`rise` term and in the seam where the nearest edge changes hands.
+
+**Where this actually goes.** The height of a tile needs to stop being a function of the single
+nearest road and start being a blend of the roads near it, weighted by distance — which is what
+would make a seam impossible rather than merely rarer. That is a change to the middle of the
+generator, it changes every world, and it wants its own day. Nothing about the mountains is
+tuneable until it is done.
+
+**Also found, and shelved with it:** a spiral ledge cut into a massif so it can be walked up
+(`upliftRawAt`). It works and it is dead code — `TerrainSampler.massifs` is empty in this world,
+because the road world takes its height from `highlandAt` instead. It goes back in the day the
+relief does.
