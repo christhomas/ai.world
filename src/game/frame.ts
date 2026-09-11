@@ -27,7 +27,7 @@ import type { Minimap } from '../ui/minimap';
 import type { WorldMap } from '../ui/worldmap';
 import type { Sound } from './audio';
 import { BREATH, type Breath } from './breath';
-import { BUILD, stageAt, type Houses } from './building';
+import { buildable, stageAt, storeysOf, type Houses } from './building';
 import type { Director } from './director';
 import { listenForWater } from './earshot';
 import type { Plots } from './farming';
@@ -447,7 +447,14 @@ export function createFrame(ctx: Framing) {
       ownBoat.rotation.y = sailing.yaw;
     }
     cropField.update(plots, state.day + state.time, player.x, player.z, (x2, z2) => chunks.heightAt(x2, z2));
-    const standing = houses.entries().map((job) => ({ id: job.id, x: job.x, z: job.z, rot: job.rot, stage: stageAt(job, state.day + state.time) }));
+    const all = houses.entries();
+    const standing = all.map((job) => ({
+      id: job.id, x: job.x, z: job.z, rot: job.rot, what: job.what,
+      stage: stageAt(job, state.day + state.time),
+      // a house that has had a storey put on it is drawn a floor taller, which is the whole of what
+      // finishing that job does: there is nothing standing beside the house to draw instead
+      storeys: storeysOf(job, all, state.day + state.time),
+    }));
     buildingSite.update(standing, player.x, player.z, (x2, z2) => chunks.heightAt(x2, z2));
     /**
      * And a finished house is a wall to everybody, not only a picture.
@@ -465,9 +472,13 @@ export function createFrame(ctx: Framing) {
       const tiles: Array<{ x: number; z: number }> = [];
       for (const job of standing) {
         if (job.stage !== 'house') continue;
+        // how much ground each kind is a wall to: a house is its plot, a fountain is the tile it
+        // stands on, and a pool is water you can step into rather than a thing you walk round
+        const reach = buildable(job.what).blocks;
+        if (reach === null) continue;
         const tx = Math.floor(job.x), tz = Math.floor(job.z);
-        for (let dz = -BUILD.PLOT; dz <= BUILD.PLOT; dz++) {
-          for (let dx = -BUILD.PLOT; dx <= BUILD.PLOT; dx++) tiles.push({ x: tx + dx, z: tz + dz });
+        for (let dz = -reach; dz <= reach; dz++) {
+          for (let dx = -reach; dx <= reach; dx++) tiles.push({ x: tx + dx, z: tz + dz });
         }
       }
       chunks.standsOn(tiles);

@@ -109,7 +109,18 @@ export type WorldDelta =
    * it has reached is worked out from the day rather than sent: a frame is a frame on everybody's
    * screen if they all know when it was started.
    */
-  | { kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number };
+  | {
+      kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number;
+      /**
+       * What was ordered, and what it was added to.
+       *
+       * Both absent on every delta written before a builder could put up anything but a house,
+       * which is what a reader of an older log gets and is right: a house is what it was. Without
+       * them somebody else's bathing pool is drawn on their screen as a cottage, because the stage
+       * table is keyed by what the thing is.
+       */
+      what?: string; to?: string;
+    };
 
 /** One lot on a market stall: a stack of the same item at one asking price. */
 export interface StallItem {
@@ -845,9 +856,12 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const day = Number(delta.day);
       const x = Number(delta.x), z = Number(delta.z), rot = Number(delta.rot);
       if (![day, x, z, rot].every(Number.isFinite)) return null;
+      const what = delta.what === undefined ? undefined : id(delta.what);
+      const to = delta.to === undefined ? undefined : id(delta.to);
       return {
         kind: 'built', id: id(delta.id), village: id(delta.village),
         x, z, rot, day: Math.max(1, Math.floor(day)),
+        ...(what ? { what } : {}), ...(to ? { to } : {}),
       };
     }
     default: return null;

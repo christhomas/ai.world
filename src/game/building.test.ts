@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BUILD, Houses, builderIn, canBuildAt, deposit, isFinished, owed, progressOf, saidOfJob, stageAt, type Commission, BUILDS } from './building';
+import {
+  BUILD, CATALOGUE, Houses, beside, buildable, builderIn, canAttachTo, canBuildAt, daysFor,
+  deposit, isFinished, onOffer, owed, progressOf, saidOfJob, stageAt, storeysOf,
+  type Commission, BUILDS,
+} from './building';
 import { GRUDGE } from './grudge';
 
 const job = (began = 10): Commission => ({
@@ -249,5 +253,188 @@ describe('a commission for something in particular', () => {
     const h = new Houses();
     h.takeOn('Ashford', BUILD.PRICE, deposit());
     expect(h.place(1, 2, 3)!.what).toBe(BUILDS.HOUSE);
+  });
+});
+
+/**
+ * Building a verb that takes an object, now that the object can be more than one thing.
+ *
+ * The catalogue was one line long for a version and the shortness was honest: there was no second
+ * thing to offer, and a menu with one item on it is a verb nobody has to think about. What unstuck
+ * it was that three of the four entries are geometry that was already in the game — `house()` has
+ * taken a number of storeys since villagers started spending an inheritance on one, and there were
+ * a bath house and a bathing pool modelled and used by nothing.
+ *
+ * The rule that came with them is the one worth testing: half the catalogue does not stand on a
+ * piece of ground at all. A storey needs a roof to go on, a pool and a fountain need a yard, and a
+ * yard is a thing that belongs to a house.
+ */
+describe('the catalogue of what can be built', () => {
+  it('prices and times everything in it, and starts with the house', () => {
+    expect(CATALOGUE[0].id).toBe(BUILDS.HOUSE);
+    for (const entry of CATALOGUE) {
+      expect(entry.price, `${entry.id} is free`).toBeGreaterThan(0);
+      expect(entry.days, `${entry.id} takes no time`).toBeGreaterThan(0);
+      expect(entry.name, `${entry.id} has no name a builder would say`).toMatch(/^an? /);
+    }
+  });
+
+  it('reads an unknown order as a house, which is what every old save holds', () => {
+    expect(buildable(undefined).id).toBe(BUILDS.HOUSE);
+    expect(buildable('a summer palace').id).toBe(BUILDS.HOUSE);
+  });
+
+  it('takes a fountain two days where a house takes a week', () => {
+    const fountain = { ...job(), what: BUILDS.FOUNTAIN };
+    expect(daysFor(fountain)).toBe(buildable(BUILDS.FOUNTAIN).days);
+    expect(daysFor(job())).toBe(BUILD.DAYS);
+    // and the stages follow the days rather than the week: a fountain half done is half done
+    expect(isFinished(fountain, 10 + buildable(BUILDS.FOUNTAIN).days)).toBe(true);
+    expect(isFinished(job(), 10 + buildable(BUILDS.FOUNTAIN).days)).toBe(false);
+  });
+
+  it('names what is finished rather than calling everything a house', () => {
+    const pool = { ...job(), what: BUILDS.POOL };
+    expect(saidOfJob(pool, 10 + buildable(BUILDS.POOL).days)).toContain('bathing pool');
+  });
+});
+
+describe('something added to a house', () => {
+  const houseAt = (x: number, z: number, began = 10): Commission =>
+    ({ id: `house:${x},${z}`, x, z, village: 'Ashford', began, paid: BUILD.PRICE, price: BUILD.PRICE });
+  const done = 10 + BUILD.DAYS;
+
+  it('goes on the side of the house the owner is standing', () => {
+    const house = houseAt(20, 20);
+    const north = beside(house, BUILDS.POOL, 20, 8);
+    expect(north.z, 'the pool went to the far side of the house from where he stood').toBeLessThan(20);
+    const east = beside(house, BUILDS.POOL, 40, 20);
+    expect(east.x).toBeGreaterThan(20);
+    // and out of the wall rather than inside it
+    expect(Math.hypot(east.x - house.x, east.z - house.z)).toBeCloseTo(BUILD.BESIDE_AT, 6);
+  });
+
+  it('sits on the house itself when it is the house that changes', () => {
+    const house = houseAt(20, 20);
+    expect(beside(house, BUILDS.STOREY, 40, 20)).toEqual({ x: 20, z: 20 });
+  });
+
+  it('has somewhere to go even when the owner is standing in the doorway', () => {
+    // nought over nought is not a direction, and a pool at NaN,NaN is drawn nowhere at all
+    const spot = beside(houseAt(20, 20), BUILDS.FOUNTAIN, 20, 20);
+    expect(Number.isFinite(spot.x) && Number.isFinite(spot.z)).toBe(true);
+  });
+
+  it('will not go on nothing at all', () => {
+    const verdict = canAttachTo(null, BUILDS.POOL, done, []);
+    expect(verdict.ok).toBe(false);
+  });
+
+  it('will not go on a house that is still a frame', () => {
+    const verdict = canAttachTo(houseAt(20, 20), BUILDS.POOL, 11, []);
+    expect(verdict.ok).toBe(false);
+    expect(verdict.ok === false && verdict.why).toContain('not finished');
+  });
+
+  it('will not be started while the house it goes on is still owing', () => {
+    // the argument a builder would actually make, and the reason the rule is here rather than in
+    // the dialogue: a man owed four hundred gold does not begin the next job on credit
+    const owing = { ...houseAt(20, 20), paid: deposit() };
+    const verdict = canAttachTo(owing, BUILDS.POOL, done, []);
+    expect(verdict.ok).toBe(false);
+    expect(verdict.ok === false && verdict.why).toContain('Settle up');
+  });
+
+  it('allows a pool and a fountain on one house, and only one second storey', () => {
+    const house = houseAt(20, 20);
+    const storey: Commission = {
+      id: 'storey:1', what: BUILDS.STOREY, to: house.id, x: 20, z: 20,
+      village: 'Ashford', began: 10, paid: 260, price: 260,
+    };
+    expect(canAttachTo(house, BUILDS.POOL, done, [storey]).ok).toBe(true);
+    expect(canAttachTo(house, BUILDS.STOREY, done, [storey]).ok).toBe(false);
+  });
+
+  it('makes the house a floor taller the day the storey is finished, and not before', () => {
+    /*
+     * Counted rather than written down, the way a crop ripens and a grudge fades. A storey that
+     * had to be applied on the day it finished would be a storey that never arrived on a world
+     * nobody had open that day — and the whole of this file is the argument that a building is a
+     * subtraction from today rather than a thing that ticks.
+     */
+    const house = houseAt(20, 20);
+    const storey: Commission = {
+      id: 'storey:1', what: BUILDS.STOREY, to: house.id, x: 20, z: 20,
+      village: 'Ashford', began: 30, paid: 260, price: 260,
+    };
+    const jobs = [house, storey];
+    const up = 30 + buildable(BUILDS.STOREY).days;
+    expect(storeysOf(house, jobs, 31)).toBe(1);
+    expect(storeysOf(house, jobs, up)).toBe(2);
+    // and a pool does not make anybody taller
+    const pool: Commission = { ...storey, id: 'pool:1', what: BUILDS.POOL };
+    expect(storeysOf(house, [house, pool], 99)).toBe(1);
+  });
+
+  it('remembers what it was added to, through the store and through a save', () => {
+    const h = new Houses();
+    h.takeOn('Ashford', 150, deposit(150), BUILDS.POOL);
+    const job = h.place(24, 20, 40, 0, 'house:20,20');
+    expect(job?.to).toBe('house:20,20');
+    expect(job?.what).toBe(BUILDS.POOL);
+    const reopened = Houses.from(JSON.parse(JSON.stringify(h.toJSON())));
+    expect(reopened.entries()[0].to).toBe('house:20,20');
+  });
+
+  it('adopts somebody else\'s pool as a pool rather than as a house', () => {
+    // what crosses the wire when another player builds one. Without `what` their bathing pool is
+    // drawn as a cottage on every other screen, which is how the field was found to be missing
+    const h = new Houses();
+    h.adopt({
+      id: 'pool:Ashford:24,20', village: 'Ashford', x: 24, z: 20, rot: 0, day: 12,
+      what: BUILDS.POOL, to: 'house:Ashford:20,20',
+    });
+    expect(h.entries()[0].what).toBe(BUILDS.POOL);
+    expect(h.entries()[0].to).toBe('house:Ashford:20,20');
+  });
+
+  it('is asked for by kind at the door, so a pool is not mistaken for the house', () => {
+    const h = new Houses();
+    h.adopt({ id: 'house:1', village: 'Ashford', x: 20, z: 20, rot: 0, day: 1 });
+    h.adopt({ id: 'pool:1', village: 'Ashford', x: 22, z: 20, rot: 0, day: 1, what: BUILDS.POOL, to: 'house:1' });
+    // standing between the two, nearer the pool
+    expect(h.nearest(22.2, 20, 6)?.id).toBe('pool:1');
+    expect(h.nearest(22.2, 20, 6, Houses.isABuilding)?.id).toBe('house:1');
+  });
+});
+
+describe('what a builder will offer you', () => {
+  const house = (over: Partial<Commission> = {}): Commission =>
+    ({ id: 'house:1', x: 20, z: 20, village: 'Ashford', began: 10, paid: BUILD.PRICE, price: BUILD.PRICE, ...over });
+  const done = 10 + BUILD.DAYS;
+
+  it('offers only what stands on its own ground to somebody with nothing', () => {
+    const offered = onOffer([], done).map((entry) => entry.id);
+    expect(offered).toContain(BUILDS.HOUSE);
+    expect(offered, 'a pool was offered to somebody with no house to put it beside').not.toContain(BUILDS.POOL);
+  });
+
+  it('offers the rest once a house is standing and paid for', () => {
+    const offered = onOffer([house()], done).map((entry) => entry.id);
+    for (const id of [BUILDS.HOUSE, BUILDS.STOREY, BUILDS.POOL, BUILDS.FOUNTAIN]) {
+      expect(offered, `${id} was not offered to a man with a house`).toContain(id);
+    }
+  });
+
+  it('goes back to offering only a house while the last one is unfinished or unpaid', () => {
+    expect(onOffer([house()], 11).map((e) => e.id)).not.toContain(BUILDS.POOL);
+    expect(onOffer([house({ paid: deposit() })], done).map((e) => e.id)).not.toContain(BUILDS.POOL);
+  });
+
+  it('does not count a pool as something to put a pool on', () => {
+    // the rule is about buildings rather than about anything you have paid for: a yard needs a
+    // house in it, and a fountain is not a house however finished it is
+    const pool = house({ id: 'pool:1', what: BUILDS.POOL, to: 'house:1', price: 150, paid: 150 });
+    expect(onOffer([pool], done).map((e) => e.id)).not.toContain(BUILDS.STOREY);
   });
 });

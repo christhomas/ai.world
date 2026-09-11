@@ -109,6 +109,8 @@ export const CATALOGUE: readonly Catalogued[] = [
   { kind: PropKind.HouseFrame, name: 'framed', group: 'building' },
   { kind: PropKind.HouseRoof, name: 'roofed', group: 'building' },
   { kind: PropKind.HouseYours, name: 'your house', group: 'building' },
+  { kind: PropKind.HouseYoursTwo, name: 'your house, two storeys', group: 'building' },
+  { kind: PropKind.Fountain, name: 'fountain', group: 'building' },
 
   // a group of their own, because they are only ever seen together and are only ever a castle
   { kind: PropKind.CastleKeep, name: 'keep', group: 'castle' },

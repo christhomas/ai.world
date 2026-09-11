@@ -341,6 +341,38 @@ const SHOTS = [
     },
   },
   {
+    name: 'estate', title: 'A house of your own, and what you add to it', settle: 3500,
+    setup: async (p, { village, time, zoom, stand, ask }) => {
+      /*
+       * Everything a builder will put up, standing together.
+       *
+       * Built through `__build`, which pays for each of them and back-dates it past its own number
+       * of days — a picture of a week of waiting is a picture of pegs and string. What is being
+       * photographed is the catalogue: a house, another floor on it, and the two things that go in
+       * a yard rather than on a piece of ground.
+       */
+      await time(NOON);
+      const v = await village();
+      await stand(v.x + 18, v.z + 18, 5000);
+      const built = await ask(() => {
+        const hero = window.__player;
+        const x = Math.floor(hero.x) + 0.5, z = Math.floor(hero.z) + 0.5;
+        const house = window.__build(x, z, 'house');
+        if (!house) return null;
+        window.__build(x, z, 'storey', house.id);
+        window.__build(x + 3.4, z, 'pool', house.id);
+        window.__build(x, z + 3.4, 'fountain', house.id);
+        return { x, z };
+      });
+      if (!built) return null;
+      // stood in the yard rather than across the field: the camera follows the hero, so this is
+      // what puts the house, the pool and the fountain in one picture
+      await stand(built.x + 2, built.z + 2, 3000);
+      await zoom(11);
+      return 'house, storey, pool, fountain';
+    },
+  },
+  {
     name: 'domesday', title: 'The Domesday Book', server: true,
     page: '/tools/registry.html?at=WORLD&seed=3',
     setup: async (p, { wait }) => {

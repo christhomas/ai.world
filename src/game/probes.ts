@@ -28,7 +28,7 @@ import type { Drift } from './wildlife';
 import type { CommandBus } from '../core/commandbus';
 import type { IsoCamera } from '../render/camera';
 import type { SceneRig } from '../render/scene';
-import { BUILD, stageAt, type Houses } from './building';
+import { BUILDS, buildable, stageAt, type Houses } from './building';
 import type { CommandWorld } from './commands';
 import { installPeopleProbes } from './probesPeople';
 import type { Director } from './director';
@@ -179,13 +179,22 @@ export function installProbes(ctx: Probed): void {
     hired: houses.hired,
     jobs: houses.entries().map((job) => ({ ...job, stage: stageAt(job, state.day + state.time) })),
   });
-  // put a finished house on the ground where you stand, for checking that a wall is a wall
-  (debug as { __build?: (x: number, z: number) => unknown }).__build = (x, z) => {
-    houses.takeOn('Crossroads Town', BUILD.PRICE, BUILD.PRICE);
-    const job = houses.place(x, z, state.day - BUILD.DAYS - 1);
-    state.version++;
-    return job;
-  };
+  /*
+   * Put a finished building on the ground where you stand, for checking that a wall is a wall.
+   *
+   * Takes what as well as where, now that a builder can be told to put up more than a house: a
+   * storey and a pool go on a house you already own, so `to` is the id of the one they belong to —
+   * `__houses()` lists them with their ids. Everything is paid for and back-dated past its own
+   * number of days, because what this probe is for is the finished thing rather than the waiting.
+   */
+  (debug as { __build?: (x: number, z: number, what?: string, to?: string) => unknown }).__build =
+    (x, z, what = BUILDS.HOUSE, to) => {
+      const wants = buildable(what);
+      houses.takeOn('Crossroads Town', wants.price, wants.price, wants.id);
+      const job = houses.place(x, z, state.day - wants.days - 1, 0, to);
+      state.version++;
+      return job;
+    };
   (debug as { __solid?: (x: number, z: number) => boolean }).__solid = (x, z) => chunks.blocked(x, z);
   (debug as { __place?: () => string }).__place = () => placeName();
   /*

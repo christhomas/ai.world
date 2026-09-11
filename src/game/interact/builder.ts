@@ -1,4 +1,7 @@
-import { BUILD, builderIn, canBuildAt, deposit, isFinished, owed, saidOfJob, type Commission } from '../building';
+import {
+  BUILD, beside, buildable, builderIn, canAttachTo, canBuildAt, deposit, isFinished,
+  Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
+} from '../building';
 import { buy, give, holds } from '../../world/deeds';
 import { boxOf, handOver, packOf } from '../../world/goods';
 import { settle } from '../../world/works';
@@ -43,14 +46,14 @@ const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.tim
 
 
 /**
- * The choices a builder adds to a pub's dialogue: taking him on, hearing how yours is coming
- * along, and settling up at the end.
+ * The builder's own menu: taking him on, hearing how yours is coming along, and settling up.
  *
- * A plain function rather than part of the interaction object below, because the pub's dialogue is
- * assembled in `village.ts` and the pub is one room: one room should be one conversation, not a
- * door that opens into a second one. The builder is a regular of it, the way the errand-giver is.
+ * His, and not the pub's. The pub is only where he drinks — these choices are added to the room's
+ * dialogue because a room should be one conversation rather than a door that opens into a second
+ * one, the same way the errand-giver's are. What is on the menu is a fact about the man and his
+ * trade, which is why `onOffer` decides it and this only lays it out.
  */
-export function builderPubChoices(ctx: Surroundings, village: Village): DialogueChoice[] {
+export function builderChoices(ctx: Surroundings, village: Village): DialogueChoice[] {
   const { state, houses, hud, sound, persist, seed } = ctx;
   const name = builderIn(village.name, seed);
   const day = buildingDay(ctx);
@@ -61,35 +64,63 @@ export function builderPubChoices(ctx: Surroundings, village: Village): Dialogue
   const going = mine.filter((job) => !isFinished(job, day));
 
   if (!held && !going.length && !due.length) {
+    /*
+     * What this man will put up for you.
+     *
+     * A menu rather than the one line it was, because building is a verb that takes an object and
+     * a verb with one possible object is a verb nobody has to think about. Which of them he offers
+     * is `onOffer`'s business rather than this file's: it depends on what you already own, and what
+     * a builder will take on is a fact about builders rather than about the room he is sitting in.
+     */
+    const offered = onOffer(mine, day);
     choices.push({
-      label: `Have a house built (${deposit()}g down)`,
-      next: () => {
-        if (state.inventory.gold < deposit()) {
-          return { speaker: name, emoji: '🔨', pages: [`It is ${deposit()} gold to start and you have ${state.inventory.gold}. Come back when you have it.`] };
-        }
-        // one act rather than two halves that have to agree: the gold leaves the rucksack
-        // and arrives in the village, and `villageTill` decides who in it is the better off
-        buy(holds(state.inventory), villageTill(ctx.register, village.name), deposit());
-        houses.takeOn(village.name, BUILD.PRICE, deposit());
-        state.version++;
-        sound.select();
-        persist();
-        return {
-          speaker: name, emoji: '🔨',
-          pages: [
-            `${deposit()} gold, and I will not ask for the rest until you can stand in it. ${BUILD.PRICE - deposit()} more on the day it is done.`,
-            'Walk out to wherever you want it and press Enter on the spot. Flat ground, off the road, and not on top of anybody. I put a second floor on the Merrow place last spring; I can put a whole house up for you.',
-          ],
-        };
-      },
+      label: 'Have something built',
+      next: () => ({
+        speaker: name, emoji: '🔨',
+        pages: ['What is it you want putting up?'],
+        choices: [
+          ...offered.map((entry) => ({
+            label: `${entry.name[0].toUpperCase()}${entry.name.slice(1)} — ${entry.price}g, ${deposit(entry.price)}g down`,
+            next: () => order(entry),
+          })),
+          { label: 'Nothing today', next: () => null },
+        ],
+      }),
     });
+
+    /** Taking him on for one particular thing: the deposit leaves, and he waits to be told where. */
+    function order(entry: Buildable): DialogueNode {
+      const down = deposit(entry.price);
+      if (state.inventory.gold < down) {
+        return { speaker: name, emoji: '🔨', pages: [`It is ${down} gold to start and you have ${state.inventory.gold}. Come back when you have it.`] };
+      }
+      // one act rather than two halves that have to agree: the gold leaves the rucksack
+      // and arrives in the village, and `villageTill` decides who in it is the better off
+      buy(holds(state.inventory), villageTill(ctx.register, village.name), down);
+      houses.takeOn(village.name, entry.price, down, entry.id);
+      state.version++;
+      sound.select();
+      persist();
+      return {
+        speaker: name, emoji: '🔨',
+        pages: [
+          `${down} gold, and I will not ask for the rest until it is standing. ${entry.price - down} more on the day it is done.`,
+          entry.on === 'land'
+            ? 'Walk out to wherever you want it and press Enter on the spot. Flat ground, off the road, and not on top of anybody.'
+            : 'Go and stand at the house you want it on, on the side you want it, and press Enter. I put a second floor on the Merrow place last spring; the same hands do a pool.',
+        ],
+      };
+    }
   }
   if (held && held.village === village.name) {
+    const wants = buildable(held.what);
     choices.push({
       label: 'Where do you want it, then?',
       next: () => ({
         speaker: name, emoji: '🔨',
-        pages: ['Go and stand where you want it and press Enter. I am not choosing it for you — you are the one who has to live in it.'],
+        pages: [wants.on === 'land'
+          ? 'Go and stand where you want it and press Enter. I am not choosing it for you — you are the one who has to live in it.'
+          : `Stand at the house you want ${wants.name} on, on the side you want it, and press Enter.`],
       }),
     });
   }
@@ -109,11 +140,17 @@ export function builderPubChoices(ctx: Surroundings, village: Village): Dialogue
         // very nearly did not — the conversion that caught the deposit above missed this because
         // `houses.pay` sat between the two halves of it
         settle(holds(state.inventory), villageTill(ctx.register, village.name), job);
+        const built = buildable(job.what);
         state.version++;
         sound.jingle();
-        hud.flash('The house is yours. There is a strongbox in it.');
+        hud.flash(built.done);
         persist();
-        return { speaker: name, emoji: '🔨', pages: ['Paid in full. The key is under the step, and there is a box inside for whatever you would rather not carry.'] };
+        return {
+          speaker: name, emoji: '🔨',
+          pages: [built.on === 'land'
+            ? 'Paid in full. The key is under the step, and there is a box inside for whatever you would rather not carry.'
+            : 'Paid in full. Enjoy it.'],
+        };
       },
     });
   }
@@ -184,37 +221,92 @@ export function builderInteractions(ctx: Surroundings) {
    * always says which of the four conditions failed, because "you cannot build here" with no
    * reason is a bug report rather than a rule.
    */
+  /**
+   * Start the work, wherever it was decided it goes, and tell the world.
+   *
+   * Shared by the two ways of choosing a spot, because everything after the choosing is the same:
+   * the commission is made, the world hears about it — a village is a building bigger for
+   * everybody, whoever paid — and the corner says how long it will be.
+   */
+  const begin = (x: number, z: number, wants: Buildable, to?: string): void => {
+    const job = houses.place(x, z, today(), player.entity.yaw, to);
+    if (!job) return;
+    ctx.told({
+      kind: 'built', id: job.id, village: job.village,
+      x: job.x, z: job.z, rot: job.rot ?? 0, day: Math.floor(job.began),
+      what: job.what, to: job.to,
+    });
+    state.version++;
+    sound.chime();
+    hud.flash(`Pegs and string. ${wants.days} days.`);
+    persist();
+  };
+
   const tryBuild = (): boolean => {
-    if (!houses.hired) return false;
+    const held = houses.hired;
+    if (!held) return false;
+    const wants = buildable(held.what);
+    const name = builderIn(held.village, seed);
+    return wants.on === 'house' ? addToAHouse(wants, name) : buildOnLand(wants, name);
+  };
+
+  /** A building of its own: the ground has to take it, and nothing may be standing on it. */
+  const buildOnLand = (wants: Buildable, name: string): boolean => {
     const tx = Math.floor(player.x), tz = Math.floor(player.z);
     const x = tx + 0.5, z = tz + 0.5;
     const flat = footprintLevel(sampler, tx, tz, BUILD.PLOT, BUILD.PLOT, null) !== null;
     const verdict = canBuildAt(x, z, flat, villageNear(x, z), standingNear(x, z), clearOfTrees(tx, tz));
-    const name = builderIn(houses.hired.village, seed);
     if (!verdict.ok) {
       dialogue.start({ speaker: name, emoji: '🔨', pages: [`Not here. ${verdict.why}`] });
       return true;
     }
     dialogue.start({
       speaker: name, emoji: '🔨',
-      pages: [`Here, then. ${BUILD.DAYS} days, and the rest of the money when you can stand in it.`],
+      pages: [`Here, then. ${wants.days} days, and the rest of the money when you can stand in it.`],
       choices: [
-        { label: 'Build it here', next: () => {
-          const job = houses.place(x, z, today(), player.entity.yaw);
-          if (!job) return null;
-          // a village is a house bigger for everybody, so the world is told where it stands and
-          // when it was begun — the stage it has reached is worked out from that on every screen
-          ctx.told({
-            kind: 'built', id: job.id, village: job.village,
-            x: job.x, z: job.z, rot: job.rot ?? 0, day: Math.floor(job.began),
-          });
-          state.version++;
-          sound.chime();
-          hud.flash(`Pegs and string. ${BUILD.DAYS} days.`);
-          persist();
-          return null;
-        } },
+        { label: 'Build it here', next: () => { begin(x, z, wants); return null; } },
         { label: 'Let me look elsewhere', next: () => null },
+      ],
+    });
+    return true;
+  };
+
+  /**
+   * An addition: it goes on a house you already own, and on the side of it you are standing.
+   *
+   * The spot is not chosen by standing on it, because the spot is not yours to choose — a pool
+   * belongs to a yard and a storey belongs to a roof. What standing decides is *which* building
+   * and which side of it, which is the same statement of intent a house's own facing comes from.
+   */
+  const addToAHouse = (wants: Buildable, name: string): boolean => {
+    const parent = houses.nearest(player.x, player.z, BUILD.BESIDE_WITHIN);
+    const verdict = canAttachTo(parent, wants.id, today(), houses.entries());
+    if (!verdict.ok || !parent) {
+      dialogue.start({ speaker: name, emoji: '🔨', pages: [verdict.ok ? 'Not here.' : verdict.why] });
+      return true;
+    }
+    const spot = beside(parent, wants.id, player.x, player.z);
+    const tx = Math.floor(spot.x), tz = Math.floor(spot.z);
+    // the ground still has to take it: a fountain half in a river is not a fountain, and a storey
+    // is the only one this cannot refuse because the house is already standing on its own ground
+    if (!wants.changes) {
+      const flat = footprintLevel(sampler, tx, tz, BUILD.PLOT, BUILD.PLOT, null) !== null;
+      if (!flat || !clearOfTrees(tx, tz)) {
+        dialogue.start({
+          speaker: name, emoji: '🔨',
+          pages: ['Not on that side. Walk round to where the ground is level and clear, and ask me again.'],
+        });
+        return true;
+      }
+    }
+    dialogue.start({
+      speaker: name, emoji: '🔨',
+      pages: [wants.changes
+        ? `On this one, then. ${wants.days} days, and you will hear us on the roof.`
+        : `This side, then. ${wants.days} days.`],
+      choices: [
+        { label: 'Yes, there', next: () => { begin(spot.x, spot.z, wants, parent.id); return null; } },
+        { label: 'Let me think where', next: () => null },
       ],
     });
     return true;
@@ -302,7 +394,12 @@ export function builderInteractions(ctx: Surroundings) {
    */
   const chest = (job: Commission): DialogueNode => ({
     ...BOX,
-    pages: [`Your house, in ${job.village}'s parish. There is a banded box under the window.`, contents(job)],
+    pages: [
+      storeysOf(job, houses.entries(), today()) > 1
+        ? `Your house, in ${job.village}'s parish, two floors of it. There is a banded box under the window.`
+        : `Your house, in ${job.village}'s parish. There is a banded box under the window.`,
+      contents(job),
+    ],
     choices: [
       { label: 'Put something in', next: () => putIn(job) },
       { label: 'Take something out', next: () => takeOut(job) },
@@ -312,7 +409,9 @@ export function builderInteractions(ctx: Surroundings) {
 
   /** Enter at your own house: the box inside it, or the reason there is not one yet. */
   const tryChest = (): boolean => {
-    const job = houses.nearest(player.x, player.z, AT_THE_DOOR);
+    // a house, rather than whatever is nearest: a storey stands on the same tile as the house it
+    // is on and a pool three tiles off it, and neither has a strongbox under the window
+    const job = houses.nearest(player.x, player.z, AT_THE_DOOR, Houses.isABuilding);
     if (!job) return false;
     const day = today();
     const name = builderIn(job.village, seed);

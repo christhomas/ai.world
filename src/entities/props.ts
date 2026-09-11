@@ -528,12 +528,41 @@ prop(PropKind.CropRipe, [
     box(0.45, 1.2, 0.45, stone, [-0.8, 1.3, 0]),
   ]);
   // and finished, with the chimney that says which one is yours
+  const yours = { wall: 0xf1e4c8, roof: 0x7d5a3a, trim: 0x6b4a2b, roofType: 'gable' } as const;
   prop(PropKind.HouseYours, [
-    ...house({ wall: 0xf1e4c8, roof: 0x7d5a3a, trim: 0x6b4a2b, roofType: 'gable' }),
+    ...house(yours),
     box(0.5, 1.5, 0.5, stone, [-0.8, 2.2, 0]),
     box(0.62, 0.16, 0.62, 0x6e6e6e, [-0.8, 2.95, 0]),
   ], glazing(HOUSE_WINDOWS));
+  /*
+   * The same house with a floor added, which is what a second storey is.
+   *
+   * `house` has taken a number of storeys since villagers started spending an inheritance on one —
+   * the walls grow by a floor under the same roof and a second row of windows says so from the
+   * road — so a commissioned storey is that house rather than a new model. The chimney goes up with
+   * the roof it comes out of, which is the one thing that has to move by hand.
+   */
+  prop(PropKind.HouseYoursTwo, [
+    ...house(yours, 2),
+    box(0.5, 1.5, 0.5, stone, [-0.8, 3.4, 0]),
+    box(0.62, 0.16, 0.62, 0x6e6e6e, [-0.8, 4.15, 0]),
+  ], glazing(HOUSE_WINDOWS));
 }
+
+/*
+ * A fountain: a stone basin, a standing column and water falling back into it.
+ *
+ * Small on purpose — it stands in the yard of a house rather than in a square — and built out of
+ * the same handful of shapes as the well, because the two are the same idea and a fountain that
+ * looked like it came from another game would be the thing you noticed about the house.
+ */
+prop(PropKind.Fountain, [
+  cyl(1.05, 1.15, 0.34, 10, 0x9a9a92, [0, 0.17, 0]),
+  cyl(0.92, 0.92, 0.1, 10, 0x2f8fbf, [0, 0.36, 0]),
+  cyl(0.2, 0.26, 0.9, 8, 0xb4b4aa, [0, 0.75, 0]),
+  cyl(0.42, 0.1, 0.16, 10, 0xb4b4aa, [0, 1.24, 0]),
+  cyl(0.09, 0.09, 0.34, 6, 0x7fc8e4, [0, 1.45, 0]),
+]);
 
 prop(PropKind.NoticeBoard, [
   box(0.12, 1.3, 0.12, 0x6b4a2b, [0, 0.65, -0.6]),

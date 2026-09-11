@@ -30,15 +30,46 @@ export interface Site {
   /** Which way the front of it looks, in radians. */
   rot?: number;
   stage: 'pegs' | 'frame' | 'roof' | 'house';
+  /** What is being built. Absent means a house, which is what every plot was before there was a list. */
+  what?: string;
+  /** How many floors a finished house is standing at: two once a storey has been added to it. */
+  storeys?: number;
 }
 
-/** Which prop stands on the plot at each stage of the work. */
-const PROP: Record<Site['stage'], PropKind> = {
-  pegs: PropKind.HousePegs,
-  frame: PropKind.HouseFrame,
-  roof: PropKind.HouseRoof,
-  house: PropKind.HouseYours,
+/**
+ * Which prop stands on the plot at each stage of each kind of work.
+ *
+ * A house is the four stages the word `Stage` is named for. The rest borrow the pegs — a plot
+ * marked out with string is what a pool or a fountain looks like while it is being dug, and the
+ * alternative is modelling a hole — and then appear finished on the last day.
+ *
+ * A storey has no entry at all, and that is the interesting one: it is not a thing standing beside
+ * a house, it *is* the house, so while it goes up the house looks as it did and on the last day it
+ * is a floor taller. Drawing a frame for it would put a timber skeleton inside a finished cottage
+ * that a player can walk through, which is a worse lie than nothing.
+ */
+const LOOKS: Record<string, Partial<Record<Site['stage'], PropKind>>> = {
+  house: {
+    pegs: PropKind.HousePegs,
+    frame: PropKind.HouseFrame,
+    roof: PropKind.HouseRoof,
+    house: PropKind.HouseYours,
+  },
+  pool: { pegs: PropKind.HousePegs, frame: PropKind.HousePegs, roof: PropKind.HousePegs, house: PropKind.Pool },
+  fountain: { pegs: PropKind.HousePegs, frame: PropKind.HousePegs, roof: PropKind.HousePegs, house: PropKind.Fountain },
+  storey: {},
 };
+
+/** What to draw on one plot today, or nothing. */
+export function propOf(site: Site): PropKind | null {
+  const looks = LOOKS[site.what ?? 'house'] ?? LOOKS.house;
+  const kind = looks[site.stage];
+  if (kind === undefined) return null;
+  // the one case where a finished building is drawn as something else: a house that has had a
+  // storey put on it is the same commission, on the same plot, a floor taller
+  if (kind === PropKind.HouseYours && (site.storeys ?? 1) > 1) return PropKind.HouseYoursTwo;
+  return kind;
+}
 
 /**
  * Draws the houses somebody has had built, at whatever stage of building they have reached.
@@ -61,8 +92,11 @@ export class BuildingSite {
 
   /** @param heightAt ground height, so a house sits on its plot rather than hanging over it */
   update(sites: readonly Site[], heroX: number, heroZ: number, heightAt: (x: number, z: number) => number | null): void {
-    const near = sites.filter((s) => Math.hypot(s.x - heroX, s.z - heroZ) < DRAW_RANGE);
-    const signature = near.map((s) => `${s.id},${s.stage}`).sort().join('|');
+    const near = sites
+      .filter((s) => Math.hypot(s.x - heroX, s.z - heroZ) < DRAW_RANGE)
+      .map((s) => ({ site: s, kind: propOf(s) }))
+      .filter((s): s is { site: Site; kind: PropKind } => s.kind !== null);
+    const signature = near.map((s) => `${s.site.id},${s.kind}`).sort().join('|');
     if (signature === this.signature) return;
     this.signature = signature;
 
@@ -70,12 +104,12 @@ export class BuildingSite {
     disposeInstances(this.group);
     addPropInstances(
       this.group, this.props,
-      near.map((s) => ({
-        kind: PROP[s.stage],
-        x: s.x,
-        y: heightAt(s.x, s.z) ?? WORLD.STEP,
-        z: s.z,
-        rot: s.rot ?? 0,
+      near.map(({ site, kind }) => ({
+        kind,
+        x: site.x,
+        y: heightAt(site.x, site.z) ?? WORLD.STEP,
+        z: site.z,
+        rot: site.rot ?? 0,
       })),
       this.glowMaterial,
     );

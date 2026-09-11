@@ -57,6 +57,14 @@ export const enum PropKind {
   /** What a village builds once it has more than it needs, and charges you to use. */
   Sauna = 96,
   Pool = 97,
+  /**
+   * What a builder can add to a house you already own: another floor under the same roof, and a
+   * fountain for the yard. Both are commissioned rather than grown — see `game/building.ts` — and
+   * both are the second half of the argument that building takes an object: a storey and a pool
+   * are things nobody can order unless the catalogue has more than one line in it.
+   */
+  HouseYoursTwo = 98,
+  Fountain = 99,
   ChurchPlains = 40,
   ChurchForest = 41,
   ChurchDesert = 42,
@@ -219,7 +227,8 @@ export const BLOCKS_WALKING: ReadonlySet<PropKind> = new Set<PropKind>([
   PropKind.WatchHouseSwamp, PropKind.WatchHouseMountain, PropKind.WatchHouseSnow,
   // a house of the player's own, at every stage it stands up in — pegs in the ground are not a
   // wall, so they are not here, but a frame is something you walk round
-  PropKind.HouseFrame, PropKind.HouseRoof, PropKind.HouseYours, PropKind.Sauna,
+  PropKind.HouseFrame, PropKind.HouseRoof, PropKind.HouseYours, PropKind.HouseYoursTwo,
+  PropKind.Sauna, PropKind.Fountain,
   // and the castle, every piece of it. A curtain wall that let anybody through is a fence, and the
   // gatehouse has to stop you or there is nowhere to stand and be asked whether you are going in
   PropKind.CastleWall, PropKind.CastleTower, PropKind.CastleGate, PropKind.CastleKeep,

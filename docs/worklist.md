@@ -2882,7 +2882,7 @@ other, and the order is chosen so that each one can be *seen* working before the
       raises them out of what it has earned — and none can be *ordered*, which is the gap the list is
       there to be filled from. Optional on the record because every commission written down before
       there was a choice was a house, and a save from last week is not wrong, it is old.
-      - [~] **17a. The rest of a specification — blocked on there being a second thing to build.**
+      - [x] **17a. The rest of a specification — the catalogue has four lines in it now.**
             Looked at properly. The argument exists and now survives the whole way: `place` was
             dropping it and writing `house:` into the id, so `Commission.what` was a field nothing
             read — fixed, and the id names what was ordered so two different things on one tile are
@@ -2900,6 +2900,51 @@ other, and the order is chosen so that each one can be *seen* working before the
             the way the hero was standing.
 
             So the gap is a building, and the day there is one the catalogue grows by a line.
+
+            **Unblocked on 2026-09-11 by the person who asked for it**, with a design rather than a
+            model: a base cost per thing to start with, until builders are given prices of their
+            own; you tell the builder where; and — the part that was not in the system at all —
+            *some things depend on a piece of land and some depend on their parent building*. A
+            swimming pool, a fountain and a second storey all belong to the house they are attached
+            to.
+
+            **And the geometry turned out to be here already.** `house()` has taken a number of
+            storeys since villagers started spending an inheritance on one, and `PropKind.Sauna`
+            and `PropKind.Pool` were modelled and used by nothing at all. Three of the four entries
+            in the catalogue are geometry that was already in the game; only the fountain and the
+            two-storey chimney are new. The blocker was a day of modelling that had mostly been
+            done and not looked for.
+
+            What went in:
+
+            - `CATALOGUE` — a house (420g, 6 days), a second storey (260g, 4), a bathing pool
+              (150g, 3) and a fountain (90g, 2). Each carries `on: 'land' | 'house'`, whether
+              finishing it `changes` the thing it was added to, how much ground it is a wall to, and
+              what the builder says when it is done. `BUILD.PRICE` and `BUILD.DAYS` stay as the
+              house's numbers and the catalogue reads them, so there is one home for each.
+            - `Commission.to` — what an addition was added to, carried through `place`, the save,
+              and the wire. Without the last of those somebody else's bathing pool is drawn on your
+              screen as a cottage, which is how the field was found to be missing.
+            - `beside` — an addition stands on the side of the house its owner was standing on,
+              which is the same statement of intent the house's own facing comes from. A storey is
+              the exception and sits on the house, because it *is* the house.
+            - `canAttachTo` — four refusals, each a sentence somebody would say: nothing to put it
+              on, the house is still a frame, the house is not paid for ("I do not start the next on
+              credit"), and it has a storey already.
+            - `storeysOf` — counted from the commissions rather than written down when the work
+              ends, like everything else here. A world reopened after a fortnight finds the storey
+              on the house because it always was.
+            - `onOffer` — what the builder will take on, given what you own. It is his rule and not
+              the pub's; the pub is only where he drinks.
+            - `propOf` in `render/site.ts` — per kind, per stage. A pool and a fountain are pegs and
+              string until the last day. A storey draws nothing at any stage: it is not a thing
+              beside a house, so while it goes up the house looks as it did and on the last day it
+              is a floor taller. A frame drawn for it would be a timber skeleton inside a finished
+              cottage that a player can walk through, which is a worse lie than nothing.
+
+            Twenty-four tests, and a browser was walked into the yard to check: a two-storey house
+            with a pool beside it and a fountain in front of it. `chore shots -- estate` is the
+            picture, in the README.
 
 ## Still to do, at the end — September 11th
 

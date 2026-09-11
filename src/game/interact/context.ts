@@ -142,7 +142,11 @@ export interface Surroundings {
    * a house bigger afterwards, whoever paid for it, and until this existed a house went up in one
    * player's save and nowhere else.
    */
-  told: (delta: { kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number }) => void;
+  told: (delta: {
+    kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number;
+    /** What was ordered, and the building it was added to. Absent on a house, which is neither. */
+    what?: string; to?: string;
+  }) => void;
   startTalk: (e: Entity) => void;
   questLine: (q: { kind: string; target: string; count: number }) => string;
 }

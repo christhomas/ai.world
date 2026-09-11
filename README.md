@@ -79,6 +79,27 @@ door and the hearts, and the hours pass at their own pace.
 
 ![The same square after dark](docs/screenshots/night.png)
 
+### A house of your own, and what you add to it
+
+Everything else in this world belongs to somebody else — you can sleep in an inn, drink in a pub
+and sell to a shop, and none of it is ever yours. A house is the first thing that stays where you
+put it. You find a builder drinking in the pub, pay him down, walk out to the spot you want and
+press Enter on it: flat ground, off the road, not on top of anybody. Then it takes days. Pegs and
+string the first morning, a frame by the quarter mark, rafters past halfway, and a cottage with a
+chimney at the end of the week — worth riding past twice.
+
+![A house of your own, and what you add to it](docs/screenshots/estate.png)
+
+Building is a verb that takes an object, so the builder has a list. A house stands on its own piece
+of ground; **a second storey, a bathing pool and a fountain go on a house you already own**, which
+is a different kind of thing entirely — you do not choose a spot for them, you stand at the house
+on the side you want and he works out where that is. He will not start one while the last job is
+unfinished or unpaid, and a house only ever gets one second storey.
+
+What a finished house is *for* is the strongbox in it. It is the only place in the game where
+something you own is not on your body, and being knocked out takes gold off your body — so it is
+the difference between carrying four hundred gold across a moor and leaving it at home.
+
 ### A rucksack, and gear you can see
 
 Everything you buy, catch, loot or are given goes into the pack. Wearing it is a separate

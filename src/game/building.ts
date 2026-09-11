@@ -19,14 +19,20 @@ import { hashString } from '../core/rng';
 /**
  * The things a builder can be told to put up.
  *
- * One entry, and the list is the point rather than its length. `build` is a verb that takes an
- * object and the object has to come from somewhere nameable, or the argument is a string anybody
- * can put anything in. A second storey, a bath house and a paddock all exist in this world already
- * — a village raises them out of what it has earned — and none of them can be *ordered* yet, which
- * is the gap this list is here to be filled from.
+ * `build` is a verb that takes an object, and the object has to come from somewhere nameable or the
+ * argument is a string anybody can put anything in. The list was one line long for a while and the
+ * shortness was the honest part: the geometry for a second thing did not exist, and inventing what
+ * an ordered bath house looks like is a worse answer than admitting the catalogue is short.
+ *
+ * What unstuck it was looking properly. `house()` has taken a number of storeys since villagers
+ * started spending an inheritance on one, and there were a bath house and a bathing pool modelled
+ * and used by nothing at all. Three of the four entries below are geometry that was already here.
  */
 export const BUILDS = {
   HOUSE: 'house',
+  STOREY: 'storey',
+  POOL: 'pool',
+  FOUNTAIN: 'fountain',
 } as const;
 
 export const BUILD = {
@@ -44,6 +50,21 @@ export const BUILD = {
   PLOT: 1,
   /** No closer than this to anything else standing, in tiles. */
   CLEAR_OF: 7,
+  /**
+   * How far out of a house's wall something added to it stands, in tiles.
+   *
+   * Far enough to be beside the house rather than through it — the house is three tiles across and
+   * a pool is another three — and near enough to read as the same property from the road.
+   */
+  BESIDE_AT: 3.4,
+  /**
+   * How near your own house you have to stand to have something added to it, in tiles.
+   *
+   * Wider than the door, because what is being placed is in the yard rather than in the house.
+   * Narrow enough that standing between two houses is not ambiguous — which `nearest` settles
+   * anyway, by taking whichever is closer.
+   */
+  BESIDE_WITHIN: 9,
   /** And no further than this from the village that the builder will walk to it. */
   WITHIN: 90,
   /**
@@ -67,6 +88,95 @@ export const BUILD = {
   ROOF_AT: 0.6,
 } as const;
 
+/**
+ * What something costs to have built, and what it needs under it.
+ *
+ * ## Why a price sits in a table
+ *
+ * One number per thing, the same in every village. A builder who set his own would be the more
+ * interesting game — a poor village's man working cheap, a rich one's charging what the traffic
+ * bears — and every price in the world would then depend on the village's fortune, which is a day's
+ * balancing on top of a day's building. This is the base to start from, and the shape does not
+ * change when a village gets an opinion: `price` becomes what a builder quotes from.
+ *
+ * ## Why `on` exists
+ *
+ * A house needs a piece of ground and nothing else. A second storey needs a house to go on top of,
+ * a pool and a fountain need a yard to stand in — and a yard is a thing that belongs to a house.
+ * So half this list is not placed by walking somewhere and saying there: it is placed by standing
+ * at a building you already own. That is the whole difference and it is one field.
+ */
+export interface Buildable {
+  id: string;
+  /** What the builder calls it, mid-sentence: "I can put you up **a second storey**". */
+  name: string;
+  price: number;
+  days: number;
+  /** What has to be under it: open ground, or a house of your own. */
+  on: 'land' | 'house';
+  /**
+   * True when finishing it changes the building it was added to rather than standing beside it.
+   *
+   * A storey is the only one today. It matters because such a job has no site of its own once it is
+   * done — the house is simply taller — where a pool is a thing in the yard for ever after.
+   */
+  changes?: boolean;
+  /** What the builder says when he has finished, for the flash in the corner. */
+  done: string;
+  /**
+   * How far out from the middle it is a wall, in tiles, or null for something you can walk into.
+   *
+   * A house is the 3x3 it stands on. A fountain is the one tile it is on — you walk round it, not
+   * through it. A pool is water in a sunk tank and is nothing to walk into, and a storey adds
+   * nothing at all: it is the house's own tiles, which are solid already.
+   */
+  blocks: number | null;
+}
+
+export const CATALOGUE: readonly Buildable[] = [
+  {
+    id: BUILDS.HOUSE, name: 'a house', price: BUILD.PRICE, days: BUILD.DAYS, on: 'land',
+    done: 'The house is yours. There is a strongbox in it.', blocks: BUILD.PLOT,
+  },
+  {
+    id: BUILDS.STOREY, name: 'a second storey', price: 260, days: 4, on: 'house', changes: true,
+    done: 'Another floor under the same roof.', blocks: null,
+  },
+  {
+    id: BUILDS.POOL, name: 'a bathing pool', price: 150, days: 3, on: 'house',
+    done: 'The pool is filled and the lip is dry enough to sit on.', blocks: null,
+  },
+  {
+    id: BUILDS.FOUNTAIN, name: 'a fountain', price: 90, days: 2, on: 'house',
+    done: 'The fountain is running.', blocks: 0,
+  },
+];
+
+/**
+ * What a builder will offer somebody, given what they already own in his village.
+ *
+ * A rule rather than a line in a dialogue, because it is one, and it belongs to the builder rather
+ * than to the room he is drinking in: half the catalogue goes on a house, so listing those to
+ * somebody with no house is a menu of things that can only be refused.
+ * Finished and paid for, both — a man who is owed for the last job does not take the next one, and
+ * a pool beside a frame is a pool beside a building site.
+ */
+export function onOffer(mine: readonly Commission[], day: number): Buildable[] {
+  const standing = mine.some((job) =>
+    buildable(job.what).on === 'land' && isFinished(job, day) && owed(job, day) <= 0);
+  return CATALOGUE.filter((entry) => entry.on === 'land' || standing);
+}
+
+/** One entry by name. Anything unknown is a house, which is what every save older than the list holds. */
+export function buildable(what: string | undefined): Buildable {
+  return CATALOGUE.find((entry) => entry.id === what) ?? CATALOGUE[0];
+}
+
+/** What a thing is being built on, for whoever is deciding where it may go. */
+export function needs(what: string | undefined): Buildable['on'] {
+  return buildable(what).on;
+}
+
 /** A house that has been paid for and is going up. */
 export interface Commission {
   id: string;
@@ -79,6 +189,14 @@ export interface Commission {
    * Missing means a house, which is what every old save holds.
    */
   what?: string;
+  /**
+   * The building this one was added to, when it is an addition rather than a building of its own.
+   *
+   * A storey, a pool and a fountain are all things you have done to a house you already own, so
+   * each carries the id of the house it belongs to. Absent on a house, which belongs to a piece of
+   * ground and to nothing else.
+   */
+  to?: string;
   /** Where it is being built. */
   x: number;
   z: number;
@@ -106,9 +224,14 @@ export interface Commission {
   rot?: number;
 }
 
+/** How long this particular job takes: a fountain is two days and a house is a week. */
+export function daysFor(job: Commission): number {
+  return buildable(job.what).days;
+}
+
 /** How far along a build is, from nought the day it is commissioned to one when it is finished. */
 export function progressOf(job: Commission, day: number): number {
-  return Math.max(0, Math.min(1, (day - job.began) / BUILD.DAYS));
+  return Math.max(0, Math.min(1, (day - job.began) / daysFor(job)));
 }
 
 export function isFinished(job: Commission, day: number): boolean {
@@ -136,7 +259,8 @@ export function owed(job: Commission, day: number): number {
   return Math.max(0, job.price - job.paid);
 }
 
-export function deposit(price = BUILD.PRICE): number {
+/** What is paid to start. Typed as a number rather than inferred, or the default pins it to a house. */
+export function deposit(price: number = BUILD.PRICE): number {
   return Math.round(price * BUILD.DEPOSIT);
 }
 
@@ -172,10 +296,66 @@ export function canBuildAt(
   return { ok: true };
 }
 
+/**
+ * Where an addition stands, given the house it belongs to and where its owner was standing.
+ *
+ * The side of the house you are on is the side it goes, which is the same statement of intent the
+ * house's own facing is taken from — you walked round to the side you wanted and pressed Enter.
+ * A storey is the exception and sits exactly on the house, because it *is* the house.
+ */
+export function beside(
+  parent: { x: number; z: number }, what: string, fromX: number, fromZ: number,
+): { x: number; z: number } {
+  if (buildable(what).changes) return { x: parent.x, z: parent.z };
+  const dx = fromX - parent.x, dz = fromZ - parent.z;
+  const away = Math.hypot(dx, dz);
+  // standing in the doorway is not a direction, so the yard goes out the front by default
+  if (away < 0.5) return { x: parent.x + BUILD.BESIDE_AT, z: parent.z };
+  return {
+    x: parent.x + (dx / away) * BUILD.BESIDE_AT,
+    z: parent.z + (dz / away) * BUILD.BESIDE_AT,
+  };
+}
+
+/**
+ * Can this be added to that house?
+ *
+ * Four refusals, and each of them is a sentence somebody would actually say. The building has to
+ * be yours and finished — a builder will not start a pool beside a frame — it has to be paid for,
+ * because a man owed four hundred gold for the house does not begin the next job on credit, and a
+ * house can only have one second storey.
+ */
+export function canAttachTo(
+  parent: Commission | null, what: string, day: number, already: readonly Commission[],
+): { ok: true } | { ok: false; why: string } {
+  const wants = buildable(what);
+  if (!parent) return { ok: false, why: `Stand by a house of your own. ${wants.name} has to go on something.` };
+  if (!isFinished(parent, day)) return { ok: false, why: 'That one is not finished. One thing at a time.' };
+  if (owed(parent, day) > 0) return { ok: false, why: 'Settle up for that one first. I do not start the next on credit.' };
+  if (wants.changes && already.some((job) => job.to === parent.id && job.what === what)) {
+    return { ok: false, why: 'It has one of those already.' };
+  }
+  return { ok: true };
+}
+
+/**
+ * How many floors a house is standing at today.
+ *
+ * Counted rather than kept, the way everything else here is: a storey is a commission pointing at
+ * the house, and when it is finished the house is taller. Nothing has to be written down when the
+ * work ends, so a world reopened after a fortnight finds the storey on it because it always was.
+ */
+export function storeysOf(house: Commission, jobs: readonly Commission[], day: number): number {
+  const added = jobs.filter((job) =>
+    job.to === house.id && buildable(job.what).changes && isFinished(job, day)).length;
+  return 1 + Math.min(1, added);
+}
+
 /** What the builder says about a job in progress. */
 export function saidOfJob(job: Commission, day: number): string {
-  const left = Math.max(0, BUILD.DAYS - (day - job.began));
-  if (left <= 0) return 'Your house is finished. There is the matter of the rest of the money.';
+  const left = Math.max(0, daysFor(job) - (day - job.began));
+  const what = buildable(job.what).name;
+  if (left <= 0) return `Your ${what.replace(/^an? /, '')} is finished. There is the matter of the rest of the money.`;
   if (left === 1) return 'One more day on yours.';
   return `Yours will be ${left} days yet.`;
 }
@@ -255,7 +435,7 @@ export class Houses {
    * Tell him where. Returns the commission, or null with nobody hired — which the caller should
    * never reach, because the offer to build is only made when a builder is being held.
    */
-  place(x: number, z: number, day: number, rot = 0): Commission | null {
+  place(x: number, z: number, day: number, rot = 0, to?: string): Commission | null {
     const held = this.taken;
     if (!held) return null;
     this.taken = null;
@@ -273,6 +453,10 @@ export class Houses {
     const job: Commission = {
       id: `${what}:${held.village}:${Math.floor(x)},${Math.floor(z)}`,
       what, x, z, village: held.village, began: day, paid: held.paid, price: held.price, rot,
+      // what it was added to, when it is an addition. A storey shares its tile with the house it
+      // is on, so the id would collide without the kind in it — which is exactly why the kind is
+      // in the id already
+      ...(to ? { to } : {}),
     };
     this.jobs.push(job);
     return job;
@@ -286,25 +470,41 @@ export class Houses {
    * day it was begun. Named for what it is: adopting somebody else's house rather than taking one
    * on. Doing nothing when we already know about it, because a delta log may say it twice.
    */
-  adopt(built: { id: string; village: string; x: number; z: number; rot: number; day: number }): void {
+  adopt(built: {
+    id: string; village: string; x: number; z: number; rot: number; day: number;
+    what?: string; to?: string;
+  }): void {
     if (this.jobs.some((job) => job.id === built.id)) return;
     this.jobs.push({
       id: built.id, x: built.x, z: built.z, village: built.village,
-      began: built.day, rot: built.rot,
+      began: built.day, rot: built.rot, what: built.what, to: built.to,
       // paid in full by whoever ordered it: nobody here owes a village anything for it
       paid: 0, price: 0,
     });
   }
 
-  /** The nearest house within reach, or null. Used by whatever the player is standing next to. */
-  nearest(x: number, z: number, within: number): Commission | null {
+  /**
+   * The nearest building within reach, or null. Used by whatever the player is standing next to.
+   *
+   * `is` narrows it to a kind of building, and exists because the plots stopped all being houses:
+   * a storey shares its tile with the house it is on and a pool stands three tiles off, so "the
+   * nearest thing I have had built" and "my house" are no longer the same question. Pressing Enter
+   * at the door wants the second one — a pool has no strongbox in it.
+   */
+  nearest(x: number, z: number, within: number, is?: (job: Commission) => boolean): Commission | null {
     let best: Commission | null = null;
     let nearest = within;
     for (const job of this.jobs) {
+      if (is && !is(job)) continue;
       const away = Math.hypot(job.x - x, job.z - z);
       if (away <= nearest) { nearest = away; best = job; }
     }
     return best;
+  }
+
+  /** Whether this commission is a building in its own right rather than something added to one. */
+  static isABuilding(job: Commission): boolean {
+    return buildable(job.what).on === 'land';
   }
 
   /** Houses that are finished and still owe their builder something, on this day. */
@@ -329,7 +529,7 @@ export class Houses {
     const bills: Array<{ village: string; weight: number }> = [];
     for (const job of this.jobs) {
       if (owed(job, day) <= 0) continue;
-      const from = job.charged ?? job.began + BUILD.DAYS;
+      const from = job.charged ?? job.began + daysFor(job);
       job.charged = Math.floor(day);
       const days = Math.floor(day) - Math.floor(from);
       if (days <= 0) continue;
