@@ -2826,7 +2826,9 @@ other, and the order is chosen so that each one can be *seen* working before the
 
 - [x] **16. The Domesday Book.** Asked for on 2026-09-11: a tool like the character builder showing
       every villager in the world, live, so the economy and the world operating system can be
-      watched rather than guessed at. `server/domesday.ts`, `GET /domesday`, `tools/domesday.html`.
+      watched rather than guessed at. `server/domesday.ts`, `GET /registry`, `tools/registry.html`
+      — the book keeps its name on the page and answers to `registry` everywhere a machine reads it,
+      because a name worth having in a heading is not a name worth typing into an address bar.
 
       **It had to be on the server and that is the whole point of it.** A page holds villagers as
       guests: the world owns them, runs their trees, keeps their register. So the server can say

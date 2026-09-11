@@ -342,7 +342,7 @@ const SHOTS = [
   },
   {
     name: 'domesday', title: 'The Domesday Book', server: true,
-    page: '/tools/domesday.html?at=WORLD&seed=3',
+    page: '/tools/registry.html?at=WORLD&seed=3',
     setup: async (p, { wait }) => {
       // the token is typed rather than put in the address, exactly as a person would: the page
       // deliberately never remembers one, because a tool that quietly keeps a password leaks it

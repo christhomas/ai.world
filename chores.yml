@@ -256,6 +256,32 @@ tasks:
         }
         node tools/playtest.cjs
 
+  # The Domesday Book: what a world server is holding, which is the half of a world nobody is
+  # standing in. A window and not a door — `GET /registry` changes nothing — so the read-only
+  # watch token opens it as well as the operator one.
+  #
+  # The book is called the Domesday Book on the page and `registry` everywhere a machine reads it.
+  # A name worth having in a heading is not a name worth typing into an address bar.
+  registry:
+    desc: The Domesday Book, served and pointed at a world server
+    vars:
+      # its own port, so it can sit open beside the game and the builder without fighting either
+      PORT: '5373'
+      AT: '{{.DOMESDAY_AT | default "http://localhost:8787"}}'
+    args:
+      - name: seed
+        desc: which world to open the book on
+    cmds:
+      - |
+        echo "Domesday Book: http://localhost:{{.PORT}}/tools/registry.html?at={{.AT}}&seed={{.CLI_ARGS}}"
+        echo
+        echo "The server needs a token before it will answer:"
+        echo "  OPERATOR_WATCH_TOKEN=<something> chore world"
+        echo "and you type that token into the page. A world holds no people until somebody has"
+        echo "played in it — join the same seed and stand in a village, or the book is empty."
+        echo
+      - 'pnpm vite --port {{.PORT}}'
+
   shots:
     desc: Retake the README's screenshots, or the ones named
     vars:

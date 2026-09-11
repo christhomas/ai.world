@@ -193,15 +193,21 @@ buy the region map.
 ![The Domesday Book](docs/screenshots/domesday.png)
 
 The interesting half of a world is the half nobody is standing in, and no amount of playing will
-show you it. `tools/domesday.html` asks a world server instead: every soul it is holding, their
+show you it. `tools/registry.html` asks a world server instead: every soul it is holding, their
 trade, age, health, purse, what they earn against what a day costs them, who their parents are,
 and — for anybody the world has a body for — what they are doing this second, which is the branch
 of their behaviour tree that claimed the last tick. Tick **live** and it follows, with births,
 deaths and villages emptying listed as they happen.
 
-It is a window and not a door: `GET /domesday` computes the survey from state that already exists
-and changes nothing, so the read-only watch token opens it. Point it at a server, give it a token
-and a seed, and open the book.
+It is a window and not a door: `GET /registry` computes the survey from state that already exists
+and changes nothing, so the read-only watch token opens it. `chore registry` serves the page and
+prints the address; the server wants `OPERATOR_WATCH_TOKEN` set before it will answer, and you type
+that token into the page. The book is its name in a heading and `registry` everywhere a machine
+reads it — a name worth having on a page is not one worth typing into an address bar.
+
+A world holds no people until somebody has played in it: a village's souls are settled the first
+time the simulation stands them in their own street. Join the same seed and walk into one, and the
+book fills.
 
 ### Playing together
 

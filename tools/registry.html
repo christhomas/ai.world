@@ -8,7 +8,7 @@
   and knows about the chunks near its own hero. The server holds the register, runs their behaviour
   trees, and knows what every one of them is presently up to. So the book is asked of the server.
 
-  It is a window and not a door. `GET /domesday` computes a survey from state that already exists and
+  It is a window and not a door. `GET /registry` computes a survey from state that already exists and
   changes nothing; the door that changes a world is `POST /operate`, next to it, with its own token.
   Either token opens this — a watcher sees exactly what an operator does, because there is nothing
   here to abuse.
@@ -189,7 +189,7 @@ async function ask() {
   const at = $('where').value.replace(/\/$/, '');
   const seed = $('seed').value.trim();
   const token = $('token').value.trim();
-  const url = `${at}/domesday${seed ? `?seed=${encodeURIComponent(seed)}` : ''}`;
+  const url = `${at}/registry${seed ? `?seed=${encodeURIComponent(seed)}` : ''}`;
   const keep = new URLSearchParams({ at, ...(seed ? { seed } : {}) });
   history.replaceState(null, '', `?${keep}`);
   try {

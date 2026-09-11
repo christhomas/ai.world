@@ -112,12 +112,12 @@ class Player {
  * A server of its own for each test, on a port the operating system picks and a data directory
  * that is thrown away afterwards, so tests never see each other's worlds.
  */
-function aServer(label: string) {
+function aServer(label: string, options: Partial<Parameters<typeof startServer>[0]> = {}) {
   const held = { port: 0, dir: '' };
   let running: RunningServer;
   beforeEach(async () => {
     held.dir = mkdtempSync(join(tmpdir(), `aiworld-${label}-`));
-    running = await startServer({ port: 0, dataDir: held.dir, quiet: true });
+    running = await startServer({ port: 0, dataDir: held.dir, quiet: true, ...options });
     held.port = running.port;
   });
   afterEach(async () => {
@@ -340,5 +340,59 @@ describe('parties and bouts, over the wire', () => {
     wren.close();
     expect((await rowan.next('duel-over')).name).toBe('Wren');
     expect((await rowan.next('left')).id).toBe(wrenId);
+  });
+});
+
+/**
+ * The registry: what a server is holding, asked for over HTTP rather than over the socket.
+ *
+ * The path is the part of this that a machine reads, and it had none of the cover the rest of the
+ * wire has — `PROTOCOL_VERSION` guards every message and nothing at all guarded the one string in
+ * the router. It was `/domesday` until somebody pointed out that a name worth having in a heading
+ * is not a name worth typing into an address bar; the page is still the Domesday Book and this is
+ * what stops the rename from being the sort of change that is only noticed by a broken tool.
+ */
+describe('the registry over HTTP', () => {
+  const WATCH = 'watch-me';
+  const server = aServer('registry', { watchToken: WATCH });
+  const ask = (path: string, token?: string) =>
+    fetch(`http://localhost:${server.port}${path}`, { headers: token ? { 'x-operator-token': token } : {} });
+
+  it('answers a survey of a world to somebody holding the watch token', async () => {
+    const res = await ask('/registry?seed=7', WATCH);
+    expect(res.status).toBe(200);
+    const book = await res.json();
+    expect(book.seed).toBe(7);
+    // a world nobody has played in has no souls in it yet, and says so rather than refusing
+    expect(Array.isArray(book.parishes)).toBe(true);
+    expect(Array.isArray(book.happened)).toBe(true);
+  });
+
+  it('lists whatever the server is holding when no seed is named', async () => {
+    const res = await ask('/registry', WATCH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toHaveProperty('worlds');
+  });
+
+  it('turns away anybody without the token', async () => {
+    expect((await ask('/registry?seed=7')).status).toBe(401);
+    expect((await ask('/registry?seed=7', 'not-the-token')).status).toBe(401);
+  });
+
+  it('will not be told anything, only asked', async () => {
+    // the whole argument for the read-only token opening it: there is nothing down this path that
+    // can change a world, and `POST` is how that stops being true by accident
+    const res = await fetch(`http://localhost:${server.port}/registry?seed=7`, {
+      method: 'POST', headers: { 'x-operator-token': WATCH },
+    });
+    expect(res.status).toBe(405);
+  });
+
+  it('no longer answers to the name it had', async () => {
+    // it falls through to the plain-text status page the root serves, which is a 200 — so what is
+    // asked is whether a survey comes back, not whether the request failed
+    const res = await ask('/domesday?seed=7', WATCH);
+    expect(res.headers.get('content-type') ?? '', 'the old path still hands out a survey')
+      .not.toContain('application/json');
   });
 });
