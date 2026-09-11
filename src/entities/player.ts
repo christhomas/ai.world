@@ -78,6 +78,29 @@ export class Player {
    */
   static readonly ARRIVED = 1.5;
 
+  /**
+   * How long he may fail to get any nearer before he stops trying.
+   *
+   * Found by walking one: sent twenty tiles east he went four, met a river, and leant into it for
+   * as long as anybody watched. That is exactly what a player pressing W would get and is right —
+   * but a script is not watching, and a driver that can push at a riverbank for ever is a test that
+   * hangs rather than one that fails. Two seconds is long enough to squeeze past a cow and short
+   * enough that nobody waits on it.
+   *
+   * Giving up clears the autopilot, the same as arriving does, so `steering` going false means
+   * "finished" and where he is says which of the two it was.
+   */
+  static readonly GIVES_UP = 2;
+
+  /**
+   * How much nearer counts as getting somewhere, in tiles.
+   *
+   * Small on purpose: sliding along a wall towards the far side of it is progress, and a hero
+   * squeezing between a house and a fence covers very little ground per second while doing exactly
+   * what he should.
+   */
+  static readonly PROGRESS = 0.05;
+
   constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
     this.entity = newHero(x, z);
     renderer.add(this.entity);
@@ -180,15 +203,23 @@ export class Player {
    *
    * It clears itself on arrival rather than being switched off by whoever set it. A driver that had
    * to be told to stop is a driver that keeps walking when the thing that set it has gone away, and
-   * a hero pressed against a wall for ever is the failure nobody would think to look for.
+   * a hero pressed against a wall for ever is the failure nobody would think to look for. It also
+   * clears itself when he stops getting any nearer — see `GIVES_UP` — because the wall is real and
+   * a script cannot see him leaning on it.
    *
    * Passing nothing stops him where he is, which is what a caller wants when the plan has changed.
    */
   walkTo(x?: number, z?: number, within = Player.ARRIVED): void {
     if (x === undefined || z === undefined) { this.autopilot = null; return; }
-    this.autopilot = () => {
+    let nearest = Infinity, stuck = 0;
+    this.autopilot = (dt) => {
       const dx = x - this.entity.x, dz = z - this.entity.z;
-      if (Math.hypot(dx, dz) <= within) { this.autopilot = null; return null; }
+      const away = Math.hypot(dx, dz);
+      if (away <= within) { this.autopilot = null; return null; }
+      // measured against the best he has ever managed rather than against last frame, so that
+      // being shoved backwards by a crowd and then recovering is not counted as progress twice
+      if (away < nearest - Player.PROGRESS) { nearest = away; stuck = 0; } else { stuck += dt; }
+      if (stuck >= Player.GIVES_UP) { this.autopilot = null; return null; }
       return { dx, dz };
     };
   }

@@ -2622,8 +2622,8 @@ other, and the order is chosen so that each one can be *seen* working before the
       living in the game and two farmers hold much of a village's worth. Whether that is right —
       food *is* the base of the whole economy — or wants flattening is a design call, not a bug.
 
-- [ ] **9. One vocabulary for everybody** — everything done or decided except 9d, the hero driven by
-      the same decisions as everybody else. Asked for on 2026-09-11: if the player acts on the world
+- [x] **9. One vocabulary for everybody** — done. The hero acts on the world through the same named
+      verbs the villagers and creatures do. Asked for on 2026-09-11: if the player acts on the world
       through the same named verbs the villagers and creatures do, there is one thing to test, one
       thing to automate, and a villager can do anything the hero can. Three layers were found and
       only the third is worth unifying — what an act *does*, apart from who ordered it and how it
@@ -2672,7 +2672,7 @@ other, and the order is chosen so that each one can be *seen* working before the
             `entities/living.ts` when the file hit 705 lines. `architecture.test.ts` is what will say
             when it needs doing again, and `vocabulary.test.ts` keeps the split invisible from
             `behaviours/` — a tree naming `sell` gets `sell`. Nothing to do until the cap fires.
-      - [ ] **9d. The hero driven by the same decisions as everybody else.** Note the hero is
+      - [x] **9d. The hero driven by the same decisions as everybody else.** Note the hero is
             *already* an `Entity` — `Player.entity`, kind `hero` — so the question was never about
             the body. It is about the choosing. Framed by the person who asked for it: **the
             decisions are the same, they are just made manually, and each step goes through the
@@ -2689,6 +2689,20 @@ other, and the order is chosen so that each one can be *seen* working before the
             synthesised keypresses; "walk to Frostgard" becoming the `goTo` a villager already uses;
             a disconnected player's hero standing down sensibly instead of freezing; and any act the
             hero can do becoming available to a villager, which is the whole point of the exercise.
+
+            **Built as a seam rather than a machine.** `Player.autopilot` is one line in `update`:
+            when nothing at all is held down, whatever else is driving him is asked for a steer, and
+            that steer goes through the same `stride`, the same collision and the same crowd a
+            person's would. Input wins outright — a hero who argued with the keyboard for a frame
+            would be unplayable — and a nudge of a key does not cancel where he was sent.
+
+            `walkTo(x, z)` is the first thing built on it and the one that makes an automated game
+            possible: a script says where the hero should be rather than which keys a person would
+            have held to get him there. It clears itself on arrival, because a driver that has to be
+            told to stop keeps walking when the thing that set it has gone away, and a hero pressed
+            against a wall for ever is the failure nobody would think to look for. `__walkTo` on the
+            page hands it to a browser probe. Deliberately not a teleport: `__teleport` drags a
+            hired company along with it, so it can never answer a question about walking.
 
       - [x] **9f. A hire is a contract with a life.** Asked for on 2026-09-11: paying for a contract
             with a time limit; while it runs he follows whoever owns it; when it runs out he offers

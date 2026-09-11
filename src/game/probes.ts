@@ -20,7 +20,6 @@ import type { Site, Structures } from '../world/structures';
 import type { EntityRenderer } from '../entities/pool';
 import type { Mount } from './mount';
 import { StructureKind } from '../world/structures';
-import { theBirths, theCharges, theRoll, theStones } from './records';
 import type { Jail } from './jail';
 import { bodyOf } from '../entities/entity';
 import type { TerrainSampler } from '../world/terrain';
@@ -31,6 +30,7 @@ import type { IsoCamera } from '../render/camera';
 import type { SceneRig } from '../render/scene';
 import { BUILD, stageAt, type Houses } from './building';
 import type { CommandWorld } from './commands';
+import { installPeopleProbes } from './probesPeople';
 import type { Director } from './director';
 import type { Eyrie } from './eyries';
 import type { Plots } from './farming';
@@ -46,7 +46,7 @@ import type { Sailing } from './sailing';
 import type { Skies } from './skies';
 import { stableAt } from './stables';
 import type { GameState } from './state';
-import { dialogueFor, type TalkCtx } from './talk';
+import type { TalkCtx } from './talk';
 import type { Warband } from './warband';
 import { worldSeconds } from './ferry';
 import { whaleAt, type Pod } from './whales';
@@ -145,9 +145,9 @@ export function installProbes(ctx: Probed): void {
   const {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
-    roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands, jail,
+    roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
     commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally, wing, leaveOne,
-    heard, nettleAbout, sentOut, mount, overworldRenderer, drawLineage,
+    heard, nettleAbout, sentOut, mount, overworldRenderer,
   } = ctx;
 
   const debug = window as unknown as {
@@ -319,8 +319,27 @@ export function installProbes(ctx: Probed): void {
         .slice(0, 6),
     };
   };
-  (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => commandWorld.thin(village, n);
+  installPeopleProbes(ctx);
   (debug as { __callOut?: (id: string) => void }).__callOut = (id) => callOut(id);
+  /*
+   * Walk the hero somewhere, and say when he has got there.
+   *
+   * The thing `Player.autopilot` was for. A script driving the game used to have to hold keys down
+   * and hope — `keyboard.down('w')`, wait, `keyboard.up('w')` — which measures the keyboard as much
+   * as it measures the game, and cannot say "go to the village" at all. This hands the hero the
+   * same steer the keyboard would have handed him and clears itself when he arrives.
+   *
+   * Not a teleport, and that is the whole value: `__teleport` puts him somewhere and drags his
+   * hired company with him, so it can never answer a question about walking. This walks.
+   *
+   * Poll `__player.steering` to know when he has finished, and `__player.x`/`z` to know whether
+   * finishing meant arriving: he gives up on a place he cannot reach rather than leaning on the
+   * thing in the way of it, so a script never waits on him for ever.
+   */
+  (debug as { __walkTo?: (x?: number, z?: number) => unknown }).__walkTo = (x, z) => {
+    player.walkTo(x, z);
+    return { steering: player.steering, at: [Math.round(player.x), Math.round(player.z)] };
+  };
   (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
   // tell everybody in your pay the same thing, for checking from outside that an order changes
   // what a man actually does rather than only what the books say about him
@@ -431,8 +450,6 @@ export function installProbes(ctx: Probed): void {
       sent: sentOut().filter((e) => !e.dead).map((e) => `${e.kind.id} hp${e.hp}`),
     };
   };
-  (debug as { __fortunes?: () => unknown }).__fortunes = () =>
-    structures.villages.map((v) => ({ village: v.name, living: register.living(v.name).length, fortune: register.fortune(v.name) }));
   (debug as { __enterMine?: (village: string) => unknown }).__enterMine = (village) => {
     const cave = claimed.get(village);
     if (!cave) return null;
@@ -477,12 +494,6 @@ export function installProbes(ctx: Probed): void {
     mount.mount(player);
     return { riding: mount.riding, breed: mount.breed.id, name: mount.name };
   };
-  (debug as { __lineage?: (village?: string) => unknown }).__lineage = (village) => {
-    const where = village ?? structures.villages[0]?.name;
-    if (!where) return null;
-    drawLineage(where);
-    return { village: where };
-  };
   (debug as { __mines?: () => unknown }).__mines = () =>
     minesWorked().map((w) => ({
       inAMine: fightingInAMine(),
@@ -499,70 +510,6 @@ export function installProbes(ctx: Probed): void {
       const stable = stableAt(v);
       return { village: v.name, houses: v.houses.length, stock: stable?.stock.map((b) => b.id) ?? null };
     });
-  (debug as { __pass?: (days: number) => unknown }).__pass = (days) => {
-    state.day += Math.max(1, Math.floor(days));
-    const changes = register.advance(state.day);
-    return changes.map((c) => `day ${c.day}: ${c.name} ${c.kind}${c.cause ? ` (${c.cause})` : ''} in ${c.village}`);
-  };
-  (debug as { __talkTo?: (name: string) => unknown }).__talkTo = (name) => {
-    const who = entities.within(player.x, player.z, 120).find((e) => e.name === name);
-    if (!who) return null;
-    talkCtx.day = state.day;
-    const node = dialogueFor(who, talkCtx);
-    return { speaker: node.speaker, pages: node.pages, choices: (node.choices ?? []).map((c) => c.label) };
-  };
-  /*
-   * What a village's books say, without walking into the building that keeps them.
-   *
-   * The same numbers the clerk, the priest, the sergeant and the apothecary read out — the roll,
-   * the stones, the charge sheet, the births — as rows rather than as sentences. This is how the
-   * economy is checked: whether anybody is earning, whether purses grow, who is starving, who is
-   * being buried and of what. A village that simulates a hundred lives is only worth having if
-   * somebody can look at them.
-   */
-  (debug as { __records?: (village?: string) => unknown }).__records = (village) => {
-    const where = village ?? structures.villages
-      .map((v) => ({ name: v.name, away: Math.hypot(v.x - player.x, v.z - player.z) }))
-      .sort((a, b) => a.away - b.away)[0]?.name;
-    if (!where) return null;
-    const today = state.day;
-    return {
-      village: where,
-      roll: theRoll(register, where, today),
-      stones: theStones(register, where, today),
-      births: theBirths(register, where, today),
-      // never wanted, because nobody is standing at the counter: that line is the sergeant looking
-      // up at you, and there is no you here
-      charges: theCharges(jail.charges(), where, today, false),
-    };
-  };
-  (debug as { __register?: (village?: string) => unknown }).__register = (village) => {
-    const here = village ?? structures.villages
-      .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
-      .sort((a, b) => a.d - b.d)[0]?.v.name ?? '';
-    return {
-      village: here, day: register.today,
-      people: register.living(here).map((p) => ({
-        name: p.name, trade: p.trade, born: p.born, lives: p.lives,
-        // what they have and whether they have eaten: the economy is the reason for this probe as
-        // much as the family tree is, and a village's health is a column of numbers
-        purse: p.purse, hungry: p.hungry,
-        mother: p.mother, father: p.father, knows: p.knows.length, memories: p.memories,
-      })),
-      /** Who this village has buried, and what took them: the other half of a population. */
-      buried: register.churchyard(here).slice(-8).map((b) => ({ name: b.name, day: b.day, cause: b.cause })),
-      /** Everybody the register holds, wherever they live: the whole world in one count. */
-      world: (() => {
-        const all = register.everybody();
-        return {
-          alive: all.length,
-          purse: all.reduce((sum, p) => sum + p.purse, 0),
-          hungry: all.filter((p) => p.hungry > 0).length,
-          villages: register.settled().length,
-        };
-      })(),
-    };
-  };
   debug.__player = player;
   debug.__teleport = (x, z) => commandWorld.teleport(x, z);
   // the console's way in: `cmd('teleport 322 53')`, and `cmd('help')` for the rest
