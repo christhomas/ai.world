@@ -69,6 +69,17 @@
   .bar > i { display: block; height: 100%; background: #7fd18c; }
   .bar.low > i { background: #e4746a; }
   .empty { color: var(--dim); padding: 30px 12px; }
+  /* what has happened lately, which is the half a survey cannot answer */
+  #happened {
+    border: 1px solid var(--line); border-radius: 6px; margin-bottom: 14px;
+    max-height: 190px; overflow: auto; background: #10141f;
+  }
+  #happened h2 { margin: 0; padding: 8px 12px; background: #151a28; font-size: 13px; font-weight: 600; }
+  #happened div { padding: 2px 12px; border-top: 1px solid var(--line); }
+  .ev-died { color: #e4746a; }
+  .ev-born { color: #7fd18c; }
+  .ev-lost { color: #e4a06a; }
+  .ev-resettled { color: #8fb8e8; }
 </style>
 </head>
 <body>
@@ -81,7 +92,10 @@
   <label><input type="checkbox" id="live" style="width:auto"> live</label>
   <span class="note" id="note">not yet asked</span>
 </header>
-<main id="out"><div class="empty">Point it at a world server and open the book.</div></main>
+<main>
+  <section id="happened" hidden><h2>What has happened</h2><div class="empty">nothing yet</div></section>
+  <div id="out"><div class="empty">Point it at a world server and open the book.</div></div>
+</main>
 
 <script type="module">
 /*
@@ -102,6 +116,35 @@ const hearts = (left, most) => {
 };
 
 const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
+
+/*
+ * What has happened lately, newest at the top.
+ *
+ * Kept across polls rather than replaced, because the server only sends what is newer than the last
+ * number it gave us — which is what makes "live" cheap, and means the page is the thing that holds
+ * the history. Trimmed to what anybody would scroll.
+ */
+const SHOWN = 200;
+let happened = [];
+let latest = 0;
+
+const saidOf = (e) => {
+  const day = `day ${e.day}`;
+  if (e.kind === 'died') return `${e.name} of ${e.village} died — ${e.cause ?? 'unknown'}, ${day}`;
+  if (e.kind === 'born') return `${e.name} was born in ${e.village}, ${day}`;
+  if (e.kind === 'lost') return `${e.village} is empty — the last of them went on ${day}`;
+  if (e.kind === 'resettled') return `${e.name} walked to ${e.village}, ${day}`;
+  return `${e.name}: ${e.kind}, ${day}`;
+};
+
+function drawHappened() {
+  const box = $('happened');
+  box.hidden = false;
+  const rows = happened.length === 0
+    ? '<div class="empty">nothing since you opened the book</div>'
+    : happened.map((e) => `<div class="ev-${e.kind}">${esc(saidOf(e))}</div>`).join('');
+  box.innerHTML = `<h2>What has happened — ${happened.length}</h2>${rows}`;
+}
 
 function draw(book) {
   if (!book.parishes.length) {
@@ -150,7 +193,8 @@ async function ask() {
   const keep = new URLSearchParams({ at, ...(seed ? { seed } : {}) });
   history.replaceState(null, '', `?${keep}`);
   try {
-    const res = await fetch(url, { headers: token ? { 'x-operator-token': token } : {} });
+    const asking = `${url}${url.includes('?') ? '&' : '?'}since=${latest}`;
+    const res = await fetch(asking, { headers: token ? { 'x-operator-token': token } : {} });
     const body = await res.json();
     if (!res.ok) { $('note').innerHTML = `<span class="bad">${esc(body.error ?? res.status)}</span>`; return; }
     // one world or all of them: a server holding several answers with a list
@@ -158,6 +202,12 @@ async function ask() {
     if (!book) { $('note').innerHTML = '<span class="bad">no worlds open</span>'; return; }
     $('note').textContent = `world ${book.seed} · day ${book.day} · ${book.souls} souls · `
       + `${book.standing} on their feet · ${new Date().toLocaleTimeString()}`;
+    if (Array.isArray(body.happened) && body.happened.length > 0) {
+      // newest first, and the page keeps the history because the server only sends the new part
+      happened = [...body.happened.reverse(), ...happened].slice(0, SHOWN);
+    }
+    if (typeof body.latest === 'number') latest = body.latest;
+    drawHappened();
     draw(book);
   } catch (e) {
     $('note').innerHTML = `<span class="bad">${esc(e.message)}</span>`;

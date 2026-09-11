@@ -2747,9 +2747,19 @@ other, and the order is chosen so that each one can be *seen* working before the
       founded from a half-grown world gets the wrong trades *permanently*, which is the same hazard
       `VillagerSnap.trades` exists to prevent.
 
-      - [ ] **16a. Births and deaths as a stream.** `Register.advance` hands back exactly that list
-            and nothing keeps it. A book that showed what *changed* wants a log, which is a decision
-            about memory rather than a line of code.
+      - [x] **16a. Births and deaths as a stream.** `server/chronicle.ts`. `Register.advance` has
+            always handed back every birth, death, emptied village and resettlement, and every caller
+            in the game threw the list away after acting on it. A ring of the last thousand, in
+            memory, per world — not a log, because a world that runs for a month has tens of
+            thousands of these and there is no version of "keep them all" that ends well. Read by
+            number rather than by time: a world lives a day in a second and two deaths in one
+            millisecond are ordinary, so a reader polling on a clock would see one and never the
+            other. The book shows it and keeps its own history, because the server only sends the
+            part that is new.
+
+            **Worth knowing about how it behaves:** a world day is `DAY_LENGTH` 7,200 seconds — two
+            hours. So in a short session the panel is empty and correct, and it earns its keep on a
+            world that has been running for days, which is the homelab case it was asked for.
       - [ ] **16b. A child was out hunting.** The book found it within a minute of first rendering:
             Kees Bakker, nine years old, trade "—", `doing` "out hunting". A child on the street is
             given a trade's day to follow by `pickTrade` because the register has no trade for them.

@@ -15,6 +15,7 @@ import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
 import { domesdayOf, type Domesday } from './domesday';
+import { Chronicle } from './chronicle';
 import { countryStamp, growWorld } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
 import type { WorldKind } from '../src/save/store';
@@ -135,6 +136,8 @@ export class Simulation {
   private readonly stamps = new Map<number, string>();
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
   private readonly wildlife = new Map<number, Wildlife>();
+  /** What has happened lately in each world, for anybody watching one. See `chronicle.ts`. */
+  private readonly chronicles = new Map<number, Chronicle>();
   /**
    * The dungeon floors somebody is standing on, and what lives in them, keyed by world and place.
    *
@@ -261,6 +264,22 @@ export class Simulation {
     });
   }
 
+  /**
+   * The last while of one world's history: births, deaths, villages emptied and resettled.
+   *
+   * Made on being asked and kept for as long as the simulation is. A world nobody has looked at
+   * still has one, because the thing that fills it is the day turning over rather than anybody
+   * reading it — a chronicle that only recorded while somebody was watching would be a chronicle
+   * that is empty exactly when it is opened.
+   */
+  chronicleOf(seed: number): Chronicle {
+    const had = this.chronicles.get(seed);
+    if (had) return had;
+    const fresh = new Chronicle();
+    this.chronicles.set(seed, fresh);
+    return fresh;
+  }
+
   /** What is alive in a world, when the simulation is the thing keeping it alive. */
   livesIn(seed: number): Wildlife | null {
     this.groundOf(seed);
@@ -359,7 +378,10 @@ export class Simulation {
       // old, fills the gaps, grows the children up and pays everybody for a day's work, and the
       // street is brought back into line with it on the next step — so the order is the register
       // first and the people second, exactly as it is on a client.
-      this.wildlife.get(seed)?.register?.advance(room.world.clock.day);
+      const turned = this.wildlife.get(seed)?.register?.advance(room.world.clock.day);
+      // and what the day turned up goes into the world's chronicle, which is the only thing in the
+      // game that keeps what *changed* rather than what is true. See `chronicle.ts`
+      if (turned?.length) this.chronicleOf(seed).record(turned);
       if (room.world.sweepStalls()) this.rooms.broadcast(seed, { type: 'stalls', stalls: room.world.stalls });
       // who is where. A world is several worlds at once — the country, and a floor under every
       // staircase somebody is standing on — and each of them is stepped for the people in it.

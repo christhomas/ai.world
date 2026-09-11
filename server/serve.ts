@@ -198,13 +198,28 @@ function domesday(sim: Simulation, options: ServerOptions, req: IncomingMessage,
   if (!known) { say(401, { error: 'no' }); return; }
   if (!withinRate(given)) { say(429, { error: 'too many' }); return; }
 
-  const asked = new URL(req.url ?? '/', 'http://x').searchParams.get('seed');
+  const query = new URL(req.url ?? '/', 'http://x').searchParams;
+  const asked = query.get('seed');
   if (asked !== null) {
     const seed = Number(asked);
     if (!Number.isFinite(seed)) { say(400, { error: 'that is not a seed' }); return; }
     const book = sim.surveyOf(seed);
     if (!book) { say(404, { error: `no world ${seed}` }); return; }
-    say(200, book);
+    /*
+     * And what has happened since the caller last looked.
+     *
+     * `since` is a number they were handed rather than a time, because a world lives a day in a
+     * second and two things in one millisecond are ordinary — a reader polling on a clock would see
+     * one of them and never the other. Absent means "everything the ring still holds", which is
+     * what somebody opening the page for the first time wants.
+     */
+    const since = Number(query.get('since') ?? 0);
+    const chronicle = sim.chronicleOf(seed);
+    say(200, {
+      ...book,
+      happened: chronicle.since(Number.isFinite(since) ? since : 0),
+      latest: chronicle.latest,
+    });
     return;
   }
   // no seed: whatever this server is presently holding, which is what a watcher wants
