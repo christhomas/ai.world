@@ -392,25 +392,38 @@ export class TerrainSampler {
    * Nearest water body. `wd` is the signed distance outside its edge (negative = in the water),
    * `level` is the terrace the water surface belongs to (bed is one below).
    */
-  private waterAt(px: number, pz: number, cands: number[]): { wd: number; level: number } | null {
-    let best: { wd: number; level: number } | null = null;
+  /**
+   * Every water body in the candidate set, as how far outside it this point is and what terrace its
+   * surface belongs to.
+   *
+   * Walked rather than reduced, because the two questions asked of it want different answers. What
+   * the *nearest* water is decides whether you are standing in it and what the surface is doing
+   * around you. What the *most demanding* water is decides how far the country has to come down,
+   * and that is not always the nearest one — see `cutForWaters`.
+   */
+  private eachWater(px: number, pz: number, cands: number[], saw: (wd: number, level: number) => void): void {
     const nSeg = this.riverSegs.length;
     for (const i of cands) {
       if (i < nSeg) {
         const s = this.riverSegs[i];
         const [d2, t] = segDist2(px, pz, s.ax, s.az, s.bx, s.bz);
         const w = s.wa + (s.wb - s.wa) * t;
-        const wd = Math.sqrt(d2) - w;
         // level switches halfway along a segment: that seam is where the waterfall forms
-        if (!best || wd < best.wd) best = { wd, level: t < 0.5 ? s.la : s.lb };
+        saw(Math.sqrt(d2) - w, t < 0.5 ? s.la : s.lb);
       } else {
         const l = this.hydro.lakes[i - nSeg];
         const dx = px - l.x, dz = pz - l.z;
         const rr = l.r * (1 + 0.3 * this.noise.noise(px * 0.16, pz * 0.16));
-        const wd = Math.sqrt(dx * dx + dz * dz) - rr;
-        if (!best || wd < best.wd) best = { wd, level: l.level };
+        saw(Math.sqrt(dx * dx + dz * dz) - rr, l.level);
       }
     }
+  }
+
+  private waterAt(px: number, pz: number, cands: number[]): { wd: number; level: number } | null {
+    let best: { wd: number; level: number } | null = null;
+    this.eachWater(px, pz, cands, (wd, level) => {
+      if (!best || wd < best.wd) best = { wd, level };
+    });
     return best;
   }
 
@@ -453,9 +466,21 @@ export class TerrainSampler {
     const water = riverCands.length > 0 ? this.waterAt(px, pz, riverCands) : null;
     const plaza = Math.hypot(px, pz) < HUB_PLAZA;
 
-    // the country this is in — a road through the mountains is a road in the mountains — cut down
-    // into whatever valley it crosses, which is `cutForWater`'s whole subject
-    const country = cutForWater(this.highlandAt(px, pz), water, roadLevel, HYDRO.BANK);
+    /*
+     * The country this is in — a road through the mountains is a road in the mountains — cut down
+     * into whatever valley it crosses, which is `cutForWater`'s whole subject.
+     *
+     * Against *every* water near this point rather than against the nearest one. Each body the
+     * ground is near constrains it independently, and the binding constraint is the lowest of them
+     * — which is not always the closest. Taking the nearest was the worst wall in the world: at
+     * 158,-158 on seed 1 two neighbouring road tiles stood thirteen terraces apart, because the
+     * nearest water changed hands from one whose surface is at terrace 38 to one at terrace 22 and
+     * the cut jumped with it. Both were near both tiles the whole time.
+     */
+    let country = this.highlandAt(px, pz);
+    this.eachWater(px, pz, riverCands, (wd, level) => {
+      country = cutForWater(country, { wd, level }, roadLevel, HYDRO.BANK);
+    });
 
     if (d < e.roadWidth || plaza) {
       out.type = TileType.Road;

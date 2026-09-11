@@ -2514,10 +2514,26 @@ afterwards and are *meant* to be steep. And the walls that are left are not seam
   `Seabed` was excluded. Worth saying: a careless measurement here reads 16.00 and sends somebody
   off to fix a cliff into the sea.
 
-**Where it actually goes now.** The question is what a bank does in one tile. `cutForWater` pulls the
-country down to meet water over `HYDRO.BANK`, and thirteen terraces of that inside a tile is the
-steepest thing in the world that is not deliberate. That is a smaller, more specific piece of work
-than rewriting how a tile takes its height — and it is the one the measurements point at.
+**Where it actually went, and it was one line.** The cut was taken from the *nearest* water body, and
+the thirteen terraces at 158,-158 were the nearest one changing hands: a surface at terrace 38 on one
+tile, 22 on the next, both bodies near both tiles the whole time. Every water near a point constrains
+the ground independently, so the binding constraint is the **lowest** of them and not the closest.
+`cutForWater` is folded over every candidate now instead of being handed one.
+
+Measured over 600 tiles square, before and after:
+
+| | worst step, land to land | worst step, road to road |
+|---|---|---|
+| seed 1 | 9.50 → **8.09** | 6.55 → **4.91** |
+| seed 7 | 7.50 → 7.50 | 6.01 → **3.16** |
+
+`banks.test.ts` holds it there: no stair over five units between two road tiles, and nothing over
+nine in open country. Both are bounds set above what was measured, so they fail when somebody puts a
+stair back and not when a road climbs a little harder than it used to.
+
+**And the mountains are unblocked.** The note above said nothing about them was tuneable until the
+walls were understood. They are: the walls were water banks, they are most of the way gone, and what
+is left at eight units is `ranges.ts` doing mountains on purpose.
 
 **Also found, and shelved with it:** a spiral ledge cut into a massif so it can be walked up
 (`upliftRawAt`). It works and it is dead code — `TerrainSampler.massifs` is empty in this world,
