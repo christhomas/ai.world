@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from '../src/world/register';
-import { doomsdayOf, type Surveyed } from './doomsday';
+import { domesdayOf, type Surveyed } from './domesday';
 import type { Village } from '../src/world/structures';
 
 /**
@@ -27,7 +27,7 @@ function surveyed(seed = 4, day = 60): Surveyed {
 
 describe('the survey', () => {
   it('counts every soul in every village, not only the ones near somebody', () => {
-    const book = doomsdayOf(surveyed());
+    const book = domesdayOf(surveyed());
     expect(book.parishes.length).toBe(2);
     expect(book.souls).toBe(book.parishes.reduce((n, p) => n + p.souls, 0));
     expect(book.souls).toBeGreaterThan(10);
@@ -43,13 +43,13 @@ describe('the survey', () => {
      */
     const seed = 11;
     const register = new Register(seed, 40);
-    const book = doomsdayOf({ seed, day: 40, villages: [village('Farhaven', 900, 900)], register });
+    const book = domesdayOf({ seed, day: 40, villages: [village('Farhaven', 900, 900)], register });
     expect(book.parishes).toEqual([]);
     expect(book.souls).toBe(0);
   });
 
   it('says what each of them earns and what the day costs them', () => {
-    const book = doomsdayOf(surveyed());
+    const book = domesdayOf(surveyed());
     const grown = book.parishes.flatMap((p) => p.people).filter((s) => s.trade !== '');
     expect(grown.length).toBeGreaterThan(0);
     for (const soul of grown) {
@@ -62,7 +62,7 @@ describe('the survey', () => {
     const world = surveyed();
     const [hungry] = world.register.living('Ashford');
     hungry.hungry = 20;
-    const book = doomsdayOf(world);
+    const book = domesdayOf(world);
     const found = book.parishes.flatMap((p) => p.people).find((s) => s.id === hungry.id)!;
     expect(found.hungry).toBe(20);
     expect(found.hearts).toBeLessThan(60);
@@ -70,7 +70,7 @@ describe('the survey', () => {
   });
 
   it('says what a village holds: its purses, its larder and its cattle', () => {
-    const book = doomsdayOf(surveyed());
+    const book = domesdayOf(surveyed());
     const ashford = book.parishes.find((p) => p.name === 'Ashford')!;
     expect(ashford.worth).toBeGreaterThan(0);
     expect(ashford.larder).toBeGreaterThan(0);
@@ -96,7 +96,7 @@ describe('what only the world can say', () => {
       ],
     } as unknown as Surveyed['crowd'];
 
-    const book = doomsdayOf({ ...world, crowd });
+    const book = domesdayOf({ ...world, crowd });
     const people = book.parishes.flatMap((p) => p.people);
     expect(people.find((s) => s.id === first.id)?.doing).toBe('with the cattle');
     expect(people.find((s) => s.id === first.id)?.at).toEqual({ x: 3.1, z: -2.7 });
@@ -107,7 +107,7 @@ describe('what only the world can say', () => {
     // most of a world is nowhere near anybody and has no body at all. Saying nothing is the honest
     // answer; inventing an activity from a trade and the hour would be a second opinion about a
     // branch that never ran
-    const book = doomsdayOf(surveyed());
+    const book = domesdayOf(surveyed());
     expect(book.standing).toBe(0);
     for (const soul of book.parishes.flatMap((p) => p.people)) {
       expect(soul.doing).toBe('');
@@ -118,7 +118,7 @@ describe('what only the world can say', () => {
 
 describe('the shape of the book', () => {
   it('puts the biggest villages first, and never depends on the order they were listed', () => {
-    const book = doomsdayOf(surveyed());
+    const book = domesdayOf(surveyed());
     const sizes = book.parishes.map((p) => p.souls);
     expect([...sizes].sort((a, b) => b - a)).toEqual(sizes);
   });
@@ -126,8 +126,8 @@ describe('the shape of the book', () => {
   it('changes nothing about the world it surveys', () => {
     const world = surveyed();
     const before = world.register.living('Ashford').map((p) => `${p.id}:${p.purse}:${p.hungry}`);
-    doomsdayOf(world);
-    doomsdayOf(world);
+    domesdayOf(world);
+    domesdayOf(world);
     expect(world.register.living('Ashford').map((p) => `${p.id}:${p.purse}:${p.hungry}`)).toEqual(before);
   });
 });

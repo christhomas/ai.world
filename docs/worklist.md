@@ -2713,7 +2713,7 @@ other, and the order is chosen so that each one can be *seen* working before the
 
 - [x] **16. The Domesday Book.** Asked for on 2026-09-11: a tool like the character builder showing
       every villager in the world, live, so the economy and the world operating system can be
-      watched rather than guessed at. `server/doomsday.ts`, `GET /doomsday`, `tools/doomsday.html`.
+      watched rather than guessed at. `server/domesday.ts`, `GET /domesday`, `tools/domesday.html`.
 
       **It had to be on the server and that is the whole point of it.** A page holds villagers as
       guests: the world owns them, runs their trees, keeps their register. So the server can say

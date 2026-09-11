@@ -94,8 +94,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
      * world nobody has opened is grown to answer — a book that said "nothing there" about an unvisited
      * county would be a book about visitors.
      */
-    if ((options.operatorToken || options.watchToken) && req.url?.startsWith('/doomsday')) {
-      doomsday(sim, options, req, res);
+    if ((options.operatorToken || options.watchToken) && req.url?.startsWith('/domesday')) {
+      domesday(sim, options, req, res);
       return;
     }
     // the status page keeps its own address once there is a game to serve at the root
@@ -165,11 +165,11 @@ function listen(http: Server, port: number): Promise<number> {
  * them because it can change a world; nothing down this path can, so a watcher sees exactly what an
  * operator does.
  */
-function doomsday(sim: Simulation, options: ServerOptions, req: IncomingMessage, res: ServerResponse): void {
+function domesday(sim: Simulation, options: ServerOptions, req: IncomingMessage, res: ServerResponse): void {
   /*
    * Readable from a page that is not this server's.
    *
-   * `tools/doomsday.html` is opened off a dev server or a file while the world it is surveying runs
+   * `tools/domesday.html` is opened off a dev server or a file while the world it is surveying runs
    * somewhere else, and a custom header is enough to make a browser ask permission first — so
    * without this the tool cannot read its own endpoint from anywhere but the server's own origin.
    *

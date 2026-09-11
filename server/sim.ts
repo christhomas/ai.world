@@ -14,7 +14,7 @@ import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
-import { doomsdayOf, type Doomsday } from './doomsday';
+import { domesdayOf, type Domesday } from './domesday';
 import { countryStamp, growWorld } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
 import type { WorldKind } from '../src/save/store';
@@ -243,16 +243,16 @@ export class Simulation {
    * The Domesday Book for one world: everybody in it, and what each of them is doing.
    *
    * Here rather than on a client because only this side has the whole country and only this side
-   * knows what anybody is presently up to — see `doomsday.ts`. Growing the world if it has not been
+   * knows what anybody is presently up to — see `domesday.ts`. Growing the world if it has not been
    * grown is deliberate and is what `groundOf` already does for every other question: a survey that
    * answered "nothing there" for a world nobody had opened would be a survey of the visitors rather
    * than of the world.
    */
-  surveyOf(seed: number): Doomsday | null {
+  surveyOf(seed: number): Domesday | null {
     const alive = this.livesIn(seed);
     const register = alive?.register;
     if (!alive || !register) return null;
-    return doomsdayOf({
+    return domesdayOf({
       seed,
       day: this.rooms.get(seed)?.world.clock.day ?? register.today,
       villages: alive.villages,

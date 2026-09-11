@@ -10,7 +10,15 @@ import type { Village } from '../src/world/structures';
  * The Domesday Book: everybody the world is holding, and what each of them is doing about it.
  *
  * Named by the person who asked for it, and the name is the right one — a survey of every soul in
- * the country, taken by the thing that owns them. It is the roster the game already has (`ui/roster.ts`)
+ * the country, taken by the thing that owns them.
+ *
+ * **Domesday, with an E, and it is not a typo.** The English survey of 1086 is the *Domesday* Book
+ * and has always been spelt that way; it is *pronounced* "doomsday", and it is the same word —
+ * Middle English `domesday`, the Day of Judgement — because what was written in it could not be
+ * appealed any more than the Last Judgement could. The modern spelling is the one this file does
+ * not use. It was `doomsday` for one version, which had the code saying one thing and every comment
+ * in it saying the other, and that is the sort of split nobody ever notices until they are grepping
+ * for the wrong half of it. It is the roster the game already has (`ui/roster.ts`)
  * asked of the *world* rather than of one page, and that difference is the whole reason it exists.
  *
  * ## Why it has to be here and not on a client
@@ -88,7 +96,7 @@ export interface Parish {
 }
 
 /** The whole survey. */
-export interface Doomsday {
+export interface Domesday {
   seed: number;
   day: number;
   /** How many souls the world is holding, across every village in it. */
@@ -116,7 +124,7 @@ export interface Surveyed {
  * register founds it on being asked — which is the point of doing this from the world rather than
  * from a page.
  */
-export function doomsdayOf(world: Surveyed): Doomsday {
+export function domesdayOf(world: Surveyed): Domesday {
   const day = Math.floor(world.day);
   /*
    * Whoever is on their feet, taken once for the whole country rather than per village.
