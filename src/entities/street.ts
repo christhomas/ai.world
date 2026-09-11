@@ -118,7 +118,20 @@ export function spawnVillageFolk(o: Street, ctx: SpawnCtx): void {
         if (resident) {
           e.person = resident.id;
           e.name = resident.name;
-          if (resident.trade !== '') e.trade = resident.trade;
+          /*
+           * Whoever the register says they are, including when it says they are a child.
+           *
+           * It used to be `if (resident.trade !== '')`, which reads as care and was the opposite: a
+           * body is given a rolled trade a few lines above so that a stranger in a street has a day
+           * to follow, and a child kept it because the register had nothing to overwrite it with.
+           * The Domesday Book found it within a minute of first rendering — Kees Bakker, nine years
+           * old, trade "—", out hunting.
+           *
+           * An empty trade is the right answer and not a missing one. `treeNameFor` falls through a
+           * trade it does not know to the kind's own behaviour, so a child gets the wandering day
+           * every villager had before there were trades: about the village, near home, not working.
+           */
+          e.trade = resident.trade;
           /*
            * And as hungry as the register says he is.
            *
