@@ -2,8 +2,17 @@ import { hashString, mulberry32, rand2, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { compassDir, type Structures } from '../world/structures';
 import { groundOf, groundsOf, holdsABand } from './grounds';
+import { saidOfPress } from './roamwords';
 
 export { groundsOf } from './grounds';
+/*
+ * The prose half of a band lives next door, in `roamwords.ts`.
+ *
+ * What it is called, what a villager says is happening, which way a troubled place lies, and the
+ * line somebody gets when they come over a rise and find it. Re-exported because every caller
+ * already asks this file for them, and none of them should have to learn that the sentences moved.
+ */
+export { nameFor, warningFor, wayTo } from './roamwords';
 
 /**
  * Danger that will not stay where you left it.
@@ -39,6 +48,16 @@ export { groundsOf } from './grounds';
  * named stream in the game, and it waits here only until it can be moved across.
  */
 
+
+/**
+ * How far a dragon's round reaches, in tiles.
+ *
+ * Four times an ordinary band's, because the thing that makes a dragon a dragon is that it belongs
+ * to the country rather than to a valley: it is over Ashford this week and two hundred tiles away
+ * the next, and nobody can tell you where it will be — which is exactly what `ROAM` was built to
+ * say, at a scale it had never been asked for.
+ */
+const DRAGON_CIRCUIT = 440;
 
 export const ROAM = {
   /** Near enough that saying which way it lies would be silly, in tiles. */
@@ -99,10 +118,23 @@ export const ROAM = {
    * thirty hits to put down is a week's ambition, not an evening's.
    */
   SORTS: {
-    wolf: { least: 4, most: 7, menace: 0.5, share: 0.45 },
-    bear: { least: 2, most: 3, menace: 0.7, share: 0.2 },
-    skeleton: { least: 3, most: 5, menace: 0.85, share: 0.25 },
+    wolf: { least: 4, most: 7, menace: 0.5, share: 0.42 },
+    bear: { least: 2, most: 3, menace: 0.7, share: 0.19 },
+    skeleton: { least: 3, most: 5, menace: 0.85, share: 0.24 },
     ogre: { least: 1, most: 1, menace: 1, share: 0.1 },
+    /*
+     * One dragon, and a country rather than a neighbourhood.
+     *
+     * Every other sort works a quarter of a region: four stops inside `CIRCUIT`, which is a walk of
+     * a couple of days. A dragon is the thing you hear about three villages before you see it, so
+     * its round is drawn from the whole country it can reach and its stops are far apart — a week
+     * of flying between them rather than an afternoon of walking.
+     *
+     * One in twenty, taken off the three sorts a player can actually beat rather than off the ogre,
+     * which is already the rare one. Twice that and a world has a dragon over every second village,
+     * which is a world where a dragon is weather.
+     */
+    dragon: { least: 1, most: 1, menace: 1, share: 0.05, circuit: DRAGON_CIRCUIT },
   },
   /** Days a band's temper holds before it rolls another. A bad spell is about a week. */
   SPELL: 6,
@@ -285,7 +317,10 @@ export function bandFor(seed: number, stops: readonly Stop[], home: Stop, era: n
   // objects. Compared by identity, a ground handed in from anywhere but this exact array put itself
   // in its own round twice and dropped a stop off the end of it.
   const others = stops.filter((s) => s.name !== home.name).sort((a, b) => away(a) - away(b));
-  const near = others.filter((s) => away(s) <= ROAM.CIRCUIT);
+  // a dragon's round is drawn from the whole country it can reach; everything else keeps to its own
+  // quarter of it, which is the only reason holding a region is a different job from holding a world
+  const reachOf = (ROAM.SORTS[kind] as { circuit?: number }).circuit ?? ROAM.CIRCUIT;
+  const near = others.filter((s) => away(s) <= reachOf);
   const reach = near.length >= ROAM.STOPS - 1 ? near : others.slice(0, ROAM.STOPS - 1);
   /*
    * The ground nobody holds is walked first.
@@ -392,42 +427,6 @@ export function tollOf(band: Band, place: Steading, day: number, pressure: numbe
   return Math.floor(pressure * ROAM.TAKES + rng());
 }
 
-/** How somebody who lives in the place would put what is happening to it. */
-function saidOfPress(band: Band, place: Steading, pressure: number): string {
-  const what = nameFor(band);
-  // "Something very large have been seen" is how you can tell a sentence was assembled rather
-  // than written, so the verb follows the subject the way it would out of somebody's mouth
-  const many = plural(band.kind);
-  const [is, has] = many ? ['are', 'have'] : ['is', 'has'];
-  if (pressure >= ROAM.PRESS_SIEGE) return `${what} ${is} on ${place.name}. Nobody is sleeping and nobody is going out.`;
-  if (pressure >= ROAM.PRESS_BLED) return `${what} ${has} been at ${place.name} for days. We have buried people over it.`;
-  return `${what} ${has} been seen near ${place.name}. The dogs have not settled since.`;
-}
-
-/**
- * Which way a troubled place lies, and how far, in the words somebody would use.
- *
- * Deliberately not part of `saidOfPress`. That line is remembered so a village says its news once
- * rather than every morning until it is dealt with, and a distance changes with every step the
- * player takes — baking it in would make the same news new again constantly. So the sentence
- * stays put and this is added when it is spoken.
- *
- * The quest system already solved the same problem in the same words: a direction and a rough
- * number of paces. Null when you are already there, because somebody standing in it does not
- * need telling where it is.
- */
-export function wayTo(place: Steading, from: { x: number; z: number }): string | null {
-  const dx = place.x - from.x, dz = place.z - from.z;
-  const away = Math.hypot(dx, dz);
-  if (away < ROAM.NEARLY_THERE) return null;
-  return `It lies to the ${compassDir(dx, dz)}, about ${Math.round(away / 10) * 10} paces off.`;
-}
-
-/** Whether what a band is called takes a plural verb. Wolves have; something very large has. */
-function plural(kind: BandKind): boolean {
-  return kind === 'wolf' || kind === 'bear' || kind === 'skeleton';
-}
-
 /**
  * Everything a band is doing to a village today, or null when it is doing nothing. Handed back
  * rather than applied: burying people is the register's business and this file will not do it.
@@ -490,33 +489,6 @@ export function distanceTo(band: Band, x: number, z: number, day: number): numbe
   return Math.hypot(now.x - x, now.z - z);
 }
 
-/** What a band is called, in the words anybody who had seen it would use. */
-function nameFor(band: Band): string {
-  switch (band.kind) {
-    case 'wolf': return 'Wolves';
-    case 'bear': return 'Bears';
-    case 'skeleton': return 'The walking dead';
-    case 'ogre': return 'Something very large';
-  }
-}
-
-/**
- * One line for somebody who has just come over a rise and found it, which is where this whole
- * design has to become legible or it is merely unfair. Each says what a player can do about it.
- */
-export function warningFor(band: Band): string {
-  const home = band.circuit[0].name;
-  switch (band.kind) {
-    case 'wolf':
-      return `A wolf pack is working the roads out of ${home}. Kill enough of them and the rest scatter.`;
-    case 'bear':
-      return `Bears have come down as far as ${home}. There are not many, and every one of them is worth a fight you have thought about.`;
-    case 'skeleton':
-      return `Something that was buried near ${home} is walking, and it is not walking alone.`;
-    case 'ogre':
-      return `Something very large has taken the road by ${home}. You can outrun it. You will not outlast it.`;
-  }
-}
 
 /**
  * The bands of one world, and what has been done to them.

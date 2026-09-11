@@ -216,5 +216,40 @@
       "*it will not follow you off this ground*",
       "*first light is a long way off*"
     ]
+  },
+
+  "dragon": {
+    "note": [
+      "The one thing in this world bigger than the world's own trouble. An ogre keeps a ruin; this keeps a quarter of the country and moves across it, which is what `ROAM.SORTS.dragon` is for — four stops, a wide round, and where it is depends on what day it is.",
+      "Nine hundred hit points against a hero's hundred, and a blow pitched so that two of them is a funeral. It is not a fight anybody wins by standing in front of it. What makes it survivable at all is the `altitude`: it flies out of a sword's reach entirely, so a bow or a spell is the only thing that touches it, and it has to come down to touch you.",
+      "Faster than a hero can run, on purpose. Everything else in this world can be walked away from; the whole of what a dragon is, is that it cannot."
+    ],
+    "label": "Dragon",
+    "emoji": "🐉",
+    "scale": 2.8,
+    "speed": 4.2,
+    "runSpeed": 7.6,
+    "herd": [1, 1],
+    "behaviour": "fly",
+    "altitude": 9,
+    "timid": false,
+    "dangerous": true,
+    "damage": 55,
+    "blow": "bite",
+    "hp": 900,
+    "gold": [600, 1400],
+    "drop": { "id": "gem", "chance": 1 },
+    "palettes": [
+      ["#4a5d3a", "#3c4a30"],
+      ["#6d3a3a", "#4a2626"],
+      ["#3a4a6d", "#26304a"],
+      ["#5a4a2b", "#3e3320"]
+    ],
+    "names": ["Ashwing", "The Long Green", "Cinderhold", "Old Smoke", "Drakhan the Slow"],
+    "lines": [
+      "*the light goes out of the field*",
+      "*a sound like a sail tearing*",
+      "*it has seen you*"
+    ]
   }
 }

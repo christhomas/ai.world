@@ -562,6 +562,15 @@ export const LONG_RUN: Record<string, LongRun> = {
   ogre: driftsInRange,
   wight: staysPut,
   nettle: staysPut,
+  /*
+   * A week of a dragon is a week of circling, which is what `ridesItsCircle` already says.
+   *
+   * The same form the eagles and vultures get, and for the same reason: a flier at rest is not
+   * going anywhere in particular, it is going round. Where a dragon is over a *country* is not this
+   * table's business at all — that is its band's round in `game/roaming.ts`, worked out from the
+   * seed and the day, and it moves while nobody is watching whether or not anything is ticking.
+   */
+  dragon: ridesItsCircle,
 };
 
 /**

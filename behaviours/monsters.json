@@ -53,5 +53,25 @@
         "do": "idle"
       }
     ]
+  },
+
+  "dragon": {
+    "note": [
+      "It hunts the way nothing else in this world does: from above, and from further off than anybody can see it coming. The `flier` tree would have done — it dives and bites when something dangerous is within seven tiles — but seven tiles is a bat over a cave mouth, and a thing with a forty-foot wingspan that waits until you are seven tiles away is a thing you never see until it is on you.",
+      "So it commits from eighteen, and `drop` is eighteen too: the dive is the whole approach rather than the last of it, which is what puts it in the air in front of you for long enough to be a decision. `patrol` when there is nobody worth the trip — wide, because a dragon at rest is still crossing a field.",
+      "`tiles` on the bite because the default reach is a wolf's, and the range a blow is measured over includes the height it has to come down through: the thing hovers four units up on a neck the length of a cart, and at a wolf's reach it hung there over a hero it could not touch, which was the first thing this tree got wrong."
+    ],
+    "first": [
+      {
+        "when": { "ask": "within", "with": { "tiles": 18 } },
+        "then": {
+          "all": [
+            { "do": "dive", "with": { "drop": 18 } },
+            { "anyway": { "do": "bite", "with": { "cooldown": 3.2, "tiles": 6 } } }
+          ]
+        }
+      },
+      { "do": "patrol", "with": { "tiles": 26 } }
+    ]
   }
 }

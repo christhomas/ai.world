@@ -5,7 +5,7 @@ import type { Structures } from '../world/structures';
 import {
   ROAM, Roaming, bandAt, bandFor, bandsNear, bandsOver, breaksAt, distanceTo, nightsNear,
   groundsOf, outOfSight, planBands, pressingOn, pressureOn, regionOf, stopsOf, temperOf, tollOf, warningFor,
-  type Band, wayTo,
+  type Band, wayTo, nameFor,
 } from './roaming';
 
 /** Growing a world is the expensive part of these tests, so each one is grown once. */
@@ -463,5 +463,62 @@ describe('bands named after their ground', () => {
     // it does not throw, it does not resurrect somebody else's pack, and the record simply lapses
     expect(roaming.groundFor('band:7')).toBeNull();
     expect(roaming.advance(3 + ROAM.BROKEN_FOR)).toEqual([]);
+  });
+});
+
+/**
+ * The dragon, which is the roaming system asked for something it was not built for and doing it.
+ *
+ * Every other band works a quarter of a region: four stops inside `CIRCUIT`, a couple of days'
+ * walk apart, and a village's bad fortnight is something a player can go and deal with. A dragon is
+ * the thing you hear about three villages before you see it — so its round is drawn from the whole
+ * country it can reach, and nothing else about it is new. Where it is still comes out of the seed
+ * and the day, it still has a temper that ebbs, and killing it still travels.
+ */
+describe('a dragon', () => {
+  it('works a country rather than a neighbourhood', () => {
+    const stops = stopsOf(world(5));
+    const reach = (kind: string) => {
+      const homes = stops.filter((_, i) => i % 3 === 0).slice(0, 12);
+      const spans: number[] = [];
+      for (const home of homes) {
+        // asked of the same home over many eras, taking the rounds that came out this kind: what
+        // is being measured is how far a round of this sort reaches, not which sort a home rolls
+        for (let era = 0; era < 60; era++) {
+          const band = bandFor(5, stops, home, era);
+          if (band.kind !== kind) continue;
+          const far = Math.max(...band.circuit.map((s) => Math.hypot(s.x - home.x, s.z - home.z)));
+          spans.push(far);
+        }
+      }
+      return spans;
+    };
+    const dragons = reach('dragon');
+    const wolves = reach('wolf');
+    expect(dragons.length, 'no world rolled a dragon at all').toBeGreaterThan(0);
+    expect(Math.max(...dragons), 'a dragon keeps to a wolf pack\'s valley')
+      .toBeGreaterThan(Math.max(...wolves));
+  });
+
+  it('comes alone, and is the worst thing there is', () => {
+    expect(ROAM.SORTS.dragon.least).toBe(1);
+    expect(ROAM.SORTS.dragon.most).toBe(1);
+    expect(ROAM.SORTS.dragon.menace).toBe(1);
+  });
+
+  it('is rare: most of what a country holds is something a player can beat', () => {
+    // one in twenty. Twice that and a world has a dragon over every second village, which is a
+    // world where a dragon is weather rather than an event
+    expect(ROAM.SORTS.dragon.share).toBeLessThanOrEqual(0.06);
+    const beatable = ROAM.SORTS.wolf.share + ROAM.SORTS.bear.share + ROAM.SORTS.skeleton.share;
+    expect(beatable).toBeGreaterThan(0.8);
+  });
+
+  it('is spoken of without ever being named', () => {
+    // nobody who has seen one calls it anything: what a village says is what they saw
+    const stops = stopsOf(world(5));
+    const band = { ...bandFor(5, stops, stops[0], 0), kind: 'dragon' as const };
+    expect(nameFor(band)).not.toContain('ragon');
+    expect(warningFor(band)).toContain('dragon');
   });
 });

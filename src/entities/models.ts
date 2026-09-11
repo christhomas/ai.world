@@ -8,6 +8,7 @@ import cowboy from '../../models/creatures/cowboy.json';
 import ogre from '../../models/creatures/ogre.json';
 import wight from '../../models/creatures/wight.json';
 import nettle from '../../models/creatures/nettle.json';
+import dragon from '../../models/creatures/dragon.json';
 import cow from '../../models/creatures/cow.json';
 import sheep from '../../models/creatures/sheep.json';
 import horse from '../../models/creatures/horse.json';
@@ -265,7 +266,7 @@ export function readModel(where: string, contents: unknown): PartDef[] {
  * walks the bestiary comes out in.
  */
 const FILES: Record<string, unknown> = {
-  ogre, wight, nettle,
+  ogre, wight, nettle, dragon,
   cow, sheep, horse, chicken, deer, rabbit, fox, bear, camel, lizard, vulture, frog, duck,
   shark, orca, heron, goat, eagle, hare, wolf, elk,
   traveller, villager, rat, bat, slime, skeleton, troll, yeti, bigfoot, shopkeeper, hero,
