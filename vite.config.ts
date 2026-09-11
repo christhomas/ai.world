@@ -138,5 +138,24 @@ export default defineConfig(({ command }) => ({
      */
     maxWorkers: process.env.VITEST_WORKERS ?? '50%',
     isolate: false,
+    /*
+     * One more go for the handful of tests that bind a real socket and grow a real world.
+     *
+     * Four files here start an actual HTTP and WebSocket server, open a world and wait for a
+     * welcome. Everything about that is timing: a road world costs eighty milliseconds to grow, a
+     * port has to come free, and vitest is running several files at once — so under load a welcome
+     * that would have arrived in a second arrives in nine, and `PATIENCE` in `serve.test.ts` gives
+     * up at eight. It failed three times in one morning, on a different file each time, always with
+     * "waited for welcome and got nothing", and passed every time it was run on its own.
+     *
+     * A retry rather than a longer wait, because the wait is not the problem: the machine being busy
+     * is, and there is no number that is both long enough for a loaded machine and short enough to
+     * be a useful bound on an idle one. One retry is the difference between transient contention and
+     * a real break — something actually broken fails twice, and the report says it retried.
+     *
+     * It is deliberately not two or three. A test that needs three goes is a test nobody believes,
+     * and the point of this is to keep the suite worth believing when `chore release` runs it.
+     */
+    retry: 1,
   },
 }));

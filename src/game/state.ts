@@ -1,4 +1,4 @@
-import { learnedFrom, levelFor, saidOf } from './prowess';
+import { learnedFrom, levelFor, saidOf, PROWESS } from './prowess';
 import { HEALTH } from '../world/health';
 import { ITEMS, Inventory, type InventoryJson } from './shops';
 import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippable } from './items';
@@ -155,7 +155,16 @@ export class GameState {
   get attack(): number { return HEALTH.BARE_HANDS + levelFor(this.practice) * HEALTH.PER_LEVEL + this.sumWorn((i) => i.attack); }
   /** Armour: every two points turns one heart of a bite aside. */
   get defence(): number { return this.sumWorn((i) => i.defence); }
-  get maxHpTotal(): number { return this.maxHp + this.sumWorn((i) => i.hearts); }
+  /**
+   * How much of you there is: what you were born with, what practice has added, and what you wear.
+   *
+   * Practice is in here rather than on `maxHp` because `maxHp` is saved and this is derived — a
+   * hero who has levelled is not a hero whose starting health changed, and writing it down would be
+   * a second copy of `practice` free to disagree with the first. See `PROWESS.TOUGHER`.
+   */
+  get maxHpTotal(): number {
+    return this.maxHp + levelFor(this.practice) * PROWESS.TOUGHER + this.sumWorn((i) => i.hearts);
+  }
   /** A weapon in hand keeps animal predators at bay. */
   get armed(): boolean { return (this.worn('hand')?.attack ?? 0) >= HEALTH.COUNTS_AS_ARMED; }
 
@@ -299,6 +308,20 @@ export class GameState {
     this.practice += learnedFrom(danger, killed);
     const now = levelFor(this.practice);
     if (now === before) return null;
+    /*
+     * A level heals you, and it has to.
+     *
+     * A level adds `PROWESS.TOUGHER` to how much of you there is, and without this it adds only an
+     * empty bar: you arrive at the new level on whatever health the fight left you, which is to say
+     * at a third of yourself, and the reward for getting better at fighting is looking worse. It is
+     * earned by fighting, so it is nearly always collected in the middle of one.
+     *
+     * The obvious objection is that a level in the middle of a fight is a free heal. It is, and it
+     * is the right kind of free: there are five levels in a career, each dearer than the last, and
+     * the last thing a game should do with a moment somebody has worked hours for is hand it over
+     * quietly while they are looking at a health bar that has not moved.
+     */
+    this.hp = this.maxHpTotal;
     this.version++;
     return saidOf(now);
   }

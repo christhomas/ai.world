@@ -29,6 +29,26 @@ export const PROWESS = {
   PER_DANGER: 0.3,
   /** And finishing it. */
   PER_KILL: 14,
+  /**
+   * What a level of practice adds to how much of you there is.
+   *
+   * Forty, against a hundred to start with, so a man at the top of the table has three times the
+   * health he set out with before he puts anything on. This is power scaling, and it is the whole
+   * reason the health scale was widened: on ten hearts there was nowhere to put it, because the
+   * smallest blow in the game was already a tenth of the hero and a tougher hero would have had to
+   * be a hero who could not be hurt.
+   *
+   * What it buys is the thing that was asked for in so many words: an experienced hero should not
+   * be finished by a wolf in five or six bites. At the start a wolf is a tenth of him and ten bites
+   * is a real fight; at the top it is a thirtieth and a wolf is an inconvenience — *without the
+   * wolf changing*, which is the point. The bestiary stays where it is and the hero moves past it,
+   * so a bear is still a bear and a beginner still has no business fighting one.
+   *
+   * Deliberately not a multiplier on everything. Practice already buys `PER_LEVEL` of attack, and
+   * the two together are what a level means; a level that also improved armour and speed would be
+   * a level that made every other number in the game decorative.
+   */
+  TOUGHER: 40,
   /** What each level costs, and what each one after it costs on top. */
   FIRST_LEVEL: 260,
   STEEPER: 1.6,

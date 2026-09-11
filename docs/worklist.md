@@ -2709,9 +2709,26 @@ other, and the order is chosen so that each one can be *seen* working before the
       a number where it was a row of hearts: the bar keeps what hearts were good at, and the number
       says the thing hearts never could, which is how tough you have become. A percentage alone
       would throw that away, which is why the number underneath is a number.
-      - [ ] **15a. Power scaling itself.** The room is there and nothing uses it yet. An experienced
-            hero should have a maximum well above a hundred, which is what makes a wolf stop
-            mattering without a wolf changing.
+      - [x] **15a. Power scaling.** `PROWESS.TOUGHER` — forty more of you per level, against a
+            hundred to start with, so a man at the top of the table has three times the health he
+            set out with before he puts anything on. The bestiary does not move: a wolf hits for what
+            a wolf has always hit for and the hero grows past it, which is the difference between
+            power scaling and inflation. Derived from `practice` rather than saved, or it would be a
+            second copy free to disagree with the first.
+
+            **A level heals you**, which was found by the test rather than designed: a level adds
+            capacity and without this it adds an *empty bar*, so you arrive at a new level on
+            whatever the fight left you and the reward for getting better at fighting is looking
+            worse. Yes, that makes a level-up in a fight a free heal. Five levels in a career, each
+            dearer than the last — handing that moment over quietly while the bar does not move is
+            the worse bug.
+
+- [x] **18. The suite stopped being believable under load.** Three failures in one morning, a
+      different server file each time, always "waited for welcome and got nothing", every one of them
+      passing alone. Four files bind a real socket and grow a real world, and `chore release` runs the
+      suite — so a flake there is a release that fails for no reason. `retry: 1` in the vitest config,
+      deliberately not two: a test that needs three goes is a test nobody believes, and something
+      actually broken still fails twice.
 
 - [x] **16. The Domesday Book.** Asked for on 2026-09-11: a tool like the character builder showing
       every villager in the world, live, so the economy and the world operating system can be
