@@ -2,6 +2,7 @@ import type { ChunkManager } from '../world/chunkManager';
 import { ChunkStore, browserKeep } from '../world/chunkstore';
 import { packChunk, unpackChunk, worldStamp } from '../world/chunkparcel';
 import type { TerrainSampler } from '../world/terrain';
+import { GAME } from '../core/version';
 
 /**
  * Getting the country: from what this page kept, or by asking the world for it.
@@ -55,8 +56,19 @@ export function streamTheCountry(ctx: StreamingCtx): Streaming {
    * generator, drawn beside ground the world grew today, is the two halves in different countries —
    * which is the fault all of this exists to end, arriving by the back door.
    */
+  /*
+   * What made this country: the shape of it, and the build that shaped it.
+   *
+   * The hash is one chunk of ground at the origin, which catches anything that moves the whole
+   * country and is blind to everything rare — a jetty, a bridge, the mouth of a cave. A pier was
+   * made to step down to the water, every test agreed, and a page that had walked that coast last
+   * week went on drawing the old one, because nothing about chunk nought moved. So the version goes
+   * in beside it: a release drops what was kept and the country is fetched once more, which is a
+   * few hundred kilobytes against never being able to fix the shape of anything small.
+   */
   const kept = new ChunkStore(
-    browserKeep(), ctx.seed, ctx.world, worldStamp(ctx.sampler.generateChunk(0, 0)),
+    browserKeep(), ctx.seed, ctx.world,
+    `${GAME.version}:${worldStamp(ctx.sampler.generateChunk(0, 0))}`,
   );
   void kept.sweep();
 

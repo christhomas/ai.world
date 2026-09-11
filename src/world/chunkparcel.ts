@@ -52,8 +52,22 @@ export const WAIT_FOR_THE_WORLD = 200;
  *
  * So the key is derived from the generator rather than from a number somebody remembers to bump. One
  * chunk of the world is hashed; if anything about generation moves, the hash moves, every kept chunk
- * becomes unreachable, and the page asks for fresh ones. There is no invalidation to get wrong
- * because there is no invalidation.
+ * becomes unreachable, and the page asks for fresh ones.
+ *
+ * ## What one chunk cannot see
+ *
+ * It is one chunk, and that is its blind spot. A change to something rare — a jetty, a bridge, the
+ * mouth of a cave — does not touch the ground at the origin, so the hash does not move and a page
+ * goes on reading back the old shape for ever. That is exactly how it went wrong: a pier was made
+ * to step down to the water, every test agreed, and the world it was fixed in went on drawing the
+ * old jetty because the page had one kept from last week. `parcelKey` carries the build's version
+ * for that reason — the hash catches what the generator does to the whole country, and the version
+ * catches everything else, at the cost of re-fetching country once per release.
+ *
+ * Corners are hashed as well as heights, and were not. A tile says two things about its height —
+ * what you stand on and what is drawn — and only the first was in here, so every fault of the kind
+ * "walkable but drawn somewhere else" was invisible to the one mechanism meant to catch stale
+ * ground.
  */
 export function worldStamp(chunk: ChunkData): string {
   let h = 0x811c9dc5;
@@ -63,6 +77,9 @@ export function worldStamp(chunk: ChunkData): string {
   for (const v of chunk.prop) eat(v);
   for (const v of chunk.height) eat(Math.round(v * 1000));
   for (const v of chunk.water) eat(Math.round(v * 1000));
+  // what is drawn, as well as what is stood on
+  for (const v of chunk.corners) eat(Math.round(v * 1000));
+  for (const v of chunk.sloped) eat(v);
   return h.toString(16).padStart(8, '0');
 }
 

@@ -75,6 +75,20 @@ describe('the stamp that keeps stale ground out', () => {
     expect(worldStamp(moved), 'the ground changed and the stamp did not').not.toBe(was);
   });
 
+  it('moves when what is drawn moves, even where what you stand on has not', () => {
+    /*
+     * The hole this fell through. A tile says two things about its height — `height` is what you
+     * are standing on, `corners` are what is drawn — and only the first was hashed. So every fault
+     * of the shape "walkable, but drawn somewhere else" was invisible to the one mechanism meant to
+     * keep stale ground out: a jetty could be redrawn and a page would go on showing the old one.
+     */
+    const parcel = realChunk(3, 0, 0);
+    const was = worldStamp(parcel);
+    const moved = { ...parcel, corners: Float32Array.from(parcel.corners) };
+    moved.corners[0] += 0.01;
+    expect(worldStamp(moved), 'the picture changed and the stamp did not').not.toBe(was);
+  });
+
   it('names a kept chunk by the world, what made it, and where it is', () => {
     expect(parcelKey(3, 'mesh', 'abcd1234', 2, -1)).toBe('3:mesh:abcd1234:2,-1');
     // the same chunk of the same seed in the other kind of world is a different chunk
