@@ -8,6 +8,23 @@ import { levelFor } from '../game/prowess';
  */
 const HEALTH_PIPS = 20;
 
+/**
+ * A meter, as a row of blocks.
+ *
+ * Shared by health, breath and the sword arm because all three are one scale now and a reader
+ * should not have to learn two. Exported so it can be held to that without standing up a HUD: it
+ * is the only part of a readout that can be wrong without anybody noticing, since a bar that is a
+ * block short at the top reads as full.
+ */
+export function meter(share: number): string {
+  // a share worked out from a nought — a creature with no maximum, a state part-way through being
+  // loaded — arrives as NaN, and `repeat(NaN)` is an empty string, so the bar would vanish rather
+  // than read empty. An unreadable meter is worse than a wrong one: it looks like nothing is there
+  const held = Number.isFinite(share) ? Math.max(0, Math.min(1, share)) : 0;
+  const lit = Math.round(held * HEALTH_PIPS);
+  return `${'█'.repeat(lit)}${'░'.repeat(HEALTH_PIPS - lit)}`;
+}
+
 /** Below this share of your own maximum, the bar says so in colour. */
 const LOW_ON_HEALTH = 0.3;
 
@@ -141,8 +158,7 @@ export class Hud {
      */
     const max = Math.max(1, state.maxHpTotal);
     const share = Math.max(0, Math.min(1, state.hp / max));
-    const lit = Math.round(share * HEALTH_PIPS);
-    const bar = `${'█'.repeat(lit)}${'░'.repeat(HEALTH_PIPS - lit)}`;
+    const bar = meter(share);
     const low = share <= LOW_ON_HEALTH ? ' hud-hurt' : '';
     this.heartsEl.innerHTML =
       `<span class="hud-bar${low}">${bar}</span> <span class="hud-hp">${Math.ceil(state.hp)}/${max}</span>`;
@@ -208,10 +224,24 @@ export class Hud {
     this.linkEl.hidden = !reaching;
   }
 
+  /**
+   * Breath and the sword arm, on the same scale as everything else that can run out.
+   *
+   * They were ten dots each, which is what health was before the rescale and was wrong here for the
+   * same reason: a ten-dot row can say ten things, so a reading is only ever a tenth of the way
+   * right, and the two readouts stacked under each other disagreed about what a full meter looked
+   * like. One is a bar and a number out of a hundred, the other a row of circles.
+   *
+   * Both are shares rather than counts — nothing in the game has a number of breaths — so a hundred
+   * is the whole of it and the number is a percentage, which is the honest reading of a share.
+   */
   setBreath(wind: number, warded: number, arm = 1, guarding = false): void {
     const row = (share: number) => {
-      const full = Math.max(0, Math.min(10, Math.round(share * 10)));
-      return `${'●'.repeat(full)}${'○'.repeat(10 - full)}`;
+      const held = Math.max(0, Math.min(1, share));
+      // `breath` so the bar takes the colour of whatever it is in — the blue of a lungful, the
+      // green of a rested arm, the orange of one that is spent — rather than the green of health
+      return `<span class="hud-bar breath">${meter(held)}</span>`
+        + ` <span class="hud-hp">${Math.round(held * 100)}/100</span>`;
     };
     const parts = [row(wind)];
     // the arm shows only when it is worth knowing about. A meter that sits full through every walk

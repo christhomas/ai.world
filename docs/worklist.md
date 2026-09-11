@@ -2901,7 +2901,7 @@ other, and the order is chosen so that each one can be *seen* working before the
 
 ## Still to do, at the end — September 11th
 
-- [ ] **19. The screenshots are out of date.** Twenty of them in `README.md`, all taken on or before
+- [x] **19. The screenshots are out of date.** Twenty of them in `README.md`, all taken on or before
       September 4th, and the game has moved a long way since: hearts are a bar and a number now, the
       cattle stand in the fields, villagers buy their drink at the inn, the roster has a column for
       what everybody is doing, and the Domesday Book did not exist. Some of them are showing a game
@@ -2915,3 +2915,31 @@ other, and the order is chosen so that each one can be *seen* working before the
 
       Worth adding as well as replacing: the Domesday Book, a field with cattle and the farmer
       working them, and the health bar — none of which any existing shot shows.
+
+      **Done, and the fix is a tool rather than twenty new pictures.** `tools/shots.cjs`, run as
+      `chore shots` (or `chore shots -- town night` for one or two), takes each picture by driving
+      the game through the probes: it names the world, the seed, where the camera goes and what has
+      to happen first. Nobody has to rediscover where a shot was taken from, and a stale picture is
+      now one command from being current rather than an afternoon.
+
+      Retaken on 0.61.0: town, night, autumn, winter, farming, horse, interior, dungeon, rucksack,
+      map and phone. Added: **cattle** (the herd and the farmer whose day they are), **health**
+      (health, breath and the sword arm, all out of a hundred) and **domesday** (the book itself,
+      against a world server with a player in it).
+
+      Three things it found on the way, which is the argument for taking pictures with a script:
+
+      - **Autumn was green.** A season is `SEASON_LENGTH` — seven — days, so days 200 and 290 are
+        spring and summer. The first pair of numbers picked looked like late in a long year.
+      - **The graphics were turned down in every shot.** A headless browser draws at ten frames a
+        second, so auto-quality steps to `low` — no shadows — within seconds. The tool now writes
+        `high` as the *player's* choice, which is the one thing auto-quality will not argue with.
+      - **Breath was still ten dots.** Health became a bar and a number out of a hundred in the
+        rescale and breath did not, so two readouts an inch apart disagreed about what a full meter
+        looks like. Both are bars out of a hundred now.
+
+      What was **not** retaken, and why: the sea and the shared-world shots — whales, sharks,
+      sailing, island, multiplayer, market, stall, players, partymap, duel, emote, woodland. The
+      first group needs a boat put under the hero and a pod that happens to be breaching; the
+      second needs two browsers in one world. Both are shots the tool could learn — the shape is a
+      row in `SHOTS` — and neither is stale in the way the eleven above were.

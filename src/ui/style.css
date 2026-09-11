@@ -378,6 +378,8 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
  * the precision — see `hud.ts` for why the hearts could not do the second half.
  */
 .hud-bar { color: #7fd18c; letter-spacing: -1px; }
+/* breath and the sword arm are the same bar, in the colour of whatever row they are on */
+.hud-bar.breath { color: inherit; }
 .hud-bar.hud-hurt { color: #e4746a; }
 .hud-hp { color: #cfd6ff; font-size: 11px; }
 #hurt {

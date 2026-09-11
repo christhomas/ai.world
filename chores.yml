@@ -256,6 +256,26 @@ tasks:
         }
         node tools/playtest.cjs
 
+  shots:
+    desc: Retake the README's screenshots, or the ones named
+    vars:
+      PORT: '{{.WEB_PORT}}'
+    args:
+      - name: shot
+        desc: which ones to take; none means all of them, and `--list` says what there is
+    env:
+      PORT: '{{.PORT}}'
+    cmds:
+      # Same borrowed playwright as `playtest`, and the same reason: a browser toolchain has no
+      # business in the world-server image, which installs this project's dependencies twice.
+      - |
+        node -e 'require.resolve("playwright")' 2>/dev/null || {
+          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
+          echo "  NODE_PATH=<a checkout that has playwright> chore shots"
+          exit 1
+        }
+        node tools/shots.cjs {{.CLI_ARGS}}
+
   build:
     desc: Typecheck and build the page into dist/
     cmds: [pnpm build]

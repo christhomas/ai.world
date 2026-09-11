@@ -60,6 +60,13 @@ Shopkeepers stand behind their counters and buy as well as sell, at half price, 
 in their own line. Villagers keep a day: out to the fields at dawn, the square at noon, the inn in
 the evening, home to bed at night, when the shops shut and the windows light up.
 
+A village lives off what it keeps. The herd is the farmers' livelihood — beasts are bred, sold and
+eaten, and the gold goes round the village rather than appearing from nowhere — so the cattle in
+the lanes are somebody's work rather than scenery, and the man standing with them is the farmer
+whose day they are.
+
+![Cattle in the lanes, and the farmer whose day they are](docs/screenshots/cattle.png)
+
 A day of the world takes two hours of real time, so an hour of it is five minutes. That is the
 unit everything timed is measured in: how long a pod breaches for, when a shop shuts, how long a
 crop takes. Both the game and the server read that one number from the protocol, because a clock
@@ -82,6 +89,17 @@ the pack lights nothing and the rope must share a pocket with the map.
 ![The rucksack, with a hero in mail](docs/screenshots/rucksack.png)
 
 Whatever you wear, you wear visibly.
+
+### What is left of you, and of it
+
+![Health, breath and the sword arm, all out of a hundred](docs/screenshots/health.png)
+
+Health is one scale for everything alive: a hundred is a fit adult, a villager is sixty, a wolf
+thirty, a bear two hundred. It used to be ten hearts, which was a *resolution* limit rather than a
+style — ten hearts can say ten things, so every blow in the game had to be worth a tenth of a hero
+or more, and a wolf could finish you in four bites. Breath and your sword arm are read the same
+way, out of a hundred, because a reader should not have to learn two scales to look at one corner
+of the screen. Whatever you are fighting carries its own bar over its head.
 
 ### A wood, not one tree stamped four hundred times
 
@@ -141,7 +159,7 @@ Buy seeds, break ground beside a village, and come back in a few days for the ha
 The map is 480 tiles across, so a stablehand in any village square will sell you a horse. Press
 Enter beside it to ride, Enter again to tie it up.
 
-![Riding through the square](docs/screenshots/horse.png)
+![Riding out of the square](docs/screenshots/horse.png)
 
 Four islands lie past the mainland's reach, each with its own biome, harbour town and road web. A
 ferry runs between them on a fixed timetable, or a boatwright at any pier will sell you a boat of
@@ -169,6 +187,21 @@ searched once for salvage.
 Towns are always named. Landmarks, caves and wrecks are named once you have found them, ferries
 show live, and your errand is ringed in green. The fog lifts as you walk, or all at once if you
 buy the region map.
+
+### The Domesday Book
+
+![The Domesday Book](docs/screenshots/domesday.png)
+
+The interesting half of a world is the half nobody is standing in, and no amount of playing will
+show you it. `tools/domesday.html` asks a world server instead: every soul it is holding, their
+trade, age, health, purse, what they earn against what a day costs them, who their parents are,
+and — for anybody the world has a body for — what they are doing this second, which is the branch
+of their behaviour tree that claimed the last tick. Tick **live** and it follows, with births,
+deaths and villages emptying listed as they happen.
+
+It is a window and not a door: `GET /domesday` computes the survey from state that already exists
+and changes nothing, so the read-only watch token opens it. Point it at a server, give it a token
+and a seed, and open the book.
 
 ### Playing together
 
@@ -504,6 +537,10 @@ behaviours/    what every creature decides, as data: one tree per kind, in the g
 properties/    what every creature is, and where it comes from: paces, bites, purses, herds,
                the defaults a behaviour tree overrides, and which kinds live in which country
 models/        the body every creature is drawn with: creatures/<name>.json, one apiece
+tools/         the things that are not the game: the character builder, the Domesday Book,
+               `playtest.cjs` which plays a game and reports on it, and `shots.cjs` which
+               takes every picture in this file — `chore shots`, so none of them can go stale
+               without somebody being able to retake them in one command
 chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
 Dockerfile     the world server as an image: one bundled module, `ws`, node, and nothing else
                — `chore up` builds and runs it, worlds on the `ai-world-data` volume
