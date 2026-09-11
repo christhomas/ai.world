@@ -16,6 +16,19 @@ import { hashString } from '../core/rng';
  * frame when you next ride past is a thing being built, which is worth the wait it costs.
  */
 
+/**
+ * The things a builder can be told to put up.
+ *
+ * One entry, and the list is the point rather than its length. `build` is a verb that takes an
+ * object and the object has to come from somewhere nameable, or the argument is a string anybody
+ * can put anything in. A second storey, a bath house and a paddock all exist in this world already
+ * — a village raises them out of what it has earned — and none of them can be *ordered* yet, which
+ * is the gap this list is here to be filled from.
+ */
+export const BUILDS = {
+  HOUSE: 'house',
+} as const;
+
 export const BUILD = {
   /** What a house costs, all in. */
   PRICE: 420,
@@ -57,6 +70,15 @@ export const BUILD = {
 /** A house that has been paid for and is going up. */
 export interface Commission {
   id: string;
+  /**
+   * What was ordered.
+   *
+   * Every commission in every save before this one was a house, and there was no field because
+   * there was no choice. Building is a verb that takes an object — a house, a second storey, a bath
+   * house, a paddock — so the commission has to carry which, even while the list is one long.
+   * Missing means a house, which is what every old save holds.
+   */
+  what?: string;
   /** Where it is being built. */
   x: number;
   z: number;
@@ -187,6 +209,8 @@ export interface Hired {
   price: number;
   /** The deposit, already handed over. It is not refundable and the dialogue says so. */
   paid: number;
+  /** What he was told to build. Missing means a house, which is what every old save holds. */
+  what?: string;
 }
 
 export interface HouseJson {
@@ -223,8 +247,8 @@ export class Houses {
   entries(): readonly Commission[] { return this.jobs; }
 
   /** Take a builder on. The deposit has already left the purse by the time this is called. */
-  takeOn(village: string, price: number, paid: number): void {
-    this.taken = { village, price, paid };
+  takeOn(village: string, price: number, paid: number, what: string = BUILDS.HOUSE): void {
+    this.taken = { village, price, paid, what };
   }
 
   /**

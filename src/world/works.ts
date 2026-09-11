@@ -33,10 +33,12 @@ import { transfer, type Holder, type Paid } from './deeds';
  * is. Those are the caller's: a house has a building day and a soldier has a road to walk, and
  * neither has anything to say about the other. What is shared is the money and the debt.
  *
- * What it does not know *yet*, and should: **what was ordered.** A commission today is a price and
- * a place and nothing else — you cannot choose a design, a size, or what goes in it. That is a
- * `spec` on the `Work`, and it is left out rather than guessed at, because the moment it exists it
- * has to mean something to the thing that gets built.
+ * What it knows and does not act on: **what was ordered.** `Work.what` names the thing — a house,
+ * a second storey, a bath house — and is carried from the table to the site without being read
+ * here, because what a name means is the builder's business. What is still missing is the rest of
+ * a specification: a design, a size, what goes in it. Those want a catalogue of things that can
+ * actually be put up, and a catalogue is only worth having once the world can grow more than one
+ * of them.
  */
 
 /**
@@ -47,6 +49,23 @@ import { transfer, type Holder, type Paid } from './deeds';
  * the test of whether an abstraction was found or invented.
  */
 export interface Work {
+  /**
+   * What was ordered.
+   *
+   * The argument that makes this a verb rather than one hard-coded transaction: *build* does not
+   * mean "build a house", it means build a thing, and the thing has to be named. A house, a second
+   * storey on one, a bath house, a paddock, a farm — whatever the world grows a way to put up. It
+   * was very nearly left out on the grounds that only houses exist today, which would have been
+   * building the one case into the vocabulary and calling it general.
+   *
+   * A name rather than a shape, because what it means is the builder's business and not this
+   * file's. `building.ts` reads it to decide what to stand on the plot; `commission` only has to
+   * carry it from the table to the site.
+   *
+   * Optional only because every commission written down before there was a choice was a house, and
+   * a save from last week is not wrong, it is old. Absent means whatever the builder's default is.
+   */
+  what?: string;
   /** What the whole of it comes to. */
   price: number;
   /** What has been handed over so far. */

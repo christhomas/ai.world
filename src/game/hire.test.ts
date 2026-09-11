@@ -239,3 +239,79 @@ describe('what a hired man does with his day', () => {
     expect(hires.follows('s1', 'soldier')).toBe('soldier');
   });
 });
+
+/**
+ * A hire is a contract, and a contract has a life.
+ *
+ * It did not, for the whole life of the game. You paid a man once and he walked with you until a
+ * bear got him or you told him to go home, which made the fee a one-off purchase *of a person*
+ * rather than a wage. What a term buys is that the money keeps mattering: a sword arm is an
+ * expense you carry rather than a thing you own, so a long campaign costs more than a short one and
+ * a season of fighting means going back to the table.
+ *
+ * Asked for in those words on 2026-09-11: the contract has a time limit; while it runs he follows
+ * whoever owns it; when it runs out he offers an extension for a price, or he leaves.
+ */
+describe('the life of a contract', () => {
+  const soldier = (who = 'a'): Quote => ({ who, name: `Soldier ${who}`, asking: 20, terms: [{ fee: 20, share: 0 }] });
+
+  it('runs from the day it was struck, for a term', () => {
+    const hires = new Hires();
+    const bargain = hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10)!;
+    expect(bargain.until).toBe(10 + HIRE.TERM);
+  });
+
+  it('holds while the days last and does not afterwards', () => {
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10);
+    expect(hires.holds('a', 10)).toBe(true);
+    expect(hires.holds('a', 10 + HIRE.TERM - 0.5)).toBe(true);
+    expect(hires.holds('a', 10 + HIRE.TERM)).toBe(false);
+  });
+
+  it('has him bring it up before the morning he would walk away', () => {
+    // the first a player knows about it ending must not be an empty road behind them
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10);
+    expect(hires.nearlyUp('a', 10), 'he asked to be paid again on the first morning').toBe(false);
+    expect(hires.nearlyUp('a', 10 + HIRE.TERM - HIRE.ASKS_AT)).toBe(true);
+  });
+
+  it('asks more to stay on than it cost to take him, and never less', () => {
+    const hires = new Hires();
+    const bargain = hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10)!;
+    expect(hires.askingAgain(bargain)).toBeGreaterThan(bargain.fee);
+  });
+
+  it('runs a fresh term from today when he is kept on, not from the day it lapsed', () => {
+    // renewed a week late is a week from now, and not a day and a half of it already gone
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10);
+    hires.extend('a', 20);
+    expect(hires.holds('a', 20 + HIRE.TERM - 0.5)).toBe(true);
+  });
+
+  it('hands back whoever has served their days, and takes them off the books', () => {
+    const hires = new Hires();
+    hires.strike(soldier('a'), { fee: 20, share: 0 }, 500, 'you', 10);
+    hires.strike(soldier('b'), { fee: 20, share: 0 }, 500, 'you', 40);
+    const gone = hires.ranOut(10 + HIRE.TERM);
+    expect(gone.map((b) => b.who), 'the wrong man went home').toEqual(['a']);
+    expect(hires.has('a')).toBe(false);
+    expect(hires.has('b'), 'a man with days left on his contract walked off').toBe(true);
+  });
+
+  it('says nobody ran out when nobody has', () => {
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10);
+    expect(hires.ranOut(11)).toEqual([]);
+    expect(hires.has('a')).toBe(true);
+  });
+
+  it('cannot be kept on once he has gone, because he is not there to ask', () => {
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10);
+    hires.ranOut(10 + HIRE.TERM);
+    expect(hires.extend('a', 30)).toBeNull();
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILD, Houses, builderIn, canBuildAt, deposit, isFinished, owed, progressOf, saidOfJob, stageAt, type Commission } from './building';
+import { BUILD, Houses, builderIn, canBuildAt, deposit, isFinished, owed, progressOf, saidOfJob, stageAt, type Commission, BUILDS } from './building';
 import { GRUDGE } from './grudge';
 
 const job = (began = 10): Commission => ({
@@ -87,7 +87,16 @@ describe('a commission that outlives the session', () => {
   it('remembers a builder taken on before there is anywhere to put the house', () => {
     const h = new Houses();
     h.takeOn('Ashford', BUILD.PRICE, deposit());
-    expect(reload(h).hired).toEqual({ village: 'Ashford', price: BUILD.PRICE, paid: deposit() });
+    // `what` is on it now: building is a verb that takes an object, and a builder holding a
+    // commission has to be holding one for something in particular even while the list is one long
+    expect(reload(h).hired)
+      .toEqual({ village: 'Ashford', price: BUILD.PRICE, paid: deposit(), what: BUILDS.HOUSE });
+  });
+
+  it('remembers what he was told to build, when it is not the default', () => {
+    const h = new Houses();
+    h.takeOn('Ashford', BUILD.PRICE, deposit(), 'bath house');
+    expect(reload(h).hired?.what).toBe('bath house');
   });
 
   it('carries the deposit over onto the plot, so it is never asked for twice', () => {

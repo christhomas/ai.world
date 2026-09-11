@@ -11,7 +11,19 @@ import { commission, cutOf, owing, settle, type Work } from './works';
  * ordering it and settling up. They follow deliberately opposite rules.
  */
 
-const job = (price: number, paid = 0): Work => ({ price, paid });
+const job = (price: number, paid = 0, what = 'house'): Work => ({ what, price, paid });
+
+describe('what was ordered', () => {
+  it('is carried on the job, because build is a verb that takes an object', () => {
+    // it does not mean "build a house", it means build a thing, and the thing has to be named
+    expect(job(420, 0, 'bath house').what).toBe('bath house');
+  });
+
+  it('is allowed to be missing, because every job written down before there was a choice was a house', () => {
+    const old: Work = { price: 420, paid: 0 };
+    expect(owing(old)).toBe(420);
+  });
+});
 
 describe('what is still owed', () => {
   it('is the price less what has been handed over', () => {

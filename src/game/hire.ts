@@ -75,6 +75,37 @@ export const HIRE = {
    * second is nobody's problem; doing it every frame to save that half second would be.
    */
   MUSTER_EVERY: 0.5,
+  /**
+   * How many days a bargain runs for before it has to be struck again.
+   *
+   * A hire was for ever. You paid a man once and he walked with you until a bear got him or you
+   * told him to go home, which made the fee a one-off purchase of a person rather than a wage — and
+   * a wage is what it is. What a term buys is that the money keeps mattering: a sword arm is an
+   * expense you carry rather than a thing you own, and a long campaign costs more than a short one.
+   *
+   * Six days, against a village day that turns over in a few minutes of play. Long enough to be
+   * worth striking — a bargain that ran out before you reached the next valley would be a fee you
+   * resent — and short enough that a season of fighting means going back to the table, which is
+   * the whole point.
+   */
+  TERM: 6,
+  /**
+   * How long before it runs out that he starts saying so.
+   *
+   * A day and a half. He has to bring it up *before* the morning he walks away, or the first a
+   * player knows about the arrangement ending is an empty road behind them — which reads as a bug
+   * however correct it is. This is the window where talking to him offers an extension.
+   */
+  ASKS_AT: 1.5,
+  /**
+   * What keeping him on costs, against what taking him on cost.
+   *
+   * The same again and a little, because he knows you want him and because the alternative is
+   * finding somebody else in a village that may not have anybody. It must never be *cheaper* than
+   * the first bargain or the best way to hire a man for a season would be to hire him for a day
+   * eight times over.
+   */
+  AGAIN: 1.15,
 } as const;
 
 /** One way of settling an asking price: coin in the hand, a cut of what is won, or both. */
@@ -100,6 +131,16 @@ export interface Quote {
 export interface Bargain extends Terms {
   who: string;
   name: string;
+  /**
+   * The world day it runs out on.
+   *
+   * What turns a hire from a purchase into a contract, and the thing the whole of the rest of this
+   * file hangs off. A bargain with no end was a man bought outright: the fee was paid once and he
+   * followed you for the rest of his life, which made a sword arm a possession rather than a cost
+   * you carry. With a day on it he is an expense, he asks to be kept on, and he goes home when the
+   * answer is no.
+   */
+  until: number;
   /**
    * Whose fight he is in: your own id in a shared world, and there is only you in a solitary one.
    * Asked rather than assumed, because a road wide enough for two players is wide enough for two
@@ -220,14 +261,68 @@ export class Hires {
    * cover the fee, the man is already somebody's, or there are as many swords behind this side as
    * anybody will follow. A refusal costs nothing, because a refused bargain is not a bargain.
    */
-  strike(quote: Quote, terms: Terms, purse: number, side: string): Bargain | null {
+  strike(quote: Quote, terms: Terms, purse: number, side: string, day = 0): Bargain | null {
     if (this.agreed.has(quote.who)) return null;
     if (terms.fee > purse) return null;
     if (this.roster(side).length >= HIRE.MOST) return null;
 
-    const bargain: Bargain = { who: quote.who, name: quote.name, fee: terms.fee, share: terms.share, side };
+    const bargain: Bargain = {
+      who: quote.who, name: quote.name, fee: terms.fee, share: terms.share, side,
+      until: Math.floor(day) + HIRE.TERM,
+    };
     this.agreed.set(quote.who, bargain);
     return bargain;
+  }
+
+  /**
+   * Whether a bargain still holds on a given day, and whether it is nearly up.
+   *
+   * Two questions rather than a state on the bargain, because the day is the only thing that moves
+   * and the answer is a subtraction. A contract that kept a `state` field would be a contract that
+   * has to be ticked, and a thing that has to be ticked is a thing that is wrong whenever nobody
+   * ticked it — which for a saved game reopened after a fortnight is always.
+   */
+  holds(who: string, day: number): boolean {
+    const bargain = this.agreed.get(who);
+    return bargain !== undefined && day < bargain.until;
+  }
+
+  /** Is the end of it close enough that he would bring it up? */
+  nearlyUp(who: string, day: number): boolean {
+    const bargain = this.agreed.get(who);
+    return bargain !== undefined && day >= bargain.until - HIRE.ASKS_AT;
+  }
+
+  /** What he asks to be kept on for another term. Dearer than the first, and never cheaper. */
+  askingAgain(bargain: Bargain): number {
+    return Math.max(1, Math.round(bargain.fee * HIRE.AGAIN));
+  }
+
+  /**
+   * Keep him on: the same terms, a fresh term, starting from today.
+   *
+   * From today rather than from the day it ran out, so a bargain renewed a week late is a week
+   * from now and not a day and a half of it already gone. Somebody whose contract has already
+   * lapsed is not here to renew with — `part` has taken him off the books and he is walking home.
+   */
+  extend(who: string, day: number): Bargain | null {
+    const bargain = this.agreed.get(who);
+    if (!bargain) return null;
+    bargain.until = Math.floor(day) + HIRE.TERM;
+    return bargain;
+  }
+
+  /**
+   * Everybody whose day has come, taken off the books in the same breath.
+   *
+   * Handed back rather than merely dropped, because somebody has to be told: a man who leaves
+   * without a word is indistinguishable from a man who has fallen down a hole, and the difference
+   * matters to a player who is about to walk into a fight expecting two swords.
+   */
+  ranOut(day: number): Bargain[] {
+    const done = this.all.filter((b) => day >= b.until);
+    for (const bargain of done) this.agreed.delete(bargain.who);
+    return done;
   }
 
   /**

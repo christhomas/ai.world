@@ -2621,7 +2621,29 @@ other, and the order is chosen so that each one can be *seen* working before the
             a disconnected player's hero standing down sensibly instead of freezing; and any act the
             hero can do becoming available to a villager, which is the whole point of the exercise.
 
-      - [ ] **9e. A commission with a specification.** Raised 2026-09-11: ordering a house should let
+      - [x] **9f. A hire is a contract with a life.** Asked for on 2026-09-11: paying for a contract
+            with a time limit; while it runs he follows whoever owns it; when it runs out he offers
+            an extension for a price, or he leaves. A bargain had no end at all — you paid once and
+            he walked with you until a bear got him, which made the fee a one-off purchase *of a
+            person* rather than a wage. `Bargain.until` now, `HIRE.TERM` days, `nearlyUp` so he
+            brings it up before the morning he would go, `askingAgain` (dearer than the first, never
+            cheaper, or the way to hire a man for a season would be to hire him for a day eight
+            times), and `ranOut` which hands back whoever has served their days so somebody can be
+            *told* — a man who leaves without a word is indistinguishable from one who fell down a
+            hole. The following-and-fighting half already existed in the `hired` tree.
+      - [ ] **9g. Issuing verbs to a hireling.** The rest of that design: the hero tells somebody
+            walking with him what to do — "fight" being one. Wants an order on the entity that the
+            `hired` tree reads, and a way to give it. This is where the hero starts *driving* a tree
+            rather than only having one, so it is the natural run-up to 9d.
+      - [x] **9e. A commission takes an object.** Raised as "build doesn't just apply to a house —
+            the build verb requires a *what*". `Work.what` and `Commission.what` carry it, and
+            `BUILDS` is the list it comes from, one entry long today. The list being short is the
+            point rather than an excuse: a second storey, a bath house and a paddock all already
+            exist in this world — a village raises them out of what it has earned — and none can be
+            *ordered*, which is the gap the list is there to be filled from. Optional on the record
+            because every commission written down before there was a choice was a house, and a save
+            from last week is not wrong, it is old.
+      - [ ] **9e-2. The rest of a specification.** Raised 2026-09-11: ordering a house should let
             you choose what you are ordering — a design, a size, what goes in it. Today a commission
             is a price and a place and nothing else. That is a `spec` on `Work`, deliberately left
             out rather than guessed at, because the moment it exists it has to mean something to the

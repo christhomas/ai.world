@@ -47,7 +47,7 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
 
   /** Take one soldier on, if the purse runs to it. */
   const agree = (e: Entity, quote: Quote, terms: Terms): void => {
-    const bargain = hires.strike(quote, terms, state.inventory.gold, side());
+    const bargain = hires.strike(quote, terms, state.inventory.gold, side(), state.day);
     if (!bargain) {
       // a refusal costs nothing: the fee is still in the purse and he is still watching the road
       sound.thud();
@@ -61,7 +61,7 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
     // a man's trade is what decides his day, so buying his day is a change of trade
     e.trade = HIRE.TREE;
     sound.chime();
-    hud.flash(`${bargain.name} falls in beside you: ${wordsFor(bargain)}.`);
+    hud.flash(`${bargain.name} falls in beside you: ${wordsFor(bargain)}, for ${HIRE.TERM} days.`);
     persist();
   };
 
@@ -83,12 +83,35 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
     });
   };
 
-  /** The one already walking with you: what was agreed, and how to end it. */
+  /** The one already walking with you: what was agreed, how long is left, and how to end it. */
   const partCompany = (e: Entity, bargain: Bargain): void => {
+    const left = Math.max(0, Math.ceil(bargain.until - state.day));
+    const again = hires.askingAgain(bargain);
+    const nearly = hires.nearlyUp(bargain.who, state.day);
     dialogue.start({
       speaker: bargain.name, emoji: '⚔️', face: speakerFor(e),
-      pages: [`We said ${wordsFor(bargain)}. Say the word and I will turn back for the gate.`],
+      pages: [
+        `We said ${wordsFor(bargain)}. Say the word and I will turn back for the gate.`,
+        nearly
+          ? `That is the last of the days you paid for. ${again} gold keeps me another ${HIRE.TERM}, if you want me.`
+          : `${left === 1 ? 'One day' : `${left} days`} of me left on what you paid.`,
+      ],
       choices: [
+        // only while it is nearly up: a man does not ask to be paid again on the first morning
+        ...(nearly ? [{ label: `Keep him on (${again}g)`, next: () => {
+          if (state.inventory.gold < again) {
+            sound.thud();
+            return { speaker: bargain.name, emoji: '⚔️', pages: [`${again} gold, and you have ${state.inventory.gold}. I will wait as long as the day does.`] };
+          }
+          // the same act as striking it in the first place, and paid the same way: to the man
+          buy(holds(state.inventory), personTill(ctx.register, e.person), again);
+          hires.extend(bargain.who, state.day);
+          state.version++;
+          sound.chime();
+          hud.flash(`${bargain.name} stays on, another ${HIRE.TERM} days.`);
+          persist();
+          return null;
+        } }] : []),
         { label: 'Part company here', next: () => {
           hires.part(bargain.who);
           // back to whatever day his own trade gives him, wherever he is standing when it ends
@@ -156,6 +179,24 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
    * slow tick, and not worth doing every frame.
    */
   const muster = (): void => {
+    /*
+     * Whose day has come.
+     *
+     * Done here rather than on a clock of its own because this already runs on the slow tick and
+     * already walks the people near you, and because the one thing that must happen when a bargain
+     * ends is that the man standing there stops following you — which is a `trade` on an entity,
+     * which is what this loop is for.
+     *
+     * He is told about out loud. A man who leaves without a word is indistinguishable from a man
+     * who has fallen down a hole, and the difference matters to somebody about to walk into a
+     * fight expecting two swords.
+     */
+    for (const gone of hires.ranOut(state.day)) {
+      hud.flash(`${gone.name} has served the days you paid for, and turns for home.`);
+      const body = entities.within(player.x, player.z, HIRE.EARSHOT).find((e) => e.person === gone.who);
+      if (body) body.trade = register.find(gone.who)?.trade ?? HIRE.TRADE;
+      persist();
+    }
     for (const e of entities.within(player.x, player.z, HIRE.EARSHOT)) {
       if (e.person === '') continue;
       const own = register.find(e.person)?.trade ?? '';
