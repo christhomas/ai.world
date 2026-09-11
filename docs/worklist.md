@@ -2946,6 +2946,41 @@ other, and the order is chosen so that each one can be *seen* working before the
             with a pool beside it and a fountain in front of it. `chore shots -- estate` is the
             picture, in the README.
 
+## Found while playing it on the homelab — September 11th
+
+- [x] **20. A fixed jetty that stayed broken.** Reported three times, and the first two answers were
+      wrong because they were measured on freshly generated ground, which was never the problem. The
+      pier was drawn down at the seabed with the sea over it while the hero walked the deck in
+      mid-air above — and the build on the screen *had* the fix.
+
+      A page keeps every chunk the world sends it for ever. The guard against staleness is
+      `worldStamp`, and it had two holes a jetty falls straight through: the hash is of chunk
+      nought, so anything rare — a jetty, a bridge, a cave mouth — never moves it, and it hashed
+      `height` but not `corners`, so "walkable but drawn somewhere else" was invisible to the one
+      mechanism meant to catch exactly that. Corners and slopes are hashed now, and the build's
+      version is in the key: **every release drops kept country**, which is the decision, taken
+      knowingly.
+
+      What it costs, measured: a packed chunk is **11.4 KB** (16 tiles square, typed arrays,
+      uncompressed), so an afternoon's walk of about 1,600 chunks is ~18 MB re-fetched once per
+      release, and the 8,000-chunk cap is ~89 MB in a browser. Worth absorbing. If it ever stops
+      being worth absorbing, the parcel is raw arrays and would compress hard — that is the lever,
+      and it has not been pulled because nobody has felt this yet.
+
+- [x] **21. The ferry, the fare and the missing 404.** `tryBoat` ran before `tryFerry`, so a jetty
+      with a ferry tied up at it answered as a boatwright selling hulls. The ferry answers first and
+      a crossing costs `fareFor` — six gold plus a tenth a tile, capped near a tenth of a boat — paid
+      to the village the pier belongs to. Separately: every missing file was answered with the
+      plain-text status page and a 200, which is why a missing web app manifest arrived in the
+      console as `Manifest: Line: 1, column: 1, Syntax error.` A path that names a file and has none
+      is a 404 now, and `.webmanifest` has a content type.
+
+- [x] **22. Kills that left nothing.** Only in a shared world, which is every world with anybody
+      else in it: `spoils` both worked out what a body was worth and banked it, so the online caller
+      banked it twice and the co-op caller not at all; and no carcass was left, so there was nothing
+      to take a hide off. Both have tests now — `authority.test.ts` is the seam between the two
+      halves, and unplugging either fix fails it.
+
 ## Still to do, at the end — September 11th
 
 - [x] **19. The screenshots are out of date.** Twenty of them in `README.md`, all taken on or before
