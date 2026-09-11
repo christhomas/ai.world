@@ -2483,6 +2483,42 @@ would make a seam impossible rather than merely rarer. That is a change to the m
 generator, it changes every world, and it wants its own day. Nothing about the mountains is
 tuneable until it is done.
 
+### The blend was built, measured, and reverted — September 11th
+
+The prescription above was followed and it is **wrong for the world as it stands now**. Written down
+because the wrong half of it is the useful half.
+
+**What was built.** `levelNear`: a tile's road level as the inverse-square-distance weighted mean of
+every candidate edge instead of the nearest one. On a road the nearest edge is at nothing, so its
+weight runs away and a road keeps its own level exactly; between two roads both weigh the same and
+the seam gets a gradient. The corners took the same blend, or a corner could sit the far side of a
+seam from the middle of its own tile.
+
+**What it did.** Nothing to the case it was for. Worst road-to-road step, 600 tiles square, sampled
+either side of the change: seed 1 **6.55 both ways**, seed 7 **6.01 both ways** — identical to two
+decimal places. Worst step anywhere was a wash: seed 1 improved 9.50 → 8.00 and seed 7 worsened
+7.50 → 8.00. A change to the middle of the generator that alters every world in the game, for that,
+is not a change worth shipping.
+
+**Why the prescription missed.** The numbers it was written from are stale. The note above measured
+2.0 as the worst step in the shipping world; today it is 9.50, because mountains-as-polygons went in
+afterwards and are *meant* to be steep. And the walls that are left are not seams:
+
+- Two neighbouring tiles at 158,-158 on seed 1, **both of them road**, at terraces 41.1 and 28.0.
+  Instrumented: the nearest edge is the same edge for both, at 0.1 and 0.4 tiles, agreeing on 22.7
+  and 22.4. The blend was already smooth there. The thirteen terraces are `cutForWater` — the bank
+  a river cuts into the country — landing in one tile.
+- The worst steps that are not banks are mountain faces, which `ranges.ts` builds on purpose and
+  holds down at the territory border so roads thread the passes.
+- A road at 15 beside seabed at 0 is a coast, and the first measurement counted those as walls until
+  `Seabed` was excluded. Worth saying: a careless measurement here reads 16.00 and sends somebody
+  off to fix a cliff into the sea.
+
+**Where it actually goes now.** The question is what a bank does in one tile. `cutForWater` pulls the
+country down to meet water over `HYDRO.BANK`, and thirteen terraces of that inside a tile is the
+steepest thing in the world that is not deliberate. That is a smaller, more specific piece of work
+than rewriting how a tile takes its height — and it is the one the measurements point at.
+
 **Also found, and shelved with it:** a spiral ledge cut into a massif so it can be walked up
 (`upliftRawAt`). It works and it is dead code — `TerrainSampler.massifs` is empty in this world,
 because the road world takes its height from `highlandAt` instead. It goes back in the day the
@@ -2523,7 +2559,7 @@ other, and the order is chosen so that each one can be *seen* working before the
       keep on a passing pedlar. `chore test economy` audits a hundred days of it to the coin. Two tuned
       numbers moved with the world underneath them: `STOREY` 85 → 195 and `LUXURY` 1,800 → 3,500, both
       re-measured across the same twenty-one villages to the same shape they always held.
-- [ ] **8. And all of it done where it can be watched.** The miners walk to the face and swing; the
+- [x] **8. And all of it done where it can be watched.** The miners walk to the face and swing; the
       farmer must walk to the paddock, the hunter into the woods, the seller to the stall. Nothing in
       this economy may happen as a number moving in the dark.
       - [x] **8a. The cattle are in the field**, as many as the register says, and gone when the last
@@ -2570,7 +2606,8 @@ other, and the order is chosen so that each one can be *seen* working before the
       living in the game and two farmers hold much of a village's worth. Whether that is right —
       food *is* the base of the whole economy — or wants flattening is a design call, not a bug.
 
-- [ ] **9. One vocabulary for everybody.** Asked for on 2026-09-11: if the player acts on the world
+- [ ] **9. One vocabulary for everybody** — 9a, 9b, 9c-1, 9c-2, 9c-4, 9e, 9f and 9g done; 9c-3 and
+      9d open, 9g-3 declined. Asked for on 2026-09-11: if the player acts on the world
       through the same named verbs the villagers and creatures do, there is one thing to test, one
       thing to automate, and a villager can do anything the hero can. Three layers were found and
       only the third is worth unifying — what an act *does*, apart from who ordered it and how it
@@ -2773,10 +2810,12 @@ other, and the order is chosen so that each one can be *seen* working before the
             **Worth knowing about how it behaves:** a world day is `DAY_LENGTH` 7,200 seconds — two
             hours. So in a short session the panel is empty and correct, and it earns its keep on a
             world that has been running for days, which is the homelab case it was asked for.
-      - [ ] **16b. A child was out hunting.** The book found it within a minute of first rendering:
-            Kees Bakker, nine years old, trade "—", `doing` "out hunting". A child on the street is
-            given a trade's day to follow by `pickTrade` because the register has no trade for them.
-            Harmless-looking and wrong, and exactly the sort of thing this tool exists to surface.
+      - [x] **16b. A child was out hunting.** The book found it within a minute of first rendering:
+            Kees Bakker, nine years old, trade "—", `doing` "out hunting". A body is given a rolled
+            trade so a stranger has a day to follow, and the line meant to overwrite it read
+            `if (resident.trade !== '')` — which looks like care and is the opposite of it. Fixed in
+            0.54.2; the test asserts the rule rather than the symptom, because a test that went
+            looking for a child specifically found none out at all in four villages.
 
 - [x] **14. The risk-and-reward of a living.** Mining easy and poorly paid, a hired sword dear
       because his life is on the line. Going to tune it found a plain bug instead: `asking` is
