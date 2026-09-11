@@ -2741,21 +2741,16 @@ other, and the order is chosen so that each one can be *seen* working before the
       worth hundreds, which is a hundred meals. Today a soldier asks `HIRE.ASKING_LEAST` 15 to
       `ASKING_MOST` 60 for a day and a miner's gross is about 3.5, so the gap is real but nothing
       like the shape described. This is the balancing act, to be tuned as we go rather than guessed
-      at in one sitting — and the bench is what it should be tuned against. Fetch, carry, wait at a place, guard
-            somebody who is not you. Each wants a branch and most want a target, which `told` has no
-            room for — an order with an argument is the next shape this needs. The rest of that design: the hero tells somebody
-            walking with him what to do — "fight" being one. Wants an order on the entity that the
-            `hired` tree reads, and a way to give it. This is where the hero starts *driving* a tree
-            rather than only having one, so it is the natural run-up to 9d.
-      - [x] **9e. A commission takes an object.** Raised as "build doesn't just apply to a house —
-            the build verb requires a *what*". `Work.what` and `Commission.what` carry it, and
-            `BUILDS` is the list it comes from, one entry long today. The list being short is the
-            point rather than an excuse: a second storey, a bath house and a paddock all already
-            exist in this world — a village raises them out of what it has earned — and none can be
-            *ordered*, which is the gap the list is there to be filled from. Optional on the record
-            because every commission written down before there was a choice was a house, and a save
-            from last week is not wrong, it is old.
-      - [ ] **9e-2. The rest of a specification.** Raised 2026-09-11: ordering a house should let
+      at in one sitting — and the bench is what it should be tuned against.
+
+- [x] **17. A commission takes an object.** Raised as "build doesn't just apply to a house — the
+      build verb requires a *what*". `Work.what` and `Commission.what` carry it, and `BUILDS` is the
+      list it comes from, one entry long today. The list being short is the point rather than an
+      excuse: a second storey, a bath house and a paddock all already exist in this world — a village
+      raises them out of what it has earned — and none can be *ordered*, which is the gap the list is
+      there to be filled from. Optional on the record because every commission written down before
+      there was a choice was a house, and a save from last week is not wrong, it is old.
+      - [ ] **17a. The rest of a specification.** Raised 2026-09-11: ordering a house should let
             you choose what you are ordering — a design, a size, what goes in it. Today a commission
             is a price and a place and nothing else. That is a `spec` on `Work`, deliberately left
             out rather than guessed at, because the moment it exists it has to mean something to the
