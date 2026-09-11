@@ -219,3 +219,35 @@ describe('a house somebody else paid for', () => {
     expect(mine.count).toBe(1);
   });
 });
+
+/**
+ * What was ordered, carried from the table to the plot.
+ *
+ * `Commission.what` existed and `takeOn` recorded it, and the one step between agreeing a job and
+ * standing it somewhere threw it away and wrote `house:` into the id. A field nothing reads is a
+ * field that is not there, whatever the type says.
+ */
+describe('a commission for something in particular', () => {
+  it('remembers what it was for when it reaches the ground', () => {
+    const h = new Houses();
+    h.takeOn('Ashford', BUILD.PRICE, deposit(), 'bath house');
+    const job = h.place(10, 20, 4)!;
+    expect(job.what).toBe('bath house');
+  });
+
+  it('names it in the id, so two different things on one tile are two buildings', () => {
+    const h = new Houses();
+    h.takeOn('Ashford', BUILD.PRICE, deposit(), 'bath house');
+    const bath = h.place(10, 20, 4)!;
+    h.takeOn('Ashford', BUILD.PRICE, deposit());
+    const house = h.place(10, 20, 4)!;
+    expect(bath.id).not.toBe(house.id);
+    expect(house.id.startsWith(`${BUILDS.HOUSE}:`)).toBe(true);
+  });
+
+  it('is a house when nobody said otherwise, which is every job ever written down', () => {
+    const h = new Houses();
+    h.takeOn('Ashford', BUILD.PRICE, deposit());
+    expect(h.place(1, 2, 3)!.what).toBe(BUILDS.HOUSE);
+  });
+});

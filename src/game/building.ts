@@ -259,9 +259,20 @@ export class Houses {
     const held = this.taken;
     if (!held) return null;
     this.taken = null;
+    /*
+     * What he was told to build, carried onto the plot.
+     *
+     * It was dropped here for a version: `Commission.what` existed, `takeOn` recorded it, and the
+     * one step between the table and the site threw it away and wrote `house:` into the id. A field
+     * nothing reads is a field that is not there, whatever the type says.
+     *
+     * The id names it too, because an id is what a delta log keys a building by — and two different
+     * things ordered on the same tile would otherwise be one building that changed its mind.
+     */
+    const what = held.what ?? BUILDS.HOUSE;
     const job: Commission = {
-      id: `house:${held.village}:${Math.floor(x)},${Math.floor(z)}`,
-      x, z, village: held.village, began: day, paid: held.paid, price: held.price, rot,
+      id: `${what}:${held.village}:${Math.floor(x)},${Math.floor(z)}`,
+      what, x, z, village: held.village, began: day, paid: held.paid, price: held.price, rot,
     };
     this.jobs.push(job);
     return job;

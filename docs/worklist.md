@@ -2852,8 +2852,21 @@ other, and the order is chosen so that each one can be *seen* working before the
       raises them out of what it has earned — and none can be *ordered*, which is the gap the list is
       there to be filled from. Optional on the record because every commission written down before
       there was a choice was a house, and a save from last week is not wrong, it is old.
-      - [ ] **17a. The rest of a specification.** Raised 2026-09-11: ordering a house should let
-            you choose what you are ordering — a design, a size, what goes in it. Today a commission
-            is a price and a place and nothing else. That is a `spec` on `Work`, deliberately left
-            out rather than guessed at, because the moment it exists it has to mean something to the
-            thing that gets built.
+      - [~] **17a. The rest of a specification — blocked on there being a second thing to build.**
+            Looked at properly. The argument exists and now survives the whole way: `place` was
+            dropping it and writing `house:` into the id, so `Commission.what` was a field nothing
+            read — fixed, and the id names what was ordered so two different things on one tile are
+            two buildings rather than one that changed its mind.
+
+            What cannot be done yet is *offer* anything else. A commissioned building is drawn by
+            `render/site.ts` at four stages — pegs, frame, roof, house — and each is one piece of
+            geometry. A second entry in `BUILDS` needs a second set of it, plus its collision, plus
+            a price and a number of days. That is modelling work, not deed work, and inventing what
+            an ordered bath house looks like is exactly the kind of guess this list exists to avoid.
+
+            Size is deliberately fixed and should stay so: `BUILD.PLOT` is pinned at one because the
+            ground check is the world's own, and a house asking for more ground than a village house
+            could not be put anywhere a village house can. Facing is already chosen — it comes off
+            the way the hero was standing.
+
+            So the gap is a building, and the day there is one the catalogue grows by a line.
