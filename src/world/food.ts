@@ -84,6 +84,16 @@ export const FOOD = {
    */
   HEART_EVERY: 5,
   /**
+   * And what one of those costs, on the health scale everything alive is quoted on.
+   *
+   * Ten, which is a tenth of a fit adult and a sixth of a villager — one heart, in the money the
+   * game used to be counted in. It has to be here as its own number rather than assumed to be one,
+   * and the reason is a bug: when health was rescaled by ten, `HEARTS` went from six to sixty and
+   * this stayed at the implied one, so a starving man took three hundred days to die instead of
+   * thirty. The test that caught it asked for somebody four hearts down and was told he was fine.
+   */
+  A_HEART: 10,
+  /**
    * And how few hearts left before he goes looking for food rather than getting on with his day.
    *
    * Thirty, which is half of them. He *wants* full hearts always — nobody turns down dinner — but
@@ -161,7 +171,7 @@ export function cellarCap(people: readonly Person[]): number {
  * looks half dead standing about as though nothing were wrong.
  */
 export function heartsLeft(person: Pick<Person, 'hungry'>): number {
-  const lost = Math.floor((person.hungry ?? 0) / FOOD.HEART_EVERY);
+  const lost = Math.floor((person.hungry ?? 0) / FOOD.HEART_EVERY) * FOOD.A_HEART;
   return Math.max(0, FOOD.HEARTS - lost);
 }
 

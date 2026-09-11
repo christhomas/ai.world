@@ -2711,6 +2711,31 @@ other, and the order is chosen so that each one can be *seen* working before the
             hero should have a maximum well above a hundred, which is what makes a wolf stop
             mattering without a wolf changing.
 
+- [x] **16. The Domesday Book.** Asked for on 2026-09-11: a tool like the character builder showing
+      every villager in the world, live, so the economy and the world operating system can be
+      watched rather than guessed at. `server/doomsday.ts`, `GET /doomsday`, `tools/doomsday.html`.
+
+      **It had to be on the server and that is the whole point of it.** A page holds villagers as
+      guests: the world owns them, runs their trees, keeps their register. So the server can say
+      what every soul in the country is presently *doing* — the branch of a behaviour tree that
+      claimed the last tick — and a page cannot, because `doing` is not on the wire. The same goes
+      for scope: a page knows the chunks near its hero, the world knows every village it has
+      founded.
+
+      A window rather than a door: behind the same tokens as `/operate`, happy with the read-only
+      one, and it changes nothing. It surveys what the world has actually founded rather than
+      founding villages to look at them — founding needs grown ground under it, and a village
+      founded from a half-grown world gets the wrong trades *permanently*, which is the same hazard
+      `VillagerSnap.trades` exists to prevent.
+
+      - [ ] **16a. Births and deaths as a stream.** `Register.advance` hands back exactly that list
+            and nothing keeps it. A book that showed what *changed* wants a log, which is a decision
+            about memory rather than a line of code.
+      - [ ] **16b. A child was out hunting.** The book found it within a minute of first rendering:
+            Kees Bakker, nine years old, trade "—", `doing` "out hunting". A child on the street is
+            given a trade's day to follow by `pickTrade` because the register has no trade for them.
+            Harmless-looking and wrong, and exactly the sort of thing this tool exists to surface.
+
 - [ ] **14. The risk-and-reward of a living.** Raised 2026-09-11: mining should be easy and pay
       little, a hired sword should pay a great deal because your life is on the line — a contract
       worth hundreds, which is a hundred meals. Today a soldier asks `HIRE.ASKING_LEAST` 15 to

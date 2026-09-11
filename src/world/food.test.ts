@@ -53,7 +53,7 @@ describe('eating', () => {
      * what sends him down a mine or into somebody's pay.
      */
     const p = soul('farmer', 0);
-    const days = FOOD.HEARTS * FOOD.HEART_EVERY;
+    const days = (FOOD.HEARTS / FOOD.A_HEART) * FOOD.HEART_EVERY;
     for (let day = 1; day < days; day++) {
       expect(eat([p], 0).starved, `dead on day ${day} of going without`).toEqual([]);
     }
@@ -64,13 +64,14 @@ describe('eating', () => {
     const p = soul('farmer', 0);
     expect(heartsLeft(p)).toBe(FOOD.HEARTS);
     for (let day = 0; day < FOOD.HEART_EVERY; day++) eat([p], 0);
-    expect(heartsLeft(p)).toBe(FOOD.HEARTS - 1);
+    expect(heartsLeft(p)).toBe(FOOD.HEARTS - FOOD.A_HEART);
   });
 
   it('says who has noticed they are hungry, which is halfway down', () => {
     const p = soul('farmer', 0);
     expect(lookingForFood(p)).toBe(false);
-    for (let day = 0; day < FOOD.HEART_EVERY * (FOOD.HEARTS - FOOD.SEEKS_AT); day++) eat([p], 0);
+    const toHalf = (FOOD.HEARTS - FOOD.SEEKS_AT) / FOOD.A_HEART;
+    for (let day = 0; day < FOOD.HEART_EVERY * toHalf; day++) eat([p], 0);
     expect(lookingForFood(p), 'down to half his hearts and getting on with his day').toBe(true);
   });
 

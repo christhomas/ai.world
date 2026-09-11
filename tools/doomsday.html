@@ -1,0 +1,186 @@
+<!doctype html>
+<!--
+  The Domesday Book: every soul the world is holding, and what each of them is doing about it.
+
+  `character-builder.html` next door asks "is this creature right?" and this asks the question the
+  simulation raises: "is the world right?" — which cannot be answered by looking at the game, because
+  the interesting half of a world is the half nobody is standing in. A page holds villagers as guests
+  and knows about the chunks near its own hero. The server holds the register, runs their behaviour
+  trees, and knows what every one of them is presently up to. So the book is asked of the server.
+
+  It is a window and not a door. `GET /doomsday` computes a survey from state that already exists and
+  changes nothing; the door that changes a world is `POST /operate`, next to it, with its own token.
+  Either token opens this — a watcher sees exactly what an operator does, because there is nothing
+  here to abuse.
+
+  What to look at, in rough order of how often it has been wrong:
+
+  - **Purses.** A village where everybody holds the same number is a village where the economy has
+    found a fixed point and stopped. That happened for months: every working purse in the world came
+    to rest on exactly 6.5 and nothing anybody earned ever bought anything.
+  - **Hearts.** Hunger is heart loss on a slow clock. A column of full hearts everywhere means nobody
+    is ever going short; a village visibly draining means a famine you can walk into and fix.
+  - **Doing.** The branch of a behaviour tree that claimed the last tick. Blank for anybody the world
+    has no body for, which is most of a world most of the time — that blank is honest and is not a
+    fault. A street full of people all doing the same thing at noon is a fault.
+  - **Earns against spends.** Every trade has to clear what a day costs it, or nobody sensible would
+    do the work. A row where spends exceeds earns, for days, is a trade that should not exist.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Domesday Book — ai.world</title>
+<style>
+  :root { color-scheme: dark; --ink: #dfe4f5; --dim: #8b93ad; --line: #232a3d; --bg: #0e1118; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  header {
+    position: sticky; top: 0; z-index: 2; background: #121622; border-bottom: 1px solid var(--line);
+    padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  h1 { font-size: 14px; margin: 0 12px 0 0; font-weight: 600; letter-spacing: .04em; }
+  input, button {
+    background: #0b0e15; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 4px; padding: 5px 8px; font: inherit;
+  }
+  input { width: 190px; }
+  input.seed { width: 90px; }
+  button { cursor: pointer; }
+  button:hover { border-color: #3b4c6e; }
+  .note { color: var(--dim); margin-left: auto; }
+  .bad { color: #e4746a; }
+  main { padding: 14px; }
+  .parish { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 14px; overflow: hidden; }
+  .parish > h2 {
+    margin: 0; padding: 8px 12px; background: #151a28; font-size: 13px; font-weight: 600;
+    display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap;
+  }
+  .parish h2 .stat { color: var(--dim); font-weight: 400; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 4px 12px; border-top: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--dim); font-weight: 400; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.starving td { color: #e4a06a; }
+  .doing { color: #7fd18c; }
+  .bar { display: inline-block; width: 54px; height: 7px; background: #222839; border-radius: 3px; overflow: hidden; vertical-align: middle; }
+  .bar > i { display: block; height: 100%; background: #7fd18c; }
+  .bar.low > i { background: #e4746a; }
+  .empty { color: var(--dim); padding: 30px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>DOMESDAY BOOK</h1>
+  <input id="where" placeholder="http://localhost:8080" value="">
+  <input id="token" type="password" placeholder="operator or watch token">
+  <input id="seed" class="seed" placeholder="seed">
+  <button id="ask">Open the book</button>
+  <label><input type="checkbox" id="live" style="width:auto"> live</label>
+  <span class="note" id="note">not yet asked</span>
+</header>
+<main id="out"><div class="empty">Point it at a world server and open the book.</div></main>
+
+<script type="module">
+/*
+ * Everything is kept in the address bar rather than in storage, so a particular world is a link
+ * somebody can send. The token is deliberately not remembered anywhere: it is a password, and a
+ * tool that quietly keeps one is a tool that leaks it.
+ */
+const $ = (id) => document.getElementById(id);
+const seen = new URLSearchParams(location.search);
+$('where').value = seen.get('at') ?? location.origin.replace(/\/$/, '');
+$('seed').value = seen.get('seed') ?? '';
+
+/** A bar and a number, the same way the game's own HUD draws health. */
+const hearts = (left, most) => {
+  const share = most > 0 ? Math.max(0, Math.min(1, left / most)) : 0;
+  const low = share <= 0.3 ? ' low' : '';
+  return `<span class="bar${low}"><i style="width:${(share * 100).toFixed(0)}%"></i></span> ${left}`;
+};
+
+const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
+
+function draw(book) {
+  if (!book.parishes.length) {
+    $('out').innerHTML = '<div class="empty">The world is holding no villages yet. '
+      + 'A village comes into the book the moment anybody goes there.</div>';
+    return;
+  }
+  const most = 60;                       // a villager's full health, for the bars
+  $('out').innerHTML = book.parishes.map((p) => `
+    <section class="parish">
+      <h2>${esc(p.name)}
+        <span class="stat">${p.souls} souls (${p.children} children)</span>
+        <span class="stat">${p.worth} gold</span>
+        <span class="stat">larder ${p.larder}</span>
+        <span class="stat">herd ${p.herd}</span>
+        <span class="stat">${esc(p.fortune)}</span>
+        ${p.pressure > 0 ? `<span class="bad">under pressure ${p.pressure}</span>` : ''}
+      </h2>
+      <table>
+        <thead><tr>
+          <th>name</th><th>trade</th><th class="num">age</th><th>health</th>
+          <th class="num">purse</th><th class="num">earns</th><th class="num">costs</th>
+          <th>doing</th><th>parents</th>
+        </tr></thead>
+        <tbody>${p.people.map((s) => `
+          <tr class="${s.starving ? 'starving' : ''}">
+            <td>${esc(s.name)}</td>
+            <td>${esc(s.trade || '—')}</td>
+            <td class="num">${s.age}</td>
+            <td>${hearts(s.hearts, most)}</td>
+            <td class="num">${s.purse}</td>
+            <td class="num">${s.earns}</td>
+            <td class="num">${s.spends}</td>
+            <td class="doing">${esc(s.doing || '')}</td>
+            <td>${esc([s.mother, s.father].filter(Boolean).join(', ') || '—')}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </section>`).join('');
+}
+
+async function ask() {
+  const at = $('where').value.replace(/\/$/, '');
+  const seed = $('seed').value.trim();
+  const token = $('token').value.trim();
+  const url = `${at}/doomsday${seed ? `?seed=${encodeURIComponent(seed)}` : ''}`;
+  const keep = new URLSearchParams({ at, ...(seed ? { seed } : {}) });
+  history.replaceState(null, '', `?${keep}`);
+  try {
+    const res = await fetch(url, { headers: token ? { 'x-operator-token': token } : {} });
+    const body = await res.json();
+    if (!res.ok) { $('note').innerHTML = `<span class="bad">${esc(body.error ?? res.status)}</span>`; return; }
+    // one world or all of them: a server holding several answers with a list
+    const book = body.books ? body.books[0] : body;
+    if (!book) { $('note').innerHTML = '<span class="bad">no worlds open</span>'; return; }
+    $('note').textContent = `world ${book.seed} · day ${book.day} · ${book.souls} souls · `
+      + `${book.standing} on their feet · ${new Date().toLocaleTimeString()}`;
+    draw(book);
+  } catch (e) {
+    $('note').innerHTML = `<span class="bad">${esc(e.message)}</span>`;
+  }
+}
+
+$('ask').addEventListener('click', ask);
+for (const id of ['where', 'token', 'seed']) {
+  $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); });
+}
+
+/*
+ * Live is a poll rather than a socket, and on purpose: the survey is a read of state that already
+ * exists, the interesting things in a world move on the scale of a game day rather than a frame,
+ * and a socket would be a second protocol to keep in step with the first. Two seconds is fast
+ * enough to watch a village eat and slow enough to be free.
+ */
+let timer = null;
+$('live').addEventListener('change', (e) => {
+  clearInterval(timer);
+  if (e.target.checked) { ask(); timer = setInterval(ask, 2000); }
+});
+if (seen.get('at')) ask();
+</script>
+</body>
+</html>

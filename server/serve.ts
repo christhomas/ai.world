@@ -86,6 +86,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       operate(rooms, options, req, res);
       return;
     }
+    /*
+     * The Domesday Book, which is a window rather than a door.
+     *
+     * Behind the same tokens `/operate` uses and happy with the read-only one, because that is what
+     * this is: a survey of a world, computed from state that already exists, changing nothing. A
+     * world nobody has opened is grown to answer — a book that said "nothing there" about an unvisited
+     * county would be a book about visitors.
+     */
+    if ((options.operatorToken || options.watchToken) && req.url?.startsWith('/doomsday')) {
+      doomsday(sim, options, req, res);
+      return;
+    }
     // the status page keeps its own address once there is a game to serve at the root
     if (pages && req.url !== '/status' && pages(req, res)) return;
     res.writeHead(200, { 'content-type': 'text/plain' });
@@ -142,6 +154,66 @@ function listen(http: Server, port: number): Promise<number> {
  * The token is compared in full and only after the body has been read, so a wrong one costs the
  * same as a right one. It is not a login: whoever has it can do anything the vocabulary allows.
  */
+/**
+ * Hand out the survey of one world.
+ *
+ * A GET, because it is a read and because a person wants to be able to open it in a browser. The
+ * seed comes off the query string; without one it answers about every world the server is holding,
+ * which is the shape somebody wants when they are watching a box rather than a country.
+ *
+ * Both tokens are accepted and neither is privileged over the other here. `/operate` distinguishes
+ * them because it can change a world; nothing down this path can, so a watcher sees exactly what an
+ * operator does.
+ */
+function doomsday(sim: Simulation, options: ServerOptions, req: IncomingMessage, res: ServerResponse): void {
+  /*
+   * Readable from a page that is not this server's.
+   *
+   * `tools/doomsday.html` is opened off a dev server or a file while the world it is surveying runs
+   * somewhere else, and a custom header is enough to make a browser ask permission first — so
+   * without this the tool cannot read its own endpoint from anywhere but the server's own origin.
+   *
+   * A wildcard is safe here and would not be on `/operate`. There is nothing to steal: the door is
+   * a token in a header rather than a cookie, so a browser will not attach it on somebody else's
+   * behalf, and every answer is a read. The rule that matters is the one in the router — this path
+   * cannot change a world — and not who is allowed to ask.
+   */
+  const allow = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': 'x-operator-token, authorization',
+    'access-control-max-age': '600',
+  };
+  const say = (code: number, body: unknown): void => {
+    res.writeHead(code, { 'content-type': 'application/json', ...allow });
+    res.end(JSON.stringify(body));
+  };
+  if (req.method === 'OPTIONS') { res.writeHead(204, allow); res.end(); return; }
+  if (req.method !== 'GET') { say(405, { error: 'ask, do not tell' }); return; }
+
+  const given = String(req.headers['x-operator-token'] ?? '')
+    || String(req.headers.authorization ?? '').replace(/^Bearer /, '')
+    || new URL(req.url ?? '/', 'http://x').searchParams.get('token') || '';
+  const known = given !== ''
+    && (given === options.operatorToken || given === options.watchToken);
+  if (!known) { say(401, { error: 'no' }); return; }
+  if (!withinRate(given)) { say(429, { error: 'too many' }); return; }
+
+  const asked = new URL(req.url ?? '/', 'http://x').searchParams.get('seed');
+  if (asked !== null) {
+    const seed = Number(asked);
+    if (!Number.isFinite(seed)) { say(400, { error: 'that is not a seed' }); return; }
+    const book = sim.surveyOf(seed);
+    if (!book) { say(404, { error: `no world ${seed}` }); return; }
+    say(200, book);
+    return;
+  }
+  // no seed: whatever this server is presently holding, which is what a watcher wants
+  const books = sim.rooms.entries()
+    .map(([seed]) => sim.surveyOf(seed))
+    .filter((b): b is NonNullable<typeof b> => b !== null);
+  say(200, { worlds: books.length, books });
+}
+
 function operate(rooms: Rooms, options: ServerOptions, req: IncomingMessage, res: ServerResponse): void {
   const say = (code: number, body: unknown): void => {
     res.writeHead(code, { 'content-type': 'application/json' });

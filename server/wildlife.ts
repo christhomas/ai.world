@@ -87,6 +87,9 @@ export class Wildlife {
   /** Who lives in these villages, when anybody does. */
   get register(): Register | null { return this.folk?.register ?? null; }
 
+  /** And where those villages are, for anything surveying the whole country rather than a corner. */
+  get villages(): readonly Village[] { return this.folk?.villages ?? []; }
+
   /**
    * Somebody has paid a villager to walk with them, or has stopped paying.
    *
