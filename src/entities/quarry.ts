@@ -43,7 +43,7 @@ function closest(from: Entity, near: readonly Entity[], wanted: (e: Entity) => b
  */
 export function nearestQuarry(from: Entity, near: readonly Entity[]): Entity | null {
   return closest(from, near, (e) =>
-    Boolean(e.kind.hp) && !PEOPLE.has(e.kind.id) && !(e.kind.dangerous ?? 0));
+    Boolean(e.kind.hp) && !PEOPLE.has(e.kind.id) && !(e.kind.damage ?? 0));
 }
 
 /**
@@ -79,7 +79,7 @@ export function nearestStock(from: Entity, near: readonly Entity[], beyond: numb
  * and is not this.
  */
 export function nearestFoe(from: Entity, near: readonly Entity[]): Entity | null {
-  return closest(from, near, (e) => (e.kind.dangerous ?? 0) > 0 && !PEOPLE.has(e.kind.id));
+  return closest(from, near, (e) => (e.kind.damage ?? 0) > 0 && !PEOPLE.has(e.kind.id));
 }
 
 /** The nearest person: somebody a wolf would rather have than a rabbit. */
@@ -99,7 +99,7 @@ export function nearestTrouble(
   from: Entity, near: readonly Entity[], heroX: number, heroZ: number,
 ): Entity | null {
   return closest(from, near, (e) => {
-    if (!(e.kind.dangerous ?? 0)) return false;
+    if (!(e.kind.damage ?? 0)) return false;
     return e.target
       ? !e.target.dead && PEOPLE.has(e.target.kind.id)
       : Math.hypot(e.x - heroX, e.z - heroZ) <= BEHAVIOUR.STALK_RADIUS;

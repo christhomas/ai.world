@@ -2685,6 +2685,32 @@ other, and the order is chosen so that each one can be *seen* working before the
             where it would go, beside `trade` and `role`. Worth doing before anything in the UI
             reads it, or the roster will show a column that is blank for everybody but your own men.
 
+- [x] **15. Health on one scale, and the hearts retired.** Asked for on 2026-09-11: a wider scale for
+      resolution and for power scaling, because an experienced hero being killed by a wolf in five
+      or six bites is ridiculous. Measured before touching anything: it was **four** bites.
+
+      The cause was the hearts, and not as a metaphor. Ten of them can say ten things, so the
+      smallest expressible blow *was* a tenth of the hero — nothing could hit for less, and nothing
+      could be tougher than ten bites without being tougher than everything. Everything alive is on
+      one scale now where `HEALTH.FULL` is a hundred: villager 60, wolf 30, bear 200, troll 280, Old
+      Nettle 480, hero 100 and room above it. Forty data values and every coupled constant moved
+      with it — `PROWESS.PER_DANGER` 3 → 0.3 so a fight teaches exactly what it did, `GIFT.PHYSIC`
+      3 → 30 so an apple is a snack rather than medicine, the blow floors, the warband's numbers.
+
+      **`dangerous` is `damage` now**, which is the rename that mattered most: it was the number a
+      creature hits for *and* read as a boolean, and that ambiguity is precisely why a rescale that
+      searched for "damage" found none of the creatures. The behaviour-tree *question* keeps the
+      name `dangerous`, because as a question it is the right word.
+
+      `Living` is the third trait beside `Holder` and `Pack` — one shape for a wolf, a villager and
+      the hero — and `share` is what a bar draws, uniform whatever the maximum. The HUD is a bar and
+      a number where it was a row of hearts: the bar keeps what hearts were good at, and the number
+      says the thing hearts never could, which is how tough you have become. A percentage alone
+      would throw that away, which is why the number underneath is a number.
+      - [ ] **15a. Power scaling itself.** The room is there and nothing uses it yet. An experienced
+            hero should have a maximum well above a hundred, which is what makes a wolf stop
+            mattering without a wolf changing.
+
 - [ ] **14. The risk-and-reward of a living.** Raised 2026-09-11: mining should be easy and pay
       little, a hired sword should pay a great deal because your life is on the line — a contract
       worth hundreds, which is a hundred meals. Today a soldier asks `HIRE.ASKING_LEAST` 15 to

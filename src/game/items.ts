@@ -76,38 +76,38 @@ export function sellPrice(item: Item): number {
 
 const list: Item[] = [
   // --- food and potions ---
-  { id: 'apple', name: 'Apple', emoji: '🍎', price: 5, desc: 'Crisp and sweet. Keeps well on the road.', effect: { type: 'heal', amount: 1 } },
-  { id: 'bread', name: 'Bread', emoji: '🍞', price: 8, desc: 'Still warm from the oven.', effect: { type: 'heal', amount: 2 } },
-  { id: 'stew', name: 'Hearty Stew', emoji: '🍲', price: 9, desc: 'Whatever was in the pot today.', effect: { type: 'heal', amount: 3 } },
-  { id: 'ale', name: 'Mug of Ale', emoji: '🍺', price: 6, desc: 'The house brew. Strong.', effect: { type: 'heal', amount: 1 } },
+  { id: 'apple', name: 'Apple', emoji: '🍎', price: 5, desc: 'Crisp and sweet. Keeps well on the road.', effect: { type: 'heal', amount: 10 } },
+  { id: 'bread', name: 'Bread', emoji: '🍞', price: 8, desc: 'Still warm from the oven.', effect: { type: 'heal', amount: 20 } },
+  { id: 'stew', name: 'Hearty Stew', emoji: '🍲', price: 9, desc: 'Whatever was in the pot today.', effect: { type: 'heal', amount: 30 } },
+  { id: 'ale', name: 'Mug of Ale', emoji: '🍺', price: 6, desc: 'The house brew. Strong.', effect: { type: 'heal', amount: 10 } },
   { id: 'room', name: "Night's Rest", emoji: '🛏️', price: 10, desc: 'A bed until dawn, and full hearts with it.', effect: { type: 'rest' } },
-  { id: 'herbs', name: 'Healing Herbs', emoji: '🌿', price: 8, desc: 'Chew slowly. Do not ask what is in it.', effect: { type: 'heal', amount: 2 } },
-  { id: 'potion', name: 'Red Potion', emoji: '🧪', price: 15, desc: 'Tastes of cherries and regret.', effect: { type: 'heal', amount: 5 } },
-  { id: 'antidote', name: 'Antidote', emoji: '💊', price: 12, desc: 'For swamp bites and bad decisions.', effect: { type: 'heal', amount: 3 } },
-  { id: 'elixir', name: 'Green Elixir', emoji: '🥤', price: 40, desc: 'Bitter, and worth every drop.', effect: { type: 'heal', amount: 10 } },
+  { id: 'herbs', name: 'Healing Herbs', emoji: '🌿', price: 8, desc: 'Chew slowly. Do not ask what is in it.', effect: { type: 'heal', amount: 20 } },
+  { id: 'potion', name: 'Red Potion', emoji: '🧪', price: 15, desc: 'Tastes of cherries and regret.', effect: { type: 'heal', amount: 50 } },
+  { id: 'antidote', name: 'Antidote', emoji: '💊', price: 12, desc: 'For swamp bites and bad decisions.', effect: { type: 'heal', amount: 30 } },
+  { id: 'elixir', name: 'Green Elixir', emoji: '🥤', price: 40, desc: 'Bitter, and worth every drop.', effect: { type: 'heal', amount: 100 } },
 
   // --- weapons (hand) ---
-  { id: 'stick', name: 'Stout Stick', emoji: '🪵', price: 6, desc: 'Better than knuckles.', slot: 'hand', attack: 1 },
-  { id: 'sword', name: 'Iron Sword', emoji: '🗡️', price: 60, desc: 'Plain, sharp, dependable.', slot: 'hand', attack: 2 },
-  { id: 'steelsword', name: 'Steel Sword', emoji: '⚔️', price: 140, desc: 'Keeps its edge through a whole cave.', slot: 'hand', attack: 3 },
-  { id: 'axe', name: 'War Axe', emoji: '🪓', price: 210, desc: 'Slow, heavy, final.', slot: 'hand', attack: 4 },
+  { id: 'stick', name: 'Stout Stick', emoji: '🪵', price: 6, desc: 'Better than knuckles.', slot: 'hand', attack: 10 },
+  { id: 'sword', name: 'Iron Sword', emoji: '🗡️', price: 60, desc: 'Plain, sharp, dependable.', slot: 'hand', attack: 20 },
+  { id: 'steelsword', name: 'Steel Sword', emoji: '⚔️', price: 140, desc: 'Keeps its edge through a whole cave.', slot: 'hand', attack: 30 },
+  { id: 'axe', name: 'War Axe', emoji: '🪓', price: 210, desc: 'Slow, heavy, final.', slot: 'hand', attack: 40 },
 
   // --- heads ---
-  { id: 'cap', name: 'Leather Cap', emoji: '🧢', price: 20, desc: 'Keeps the rain out, mostly.', slot: 'head', defence: 1 },
-  { id: 'helm', name: 'Iron Helm', emoji: '🪖', price: 55, desc: 'Heavy on the neck, kind to the skull.', slot: 'head', defence: 2, hearts: 2 },
+  { id: 'cap', name: 'Leather Cap', emoji: '🧢', price: 20, desc: 'Keeps the rain out, mostly.', slot: 'head', defence: 10 },
+  { id: 'helm', name: 'Iron Helm', emoji: '🪖', price: 55, desc: 'Heavy on the neck, kind to the skull.', slot: 'head', defence: 20, hearts: 20 },
 
   // --- bodies ---
-  { id: 'tunic', name: "Traveller's Tunic", emoji: '👕', price: 18, desc: 'Wool, patched at the elbows.', slot: 'body', defence: 1 },
-  { id: 'jerkin', name: 'Leather Jerkin', emoji: '🧥', price: 65, desc: 'Boiled leather, stitched thick.', slot: 'body', defence: 2, hearts: 2 },
-  { id: 'mail', name: 'Chain Mail', emoji: '🥋', price: 180, desc: 'A smith spent a winter on this.', slot: 'body', defence: 4, hearts: 4 },
+  { id: 'tunic', name: "Traveller's Tunic", emoji: '👕', price: 18, desc: 'Wool, patched at the elbows.', slot: 'body', defence: 10 },
+  { id: 'jerkin', name: 'Leather Jerkin', emoji: '🧥', price: 65, desc: 'Boiled leather, stitched thick.', slot: 'body', defence: 20, hearts: 20 },
+  { id: 'mail', name: 'Chain Mail', emoji: '🥋', price: 180, desc: 'A smith spent a winter on this.', slot: 'body', defence: 40, hearts: 40 },
   // the end of the body slot, and priced to be the last thing anybody buys: the step up from mail
   // is the same step mail was from a jerkin — twice the coin for half again the guard — so it is a
   // late purchase rather than the obvious one. It is also the only body piece that armours the arms
-  { id: 'plate', name: 'Plate Harness', emoji: '🦾', price: 340, desc: 'Breastplate, vambraces and all. Nothing gets through it, and everyone hears you coming.', slot: 'body', defence: 6, hearts: 6 },
+  { id: 'plate', name: 'Plate Harness', emoji: '🦾', price: 340, desc: 'Breastplate, vambraces and all. Nothing gets through it, and everyone hears you coming.', slot: 'body', defence: 60, hearts: 60 },
 
   // --- off hand ---
-  { id: 'shield', name: 'Wooden Shield', emoji: '🛡️', price: 45, desc: 'Oak planks bound with iron.', slot: 'offhand', defence: 2 },
-  { id: 'ironshield', name: 'Iron Shield', emoji: '🛡️', price: 120, desc: 'Dents instead of splitting.', slot: 'offhand', defence: 4 },
+  { id: 'shield', name: 'Wooden Shield', emoji: '🛡️', price: 45, desc: 'Oak planks bound with iron.', slot: 'offhand', defence: 20 },
+  { id: 'ironshield', name: 'Iron Shield', emoji: '🛡️', price: 120, desc: 'Dents instead of splitting.', slot: 'offhand', defence: 40 },
   { id: 'lantern', name: 'Lantern', emoji: '🏮', price: 30, desc: 'Hold it up and the night gives way.', slot: 'offhand', ability: 'light' },
   { id: 'rod', name: 'Fishing Rod', emoji: '🎣', price: 28, desc: 'Cane, line and a hook. Carry it to the water and cast.', tool: true, ability: 'fish' },
   { id: 'shovel', name: 'Shovel', emoji: '⛏️', price: 34, desc: 'Ash handle, iron blade. Stand on a hillside with it and see what the hill has been keeping.', tool: true, ability: 'dig' },
@@ -121,27 +121,27 @@ const list: Item[] = [
   { id: 'parachute', name: 'Folded Silk', emoji: '☂️', price: 140, desc: 'A canopy of oiled silk in a satchel, packed by somebody who knew how. Carry it and a hole in the ground stops being the end of you.', tool: true, ability: 'float' },
 
   // --- feet ---
-  { id: 'boots', name: 'Walking Boots', emoji: '🥾', price: 26, desc: 'Broken in by someone else.', slot: 'feet', defence: 1 },
-  { id: 'greaves', name: 'Iron Greaves', emoji: '🦿', price: 90, desc: 'Shins that fear no wolf.', slot: 'feet', defence: 2 },
+  { id: 'boots', name: 'Walking Boots', emoji: '🥾', price: 26, desc: 'Broken in by someone else.', slot: 'feet', defence: 10 },
+  { id: 'greaves', name: 'Iron Greaves', emoji: '🦿', price: 90, desc: 'Shins that fear no wolf.', slot: 'feet', defence: 20 },
 
   // --- pocket ---
   { id: 'map', name: 'Region Map', emoji: '🗺️', price: 25, desc: 'Hand-drawn. Keep it to hand and the fog lifts.', slot: 'trinket', ability: 'map' },
   { id: 'rope', name: 'Climbing Rope', emoji: '🪢', price: 12, desc: 'Twenty feet of good hemp. Coiled on your belt.', slot: 'trinket', ability: 'climb' },
-  { id: 'charm', name: 'Luck Charm', emoji: '🍀', price: 70, desc: 'A pressed clover in glass. It cannot hurt.', slot: 'trinket', hearts: 2 },
+  { id: 'charm', name: 'Luck Charm', emoji: '🍀', price: 70, desc: 'A pressed clover in glass. It cannot hurt.', slot: 'trinket', hearts: 20 },
 
   // --- seeds and crops ---
   { id: 'wheatseed', name: 'Wheat Seeds', emoji: '🌱', price: 6, desc: 'Sow on bare earth beside a village. Three days to ripen, spring or summer.' },
   { id: 'turnipseed', name: 'Turnip Seeds', emoji: '🌱', price: 4, desc: 'Two days in the ground, spring or autumn.' },
   { id: 'pumpkinseed', name: 'Pumpkin Seeds', emoji: '🌱', price: 12, desc: 'Five days, summer or autumn, and worth the wait.' },
-  { id: 'wheat', name: 'Wheat', emoji: '🌾', price: 14, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 2 }, loot: true },
-  { id: 'turnip', name: 'Turnip', emoji: '🥔', price: 10, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 2 }, loot: true },
-  { id: 'pumpkin', name: 'Pumpkin', emoji: '🎃', price: 29, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 3 }, loot: true },
+  { id: 'wheat', name: 'Wheat', emoji: '🌾', price: 14, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 20 }, loot: true },
+  { id: 'turnip', name: 'Turnip', emoji: '🥔', price: 10, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 20 }, loot: true },
+  { id: 'pumpkin', name: 'Pumpkin', emoji: '🎃', price: 29, desc: 'Grown from your own ground.', effect: { type: 'heal', amount: 30 }, loot: true },
 
   // --- catch and salvage ---
-  { id: 'minnow', name: 'Minnow', emoji: '🐟', price: 4, desc: 'Small, bony, and everywhere.', effect: { type: 'heal', amount: 1 }, loot: true },
-  { id: 'perch', name: 'Perch', emoji: '🐠', price: 12, desc: 'A decent fish. The inn will buy it.', effect: { type: 'heal', amount: 2 }, loot: true },
-  { id: 'eel', name: 'Eel', emoji: '🪱', price: 22, desc: 'It is still moving. Best cook it soon.', effect: { type: 'heal', amount: 3 }, loot: true },
-  { id: 'pike', name: 'Pike', emoji: '🦈', price: 30, desc: 'All teeth and temper. Worth good coin.', effect: { type: 'heal', amount: 4 }, loot: true },
+  { id: 'minnow', name: 'Minnow', emoji: '🐟', price: 4, desc: 'Small, bony, and everywhere.', effect: { type: 'heal', amount: 10 }, loot: true },
+  { id: 'perch', name: 'Perch', emoji: '🐠', price: 12, desc: 'A decent fish. The inn will buy it.', effect: { type: 'heal', amount: 20 }, loot: true },
+  { id: 'eel', name: 'Eel', emoji: '🪱', price: 22, desc: 'It is still moving. Best cook it soon.', effect: { type: 'heal', amount: 30 }, loot: true },
+  { id: 'pike', name: 'Pike', emoji: '🦈', price: 30, desc: 'All teeth and temper. Worth good coin.', effect: { type: 'heal', amount: 40 }, loot: true },
   { id: 'pelt', name: 'Wolf Pelt', emoji: '🟤', price: 26, desc: 'Thick winter fur. Traders pay for these.', loot: true },
   { id: 'fang', name: 'Bear Fang', emoji: '🦷', price: 45, desc: 'As long as your thumb.', loot: true },
   { id: 'bone', name: 'Old Bone', emoji: '🦴', price: 8, desc: 'From something that used to walk down here.', loot: true },
@@ -149,15 +149,15 @@ const list: Item[] = [
 
   // --- dug out of the ground ---
   { id: 'wood', name: 'Cut Wood', emoji: '🪵', price: 5, desc: 'Green and heavy. A market that gathers enough of it starts thinking about carts.', loot: true },
-  { id: 'meat', name: 'Raw Meat', emoji: '🥩', price: 7, desc: 'It wants a fire before it wants your mouth.', effect: { type: 'heal', amount: 1 }, loot: true },
-  { id: 'roast', name: 'Roast Meat', emoji: '🍖', price: 20, desc: 'Cooked over your own fire, which is most of why it is worth eating.', effect: { type: 'heal', amount: 5 }, loot: true },
+  { id: 'meat', name: 'Raw Meat', emoji: '🥩', price: 7, desc: 'It wants a fire before it wants your mouth.', effect: { type: 'heal', amount: 10 }, loot: true },
+  { id: 'roast', name: 'Roast Meat', emoji: '🍖', price: 20, desc: 'Cooked over your own fire, which is most of why it is worth eating.', effect: { type: 'heal', amount: 50 }, loot: true },
   { id: 'hide', name: 'Deer Hide', emoji: '🟠', price: 18, desc: 'Taken off whole. The first thing most people here ever sell.', loot: true },
   { id: 'foxfur', name: 'Fox Fur', emoji: '🦊', price: 34, desc: 'Small, bright, and worth more than the meat ever was.', loot: true },
   { id: 'bearpelt', name: 'Bear Pelt', emoji: '🟫', price: 70, desc: 'Heavy, warm, and worth a great deal further south.', loot: true },
   { id: 'herb', name: 'Bitter Herb', emoji: '🌿', price: 4, desc: 'Grows where the ground is damp. On its own it is a leaf.', loot: true },
-  { id: 'salve', name: 'Salve', emoji: '🧪', price: 32, desc: 'Ground herb and clean water. Drink it and the worst of it goes.', effect: { type: 'heal', amount: 8 } },
+  { id: 'salve', name: 'Salve', emoji: '🧪', price: 32, desc: 'Ground herb and clean water. Drink it and the worst of it goes.', effect: { type: 'heal', amount: 80 } },
   { id: 'ward', name: 'Warding Draught', emoji: '🔮', price: 60, desc: 'Turns aside what is coming for a little while. Long enough to get away, if you go now.' },
-  { id: 'bow', name: 'Hunting Bow', emoji: '🏹', price: 90, desc: 'Yew and gut. The only thing here that reaches something in the air.', slot: 'hand', attack: 2 },
+  { id: 'bow', name: 'Hunting Bow', emoji: '🏹', price: 90, desc: 'Yew and gut. The only thing here that reaches something in the air.', slot: 'hand', attack: 20 },
   { id: 'cart', name: 'Horse Cart', emoji: '🛒', price: 120, desc: 'Built by a village wright out of wood you carried in. Hauls more, and faster, behind a horse.' },
   { id: 'arrow', name: 'Arrows', emoji: '🎯', price: 2, desc: 'Goose-fletched. You get most of them back, if you look.' },
   { id: 'nugget', name: 'Gold Nugget', emoji: '🪙', price: 95, desc: 'Heavy for its size, and the colour of a good year.', loot: true },

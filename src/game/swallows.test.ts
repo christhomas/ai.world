@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HEALTH } from '../world/health';
 import { MAELSTROM, maelstromIn, maelstromsAround, swallowing, tollOf } from '../world/maelstroms';
 import { createSwallows } from './swallows';
 import { GameState } from './state';
@@ -13,7 +14,7 @@ import { GameState } from './state';
  */
 
 /** Enough of the game for a whirlpool to have somebody to take. */
-function atSea(hp = 10) {
+function atSea(hp: number = HEALTH.FULL) {
   const state = new GameState();
   state.hp = hp;
   const said: string[] = [];
@@ -117,19 +118,19 @@ describe('being taken down', () => {
   })();
 
   it('costs hearts, leaves the boat at the rim, and puts you in the cavern under it', () => {
-    const game = atSea(10);
+    const game = atSea(100);
     game.state.day = kindDay;
     game.sailTo(where.x, where.z);
     game.world.check();
     expect(game.entered.length, 'the sea swallowed him and nothing happened').toBe(1);
     expect(game.entered[0], 'it was not a drowned cavern').toEqual({ id: where.id, style: 'sunken' });
-    expect(game.state.hp, 'it cost him nothing').toBeLessThan(10);
+    expect(game.state.hp, 'it cost him nothing').toBeLessThan(HEALTH.FULL / 2);
     expect(game.sailing.sailing, 'he went down still sailing').toBe(false);
   });
 
   it('carries you to a town instead when it takes everything', () => {
-    // one heart in hand and half your hearts owed: this is the roll nobody can see coming
-    const game = atSea(1);
+    // a scratch left in hand and half your health owed: this is the roll nobody can see coming
+    const game = atSea(HEALTH.A_SCRATCH);
     game.state.day = kindDay;
     game.sailTo(where.x, where.z);
     game.world.check();
@@ -138,7 +139,7 @@ describe('being taken down', () => {
   });
 
   it('puts you back on the deck when you come up, because the sea is no place to stand', () => {
-    const game = atSea(10);
+    const game = atSea(100);
     game.state.day = kindDay;
     game.sailTo(where.x, where.z);
     game.world.check();
@@ -155,7 +156,7 @@ describe('being taken down', () => {
   });
 
   it('does not take the same boat twice on the way out', () => {
-    const game = atSea(10);
+    const game = atSea(100);
     game.state.day = kindDay;
     game.sailTo(where.x, where.z);
     game.world.check();

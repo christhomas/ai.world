@@ -58,8 +58,8 @@ export const FOOD = {
   /**
    * How many hearts a villager has to lose before hunger has killed them.
    *
-   * Six, which is the `villager` body's own hit points in `properties/people.json`, and that is the
-   * point of the number rather than a coincidence. Hunger *is* heart loss: a villager who does not
+   * Sixty, which is the `villager` body's own hit points in `properties/people.json`, and that is
+   * the point of the number rather than a coincidence. Hunger *is* heart loss: a villager who does not
    * eat loses a heart a day, and when the last one goes he is dead of it. One thing, counted once,
    * so the bar over his head and the line in the register cannot disagree about how near the end he
    * is.
@@ -68,7 +68,7 @@ export const FOOD = {
    * and no connection to anything anybody could see. How long a heart takes to go is
    * `HEART_EVERY`.
    */
-  HEARTS: 6,
+  HEARTS: 60,
   /**
    * How many days without food one heart costs.
    *
@@ -86,13 +86,13 @@ export const FOOD = {
   /**
    * And how few hearts left before he goes looking for food rather than getting on with his day.
    *
-   * Three, which is half of them. He *wants* full hearts always — nobody turns down dinner — but
+   * Thirty, which is half of them. He *wants* full hearts always — nobody turns down dinner — but
    * what this decides is when he stops doing his trade and does something about it, and that has
    * to be late enough that a village is not a crowd of people queuing at the market all morning,
    * and early enough that he has days in hand to fix it. Half the way down, with three days left,
    * is a man who has noticed.
    */
-  SEEKS_AT: 3,
+  SEEKS_AT: 30,
   /** A village cellar holds this many days of food for its size; the rest goes to market. */
   KEEPS_DAYS: 12,
   /**

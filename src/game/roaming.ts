@@ -173,7 +173,7 @@ export interface Steading {
   z: number;
 }
 
-/** A pack of something dangerous, and the round of places it works. */
+/** A pack of something damage, and the round of places it works. */
 export interface Band {
   /**
    * Which of the world's bands this is. It names the slot rather than the pack, so the thing that

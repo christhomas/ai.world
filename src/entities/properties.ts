@@ -60,7 +60,7 @@ export interface CreatureProperties {
   /** Max height difference this kind can step across (default STEP_LIMIT). The hero climbs a full terrace. */
   climb?: number;
   /** Damage per bite for predators that attack the hero. */
-  dangerous?: number;
+  damage?: number;
   /**
    * The shape this creature throws when it attacks. Left out for most of them: anything with an
    * arm punches and anything without bites, which covers the whole bestiary without a table. Set
@@ -113,7 +113,7 @@ function readCreature(f: Fields, id: string): CreatureProperties {
     altitude: f.maybeNum('altitude'),
     timid: f.flag('timid'),
     climb: f.maybeNum('climb'),
-    dangerous: f.maybeNum('dangerous'),
+    damage: f.maybeNum('damage'),
     blow,
     owned: f.maybeFlag('owned'),
     hp: f.maybeNum('hp'),

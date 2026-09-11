@@ -212,7 +212,7 @@ function packNear(seed: number, village: Asking, structures: Structures): Troubl
   if (streamFor(seed, `pack:${village.name}`)() >= RESCUE.PREY_ON_US) return null;
 
   // the worst of what lives here: a wood with bears in it does not blame the foxes
-  const worst = hunting.reduce((a, b) => ((KINDS[b.kind]?.dangerous ?? 0) > (KINDS[a.kind]?.dangerous ?? 0) ? b : a));
+  const worst = hunting.reduce((a, b) => ((KINDS[b.kind]?.damage ?? 0) > (KINDS[a.kind]?.damage ?? 0) ? b : a));
   const place = placesNear(village, structures)[0];
   if (!place) return null;                       // nowhere to send anybody is nowhere to blame
 

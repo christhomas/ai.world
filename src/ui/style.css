@@ -369,6 +369,17 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   color: #ff5c5c; font-size: calc(18 * var(--ui-scale)); letter-spacing: var(--ui-scale);
   line-height: 1.2;
 }
+
+/*
+ * The health bar and the number beside it.
+ *
+ * Hearts were a row of characters and so is this, which is deliberate: the HUD is text, it scales
+ * with the page, and nothing here needs a canvas. The bar carries the shape and the number carries
+ * the precision — see `hud.ts` for why the hearts could not do the second half.
+ */
+.hud-bar { color: #7fd18c; letter-spacing: -1px; }
+.hud-bar.hud-hurt { color: #e4746a; }
+.hud-hp { color: #cfd6ff; font-size: 11px; }
 #hurt {
   position: fixed; inset: 0; pointer-events: none; z-index: 1100;
   background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(200,0,0,0.55) 100%);
@@ -1244,6 +1255,7 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
 #breath .warded { color: #ffd76a; }
 #status { top: 8px; left: 8px; min-width: 0; max-width: 96px; padding: 4px 8px; }
   #hearts { font-size: 13px; letter-spacing: 0; }
+  .hud-hp { font-size: 10px; }
   #inventory { top: 52px; left: 8px; min-width: 0; padding: 5px 8px; font-size: 11px; }
   /* The errand tracker is the one panel a phone can do without: the compass strip above already
      names the errand with its bearing and distance, and the journal is one thumb away. */

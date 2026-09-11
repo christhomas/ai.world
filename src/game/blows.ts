@@ -155,7 +155,7 @@ export function createBlows(ctx: Fighting) {
    * put it on the screen, and nothing when none of them was anybody's.
    */
   const felled = (killed: readonly Entity[]): string | null => {
-    // what lived in the workings is what made them dangerous, so killing it is the one thing a
+    // what lived in the workings is what made them damage, so killing it is the one thing a
     // player can do that moves a village's whole economy. Anybody on the register is not what
     // lived down there — he is the village's own, at the face, and cutting him down makes a mine
     // emptier of people rather than emptier of trouble. Counting him would let a player make a
@@ -247,7 +247,7 @@ export function createBlows(ctx: Fighting) {
     director.saw('fight');
     // swinging at things teaches you to swing at things: practice, weighted by what you swung at
     for (const e of res.hit) {
-      const grew = state.practised(e.kind.dangerous ?? 0, res.killed.includes(e));
+      const grew = state.practised(e.kind.damage ?? 0, res.killed.includes(e));
       if (grew) flash(grew);
     }
     if (res.killed.length > 0) {

@@ -185,7 +185,13 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     purse: (params) => (tick) => tick.world.self.purse >= number(params, 'atLeast', 1),
 
     /** Does this kind of creature attack at all? */
-    dangerous: () => (tick) => (tick.world.self.kind.dangerous ?? 0) > 0,
+    /*
+     * Has this one got teeth? The question keeps the name `dangerous` while the number it reads is
+     * `damage`, and both are right: what a creature hits for is a quantity and whether it hits at
+     * all is a fact about it. The number was called `dangerous` too until a rescale went looking
+     * for every damage value in the game, searched for "damage", and found none of the creatures.
+     */
+    dangerous: () => (tick) => (tick.world.self.kind.damage ?? 0) > 0,
 
     /** Is this creature hurt below a share of its hit points? */
     wounded: (params) => (tick) => {
@@ -486,7 +492,7 @@ function bite(params: Params): CreatureNode {
     // it lands where the creature is now, against wherever the target has got to. A step back
     // during the wind-up is a step out of it, which is the only defence that needs no button.
     if (rangeTo(tick) > reach + BEHAVIOUR.BITE_SLIP) return 'failure';
-    const damage = number(params, 'damage', self.kind.dangerous ?? 1);
+    const damage = number(params, 'damage', self.kind.damage ?? 1);
     // the hero has hearts and a HUD; anybody else is just another creature to be hurt
     if (aim.who) strike(self, aim.who, damage); else tick.world.bite(self, damage);
     return 'success';

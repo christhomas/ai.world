@@ -36,7 +36,7 @@ export function oneHurtsAnother(
   throwBlow(attacker, blowOf(attacker.kind));
   if (!damageEntity(victim, damage, attacker.x, attacker.z, o.world)) {
     // being bitten is a good reason to notice who is biting you
-    if ((victim.kind.dangerous ?? 0) > 0) victim.target = attacker;
+    if ((victim.kind.damage ?? 0) > 0) victim.target = attacker;
     return;
   }
   if (PEOPLE.has(victim.kind.id)) o.fallen(victim);

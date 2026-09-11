@@ -56,7 +56,7 @@ describe('sharks and orcas', () => {
     // while it is only circling it keeps its distance rather than sitting on top of you
     expect(run.furthest).toBeGreaterThan(2);
     expect(run.bites.length).toBeGreaterThan(0);                 // a charge that arrives, bites
-    for (const damage of run.bites) expect(damage).toBe(KINDS.shark.dangerous);
+    for (const damage of run.bites) expect(damage).toBe(KINDS.shark.damage);
   });
 
   it('gives up a charge that goes nowhere rather than chasing forever', () => {
@@ -70,7 +70,7 @@ describe('sharks and orcas', () => {
   it('is a real creature: it can be fought back', () => {
     expect(KINDS.shark.hp).toBeGreaterThan(0);
     expect(KINDS.orca.hp).toBeGreaterThan(KINDS.shark.hp!);
-    expect(KINDS.orca.dangerous).toBeGreaterThan(KINDS.shark.dangerous!);
+    expect(KINDS.orca.damage).toBeGreaterThan(KINDS.shark.damage!);
     expect(KINDS.shark.behaviour).toBe('circle');
     expect(KINDS.orca.behaviour).toBe('circle');
   });

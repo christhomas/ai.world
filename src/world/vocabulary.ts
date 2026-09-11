@@ -1,6 +1,7 @@
 import * as deeds from './deeds';
 import * as goods from './goods';
 import * as works from './works';
+import * as health from './health';
 
 /**
  * Everything anybody in this world can do, named in one place.
@@ -41,6 +42,10 @@ import * as works from './works';
  * `handOver` moves what was actually taken rather than what was asked for, and `GONE` is the
  * ground, the fire and the river.
  *
+ * **Being alive** is done. `Living` makes a wolf, a villager and the hero one shape to anything
+ * that hurts or mends them, `HEALTH.FULL` is the scale they are all quoted on, and `share` is what
+ * a bar draws — a proportion, uniform across everything however tough it is.
+ *
  * **Work bought ahead** is done, and is narrower than it first looked. Commissioning a house and
  * hiring a sword went in together as "gold for work rather than gold for an object", and the
  * sharper reading is that a house is very much an object — it just is not there yet. So
@@ -74,6 +79,7 @@ import * as works from './works';
 export * from './deeds';
 export * from './goods';
 export * from './works';
+export * from './health';
 
 /**
  * What each deed is for, in one line, and which half of the world already speaks it.
@@ -94,6 +100,8 @@ export const DEEDS: ReadonlyArray<{ deed: string; does: string }> = [
   { deed: 'settle', does: 'pay off what is still owed on a commission, down to what can be found' },
   { deed: 'owing', does: 'what is still owed on it, never negative, because it goes into a sentence' },
   { deed: 'cutOf', does: "a share of a haul for whoever walks with you; hiring's half of the money" },
+  { deed: 'share', does: 'how much of something alive is left, nought to one, which is what a bar draws' },
+  { deed: 'spent', does: 'whether this one is finished, asked once rather than in thirty places' },
 ];
 
 /** The shapes a deed acts on: somewhere money is kept, and somewhere things are. */
@@ -105,9 +113,12 @@ export const HOLDINGS: ReadonlyArray<{ maker: string; is: string }> = [
   { maker: 'boxOf', is: 'things kept in a plain object: a strongbox, a chest, a pack on the ground' },
   { maker: 'carriedBy', is: 'a shoulder, which holds one kind of thing and drops what it had' },
   { maker: 'GONE', is: 'the ground, the fire, the river: where a thing goes when it leaves the world' },
+  { maker: 'bodyOf', is: "a creature's health against what its kind is born with" },
+  { maker: 'heroOf', is: 'the hero, whose maximum moves with what he is wearing' },
+  { maker: 'HEALTH', is: 'the scale everything alive is quoted on: a hundred is a fit grown adult' },
 ];
 
 /** Everything this module exports by name, for the test that holds the two lists to each other. */
 export function spoken(): string[] {
-  return [...Object.keys(deeds), ...Object.keys(goods), ...Object.keys(works)];
+  return [...Object.keys(deeds), ...Object.keys(goods), ...Object.keys(works), ...Object.keys(health)];
 }

@@ -1,4 +1,5 @@
 import { Memory, type Node } from '../core/behaviour';
+import { bodyOf } from '../world/health';
 import { BEHAVIOUR, STEP_LIMIT } from './properties';
 // a type only: the trees know about this file, and this file must not know about them
 import type { Mind } from './verbs';
@@ -432,7 +433,9 @@ function startFlee(e: Entity, awayX: number, awayZ: number, rng: Rng): void {
  * Survivors that can fight back go straight for the hero.
  */
 export function damageEntity(e: Entity, damage: number, fromX: number, fromZ: number, world: TileWorld): boolean {
-  e.hp -= damage;
+  // the arithmetic through the shared trait; everything after it is what a blow *means*, which is
+  // this function's own business and deliberately not `health.ts`'s
+  bodyOf(e).hurt(damage);
   e.hurt = BEHAVIOUR.HURT_TIME;
   // and the bar comes up, wherever the blow came from: a hero's sword, an arrow, a wolf on a deer
   e.bar = BEHAVIOUR.BAR_TIME;

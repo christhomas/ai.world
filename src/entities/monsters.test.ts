@@ -85,7 +85,7 @@ describe('the ogre', () => {
     const e = stand('ogre', 10);
     const run = meet(e, 25, { time: 0.5, running: false });
     expect(run.bites.length).toBeGreaterThan(0);
-    const swing = MONSTER_KINDS.ogre.dangerous!;
+    const swing = MONSTER_KINDS.ogre.damage!;
     for (const damage of run.bites) expect(damage).toBe(swing);
     // two of those out of ten hearts: standing still is not a plan, it is the start of one
     expect(swing * 2).toBeGreaterThanOrEqual(10 / 2);
@@ -177,7 +177,7 @@ describe('both of them', () => {
     for (const kind of Object.values(MONSTER_KINDS)) {
       expect(kind.timid).toBe(false);
       expect(kind.herd).toEqual([1, 1]);
-      expect(kind.dangerous).toBeGreaterThan(0);
+      expect(kind.damage).toBeGreaterThan(0);
     }
   });
 });

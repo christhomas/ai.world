@@ -81,8 +81,8 @@ describe('whose sword arm is whose', () => {
     // and outside a fight nobody may be struck at all, which is where a bought ambush would start
     const idle = new Warband();
     expect(idle.mayStrike('greta', 'p2', hires)).toBe(false);
-    expect(idle.struck({ damage: 5, sword: false })).toBeNull();
-    expect(idle.landed({ damage: 5, sword: false })).toBeNull();
+    expect(idle.struck({ damage: 50, sword: false })).toBeNull();
+    expect(idle.landed({ damage: 50, sword: false })).toBeNull();
   });
 
   it('counts and pays each side of the fight on its own side of the ledger', () => {
@@ -143,14 +143,14 @@ describe('a man in front of the man who paid him', () => {
 
     expect(ours.muster).toBe(1);
     expect(ours.struck({ damage: axe, sword: false })).toMatchObject({ at: 'greta', sword: true, felled: false });
-    // six hearts, so the second swing has him, and a hired man wears no armour to turn any of it
+    // sixty of health, so the second swing has him, and a hired man wears no armour to turn it
     expect(ours.struck({ damage: axe, sword: false })).toMatchObject({ at: 'greta', sword: true, felled: true, over: false });
     expect(ours.muster).toBe(0);
 
     const onward = ours.struck({ damage: axe, sword: false });
     expect(onward).toMatchObject({ at: 'p1', sword: false, felled: false, over: false });
-    expect(ours.readout()).toContain('you 6/10 and 0 swords');
-    expect(ours.readout()).toContain('them 18/18 and 1 sword');
+    expect(ours.readout()).toContain('you 60/100 and 0 swords');
+    expect(ours.readout()).toContain('them 180/180 and 1 sword');
   });
 
   it('stops fighting the moment his employer is out of it, however that happened', () => {
@@ -190,15 +190,15 @@ describe('what a blow comes to', () => {
         expect(before - state.hp).toBe(softened(damage, state.defence));
       }
     }
-    expect(softened(3, 12)).toBe(WARBAND.LEAST);        // chain mail turns nearly all of it aside
-    expect(softened(3, 0)).toBe(3);
+    expect(softened(30, 120)).toBe(WARBAND.LEAST);        // chain mail turns nearly all of it aside
+    expect(softened(30, 0)).toBe(30);
   });
 
   it('is read straight off what the fighter is wearing', () => {
-    expect(fighter(RAGS, 0)).toEqual({ attack: 2, guard: 2, hearts: 10, swords: 0 });
-    expect(fighter(IRON, 0)).toEqual({ attack: 3, guard: 6, hearts: 12, swords: 0 });
-    expect(fighter(STEEL, 0)).toEqual({ attack: 4, guard: 12, hearts: 16, swords: 0 });
-    expect(fighter(AXE, 2)).toEqual({ attack: 5, guard: 12, hearts: 18, swords: 2 });
+    expect(fighter(RAGS, 0)).toEqual({ attack: 20, guard: 20, hearts: 100, swords: 0 });
+    expect(fighter(IRON, 0)).toEqual({ attack: 30, guard: 60, hearts: 120, swords: 0 });
+    expect(fighter(STEEL, 0)).toEqual({ attack: 40, guard: 120, hearts: 160, swords: 0 });
+    expect(fighter(AXE, 2)).toEqual({ attack: 50, guard: 120, hearts: 180, swords: 2 });
   });
 
   it('keeps a hired man worth what the behaviour tree and the creature list say he is', () => {
@@ -284,8 +284,8 @@ describe('what crosses the wire', () => {
   const sent = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
   it('takes a blow on no trust at all', () => {
-    expect(cleanSwing(sent({ damage: 4, sword: true }))).toEqual({ damage: 4, sword: true });
-    expect(cleanSwing(sent({ damage: 4.9, sword: 'yes' }))).toEqual({ damage: 4, sword: false });
+    expect(cleanSwing(sent({ damage: 40, sword: true }))).toEqual({ damage: 40, sword: true });
+    expect(cleanSwing(sent({ damage: 40.9, sword: 'yes' }))).toEqual({ damage: 40, sword: false });
     expect(cleanSwing(sent({ damage: 9999, sword: false }))).toEqual({ damage: LIMITS.DAMAGE, sword: false });
 
     for (const wrong of [{ damage: 0 }, { damage: -5 }, { damage: 'lots' }, { damage: Number.NaN }, {}, null, 7, 'hit']) {
@@ -316,7 +316,7 @@ describe('what crosses the wire', () => {
     const landing = ours.struck(blow!);
     expect(landing?.at).toBe('greta');
     // what we report back is a blow and a muster, and nothing about anybody's hearts
-    expect(cleanSwing(sent({ damage: hero(RAGS).attack, sword: true }))).toEqual({ damage: 2, sword: true });
+    expect(cleanSwing(sent({ damage: hero(RAGS).attack, sword: true }))).toEqual({ damage: 20, sword: true });
     expect(cleanSwords(sent(ours.muster))).toBe(1);
   });
 });

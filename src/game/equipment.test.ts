@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HEALTH } from '../world/health';
 import { ITEMS } from './items';
 import { GameState } from './state';
 
@@ -9,7 +10,7 @@ describe('a fresh hero', () => {
     expect(s.worn('feet')?.id).toBe('boots');
     expect(s.worn('hand')?.id).toBe('stick');
     expect(s.count('apple')).toBe(2);
-    expect(s.attack).toBe(1 + ITEMS.stick.attack!);
+    expect(s.attack).toBe(HEALTH.BARE_HANDS + ITEMS.stick.attack!);
     expect(s.armed).toBe(false);            // a stick does not frighten a wolf
     expect(s.defence).toBe(ITEMS.tunic.defence! + ITEMS.boots.defence!);
     // a save with no state at all still starts you dressed
@@ -26,27 +27,27 @@ describe('equipment', () => {
     const s = new GameState();
     s.give('sword', 1);
     s.give('steelsword', 1);
-    expect(s.attack).toBe(1);                 // bare hands until it is in your hand
+    expect(s.attack).toBe(HEALTH.BARE_HANDS);   // bare hands until it is in your hand
 
     expect(s.equip('sword')?.id).toBe('sword');
     expect(s.count('sword')).toBe(0);
     expect(s.worn('hand')?.id).toBe('sword');
-    expect(s.attack).toBe(3);                 // 1 + 2
+    expect(s.attack).toBe(HEALTH.BARE_HANDS + ITEMS.sword.attack!);
     expect(s.armed).toBe(true);
 
     expect(s.equip('steelsword')?.id).toBe('steelsword');
     expect(s.worn('hand')?.id).toBe('steelsword');
     expect(s.count('sword')).toBe(1);         // the old sword came back to the pack
-    expect(s.attack).toBe(4);
+    expect(s.attack).toBe(HEALTH.BARE_HANDS + ITEMS.steelsword.attack!);
 
     s.unequip('hand');
     expect(s.worn('hand')).toBeNull();
     expect(s.count('steelsword')).toBe(1);
-    expect(s.attack).toBe(1);
+    expect(s.attack).toBe(HEALTH.BARE_HANDS);
     expect(s.equip('apple')).toBeNull();      // food is not gear
   });
 
-  it('armour adds hearts and turns bites aside, never below one', () => {
+  it('armour adds health and turns bites aside, never below a scratch', () => {
     const s = new GameState();
     s.give('mail', 1);
     s.give('shield', 1);
@@ -57,10 +58,12 @@ describe('equipment', () => {
     expect(s.maxHpTotal).toBe(baseMax + ITEMS.mail.hearts!);
 
     s.hp = s.maxHpTotal;
-    s.damage(4);                              // 4 - floor(6/2) = 1
-    expect(s.hp).toBe(s.maxHpTotal - 1);
-    s.damage(1);
-    expect(s.hp).toBe(s.maxHpTotal - 2);      // a scratch still costs a heart
+    s.damage(40);                             // 40 - floor(60/2) = 10, a scratch
+    expect(s.hp).toBe(s.maxHpTotal - HEALTH.A_SCRATCH);
+    s.damage(HEALTH.A_SCRATCH);
+    // and a blow that armour would have swallowed whole still costs the floor: a defence that
+    // turned everything aside would be an off switch rather than armour
+    expect(s.hp).toBe(s.maxHpTotal - HEALTH.A_SCRATCH * 2);
 
     // taking off gear you were relying on cannot leave you above your maximum
     s.hp = s.maxHpTotal;

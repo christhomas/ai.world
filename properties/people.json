@@ -13,7 +13,7 @@
     ],
     "behaviour": "travel",
     "timid": false,
-    "hp": 5,
+    "hp": 50,
     "palettes": [
       [
         "#e74c3c",
@@ -83,7 +83,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 6,
+    "hp": 60,
     "palettes": [
       [
         "#c0392b",
@@ -238,7 +238,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 6,
+    "hp": 60,
     "palettes": [
       [
         "#8a6a3d",
@@ -284,7 +284,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 5,
+    "hp": 50,
     "palettes": [
       [
         "#2a2632",
@@ -321,7 +321,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 5,
+    "hp": 50,
     "palettes": [
       [
         "#eef2f5",
@@ -358,7 +358,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 9,
+    "hp": 90,
     "palettes": [
       [
         "#f0f2f4",
@@ -395,7 +395,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 6,
+    "hp": 60,
     "palettes": [
       [
         "#3a1c2c",
@@ -432,7 +432,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 6,
+    "hp": 60,
     "palettes": [
       [
         "#9a7f5a",
@@ -474,7 +474,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
-    "hp": 6,
+    "hp": 60,
     "palettes": [
       [
         "#7a5a3a",

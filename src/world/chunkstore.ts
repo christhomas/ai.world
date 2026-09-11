@@ -77,7 +77,7 @@ export class ChunkStore {
    * Throw out what is no longer worth keeping, and say how much went.
    *
    * Two kinds of rubbish. Ground from a country that no longer exists — same world, older stamp —
-   * which is not merely useless but dangerous, so it goes first and completely. And ground from this
+   * which is not merely useless but damage, so it goes first and completely. And ground from this
    * country beyond what one world may keep, which is only bulk: the excess goes and costs a journey
    * apiece if anybody walks back.
    *

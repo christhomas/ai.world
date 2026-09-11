@@ -446,7 +446,7 @@
             "anyway": {
               "do": "bite",
               "with": {
-                "damage": 2,
+                "damage": 20,
                 "cooldown": 1.1,
                 "tiles": 1.6
               }
@@ -648,7 +648,7 @@
             "anyway": {
               "do": "bite",
               "with": {
-                "damage": 3,
+                "damage": 30,
                 "cooldown": 1.1,
                 "tiles": 1.6
               }
@@ -680,7 +680,7 @@
               "anyway": {
                 "do": "bite",
                 "with": {
-                  "damage": 3,
+                  "damage": 30,
                   "cooldown": 1.1,
                   "tiles": 1.6
                 }

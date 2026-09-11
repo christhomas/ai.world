@@ -61,7 +61,7 @@ export interface Night {
 
 /** The kinds in a country that would walk into a camp: whatever lives there and bites. */
 export function huntersOf(biome: Biome): SpawnWeight[] {
-  return BIOME_ANIMALS[biome].filter((s) => (KINDS[s.kind]?.dangerous ?? 0) > 0);
+  return BIOME_ANIMALS[biome].filter((s) => (KINDS[s.kind]?.damage ?? 0) > 0);
 }
 
 /** Share of everything living in a country that hunts, weighted the way the spawner weights it. */
@@ -70,7 +70,7 @@ function prowlerShare(biome: Biome): number {
   let hunting = 0;
   for (const s of BIOME_ANIMALS[biome]) {
     living += s.weight;
-    if ((KINDS[s.kind]?.dangerous ?? 0) > 0) hunting += s.weight;
+    if ((KINDS[s.kind]?.damage ?? 0) > 0) hunting += s.weight;
   }
   return living > 0 ? hunting / living : 0;
 }

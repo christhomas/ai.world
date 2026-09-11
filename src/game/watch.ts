@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { HEALTH } from '../world/health';
 import { WORLD } from '../core/config';
 import { hashString } from '../core/rng';
 import type { Entity } from '../entities/entity';
@@ -222,7 +223,7 @@ export function createWatch(ctx: Watched) {
       hurt();
       // a blow that empties the hearts has to end somewhere. Dropped on the floor, this one left
       // the hero treading water at nought hearts for ever, alive and with nothing to do about it
-      if (state.damage(1)) { knockOut('A breaching whale'); break; }
+      if (state.damage(HEALTH.A_SCRATCH)) { knockOut('A breaching whale'); break; }
       flash('A whale comes down across the bow. You are in the water.');
       persist();
       break;

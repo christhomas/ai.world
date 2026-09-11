@@ -16,8 +16,8 @@
     "herd": [1, 1],
     "behaviour": "hunt",
     "timid": false,
-    "dangerous": 3,
-    "hp": 48,
+    "damage": 30,
+    "hp": 480,
     "palettes": [
       ["#28331f", "#d7d2bb", "#14180f"]
     ],

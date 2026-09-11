@@ -45,7 +45,7 @@ describe('taking the fur off what you killed', () => {
     // the whole on-ramp: game a new player can take with a stick, and a hide worth carrying in
     for (const kind of ['deer', 'elk', 'hare', 'rabbit', 'goat', 'fox']) {
       expect(KINDS[kind].hp, `${kind} must be killable to be huntable`).toBeGreaterThan(0);
-      expect(KINDS[kind].dangerous ?? 0, `${kind} must not fight back`).toBe(0);
+      expect(KINDS[kind].damage ?? 0, `${kind} must not fight back`).toBe(0);
       expect(skin(kind, true, roll), `${kind} must give a hide`).not.toBeNull();
     }
   });

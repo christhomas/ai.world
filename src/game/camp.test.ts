@@ -85,7 +85,7 @@ describe('a night in the open', () => {
     expect(cameToForest).toEqual(new Set(['bear']));
     expect(cameToMeadow).toEqual(new Set([CAMP.STRANGER]));   // nothing hunts the meadow, so it walks in
     for (const country of [Biome.Snow, Biome.Forest, Biome.Mountain]) {
-      expect(huntersOf(country).every((s) => (KINDS[s.kind].dangerous ?? 0) > 0)).toBe(true);
+      expect(huntersOf(country).every((s) => (KINDS[s.kind].damage ?? 0) > 0)).toBe(true);
     }
     expect(huntersOf(Biome.Plains)).toHaveLength(0);
   });

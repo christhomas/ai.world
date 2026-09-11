@@ -91,9 +91,9 @@ describe('a village that is losing people', () => {
       const lives = BIOME_ANIMALS[biome].map((s) => s.kind);
 
       expect(lives).toContain(trouble.kind);
-      expect(KINDS[trouble.kind].dangerous ?? 0).toBeGreaterThan(0);
+      expect(KINDS[trouble.kind].damage ?? 0).toBeGreaterThan(0);
       // and the worst of what lives there: a wood with bears in it does not blame the foxes
-      const worse = lives.filter((k) => (KINDS[k].dangerous ?? 0) > (KINDS[trouble.kind].dangerous ?? 0));
+      const worse = lives.filter((k) => (KINDS[k].damage ?? 0) > (KINDS[trouble.kind].damage ?? 0));
       expect(worse).toEqual([]);
       expect(contractFor(seed, village, STONES, 'struggling')!.trouble.kind).toBe(trouble.kind);
     }

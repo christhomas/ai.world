@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HEALTH } from '../world/health';
 import creatures from '../../behaviours/creatures.json';
 import type { Node } from '../core/behaviour';
 import { compileAll, type BehaviourFile } from '../core/behaviourFile';
@@ -65,7 +66,7 @@ const flat: TileWorld = {
 const STEP = 1 / 60;
 
 /** Every kind that attacks the hero at all. */
-const dangerous = Object.entries(KINDS).filter(([, k]) => (k.dangerous ?? 0) > 0);
+const damage = Object.entries(KINDS).filter(([, k]) => (k.damage ?? 0) > 0);
 
 /** A pack of one kind, ringed round the hero at the range they would have closed to anyway. */
 function pack(id: string, count: number): Entity[] {
@@ -218,15 +219,21 @@ function fight(id: string, count: number, weapon: string | null, seconds = 60): 
 }
 
 describe('what a fresh hero sets out with', () => {
-  it('is ten hearts, a two-point stick and one heart of armour', () => {
+  it('is a full hundred, a twenty-point stick and a little armour', () => {
+    /*
+     * Quoted against `HEALTH.FULL` rather than against ten. Health is a number on one scale for
+     * everything alive — a hundred is a fit adult — and the hearts it used to be counted in could
+     * only say ten things, which is why a wolf's bite had to be worth a tenth of the hero and why
+     * he died to one in four.
+     */
     const state = GameState.fresh();
-    expect(state.maxHpTotal).toBe(10);
-    expect(state.attack).toBe(2);
-    // every two points of armour turn one heart aside, and a blow never falls below one. The
-    // tunic and the boots make two, so a one-point bite and a two-point bite cost the same
-    expect(state.defence).toBe(2);
-    expect(state.damage(2)).toBe(false);
-    expect(state.hp).toBe(9);
+    expect(state.maxHpTotal).toBe(HEALTH.FULL);
+    expect(state.attack).toBe(HEALTH.BARE_HANDS * 2);
+    // armour turns a share aside and a blow never falls below a scratch, so a small bite and a
+    // slightly larger one still cost the same
+    expect(state.defence).toBe(20);
+    expect(state.damage(20)).toBe(false);
+    expect(state.hp).toBe(HEALTH.FULL - HEALTH.A_SCRATCH);
   });
 
   it('is not enough to count as armed, which is why prowlers still come on', () => {
@@ -239,7 +246,7 @@ describe('what a fresh hero sets out with', () => {
 
 describe('the survivability table', () => {
   it('gives every dangerous creature alive more than two goes at reacting', () => {
-    for (const [id, k] of dangerous) {
+    for (const [id, k] of damage) {
       // sea hunters only ever bite somebody in the water: on dry land they have no opinion
       if (k.behaviour === 'circle') continue;
       const worst = meet(id, k.herd[1], 40);
@@ -294,7 +301,7 @@ describe('a stick', () => {
   });
 
   it('costs you something on the way, so it is a fight and not a formality', () => {
-    expect(fight('rat', KINDS.rat.herd[1], null).hearts).toBeLessThan(10);
+    expect(fight('rat', KINDS.rat.herd[1], null).hearts).toBeLessThan(HEALTH.FULL);
   });
 });
 
@@ -306,8 +313,8 @@ describe('the things that are meant to be a bad idea', () => {
     // the player this fight is meant to punish — so the cost being over half is the claim, and the
     // upper bound is only there to catch a bear that has quietly become unsurvivable.
     // 2026-09-05: 5 -> 6, when a blow gained a wind-up you can step out of and this hero does not.
-    expect(stick.hearts, 'a bear no longer costs a masher more than half').toBeGreaterThan(10 / 2);
-    expect(stick.hearts, 'a bear is no longer winnable with a stick').toBeLessThan(10);
+    expect(stick.hearts, 'a bear no longer costs a masher more than half').toBeGreaterThan(HEALTH.FULL / 2);
+    expect(stick.hearts, 'a bear is no longer winnable with a stick').toBeLessThan(HEALTH.FULL);
     expect(stick.won, 'a bear is no longer winnable with a stick').toBe(true);
     // and a real weapon changes the argument twice over, because a drawn sword is also what
     // makes a prowler decide you are not worth it
@@ -319,7 +326,7 @@ describe('the things that are meant to be a bad idea', () => {
     expect(fight('troll', 1, null).won, 'a three-floor vault ends in a fight a stick wins').toBe(false);
     // it is a fight you come back to with a weapon, which is the whole shape of the thing
     expect(fight('troll', 1, 'steelsword').won, 'nothing wins it').toBe(true);
-    expect(meet('troll', 1, 20).perBlow).toBeGreaterThanOrEqual(3);
+    expect(meet('troll', 1, 20).perBlow).toBeGreaterThanOrEqual(HEALTH.FULL / 5);
   });
 
   it('keeps them out of the way of wherever a beginner actually goes', () => {
@@ -328,13 +335,15 @@ describe('the things that are meant to be a bad idea', () => {
     expect(shallow).not.toContain('skeleton');
     expect(shallow).not.toContain('troll');
     expect(dungeonMonsters(2).map((w) => w.kind)).toContain('skeleton');
-    // and nothing in it hits for more than one heart past the kit a beginner is standing in
-    for (const w of dungeonMonsters(1)) expect(KINDS[w.kind].dangerous ?? 0).toBeLessThanOrEqual(1);
+    // and nothing in it hits for more than a scratch past the kit a beginner is standing in
+    for (const w of dungeonMonsters(1)) {
+      expect(KINDS[w.kind].damage ?? 0).toBeLessThanOrEqual(HEALTH.A_SCRATCH);
+    }
   });
 
   it('still leaves the deep end harder than the shallow one', () => {
     const bite = (list: readonly { kind: string }[]) =>
-      Math.max(...list.map((w) => KINDS[w.kind].dangerous ?? 0));
+      Math.max(...list.map((w) => KINDS[w.kind].damage ?? 0));
     expect(bite(dungeonMonsters(3))).toBeGreaterThan(bite(dungeonMonsters(1)));
     expect(dungeonMonsters(9)).toEqual(dungeonMonsters(3));
   });

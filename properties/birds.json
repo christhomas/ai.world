@@ -10,7 +10,7 @@
     "herd": [3, 6],
     "behaviour": "hop",
     "timid": true,
-    "hp": 1,
+    "hp": 10,
     "owned": true,
     "drop": { "id": "meat", "chance": 1 },
     "palettes": [
@@ -31,7 +31,7 @@
     "herd": [2, 5],
     "behaviour": "swim",
     "timid": true,
-    "hp": 1,
+    "hp": 10,
     "drop": { "id": "meat", "chance": 0.9 },
     "palettes": [
       ["#4a6a3a", "#7a5a3a"],
@@ -52,7 +52,7 @@
     "behaviour": "fly",
     "timid": false,
     "altitude": 7,
-    "hp": 2,
+    "hp": 20,
     "gold": [4, 12],
     "drop": { "id": "bone", "chance": 0.3 },
     "palettes": [
@@ -71,7 +71,7 @@
     "herd": [1, 2],
     "behaviour": "wander",
     "timid": true,
-    "hp": 1,
+    "hp": 10,
     "drop": { "id": "meat", "chance": 0.8 },
     "palettes": [
       ["#9aa8b4", "#e8eef2"]
@@ -90,7 +90,7 @@
     "behaviour": "fly",
     "timid": false,
     "altitude": 9,
-    "hp": 2,
+    "hp": 20,
     "gold": [6, 18],
     "drop": { "id": "fang", "chance": 0.2 },
     "palettes": [

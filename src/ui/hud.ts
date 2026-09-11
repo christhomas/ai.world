@@ -1,4 +1,16 @@
 import { levelFor } from '../game/prowess';
+
+/**
+ * How many blocks the health bar is drawn in.
+ *
+ * Twenty, which is twice what the hearts managed and about as fine as a row of characters can be
+ * read at a glance. The number beside it carries the precision; this carries the shape.
+ */
+const HEALTH_PIPS = 20;
+
+/** Below this share of your own maximum, the bar says so in colour. */
+const LOW_ON_HEALTH = 0.3;
+
 import { describeGpu, type Quality, type SceneRig } from '../render/scene';
 import { ITEMS, SLOTS } from '../game/items';
 import type { GameState } from '../game/state';
@@ -109,14 +121,31 @@ export class Hud {
     this.invEl.addEventListener('click', () => this.onOpenRucksack?.());
   }
 
-  /** Redraw hearts and the carried summary when the state version changed. */
+  /** Redraw health and the carried summary when the state version changed. */
   syncState(state: GameState): void {
     if (state.version === this.shownVersion) return;
     this.shownVersion = state.version;
-    const max = state.maxHpTotal;
-    let hearts = '';
-    for (let i = 0; i < max; i++) hearts += i < state.hp ? '♥' : '♡';
-    this.heartsEl.textContent = hearts;
+    /*
+     * Health as a bar and a number, where it used to be a row of hearts.
+     *
+     * The hearts had to go, and not because they were twee. They were a *resolution* limit: ten of
+     * them could say ten things, so every blow in the game had to be worth a tenth of the hero or
+     * more, which is why a wolf could finish him in four bites. Health is a number on one scale for
+     * everything alive now — a hundred is a fit adult — and a row of a hundred hearts is not a
+     * readout, it is wallpaper.
+     *
+     * A bar keeps what the hearts were good at, which is being read without being counted; the
+     * number beside it says the thing hearts could never say, which is how tough you have become.
+     * That second half is the whole point of a scale that goes past a hundred: a hero who has grown
+     * powerful is a hero with a larger maximum, and a percentage on its own throws that away.
+     */
+    const max = Math.max(1, state.maxHpTotal);
+    const share = Math.max(0, Math.min(1, state.hp / max));
+    const lit = Math.round(share * HEALTH_PIPS);
+    const bar = `${'█'.repeat(lit)}${'░'.repeat(HEALTH_PIPS - lit)}`;
+    const low = share <= LOW_ON_HEALTH ? ' hud-hurt' : '';
+    this.heartsEl.innerHTML =
+      `<span class="hud-bar${low}">${bar}</span> <span class="hud-hp">${Math.ceil(state.hp)}/${max}</span>`;
     const worn = SLOTS.map((slot) => state.worn(slot)).filter((i) => i !== null);
     const lines = [`<div>💰 ${state.inventory.gold} gold</div>`];
     if (worn.length > 0) lines.push(`<div>${worn.map((i) => i!.emoji).join(' ')}</div>`);

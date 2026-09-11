@@ -46,8 +46,15 @@ export const GIFT = {
   PLACE: 0.5,
   /** A child wants feeding and cares nothing for a trade, having none. */
   CHILD: 0.6,
-  /** Heals this much or more, and made rather than gathered, and it is medicine. */
-  PHYSIC: 3,
+  /**
+   * Heals this much or more, and made rather than gathered, and it is medicine.
+   *
+   * Thirty, and it was three — moved with the health scale rather than left behind. It is a
+   * threshold on what a thing *heals*, so it is quoted in health like everything else, and leaving
+   * it at three would have made an apple medicine: a tenth of a man is a snack, and the difference
+   * between a snack and a physic is the whole of what this line decides.
+   */
+  PHYSIC: 30,
   /**
    * Past this many gold, spending more stops meaning more. The tenth gold piece in a gift says
    * far less than the first, and this is where it stops saying anything at all.

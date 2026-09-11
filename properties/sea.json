@@ -10,8 +10,8 @@
     "herd": [2, 3],
     "behaviour": "circle",
     "timid": false,
-    "dangerous": 2,
-    "hp": 5,
+    "damage": 20,
+    "hp": 50,
     "gold": [12, 30],
     "drop": { "id": "fang", "chance": 0.5 },
     "palettes": [
@@ -31,8 +31,8 @@
     "herd": [1, 2],
     "behaviour": "circle",
     "timid": false,
-    "dangerous": 3,
-    "hp": 9,
+    "damage": 30,
+    "hp": 90,
     "gold": [30, 70],
     "drop": { "id": "fang", "chance": 0.7 },
     "palettes": [

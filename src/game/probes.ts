@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HEALTH } from '../world/health';
 import { BEHAVIOUR } from '../entities/properties';
 import { thermalsAround } from '../world/thermals';
 import { maelstromsAround } from '../world/maelstroms';
@@ -331,7 +332,7 @@ export function installProbes(ctx: Probed): void {
    * Deliberately not `damageEntity` — no knockback, nobody turning on you — because what this is
    * for is photographing a wounded creature standing still.
    */
-  (debug as { __hurt?: (damage?: number) => unknown }).__hurt = (damage = 1) => {
+  (debug as { __hurt?: (damage?: number) => unknown }).__hurt = (damage = HEALTH.A_SCRATCH) => {
     const near = crowdAround().within(player.x, player.z, 30)
       .filter((e) => !e.dead && e.kind.id !== 'hero')
       .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));

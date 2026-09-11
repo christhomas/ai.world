@@ -1,4 +1,5 @@
 import { learnedFrom, levelFor, saidOf } from './prowess';
+import { HEALTH } from '../world/health';
 import { ITEMS, Inventory, type InventoryJson } from './shops';
 import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippable } from './items';
 import { chunkKey } from '../world/spatial';
@@ -63,7 +64,14 @@ export interface GameStateJson {
   boat?: BoatSave | null;
 }
 
-const BASE_MAX_HP = 10;
+/**
+ * What the hero starts with, on the scale everything alive in this world is quoted in.
+ *
+ * `HEALTH.FULL`, which is what a fit grown adult has — see `world/health.ts`. The hero is the
+ * anchor of the scale rather than an exception to it: a villager has sixty of these and a bear a
+ * hundred and eighty, and the numbers mean the same thing on all three.
+ */
+const BASE_MAX_HP: number = HEALTH.FULL;
 /** What a new hero sets out with: worn clothes, a stick, and something to eat. */
 /**
  * What a hero starts with.
@@ -144,12 +152,12 @@ export class GameState {
    * against a sword on purpose — it is meant to be the difference between only just failing and
    * only just managing.
    */
-  get attack(): number { return 1 + levelFor(this.practice) + this.sumWorn((i) => i.attack); }
+  get attack(): number { return HEALTH.BARE_HANDS + levelFor(this.practice) * HEALTH.PER_LEVEL + this.sumWorn((i) => i.attack); }
   /** Armour: every two points turns one heart of a bite aside. */
   get defence(): number { return this.sumWorn((i) => i.defence); }
   get maxHpTotal(): number { return this.maxHp + this.sumWorn((i) => i.hearts); }
   /** A weapon in hand keeps animal predators at bay. */
-  get armed(): boolean { return (this.worn('hand')?.attack ?? 0) >= 2; }
+  get armed(): boolean { return (this.worn('hand')?.attack ?? 0) >= HEALTH.COUNTS_AS_ARMED; }
 
   /** Does any worn item grant this ability? */
   /**
@@ -239,9 +247,9 @@ export class GameState {
     this.version++;
   }
 
-  /** Apply damage, softened by armour but never below one heart. Returns true if it dropped you. */
+  /** Apply damage, softened by armour but never below a scratch. Returns true if it dropped you. */
   damage(n: number): boolean {
-    const dealt = Math.max(1, n - Math.floor(this.defence / 2));
+    const dealt = Math.max(HEALTH.A_SCRATCH, n - Math.floor(this.defence / 2));
     this.hp = Math.max(0, this.hp - dealt);
     this.version++;
     return this.hp === 0;

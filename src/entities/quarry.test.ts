@@ -12,7 +12,7 @@ import { bodyForTrade } from './trades';
  * about, and what it is murder rather than hunting to kill. It was a hand-written set of four
  * names, and it went wrong the night the trades were given bodies of their own: seven new sorts of
  * person arrived in `properties/people.json` and none of them in that set. A hunter looking for
- * something to shoot asks for anything with hit points that is not a person and is not dangerous,
+ * something to shoot asks for anything with hit points that is not a person and is not damage,
  * so a priest standing in a field was quarry.
  *
  * It is read off the file now, and this holds it there — a list of names beside a directory of

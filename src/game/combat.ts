@@ -1,4 +1,5 @@
 import type { Entity } from '../entities/entity';
+import { HEALTH } from '../world/health';
 import { inTheWay } from '../world/tiles';
 import { damageEntity, type TileWorld } from '../entities/entity';
 import { BEHAVIOUR } from '../entities/properties';
@@ -98,7 +99,7 @@ export function swing(
    */
   might = 1,
 ): SwingResult {
-  const damage = Math.max(1, Math.round((blow?.damage ?? state.attack) * might));
+  const damage = Math.max(HEALTH.A_SCRATCH, Math.round((blow?.damage ?? state.attack) * might));
   // yaw is a +x-facing rig's heading: forward is (cos yaw, -sin yaw)
   const fx = Math.cos(yaw), fz = -Math.sin(yaw);
   const out: SwingResult = { hit: [], killed: [], gold: 0, loot: [], reported: [], regard: null };

@@ -83,7 +83,7 @@ describe('entity movement', () => {
     expect(wolf.winding, 'the wolf did not wind up at all').toBeGreaterThan(0);
     expect(bites, 'the bite landed in the same instant it was decided on').toEqual([]);
     for (let n = 0; n < 20 && bites.length === 0; n++) updateEntity(wolf, 0.1, ctx);
-    expect(bites).toEqual([KINDS.wolf.dangerous]);
+    expect(bites).toEqual([KINDS.wolf.damage]);
     updateEntity(wolf, 0.1, ctx);
     expect(bites.length).toBe(1);                        // cooldown
     // the cooldown is set when the wolf commits, not when the blow lands, so by the time we are

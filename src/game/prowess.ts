@@ -17,8 +17,16 @@
 export const PROWESS = {
   /** What one landed blow is worth. */
   PER_HIT: 1,
-  /** And one on something that could have killed you, on top of that, per point of its danger. */
-  PER_DANGER: 3,
+  /**
+   * And one on something that could have killed you, on top of that, per point of its danger.
+   *
+   * Three tenths, and it was three. `dangerous` is a creature's damage and moved onto the health
+   * scale with everything else — a wolf hits for ten where it used to hit for one — so this came
+   * down by the same factor to leave what a fight teaches exactly where it was. Two numbers had to
+   * move together because they are one fact seen twice: how hard a thing hits is also how much
+   * there is to learn from it.
+   */
+  PER_DANGER: 0.3,
   /** And finishing it. */
   PER_KILL: 14,
   /** What each level costs, and what each one after it costs on top. */

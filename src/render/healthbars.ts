@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bodyOf, share } from '../world/health';
 import type { AnimalKind, PartDef } from '../entities/animals';
 import type { Entity } from '../entities/entity';
 
@@ -167,8 +168,10 @@ export class HealthBars {
     // saying the same thing twice, in the one place he is already looking
     if (e.bar <= 0 || e.dead || e.kind.id === 'hero') return;
     if (this.count >= AT_ONCE) return;
-    const most = e.kind.hp ?? 1;
-    const left = Math.max(0, Math.min(1, e.hp / most));
+    // through the shared trait, so the bar over a wolf, a villager and the hero are one expression
+    // of the same idea. What is drawn is always a *share* — the number underneath differs by a
+    // factor of fifty between a rabbit and Old Nettle, and the bar is the same width for both
+    const left = share(bodyOf(e));
     const at = this.count++;
 
     const wide = BAR.WIDE * this.span, tall = BAR.TALL * this.span, edge = BAR.EDGE * this.span;

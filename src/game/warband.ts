@@ -1,4 +1,5 @@
 import { LIMITS, clamp } from '../../server/protocol';
+import { HEALTH } from '../world/health';
 import { COMBAT } from './combat';
 import { HIRE, type Hires } from './hire';
 import type { GameState } from './state';
@@ -37,13 +38,13 @@ export const WARBAND = {
    * because a reckoning has to answer before anybody has agreed to anything and a behaviour tree
    * is JSON loaded at run time; a test holds all three of them to their sources.
    */
-  SWORD_BLOW: 3,
+  SWORD_BLOW: 30,
   SWORD_EVERY: 1.1,
-  SWORD_HEARTS: 6,
+  SWORD_HEARTS: 60,
   /** Armour: every this many points turns one off a blow, which is the rule a hero's hide follows. */
   PLATE: 2,
   /** What gets through however much iron is in the way, because nobody is ever untouchable. */
-  LEAST: 1,
+  LEAST: HEALTH.A_SCRATCH,
   /** How fine the reckoning's clock is, in seconds. Finer than any blow either side can land. */
   TICK: 0.01,
   /** How long it watches two people who cannot hurt each other before calling it neither's. */
