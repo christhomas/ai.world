@@ -1,6 +1,7 @@
 import { hashString, mulberry32, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import type { Person } from '../world/people';
+import type { Told } from '../entities/entity';
 import type { Village } from '../world/structures';
 
 /**
@@ -154,14 +155,18 @@ export interface Bargain extends Terms {
   who: string;
   name: string;
   /**
-   * What he has been told to do, or empty for the standing arrangement.
+   * What he has been told to do, or nothing for the standing arrangement.
    *
    * On the contract rather than on the body, because the body is despawned the moment you walk far
    * enough off and built again later: an order kept on the entity would be forgotten by walking
    * round a corner. This is what remembers, and `muster` presses it back onto whoever is standing
    * there now — the same way it does his trade, and for exactly the same reason.
+   *
+   * A whole sentence rather than a word: see `Told`. It carries who gave it, which matters because
+   * a road wide enough for two players is wide enough for two people to have hired somebody, and
+   * `side` has always known that about the bargain itself.
    */
-  told?: Order;
+  told?: Told;
   /**
    * The world day it runs out on.
    *
@@ -401,17 +406,24 @@ export class Hires {
    * taking none. `follow` clears the order rather than storing it, so the standing arrangement is
    * the absence of an instruction and there is one state for it rather than two.
    */
-  tell(who: string, order: Order): boolean {
-    const bargain = this.agreed.get(who);
-    if (!bargain) return false;
-    if (order === ORDERS.FOLLOW) delete bargain.told;
-    else bargain.told = order;
+  tell(by: string, to: string, what: Order, at?: { x: number; z: number }): boolean {
+    const bargain = this.agreed.get(to);
+    // nobody gives orders to somebody else's man. `side` is who the bargain was struck for, and
+    // checking it here is the difference between a company and a shout anybody can make
+    if (!bargain || bargain.side !== by) return false;
+    if (what === ORDERS.FOLLOW) delete bargain.told;
+    else bargain.told = { by, to, what, ...(at ? { at } : {}) };
     return true;
   }
 
-  /** What this one has been told, or the standing arrangement. */
-  toldTo(who: string): Order {
-    return this.agreed.get(who)?.told ?? ORDERS.FOLLOW;
+  /** What this one has been told, whole, or nothing for the standing arrangement. */
+  toldTo(who: string): Told | null {
+    return this.agreed.get(who)?.told ?? null;
+  }
+
+  /** And the word of it alone, for anything that only has to pick a branch. */
+  orderFor(who: string): Order {
+    return (this.agreed.get(who)?.told?.what as Order) ?? ORDERS.FOLLOW;
   }
 
   /** How the company reads in a line: "Greta Vos at your shoulder". */

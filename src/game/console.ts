@@ -342,7 +342,7 @@ export function openConsole(ctx: Consoled) {
     tell: (order) => {
       const side = online.id || 'alone';
       const roster = hires.roster(side);
-      for (const bargain of roster) hires.tell(bargain.who, order as Order);
+      for (const b of roster) hires.tell(side, b.who, order as Order, { x: player.x, z: player.z });
       return { told: order, men: roster.map((b) => b.name) };
     },
     // The clock belongs to the world, and the world says what time it is ten times a minute — so
@@ -373,9 +373,11 @@ export function openConsole(ctx: Consoled) {
     // in that floor's own manager, and this used to answer about the fields overhead
     entities: () => (places.crowd ?? entities).within(player.x, player.z, 60).map((e) => ({
       kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
-      // what a man in somebody's pay has been told, which is the only way from outside to tell a
-      // hireling standing about from one that was told to stand about
-      told: e.told,
+      // what a man in somebody's pay has been told, and by whom: the only way from outside to tell
+      // a hireling standing about from one that was told to stand about
+      told: e.told?.what ?? '', toldBy: e.told?.by ?? '',
+      // what the branch of his own tree that claimed this tick says it is
+      doing: e.doing,
       x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
       slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
       // the fight's own state, without which none of the wind-up work can be checked from

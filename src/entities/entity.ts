@@ -26,6 +26,37 @@ import type { Body } from '../world/solids';
 import type { TileWorld } from '../world/tiles';
 
 /** Places a villager's working day sends them, named so a behaviour file can say where. */
+/**
+ * One instruction: somebody told somebody else to do something, and perhaps about something.
+ *
+ * A sentence rather than a word, and the difference is not grammar. It began as a bare string on
+ * the body — `told = 'hold'` — which is enough to pick a branch and not enough for anything else,
+ * and three things fall out of writing the whole sentence down:
+ *
+ * - **Who said it.** A road wide enough for two players is wide enough for two people to have
+ *   hired somebody, which `Bargain.side` has always known; an order that did not say who gave it
+ *   would be an order anybody could give to anybody's man. It is also what makes a villager
+ *   ordering another villager a thing that could exist rather than a thing that would need a
+ *   second mechanism.
+ * - **Who was told.** Obvious on a body and not obvious on a contract, which is where the order
+ *   actually lives — the body is a copy.
+ * - **What about.** "Wait" is a different instruction from "wait *there*", and "guard" is
+ *   meaningless without a him. A word has no room for the second half of any of those.
+ *
+ * It lives here rather than beside the hiring because the tree has to read it and nothing in
+ * `entities/` may reach into the game layer.
+ */
+export interface Told {
+  /** Who said it: a player's id, or a person's. */
+  by: string;
+  /** Who was told, by their row on the register. */
+  to: string;
+  /** What they were told to do. The words are the game's; this only carries them. */
+  what: string;
+  /** And what about, for the orders that take one: wait *there*, guard *him*, fetch *that*. */
+  at?: { x: number; z: number };
+}
+
 export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods' | 'doctor';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
@@ -134,18 +165,32 @@ export class Entity {
   /** What they are carrying to market, if anything. */
   carrying: { id: string; count: number } | null = null;
   /**
-   * What they have been told to do by whoever is paying them.
+   * What they have been told to do, and by whom.
    *
-   * Empty for everybody who is nobody's, which is almost everybody. A hired sword is the one person
+   * Null for everybody who is nobody's, which is almost everybody. A hired sword is the one person
    * in this world taking instructions, and this is how an instruction reaches the tree he follows:
-   * a word, read by an `ask`, that decides which branch of `hired` he takes.
+   * a sentence, read by an `ask`, that decides which branch of `hired` he takes.
    *
    * Pressed back on from the contract every slow tick rather than set once, for the same reason his
    * trade is — the body standing here is despawned the moment you walk far enough off and built
    * again later, and an order kept only on the body would be forgotten by walking round a corner.
    * The contract is what remembers; this is the copy the tree can see.
    */
-  told = '';
+  told: Told | null = null;
+  /**
+   * What this one is doing right now, in two or three words.
+   *
+   * "mining", "hunting", "buying food", "waiting where he was put". Not a state machine and not a
+   * second opinion about anything: it is written down by the branch of the behaviour tree that
+   * claimed this tick, so it cannot say a man is at the face while his legs are carrying him to
+   * the inn. The words are in `behaviours/`, beside the branch they describe.
+   *
+   * What it is for is everything outside the tree that wants to know: the roster, which lists a
+   * village and what everybody in it is up to; a probe checking from outside that a villager told
+   * to wait is waiting rather than merely standing still; and the player, eventually, because "what
+   * is that man doing" is the first question anybody asks about a crowd.
+   */
+  doing = '';
   /**
    * Who this creature is presently interested in: prey it has picked out, or trouble it means to
    * break up. Null means the hero, who is everybody's default business.
@@ -307,9 +352,11 @@ export interface Ctx {
    * A villager has sold something. Handed up rather than kept, because a body in the street is
    * destroyed when the player walks away and the register is what outlives it.
    */
-  banked?: (person: string, coin: number) => void;
+  banked?: (person: string, coin: number, what: string) => void;
   /** And a villager buying something in their own village, from whoever sells it. */
   spends?: (person: string, coin: number, from: string) => number;
+  /** Somebody has eaten, which only the register can remember. */
+  fed?: (person: string) => void;
   /** The hero is wanted by the law: what takes a constable off their beat. */
   wanted?: boolean;
   /** A constable has laid hands on a wanted hero. What that means is the game's business. */
@@ -415,6 +462,10 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   if (e.strike > 0) e.strike = Math.max(0, e.strike - dt);
   e.attackCooldown -= dt;
 
+  if (e.trade === 'doctor') {
+    (globalThis as Record<string, unknown>).__TICKED =
+      `tree=${ctx.treeFor ? (ctx.treeFor(e) ? 'yes' : 'null') : 'no treeFor'} doing=${e.doing}`;
+  }
   // what this creature does next is decided in behaviours/, by kind or by trade
   ctx.treeFor?.(e)?.({
       dt,
@@ -438,6 +489,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         worth: ctx.worth ?? (() => 0),
         banked: ctx.banked,
         spends: ctx.spends,
+        fed: ctx.fed,
         wanted: ctx.wanted === true,
         arrest: ctx.arrest ?? (() => {}),
       },

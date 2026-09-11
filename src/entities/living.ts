@@ -61,9 +61,13 @@ export function sell(): CreatureNode {
   return (tick) => {
     const { self } = tick.world;
     if (!self.carrying) return 'failure';
-    const took = tick.world.worth(self.carrying.id) * self.carrying.count;
+    const sold = self.carrying.id;
+    const took = tick.world.worth(sold) * self.carrying.count;
     self.purse += took;
-    tick.world.banked?.(self.person, took);
+    // what it was matters to who buys it: a hungry neighbour wants the deer more than the
+    // shopkeeper wants the stock, and until the sale said what it was, every sale in a village
+    // went to whoever in it was richest
+    tick.world.banked?.(self.person, took, sold);
     // and off it the same way, rather than by assigning null: the deed is what knows that a
     // shoulder emptied of the last of something is empty rather than carrying nought of it
     handOver(carriedBy(self), GONE, self.carrying.id, self.carrying.count);
@@ -142,6 +146,38 @@ export function tendStock(params: Params): CreatureNode {
     self.state = 'idle';
     self.timer = 1;
     return 'running';
+  };
+}
+
+/**
+ * Buy something to eat, and eat it.
+ *
+ * The other end of `sell`, and the reason a hunter's day is worth anything to anybody but himself.
+ * A villager down to his last few hearts stops getting on with his trade and goes to buy dinner;
+ * the money goes to whoever sold it to him, and the hearts come back.
+ *
+ * Both halves through the register rather than on the body, for the reason everything else about a
+ * villager is: the body is destroyed the moment a player walks away, so a meal eaten only on the
+ * entity would be a man who is hungry again the instant you turn round. `spends` moves the coin
+ * between two rows in the register, and the hunger it clears is the register's own.
+ *
+ * Fails with nothing spent when he cannot afford it, which is the case that matters most: a man
+ * with no money in a village with food in it is the whole of what `eat` is grim about, and this
+ * must not quietly rescue him from it.
+ */
+export function eatSomething(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, spends, fed } = tick.world;
+    const cost = number(params, 'cost', 4);
+    if (self.purse < cost) return 'failure';
+    const paid = spends?.(self.person, cost, 'seller') ?? 0;
+    if (paid <= 0) return 'failure';
+    self.purse -= paid;
+    fed?.(self.person);
+    self.hp = self.kind.hp ?? self.hp;
+    self.state = 'idle';
+    self.timer = 2;
+    return 'success';
   };
 }
 

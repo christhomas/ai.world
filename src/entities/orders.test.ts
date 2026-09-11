@@ -32,12 +32,12 @@ const green: TileWorld = {
   depth: () => 0,
 } as unknown as TileWorld;
 
-function soldier(x: number, z: number, told = ''): Entity {
+function soldier(x: number, z: number, what = '', at?: { x: number; z: number }): Entity {
   const kind = KINDS.villager;
   const herd = new Herd(kind, x, z, x, z, 40);
   const e = new Entity(kind, x, z, herd, 'test', mulberry32(3));
   e.y = 0;
-  e.told = told;
+  e.told = what ? { by: 'you', to: 'him', what, ...(at ? { at } : {}) } : null;
   herd.members.push(e);
   return e;
 }
@@ -110,5 +110,50 @@ describe('a hired man told to go in first', () => {
     const man = soldier(0, 0, 'fight');
     aTick(man, { foe: () => null });
     expect(man.tx).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * An order with something in it.
+ *
+ * The reason an instruction is a sentence rather than a word. "Wait" and "wait *there*" are
+ * different instructions and the second is the one anybody means: told to hold at a bridge and
+ * given nowhere in particular, a man drifts off it under the separation sweep and his own idling,
+ * and a player who comes back for him finds him standing somewhere else.
+ */
+describe('an order that says where', () => {
+  it('walks him back to the spot when something has shoved him off it', () => {
+    const man = soldier(9, 0, 'hold', { x: 0, z: 0 });
+    aTick(man);
+    expect(Math.hypot(man.tx - 0, man.tz - 0), 'he stood where he had drifted to').toBeLessThan(1);
+    expect(man.state).toBe('walk');
+  });
+
+  it('stops him once he is back on it, rather than jittering across it', () => {
+    const man = soldier(0.4, 0.2, 'hold', { x: 0, z: 0 });
+    aTick(man);
+    expect(Math.hypot(man.tx - man.x, man.tz - man.z)).toBeLessThan(0.01);
+  });
+
+  it('still just stands still on an order that never said where', () => {
+    // safe on an instruction from before there was anywhere to put one
+    const man = soldier(5, 5, 'hold');
+    aTick(man);
+    expect(Math.hypot(man.tx - man.x, man.tz - man.z)).toBeLessThan(1);
+  });
+});
+
+/**
+ * Who gave it.
+ *
+ * A road wide enough for two players is wide enough for two people to have hired somebody, which
+ * `Bargain.side` has always known about the bargain. The order has to know it too, or it is a
+ * shout anybody can make at anybody's man.
+ */
+describe('an order that says who gave it', () => {
+  it('carries the speaker, so a man knows whose word he is taking', () => {
+    const man = soldier(0, 0, 'hold', { x: 0, z: 0 });
+    expect(man.told?.by).toBe('you');
+    expect(man.told?.to).toBe('him');
   });
 });

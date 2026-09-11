@@ -2,7 +2,7 @@ import { act, type Node, type Tick } from '../core/behaviour';
 import type { Params, Vocabulary } from '../core/behaviourFile';
 import { BEHAVIOUR, canStand, throwBlow, yawFor, type Entity, type Post, type TileWorld } from './entity';
 import { blowOf, tellOf } from './motion';
-import { dig, sell, spend, stalkQuarry, take, tendStock } from './living';
+import { dig, eatSomething, sell, spend, stalkQuarry, take, tendStock } from './living';
 import type { Rng } from '../core/rng';
 
 /**
@@ -66,7 +66,7 @@ export interface Mind {
    * Optional because the dungeon and the tests build a world without one, and nothing down there
    * sells anything.
    */
-  banked?: (person: string, coin: number) => void;
+  banked?: (person: string, coin: number, what: string) => void;
   /**
    * And a purchase, the same way: what was actually paid, and to whom.
    *
@@ -74,6 +74,8 @@ export interface Mind {
    * move its own purse by the same amount and the two cannot drift apart.
    */
   spends?: (person: string, coin: number, from: string) => number;
+  /** And somebody has eaten: the register is what remembers how long it is since they last did. */
+  fed?: (person: string) => void;
 }
 
 /** Where this creature's attention is: whatever it has marked, or the hero if it has marked nothing. */
@@ -118,6 +120,8 @@ function rangeTo(tick: Tick<Mind>): number {
  * do rather than a wall of how each thing is done.
  */
 export const CREATURE_VERBS: Vocabulary<Mind> = {
+  /** What a branch that claimed the tick is, written onto whoever took it. See `Entity.doing`. */
+  doing: (tick, what) => { tick.world.self.doing = what; },
   questions: {
     /** Is the hero on the water? */
     afloat: () => (tick) => tick.world.playerAfloat,
@@ -145,6 +149,18 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     /** Is somebody nearby being attacked by something? */
     troubleNearby: (params) => (tick) => tick.world.nearestTrouble(tick.world.self, number(params, 'within', 14)) !== null,
 
+    /**
+     * Is this one down to their last few hearts, whatever took them?
+     *
+     * Asked of the body's own hit points rather than of anything about food, because by the time a
+     * tree is asking there is no difference worth drawing: a villager who has not eaten in four
+     * days and a villager a wolf has had four bites of are the same man in the same trouble, and
+     * both should stop what they are doing. `wounded` is the same question as a share of the whole,
+     * and this is it as a count — three hearts left means three hearts left whether you are a
+     * constable with nine of them or a doctor with five.
+     */
+    hearts: (params) => (tick) => tick.world.self.hp <= number(params, 'below', 3),
+
     /** Is the hero wanted badly enough for the law to leave its post over? */
     wanted: () => (tick) => tick.world.wanted,
 
@@ -163,8 +179,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
      * whatever it does unbidden, and a man nobody has told anything behaves exactly as he did
      * before there were orders at all.
      */
-    told: (params) => (tick) => tick.world.self.told !== ''
-      && tick.world.self.told === String(params.to ?? ''),
+    told: (params) => (tick) => tick.world.self.told?.what === String(params.to ?? ''),
 
     /** Has this villager earned at least this much and not yet spent it? */
     purse: (params) => (tick) => tick.world.self.purse >= number(params, 'atLeast', 1),
@@ -192,10 +207,10 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     markPrey, markTrouble, markFoe, forget, stalk, circle, charge, dive, bite, arrest,
 
     // backing off, and getting over it
-    flee, graze, idle, beHealed,
+    flee, graze, idle, waitAt, beHealed,
 
     // making a living, which is what everybody with a trade is doing all day
-    stalkQuarry, take, sell, spend, dig, tendStock,
+    stalkQuarry, take, sell, spend, dig, tendStock, eatSomething,
   },
 };
 
@@ -532,6 +547,37 @@ function graze(params: Params): CreatureNode {
     self.timer = 0.5;
     return 'success';
   };
+}
+
+/**
+ * Stand where you were told to stand, and walk back to it if anything shoves you off.
+ *
+ * The first order with an argument, and what it is for. "Wait" and "wait *there*" are different
+ * instructions and the second is the one anybody means: without a spot, a man told to hold drifts
+ * wherever the separation sweep and his own idling take him, and comes back to a player who left
+ * him at a bridge standing somewhere else entirely.
+ *
+ * Falls back to standing still when there is no spot in the order, so it is safe on an instruction
+ * that never carried one.
+ */
+function waitAt(params: Params): CreatureNode {
+  return act(({ world }) => {
+    const { self } = world;
+    const spot = self.told?.at;
+    if (!spot) { self.charging = 0; return; }
+    const off = Math.hypot(self.x - spot.x, self.z - spot.z);
+    if (off > number(params, 'within', 2)) {
+      self.tx = spot.x;
+      self.tz = spot.z;
+      if (self.state !== 'walk') { self.state = 'walk'; self.timer = 4; }
+      return;
+    }
+    // near enough: stop, and stop aiming at anything
+    self.tx = self.x;
+    self.tz = self.z;
+    self.charging = 0;
+    if (self.state === 'walk') { self.state = 'idle'; self.timer = 1; }
+  });
 }
 
 /** Nothing in particular: whatever this creature does when nothing is happening. */

@@ -238,8 +238,9 @@ export class EntityManager {
       // rather than a gift: somebody in the village buys what was carried in, out of their own
       // purse. See `soldAtMarket`, and `livelihoods.ts` for why the alternative was money the
       // world invented every time a player happened to stand near a hunter
-      banked: (person: string, coin: number) => { aSaleReached(this.register, person, coin); },
+      banked: (p: string, coin: number, what: string) => { aSaleReached(this.register, p, coin, what); },
       spends: (p: string, coin: number, from: string) => aPurchaseReached(this.register, p, coin, from),
+      fed: (p: string) => { const who = this.register?.find(p); if (who) who.hungry = 0; },
       // asked once a tick and handed to everybody, because a village's constables all heard the
       // same news about the same person on the same morning
       wanted: this.guiltOf() > 0,

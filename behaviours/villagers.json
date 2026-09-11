@@ -15,14 +15,16 @@
           "with": {
             "post": "inn"
           }
-        }
+        },
+        "doing": "at the inn"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -49,7 +51,8 @@
               "do": "beHealed"
             }
           ]
-        }
+        },
+        "doing": "hurt, getting seen to"
       },
       {
         "when": {
@@ -64,7 +67,8 @@
           "with": {
             "post": "market"
           }
-        }
+        },
+        "doing": "at the market"
       },
       {
         "when": {
@@ -91,14 +95,16 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -125,7 +131,8 @@
               "do": "beHealed"
             }
           ]
-        }
+        },
+        "doing": "hurt, getting seen to"
       },
       {
         "when": {
@@ -159,7 +166,8 @@
               }
             }
           ]
-        }
+        },
+        "doing": "with the cattle"
       },
       {
         "when": {
@@ -174,7 +182,8 @@
           "with": {
             "post": "square"
           }
-        }
+        },
+        "doing": "on the square"
       },
       {
         "when": {
@@ -208,7 +217,8 @@
               }
             }
           ]
-        }
+        },
+        "doing": "with the cattle"
       },
       {
         "when": {
@@ -235,14 +245,16 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -269,7 +281,8 @@
               "do": "beHealed"
             }
           ]
-        }
+        },
+        "doing": "hurt, getting seen to"
       },
       {
         "note": "Carrying a kill? Then the market, whatever hour it is — meat does not keep.",
@@ -289,7 +302,8 @@
               "do": "sell"
             }
           ]
-        }
+        },
+        "doing": "selling a kill"
       },
       {
         "note": "Coin in the purse and evening drawing in: eat, drink, and buy tomorrow's arrows.",
@@ -345,7 +359,8 @@
               ]
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "note": "Daylight and nothing on the shoulder: find something.",
@@ -375,14 +390,16 @@
               ]
             }
           ]
-        }
+        },
+        "doing": "out hunting"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -453,7 +470,8 @@
           "with": {
             "post": "square"
           }
-        }
+        },
+        "doing": "on the square"
       },
       {
         "when": {
@@ -468,7 +486,8 @@
           "with": {
             "post": "gate"
           }
-        }
+        },
+        "doing": "on the gate"
       },
       {
         "when": {
@@ -495,14 +514,16 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -522,14 +543,16 @@
           "with": {
             "post": "doctor"
           }
-        }
+        },
+        "doing": "at the surgery"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -549,7 +572,8 @@
           "with": {
             "post": "gate"
           }
-        }
+        },
+        "doing": "on the gate"
       },
       {
         "when": {
@@ -564,7 +588,8 @@
           "with": {
             "post": "square"
           }
-        }
+        },
+        "doing": "on the square"
       },
       {
         "when": {
@@ -591,14 +616,16 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -627,7 +654,8 @@
               }
             }
           }
-        ]
+        ],
+        "doing": "fighting"
       },
       {
         "note": "Told to fight: go for what is dangerous rather than waiting for it to go for somebody.",
@@ -659,7 +687,8 @@
               }
             }
           ]
-        }
+        },
+        "doing": "going in"
       },
       {
         "note": "Told to hold: stand where you were put. Whatever comes to him is still his business — the branch above this one is the trouble branch, and it is above for that reason.",
@@ -670,16 +699,20 @@
           }
         },
         "then": {
-          "note": "Drop whatever he had marked, and stand. Nothing above this has claimed the tick, so there is nothing on anybody: he is waiting where he was put.",
+          "note": "Drop whatever he had marked, and stand where he was put — walking back to the spot if anything shoves him off it. Nothing above this has claimed the tick, so there is nothing on anybody: he is waiting, and waiting somewhere in particular.",
           "steps": [
             {
               "do": "forget"
             },
             {
-              "do": "idle"
+              "do": "waitAt",
+              "with": {
+                "within": 2
+              }
             }
           ]
-        }
+        },
+        "doing": "waiting where he was put"
       },
       {
         "note": "Nothing to fight and nothing said: drop the mark and walk at the hero, which is what following is. `forget` was its own branch here and that was a bug with teeth — `act` returns success and `first` is a selector, so a standing `forget` swallowed every quiet tick and the branch under it was unreachable. A hired man never once walked after anybody; it read as working because a hero who teleports drags his company with him and `muster` re-seats them every half second.",
@@ -690,7 +723,8 @@
           {
             "do": "stalk"
           }
-        ]
+        ],
+        "doing": "at your shoulder"
       }
     ]
   },
@@ -710,7 +744,8 @@
           "with": {
             "post": "shore"
           }
-        }
+        },
+        "doing": "down at the water"
       },
       {
         "when": {
@@ -737,14 +772,16 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -764,7 +801,8 @@
           "with": {
             "post": "heights"
           }
-        }
+        },
+        "doing": "up on the tops"
       },
       {
         "when": {
@@ -791,14 +829,16 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -845,14 +885,16 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       },
       {
         "do": "goTo",
         "with": {
           "post": "home",
           "enter": true
-        }
+        },
+        "doing": "at home"
       }
     ]
   },
@@ -873,7 +915,8 @@
           "every": 1.4
         }
       }
-    ]
+    ],
+    "doing": "at the face"
   },
   "miner": {
     "note": [
@@ -903,7 +946,8 @@
               "do": "beHealed"
             }
           ]
-        }
+        },
+        "doing": "hurt, getting seen to"
       },
       {
         "note": "First light to late afternoon on the high ground. A longer day than a farmer's, because the walk out is half of it.",
@@ -919,7 +963,8 @@
           "with": {
             "post": "heights"
           }
-        }
+        },
+        "doing": "up at the workings"
       },
       {
         "note": "The inn, and he has earned it more visibly than most.",
@@ -947,7 +992,8 @@
               }
             }
           ]
-        }
+        },
+        "doing": "buying a drink"
       }
     ],
     "steps": [

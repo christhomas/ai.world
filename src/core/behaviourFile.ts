@@ -22,17 +22,17 @@ import {
 
 /** One node as it appears in a file. */
 export type Spec =
-  | { do: string; with?: Params; note?: string }
-  | { ask: string; with?: Params; note?: string }
-  | { all: Spec[]; note?: string }
-  | { steps: Spec[]; note?: string }
-  | { first: Spec[]; note?: string }
-  | { latch: Spec[]; note?: string }
-  | { when: Spec; then: Spec; note?: string }
-  | { not: Spec; note?: string }
-  | { anyway: Spec; note?: string }
-  | { wait: Range; note?: string }
-  | { every: Range; then: Spec; note?: string };
+  | { do: string; with?: Params; note?: string; doing?: string }
+  | { ask: string; with?: Params; note?: string; doing?: string }
+  | { all: Spec[]; note?: string; doing?: string }
+  | { steps: Spec[]; note?: string; doing?: string }
+  | { first: Spec[]; note?: string; doing?: string }
+  | { latch: Spec[]; note?: string; doing?: string }
+  | { when: Spec; then: Spec; note?: string; doing?: string }
+  | { not: Spec; note?: string; doing?: string }
+  | { anyway: Spec; note?: string; doing?: string }
+  | { wait: Range; note?: string; doing?: string }
+  | { every: Range; then: Spec; note?: string; doing?: string };
 
 /** A number, or a range to be rolled between — `4` or `[4, 9]`. */
 export type Range = number | [number, number];
@@ -46,6 +46,20 @@ export type Params = Record<string, number | string | boolean | [number, number]
 export interface Vocabulary<W> {
   actions: Record<string, (params: Params) => Node<W>>;
   questions: Record<string, (params: Params) => (tick: Tick<W>) => boolean>;
+  /**
+   * How to write down what a creature is presently doing, if this world wants that written down.
+   *
+   * A node in a file may carry a `doing` — two or three words for what taking that branch *is*,
+   * "mining", "hunting", "buying food" — and when it is the branch that claimed the tick, this is
+   * called with it. Optional because nothing in the tree needs it and a world without a notion of
+   * what a creature is doing is a perfectly good world.
+   *
+   * Recorded here rather than worked out by whoever wants to know, and that is the whole value of
+   * it: an answer derived from a creature's trade and the hour would be a second opinion about
+   * which branch ran, free to disagree with the branch that actually did. This cannot disagree —
+   * it *is* the branch.
+   */
+  doing?: (tick: Tick<W>, what: string) => void;
 }
 
 /** Where the trees for one subject live: a name for each. */
@@ -75,6 +89,33 @@ export function compileAll<W>(file: BehaviourFile, vocabulary: Vocabulary<W>, ro
 }
 
 export function compile<W>(spec: Spec, vocabulary: Vocabulary<W>, roll: Roller<W>, where = 'behaviour'): Node<W> {
+  /*
+   * Whatever this node turns out to be, wrapped so that taking it says so.
+   *
+   * Applied to the compiled node rather than written into each kind of node, because "what is this
+   * creature doing" is a question about the branch and not about the sort of branch it is: a
+   * `steps` that walks a man to a field and a bare `do` that swings a pick are both, from outside,
+   * a man at work.
+   *
+   * Only on success and running — the two answers that mean this branch claimed the tick. A node
+   * that failed was tried and rejected, and recording it would leave a creature described by the
+   * last thing it decided not to do.
+   */
+  const marked = (node: Node<W>): Node<W> => {
+    const what = (spec as { doing?: string }).doing;
+    if (!what || !vocabulary.doing) return node;
+    const say = vocabulary.doing;
+    return (tick) => {
+      const status = node(tick);
+      if (status !== 'failure') say(tick, what);
+      return status;
+    };
+  };
+  return marked(build(spec, vocabulary, roll, where));
+}
+
+/** The node itself, before anything is wrapped round it. */
+function build<W>(spec: Spec, vocabulary: Vocabulary<W>, roll: Roller<W>, where = 'behaviour'): Node<W> {
   const kids = (list: Spec[], what: string): Array<Node<W>> => {
     if (!Array.isArray(list) || list.length === 0) throw new BehaviourError(where, `"${what}" needs a list of at least one node`);
     return list.map((child, i) => compile(child, vocabulary, roll, `${where}.${what}[${i}]`));

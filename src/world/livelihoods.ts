@@ -520,21 +520,60 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
  * Returns what actually changed hands, which the caller wants for the body standing in the street.
  */
 export function soldAtMarket(
-  people: readonly Person[], sellerId: string, coin: number,
+  people: readonly Person[], sellerId: string, coin: number, what = '',
 ): number {
   const seller = people.find((p) => p.id === sellerId);
   if (!seller || coin <= 0) return 0;
   const others = people.filter((p) => p.id !== sellerId && p.trade);
-  const rank = (p: Person): number => (p.trade === 'seller' ? 2 : TRADERS.includes(p.trade) ? 1 : 0);
-  // her trade first, then the other trades whose business is other people, then the deepest purse
+  /*
+   * Whoever wants it most, and a hungry man wants dinner more than a shopkeeper wants stock.
+   *
+   * The buyer used to be ranked by trade and then by purse, which made every sale in the village a
+   * sale to the richest person in it — and meant a hunter walking in with a deer past somebody who
+   * had not eaten in three days sold it to the man behind the stall. Hunger outranks trade when
+   * what is being carried is dinner, which is the whole of what makes a hunter's day worth
+   * anything to anybody but himself.
+   *
+   * It stays ranked by trade for everything else. A pelt is stock, and stock goes to whoever deals
+   * in it.
+   */
+  const feeds = DINNER.has(what);
+  const rank = (p: Person): number => {
+    if (feeds && (p.hungry ?? 0) > 0) return 3 + Math.min(1, (p.hungry ?? 0) / FOOD.HEARTS);
+    return p.trade === 'seller' ? 2 : TRADERS.includes(p.trade) ? 1 : 0;
+  };
   const buyer = [...others].sort((a, b) => rank(b) - rank(a) || b.purse - a.purse)[0];
   if (!buyer) return 0;
 
   // through the shared deed rather than by moving two numbers, because the hero sells things too
   // and a sale that meant one thing in the street and another in a menu is exactly the fault this
-  // whole vocabulary was built to end. The reserve is a week of dinners: see `sell`.
-  return sell(purseOf(seller), purseOf(buyer), coin, PROSPER.KEEPS_BACK).paid;
+  // whole vocabulary was built to end. The reserve is a week of dinners: see `sell` — except when
+  // dinner is what is being bought, because a starving man does not keep a week of dinners back
+  // against the dinner in front of him
+  const keeps = feeds && (buyer.hungry ?? 0) > 0 ? 0 : PROSPER.KEEPS_BACK;
+  const paid = sell(purseOf(seller), purseOf(buyer), coin, keeps).paid;
+  // and he bought it to eat it. This is the one place in the game a villager is fed by another
+  // villager rather than out of the village store, and it is what a hunter's day is *for*
+  if (paid > 0 && feeds) buyer.hungry = 0;
+  return paid;
 }
+
+/**
+ * The things that are somebody's dinner.
+ *
+ * A set here rather than a lookup in the item catalogue, because the catalogue is the game's and
+ * this is the world's, and the world has no business knowing what an elixir does. What it has to
+ * know is which of the things people carry about will stop somebody being hungry, which is a much
+ * shorter list and changes far less often.
+ *
+ * `livelihoods.test.ts` holds it to the catalogue in both directions, the way `prosperity.test.ts`
+ * holds `TRADERS` to the list of trades a villager is actually drawn from — a set naming things
+ * that are not food, or missing things that are, is exactly how `TRADERS` came to name four jobs
+ * nobody in this world can hold.
+ */
+export const DINNER: ReadonlySet<string> = new Set([
+  'meat', 'roast', 'bread', 'stew', 'apple', 'wheat', 'turnip', 'pumpkin', 'minnow',
+]);
 
 /**
  * A villager buys something in their own village, from whoever sells it.
@@ -585,9 +624,11 @@ export interface Books {
  * paid rather than about who is drawn — and because the manager is the file this codebase most
  * often finds itself over the length a person can hold in their head.
  */
-export function aSaleReached(books: Books | null, person: string, coin: number): number {
+export function aSaleReached(
+  books: Books | null, person: string, coin: number, what = '',
+): number {
   const who = person ? books?.find(person) : undefined;
-  return who ? soldAtMarket(books?.living(who.village) ?? [], person, coin) : 0;
+  return who ? soldAtMarket(books?.living(who.village) ?? [], person, coin, what) : 0;
 }
 
 /** And a purchase, the same way: an evening at the inn is the innkeeper's takings. */

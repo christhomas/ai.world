@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOOD, cellarCap, eat, grownInADay, saidOfFood } from './food';
+import { FOOD, cellarCap, eat, grownInADay, saidOfFood, heartsLeft, lookingForFood } from './food';
 import type { Person } from './people';
 
 const soul = (trade: string, purse = 50): Person => ({
@@ -45,11 +45,33 @@ describe('eating', () => {
   });
 
   it('kills somebody who has gone without for long enough, and not before', () => {
+    /*
+     * Hunger is heart loss on a slow clock: a heart every `HEART_EVERY` days, and the last one is
+     * the end of him. A month of not eating rather than a week, because hunger is the pressure
+     * under this economy rather than an emergency — a man who misses dinners has to be visibly
+     * worse off and still have time to do something about it, since doing something about it is
+     * what sends him down a mine or into somebody's pay.
+     */
     const p = soul('farmer', 0);
-    for (let day = 1; day < FOOD.STARVES_AFTER; day++) {
-      expect(eat([p], 0).starved).toEqual([]);
+    const days = FOOD.HEARTS * FOOD.HEART_EVERY;
+    for (let day = 1; day < days; day++) {
+      expect(eat([p], 0).starved, `dead on day ${day} of going without`).toEqual([]);
     }
     expect(eat([p], 0).starved).toEqual([p]);
+  });
+
+  it('takes a heart off for every few days without, and shows it', () => {
+    const p = soul('farmer', 0);
+    expect(heartsLeft(p)).toBe(FOOD.HEARTS);
+    for (let day = 0; day < FOOD.HEART_EVERY; day++) eat([p], 0);
+    expect(heartsLeft(p)).toBe(FOOD.HEARTS - 1);
+  });
+
+  it('says who has noticed they are hungry, which is halfway down', () => {
+    const p = soul('farmer', 0);
+    expect(lookingForFood(p)).toBe(false);
+    for (let day = 0; day < FOOD.HEART_EVERY * (FOOD.HEARTS - FOOD.SEEKS_AT); day++) eat([p], 0);
+    expect(lookingForFood(p), 'down to half his hearts and getting on with his day').toBe(true);
   });
 
   it('forgets the hunger of anybody who gets a meal', () => {

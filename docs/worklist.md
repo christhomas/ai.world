@@ -2647,7 +2647,50 @@ other, and the order is chosen so that each one can be *seen* working before the
             company with him and `muster` re-seats them every half second, so the only way to see it
             was to walk. Measured after the fix: unbidden they are in `walk` and move with you;
             told to hold they go `idle` and stay where they were put.
-      - [ ] **9g-2. Orders worth giving beyond three.** Fetch, carry, wait at a place, guard
+      - [x] **9g-2. An order is a sentence.** Put as `<somebody> told <somebody else> <something>`,
+            which is the right shape and changed the code: `Told { by, to, what, at? }`. `by` is
+            checked — nobody gives orders to another man's sword, which `Bargain.side` has always
+            known about the bargain itself — and `at` is the half a bare word had no room for.
+            "Wait" and "wait *there*" are different instructions and the second is the one anybody
+            means: `waitAt` walks him back to the spot when the separation sweep shoves him off it.
+      - [ ] **9g-3. Orders worth giving beyond three.** Fetch, carry, guard somebody who is not you.
+            The shape is there now — `at` takes a place, and would want to take a person too.
+
+- [x] **11. Hunger is hearts.** Asked for on 2026-09-11: hearts are the unit, a villager loses one
+      every so many days without food, dies at nought, and below three goes looking for something to
+      eat. `FOOD.HEARTS` is six — the `villager` body's own hit points, so the bar over his head and
+      the line in the register are one number — and `HEART_EVERY` is five days. A heart a *day* was
+      tried and is wrong: hunger is the pressure under this economy, not an emergency, and something
+      that kills in six days either never happens or ends the village. A month of not eating is
+      fatal; a bad week is visible and survivable, which is what sends a man down a mine.
+      `street.ts` stands a villager up with the hearts he actually has left, so a starving man looks
+      starving; `eatSomething` is the verb that spends on a meal and clears it.
+
+- [x] **12. Villagers buy and sell between each other.** A hunter's deer used to go to whoever in the
+      village had the deepest purse, which meant he walked it past a man who had not eaten in a
+      fortnight and sold it to the shopkeeper. Hunger outranks trade when what is carried is dinner,
+      the buyer is fed by it, and nobody keeps a week of dinners back against the dinner in front of
+      him. `DINNER` names what counts, held to the item catalogue in both directions.
+
+- [x] **13. Every creature says what it is doing.** Asked for as "an action property defined by their
+      state". Built as `doing` on a *branch* of a behaviour tree rather than as a field anybody sets:
+      the branch that claimed the tick writes it, so it cannot say a man is at the face while his
+      legs are carrying him to the inn. An answer derived from a trade and the hour would be a second
+      opinion about which branch ran, free to disagree with the branch that actually did; this **is**
+      the branch. Every villager tree is labelled — "with the cattle", "selling a kill", "buying a
+      drink", "waiting where he was put".
+      - [ ] **13a. It does not reach a page yet.** Villagers in the street are the *world's*, held by
+            a page as guests, and `doing` is not on the wire — so a page sees it only for the people
+            it owns itself, which is the hired company. `VillagerSnap` in `server/protocol.ts` is
+            where it would go, beside `trade` and `role`. Worth doing before anything in the UI
+            reads it, or the roster will show a column that is blank for everybody but your own men.
+
+- [ ] **14. The risk-and-reward of a living.** Raised 2026-09-11: mining should be easy and pay
+      little, a hired sword should pay a great deal because your life is on the line — a contract
+      worth hundreds, which is a hundred meals. Today a soldier asks `HIRE.ASKING_LEAST` 15 to
+      `ASKING_MOST` 60 for a day and a miner's gross is about 3.5, so the gap is real but nothing
+      like the shape described. This is the balancing act, to be tuned as we go rather than guessed
+      at in one sitting — and the bench is what it should be tuned against. Fetch, carry, wait at a place, guard
             somebody who is not you. Each wants a branch and most want a target, which `told` has no
             room for — an order with an argument is the next shape this needs. The rest of that design: the hero tells somebody
             walking with him what to do — "fight" being one. Wants an order on the entity that the

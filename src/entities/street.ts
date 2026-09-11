@@ -5,6 +5,7 @@ import type { Herd, Post, TileWorld } from './entity';
 import { SPAWN } from './spawning';
 import { bodyForTrade, pickTrade } from './trades';
 import { postsOf } from './villagers';
+import { heartsLeft } from '../world/food';
 import type { SpawnCtx } from './manager';
 
 /**
@@ -118,6 +119,20 @@ export function spawnVillageFolk(o: Street, ctx: SpawnCtx): void {
           e.person = resident.id;
           e.name = resident.name;
           if (resident.trade !== '') e.trade = resident.trade;
+          /*
+           * And as hungry as the register says he is.
+           *
+           * Hunger is heart loss — a day without costs one, and the last one costs him the rest —
+           * so a man four days without food stands in the street with two hearts on him. Which
+           * means the bar over his head is the truth about him and not a separate number, and that
+           * his own tree can see it: below three he stops getting on with his day and goes looking
+           * for something to eat, the same branch a wounded man takes to the surgery.
+           *
+           * Never nought. A villager stood up dead is a body that falls over the moment it exists,
+           * and whether hunger has killed him is the register's to say at dinner, not the street's
+           * to decide on the way past.
+           */
+          e.hp = Math.max(1, heartsLeft(resident));
         }
       });
     }

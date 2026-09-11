@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { ITEMS } from '../game/items';
 import { FOOD, broughtIn, cellarCap } from './food';
 import { PROSPER, spentOnLiving } from './prosperity';
 import {
   LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, boughtInTheVillage, paidForFood,
-  aDaysDinner, paidForService, pitchFor, shareOut, soldAtMarket, whoFed,
+  DINNER, aDaysDinner, paidForService, pitchFor, shareOut, soldAtMarket, whoFed,
 } from './livelihoods';
 import type { Person } from './people';
 
@@ -463,5 +464,79 @@ describe('every trade clears what a day costs it', () => {
     expect(grown, 'a village that grows only what it eats has nothing to sell').toBeGreaterThan(people.length);
     // and it is worth something, which for the whole life of the game it was not
     expect(FOOD.ABROAD).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A hunter selling to whoever actually wants it.
+ *
+ * Asked for on 2026-09-11: villagers should buy and sell between each other, so a hunter can sell
+ * his meat to anybody, hungry villagers included. The buyer used to be ranked by trade and then by
+ * purse, which made every sale in a village a sale to the richest person in it — a hunter walked a
+ * deer past somebody who had not eaten in a fortnight and sold it to the man behind the stall.
+ */
+describe('who buys the deer', () => {
+  it('is the hungriest man who can pay, when what is carried is dinner', () => {
+    const people = [person('hunter', 0), person('seller', 500), person('farmer', 40)];
+    people[2].hungry = 12;
+    soldAtMarket(people, people[0].id, 7, 'meat');
+    expect(people[2].purse, 'the deer went to the man with the deepest purse').toBeLessThan(40);
+    expect(people[1].purse).toBe(500);
+  });
+
+  it('feeds him, because that is what he bought it for', () => {
+    const people = [person('hunter', 0), person('farmer', 40)];
+    people[1].hungry = 12;
+    soldAtMarket(people, people[0].id, 7, 'meat');
+    expect(people[1].hungry, 'he bought a dinner and stayed hungry').toBe(0);
+  });
+
+  it('lets a starving man spend his last coins on it', () => {
+    // nobody keeps a week of dinners back against the dinner in front of him
+    const people = [person('hunter', 0), person('farmer', 3)];
+    people[1].hungry = 20;
+    expect(soldAtMarket(people, people[0].id, 7, 'meat')).toBe(3);
+    expect(people[1].hungry).toBe(0);
+  });
+
+  it('still goes to the trade that deals in it when it is not dinner', () => {
+    // a pelt is stock, and stock goes to whoever deals in it however hungry anybody else is
+    const people = [person('hunter', 0), person('seller', 500), person('farmer', 400)];
+    people[2].hungry = 12;
+    soldAtMarket(people, people[0].id, 26, 'pelt');
+    expect(people[1].purse).toBe(474);
+    expect(people[2].purse).toBe(400);
+  });
+
+  it('leaves a well-fed village trading the way it always did', () => {
+    const people = [person('hunter', 0), person('seller', 500), person('farmer', 400)];
+    soldAtMarket(people, people[0].id, 7, 'meat');
+    expect(people[1].purse).toBe(493);
+  });
+});
+
+/**
+ * The list of things that are dinner, held to the catalogue the game actually ships.
+ *
+ * The same rule `prosperity.test.ts` holds `TRADERS` to, and here for the same reason: a set naming
+ * things that are not food, or missing things that are, is exactly how `TRADERS` came to name four
+ * jobs nobody in this world can hold.
+ */
+describe('what counts as dinner', () => {
+  it('names only things that exist and would feed somebody', () => {
+    for (const id of DINNER) {
+      const item = ITEMS[id];
+      expect(item, `${id} is called dinner and is not a thing`).toBeDefined();
+      expect(item.effect?.type, `${id} is called dinner and does not feed anybody`).toBe('heal');
+    }
+  });
+
+  it('does not leave out the obvious ones', () => {
+    for (const id of ['meat', 'bread']) expect(DINNER.has(id), `${id} is not dinner?`).toBe(true);
+  });
+
+  it('leaves out the things that heal but are not a meal', () => {
+    // a potion mends you and is not somebody's tea; a hunter carrying one has not brought dinner in
+    for (const id of ['potion', 'antidote', 'elixir']) expect(DINNER.has(id)).toBe(false);
   });
 });

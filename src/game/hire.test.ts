@@ -338,38 +338,78 @@ describe('what a hired man has been told', () => {
   };
 
   it('is the standing arrangement until somebody says otherwise', () => {
-    expect(taken().toldTo('a')).toBe(ORDERS.FOLLOW);
+    expect(taken().orderFor('a')).toBe(ORDERS.FOLLOW);
   });
 
   it('is remembered on the contract, so walking round a corner does not forget it', () => {
     // the body is despawned the moment you walk far enough off and built again later; an order
     // kept on the entity would last as long as the entity
     const hires = taken();
-    expect(hires.tell('a', ORDERS.HOLD)).toBe(true);
-    expect(hires.toldTo('a')).toBe(ORDERS.HOLD);
+    expect(hires.tell('you', 'a', ORDERS.HOLD)).toBe(true);
+    expect(hires.orderFor('a')).toBe(ORDERS.HOLD);
   });
 
   it('goes back to being nothing at all when he is told to follow again', () => {
     // one state for the standing arrangement rather than two: the absence of an instruction
     const hires = taken();
-    hires.tell('a', ORDERS.FIGHT);
-    hires.tell('a', ORDERS.FOLLOW);
+    hires.tell('you', 'a', ORDERS.FIGHT);
+    hires.tell('you', 'a', ORDERS.FOLLOW);
     expect(hires.all[0].told).toBeUndefined();
-    expect(hires.toldTo('a')).toBe(ORDERS.FOLLOW);
+    expect(hires.orderFor('a')).toBe(ORDERS.FOLLOW);
   });
 
   it('cannot be given to somebody who is not yours', () => {
     // a man takes instructions because he is being paid, and takes none the moment he is not
     const hires = taken();
-    expect(hires.tell('somebody-else', ORDERS.HOLD)).toBe(false);
-    expect(hires.toldTo('somebody-else')).toBe(ORDERS.FOLLOW);
+    expect(hires.tell('you', 'somebody-else', ORDERS.HOLD)).toBe(false);
+    expect(hires.orderFor('somebody-else')).toBe(ORDERS.FOLLOW);
   });
 
   it('is forgotten with the contract when his days are served', () => {
     const hires = taken();
-    hires.tell('a', ORDERS.HOLD);
+    hires.tell('you', 'a', ORDERS.HOLD);
     hires.ranOut(1 + HIRE.TERM);
-    expect(hires.tell('a', ORDERS.FIGHT), 'a man who has gone home took an order').toBe(false);
-    expect(hires.toldTo('a')).toBe(ORDERS.FOLLOW);
+    expect(hires.tell('you', 'a', ORDERS.FIGHT), 'a man who has gone home took an order').toBe(false);
+    expect(hires.orderFor('a')).toBe(ORDERS.FOLLOW);
+  });
+});
+
+/**
+ * An order as a sentence: somebody told somebody else to do something.
+ *
+ * It began as a bare word on the body, which is enough to pick a branch and not enough for anything
+ * else. Writing the whole sentence down is what makes the speaker checkable — nobody gives orders
+ * to another man's sword — and what leaves room for the half of an instruction that says where.
+ */
+describe('who gave the order', () => {
+  const soldier = (who = 'a'): Quote => ({ who, name: `Soldier ${who}`, asking: 20, terms: [{ fee: 20, share: 0 }] });
+
+  it('is kept, so a man knows whose word he is taking', () => {
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 1);
+    hires.tell('you', 'a', ORDERS.HOLD, { x: 3, z: 4 });
+    expect(hires.toldTo('a')).toMatchObject({ by: 'you', to: 'a', what: ORDERS.HOLD, at: { x: 3, z: 4 } });
+  });
+
+  it('is refused from somebody who is not paying him', () => {
+    // a road wide enough for two players is wide enough for two people to have hired somebody
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 1);
+    expect(hires.tell('somebody-else', 'a', ORDERS.HOLD)).toBe(false);
+    expect(hires.orderFor('a'), 'a stranger gave orders to your man').toBe(ORDERS.FOLLOW);
+  });
+
+  it('carries where, for the orders that mean somewhere', () => {
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 1);
+    hires.tell('you', 'a', ORDERS.HOLD, { x: 12, z: -3 });
+    expect(hires.toldTo('a')?.at).toEqual({ x: 12, z: -3 });
+  });
+
+  it('carries no where at all for the orders that do not take one', () => {
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 1);
+    hires.tell('you', 'a', ORDERS.FIGHT);
+    expect(hires.toldTo('a')?.at).toBeUndefined();
   });
 });

@@ -55,8 +55,44 @@ export const FOOD = {
    * money sits on, not a race nobody can win.
    */
   MEAL: 1,
-  /** How long somebody lasts on an empty stomach before it kills them. */
-  STARVES_AFTER: 7,
+  /**
+   * How many hearts a villager has to lose before hunger has killed them.
+   *
+   * Six, which is the `villager` body's own hit points in `properties/people.json`, and that is the
+   * point of the number rather than a coincidence. Hunger *is* heart loss: a villager who does not
+   * eat loses a heart a day, and when the last one goes he is dead of it. One thing, counted once,
+   * so the bar over his head and the line in the register cannot disagree about how near the end he
+   * is.
+   *
+   * It replaced a `STARVES_AFTER` of seven days, which was the same idea with a different number
+   * and no connection to anything anybody could see. How long a heart takes to go is
+   * `HEART_EVERY`.
+   */
+  HEARTS: 6,
+  /**
+   * How many days without food one heart costs.
+   *
+   * Five. It was a heart a day, which made hunger a crisis that arrived and killed inside a week —
+   * and a crisis is the wrong shape for it. Hunger is meant to be the pressure *under* the economy,
+   * the reason a man who cannot earn has to do something about it, and something that kills in six
+   * days is not a pressure, it is an emergency that either never happens or ends the village.
+   *
+   * At five days a heart, six hearts is a month of not eating before it is fatal. A villager who
+   * misses a few dinners in a bad week is visibly worse off and has time to fix it — which is the
+   * whole point, because fixing it is what makes him go mining, or hunting, or take somebody's coin
+   * to walk into a fight. A famine still empties a village; it takes a season rather than a week.
+   */
+  HEART_EVERY: 5,
+  /**
+   * And how few hearts left before he goes looking for food rather than getting on with his day.
+   *
+   * Three, which is half of them. He *wants* full hearts always — nobody turns down dinner — but
+   * what this decides is when he stops doing his trade and does something about it, and that has
+   * to be late enough that a village is not a crowd of people queuing at the market all morning,
+   * and early enough that he has days in hand to fix it. Half the way down, with three days left,
+   * is a man who has noticed.
+   */
+  SEEKS_AT: 3,
   /** A village cellar holds this many days of food for its size; the rest goes to market. */
   KEEPS_DAYS: 12,
   /**
@@ -116,6 +152,24 @@ export function cellarCap(people: readonly Person[]): number {
   return Math.max(FOOD.KEEPS_DAYS, people.length * FOOD.KEEPS_DAYS);
 }
 
+/**
+ * How many hearts somebody has left, given how long it is since they ate.
+ *
+ * The one expression of it, because three things ask: the register, which buries whoever runs out;
+ * the body standing in the street, whose bar is this number; and his own behaviour tree, which is
+ * what sends him looking for food before it is too late. Written down twice it would be a man who
+ * looks half dead standing about as though nothing were wrong.
+ */
+export function heartsLeft(person: Pick<Person, 'hungry'>): number {
+  const lost = Math.floor((person.hungry ?? 0) / FOOD.HEART_EVERY);
+  return Math.max(0, FOOD.HEARTS - lost);
+}
+
+/** Is this somebody who has noticed they are hungry and would do something about it? */
+export function lookingForFood(person: Pick<Person, 'hungry'>): boolean {
+  return heartsLeft(person) <= FOOD.SEEKS_AT;
+}
+
 /** What happened at dinner. */
 export interface Meal {
   /** How many ate. */
@@ -160,10 +214,11 @@ export function eat(people: readonly Person[], store: number): Meal {
       meal.eaten += 1;
       continue;
     }
-    // nothing to eat, or nothing to buy it with
+    // nothing to eat, or nothing to buy it with. A day without costs a heart, and the last one
+    // costs him the rest
     person.hungry = (person.hungry ?? 0) + 1;
     meal.hungry++;
-    if (person.hungry >= FOOD.STARVES_AFTER) meal.starved.push(person);
+    if (heartsLeft(person) <= 0) meal.starved.push(person);
   }
   return meal;
 }

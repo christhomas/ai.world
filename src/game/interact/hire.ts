@@ -110,11 +110,14 @@ const ORDER_WORDS: ReadonlyArray<{ order: Order; said: string }> = [
           : `${left === 1 ? 'One day' : `${left} days`} of me left on what you paid.`,
       ],
       choices: [
-        ...ORDER_WORDS.filter(({ order }) => order !== hires.toldTo(bargain.who)).map(({ order, said }) => ({
+        ...ORDER_WORDS.filter(({ order }) => order !== hires.orderFor(bargain.who)).map(({ order, said }) => ({
           label: said,
           next: () => {
-            hires.tell(bargain.who, order);
-            e.told = order === ORDERS.FOLLOW ? '' : order;
+            // where he is standing when he is told, for the orders that mean somewhere. "Wait" and
+            // "wait *there*" are different instructions, and the second is the one anybody means
+            const at = order === ORDERS.HOLD ? { x: e.x, z: e.z } : undefined;
+            hires.tell(side(), bargain.who, order, at);
+            e.told = hires.toldTo(bargain.who);
             sound.select();
             hud.flash(`${bargain.name}: ${said.toLowerCase()}.`);
             persist();
@@ -233,8 +236,7 @@ const ORDER_WORDS: ReadonlyArray<{ order: Order; said: string }> = [
       // one state for "nobody has told him anything" rather than two. The `told` ask matches
       // nothing against an empty string, which is what makes an unbidden man behave exactly as he
       // did before there were orders at all
-      const order = hires.has(e.person) ? hires.toldTo(e.person) : ORDERS.FOLLOW;
-      e.told = order === ORDERS.FOLLOW ? '' : order;
+      e.told = hires.toldTo(e.person);
     }
     if (entities.toldWhatLives) keepTheCompany();
     else disbandTheCompany();
