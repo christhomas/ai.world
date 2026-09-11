@@ -2539,9 +2539,10 @@ other, and the order is chosen so that each one can be *seen* working before the
             and gave it to nobody. It is a transfer now, to the trade that sells the thing, and the
             eight trades whose day already ended at the inn now buy their drink instead of merely
             attending. `boughtInTheVillage` is the mirror of `soldAtMarket`.
-      - [ ] **8e. The meat leaving the valley.** The one bit of outside money with no picture at all.
-            A drover and a cart. Judged not worth a day's work against 8d; here so it is a decision
-            rather than an oversight.
+      - [~] **8e. The meat leaving the valley — declined.** A drover and a cart on the road, for one
+            convoy an hour, to illustrate money the player can already read off the herd staying the
+            same size while the farmer gets richer. A day's modelling and animation for a thing that
+            is legible without it. Recorded as a decision rather than left as an oversight.
 
 - [x] **10. A trade has to clear what it costs.** Asked for on 2026-09-11: if a villager pays for a
       market pitch they have to make more than the pitch back, or hunting and farming are a way of
@@ -2600,9 +2601,10 @@ other, and the order is chosen so that each one can be *seen* working before the
             spent a long time naming four jobs nobody in this world can hold.
       - [ ] **9c-3. The acts that are not money or goods.** `hire`, `build`, `sow`, `skin`, `heal`,
             `arrest`, `enter`, `ride`. Convert as they are touched.
-      - [ ] **9c-4. `verbs.ts` split again if it grows.** The trade verbs came out into
-            `entities/living.ts` at 705 lines; the split is invisible from `behaviours/` and
-            `vocabulary.test.ts` is what keeps it that way.
+      - [x] **9c-4. `verbs.ts` split when it grew.** Done at the time: the trade verbs came out into
+            `entities/living.ts` when the file hit 705 lines. `architecture.test.ts` is what will say
+            when it needs doing again, and `vocabulary.test.ts` keeps the split invisible from
+            `behaviours/` — a tree naming `sell` gets `sell`. Nothing to do until the cap fires.
       - [ ] **9d. The hero driven by the same decisions as everybody else.** Note the hero is
             *already* an `Entity` — `Player.entity`, kind `hero` — so the question was never about
             the body. It is about the choosing. Framed by the person who asked for it: **the
@@ -2653,8 +2655,19 @@ other, and the order is chosen so that each one can be *seen* working before the
             known about the bargain itself — and `at` is the half a bare word had no room for.
             "Wait" and "wait *there*" are different instructions and the second is the one anybody
             means: `waitAt` walks him back to the spot when the separation sweep shoves him off it.
-      - [ ] **9g-3. Orders worth giving beyond three.** Fetch, carry, guard somebody who is not you.
-            The shape is there now — `at` takes a place, and would want to take a person too.
+      - [~] **9g-3. Orders beyond three — considered and declined, for now.** Looked at properly and
+            each candidate is either already covered or costs more than it buys.
+
+            *Guard a place* is `hold` with `at`, which exists. *Guard a person* needs a person-picker
+            in the dialogue, and a company is at most `HIRE.MOST` two — so the only person to pick is
+            the other sword, which is a rear-guard nobody asked for. *Fetch* and *carry* need an item
+            or a pack to aim at, which means targeting things on the ground through a menu: real
+            plumbing for an order that, with a man who already follows you everywhere, saves a walk
+            of a few paces.
+
+            The shape is ready if a need turns up. `Told` is a sentence — `by`, `to`, `what`, `at` —
+            and `whom` is one field beside `at`. Declining is cheaper than building a fourth order
+            nobody has wanted and then owning it.
 
 - [x] **11. Hunger is hearts.** Asked for on 2026-09-11: hearts are the unit, a villager loses one
       every so many days without food, dies at nought, and below three goes looking for something to
