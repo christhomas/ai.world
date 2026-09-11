@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HIRE, Hires, meansOf, quoteFor, wordsFor, type Quote } from './hire';
+import { HIRE, Hires, meansOf, quoteFor, wordsFor, type Quote, ORDERS } from './hire';
 import type { Person } from '../world/people';
 import type { Village } from '../world/structures';
 
@@ -313,5 +313,63 @@ describe('the life of a contract', () => {
     hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 10);
     hires.ranOut(10 + HIRE.TERM);
     expect(hires.extend('a', 30)).toBeNull();
+  });
+});
+
+/**
+ * Telling a man in your pay what to do.
+ *
+ * The third part of the design, and the one that makes a hireling different in kind from every
+ * other creature in the world: everything else acts on what it wants and what it notices, and this
+ * one acts on what it has been *told*. That is the whole distinction between a villager and a man
+ * in your pay.
+ *
+ * An order changes which branch of his tree he takes and not how he takes it. Told to hold he
+ * still defends himself — the trouble branch is above the order branches on purpose — and told to
+ * fight he still walks round a boulder rather than into it. He is not a remote control; the value
+ * of him is that he has a tree of his own and goes on using it.
+ */
+describe('what a hired man has been told', () => {
+  const soldier = (who = 'a'): Quote => ({ who, name: `Soldier ${who}`, asking: 20, terms: [{ fee: 20, share: 0 }] });
+  const taken = (): Hires => {
+    const hires = new Hires();
+    hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 1);
+    return hires;
+  };
+
+  it('is the standing arrangement until somebody says otherwise', () => {
+    expect(taken().toldTo('a')).toBe(ORDERS.FOLLOW);
+  });
+
+  it('is remembered on the contract, so walking round a corner does not forget it', () => {
+    // the body is despawned the moment you walk far enough off and built again later; an order
+    // kept on the entity would last as long as the entity
+    const hires = taken();
+    expect(hires.tell('a', ORDERS.HOLD)).toBe(true);
+    expect(hires.toldTo('a')).toBe(ORDERS.HOLD);
+  });
+
+  it('goes back to being nothing at all when he is told to follow again', () => {
+    // one state for the standing arrangement rather than two: the absence of an instruction
+    const hires = taken();
+    hires.tell('a', ORDERS.FIGHT);
+    hires.tell('a', ORDERS.FOLLOW);
+    expect(hires.all[0].told).toBeUndefined();
+    expect(hires.toldTo('a')).toBe(ORDERS.FOLLOW);
+  });
+
+  it('cannot be given to somebody who is not yours', () => {
+    // a man takes instructions because he is being paid, and takes none the moment he is not
+    const hires = taken();
+    expect(hires.tell('somebody-else', ORDERS.HOLD)).toBe(false);
+    expect(hires.toldTo('somebody-else')).toBe(ORDERS.FOLLOW);
+  });
+
+  it('is forgotten with the contract when his days are served', () => {
+    const hires = taken();
+    hires.tell('a', ORDERS.HOLD);
+    hires.ranOut(1 + HIRE.TERM);
+    expect(hires.tell('a', ORDERS.FIGHT), 'a man who has gone home took an order').toBe(false);
+    expect(hires.toldTo('a')).toBe(ORDERS.FOLLOW);
   });
 });

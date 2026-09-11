@@ -65,6 +65,23 @@ export function nearestStock(from: Entity, near: readonly Entity[], beyond: numb
     && Math.hypot(e.x - from.x, e.z - from.z) > beyond);
 }
 
+/**
+ * The nearest thing with teeth, whether or not it has started anything yet.
+ *
+ * The fourth question, and the one a man in somebody's pay asks. `nearestTrouble` finds what is
+ * *presently* on somebody, which is what a constable comes running about and what a hired sword
+ * does unbidden — he is a guard, and a guard waits. Told to fight he is not waiting: he goes for
+ * what is dangerous before it has done anything, which is a different question and needed a
+ * different answer rather than `markPrey`, whose job is finding a person for a wolf.
+ *
+ * People are excluded however dangerous they are. Ordering a hireling to attack is ordering him
+ * into a fight with the wildlife; setting him on a villager is a thing this game may want one day
+ * and is not this.
+ */
+export function nearestFoe(from: Entity, near: readonly Entity[]): Entity | null {
+  return closest(from, near, (e) => (e.kind.dangerous ?? 0) > 0 && !PEOPLE.has(e.kind.id));
+}
+
 /** The nearest person: somebody a wolf would rather have than a rabbit. */
 export function nearestPerson(from: Entity, near: readonly Entity[]): Entity | null {
   return closest(from, near, (e) => !e.indoors && PEOPLE.has(e.kind.id));

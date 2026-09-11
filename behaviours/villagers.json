@@ -603,7 +603,7 @@
     ]
   },
   "hired": {
-    "note": "Bought and paid for. Keep at the shoulder of whoever is paying, and put down whatever goes for anybody near them. The gate can wait until the bargain is done.",
+    "note": "Bought and paid for. Keep at the shoulder of whoever is paying, and put down whatever goes for anybody near them. The gate can wait until the bargain is done. What he has been told changes which of these he takes, not how he takes it: told to hold he still defends himself, told to fight he still walks round a boulder rather than into it.",
     "first": [
       {
         "note": "Something with teeth on somebody is the whole of what a sword arm is for.",
@@ -630,11 +630,67 @@
         ]
       },
       {
-        "do": "forget"
+        "note": "Told to fight: go for what is dangerous rather than waiting for it to go for somebody.",
+        "when": {
+          "ask": "told",
+          "with": {
+            "to": "fight"
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "markFoe",
+              "with": {
+                "within": 18
+              }
+            },
+            {
+              "do": "stalk"
+            },
+            {
+              "anyway": {
+                "do": "bite",
+                "with": {
+                  "damage": 3,
+                  "cooldown": 1.1,
+                  "tiles": 1.6
+                }
+              }
+            }
+          ]
+        }
       },
       {
-        "note": "Nothing to fight: an unmarked stalk walks at the hero, which is what following is.",
-        "do": "stalk"
+        "note": "Told to hold: stand where you were put. Whatever comes to him is still his business — the branch above this one is the trouble branch, and it is above for that reason.",
+        "when": {
+          "ask": "told",
+          "with": {
+            "to": "hold"
+          }
+        },
+        "then": {
+          "note": "Drop whatever he had marked, and stand. Nothing above this has claimed the tick, so there is nothing on anybody: he is waiting where he was put.",
+          "steps": [
+            {
+              "do": "forget"
+            },
+            {
+              "do": "idle"
+            }
+          ]
+        }
+      },
+      {
+        "note": "Nothing to fight and nothing said: drop the mark and walk at the hero, which is what following is. `forget` was its own branch here and that was a bug with teeth — `act` returns success and `first` is a selector, so a standing `forget` swallowed every quiet tick and the branch under it was unreachable. A hired man never once walked after anybody; it read as working because a hero who teleports drags his company with him and `muster` re-seats them every half second.",
+        "steps": [
+          {
+            "do": "forget"
+          },
+          {
+            "do": "stalk"
+          }
+        ]
       }
     ]
   },

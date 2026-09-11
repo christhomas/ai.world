@@ -14,7 +14,7 @@ import type { TerrainSampler } from '../world/terrain';
 import { registerCommands, type CommandWorld } from './commands';
 import type { Eyrie } from './eyries';
 import type { Plots } from './farming';
-import type { Hires } from './hire';
+import type { Hires, Order } from './hire';
 import type { Online } from './online';
 import type { Places } from './places';
 import type { Remains } from './remains';
@@ -330,9 +330,20 @@ export function openConsole(ctx: Consoled) {
       const side = online.id || 'alone';
       const taken = folk.slice(0, many).map((p) => hires.strike(
         { who: p.id, name: p.name, asking: 0, terms: [{ fee: 0, share: 0.2 }] },
-        { fee: 0, share: 0.2 }, 999, side,
+        { fee: 0, share: 0.2 }, 999, side, state.day,
       ));
       return { asked: many, hired: taken.filter(Boolean).length, roster: hires.roster(side).length };
+    },
+    /*
+     * Tell everybody in your pay the same thing, for trying an order out without walking to each
+     * of them. What it is good for is the question the unit tests cannot answer — whether a man
+     * told to wait actually stops following.
+     */
+    tell: (order) => {
+      const side = online.id || 'alone';
+      const roster = hires.roster(side);
+      for (const bargain of roster) hires.tell(bargain.who, order as Order);
+      return { told: order, men: roster.map((b) => b.name) };
     },
     // The clock belongs to the world, and the world says what time it is ten times a minute — so
     // setting it here alone lasted until the next thing the world said, which is why `time 0.5`
@@ -362,6 +373,9 @@ export function openConsole(ctx: Consoled) {
     // in that floor's own manager, and this used to answer about the fields overhead
     entities: () => (places.crowd ?? entities).within(player.x, player.z, 60).map((e) => ({
       kind: e.kind.id, name: e.name, trade: e.trade, purse: e.purse, carrying: e.carrying?.id ?? '',
+      // what a man in somebody's pay has been told, which is the only way from outside to tell a
+      // hireling standing about from one that was told to stand about
+      told: e.told,
       x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 100) / 100, z: Math.round(e.z * 10) / 10,
       slot: e.slot, state: e.state, charging: Math.round(e.charging * 10) / 10, person: e.person, role: e.role,
       // the fight's own state, without which none of the wind-up work can be checked from

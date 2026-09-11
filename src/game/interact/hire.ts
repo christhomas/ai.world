@@ -1,7 +1,7 @@
 import { GAMEPLAY } from '../../core/config';
 import { buy, give, holds } from '../../world/deeds';
 import { personTill } from '../tills';
-import { HIRE, quoteFor, wordsFor, type Bargain, type Hires, type Quote, type Terms } from '../hire';
+import { HIRE, ORDERS, quoteFor, wordsFor, type Bargain, type Hires, type Order, type Quote, type Terms } from '../hire';
 import { faceFor } from '../talk';
 import { COMPANY } from '../../entities/manager';
 import { bodyForTrade } from '../../entities/trades';
@@ -83,6 +83,19 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
     });
   };
 
+/**
+ * What you can tell a man in your pay, in the words you would tell him in.
+ *
+ * A list rather than three choices written out where they are used, because the words and the
+ * orders have to stay together: a button reading "Wait here" that sends `fight` is the kind of
+ * mistake that only shows up as a bear eating somebody.
+ */
+const ORDER_WORDS: ReadonlyArray<{ order: Order; said: string }> = [
+  { order: ORDERS.FOLLOW, said: 'Stay at my shoulder' },
+  { order: ORDERS.HOLD, said: 'Wait here' },
+  { order: ORDERS.FIGHT, said: 'Go in first' },
+];
+
   /** The one already walking with you: what was agreed, how long is left, and how to end it. */
   const partCompany = (e: Entity, bargain: Bargain): void => {
     const left = Math.max(0, Math.ceil(bargain.until - state.day));
@@ -97,6 +110,17 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
           : `${left === 1 ? 'One day' : `${left} days`} of me left on what you paid.`,
       ],
       choices: [
+        ...ORDER_WORDS.filter(({ order }) => order !== hires.toldTo(bargain.who)).map(({ order, said }) => ({
+          label: said,
+          next: () => {
+            hires.tell(bargain.who, order);
+            e.told = order === ORDERS.FOLLOW ? '' : order;
+            sound.select();
+            hud.flash(`${bargain.name}: ${said.toLowerCase()}.`);
+            persist();
+            return null;
+          },
+        })),
         // only while it is nearly up: a man does not ask to be paid again on the first morning
         ...(nearly ? [{ label: `Keep him on (${again}g)`, next: () => {
           if (state.inventory.gold < again) {
@@ -202,6 +226,15 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
       const own = register.find(e.person)?.trade ?? '';
       if (own === '') continue;
       e.trade = hires.follows(e.person, own);
+      // and what he has been told, pressed back on for the same reason his trade is: the body is
+      // destroyed when you walk off and built again later, so the contract is what remembers and
+      // this is the copy the tree can read
+      // empty for the standing arrangement as well as for everybody who is nobody's, so there is
+      // one state for "nobody has told him anything" rather than two. The `told` ask matches
+      // nothing against an empty string, which is what makes an unbidden man behave exactly as he
+      // did before there were orders at all
+      const order = hires.has(e.person) ? hires.toldTo(e.person) : ORDERS.FOLLOW;
+      e.told = order === ORDERS.FOLLOW ? '' : order;
     }
     if (entities.toldWhatLives) keepTheCompany();
     else disbandTheCompany();

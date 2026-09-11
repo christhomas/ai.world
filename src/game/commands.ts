@@ -42,6 +42,7 @@ export interface CommandWorld {
   discover(place: string): unknown;
   thin(village: string, many: number): unknown;
   hire(many: number): unknown;
+  tell(order: string): unknown;
   setTime(fraction: number): unknown;
   setDay(day: number): unknown;
   where(): unknown;
@@ -92,6 +93,7 @@ export function registerCommands(bus: CommandBus, world: CommandWorld): void {
   bus.define('discover', ([place]) => world.discover(place as string));
   bus.define('thin', ([village, many]) => world.thin(village as string, many as number));
   bus.define('hire', ([many]) => world.hire(many as number));
+  bus.define('tell', ([order]) => world.tell(order as string));
 
   bus.define('time', ([fraction]) => world.setTime(fraction as number));
   bus.define('day', ([day]) => world.setDay(day as number));

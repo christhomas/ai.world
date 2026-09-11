@@ -108,6 +108,28 @@ export const HIRE = {
   AGAIN: 1.15,
 } as const;
 
+/**
+ * What a man in your pay can be told to do.
+ *
+ * Deliberately three, and deliberately not a list of everything a body can do. An order is not a
+ * remote control: the whole value of a hired sword is that he has a tree of his own and uses it, so
+ * what these change is *which* tree branch he takes rather than each step he makes. Told to hold he
+ * still defends himself; told to fight he still walks round a boulder rather than into it.
+ *
+ * `follow` is the standing arrangement and the absence of an order — what he does if you never say
+ * anything, which is what he did before there were orders at all.
+ */
+export const ORDERS = {
+  /** At your shoulder, and into whatever comes for either of you. The default. */
+  FOLLOW: 'follow',
+  /** Stand here. He still fights what comes to him; he will not walk after you. */
+  HOLD: 'hold',
+  /** Go for what is dangerous rather than waiting for it to go for somebody. */
+  FIGHT: 'fight',
+} as const;
+
+export type Order = typeof ORDERS[keyof typeof ORDERS];
+
 /** One way of settling an asking price: coin in the hand, a cut of what is won, or both. */
 export interface Terms {
   /** Gold handed over before a step is taken. */
@@ -131,6 +153,15 @@ export interface Quote {
 export interface Bargain extends Terms {
   who: string;
   name: string;
+  /**
+   * What he has been told to do, or empty for the standing arrangement.
+   *
+   * On the contract rather than on the body, because the body is despawned the moment you walk far
+   * enough off and built again later: an order kept on the entity would be forgotten by walking
+   * round a corner. This is what remembers, and `muster` presses it back onto whoever is standing
+   * there now — the same way it does his trade, and for exactly the same reason.
+   */
+  told?: Order;
   /**
    * The world day it runs out on.
    *
@@ -360,6 +391,27 @@ export class Hires {
    */
   follows(who: string, trade: string): string {
     return this.agreed.has(who) ? HIRE.TREE : trade;
+  }
+
+  /**
+   * Tell somebody in your pay what to do.
+   *
+   * Nothing happens to anybody who is not yours, which is the whole of the check that matters: a
+   * man is taking instructions because he is being paid, and the moment the contract ends he is
+   * taking none. `follow` clears the order rather than storing it, so the standing arrangement is
+   * the absence of an instruction and there is one state for it rather than two.
+   */
+  tell(who: string, order: Order): boolean {
+    const bargain = this.agreed.get(who);
+    if (!bargain) return false;
+    if (order === ORDERS.FOLLOW) delete bargain.told;
+    else bargain.told = order;
+    return true;
+  }
+
+  /** What this one has been told, or the standing arrangement. */
+  toldTo(who: string): Order {
+    return this.agreed.get(who)?.told ?? ORDERS.FOLLOW;
   }
 
   /** How the company reads in a line: "Greta Vos at your shoulder". */

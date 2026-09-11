@@ -321,6 +321,9 @@ export function installProbes(ctx: Probed): void {
   (debug as { __thin?: (village: string, n: number) => unknown }).__thin = (village, n) => commandWorld.thin(village, n);
   (debug as { __callOut?: (id: string) => void }).__callOut = (id) => callOut(id);
   (debug as { __hire?: (n: number) => unknown }).__hire = (n) => commandWorld.hire(n);
+  // tell everybody in your pay the same thing, for checking from outside that an order changes
+  // what a man actually does rather than only what the books say about him
+  (debug as { __tell?: (order: string) => unknown }).__tell = (order) => commandWorld.tell(order);
   (debug as { __spawn?: (kind: string, away?: number) => unknown }).__spawn = (kind, away = 2) => commandWorld.spawn(kind, away);
   /*
    * Hurt whoever is nearest, without hitting them: the flash and the bar, with none of the fight.

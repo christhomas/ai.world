@@ -134,6 +134,19 @@ export class Entity {
   /** What they are carrying to market, if anything. */
   carrying: { id: string; count: number } | null = null;
   /**
+   * What they have been told to do by whoever is paying them.
+   *
+   * Empty for everybody who is nobody's, which is almost everybody. A hired sword is the one person
+   * in this world taking instructions, and this is how an instruction reaches the tree he follows:
+   * a word, read by an `ask`, that decides which branch of `hired` he takes.
+   *
+   * Pressed back on from the contract every slow tick rather than set once, for the same reason his
+   * trade is — the body standing here is despawned the moment you walk far enough off and built
+   * again later, and an order kept only on the body would be forgotten by walking round a corner.
+   * The contract is what remembers; this is the copy the tree can see.
+   */
+  told = '';
+  /**
    * Who this creature is presently interested in: prey it has picked out, or trouble it means to
    * break up. Null means the hero, who is everybody's default business.
    */
@@ -284,6 +297,8 @@ export interface Ctx {
   stock?: (from: Entity, within: number, beyond: number) => Entity | null;
   /** The nearest creature attacking somebody, for anybody whose job is to stop that. */
   nearestTrouble?: (from: Entity, within: number) => Entity | null;
+  /** And the nearest with teeth that has not started anything yet, for somebody told to fight. */
+  foe?: (from: Entity, within: number) => Entity | null;
   /** One creature hurting another, with nobody's hearts involved. */
   strike?: (attacker: Entity, victim: Entity, damage: number) => void;
   /** What something fetches at market, which is the game's business and not this file's. */
@@ -418,6 +433,7 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
         nearestPerson: ctx.nearestPerson ?? (() => null),
         stock: ctx.stock ?? (() => null),
         nearestTrouble: ctx.nearestTrouble ?? (() => null),
+        foe: ctx.foe ?? (() => null),
         strike: ctx.strike ?? (() => {}),
         worth: ctx.worth ?? (() => 0),
         banked: ctx.banked,

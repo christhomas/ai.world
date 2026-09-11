@@ -102,6 +102,7 @@ export const COMMANDS: Record<string, CommandSpec> = {
   discover: spec('discover', 'Name a place, so it is on the map', [text('place')]),
   thin: spec('thin', 'Take a number of villagers out of a village', [text('village'), num('many')]),
   hire: spec('hire', 'Take on a number of hands', [num('many')]),
+  tell: spec('tell', 'Tell everybody in your pay what to do: follow, hold or fight', [text('order')]),
 
   // The clock
   time: spec('time', 'Set the time of day, as a fraction of one: 0.5 is noon', [num('fraction')]),

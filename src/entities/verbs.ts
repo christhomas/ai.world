@@ -47,6 +47,8 @@ export interface Mind {
   nearestPerson: (from: Entity, within: number) => Entity | null;
   /** The nearest creature attacking somebody, for anybody whose job is to stop that. */
   nearestTrouble: (from: Entity, within: number) => Entity | null;
+  /** And the nearest with teeth that has not started anything yet, for somebody told to fight. */
+  foe: (from: Entity, within: number) => Entity | null;
   /** Hurt a creature rather than the hero: a wolf on a farmer, a constable on the wolf. */
   strike: (attacker: Entity, victim: Entity, damage: number) => void;
   /** The law wants the hero: somebody has been killed, and the village has had enough of it. */
@@ -149,6 +151,21 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     /** Is this villager carrying something to market? */
     carrying: () => (tick) => tick.world.self.carrying !== null,
 
+    /**
+     * Has whoever is paying this one told them to do this?
+     *
+     * The one word in the vocabulary that is about being *instructed* rather than about what a
+     * creature wants or notices. Everything else a tree asks is a fact about the world — the hour,
+     * the weather, whether something with teeth is nearby — and this is a fact about what somebody
+     * said, which is the whole difference between a villager and a man in your pay.
+     *
+     * An empty order matches nothing, so a tree written with these branches falls through to
+     * whatever it does unbidden, and a man nobody has told anything behaves exactly as he did
+     * before there were orders at all.
+     */
+    told: (params) => (tick) => tick.world.self.told !== ''
+      && tick.world.self.told === String(params.to ?? ''),
+
     /** Has this villager earned at least this much and not yet spent it? */
     purse: (params) => (tick) => tick.world.self.purse >= number(params, 'atLeast', 1),
 
@@ -172,7 +189,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     wander, roam, patrol, goTo,
 
     // picking somebody out, closing on them, and the blow itself
-    markPrey, markTrouble, forget, stalk, circle, charge, dive, bite, arrest,
+    markPrey, markTrouble, markFoe, forget, stalk, circle, charge, dive, bite, arrest,
 
     // backing off, and getting over it
     flee, graze, idle, beHealed,
@@ -288,6 +305,21 @@ function goTo(params: Params): CreatureNode {
  * Everything that acts on a target — stalk, bite, charge, circle — works on whatever was
  * marked here, so one small vocabulary covers a wolf on a farmer and a wolf on the hero.
  */
+/**
+ * Pick out the nearest thing with teeth, started or not.
+ *
+ * What somebody told to fight does, and the counterpart of `markTrouble`, which waits for the
+ * teeth to be on somebody first. A guard waits; a man told to go in does not.
+ */
+function markFoe(params: Params): CreatureNode {
+  return (tick) => {
+    const { self, foe } = tick.world;
+    const found = foe(self, number(params, 'within', 18));
+    self.target = found;
+    return found ? 'success' : 'failure';
+  };
+}
+
 function markPrey(params: Params): CreatureNode {
   return (tick) => {
     const { self, nearestPerson, playerX, playerZ } = tick.world;

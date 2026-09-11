@@ -2631,7 +2631,25 @@ other, and the order is chosen so that each one can be *seen* working before the
             times), and `ranOut` which hands back whoever has served their days so somebody can be
             *told* — a man who leaves without a word is indistinguishable from one who fell down a
             hole. The following-and-fighting half already existed in the `hired` tree.
-      - [ ] **9g. Issuing verbs to a hireling.** The rest of that design: the hero tells somebody
+      - [x] **9g. Issuing verbs to a hireling.** `ORDERS` — follow, hold, fight — kept on the
+            contract rather than on the body, because the body is despawned when you walk off and an
+            order kept on it would be forgotten by walking round a corner; `muster` presses it back
+            on the way it already does his trade. A `told` ask in the vocabulary is the one word in
+            it about being *instructed* rather than about what a creature wants or notices, which is
+            the whole difference between a villager and a man in your pay. `markFoe` went in because
+            `markTrouble` waits for the teeth to be on somebody — a guard waits, a man told to go in
+            does not — and `markPrey` hunts people, which is not what ordering a sword arm means.
+
+            **It found a bug with teeth.** `forget` was its own branch in the `hired` tree, `act`
+            returns success, and `first` is a selector — so a standing `forget` swallowed every
+            quiet tick and the follow branch below it was unreachable. **A hired man had never once
+            walked after anybody.** It read as working because a hero who teleports drags his
+            company with him and `muster` re-seats them every half second, so the only way to see it
+            was to walk. Measured after the fix: unbidden they are in `walk` and move with you;
+            told to hold they go `idle` and stay where they were put.
+      - [ ] **9g-2. Orders worth giving beyond three.** Fetch, carry, wait at a place, guard
+            somebody who is not you. Each wants a branch and most want a target, which `told` has no
+            room for — an order with an argument is the next shape this needs. The rest of that design: the hero tells somebody
             walking with him what to do — "fight" being one. Wants an order on the entity that the
             `hired` tree reads, and a way to give it. This is where the hero starts *driving* a tree
             rather than only having one, so it is the natural run-up to 9d.
