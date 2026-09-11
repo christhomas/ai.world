@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildBoat } from '../render/boat';
+import { WORLD } from '../core/config';
 import { DAY_LENGTH } from './state';
 import type { Pier, Structures, Village } from '../world/structures';
 import { yawFor } from '../entities/entity';
@@ -39,9 +40,46 @@ export const FERRY = {
   SPEED: 6,          // tiles per real second
   DWELL: 20,         // seconds tied up at each end
   MIN_PERIOD: 120,   // seconds; timetable rounds up to whole minutes
-  DECK_HEIGHT: 0.55, // where the hero stands above the water line
+  /** Where the hero stands above the water line when he is aboard: `WORLD.BOAT_DECK`, as a height. */
+  DECK_HEIGHT: WORLD.BOAT_DECK - WORLD.WATER_Y,
   BOARD_RANGE: 3.2,  // tiles from a docked boat you can board from
+  /**
+   * What a crossing costs, and what makes it cost more.
+   *
+   * A ferry was free, which is the thing that made it not a ferry: a man with a boat and a
+   * timetable was rowing strangers across for nothing while the boatwright twelve feet away wanted
+   * two hundred gold for a hull. `BASE` is what any crossing costs at all — it is a seat on
+   * somebody's boat — and `A_TILE` is the part that is the water: a long crossing is a long time
+   * out there and he has to row back afterwards.
+   *
+   * Deliberately far under `BOAT.PRICE`. The whole argument for owning a boat is that you go where
+   * you like when you like; the argument for the ferry is that it is cheap and you have to wait for
+   * it. Twenty crossings to the price of a hull is about the ratio that leaves both worth having.
+   */
+  BASE: 6,
+  A_TILE: 0.06,
+  /**
+   * The most he will ask, however far it is.
+   *
+   * About a tenth of a hull. Without it a long crossing on a big map runs to a third of the price
+   * of owning a boat outright, and at that point the sensible move is to buy one and never speak to
+   * him again — which is the ferry pricing itself out of the game. A ferryman on a long run is
+   * making his money from doing it all day rather than from the one passenger.
+   */
+  MOST: 24,
 } as const;
+
+/**
+ * What the ferryman asks for a crossing, in whole gold.
+ *
+ * Worked out from the length of the line rather than quoted per village, because a ferry is a
+ * distance: the same man, the same boat, twice as far. Rounded up, because nobody has ever been
+ * charged eleven and a half gold for anything.
+ */
+export function fareFor(line: FerryLine): number {
+  const across = Math.hypot(line.toPier.dockX - line.fromPier.dockX, line.toPier.dockZ - line.fromPier.dockZ);
+  return Math.max(1, Math.min(FERRY.MOST, Math.ceil(FERRY.BASE + across * FERRY.A_TILE)));
+}
 
 /** Real seconds elapsed in this world (day counter plus time of day). */
 export function worldSeconds(day: number, time: number): number {

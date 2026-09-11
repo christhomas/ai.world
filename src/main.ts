@@ -57,7 +57,7 @@ import { Register } from './world/register';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
 import { Director } from './game/director';
-import { claimedMines, mineIdOf } from './game/mines';
+import { minesOfAVillage } from './game/minesofavillage';
 import { type Luxury } from './world/prosperity';
 import { Hires } from './game/hire';
 import { stableAt } from './game/stables';
@@ -234,33 +234,8 @@ export function startGame(
   register.advance(state.day);                // a world reopened after a week finds a village changed
   /** Everything Old Nettle's cycle needs to reach into, gathered when it is asked for rather than held. */
   const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name, recall });
-  /**
-   * Which cave each village calls its mine. A pure function of the structures, so it is worked
-   * out once: the ground does not move and neither do the villages standing on it.
-   */
-  const claimed = claimedMines(structures.villages, structures.caves);
-  // said before anybody settles, because a village is founded once and its trades are fixed then:
-  // tell the register after the fact and the mining village has already been raised without miners
-  register.minesAt(claimed.keys());
-  /**
-   * What a village believes about its mine, for anybody who has to put it into words.
-   *
-   * Belief rather than fact on purpose. A mine the player emptied on Tuesday goes on being spoken
-   * of as a death trap until somebody has walked back in to say otherwise, and that gap is the
-   * point: it is what makes going back and telling them a thing worth doing.
-   */
-  const saidOfMine = (village: string): string => {
-    const cave = claimed.get(village);
-    return cave ? mines.saidOf(mineIdOf(cave)) : '';
-  };
-  /**
-   * The mine the hero is currently swinging inside, or nothing.
-   *
-   * Only a cave counts. A vault and a thicket are places to go rather than places anybody works,
-   * and counting a kill in one of those would quietly make safe a mine nobody has been near.
-   */
-  const fightingInAMine = (): string | null =>
-    places.underground?.style === 'cave' ? places.underground.anchorId : null;
+  // which hole each village works, what it believes about it, and whether the hero is down one
+  const { claimed, saidOfMine, fightingInAMine } = minesOfAVillage({ structures, register, mines, places: () => places });
   /** The soldiers walking with somebody, and what was agreed with each. */
   const hires = new Hires();
   const discovered = state.discovered;
@@ -364,6 +339,9 @@ export function startGame(
     bitten: (attacker, damage) => onAttack(attacker, damage),
     arrested: (by) => arrested(by),
     fallen: (who) => fallen(who),
+    // the same carcass list a local kill writes to. Reached through `interactions`, which is built
+    // further down this file, so it is a closure rather than a reference
+    fell: (kind, x, z) => interactions.fell(kind, x, z),
   });
 
   // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the

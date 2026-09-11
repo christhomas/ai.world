@@ -51,10 +51,15 @@ export function deedOf(killed: Entity): Deed | null {
 }
 
 /**
- * What a fallen creature leaves behind, banked into the rucksack. The roll is seeded by where it
- * died, so the same kill is worth the same whoever struck the last blow.
+ * What a fallen creature leaves behind. The roll is seeded by where it died, so the same kill is
+ * worth the same whoever struck the last blow and whichever machine works it out.
+ *
+ * It says what is owed rather than paying it. That used to be the other way about — it handed the
+ * loot straight to the rucksack and *also* returned it — and the second caller, the one that runs
+ * whenever the world owns the animal, gave it again: a cow was worth two pieces of meat online and
+ * one alone. A function that both answers and acts has two callers who cannot both be right.
  */
-export function spoils(state: GameState, e: Entity, seed: number): { gold: number; loot: string[] } {
+export function spoils(e: Entity, seed: number): { gold: number; loot: string[] } {
   const [lo, hi] = e.kind.gold ?? [0, 0];
   const roll = mulberry32(seed ^ Math.floor(e.x * 131 + e.z * 977));
   const gold = lo + Math.floor(roll() * (hi - lo + 1));
@@ -62,7 +67,7 @@ export function spoils(state: GameState, e: Entity, seed: number): { gold: numbe
   const drop = e.kind.drop;
   // the hide is not in the loot: it stays on the body until somebody kneels with a knife, which
   // is the whole of what makes a skinning knife worth carrying rather than a tax on carrying one
-  if (drop && !isFur(drop.id) && roll() < drop.chance) { state.give(drop.id, 1); loot.push(drop.id); }
+  if (drop && !isFur(drop.id) && roll() < drop.chance) loot.push(drop.id);
   return { gold, loot };
 }
 
@@ -135,12 +140,14 @@ export function swing(
     // whether this was a rescue, and a creature taken out of the world has stopped marking anybody
     const deed = standing ? deedOf(e) : null;
     if (standing && deed && standing.did(deed)) out.regard = standing.words;
-    const won = spoils(state, e, seed);
+    const won = spoils(e, seed);
     out.gold += won.gold;
     out.loot.push(...won.loot);
   }
   // killed rather than removed: each keeps a body for as long as it takes to fall
   for (const e of out.killed) entities.killEntity(e);
+  // paid here, once, now that `spoils` only says what is owed
+  for (const item of out.loot) state.give(item, 1);
   if (out.gold > 0) { state.inventory.gold += out.gold; state.version++; }
   return out;
 }

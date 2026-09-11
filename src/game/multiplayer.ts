@@ -370,8 +370,12 @@ export function createMultiplayer(ctx: MultiplayerContext) {
 
   /** Bank what a monster somebody else resolved for us left behind. */
   const creditKill = (fallen: Entity): void => {
-    const won = spoils(state, fallen, seed);
+    const won = spoils(fallen, seed);
     state.inventory.gold += won.gold;
+    // given here rather than inside `spoils`, which now only says what a body is worth. This line
+    // is the one that was missing from the day it was written: the loot arrived because the
+    // function that worked it out also paid it, and the moment that stopped it stopped here too
+    for (const item of won.loot) state.give(item, 1);
     state.version++;
     sound.chime();
     const spoilsText = [won.gold > 0 ? `${won.gold} gold` : '', ...won.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);

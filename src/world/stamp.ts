@@ -202,12 +202,36 @@ export function stampSingleProp(chunk: ChunkData, ox: number, oz: number, s: Str
  * Reported as the pier simply not being drawn, which is exactly what it was.
  */
 export function stampPier(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
-  const h = s.level * WORLD.STEP;
-  for (const [x, z] of s.path) {
+  /*
+   * A jetty walks down to the water it ends in.
+   *
+   * It used to be laid flat at the height of the land it left, which on a headland is three or four
+   * terraces up — so the ferry lay in the water a couple of units below the planks and read as a
+   * sunken boat, and stepping aboard was a drop. Reported as the pier being under the water, which
+   * is the same mismatch seen from the other end.
+   *
+   * So the shore end keeps the land's height, the seaward end comes down to `WORLD.BOAT_DECK` —
+   * where a moored boat's deck is, the one number the ferry also stands the hero at — and the
+   * planks in between step down evenly. Each tile stays flat, because a plank is flat: what slopes
+   * is the jetty, one board at a time.
+   */
+  const from = s.level * WORLD.STEP;
+  const to = WORLD.BOAT_DECK;
+  for (let k = 0; k < s.path.length; k++) {
+    const [x, z] = s.path[k];
     const idx = localIndex(chunk, ox, oz, x, z);
     if (idx < 0) continue;
     const t = chunk.type[idx];
     if (t === TileType.Bridge || t === TileType.Road || t === TileType.Floor) continue;
+    /*
+     * One terrace a board, and no lower than the water it is going to meet.
+     *
+     * A terrace is exactly what a hero can step up, so a jetty that falls this fast is one he can
+     * walk back up. It matters because a pier begins wherever the land ended: most start a couple
+     * of terraces up and reach the water within their six boards, and one off a headland simply
+     * gets as far down as six steps take it rather than becoming a staircase nobody can climb.
+     */
+    const h = Math.max(to, from - k * WORLD.STEP);
     chunk.type[idx] = TileType.Pier;
     chunk.height[idx] = h;
     // and the deck itself: flat, all four corners at the same height, which is what a plank is

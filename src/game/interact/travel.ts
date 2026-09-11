@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { WORLD } from '../../core/config';
-import { FERRY, ferryStateAt, formatCountdown, worldSeconds, type FerryLine } from '../ferry';
+import { FERRY, fareFor, ferryStateAt, formatCountdown, worldSeconds, type FerryLine } from '../ferry';
 import { BOAT } from '../sailing';
 import { EYRIE, SKYWARD, eyrieAt, tooHeavy, tooDear } from '../eyries';
 import { ITEMS } from '../items';
@@ -41,11 +41,35 @@ export function travelInteractions(ctx: Surroundings) {
       if (st.docked && nearBoat) {
         const dest = st.docked === 'from' ? 'to' : 'from';
         const destName = dest === 'to' ? line.toName : line.fromName;
+        const fare = fareFor(line);
         dialogue.start({
           speaker: 'Ferryman', emoji: '⛵',
-          pages: [`Ferry to ${destName}. We cast off in ${formatCountdown(st.departsIn)}. Coming aboard?`],
+          pages: [`Ferry to ${destName}, ${fare} gold. We cast off in ${formatCountdown(st.departsIn)}. Coming aboard?`],
           choices: [
-            { label: 'Board', next: () => { riding = { line, dest }; player.riding = true; sound.chime(); return null; } },
+            { label: `Board (${fare}g)`, next: () => {
+              if (state.inventory.gold < fare) {
+                return {
+                  speaker: 'Ferryman', emoji: '⛵',
+                  pages: [`${fare} gold, and you have ${state.inventory.gold}. I am not a charity and the tide is not waiting.`],
+                };
+              }
+              /*
+               * A crossing is bought from somebody, like everything else the hero pays for.
+               *
+               * The ferryman is a voice on a boat rather than anybody on the register — he is not
+               * in a village, he is between two of them — so his fare goes to the place he is
+               * tied up at, the same way a boatwright's does. See `game/tills.ts` and 9b: the one
+               * rule is that a coin leaving one purse arrives in another.
+               */
+              const pier = dest === 'to' ? line.fromPier : line.toPier;
+              buy(holds(state.inventory), nearestVillageTill(ctx.register, structures.villages, pier.dockX, pier.dockZ), fare);
+              state.version++;
+              riding = { line, dest };
+              player.riding = true;
+              sound.jingle();
+              persist();
+              return null;
+            } },
             { label: 'Not now', next: () => null },
           ],
         });

@@ -5,6 +5,16 @@ export const WORLD = {
   TILE: 1,            // world units per tile
   STEP: 0.5,          // world units per terrace level
   WATER_Y: 0.28,      // water surface height (seabed is level 0 at y=0, lowest land is level 1 at y=0.5)
+  /**
+   * Where the deck of a boat tied up at a jetty is, in world units.
+   *
+   * One number because two things have to agree about it and were not: the hero stands here when
+   * he is aboard a ferry, and the seaward end of a jetty has to come down to it or boarding is a
+   * drop. A pier used to be laid at the height of the land it left — three or four terraces up on
+   * a headland — so the boat lay in the water a couple of units below the planks, which reads as a
+   * sunken ferry however carefully the jetty is drawn.
+   */
+  BOAT_DECK: 0.83,
   SEABED_RANGE: 12,   // tiles of seabed drawn beyond the coast before we stop drawing floor
   VIEW_RADIUS: 5,     // chunks kept loaded around the camera
   UNLOAD_RADIUS: 7,   // chunks beyond this get disposed

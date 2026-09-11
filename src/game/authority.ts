@@ -57,12 +57,22 @@ export interface Authority {
    * screen of anybody near enough to have heard it. All three are that player's own.
    */
   fallen: (who: Entity) => void;
+  /**
+   * A body worth going back for, left where a creature dropped.
+   *
+   * The same call a swing makes, and it was missing from this side entirely. A hide is not in the
+   * loot any more — it stays on the body until somebody kneels with a knife — so a kill the world
+   * resolved left nothing at all: no pelt in the pack, because that is the design, and no body to
+   * take one off, because nobody told the carcass list. In a shared world the world owns every
+   * animal, so that is every kill: you could hunt all day and come home with nothing.
+   */
+  fell: (kind: string, x: number, z: number) => void;
 }
 
 export function createAuthority(ctx: Authority) {
   const {
     seed, state, player, chunks, entities, places, sailing, sound, wildlife, floorLife, aloft,
-    placeName, steer, bitten, arrested, fallen,
+    placeName, steer, bitten, arrested, fallen, fell,
   } = ctx;
 
   /**
@@ -146,8 +156,14 @@ export function createAuthority(ctx: Authority) {
         // does about it — the pack in the grass, the bargain that ends, the shout in the middle
         // distance — is theirs, and it is the same `fallen` that has always done it.
         if (body && body.person !== '') fallen(body);
+        if (body && body.person === '') {
+          // and the body itself, for whoever it was worth killing: a wolf is a pelt to anybody who
+          // walks back to it with a knife. Left for everybody rather than only for whoever landed
+          // the blow, because a carcass is a thing lying in the grass and not a reward
+          fell(body.kind.id, body.x, body.z);
+        }
         if (body && mine) {
-          const won = spoils(state, body, seed);
+          const won = spoils(body, seed);
           if (won.gold > 0) { state.inventory.gold += won.gold; state.version++; }
           for (const item of won.loot) state.give(item, 1);
           if (won.gold > 0 || won.loot.length > 0) sound.chime();

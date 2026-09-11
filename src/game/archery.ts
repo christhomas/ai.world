@@ -150,10 +150,11 @@ export function shoot(
   // had marked is what says whether killing it was a rescue
   const deed = standing ? deedOf(mark) : null;
   if (standing && deed && standing.did(deed)) out.regard = standing.words;
-  const won = spoils(state, mark, seed);
+  const won = spoils(mark, seed);
   out.gold += won.gold;
   out.loot.push(...won.loot);
   entities.killEntity(mark);
+  for (const item of out.loot) state.give(item, 1);
   if (out.gold > 0) { state.inventory.gold += out.gold; state.version++; }
   return out;
 }

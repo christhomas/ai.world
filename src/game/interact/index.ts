@@ -82,6 +82,16 @@ export function createInteractions(ctx: Surroundings) {
     // a body under your feet is the most specific thing there is, so it beats the village
     // furniture standing around it: a rabbit dropped in the square was unskinnable without this
     if (camp.trySkin()) return;
+    /*
+     * The ferry before the boatwright, and both before anything else on a pier.
+     *
+     * They stand on the same planks and answer the same key, and the wrong one was winning: press
+     * Enter on a jetty with the ferry tied up at the end of it and a man offered to sell you a boat.
+     * Reported as "it appears to just let you buy the boat itself — that's not a ferry", which is
+     * exactly right. Somebody standing on a pier where a ferry calls means the ferry; the boat is
+     * what is for sale when there is no crossing to take.
+     */
+    if (travel.tryFerry()) return;
     if (travel.tryBoat()) return;
     if (travel.tryEagle()) return;   // a crag with a bird on it, before anything else up here
     // and the birds at the foot of a fall coming out of the sky, which is the way up to a village
@@ -108,7 +118,6 @@ export function createInteractions(ctx: Surroundings) {
     if (craft.tryCook()) return;
     if (craft.tryKindle()) return;
     if (village.trySignpost()) return;
-    if (travel.tryFerry()) return;
     if (wild.tryFish()) return;
     // digging comes last of the ground-level things: a shovel in the pack should never swallow an
     // Enter press meant for a person, a door or a line in the water

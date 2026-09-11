@@ -5,7 +5,7 @@ import { Entity, Herd, damageEntity, type TileWorld } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
 import { EntityRenderer } from '../entities/pool';
 import { GameState } from './state';
-import { COMBAT, swing } from './combat';
+import { COMBAT, spoils, swing } from './combat';
 import * as THREE from 'three';
 
 const flat: TileWorld = {
@@ -129,5 +129,89 @@ describe('a wall between you and it', () => {
     // inside the slab: every line out of it crosses it, so the rule would leave him helpless
     expect(swing(state, manager, walled, 11.2, 10, 0, 1).hit, 'could not swing while inside a wall')
       .toContain(beyond);
+  });
+});
+
+/**
+ * What a kill leaves behind, which turned out to be two different answers depending on who
+ * resolved it.
+ *
+ * Reported by somebody playing on a server: "when you kill animals, they don't drop anything like
+ * skin or meat". Two faults, both only visible in a shared world — which is every world with
+ * anybody else in it, and the one this game is actually played in.
+ *
+ * The first is that `spoils` both worked out what a body was worth *and* put it in the rucksack,
+ * while returning it as well. The caller that runs when the world owns the animal gave the loot a
+ * second time, so a cow was worth two pieces of meat online and one alone; the caller that credits
+ * a monster somebody else resolved never gave it at all, and only worked because of the side
+ * effect. A function that both answers and acts has two callers who cannot both be right.
+ *
+ * The second is worse and is in `authority.ts`: a hide is not in the loot any more — it stays on
+ * the body until somebody kneels with a knife — and the world's own kills never told the carcass
+ * list. No pelt in the pack, because that is the design, and no body to take one off. You could
+ * hunt all day and come home with nothing.
+ */
+describe('what a body is worth', () => {
+  /** A creature of a named kind, standing somewhere, with whatever its properties say on it. */
+  const beast = (kind: string, x = 10, z = 10): Entity => {
+    const k = KINDS[kind];
+    return new Entity(k, x, z, new Herd(k, x, z, x, z, 0), `test:${kind}`, mulberry32(1));
+  };
+
+  it('says what is owed without paying it', () => {
+    // the whole of the first fault in one assertion: asking what a body is worth must not be the
+    // same act as taking it, or every caller has to know whether asking already paid
+    const state = new GameState();
+    const before = state.count('meat');
+    const cow = beast('cow');
+    const won = spoils(cow, 1);
+    expect(state.count('meat'), 'asking what a cow was worth put meat in the rucksack').toBe(before);
+    expect(won.gold).toBeGreaterThanOrEqual(0);
+  });
+
+  it('is the same answer however many times it is asked', () => {
+    // seeded by where it died, so two machines working out the same kill agree — and so that
+    // asking twice, which the online path does, cannot pay twice over
+    const cow = beast('cow', 12, 34);
+    const first = spoils(cow, 7);
+    const second = spoils(cow, 7);
+    expect(second).toEqual(first);
+  });
+
+  it('never puts a hide in the loot, whatever was killed', () => {
+    /*
+     * A pelt is earned by walking back to the body with a knife rather than by luck, which is what
+     * makes a skinning knife worth its space. So it must never arrive in the rucksack at the moment
+     * of the kill, however the kill was resolved.
+     */
+    for (const kind of ['wolf', 'deer', 'bear', 'fox']) {
+      if (!KINDS[kind]) continue;
+      const loot = spoils(beast(kind), 3).loot;
+      for (const id of loot) {
+        expect(['pelt', 'bearpelt', 'foxfur', 'hide'], `killing a ${kind} handed over a ${id}`)
+          .not.toContain(id);
+      }
+    }
+  });
+
+  it('pays a swing exactly once', () => {
+    /*
+     * The regression, stated as a number. A cow's meat is a certainty — `chance: 1` — so one cow
+     * killed is one piece of meat, and the day the rucksack shows two is the day somebody has made
+     * working out what a body is worth pay for it as well.
+     */
+    const { manager, renderer } = setup();
+    const state = new GameState();
+    // a cow rather than whatever the monster table rolls, because what is being counted is its
+    // meat: `chance: 1` in `properties/beasts.json` makes one cow exactly one piece
+    const target = beast('cow', 11, 10);
+    target.hp = 1;
+    renderer.add(target);
+    manager.guests = { [Symbol.iterator]: () => [target][Symbol.iterator]() };
+    const before = state.count('meat');
+    const result = swing(state, manager, flat, 10, 10, 0, 1);
+    expect(result.killed.length, 'nothing died').toBe(1);
+    expect(result.loot).toContain('meat');
+    expect(state.count('meat') - before, 'one cow, two pieces of meat').toBe(1);
   });
 });
