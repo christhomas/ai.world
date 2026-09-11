@@ -1,5 +1,6 @@
 import * as deeds from './deeds';
 import * as goods from './goods';
+import * as works from './works';
 
 /**
  * Everything anybody in this world can do, named in one place.
@@ -40,16 +41,39 @@ import * as goods from './goods';
  * `handOver` moves what was actually taken rather than what was asked for, and `GONE` is the
  * ground, the fire and the river.
  *
- * What is not done is the rest: hiring, building, sowing, skinning, healing, arresting. Those are
+ * **Work bought ahead** is done, and is narrower than it first looked. Commissioning a house and
+ * hiring a sword went in together as "gold for work rather than gold for an object", and the
+ * sharper reading is that a house is very much an object — it just is not there yet. So
+ * `commission` and `settle` are a purchase with a lead time, and hiring is the genuinely different
+ * one: no object, no balance, no delivery, just a claim on somebody's days.
+ *
+ * What is not done is the rest: sowing, skinning, healing, arresting, entering, riding. Those are
  * acts on the world rather than on a purse or a pack, and they are being converted as they are
  * touched rather than in one sitting — see the work list. `vocabulary.test.ts` holds this list to
  * what is actually exported, so a deed cannot be added and left unnamed, or named and left
  * unwritten.
+ *
+ * ## The framing this is all heading towards
+ *
+ * Put plainly by the person who asked for it: **the decisions are the same, they are just made
+ * manually, and each step goes through the player to decide the outcome.**
+ *
+ * That is worth writing down because it says the two systems are not merely similar, they are the
+ * same shape. A behaviour tree is a selector: walk the branches, take the first whose condition
+ * holds. `game/interact/` is *also* a selector — `createInteractions` tries fifteen things in order
+ * and the first that answers wins. The only difference is who picks. A villager's tree picks for
+ * itself; the hero's branches are offered as a menu and the player picks.
+ *
+ * So a deed is the bottom of it and not the whole of it. Underneath: one vocabulary of acts, which
+ * is this file. Above: one way of choosing between them, with two ways of driving the choice. That
+ * is what makes the hero drivable by a tree — not new machinery, but the recognition that the
+ * machinery is already there twice.
  */
 
 /** The deeds themselves, so a caller has one import rather than three. */
 export * from './deeds';
 export * from './goods';
+export * from './works';
 
 /**
  * What each deed is for, in one line, and which half of the world already speaks it.
@@ -66,6 +90,10 @@ export const DEEDS: ReadonlyArray<{ deed: string; does: string }> = [
   { deed: 'give', does: 'hand money over for nothing back: a gift, a wage, a share, an estate' },
   { deed: 'handOver', does: 'move things between two packs, moving what was taken and not what was asked' },
   { deed: 'handOverAll', does: 'empty one pack into another without leaving the last one behind' },
+  { deed: 'commission', does: 'order a thing that has to be made: a purchase with a lead time' },
+  { deed: 'settle', does: 'pay off what is still owed on a commission, down to what can be found' },
+  { deed: 'owing', does: 'what is still owed on it, never negative, because it goes into a sentence' },
+  { deed: 'cutOf', does: "a share of a haul for whoever walks with you; hiring's half of the money" },
 ];
 
 /** The shapes a deed acts on: somewhere money is kept, and somewhere things are. */
@@ -81,5 +109,5 @@ export const HOLDINGS: ReadonlyArray<{ maker: string; is: string }> = [
 
 /** Everything this module exports by name, for the test that holds the two lists to each other. */
 export function spoken(): string[] {
-  return [...Object.keys(deeds), ...Object.keys(goods)];
+  return [...Object.keys(deeds), ...Object.keys(goods), ...Object.keys(works)];
 }

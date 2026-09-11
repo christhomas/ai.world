@@ -1,11 +1,11 @@
 import { BUILD, builderIn, canBuildAt, deposit, isFinished, owed, saidOfJob, type Commission } from '../building';
 import { buy, give, holds } from '../../world/deeds';
 import { boxOf, handOver, packOf } from '../../world/goods';
+import { settle } from '../../world/works';
 import { villageTill } from '../tills';
 import { ITEMS } from '../items';
 import { footprintLevel } from '../../world/footprint';
 import type { Structure, Village } from '../../world/structures';
-import { PROSPER } from '../../world/prosperity';
 import { regardOf } from '../grudge';
 import type { DialogueChoice, DialogueNode, Surroundings } from './context';
 
@@ -41,19 +41,6 @@ const BOX = { speaker: 'Strongbox', emoji: '🧰' } as const;
 /** The world day with its fraction, which is what a thing being built actually measures. */
 const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.time;
 
-/**
- * Money the player hands a builder does not stop there.
- *
- * He buys timber with it, and pays the two men who carry it, and drinks some of it — so it is
- * spread across everybody still living in the village rather than pushed into one purse. That
- * matters because a village's prosperity is the sum of its purses: a house commissioned is a
- * village that can afford another storey on somebody else's, which is the same builder's next job.
- * If the village has nobody left in it the coin is simply gone, which is the honest answer to
- * paying a place that no longer exists.
- */
-function paidInto(ctx: Surroundings, village: string, gold: number): void {
-  villageTill(ctx.register, village).give(gold);
-}
 
 /**
  * The choices a builder adds to a pub's dialogue: taking him on, hearing how yours is coming
@@ -117,9 +104,11 @@ export function builderPubChoices(ctx: Surroundings, village: Village): Dialogue
         if (state.inventory.gold < balance) {
           return { speaker: name, emoji: '🔨', pages: [`${balance} gold, and you have ${state.inventory.gold}. It stands there locked until you have it, and the village hears about it every day it does.`] };
         }
-        state.inventory.gold -= balance;
-        houses.pay(job, balance);
-        paidInto(ctx, village.name, balance);
+        // one deed: the money leaves the rucksack, arrives in the village, and the commission
+        // records what it has been paid. Three lines that had to agree about one number, and they
+        // very nearly did not — the conversion that caught the deposit above missed this because
+        // `houses.pay` sat between the two halves of it
+        settle(holds(state.inventory), villageTill(ctx.register, village.name), job);
         state.version++;
         sound.jingle();
         hud.flash('The house is yours. There is a strongbox in it.');

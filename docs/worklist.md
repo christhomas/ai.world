@@ -2586,6 +2586,13 @@ other, and the order is chosen so that each one can be *seen* working before the
             for the ground, the fire and the river. The strongbox and the hunter's shoulder are
             converted. A shoulder holds one kind of thing and drops what it had, which is what a man
             with two hands does.
+      - [x] **9c-2a. Gold for work.** `world/works.ts`. Went in as "gold for work rather than gold
+            for an object" and came out sharper: **a house is very much an object, it just is not
+            there yet.** So `commission`/`settle` are a purchase with a lead time, and hiring is the
+            genuinely different one — no object, no balance, no delivery, only a claim on somebody's
+            days. Converting the builder found a real miss: the balance site had never been moved
+            onto a deed, because `houses.pay` sat between the two halves of the edit and no assert
+            guarded it.
       - [x] **9c-2. The list itself.** `world/vocabulary.ts` names every deed and every place a deed
             can act on, and `vocabulary.test.ts` holds the two to each other in both directions — a
             deed exported and unnamed fails, a name with nothing behind it fails. Same rule
@@ -2596,6 +2603,26 @@ other, and the order is chosen so that each one can be *seen* working before the
       - [ ] **9c-4. `verbs.ts` split again if it grows.** The trade verbs came out into
             `entities/living.ts` at 705 lines; the split is invisible from `behaviours/` and
             `vocabulary.test.ts` is what keeps it that way.
-      - [ ] **9d. The hero as an Entity with a tree.** The stated goal: a scripted playtest that
-            drives a real hero through the same verbs. Nothing is being built for it yet; the deed
-            layer is what keeps it cheap when it is.
+      - [ ] **9d. The hero driven by the same decisions as everybody else.** Note the hero is
+            *already* an `Entity` — `Player.entity`, kind `hero` — so the question was never about
+            the body. It is about the choosing. Framed by the person who asked for it: **the
+            decisions are the same, they are just made manually, and each step goes through the
+            player to decide the outcome.**
+
+            Which makes the two systems the same shape rather than merely similar. A behaviour tree
+            is a selector: walk the branches, take the first whose condition holds.
+            `createInteractions` is *also* a selector — fifteen things tried in order, first that
+            answers wins. The only difference is who picks: a villager's tree picks for itself, the
+            hero's passing branches are offered as a menu. So the work is not new machinery, it is
+            recognising that the machinery exists twice and making one of them.
+
+            What it buys: a scripted playtest driving a real hero through real verbs rather than
+            synthesised keypresses; "walk to Frostgard" becoming the `goTo` a villager already uses;
+            a disconnected player's hero standing down sensibly instead of freezing; and any act the
+            hero can do becoming available to a villager, which is the whole point of the exercise.
+
+      - [ ] **9e. A commission with a specification.** Raised 2026-09-11: ordering a house should let
+            you choose what you are ordering — a design, a size, what goes in it. Today a commission
+            is a price and a place and nothing else. That is a `spec` on `Work`, deliberately left
+            out rather than guessed at, because the moment it exists it has to mean something to the
+            thing that gets built.
