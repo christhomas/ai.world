@@ -289,6 +289,8 @@ export class Wildlife {
     body.trade = who.trade;
     body.role = who.role;
     body.herd.tag = who.village;
+    // and what he is doing, which this page cannot decide for him: his tree runs on the world
+    body.doing = who.doing ?? '';
     if (who.person === '' || !this.book) return;
     // the village first, and founded on the world's own list of trades rather than on one read off
     // whatever country this page happens to have grown: a village founded on a different list is a

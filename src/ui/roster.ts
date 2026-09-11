@@ -1,4 +1,12 @@
 import { $ } from './dom';
+
+/** The little of a crowd this needs: whoever is standing about, and what each of them is doing. */
+interface Watching {
+  within(x: number, z: number, r: number): ReadonlyArray<{ person: string; doing: string }>;
+}
+
+/** How far the roster looks for somebody to say what they are doing. See `whatEverybodyIsDoing`. */
+const REACH = 200;
 import { ageOf, stageOf, type Person } from '../world/people';
 import type { Register } from '../world/register';
 
@@ -29,6 +37,8 @@ export class Roster {
   private by: By = 'village';
   private read: (() => Register) | null = null;
   private countVillages: (() => number) | null = null;
+  private crowd: Watching | undefined;
+  private near: (() => { x: number; z: number }) | undefined;
 
   /**
    * Where the register lives, and how many villages the world has.
@@ -39,9 +49,35 @@ export class Roster {
    * doing different jobs. So the roster shows who is known and says plainly how many places have
    * not been visited yet, rather than quietly inventing them.
    */
-  reads(register: () => Register, villages: () => number): void {
+  reads(
+    register: () => Register, villages: () => number,
+    crowd?: Watching, near?: () => { x: number; z: number },
+  ): void {
     this.read = register;
     this.countVillages = villages;
+    this.crowd = crowd;
+    this.near = near;
+  }
+
+  /**
+   * What anybody the page has a body for is presently up to, by their row on the register.
+   *
+   * Asked of the crowd here rather than handed in, because the roster is the thing that knows what
+   * it wants: everybody it can name, at whatever distance they happen to be. `REACH` is generous
+   * for that reason — this is a book rather than a view, so looking further only turns blanks into
+   * sentences, and it is bounded by what the world has actually sent rather than by the number.
+   *
+   * Empty for most of a village. A page is shown seven of a village's thirty and the other
+   * twenty-three are a row in a book with nobody standing anywhere.
+   */
+  private whatEverybodyIsDoing(): Map<string, string> {
+    const doing = new Map<string, string>();
+    const here = this.near?.();
+    if (!this.crowd || !here) return doing;
+    for (const e of this.crowd.within(here.x, here.z, REACH)) {
+      if (e.person !== '' && e.doing !== '') doing.set(e.person, e.doing);
+    }
+    return doing;
   }
 
   get isOpen(): boolean { return this.open; }
@@ -70,6 +106,9 @@ export class Roster {
     const villages = new Set(folk.map((p) => p.village));
     const purse = folk.reduce((sum, p) => sum + p.purse, 0);
     const hungry = folk.filter((p) => p.hungry >= HUNGRY_ENOUGH_TO_SAY).length;
+    // what anybody the page has a body for is presently up to. Empty where it has none, which is
+    // most of a village: seven of thirty are out and the rest are a row in a book
+    const doing = this.whatEverybodyIsDoing();
 
     this.el.innerHTML = `
       <h2>The Roster</h2>
@@ -81,8 +120,8 @@ export class Roster {
       <div class="ro-sort">Sort: ${(['village', 'name', 'age', 'purse', 'hunger'] as By[])
         .map((by) => `<button data-by="${by}" class="${by === this.by ? 'on' : ''}">${by}</button>`).join('')}</div>
       <div class="ro-scroll"><table class="ro-table">
-        <thead><tr><th>Name</th><th>Village</th><th>Trade</th><th>Age</th><th>Gold</th><th>Fed</th><th>Family</th></tr></thead>
-        <tbody>${folk.map((p) => row(p, day)).join('')}</tbody>
+        <thead><tr><th>Name</th><th>Village</th><th>Trade</th><th>Age</th><th>Gold</th><th>Fed</th><th>Doing</th><th>Family</th></tr></thead>
+        <tbody>${folk.map((p) => row(p, day, doing.get(p.id) ?? '')).join('')}</tbody>
       </table></div>
       <div class="j-hint">1 closes · everything here is the register, read live</div>`;
 
@@ -108,8 +147,19 @@ function unvisited(known: number, settled: number): string {
   return `<div class="j-line ro-family">${rest} more ${rest === 1 ? 'village has' : 'villages have'} not been visited yet — nobody is on the register until somebody goes there.</div>`;
 }
 
-/** One line about one person. */
-function row(p: Person, day: number): string {
+/**
+ * One line about one person.
+ *
+ * `doing` comes from whoever is standing in a street rather than from the register, because it is
+ * not a fact about a person — it is a fact about the branch of a behaviour tree that claimed the
+ * last tick, and the register has never seen a behaviour tree. Blank for everybody the page has no
+ * body for, which is most of a village most of the time: a page is shown seven of a village's
+ * thirty and the other twenty-three are a row in a book.
+ *
+ * It arrives over the wire. A page cannot work it out, because a villager's tree runs on the world
+ * — which is the whole of why `VillagerSnap` carries it.
+ */
+function row(p: Person, day: number, doing: string): string {
   const years = ageOf(p, day);
   const stage = stageOf(p, day);
   const parents = p.mother || p.father ? `${firstOf(p.mother)} & ${firstOf(p.father)}` : '—';
@@ -122,6 +172,7 @@ function row(p: Person, day: number): string {
     <td>${years}</td>
     <td>${p.purse}</td>
     <td>${fed}</td>
+    <td class="ro-doing">${doing}</td>
     <td class="ro-family">${parents}</td>
   </tr>`;
 }

@@ -2679,11 +2679,13 @@ other, and the order is chosen so that each one can be *seen* working before the
       opinion about which branch ran, free to disagree with the branch that actually did; this **is**
       the branch. Every villager tree is labelled — "with the cattle", "selling a kill", "buying a
       drink", "waiting where he was put".
-      - [ ] **13a. It does not reach a page yet.** Villagers in the street are the *world's*, held by
-            a page as guests, and `doing` is not on the wire — so a page sees it only for the people
-            it owns itself, which is the hired company. `VillagerSnap` in `server/protocol.ts` is
-            where it would go, beside `trade` and `role`. Worth doing before anything in the UI
-            reads it, or the roster will show a column that is blank for everybody but your own men.
+      - [x] **13a. It reaches a page now.** `VillagerSnap.doing`, beside `trade` and `role` — the one
+            field on a villager's snapshot a page could not work out for itself, because his tree
+            runs on the world. Sent whole every time for the same reason `mind` is: one short string
+            out of a list written in `behaviours/`, and a difference against a copy the far end may
+            not have is a second thing to keep in step for no saving. The roster has the column, and
+            asks the crowd for it itself rather than being handed it. A withdrawn answer blanks
+            rather than sticking — a stale sentence is worse than a blank, because a blank is honest.
 
 - [x] **15. Health on one scale, and the hearts retired.** Asked for on 2026-09-11: a wider scale for
       resolution and for power scaling, because an experienced hero being killed by a wolf in five

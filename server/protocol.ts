@@ -249,6 +249,20 @@ export interface VillagerSnap {
   role: EntityRole;
   village: string;
   /**
+   * What he is presently doing, in two or three words: "with the cattle", "selling a kill".
+   *
+   * Written by the branch of his behaviour tree that claimed the last tick, which only the world
+   * runs — so this is the one field here that a client could not possibly work out for itself. It
+   * had to be sent or it did not exist off the server: a page could show it for the men it owns
+   * outright, which is the hired company, and for nobody else in the country.
+   *
+   * Cheap enough to send whole every time. It is one short string out of a fixed list written in
+   * `behaviours/`, it changes when a man changes what he is doing rather than when he moves, and a
+   * difference against a copy the far end may not have is a second thing to keep in step for no
+   * saving at all — the same argument `mind` is sent whole for, two fields down.
+   */
+  doing: string;
+  /**
    * The trades this village was founded on, as the world read them off the land around it.
    *
    * Sent rather than worked out, and it is the one thing here that had to be. A village offers the

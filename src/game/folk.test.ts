@@ -54,7 +54,7 @@ function snapOf(seed: number): { snap: CreatureSnap; where: ReturnType<typeof aV
       state: 'idle', hp: 3,
       who: {
         person: man.id, name: man.name, trade: man.trade, role: 'villager',
-        village: village.name, trades,
+        village: village.name, trades, doing: '',
         mind: { memories: man.memories, opinions: man.opinions },
       },
     },
@@ -123,5 +123,41 @@ describe('a memory made on this page', () => {
     const recall = tellingTheWorld(() => {});
     recall(where.man, { what: 'given', who: 'Rowan', day: 1 });
     expect(where.man.memories[0]?.what).toBe('given');
+  });
+});
+
+/**
+ * What a villager is doing, arriving from the world that decides it.
+ *
+ * The one field on a villager's snapshot a page could not work out for itself. A villager's
+ * behaviour tree runs on the world — the page holds him as a guest — so before this was sent, a
+ * page could say what its own hired men were up to and nothing about anybody else in the country.
+ */
+describe('what the world says a villager is doing', () => {
+  it('reaches the body standing in the street', () => {
+    const { snap, where } = snapOf(5);
+    snap.who!.doing = 'with the cattle';
+    const { wildlife } = aPage(5, where.ground, where.sampler.structures.villages);
+    wildlife.apply([snap], []);
+    const body = wildlife.find(1);
+    expect(body, 'the world sent a villager and the page stood nobody up').not.toBeNull();
+    expect(body!.doing).toBe('with the cattle');
+  });
+
+  it('is blank rather than stale when the world stops saying', () => {
+    /*
+     * A page must not keep the last thing it heard. `doing` is what a man is doing *now*, and a
+     * roster that held the last known answer would show somebody at a market they left an hour ago
+     * — which is worse than a blank, because a blank is honest and a stale sentence is not.
+     */
+    const { snap, where } = snapOf(5);
+    snap.who!.doing = 'at the market';
+    const { wildlife } = aPage(5, where.ground, where.sampler.structures.villages);
+    wildlife.apply([snap], []);
+    expect(wildlife.find(1)!.doing).toBe('at the market');
+
+    snap.who!.doing = '';
+    wildlife.apply([snap], []);
+    expect(wildlife.find(1)!.doing, 'the page kept a sentence the world had withdrawn').toBe('');
   });
 });

@@ -1,4 +1,5 @@
 import { GameLoop } from './core/loop';
+
 import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from './render/autoquality';
@@ -146,7 +147,6 @@ export function startGame(
   const entityRenderer = new EntityRenderer(rig.scene);
   // who lives in the villages: founded from the seed, then born and buried as the days pass
   const register = new Register(seed);       // caught up to the saved day once the state is loaded
-  roster.reads(() => register, () => structures.villages.length);
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
     // What a villager is paid for what they sell — the same share of the shop price the player
@@ -163,6 +163,8 @@ export function startGame(
     // are. Whichever kind of mountain this world grew — a massif, or a polygon range.
     (x, z) => highPlaces.some((m) => Math.hypot(x - m.x, z - m.z) < m.radius),
   );
+  // and whoever is standing about, so the roster can say what each of them is presently doing
+  roster.reads(() => register, () => structures.villages.length, entities, () => player);
   /**
    * The creatures the world says are there.
    *

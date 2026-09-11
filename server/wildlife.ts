@@ -331,6 +331,8 @@ export class Wildlife {
       trade: e.trade,
       role: e.role,
       village: e.herd.tag,
+      // the one thing here the far end could not work out for itself: only the world runs his tree
+      doing: e.doing,
       // what this village was founded on, so a client founding it again founds the same one
       trades: this.folk?.register.tradesOf(e.herd.tag) ?? [],
       // What he holds. Sent whole rather than as what has changed, because it is small by
