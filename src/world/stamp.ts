@@ -224,14 +224,17 @@ export function stampPier(chunk: ChunkData, ox: number, oz: number, s: Structure
     const t = chunk.type[idx];
     if (t === TileType.Bridge || t === TileType.Road || t === TileType.Floor) continue;
     /*
-     * One terrace a board, and no lower than the water it is going to meet.
+     * One terrace a board, in whichever direction the water is.
      *
-     * A terrace is exactly what a hero can step up, so a jetty that falls this fast is one he can
-     * walk back up. It matters because a pier begins wherever the land ended: most start a couple
-     * of terraces up and reach the water within their six boards, and one off a headland simply
-     * gets as far down as six steps take it rather than becoming a staircase nobody can climb.
+     * A terrace is exactly what a hero can step up, so a jetty that changes this fast is one he can
+     * walk both ways. Piers are laid off low shores now — `HARBOUR_LEVEL` in `piers.ts` — so the
+     * usual case is a beach half a unit up and a deck a unit above the water, which is a single
+     * step up onto the planks. The other direction is the old one: a bank a few terraces up walks
+     * down to the water, and a jetty off a headland gets as far as six boards take it.
      */
-    const h = Math.max(to, from - k * WORLD.STEP);
+    const h = from < to
+      ? Math.min(to, from + k * WORLD.STEP)     // up off a beach onto the quay
+      : Math.max(to, from - k * WORLD.STEP);    // down off a bank to it
     chunk.type[idx] = TileType.Pier;
     chunk.height[idx] = h;
     // and the deck itself: flat, all four corners at the same height, which is what a plank is

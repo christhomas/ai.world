@@ -16,6 +16,36 @@ const PIER_LENGTH = 6;
 /** How far a jetty will walk looking for a coast before giving up on this direction. */
 const PIER_WALK_MAX = 260;
 
+/**
+ * How high the land may be where a jetty leaves it, in terraces.
+ *
+ * A harbour is a place where the land meets the water. This was not asked at all, and the crossing
+ * was chosen on length alone — so a ferry route would happily pick the shortest water between two
+ * headlands and lay its jetty off the top of a cliff, which came out as a six-terrace wall of
+ * planks with a staircase down it and a rowing boat tied to the bottom. It is not a port, it is a
+ * pier built down the face of a cliff.
+ *
+ * Two terraces: a beach or a low bank, somewhere a cart could be backed down to a boat. Anything
+ * higher is a coast rather than a harbour, and the answer to a coast is to look somewhere else
+ * along it.
+ */
+const HARBOUR_LEVEL = 2;
+
+/**
+ * How high a shore may be before it is a cliff rather than a harbour, in terraces.
+ *
+ * Six, which is three units above the sea: a bank a jetty can step down in four boards. Measured
+ * across a dozen worlds, the coasts these islands have are mostly between one and six, so this
+ * keeps the ferries that have somewhere sensible to land and refuses the ones that do not.
+ *
+ * A site above it is not a port and there is no arithmetic that makes it one — the jetty comes out
+ * as a wall of planks with a staircase down it and a rowing boat at the bottom, which is what was
+ * reported. An island ringed by cliffs simply has no ferry: it is still reachable, because anybody
+ * can buy a boat and sail to it, and "not everywhere is reachable by boat" was already the rule for
+ * an island with no clear crossing.
+ */
+export const CLIFF_ABOVE = 6;
+
 /** How many points along a crossing are asked whether they are water. */
 const SOUNDINGS = 96;
 
@@ -130,16 +160,40 @@ export function pairJetties(
   const fromIsland = shore('island', island, dx, dz);
   const fromMain = shore('mainland', mainland, -dx, -dz);
 
-  let islandPier: Pier | null = null, mainPier: Pier | null = null;
-  let shortest = Infinity;
-  for (const from of fromIsland) {
-    for (const to of fromMain) {
-      const across = Math.hypot(to.dockX - from.dockX, to.dockZ - from.dockZ);
-      // a crossing you could step over is two jetties on the same beach, not a ferry
-      if (across >= shortest || across < 2) continue;
-      if (!crossingIsClear(sampler, sample, from, to)) continue;
-      islandPier = from; mainPier = to; shortest = across;
+  /** The shortest clear crossing between two sets of jetties, or nothing. */
+  const pair = (ours: Pier[], theirs: Pier[]) => {
+    let islandPier: Pier | null = null, mainPier: Pier | null = null;
+    let shortest = Infinity;
+    for (const from of ours) {
+      for (const to of theirs) {
+        const across = Math.hypot(to.dockX - from.dockX, to.dockZ - from.dockZ);
+        // a crossing you could step over is two jetties on the same beach, not a ferry
+        if (across >= shortest || across < 2) continue;
+        if (!crossingIsClear(sampler, sample, from, to)) continue;
+        islandPier = from; mainPier = to; shortest = across;
+      }
     }
+    return { islandPier, mainPier };
+  };
+
+  /*
+   * The lowest pair of shores that face each other, and only then the shortest crossing.
+   *
+   * Length alone used to decide it, so the shortest water between two headlands won and a jetty was
+   * laid off the top of one — a six-terrace wall of planks with a staircase down it and a rowing
+   * boat tied to the bottom. A harbour is a place where the land meets the water, so height is the
+   * first question and distance is the tie-break.
+   *
+   * Walked up a terrace at a time rather than filtered at `HARBOUR_LEVEL`, because these coasts are
+   * steep: asking for a beach and refusing everything else left most islands with no ferry at all,
+   * which is a worse thing to do to a world than a steep landing. This way an island with a beach
+   * gets the beach, and an island that is all cliff gets the least of them.
+   */
+  for (let ceiling = HARBOUR_LEVEL; ceiling <= CLIFF_ABOVE; ceiling++) {
+    const low = (piers: Pier[]) => piers.filter((p) => p.level <= ceiling);
+    const found = pair(low(fromIsland), low(fromMain));
+    if (found.islandPier && found.mainPier) return found;
   }
-  return { islandPier, mainPier };
+  // nowhere on either shore is a harbour, so this island has no ferry
+  return { islandPier: null, mainPier: null };
 }

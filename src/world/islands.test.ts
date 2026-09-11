@@ -39,19 +39,35 @@ describe('islands', () => {
     }
   });
 
-  it('every island gets a harbour town and a pier on each shore', () => {
+  it('gives every island a harbour town, and a ferry wherever there is a harbour', () => {
+    /*
+     * A pier on each shore or none at all, and never one.
+     *
+     * It used to be "every island, always". That stopped being true the day a jetty was refused a
+     * cliff to stand on: the crossing is chosen on the height of the two shores now, and an island
+     * ringed by headlands has nowhere a boat could land. Losing the ferry is the right answer to
+     * that — it is what already happened to an island with no clear water across — and the island
+     * is still reachable, because anybody can buy a boat and sail to it.
+     *
+     * What must never happen is half a crossing: a jetty on the mainland pointing at an island with
+     * no jetty on it is a ferry that arrives nowhere.
+     */
     const g = generateRoadGraph(5);
     const m = new Manifest(5);
     for (const p of planIslands(g, 5)) m.ensure(p.id, 'island', p.x, p.z);
     attachIslands(g, m.byKind('island'));
     const sampler = new TerrainSampler(g);
     const { villages, piers } = sampler.structures;
+    let served = 0;
     for (const isl of g.islands) {
       const town = villages.find((v) => Math.hypot(v.x - isl.x, v.z - isl.z) < 2);
       expect(town, `town on ${isl.id}`).toBeTruthy();
       const sides = piers.filter((p) => p.island === isl.id).map((p) => p.side).sort();
-      expect(sides).toEqual(['island', 'mainland']);
+      if (sides.length === 0) continue;
+      expect(sides, `half a crossing at ${isl.id}`).toEqual(['island', 'mainland']);
+      served++;
     }
+    expect(served, 'not one island in this world can be reached by ferry').toBeGreaterThan(0);
     for (const p of piers) {
       expect(p.tiles.length).toBe(6);
       // deck tiles land in the sea, not on the road

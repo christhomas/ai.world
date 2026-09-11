@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
+import { CLIFF_ABOVE } from './piers';
 import { growWorld } from './growworld';
 import { TerrainSampler, TileType } from './terrain';
 
@@ -74,9 +75,10 @@ describe('the walk out to the end of a jetty', () => {
       if (decks.length < 2) continue;
       checked++;
       for (let i = 1; i < decks.length; i++) {
-        const drop = decks[i - 1] - decks[i];
-        expect(drop, 'a jetty that climbs as it leaves the shore').toBeGreaterThanOrEqual(-0.001);
-        expect(drop, 'a step down no hero could climb back up').toBeLessThanOrEqual(WORLD.STEP + 0.001);
+        // in either direction: a jetty steps down off a bank and up off a beach, and neither may
+        // be more than the terrace a hero can climb
+        const step = Math.abs(decks[i] - decks[i - 1]);
+        expect(step, 'a step no hero could walk').toBeLessThanOrEqual(WORLD.STEP + 0.001);
       }
       const end = decks[decks.length - 1];
       // it only has six boards, so a pier off a cliff gets as far down as six steps take it; what
@@ -115,5 +117,52 @@ describe('the walk out to the end of a jetty', () => {
     const drop = (WORLD.WATER_Y + WORLD.PIER_FREEBOARD) - WORLD.BOAT_DECK;
     expect(drop, 'the quay is below the boat it serves').toBeGreaterThan(0);
     expect(drop, 'boarding a ferry is a fall off a wall').toBeLessThanOrEqual(WORLD.STEP);
+  });
+});
+
+/**
+ * Where a harbour may be, which is not everywhere the water is.
+ *
+ * Reported with a picture that made the case better than any argument: a jetty laid off the top of
+ * a headland, six terraces of plank wall with a staircase down the side of it and a rowing boat
+ * tied to the bottom. "If you're going to put a jetty at the end of the water, the land next to it
+ * has to be at the same level as the water. If not, you have to select an alternative site for the
+ * port, because this doesn't make much sense."
+ *
+ * Quite right. The crossing used to be chosen on length alone, so the shortest water between two
+ * headlands won and the cliff came with it. Height is the first question now and distance is only
+ * the tie-break — and where neither shore has a landing, the island has no ferry at all. That is
+ * not a loss: an island with no clear crossing already had none, and anybody can buy a boat.
+ */
+describe('where a ferry may land', () => {
+  it('never lays a jetty off a cliff, in any world', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      for (const pier of new TerrainSampler(growWorld(seed, 'road')).structures.piers) {
+        expect(pier.level, `seed ${seed} put a jetty on a cliff ${pier.level} terraces up`)
+          .toBeLessThanOrEqual(CLIFF_ABOVE);
+      }
+    }
+  });
+
+  it('still finds harbours: a world does not quietly lose all its ferries', () => {
+    // the other half of the rule, and the one that would fail first if the ceiling were tightened
+    // too far. A world with no crossings at all would be a quiet, total loss of a feature
+    let lines = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      lines += new TerrainSampler(growWorld(seed, 'road')).structures.piers.length / 2;
+    }
+    expect(lines, 'refusing cliffs has cost every ferry in every world').toBeGreaterThan(8);
+  });
+
+  it('lands where it is lowest rather than where it is nearest', () => {
+    /*
+     * The change in one assertion. Seed 1 used to put a jetty twenty-two terraces up — a wall as
+     * tall as a castle — because that was the shortest water. Nothing in any world is above the
+     * ceiling now, and the average is a bank rather than a cliff.
+     */
+    const levels = [1, 2, 3, 4, 5, 6, 7, 8]
+      .flatMap((seed) => new TerrainSampler(growWorld(seed, 'road')).structures.piers.map((p) => p.level));
+    const mean = levels.reduce((sum, l) => sum + l, 0) / levels.length;
+    expect(mean, 'the average landing is a climb').toBeLessThan(5);
   });
 });
