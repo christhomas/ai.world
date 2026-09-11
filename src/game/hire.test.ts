@@ -88,10 +88,16 @@ describe('what a soldier asks', () => {
     expect(cutOf(rich)).toBeGreaterThan(cutOf(poor));
     expect(cutOf(poor)).toBeGreaterThanOrEqual(HIRE.SHARE_LEAST);
     expect(cutOf(rich)).toBeLessThanOrEqual(HIRE.SHARE_MOST);
-    // every quote offers coin now, a bit of each, or nothing now and a larger cut
-    expect(rich.terms.map((t) => t.fee)).toEqual([rich.asking, Math.round(rich.asking * HIRE.EACH_WAY), 0]);
+    /*
+     * Every quote offers coin now, a bit of each, or nothing now and a larger cut — and what is
+     * handed over is the whole contract rather than one day of him. `asking` is a day's fighting
+     * and a bargain runs `HIRE.TERM` days; for one version the term went in and the fee did not
+     * move, so a day's price bought six days of sword and nothing in the dialogue said so.
+     */
+    const whole = rich.asking * HIRE.TERM;
+    expect(rich.terms.map((t) => t.fee)).toEqual([whole, Math.round(whole * HIRE.EACH_WAY), 0]);
     expect(rich.terms[0].share).toBe(0);
-    expect(wordsFor(rich.terms[0])).toBe(`${rich.asking} gold, all of it now`);
+    expect(wordsFor(rich.terms[0])).toBe(`${whole} gold, all of it now`);
     expect(wordsFor(rich.terms[2])).toContain('nothing now');
   });
 
@@ -411,5 +417,55 @@ describe('who gave the order', () => {
     hires.strike(soldier(), { fee: 20, share: 0 }, 500, 'you', 1);
     hires.tell('you', 'a', ORDERS.FIGHT);
     expect(hires.toldTo('a')?.at).toBeUndefined();
+  });
+});
+
+/**
+ * What a living is worth, against what it costs you to earn it.
+ *
+ * Asked for as a shape rather than a number: mining should be easy and pay little, a hired sword
+ * should pay a great deal because your life is on the line. The gap existed and was the wrong size
+ * — a soldier's price was quoted by the day and handed over once for a contract that ran six of
+ * them, so the most dangerous work in the game was also the cheapest thing in it.
+ */
+describe('what dangerous work pays', () => {
+  const wholeContract = (v: Pick<Village, 'houses' | 'stalls' | 'pub'>): number => {
+    const { person } = willing(7);
+    return quoteFor(7, person, v)!.terms[0].fee;
+  };
+
+  it('pays for the days it actually buys', () => {
+    const { person } = willing(7);
+    const quote = quoteFor(7, person, town)!;
+    expect(quote.terms[0].fee).toBe(quote.asking * HIRE.TERM);
+  });
+
+  it('is worth a great deal more than a safe day underground', () => {
+    /*
+     * A miner's gross is about three and a half a day — measured off the economy bench, and quoted
+     * here as a floor rather than imported, because this is a claim about the shape of two trades
+     * and not about one constant. What matters is the multiple: a man who might not come back is
+     * paid several times what a man who will does.
+     */
+    const A_MINERS_DAY = 3.5;
+    const poorest = wholeContract(hamlet) / HIRE.TERM;
+    const richest = wholeContract(town) / HIRE.TERM;
+    expect(poorest / A_MINERS_DAY, 'a sword arm is barely dearer than a shift').toBeGreaterThan(3);
+    expect(richest / A_MINERS_DAY).toBeGreaterThan(10);
+  });
+
+  it('comes to a sum worth thinking about, rather than pocket change', () => {
+    // "a contract might pay you 500g and that will be a hundred meals, so it is worth it"
+    expect(wholeContract(town)).toBeGreaterThan(200);
+    expect(wholeContract(hamlet)).toBeGreaterThan(70);
+  });
+
+  it('still costs more to keep him on than it did to take him', () => {
+    // or the way to hire a man for a season would be to hire him for a term, eight times over
+    const hires = new Hires();
+    const { person } = willing(7);
+    const quote = quoteFor(7, person, town)!;
+    const bargain = hires.strike(quote, quote.terms[0], 9999, 'you', 1)!;
+    expect(hires.askingAgain(bargain)).toBeGreaterThan(bargain.fee);
   });
 });

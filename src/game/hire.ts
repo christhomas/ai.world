@@ -49,7 +49,13 @@ export const HIRE = {
   ROOFS: 0.7,
   MARKET: 0.2,
   PUB: 0.1,
-  /** What a day's fighting costs in the poorest village in the world, in gold. */
+  /**
+   * What a day's fighting costs in the poorest village in the world, in gold.
+   *
+   * A *day*, and what is handed over is this times `TERM` — see `termsFor`. Quoted by the day
+   * because that is how a man thinks about what he is worth and because the term is allowed to
+   * change without every price in the world having to be re-reckoned.
+   */
   ASKING_LEAST: 15,
   /** And in the richest, where a soldier has a wage to give up and knows it. */
   ASKING_MOST: 60,
@@ -232,9 +238,24 @@ function shareFor(asking: number): number {
 /** The three ways of settling one asking price, most in the hand first. */
 function termsFor(asking: number): Terms[] {
   const cut = shareFor(asking);
+  /*
+   * What the whole contract comes to, rather than what one day of him does.
+   *
+   * `asking` is a day's fighting — the constants say so — and a bargain runs `HIRE.TERM` days. For
+   * one version it did not: the term went in and the fee did not move, so a day's price bought six
+   * days of sword and hiring was the cheapest thing in the game by a factor of six. Nobody would
+   * have noticed from the dialogue, which says "60 gold now" either way.
+   *
+   * It also puts the trade where it was asked to be. A soldier is paid a great deal because his
+   * life is on the line and a miner is paid little because his is not: a full contract is ninety
+   * gold in the poorest village and three hundred and sixty in the richest, against a miner's three
+   * and a half a day. That is four to seventeen times a miner's wage for the same days, which is
+   * the shape of the thing — dangerous work pays, and it pays up front.
+   */
+  const whole = Math.round(asking * HIRE.TERM);
   return [
-    { fee: asking, share: 0 },
-    { fee: Math.round(asking * HIRE.EACH_WAY), share: cut * HIRE.EACH_WAY },
+    { fee: whole, share: 0 },
+    { fee: Math.round(whole * HIRE.EACH_WAY), share: cut * HIRE.EACH_WAY },
     { fee: 0, share: cut },
   ];
 }

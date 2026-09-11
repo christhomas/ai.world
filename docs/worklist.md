@@ -2755,12 +2755,17 @@ other, and the order is chosen so that each one can be *seen* working before the
             given a trade's day to follow by `pickTrade` because the register has no trade for them.
             Harmless-looking and wrong, and exactly the sort of thing this tool exists to surface.
 
-- [ ] **14. The risk-and-reward of a living.** Raised 2026-09-11: mining should be easy and pay
-      little, a hired sword should pay a great deal because your life is on the line — a contract
-      worth hundreds, which is a hundred meals. Today a soldier asks `HIRE.ASKING_LEAST` 15 to
-      `ASKING_MOST` 60 for a day and a miner's gross is about 3.5, so the gap is real but nothing
-      like the shape described. This is the balancing act, to be tuned as we go rather than guessed
-      at in one sitting — and the bench is what it should be tuned against.
+- [x] **14. The risk-and-reward of a living.** Mining easy and poorly paid, a hired sword dear
+      because his life is on the line. Going to tune it found a plain bug instead: `asking` is
+      documented as *a day's* fighting, and when contracts gained a term the fee did not move — so
+      one day's price bought six days of sword, and the most dangerous work in the game was also the
+      cheapest thing in it. Nothing in the dialogue said so either way.
+
+      A contract is `asking × TERM` now: ninety gold in the poorest village, three hundred and sixty
+      in the richest, against a miner's three and a half a day. Four to seventeen times a miner's
+      wage for the same days, paid up front, which is the shape that was asked for. The price stays
+      quoted by the day because that is how a man thinks about what he is worth, and because the
+      term can move without every price in the world being re-reckoned.
 
 - [x] **17. A commission takes an object.** Raised as "build doesn't just apply to a house — the
       build verb requires a *what*". `Work.what` and `Commission.what` carry it, and `BUILDS` is the
