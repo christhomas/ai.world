@@ -1,4 +1,7 @@
 import { yawFor, type Entity } from '../entities/entity';
+import { buy, holds } from '../world/deeds';
+import { heroOf } from '../world/health';
+import { personTill, villageTill } from './tills';
 import type { Player } from '../entities/player';
 import type { Person } from '../world/people';
 import type { Register } from '../world/register';
@@ -121,8 +124,19 @@ export function createMeeting(ctx: Meeting) {
       hearts: hurt,
       hours: DOCTOR.WAITING,
       take: (paid: boolean) => {
-        if (paid) state.inventory.gold -= talkCtx.mending!.price;
-        state.hp = state.maxHpTotal;
+        /*
+         * The doctor is paid, and he is the doctor standing in front of you.
+         *
+         * This was `state.inventory.gold -= price` — one of the last places in the game where the
+         * hero's money left the world. It was missed when the other fifteen were converted, because
+         * it lives here rather than in `game/interact/`, which is exactly how a site like this
+         * survives a sweep. `e.person` is his row on the register, so the fee outlives the body
+         * behind the desk being despawned the moment you walk out of the village.
+         */
+        if (paid) {
+          buy(holds(state.inventory), personTill(register, e.person, e.herd.tag), talkCtx.mending!.price);
+        }
+        heroOf(state).mend(state.maxHpTotal);
         state.version++;
         if (!paid) {
           // the hours are real: the world moves on while you sit in the corridor
@@ -142,7 +156,8 @@ export function createMeeting(ctx: Meeting) {
       price: bed,
       shared: online.connected,
       take: () => {
-        state.inventory.gold -= bed;
+        // and the innkeeper is paid for the bed, which is his trade rather than a toll
+        buy(holds(state.inventory), personTill(register, e.person, e.herd.tag), bed);
         if (online.connected) {
           // the clock belongs to the world here, so the night passes for everybody or nobody
           state.hp = state.maxHpTotal;
@@ -180,7 +195,17 @@ export function createMeeting(ctx: Meeting) {
     talkCtx.enquiry = kept.length === 0 ? undefined : {
       books: kept,
       purse: () => state.inventory.gold,
-      pay: (fee: number) => { state.inventory.gold -= fee; sound.chime(); persist(); },
+      /*
+       * A clerk's fee for looking something up, paid to the village whose books they are.
+       *
+       * The village rather than the clerk: a town hall's books belong to the place, the person
+       * behind the desk is whoever is on duty, and `places.ts` names them rather than the register.
+       */
+      pay: (fee: number) => {
+        buy(holds(state.inventory), villageTill(register, room?.village ?? e.herd.tag), fee);
+        sound.chime();
+        persist();
+      },
       paid: new Set(),
     };
     e.yaw = yawFor(player.x - e.x, player.z - e.z);

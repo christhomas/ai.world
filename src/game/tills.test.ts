@@ -147,3 +147,44 @@ describe('the rest of the world', () => {
     expect(hero.gold).toBe(230);
   });
 });
+
+/**
+ * The last places the hero's money left the world.
+ *
+ * Fifteen sites were converted when the deed layer went in, and three were missed — all of them in
+ * `meeting.ts` rather than in `game/interact/`, which is exactly how a site survives a sweep that
+ * was aimed at a directory. A doctor's fee, a bed at an inn and a clerk's charge for looking
+ * something up: each of them `state.inventory.gold -= price`, with nobody on the other end.
+ *
+ * There is no test here that can watch `meeting.ts` directly — it wants a whole talking context —
+ * so what is pinned is the property those three now have in common, which is the one that matters:
+ * paying somebody by name leaves the village exactly as much better off as the payer is worse.
+ */
+describe('paying somebody for a service', () => {
+  it('leaves the village better off by what it cost', () => {
+    const register = new Register(12, 40);
+    register.settle('Testing', 9, ['doctor', 'innkeeper', 'farmer', 'soldier']);
+    const doctor = register.living('Testing').find((p) => p.trade === 'doctor');
+    expect(doctor, 'this seed raised no doctor').toBeDefined();
+
+    const hero = { gold: 200 };
+    const before = register.living('Testing').reduce((sum, p) => sum + p.purse, 0);
+    buy(holds(hero), personTill(register, doctor!.id), 24);
+    const after = register.living('Testing').reduce((sum, p) => sum + p.purse, 0);
+
+    expect(hero.gold).toBe(176);
+    expect(after - before, 'the fee went somewhere other than the man who earned it').toBeCloseTo(24, 6);
+    expect(doctor!.purse, 'somebody else was paid for the doctor\'s work').toBeGreaterThan(0);
+  });
+
+  it('reaches the village when the service belongs to the place rather than a person', () => {
+    // a town hall's books belong to the town; the person behind the desk is whoever is on duty
+    const register = new Register(12, 40);
+    register.settle('Testing', 9, ['doctor', 'innkeeper', 'farmer', 'soldier']);
+    const hero = { gold: 200 };
+    const before = register.living('Testing').reduce((sum, p) => sum + p.purse, 0);
+    buy(holds(hero), villageTill(register, 'Testing'), 15);
+    const after = register.living('Testing').reduce((sum, p) => sum + p.purse, 0);
+    expect(after - before).toBeCloseTo(15, 6);
+  });
+});

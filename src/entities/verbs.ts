@@ -1,4 +1,5 @@
 import { act, type Node, type Tick } from '../core/behaviour';
+import { bodyOf } from '../world/health';
 import type { Params, Vocabulary } from '../core/behaviourFile';
 import { BEHAVIOUR, canStand, throwBlow, yawFor, type Entity, type Post, type TileWorld } from './entity';
 import { blowOf, tellOf } from './motion';
@@ -603,7 +604,7 @@ function idle(): CreatureNode {
 function beHealed(params: Params): CreatureNode {
   const key = Symbol('healing');
   return (tick) => {
-    const { self } = tick.world;
+    const { self, spends } = tick.world;
     const fee = number(params, 'fee', 8);
     const paying = self.purse >= fee;
     const takes = number(params, 'seconds', 6) * (paying ? 1 : number(params, 'freeShare', 3));
@@ -612,8 +613,20 @@ function beHealed(params: Params): CreatureNode {
     self.timer = 1;
     if (left > 0) { tick.memory.set(key, left); return 'running'; }
     tick.memory.clear(key);
-    if (paying) self.purse -= fee;
-    self.hp = self.kind.hp ?? self.hp;
+    /*
+     * And the doctor is paid, out of one purse and into another.
+     *
+     * It was `self.purse -= fee`, which is two faults in the way `spend` was: `self` is the body in
+     * the street and it is destroyed the moment a player walks away, so the fee never reached the
+     * register and a villager was as rich the next morning as before he was stitched up; and the
+     * coin went nowhere, in a village where the doctor is one of the three trades that live on
+     * other people's money.
+     */
+    if (paying) {
+      const paid = spends?.(self.person, fee, 'doctor') ?? fee;
+      self.purse -= paid;
+    }
+    bodyOf(self).mend(self.kind.hp ?? 0);
     return 'success';
   };
 }

@@ -2622,8 +2622,8 @@ other, and the order is chosen so that each one can be *seen* working before the
       living in the game and two farmers hold much of a village's worth. Whether that is right —
       food *is* the base of the whole economy — or wants flattening is a design call, not a bug.
 
-- [ ] **9. One vocabulary for everybody** — 9a, 9b, 9c-1, 9c-2, 9c-4, 9e, 9f and 9g done; 9c-3 and
-      9d open, 9g-3 declined. Asked for on 2026-09-11: if the player acts on the world
+- [ ] **9. One vocabulary for everybody** — everything done or decided except 9d, the hero driven by
+      the same decisions as everybody else. Asked for on 2026-09-11: if the player acts on the world
       through the same named verbs the villagers and creatures do, there is one thing to test, one
       thing to automate, and a villager can do anything the hero can. Three layers were found and
       only the third is worth unifying — what an act *does*, apart from who ordered it and how it
@@ -2652,8 +2652,22 @@ other, and the order is chosen so that each one can be *seen* working before the
             deed exported and unnamed fails, a name with nothing behind it fails. Same rule
             `catalogue.test.ts` holds the prop library to, and here for the same reason: `TRADERS`
             spent a long time naming four jobs nobody in this world can hold.
-      - [ ] **9c-3. The acts that are not money or goods.** `hire`, `build`, `sow`, `skin`, `heal`,
-            `arrest`, `enter`, `ride`. Convert as they are touched.
+      - [x] **9c-3. The acts that are not money or goods — looked at, and mostly they should not be
+            deeds.** The test for whether an act wants one is whether two systems are doing it twice
+            and free to disagree. `skin`, `craft` and picking herbs *create* things, and dressing a
+            creation as a transfer from a fictional pack is ceremony: `state.give('herb', n)` is
+            clearer than `handOver(GROWING, packOf(...), 'herb', n)` and has no second expression to
+            disagree with. `enter`, `ride` and `arrest` change where somebody is, not what they hold.
+
+            **One of them was real, and it was the last money leaking out of the world.** Paying to
+            be mended existed twice — `beHealed` for a villager and `mending.take` for the hero —
+            and *both* burnt the fee. Converting them turned up two more in the same file: the bed at
+            an inn and a clerk's charge for looking something up. All three were missed by the sweep
+            that converted fifteen sites, because they live in `meeting.ts` rather than in
+            `game/interact/` — a sweep aimed at a directory is a sweep with an edge.
+
+            There is now no `state.inventory.gold -=` anywhere in the game, and no `purse -=` outside
+            the deeds, the meal charge and inheritance — all three of which have a named counterpart.
       - [x] **9c-4. `verbs.ts` split when it grew.** Done at the time: the trade verbs came out into
             `entities/living.ts` when the file hit 705 lines. `architecture.test.ts` is what will say
             when it needs doing again, and `vocabulary.test.ts` keeps the split invisible from
