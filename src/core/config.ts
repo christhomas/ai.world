@@ -8,13 +8,24 @@ export const WORLD = {
   /**
    * Where the deck of a boat tied up at a jetty is, in world units.
    *
-   * One number because two things have to agree about it and were not: the hero stands here when
-   * he is aboard a ferry, and the seaward end of a jetty has to come down to it or boarding is a
-   * drop. A pier used to be laid at the height of the land it left — three or four terraces up on
-   * a headland — so the boat lay in the water a couple of units below the planks, which reads as a
-   * sunken ferry however carefully the jetty is drawn.
+   * One number because two things have to agree about it: the hero stands here when he is aboard a
+   * ferry, and the jetty beside it has to be within a step of it or boarding is a fall.
    */
   BOAT_DECK: 0.83,
+  /**
+   * How high the planks of a jetty stand above the water, in world units.
+   *
+   * Two terraces. The first attempt at this put the deck level with the boat — half a unit up —
+   * on the argument that stepping aboard should be flat, and it was still reported as a jetty
+   * lying in the water: from an isometric view the sea in front of a deck that low is drawn across
+   * it, and what you see is planks awash. A quay stands clear of the water and you step *down*
+   * into a boat, which is both what this looks like and what a jetty is.
+   *
+   * Measured from the water line rather than from the ground under it, which is the whole of the
+   * original fault: the ground at a coast is the seabed, and a deck two units above *that* is a
+   * deck under the sea.
+   */
+  PIER_FREEBOARD: 1.0,
   SEABED_RANGE: 12,   // tiles of seabed drawn beyond the coast before we stop drawing floor
   VIEW_RADIUS: 5,     // chunks kept loaded around the camera
   UNLOAD_RADIUS: 7,   // chunks beyond this get disposed

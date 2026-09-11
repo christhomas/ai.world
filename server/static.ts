@@ -20,13 +20,39 @@ const TYPES: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  // the web app manifest, which is how a phone is offered the game as something to install. Its
+  // own extension rather than `.json`, and the day it was missing from this table the browser was
+  // handed a file it had no type for
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
   '.woff2': 'font/woff2',
   '.wasm': 'application/wasm',
+  '.txt': 'text/plain; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
 };
+
+/**
+ * A file that is not there, answered as not being there.
+ *
+ * Returning false here would hand the request back to the router, whose last word is a plain-text
+ * status page served with a 200 — so a missing asset arrived at the browser as the words
+ * "ai.world server, worlds: 1, players: 1" with every appearance of success. That is how a missing
+ * web app manifest turned up in the console as `Manifest: Line: 1, column: 1, Syntax error.`: the
+ * browser was handed the status page and asked to read it as JSON.
+ *
+ * Only for a path that plainly names a file. Anything without an extension is a page rather than an
+ * asset, and the status page is a reasonable answer to it — that is the one the router wants back.
+ */
+function missing(asked: string, res: ServerResponse): boolean {
+  if (!extname(asked)) return false;
+  res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+  res.end(`no such file: ${asked}\n`);
+  return true;
+}
 
 /**
  * A handler that serves files from `root`, or null when there is nothing there to serve — in
@@ -48,9 +74,9 @@ export function staticFiles(root: string): ((req: IncomingMessage, res: ServerRe
     if (!path.startsWith(base + sep) && path !== base) return false;
 
     try {
-      if (!statSync(path).isFile()) return false;
+      if (!statSync(path).isFile()) return missing(asked, res);
     } catch {
-      return false;
+      return missing(asked, res);
     }
     res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream' });
     createReadStream(path).pipe(res);

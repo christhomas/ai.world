@@ -210,13 +210,13 @@ export function stampPier(chunk: ChunkData, ox: number, oz: number, s: Structure
    * sunken boat, and stepping aboard was a drop. Reported as the pier being under the water, which
    * is the same mismatch seen from the other end.
    *
-   * So the shore end keeps the land's height, the seaward end comes down to `WORLD.BOAT_DECK` —
-   * where a moored boat's deck is, the one number the ferry also stands the hero at — and the
-   * planks in between step down evenly. Each tile stays flat, because a plank is flat: what slopes
-   * is the jetty, one board at a time.
+   * So the shore end keeps the land's height, the seaward end comes down to a quay's height above
+   * the *water* — `WORLD.PIER_FREEBOARD`, measured from the sea rather than from the seabed under
+   * it — and the planks in between step down evenly. Each tile stays flat, because a plank is flat:
+   * what slopes is the jetty, one board at a time.
    */
   const from = s.level * WORLD.STEP;
-  const to = WORLD.BOAT_DECK;
+  const to = WORLD.WATER_Y + WORLD.PIER_FREEBOARD;
   for (let k = 0; k < s.path.length; k++) {
     const [x, z] = s.path[k];
     const idx = localIndex(chunk, ox, oz, x, z);

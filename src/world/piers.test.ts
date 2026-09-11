@@ -80,19 +80,23 @@ describe('the walk out to the end of a jetty', () => {
       }
       const end = decks[decks.length - 1];
       // it only has six boards, so a pier off a cliff gets as far down as six steps take it; what
-      // is asked of every one of them is that it is never lower than the deck of the boat
-      expect(end, 'the last plank is under the boat that ties up at it')
-        .toBeGreaterThanOrEqual(WORLD.BOAT_DECK - 0.001);
+      // is asked of every one of them is that it never dips to the water it is standing over
+      expect(end, 'the last plank is awash')
+        .toBeGreaterThanOrEqual(WORLD.WATER_Y + WORLD.PIER_FREEBOARD - 0.001);
     }
     expect(checked, 'no jetty was long enough to walk down').toBeGreaterThan(0);
   });
 
-  it('brings an ordinary jetty right down to the water', () => {
-    // most piers leave a shore a terrace or two up and have boards enough to reach the sea; the
-    // point of the whole change is that those end level with the ferry rather than above it
+  it('brings an ordinary jetty down to a quay\'s height above the water', () => {
+    /*
+     * Not level with the boat, which was the first attempt and was still reported as a jetty lying
+     * in the water: from an isometric view the sea in front of a deck that low is drawn across it.
+     * A quay stands clear and you step down into a boat — which is what a jetty is, and leaves the
+     * drop aboard within one terrace, the most a hero can climb back up.
+     */
     const sampler = new TerrainSampler(growWorld(1, 'road'));
     const ends = sampler.structures.piers
-      .filter((p) => p.level * WORLD.STEP <= WORLD.BOAT_DECK + p.tiles.length * WORLD.STEP)
+      .filter((p) => p.level * WORLD.STEP <= WORLD.WATER_Y + WORLD.PIER_FREEBOARD + p.tiles.length * WORLD.STEP)
       .map((p) => {
         const [x, z] = p.tiles[p.tiles.length - 1];
         const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
@@ -102,6 +106,14 @@ describe('the walk out to the end of a jetty', () => {
       })
       .filter((h): h is number => h !== null);
     expect(ends.length, 'this world has no ordinary jetties in it').toBeGreaterThan(0);
-    for (const end of ends) expect(end).toBeCloseTo(WORLD.BOAT_DECK, 5);
+    for (const end of ends) expect(end).toBeCloseTo(WORLD.WATER_Y + WORLD.PIER_FREEBOARD, 5);
+  });
+
+  it('leaves a step down into the boat rather than a drop', () => {
+    // the jetty stands proud of the water and the ferry floats in it, so there is a difference
+    // between the two by design. It has to stay inside what a hero can climb back up
+    const drop = (WORLD.WATER_Y + WORLD.PIER_FREEBOARD) - WORLD.BOAT_DECK;
+    expect(drop, 'the quay is below the boat it serves').toBeGreaterThan(0);
+    expect(drop, 'boarding a ferry is a fall off a wall').toBeLessThanOrEqual(WORLD.STEP);
   });
 });

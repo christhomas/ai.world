@@ -35,8 +35,9 @@ describe('handing out the game', () => {
       const climbed = await fetch(`http://localhost:${server.port}/../secret.txt`);
       const body = await climbed.text();
       expect(body).not.toContain('not yours');
-      // it falls through to the status page rather than serving somebody's home directory
-      expect(body).toContain('ai.world server');
+      // and it says so plainly rather than pretending: a file that is not there is a 404, which is
+      // the answer a browser can act on
+      expect(climbed.status).toBe(404);
     } finally { await server.close(); }
   });
 
@@ -53,6 +54,60 @@ describe('handing out the game', () => {
     const server = await startServer({ port: 0, dataDir: dir, quiet: true });
     try {
       expect(await (await fetch(`http://localhost:${server.port}/`)).text()).toContain('players:');
+    } finally { await server.close(); }
+  });
+});
+
+/**
+ * What a browser is told about a file that is not there.
+ *
+ * Reported from a homelab as `Manifest: Line: 1, column: 1, Syntax error.` — which is not a
+ * manifest fault at all. The router's last word is a plain-text status page served with a 200, and
+ * a missing asset fell through to it: the browser asked for the web app manifest, was handed the
+ * words "ai.world server, worlds: 1, players: 1" with every appearance of success, and tried to
+ * read them as JSON.
+ *
+ * Two rules come out of it. A path that names a file and has no file is a 404, and the manifest has
+ * a content type of its own — it is `.webmanifest` rather than `.json`, so the table had nothing to
+ * say about it and it went out as a stream of bytes.
+ */
+describe('a file that is not there', () => {
+  let dir = '';
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'aiworld-missing-'));
+    writeFileSync(join(dir, 'index.html'), '<title>ai.world</title>');
+    writeFileSync(join(dir, 'manifest.webmanifest'), '{"name":"AI World"}');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('is a 404 rather than the status page wearing its clothes', async () => {
+    const server = await startServer({ port: 0, dataDir: dir, staticDir: dir, quiet: true });
+    try {
+      const gone = await fetch(`http://localhost:${server.port}/nothing-here.webmanifest`);
+      expect(gone.status).toBe(404);
+      expect(await gone.text(), 'the browser was handed the status page and asked to parse it')
+        .not.toContain('ai.world server');
+    } finally { await server.close(); }
+  });
+
+  it('hands out a manifest as a manifest', async () => {
+    const server = await startServer({ port: 0, dataDir: dir, staticDir: dir, quiet: true });
+    try {
+      const got = await fetch(`http://localhost:${server.port}/manifest.webmanifest`);
+      expect(got.status).toBe(200);
+      expect(got.headers.get('content-type') ?? '').toContain('manifest+json');
+      expect(JSON.parse(await got.text()).name).toBe('AI World');
+    } finally { await server.close(); }
+  });
+
+  it('still gives the status page to something that is not asking for a file', async () => {
+    // a path with no extension is a page rather than an asset, and the plain status text is a
+    // reasonable answer to one
+    const server = await startServer({ port: 0, dataDir: dir, staticDir: dir, quiet: true });
+    try {
+      const body = await (await fetch(`http://localhost:${server.port}/somewhere`)).text();
+      expect(body).toContain('ai.world server');
     } finally { await server.close(); }
   });
 });
