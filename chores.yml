@@ -328,13 +328,30 @@ tasks:
     desc: Roll the world server into one file, the way the image ships it
     cmds: ['pnpm vite build --config server/build.config.ts']
 
+  # The container, run by these two and not by a compose file.
+  #
+  # Compose was one service with a build, a port, a restart policy and a named volume — every line
+  # of which is a flag on `docker run`, and none of which needed a second file and a second tool to
+  # say. `chore` is how everything else in this project is run; a container was the one thing that
+  # asked somebody to know about a different orchestrator to start it.
+  #
+  # The volume is named rather than a bind mount, deliberately: Docker gives a named volume the
+  # image's own ownership, so the unprivileged user in the container can write to it on any host.
+  # To read the worlds from the host instead, swap it for `-v ./server/data:/data` and
+  # `chore worlds` will see them.
   up:
     desc: The world server in a container, its worlds on a volume that outlives it
-    cmds: ['docker compose up --build {{.CLI_ARGS}}']
+    cmds:
+      - docker build -t ai-world-server .
+      # flags land before the image, so `chore up -- -d` leaves it running in the background
+      - >-
+        docker run --rm -p 8787:8787 -v ai-world-data:/data --name ai-world
+        {{.CLI_ARGS}} ai-world-server
 
   down:
     desc: Stop that container, keeping every world it has kept
-    cmds: ['docker compose down']
+    # the volume is untouched: stopping a server is not the same as forgetting its worlds
+    cmds: ['docker rm -f ai-world 2>/dev/null || true']
 
   deploy:
     desc: Publish the world server to Fly.io, where it answers over wss://

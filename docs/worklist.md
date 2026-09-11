@@ -2884,3 +2884,20 @@ other, and the order is chosen so that each one can be *seen* working before the
             the way the hero was standing.
 
             So the gap is a building, and the day there is one the catalogue grows by a line.
+
+## Still to do, at the end — September 11th
+
+- [ ] **19. The screenshots are out of date.** Twenty of them in `README.md`, all taken on or before
+      September 4th, and the game has moved a long way since: hearts are a bar and a number now, the
+      cattle stand in the fields, villagers buy their drink at the inn, the roster has a column for
+      what everybody is doing, and the Domesday Book did not exist. Some of them are showing a game
+      nobody can play any more.
+
+      Asked for explicitly, to be done at the end rather than alongside: a screenshot taken in the
+      middle of a run of changes is a screenshot that is out of date by the time the run finishes.
+      `docs/screenshots/` has the list; the borrowed-playwright recipe in
+      [[headless-probe-recipe]] is how they are taken, and `?seed&x&z` puts the camera where it
+      needs to be.
+
+      Worth adding as well as replacing: the Domesday Book, a field with cattle and the farmer
+      working them, and the health bar — none of which any existing shot shows.

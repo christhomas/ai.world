@@ -268,7 +268,9 @@ else the machine that served the page. Playing with somebody on your network is
 
 Deployment is a GitHub Action that builds `dist/` on every push to `main` and publishes it to
 GitHub Pages; the repository's Pages source must be set to **GitHub Actions**. The original
-single-file prototype is kept at `legacy/index.html`.
+single-file prototype is in the history rather than in the tree: `git show
+feeb7be:legacy/index.html` is the 61KB it started as, if you ever want to see where this came
+from.
 
 ### Playing at home, on your own network
 
@@ -504,7 +506,7 @@ properties/    what every creature is, and where it comes from: paces, bites, pu
 models/        the body every creature is drawn with: creatures/<name>.json, one apiece
 chores.yml     how to run all of it: `chore dev`, `chore check`, `chore worlds`
 Dockerfile     the world server as an image: one bundled module, `ws`, node, and nothing else
-docker-compose.yml   that image with its worlds on a volume, which is what `chore up` runs
+               — `chore up` builds and runs it, worlds on the `ai-world-data` volume
 fly.toml       where the server goes to have a name and a certificate
 ```
 

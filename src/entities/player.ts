@@ -7,7 +7,7 @@ import { JUMP, leapHeight } from './leap';
 import { newHero, stride, type Steer } from './stride';
 import type { EntityRenderer } from './pool';
 
-/** The hero: an entity driven by the keyboard, with the camera trailing it. */
+/** The hero: an entity driven by the keyboard, or by anything else when the keyboard is still. */
 export class Player {
   readonly entity: Entity;
   /** 'follow' = WASD moves the hero and the camera tracks; 'free' = the old fly-around camera. */
@@ -55,6 +55,28 @@ export class Player {
    * 0.55, so ambling is genuinely a different gait and not just a slower run.
    */
   static readonly STROLL = 0.42;
+  /**
+   * Something other than the keyboard, asked for a direction when the keyboard is idle.
+   *
+   * A function rather than a behaviour tree, and that is the point of the shape: whether the thing
+   * on the other end is a tree out of `behaviours/`, a script walking the hero across a county, or
+   * a line of test code is none of this file's business. What it says is that the hero has a way in
+   * for a decision he did not make with his hands.
+   *
+   * Returning nothing means "nothing to say this frame", which is different from standing still —
+   * a driver that wanted him stopped simply returns nothing and the ordinary idle takes over.
+   */
+  autopilot: ((dt: number) => { dx: number; dz: number } | null) | null = null;
+
+  /**
+   * How near a spot counts as having got there.
+   *
+   * A tile and a half. Close enough that the hero is plainly at the thing he was sent to, and loose
+   * enough that he is not still shuffling because a cow is standing on the exact tile — `stride`
+   * walks him round whatever is in the way, so an autopilot that insisted on a point would pace
+   * around it for ever.
+   */
+  static readonly ARRIVED = 1.5;
 
   constructor(private world: TileWorld, renderer: EntityRenderer, x: number, z: number) {
     this.entity = newHero(x, z);
@@ -147,6 +169,33 @@ export class Player {
   get y(): number { return this.entity.y; }
 
   /** First frames: the spawn chunk may not be loaded yet; snap to ground once it is. */
+  /**
+   * Walk there, and stop when you arrive.
+   *
+   * The first thing built on `autopilot`, and the one that makes an automated game possible: a
+   * script can say where the hero should be rather than which keys a person would have held to get
+   * him there. Everything about the walk is the ordinary walk — the same `stride`, the same
+   * collision, the same crowd — because all this does is hand over the steer the keyboard would
+   * have handed over.
+   *
+   * It clears itself on arrival rather than being switched off by whoever set it. A driver that had
+   * to be told to stop is a driver that keeps walking when the thing that set it has gone away, and
+   * a hero pressed against a wall for ever is the failure nobody would think to look for.
+   *
+   * Passing nothing stops him where he is, which is what a caller wants when the plan has changed.
+   */
+  walkTo(x?: number, z?: number, within = Player.ARRIVED): void {
+    if (x === undefined || z === undefined) { this.autopilot = null; return; }
+    this.autopilot = () => {
+      const dx = x - this.entity.x, dz = z - this.entity.z;
+      if (Math.hypot(dx, dz) <= within) { this.autopilot = null; return null; }
+      return { dx, dz };
+    };
+  }
+
+  /** Whether something other than a person is presently steering, for anybody checking. */
+  get steering(): boolean { return this.autopilot !== null; }
+
   private settle(): boolean {
     const e = this.entity;
     if (this.placed) return true;
@@ -237,7 +286,28 @@ export class Player {
     if (input.isDown('s', 'arrowdown')) { dx -= fx; dz -= fz; }
     if (input.isDown('a', 'arrowleft')) { dx -= rx; dz -= rz; }
     if (input.isDown('d', 'arrowright')) { dx += rx; dz += rz; }
-    const len = Math.hypot(dx, dz);
+    let len = Math.hypot(dx, dz);
+    /*
+     * Nobody is pressing anything, so whatever else is driving him may have a turn.
+     *
+     * This is the seam the whole vocabulary was built towards, and it is deliberately one line
+     * rather than a machine. The decisions a hero makes and the decisions a villager makes are the
+     * same decisions — it is who picks that differs, and a villager's tree picks for itself where
+     * the hero's branches are offered to a player as a menu. So the hero does not need a tree
+     * *instead of* hands; he needs somewhere for one to reach him when the hands are still.
+     *
+     * Input wins outright and without ceremony. A hero who argued with the keyboard for a frame
+     * would be unplayable, and there is no version of "the autopilot was mid-thought" that a player
+     * would forgive — so this is only consulted when nothing is held down at all.
+     *
+     * What it is for: a scripted playtest that drives a real hero through the real verbs rather
+     * than synthesising keypresses; "walk to Frostgard" becoming the `goTo` a villager already
+     * uses; and a disconnected player standing down sensibly instead of freezing in a field.
+     */
+    if (len === 0 && this.autopilot) {
+      const asked = this.autopilot(dt);
+      if (asked) { dx = asked.dx; dz = asked.dz; len = Math.hypot(dx, dz); }
+    }
     let moved = false;
     // Hold shift to stroll. The hero has only ever had one pace, so the run lean and the long
     // stride the motion file gives a running creature were on him permanently, even crossing a
