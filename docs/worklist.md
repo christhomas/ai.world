@@ -3143,7 +3143,25 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       as a directory — where the doctor is, where the builder drinks — which is the beginning of a
       job market, and vacancies are a thing a player can read and answer.
 
-- [ ] **29. Provinces with a character of their own.** Asked for as "a variety of danger and
+- [x] **29. Provinces with a character of their own.** *Done on the 12th.* A province now has a seed
+      of its own — `hash3(rootSeed, px, pz)`, derived from where it is and never from how you got
+      there — and a temper out of it: `world/character.ts` gives every 512-tile square a danger
+      between 0.2 and 0.95, and `dangerAt` blends the four nearest so the join between a quiet county
+      and a bad one is a stretch of country rather than a line in the grass a player could stand
+      astride and watch the wolves stop.
+
+      What it buys is deliberately not a second set of spawn tables. A wood is a wood everywhere;
+      what a *dangerous* wood has is more of the wolves the wood already had. So a bad province has
+      something out after dark up to 1.6 times as often, and in daylight up to half its herds come
+      from `BIOME_HUNTERS` — the half of the local list with teeth, read off the bestiary rather than
+      written down again, so a creature given a bite joins it the same morning.
+
+      This is the answer to the rings question, and it keeps the rule the endless country rests on:
+      no precomputation, nothing saved, one hash per chunk against the dozens of noise samples it
+      already takes. A province nobody has ever visited already has a character; it is simply that
+      nobody has asked. The original note:
+
+      Asked for as "a variety of danger and
       different terrains and frontiers". A province's seed is `hash(rootSeed, px, pz)` — derived
       from where it is, never from how you got there — and from it: what lives there, how dangerous
       it is, which landscape dominates. Big structures (a range, a desert belt) come from

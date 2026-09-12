@@ -1,4 +1,5 @@
 import spawning from '../../properties/spawning.json';
+import { KINDS } from './animals';
 import { Biome } from '../world/biomes';
 import { Fields, asText } from '../core/properties';
 import type { TileWorld } from './entity';
@@ -72,6 +73,20 @@ export const WATER_ANIMALS: Record<Biome, SpawnWeight[]> = perCountry((country) 
 
 /** Extra packs that only come out after dark, per biome. Picked flat, so names and no shares. */
 export const NIGHT_PREDATORS: Record<Biome, string[]> = perCountry((country) => country.list('night', asText));
+
+/**
+ * The half of each biome's list that can hurt you.
+ *
+ * Read off the bestiary rather than written down again: anything with a bite is a hunter, which
+ * means a creature given teeth in `properties/` joins this list on the same morning and a table
+ * here can never fall out of step with what an animal actually is.
+ *
+ * It exists so that a province with a bad name has more in it than a quiet one without needing a
+ * second set of spawn tables per province — see `world/character.ts`. A wood is a wood everywhere;
+ * what a dangerous wood has is more of the wolves the wood already had.
+ */
+export const BIOME_HUNTERS: Record<Biome, SpawnWeight[]> = perCountry((country) =>
+  weights(country.group('land')).filter((s) => (KINDS[s.kind]?.damage ?? 0) > 0));
 
 /** What waits underground, by how far down you are. One entry per floor, counting from one. */
 const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> =

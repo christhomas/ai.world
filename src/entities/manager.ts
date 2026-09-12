@@ -599,7 +599,7 @@ export class EntityManager {
     const sorted = sortTiles(tiles);
     const out: Entity[] = [];
     if (sorted.land.length === 0 && sorted.water.length === 0 && sorted.road.length === 0) return out;
-    const ctx: SpawnCtx = { tiles, key, rng, out };
+    const ctx: SpawnCtx = { tiles, key, rng, out, seed: this.seed };
 
     // Nothing at all when somebody else is holding this world. The animals went across first, on
     // the argument that they are what two players standing in one field disagree about; the people
@@ -695,5 +695,5 @@ export class EntityManager {
   }
 }
 
-export interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[] }
+export interface SpawnCtx { tiles: ChunkTiles; key: string; rng: Rng; out: Entity[]; seed: number }
 

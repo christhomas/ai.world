@@ -24,6 +24,8 @@ export const SALT = {
   HUNT: 0x5aa4,
   INTERIOR: 0x1de5,
   PEOPLE: 0x9e0b,           // the families a village is founded with
+  SEX: 0x5e40,              // whether somebody is a woman or a man — its own stream, so that
+                            // asking the question costs the founding not a single roll
   FOREST: 0x2f00,           // which trees are worth felling, and what a stand grows back to
   HERBS: 0x8e2b,            // where the plants a draught needs are growing
   HAUNT: 0xd0a7,            // where the things that are not animals keep to
@@ -39,6 +41,7 @@ export const SALT = {
   SKY: 0x5c1e,              // which islands have another one floating over them, and its shape
   LOCAL_ROAD: 0x10ad,       // how a road of the endless country bends, and how high it sits
   UNWATCHED: 0xc105,        // where a creature nobody was watching has got to by the time you arrive
+  PROVINCE: 0x9401,         // what one five-hundred-tile square of country is like to walk into
 } as const;
 
 /** Per-tile hash salts (rand2 / hash3 fourth argument). */

@@ -1,8 +1,10 @@
 import { tileCentre, type SortedTiles } from './chunkspots';
 import {
-  BIOME_ANIMALS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS, openGround, pickKind,
+  BIOME_ANIMALS, BIOME_HUNTERS, DEEP_ANIMALS, HIGHLAND_ANIMALS, NIGHT_PREDATORS, WATER_ANIMALS,
+  openGround, pickKind,
 } from './spawns';
 import { SPAWN } from './spawning';
+import { dangerAt } from '../world/character';
 import type { Herd, TileWorld } from './entity';
 import type { SpawnCtx } from './manager';
 
@@ -60,11 +62,39 @@ export interface Wilds {
  */
 const NOT_AT_A_VILLAGE = 40;
 
+/**
+ * How much of a province's temper a night is allowed to carry.
+ *
+ * The danger of a place is a number between nought and one (`world/character.ts`), and this is what
+ * it buys: at its worst a bad county has something out after dark about half again as often as a
+ * quiet one, and in daylight one herd in that many is drawn from the half of the local list that
+ * bites. Deliberately modest — a province you cannot cross is not a province, it is a wall — and
+ * deliberately felt, because a player who walks three counties should be able to say which one they
+ * would rather camp in.
+ */
+export const TEMPER = {
+  /** What the worst province multiplies the chance of a night pack by. */
+  NIGHTS: 1.6,
+  /** And how often one of its daytime herds is something with teeth, at its worst. */
+  TEETH: 0.5,
+} as const;
+
 /** Land herds, water herds, whatever hunts after dark, and the odd traveller on the road. */
 export function spawnWildlife(o: Wilds, ctx: SpawnCtx, sorted: SortedTiles): void {
   const { tiles, rng } = ctx;
-  // after dark, something else is out on the land
-  if (o.night && sorted.land.length >= SPAWN.MIN_LAND_TILES && rng() < SPAWN.NIGHT_PACK_CHANCE) {
+  /*
+   * What this county is like, which is a fact about the place rather than about the player.
+   *
+   * One hash against the dozens of noise samples this chunk has already taken, blended across the
+   * boundaries so that the frontier between a quiet province and a bad one is a stretch of country
+   * rather than a line in the grass — see `dangerAt`. A world with nothing to ask gets the middle
+   * of the scale, which is the country as it was before provinces had tempers.
+   */
+  const here = tileCentre(tiles, sorted.land[0] ?? sorted.water[0] ?? 0);
+  const danger = dangerAt(ctx.seed, here[0], here[1]);
+  // after dark, something else is out on the land — and more often where the land has a name for it
+  if (o.night && sorted.land.length >= SPAWN.MIN_LAND_TILES
+    && rng() < SPAWN.NIGHT_PACK_CHANCE * (1 + danger * (TEMPER.NIGHTS - 1))) {
     const table = NIGHT_PREDATORS[sorted.biome];
     const kindId = table[Math.floor(rng() * table.length)];
     const den = openGround(o.world, tiles, sorted.land, rng);
@@ -77,7 +107,11 @@ export function spawnWildlife(o: Wilds, ctx: SpawnCtx, sorted: SortedTiles): voi
       // lives here is the height rather than the biome the map happens to call it
       const spot = openGround(o.world, tiles, sorted.land, rng);
       if (!spot) break;
-      const table = o.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS : BIOME_ANIMALS[sorted.biome];
+      // and in daylight the same country keeps more of what bites, which is what a bad province is:
+      // the wood is the same wood, and there are more wolves in it
+      const teeth = rng() < danger * TEMPER.TEETH && BIOME_HUNTERS[sorted.biome].length > 0;
+      const table = o.highland(spot[0], spot[1]) ? HIGHLAND_ANIMALS
+        : teeth ? BIOME_HUNTERS[sorted.biome] : BIOME_ANIMALS[sorted.biome];
       const kindId = pickKind(table, rng());
       if (!kindId) break;
       o.herd(ctx, kindId, spot, SPAWN.HERD_LEASH);
