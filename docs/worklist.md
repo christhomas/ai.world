@@ -3763,7 +3763,35 @@ than by remembering — and the first thing found was that the gap is not where 
       an answer. That is the layer this adds: the map stops being a thing villagers are *placed on*
       and starts being a thing they *cross*.
 
-- [ ] **65. At midnight, a village should look like it is asleep.** There are as many people on the
+- [~] **65. At midnight, a village should look like it is asleep.** *Two real holes found and shut.*
+
+      The clock was never the problem: every trade's day already has hours in it and already ends
+      "at home". Two days simply **ran out**. The miner's tree stopped after the inn, and anybody the
+      register never gave a trade — the elder, whoever keeps the horses, every face that is only a
+      face — had no tree at all and fell through to the one that drives a *wandering animal*, which
+      wanders at three in the morning exactly as it does at noon. A tree whose last branch carries an
+      hour decides nothing outside that hour: no branch claims the tick, and a man who has been down
+      a mine since dawn walks the street until sunrise.
+
+      So: the miner gets a bed, and there is a `villager` day for the trade-less — about the square,
+      an hour at the inn, in at dark. `nightfall.test.ts` holds the shape rather than the simulation:
+      **every day ends in a bed**, and the last branch of every tree is unconditional. It is obvious
+      written down and invisible otherwise, and it will be invisible again the next time somebody
+      adds a trade.
+
+      And one real bug underneath, found by the test that watches a villager go in at dusk and come
+      out after dawn: `goTo` only put somebody *outdoors* on the tick it made them walk. A man whose
+      own front door is inside the few paces a post counts as "near enough" never takes that step —
+      so he stayed indoors all day because he was already close enough to be on the square.
+
+- [ ] **65a. They walk home and do not arrive.** Measured after the above, at one in the morning:
+      four of five are still on the street and every one of them says "at home", which is the tree
+      doing the right thing and the walk not finishing. `goTo ... enter` wants to be within 1.2 tiles
+      of the door tile, and something is stopping them short — a crowded threshold, a door tile that
+      is not standable, or a home post that is inside the house's own footprint. Worth measuring per
+      villager: distance to their own door over a few minutes of game time, and whether it plateaus.
+
+      The original note follows. There are as many people on the
       street at two in the morning as at noon, which is the single loudest thing wrong with a
       village as a picture. Everybody should be somewhere by then: their own house, an inn, or a
       free house (**64**) if they are away from home. The ones still out should be out *for a

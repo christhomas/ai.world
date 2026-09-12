@@ -535,6 +535,12 @@ export const LONG_RUN: Record<string, LongRun> = {
   constable: keepsItsHours,
   doctor: keepsItsHours,
   soldier: keepsItsHours,
+  /*
+   * Anybody the register never gave a trade: the elder, whoever keeps the horses, a face in a
+   * street. Their day is hours like everybody else's — about the square, an hour at the inn, and in
+   * at dark — so a week of it is answered the same way, by reading the hours back out of the file.
+   */
+  villager: keepsItsHours,
   sailor: keepsItsHours,
   climber: keepsItsHours,
   explorer: keepsItsHours,

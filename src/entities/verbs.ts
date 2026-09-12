@@ -307,8 +307,19 @@ function goTo(params: Params): CreatureNode {
       if (self.state !== 'walk') { self.state = 'walk'; self.timer = 8; }
       return 'running';
     }
-    // arrived. `enter` is what takes somebody off the street and through their own front door:
-    // they step onto the threshold itself, since the next thing they do is stop being drawn
+    /*
+     * Arrived.
+     *
+     * Somebody who is at a post is out of doors, and that has to be said here rather than only on
+     * the walk: a man whose own front door is inside the few paces a post counts as "near enough"
+     * never takes a step to reach the square, so the line above that puts him outside never runs —
+     * and he spends the whole day indoors because he was already close enough to be on it. Found by
+     * the test that watches a villager go in at dusk and come out after dawn, the morning the
+     * trade-less were given a day of their own.
+     */
+    if (params.enter !== true) self.indoors = false;
+    // `enter` is what takes somebody off the street and through their own front door: they step
+    // onto the threshold itself, since the next thing they do is stop being drawn
     if (params.enter === true) {
       self.x = post[0];
       self.z = post[1];

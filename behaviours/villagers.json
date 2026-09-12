@@ -285,7 +285,7 @@
         "doing": "hurt, getting seen to"
       },
       {
-        "note": "Carrying a kill? Then the market, whatever hour it is — meat does not keep.",
+        "note": "Carrying a kill? Then the market, whatever hour it is \u2014 meat does not keep.",
         "when": {
           "ask": "carrying"
         },
@@ -629,21 +629,96 @@
       }
     ]
   },
+  "villager": {
+    "note": "Anybody in a village the register has not given a trade: the elder, whoever keeps the horses, and every face in a street that is only a face. They had no tree at all, so they fell through to the one that drives a wandering animal \u2014 which wanders at three in the morning exactly as it does at noon, and is most of why a village at midnight looked like a village at noon.",
+    "first": [
+      {
+        "note": "The day is spent about the square, which is where somebody with nothing in particular to do is.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.26,
+            "to": 0.8
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "square",
+            "within": 5
+          }
+        },
+        "doing": "about the village"
+      },
+      {
+        "note": "An hour at the inn before bed, which is what an evening in a village is.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.8,
+            "to": 0.9
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "inn",
+            "within": 3
+          }
+        },
+        "doing": "at the inn"
+      },
+      {
+        "note": "And in at dark. Every trade in this file ends on this branch and this is the reason: a village where everybody is somewhere by midnight is a village that looks asleep, and the few still out are worth looking at.",
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        },
+        "doing": "at home"
+      }
+    ]
+  },
   "hired": {
     "note": "Bought and paid for. Keep at the shoulder of whoever is paying, and put down whatever goes for anybody near them. The gate can wait until the bargain is done. What he has been told changes which of these he takes, not how he takes it: told to hold he still defends himself, told to fight he still walks round a boulder rather than into it.",
     "first": [
       {
-        "note": "Posted to a tower. He goes to the foot of it, he is on the fighting platform a moment later, and from up there he shoots whatever comes near enough to be worth an arrow. Above the trouble branch on purpose: a bowman who climbs down to go and hit something with his sword is a bowman who has thrown away the only thing a bow is for, and a tower with nobody on it is a tower. He is not safe up there — anything that reaches the foot of it can still be a problem when he steps off — but while he is on it he outranges nearly everything in the country.",
-        "when": { "ask": "told", "with": { "to": "watch" } },
+        "note": "Posted to a tower. He goes to the foot of it, he is on the fighting platform a moment later, and from up there he shoots whatever comes near enough to be worth an arrow. Above the trouble branch on purpose: a bowman who climbs down to go and hit something with his sword is a bowman who has thrown away the only thing a bow is for, and a tower with nobody on it is a tower. He is not safe up there \u2014 anything that reaches the foot of it can still be a problem when he steps off \u2014 but while he is on it he outranges nearly everything in the country.",
+        "when": {
+          "ask": "told",
+          "with": {
+            "to": "watch"
+          }
+        },
         "then": {
           "steps": [
-            { "do": "takePost", "with": { "height": 5.3, "within": 1.8 } },
             {
-              "note": "Wrapped so that a quiet watch still claims the tick. Without it a man with nothing to shoot at falls through to the branch below, which sends him off after whatever is nearest with teeth — and the first wolf a mile away empties the tower.",
+              "do": "takePost",
+              "with": {
+                "height": 5.3,
+                "within": 1.8
+              }
+            },
+            {
+              "note": "Wrapped so that a quiet watch still claims the tick. Without it a man with nothing to shoot at falls through to the branch below, which sends him off after whatever is nearest with teeth \u2014 and the first wolf a mile away empties the tower.",
               "anyway": {
                 "steps": [
-                  { "do": "markFoe", "with": { "within": 16 } },
-                  { "anyway": { "do": "loose", "with": { "damage": 22, "cooldown": 1.8, "tiles": 16 } } }
+                  {
+                    "do": "markFoe",
+                    "with": {
+                      "within": 16
+                    }
+                  },
+                  {
+                    "anyway": {
+                      "do": "loose",
+                      "with": {
+                        "damage": 22,
+                        "cooldown": 1.8,
+                        "tiles": 16
+                      }
+                    }
+                  }
                 ]
               }
             }
@@ -710,7 +785,7 @@
         "doing": "going in"
       },
       {
-        "note": "Told to hold: stand where you were put. Whatever comes to him is still his business — the branch above this one is the trouble branch, and it is above for that reason.",
+        "note": "Told to hold: stand where you were put. Whatever comes to him is still his business \u2014 the branch above this one is the trouble branch, and it is above for that reason.",
         "when": {
           "ask": "told",
           "with": {
@@ -718,7 +793,7 @@
           }
         },
         "then": {
-          "note": "Drop whatever he had marked, and stand where he was put — walking back to the spot if anything shoves him off it. Nothing above this has claimed the tick, so there is nothing on anybody: he is waiting, and waiting somewhere in particular.",
+          "note": "Drop whatever he had marked, and stand where he was put \u2014 walking back to the spot if anything shoves him off it. Nothing above this has claimed the tick, so there is nothing on anybody: he is waiting, and waiting somewhere in particular.",
           "steps": [
             {
               "do": "forget"
@@ -734,7 +809,7 @@
         "doing": "waiting where he was put"
       },
       {
-        "note": "Nothing to fight and nothing said: drop the mark and walk at the hero, which is what following is. `forget` was its own branch here and that was a bug with teeth — `act` returns success and `first` is a selector, so a standing `forget` swallowed every quiet tick and the branch under it was unreachable. A hired man never once walked after anybody; it read as working because a hero who teleports drags his company with him and `muster` re-seats them every half second.",
+        "note": "Nothing to fight and nothing said: drop the mark and walk at the hero, which is what following is. `forget` was its own branch here and that was a bug with teeth \u2014 `act` returns success and `first` is a selector, so a standing `forget` swallowed every quiet tick and the branch under it was unreachable. A hired man never once walked after anybody; it read as working because a hero who teleports drags his company with him and `muster` re-seats them every half second.",
         "steps": [
           {
             "do": "forget"
@@ -918,7 +993,7 @@
     ]
   },
   "facework": {
-    "note": "A shift at the rock face, which is where every coin in this world is minted. Underground only: `src/game/crews.ts` puts the village's miners at the cuts when somebody walks into their mine, and gives each of them a `work` post on the tile he is cutting at. Filed under a name no village trade uses, on purpose — his trade is `miner` and he is called one, but giving this day to the trade itself would put every miner in the country outside his own front door swinging a pick at the grass. No hour in it either: a shift underground does not know what the sky is doing, and a mine you can only find people in between ten and four is a mine you would swear was empty.",
+    "note": "A shift at the rock face, which is where every coin in this world is minted. Underground only: `src/game/crews.ts` puts the village's miners at the cuts when somebody walks into their mine, and gives each of them a `work` post on the tile he is cutting at. Filed under a name no village trade uses, on purpose \u2014 his trade is `miner` and he is called one, but giving this day to the trade itself would put every miner in the country outside his own front door swinging a pick at the grass. No hour in it either: a shift underground does not know what the sky is doing, and a mine you can only find people in between ten and four is a mine you would swear was empty.",
     "steps": [
       {
         "note": "Back to his own cut if anything has shouldered him off it, and near enough is standing at it.",
@@ -940,8 +1015,8 @@
   "miner": {
     "note": [
       "Up to the high ground at first light, back down at dusk, and the inn after.",
-      "This is the surface half of a miner's day and it had no tree at all — a villager whose trade is mining fell through to the wanderer and pottered about the square like everybody else, which is why the trade was invisible from the street as well as from underground.",
-      "`heights` rather than a mine of his own, and that is a real limitation worth writing down: posts are worked out from the village (`entities/villagers.ts`) and a village's claimed mine lives in `game/mines.ts`, which knows nothing about posts. The highest ground within a ring of the village is where caves are, so it is the right direction and the wrong precision — he walks towards the hills and not to the mouth. Giving `postsOf` the claimed cave would fix it and wants the two to be introduced.",
+      "This is the surface half of a miner's day and it had no tree at all \u2014 a villager whose trade is mining fell through to the wanderer and pottered about the square like everybody else, which is why the trade was invisible from the street as well as from underground.",
+      "`heights` rather than a mine of his own, and that is a real limitation worth writing down: posts are worked out from the village (`entities/villagers.ts`) and a village's claimed mine lives in `game/mines.ts`, which knows nothing about posts. The highest ground within a ring of the village is where caves are, so it is the right direction and the wrong precision \u2014 he walks towards the hills and not to the mouth. Giving `postsOf` the claimed cave would fix it and wants the two to be introduced.",
       "The shift itself is `facework`, which `game/crews.ts` gives him when somebody walks into the workings. This is what he does when nobody is down there to see him."
     ],
     "first": [
@@ -1013,6 +1088,15 @@
           ]
         },
         "doing": "buying a drink"
+      },
+      {
+        "note": "And then home, like everybody else above ground. He was the one trade in the village with nowhere to go at the end of the day: the tree ran out after the inn, no branch claimed the tick, and a man who had been down a mine since dawn wandered the street until sunrise. Found by counting who was still out at one in the morning.",
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        },
+        "doing": "at home"
       }
     ],
     "steps": [
