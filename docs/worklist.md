@@ -3965,7 +3965,23 @@ than by remembering — and the first thing found was that the gap is not where 
       nine, because at nine it was under two units wide at the distance a cottage actually stands
       from somebody walking past, which is a hole you cannot see through.
 
-- [ ] **61. The endless country's high ground is not terraced.** Found in the first endless
+- [x] **61. The endless country's high ground is not terraced.** *Done on the 12th, and the cause was
+      not where anybody was looking.* Not the mountains and not `localland.ts`. `sampleTile` works
+      out how far across the countryside a tile stands — `(d - roadWidth) / (W - roadWidth)` — and
+      took `W` from the road's own `width`. A patch's roads carry `width: Infinity` on purpose,
+      because a patch's land is a shape and an edge has no honest band to report. So the share came
+      out nought on **every tile**, the rise came out nought on every tile, and the whole terraced
+      texture of the country was simply missing — leaving one rounding of a smooth swell, which is
+      the ramp in the screenshot. The other caller already knew and used a fixed width. One rule,
+      asked two ways, with one of the answers silently zero.
+
+      `world/countryside.ts` is that rule with one home, and it carries the clamp that the fix needs:
+      unclamped, a fixed width of 22 with roads up to 65 tiles apart would give an endless world
+      seventeen terraces where a bounded one gets four — a flight of stairs rather than stepped
+      country. In 19,405 tiles of open country: before, every single one at its road's level and no
+      high ground at all; after, 4,029 one step up, 2,382 two, 1,011 three, and 2,523 tiles standing
+      high enough to be drawn as high ground. The bounded world is byte-identical, and a tile is
+      slightly *cheaper* than it was. Found in the first endless
       screenshot and worth chasing: a big pale slab reading as a smooth gradient where the bounded
       world steps everything. `__peaks()` says there are no mountains in that patch, so it is not the
       rock mesh — it is the land itself, coming out of `localland.ts` as a ramp where the road world

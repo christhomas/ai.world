@@ -76,6 +76,45 @@ describe('a patch of the endless country', () => {
     expect(seen.get(TileType.Road) ?? 0, 'roads that are drawn nowhere').toBeGreaterThan(0);
   });
 
+  it('steps its ground away from its roads, the way the rest of this game is drawn', () => {
+    /*
+     * The country was a ramp, and that is the one fault in an endless world you cannot argue with
+     * a screenshot of: a big pale slab climbing evenly where everywhere else in this game climbs in
+     * terraces. It was not the mountains and it was not the mesh. `sampleTile` asked how far across
+     * the countryside a tile stands, and it asked the road — and a patch writes `Infinity` on its
+     * roads because a patch's land is a shape with no band to report. Every tile came back at
+     * exactly the level of the road nearest it.
+     *
+     * So this counts the steps. A patch of country has to hold ground standing one, two and three
+     * terraces above the road it belongs to, and some of it high enough to be drawn as high ground
+     * at all — which is what the bounded world has always had and what this had none of.
+     */
+    const rise = new Map<number, number>();
+    let high = 0, ground = 0;
+    const probe = west.newSample();
+    for (let z = 40; z < 470; z += 3) {
+      for (let x = 40; x < 470; x += 3) {
+        west.sampleTile(x, z, probe);
+        const open = probe.type === TileType.Ground || probe.type === TileType.GroundAlt
+          || probe.type === TileType.High;
+        if (!open) continue;
+        ground++;
+        if (probe.type === TileType.High) high++;
+        const step = probe.level - probe.base;
+        if (step > 0) rise.set(step, (rise.get(step) ?? 0) + 1);
+      }
+    }
+    expect(ground, 'no open country to measure').toBeGreaterThan(2000);
+    for (const step of [1, 2, 3]) {
+      expect(rise.get(step) ?? 0, `nothing stands ${step} terraces above its road`).toBeGreaterThan(20);
+    }
+    // and the shape of it: each step up is rarer than the one below, which is a countryside
+    // climbing away from its roads rather than a plateau with a lip round it
+    expect(rise.get(1)!).toBeGreaterThan(rise.get(2)!);
+    expect(rise.get(2)!).toBeGreaterThan(rise.get(3)!);
+    expect(high / ground, 'a country with no high ground drawn in it at all').toBeGreaterThan(0.02);
+  });
+
   it('stands rock on its high country', () => {
     const rock = west.ranges;
     expect(rock, 'no mountains at all').toBeTruthy();

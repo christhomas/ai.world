@@ -9,6 +9,7 @@ import { isLand, type WorldMesh } from './mesh';
 import { planMassifs, upliftAt, upliftRawAt, type Massif } from './mountains';
 import { growRanges, liftField, mountainAt, nearestLift, type Ranges } from './ranges';
 import { VALLEY_SIDE, cutForWater, highlandAt, highlandLift, highlandRidges, type Highland } from './highland';
+import { acrossCountry, widthBeside } from './countryside';
 import { despeckle } from './despeckle';
 import { rollProp } from './props';
 import { CellIndex } from './spatial';
@@ -36,13 +37,6 @@ export type { ChunkData, Probe, SampleGrid, TileSample } from './ground';
 
 /** How wide the cobbles at the middle of the world are, in tiles. */
 const HUB_PLAZA = 5;
-/**
- * What `landWidth` reports in a world whose land is a shape rather than a band round a road: the
- * width of the countryside a road runs through, not the size of the landmass. Kept near the old
- * world's widest so everything tuned against it — river sizes, how far off a road a shrine is set —
- * stays in the range it was tuned for.
- */
-const MESH_LAND_WIDTH = 22;
 /**
  * How high the country has to stand before it stops being whatever it was, in terraces.
  *
@@ -312,11 +306,7 @@ export class TerrainSampler {
     const hit = this.nearest(x, z, cands);
     if (!hit) return null;
     const e = this.graph.edges[hit.edge];
-    // With a mesh, land is not a band around the road and this is no longer what decides it. It
-    // still has readers though — the rivers size themselves by it and landmarks are placed at a
-    // fraction of it — so it stays the width of the country a road runs through rather than
-    // becoming the radius of the world, which drowned the map in rivers and bridges.
-    const W = this.shaped ? MESH_LAND_WIDTH : this.landWidth(hit.edge, x, z);
+    const W = widthBeside(this.shaped, e, this.noise, x, z);
     const a = this.graph.nodes[e.a], b = this.graph.nodes[e.b];
     const roadLevel = a.level + (b.level - a.level) * hit.t;
     let ux = b.x - a.x, uz = b.z - a.z;
@@ -371,12 +361,6 @@ export class TerrainSampler {
     if (free <= 0) return { edge: best, d, t: bestT };
     const bend = bendAt(free, this.noise, px, pz);
     return { edge: best, d: Math.abs(d * bestSide - bend), t: bestT };
-  }
-
-  private landWidth(edgeIdx: number, px: number, pz: number): number {
-    const e = this.graph.edges[edgeIdx];
-    const n = this.noise.fbm(px * 0.06, pz * 0.06, 2);
-    return Math.max(e.roadWidth + 2.5, e.width * (1 + 0.42 * n));
   }
 
   /** Road surface height at an arbitrary point, used for ramp corners. Falls back to the tile's own level. */
@@ -443,7 +427,7 @@ export class TerrainSampler {
     const STEP = WORLD.STEP;
     const e = edges[hit.edge];
     const roadLevel = nodes[e.a].level + (nodes[e.b].level - nodes[e.a].level) * hit.t;
-    const W = this.landWidth(hit.edge, px, pz);
+    const W = widthBeside(this.shaped, e, this.noise, px, pz);
     const biome = this.biomeOf(px, pz);
     const def = BIOMES[biome];
     out.biome = biome;
@@ -505,7 +489,7 @@ export class TerrainSampler {
 
     const baseLevel = Math.max(1, Math.round(roadLevel + country));
     out.base = baseLevel;
-    const td = (d - e.roadWidth) / (W - e.roadWidth);
+    const td = acrossCountry(d, e.roadWidth, W);
     const hills = this.noise.fbm(px * 0.04, pz * 0.04, 2);
     let rise = Math.floor(td * (0.75 + hills) * def.roughness);
     if (rise < 0) rise = 0;
