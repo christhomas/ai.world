@@ -181,11 +181,14 @@ describe('the world server', () => {
 
   it('remembers what players changed and hands it to whoever comes later', async () => {
     const { rowan, wren } = await two();
-    rowan.send({ type: 'delta', delta: { kind: 'chest', id: 'vault:1:chest:0' } });
-    expect((await wren.next('delta')).delta).toEqual({ kind: 'chest', id: 'vault:1:chest:0' });
+    // a mine somebody has fought through. It was a chest until the 12th, when a chest stopped being
+    // a thing a page may announce and became a thing it asks for — see `mayReport`
+    const cleared = { kind: 'cleared', mine: 'Barrow', many: 4 } as const;
+    rowan.send({ type: 'delta', delta: cleared });
+    expect((await wren.next('delta')).delta).toEqual(cleared);
 
     const latecomer = await Player.join(server.port, 'Alder');
-    expect((await latecomer.next('welcome')).deltas).toEqual([{ kind: 'chest', id: 'vault:1:chest:0' }]);
+    expect((await latecomer.next('welcome')).deltas).toEqual([cleared]);
   });
 
 });

@@ -168,8 +168,10 @@ describe('the simulation, hosted by nothing at all', () => {
     const sim = new Simulation({ vault: new Forgetful() });
     const rowan = new Pretend(sim).join(7, 'Rowan');
     const wren = new Pretend(sim).join(7, 'Wren');
-    rowan.say({ type: 'delta', delta: { kind: 'chest', id: 'vault:1:chest:0' } });
-    expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'chest', id: 'vault:1:chest:0' }]);
+    // a mine somebody has fought through, rather than a chest: a chest has a command of its own now
+    // and a page may no longer simply announce one. See `mayReport`
+    rowan.say({ type: 'delta', delta: { kind: 'cleared', mine: 'Barrow', many: 4 } });
+    expect(wren.of('delta').map((m) => m.delta)).toEqual([{ kind: 'cleared', mine: 'Barrow', many: 4 }]);
   });
 
   it('moves the clock and tells everybody where everybody is', () => {
@@ -202,12 +204,14 @@ describe('the simulation, hosted by nothing at all', () => {
   it('gives a world back to whoever opens it next, out of whatever it was kept in', () => {
     const vault = new Forgetful();
     const first = new Simulation({ vault, dataDir: 'worlds' });
-    new Pretend(first).join(7, 'Rowan').say({ type: 'delta', delta: { kind: 'key', id: 'vault:1' } });
+    // a mine that has been told about, rather than a key: a key is a chest's second half and the
+    // world writes it itself now, so a page announcing one is refused. See `mayReport`
+    new Pretend(first).join(7, 'Rowan').say({ type: 'delta', delta: { kind: 'told', mine: 'Barrow' } });
     first.stop();
 
     const second = new Simulation({ vault, dataDir: 'worlds' });
     const later = new Pretend(second).join(7, 'Wren');
-    expect(later.of('welcome')[0].deltas).toEqual([{ kind: 'key', id: 'vault:1' }]);
+    expect(later.of('welcome')[0].deltas).toEqual([{ kind: 'told', mine: 'Barrow' }]);
     expect(later.of('folk')[0].names, 'and who it has met').toEqual(['Rowan', 'Wren']);
   });
 
@@ -1357,5 +1361,60 @@ describe('a seed, and whether the ground will take it', () => {
     // refused, because this world grows no ground at all: nothing is plantable in a world with no
     // tiles in it, which is exactly the answer a page should get rather than silence
     expect(rowan.of('sown')[0]).toMatchObject({ seq: 1, tile: '12,44', ok: false });
+  });
+});
+
+describe('what a page may no longer simply announce', () => {
+  /*
+   * A command that can be bypassed is not a check, it is a suggestion.
+   *
+   * Every kind of change began as a page deciding something and reporting it, because that was the
+   * only shape available while the world had no opinion about anything. Two of them have a command
+   * of their own now — `open` for a chest, `harvest` for a crop — and the reporting door has to
+   * close behind them or a client can simply walk round the check.
+   */
+  it('refuses a chest a page says it has opened', () => {
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(21, 'Rowan');
+    const wren = new Pretend(sim).join(21, 'Wren');
+    rowan.say({ type: 'delta', delta: { kind: 'chest', id: 'Barrow:1:chest:0' } });
+    expect(wren.of('delta'), 'a chest was opened by saying so').toEqual([]);
+  });
+
+  it('refuses a key and a reaping for the same reason', () => {
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(22, 'Rowan');
+    const wren = new Pretend(sim).join(22, 'Wren');
+    rowan.say({ type: 'delta', delta: { kind: 'key', id: 'Barrow:1' } });
+    rowan.say({ type: 'delta', delta: { kind: 'reap', tile: '4,4' } });
+    expect(wren.of('delta')).toEqual([]);
+  });
+
+  it('still takes the changes that have no command of their own', () => {
+    // sowing spends a seed to claim a tile rather than handing anything over, and the debug console
+    // can sow across the map — so it stays a report until every way of doing it is a hero in a field
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(23, 'Rowan');
+    const wren = new Pretend(sim).join(23, 'Wren');
+    rowan.say({ type: 'delta', delta: { kind: 'sow', tile: '4,4', crop: 'wheat', day: 2 } });
+    rowan.say({ type: 'delta', delta: { kind: 'told', mine: 'Barrow' } });
+    expect(wren.of('delta').map((d) => d.delta.kind)).toEqual(['sow', 'told']);
+  });
+
+  it('still tells everybody about a chest the world itself opened', () => {
+    // the change travels outward exactly as it always did: what is gone is a client writing one
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+    const chests = generateDungeon(new Manifest(3).deriveSeed('dungeon:Barrow', 'dungeon', null), 'vault', 1).chests;
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const wren = new Pretend(sim).join(3, 'Wren');
+    for (const who of [rowan, wren]) {
+      who.say({ type: 'floor', place: 'Barrow:1', anchor: 'dungeon:Barrow', kind: 'dungeon', floor: 1 });
+      who.say({
+        type: 'move', x: chests[0].x + 0.5, z: chests[0].z + 0.5, yaw: 0, walk: 0,
+        place: 'Barrow:1', riding: 'foot', gear: [],
+      });
+    }
+    rowan.say({ type: 'open', seq: 1, place: 'Barrow:1', index: 0, owns: [] });
+    expect(wren.of('delta').map((d) => d.delta)).toContainEqual({ kind: 'chest', id: 'Barrow:1:chest:0' });
   });
 });

@@ -818,6 +818,14 @@ export const LIMITS = {
    * of six. It is a cap on work rather than on size: every anchor costs the world a road tree.
    */
   ISLANDS: 32,
+  /**
+   * The most of a mine anybody may claim to have fought through.
+   *
+   * A whole dungeon's worth several times over. It is a cap on nonsense rather than on achievement:
+   * past this the place reads as cleared however the number is spelled, so there is nothing to be
+   * had by sending a larger one.
+   */
+  CLEARED: 9999,
   /** The most anybody may ask for something, and the hardest blow anybody may claim to land. */
   PRICE: 9999,
   DAMAGE: 99,
@@ -849,6 +857,32 @@ export function deltaAt(delta: WorldDelta): { x: number; z: number } | null {
   if (delta.kind !== 'sow' && delta.kind !== 'reap') return null;
   const [x, z] = delta.tile.split(',').map(Number);
   return Number.isFinite(x) && Number.isFinite(z) ? { x, z } : null;
+}
+
+/**
+ * The changes a client may no longer simply announce.
+ *
+ * Every kind in `WorldDelta` began as a page deciding something and then reporting it, which was
+ * the only shape available while the world had no opinion about anything. Two of them now have a
+ * command of their own — `open` for a chest and `harvest` for a crop — and a command that can be
+ * bypassed by reporting the same change as a fact is not a check, it is a suggestion.
+ *
+ * So these are refused when they arrive as reports. They still travel *outward* — the world writes
+ * them into its log when it grants the request and broadcasts them to everybody else, which is how
+ * a chest somebody else opened is drawn open on your screen — and a joining player still receives
+ * them in the log. What is gone is a client's ability to write one.
+ *
+ * `key` is here because it is a chest's second half rather than a thing of its own: the treasure
+ * room unlocks because a particular chest held the key, and the world says so when it says what was
+ * inside. `sow` is deliberately *not* here yet, and the difference is worth stating — reaping and
+ * opening hand something over, and sowing spends a seed to claim a tile. When every way a page can
+ * sow is a hero standing in a field (the debug console can sow across the map), it joins them.
+ */
+const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap']);
+
+/** Whether a client may report this change itself, or must ask the world for it instead. */
+export function mayReport(delta: WorldDelta): boolean {
+  return !ANNOUNCED_BY_THE_WORLD.has(delta.kind);
 }
 
 export function deltaKey(delta: WorldDelta): string {
@@ -934,6 +968,25 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       return { kind: 'sow', tile: id(delta.tile), crop: id(delta.crop), day: Math.max(1, Math.floor(day)) };
     }
     case 'reap': return { kind: 'reap', tile: id(delta.tile) };
+    /*
+     * How much of a mine has been fought through, and which village has been told about it.
+     *
+     * Both of these were missing here, which meant they were dropped: a client reported them, this
+     * said it had never heard of them, and `worldChange` stopped. So a mine one player emptied went
+     * on frightening everybody else's villagers for ever, which is the *other* half of the fault
+     * item 26 fixed on the page — the page had stopped telling the world, and the world would not
+     * have listened if it had.
+     *
+     * `many` is a running total rather than an increment, as the type says, so it is clamped rather
+     * than accumulated: a client claiming it has killed four billion things in a hole cannot make
+     * the danger down there read as anything but cleared, which it would be anyway at that point.
+     */
+    case 'cleared': {
+      const many = Number(delta.many);
+      if (!Number.isFinite(many)) return null;
+      return { kind: 'cleared', mine: id(delta.mine), many: Math.max(0, Math.min(LIMITS.CLEARED, Math.floor(many))) };
+    }
+    case 'told': return { kind: 'told', mine: id(delta.mine) };
     case 'built': {
       const day = Number(delta.day);
       const x = Number(delta.x), z = Number(delta.z), rot = Number(delta.rot);

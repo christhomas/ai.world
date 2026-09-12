@@ -1,5 +1,6 @@
 import {
   EMOTES, LIMITS, PARTY_LIMIT, clamp, cleanChat, cleanDelta, cleanLetter, cleanStallItem, cleanSwing, cleanSwords,
+  mayReport,
   cleanRecall,
   type ClientMessage, type TradeOffer,
 } from './protocol';
@@ -493,7 +494,11 @@ function aboutAVillager(rooms: Rooms, me: Client, room: Room, message: ClientMes
 function worldChange(rooms: Rooms, me: Client, room: Room, message: ClientMessage): void {
   if (message.type !== 'delta') return;
   const delta = cleanDelta(message.delta);
-  if (!delta || !room.world.apply(delta)) return;
+  if (!delta) return;
+  // a change that has a command of its own cannot also be announced as a fact, or the command is a
+  // suggestion rather than a check: see `mayReport`
+  if (!mayReport(delta)) return;
+  if (!room.world.apply(delta)) return;
   /*
    * A death is not only a row in a log any more.
    *

@@ -85,12 +85,13 @@ export interface PlaceContext {
   setCaveAmbience: (on: boolean) => void;
   persist: () => void;
   /** Tell anyone else in this world about a chest opened or a vault unlocked. */
-  report: (delta: { kind: 'chest'; id: string } | { kind: 'key'; id: string }) => void;
   /**
    * Asking the world whether a chest was this hero's to open. Answered by `Places.opened`.
    *
-   * Separate from `report` because it is a different kind of sentence: one tells the world what has
-   * happened, and this one asks it a question it can say no to. The first of those in the game.
+   * It replaced a `report` outright rather than joining one, which is the whole of the change: this
+   * used to be a page telling the world it had opened a chest, and a world that can be told cannot
+   * refuse. Now it is a question, and the world's answer is what says whether the gold stays in the
+   * purse. The first sentence of that kind in the game.
    */
   open: (ask: { seq: number; place: string; index: number; owns: string[] }) => void;
   /**
@@ -452,7 +453,8 @@ export class Places {
       const lock = lockFor(visit.anchorId, visit.floor);
       state.keys.add(lock);
       visit.world.unlocked = true;
-      this.ctx.report({ kind: 'key', id: lock });
+      // not reported: the world says a key was in it when it answers `open`, and a page that
+      // announced one as well could unlock a treasure room it had been refused. See `mayReport`
       extra = ' and a heavy iron key';
     }
     if (hoard.prize) {
@@ -460,7 +462,6 @@ export class Places {
       extra += ` and ${ITEMS[hoard.prize].emoji} ${ITEMS[hoard.prize].name}`;
     }
     state.opened.add(id);
-    this.ctx.report({ kind: 'chest', id });
     state.version++;
     visit.scene.rebuildProps(state.opened);
     if (hoard.key) this.ctx.flash('The doors to the treasure room unlock');

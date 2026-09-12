@@ -286,8 +286,9 @@ export function wildInteractions(ctx: Surroundings) {
       }
       const lifted = plots.harvest(tx, tz, growingDay())!;
       const tile = `${tx},${tz}`;
-      online.report({ kind: 'reap', tile });
-      // and ask whether it was there to lift. The field is already empty and the crop is already in
+      // asked rather than announced: the world empties the tile itself when it agrees there was
+      // something ripe on it, and a page that reported the reaping as well could empty a field the
+      // world had refused it. See `mayReport`. The field is already empty and the crop is already in
       // the pack — see `Harvests` — because a ripe field should answer the button, not the network
       online.harvest(plots.claims.ask({
         tile, crop: lifted.crop.id, amount: lifted.amount, planted: standing.planted,
