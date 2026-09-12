@@ -130,6 +130,47 @@ export function roadsOf(world: Land, face: Face): Road[] {
  * province exists.
  */
 export function junctionsOf(world: Land, face: Face): Junction[] {
+  const known = crossroadsOf(world);
+  const before = known.get(face.id);
+  if (before) return before;
+  const found = workOutJunctions(world, face);
+  known.set(face.id, found);
+  return found;
+}
+
+/**
+ * What junctions each face was found to have, remembered.
+ *
+ * The same shape the faces and the face kinds already use, and for the same reason: this is a pure
+ * function of the world and the face, and it is asked for the same face over and over by callers
+ * that have no idea about each other. Growing one patch asks `junctionsIn` six times — the towns in
+ * it, the signposts in it, the towns in the wider square a signpost points at, the springs, the
+ * tarns and the rock — and those six squares overlap heavily, so the same face's crossroads were
+ * worked out from the beginning five times out of six. Each one of those gathers the sites around
+ * the face, pairs every neighbour with every other, and tests each meeting point against the ground
+ * round it, which is not arithmetic anybody should pay for twice.
+ *
+ * Kept beside the world rather than in it, and weakly, so that a patch going out of use takes its
+ * crossroads with it.
+ */
+const worldsCrossroads = new WeakMap<Land, Map<string, Junction[]>>();
+function crossroadsOf(world: Land): Map<string, Junction[]> {
+  let known = worldsCrossroads.get(world);
+  if (!known) { known = new Map(); worldsCrossroads.set(world, known); }
+  return known;
+}
+
+/**
+ * The crossroads of one face, worked out from the ground.
+ *
+ * Split out from `junctionsOf` so that the remembering above is one thing and the finding is
+ * another, and so that what is remembered is plainly the whole of what was found.
+ *
+ * The list handed back is the remembered one. Every caller reads it — filters it, counts it, picks
+ * a town off it — and none writes to it, which is what makes that safe. The same holds of the sites
+ * `sitesIn` hands out, so it is the convention here rather than a new risk.
+ */
+function workOutJunctions(world: Land, face: Face): Junction[] {
   // gathered at the distance the rule below is stated in, not at the mesher's — a list fetched
   // narrower than it is filtered is a list missing the very company it is being filtered for, and
   // that was version five: two faces forty-four tiles apart, sharing a junction, one of them never

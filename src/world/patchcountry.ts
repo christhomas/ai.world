@@ -72,9 +72,16 @@ export class PatchCountry {
    *
    * It grows *one* patch at most, and that is a correction rather than a simplification. It used to
    * warm the eight neighbours on the way past, on the reasoning that a boundary should never be a
-   * stall — and a patch measured at five seconds to grow, so the first crossing froze the game for
-   * three quarters of a minute and the frame loop never came back. Nine seconds of work a frame is
-   * not a smoother boundary, it is no game at all.
+   * stall — and a patch measured at five seconds to grow then, so the first crossing froze the game
+   * for three quarters of a minute and the frame loop never came back. Forty-five seconds of work
+   * in a frame is not a smoother boundary, it is no game at all.
+   *
+   * A patch is six hundred milliseconds now rather than five seconds, and the conclusion has not
+   * changed: warming the ring here is still five and a third seconds in one frame, measured. What
+   * *has* changed is the cost of being wrong. When a hero outwalks the worker and the square he is
+   * standing on has to be grown on this thread, that used to be a five second freeze and is now a
+   * stutter of about two thirds of a second — which is the difference between a fault that ends the
+   * session and one a player would call a hitch.
    *
    * So the warming is somebody else's job and is deliberately not done here: see `warm`, and the
    * work list item about growing country off the main thread, which is the only real answer.
@@ -88,10 +95,12 @@ export class PatchCountry {
   }
 
   /**
-   * Grow the neighbours, for a caller that can afford five seconds a patch.
+   * Grow the neighbours, for a caller that can afford five seconds in one go.
    *
-   * Which is nobody on the main thread of a running game. It is here for tests and for a world
-   * server standing a province up before anybody is in it. The game asks `wants` instead.
+   * Which is nobody on the main thread of a running game — nine patches at six hundred
+   * milliseconds apiece is 5,313 ms, measured, and a frame that takes five seconds is not a frame.
+   * It is here for tests and for a world server standing a province up before anybody is in it.
+   * The game asks `wants` instead.
    */
   warm(x: number, z: number): void {
     this.patches.around(x, z);

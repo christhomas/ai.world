@@ -6,10 +6,15 @@ import type { TerrainSampler } from './terrain';
 /**
  * Asking somebody else to grow the country.
  *
- * A patch is about five seconds of work and about a tenth of a second to rebuild from its parts, so
+ * A patch is about six hundred milliseconds of work and about fifteen to rebuild from its parts, so
  * the arrangement writes itself: a worker grows, the page rebuilds, and the page never blocks. What
  * this owns is the *asking* — which squares are wanted, which are already on their way, and what to
  * do with one when it arrives.
+ *
+ * Both of those numbers used to be much larger — five seconds and a tenth of a second — and it is
+ * the *ratio* rather than either figure that this rests on, which is why making a patch eight times
+ * cheaper did not make the worker unnecessary. Forty to one is still forty to one: growing here
+ * would cost the page two thirds of a second of stopped frames and rebuilding costs it one frame.
  *
  * ## The worker is an optimisation and never a guarantee
  *
@@ -61,7 +66,7 @@ export class Grower {
     this.pump();
   }
 
-  /** A square has come back. Rebuild it here — a tenth of a second — and put it with the rest. */
+  /** A square has come back. Rebuild it here — about fifteen milliseconds — and put it with the rest. */
   took(reply: CountryReply): void {
     this.busy = false;
     this.grown++;

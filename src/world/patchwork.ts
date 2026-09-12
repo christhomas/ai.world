@@ -32,11 +32,12 @@ import type { Within } from './window';
  *
  * ## What it costs
  *
- * A patch is about a second of work to grow and a few megabytes to hold. `KEEPS` of them are held
- * at once, which is the one you are in and its neighbours, so walking a straight line grows a patch
- * every few minutes and drops one behind you. The alternative — growing per chunk — would redo a
- * patch's roads and rivers sixteen times over for each of the sixteen chunk rows in it, and the
- * alternative to *that* is keeping everything, which is the bounded world with extra steps.
+ * A patch is about six hundred milliseconds of work to grow and a few megabytes to hold. `KEEPS` of
+ * them are held at once, which is the one you are in and its neighbours, so walking a straight line
+ * grows a patch every few minutes and drops one behind you. The alternative — growing per chunk —
+ * would redo a patch's roads and rivers sixteen times over for each of the sixteen chunk rows in
+ * it, and the alternative to *that* is keeping everything, which is the bounded world with extra
+ * steps.
  */
 
 /** How wide a patch of grown country is, in tiles. The province's own number, for the reason above. */

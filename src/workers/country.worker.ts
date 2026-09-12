@@ -6,10 +6,15 @@ import type { CountryRequest, CountryReply } from '../world/countrymessages';
 /**
  * Growing a patch of the endless country, off the thread the game is drawn on.
  *
- * A patch takes about five seconds. That number is the whole reason this file exists: on the main
- * thread it is a five second freeze at every patch boundary — measured, not guessed, on the first
- * walk across an endless world, which stopped the game and did not come back. Rebuilding one from
- * its parts takes about a tenth of a second, and that difference is the entire trick.
+ * A patch takes about six hundred milliseconds and rebuilding one from its parts takes about
+ * fifteen. That difference is the whole reason this file exists, and it is the *difference* rather
+ * than either number: forty to one means the thread that draws the game can have a finished patch
+ * for the price of a single frame, however long the growing itself happens to take this year.
+ *
+ * Both figures were an order of magnitude worse when this was written — five seconds to grow and a
+ * tenth of a second to rebuild — and the five second freeze at every patch boundary was measured,
+ * not guessed, on the first walk across an endless world, which stopped the game and did not come
+ * back. The ratio survived the speed-up, which is why this file did too.
  *
  * So: the worker grows, the page rebuilds. What crosses is `PatchParts` — roads, water, buildings
  * and the cut rock — and what does not cross is the land itself, which is a pair of functions over
