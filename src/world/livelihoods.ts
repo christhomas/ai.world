@@ -43,6 +43,36 @@ import type { Person } from './people';
 
 export const LIVELIHOOD = {
   /**
+   * The share of what a villager has spare that the hall takes each day.
+   *
+   * Three hundredths of whatever they hold above their week of dinners. Small on purpose: a village
+   * of thirty people carrying a dozen gold apiece raises something like five a day, so a harbour is
+   * a season's taxes rather than an afternoon's — which is what makes it a thing a village decides
+   * to do rather than a thing that happens.
+   *
+   * It also has to be far under what a day earns, or the tax is the reason nobody in the country
+   * can save. `PROSPER` has the arithmetic of a working day; this is a slice off the top of what is
+   * left after it, and it stops entirely at `KEEPS_BACK`.
+   *
+   * A hundredth of that to start with, and the reason is the best kind: the bench said so within an
+   * hour. At three hundredths the sum came out beautifully — 410 in the hall by day thirty, 3,700
+   * by day a hundred — and `chore test economy` went red on a check nobody was thinking about:
+   * **no village built anything any more.** Not a second storey, not a bath house, in a hundred
+   * days across twenty-one villages. The surplus a village spends on building itself was exactly
+   * the surplus the hall was taking.
+   *
+   * At a two-hundredth the world works and its people are better off than they were before there
+   * was a tax at all: people hold 4,158 between them by day a hundred where three hundredths left
+   * them 1,590, and the hall still gathers 1,142 — a harbour's worth in a season, which is the
+   * thing this was for.
+   *
+   * What is still not answered, and is the argument for the vote rather than for any rate: nothing
+   * spends it. By day four hundred the hall holds 11,532 against its people's 7,600, which is money
+   * standing still. A treasury that only ever collects is a slow drain dressed up as a saving, and
+   * the day a village can vote to spend it, this number can rise again.
+   */
+  TAX: 0.005,
+  /**
    * How many beasts one farmer's paddocks hold.
    *
    * The cap rather than the herd: a herd grows up to this and then stops, because a farmer with

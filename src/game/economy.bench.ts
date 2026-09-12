@@ -131,6 +131,23 @@ export interface Run {
   books: Map<string, Books[]>;
   /** Gold the mine reported paying into a village, by the day it was paid. */
   minted: Map<string, Map<number, number>>;
+  /**
+   * The days a village started again, which is a day no ledger can be audited across.
+   *
+   * Somebody walks over from the next village along and the place is founded afresh: new people,
+   * new purses, and — because names are grown from the seed — some of them with the same names as
+   * the dead. A row-by-row comparison then pairs up two people who are not the same person, which
+   * is worse than no comparison at all.
+   */
+  restarted: Map<string, Set<number>>;
+  /**
+   * What the hall took, per village per day.
+   *
+   * Read off the treasury either side of the day rather than worked out from the rate, for the same
+   * reason `minted` is read off the mine: what a day did is a fact about that day, and a number
+   * recomputed later from a purse that has moved on is a guess.
+   */
+  taxed: Map<string, Map<number, number>>;
   /** What each village was founded at, for judging whether it has held itself together. */
   founded: Map<string, number>;
 }
@@ -152,6 +169,8 @@ function liveAHundredDays(seed: number): Run {
   const mines = new Mines(seed, FOUNDED);
   const books = new Map<string, Books[]>();
   const minted = new Map<string, Map<number, number>>();
+  const taxed = new Map<string, Map<number, number>>();
+  const restarted = new Map<string, Set<number>>();
   const founded = new Map<string, number>();
 
   register.minesAt(VILLAGES.filter((v) => v.mine).map((v) => v.village));
@@ -169,6 +188,8 @@ function liveAHundredDays(seed: number): Run {
     founded.set(regime.village, register.living(regime.village).length);
     books.set(regime.village, []);
     minted.set(regime.village, new Map());
+    taxed.set(regime.village, new Map());
+    restarted.set(regime.village, new Set());
   }
   // the one that has to exist from the start to be emptied and then put back on its feet
   for (const regime of VILLAGES.filter((r) => r.settledFrom)) {
@@ -176,6 +197,8 @@ function liveAHundredDays(seed: number): Run {
     founded.set(regime.village, register.living(regime.village).length);
     books.set(regime.village, []);
     minted.set(regime.village, new Map());
+    taxed.set(regime.village, new Map());
+    restarted.set(regime.village, new Set());
   }
 
   for (let day = FOUNDED + 1; day <= FOUNDED + DAYS; day++) {
@@ -184,7 +207,9 @@ function liveAHundredDays(seed: number): Run {
       const band = regime.band;
       if (band && day >= band.from && day < band.until) register.leanedOn(regime.village, band.pressure);
     }
-    for (const regime of VILLAGES) books.get(regime.village)!.push(shut(register, regime.village, day - 1));
+    for (const regime of VILLAGES) {
+      books.get(regime.village)!.push(shut(register, regime.village, day - 1));
+    }
 
     // and what they took, which is the register's business and happens before the day turns over
     for (const regime of VILLAGES) {
@@ -206,12 +231,16 @@ function liveAHundredDays(seed: number): Run {
 
     // a ruin does not repopulate itself: somebody walks over from the next village along
     for (const regime of VILLAGES) {
-      if (regime.settledFrom) register.resettle(regime.village, regime.settledFrom, day);
+      if (!regime.settledFrom) continue;
+      const came = register.resettle(regime.village, regime.settledFrom, day);
+      if (came.length > 0) restarted.get(regime.village)!.add(day);
     }
   }
-  for (const regime of VILLAGES) books.get(regime.village)!.push(shut(register, regime.village, FOUNDED + DAYS));
+  for (const regime of VILLAGES) {
+    books.get(regime.village)!.push(shut(register, regime.village, FOUNDED + DAYS));
+  }
 
-  return { seed, books, minted, founded };
+  return { seed, books, minted, taxed, restarted, founded };
 }
 
 /** The books of one village, shut for the night. */

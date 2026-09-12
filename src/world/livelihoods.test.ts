@@ -6,6 +6,7 @@ import {
   LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, boughtInTheVillage, paidForFood,
   DINNER, aDaysDinner, paidForService, pitchFor, shareOut, soldAtMarket, whoFed,
 } from './livelihoods';
+import { taxedForTheHall } from './hall';
 import type { Person } from './people';
 
 /**
@@ -538,5 +539,57 @@ describe('what counts as dinner', () => {
   it('leaves out the things that heal but are not a meal', () => {
     // a potion mends you and is not somebody's tea; a hunter carrying one has not brought dinner in
     for (const id of ['potion', 'antidote', 'elixir']) expect(DINNER.has(id)).toBe(false);
+  });
+});
+
+/**
+ * What the hall takes, which is the first money in this world that is nobody's.
+ *
+ * `inheritance.ts` turned a village treasury down when it went in, and said why: there was nowhere
+ * to bank it and nothing that could see or spend it. A hall is somewhere and a vote is something,
+ * so there is a pot now — and the rules it has to obey are the rules every other coin here obeys.
+ *
+ * The one that is new: what the hall holds is not a person's, so nobody inherits it. A mayor who
+ * dies leaves it exactly where it was for whoever is elected next. That is the whole difference
+ * between a treasury and a rich man, and it is the reason the money sits on the settlement rather
+ * than on whoever is holding the chain of office.
+ */
+describe('the hall\'s share', () => {
+  const villager = (id: string, purse: number): Person =>
+    ({ id, name: id, trade: 'farmer', purse, born: 1, lives: 60, hungry: 0, knows: [], memories: 0 } as unknown as Person);
+
+  it('takes nothing from anybody who has only their reserve', () => {
+    // `KEEPS_BACK` is a week of dinners. A village that taxes its people into starving has
+    // mistaken the point of having a village
+    const poor = [villager('a', 0), villager('b', PROSPER.KEEPS_BACK), villager('c', PROSPER.KEEPS_BACK - 1)];
+    const tax = taxedForTheHall(poor);
+    expect(tax.raised).toBe(0);
+    expect(tax.owed.size).toBe(0);
+  });
+
+  it('takes a share of what is spare, and never dips into the reserve', () => {
+    const person = villager('a', PROSPER.KEEPS_BACK + 100);
+    const tax = taxedForTheHall([person]);
+    expect(tax.raised).toBeCloseTo(100 * LIVELIHOOD.TAX, 2);
+    expect(person.purse + (tax.owed.get('a') ?? 0), 'somebody was taxed below their week of dinners')
+      .toBeGreaterThanOrEqual(PROSPER.KEEPS_BACK);
+  });
+
+  it('adds up: what leaves the purses is what the hall receives', () => {
+    /*
+     * The rule this whole economy is held to — a coin leaving one purse arrives in another — and
+     * the reason a tax is not a new machine at all. It is another entry in the same map of who
+     * gains and who loses that a day of trading already produces.
+     */
+    const people = [villager('a', 40), villager('b', 7), villager('c', 300), villager('d', 2)];
+    const tax = taxedForTheHall(people);
+    const lost = [...tax.owed.values()].reduce((sum, n) => sum + n, 0);
+    expect(-lost).toBeCloseTo(tax.raised, 6);
+  });
+
+  it('is the same answer asked twice, because asking is not taking', () => {
+    const people = [villager('a', 40)];
+    expect(taxedForTheHall(people)).toEqual(taxedForTheHall(people));
+    expect(people[0].purse, 'asking what was owed collected it').toBe(40);
   });
 });

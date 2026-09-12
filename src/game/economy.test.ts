@@ -130,9 +130,27 @@ describe('the coin in a village, against the books that village keeps', () => {
             // the day the books predicted: the wage, less the keep, less the dinner if there was
             // one. `hungry` is nought for anybody who ate, which is how the roll says so
             const ate = now.hungry === 0 ? row.food : 0;
-            expected += row.earns - row.spends - ate;
+            // today's tax comes off today's row, the way `hungry` says whether today's dinner was
+            // eaten: what the hall took is a fact about the day being audited rather than the day
+            // before it
+            expected += row.earns - row.spends - ate - now.tax;
             observed += now.purse - row.purse;
           }
+          /*
+          /*
+           * A village that was empty this morning, or was started again overnight.
+           *
+           * Somebody walks over from the next village along and founds the place afresh: new
+           * people, new purses, and — because names are grown from the seed — some of them wearing
+           * the names of the dead. A row-by-row check then pairs up two people who are not the same
+           * person, and calls the difference between their purses a missing coin. There is no
+           * comparison to make on such a day; `nothing leaves the world in a pocket` covers the
+           * money across the whole run, which is where a resettling belongs.
+           */
+          if (people === 0) continue;
+          // and a village that started again overnight: the people on the two evenings are not the
+          // same people, whatever their names say
+          if (run.restarted.get(village)?.has(after.day)) continue;
           expected += run.minted.get(village)!.get(after.day) ?? 0;
           days++;
           audited += people;
@@ -197,7 +215,17 @@ describe('the coin in a village, against the books that village keeps', () => {
              * purse less exactly one day of being alive, and anything under that is money nobody
              * can account for.
              */
-            const least = had.purse - had.spends - had.food;
+            /*
+             * And the hall's share, twice over.
+             *
+             * What the hall takes leaves a purse and arrives in no other, so without it a tax reads
+             * as money buried with its owner — two hundred and fifty gold of it across this bench,
+             * the morning the tax went in. Twice because this row is last night's and there was a
+             * morning after it: the same reason the day's keep and the day's dinner are subtracted
+             * here. It is a floor rather than a reckoning, and a floor is allowed to be generous by
+             * a day of being alive.
+             */
+            const least = had.purse - had.spends - had.food - had.tax * 2;
             if (stone.left + 1e-6 < least) { lost += least - stone.left; void village; }
           }
         }

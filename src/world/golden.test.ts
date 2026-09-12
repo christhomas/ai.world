@@ -127,7 +127,16 @@ describe('generation fingerprint', () => {
   });
 });
 
+/*
+ * Moved on 2026-09-12, on purpose: every world has a hulk in it now.
+ *
+ * `structures` is the only line that changed, which is exactly what it should be — a crashed craft
+ * is one more thing standing between the villages, so the structure list differs and the ground,
+ * the water, the roads and the errands do not. A fingerprint that moved anywhere else would have
+ * meant the hulk had nudged the country out from under everything else in it, which is the fault
+ * this test is here to catch.
+ */
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: '5256f550', hydro: '57d1f709', structures: 'a4085842', chunks: '65b262e0', quests: '829c481b' },
-  2: { graph: '91f6d142', hydro: 'e1df1004', structures: 'd9dbd1be', chunks: '7f420170', quests: '10f6f7ad' },
+  1: { graph: '5256f550', hydro: '57d1f709', structures: '424116c4', chunks: '65b262e0', quests: '829c481b' },
+  2: { graph: '91f6d142', hydro: 'e1df1004', structures: 'd3361e8f', chunks: '7f420170', quests: '10f6f7ad' },
 };

@@ -1,5 +1,8 @@
 import { PROSPER } from './prosperity';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
+import { taxedForTheHall } from './hall';
+import type { Burial, Change, Settlement } from './settlement';
+import { STONES_KEPT } from './settlement';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
@@ -19,87 +22,12 @@ import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortu
  * The exception is a death nobody could have predicted: a wolf, a bandit, a player. Those arrive
  * as `bury`, and travel on the world's log of changes like anything else a player did.
  */
-
-/** Something that happened to the population, worth telling the player and worth logging. */
-export interface Change {
-  kind: 'born' | 'died' | 'lost' | 'resettled';
-  id: string;
-  name: string;
-  village: string;
-  day: number;
-  /** How they went, for a death: their years, or something with teeth. */
-  cause?: 'age' | 'violence' | 'hunger';
-}
-
-/**
- * Somebody the village has buried, as the church writes it down.
- *
- * Every death in this world passes through one place, so the roll is kept there and cannot fall out
- * of step with who is alive. It is bounded because it is a record rather than a history: a village
- * that has stood for years has buried more people than anybody wants to read, and the parish only
- * keeps the recent stones legible.
- */
-export interface Burial {
-  name: string;
-  /** What they did, when they were old enough to do anything. */
-  trade: string;
-  born: number;
-  day: number;
-  cause: 'age' | 'violence' | 'hunger';
-  /**
-   * What they left, and who got it.
-   *
-   * Written down for the same reason the cause of death is: a parish register records what a
-   * person's death actually did, and until now a purse simply vanished into the ground with its
-   * owner — 18,617 gold across twenty-one villages in a hundred days, which was the largest single
-   * drain in this economy and appeared in no book anywhere.
-   *
-   * It is also the only way the money can be *audited*. `chore economy` deliberately judges the
-   * world by the books a player can pay a clerk to read and never by the simulation behind them,
-   * so a transfer that no book records is a transfer the audit has to guess at — and it guessed
-   * wrong three times, because whether somebody earns or pays their keep on the day they die
-   * depends on which of three ways they died. A number that is written down cannot be guessed at.
-   */
-  left: number;
-  /** Whoever it went to, or the village itself when there was nobody of the name left. */
-  to: string;
-}
-
-/** How many of the dead a village's church keeps. Older stones are there; the ledger has moved on. */
-const STONES_KEPT = 60;
-
-/** A village the register has been told about, so it knows how big to keep it. */
-export interface Settlement {
-  people: Person[];
-  /**
-   * Meals in the store. Grown by whoever farms, eaten every day, and spoiling past what a cellar
-   * of this size can keep — so a village cannot bank a good decade against a bad year.
-   */
-  food: number;
-  /**
-   * The cattle the village's farmers keep between them.
-   *
-   * A number rather than a list of beasts, for the same reason the larder is a number of meals:
-   * what matters about a herd is that it breeds, that it feeds the place and that the surplus is
-   * worth money in the next valley. Which particular cow is which is the paddock's business and
-   * the paddock is drawn from this.
-   */
-  herd: number;
-  /** The day the last of them died, for a place that has been emptied. */
-  emptied?: number;
-  /** The size it was founded at. Births aim to hold it near this. */
-  founded: number;
-  houses: number;
-  trades: string[];
-  /** Who has been buried here, newest last. */
-  buried: Burial[];
-}
-
-/** The day every village is founded on, whenever the player happens to arrive. */
 const FOUNDED_ON = 1;
 
 /** At most this share of a village's founding size can be born in one day. */
 const BIRTH_RATE = 0.06;
+
+export type { Burial, Change, Settlement } from './settlement';
 
 export class Register {
   private readonly villages = new Map<string, Settlement>();
@@ -212,7 +140,7 @@ export class Register {
     // a village is founded with a few days in the cellar, not starving on its first morning
     const farmers = people.filter((p) => p.trade === 'farmer').length;
     const settlement: Settlement = {
-      people, founded: people.length, houses, trades, food: people.length * 3, buried: [],
+      people, founded: people.length, houses, trades, food: people.length * 3, buried: [], purse: 0,
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -274,6 +202,26 @@ export class Register {
   herdOf(village: string): number { return this.villages.get(village)?.herd ?? 0; }
 
   larderOf(village: string): number { return this.villages.get(village)?.food ?? 0; }
+
+  /**
+   * What the hall holds, which is the village's own money and nobody's purse.
+   *
+   * Read by whatever is deciding what the place can afford — a vote, a clerk asked what the village
+   * is worth, the Domesday Book. Nought for a village that has never been settled, which is the
+   * same answer as a village that has spent everything and is honest about both.
+   */
+  hallOf(village: string): number { return this.villages.get(village)?.purse ?? 0; }
+
+  /**
+   * What the hall took from each purse on the last day that person lived through.
+   *
+   * Per person rather than per village, because the books are kept per person. A village total
+   * cannot be squared against a roll that has lost somebody overnight — every attempt at it turns
+   * into an argument about who was still standing when the money moved — and a row that carries its
+   * own tax needs no such argument. `chore test economy` is the only thing that reads it, and it is
+   * the only thing that ever needed to.
+   */
+  private readonly paid = new Map<string, number>();
 
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
@@ -423,33 +371,6 @@ export class Register {
   }
 
   /**
-   * One day in one village: the old are buried, the gaps are filled, the young grow up, and
-   * whatever had teeth is accounted for last.
-   *
-   * Killings come last because that is when they actually happen — somebody dies during a day
-   * that has already been lived — and a village re-lived from its founding has to arrive at the
-   * same place as the village that watched it happen. The gap is filled the following morning.
-   */
-  /**
-   * A day's work for everybody still working in a village, and what it did to the herd.
-   *
-   * Nobody earns while the place is being raided, which is the whole reason a village under
-   * pressure stays poor and one left alone slowly does not: prosperity is a thing the player can
-   * protect rather than a number that only goes up.
-   *
-   * What is settled here is everything that does not wait for dinner: what a trade brings in from
-   * beyond the village, what the next valley paid for the meat, and everybody's keep going into
-   * the purses of whoever sold it to them. What the village pays for its own dinner cannot be
-   * settled until it has eaten, so `dinner` does that half.
-   */
-  private trade(village: Settlement, pressure: number): Trading {
-    const day = aDaysTrade(village.people, village.herd, pressure);
-    village.herd = day.herd;
-    this.pay(village, day.paid);
-    return day;
-  }
-
-  /**
    * Move money into and out of the purses of a village, by id.
    *
    * The one place a purse is written, so the cap and the floor are applied once. Both are
@@ -464,6 +385,43 @@ export class Register {
       person.purse = Math.min(PROSPER.MOST, Math.max(0, person.purse + much));
     }
   }
+
+  /**
+   * A day's work for everybody still working in a village, and what it did to the herd.
+   *
+   * Nobody earns while the place is being raided, which is the whole reason a village under
+   * pressure stays poor and one left alone slowly does not: prosperity is a thing the player can
+   * protect rather than a number that only goes up.
+   *
+   * What is settled here is everything that does not wait for dinner: what a trade brings in from
+   * beyond the village, what the next valley paid for the meat, and everybody's keep going into
+   * the purses of whoever sold it to them. What the village pays for its own dinner cannot be
+   * settled until it has eaten, so `dinner` does that half.
+   */
+  private trade(village: Settlement, pressure: number): Trading {
+    const trading = aDaysTrade(village.people, village.herd, pressure);
+    village.herd = trading.herd;
+    this.pay(village, trading.paid);
+    // and the hall's share of what is left, which is the same act as every other coin that moves
+    // here: out of the purses it came from, into the one place that is not anybody's
+    const tax = taxedForTheHall(village.people);
+    this.pay(village, tax.owed);
+    village.purse = Math.round((village.purse + tax.raised) * 100) / 100;
+    for (const person of village.people) this.paid.set(person.id, -(tax.owed.get(person.id) ?? 0));
+    return trading;
+  }
+
+  /** What the hall took from one person on the last day they lived through. */
+  taxPaidBy(id: string): number { return this.paid.get(id) ?? 0; }
+
+  /**
+   * One day in one village: the old are buried, the gaps are filled, the young grow up, and
+   * whatever had teeth is accounted for last.
+   *
+   * Killings come last because that is when they actually happen — somebody dies during a day
+   * that has already been lived — and a village re-lived from its founding has to arrive at the
+   * same place as the village that watched it happen. The gap is filled the following morning.
+   */
 
   private liveADay(name: string, village: Settlement, day: number): Change[] {
     // one pressing, read once, and handed to both the halves of the day it changes: what a village

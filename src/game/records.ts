@@ -60,6 +60,15 @@ export interface RollRow {
   earns: number;
   spends: number;
   /**
+   * And what the hall took today, which is the one outgoing that does not arrive in another purse.
+   *
+   * On the row rather than in a village total, because the books are per person and a village
+   * total cannot be squared against a roll that lost somebody overnight. It is what *this* person
+   * paid on the day this row describes, so the row still adds up when the people around them have
+   * changed.
+   */
+  tax: number;
+  /**
    * And what their dinner costs, which is the rest of what a day takes out of a purse.
    *
    * Its own column rather than folded into `spends`, because the two are not the same fact: keep
@@ -187,8 +196,14 @@ export function theRoll(
       // dinner costs
       earns: income.get(person.id) ?? 0,
       // the keep, and what it costs to have somewhere to sell from. Both, or the row does not add
-      // up and the village holds more than its own books can account for
+      // up and the village holds more than its own books can account for.
+      //
+      // The hall's share is deliberately *not* here. A row is worked out whenever somebody asks for
+      // it, and a tax recomputed from today's purse is not the tax that was actually taken on the
+      // day in question — it is a guess that drifts. What was taken is a fact about a day, so the
+      // bench reads it off the hall itself, the way it already reads what a mine minted.
       spends: spentOnLiving(person) + pitchFor(person),
+      tax: register.taxPaidBy(person.id),
       food: person.trade ? FOOD.MEAL : 0,
       hungry: person.hungry,
       mother: person.mother,
