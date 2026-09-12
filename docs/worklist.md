@@ -3836,7 +3836,24 @@ than by remembering — and the first thing found was that the gap is not where 
       own front door is inside the few paces a post counts as "near enough" never takes that step —
       so he stayed indoors all day because he was already close enough to be on the square.
 
-- [ ] **65a. They walk home and do not arrive.** Measured after the above, at one in the morning:
+- [~] **65a. They walk home and do not arrive.** *Measured hard, and the answer is not where it
+      looked.* `server/nightfall.test.ts` now stands a world up with real ground, puts a player in a
+      village and asks the questions a screenshot cannot. What it says:
+
+      - the world's villagers **do** move — most of them are somewhere else ten seconds later;
+      - at one in the morning some of them **are** indoors, so the day does reach its bed;
+      - and a world keeping only one chunk of reach still walks eight of thirteen, so *"there is no
+        ground under them"* is not it either.
+
+      What the browser shows is still true and still unexplained: four villagers at 1am, identical to
+      a tenth of a tile over eighty seconds, while the world went on sending fifty-four creature
+      messages in twenty. Standing on half-tile coordinates — which is what a villager who has
+      *arrived at a post* stands on. The suspicion to chase next is that they have arrived and the
+      `enter` that should take them through their own front door is not firing, so they stand on the
+      doorstep all night; and the reason this file cannot reproduce it may be nothing more than this
+      machine, which has been at a load average of twenty all evening.
+
+      The original note follows. Measured after the above, at one in the morning:
       four of five are still on the street and every one of them says "at home", which is the tree
       doing the right thing and the walk not finishing. `goTo ... enter` wants to be within 1.2 tiles
       of the door tile, and something is stopping them short — a crowded threshold, a door tile that
