@@ -394,6 +394,62 @@ const SHOTS = [
       return 'touch controls';
     },
   },
+  {
+    /*
+     * The one picture that has to be *earned* rather than arranged.
+     *
+     * Everything else here can be photographed by standing somewhere, but a boat has to be bought
+     * from the boatwright who stands at the end of a jetty, and then cast off, and then rowed far
+     * enough out that there is water in the frame rather than decking. So the setup presses the
+     * same three keys a player presses, in the same order, and the picture fails if any of them
+     * stops working — which is the whole reason the shots go through the game rather than round it.
+     *
+     * The coin is handed over rather than earned, and that is the one shortcut. A hull is 220 gold
+     * and a hero starts with fifty; hunting up the difference would make this a twenty-minute shot
+     * of the fur trade rather than a picture of the sea.
+     */
+    name: 'sea', title: 'Your own boat, out on the water', settle: 3000,
+    setup: async (p, { ask, wait, key, zoom, stand }) => {
+      const dock = await ask(() => {
+        // a mainland jetty, because an island one is reached by the boat this shot is buying
+        const pier = (window.__piers || []).find((one) => one.side === 'mainland') || (window.__piers || [])[0];
+        return pier ? { x: pier.dockX + 0.5, z: pier.dockZ + 0.5 } : null;
+      });
+      if (!dock) return null;                       // a world whose coast raised no jetty today
+      await ask(() => { window.__state.inventory.gold = 400; window.__state.version++; });
+      await stand(dock.x, dock.z, 4000);
+      await key('Enter');                           // the boatwright, who is the jetty itself
+      await key('Enter');                           // buy her
+      await wait(1200);
+      await key('Enter');                           // cast off
+      await wait(1200);
+      await key('w', 3000);                         // row out past the end of the decking
+      await zoom(16);
+      const afloat = await ask(() => window.__sailing.sailing);
+      if (!afloat) return null;                     // she never left the jetty: nothing worth a picture
+      return 'under way';
+    },
+  },
+  {
+    /*
+     * Two people in one world, which is the only shot that cannot be taken alone.
+     *
+     * `join: true` puts *this* page on the server as well as the second one, so what is
+     * photographed is somebody's own screen with another player standing in it — a roster with two
+     * names in it and a second hero in the square. Both go to the same village because two players
+     * in one world who cannot see each other is exactly the fault this picture exists to disprove.
+     */
+    name: 'shared', title: 'Two players in one world', server: true, join: true, settle: 7000,
+    setup: async (p, { ask, wait, village, time, zoom }) => {
+      await time(NOON);
+      const here = await village();
+      await wait(4000);
+      await zoom(18);
+      const others = await ask(() => (window.__online ? window.__online.count : 0));
+      if (!others) return null;                     // nobody else arrived: not a shared world today
+      return `${here.name}, ${others} other player${others > 1 ? 's' : ''}`;
+    },
+  },
 ];
 
 /**
@@ -495,9 +551,28 @@ async function take(browser, shot) {
     if (shot.server) { await startWorld(); playing = await playerJoins(browser, seed); }
     await page.goto(`${origin}${shot.page.replace('TOKEN', TOKEN).replace('WORLD', `http://localhost:${WORLD_PORT}`)}`, { waitUntil: 'load' });
   } else {
-    await page.goto(`${origin}/?world=${world}&seed=${seed}${shot.touch ? '&touch=1' : ''}`, { waitUntil: 'load' });
+    /*
+     * A shared-world shot needs this page on the server too, and somebody already standing in it.
+     *
+     * The second player goes first and deliberately: a world server holds no people until somebody
+     * knocks, so a page that joins an empty world and photographs itself has photographed single
+     * player with a socket attached.
+     */
+    if (shot.join) { await startWorld(); playing = await playerJoins(browser, seed, 1); }
+    const joining = shot.join ? `&server=ws://localhost:${WORLD_PORT}` : '';
+    await page.goto(`${origin}/?world=${world}&seed=${seed}${shot.touch ? '&touch=1' : ''}${joining}`, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: 60000 });
     await page.waitForTimeout(shot.loading ?? LOADING);
+    if (shot.join) {
+      // `?server=` only fills the box. The button is what leaves the world in this tab for the one
+      // on the server, and the name is what puts something other than a blank in the roster.
+      await page.evaluate(() => {
+        const name = document.getElementById('nameInput');
+        if (name) name.value = 'Ash';
+        document.getElementById('connectButton').click();
+      });
+      await page.waitForTimeout(8000);
+    }
   }
   let note;
   const done = async () => { await page.close(); if (playing) await playing.close(); };

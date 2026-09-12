@@ -1,3 +1,4 @@
+import type { Pier } from '../../world/structures';
 import * as THREE from 'three';
 import { WORLD } from '../../core/config';
 import { FERRY, fareFor, ferryStateAt, formatCountdown, worldSeconds, type FerryLine } from '../ferry';
@@ -44,6 +45,39 @@ export function travelInteractions(ctx: Surroundings) {
   };
 
   /** Board a docked ferry, or read the timetable at a pier. Returns false if no ferry is nearby. */
+  /**
+   * The man who sells you a boat, as a page rather than as a door.
+   *
+   * A page, because there are two ways to reach him now: standing at a pier with no ferry in
+   * (`tryBoat`), and reading the board on a pier whose ferry is an hour off. Written once so the
+   * two cannot drift apart — the price, the refusal and where the money goes are one answer.
+   *
+   * Typed off what `dialogue.start` takes rather than by importing the dialogue's own type: the
+   * game layer is allowed twenty imports from the ui and every one of them is argued for in
+   * `architecture.test.ts`, and a page of words does not need a twenty-first.
+   */
+  const boatwright = (pier: Pier): Parameters<typeof dialogue.start>[0] => ({
+    speaker: 'Boatwright', emoji: '🛶',
+    pages: [`A little sailing boat, sound enough for these waters. ${BOAT.PRICE} gold and she is yours to take anywhere.`],
+    choices: [
+      { label: `Buy the boat (${BOAT.PRICE}g)`, next: () => {
+        if (state.inventory.gold < BOAT.PRICE) {
+          return { speaker: 'Boatwright', emoji: '🛶', pages: [`Come back with ${BOAT.PRICE} gold.`] };
+        }
+        // the boatwright is a voice on a pier rather than anybody on the register, so the money
+        // goes to the village the pier belongs to and is spread across it
+        buy(holds(state.inventory), nearestVillageTill(ctx.register, around.villages(pier.dockX, pier.dockZ, PIER_TILL_REACH), pier.dockX, pier.dockZ, PIER_TILL_REACH), BOAT.PRICE);
+        state.version++;
+        sailing.buy(pier.dockX + 0.5 + pier.dx, pier.dockZ + 0.5 + pier.dz, Math.atan2(-pier.dz, pier.dx));
+        sound.jingle();
+        hud.flash('The boat is yours, moored at the end of the pier.');
+        persist();
+        return null;
+      } },
+      { label: 'Another time', next: () => null },
+    ],
+  });
+
   const tryFerry = (): boolean => {
     const now = worldSeconds(state.day, state.time);
     for (const { line } of ferries) {
@@ -89,9 +123,34 @@ export function travelInteractions(ctx: Surroundings) {
         return true;
       }
       if (nearFrom || nearTo) {
+        /*
+         * A board on an empty pier, and the one place a boat is for sale.
+         *
+         * The rule this file states is right — *"somebody standing on a pier where a ferry calls
+         * means the ferry; the boat is what is for sale when there is no crossing to take"* — and
+         * it had no world in which its second half was true. Piers are only ever generated in
+         * pairs, one on the mainland and one on an island, and a line is made wherever such a pair
+         * exists: **every pier in every world has a crossing**. So the boatwright below was
+         * unreachable, and a price, a purchase and a "come back with 220 gold" refusal were all
+         * written for a conversation nobody could open. Walked and confirmed across all six piers
+         * of one world.
+         *
+         * What was wrong was not the rule but where the line was drawn. A ferry that is *here* is a
+         * crossing to take; a ferry that is an hour away is a board on a post, and a man standing in
+         * front of a board with somewhere to be is exactly the man who buys a boat. So the timetable
+         * offers both, and the choice is his.
+         */
         const here = nearFrom ? 'from' : 'to';
         const destName = here === 'from' ? line.toName : line.fromName;
-        dialogue.start({ speaker: 'Timetable', emoji: '🪧', pages: [`Ferry to ${destName}: next boat in ${formatCountdown(st.arrivesIn[here])}.`] });
+        const pier = here === 'from' ? line.fromPier : line.toPier;
+        dialogue.start({
+          speaker: 'Timetable', emoji: '🪧',
+          pages: [`Ferry to ${destName}: next boat in ${formatCountdown(st.arrivesIn[here])}.`],
+          choices: [
+            ...(sailing.bought ? [] : [{ label: 'Ask after a boat of your own', next: () => boatwright(pier) }]),
+            { label: 'Wait for the ferry', next: () => null },
+          ],
+        });
         return true;
       }
     }
@@ -118,27 +177,7 @@ export function travelInteractions(ctx: Surroundings) {
     // a pier is where boats are sold
     const pier = structures.piers.find((p) => Math.hypot(p.dockX + 0.5 - player.x, p.dockZ + 0.5 - player.z) < 4);
     if (!pier || sailing.bought) return false;
-    dialogue.start({
-      speaker: 'Boatwright', emoji: '🛶',
-      pages: [`A little sailing boat, sound enough for these waters. ${BOAT.PRICE} gold and she is yours to take anywhere.`],
-      choices: [
-        { label: `Buy the boat (${BOAT.PRICE}g)`, next: () => {
-          if (state.inventory.gold < BOAT.PRICE) {
-            return { speaker: 'Boatwright', emoji: '🛶', pages: [`Come back with ${BOAT.PRICE} gold.`] };
-          }
-          // the boatwright is a voice on a pier rather than anybody on the register, so the money
-          // goes to the village the pier belongs to and is spread across it
-          buy(holds(state.inventory), nearestVillageTill(ctx.register, around.villages(pier.dockX, pier.dockZ, PIER_TILL_REACH), pier.dockX, pier.dockZ, PIER_TILL_REACH), BOAT.PRICE);
-          state.version++;
-          sailing.buy(pier.dockX + 0.5 + pier.dx, pier.dockZ + 0.5 + pier.dz, Math.atan2(-pier.dz, pier.dx));
-          sound.jingle();
-          hud.flash('The boat is yours, moored at the end of the pier.');
-          persist();
-          return null;
-        } },
-        { label: 'Another time', next: () => null },
-      ],
-    });
+    dialogue.start(boatwright(pier)!);
     return true;
   };
 

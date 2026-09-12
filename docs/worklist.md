@@ -3207,8 +3207,30 @@ in the order they would sensibly be built, which is not the order they arrived i
       be reproduced; and `__enterShop` always enters the *first* village's store, which makes a
       location-dependent shop walk impossible through the probes.
 
-      Still to do: the two missing shots. `shots.cjs` defines fifteen and neither `sea` nor a
-      shared-world one is among them — both are an hour of work and neither is blocked.
+      *The 13th: the shared-world shot is taken* — `docs/screenshots/shared.png`, two heroes in one
+      village with the chat carrying *"Joined world 3 as Ash. 1 other traveller here"* — and the sea
+      shot **cannot be taken, which is the finding.**
+
+      Walking to all six piers of one world answered Enter with a ferry every single time, and it is
+      by construction rather than by luck: piers are only ever generated in pairs, one on the
+      mainland and one on an island, and a ferry line is made wherever such a pair exists. **Every
+      pier in every world has a crossing.** `travel.ts` states the intended rule correctly — *"a pier
+      where a ferry calls means the ferry; the boat is what is for sale when there is no crossing to
+      take"* — and the second half of that sentence had no world in which it was true. So the
+      boatwright, the 220-gold price, the purchase and the "come back with 220 gold" refusal were all
+      written for a conversation nobody could open. **A second fur.**
+
+      Fixed by moving the line rather than the rule: a ferry that is *here* is a crossing to take; a
+      ferry an hour away is a board on a post, and a man standing in front of a board with somewhere
+      to be is exactly the man who buys a boat. The timetable now offers both. The sea shot is left
+      in `shots.cjs` reporting *"missed sea — nothing to photograph in this world today"* until
+      somebody walks it again, because a picture of a boat conjured past the boatwright would be a
+      picture of a game nobody can play.
+
+      And a correction the agent made to its own work, worth keeping: its first pass concluded that
+      no village anywhere was within reach of a jetty — a world-breaking claim — which turned out to
+      be its own filter rather than the game. It caught that by checking across fifteen seeds instead
+      of reporting one number.
 
       The original note: The sea and
       shared-world shots need a boat under the hero and two browsers in one world — both of which

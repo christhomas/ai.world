@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { FERRY, fareFor, ferryStateAt, type FerryLine } from './ferry';
+import { FERRY, fareFor, ferryStateAt, makeFerryLines, type FerryLine } from './ferry';
+import { TerrainSampler } from '../world/terrain';
+import { generateRoadGraph } from '../world/graph';
 import { BOAT } from './sailing';
 
 /**
@@ -66,5 +68,29 @@ describe('the boat itself', () => {
     let docked = 0;
     for (let t = 0; t < 600; t += 5) if (ferryStateAt(crossing, t).docked) docked += 5;
     expect(docked, 'the ferry never ties up anywhere').toBeGreaterThan(0);
+  });
+});
+
+describe('a pier that has a ferry and a boat for sale', () => {
+  /*
+   * The second thing the game promised and could not do, found by walking to every pier in a world.
+   *
+   * `travel.ts` states the rule correctly — "somebody standing on a pier where a ferry calls means
+   * the ferry; the boat is what is for sale when there is no crossing to take" — and there was no
+   * world in which its second half was true. Piers are only ever generated in pairs, one on the
+   * mainland and one on an island, and a line is made wherever such a pair exists. So every pier in
+   * every world has a crossing, the boatwright was unreachable, and a price, a purchase and a
+   * "come back with 220 gold" refusal were written for a conversation nobody could open.
+   */
+  it('makes a line for every pair of piers, which is every pier there is', () => {
+    for (const seed of [3, 11, 4242]) {
+      const sampler = new TerrainSampler(generateRoadGraph(seed));
+      const piers = sampler.structures.piers;
+      if (piers.length === 0) continue;
+      const lines = makeFerryLines(sampler.structures, sampler.structures.villages);
+      const served = new Set(lines.flatMap((line) => [line.fromPier, line.toPier]));
+      expect(served.size, `seed ${seed}: a pier with no crossing, which is what the boatwright wanted`)
+        .toBe(piers.length);
+    }
   });
 });
