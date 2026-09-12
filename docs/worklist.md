@@ -3262,14 +3262,11 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       week is money moving inside the valley for a service somebody actually needed — and if he
       does not pay, he loses beasts, which is the same decision the player makes about a warband.
 
-- [ ] **24b. The mayor offers to build a hall.** *And the argument for building this sooner rather
-      than later, stated plainly: a treasury that never spends will always out-accumulate every
-      person in the village, because a person has to buy dinner and a treasury does not.* That is
-      not a tax rate problem and lowering the rate would only slow it down —
-      `chore sanity` measures it at sixty-two per cent of all the money in the world after four
-      hundred and fifty days.
-
-- [ ] **24b. The mayor offers to build a hall.** When the treasury reaches the price, the mayor puts
+- [ ] **24b. The mayor offers to build a hall.** *The argument for building it sooner rather than
+      later, stated plainly: a treasury that never spends will always out-accumulate every person in
+      the village, because a person has to buy dinner and a treasury does not. That is not a tax
+      rate problem and lowering the rate would only slow it down — `chore sanity` measures it at
+      sixty-two per cent of all the money in the world after four hundred and fifty days.* When the treasury reaches the price, the mayor puts
       it to the village and a builder raises it — the same `Commission` the player's house uses, with
       the village as the customer and the hall's purse paying. It needs a price (a hall is the most a
       village ever spends, so it wants to be a year or two of taxes rather than a season) and it is
@@ -3651,7 +3648,7 @@ than by remembering — and the first thing found was that the gap is not where 
       can do yet is *choose* one without editing a link. That waits until an endless world is worth
       choosing.
 
-- [ ] **59g-old. The original note.** `WorldKind` has been `'road'` alone since the polygon
+- [x] **59g-old. The original note, kept for why it mattered.** `WorldKind` had been `'road'` alone since the polygon
       world was retired, and `kindOf` quietly answers `'road'` to anything. The same seed grows a
       completely different country as an endless one, so opening an old save as the new kind would
       move the ground out from under every house, field and anchor in it. The kind comes back, and
