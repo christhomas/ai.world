@@ -3499,7 +3499,21 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       and then go to the doctor, take a bed, buy medicine, or be treated for nothing. Another
       dimension for the register's people, and the first use the doctor has ever had.
 
-- [ ] **37. The hall holds the money until the work is done.** You pay the mayor, not the builder;
+- [~] **37. The hall holds the money until the work is done.** *The seat is built and the letter of
+      it is argued against, on the 13th.* `postings.ts` has the builder's row in its table —
+      `crew` on a yard, wanting `can_build` — deliberately empty, because a job is a holding this
+      world does not raise yet.
+
+      The divergence is worth reading before anybody builds the rest. The item says the money is
+      handed over when the thing is standing; the argument against is that **a fee held for a dead
+      man dangles, and the way out is to stop holding it.** What the player pays stays a price paid
+      once, and what the *village* does with it is a day of building bought each morning from
+      whoever turns up — which has the property escrow does not: a builder who dies on day four has
+      been paid for the four days he worked, and his replacement is paid for the two that are left.
+      Under escrow the dead man's four days go to his successor, which is wrong.
+
+      What is left is the holding: a job on the hall's books that a builder can be posted to, which
+      is the thing `crew` is waiting for. You pay the mayor, not the builder;
       the builder registers the job at the hall; the money is handed over when the thing is
       standing. That is what lets another builder take over a half-built house when the first one is
       killed — and it answers the objection that kept builders off the register in the first place,
@@ -3528,7 +3542,30 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       worth doing for reasons anybody in the village could explain. Better than a dragon that eats
       people, because bands already do that and because a herd is a thing the economy can feel.
 
-- [ ] **39. A farmer hires men to keep the cows safe.** The natural answer to 38, and the machinery
+- [x] **39. A farmer hires men to keep the cows safe.** *Done on the 13th, and it settled **37**'s
+      question on the way.* Both items ask the same thing in different words: **how does work get
+      paid for when the worker may die?** The objection that kept builders off the register was "a
+      builder carried off by a wolf half way through the job is a house that dangles", and a guard is
+      the identical problem — a man standing in a field under a dragon is exactly the man least
+      likely to be there tomorrow.
+
+      An escrow answers it for the fee, and an escrow is a thing to keep, and **a thing kept about a
+      dead man is a thing that has to be cleaned up**. The answer this world already had is better
+      and it is `whoStandsWatch`: nothing is remembered between days. So a **post belongs to the
+      holding rather than to the man** — a farm, a yard, a job on the hall's books — and who stands
+      it is worked out fresh each morning. Nothing is stored, so nothing can be orphaned.
+
+      Two things caught by the agent's own tests and worth keeping. Guards were first drawn from
+      "whoever has nothing else to do", which in this world is **almost entirely children**, because
+      a trade comes with growing up — they are the village's soldiers first now, grown idlers second,
+      never a child, which also gives the one trade whose wage is invented beyond the village
+      somebody who actually wants him. And an end-to-end test passed while proving nothing, because
+      **holdings are founded on the mornings a village lives rather than on the day it is settled**,
+      so a just-settled village has no farms to guard.
+
+      The money is the safest kind: a coin out of the farmer's purse into the guard's, both inside
+      one village, so the village's total is unchanged and the audit balances over it without needing
+      a column at all. The natural answer to 38, and the machinery
       is already built: `hires.ts` has contracts with a term, a price that follows the danger, an
       extension offered before they lapse and orders you can give — all of it aimed at the player
       hiring swords. Pointing it at a villager is the same bargain with a different signatory.

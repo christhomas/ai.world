@@ -1,4 +1,6 @@
 import { hashString, mulberry32 } from '../core/rng';
+import { give, purseOf } from '../world/deeds';
+import { postsToday, turnedAway, type Held, type Post } from '../world/postings';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
 import { luxuryFor, storeysFor, type Luxury } from '../world/prosperity';
@@ -177,15 +179,56 @@ export function createTidings(ctx: Telling) {
     for (const band of roaming.advance(state.day)) flash(warningOfBand(band));
     /** The worst thing leaning on each village today, which is what the register is told. */
     const worst = new Map<string, number>();
+    /**
+     * And who is standing over its cattle, hired once for the day rather than once per band.
+     *
+     * Kept beside `worst` and for exactly the same reason. `pressings` comes back one entry per
+     * band per village, so a place with two over it would post its guards twice and pay them twice
+     * — the same shape of fault as the chat saying everything twice, one loop further in. They are
+     * posted against the worst of what is overhead, which is what a farmer would be looking at when
+     * he decided to pay anybody.
+     */
+    const standing = new Map<string, readonly Post[]>();
     // a band camped on a village's doorstep costs it people, and the same people on every client
     // and what each village has grown into, because a band leans harder on a place worth leaning
     // on: a town has more in its granary than a hamlet. See `worthPressing`
     for (const press of roaming.pressings(
       structures.villages, state.day, (v) => register.rankOf(v), (v) => register.herdOf(v),
     )) {
-      // and what a dragon takes instead of people: the herd the farmers' whole living is made of,
-      // so a village it passes over gets poorer in a way anybody living there could explain
-      const carried = press.cattle > 0 ? register.cattleLost(press.village, press.cattle) : 0;
+      /*
+       * The men on the gates, and what they cost the farmers who put them there.
+       *
+       * The first wage in this economy that moves *inside* a valley. Every other one is invented
+       * somewhere beyond it — a seam, a shoal, a road, a traveller's bed — and this is a farmer
+       * paying a neighbour, out of his own purse, for a service he actually needed on a morning he
+       * could have chosen to save the money on. It is the same decision the player makes about a
+       * warband, made by somebody who lives there.
+       *
+       * `postsToday` decides who and at what price and moves nothing; the coin itself goes through
+       * `deeds`, which is the one vocabulary in this world where money leaving a purse and arriving
+       * in another is a single act. Nothing is minted and nothing is burnt, and a village's own
+       * total is exactly what it was — which is why the books balance over this without a column.
+       */
+      if (!standing.has(press.village)) {
+        // `madeOf` hands back the settlement itself and its declared shape is narrower than what it
+        // actually carries. Widening that return type is the one register edit this wants.
+        const holds = (register.madeOf(press.village).holdings ?? []) as readonly Held[];
+        const posts = postsToday(register.living(press.village), holds, press.pressure, state.day);
+        standing.set(press.village, posts);
+        const purses = new Map(register.living(press.village).map((p) => [p.id, p]));
+        for (const post of posts) {
+          const payer = purses.get(post.funder), man = purses.get(post.who);
+          if (payer && man) give(purseOf(payer), purseOf(man), post.wage);
+        }
+      }
+      /*
+       * And what a dragon takes instead of people: the herd the farmers' whole living is made of,
+       * so a village it passes over gets poorer in a way anybody living there could explain — less
+       * whatever the men on the gates turned back, which is what their wages bought.
+       */
+      const saved = turnedAway(standing.get(press.village) ?? [], press.cattle);
+      const losing = Math.max(0, press.cattle - saved);
+      const carried = losing > 0 ? register.cattleLost(press.village, losing) : 0;
       if (carried > 0) online.report({ kind: 'herd', village: press.village, head: register.herdOf(press.village) });
       const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
       const living = [...register.living(press.village)];

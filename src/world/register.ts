@@ -10,7 +10,7 @@ import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
-import { whatTheVillageHolds } from './holdings';
+import { whatTheVillageHolds, type Holding } from './holdings';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
@@ -190,8 +190,14 @@ export class Register {
   /** The houses it was laid out with, which is what founding it again wants. */
   livedIn = (v: string): number => this.villages.get(v)?.houses ?? 0;
 
-  /** What this village is *made of*, for whoever has to work out what a day of it comes to. */
-  madeOf = (v: string): { trades?: readonly string[]; holdings?: readonly { kind: string }[] } =>
+  /**
+   * What this village is *made of*, for whoever has to work out what a day of it comes to.
+   *
+   * Typed with the whole holding rather than with the one field the catch happens to read: a
+   * settlement carries them entire, and narrowing the type here only forced a cast at the far end
+   * where somebody wanted the rest of one.
+   */
+  madeOf = (v: string): { trades?: readonly string[]; holdings?: readonly Holding[] } =>
     this.villages.get(v) ?? {};
 
   /**

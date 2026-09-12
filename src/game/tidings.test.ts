@@ -233,3 +233,92 @@ describe('the news a day brings', () => {
     expect(reassurances, 'the mine was asked once and then never again').toBe(2);
   });
 });
+
+/**
+ * The men standing over a village's cattle, and the first wage in this economy that moves inside
+ * the valley it is earned in.
+ *
+ * Every other one is invented somewhere beyond the village — a seam, a shoal, a road, a traveller's
+ * bed. This is a farmer paying a neighbour out of his own purse for a service he needed on a
+ * morning he could have chosen to save the money on, which is what item 39 said the economy was
+ * short of. What is pinned here is the two halves joining: that it is paid once for the day however
+ * many bands are overhead, and that the village's own total is exactly what it was.
+ */
+describe('a guard on the gate', () => {
+  const dragon = () => leaning(bandNamed('Ashford'), 0.9, 'A dragon is over Stonedale.', 0, 9);
+
+  it('is paid for by the farmer and paid to the man, and the village is no poorer for it', () => {
+    /*
+     * The property that makes this safe to land without a new column in anybody's books: a coin
+     * leaving one purse in a village and arriving in another in the same village leaves the place
+     * worth exactly what it was worth. The audit balances over it without being told anything.
+     */
+    const register = new Register(31);
+    register.settle(VILLAGE, 6, TRADES);
+    const before = register.living(VILLAGE).reduce((sum, p) => sum + p.purse, 0);
+
+    const { tidings } = telling({ register, pressings: [dragon()] });
+    tidings.theDaysNews();
+
+    const after = register.living(VILLAGE).reduce((sum, p) => sum + p.purse, 0);
+    expect(after, 'money was minted or burnt paying a guard').toBeCloseTo(before, 5);
+  });
+
+  it('is hired once for the day however many bands are overhead', () => {
+    /*
+     * The same fault the chat had, one loop further in: `pressings` comes back one entry per band
+     * per village, so a place with two over it would post its guards twice and pay them twice. The
+     * men are posted against the worst of what is overhead, which is what a farmer would be looking
+     * at when he decided to pay anybody.
+     */
+    const one = new Register(32); one.settle(VILLAGE, 6, TRADES);
+    const two = new Register(32); two.settle(VILLAGE, 6, TRADES);
+    const purses = (r: Register) => r.living(VILLAGE).map((p) => p.purse);
+
+    telling({ register: one, pressings: [dragon()] }).tidings.theDaysNews();
+    telling({
+      register: two,
+      pressings: [dragon(), leaning(bandNamed('Fernmoor'), 0.3, 'Wolves are about.', 0, 2)],
+    }).tidings.theDaysNews();
+
+    expect(purses(two), 'a second band over the same village hired a second shift').toEqual(purses(one));
+  });
+
+  it('leaves a village that paid with more cattle than the same village that could not', () => {
+    /*
+     * What the wages bought, and the whole of why a farmer would pay them. A man with a stick does
+     * not send a dragon home — the herd still comes down — but a village that paid keeps beasts a
+     * village that did not has lost, which is the same decision the player makes about a warband.
+     *
+     * The two villages are the same seed and the same people. The only difference is that one of
+     * them has money: the other's purses are emptied first, so no farmer in it will lay out a
+     * penny and nobody stands on any gate. That is the item's decision isolated to one variable.
+     */
+    const ARMED = ['farmer', 'soldier', 'seller'];
+    // lived a few days first, because a village's holdings are founded on the mornings it lives
+    // rather than on the day it is settled — there are no farms to guard on day one
+    const settled = (seed: number): Register => {
+      const register = new Register(seed);
+      register.settle(VILLAGE, 8, ARMED);
+      register.advance(4);
+      return register;
+    };
+    const paid = settled(33), broke = settled(33);
+    expect(paid.living(VILLAGE).some((p) => p.trade === 'soldier'), 'nobody to stand a gate').toBe(true);
+    expect(paid.madeOf(VILLAGE).holdings?.length, 'no farm to put a man on').toBeGreaterThan(0);
+    for (const person of paid.living(VILLAGE)) person.purse = 400;
+    for (const person of broke.living(VILLAGE)) person.purse = 0;
+    const before = paid.herdOf(VILLAGE);
+    expect(before, 'no herd for a dragon to take').toBeGreaterThan(0);
+
+    const day = 5;
+    const one = telling({ register: paid, pressings: [dragon()] });
+    one.state.day = day; one.tidings.theDaysNews();
+    const two = telling({ register: broke, pressings: [dragon()] });
+    two.state.day = day; two.tidings.theDaysNews();
+
+    expect(broke.herdOf(VILLAGE), 'the unguarded village lost nothing').toBeLessThan(before);
+    expect(paid.herdOf(VILLAGE), 'the wages bought nothing at all')
+      .toBeGreaterThan(broke.herdOf(VILLAGE));
+  });
+});
