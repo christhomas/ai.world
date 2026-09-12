@@ -3499,7 +3499,38 @@ simulation rather than any one feature in it.
       money and already do something when you enter one, so this is a use for a building rather than
       a building.
 
-- [ ] **49. Houses come in sizes, and a house is what limits a family.** The other half of **44**,
+- [x] **49. Houses come in sizes, and a house is what limits a family.** *Done on the 12th.* Four
+      roofs, and the ladder is one fact counted four times: a roof holds a couple and so many
+      children. A **cottage** holds two — the couple and nobody else, so a family in one that wants a
+      child has to be given more room first, which is the whole item said as a number — then a
+      **house** four (what a village is laid out with), a **longhouse** six, a **great house** eight.
+      They cost what they hold, at 108 gold a head, which leaves the standard house at 432 and the
+      420-against-432 coincidence with `game/building.ts` exactly where it was.
+
+      **A family is limited by the roof it lives under**, and who lives under which roof is worked
+      out rather than stored — in `homes.ts`'s ordering, imported from there rather than reasoned out
+      again, so nobody can be told he lives in the Vos house by one file and has nowhere to put a
+      child by another. A free roof goes to the first family that has run out of room under its own,
+      which is the eldest boy taking the empty cottage next door; without it the roof raised this
+      morning would belong to nobody and stand empty for ever.
+
+      **Hunger moved from the ledger to the family**, which is the part worth keeping. A household
+      where anybody went without last night does not have a baby tonight, whatever the village store
+      says — so hunger stops a family growing long before it starts killing anybody. That replaced
+      44's flat larder gate with the same question asked from the other side: a village raises a roof
+      for a family that has run out of room and would have another child if it had some. A hungry
+      family is not asking for a nursery, so the money stays in the hall on exactly the mornings it
+      ought to, for a reason somebody living there could give you.
+
+      What size goes up is one rung above the best roof over anybody who has run out — and nothing
+      smaller when it cannot afford that, which is `nextWork`'s own argument: a list you may skip
+      about in is not a ladder. Being poor costs a village its pace and never its shape. **The
+      skyline becomes a history.** At day 450 the villages are 57 and 86 where they were 43 and 62.
+
+      One thing found on the way and not yet fixed: on a day a village both builds and somebody comes
+      of age, the books come out a gold light — a third instance of the class of fault the audit
+      caught twice tonight, and it will resurface the moment anything makes villages build more
+      often. The other half of **44**,
       and the thing that makes the population cap a *place* rather than a number. A small, medium,
       large and huge house, each with its own model, its own building stages (**40**) and its own
       maximum occupancy. A couple has children when there is food in the store and room under the

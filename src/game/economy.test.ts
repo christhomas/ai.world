@@ -443,10 +443,24 @@ describe('what a band standing over a village does to it', () => {
       const evenings = run.books.get('Thornby')!;
       const on = (books: Books[], day: number): Books => books[day - FOUNDED];
 
-      const before = worth(on(evenings, raided.from - 1));
-      const during = worth(on(evenings, raided.until - 1));
-      const after = worth(on(evenings, FOUNDED + DAYS));
-      const wasQuiet = worth(on(control, raided.from - 1));
+      /*
+       * Purses *and* the hall, which is a correction rather than a refinement.
+       *
+       * `worth` adds up what the people are holding, and that was the whole of a village's money
+       * for as long as the treasury only ever filled. A village saves now — for a roof, and since
+       * roofs come in sizes, for a bigger one — so money waiting in the hall for a longhouse left
+       * the purses and looked exactly like a village that had failed to recover. It had recovered;
+       * it had decided to build something.
+       */
+      const nights = run.standing.get('Thornby')!;
+      const quietNights = run.standing.get('Ashford')!;
+      const held = (books: Books[], hall: typeof nights, day: number): number =>
+        worth(on(books, day)) + (hall[day - FOUNDED]?.hall ?? 0);
+
+      const before = held(evenings, nights, raided.from - 1);
+      const during = held(evenings, nights, raided.until - 1);
+      const after = held(evenings, nights, FOUNDED + DAYS);
+      const wasQuiet = held(control, quietNights, raided.from - 1);
       /*
        * Both as a share of what the place had, and both over the same ten days, because a village
        * left alone does lose money: people die of old age and their purses go into the ground with
@@ -455,7 +469,7 @@ describe('what a band standing over a village does to it', () => {
        * more than being left alone does.
        */
       const raidedBy = (during - before) / Math.max(1, before);
-      const quietBy = (worth(on(control, raided.until - 1)) - wasQuiet) / Math.max(1, wasQuiet);
+      const quietBy = (held(control, quietNights, raided.until - 1) - wasQuiet) / Math.max(1, wasQuiet);
 
       if (raidedBy >= quietBy - COST_OF_A_BAND) {
         wrong.push(`Thornby (seed ${run.seed}) lost ${Math.round(-raidedBy * 100)}% of itself under a band and Ashford lost ${Math.round(-quietBy * 100)}% being left alone: a band costs a village nothing`);

@@ -3,6 +3,7 @@ import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods
 import { taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
+import { whoCouldHaveAChild } from './roofs';
 import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Settlement } from './settlement';
@@ -565,7 +566,9 @@ export class Register {
     const changes: Change[] = [];
 
     for (let n = 0; n < wanted; n++) {
-      const parents = village.people.filter((p) => stageOf(p, day) === 'adult');
+      // room under their own roof and food in the store, which is what limits a family now that a
+      // roof has a size. Asked inside the loop, so each birth sees the bed the last one took
+      const parents = whoCouldHaveAChild(village.people, village.houses, village.works, village.food, day);
       if (parents.length < 2) break;            // a village of children does not repopulate itself
 
       const [mother, father] = parentsFrom(parents, rng);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WATCH_WAGE, WORKS, nextWork, whatTheHallBuys, whoStandsWatch } from './hall';
 import { Register } from './register';
+import { isARoof } from './roofs';
 import type { Person } from './people';
 
 /**
@@ -81,8 +82,9 @@ describe('a village that has been saving', () => {
     const works = register.worksOf('Testing');
     expect(works.length, 'four hundred days of taxes and the hall never bought anything').toBeGreaterThan(0);
     // the houses a growing village raises go into the same list — see `growth.ts` — and they are
-    // not on the hall's wish list at all: a roof is a need and this is the order the wants come in
-    expect(works.filter((work) => work !== 'house')[0]).toBe(WORKS[0].id);
+    // not on the hall's wish list at all: a roof is a need and this is the order the wants come in.
+    // They carry the size they came out at, so they are recognised rather than spelled out here
+    expect(works.filter((work) => !isARoof(work))[0]).toBe(WORKS[0].id);
   });
 });
 

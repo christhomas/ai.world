@@ -1,8 +1,10 @@
-import { FOOD } from './food';
 import { WATCH_WAGE, whatTheHallSpends } from './hall';
 import { PROSPER } from './prosperity';
 import { shareOut } from './livelihoods';
-import { LIFE, type Person } from './people';
+import {
+  STANDARD, biggestRoofAmong, familiesWantingRoom, isARoof, oneSizeUp, workOf, type Roof,
+} from './roofs';
+import { type Person } from './people';
 
 /**
  * How a village gets bigger, which until tonight it could not.
@@ -35,27 +37,19 @@ import { LIFE, type Person } from './people';
  * without a rule anywhere saying so — and why growing is a fact about a place rather than a number
  * that only goes up.
  *
+ * **What a roof is** belongs next door in `roofs.ts`, and so does who lives under one. This file
+ * was written when every house in the world held four people, which made the ceiling a number
+ * wearing a house's name; a roof has a size now, a family is limited by the one it lives under, and
+ * the question this file asks — is anybody short of room, and what would relieve them — is answered
+ * over there out of who is alive rather than out of arithmetic. The larder went with it: the gate
+ * that used to sit in front of the building, asking whether the cellar was half full, is a
+ * condition on having children now, and what is left here is that a village builds for a family
+ * that has run out of room and would have another child if it had some.
+ *
  * Its own file, and pure, for the reason `hall.ts` is: handed a purse, what has already been built
  * and who lives there, it says what changes. The register applies it, because the register is the
  * one place a coin is allowed to move.
  */
-
-/** What a raised house is called in `Settlement.works`, where a village keeps what it has built. */
-export const HOUSE = 'house';
-
-/**
- * How many souls a house holds.
- *
- * A couple and their children, which is precisely what `foundVillage` puts under one roof: two
- * grown people and up to `LIFE.CHILDREN` of theirs. Written as that sum rather than as a four, so
- * that a world where households are bigger is a world where houses are bigger without anybody
- * having to remember that two numbers meant the same thing.
- *
- * It is the *most* a house holds rather than the average one is founded with, and that is on
- * purpose. A village that has stood for years is fuller than the morning it was laid out, and
- * nobody raises a house for a family that does not mean to fill it.
- */
-const A_HOUSEFUL = 2 + LIFE.CHILDREN;
 
 /**
  * Days a crew takes over a house.
@@ -81,11 +75,23 @@ const A_CREW_TAKES = 6;
  */
 const A_DAY_OF_BUILDING = WATCH_WAGE * (PROSPER.TRADED / PROSPER.A_DAY);
 
+/**
+ * What a roof of a given size costs the hall.
+ *
+ * By the room in it, because that is what the crew is being paid for: twice the house is twice the
+ * timber, twice the joinery and twice the days, so it is twice the wage bill. A hundred and eight
+ * gold a head, whatever size it comes out — which is why a village that builds small and a village
+ * that builds big get the same room for the same money, and the only thing a size changes is how
+ * often the village has to do it.
+ */
+export function costOfARoof(roof: Roof): number {
+  return roof.holds * A_CREW_TAKES * A_DAY_OF_BUILDING;
+}
+
 export const GROWTH = {
-  /** How many a house holds, and so how far the cap rises the morning one is raised. */
-  A_HOUSEFUL,
   /**
-   * What a house costs the hall: a crew, for as long as a house takes, at a builder's day-rate.
+   * What an ordinary house costs the hall: a crew, for as long as a house takes, at a builder's
+   * day-rate.
    *
    * Four hundred and thirty-two gold, and the number is worth stopping on because nothing about it
    * was aimed at. What a man charges the *player* to raise him a house, arrived at years ago on
@@ -101,17 +107,7 @@ export const GROWTH = {
    * before it can house anybody would dig its well, put a storey on every roof and build a bath
    * house while its people were still sleeping four to a room.
    */
-  A_HOUSE: A_HOUSEFUL * A_CREW_TAKES * A_DAY_OF_BUILDING,
-  /**
-   * How full the cellar has to be before a village adds mouths to feed, as a share of a full one.
-   *
-   * Half. A full cellar is a week of dinners a head, so half of one measured against the size the
-   * village is *about to be* is three or four days in hand — enough that a bad week is survivable
-   * and not so much that a village can never reach it. The number that matters is not its exact
-   * value but that it is measured against the larger village: a place feeding itself comfortably
-   * today can still be a place that starves the morning four more people move in.
-   */
-  IN_HAND: 0.5,
+  A_HOUSE: STANDARD.holds * A_CREW_TAKES * A_DAY_OF_BUILDING,
   /**
    * How much ground a village has, as a multiple of what it was laid out on.
    *
@@ -145,7 +141,7 @@ export function roomFor(laidOut: number): number {
  * the same house on every machine.
  */
 export function housesStanding(laidOut: number, built: readonly string[]): number {
-  return laidOut + built.filter((work) => work === HOUSE).length;
+  return laidOut + built.filter(isARoof).length;
 }
 
 /** A house raised: what it cost, who was paid to raise it, and how many more the village can hold. */
@@ -153,19 +149,28 @@ export interface Raised {
   costs: number;
   /** The village builds with its own hands, so the money goes back to the people who did it. */
   wages: Map<string, number>;
-  /** How many more souls there is room for now that it stands. */
+  /** How many more souls there is room for now that it stands: the size of what went up. */
   holdsMore: number;
+  /** And what size that was, which is what goes into `works`. */
+  roof: Roof;
 }
 
 /**
- * The house a village raises this morning, or nothing.
+ * The house a village raises this morning, and what size it comes out, or nothing.
  *
  * Four things have to be true at once, and each of them is a different sort of reason to say no.
  *
- * A village with a spare bed does not build: it fills the bed. That is the whole of what makes
- * this a growth loop rather than a building spree — houses are raised because there is nobody left
- * to put anywhere, which means the pace is set by how fast the village fills and not by how rich
- * it is.
+ * A village with a spare bed does not build: it fills the bed. That is what makes this a growth
+ * loop rather than a building spree — a roof goes up because there is nobody left to put anywhere,
+ * so the pace is set by how fast a village fills and not by how rich it is.
+ *
+ * **Somebody has to want it.** A village raises a roof for a family that has run out of room under
+ * its own and would have another child if it had some — see `familiesWantingRoom`. That is where
+ * the larder now does its work: a family going hungry is not asking for a nursery, and a village
+ * whose store is empty has no such family anywhere in it, so the money stays in the hall on exactly
+ * the mornings it ought to. It is the same rule the births run on, asked from the other side, which
+ * is better than the gate it replaces — a flat "is the cellar half full" is a thing a ledger checks
+ * and this is a thing somebody living there could tell you.
  *
  * A village with no ground left does not build either, however much it has saved, and that is the
  * one that makes two villages in one world different from each other.
@@ -176,38 +181,40 @@ export interface Raised {
  *
  * And a village with nobody who holds a trade raises nothing, for the reason `whatTheHallBuys`
  * gives: a village of children and the very old does not put up a house by wishing.
+ *
+ * **What size it comes out** is one rung up from the best roof anybody who has run out is living
+ * under. The point of building is to give a growing family more room than it had, so a village
+ * cannot leap from houses to great houses — it climbs, and a skyline is therefore a history rather
+ * than a purchase.
+ *
+ * It will not put up something smaller instead when it cannot afford that, and the argument is
+ * `nextWork`'s own: the hall buys the cheapest thing it has not got and *saves for it* rather than
+ * skipping to something it can reach today, because a list you are allowed to skip about in is not
+ * a ladder. A village that wanted a longhouse and put up a cottage would have done exactly that.
+ * So a poor village takes longer to raise the next roof and gets the same roof in the end, which is
+ * also why being poor costs a village its pace and never its shape.
  */
 export function whatTheVillageBuilds(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
   larder = Infinity,
 ): Raised | null {
   if (people.length < holds) return null;
-  /*
-   * And a village does not put up a roof for mouths it cannot feed.
-   *
-   * Found by the audit within minutes of this loop being wired in: villages grew, the extra people
-   * ate, the farmers did not multiply to match, and four villages in a hundred days starved
-   * themselves out of existence entirely — which the books then reported as coin buried with the
-   * dead, because there was nobody left in the village to inherit it.
-   *
-   * The rule that fixes it is the one a village would use. A full cellar is `FOOD.KEEPS_DAYS` days
-   * of dinners per head, so asking for half of that before building is asking for a few days in
-   * hand at the size it is *about to be* rather than the size it is. A village living hand to mouth
-   * stays the size it is and spends its money on the well instead, which is exactly what a village
-   * living hand to mouth should do.
-   */
-  if (larder < (people.length + GROWTH.A_HOUSEFUL) * FOOD.KEEPS_DAYS * GROWTH.IN_HAND) return null;
+  const wanting = familiesWantingRoom(people, laidOut, built, larder);
+  if (wanting.length === 0) return null;
   if (housesStanding(laidOut, built) >= roomFor(laidOut)) return null;
-  if (purse < GROWTH.A_HOUSE + WATCH_WAGE) return null;
+  const roof = oneSizeUp(biggestRoofAmong(wanting) ?? STANDARD);
+  const costs = costOfARoof(roof);
+  if (purse < costs + WATCH_WAGE) return null;
   const working = people.filter((person) => person.trade !== '');
   if (working.length === 0) return null;
   return {
-    costs: GROWTH.A_HOUSE,
+    costs,
     // shared among whoever holds a trade, which is the rule every other village-wide payment in
     // this world uses: `shareOut` leaves the remainder on the last of them, so the shares come to
     // what was spent and no coin is invented on the way
-    wages: shareOut(GROWTH.A_HOUSE, new Map(working.map((person) => [person.id, 1]))),
-    holdsMore: GROWTH.A_HOUSEFUL,
+    wages: shareOut(costs, new Map(working.map((person) => [person.id, 1]))),
+    holdsMore: roof.holds,
+    roof,
   };
 }
 
@@ -230,7 +237,7 @@ export function whatTheVillageSpends(
 ): { wages: Map<string, number>; spent: number; works: string[]; holdsMore: number; watch: string } {
   const raised = whatTheVillageBuilds(purse, built, laidOut, holds, people, larder);
   const wages = new Map<string, number>(raised?.wages ?? []);
-  const works: string[] = raised ? [HOUSE] : [];
+  const works: string[] = raised ? [workOf(raised.roof)] : [];
   const onTheHouse = raised?.costs ?? 0;
 
   // one building a morning, which is the hall's own rule and worth keeping: a village that put a
