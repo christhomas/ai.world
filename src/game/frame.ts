@@ -12,6 +12,7 @@ import type { CropField } from '../render/crops';
 import type { DayCycle } from '../render/daycycle';
 import type { HeroGear } from '../render/herogear';
 import { turnToFace } from '../entities/entity';
+import { afloat } from '../entities/stride';
 import type { Cutaway } from '../render/cutaway';
 import type { MountainMaterial, Mountains } from '../render/mountains';
 import type { PatchCountry } from '../world/patchcountry';
@@ -310,8 +311,16 @@ export function createFrame(ctx: Framing) {
      * that how long it has been up is a real number the parry window can be measured against.
      * Not while riding: a guard on horseback is a different animation and a different fight.
      */
-    if (!talking && !mount.riding && !sailing.sailing && input.isDown('c')) breath.raise(); else breath.drop();
-    breath.age(dt);
+    /*
+     * And whether he is out of his depth, which costs breath rather than nothing.
+     *
+     * Swimming under his own arm, not riding over the water in a boat or on a horse: both of those
+     * put the hero on a surface `afloat` reads as water and neither of them is tiring. The
+     * distinction is the same one `watch.ts` draws when it decides what out at sea has noticed him.
+     */
+    const swimming = afloat(player.ground, player.entity) && !sailing.sailing && !mount.riding;
+    if (!talking && !mount.riding && !sailing.sailing && !swimming && input.isDown('c')) breath.raise(); else breath.drop();
+    breath.age(dt, swimming);
     player.climb = state.climb;
     player.speedScale = haulPace(
       mount.riding ? paceOf(mount.breed, goingUnderfoot()) : 1,

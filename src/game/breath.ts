@@ -49,6 +49,24 @@ export const BREATH = {
   /** How much of your pace a raised guard costs you. */
   GUARDED_PACE: 0.45,
   /**
+   * What a second out of your depth costs, which is the only thing here that is not about fighting.
+   *
+   * Swimming was free. You went slower and nothing else was true of it, so deep water was a slow
+   * floor rather than deep water — and in a wreck's flooded hold, where the salvage sits on an
+   * island with a line of stones laid to it, a crossing somebody could simply paddle across is a
+   * room with nothing in it to read.
+   *
+   * At this rate a full chest is five seconds of swimming, and the water in a hold is four or five
+   * tiles wide at a stroke of 0.4 — so going straight over costs most of half a chest and arrives
+   * where the fish-folk are. Going round on the stones costs the walk and nothing else. That is the
+   * decision, and it is made of two numbers that were already here.
+   *
+   * What it deliberately does not do is drown anybody. Being out of breath in the water is being
+   * out of breath: your swing is a tired one and your arm will not stay up, which is punishment
+   * enough for a misread and is not a death somebody watched coming and could not stop.
+   */
+  SWIMMING: 20,
+  /**
    * Half the arc a raised guard covers, in radians.
    *
    * Wider than the arc you can swing through, because taking a blow on a raised arm asks less of
@@ -90,8 +108,23 @@ export class Breath {
   get guarding(): boolean { return this.raised !== null; }
   get winded(): boolean { return this.share < BREATH.WINDED; }
 
-  /** Time passing: the guard ages, and breath comes back when nothing is spending it. */
-  age(dt: number): void {
+  /**
+   * Time passing: the guard ages, and breath comes back when nothing is spending it.
+   *
+   * `swimming` is the one state where none of that applies, and it comes first because it
+   * overrules the rest. A guard cannot be held by somebody with nothing under his feet to plant
+   * them on, and a chest that filled back up while its owner was under water would make deep water
+   * a place to go and get your breath back — which is the opposite of what deep water is.
+   *
+   * Defaulted, so every caller that is not the frame loop goes on meaning what it always meant.
+   */
+  age(dt: number, swimming = false): void {
+    if (swimming) {
+      this.raised = null;
+      this.left = Math.max(0, this.left - BREATH.SWIMMING * dt);
+      this.since = 0;
+      return;
+    }
     if (this.raised !== null) {
       this.raised += dt;
       this.left = Math.max(0, this.left - BREATH.GUARD * dt);

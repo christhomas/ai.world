@@ -7,6 +7,10 @@ import { DTile, type DungeonMap, type Chest, type Door, type Room, type Torch } 
  * nearest-first order so the whole thing is connected, stairs in the first room, the big chest in
  * the room farthest from the stairs, torches along the walls, a pool or two.
  *
+ * One kind of floor gets more than that. A wreck's compartments are built rather than dug, so they
+ * are bigger, and the one the salvage is in is flooded round it — see `floodTheHold` below, which
+ * is the only place in this file that puts a room together rather than scattering things in one.
+ *
  * What a floor *is* now lives in `map.ts`, and is re-exported here because half the game imports
  * these names from this file and a rename that changes nothing is churn other people have to read.
  */
@@ -36,6 +40,31 @@ export const DUNGEON = {
   MONSTER_ROOM_CHANCE: 0.75,
   CAVE_ROOM_MAX: 6,
   CAVE_ROOMS_MAX: 16,
+  /**
+   * How big a compartment below the waterline is, which is much bigger than anything else here.
+   *
+   * A cave is cramped because it was never meant for anybody; a hold is not, because it was built
+   * to put cargo in. But the size is arithmetic rather than atmosphere, and the arithmetic is
+   * `floodTheHold` below: three tiles of decking in the middle with the strongbox on it, and a
+   * band of water either side wide enough that a crate-top out in it can have water on all four
+   * sides. Three and three and three is nine, and two more for the dry walk round the wall makes
+   * eleven — so a hold eleven tiles across is the smallest one where a false stone can float free
+   * of everything, and a room where none can is a crossing with only one line drawn on it.
+   *
+   * Fixing it here rather than testing for it afterwards is what makes the puzzle always exist
+   * rather than usually: every compartment in a wreck is big enough, so whichever one the salvage
+   * lands in is one that can be flooded properly.
+   */
+  HOLD_ROOM_MIN: 11,
+  HOLD_ROOM_MAX: 13,
+  /**
+   * How much of a flooded compartment is crate-tops that turn out not to bear your weight.
+   *
+   * Low on purpose. These are the wrong answers, and a room with more wrong answers than water is
+   * not a harder crossing, it is a confusing one — what the player is meant to see from above is a
+   * line that goes somewhere and some things that do not.
+   */
+  FALSE_STONE_CHANCE: 0.16,
 } as const;
 
 /** Shrine vaults are roomy and locked; caves are cramped, winding and open. */
@@ -80,7 +109,7 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault', flo
   const idx = (x: number, z: number) => z * size + x;
   const inside = (x: number, z: number) => x >= 0 && z >= 0 && x < size && z < size;
 
-  const rooms = placeRooms(rng, cave);
+  const rooms = placeRooms(rng, style);
   for (const r of rooms) carve(tiles, size, r);
 
   // connect each room to the nearest already-connected one
@@ -145,6 +174,28 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault', flo
     }
   }
 
+  /*
+   * And in a wreck, the hold itself, which is the one room down there worth thinking about.
+   *
+   * Everything else on a flooded floor is a fight: the drowned roster comes at you and you either
+   * have the hearts for it or you do not. That is a reason to be afraid of the place and it is not
+   * a reason to go into it, and a room whose only question is how fast you can press a key is a
+   * room you swim through rather than one you read.
+   *
+   * So the salvage sits in the water. It is the last thing in this file that draws from the seeded
+   * stream, and it draws only here — a wreck is the newest kind of floor and has nothing to keep
+   * faith with, where a vault, a cave and a thicket are pinned tile for tile by `golden.test.ts`
+   * and would move under anybody who took a number out of turn.
+   */
+  if (style === 'sunken') {
+    for (const chest of chests) chest.salvage = true;
+    // the island is struck round the middle of the hold, which is where the big chest already
+    // stands — taking the tile back from the flooding rather than assuming it is how the two are
+    // kept together if either ever moves, and a strongbox under water is a strongbox nobody opens
+    const island = floodTheHold(tiles, size, rng, far);
+    if (island) [chests[0].x, chests[0].z] = island;
+  }
+
   // torches on wall tiles that face room floor, spaced along each wall
   const torches: Torch[] = [];
   for (const r of rooms) {
@@ -199,6 +250,76 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault', flo
   };
 }
 
+/**
+ * Flood the hold, leaving the salvage on an island of decking and one way over to it.
+ *
+ * This is the castle's drowned undercroft — `castle.ts`, the second of the three puzzles there —
+ * said again for a generator that has no `Plan` to say it with. It is the same room and it is the
+ * same argument, which is worth restating because it is the only argument this game makes about
+ * what a puzzle underground may be: there is no hint system here and there is not going to be one,
+ * so a room has to say what it wants by being looked at. That rules out anything remembered and
+ * leaves the one thing this camera always shows you, which is where the floor is.
+ *
+ * Four steps, and the order of them is the load-bearing part.
+ *
+ *  1. Only the inside of the room is flooded, so a dry walk runs round the wall. Every doorway
+ *     still reaches every other doorway without getting wet, which keeps a hold you are only
+ *     passing through from being a hold you have to solve.
+ *  2. The route is laid before the water is poured, never carved out of it afterwards. A route cut
+ *     back out of water is a route that can fail to exist, and a hold whose salvage cannot be
+ *     reached is a dive wasted on a locked box.
+ *  3. The island is three tiles square in the middle, which is enough decking for the strongbox
+ *     and whatever came up out of the water to stand between you and it.
+ *  4. The false stones go down last and only where all four of their neighbours are water. That is
+ *     what makes them false — you can see them, you cannot get to them, and they cannot bridge to
+ *     the island behind the generator's back and quietly give the room a second answer.
+ *
+ * Returns the tile in the middle of the island, or null if the compartment came out too small to
+ * flood — which `DUNGEON.HOLD_ROOM_MIN` is there to prevent and this guards anyway, because a
+ * number in a table is a promise and a check is a fact.
+ */
+function floodTheHold(tiles: Uint8Array, size: number, rng: Rng, r: Room): [number, number] | null {
+  const inner = { x: r.x + 1, z: r.z + 1, w: r.w - 2, h: r.h - 2 };
+  if (inner.w < 5 || inner.h < 5) return null;
+  const idx = (x: number, z: number) => z * size + x;
+  const clamp = (v: number, low: number, high: number) => Math.max(low, Math.min(high, v));
+
+  // where each corridor comes in, brought to the nearest tile of the flooded part
+  const banks = doorwaysOf(tiles, size, r).map(({ x, z }): [number, number] => [
+    clamp(x, inner.x, inner.x + inner.w - 1), clamp(z, inner.z, inner.z + inner.h - 1),
+  ]);
+  if (banks.length === 0) return null;
+
+  const [ix, iz] = centre(r);
+  const dry = new Set<number>();
+  for (let z = iz - 1; z <= iz + 1; z++) for (let x = ix - 1; x <= ix + 1; x++) dry.add(idx(x, z));
+  // an L from each bank to the island: two straight runs, which is a line a person can read from
+  // above and follow without counting tiles
+  for (const [bx, bz] of banks) {
+    dry.add(idx(bx, bz));
+    for (let x = Math.min(bx, ix); x <= Math.max(bx, ix); x++) dry.add(idx(x, bz));
+    for (let z = Math.min(bz, iz); z <= Math.max(bz, iz); z++) dry.add(idx(ix, z));
+  }
+
+  for (let z = inner.z; z < inner.z + inner.h; z++) {
+    for (let x = inner.x; x < inner.x + inner.w; x++) {
+      if (!dry.has(idx(x, z)) && tiles[idx(x, z)] === DTile.Floor) tiles[idx(x, z)] = DTile.Water;
+    }
+  }
+
+  // crate-tops floating where nothing reaches them: the whole of the puzzle is which line is real
+  for (let z = inner.z + 1; z < inner.z + inner.h - 1; z++) {
+    for (let x = inner.x + 1; x < inner.x + inner.w - 1; x++) {
+      if (tiles[idx(x, z)] !== DTile.Water) continue;
+      if (rng() > DUNGEON.FALSE_STONE_CHANCE) continue;
+      const adrift = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const)
+        .every(([dx, dz]) => tiles[idx(x + dx, z + dz)] === DTile.Water);
+      if (adrift) tiles[idx(x, z)] = DTile.Floor;
+    }
+  }
+  return [ix, iz];
+}
+
 /** Floor tiles on the room's boundary ring that lead out of it: the corridor mouths. */
 function doorwaysOf(tiles: Uint8Array, size: number, r: Room): Door[] {
   const out: Door[] = [];
@@ -214,14 +335,18 @@ function doorwaysOf(tiles: Uint8Array, size: number, r: Room): Door[] {
   return out;
 }
 
-function placeRooms(rng: Rng, cave: boolean): Room[] {
+function placeRooms(rng: Rng, style: DungeonStyle): Room[] {
   const size = DUNGEON.SIZE, m = DUNGEON.MARGIN;
+  const cave = style !== 'vault';
   const rooms: Room[] = [];
-  const maxSide = cave ? DUNGEON.CAVE_ROOM_MAX : DUNGEON.ROOM_MAX;
+  // a hold is compartments rather than cells, and has to be: what makes the flooded one a crossing
+  // rather than a puddle is that there is room for water on both sides of the way over it
+  const minSide = style === 'sunken' ? DUNGEON.HOLD_ROOM_MIN : DUNGEON.ROOM_MIN;
+  const maxSide = style === 'sunken' ? DUNGEON.HOLD_ROOM_MAX : cave ? DUNGEON.CAVE_ROOM_MAX : DUNGEON.ROOM_MAX;
   const maxRooms = cave ? DUNGEON.CAVE_ROOMS_MAX : DUNGEON.ROOMS_MAX;
   for (let attempt = 0; attempt < DUNGEON.ROOM_ATTEMPTS && rooms.length < maxRooms; attempt++) {
-    const w = DUNGEON.ROOM_MIN + Math.floor(rng() * (maxSide - DUNGEON.ROOM_MIN + 1));
-    const h = DUNGEON.ROOM_MIN + Math.floor(rng() * (maxSide - DUNGEON.ROOM_MIN + 1));
+    const w = minSide + Math.floor(rng() * (maxSide - minSide + 1));
+    const h = minSide + Math.floor(rng() * (maxSide - minSide + 1));
     const x = m + Math.floor(rng() * (size - w - 2 * m));
     const z = m + Math.floor(rng() * (size - h - 2 * m));
     const r = { x, z, w, h };

@@ -51,6 +51,68 @@ describe('breath', () => {
   });
 });
 
+/**
+ * And the one place the meter is about something other than fighting.
+ *
+ * Swimming was free: you went slower and nothing else was true of it, so deep water was a slow
+ * floor. That made every flooded room in the game a room you paddle across without deciding
+ * anything — most of all a wreck's hold, where the salvage sits on an island with a line of
+ * stepping stones laid to it and a swimmer can simply ignore the line.
+ *
+ * Now the water costs the same chest the fighting costs. Cross the hold the short way and you
+ * arrive where the fish-folk are with your arm too tired to hold up; walk round on the stones and
+ * you arrive able to fight. Neither is wrong, which is what makes it a room rather than a wall.
+ */
+describe('out of your depth', () => {
+  /** A second of swimming, at the rate the frame loop asks for it. */
+  const swim = (b: Breath, seconds: number): Breath => {
+    for (let t = 0; t < seconds; t += 1 / 60) b.age(1 / 60, true);
+    return b;
+  };
+
+  it('costs breath, so a crossing is a decision rather than a slower walk', () => {
+    const b = swim(new Breath(), 2);
+    expect(b.share, 'two seconds in the water cost nothing').toBeLessThan(0.7);
+    expect(b.share, 'two seconds in the water emptied him').toBeGreaterThan(0);
+  });
+
+  it('does not hand any of it back until he is out of the water', () => {
+    // a chest that filled up while its owner was under would make deep water the place to go and
+    // get your breath back, which is the opposite of what deep water is
+    const b = swim(new Breath(), 1);
+    const wet = b.share;
+    swim(b, 3);
+    expect(b.share).toBeLessThan(wet);
+    for (let t = 0; t < 2; t += 1 / 60) b.age(1 / 60);
+    expect(b.share, 'he never got his breath back on dry land').toBeGreaterThan(0);
+  });
+
+  it('empties him rather than drowning him, because a death nobody can stop is not a puzzle', () => {
+    const b = swim(new Breath(), 30);
+    expect(b.share).toBe(0);
+    // and a swing still happens, feebly, which is the same bargain being winded has always struck
+    expect(b.swing()).toBe(BREATH.TIRED);
+  });
+
+  it('takes the guard down, because there is nothing under him to plant his feet on', () => {
+    const b = new Breath();
+    b.raise();
+    expect(b.guarding).toBe(true);
+    swim(b, 1 / 30);
+    expect(b.guarding, 'he held his arm up while swimming').toBe(false);
+  });
+
+  it('leaves every other second of the game exactly as it was', () => {
+    // the argument is defaulted, so everything that is not the frame loop goes on meaning what it
+    // always meant — which is most of this file
+    const dry = new Breath();
+    const said = new Breath();
+    dry.swing(); said.swing();
+    for (let t = 0; t < 1; t += 1 / 60) { dry.age(1 / 60); said.age(1 / 60, false); }
+    expect(said.share).toBe(dry.share);
+  });
+});
+
 describe('the guard', () => {
   it('parries a blow answered the moment it goes up', () => {
     const b = new Breath();

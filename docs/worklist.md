@@ -3592,7 +3592,27 @@ simulation rather than any one feature in it.
         18), and the same fix quietly corrects two places that were already wrong this way: a
         whirlpool's cavern and a castle.
 
-- [ ] **55. What else is down there.** The hold is a fight and a few chests today. What it wants, in
+- [~] **55. What else is down there.** *The hold is a place now, as of the 12th.* A wreck's salvage
+      room is flooded rather than walked through: a dry walk round the wall, a three-by-three island
+      of decking in the middle with the captain's strongbox on it, an L of stepping stones from each
+      corridor mouth, and crate-tops standing only where all four neighbours are water. Every chest
+      on a sunken floor is marked salvage, and a salvage chest holds **cargo as well as coin** —
+      hide, pelts, silver ore, a nugget, a gem — which makes it the only small chest in the game
+      that holds anything but gold, and makes a crate worth the climb back up the ladder.
+
+      The interesting part is what it collided with. **58** had made the hero able to swim that same
+      evening, so a flooded room was not a barrier to him at all and the stepping stones would have
+      been scenery. The answer was not to wall the water back up but to give the water a price:
+      breath drains while you are out of your depth and none of it comes back until you are out, so
+      the stones are the free way across, the water is the short way and costs most of a chest's
+      worth of air, and the fish-folk are waiting at the end of both. Being winded in the water is
+      being winded — no drowning, no new way to die.
+
+      Two things left: the fish-folk want a reason to be there rather than a spawn table, and the
+      castle's drowned undercroft has the same hole this one had — its test only asks whether
+      `heightAt` is null over the water, which a swimmer does not care about.
+
+      The original note: The hold is a fight and a few chests today. What it wants, in
       the order it would be built: something to *find* that is worth the swim (a wreck is where a
       cargo went down, so the salvage should be better than a cave's), a reason the fish-folk are
       there rather than a spawn table, and the flooding itself doing something — deep water you

@@ -15,7 +15,24 @@ import type { SpawnSpot } from '../entities/spawns';
 export const enum DTile { Rock = 0, Floor = 1, Water = 2, Stairs = 3, Door = 4, Descent = 5 }
 
 export interface Room { x: number; z: number; w: number; h: number }
-export interface Chest { x: number; z: number; big: boolean; key?: boolean }
+export interface Chest {
+  x: number;
+  z: number;
+  big: boolean;
+  key?: boolean;
+  /**
+   * This one is salvage: what a ship was carrying when she went down, rather than what somebody
+   * left in a hole.
+   *
+   * It is a fact about the chest rather than a question asked of the floor it stands on, and that
+   * is the whole reason it is written here. What is inside a chest is worked out from a seed by a
+   * rule both the page and the world run — see `world/chests.ts` — and the only thing they are
+   * both certain to be holding is the map they each grew from that seed. A flag on the chest
+   * travels in the map for nothing; a style asked for at the moment the lid comes up would have to
+   * be sent, agreed and trusted.
+   */
+  salvage?: boolean;
+}
 export interface Door { x: number; z: number }
 export interface Torch { x: number; z: number; /** yaw so the bracket faces into the room */ rot: number }
 
