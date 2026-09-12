@@ -147,3 +147,47 @@ export class Patchwork {
     }
   }
 }
+
+/**
+ * Which patches each painter has already been told about.
+ *
+ * A worker paints from patches it has been handed, keeps a bounded few, and drops the oldest. This
+ * is the other end of that rule, kept on the side that does the telling, and the two have to agree
+ * exactly: a main thread that thinks a worker still holds a patch the worker has quietly dropped is
+ * a chunk request that paints nothing at all and never answers.
+ *
+ * So it is written once, here, and both ends are the same object with the same bound — the worker's
+ * `Map` drops its oldest key, and this drops the front of its list. `needs` is the whole interface:
+ * ask it before sending a chunk, and send the patch first if it says yes.
+ *
+ * Generic in the painter because the thing being told is a `Worker` in the game and a number in a
+ * test, and the rule has nothing to do with which.
+ */
+export class Tellings<Painter> {
+  private readonly told = new Map<Painter, string[]>();
+
+  constructor(private readonly keeps: number) {}
+
+  /**
+   * Whether this painter has to be told about this patch before it can paint from it — and, either
+   * way, records that it is now the most recently used of the ones it holds.
+   */
+  needs(who: Painter, patch: string): boolean {
+    let known = this.told.get(who);
+    if (!known) { known = []; this.told.set(who, known); }
+    const at = known.indexOf(patch);
+    if (at >= 0) {
+      known.splice(at, 1);                       // most recently used goes to the back
+      known.push(patch);
+      return false;
+    }
+    known.push(patch);
+    while (known.length > this.keeps) known.shift();
+    return true;
+  }
+
+  /** What this painter is holding, oldest first. For a test, and for a debug readout. */
+  holding(who: Painter): string[] {
+    return [...(this.told.get(who) ?? [])];
+  }
+}

@@ -6,9 +6,22 @@ import { buildChunkMesh } from '../world/mesher';
 import { tilesOf } from '../world/tiles';
 import { PropKind } from '../world/biomes';
 import { unpackChunk } from '../world/chunkparcel';
-import type { WorkerRequest, WorkerResponse } from '../world/messages';
+import { PATCHES_PER_WORKER, type WorkerRequest, type WorkerResponse } from '../world/messages';
 
-let sampler: TerrainSampler | null = null;
+/**
+ * The country this worker paints from.
+ *
+ * A bounded world hands it over once and it is `whole` for the rest of the session. An endless one
+ * has no whole to hand over, so it arrives a patch at a time and is kept under the patch's name —
+ * a bounded few of them, dropped oldest first, because a worker that kept every square a hero has
+ * walked across would run out of memory long before the country ran out of ground.
+ *
+ * Both can be true at once without anything having to decide: a chunk that names a patch is painted
+ * by that patch, and one that names none is painted by `whole`. That is what lets the endless world
+ * be switched on for one game and not for another without a second worker.
+ */
+let whole: TerrainSampler | null = null;
+const patches = new Map<string, TerrainSampler>();
 
 const post = (msg: WorkerResponse, transfer: Transferable[] = []) =>
   (self as unknown as Worker).postMessage(msg, transfer);
@@ -16,10 +29,21 @@ const post = (msg: WorkerResponse, transfer: Transferable[] = []) =>
 self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const msg = e.data;
   if (msg.type === 'init') {
-    sampler = new TerrainSampler(msg.graph, { hydro: msg.hydro, structures: msg.structures });
+    whole = new TerrainSampler(msg.graph, { hydro: msg.hydro, structures: msg.structures });
     post({ type: 'ready' });
     return;
   }
+  if (msg.type === 'patch') {
+    patches.set(msg.patch, new TerrainSampler(msg.graph, { hydro: msg.hydro, structures: msg.structures }));
+    // oldest first, which for a Map is insertion order and is near enough: a hero walks, so the
+    // patch told about longest ago is the one furthest behind him
+    while (patches.size > PATCHES_PER_WORKER) patches.delete(patches.keys().next().value as string);
+    // deliberately no `ready`: the main thread does not wait for this. Messages arrive in order, so
+    // the `gen` that follows a `patch` is painted by it, and an ack would only put a worker that is
+    // already about to be busy back on the idle pile
+    return;
+  }
+  const sampler = msg.patch !== undefined ? patches.get(msg.patch) ?? null : whole;
   if (!sampler) return;
   const { cx, cz, id } = msg;
   /*

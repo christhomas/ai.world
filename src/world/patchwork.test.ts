@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { samplerIn } from './endless';
-import { PATCH, Patchwork, boundsOf, patchOf, patchOfChunk } from './patchwork';
+import { PATCH, Patchwork, Tellings, boundsOf, patchOf, patchOfChunk } from './patchwork';
 import { TileType } from './ground';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
@@ -134,5 +134,42 @@ describe('the ground a patchwork paints', () => {
     const over = world.at(PATCH + 10, 10);
     expect(over, 'one sampler answered for two patches').not.toBe(here);
     expect(world.holding()).toEqual(['0,0', '1,0']);
+  });
+});
+
+describe('telling a painter about a patch', () => {
+  /*
+   * The two ends of one rule. A worker keeps a bounded few patches and drops the oldest; this is
+   * the main thread's copy of that, and if the two ever disagree the result is a chunk request
+   * painted from a patch the worker has quietly dropped — which paints nothing and never answers.
+   */
+  it('says a patch has to be sent the first time and not the second', () => {
+    const told = new Tellings<number>(4);
+    expect(told.needs(1, '0,0')).toBe(true);
+    expect(told.needs(1, '0,0')).toBe(false);
+  });
+
+  it('keeps each painter apart, because a patch is sent to one at a time', () => {
+    const told = new Tellings<number>(4);
+    told.needs(1, '0,0');
+    expect(told.needs(2, '0,0'), 'the second worker was never sent the patch it is painting from').toBe(true);
+  });
+
+  it('forgets in the same order the painter does', () => {
+    const told = new Tellings<number>(2);
+    told.needs(1, 'a');
+    told.needs(1, 'b');
+    told.needs(1, 'c');                          // pushes 'a' out at both ends
+    expect(told.holding(1)).toEqual(['b', 'c']);
+    expect(told.needs(1, 'a'), 'it still thinks the painter holds a patch it dropped').toBe(true);
+  });
+
+  it('counts using a patch as using it, so the one you are working in is not dropped', () => {
+    const told = new Tellings<number>(2);
+    told.needs(1, 'a');
+    told.needs(1, 'b');
+    told.needs(1, 'a');                          // 'a' is the most recent now, so 'b' is the old one
+    told.needs(1, 'c');
+    expect(told.holding(1)).toEqual(['a', 'c']);
   });
 });

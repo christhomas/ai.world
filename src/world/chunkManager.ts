@@ -5,7 +5,8 @@ import { Solids, boxesFrom, type Body } from './solids';
 import { blocking, type Footprints } from './footprints';
 import { BLOCKS_WALKING } from './biomes';
 import type { PropKind } from './biomes';
-import type { WorkerRequest, WorkerResponse } from './messages';
+import { PATCHES_PER_WORKER, type WorkerRequest, type WorkerResponse } from './messages';
+import { Tellings, patchOfChunk, type Patchwork } from './patchwork';
 import { Standing } from './standing';
 import { TileType } from './terrain';
 import { mountainAt, type Ranges } from './ranges';
@@ -145,12 +146,32 @@ export class ChunkManager implements TileWorld, ChunkSource {
   /** The world's mountains, when it has any: geometry to stand on, not chunks to stream. */
   private readonly ranges: Ranges | null;
 
+  /**
+   * The country, when it has no edge: which patches each worker has been told about.
+   *
+   * Per worker rather than one list, because a patch is told to one worker at a time — the one that
+   * is about to paint a chunk in it — and telling all of them every time would be three copies of a
+   * square of country nobody has asked for. Most recent last, trimmed to `PATCHES_PER_WORKER`, which
+   * is exactly what the worker does with them: two ends of one rule, and if they disagree a worker
+   * is asked to paint from a patch it has quietly dropped.
+   */
+  private readonly told = new Tellings<Worker>(PATCHES_PER_WORKER);
+
   constructor(
     private readonly scene: THREE.Scene,
     sampler: TerrainSampler,
     private readonly props: PropLibrary,
     private readonly waterMaterial: THREE.Material,
     glowMaterial: THREE.Material,
+    /**
+     * Where to get the country from, for a world that has no whole to hand over.
+     *
+     * Left out, this behaves exactly as it always has: one sampler, handed to every worker at
+     * start-up, painting every chunk there will ever be. Handed in, each chunk is painted from the
+     * patch it falls in, and the workers are told about a patch the first time one of them is asked
+     * for a chunk inside it.
+     */
+    private readonly patches?: Patchwork,
   ) {
     this.propBatch = new PropBatch(scene, props, glowMaterial);
     this.stops = blocking(props.footprints, BLOCKS_WALKING);
@@ -246,11 +267,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
        * world is still answering.
        */
       const sent = this.sent.get(key);
+      // which square of country paints this chunk, and whether this worker has been told about it
+      const patch = this.patches ? this.tell(w, job.cx, job.cz) : undefined;
       if (sent) {
         this.sent.delete(key);
-        w.postMessage({ type: 'mesh', id, cx: job.cx, cz: job.cz, chunk: sent } satisfies WorkerRequest, [sent]);
+        w.postMessage({ type: 'mesh', id, cx: job.cx, cz: job.cz, chunk: sent, patch } satisfies WorkerRequest, [sent]);
       } else {
-        w.postMessage({ type: 'gen', id, cx: job.cx, cz: job.cz } satisfies WorkerRequest);
+        w.postMessage({ type: 'gen', id, cx: job.cx, cz: job.cz, patch } satisfies WorkerRequest);
       }
     }
   }
@@ -309,6 +332,23 @@ export class ChunkManager implements TileWorld, ChunkSource {
       out.push([job.cx, job.cz]);
     }
     return out;
+  }
+
+  /**
+   * Make sure this worker can paint this chunk, and say which patch it is painting from.
+   *
+   * Sent immediately before the chunk request rather than up front: messages arrive in order, so a
+   * `patch` followed by a `gen` is a chunk painted by that patch, and nothing has to be waited for.
+   */
+  private tell(w: Worker, cx: number, cz: number): string {
+    const patch = patchOfChunk(cx, cz);
+    if (!this.told.needs(w, patch)) return patch;
+    const sampler = this.patches!.patch(patch);
+    w.postMessage({
+      type: 'patch', patch, seed: sampler.seed,
+      graph: sampler.graph, hydro: sampler.hydro, structures: sampler.structures,
+    } satisfies WorkerRequest);
+    return patch;
   }
 
   private onMessage(w: Worker, msg: WorkerResponse): void {

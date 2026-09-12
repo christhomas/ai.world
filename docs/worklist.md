@@ -3567,11 +3567,23 @@ than by remembering — and the first thing found was that the gap is not where 
       ever straddles two. Eleven tests, the load-bearing one being that a chunk fetched through the
       patchwork is tile-for-tile what that patch's own sampler paints.
 
-- [ ] **59c. The chunk workers are handed a world at start-up.** `ChunkManager`'s constructor posts
-      `{ graph, hydro, structures }` to each worker once and they paint every chunk from it for the
-      rest of the session. That is the single deepest bounded-world assumption in the game. It wants
-      to become per-patch: a worker is told about a patch the first time it is asked to paint a chunk
-      in one, and forgets patches the same way the patchwork does.
+- [x] **59c. The chunk workers can be handed a patch instead of a world.** There is a `patch`
+      message now: the same three things `init` carries — roads, water, buildings — plus the name of
+      the square they belong to. A worker keeps `PATCHES_PER_WORKER` of them and paints a chunk from
+      the one it names; a chunk that names none is painted from `whole`, exactly as before, so a
+      bounded world and an endless one can both be true without anything having to decide.
+
+      Two decisions worth keeping. The patches are grown on the *main thread* and sent, rather than
+      grown in each worker: the other way is three times the work and, worse, three separately-grown
+      countries that then have to agree. And there is no acknowledgement — messages arrive in order,
+      so a `patch` followed by a `gen` is a chunk painted by that patch, and an ack would only put a
+      worker that is about to be busy back on the idle pile.
+
+      The bookkeeping is `Tellings`, in `patchwork.ts` beside the thing it mirrors, because it is
+      one rule with two ends: the main thread only sends a patch it believes a worker has not got,
+      and a worker that quietly dropped one the main thread still thinks it holds is a chunk request
+      that paints nothing and never answers. Both ends keep the same number and drop in the same
+      order, and four tests hold them to it.
 
 - [ ] **59d. `growCountry` grows one of everything.** One sampler, one mountain mesh added to the
       scene for ever, eyries planned across the whole world, sky islands planned from the whole
