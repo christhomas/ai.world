@@ -34,6 +34,31 @@ export const TRADES: Trade[] = [
     lines: ['Wolves have been bold this week.', 'I take it to the market before it turns.'],
   },
   /*
+   * The builder, and why he was the last trade to go on the register rather than the first.
+   *
+   * A village has been raising its own roofs with whatever hands it had, which is what a village
+   * without a builder does and is honest as far as it goes — but it meant the money a hall paid for
+   * a house was shared among everybody who held any trade at all, including the men who were down
+   * the mine that morning. The hall's own comment has said for weeks that this is the line that
+   * would name him instead.
+   *
+   * He was left off deliberately once, and the objection was a good one: *"a builder who can be
+   * carried off by a wolf half way through the job is a house that dangles."* What answers it is
+   * that a commission is a contract at the hall rather than an arrangement with a man — the money
+   * is the village's, the job is on its books, and if the builder dies the next pair of hands takes
+   * it on. The same reasoning the watchman's wage runs on.
+   *
+   * `square` and nothing else: a builder needs somewhere to be commissioned, not a wood or a field.
+   * A hamlet with no square raises what it can with its own hands, exactly as it always has.
+   */
+  {
+    id: 'builder', label: 'Builder', weight: 2, needs: ['square'],
+    lines: [
+      'Timber first, then a frame. You cannot hurry a frame.',
+      'Everything anybody builds here goes through me, one way or another.',
+    ],
+  },
+  /*
    * The logger, and the first trade in this world that another trade cannot do without.
    *
    * Everything else here earns by selling to somebody outside the valley or to the player. A logger
@@ -61,6 +86,30 @@ export const TRADES: Trade[] = [
   {
     id: 'sailor', label: 'Sailor', weight: 2, needs: ['shore'],
     lines: ['Tide is on the turn.', 'I have been further out than anybody here, whatever they tell you.'],
+  },
+  /*
+   * The fisherman, and what a coast eats.
+   *
+   * A sailor goes away and a fisherman comes back before dark, which is the whole difference
+   * between the two and the reason both exist. What he brings in is the paid half of a coastal
+   * larder — `aDaysFishing` in `livelihoods.ts`, beside the herd — and the unpaid half is the
+   * shellfish everybody on a shore gathers whether or not there is a boat.
+   *
+   * `shore` and nothing else, so he can exist in a hamlet on a rock that has never had a harbour.
+   * That is deliberate and it is the ordering the work list asks for: a village may have fishermen
+   * and no boats, in which case they gather with everybody else and the place survives without
+   * prospering — and then somebody builds a jetty, `holdings.ts` finds `can_fish` with a place to
+   * put it, and the same men start landing fish. The trade is the seat; the harbour is what fills
+   * it.
+   */
+  {
+    id: 'fisherman', label: 'Fisherman', weight: 2, needs: ['shore'],
+    lines: [
+      'Out before light and in before dark. That is the whole of it.',
+      'Mussels off the rocks at low water, and nobody goes hungry here.',
+      'A boat pays for itself in a season, if the season is kind.',
+      'We have fed this place through worse than you have seen.',
+    ],
   },
   {
     id: 'miner', label: 'Miner', weight: 2, needs: ['heights'],

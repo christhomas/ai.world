@@ -1,6 +1,7 @@
 import { WATCH_WAGE, whatTheHallSpends } from './hall';
 import { PROSPER } from './prosperity';
 import { shareOut } from './livelihoods';
+import { canDo } from './holdings';
 import { rankOfRoofs, type Rank } from './rank';
 import {
   STANDARD, biggestRoofAmong, familiesWantingRoom, isARoof, oneSizeUp, workOf, type Roof,
@@ -208,12 +209,24 @@ export function whatTheVillageBuilds(
   if (purse < costs + WATCH_WAGE) return null;
   const working = people.filter((person) => person.trade !== '');
   if (working.length === 0) return null;
+  const builders = working.filter((person) => canDo(person, 'can_build'));
+  const paidForIt = builders.length > 0 ? builders : working;
   return {
     costs,
-    // shared among whoever holds a trade, which is the rule every other village-wide payment in
-    // this world uses: `shareOut` leaves the remainder on the last of them, so the shares come to
-    // what was spent and no coin is invented on the way
-    wages: shareOut(costs, new Map(working.map((person) => [person.id, 1]))),
+    /*
+     * Paid to the builders where a village has any, and shared among everybody who holds a trade
+     * where it has none.
+     *
+     * The second is what a village without a builder actually does — everybody who can lift a beam
+     * turns out — and it is what this did for every village until tonight, including the ones whose
+     * men were down the mine that morning. `hall.ts` has carried a note for weeks saying that when
+     * a builder reaches the register, this is the line that names him instead. He has.
+     *
+     * `shareOut` either way, so the shares come to exactly what was spent and no coin is invented
+     * on the way: it leaves the remainder on the last of them rather than rounding it into
+     * existence.
+     */
+    wages: shareOut(costs, new Map(paidForIt.map((person) => [person.id, 1]))),
     holdsMore: roof.holds,
     roof,
   };

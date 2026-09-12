@@ -543,6 +543,15 @@ export const LONG_RUN: Record<string, LongRun> = {
    * each half falls on: where he is standing is here, what he cut is over there.
    */
   logger: keepsItsHours,
+  /*
+   * And the builder, on the same line drawn in the same place.
+   *
+   * Where he is standing is this file's business; what he *built* is the commission's, and a
+   * commission's stages are worked out from the day it was begun rather than from anybody having
+   * watched him swing. So a coarse form that also advanced a frame would raise the same house
+   * twice, and a village's houses would go up faster for being looked at.
+   */
+  builder: keepsItsHours,
   constable: keepsItsHours,
   doctor: keepsItsHours,
   soldier: keepsItsHours,
@@ -553,6 +562,15 @@ export const LONG_RUN: Record<string, LongRun> = {
    */
   villager: keepsItsHours,
   sailor: keepsItsHours,
+  /*
+   * A fisherman's day is hours: down to the water at first light, in before dark.
+   *
+   * And, as with the logger and the miner, what a week of his *work* comes to is not this form's
+   * business. The catch is landed by `aDaysTrade` once a day out of the boats the village keeps,
+   * watched or not — so a form that also yielded meals would fill a larder faster for being looked
+   * at, which is the one fault this whole file exists to make impossible.
+   */
+  fisherman: keepsItsHours,
   climber: keepsItsHours,
   explorer: keepsItsHours,
   /*

@@ -509,6 +509,103 @@
       }
     ]
   },
+  "builder": {
+    "note": [
+      "A frame in the morning, the yard in the afternoon, and home at dusk.",
+      "The shape is the logger's because the day is: a man who walks to where the work is, works it until the light goes, and carries nothing home. What he actually builds is settled by `game/interact/builder.ts` \u2014 a commission has days on it and the stages are worked out from the day it was begun, not from whether anybody watched him swing \u2014 so there is no `take` and no `sell` here, and a tree that made him carry timber would be the same beam counted twice.",
+      "`square` is the post, and it is the right one for a reason worth writing down: a builder is commissioned at the hall and his sites are wherever somebody paid for them, which is not a thing `postsOf` can know. He is in the middle of the village when he is not on a job, which is where you would look for him.",
+      "`dig` is the work, borrowed the way the logger borrows it and the miner before him: it is the nearest motion a body in this game has to swinging something at something else."
+    ],
+    "first": [
+      {
+        "when": {
+          "ask": "wounded",
+          "with": {
+            "share": 0.5
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "doctor",
+                "within": 2
+              }
+            },
+            {
+              "do": "beHealed"
+            }
+          ]
+        },
+        "doing": "hurt, getting seen to"
+      },
+      {
+        "note": "Out early and back late. A builder keeps a longer day than a logger because a frame left half-raised in the rain is a frame to do again, which is the sort of thing the trade says about itself.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.22,
+            "to": 0.74
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "square"
+              }
+            },
+            {
+              "do": "dig",
+              "with": {
+                "every": 2.1
+              }
+            }
+          ]
+        },
+        "doing": "working on a frame"
+      },
+      {
+        "note": "The inn, bought rather than merely attended: `spend` pays whoever keeps the place, and a village whose books credit the innkeeper every day and never show a coin crossing the bar is an economy happening in the dark.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.72,
+            "to": 0.92
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
+        },
+        "doing": "buying a drink"
+      },
+      {
+        "note": "And then home, which is the branch the miner's tree was found to be missing: a man with nowhere to go at the end of the day walks the street until sunrise.",
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        },
+        "doing": "at home"
+      }
+    ]
+  },
   "constable": {
     "note": "Trouble first, whatever the hour: an animal on a villager is what the job is for, and somebody the law wants is worse. Otherwise the square, the gate, and the inn.",
     "first": [
@@ -982,6 +1079,111 @@
           "enter": true
         },
         "doing": "at home"
+      }
+    ]
+  },
+  "fisherman": {
+    "note": [
+      "Down to the water before light, work it all day, and in before dark.",
+      "A sailor's hours with a logger's middle, which is exactly what the trade is: a sailor goes away and a fisherman comes back before dark, and what he does while he is down there is work rather than wait. He starts earlier than the sailor for the reason every fisherman in the world does \u2014 the tide does not keep an appointment \u2014 and he is home earlier, because a boat that is not in by dusk is a boat somebody goes looking for.",
+      "What he lands is not carried up the beach in his hands. `aDaysTrade` in `world/livelihoods.ts` counts the catch once a day out of the boats the village keeps, watched or not, exactly as `mines.ts` mints a miner's gold and `builderDay` lands a logger's timber \u2014 so there is no `take` and no `sell` in here, and a tree that had them would land the same fish twice.",
+      "`shore` is the post, and it is the right one even in a village with no jetty: the shellfish half of what a coast eats is gathered off the rocks at low water by anybody with a bucket, and a man walking down to the water is doing that whether or not there is a hull to get into. When the village has boats he is crewing one, and the post is still the water."
+    ],
+    "first": [
+      {
+        "when": {
+          "ask": "wounded",
+          "with": {
+            "share": 0.5
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "doctor",
+                "within": 2
+              }
+            },
+            {
+              "do": "beHealed"
+            }
+          ]
+        },
+        "doing": "hurt, getting seen to"
+      },
+      {
+        "note": "First light to late afternoon at the water. `goTo` walks him down and gives way to the work the moment he is there; `dig` never succeeds, so he holds the shore until the hour turns \u2014 which is how the miner holds his face and the logger his stand.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.2,
+            "to": 0.68
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "shore"
+              }
+            },
+            {
+              "do": "dig",
+              "with": {
+                "every": 2.2
+              }
+            }
+          ]
+        },
+        "doing": "working the water"
+      },
+      {
+        "note": "The inn, bought rather than merely attended: `spend` pays whoever keeps the place. A village whose books credit the innkeeper every day and never show a coin crossing the bar is an economy happening in the dark.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.68,
+            "to": 0.88
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
+        },
+        "doing": "buying a drink"
+      },
+      {
+        "note": "And then home, which is the branch the miner's tree was found to be missing: a man with nowhere to go at the end of the day walks the street until sunrise.",
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        },
+        "doing": "at home"
+      }
+    ],
+    "steps": [
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home"
+        }
       }
     ]
   },

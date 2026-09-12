@@ -3111,7 +3111,32 @@ in the order they would sensibly be built, which is not the order they arrived i
       - And the part that closes the circle: **the village commissions the hero.** The builder verb
         goes one way today — you pay a man. A village with a purse and a vote can pay *you*.
 
-- [ ] **25. Villages that grow, and a builder who eats.** The observation that makes 24 work: if a
+- [x] **25. Villages that grow, and a builder who eats.** *Both halves, by the 13th.* Villages grow —
+      that was **44**, and **49** gave the houses sizes — so the half left tonight was the builder
+      himself.
+
+      He is on the register now, and the argument that kept him off was a good one: *"a builder who
+      can be carried off by a wolf half way through the job is a house that dangles."* What answers
+      it is that a commission is a contract at the hall rather than an arrangement with a man — the
+      money is the village's, the job is on its books, and if he dies the next pair of hands takes it
+      on. The same reasoning the watchman's wage already runs on.
+
+      And the line `hall.ts` has carried a note about for weeks now names him: the money a hall pays
+      for a house goes to the builders where a village has any, and is shared among everybody who
+      holds a trade where it has none — which is what a village without a builder actually does, and
+      what every village did until tonight, including the ones whose men were down the mine that
+      morning.
+
+      The behaviours test written an hour earlier — the one that loops the trades rather than a
+      hand-written list, *because a list beside a list falls out of step* — caught him shipping
+      without a working day, which is exactly what it was written for. He has one: a frame in the
+      morning, a longer day than a logger keeps because a frame left half-raised in the rain is a
+      frame to do again, the inn, then home. His twin in `unwatched.ts` draws the same line the
+      logger's does — where he is standing is that file's business, and what he *built* is the
+      commission's, whose stages come from the day it was begun rather than from anybody watching
+      him swing.
+
+      At day 450 every village in the bench holds all twelve trades, builder and logger among them. The observation that makes 24 work: if a
       hall needs eight houses, houses have to be able to arrive. Today a village's house count is
       fixed the moment it is settled.
 
