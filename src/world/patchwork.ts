@@ -153,6 +153,18 @@ export class Patchwork {
   }
 
   /**
+   * Every square that has been grown and is still in hand, for the surveys that are about the
+   * world rather than about a point.
+   *
+   * The honest answer to "list everything" in a country that has no everything: what somebody has
+   * walked into, and no further. It does not touch, because a survey is not somebody about to need
+   * a square — a tax roll taken over the whole country must not decide which of it is kept.
+   */
+  inHand(): TerrainSampler[] {
+    return [...this.held.values()].map((one) => one.sampler);
+  }
+
+  /**
    * The same question, asked by somebody who is about to need the answer — so the square is now
    * the most recently wanted of the ones held.
    *

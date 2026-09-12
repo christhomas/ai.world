@@ -640,9 +640,16 @@ export type ServerMessage =
    * are the same graph. Sending both sides' answer to one cheap question is what turns that from a
    * hope into something the game can notice and say out loud.
    *
+   * `kind` is the other half of the same evidence, and it is the half that makes a mismatch
+   * readable. Two stamps that differ say only that the countries differ; two *kinds* that differ
+   * say why, and a page told "you grew an endless country and the world you joined grew a bounded
+   * one" knows what happened, where a page shown two hex numbers knows only that something is
+   * wrong. Optional because a world older than this field says nothing, and a page that hears
+   * nothing must go on comparing the stamps as it always did.
+   *
    * Empty on a world that grows no ground at all, which is a test harness rather than a game.
    */
-  | { type: 'country'; stamp: string }
+  | { type: 'country'; stamp: string; kind?: WorldKind }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }
   | { type: 'presence'; players: Presence[] }

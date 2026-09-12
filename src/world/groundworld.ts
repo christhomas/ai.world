@@ -1,8 +1,10 @@
 import { WORLD } from '../core/config';
 import type { ChunkSource, ChunkTiles, TileWorld } from './tiles';
 
-import { aroundOf, type Around } from './around';
+import { aroundOf, aroundPatches, type Around } from './around';
+import type { Patchwork } from './patchwork';
 import { chunkKey } from './spatial';
+import { PIER_LENGTH } from './piers';
 import { mountainAt } from './ranges';
 import { VILLAGE_REACH, type Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
@@ -35,6 +37,74 @@ import type { Footprints } from './footprints';
  * a fence nobody built.
  */
 const KEPT_FROM_PEOPLE = 18;
+
+/**
+ * The country under whoever is walking on it.
+ *
+ * `GroundWorld` held one `TerrainSampler` and asked it everything: paint this chunk, what rock
+ * stands over this point, what seed were these props rolled under, where are the villages. That is
+ * exactly right for a world with an edge, where one sampler holds the whole country — and it is the
+ * assumption a country with no edge cannot meet. An endless world is a patchwork: the square you
+ * are standing in is one sampler, the square next door is another, and there is no object anywhere
+ * that holds both.
+ *
+ * So this is what walking on the ground actually needs, stated small enough that both kinds of
+ * world can satisfy it. Three questions and a seam: which sampler painted this chunk, which one
+ * answers for this point, what is near a point, and — for the surveys that are genuinely about the
+ * world rather than about somewhere in it — everything that has been grown.
+ *
+ * Declared here rather than beside the patchwork because it is the *consumer's* need. `TileWorld`
+ * and `ChunkSource` in `tiles.ts` are written the same way and for the same reason: a thing that
+ * walks says what it wants from the ground, and the ground arranges to provide it.
+ */
+export interface Country {
+  /** The sampler that paints this chunk. */
+  forChunk(cx: number, cz: number): TerrainSampler;
+  /** And the one that answers for this point: the rock over it, the seed its props were rolled under. */
+  at(x: number, z: number): TerrainSampler;
+  /** What is near a point. See `around.ts`, which is the other half of this same argument. */
+  around: Around;
+  /**
+   * Every square grown so far.
+   *
+   * For the two surveys below and for nothing else. A tax roll wants every village there is; in a
+   * country with no edge the honest version of "every village there is" is every village in the
+   * country somebody has walked into, which is what this hands back.
+   */
+  inHand(): readonly TerrainSampler[];
+}
+
+/**
+ * A world with an edge: one sampler, which answers for all of it.
+ *
+ * The default, and it will stay the default long after the endless country is the game — a dungeon
+ * floor, an interior and every test in this repository is a small bounded world and always will be.
+ */
+export function oneCountry(sampler: TerrainSampler): Country {
+  return {
+    forChunk: () => sampler,
+    at: () => sampler,
+    around: aroundOf(sampler.structures),
+    inHand: () => [sampler],
+  };
+}
+
+/**
+ * And a world without one: a square at a time, grown as somebody walks into it.
+ *
+ * `forChunk` and `at` will grow a square that is not held, and that is deliberate — a creature
+ * cannot be walked over ground that does not exist, so the moment the world needs a square it has
+ * to have it. Nothing above reaches either of them speculatively: every caller in `GroundWorld`
+ * either already has the chunk loaded or is being asked to make it.
+ */
+export function patchedCountry(patches: Patchwork): Country {
+  return {
+    forChunk: (cx, cz) => patches.forChunk(cx, cz),
+    at: (x, z) => patches.at(x, z),
+    around: aroundPatches(patches),
+    inHand: () => patches.inHand(),
+  };
+}
 
 export class GroundWorld implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, ChunkTiles>();
@@ -74,18 +144,21 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * server has no meshes and must not guess: it is handed the same measurements the player's own
    * game took, so a wall is in the same place on both sides of the wire.
    */
+  /** Which sampler answers for where, and what is near it. @see Country */
+  private readonly country: Country;
+  /** What is near a point, which is the country's own answer and is held for how often it is asked. */
+  private readonly around: Around;
+
   /**
-   * @param around what is near a point, for the questions that mean "near here" rather than "in
-   *   this world". Defaulted to a filter over the sampler's own list, because that is what every
-   *   bounded world wants and because a dungeon floor, an interior and every test in the suite is a
-   *   bounded world. A country with no edge hands in `aroundPatches` instead and nothing else about
-   *   this class changes — which is the whole point of the argument existing.
+   * @param ground the country to walk on. A bare sampler is a world with an edge and is wrapped in
+   *   `oneCountry`, which is what every caller in this repository hands over and what a dungeon
+   *   floor and an interior will go on handing over for ever. A patchwork hands in
+   *   `patchedCountry` and nothing else about this class changes, which is the whole point.
    */
-  constructor(
-    private readonly sampler: TerrainSampler,
-    private readonly footprints: Footprints,
-    private readonly around: Around = aroundOf(sampler.structures),
-  ) {}
+  constructor(ground: TerrainSampler | Country, private readonly footprints: Footprints) {
+    this.country = 'forChunk' in ground ? ground : oneCountry(ground);
+    this.around = this.country.around;
+  }
 
   /** How many chunks are being held. What the memory of a busy world is made of. */
   get held(): number { return this.loaded.size; }
@@ -98,7 +171,7 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * the recipe. That is the whole point of sending it.
    */
   parcelOf(cx: number, cz: number): Parcel {
-    return this.parcels.get(chunkKey(cx, cz)) ?? this.sampler.generateChunk(cx, cz);
+    return this.parcels.get(chunkKey(cx, cz)) ?? this.country.forChunk(cx, cz).generateChunk(cx, cz);
   }
 
   /**
@@ -123,7 +196,7 @@ export class GroundWorld implements TileWorld, ChunkSource {
       for (let dx = -chunks; dx <= chunks; dx++) {
         const key = chunkKey(cx + dx, cz + dz);
         if (this.parcels.has(key)) continue;
-        this.parcels.set(key, this.sampler.generateChunk(cx + dx, cz + dz));
+        this.parcels.set(key, this.country.forChunk(cx + dx, cz + dz).generateChunk(cx + dx, cz + dz));
         made++;
       }
     }
@@ -152,11 +225,22 @@ export class GroundWorld implements TileWorld, ChunkSource {
   /** How much country is standing by to be handed over. The memory of a busy world's other half. */
   get standingBy(): number { return this.parcels.size; }
 
-  /** The villages of this world: where anybody who goes down is carried to. */
-  get villages(): ReadonlyArray<{ x: number; z: number }> { return this.sampler.structures.villages; }
+  /**
+   * The villages of this world: where anybody who goes down is carried to.
+   *
+   * A survey rather than a neighbourhood, so it is asked of the whole country rather than through
+   * `around`. In a world with an edge that is every village there is; in one without, it is every
+   * village in the squares somebody has walked into, which is the only honest reading of "every
+   * village there is" in a country that is still being made.
+   */
+  get villages(): ReadonlyArray<{ x: number; z: number }> {
+    return this.country.inHand().flatMap((s) => s.structures.villages);
+  }
 
-  /** The piers of this world: where anything that floats ties up. */
-  get piers(): ReadonlyArray<Pier> { return this.sampler.structures.piers; }
+  /** The piers of this world: where anything that floats ties up. On the same terms. */
+  get piers(): ReadonlyArray<Pier> {
+    return this.country.inHand().flatMap((s) => s.structures.piers);
+  }
 
   /**
    * Is this a place a boat could have put somebody down?
@@ -166,7 +250,11 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * count: the deck end a gangplank comes down on, and the tile a hull ties up beside.
    */
   atAPier(x: number, z: number, within: number): boolean {
-    for (const pier of this.piers) {
+    // the reach is the caller's own, and both ends of a pier count — `around` finds them by the
+    // dock end, so the deck end is measured here. A jetty whose deck reaches this point has its dock
+    // exactly its own length further out, which is `PIER_LENGTH` and is taken from the file that
+    // builds one rather than guessed at, so the two cannot drift apart
+    for (const pier of this.around.piers(x, z, within + PIER_LENGTH)) {
       if (Math.hypot(pier.dockX + 0.5 - x, pier.dockZ + 0.5 - z) <= within) return true;
       const [ex, ez] = pier.tiles[pier.tiles.length - 1];
       if (Math.hypot(ex + 0.5 - x, ez + 0.5 - z) <= within) return true;
@@ -250,7 +338,8 @@ export class GroundWorld implements TileWorld, ChunkSource {
     if (type === TileType.Skip || type === TileType.Seabed || type === TileType.Water) return null;
     const ground = hit.tiles.heights[hit.i];
     // a mountain is a solid standing on the ground, so what is underfoot is the higher of the two
-    const rock = this.sampler.ranges ? mountainAt(this.sampler.ranges, x, z) : null;
+    const ranges = this.country.at(x, z).ranges;
+    const rock = ranges ? mountainAt(ranges, x, z) : null;
     return rock !== null && rock > ground ? rock : ground;
   }
 
@@ -286,10 +375,15 @@ export class GroundWorld implements TileWorld, ChunkSource {
   }
 
   buried(x: number, z: number): boolean {
-    if (!this.sampler.ranges) return false;
+    // the tile first, and that order matters now that a country can be more than one square: `at`
+    // would grow the square this point is in, and a point with no chunk loaded is a point nobody is
+    // standing near. Asking the country before asking the ground would make a stray question about
+    // somewhere nobody has been cost a patch.
     const hit = this.tileAt(x, z);
     if (!hit) return false;
-    const rock = mountainAt(this.sampler.ranges, x, z);
+    const ranges = this.country.at(x, z).ranges;
+    if (!ranges) return false;
+    const rock = mountainAt(ranges, x, z);
     return rock !== null && rock > hit.tiles.heights[hit.i] + BURIED_BY;
   }
 
@@ -334,10 +428,13 @@ export class GroundWorld implements TileWorld, ChunkSource {
     // whatever was grown to be handed over will do to walk on as well: the world that is ready for
     // a page and the world its own creatures cross are the same country, and growing it twice would
     // be paying twice for one answer
-    const chunk = this.parcels.get(chunkKey(cx, cz)) ?? this.sampler.generateChunk(cx, cz);
+    const painter = this.country.forChunk(cx, cz);
+    const chunk = this.parcels.get(chunkKey(cx, cz)) ?? painter.generateChunk(cx, cz);
     const tiles = tilesOf(chunk);
     this.loaded.set(chunkKey(cx, cz), tiles);
-    this.solids.put(chunkKey(cx, cz), boxesOf(chunk, this.sampler.seed, this.footprints));
+    // the seed off the sampler that painted it, so props rolled in one square are rolled the same
+    // way by whichever half of the game is looking at that square
+    this.solids.put(chunkKey(cx, cz), boxesOf(chunk, painter.seed, this.footprints));
     return tiles;
   }
 
@@ -354,3 +451,5 @@ export class GroundWorld implements TileWorld, ChunkSource {
 
 /** How far a mountain has to stand above a tile before nothing belongs there, in world units. */
 const BURIED_BY = 1.5;
+
+

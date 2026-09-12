@@ -96,6 +96,70 @@ export function growPatch(seed: number, within: Within): TerrainSampler {
  * graphs put the same villages in the same places with the same names, and there is nothing derived
  * from a country that is not derived from this.
  */
+/**
+ * Why two halves are not in the same country, in words, or null if they are.
+ *
+ * Here rather than in the page, because the sentence is about what a country *is* and this file is
+ * where that is decided. It exists at all because the version the page had said the only thing it
+ * could — two hex numbers and the news that they differ — and the commonest cause by far is not a
+ * generator that drifted but two halves that grew different *kinds* of country, which the hashes
+ * cannot tell you and which the kinds say outright.
+ *
+ * The kinds are checked first for that reason. A bounded country and an endless one have no reason
+ * whatever to hash alike, so comparing their stamps is comparing two answers to different
+ * questions; a page told so knows what to do about it, where a page shown `3b564cc4` against
+ * `1d825025` knows only that something is wrong.
+ *
+ * `theirs` may be empty and `theirKind` missing: a world that grows no ground says nothing, and one
+ * older than the field says nothing about its kind. Both are silence rather than disagreement.
+ */
+export function whyCountriesDiffer(
+  mine: string, theirs: string, myKind: WorldKind, theirKind?: WorldKind,
+): string | null {
+  if (theirKind && theirKind !== myKind) {
+    return `This world is ${myKind} here and ${theirKind} in the world you joined, which are two different countries from the same seed.`;
+  }
+  if (!theirs || theirs === mine) return null;
+  return `This world grew differently here (${mine}) and in the world you joined (${theirs}).`;
+}
+
+/**
+ * The fingerprint of one square of a country that has no whole to fingerprint.
+ *
+ * ## Why the country's own stamp cannot do
+ *
+ * `countryStamp` below is checked once, at the handshake, and that is exactly right for a world
+ * with an edge: such a country exists all at once, both halves grow the whole of it before anybody
+ * takes a step, and the moment of joining is the moment there is something to compare. A country
+ * with no edge has no such moment. At the handshake neither half has grown anything but the square
+ * it happens to be standing in, those need not be the same square, and the country either half will
+ * eventually hold depends on where its people walk. There is nothing there to hash.
+ *
+ * ## When this is checked instead
+ *
+ * When a square is first agreed on. A patch is the unit both halves grow, both halves hold the
+ * graph of any square they are talking about, and neither has to be asked for anything it has not
+ * got — so the comparison costs one number on a message that is already being sent, at the one
+ * moment the two halves are demonstrably thinking about the same piece of ground. A page that has
+ * not grown that square has nothing to compare and says nothing, which is the honest answer rather
+ * than a silence to be fixed.
+ *
+ * That is also strictly *better* than the whole-country check it replaces, and it is worth saying
+ * why. A country stamp answers "are we in the same world" once and then never again. This answers
+ * "are we on the same ground" every time somebody walks into new country, which is where the fault
+ * it exists to catch actually appears: a world that agreed at the handshake and diverges at the
+ * fourth square is a world the old check would have called sound.
+ *
+ * The square's name is folded in, so that two halves comparing stamps for *different* squares
+ * cannot come out equal and read as agreement.
+ */
+export function patchStamp(patch: string, graph: RoadGraph): string {
+  const said = `${patch}|${countryStamp(graph)}`;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < said.length; i++) h = Math.imul(h ^ said.charCodeAt(i), 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, '0');
+}
+
 export function countryStamp(graph: RoadGraph): string {
   let h = 0x811c9dc5;
   const eat = (n: number): void => { h = Math.imul(h ^ (n | 0), 0x01000193) >>> 0; };

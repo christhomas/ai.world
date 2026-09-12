@@ -11,7 +11,7 @@ import { TileType } from './terrain';
  */
 
 /** Deck tiles laid into the water once the land has run out. */
-const PIER_LENGTH = 6;
+export const PIER_LENGTH = 6;
 
 /** How far a jetty will walk looking for a coast before giving up on this direction. */
 const PIER_WALK_MAX = 260;

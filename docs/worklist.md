@@ -4078,7 +4078,42 @@ than by remembering — and the first thing found was that the gap is not where 
       patchwork the honest version of each is "within so many tiles of here", which is what they all
       actually mean.
 
-- [~] **59f. Both halves have to switch together.** *The one call exists as of the 12th.* `growPatch`
+- [~] **59f. Both halves have to switch together.** *Three of the four pieces done on the 12th; the
+      server is not flipped, and why is written below.*
+
+      **`GroundWorld` stands on a country rather than on one sampler.** A `Country` interface —
+      declared by the consumer, the way `TileWorld` is — with two satisfactions beside it: one whole
+      sampler, or a patchwork. Every `this.sampler` read is gone: a chunk comes from whichever square
+      it falls in, the rock over a point from that point's square, and the seed the props were rolled
+      under from the sampler that painted that chunk. All eleven existing callers are untouched.
+
+      **A stamp with a meaning for a country that has no whole.** The old check compares whole
+      countries once, at the handshake, which is right for a world that exists all at once. An
+      endless one has no such moment — at the handshake each half has grown only the square it is
+      standing in, and those need not be the same square. So the unit of agreement becomes the unit
+      of growth: a square is stamped when it is first agreed on, which costs nothing because both
+      halves already hold its graph, and it answers *"are we on the same ground"* every time somebody
+      walks into new country rather than *"are we in the same world"* once and never again.
+
+      And the message that reports a mismatch stopped being useless. *"This world grew differently
+      here (3b564cc4) and in the world you joined (1d825025)"* is true and names the symptom of every
+      possible cause; the kind now travels, so the same case reads *"This world is endless here and
+      road in the world you joined, which are two different countries from the same seed."*
+
+      **The bench points at a seam**, 400 points straddling a patch boundary — and it found a fault
+      on its first run that had been hiding for as long as the bench has existed: the page-half stub
+      ignored the rock where the real one takes the higher of ground and mountain. A road-tree world
+      has no ranges at all, so `mountainAt` never fires and **the bounded bench has never been able
+      to test the mountain half of `heightAt`**. The first endless patch surfaced it.
+
+      What is left is the server, and it is left deliberately. The ground half is now one line; the
+      line after it is not — building the register, the villagers and the claimed mines reads five
+      different things off one whole-world sampler, and an endless world has no moment at which that
+      can be done. Flipping the ground without the people would give a server walking creatures over
+      a patchwork while its villagers come from a country that does not exist, which is worse than
+      not flipping it and is exactly what `growworld.ts` exists to prevent.
+
+      The original note: *the one call exists as of the 12th.* `growPatch`
       sits in `growworld.ts` beside `growWorld`, and `growworld.test.ts` — which reads the source of
       the game and the server and fails if anything but that file names a generator — now watches
       `samplerIn` too. The endless country had three callers of its generator already (the patchwork,

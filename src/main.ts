@@ -83,7 +83,7 @@ import { Cutaway, rememberCutaway, wantsCutaway } from './render/cutaway';
 import { familyOfDoor } from './world/homes';
 import { aftermath } from './game/consequences';
 import { growCountry } from './game/country';
-import { countryStamp } from './world/growworld';
+import { countryStamp, whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
 import { openTheSave } from './game/keeping';
 import { bindKeys } from './game/keys';
@@ -400,11 +400,11 @@ export function startGame(
      * than left to be discovered as a hero standing in a named village in an empty field.
      */
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
-    onCountryGrown: (stamp) => {
+    onCountryGrown: (stamp, theirKind) => {
       chunks.theCountryIsGrown();
-      const mine = countryStamp(graph);
-      if (!stamp || stamp === mine) return;
-      const said = `This world grew differently here (${mine}) and in the world you joined (${stamp}).`;
+      // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`
+      const said = whyCountriesDiffer(countryStamp(graph), stamp, world, theirKind);
+      if (!said) return;
       console.error(said);
       hud.flash('This world does not match the one you joined.');
       chat.line(said, 'sys');

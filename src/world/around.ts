@@ -1,5 +1,5 @@
 import { PATCH, patchOf, type Patchwork } from './patchwork';
-import type { Structures, Village } from './structures';
+import type { Pier, Structures, Village } from './structures';
 import type { TerrainSampler } from './terrain';
 
 /**
@@ -50,7 +50,20 @@ export interface Around {
   nearestVillage(x: number, z: number, reach: number): Village | null;
   /** Caves, wrecks and points of interest within `reach`, nearest first. */
   places(x: number, z: number, reach: number): Place[];
+  /**
+   * The jetties within `reach`, nearest first.
+   *
+   * A fourth kind, and it earns its own line rather than joining `places` because a pier is not
+   * somewhere you go — it is a piece of the coast that means something. Whether a boat could have
+   * put somebody down here is asked of both ends of one, so the whole pier is handed back rather
+   * than a name and a point.
+   */
+  piers(x: number, z: number, reach: number): Pier[];
 }
+
+/** A pier as somewhere with a position: the tile a boat ties up at, which is the far end of it. */
+const atItsDock = (pier: Pier): { pier: Pier; x: number; z: number } =>
+  ({ pier, x: pier.dockX + 0.5, z: pier.dockZ + 0.5 });
 
 const nearer = (x: number, z: number) => (a: { x: number; z: number }, b: { x: number; z: number }): number =>
   Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z);
@@ -64,6 +77,9 @@ function aroundStructures(structures: Structures): Around {
     villages: (x, z, reach) => within(structures.villages, x, z, reach),
     nearestVillage: (x, z, reach) => within(structures.villages, x, z, reach)[0] ?? null,
     places: (x, z, reach) => within([...structures.pois, ...structures.caves, ...structures.wrecks], x, z, reach),
+    // measured from the tile a hull ties up at, which is the end of it that is out in the water and
+    // the end anybody asking about a pier is asking about
+    piers: (x, z, reach) => within(structures.piers.map(atItsDock), x, z, reach).map((p) => p.pier),
   };
 }
 
@@ -113,6 +129,8 @@ export function aroundPatches(patches: Patchwork): Around {
     places: (x, z, reach) => within(
       all(x, z, reach).flatMap((s) => [...s.pois, ...s.caves, ...s.wrecks]), x, z, reach,
     ),
+    piers: (x, z, reach) =>
+      within(all(x, z, reach).flatMap((s) => s.piers.map(atItsDock)), x, z, reach).map((p) => p.pier),
   };
 }
 

@@ -771,7 +771,13 @@ export class Simulation {
     const ground = this.groundOf(client.seed);
     const x = Number(message.x), z = Number(message.z);
     if (ground && Number.isFinite(x) && Number.isFinite(z)) ground.ready(x, z, VIEW);
-    this.rooms.send(client, { type: 'country', stamp: this.stamps.get(client.seed) ?? '' });
+    // the kind as well as the hash: two halves that grew different kinds of country cannot agree
+    // about anything, and saying which is what turns a pair of hex numbers into a diagnosis
+    this.rooms.send(client, {
+      type: 'country',
+      stamp: this.stamps.get(client.seed) ?? '',
+      kind: this.rooms.get(client.seed)?.kind ?? 'road',
+    });
   }
 }
 

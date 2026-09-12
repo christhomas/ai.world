@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { generateWebGraph } from './roadweb';
 import { propFootprints } from '../entities/props';
-import { GroundWorld } from './groundworld';
+import { GroundWorld, patchedCountry } from './groundworld';
+import { PATCH, Patchwork } from './patchwork';
 import { TerrainSampler } from './terrain';
 
 /**
@@ -98,5 +99,75 @@ describe('the ground, with nobody drawing it', () => {
     ground.reach(0, 0, 2);
     expect(ground.keepOnly([], 2)).toBe(25);
     expect(ground.held).toBe(0);
+  });
+});
+
+/**
+ * And the same ground over a country that has no whole.
+ *
+ * Everything above holds one sampler and asks it everything, which is what a world with an edge is.
+ * An endless one is a patchwork: the square you are standing in is one sampler, the square next
+ * door is another, and no object anywhere holds both. `Country` is what `GroundWorld` actually
+ * needs stated small enough that both can satisfy it, and these are the questions that were asked
+ * of the one sampler and now have to be asked across a seam.
+ *
+ * The last of them is the one worth having. A survey of a country that is still being made can only
+ * honestly report the country somebody has walked into, and the way that goes wrong is not a wrong
+ * answer — it is a survey that quietly grows half a province to be thorough.
+ */
+describe('the ground, when the country is grown a square at a time', () => {
+  const SEED = 4242;
+  const both = (): { ground: GroundWorld; patches: Patchwork } => {
+    const patches = new Patchwork(SEED);
+    patches.patch('0,0');
+    patches.patch('1,0');
+    return { ground: new GroundWorld(patchedCountry(patches), propFootprints()), patches };
+  };
+
+  it('walks on ground painted by whichever square the chunk falls in', () => {
+    const { ground } = both();
+    // a chunk either side of the seam at x = 512, and both of them real ground rather than a hole
+    for (const x of [PATCH - 40, PATCH + 40]) {
+      ground.reach(x, PATCH / 2, 1);
+      const standing = ground.heightAt(x, PATCH / 2);
+      const wet = ground.waterAt(x, PATCH / 2);
+      expect(standing !== null || wet !== null, `nothing at all at ${x}`).toBe(true);
+    }
+  });
+
+  it('surveys the villages of every square that has been grown, and no others', () => {
+    const { ground, patches } = both();
+    const mine = [...ground.villages].map((v) => `${v.x.toFixed(2)},${v.z.toFixed(2)}`).sort();
+    const theirs = patches.inHand()
+      .flatMap((s) => s.structures.villages)
+      .map((v) => `${v.x.toFixed(2)},${v.z.toFixed(2)}`).sort();
+    expect(theirs.length, 'two squares of country with nobody living in either').toBeGreaterThan(1);
+    expect(mine).toEqual(theirs);
+  });
+
+  it('finds a village and a jetty in the square next door', () => {
+    const { ground, patches } = both();
+    const east = patches.patch('1,0').structures;
+    const village = east.villages[0];
+    expect(village, 'no village in the eastern square to look for').toBeDefined();
+    // asked from the square to the west of the one it is in, which is the question a single sampler
+    // could not answer at all: its window stops at its own edge
+    expect(ground.atAVillage(village.x, village.z, 1)).toBe(true);
+    expect(ground.peopled(village.x, village.z)).toBe(true);
+    const pier = [...patches.inHand().flatMap((s) => s.structures.piers)][0];
+    if (pier) expect(ground.atAPier(pier.dockX + 0.5, pier.dockZ + 0.5, 1)).toBe(true);
+  });
+
+  it('grows no country to answer a question about what is near a point', () => {
+    // the property that makes any of this affordable: these are asked while creatures are being
+    // walked, and a survey that grew a square would be most of a second in the middle of a tick
+    const { ground, patches } = both();
+    const grown = patches.grown;
+    ground.atAVillage(PATCH, PATCH / 2, 60);
+    ground.peopled(PATCH, PATCH / 2);
+    ground.atAPier(PATCH, PATCH / 2, 60);
+    void ground.villages;
+    void ground.piers;
+    expect(patches.grown, 'a question about somewhere grew country to answer it').toBe(grown);
   });
 });

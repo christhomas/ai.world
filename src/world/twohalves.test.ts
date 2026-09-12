@@ -12,10 +12,13 @@ import { cleanIslands } from '../../server/protocol';
 import { generateWebGraph } from './roadweb';
 import { generateRoadGraph, islandAnchors } from './graph';
 import { growWorld } from './growworld';
+import { Patchwork, PATCH } from './patchwork';
+import { patchedCountry } from './groundworld';
 import { Solids, boxesFrom } from './solids';
 import { propsOf } from './propstream';
 import { TerrainSampler, TileType } from './terrain';
 import { tilesOf } from './tiles';
+import { mountainAt } from './ranges';
 
 /**
  * One world, grown twice, and made to answer the same.
@@ -81,6 +84,24 @@ const POINTS = 2000;
  */
 function asThePageHasIt(seed: number) {
   const sampler = new TerrainSampler(generateWebGraph(seed));
+  return pageOver(() => sampler);
+}
+
+/**
+ * And the same page, over a country that is grown a square at a time.
+ *
+ * The only difference is where a chunk's painter comes from: one sampler for a world with an edge,
+ * and the patch the chunk falls in for one without. Everything after that — the tiles, the props,
+ * the boxes they stand in — is the page's own arithmetic and is deliberately shared, because what
+ * this bench is for is the difference between the *two halves*, not between two kinds of world.
+ */
+function asThePageHasThePatchwork(seed: number) {
+  const patches = new Patchwork(seed);
+  return pageOver((cx, cz) => patches.forChunk(cx, cz));
+}
+
+/** The page's bookkeeping, given whatever paints its chunks. */
+function pageOver(painter: (cx: number, cz: number) => TerrainSampler) {
   const stops = blocking(propFootprints(), BLOCKS_WALKING);
   const CS = WORLD.CHUNK_SIZE;
   const tiles = new Map<string, ReturnType<typeof tilesOf>>();
@@ -88,12 +109,12 @@ function asThePageHasIt(seed: number) {
   const grow = (cx: number, cz: number): void => {
     const key = `${cx},${cz}`;
     if (tiles.has(key)) return;
+    const sampler = painter(cx, cz);
     const chunk = sampler.generateChunk(cx, cz);
     tiles.set(key, tilesOf(chunk));
     solids.put(key, boxesFrom(propsOf(chunk, sampler.seed), stops));
   };
-  return {
-    sampler,
+  const made = {
     grow,
     heightAt(x: number, z: number): number | null {
       const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
@@ -104,7 +125,17 @@ function asThePageHasIt(seed: number) {
       // the same three the ground world calls "not ground": a hole in the world, the seabed, and
       // the bed of a river or lake, whose surface is water rather than somewhere to stand
       if (type === TileType.Skip || type === TileType.Seabed || type === TileType.Water) return null;
-      return t.heights[i];
+      /*
+       * And the rock standing over it, which the page does too — `ChunkManager.heightAt` is this
+       * same line. It was left out of this stub for as long as the stub only ever saw a road-tree
+       * world, which has no ranges at all, so the omission cost nothing and said nothing. The first
+       * endless patch put a mountain in front of it and the bench reported the ground five units
+       * apart, which was this stub being wrong rather than the two halves disagreeing.
+       */
+      const ranges = painter(cx, cz).ranges;
+      const rock = ranges ? mountainAt(ranges, x, z) : null;
+      const ground = t.heights[i];
+      return rock !== null && rock > ground ? rock : ground;
     },
     solidAt(x: number, z: number, body?: ReturnType<typeof bodyBox>): boolean {
       grow(Math.floor(x / CS), Math.floor(z / CS));
@@ -128,6 +159,22 @@ function asThePageHasIt(seed: number) {
       if (type === TileType.Water) return t.waters[i];
       return type === TileType.Seabed ? WORLD.WATER_Y : null;
     },
+  };
+  return {
+    ...made,
+    /**
+     * The page's ground as something a creature can be asked to stand on.
+     *
+     * `isRoad` is borrowed from the other half deliberately: whether a tile is a road is not one of
+     * the things these two ever disagreed about, and the page's own copy of it would be a third
+     * implementation of a rule that already has two.
+     */
+    asAWorld: (other: { isRoad: (x: number, z: number) => boolean }) => ({
+      heightAt: (x: number, z: number) => made.heightAt(x, z),
+      waterAt: (x: number, z: number) => made.waterAt(x, z),
+      blocked: (x: number, z: number, body?: ReturnType<typeof bodyBox>) => made.solidAt(x, z, body),
+      isRoad: (x: number, z: number) => other.isRoad(x, z),
+    }),
   };
 }
 
@@ -200,6 +247,61 @@ describe('the same world, grown on both sides', () => {
       expect(differ.slice(0, 6), `${differ.length} of ${asked} places disagree`).toEqual([]);
     });
   }
+
+  /**
+   * And the same four questions of a country that is grown a square at a time.
+   *
+   * The bench above asks them of a world with an edge, which is the only kind either half could
+   * grow when it was written. An endless country is the harder case and the one that matters now:
+   * the page holds a patchwork and paints each chunk with the square it falls in, the world holds
+   * its own patchwork and walks creatures over it, and neither of them has an object anywhere that
+   * holds the whole country. Two halves that cannot compare countries because there is no country
+   * to compare is exactly the shape of fault this file exists for.
+   *
+   * The points are deliberately gathered *across a seam*. Inside one square this would be the old
+   * test with more plumbing; straddling two is the question that could not be asked before, because
+   * the world's half had one sampler and a sampler stops at its own window. Four hundred of them
+   * rather than two thousand, because each one may cost a square of country the first time it is
+   * asked and a square is most of a second — and a seam is a line, so the points are spent along it
+   * rather than scattered over ground that would only ask the same question again.
+   */
+  it('agrees about the ground either side of a seam in an endless country', () => {
+    const seed = 4242;
+    const page = asThePageHasThePatchwork(seed);
+    const world = new GroundWorld(patchedCountry(new Patchwork(seed)), blocking(propFootprints(), BLOCKS_WALKING));
+    const rng = mulberry32(seed);
+    const differ: string[] = [];
+    let asked = 0;
+
+    for (let n = 0; n < 400; n++) {
+      // a band two hundred tiles either side of the line where one square gives way to the next
+      const x = PATCH - 200 + rng() * 400, z = 80 + rng() * 340;
+      world.reach(x, z, 0);
+      page.grow(Math.floor(x / WORLD.CHUNK_SIZE), Math.floor(z / WORLD.CHUNK_SIZE));
+      asked++;
+
+      const mine = page.heightAt(x, z), theirs = world.heightAt(x, z);
+      if ((mine === null) !== (theirs === null)) {
+        differ.push(`${x.toFixed(1)},${z.toFixed(1)}: one half has ground and the other has none (${mine} / ${theirs})`);
+        continue;
+      }
+      if (mine !== null && theirs !== null && Math.abs(mine - theirs) > 1e-6) {
+        differ.push(`${x.toFixed(1)},${z.toFixed(1)}: the ground is ${mine.toFixed(3)} on one side and ${theirs.toFixed(3)} on the other`);
+      }
+      const hero = bodyBox(KINDS.hero, 0);
+      if (page.solidAt(x, z, hero) !== world.blocked(x, z, hero)) {
+        differ.push(`${x.toFixed(1)},${z.toFixed(1)}: a hero fits on one side and not the other`);
+      }
+      if (canStand(page.asAWorld(world), KINDS.hero, x, z) !== canStand(world, KINDS.hero, x, z)) {
+        differ.push(`${x.toFixed(1)},${z.toFixed(1)}: a hero may stand on one side and not the other`);
+      }
+    }
+
+    // and the seam is really in the middle of what was asked, or this is the old test in disguise
+    expect(asked, 'no points were asked either side of the seam').toBeGreaterThan(300);
+    covered.push(`${differ.length === 0 ? 'PASS' : 'FAIL'}  ${String(asked).padStart(5)}  points across a patch seam of endless seed ${seed}: ground, what is solid, where a hero may stand`);
+    expect(differ.slice(0, 6), `${differ.length} of ${asked} points across a seam disagree`).toEqual([]);
+  });
 
   it('and is handed the whole of the country at the join, not a seed to guess from', () => {
     /*
