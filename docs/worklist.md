@@ -5126,7 +5126,7 @@ than by remembering — and the first thing found was that the gap is not where 
       same subtraction to do for a village that it already does for a commission. Cheap in itself.
       The care needed is in `relive` — it is a told-not-derived fact and has to survive a replay.
 
-- [ ] **80. Money is destroyed at the purse ceiling, and no book records it.** `Register.pay` clamps
+- [x] **80. Money is destroyed at the purse ceiling, and no book records it.** `Register.pay` clamps
       a purse at `PROSPER.MOST`, and whatever would have gone over the top simply stops existing.
       Found by the audit: every discrepancy in the hundred-day run is *negative*, which is the
       signature of coins leaving the world rather than arriving in it.
@@ -5148,3 +5148,24 @@ than by remembering — and the first thing found was that the gap is not where 
 
       Worth finding out which before anything is tuned: if it is the ground, it is content; if it is
       the ladder's first rung, it is the same bug in every marginal village in the world.
+
+      **Done on the 13th.** The surplus goes to the hall — the cap becomes a tax on the very rich —
+      and `purses.ts` is a module of its own, because the rule the audit checks is about money moving
+      and not about the book of who is alive. The floor is deliberately not symmetrical: a man who
+      owes more than he has has simply not paid it, which is reported and not made good. What it
+      uncovered is **82**.
+
+- [ ] **82. Money is created by the mines and banked by the halls, and nothing takes it back out.**
+      *Uncovered by fixing 80, on the 13th.* Two hundred thousand gold that used to vanish at the
+      purse ceiling now sits in village treasuries instead. Over 450 days on three seeds the banked
+      share went from **17% of every coin in the world to 57%**, and the sanity bench's own note on
+      that line has been saying why since it was written: the tax went in before anything a village
+      could vote to spend it on, so treasuries only ever fill.
+
+      The fix is not to put the leak back. It is the spending half — the thing a village votes to
+      buy — and the ceiling fix is the argument for doing it sooner rather than later. Until then a
+      hall is where money in this world goes to stop.
+
+      Worth measuring while it is being built: the mines are the only source of new money and they
+      mint about 750 gold per seed in a hundred days. Something has to be a sink of the same size,
+      and "a village buys a thing" is the only honest candidate on the list.
