@@ -61,6 +61,8 @@ export interface OnlineEvents {
   onWorldSilent: () => void;
   /** The world has walked our own hero, and this is where it says he is standing. */
   onWhereYouAre: (seq: number, x: number, z: number, y: number) => void;
+  /** What was in the chest this page has already opened, and whether it was this hero's to open. */
+  onChestOpened: (seq: number, told: { ok: boolean; gold: number; key: boolean; prize: string | null }) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
   onDelta: (delta: WorldDelta, catchingUp: boolean) => void;
   /** The market as the server sees it: who holds which pitch and what is on it. */
@@ -159,6 +161,11 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'clock':
       o.events.onClock(message.clock);
+      break;
+    case 'opened':
+      o.events.onChestOpened(message.seq, {
+        ok: message.ok, gold: message.gold, key: message.key, prize: message.prize,
+      });
       break;
     case 'creatures':
       o.events.onCreatures(message.place, message.near, message.gone);

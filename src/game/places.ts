@@ -1,6 +1,5 @@
 import { CAMERA } from '../core/config';
 import type { Rng } from '../core/rng';
-import { mulberry32 } from '../core/rng';
 import type { IsoCamera } from '../render/camera';
 import type { PropLibrary } from '../render/props';
 import type { SceneRig } from '../render/scene';
@@ -22,6 +21,8 @@ import type { Player } from '../entities/player';
 import { DungeonMinimap } from '../ui/dungeonmap';
 import { FACEWORK, putTheCrewToWork, type Digger } from './crews';
 import { ITEMS } from './items';
+import { BIG_CHEST_PRIZES, whatAChestHolds } from '../world/chests';
+import { Openings } from './opening';
 import { nameOfHome } from '../world/homes';
 import type { Register } from '../world/register';
 import type { GameState } from './state';
@@ -85,6 +86,13 @@ export interface PlaceContext {
   persist: () => void;
   /** Tell anyone else in this world about a chest opened or a vault unlocked. */
   report: (delta: { kind: 'chest'; id: string } | { kind: 'key'; id: string }) => void;
+  /**
+   * Asking the world whether a chest was this hero's to open. Answered by `Places.opened`.
+   *
+   * Separate from `report` because it is a different kind of sentence: one tells the world what has
+   * happened, and this one asks it a question it can say no to. The first of those in the game.
+   */
+  open: (ask: { seq: number; place: string; index: number; owns: string[] }) => void;
   /**
    * A floor has been stepped into: which one, hanging off which anchor, and how deep.
    *
@@ -233,7 +241,6 @@ export function personWins(
   return Math.hypot(person.x - playerX, person.z - playerZ)
     < Math.hypot(thingX - playerX, thingZ - playerZ);
 }
-const BIG_CHEST_PRIZES = ['potion', 'steelsword', 'ironshield', 'helm', 'jerkin', 'mail', 'greaves', 'charm', 'lantern', 'rope', 'map', 'gem'];
 
 /**
  * The hero is always in exactly one place: outdoors, underground, or inside a building. This owns
@@ -244,6 +251,8 @@ export class Places {
   indoors: InteriorVisit | null = null;
   /** Camera zoom to put back when stepping outside again. */
   private outdoorZoom = 0;
+  /** Chests opened on the world's word but not yet on its answer. */
+  private readonly openings = new Openings();
 
   constructor(private readonly ctx: PlaceContext) {}
 
@@ -432,34 +441,80 @@ export class Places {
      * index. Quietly, because a chest that gives you something looks like a chest that worked.
      */
     const seed = manifest.get(visit.anchorId)?.seed ?? this.ctx.seed;
-    const roll = mulberry32(seed + index + 1);
-    const gold = chest.big ? 80 + Math.floor(roll() * 70) : 12 + Math.floor(roll() * 30);
-    state.inventory.gold += gold;
-    this.ctx.takeShare(gold);
+    // what is inside was decided by the seed long before anybody walked down here, so it is worked
+    // out by a rule the world can read too rather than rolled here — see `world/chests.ts`
+    const hoard = whatAChestHolds(seed, index, chest, (item) => state.owns(item));
+    state.inventory.gold += hoard.gold;
+    this.ctx.takeShare(hoard.gold);
 
     let extra = '';
-    if (chest.key) {
+    if (hoard.key) {
       const lock = lockFor(visit.anchorId, visit.floor);
       state.keys.add(lock);
       visit.world.unlocked = true;
       this.ctx.report({ kind: 'key', id: lock });
       extra = ' and a heavy iron key';
     }
-    if (chest.big) {
-      const prizes = BIG_CHEST_PRIZES.filter((p) => !state.owns(p) || p === 'potion' || p === 'gem');
-      const prize = prizes[Math.floor(roll() * prizes.length)];
-      if (prize) {
-        state.give(prize, 1);
-        extra += `${extra ? ' and' : ' and'} ${ITEMS[prize].emoji} ${ITEMS[prize].name}`;
-      }
+    if (hoard.prize) {
+      state.give(hoard.prize, 1);
+      extra += ` and ${ITEMS[hoard.prize].emoji} ${ITEMS[hoard.prize].name}`;
     }
     state.opened.add(id);
     this.ctx.report({ kind: 'chest', id });
     state.version++;
     visit.scene.rebuildProps(state.opened);
-    if (chest.key) this.ctx.flash('The doors to the treasure room unlock');
+    if (hoard.key) this.ctx.flash('The doors to the treasure room unlock');
     this.ctx.chime();
-    this.ctx.flash(`Found ${gold} gold${extra}!`);
+    this.ctx.flash(`Found ${hoard.gold} gold${extra}!`);
+    this.ctx.persist();
+    /*
+     * And now ask whether that was allowed.
+     *
+     * In that order on purpose. The lid is already open, the gold is already counted and the player
+     * is already reading what they found, because nothing about this should wait for a network. What
+     * the world is being asked is not what was inside — it works that out from the same seed — but
+     * whether this hero was standing there, in reach, and first. `opened()` below is the answer.
+     *
+     * What it is told about the pack is only the short list a big chest can hold, because that is
+     * the only part of what you are carrying that changes what comes out of one.
+     */
+    this.ctx.open({
+      seq: this.openings.ask({
+        id, gold: hoard.gold, prize: hoard.prize,
+        lock: hoard.key ? lockFor(visit.anchorId, visit.floor) : null,
+      }),
+      place: visit.world.anchorId,
+      index,
+      owns: BIG_CHEST_PRIZES.filter((item) => state.owns(item)),
+    });
+  }
+
+  /**
+   * The world has said whether that chest was yours to open, and what was in it.
+   *
+   * Everything here is an undoing rather than a doing: the page has already given itself the gold,
+   * and this is the one path that can take it back. It is handed straight to `Openings`, which knows
+   * what was given and nothing else about a vault.
+   */
+  opened(seq: number, told: { ok: boolean; gold: number; key: boolean; prize: string | null }): void {
+    const { state } = this.ctx;
+    this.openings.answered(seq, told, {
+      gold: (by) => { state.inventory.gold = Math.max(0, state.inventory.gold + by); },
+      carry: (item, by) => { if (by > 0) state.give(item, by); else state.take(item, -by); },
+      shut: (id) => {
+        state.opened.delete(id);
+        // only if he is still standing in the vault it belongs to: a chest id carries its floor on
+        // the front, and rebuilding the props of a floor two flights up would shut nothing at all
+        if (id.startsWith(`${this.underground?.world.anchorId}:`)) this.underground?.scene.rebuildProps(state.opened);
+      },
+      bar: (lock) => {
+        state.keys.delete(lock);
+        // the lock and the floor are the same name, so this is the same question again
+        if (this.underground?.world.anchorId === lock) this.underground.world.unlocked = false;
+      },
+      flash: (message) => this.ctx.flash(message),
+    });
+    state.version++;
     this.ctx.persist();
   }
 

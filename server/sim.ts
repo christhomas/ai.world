@@ -20,6 +20,7 @@ import { countryStamp, growWorld } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
 import type { WorldKind } from '../src/save/store';
 import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
+import { lidLifted } from './chests';
 import { DungeonWorld } from '../src/dungeon/world';
 import { Manifest } from '../src/world/manifest';
 import { TerrainSampler } from '../src/world/terrain';
@@ -146,6 +147,14 @@ export class Simulation {
    * because a world that has been explored should cost nothing to have been explored.
    */
   private readonly underworlds = new Map<string, Wildlife>();
+  /**
+   * The same floors again, as rooms rather than as monsters.
+   *
+   * Kept beside `underworlds` because the two are asked different questions: what is walking about
+   * down there moves every tick, and where the chests are never moves at all. Grown and dropped
+   * together, so a floor nobody is standing in costs nothing either way.
+   */
+  private readonly floors = new Map<string, { world: DungeonWorld; seed: number }>();
   private lastTick = Date.now();
   /** Milliseconds since the creatures last went out, which is rarer than presence. */
   private sinceCreatures = 0;
@@ -333,6 +342,9 @@ export class Simulation {
         // here rather than in the roster: growing one costs a world, and only the thing that holds
         // the worlds can decide to.
         if (message.type === 'floor') { this.standOn(client, message); return; }
+        // asking to open a chest needs the floor it stands on, which is held here for the same
+        // reason growing one is: the worlds live with the simulation, not with the roster
+        if (message.type === 'open') { this.lift(client, room, message); return; }
         // a piece of the world itself, which is bytes rather than words and so is answered here
         // where the ground is, rather than in the roster which knows only about people
         if (message.type === 'want-chunks') { this.sendChunks(client, message); return; }
@@ -525,6 +537,7 @@ export class Simulation {
       const here = [...room.clients].filter((c) => c.standingIn === place);
       if (here.length === 0) {
         this.underworlds.delete(key);
+        this.floors.delete(key);
         this.rooms.forgetCreatures(seed, place);
         continue;
       }
@@ -636,7 +649,28 @@ export class Simulation {
     const alive = new Wildlife(seed + floor, world, { getTiles: () => null });
     alive.fill(world.map, seed, floor, style);
     this.underworlds.set(key, alive);
+    this.floors.set(key, { world, seed });
     this.rooms.ownCreatures(client.seed, place, alive);
+  }
+
+  /**
+   * Somebody has lifted the lid on a chest, and the world says whether that was theirs to lift.
+   *
+   * The rule is in `chests.ts`; this only hands it what it needs, which is the floor as this world
+   * grew it and the hero as this world has been walking him — neither of them anything the asking
+   * client chose.
+   */
+  private lift(client: Client, room: Room, message: Extract<ClientMessage, { type: 'open' }>): void {
+    lidLifted({
+      floor: this.floors.get(`${client.seed}|${client.standingIn}`) ?? null,
+      // where the world has him: the position it walked him to out of doors, and the one it was last
+      // told below ground, which are the same object either way
+      hero: client.hero ?? client.presence,
+      standingIn: client.standingIn,
+      apply: (delta) => room.world.apply(delta),
+      broadcast: (delta) => this.rooms.broadcast(client.seed, { type: 'delta', delta, from: client.presence.id }, client),
+      send: (reply) => this.rooms.send(client, reply),
+    }, message);
   }
 
   /**

@@ -55,6 +55,35 @@ The game issues them to itself. A villager deciding to walk to the well issues `
 closing at dusk issues `close`. There is no privileged internal path that skips the bus, because a
 path that skips the bus is a path that cannot be observed, replayed or injected into.
 
+### The first one that exists — September 12th
+
+`open` is the first message in `protocol.ts` that *asks* rather than reports, and it is worth
+reading as the pattern the rest should copy.
+
+A chest is the easiest possible case, which is why it was taken first: what is inside was never a
+decision anybody made. A vault is regrown from its seed on every machine, so `whatAChestHolds`
+(`src/world/chests.ts`) gives the same gold and the same prize wherever it runs — page, server, or a
+test with no world around it at all. Both halves run the same rule, so the page can open the lid on
+the spot.
+
+What the world actually decides is the part the seed cannot settle: standing on that floor, within
+reach, and first. `server/chests.ts` checks those three and answers `opened`. The first two are
+about where somebody is; the third is about who got there first, and it is answered by the delta
+log — `apply` returns false for a chest already in it, so two people lifting the same lid in the
+same second race the log rather than a check.
+
+The page does not wait for any of it. `Openings` (`src/game/opening.ts`) keeps what the page gave
+itself, numbered, until the answer arrives; then it forgets it, or takes the gold, the prize and the
+key back and shuts the lid. That is the same bargain walking has made since the world started
+holding the hero, and it is the answer to "why not decide everything on the server": you can, as
+long as the page acts first and is put right afterwards.
+
+What it does not do yet: the world does not keep anybody's pack, so the one thing it takes on trust
+is which of the twelve prizes you are already carrying — which can only change *which* prize comes
+out, never whether one does. And underground it checks reach against where the hero says he is,
+because the world does not walk heroes below ground yet. Both stop being true without `chests.ts`
+changing.
+
 ## Injection
 
 Two doors, and they are not the same door.

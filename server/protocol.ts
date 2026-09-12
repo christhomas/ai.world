@@ -447,6 +447,30 @@ export type ClientMessage =
     style?: 'vault' | 'cave' | 'thicket' | 'sunken' | 'castle';
   }
   /**
+   * Lifting the lid on a chest, and asking the world whether that was allowed.
+   *
+   * The first thing a page does that it does not simply *report*. Everything in this list above it
+   * is either a movement the world re-runs or a fact the world is told; this one is a request, and
+   * the world answers it with `opened`.
+   *
+   * It can be, because what is inside was never a decision. A vault is regrown from its seed on
+   * every machine, so `whatAChestHolds` gives the same gold and the same prize wherever it is asked
+   * — which means the page can open the chest on the spot, show what was in it, and be corrected
+   * afterwards in the rare case the world disagrees about whether it could be opened at all. That
+   * is the same bargain walking makes: act now, be put right later, and never wait for a round trip
+   * to feel like something happened.
+   *
+   * What the world checks is the part that is about a person rather than about the world: that this
+   * client is standing on that floor, within arm's reach of that chest, and that nobody has opened
+   * it already.
+   *
+   * `owns` is the one thing it takes on trust, and it is worth saying why: a big chest does not hand
+   * over a second of something you are already carrying, and the world does not keep anybody's
+   * pack. Lying about it can only change *which* prize comes out, never whether one does — and it
+   * stops being a matter of trust the day the world holds the purse.
+   */
+  | { type: 'open'; seq: number; place: string; index: number; owns: string[] }
+  /**
    * Asking the world for a piece of itself.
    *
    * Both halves grow the country from the seed today, which is why they can disagree about which
@@ -613,6 +637,19 @@ export type ServerMessage =
    */
   | { type: 'youAre'; seq: number; x: number; z: number; y: number; yaw: number }
   | { type: 'clock'; clock: Clock }
+  /**
+   * What was in the chest, and whether it was yours to open.
+   *
+   * Sent to the one client that asked. `ok: false` means put it back — too far away, on another
+   * floor, or somebody else got there first — and the page undoes the gold, the prize and the key it
+   * had already given itself. `ok: true` carries what the world says was inside, which the page
+   * compares against what it showed: the two agree by construction, and the day they stop agreeing
+   * the world's answer is the one that counts.
+   */
+  | {
+      type: 'opened'; seq: number; place: string; index: number; ok: boolean;
+      gold: number; key: boolean; prize: string | null;
+    }
   | { type: 'delta'; delta: WorldDelta; from: string }
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }

@@ -168,6 +168,9 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     onArrested: (id) => ctx.onArrested(id),
     onWorldSilent: () => ctx.onWorldSilent(),
     onWhereYouAre: (seq, x, z, y) => ctx.onWhereYouAre(seq, x, z, y),
+    // straight to the places, which is what opened it: nothing in between has an opinion about a
+    // chest, and a hop through `main.ts` would only be a line of plumbing to keep in step
+    onChestOpened: (seq, told) => ctx.places.opened(seq, told),
     onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
     onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },
     onMail: (letters) => {

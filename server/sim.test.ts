@@ -11,6 +11,9 @@ import { Forgetful } from './vault';
 import { DAY_LENGTH } from './protocol';
 import { homelandsOf } from '../src/entities/homeland';
 import { provinceOfHome } from '../src/world/provinces';
+import { Manifest } from '../src/world/manifest';
+import { generateDungeon } from '../src/dungeon/generate';
+import { BIG_CHEST_PRIZES, whatAChestHolds } from '../src/world/chests';
 
 /**
  * The simulation on its own, with no sockets and no files anywhere near it.
@@ -1184,5 +1187,85 @@ describe('a page asking the world for country', () => {
     rowan.join(3, 'Rowan');
     rowan.say({ type: 'want-chunks', chunks: [[0, 0]] });
     expect(sent).toBe(0);
+  });
+});
+
+describe('a chest, and whether it was yours to open', () => {
+  /*
+   * The first thing a page asks the world rather than telling it.
+   *
+   * What is inside is not in question — both halves work it out from the vault's seed, and
+   * `src/world/chests.test.ts` holds that rule on its own. What the world decides is whether this
+   * hero could have opened it: standing on that floor, within reach, and first.
+   */
+  const seedOf = (root: number): number => new Manifest(root).deriveSeed('dungeon:Barrow', 'dungeon', null);
+  const chestsOf = (root: number) => generateDungeon(seedOf(root), 'vault', 1).chests;
+
+  const goDown = (who: Pretend, place: string, x: number, z: number): void => {
+    who.say({ type: 'floor', place, anchor: 'dungeon:Barrow', kind: 'dungeon', floor: 1 });
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place, riding: 'foot', gear: [] });
+  };
+
+  const world = (): Simulation => new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
+
+  it('says what was in it, and the same as the page would have said', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const chests = chestsOf(3);
+    goDown(rowan, 'Barrow:1', chests[0].x + 0.5, chests[0].z + 0.5);
+    rowan.say({ type: 'open', seq: 1, place: 'Barrow:1', index: 0, owns: [] });
+
+    const [answer] = rowan.of('opened');
+    expect(answer).toMatchObject({ seq: 1, ok: true, index: 0 });
+    expect(answer.gold).toBe(whatAChestHolds(seedOf(3), 0, chests[0], () => false).gold);
+  });
+
+  it('refuses a chest across the room', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const chests = chestsOf(3);
+    goDown(rowan, 'Barrow:1', chests[0].x + 40, chests[0].z + 40);
+    rowan.say({ type: 'open', seq: 1, place: 'Barrow:1', index: 0, owns: [] });
+    expect(rowan.of('opened')[0]).toMatchObject({ ok: false, gold: 0 });
+  });
+
+  it('refuses a floor the hero is not standing on', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const chests = chestsOf(3);
+    goDown(rowan, 'Barrow:1', chests[0].x + 0.5, chests[0].z + 0.5);
+    rowan.say({ type: 'open', seq: 1, place: 'Barrow:2', index: 0, owns: [] });
+    expect(rowan.of('opened')[0]).toMatchObject({ ok: false });
+  });
+
+  it('gives the chest to whoever asked first, and tells the other one no', () => {
+    const sim = world();
+    const chests = chestsOf(3);
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const wren = new Pretend(sim).join(3, 'Wren');
+    goDown(rowan, 'Barrow:1', chests[0].x + 0.5, chests[0].z + 0.5);
+    goDown(wren, 'Barrow:1', chests[0].x + 0.5, chests[0].z + 0.5);
+
+    rowan.say({ type: 'open', seq: 1, place: 'Barrow:1', index: 0, owns: [] });
+    wren.say({ type: 'open', seq: 1, place: 'Barrow:1', index: 0, owns: [] });
+
+    expect(rowan.of('opened')[0].ok, 'the first one through the lid was refused').toBe(true);
+    expect(wren.of('opened')[0].ok, 'one chest paid out twice').toBe(false);
+    // and the one who lost it still learns the chest is open, so it is drawn open on his screen
+    expect(wren.of('delta').map((d) => d.delta)).toContainEqual({ kind: 'chest', id: 'Barrow:1:chest:0' });
+  });
+
+  it('does not hand over a second of something already carried', () => {
+    const sim = world();
+    const chests = chestsOf(3);
+    const big = chests.findIndex((c) => c.big);
+    expect(big, 'this vault has no big chest to try it on').toBeGreaterThanOrEqual(0);
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    goDown(rowan, 'Barrow:1', chests[big].x + 0.5, chests[big].z + 0.5);
+    const carrying = BIG_CHEST_PRIZES.filter((item) => item !== 'potion' && item !== 'gem');
+    rowan.say({ type: 'open', seq: 1, place: 'Barrow:1', index: big, owns: carrying });
+    const [answer] = rowan.of('opened');
+    expect(answer.ok).toBe(true);
+    expect(['potion', 'gem']).toContain(answer.prize);
   });
 });

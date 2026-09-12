@@ -381,6 +381,17 @@ export class Online {
   }
 
   /**
+   * Lifting the lid on a chest, and asking whether that was allowed.
+   *
+   * The one thing this side asks rather than reports. The page has already opened it — see
+   * `Openings` — so nothing waits on this; what comes back is `opened`, and the page either forgets
+   * it or gives the gold back.
+   */
+  open(ask: { seq: number; place: string; index: number; owns: string[] }): void {
+    if (this.connected) this.send({ type: 'open', ...ask });
+  }
+
+  /**
    * The hero has gone underground: which floor, hanging off which anchor, and how deep.
    *
    * The world grows the same floor from its own root seed and the anchor's name, so this carries no

@@ -319,7 +319,7 @@ export function startGame(
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     setCaveAmbience: (on) => { sound.cave = on; }, persist: () => persist(),
-    report: (delta) => online.report(delta),
+    report: (delta) => online.report(delta), open: (ask) => online.open(ask),
     // A floor is the world's if there is a world listening: it grows the same rooms from the same
     // anchor name and owns what walks about in them, and this side draws what it is told.
     wentBelow: (below) => {
