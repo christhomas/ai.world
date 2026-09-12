@@ -1,5 +1,5 @@
 import { WORLD } from '../core/config';
-import { samplerIn } from './endless';
+import { growPatch } from './growworld';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
 
@@ -91,7 +91,7 @@ export class Patchwork {
 
   constructor(
     private readonly seed: number,
-    private readonly grow: (seed: number, within: Within) => TerrainSampler = samplerIn,
+    private readonly grow: (seed: number, within: Within) => TerrainSampler = growPatch,
     private readonly keeps = KEEPS,
   ) {}
 

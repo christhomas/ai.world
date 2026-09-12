@@ -3824,7 +3824,18 @@ than by remembering — and the first thing found was that the gap is not where 
       patchwork the honest version of each is "within so many tiles of here", which is what they all
       actually mean.
 
-- [ ] **59f. Both halves have to switch together.** `server/sim.ts` grows its world the same way, and
+- [~] **59f. Both halves have to switch together.** *The one call exists as of the 12th.* `growPatch`
+      sits in `growworld.ts` beside `growWorld`, and `growworld.test.ts` — which reads the source of
+      the game and the server and fails if anything but that file names a generator — now watches
+      `samplerIn` too. The endless country had three callers of its generator already (the patchwork,
+      the country worker, and whatever a test felt like), which is precisely the shape that has twice
+      put a player in a country nobody else could see.
+
+      What is left is the half this was for: `server/sim.ts` still grows a bounded world and a
+      `GroundWorld` over the whole of it. The server's endless half is a patchwork of its own, and
+      `twohalves.test.ts` pointed at a patch rather than at a country.
+
+      The original note: `server/sim.ts` grows its world the same way, and
       `growworld.ts` exists precisely so that neither half can grow a country the other cannot see.
       An endless world needs the same treatment: one call, both halves, and `twohalves.test.ts`
       pointed at it.

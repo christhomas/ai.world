@@ -1,6 +1,9 @@
 import type { WorldKind } from '../save/store';
+import { samplerIn } from './endless';
 import { roadTreeWorld, type RoadGraph } from './graph';
 import type { Anchor } from './manifest';
+import type { TerrainSampler } from './terrain';
+import type { Within } from './window';
 
 /**
  * The one place a world is grown, and the reason there is only one.
@@ -48,6 +51,29 @@ import type { Anchor } from './manifest';
 export function growWorld(seed: number, kind: WorldKind, islands?: readonly Anchor[]): RoadGraph {
   void kind;                                 // one country now: see `WorldKind`
   return roadTreeWorld(seed, islands ? [...islands] : undefined);
+}
+
+/**
+ * The endless country, one patch of it, and the same rule about there being one caller.
+ *
+ * The bounded world has a country that exists all at once, so growing it is one call with the whole
+ * of it inside. The endless one has no such moment: what exists is whatever somebody has walked
+ * into, grown a 512-tile square at a time, and a square is grown by the page to draw it and by the
+ * worker that grows it ahead of the page — and, when the world's half catches up, by the server to
+ * walk heroes across it.
+ *
+ * That is three callers of the same generator, which is exactly the shape that has twice put a
+ * player in a country nobody else could see. So it goes through here for the same reason
+ * `growWorld` does: every argument a patch is a function of is an argument to this, there is no
+ * second expression anywhere that could say it differently, and `growworld.test.ts` fails the build
+ * if one appears.
+ *
+ * A patch is a function of the seed and of where it is, and of nothing else — not of who is asking,
+ * not of what has already been grown, not of the order anybody walked. That is what lets a worker
+ * hand a finished patch to a page, and what will let a server hand one to both.
+ */
+export function growPatch(seed: number, within: Within): TerrainSampler {
+  return samplerIn(seed, within);
 }
 
 /**

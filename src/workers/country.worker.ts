@@ -1,4 +1,5 @@
-import { partsOf, samplerIn } from '../world/endless';
+import { partsOf } from '../world/endless';
+import { growPatch } from '../world/growworld';
 import { boundsOf } from '../world/patchwork';
 import type { CountryRequest, CountryReply } from '../world/countrymessages';
 
@@ -27,6 +28,6 @@ self.onmessage = (e: MessageEvent<CountryRequest>) => {
   const msg = e.data;
   if (msg.type !== 'grow') return;
   const started = Date.now();
-  const sampler = samplerIn(msg.seed, boundsOf(msg.patch));
+  const sampler = growPatch(msg.seed, boundsOf(msg.patch));
   post({ type: 'grown', patch: msg.patch, parts: partsOf(sampler), took: Date.now() - started });
 };

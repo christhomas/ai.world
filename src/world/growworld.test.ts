@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { generateRoadGraph, islandAnchors } from './graph';
-import { countryStamp, growWorld } from './growworld';
+import { countryStamp, growPatch, growWorld } from './growworld';
+import { PATCH } from './patchwork';
 import { TerrainSampler } from './terrain';
 
 /**
@@ -39,11 +40,29 @@ describe('the one place a world is grown', () => {
      * thing that should not fail a build. So: the name, an open bracket, and not the word `function`
      * in front of it.
      */
-    const calling = /(?<!function\s)\b(generateWebGraph|roadTreeWorld)\s*\(/;
+    const calling = /(?<!function\s)\b(generateWebGraph|roadTreeWorld|samplerIn)\s*\(/;
     const callers = ['src', 'server', 'tools']
       .flatMap((dir) => sources(dir))
       .filter((path) => calling.test(readFileSync(path, 'utf8')));
     expect(callers, 'a second way of growing a world has appeared').toEqual(['src/world/growworld.ts']);
+    /*
+     * `samplerIn` is in that list as of the 12th, and it is the endless country's version of the
+     * same fault. A bounded world is grown once, whole; an endless one is grown a patch at a time by
+     * whoever walks into it — the page to draw it, the worker to have it ready before the page needs
+     * it, and eventually the server to walk heroes across it. Three callers of one generator is
+     * precisely the shape that has twice put somebody in a country nobody else could see, so the
+     * patch goes through `growPatch` and this is what says it always will.
+     */
+  });
+
+  it('grows the same patch of endless country however it is asked for', () => {
+    const within = { x0: 0, z0: 0, x1: PATCH, z1: PATCH };
+    const once = growPatch(5, within);
+    const again = growPatch(5, within);
+    expect(countryStamp(again.graph)).toBe(countryStamp(once.graph));
+    // and somewhere else is somewhere else, which is the whole of what makes a country endless
+    const next = growPatch(5, { x0: PATCH, z0: 0, x1: PATCH * 2, z1: PATCH });
+    expect(countryStamp(next.graph)).not.toBe(countryStamp(once.graph));
   });
 
   it('grows one country per seed, and a different one for the next seed', () => {
