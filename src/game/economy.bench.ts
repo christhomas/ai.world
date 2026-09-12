@@ -1,6 +1,8 @@
 import type { Post } from '../entities/entity';
 import { tradesFor } from '../entities/trades';
 import { Register } from '../world/register';
+import { holdsFor } from '../world/roofs';
+import { herdRoomFor } from '../world/stables';
 import { Mines, mineIdOf, type Working } from './mines';
 import { theBirths, theRoll, theStones, type RollRow, type StoneRow } from './records';
 
@@ -185,6 +187,33 @@ export interface Standing {
   room: number;
   /** How many of them held a trade, which is how many of them the village lives off. */
   working: number;
+  /**
+   * Everything standing in the village that somebody built or was laid out with.
+   *
+   * Houses from the founding plus every entry in the works ledger — roofs raised since, the well,
+   * the watchtower, the bath house. Recorded because "a village with more buildings than people"
+   * is a question nothing could ask until buildings were counted per village, and it is the shape
+   * a place takes on its way to being a ruin somebody still lives in.
+   */
+  buildings: number;
+  /**
+   * What the *land* could carry, as against what the farmers could keep.
+   *
+   * The herd's cap is farms times what a farm holds, and what a farm holds is its buildings —
+   * `stables.ts`. The two are the same number today because nobody has built a stable yet, and
+   * they will not be the moment anybody does. Asked of the land rather than of the men, because a
+   * village that buries a farmer has not lost a paddock.
+   */
+  carries: number;
+  /**
+   * And the ceiling the village is actually using, against the one its roofs justify.
+   *
+   * Two readings of one fact, kept side by side on purpose: `room` is what the settlement believes
+   * it has beds for and this is what its buildings say it has. A village whose population triples
+   * without a roof going up is a village where those two have come apart, and no bound that reads
+   * only one of them could ever see it.
+   */
+  roofed: number;
 }
 
 /**
@@ -325,6 +354,12 @@ function stood(register: Register, village: string, day: number): Standing {
     souls: here.length,
     room: register.roomIn(village),
     working: here.filter((p) => p.trade !== '').length,
+    buildings: register.livedIn(village) + register.worksOf(village).length,
+    carries: herdRoomFor(
+      register.worksOf(village),
+      (register.madeOf(village).holdings ?? []).filter((h) => h.kind === 'farm').map((h) => h.id),
+    ),
+    roofed: holdsFor(register.livedIn(village), register.worksOf(village)),
   };
 }
 

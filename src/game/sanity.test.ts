@@ -1,7 +1,8 @@
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FOOD, cellarCap } from '../world/food';
-import { LIVELIHOOD } from '../world/livelihoods';
+import { GROWTH } from '../world/growth';
+import { ROOFS, STANDARD } from '../world/roofs';
 import { tradesFor } from '../entities/trades';
 import { PROSPER } from '../world/prosperity';
 import { LEFT_ALONE, SEEDS, VILLAGES, eachHead, liveForward, type Run, type Standing } from './economy.bench';
@@ -250,6 +251,115 @@ describe('a world left to itself for four hundred and fifty days', () => {
     });
     expect(drifted, 'a village is overflowing its houses or rattling around in them').toEqual([]);
   });
+
+  it('has not grown further than its ground and its ladder could take it', () => {
+    /*
+     * The upper half of the band, and it is a different question from the one above it.
+     *
+     * "Inside the beds it has built" is the hard invariant and it cannot catch runaway growth at
+     * all, because growth raises the beds in lockstep: a village that has built forty roofs and
+     * filled them satisfies it perfectly while having quietly become a city. Something has to bound
+     * the *room itself*, and until houses could lift the ceiling there was nothing for such a bound
+     * to be about — which is exactly why the original note parked it.
+     *
+     * Two caps decide how far a village may honestly go, and this is their product. `GROWTH.ROOM`
+     * says the ground will take twice the houses it was laid out with; the ladder in `roofs.ts` says
+     * a roof may climb from the standard four to a great house of eight. Twice the houses at twice
+     * the size is four times the room, and anything past it is one of those two caps having been
+     * breached rather than a village having done well.
+     *
+     * Deliberately a bound on the structure rather than on the pace. A village that reaches its
+     * ceiling on day sixty and one that takes four hundred days about it are both believable
+     * places; a village that sails past the ceiling is a bug, and that is the thing a bench can say
+     * without an opinion about how fast a good century ought to feel.
+     */
+    const AT_MOST = GROWTH.ROOM * (ROOFS[ROOFS.length - 1].holds / STANDARD.holds);
+    const runaway: string[] = [];
+    const detail: string[] = [];
+    for (const run of RUNS) {
+      for (const village of LEFT_ALONE) {
+        const founded = run.founded.get(village)!;
+        const { room } = lastStanding(run, village);
+        const most = founded * AT_MOST;
+        detail.push(`${at(run, village)}: ${room} beds against ${Math.round(most)} the ground allows`);
+        if (room > most) runaway.push(`${at(run, village)}: ${room} beds where ${Math.round(most)} is the ceiling`);
+      }
+    }
+    report({
+      verdict: runaway.length === 0 ? 'PASS' : 'FAIL',
+      count: RUNS.length * LEFT_ALONE.length,
+      what: `untroubled villages inside the ${AT_MOST}× room their ground and their ladder allow`,
+      detail: runaway.length === 0 ? detail : runaway,
+    });
+    expect(runaway, 'a village has grown past what its ground could take').toEqual([]);
+  });
+
+  it('gains a bed only when something is built to hold it', () => {
+    /*
+     * The bound that reads one fact twice, and the only one here that could have caught a village
+     * tripling its population without a roof going up.
+     *
+     * Every other question this bench asks reads one number and judges it. That is enough for drift
+     * — a number going somewhere it should not — and no use at all against two *representations* of
+     * one fact coming apart, which is what this failure is. `Settlement.founded` is the ceiling a
+     * village is actually held to, lifted a houseful at a time as roofs go up; `holdsFor` is what
+     * its buildings say it should hold, counted out of the works ledger. Nothing anywhere asked
+     * whether they moved together.
+     *
+     * What is checked is the **gap**, not the equality, and the first run explains why: every
+     * village in the world is founded with a gap already in it. `settle` sets `founded` to the
+     * number of people it generated — sixteen in Ashford — where the six houses it laid out hold
+     * twenty-four between them. So a village begins with eight beds it is not allowed to fill, and
+     * the field's own note ("how many people the village's roofs hold") describes the value it
+     * takes after the first roof goes up rather than the one it starts with. That is reported below
+     * rather than failed: which of the two is wrong is a question for whoever owns the founding, and
+     * a bench that fails a world for a definition is a bench nobody runs.
+     *
+     * The gap *moving* is the fault, and it catches both directions of the thing that matters. A
+     * ceiling that rises with no building behind it is a village that grows for free — it would pass
+     * every other bound in this file on its way to holding two hundred people, and an audit of the
+     * books would pass it too, because nobody was paid for houses that do not exist. A building that
+     * goes up without the ceiling moving is the growth loop failing to notice its own work.
+     */
+    const drifted: string[] = [];
+    const founding: string[] = [];
+    for (const run of RUNS) {
+      for (const village of JUDGED) {
+        const nights = run.standing.get(village)!;
+        const gap = nights[0].roofed - nights[0].room;
+        founding.push(`${at(run, village)}: founded holding ${nights[0].room} in ${nights[0].roofed} beds`);
+        for (const night of nights) {
+          if (night.roofed - night.room === gap) continue;
+          drifted.push(
+            `${at(run, village)} on day ${night.day}: held to ${night.room} beds, ${night.roofed} built,`
+            + ` where it began ${gap} apart`,
+          );
+          break;                                  // one night of it says everything; the rest is noise
+        }
+      }
+    }
+    report({
+      verdict: drifted.length === 0 ? 'PASS' : 'FAIL',
+      count: RUNS.length * JUDGED.length,
+      what: 'villages that gained a bed only when something was built to hold it',
+      detail: drifted.length === 0
+        ? ['no village\'s ceiling moved except with its buildings, on any night of the run']
+        : drifted,
+    });
+    report({
+      verdict: 'NOTE',
+      count: RUNS.length * JUDGED.length,
+      what: 'every village is founded holding fewer people than its own houses have beds for',
+      detail: [
+        '`settle` sets `founded` to the number of people it generated; the houses it laid out hold',
+        'more. The field is documented as "how many people the village\'s roofs hold", which is what',
+        'it becomes after the first roof goes up rather than what it starts as. A village therefore',
+        'begins with beds it is not allowed to fill, and `THIN` judges it against the smaller number.',
+        ...founding,
+      ],
+    });
+    expect(drifted, 'a village gained beds nothing built').toEqual([]);
+  });
 });
 
 // --- is there anybody doing anything ---------------------------------------------------------
@@ -309,38 +419,75 @@ describe('what a village still does for a living', () => {
 // --- is there anything in the fields and the store ---------------------------------------------
 
 describe('what the land is carrying', () => {
-  it('keeps no more beasts than its farmers could keep', () => {
+  it('keeps no more beasts than the land it has could carry', () => {
     /*
-     * The upper bound on the herd is farmers times `HERD_PER_FARMER` and it is applied on the day
-     * the cattle are counted. A village that loses farmers faster than its herd shrinks is over
-     * its own limit for a while, which is fair — the beasts do not evaporate the morning a man
-     * dies — so what is checked is that it comes back under, not that it never goes over.
+     * Asked of the *land* rather than of the men, which is the whole of what item 31a wanted here
+     * and is also a correction: this bound read `farmers × HERD_PER_FARMER` and the simulation
+     * stopped capping on farmers when farms became things. `aDayOfCattle` takes farms now, and a
+     * village with four farmers on three farms was being judged against a ceiling a third higher
+     * than the one it was actually held to — a bound that would have passed a world running beasts
+     * it had no paddocks for, and failed one that was behaving perfectly.
+     *
+     * What the land carries is `stables.ts`: farms times what each farm's buildings hold. The two
+     * are the same number today because nobody has built a stable yet, and the point of asking it
+     * this way is that they will not be the morning somebody does.
+     *
+     * It is still a bound on *coming back under* rather than on never going over. A village that
+     * buries a farmer is over its limit for a while, which is fair — the beasts do not evaporate
+     * the morning a man dies.
      */
     const over: string[] = [];
     const detail: string[] = [];
     for (const run of RUNS) {
       for (const village of JUDGED) {
         const nights = run.standing.get(village)!;
-        const books = run.books.get(village)!;
         let worst = 0;
         let running = 0;
-        for (let n = 0; n < nights.length; n++) {
-          const farmers = books[n].roll.filter((row) => row.trade === 'farmer').length;
-          const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
-          running = nights[n].herd > cap + 1 ? running + 1 : 0;
+        for (const night of nights) {
+          running = night.herd > night.carries + 1 ? running + 1 : 0;
           worst = Math.max(worst, running);
         }
-        detail.push(`${at(run, village)}: over its own limit for ${worst} days at a stretch`);   // kept for the account when nothing failed
+        detail.push(`${at(run, village)}: over what its land carries for ${worst} days at a stretch`);
         if (worst > WORKED_OFF_BY) over.push(`${at(run, village)}: ${worst} days running`);
       }
     }
     report({
       verdict: over.length === 0 ? 'PASS' : 'FAIL',
       count: RUNS.length * JUDGED.length,
-      what: 'villages whose herd stayed inside what their farmers could keep',
-      detail: over.length === 0 ? [`no village ran a herd it had nobody to keep for more than ${WORKED_OFF_BY} days`] : over,
+      what: 'villages whose herd stayed inside what their land could carry',
+      detail: over.length === 0 ? [`no village ran a herd its paddocks could not hold for more than ${WORKED_OFF_BY} days`] : over,
     });
-    expect(over, 'a village is running cattle nobody is keeping').toEqual([]);
+    expect(over, 'a village is running cattle it has no paddocks for').toEqual([]);
+  });
+
+  it('does not stand more buildings than it has people to fill them', () => {
+    /*
+     * The bound that could not be asked until buildings were counted per village, and the thing it
+     * watches for is a particular kind of ruin: not an empty village but a *full* one that has gone
+     * on building. Eleven roofs, a well, a watchtower and a bath house, and nine people — every one
+     * of them paid for honestly, every purse balancing to the coin, and the place reads from the
+     * road as somewhere that used to be somewhere.
+     *
+     * One apiece is generous and is meant to be. A village genuinely holds more roofs than souls
+     * for a week after a hard winter, and a hamlet of four in three cottages is a hamlet rather
+     * than a fault — so this is a floor under the absurd rather than a statement about density.
+     */
+    const sprawling: string[] = [];
+    const detail: string[] = [];
+    for (const run of RUNS) {
+      for (const village of JUDGED) {
+        const { souls, buildings } = lastStanding(run, village);
+        detail.push(`${at(run, village)}: ${buildings} buildings, ${souls} people`);
+        if (buildings > souls) sprawling.push(`${at(run, village)}: ${buildings} buildings for ${souls} people`);
+      }
+    }
+    report({
+      verdict: sprawling.length === 0 ? 'PASS' : 'FAIL',
+      count: RUNS.length * JUDGED.length,
+      what: 'villages with somebody for every building standing in them',
+      detail: sprawling.length === 0 ? detail : sprawling,
+    });
+    expect(sprawling, 'a village has built more than it has anybody to live in').toEqual([]);
   });
 
   it('keeps no more food than its cellars hold', () => {
