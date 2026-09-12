@@ -3,6 +3,7 @@ import { PropKind } from '../world/biomes';
 import { PROPS } from './props';
 import { partPoints, type PropPart } from './shapes';
 import {
+  boatFrames, boatKeel, boatPlanked, boatReady,
   fountainBasin, fountainDry, fountainMarked, houseFrame, housePegs, houseRoof,
   poolDug, poolLined, poolMarked, storeyRaised, storeyScaffold, storeyTimber,
 } from './sites';
@@ -38,6 +39,8 @@ const EVERY_STAGE: ReadonlyArray<[string, PropPart[]]> = [
   ['a fountain standing dry', fountainDry],
   ['timber for a storey', storeyTimber], ['a scaffold', storeyScaffold],
   ['a scaffold a lift higher', storeyRaised],
+  ['a keel laid', boatKeel], ['a boat framed', boatFrames], ['a boat planked', boatPlanked],
+  ['a boat waiting for the tide', boatReady],
 ];
 
 /** The blue everything in this world holds water in: a pool, a fountain, the bucket in a well. */
@@ -105,6 +108,42 @@ describe('a building site on the mornings before it is finished', () => {
     // eaves, then one that has gone a lift above the ridge and has a hoist on it
     expect(tallest(storeyTimber)).toBeLessThan(tallest(storeyScaffold));
     expect(tallest(storeyScaffold)).toBeLessThan(tallest(storeyRaised));
+  });
+
+  it('builds a boat in the order a boatbuilder would, and lets the light through her once', () => {
+    /*
+     * The one morning a hull is worth stopping for is the one you can see through: frames up off
+     * the keel with the sky between them. Before it there is nothing but a keel on blocks, and
+     * after it she is planked and you cannot see in — so the test is that the middle state is open
+     * and the ones on either side of it are not, which is the whole of why five days is five days
+     * and not a wait.
+     */
+    const solidFrom = (parts: readonly PropPart[]): number =>
+      parts.filter((part) => Math.abs(part.offset[2]) < 0.6 && part.size[0] > 2).length;
+    expect(solidFrom(boatKeel), 'a keel is a length of timber, not a hull').toBe(1);
+    expect(solidFrom(boatFrames), 'she is planked before her frames are up').toBe(1);
+    expect(solidFrom(boatPlanked), 'nothing was planked').toBeGreaterThan(1);
+
+    // and there is more of her on the stocks each morning. Height is the wrong measure for the
+    // first two — her stem post is up on day one and is the tallest thing in the yard until the
+    // mast is stepped — so what is counted is the work, and height is asked where it does mean
+    // something: the mast is the last thing to go into her.
+    expect(boatFrames.length).toBeGreaterThan(boatKeel.length);
+    expect(tallest(boatPlanked)).toBeLessThan(tallest(boatReady));
+  });
+
+  it('draws the same boat on the stocks as the one that floats away', () => {
+    /*
+     * A player who watched her being built should recognise her in the water. The afloat hull is a
+     * `THREE` group in `render/boat.ts` and cannot be compared to a part list directly, so what is
+     * held here is the thing that would actually go wrong: her timbers and her sail are the exact
+     * colours that one is drawn in, rather than the builder's palette in roughly the same browns.
+     */
+    const HULL = 0x6b4a2b, DECK = 0x9a6a3d, SAIL = 0xf4f0e6;
+    const colours = (parts: readonly PropPart[]) => new Set(parts.map((part) => part.color));
+    expect(colours(boatReady).has(HULL), 'her planking is not the hull colour').toBe(true);
+    expect(colours(boatReady).has(DECK), 'her deck is not the deck colour').toBe(true);
+    expect(colours(boatReady).has(SAIL), 'her sail is not the sail colour').toBe(true);
   });
 
   it('connects the water last, which is what the mason would do', () => {

@@ -43,6 +43,19 @@ const BASIN = 0x9a9a92;
 /** Stone that has been laid and is still dry, which is the whole point of the stage before the last. */
 const DRY = 0x8a8478;
 const SLATE = 0x6e6e6e;
+/**
+ * And the three the boat brings, which are not the builder's palette but the boat's own.
+ *
+ * They are lifted straight off `render/boat.ts`, to the digit, and that is the point of them: the
+ * hull standing on the stocks on the last morning and the hull riding at the jetty the morning
+ * after are the same boat, and a player who watched her being built should recognise her in the
+ * water. The hull needs no colour of its own at all — she is planked out of the same `CUT` timber
+ * the builder cuts everything else from, which is exactly what the afloat one is drawn in.
+ */
+const DECK = 0x9a6a3d;
+const SPAR = 0x5a3a22;
+const CANVAS = 0xf4f0e6;
+const PENNANT = 0xc0392b;
 
 /**
  * A ladder leaning against something, given where its foot stands and how far it is tipped.
@@ -275,4 +288,111 @@ export const storeyRaised: PropPart[] = [
   box(0.5, 0.12, 0.7, SLATE, [-1.72, 3.09, 0.5]),
   box(0.46, 0.1, 0.62, SLATE, [-1.72, 3.23, 0.5]),
   ...ladder(0.6, -1.95, 0.24),
+];
+
+/*
+ * A boat, which is the first thing a builder puts up that does not stay where he puts it.
+ *
+ * Everything else in this file is a building and is finished where it stands. A hull is finished on
+ * dry land and then leaves: she is laid on stocks above the tide line, framed, planked, and on the
+ * last morning slid down into the water and tied to the jetty — which is why the four states below
+ * are the only ones this game will ever draw of her. After that she is `render/boat.ts`'s, floating.
+ *
+ * The order is a boatbuilder's order, and it is what makes walking past worth doing twice: a keel
+ * on the blocks with the stem and stern posts standing off it, then the frames up and open like a
+ * ribcage with the sky through them, then a planked hull with the mast still lying alongside, and
+ * finally the mast stepped and the sail bent on with a ladder against her side.
+ */
+
+/** The cradle a hull is built on: two beds across the line of the keel, and the keel on top. */
+function stocks(): PropPart[] {
+  return [
+    box(0.5, 0.24, 1.9, TIMBER, [-1.0, 0.12, 0]),
+    box(0.5, 0.24, 1.9, TIMBER, [1.0, 0.12, 0]),
+    box(3.2, 0.18, 0.22, CUT, [0, 0.33, 0]),
+  ];
+}
+
+/**
+ * The stem and the stern post, which is what tells a keel from a length of timber.
+ *
+ * Both rake, and they rake opposite ways: a bow leans forward over the water and a transom leans
+ * back. That one difference is the whole of which end of her is which, from any angle and at any
+ * distance, and it is worth two numbers.
+ */
+function posts(): PropPart[] {
+  return [
+    box(0.2, 0.95, 0.2, CUT, [1.48, 0.8, 0], [1, 1, 1], [0, 0, -0.3]),
+    box(0.2, 0.62, 0.2, CUT, [-1.5, 0.64, 0], [1, 1, 1], [0, 0, 0.2]),
+  ];
+}
+
+/** Laid: the blocks set, the keel on them, and the first planks stacked where she will be built. */
+export const boatKeel: PropPart[] = [
+  ...stocks(),
+  ...posts(),
+  // the makings, stacked clear of the stocks on the side the builder works from
+  box(2.2, 0.1, 0.44, TIMBER, [-0.1, 0.05, 1.55]),
+  box(2.2, 0.1, 0.44, TIMBER, [-0.1, 0.15, 1.55]),
+  box(2.0, 0.1, 0.4, TIMBER, [-0.1, 0.25, 1.55]),
+];
+
+/**
+ * Framed: the ribs standing up off the keel, and daylight through her.
+ *
+ * Five pairs, splayed outward as they rise, because a hull is wider at the sheer than at the keel
+ * and frames drawn upright would read as a fence somebody had built along a beam. This is the one
+ * state that is unmistakably a boat rather than a heap of timber, and it is also the only morning
+ * you can see through her.
+ */
+export const boatFrames: PropPart[] = [
+  ...stocks(),
+  ...posts(),
+  ...([-1.2, -0.6, 0, 0.6, 1.2]).flatMap((x) => [
+    box(0.12, 0.84, 0.12, CUT, [x, 0.8, 0.3], [1, 1, 1], [-0.34, 0, 0]),
+    box(0.12, 0.84, 0.12, CUT, [x, 0.8, -0.3], [1, 1, 1], [0.34, 0, 0]),
+  ]),
+  // the first strake bent round them, which is the plank that decides the shape of all the others
+  box(3.0, 0.1, 0.08, CUT, [0, 1.1, 0.62]),
+  box(3.0, 0.1, 0.08, CUT, [0, 1.1, -0.62]),
+];
+
+/**
+ * The hull itself, planked and decked, as she sits on the stocks.
+ *
+ * The same three boxes `render/boat.ts` floats, lifted onto the blocks: a hull, a raked bow and a
+ * deck over them. Written once because the last two states are the same hull with and without her
+ * mast in her, and two copies of a boat are two boats that drift apart.
+ */
+function hull(): PropPart[] {
+  return [
+    ...stocks(),
+    box(3.4, 0.55, 1.5, CUT, [0, 0.62, 0]),
+    box(0.7, 0.45, 0.9, CUT, [1.75, 0.66, 0], [1, 1, 1], [0, 0, 0.3]),
+    box(3.2, 0.1, 1.3, DECK, [0, 0.92, 0]),
+    box(0.5, 0.3, 1.3, SPAR, [-1.4, 1.07, 0]),
+  ];
+}
+
+/** Planked: she is a boat, and her mast is still lying on the sand beside her. */
+export const boatPlanked: PropPart[] = [
+  ...hull(),
+  cyl(0.06, 0.07, 2.6, 6, SPAR, [0, 0.36, -1.35], [1, 1, 1], [0, 0, Math.PI / 2]),
+  box(0.3, 0.3, 0.3, TIMBER, [-0.6, 1.12, 0.35]),
+];
+
+/**
+ * Finished and waiting for the tide: the mast stepped, the sail bent on, and a ladder against her.
+ *
+ * The one state in this file that is a finished thing standing on its site, and it is finished only
+ * in the sense that the work is done — she is still out of the water, which is what the ladder is
+ * there to say. What takes her off the stocks is being paid for.
+ */
+export const boatReady: PropPart[] = [
+  ...hull(),
+  cyl(0.06, 0.07, 2.8, 6, SPAR, [0.2, 2.27, 0]),
+  box(0.06, 1.5, 1.4, CANVAS, [0.25, 2.4, 0]),
+  box(0.4, 0.22, 0.04, PENNANT, [0.45, 3.6, 0]),
+  box(0.3, 0.3, 0.3, TIMBER, [-0.6, 1.12, 0.35]),
+  ...ladder(0.1, -1.25, 0.2),
 ];

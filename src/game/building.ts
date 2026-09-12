@@ -33,6 +33,7 @@ export const BUILDS = {
   STOREY: 'storey',
   POOL: 'pool',
   FOUNTAIN: 'fountain',
+  BOAT: 'boat',
 } as const;
 
 export const BUILD = {
@@ -88,6 +89,25 @@ export const BUILD = {
    */
   BEGUN_AT: 0.25,
   NEARLY_AT: 0.6,
+  /**
+   * How far from open water a keel may be laid, in tiles.
+   *
+   * A boatyard is a piece of shore, and a piece of shore is ground with the sea at the end of it.
+   * Close enough that the hull is launched by sliding it down rather than carted anywhere, and far
+   * enough back that the stocks are on dry land at high water — which is also what keeps the
+   * `footprintLevel` check honest, because the yard is still a flat patch of ground like any other.
+   */
+  SHORE_WITHIN: 8,
+  /**
+   * And how far from a jetty, in tiles.
+   *
+   * The gate that makes this a coastal village's building rather than every village's. A boat
+   * wants somewhere to be tied up when you are not in it, and a beach is not that: the pier is
+   * where a hull lives between voyages, and it is also the thing a player had to pay for or find
+   * before any of this was available to them. Wide enough to cover a whole small harbour, narrow
+   * enough that a yard two headlands away does not count as being at one.
+   */
+  PIER_WITHIN: 60,
 } as const;
 
 /**
@@ -107,6 +127,12 @@ export const BUILD = {
  * a pool and a fountain need a yard to stand in — and a yard is a thing that belongs to a house.
  * So half this list is not placed by walking somewhere and saying there: it is placed by standing
  * at a building you already own. That is the whole difference and it is one field.
+ *
+ * A boat is the third answer and the one that made the field worth having rather than a boolean.
+ * It is not placed against a house and it will not go on any piece of flat ground: it wants a
+ * piece of *shore* — water at the end of it, and a jetty within walking distance to tie up at.
+ * That is the whole of what makes a coastal village able to build something an inland one cannot,
+ * and it is one more word in a union.
  */
 export interface Buildable {
   id: string;
@@ -114,8 +140,18 @@ export interface Buildable {
   name: string;
   price: number;
   days: number;
-  /** What has to be under it: open ground, or a house of your own. */
-  on: 'land' | 'house';
+  /** What has to be under it: open ground, a house of your own, or a shore with a jetty on it. */
+  on: 'land' | 'house' | 'shore';
+  /**
+   * True when the finished thing leaves the site under its own power.
+   *
+   * A boat is the only one, and it is the first thing a village can build that does not stay where
+   * it was put. Two things follow from it and both are one-liners: the yard is not told to the rest
+   * of the world the way a building is — a village is not a landmark bigger for a boat that sails
+   * away the same afternoon — and the site stops being drawn once she is in the water, or the shore
+   * would keep a hull on it for ever while the same hull is moored at the pier.
+   */
+  moves?: boolean;
   /**
    * True when finishing it changes the building it was added to rather than standing beside it.
    *
@@ -152,6 +188,23 @@ export const CATALOGUE: readonly Buildable[] = [
     id: BUILDS.FOUNTAIN, name: 'a fountain', price: 90, days: 2, on: 'house',
     done: 'The fountain is running.', blocks: 0,
   },
+  /*
+   * A boat, which is cheaper than the one on the pier and takes five days.
+   *
+   * Both halves of that are the reason to order one rather than buy one. The boatwright at the end
+   * of a jetty sells a finished hull for `BOAT.PRICE` and you sail it away that minute; a builder
+   * lays a keel on the shore and you come back for it. If a commissioned boat were dearer *and*
+   * slower nobody would ever order one, and the entry would be a line in a table that never ran.
+   * So the trade is the one a village would actually offer: the same boat, for less, if you can
+   * wait — which is what having a builder is for.
+   *
+   * It blocks nothing. A hull on the stocks is a thing you walk round on a beach, and once it is
+   * launched there is nothing on the shore to walk into at all.
+   */
+  {
+    id: BUILDS.BOAT, name: 'a boat', price: 160, days: 5, on: 'shore', moves: true,
+    done: 'She is off the stocks and riding at the jetty.', blocks: null,
+  },
 ];
 
 /**
@@ -163,10 +216,21 @@ export const CATALOGUE: readonly Buildable[] = [
  * Finished and paid for, both — a man who is owed for the last job does not take the next one, and
  * a pool beside a frame is a pool beside a building site.
  */
-export function onOffer(mine: readonly Commission[], day: number): Buildable[] {
+export function onOffer(mine: readonly Commission[], day: number, harbour = false): Buildable[] {
   const standing = mine.some((job) =>
     buildable(job.what).on === 'land' && isFinished(job, day) && owed(job, day) <= 0);
-  return CATALOGUE.filter((entry) => entry.on === 'land' || standing);
+  /*
+   * Asked of what a thing goes *on* rather than of what it is: everything but the yard jobs can be
+   * ordered by somebody who owns nothing, and a boat needs a shore rather than a house of your own.
+   *
+   * `harbour` is why this is a menu question and not only a ground question. The deposit is not
+   * refundable and the dialogue says so, so offering a boat to a man drinking forty miles inland
+   * would be taking sixty-four gold for a job he can never stand anywhere — the refusal would
+   * arrive after the money had gone. A builder in a village with no jetty near it does not offer
+   * boats, which is what "gated by the ground" has to mean when there is a deposit involved. It
+   * defaults to false so that anything asking the old question gets the old answer.
+   */
+  return CATALOGUE.filter((entry) => (entry.on === 'shore' ? harbour : entry.on !== 'house' || standing));
 }
 
 /** One entry by name. Anything unknown is a house, which is what every save older than the list holds. */
@@ -218,6 +282,16 @@ export interface Commission {
   charged?: number;
   /** What is in the strongbox, once there has been anything in it. */
   store?: Store;
+  /**
+   * The day a boat went into the water, and absent on everything that does not.
+   *
+   * A date rather than a flag, for the same reason `charged` is one: it is a thing that happened on
+   * a particular morning and a date can answer questions a boolean cannot. What reads it today is
+   * the drawing — a yard with the boat gone out of it has nothing on it to draw — and the commission
+   * is kept rather than thrown away because it is still the record of who built her, in which
+   * village, and what was paid for her.
+   */
+  launched?: number;
   /**
    * Which way the front of it looks, in radians. Taken from the way the hero was facing when they
    * stood on the plot and said there, because that is the only statement of intent anybody made
@@ -307,6 +381,43 @@ export function canBuildAt(
 }
 
 /**
+ * Is this somewhere a keel could be laid?
+ *
+ * The ground half is `canBuildAt`'s, unchanged and asked first: a yard is a flat, clear patch of
+ * ground with nothing standing on it and a village near enough to walk a builder out from, exactly
+ * like a house's plot. What a shore adds is the two things that make it a shore rather than a
+ * field, and they are handed in as distances rather than as a world, so this stays a function of
+ * numbers that a test can ask anything of.
+ *
+ * The jetty is the gate the worklist asks for and it is worth saying why it is the right one. Water
+ * alone would let a hull be laid beside any pond in the country; a jetty is a thing somebody built,
+ * which means the coast there is low enough to land at — `piers.ts` refuses a cliff — and it means
+ * the boat has somewhere to lie when nobody is aboard. It is also the ordering the worklist names:
+ * the harbour is what makes the boat possible, so the boat is what gives the harbour a reason.
+ *
+ * @param toWater how far the nearest navigable water is, in tiles. Infinity where there is none.
+ * @param toPier  and the nearest jetty, measured the same way.
+ */
+export function canLayAKeel(
+  x: number, z: number, flat: boolean,
+  village: { x: number; z: number } | null,
+  standing: ReadonlyArray<{ x: number; z: number }>,
+  clear: boolean,
+  toWater: number,
+  toPier: number,
+): { ok: true } | { ok: false; why: string } {
+  const ground = canBuildAt(x, z, flat, village, standing, clear);
+  if (!ground.ok) return ground;
+  if (toWater > BUILD.SHORE_WITHIN) {
+    return { ok: false, why: 'A boat wants building where she can be slid into the water, not carried to it.' };
+  }
+  if (toPier > BUILD.PIER_WITHIN) {
+    return { ok: false, why: 'There is nowhere hereabouts to tie her up. Build her by a jetty or not at all.' };
+  }
+  return { ok: true };
+}
+
+/**
  * Where an addition stands, given the house it belongs to and where its owner was standing.
  *
  * The side of the house you are on is the side it goes, which is the same statement of intent the
@@ -359,6 +470,17 @@ export function storeysOf(house: Commission, jobs: readonly Commission[], day: n
   const added = jobs.filter((job) =>
     job.to === house.id && buildable(job.what).changes && isFinished(job, day)).length;
   return 1 + Math.min(1, added);
+}
+
+/**
+ * Is there still anything standing on this commission's ground?
+ *
+ * True of everything that was ever built until a boat was, because a house does not go anywhere.
+ * A launched boat is the one job whose site is spent: the hull that was on the stocks is riding at
+ * the jetty, and drawing it in both places would be two boats where the player paid for one.
+ */
+export function stillOnItsSite(job: Commission): boolean {
+  return !buildable(job.what).moves || job.launched === undefined;
 }
 
 /** What the builder says about a job in progress. */
@@ -515,6 +637,17 @@ export class Houses {
   /** Whether this commission is a building in its own right rather than something added to one. */
   static isABuilding(job: Commission): boolean {
     return buildable(job.what).on === 'land';
+  }
+
+  /**
+   * She is off the stocks. Records the day, which is what empties the yard.
+   *
+   * Kept on the commission rather than announced, because everything else about a commission is a
+   * subtraction from today and this has to be too: a world reopened a fortnight later must find
+   * the shore bare, and it will, because the boat was launched on a day that is written down.
+   */
+  launch(job: Commission, day: number): void {
+    job.launched = Math.floor(day);
   }
 
   /** Houses that are finished and still owe their builder something, on this day. */

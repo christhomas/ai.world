@@ -3401,7 +3401,28 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       nothing at all. Each kind wants its own under-construction geometry, and the day it has one is
       the day riding past a site twice is worth doing for every kind of building rather than one.
 
-- [ ] **45. The builder builds boats.** A boat is a thing a builder makes, which gives the yard a
+- [x] **45. The builder builds boats.** *Done on the 12th, and the design decision is the good part.*
+      A boat under construction stands **on the shore, on dry land**, exactly as a house stands on
+      its plot: laid on stocks above the tide line, framed, planked, and into the water on the last
+      day. That is what real boatbuilding does, and it meant the site machinery needed no change at
+      all — a site is still a prop on a tile of ground.
+
+      Nobody owns a yard, because there is no yard: the commission stands within the builder's usual
+      walk of a village, plus two new conditions, water at the end of it and a jetty to tie her up
+      at. Four mornings in a boatbuilder's own order — a keel on blocks with the stem and stern posts
+      raking opposite ways, the frames up with the sky through them, planked and decked with the mast
+      lying alongside, and finished on the stocks with a ladder against her, waiting for the tide.
+
+      Two things fall out of one flag, and they are what makes a boat different from every other
+      commission. **The finished thing leaves**, so her site has to stop being drawn or the player
+      sees two boats, one on the beach and one at the pier. And **a yard is not news**: a building is
+      told to the world because a village is a landmark bigger for it, but another client never
+      settles up for your boat, so on their screen the hull would sit on the beach for ever.
+
+      One thing added that the item did not ask for and is right anyway: the boat is gated on the
+      pub's menu as well as on the ground, by the same measure. The deposit is not refundable, so a
+      builder forty miles inland offering boats would take the money for a job that can never be
+      placed. A boat is a thing a builder makes, which gives the yard a
       customer that is not a house and gives **23** a reason beyond the ferry. It is gated by the
       ground the way every other trade is: water within reach, and a jetty to tie up at — so the
       order is harbour first (**23**), then boats, then the fishermen who work off them (**41**).

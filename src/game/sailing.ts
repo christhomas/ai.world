@@ -85,6 +85,41 @@ export const BOAT = {
   AWASH: 0.3,
 } as const;
 
+/**
+ * Where a boat lies when nobody is aboard her: at the end of the nearest jetty, bow out.
+ *
+ * A jetty rather than the beach she was built on, and that is the whole reason a boatyard has to
+ * be near one. A hull left on the sand is a hull you shove back into the water every time you want
+ * it; a boat is tied up. The dock tile is the one `piers.ts` leaves clear past the last deck board
+ * for exactly this, and it is where the boatwright at the end of the pier hands one over too — so a
+ * boat you commissioned and a boat you bought are found in the same place, which is what a player
+ * would expect of both.
+ *
+ * Pure in the piers rather than reaching for a world, so the question "where does she end up" can
+ * be asked of any coast, including one with no jetty on it at all — which answers null, and is the
+ * case a caller has to have an answer for even though laying the keel should have refused it.
+ */
+export function moorageFor(
+  yard: { x: number; z: number },
+  piers: ReadonlyArray<{ dockX: number; dockZ: number; dx: number; dz: number }>,
+): Afloat | null {
+  let best: Afloat | null = null;
+  let nearest = Infinity;
+  for (const pier of piers) {
+    const away = Math.hypot(pier.dockX + 0.5 - yard.x, pier.dockZ + 0.5 - yard.z);
+    if (away >= nearest) continue;
+    nearest = away;
+    // one tile further out than the dock, pointing the way the jetty points: she is alongside the
+    // end of it rather than sitting on the boards
+    best = {
+      x: pier.dockX + 0.5 + pier.dx,
+      z: pier.dockZ + 0.5 + pier.dz,
+      yaw: Math.atan2(-pier.dz, pier.dx),
+    };
+  }
+  return best;
+}
+
 export interface BoatSave {
   x: number;
   z: number;

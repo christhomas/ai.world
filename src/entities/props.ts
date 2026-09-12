@@ -11,6 +11,7 @@ import {
   church, glazing, house, townHall, watchHouse, type HouseStyle,
 } from './buildings';
 import {
+  boatFrames, boatKeel, boatPlanked, boatReady,
   chimney, fountainBasin, fountainDry, fountainMarked, houseFrame, housePegs, houseRoof,
   poolDug, poolLined, poolMarked, storeyRaised, storeyScaffold, storeyTimber,
 } from './sites';
@@ -540,6 +541,12 @@ prop(PropKind.CropRipe, [
   prop(PropKind.StoreyTimber, storeyTimber);
   prop(PropKind.StoreyScaffold, storeyScaffold);
   prop(PropKind.StoreyRaised, storeyRaised);
+  // and the boat, whose four are a hull rather than a building: laid, framed, planked, and
+  // finished on the stocks waiting for the tide and the rest of the money
+  prop(PropKind.BoatKeel, boatKeel);
+  prop(PropKind.BoatFrames, boatFrames);
+  prop(PropKind.BoatPlanked, boatPlanked);
+  prop(PropKind.BoatReady, boatReady);
 }
 
 /*

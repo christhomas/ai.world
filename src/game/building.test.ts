@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BUILD, CATALOGUE, Houses, beside, buildable, builderIn, canAttachTo, canBuildAt, daysFor,
-  deposit, isFinished, onOffer, owed, progressOf, saidOfJob, stageAt, storeysOf,
-  type Commission, BUILDS,
+  BUILD, CATALOGUE, Houses, beside, buildable, builderIn, canAttachTo, canBuildAt, canLayAKeel,
+  daysFor, deposit, isFinished, onOffer, owed, progressOf, saidOfJob, stageAt, stillOnItsSite,
+  storeysOf, type Commission, BUILDS,
 } from './building';
+import { BOAT, moorageFor } from './sailing';
 import { GRUDGE } from './grudge';
 
 const job = (began = 10): Commission => ({
@@ -450,5 +451,110 @@ describe('what a builder will offer you', () => {
     // house in it, and a fountain is not a house however finished it is
     const pool = house({ id: 'pool:1', what: BUILDS.POOL, to: 'house:1', price: 150, paid: 150 });
     expect(onOffer([pool], done).map((e) => e.id)).not.toContain(BUILDS.STOREY);
+  });
+});
+
+/**
+ * The builder builds boats, which is the first commission that is not on a village plot.
+ *
+ * Everything else this man puts up stands where he put it for ever: a house, a pool beside it, a
+ * fountain in the yard, a floor on top. A boat is built on the shore and then leaves, and that one
+ * difference is what these are about — where she may be laid, that a coast is what makes her
+ * possible at all, and that her yard is empty afterwards rather than holding a second boat.
+ */
+describe('having a boat built', () => {
+  const ashore = { x: 0, z: 0 };
+  const village = { x: 20, z: 20 };
+  /** A shore with the water at the end of it and a jetty in sight: the case that should be allowed. */
+  const keelAt = (toWater: number, toPier: number) =>
+    canLayAKeel(ashore.x, ashore.z, true, village, [], true, toWater, toPier);
+
+  it('is on the menu to somebody who owns nothing, the way a house is', () => {
+    // she goes on a piece of shore rather than on a building, so there is nothing to own first —
+    // which is the whole of what `on` decides, and the reason it is a word rather than a boolean
+    const offered = onOffer([], 10 + BUILD.DAYS, true).map((entry) => entry.id);
+    expect(offered).toContain(BUILDS.BOAT);
+    expect(offered, 'a pool was offered to somebody with no house').not.toContain(BUILDS.POOL);
+  });
+
+  it('is not on the menu at all in a village with no harbour', () => {
+    /*
+     * The deposit is not refundable and the dialogue says so, which is what makes this a menu
+     * question and not only a ground question. A builder forty miles inland who offered boats
+     * would be taking sixty-four gold for a job the player can never stand anywhere: the refusal
+     * would arrive after the money had gone, and the money is the part that does not come back.
+     */
+    const inland = onOffer([], 10 + BUILD.DAYS, false).map((entry) => entry.id);
+    expect(inland, 'a boat was offered in a village with no water near it').not.toContain(BUILDS.BOAT);
+    expect(inland, 'and the rest of his trade went with it').toContain(BUILDS.HOUSE);
+  });
+
+  it('costs less than the one on the pier, which is the only reason to wait for her', () => {
+    /*
+     * The boatwright at the end of a jetty sells a finished hull and you sail it away that minute.
+     * If a commissioned boat were dearer as well as slower, this entry would be a line in a table
+     * that never ran — so the trade a village actually offers is the same boat for less, if you
+     * can wait five days for her.
+     */
+    const ordered = buildable(BUILDS.BOAT);
+    expect(ordered.price).toBeLessThan(BOAT.PRICE);
+    expect(ordered.days).toBeGreaterThan(0);
+  });
+
+  it('wants the water at the end of the yard rather than a cart ride away', () => {
+    expect(keelAt(1, 10).ok, 'a shore with the sea at the end of it was refused').toBe(true);
+    const inland = keelAt(Infinity, 10);
+    expect(inland.ok).toBe(false);
+    expect(!inland.ok && inland.why).toMatch(/water/);
+  });
+
+  it('wants a jetty to tie her up at, which is what makes this a coastal village\'s building', () => {
+    // the gate the harbour earns: a beach is somewhere to build a boat and nowhere to keep one
+    const noHarbour = keelAt(1, Infinity);
+    expect(noHarbour.ok).toBe(false);
+    expect(!noHarbour.ok && noHarbour.why).toMatch(/tie her up/);
+  });
+
+  it('still asks everything a house is asked, because a yard is a piece of ground', () => {
+    // the shore rules are added to the ground rules rather than replacing them: level, clear, and
+    // near enough to a village that somebody will walk out to it every morning
+    expect(canLayAKeel(0, 0, false, village, [], true, 1, 1).ok, 'laid on ground that will not take it').toBe(false);
+    expect(canLayAKeel(0, 0, true, null, [], true, 1, 1).ok, 'laid where no village could send a man').toBe(false);
+    expect(canLayAKeel(0, 0, true, village, [{ x: 1, z: 1 }], true, 1, 1).ok, 'laid on top of something').toBe(false);
+    expect(canLayAKeel(0, 0, true, village, [], false, 1, 1).ok, 'laid through a tree').toBe(false);
+  });
+
+  it('leaves the shore bare once she has been launched, and not before', () => {
+    /*
+     * The one thing about her that no other commission needs. A hull that went on being drawn on
+     * the stocks after she was in the water would be two boats where the player paid for one, and
+     * the record is a date rather than a flag so that a world reopened a fortnight later finds the
+     * beach empty because she left on a day that is written down.
+     */
+    const houses = new Houses();
+    houses.takeOn('Ashford', buildable(BUILDS.BOAT).price, 60, BUILDS.BOAT);
+    const boat = houses.place(4, 4, 10, 0)!;
+    expect(stillOnItsSite(boat), 'her yard was empty while she was being built').toBe(true);
+
+    houses.launch(boat, 15);
+    expect(boat.launched).toBe(15);
+    expect(stillOnItsSite(boat), 'she is drawn on the beach and at the jetty at once').toBe(false);
+    // and nothing that stays where it was put is ever taken off its site by the same question
+    expect(stillOnItsSite(job()), 'a house walked off its plot').toBe(true);
+  });
+
+  it('ties her up at the nearest jetty rather than leaving her on the sand', () => {
+    /*
+     * Where she ends up is a fact about the coast rather than about the yard: the dock tile is the
+     * one `piers.ts` leaves clear past the last deck board, and it is where a boat bought from the
+     * boatwright is left too — so a boat you commissioned and a boat you bought are found in the
+     * same place, which is what a player would expect of both.
+     */
+    const near = { dockX: 10, dockZ: 0, dx: 1, dz: 0 };
+    const far = { dockX: 400, dockZ: 0, dx: 1, dz: 0 };
+    const lies = moorageFor({ x: 8, z: 0 }, [far, near])!;
+    expect(lies.x).toBeCloseTo(11.5, 5);
+    expect(lies.z).toBeCloseTo(0.5, 5);
+    expect(moorageFor({ x: 0, z: 0 }, []), 'a coast with no jetty on it').toBeNull();
   });
 });

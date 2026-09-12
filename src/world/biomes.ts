@@ -159,6 +159,19 @@ export const enum PropKind {
   StoreyTimber = 137,
   StoreyScaffold = 138,
   StoreyRaised = 139,
+  /**
+   * And a boat, which is the only one of these that is not a building.
+   *
+   * Four rather than three, because the others each leave a finished thing behind that the world
+   * already knew how to draw — a cottage, a pool, a fountain — and a boat leaves nothing at all:
+   * the moment she is paid for she is off the stocks and floating, and what floats is a `THREE`
+   * object in `render/boat.ts` rather than a prop on a tile. So the fourth here is her finished and
+   * still out of the water, which is a real morning and the only one anybody would call waiting.
+   */
+  BoatKeel = 140,
+  BoatFrames = 141,
+  BoatPlanked = 142,
+  BoatReady = 143,
   CaveMouth = 56,
   Shipwreck = 57,
   /** The crashed craft: not from here, and it shows. */

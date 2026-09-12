@@ -31,7 +31,7 @@ import type { Minimap } from '../ui/minimap';
 import type { WorldMap } from '../ui/worldmap';
 import type { Sound } from './audio';
 import { BREATH, type Breath } from './breath';
-import { buildable, stageAt, storeysOf, type Houses } from './building';
+import { buildable, stageAt, stillOnItsSite, storeysOf, type Houses } from './building';
 import type { Director } from './director';
 import { listenForWater } from './earshot';
 import type { Plots } from './farming';
@@ -528,7 +528,8 @@ export function createFrame(ctx: Framing) {
     }
     cropField.update(plots, state.day + state.time, player.x, player.z, (x2, z2) => chunks.heightAt(x2, z2));
     const all = houses.entries();
-    const standing = all.map((job) => ({
+    // a boat that has been launched has left her yard, and the shore she was built on is bare
+    const standing = all.filter(stillOnItsSite).map((job) => ({
       id: job.id, x: job.x, z: job.z, rot: job.rot, what: job.what,
       stage: stageAt(job, state.day + state.time),
       // a house that has had a storey put on it is drawn a floor taller, which is the whole of what

@@ -57,6 +57,30 @@ describe('what is standing on a plot', () => {
     expect(propOf(site({ what: BUILDS.FOUNTAIN, stage: 'done' }))).toBe(PropKind.Fountain);
   });
 
+  it('walks a boat from a keel on blocks to a hull waiting for the tide', () => {
+    /*
+     * The order a boatbuilder works in, and the one entry in this table whose last row is still a
+     * thing out of the water. Every other kind leaves something finished standing on its site; a
+     * boat leaves nothing at all, because the morning she is paid for she is slid down the beach
+     * and what floats is a `THREE` object rather than a prop. So `done` here is her finished on the
+     * stocks — a real morning, and the only part of the wait anybody would call waiting.
+     */
+    expect(propOf(site({ what: BUILDS.BOAT, stage: 'marked' }))).toBe(PropKind.BoatKeel);
+    expect(propOf(site({ what: BUILDS.BOAT, stage: 'begun' }))).toBe(PropKind.BoatFrames);
+    expect(propOf(site({ what: BUILDS.BOAT, stage: 'nearly' }))).toBe(PropKind.BoatPlanked);
+    expect(propOf(site({ what: BUILDS.BOAT, stage: 'done' }))).toBe(PropKind.BoatReady);
+  });
+
+  it('shows something different on every morning of every kind of job', () => {
+    // the rule the whole table exists for, asked of all of them at once rather than kind by kind:
+    // a wait that looks the same on the second morning as on the first is a wait with nothing in it
+    for (const what of Object.values(BUILDS)) {
+      const seen = WAITING.map((stage) => propOf(site({ what, stage })));
+      expect(new Set(seen).size, `${what} shows the same thing twice while it is being built`)
+        .toBe(WAITING.length);
+    }
+  });
+
   it('puts a scaffold round a house having a storey added, and nothing inside it', () => {
     /*
      * The one that has no site of its own. A storey is not a thing beside a house, it *is* the

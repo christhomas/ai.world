@@ -77,6 +77,26 @@ const LOOKS: Record<string, Partial<Record<Site['stage'], PropKind>>> = {
     begun: PropKind.StoreyScaffold,
     nearly: PropKind.StoreyRaised,
   },
+  /*
+   * And a boat, which is the other awkward one and is awkward the opposite way round.
+   *
+   * A storey has no site of its own because the thing it alters is already standing there. A boat
+   * has a site and then stops having one: she is built on stocks above the tide line and, the
+   * morning she is paid for, slid into the water and tied to the jetty. So all four rows here are
+   * of a hull out of the water, `done` included — that row is the boat finished and waiting for
+   * the tide, which is a real morning and the only part of this wait anybody would call waiting.
+   *
+   * What happens after it is not this table's business and cannot be: a floating boat is a `THREE`
+   * object that follows the player about, not a prop on a tile. The commission carries the day she
+   * was launched and `frame.ts` stops handing her site down once it is set, which is why there is
+   * no fifth row for "gone".
+   */
+  boat: {
+    marked: PropKind.BoatKeel,
+    begun: PropKind.BoatFrames,
+    nearly: PropKind.BoatPlanked,
+    done: PropKind.BoatReady,
+  },
 };
 
 /** What to draw on one plot today, or nothing. */

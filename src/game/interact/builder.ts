@@ -1,14 +1,15 @@
 import {
-  BUILD, beside, buildable, builderIn, canAttachTo, canBuildAt, deposit, isFinished,
+  BUILD, beside, buildable, builderIn, canAttachTo, canBuildAt, canLayAKeel, deposit, isFinished,
   Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
 } from '../building';
+import { moorageFor } from '../sailing';
 import { buy, give, holds } from '../../world/deeds';
 import { boxOf, handOver, packOf } from '../../world/goods';
 import { settle } from '../../world/works';
 import { villageTill } from '../tills';
 import { ITEMS } from '../items';
 import { footprintLevel } from '../../world/footprint';
-import type { Structure, Village } from '../../world/structures';
+import type { Pier, Structure, Village } from '../../world/structures';
 import { regardOf } from '../grudge';
 import type { DialogueChoice, DialogueNode, Surroundings } from './context';
 
@@ -44,6 +45,51 @@ const BOX = { speaker: 'Strongbox', emoji: '🧰' } as const;
 /** The world day with its fraction, which is what a thing being built actually measures. */
 const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.time;
 
+/**
+ * How far the nearest jetty is from a point, in tiles, or Infinity where the country has none.
+ *
+ * Module level because two quite different places need the same number and they have to agree. The
+ * pub asks it of the village, to decide whether this man offers boats at all; the shore asks it of
+ * the plot the player is standing on, to decide whether a keel may be laid there. One measure, one
+ * distance in `BUILD.PIER_WITHIN`, and so no village that offers a boat has nowhere to build one.
+ */
+function toTheJetty(piers: ReadonlyArray<Pier>, x: number, z: number): number {
+  let nearest = Infinity;
+  for (const pier of piers) {
+    nearest = Math.min(nearest, Math.hypot(pier.dockX + 0.5 - x, pier.dockZ + 0.5 - z));
+  }
+  return nearest;
+}
+
+/**
+ * Where to go and stand to say where it goes, in the builder's own words.
+ *
+ * One sentence per kind of ground rather than a conditional written out at each of the two places
+ * he says it, because there are three kinds now and the two places had been kept in step by hand.
+ * The shore one is the only one that names a condition the player cannot see from where they are
+ * standing when he says it, which is why it names both: a beach with no jetty on it is a refusal
+ * they would otherwise walk half a mile to earn.
+ *
+ * `again` is the second of those two moments — you have taken him on, wandered off, and come back
+ * to ask him where. He does not repeat the conditions then, he repeats that it is your decision,
+ * which is a different sentence rather than the same one twice.
+ */
+function whereToStand(wants: Buildable, again = false): string {
+  if (wants.on === 'house') {
+    return again
+      ? `Stand at the house you want ${wants.name} on, on the side you want it, and press Enter.`
+      : `Go and stand at the house you want ${wants.name} on, on the side you want it, and press Enter. I put a second floor on the Merrow place last spring; the same hands do a pool.`;
+  }
+  if (wants.on === 'shore') {
+    return again
+      ? 'A flat piece of shore within sight of a jetty. Stand on it and press Enter and I will lay her keel there.'
+      : 'Find me a piece of shore by a jetty — flat, above the tide, with the water at the end of it — stand on it and press Enter. I will lay her keel there and she goes in when she is paid for.';
+  }
+  return again
+    ? 'Go and stand where you want it and press Enter. I am not choosing it for you — you are the one who has to live in it.'
+    : 'Walk out to wherever you want it and press Enter on the spot. Flat ground, off the road, and not on top of anybody.';
+}
+
 
 /**
  * The builder's own menu: taking him on, hearing how yours is coming along, and settling up.
@@ -72,7 +118,7 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
      * is `onOffer`'s business rather than this file's: it depends on what you already own, and what
      * a builder will take on is a fact about builders rather than about the room he is sitting in.
      */
-    const offered = onOffer(mine, day);
+    const offered = onOffer(mine, day, toTheJetty(ctx.structures.piers, village.x, village.z) <= BUILD.PIER_WITHIN);
     choices.push({
       label: 'Have something built',
       next: () => ({
@@ -105,9 +151,7 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
         speaker: name, emoji: '🔨',
         pages: [
           `${down} gold, and I will not ask for the rest until it is standing. ${entry.price - down} more on the day it is done.`,
-          entry.on === 'land'
-            ? 'Walk out to wherever you want it and press Enter on the spot. Flat ground, off the road, and not on top of anybody.'
-            : 'Go and stand at the house you want it on, on the side you want it, and press Enter. I put a second floor on the Merrow place last spring; the same hands do a pool.',
+          whereToStand(entry),
         ],
       };
     }
@@ -118,14 +162,15 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
       label: 'Where do you want it, then?',
       next: () => ({
         speaker: name, emoji: '🔨',
-        pages: [wants.on === 'land'
-          ? 'Go and stand where you want it and press Enter. I am not choosing it for you — you are the one who has to live in it.'
-          : `Stand at the house you want ${wants.name} on, on the side you want it, and press Enter.`],
+        pages: [whereToStand(wants, true)],
       }),
     });
   }
   for (const job of going) {
-    choices.push({ label: 'How is my house coming along?', next: () => ({ speaker: name, emoji: '🔨', pages: [saidOfJob(job, day)] }) });
+    // named rather than always "my house", because the catalogue has five things in it and asking
+    // after your house while a boat is on the stocks is asking after the wrong job
+    const what = buildable(job.what).name;
+    choices.push({ label: `How is ${what} coming along?`, next: () => ({ speaker: name, emoji: '🔨', pages: [saidOfJob(job, day)] }) });
   }
   for (const job of due) {
     const balance = owed(job, day);
@@ -141,6 +186,9 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
         // `houses.pay` sat between the two halves of it
         settle(holds(state.inventory), villageTill(ctx.register, village.name), job);
         const built = buildable(job.what);
+        // and the one job that is handed over rather than simply finished: she comes off the
+        // stocks when she is paid for, which is the same bargain as the key under the step
+        if (built.moves) launchHer(ctx, job, day);
         state.version++;
         sound.jingle();
         hud.flash(built.done);
@@ -149,12 +197,33 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
           speaker: name, emoji: '🔨',
           pages: [built.on === 'land'
             ? 'Paid in full. The key is under the step, and there is a box inside for whatever you would rather not carry.'
-            : 'Paid in full. Enjoy it.'],
+            : built.moves
+              ? 'Paid in full. We put her down the beach on the ebb — she is at the jetty, and she is yours.'
+              : 'Paid in full. Enjoy it.'],
         };
       },
     });
   }
   return choices;
+}
+
+/**
+ * She comes off the stocks, and the yard she was built in goes back to being a beach.
+ *
+ * Three things, and the order of them is the whole of the handover: the commission is marked with
+ * the day she went in, which is what stops her being drawn on the shore as well as at the jetty;
+ * `Sailing` is given her, which is what makes her a thing the player can board; and the moorage is
+ * the nearest jetty, which is where the boatwright at the end of a pier leaves one too.
+ *
+ * A yard with no jetty left near it is not supposed to be reachable — laying the keel refuses it —
+ * but a world can be reopened after its coast has been grown differently, so she is put in the
+ * water beside her own yard rather than nowhere at all. Better an odd mooring than a boat that was
+ * paid for and does not exist.
+ */
+function launchHer(ctx: Surroundings, job: Commission, day: number): void {
+  const lies = moorageFor(job, ctx.structures.piers) ?? { x: job.x, z: job.z, yaw: job.rot ?? 0 };
+  ctx.houses.launch(job, day);
+  ctx.sailing.buy(lies.x, lies.z, lies.yaw);
 }
 
 /** Choosing the plot, and what a finished house is for. */
@@ -231,14 +300,25 @@ export function builderInteractions(ctx: Surroundings) {
   const begin = (x: number, z: number, wants: Buildable, to?: string): void => {
     const job = houses.place(x, z, today(), player.entity.yaw, to);
     if (!job) return;
-    ctx.told({
-      kind: 'built', id: job.id, village: job.village,
-      x: job.x, z: job.z, rot: job.rot ?? 0, day: Math.floor(job.began),
-      what: job.what, to: job.to,
-    });
+    /*
+     * Everybody hears about a building, and nobody needs to hear about a boat.
+     *
+     * A village is a building bigger for everybody, whoever paid for it — that is why this is told
+     * at all, and it is what lets another player walk past your house and see it. A boat is not
+     * that. She is on the shore for five days and then she is wherever you sailed her, so a delta
+     * that put a hull on somebody else's beach would put it there for ever: they never settle up
+     * for her, so on their screen she would never be launched and the yard would never clear.
+     */
+    if (!wants.moves) {
+      ctx.told({
+        kind: 'built', id: job.id, village: job.village,
+        x: job.x, z: job.z, rot: job.rot ?? 0, day: Math.floor(job.began),
+        what: job.what, to: job.to,
+      });
+    }
     state.version++;
     sound.chime();
-    hud.flash(`Pegs and string. ${wants.days} days.`);
+    hud.flash(wants.moves ? `A keel on the blocks. ${wants.days} days.` : `Pegs and string. ${wants.days} days.`);
     persist();
   };
 
@@ -247,7 +327,59 @@ export function builderInteractions(ctx: Surroundings) {
     if (!held) return false;
     const wants = buildable(held.what);
     const name = builderIn(held.village, seed);
-    return wants.on === 'house' ? addToAHouse(wants, name) : buildOnLand(wants, name);
+    if (wants.on === 'house') return addToAHouse(wants, name);
+    if (wants.on === 'shore') return layAKeel(wants, name);
+    return buildOnLand(wants, name);
+  };
+
+  /**
+   * How far the nearest open water is from a tile, in tiles, or Infinity if there is none near.
+   *
+   * Rings outward rather than scanning a square, so the answer is the distance to the nearest wet
+   * tile rather than to whichever wet tile happened to be looked at first — and it stops the moment
+   * it finds one, which for a plot actually on a shore is the first ring. Water is the same
+   * question the boat itself asks: ground with nothing to stand on.
+   */
+  const toTheWater = (x: number, z: number): number => {
+    for (let r = 1; r <= BUILD.SHORE_WITHIN; r++) {
+      for (let a = 0; a < r * 8; a++) {
+        const angle = (a / (r * 8)) * Math.PI * 2;
+        const wx = x + Math.cos(angle) * r, wz = z + Math.sin(angle) * r;
+        if (chunks.heightAt(wx, wz) === null) return r;
+      }
+    }
+    return Infinity;
+  };
+
+  /**
+   * A boat: the same ground rules as a house, and two more that only a coast can satisfy.
+   *
+   * She is laid on dry land — a hull is built above the tide line and goes in on the last day — so
+   * the plot is checked exactly as a house's is, with the world's own footprint rule. What is added
+   * is the sea at the end of it and a jetty to tie her to, and both are measured here because both
+   * are questions about the world. `canLayAKeel` is handed the two distances and knows nothing else.
+   */
+  const layAKeel = (wants: Buildable, name: string): boolean => {
+    const tx = Math.floor(player.x), tz = Math.floor(player.z);
+    const x = tx + 0.5, z = tz + 0.5;
+    const flat = footprintLevel(sampler, tx, tz, BUILD.PLOT, BUILD.PLOT, null) !== null;
+    const verdict = canLayAKeel(
+      x, z, flat, villageNear(x, z), standingNear(x, z), clearOfTrees(tx, tz),
+      toTheWater(x, z), toTheJetty(structures.piers, x, z),
+    );
+    if (!verdict.ok) {
+      dialogue.start({ speaker: name, emoji: '🔨', pages: [`Not here. ${verdict.why}`] });
+      return true;
+    }
+    dialogue.start({
+      speaker: name, emoji: '🔨',
+      pages: [`A yard, then. ${wants.days} days on the stocks, and she goes down the beach the day you pay me the rest.`],
+      choices: [
+        { label: 'Lay her keel here', next: () => { begin(x, z, wants); return null; } },
+        { label: 'Let me walk the shore', next: () => null },
+      ],
+    });
+    return true;
   };
 
   /** A building of its own: the ground has to take it, and nothing may be standing on it. */

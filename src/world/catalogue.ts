@@ -121,6 +121,11 @@ export const CATALOGUE: readonly Catalogued[] = [
   { kind: PropKind.StoreyTimber, name: 'timber for a storey', group: 'building' },
   { kind: PropKind.StoreyScaffold, name: 'scaffolding', group: 'building' },
   { kind: PropKind.StoreyRaised, name: 'scaffolding, a lift higher', group: 'building' },
+  // a boat on the stocks, which is the one commission that walks off its own site when it is done
+  { kind: PropKind.BoatKeel, name: 'a keel laid', group: 'building' },
+  { kind: PropKind.BoatFrames, name: 'a boat framed', group: 'building' },
+  { kind: PropKind.BoatPlanked, name: 'a boat planked', group: 'building' },
+  { kind: PropKind.BoatReady, name: 'a boat waiting for the tide', group: 'building' },
 
   // a group of their own, because they are only ever seen together and are only ever a castle
   { kind: PropKind.CastleKeep, name: 'keep', group: 'castle' },
