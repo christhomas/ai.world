@@ -74,6 +74,16 @@ export const STONES_KEPT = 60;
 export interface Settlement {
   people: Person[];
   /**
+   * The days somebody was raised at a shrine and sent here.
+   *
+   * Kept rather than derived, for the reason a violent death is kept: nothing about the seed implies
+   * it, so a village re-lived from its founding would simply lose whoever the magic brought. *Only*
+   * the days are kept — who each of them turned out to be is worked out from the village and the
+   * day, so the person is derived like everybody else and two machines that both know a raising
+   * happened raise the same person. See `shrine.ts`.
+   */
+  raised: number[];
+  /**
    * Who is standing on the village's watchtower today, or nobody.
    *
    * Worked out again every morning out of who is here and what the hall can pay — see

@@ -3467,7 +3467,31 @@ simulation rather than any one feature in it.
       rather than a quiet one, so the Domesday Book can say a village was refounded under new rules
       on such a day.
 
-- [ ] **53. The shrine that raises a villager.** The player's version of **52**, and the thing that
+- [x] **53. The shrine that raises a villager.** *Done on the 12th, and it is the answer to a
+      question the endless country would otherwise keep asking.* Everything else that puts a person
+      into this world needs a village with people already in it — children are born to parents, and
+      somebody walks over the hill from the next place along (**57**). Walk into a valley where
+      everybody starved and there was nothing whatever to be done about it.
+
+      Now there is, and it is the only magic in the economy. The fee is `GROWTH.A_HOUSE` — not a
+      number picked to feel expensive, but what a village pays its own people to raise a roof — so
+      the price of a soul is the price of a life's worth of shelter, and it moves when that moves.
+      What comes out is one grown adult with a name of their own, no parents anywhere, and nothing
+      in their pockets: what the shrine makes is a person, not an estate.
+
+      The recorded fact is only the *day*. Who it brought is derived from the village and the day,
+      so the person is worked out like everybody else and two machines that both know the magic was
+      paid for raise the same person — and a village re-lived from its founding raises them again on
+      the same morning, which is the property the whole design turns on.
+
+      What it costs to bring a valley back is the pleasing part, and it was measured rather than
+      designed: **one soul is not enough**. A single person has nobody to have children with and
+      dies of the years, so the valley empties again. Five mornings at the shrine — five houses'
+      worth of gold — and Thornby is a village of twenty-four two hundred days later, growing into
+      the houses that were standing there empty. Expensive and rare, which is what was asked for.
+
+      The shrine only offers it where it would do something: over a living village the bowl in the
+      stones is dry and it is a staircase again. The player's version of **52**, and the thing that
       gives a dead valley a way back. A magic shrine, a fee big enough to be a decision — the price
       of a house rather than the price of a meal — and a new soul on the register. It answers a
       question the endless world will otherwise keep asking: you walk into a village where everybody

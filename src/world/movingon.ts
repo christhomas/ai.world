@@ -1,4 +1,7 @@
+import { FORTUNE, grownFolk } from './fortunes';
+import { LIFE } from './people';
 import { PROSPER } from './prosperity';
+import type { Change, Settlement } from './settlement';
 
 /**
  * Why anybody would leave the village they were born in.
@@ -134,4 +137,41 @@ export function whoWalksIn(
     if (from) return { to: empty.village, from };
   }
   return null;
+}
+
+/**
+ * The move itself: spare grown people out of one village and into an empty one.
+ *
+ * Here rather than in the register because it is the same subject as the rest of this file — what
+ * makes somebody leave, and what it costs the place they leave. The register applies it; the
+ * arithmetic of who goes is this file's.
+ *
+ * Three things cap how many go, and each is a different kind of limit. A village keeps enough
+ * people to still be a village (`SPARE_ABOVE`); it never sends its last two grown adults, because
+ * a place that empties itself to fill another has moved rather than helped; and a ruin is taken on
+ * by a handful rather than by a crowd, which is what makes recovery something you watch happen.
+ *
+ * They keep their names and their memories, because this is the same person in a new place. What
+ * they lose is who they know: everybody they grew up with is over the hill now.
+ */
+export function walkOver(lost: string, ruin: Settlement, neighbour: Settlement, day: number): Change[] {
+  if (ruin.people.length > 0) return [];
+  if (day - (ruin.emptied ?? day) < FORTUNE.RESETTLE_AFTER) return [];
+
+  const grown = grownFolk(neighbour.people, day, LIFE.CHILD_UNTIL);
+  const spare = Math.floor(neighbour.people.length - neighbour.founded * FORTUNE.SPARE_ABOVE);
+  const sending = Math.min(spare, Math.max(0, grown.length - 2), Math.ceil(ruin.founded / 3));
+  if (sending <= 0) return [];
+
+  const from = neighbour.people[0]?.village ?? '';
+  const changes: Change[] = [];
+  for (const settler of grown.slice(0, sending)) {
+    neighbour.people.splice(neighbour.people.indexOf(settler), 1);
+    settler.village = lost;
+    settler.knows = [];
+    ruin.people.push(settler);
+    changes.push({ kind: 'resettled', id: settler.id, name: settler.name, village: lost, from, day });
+  }
+  ruin.emptied = undefined;
+  return changes;
 }

@@ -3,7 +3,8 @@ import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods
 import { taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
-import { whoWalksIn } from './movingon';
+import { walkOver, whoWalksIn } from './movingon';
+import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
 import { mulberry32 } from '../core/rng';
@@ -55,6 +56,8 @@ export class Register {
    * right, rather than being bolted on to today and quietly disagreeing with everyone else.
    */
   private readonly killed = new Map<string, number>();
+  /** The days a shrine raised somebody, by village — the copy that survives a re-living. */
+  private readonly magicked = new Map<string, number[]>();
   /** The last whole day the register has caught up to. */
   private day: number;
 
@@ -111,6 +114,8 @@ export class Register {
       people, founded: people.length, houses, trades, food: people.length * 3, buried: [], purse: 0, works: [],
       // no tower, so nobody on it. It fills in on the first morning the village can afford both
       watch: '',
+      // and no magic has been done here. A raising is remembered across a re-living; see `shrine.ts`
+      raised: this.magicked.get(village) ?? [],
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -239,32 +244,14 @@ export class Register {
   /**
    * Move spare grown people from one village into an empty one.
    *
-   * A ruin does not repopulate itself: somebody has to walk there. So this is the only way a lost
-   * village comes back, and it costs the neighbour the people it sends, which is what stops a
-   * region quietly healing everything at once while the player is elsewhere.
+   * A ruin does not repopulate itself: somebody has to walk there. The rule about who and how many
+   * is in `movingon.ts` with the rest of the reasons people move; this is the register applying it,
+   * and the reason it is a public door is that the world can ask for a resettling of its own.
    */
   resettle(lost: string, from: string, day: number): Change[] {
     const ruin = this.villages.get(lost);
     const neighbour = this.villages.get(from);
-    if (!ruin || !neighbour || ruin.people.length > 0) return [];
-    if (day - (ruin.emptied ?? day) < FORTUNE.RESETTLE_AFTER) return [];
-
-    const grown = grownFolk(neighbour.people, day, LIFE.CHILD_UNTIL);
-    const spare = Math.floor(neighbour.people.length - neighbour.founded * FORTUNE.SPARE_ABOVE);
-    const sending = Math.min(spare, Math.max(0, grown.length - 2), Math.ceil(ruin.founded / 3));
-    if (sending <= 0) return [];
-
-    const changes: Change[] = [];
-    for (const settler of grown.slice(0, sending)) {
-      neighbour.people.splice(neighbour.people.indexOf(settler), 1);
-      // they keep their name and their memories: this is the same person, in a new place
-      settler.village = lost;
-      settler.knows = [];
-      ruin.people.push(settler);
-      changes.push({ kind: 'resettled', id: settler.id, name: settler.name, village: lost, from, day });
-    }
-    ruin.emptied = undefined;
-    return changes;
+    return ruin && neighbour ? walkOver(lost, ruin, neighbour, day) : [];
   }
 
   /** Everybody alive anywhere. See `living` about holding on to it. */
@@ -344,18 +331,9 @@ export class Register {
   }
 
   /**
-   * Somebody walks over the hill and takes on an empty village.
-   *
-   * `resettle` has been able to do this since villages could empty and was never once called by the
-   * simulation, because it has to be told which village sends and which receives and nothing had a
-   * reason to say. `movingon.ts` is the reason: of the places that could spare anybody, the one
-   * whose people would gain least by staying is the one that sends them.
-   *
-   * Once a day and one village at a time, because a valley repopulating itself overnight is not a
-   * recovery, it is a respawn. What it buys beyond keeping the map inhabited is families that are
-   * not from here — a village left alone marries its own children to each other for four hundred
-   * days, and a stranger from the next valley is the new blood that makes inherited features worth
-   * having.
+   * Somebody walks over the hill and takes on an empty village. One a day, and `movingon.ts` holds
+   * the reason anybody would — the machinery for it existed for months and nothing ever called it,
+   * because it had to be told which two villages and nothing in the world had a reason to say.
    */
   private peopleWalkIn(day: number): Change[] {
     const walk = whoWalksIn(this.villages, day);
@@ -476,6 +454,7 @@ export class Register {
       ...this.fillTheGaps(name, village, day, pressure),
       ...this.growUp(name, village, day),
       ...this.takeTheKilled(village, day),
+      ...raiseWhoIsDue(name, village, day, this.streamFor(`${name}:shrine`, day)),
     ];
     // A village losing its last soul is worth saying out loud, once. It is noticed here rather
     // than counted at the top of the day because the killing that emptied it may have happened
@@ -485,6 +464,21 @@ export class Register {
       changes.push({ kind: 'lost', id: name, name, village: name, day });
     }
     return changes;
+  }
+
+  /**
+   * Pay a shrine to raise somebody, and send them to a village. See `shrine.ts` for the price and
+   * the argument. Whoever calls this takes the fee: a register has never known what is in a purse.
+   */
+  raiseAtShrine(village: string, day = this.day): Change[] {
+    const here = this.villages.get(village);
+    if (!here) return [];
+    const on = Math.floor(day);
+    const already = this.magicked.get(village) ?? [];
+    if (already.includes(on)) return [];
+    this.magicked.set(village, [...already, on]);
+    here.raised.push(on);
+    return raiseWhoIsDue(village, here, on, this.streamFor(`${village}:shrine`, on));
   }
 
   /** The ones something with teeth got to, on the day it got to them. */

@@ -6,16 +6,25 @@ import { FISHING } from '../fishing';
 import { Digging, groundOf, seamAt, type Ground } from '../digging';
 import { mineIdOf } from '../mines';
 import { villageAt } from '../../world/structures';
+import { SHRINE_FEE } from '../../world/shrine';
 import type { Surroundings } from './context';
 
 /**
  * What Enter does out in the country: the way underground, a wreck's hold, a campfire to sleep
  * by, a line cast into water, a furrow to sow or reap, and a hole dug in a hillside.
  */
+/**
+ * How far a shrine's valley may be, in tiles.
+ *
+ * A shrine stands apart from the places it serves — that is most of what makes one a shrine — but
+ * not so far apart that the magic reaches a village nobody standing here could see. A day's walk.
+ */
+const SHRINE_REACHES = 220;
+
 export function wildInteractions(ctx: Surroundings) {
   const {
     player, state, structures, sampler, chunks, manifest, places, remains,
-    dialogue, hud, sound, fishing, plots, online, seed, raining, discover, persist,
+    dialogue, hud, sound, fishing, plots, online, seed, raining, discover, persist, register,
   } = ctx;
 
   /**
@@ -26,11 +35,63 @@ export function wildInteractions(ctx: Surroundings) {
   const digging = new Digging();
 
   /** Enter/Space at a shrine or a cave mouth offers the way underground. */
+  /**
+   * The village a shrine would send somebody to: the nearest one, empty or not.
+   *
+   * Nearest rather than nearest-empty, because a shrine that quietly picked a ruin four valleys away
+   * would be doing something the player cannot see. If the place beside you is full, the magic has
+   * nothing to offer you here and says so.
+   */
+  const valleyOf = (poi: { x: number; z: number }): { name: string; empty: boolean } | null => {
+    const near = structures.villages.reduce<{ v: typeof structures.villages[number]; d: number } | null>(
+      (best, v) => {
+        const d = Math.hypot(v.x - poi.x, v.z - poi.z);
+        return best === null || d < best.d ? { v, d } : best;
+      }, null);
+    if (!near || near.d > SHRINE_REACHES) return null;
+    return { name: near.v.name, empty: register.living(near.v.name).length === 0 };
+  };
+
+  /**
+   * Pay the shrine to raise a soul, which is the only way a dead valley comes back.
+   *
+   * The fee is the price of a house rather than the price of a meal, because magic that is
+   * affordable is a tap: see `world/shrine.ts`, where the number comes from what a village pays its
+   * own people to raise a roof. What it buys is one grown adult with a name of their own, on the
+   * register, in the nearest village — the same as anybody else from the moment they arrive.
+   */
+  const raiseSomebody = (poi: { name: string; x: number; z: number }, valley: { name: string }) => {
+    if (state.inventory.gold < SHRINE_FEE) {
+      hud.flash(`The stones want ${SHRINE_FEE} gold, and you have ${Math.floor(state.inventory.gold)}.`);
+      return null;
+    }
+    const raised = register.raiseAtShrine(valley.name, state.day);
+    if (raised.length === 0) { hud.flash('The stones are cold. Not today.'); return null; }
+    state.inventory.gold -= SHRINE_FEE;
+    state.version++;
+    sound.chime();
+    hud.flash(`${raised[0].name} walks out of ${poi.name} and takes the road to ${valley.name}.`);
+    persist();
+    return null;
+  };
+
   const tryShrine = (): boolean => {
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.Shrine || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
-      dialogue.start({ speaker: poi.name, emoji: '⛩️', pages: ['Worn steps lead down beneath the stones. Descend?'], choices: [
+      const valley = valleyOf(poi);
+      dialogue.start({ speaker: poi.name, emoji: '⛩️', pages: [
+        'Worn steps lead down beneath the stones.',
+        valley === null
+          ? 'There is nobody within a day of here for the stones to send anywhere.'
+          : valley.empty
+            ? `The valley below is empty. Names are cut into the stones, and there is a bowl worn smooth by coins.`
+            : `${valley.name} is below, and it is doing well enough. The bowl in the stones is dry.`,
+      ], choices: [
         { label: 'Descend', next: () => { places.enterDungeon(poi); return null; } },
+        // offered only where it would do something: a shrine over a living village is a staircase
+        ...(valley !== null && valley.empty
+          ? [{ label: `Lay ${SHRINE_FEE} gold in the bowl`, next: () => raiseSomebody(poi, valley) }]
+          : []),
         { label: 'Not now', next: () => null },
       ] });
       return true;
