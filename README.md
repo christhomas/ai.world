@@ -22,17 +22,26 @@ synthesised as you play.
 | **W A S D** or arrows | Walk. Under sail, W and S row while A and D swing the bow |
 | **Enter** or **Space** | The one key that does things: talk, open a door, read a board, board a boat, mount a horse, sow, harvest, open a chest, take the stairs |
 | **X** | Swing whatever is in your hand |
-| **I** | Rucksack: wear gear, stow it, eat food |
-| **J** | Journal: errands, what you carry, places found, ferry times |
-| **M** | The map, full screen. Drag or WASD to pan, scroll or +/- to zoom, C to centre on you |
 | **T** / **G** | Chat, and deal with the nearest traveller: goods, or a friendly bout |
-| **K** / **L** / **R** | Your party, who else is in this world, and a rally point where you stand |
+| **R** | A rally point where you stand |
 | **Q / E**, scroll | Turn the camera, zoom |
 | **F** | Free camera |
-| **P** | Photo mode: the interface steps aside, Space takes the picture |
 | **N** | Save and return to the title, which puts the whole world away rather than leaving it running |
-| **2** | See through whatever stands between you and the camera. A wall hides as much ground behind it as it is tall, and this thins it out |
-| **O** | Options: light, graphics, volume, multiplayer, seed |
+
+The panels are a row of their own. A digit opens something to look at; a letter does something to
+the world, which is the line between the two halves of the keyboard.
+
+| Key | Panel | Also |
+|---|---|---|
+| **1** | Everybody in the world, and how they are getting on | |
+| **2** | See through whatever stands between you and the camera | |
+| **3** | Journal: errands, what you carry, places found, ferry times | **J** |
+| **4** | Rucksack: wear gear, stow it, eat food | **I** |
+| **5** | The map, full screen — or press the little one. Drag or WASD to pan, scroll or +/- to zoom, C to centre on you | **M** |
+| **6** | Your party | **K** |
+| **7** | Who else is in this world | **L** |
+| **8** | Photo mode: the interface steps aside, Space takes the picture | **P** |
+| **9** | Options: light, graphics, volume, multiplayer, seed | **O** |
 
 On a phone or tablet the controls draw themselves: a thumb stick wherever your thumb lands, the
 action key and the sword to hand, and the panels along the side. Pinch the world to zoom, drag to

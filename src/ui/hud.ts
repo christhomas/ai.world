@@ -68,6 +68,15 @@ export class Hud {
   onQualityChange: ((level: Quality) => void) | null = null;
   /** Whether to cut a hole in whatever is standing between the camera and the hero. */
   onSeeThroughChange: ((on: boolean) => void) | null = null;
+  /**
+   * The little map was pressed, which means somebody wants the big one.
+   *
+   * A picture of where you are is the obvious thing to press when you want a bigger picture of
+   * where you are, and on a phone it saves a button in a row where every button costs room somebody
+   * could be looking at the world through. The key still works: this is a second way of saying the
+   * same thing, which is the bargain the thumb stick already makes with the W key.
+   */
+  onMapTap: (() => void) | null = null;
 
   constructor(rig: SceneRig, seed: number) {
     /*
@@ -114,6 +123,7 @@ export class Hud {
      * — and the last time it was on for everybody it was quietly hiding a collision fault rather
      * than a sight problem, which is a thing an aid you cannot turn off will do.
      */
+    $('minimapCanvas').addEventListener('click', () => this.onMapTap?.());
     const seeThrough = $<HTMLInputElement>('seeThroughToggle');
     this.setSeeThrough = (on: boolean) => { seeThrough.checked = on; };
     seeThrough.addEventListener('change', () => this.onSeeThroughChange?.(seeThrough.checked));

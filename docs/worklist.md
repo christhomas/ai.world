@@ -3761,3 +3761,20 @@ than by remembering — and the first thing found was that the gap is not where 
       in it (`time` is a fraction of the day and every trade's tree reads it), the houses exist, and
       `waitAt` already holds somebody somewhere. What is missing is the hour that sends them in, and
       a bed to be in rather than a spot on the floor to stand at.
+
+- [x] **66. The panels are a row, not seven scattered letters.** They are a *set* — roster, journal,
+      rucksack, map, party, who is here, photo, options — and a set reads better as a row than as
+      whatever letter happened to be free on the day each was written. `1`–`9`, with the letters
+      kept because they are in a good many fingers by now and taking them away is a change nobody
+      asked for. The line between the two halves of the keyboard is worth stating: **a digit opens
+      something to look at, a letter does something to the world.**
+
+      And the map lost its button: the little map opens the big one when you press it. A picture of
+      where you are is the obvious thing to press when you want a bigger picture of where you are.
+
+- [ ] **67. The phone's button row, done properly.** The awkward set across the top middle can go
+      now that the minimap opens the map and the panels have numbers. What replaces it is a design
+      question rather than a plumbing one — and there is a design already in the repo (`design/`,
+      `HudPhone.dc.html` and `TitlePhone.dc.html`) which is the right place to start rather than
+      inventing a second answer beside it. Worth checking those against what the HUD has grown since
+      September 8th: the shared meter, the registry page, the hall's rows on the roll.

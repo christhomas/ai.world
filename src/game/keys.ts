@@ -132,6 +132,18 @@ export function bindKeys(ctx: Keys): void {
    * Not while a conversation is up, for the same reason as the rest: a person in front of you beats
    * a book.
    */
+  /*
+   * The panels live on the digit row, and the letters are what they always were.
+   *
+   * They are a *set* — journal, rucksack, roster, party, who is here, photo, options — and a set
+   * reads better as a row than as seven letters scattered across the keyboard by whatever was free
+   * on the day each one was written. The letters keep working: they are in a good many fingers by
+   * now and taking them away would be a change nobody asked for. What the digits buy is that the
+   * row can be learnt as a row, and that the on-screen buttons have something to be numbered after.
+   *
+   * Verbs stay on letters, and that is the line: a digit opens something to look at, a letter does
+   * something to the world. Swinging a sword is not a panel.
+   */
   input.onKey('1', () => { if (screen.busy() !== 'talking') screen.toggleRoster(); });
   /*
    * And the hole in whatever is standing in front of him, on the next digit along.
@@ -144,6 +156,21 @@ export function bindKeys(ctx: Keys): void {
   input.onKey('2', () => {
     screen.say(screen.toggleSeeThrough() ? 'Seeing through what is in front' : 'Solid walls again');
   });
+  input.onKey('3', () => { if (screen.busy() !== 'talking') screen.toggleJournal(); });
+  input.onKey('4', () => { if (screen.busy() !== 'talking') screen.toggleRucksack(); });
+  input.onKey('5', () => screen.toggleMap());
+  input.onKey('6', () => { if (free()) partyMenu(); });
+  input.onKey('7', () => {
+    if (!free()) return;
+    if (!online.connected) { screen.say('Join a world online to see who else is about.'); return; }
+    screen.toggleCompany();
+  });
+  input.onKey('8', () => {
+    const on = screen.togglePhoto();
+    player.mode = on ? 'free' : 'follow';
+    if (!on) screen.say('Photo mode off');
+  });
+  input.onKey('9', () => screen.toggleOptions());
   // The console lives on the key it has been on since Quake: one row under Escape, and spare in
   // every other game. Both of the characters that live on it, because a keyboard laid out for
   // another country puts the other one under the same thumb.

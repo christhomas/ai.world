@@ -1464,3 +1464,6 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
 @media (prefers-reduced-motion: reduce) {
   #turnPhone .turn-icon { animation: none; transform: rotate(-90deg); }
 }
+
+/* the little map is a button: pressing it opens the big one */
+#minimapCanvas { cursor: pointer; }

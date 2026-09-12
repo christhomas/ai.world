@@ -626,6 +626,8 @@ export function startGame(
     companyInput: () => multiplayer.playerListInput,
   });
 
+  hud.onMapTap = () => screen.toggleMap();
+
   // the air, the ground and the sea: a wing, a shaft and a whirlpool. See `game/waysin.ts`.
   const { air, craft, shafts, swallows } = createWaysIn({
     seed, state, places, player, sailing, chunks, discover,
