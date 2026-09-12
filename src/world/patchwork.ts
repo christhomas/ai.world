@@ -132,6 +132,24 @@ export class Patchwork {
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.patch(`${px + dx},${pz + dz}`);
   }
 
+  /** Whether this square is already grown and to hand. */
+  has(patch: string): boolean {
+    return this.held.has(patch);
+  }
+
+  /**
+   * Take a patch somebody else grew.
+   *
+   * The country worker's whole purpose: it does the five seconds on another thread and hands the
+   * result in here. Ignored if the patch is already held, because the one in hand is as good as the
+   * one arriving and swapping it would change the sampler under whoever is standing on it.
+   */
+  put(patch: string, sampler: TerrainSampler): void {
+    if (this.held.has(patch)) return;
+    this.held.set(patch, { patch, sampler, touched: ++this.clock });
+    this.forget();
+  }
+
   /** Which patches are held at this moment, for a test and for a debug readout. */
   holding(): string[] {
     return [...this.held.keys()].sort();

@@ -12,6 +12,7 @@ import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import { PatchCountry } from '../world/patchcountry';
+import { growerFor } from '../world/countryworker';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { WorldKind } from '../save/store';
 import type { ManifestJson } from '../world/manifest';
@@ -75,6 +76,16 @@ export function growCountry(ctx: Growing) {
    * grown and thrown away and is not worth a special case to avoid.
    */
   const endless = world === 'endless' ? new PatchCountry(seed, 0, 0) : null;
+  /*
+   * And somebody else to grow the rest of it.
+   *
+   * A patch is five seconds on this thread and a tenth of a second to put back together from its
+   * parts, so the worker grows and the page rebuilds. It is an optimisation and never a guarantee:
+   * the square the hero is standing in has to exist now, and if the worker has not got to it he
+   * gets the five seconds rather than a hole in the world. Everything about the arrangement is
+   * aimed at making that rare — ask for the neighbours while there is still ground underfoot.
+   */
+  const grower = endless ? growerFor(seed, endless) : null;
   const islands = endless ? [] : islandsOf(manifest, seed);
   /*
    * And the country itself, through the one call there is. Not "the same call the world makes" —
@@ -96,6 +107,7 @@ export function growCountry(ctx: Growing) {
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
   const chunks = new ChunkManager(
     rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial, endless?.store,
+    grower ? (patch) => grower.want(patch) : undefined,
   );
   chunks.useSeasonTint(seasonTintMaterials);
 
@@ -157,5 +169,7 @@ export function growCountry(ctx: Growing) {
      * Null for a bounded world, which is the whole of how the rest of the game tells them apart.
      */
     endless,
+    /** Who is growing the country elsewhere, for the frame to keep asking and for a readout. */
+    grower,
   };
 }

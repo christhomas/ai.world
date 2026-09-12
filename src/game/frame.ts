@@ -108,6 +108,8 @@ export interface Framing {
    * what he can walk up, and how far back the camera stands.
    */
   endless: PatchCountry | null;
+  /** Who is growing the country elsewhere, so a patch boundary is not five seconds of nothing. */
+  grower: { want: (patch: string) => void } | null;
   mountains: Mountains;
   daycycle: DayCycle;
   weather: Weather;
@@ -204,7 +206,7 @@ export interface Framing {
 export function createFrame(ctx: Framing) {
   const {
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, cutaway, endless, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
+    skyline, rock, cutaway, endless, grower, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
@@ -450,6 +452,15 @@ export function createFrame(ctx: Framing) {
      * His feet rather than the camera's aim, because what is being asked is which patch *he* is in.
      * A camera that has swung out over the next patch must not swap the ground under him.
      */
+    /*
+     * Ask for the country he is walking toward, while there is still ground under him.
+     *
+     * Every frame and nearly always a no-op: `want` drops a square that is in hand or already on
+     * its way, and what he is about to want has the same answer for minutes at a time. The one
+     * frame it matters is the one where he has just crossed into a new square and the ring of
+     * neighbours moved with him.
+     */
+    if (endless && grower) for (const patch of endless.wants(player.entity.x, player.entity.z)) grower.want(patch);
     if (endless && endless.moveTo(player.entity.x, player.entity.z)) {
       const now = endless.sampler;
       mountains.show(now.ranges);

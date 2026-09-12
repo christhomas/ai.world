@@ -77,6 +77,9 @@ export interface Probed {
   entities: EntityManager;
   register: Register;
   places: Places;
+  /** The endless country and whoever is growing it, when this is one. Null for a bounded world. */
+  endless?: { patch: string; store: { holding: () => string[] } } | null;
+  grower?: { waiting: string[]; grown: number; lastTook: number } | null;
   online: Online;
   market: Market;
   warband: Warband;
@@ -147,7 +150,7 @@ export function installProbes(ctx: Probed): void {
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
     commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally, wing, leaveOne,
-    heard, nettleAbout, sentOut, mount, overworldRenderer,
+    heard, nettleAbout, sentOut, mount, overworldRenderer, endless, grower,
   } = ctx;
 
   const debug = window as unknown as {
@@ -170,6 +173,18 @@ export function installProbes(ctx: Probed): void {
   debug.__doors = structures.doors;
   (debug as { __villages?: unknown }).__villages = structures.villages;
   (debug as { __piers?: unknown }).__piers = structures.piers;
+  /*
+   * The endless country: which square the hero is in, which are in hand, which are still coming,
+   * and how long the last one took to grow.
+   *
+   * The last number is the reason the country worker exists at all — five seconds on this thread
+   * against a tenth of a second to rebuild — and a number nobody can see is one that quietly stops
+   * being true.
+   */
+  (debug as { __country?: () => unknown }).__country = () => (endless ? {
+    patch: endless.patch, holding: endless.store.holding(),
+    waiting: grower?.waiting ?? [], grown: grower?.grown ?? 0, lastTook: grower?.lastTook ?? 0,
+  } : null);
   // where the hulls are, so a test can walk up to one and go down into it
   (debug as { __wrecks?: unknown }).__wrecks = structures.wrecks;
   // and where the towers are, for checking that a man told to take one is actually on it

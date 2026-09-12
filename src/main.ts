@@ -118,7 +118,7 @@ export function startGame(
   // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
   const {
     graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
-    eyries, skyIsles, skyRenderer, endless, mountains,
+    eyries, skyIsles, skyRenderer, endless, grower, mountains,
   } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
@@ -647,7 +647,7 @@ export function startGame(
     // screens, so it holds a hook and this is the one place that fills it in
     const drawLineage = (village: string): void => kinPanel.show(...lineageDrawing(register, village, state.day));
     whereLineageIsDrawn(drawLineage);
-    installProbes({
+    installProbes({ endless, grower,
       seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
@@ -675,7 +675,7 @@ export function startGame(
   const autoQuality = new AutoQuality(qualityWasChosen);
 
   const frames = createFrame({
-    seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places, endless, mountains, cutaway,
+    seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places, endless, grower, mountains, cutaway,
     skyline, rock, daycycle, weather, updraughts, swallows, seaEyes, shafts, holes, beam,
     couldBeAShaft: (x, z) => openCountry(chunks, x, z), seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,

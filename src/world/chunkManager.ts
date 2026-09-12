@@ -198,6 +198,13 @@ export class ChunkManager implements TileWorld, ChunkSource {
      * for a chunk inside it.
      */
     private readonly patches?: Patchwork,
+    /**
+     * Ask for a square of country that is not grown yet.
+     *
+     * Separate from `patches` because holding a store and blocking to fill it are different powers:
+     * this one says "somebody else please", and the chunk that wanted it waits its turn.
+     */
+    private readonly wantPatch?: (patch: string) => void,
   ) {
     this.propBatch = new PropBatch(scene, props, glowMaterial);
     this.stops = blocking(props.footprints, BLOCKS_WALKING);
@@ -298,7 +305,22 @@ export class ChunkManager implements TileWorld, ChunkSource {
        * world is still answering.
        */
       const sent = this.sent.get(key);
-      // which square of country paints this chunk, and whether this worker has been told about it
+      /*
+       * Which square of country paints this chunk — and if that square is not grown yet, this chunk
+       * waits rather than growing it here.
+       *
+       * The line that was quietly undoing the country worker. A chunk at the edge of the patch the
+       * hero is in belongs to the *next* patch, and painting it used to grow that patch on the main
+       * thread: five seconds of frozen game to draw one square of ground, which is exactly what the
+       * worker was built to avoid. The job stays in the queue, the worker is asked for the square,
+       * and the chunk is painted a moment later when it arrives.
+       */
+      const wanted = patchOfChunk(job.cx, job.cz);
+      if (this.patches && !this.patches.has(wanted)) {
+        this.wantPatch?.(wanted);
+        at++;
+        continue;
+      }
       const patch = this.patches ? this.tell(w, job.cx, job.cz) : undefined;
       if (sent) {
         this.sent.delete(key);

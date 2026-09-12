@@ -3659,7 +3659,29 @@ than by remembering — and the first thing found was that the gap is not where 
       until the day the endless one is better, and it is also the reference the endless one is
       checked against.
 
-- [ ] **60. Country grown off the main thread.** Measured today and it is the number that decides the
+- [x] **60. Country grown off the main thread.** Built: `workers/country.worker.ts` grows a square
+      and posts back its parts, `world/grower.ts` does the asking, and the page rebuilds — five
+      seconds there against a tenth of a second here.
+
+      **Measured across a patch boundary, walking up to it the way a hero would: the worst frame gap
+      fell from 5,041 ms to 1,019 ms**, with nothing grown on the main thread and all eight
+      neighbours already in hand. The residual second is chunk meshing, not country.
+
+      Three decisions worth keeping.
+
+      *One worker, one square at a time.* Three would finish none of them sooner — the work is
+      processor-bound and the cores are already drawing the game — and would make the square the
+      hero is walking into wait behind two he is not. The queue is served nearest-edge first.
+
+      *The worker is an optimisation and never a guarantee.* The square he is standing in has to
+      exist now, so `Patchwork.patch` still grows one here if it must: five seconds is better than a
+      hole in the world. Teleporting into ungrown country still costs that, and walking does not.
+
+      *And the line that was quietly undoing all of it.* A chunk at the edge of one patch belongs to
+      the next, and painting it grew that patch **on the main thread** — five frozen seconds to draw
+      one square of ground. The chunk waits now: the job stays in the queue, the worker is asked,
+      and it is painted when the country arrives. That one change took the *ordinary* worst frame
+      gap from 1,935 ms to 374 ms. Measured today and it is the number that decides the
       whole shape of an endless world: **a patch takes about five seconds to grow and a hundred and
       thirty milliseconds to rebuild from its parts.** Growing one on the main thread is a five second
       freeze; warming the eight neighbours is three quarters of a minute, which is what the first

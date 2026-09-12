@@ -90,12 +90,36 @@ export class PatchCountry {
   /**
    * Grow the neighbours, for a caller that can afford five seconds a patch.
    *
-   * Which is nobody on the main thread of a running game. It is here for tests, for a world server
-   * standing a province up before anybody is in it, and as the thing a country worker will call
-   * once there is one.
+   * Which is nobody on the main thread of a running game. It is here for tests and for a world
+   * server standing a province up before anybody is in it. The game asks `wants` instead.
    */
   warm(x: number, z: number): void {
     this.patches.around(x, z);
+  }
+
+  /**
+   * The squares somebody at this spot will want next, nearest first.
+   *
+   * Handed to whoever can grow them elsewhere. Nearest first because the queue is served in order
+   * and the square you are walking into is the one that matters — the diagonals behind you are
+   * wanted eventually and never urgently.
+   */
+  wants(x: number, z: number): string[] {
+    const px = Math.floor(x / PATCH);
+    const pz = Math.floor(z / PATCH);
+    const around: Array<{ patch: string; away: number }> = [];
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dz === 0) continue;
+        // how far the hero is from that square's nearest edge, near enough for an ordering
+        const away = Math.hypot(
+          Math.max(0, Math.abs(x - (px + dx) * PATCH - PATCH / 2) - PATCH / 2),
+          Math.max(0, Math.abs(z - (pz + dz) * PATCH - PATCH / 2) - PATCH / 2),
+        );
+        around.push({ patch: `${px + dx},${pz + dz}`, away });
+      }
+    }
+    return around.sort((a, b) => a.away - b.away).map((one) => one.patch);
   }
 
   /**
