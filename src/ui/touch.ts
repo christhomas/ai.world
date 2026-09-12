@@ -58,7 +58,11 @@ interface Button {
 
 /** The buttons that live on screen: the panels, the camera, and the way out of whatever is open. */
 const PANEL_BUTTONS: readonly Button[] = [
-  { key: 'm', icon: 'map', label: 'Map' },
+  /*
+   * No map button. The corner map opens the big one when it is pressed, which is the obvious
+   * gesture — a picture of where you are is the thing you reach for when you want a bigger picture
+   * of where you are — and it buys back a square of a screen that is 390 tall.
+   */
   { key: 'i', icon: 'pack', label: 'Rucksack' },
   { key: 'j', icon: 'book', label: 'Journal' },
   { key: 'o', icon: 'sliders', label: 'Options' },

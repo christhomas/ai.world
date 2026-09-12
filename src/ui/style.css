@@ -1060,12 +1060,34 @@ body.touch #touch {
    out of width, and nothing in the row lined up with anything outside it. A rail with one gap
    repeated needs no arithmetic to come out straight, and it gives the group a single edge, which
    is what makes seven unrelated glyphs read as one bar of controls. */
+/*
+ * The panel rail: one slab hung off the top edge, in the middle.
+ *
+ * It used to float clear of the edge with a rim all the way round and a shadow under it, which on a
+ * phone held sideways read as a dialog somebody had left open over the game. The design in
+ * `design/HudPhone.dc.html` is the answer and this is it: flush into the edge so it belongs to the
+ * frame rather than to the world, no top rim because the edge of the screen is the rim, hairlines
+ * between the squares instead of gaps between buttons, and translucent enough that the country
+ * shows through it.
+ *
+ * The place name sits under it rather than behind it — see `body.touch #areaName`.
+ */
 #touchPanels {
-  position: absolute; top: var(--minimap-drop); right: calc(var(--touch-edge) + var(--safe-right));
-  display: flex; align-items: center; gap: var(--touch-gap);
-  padding: calc(4 * var(--ui-scale)); pointer-events: auto;
-  background: rgba(8, 11, 24, 0.6); border: var(--ui-scale) solid rgba(214, 221, 255, 0.2);
-  box-shadow: var(--ui-lift);
+  /*
+   * Centred by margin rather than by a transform, because the phone breakpoint centres it between
+   * the status block and the corner map rather than on the screen — it is given their two edges and
+   * told to find the middle. A `translateX(-50%)` on top of that shifts it half its own width to
+   * the left, which is exactly what it did.
+   */
+  position: absolute; top: 0; left: 0; right: 0; width: fit-content; margin-inline: auto;
+  display: flex; align-items: center; pointer-events: auto;
+  background: rgba(6, 9, 22, 0.72);
+  border: var(--ui-scale) solid rgba(214, 221, 255, 0.14);
+  border-top: none;
+}
+/* hairlines between the squares: one slab divided, rather than a row of separate buttons */
+#touchPanels .touch-btn + .touch-btn {
+  border-left: var(--ui-scale) solid rgba(214, 221, 255, 0.10);
 }
 /* on the rail, so no rim of their own: a border inside a border is what the old set looked like */
 #touch .touch-btn {
@@ -1405,9 +1427,12 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #status { top: var(--safe-top); left: var(--safe-left); }
   #inventory { top: calc(var(--safe-top) + 44px); left: var(--safe-left); }
   #minimap { top: var(--safe-top); right: var(--safe-right); }
-  #areaName { top: var(--safe-top); }
+  /* under the rail rather than behind it: the rail is 48 tall and the name wants air under it */
+  #areaName { top: calc(var(--safe-top) + 52px); }
   #compass { top: calc(var(--safe-top) + 32px); }
-  #touchPanels { top: calc(var(--safe-top) + 58px); }
+  #touchPanels { top: 0; }
+  /* the compass sits under the rail rather than behind it, now that the rail is on the edge */
+  #compass { top: calc(var(--safe-top) + 96px); }
   #chatPanel, #toast, #duelbar { left: var(--safe-left); }
   /* under the pack panel, which ends at 108, and clear of the button rail's underside at 112 */
   #duelbar { top: calc(var(--safe-top) + 116px); }

@@ -3865,7 +3865,28 @@ than by remembering — and the first thing found was that the gap is not where 
       And the map lost its button: the little map opens the big one when you press it. A picture of
       where you are is the obvious thing to press when you want a bigger picture of where you are.
 
-- [ ] **67. The phone's button row, done properly.** The awkward set across the top middle can go
+- [~] **67. The phone's button row, done properly.** *The row is a rail on the edge now.* It used to
+      float clear of the top with a rim all the way round and a shadow under it, which on a phone
+      held sideways reads as a dialog somebody left open over the game. `design/HudPhone.dc.html`
+      had the answer already and this is it: **flush into the top edge** so it belongs to the frame
+      rather than to the world, no top rim because the edge of the screen is the rim, hairlines
+      between the squares instead of gaps between buttons, and translucent enough that the country
+      shows through. The place name sits under it and the compass under that, rather than both being
+      drawn behind it.
+
+      The map button is gone: the corner map opens the big one when pressed, which buys back a
+      square of a screen that is 390 tall.
+
+      One bug found doing it, and it is the sort that only a screenshot finds: the phone breakpoint
+      centres the rail **between the status block and the corner map** rather than on the screen —
+      given their two edges and told to find the middle, which is a nice idea — and a
+      `translateX(-50%)` on top of that shifted it half its own width to the left. Centred by margin
+      now.
+
+      Left of the design, and worth doing next: the status block in the top-left is still a box
+      rather than being *flush into the corner*, and the news is two big slabs where the design has
+      thin bands off the left edge. And the thumb ring is drawn at rest where the design says the
+      corner should be world until a finger lands on it. The awkward set across the top middle can go
       now that the minimap opens the map and the panels have numbers. What replaces it is a design
       question rather than a plumbing one — and there is a design already in the repo (`design/`,
       `HudPhone.dc.html` and `TitlePhone.dc.html`) which is the right place to start rather than
