@@ -158,3 +158,59 @@ export class Craft {
     return 'flying';
   }
 }
+
+/**
+ * The craft as the rest of the game meets it: something to climb into, and something to climb out of.
+ *
+ * The same shape `createWing` has, because the hero's `carries` seam takes either without knowing
+ * which it holds — a thing that is flying, told each frame which way the keys are pointing. What
+ * differs is everything inside it, and one thing outside: a wing is kit you bought and can open
+ * anywhere there is air, and this is a place. You find it, you get in, and when you get out you are
+ * standing wherever you put it down.
+ */
+export function createCraft(o: {
+  world: () => AirBelow;
+  hero: () => Entity;
+  say: (line: string) => void;
+  /** The sea, or a hillside met at speed. The same door the wolves use. */
+  knockOut: (cause: string) => void;
+  /** Whatever else the hero was carrying, handed back when he climbs out. */
+  onLanded: () => void;
+}) {
+  const craft = new Craft();
+  return {
+    get flying(): boolean { return craft.flying; },
+    get altitude(): number { return craft.altitude; },
+    get speed(): number { return craft.speed; },
+
+    /** Climb in, if there is ground under it to lift off from. */
+    lift(): boolean {
+      const hero = o.hero();
+      const ground = o.world().heightAt(hero.x, hero.z);
+      if (ground === null || !craft.lift(hero, ground)) return false;
+      o.say('Something under the hull answers you, and the ground lets go.');
+      return true;
+    },
+
+    /** Set it down where it is. Answers false when it was never up. */
+    land(): boolean {
+      if (!craft.flying) return false;
+      craft.land();
+      o.say('You set it down and the humming stops.');
+      o.onLanded();
+      return true;
+    },
+
+    /** Put it away without a word: a knockout, a doorway, a teleport, the title screen. */
+    fold(): void { craft.land(); },
+
+    update(dt: number, steer: Steer, hero: Entity, world: AirBelow): Landing {
+      const how = craft.update(dt, steer, hero, world);
+      if (how === 'water') { o.knockOut('The sea'); o.onLanded(); }
+      if (how === 'hit') { o.say('You put it into the hillside.'); o.knockOut('The ground'); o.onLanded(); }
+      return how;
+    },
+  };
+}
+
+export type Flier = ReturnType<typeof createCraft>;

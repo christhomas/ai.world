@@ -52,5 +52,5 @@ export const enum StructureKind {
    * makes it findable rather than given. See `landmarks.ts` for where it lands and `game/craft.ts`
    * for what it is like to fly.
    */
-  Hulk = 26,
+  Derelict = 26,
 }

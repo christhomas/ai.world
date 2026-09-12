@@ -194,7 +194,7 @@ export interface Structures {
   caves: Site[];
   wrecks: Site[];
   /** The one craft that came down in this country, if it turned one up. */
-  hulks: Site[];
+  derelicts: Site[];
   /** The castles: rare, enormous, and each the mouth of its own anchor. See `castles.ts`. */
   castles: Castle[];
 }
@@ -258,7 +258,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
-  const hulks: Site[] = [];
+  const derelicts: Site[] = [];
   const castles: Castle[] = [];
   const doors: Doorway[] = [];
   const usedNames = new Set<string>();
@@ -623,7 +623,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
   signposts.push(...between.signposts);
   caves.push(...between.caves);
   wrecks.push(...between.wrecks);
-  hulks.push(...between.hulks);
+  derelicts.push(...between.derelicts);
   castles.push(...between.castles);
 
   // --- doorways: every house, shop and chapel can be walked into ---
@@ -644,7 +644,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     }
   }
 
-  return { doors, villages, pois, all, piers, signposts, caves, wrecks, hulks, castles };
+  return { doors, villages, pois, all, piers, signposts, caves, wrecks, derelicts, castles };
 }
 
 /** The tile just outside a building's door. */

@@ -25,7 +25,7 @@ import { TileType, type TerrainSampler, type TileSample } from './terrain';
  */
 
 /**
- * How far out the hulk came down, in tiles.
+ * How far out the derelict came down, in tiles.
  *
  * Far enough that it is not the second thing anybody sees. The middle of the world is where
  * somebody starts, and a craft from somewhere else parked by the first village would be a gift
@@ -38,14 +38,14 @@ const FAR_FROM_THE_MIDDLE = 180;
 export const CAVES = 10;
 export const WRECKS = 8;
 /**
- * How many hulks a world has: one.
+ * How many derelicts a world has: one.
  *
  * The thing you find once. Ten caves and eight wrecks are scenery a country is made of — you learn
  * that this world has caves in it and then you stop noticing them — and this is the opposite: a
  * single grey shape on open ground that is not made of anything else in the country, and either you
  * have found it or you have not.
  */
-export const HULKS = 1;
+export const DERELICTS = 1;
 const SITE_SPACING = 60;
 const CAVE_NAMES = ['Weeping Cave', 'Bat Hollow', 'Deep Crack', 'Smugglers\' Cave', 'Blackmouth Cave', 'Echo Cave', 'Cold Crawl', 'Miner\'s Fault', 'Rattling Cave', 'Hermit\'s Cave'];
 const WRECK_NAMES = ['Wreck of the Marigold', 'Broken Keel', 'Wreck of the Tern', 'Salt Bones', 'Wreck of the Gull', 'Old Hull', 'Wreck of the Wren', 'Storm\'s Toll'];
@@ -84,7 +84,7 @@ export interface Marked {
   caves: Site[];
   wrecks: Site[];
   /** The one craft that came down here. Empty in a country that has not turned one up. */
-  hulks: Site[];
+  derelicts: Site[];
   castles: Castle[];
 }
 
@@ -107,7 +107,7 @@ export function markTheWay(o: Between): Marked {
   const signposts: Signpost[] = [];
   const caves: Site[] = [];
   const wrecks: Site[] = [];
-  const hulks: Site[] = [];
+  const derelicts: Site[] = [];
   const castles: Castle[] = [];
 
   // --- piers: one on each shore per island, pointing at each other ---
@@ -160,7 +160,7 @@ export function markTheWay(o: Between): Marked {
   const siteNodes = graph.nodes.map((n, i) => ({ n, i })).filter(({ n }) => n.depth >= 2);
   shuffle(rng, siteNodes);
   for (const { n } of siteNodes) {
-    if (caves.length >= CAVES && wrecks.length >= WRECKS && hulks.length >= HULKS) break;
+    if (caves.length >= CAVES && wrecks.length >= WRECKS && derelicts.length >= DERELICTS) break;
     const probe = sampler.landProbe(n.x, n.z);
     if (!probe) continue;
     const side = rng() < 0.5 ? -1 : 1;
@@ -197,19 +197,19 @@ export function markTheWay(o: Between): Marked {
         break;
       }
       /*
-       * The hulk: open, ordinary ground, well away from anybody.
+       * The derelict: open, ordinary ground, well away from anybody.
        *
        * Not a beach and not a cliff, which is what makes it read as *wrong* — every other thing in
        * the landscape is somewhere that explains it, and this is in the middle of a field. Ordinary
        * ground also means the shape is not lost against a cliff face, which is most of how a player
        * notices it from a distance.
        */
-      if (hulks.length < HULKS && level >= 1 && level <= 3
+      if (derelicts.length < DERELICTS && level >= 1 && level <= 3
         && (sample.type === TileType.Ground || sample.type === TileType.GroundAlt)
         && Math.hypot(x, z) > FAR_FROM_THE_MIDDLE) {
         const biome = sampler.biomeOf(x, z);
-        all.push({ kind: StructureKind.Hulk, tx: x, tz: z, hw: 3, hd: 2, level, rot: rng() * Math.PI * 2, biome, path: [] });
-        hulks.push({ id: `hulk:${x},${z}`, name: 'The Hulk', x: x + 0.5, z: z + 0.5 });
+        all.push({ kind: StructureKind.Derelict, tx: x, tz: z, hw: 3, hd: 2, level, rot: rng() * Math.PI * 2, biome, path: [] });
+        derelicts.push({ id: `derelict:${x},${z}`, name: 'A Fallen Star', x: x + 0.5, z: z + 0.5 });
         break;
       }
       if (sample.type === TileType.Sand && level <= 1 && wrecks.length < WRECKS) {
@@ -251,7 +251,7 @@ export function markTheWay(o: Between): Marked {
     if (raised) castles.push(raised);
   }
 
-  return { piers, signposts, caves, wrecks, hulks, castles };
+  return { piers, signposts, caves, wrecks, derelicts, castles };
 }
 
 /**
@@ -374,10 +374,10 @@ export function markThePlaces(o: Places): Marked {
     if (raised) castles.push(raised);
   }
   void footprintOk;
-  // no hulk out here yet. A world with an edge can say "one to a world" and mean it; the endless
+  // no derelict out here yet. A world with an edge can say "one to a world" and mean it; the endless
   // country cannot count, so it needs the same treatment `CROWNED` gives a castle — a chance per
   // place rather than a quota — and that is a piece of work rather than a line
-  return { piers, signposts, caves, wrecks, hulks: [], castles };
+  return { piers, signposts, caves, wrecks, derelicts: [], castles };
 }
 
 /**

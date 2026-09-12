@@ -6,7 +6,7 @@ import { STONES_KEPT } from './settlement';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
-import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, type Memory, type Person } from './people';
+import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, remember, stageOf, surnameOf, tradeTakenUp, type Memory, type Person } from './people';
 import { compactAll, type Opinion } from './memory';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
 
@@ -566,7 +566,7 @@ export class Register {
 
     for (const person of village.people) {
       if (person.trade === '' && stageOf(person, day) === 'adult' && village.trades.length > 0) {
-        person.trade = village.trades[Math.floor(rng() * village.trades.length)];
+        person.trade = tradeTakenUp(person, village.trades, village, rng);
       }
       if (person.knows.length >= LIFE.KNOWS) continue;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from './register';
-import { LIFE, ageOf, firstNameOf, stageOf, surnameOf, type Person } from './people';
+import { LIFE, ageOf, firstNameOf, stageOf, surnameOf, tradeTakenUp, type Person } from './people';
 import { FORTUNE } from './fortunes';
 
 const TRADES = ['farmer', 'hunter', 'seller'];
@@ -397,5 +397,82 @@ describe('what a purse does when its owner dies', () => {
     const before = between(register);
     register.bury(lonely.id, 5);
     expect(between(register)).toBeCloseTo(before, 2);
+  });
+});
+
+/**
+ * A trade is inherited rather than rolled.
+ *
+ * The register has drawn mothers and fathers since the first day it existed and nothing in the
+ * world has ever read them: a grown child took `village.trades[random]`, which made a village a bag
+ * of jobs that happened to contain some people. A farmer's child takes the farm now, and the
+ * household is the first thing in this simulation that persists across a death.
+ */
+describe('what a grown child does for a living', () => {
+  const TRADE_LIST = ['farmer', 'hunter', 'seller'];
+  /** An rng that hands out exactly these draws, so a one-in-ten can be asked for on purpose. */
+  const draws = (...values: number[]): (() => number) => {
+    let at = 0;
+    return () => values[at++ % values.length];
+  };
+  const child = (mother: string, father = ''): Person =>
+    ({ ...bare, name: 'Kees Vos', mother, father });
+  const bare: Person = {
+    id: 'x', name: '', village: 'Ashford', trade: '', born: 0, lives: 70,
+    mother: '', father: '', knows: [], memories: [], opinions: [], purse: 0, hungry: 0,
+  };
+  const villageOf = (people: Person[], buried: { name: string; trade: string }[] = []) =>
+    ({ people, buried });
+
+  it('takes the family trade', () => {
+    const father = { ...bare, name: 'Wim Vos', trade: 'farmer' };
+    const took = tradeTakenUp(child('', 'Wim Vos'), TRADE_LIST, villageOf([father]), draws(0.9, 0.9));
+    expect(took).toBe('farmer');
+  });
+
+  it('lets one in ten strike out and take another', () => {
+    const father = { ...bare, name: 'Wim Vos', trade: 'farmer' };
+    // 0.05 is inside STRIKES_OUT, so the next draw is a roll against the whole list
+    const took = tradeTakenUp(child('', 'Wim Vos'), TRADE_LIST, villageOf([father]), draws(0.05, 0.99));
+    expect(took).toBe('seller');
+  });
+
+  it('follows a parent who is already buried, which is the ordinary case', () => {
+    // a farm is handed on at a funeral far more often than it is handed over
+    const took = tradeTakenUp(
+      child('Greta Vos'), TRADE_LIST, villageOf([], [{ name: 'Greta Vos', trade: 'hunter' }]), draws(0.9, 0.9),
+    );
+    expect(took).toBe('hunter');
+  });
+
+  it('rolls for somebody whose parents the village never knew', () => {
+    const took = tradeTakenUp(child('Nobody At All'), TRADE_LIST, villageOf([]), draws(0.0));
+    expect(took).toBe('farmer');
+  });
+
+  it('will not hand on a trade this village can no longer support', () => {
+    // the miner's son of a village that has lost its mine has to do something else
+    const father = { ...bare, name: 'Wim Vos', trade: 'miner' };
+    const took = tradeTakenUp(child('', 'Wim Vos'), TRADE_LIST, villageOf([father]), draws(0.0));
+    expect(took).not.toBe('miner');
+    expect(TRADE_LIST).toContain(took);
+  });
+
+  it('leaves a village where most people do what their parents did', () => {
+    const register = new Register(7);
+    register.settle('Ashford', 9, TRADE_LIST);
+    register.advance(90);
+
+    const people = register.living('Ashford');
+    const byName = new Map<string, string>();
+    for (const stone of register.churchyard('Ashford')) byName.set(stone.name, stone.trade);
+    for (const person of people) byName.set(person.name, person.trade);
+    const followed = people
+      .filter((p) => p.trade !== '' && ((byName.get(p.mother) ?? '') !== '' || (byName.get(p.father) ?? '') !== ''))
+      .map((p) => p.trade === byName.get(p.mother) || p.trade === byName.get(p.father));
+
+    expect(followed.length, 'nobody in this village has a living parent with a trade').toBeGreaterThan(2);
+    const share = followed.filter(Boolean).length / followed.length;
+    expect(share, 'a trade is still being rolled rather than inherited').toBeGreaterThan(0.5);
   });
 });

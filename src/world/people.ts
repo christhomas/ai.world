@@ -38,6 +38,16 @@ export const LIFE = {
   REMEMBERS: 2,
   /** Children per household at founding, at most. */
   CHILDREN: 2,
+  /**
+   * How often a grown child turns their back on the family trade and takes another.
+   *
+   * A farmer's child takes the farm, because that is how a trade has always been handed on and
+   * because it is what makes a family mean anything: the register has drawn mothers and fathers
+   * since the beginning and nothing in the world has ever read them. One in ten strikes out, which
+   * is what stops a village ossifying into the same four households doing the same four jobs
+   * forever — and what lets a village that has lost its only doctor ever get another.
+   */
+  STRIKES_OUT: 0.1,
 } as const;
 
 export type Stage = 'baby' | 'child' | 'adult';
@@ -245,6 +255,52 @@ function born(
     purse: 0,
     hungry: 0,
   };
+}
+
+/**
+ * What somebody takes up when they come of age.
+ *
+ * Until now it was a coin toss against everything the village supports, which made a village a bag
+ * of jobs that happened to contain some people. A trade is inherited: a farmer's child takes the
+ * farm, a miner's child goes down the same shaft, and a household is a thing that persists rather
+ * than a surname two people happen to share.
+ *
+ * Both parents are looked at and one of them followed, so a farmer who marries a miner raises one
+ * of each over time — and `LIFE.STRIKES_OUT` of them follow neither. That last part is not a
+ * flourish: without it a village whose only doctor dies childless has no way of ever having a
+ * doctor again, and every village converges on whichever trades happened to breed best.
+ *
+ * The dead count. A parent is usually buried by the time their child is grown, and a farm handed
+ * on at a funeral is the ordinary case rather than the exception — so the churchyard is searched
+ * when the living do not know the name. `Burial` keeps a trade for exactly this sort of question.
+ */
+export function tradeTakenUp(
+  person: Person, trades: readonly string[], village: Village, rng: () => number,
+): string {
+  const rolled = () => trades[Math.floor(rng() * trades.length)];
+  const family = [person.mother, person.father]
+    .map((name) => tradeOnceHeldBy(village, name))
+    .filter((trade) => trade !== '' && trades.includes(trade));
+  if (family.length === 0 || rng() < LIFE.STRIKES_OUT) return rolled();
+  return family[Math.floor(rng() * family.length)];
+}
+
+/** Whoever a village can be asked about: the living, and the stones that are still legible. */
+interface Village {
+  people: readonly Person[];
+  buried: readonly { name: string; trade: string }[];
+}
+
+/** What somebody of this name did for a living, living or buried. Empty for a stranger. */
+function tradeOnceHeldBy(village: Village, name: string): string {
+  if (name === '') return '';
+  const living = village.people.find((p) => p.name === name);
+  if (living) return living.trade;
+  // newest first: a name can be reused down the years, and the recent stone is the parent
+  for (let at = village.buried.length - 1; at >= 0; at--) {
+    if (village.buried[at].name === name) return village.buried[at].trade;
+  }
+  return '';
 }
 
 /**

@@ -503,6 +503,8 @@ export function startGame(
     dialogue, hud, chat, sound,
     raining: () => frames.raining(), discover, persist, startTalk, questLine,
     told: (delta) => online.report(delta),
+    // built further down this file, and only ever asked for on a key press: see `waysin.ts`
+    craft: () => craft,
   });
   const { atHand: talkNearest, offerTrade, partyMenu, noticeStall, takeShare, musterHires, hireFallen, hireMenu, tryGive } = interactions;
   splitTakings = takeShare;
@@ -607,7 +609,7 @@ export function startGame(
   });
 
   // the air, the ground and the sea: a wing, a shaft and a whirlpool. See `game/waysin.ts`.
-  const { air, shafts, swallows } = createWaysIn({
+  const { air, craft, shafts, swallows } = createWaysIn({
     seed, state, places, player, sailing, chunks, discover,
     say: (line) => hud.flash(line), knockOut: (why) => blows.knockOut(why) });
   // and what every key does, in one place

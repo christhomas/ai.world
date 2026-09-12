@@ -465,7 +465,7 @@ prop(PropKind.Shipwreck, [
 ]);
 
 /*
- * The hulk: something that came down here, a long time before anybody was watching.
+ * The derelict: something that came down here, a long time before anybody was watching.
  *
  * It reads as wrong on purpose. Everything else in this country is timber, thatch, stone and
  * canvas in the colours those come in; this is one smooth grey shell, a canopy the wrong colour for
@@ -476,7 +476,7 @@ prop(PropKind.Shipwreck, [
  * up, and the ground around it is scorched — `landmarks.ts` puts it on open ground for that reason,
  * so the shape is not lost against a cliff.
  */
-prop(PropKind.Hulk, [
+prop(PropKind.Derelict, [
   box(4.6, 1.1, 2.4, 0x8f97a3, [0, 0.7, 0], [1, 1, 1], [0, 0, -0.14]),
   box(2.6, 0.7, 1.9, 0x9aa3b0, [0.6, 1.35, 0], [1, 1, 1], [0, 0, -0.14]),
   box(1.5, 0.45, 1.2, 0x2f5d6d, [1.1, 1.75, 0], [1, 1, 1], [0, 0, -0.14]),

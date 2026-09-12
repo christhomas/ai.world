@@ -3088,7 +3088,7 @@ in the order they would sensibly be built, which is not the order they arrived i
       *means* should be one function both call, in `consequences.ts` where the rest of "what follows"
       already lives. `authority.test.ts` has the fake to hold it.
 
-- [ ] **27. Zarch, the rest of it.** `game/craft.ts` flies and `PropKind.Hulk` is drawn. What is
+- [ ] **27. Zarch, the rest of it.** `game/craft.ts` flies and `PropKind.Derelict` is drawn. What is
       left: where it crashes (one to a world, on open ground, well away from the villages), climbing
       in and out, and the gun — which is `archery.ts`'s height-aware shot with a different noise,
       because that is already the one thing in the game that can reach something which is not
@@ -3099,3 +3099,210 @@ in the order they would sensibly be built, which is not the order they arrived i
       `shots.cjs` can now do, since the Domesday shot already opens a second page and joins a real
       server. And nobody has yet played kill → skin with a knife → carry the pelt to a country that
       pays for it, which is the loop **22** was supposed to make possible again.
+
+## The economy as a simulation — September 12th
+
+Talked through at length on the morning of the 12th. Numbered so a decision can be given as "29:
+yes" rather than re-argued. Numbers are never reused, here or in chat.
+
+- [ ] **24a. The mayor enrols the trades.** Today a grown child takes `village.trades[random]` —
+      `register.ts:638`, a coin toss. Instead the mayor looks at what the village is missing and
+      enrols the next adult into it: no doctor, next adult is a doctor. A mayor exists from day one
+      and is just a villager with the job; the hall is a building they eventually get, and until
+      then the paperwork is magic — assumed, never counted. Enrolment is **not** a wage: nothing
+      leaves the treasury, which is what keeps the hall's money free for building. The hall doubles
+      as a directory — where the doctor is, where the builder drinks — which is the beginning of a
+      job market, and vacancies are a thing a player can read and answer.
+
+- [ ] **29. Provinces with a character of their own.** Asked for as "a variety of danger and
+      different terrains and frontiers". A province's seed is `hash(rootSeed, px, pz)` — derived
+      from where it is, never from how you got there — and from it: what lives there, how dangerous
+      it is, which landscape dominates. Big structures (a range, a desert belt) come from
+      low-frequency noise, which is how biomes already work; per-province flavour comes from the
+      hash. No precomputation: both are evaluated where the player is standing, one hash per chunk
+      against the dozens of noise samples already taken. This is the answer to the rings question,
+      and it keeps the one rule the endless country rests on.
+
+- [x] **30. A trade is inherited, not rolled.** A farmer's child takes the farm — `tradeTakenUp` in
+      `world/people.ts`, called from `growUp`. Both parents are looked at and one of them followed,
+      so a farmer who marries a miner raises one of each over time, and one in ten
+      (`LIFE.STRIKES_OUT`) follows neither. That last tenth is not a flourish: without it a village
+      whose only doctor dies childless can never have a doctor again, and every village converges on
+      whichever trades happened to breed best. The churchyard is searched when the living do not know
+      the name, because a farm handed on at a funeral is the ordinary case rather than the exception
+      — `Burial` has kept a trade all along for exactly this sort of question. Six tests in
+      `register.test.ts`, the last of which holds a village at 90 days to more than half of its
+      people doing what a parent did.
+
+- [ ] **31. The sanity bench.** `chore economy` proves coin conservation and would say nothing at
+      all about a map full of cow sheds, because every shed was paid for honestly. A second bench,
+      over 400+ days rather than 100: population inside a sane band, every trade still represented,
+      no village holding more buildings than people, no purse or hall holding an absurd share of
+      the world's money, herds and fields inside what the land could carry. The guard rail for
+      everything else in this section — build it first.
+
+- [ ] **32. A map of one province, priced like a week's work.** The fog and the Region Map already
+      exist: `state.explored` fills in as you walk and a 25-gold trinket lifts it. Twenty-five gold
+      is a tenth of a boat for the removal of every reason to explore, and in an endless world one
+      map cannot cover "the region" anyway. One map per province, sold where that province is, dear
+      enough to be a decision — and a thing worth carrying to the next valley, where they have never
+      seen this one.
+
+- [ ] **33. A farm you can improve.** A farmer pays a builder for a bigger stable —
+      `LIVELIHOOD.HERD_PER_FARMER` becomes a number per farm rather than a constant for the world —
+      or clears trees to widen the fields (`FOOD.PER_FARMER`). The first money in the game that buys
+      *capacity* rather than a thing, and it gives the builder a third customer after the player and
+      the village. Clearing land is the expensive half: it is a permanent difference between the
+      world as generated and the world as it is, so it wants a bound — a farm may clear only so far
+      from its own buildings, or a village deforests a county over a century.
+
+- [ ] **34. Households.** Sex on the register, so the family tree the clerk already draws reads
+      properly — today `fillTheGaps` picks any two adults as mother and father. Pairs form, one or
+      two children arrive, and the mechanics of neither are simulated. Population stops being capped
+      at `founded` and becomes a floor: gold buys a house, a house holds a family. What must be
+      measured before it ships is the doubling — the only brakes are age, hunger, wolves and
+      dragons, and **31** is how we would find out.
+
+- [ ] **46. A woman looks like a woman.** The other half of **34**: sex goes on the register so the
+      family tree reads properly, and the moment it is there it should be *visible* — long hair and
+      a dress, which is what a medieval village looked like and what makes a street readable at the
+      distance this camera watches one from. The machinery is already built and already used for
+      exactly this kind of thing: `BODIES` in `entities/trades.ts` gives a miner, a farmer, a doctor,
+      a constable and a priest a silhouette of their own, and the rule it follows is the one to
+      follow here — the shape carries it, never the colour. Two more bodies in
+      `models/creatures/`, chosen by sex rather than by trade, and a woman with a trade takes the
+      trade's hat over the dress the way a real one would.
+
+- [ ] **35. Capabilities, and holdings that outlive a person.** Two ideas that compose. A person
+      carries what they can do — `can_farm`, `can_build`, `can_mine`, `can_fish` — granted by
+      inheritance, by being hired and taught, or by the mayor enrolling them. A *trade* separately
+      says whether the work leaves a **holding** standing when the worker dies: a farm with beasts,
+      a builder's yard with jobs registered at the hall, a boat. A doctor has none, so losing one
+      costs a village differently. `can_fish` is the one capability that does not exist yet and must
+      be unlocked by infrastructure — no harbour, no fishermen — which is what makes **23** the
+      first thing in this economy that pays for itself.
+
+- [ ] **36. A villager who can be hurt.** A builder met by a wolf can run, fight back, or be hurt —
+      and then go to the doctor, take a bed, buy medicine, or be treated for nothing. Another
+      dimension for the register's people, and the first use the doctor has ever had.
+
+- [ ] **37. The hall holds the money until the work is done.** You pay the mayor, not the builder;
+      the builder registers the job at the hall; the money is handed over when the thing is
+      standing. That is what lets another builder take over a half-built house when the first one is
+      killed — and it answers the objection that kept builders off the register in the first place,
+      that "a builder who can be carried off by a wolf half way through the job is a house that
+      dangles".
+
+- [ ] **38. A dragon takes the herd.** What a dragon is *for*, economically. It flies a round of four
+      stops across a quarter of the country (`ROAM`), and a village it passes over loses beasts —
+      `Settlement.herd`, the number the farmers' whole living is made of. A village does not merely
+      fear it, it gets poorer, the Domesday Book shows the herd falling, and killing the thing is
+      worth doing for reasons anybody in the village could explain. Better than a dragon that eats
+      people, because bands already do that and because a herd is a thing the economy can feel.
+
+- [ ] **39. A farmer hires men to keep the cows safe.** The natural answer to 38, and the machinery
+      is already built: `hires.ts` has contracts with a term, a price that follows the danger, an
+      extension offered before they lapse and orders you can give — all of it aimed at the player
+      hiring swords. Pointing it at a villager is the same bargain with a different signatory.
+
+      What it buys the economy is the thing it is short of: a *reason* for money to move from a
+      farmer to a soldier. Soldiers earn from beyond the village today, which is the polite way of
+      saying their wage is invented. A farmer paying two men to stand in a field through a dragon's
+      week is money moving inside the valley for a service somebody actually needed — and if he
+      does not pay, he loses beasts, which is the same decision the player makes about a warband.
+
+- [ ] **24b. The mayor offers to build a hall.** When the treasury reaches the price, the mayor puts
+      it to the village and a builder raises it — the same `Commission` the player's house uses, with
+      the village as the customer and the hall's purse paying. It needs a price (a hall is the most a
+      village ever spends, so it wants to be a year or two of taxes rather than a season) and it is
+      the first thing the treasury is *for*, which is the answer to the bench's finding that a hall
+      which only collects is a drain.
+
+- [ ] **40. Every building looks unfinished before it is finished.** `CATALOGUE` already gives each
+      kind its own number of days — a house six, a storey four, a pool three, a fountain two — but
+      only the house has the four stages that make waiting worth watching: pegs, frame, rafters,
+      roof. A pool and a fountain are pegs and string until the last morning, and a storey draws
+      nothing at all. Each kind wants its own under-construction geometry, and the day it has one is
+      the day riding past a site twice is worth doing for every kind of building rather than one.
+
+- [ ] **45. The builder builds boats.** A boat is a thing a builder makes, which gives the yard a
+      customer that is not a house and gives **23** a reason beyond the ferry. It is gated by the
+      ground the way every other trade is: water within reach, and a jetty to tie up at — so the
+      order is harbour first (**23**), then boats, then the fishermen who work off them (**41**).
+      The hulls already exist (the ferry's, the fishing boat **41** wants), and `BUILDS` already
+      takes a site kind, so the new part is the water check and a mooring that belongs to whoever
+      paid for it. It is also the first thing a village can build that *moves*, which is what makes
+      a coastal village different from an inland one in a way a player can see from the shore.
+
+- [ ] **41. Fishermen, and what a coast eats.** `can_fish` from **35** needs somewhere to come from
+      and something to bring back. A coastal village lives partly off the water: shellfish as a
+      staple — gathered rather than hunted, so it is a floor under a coastal larder the way
+      `PROSPER.A_DAY` is a floor under a wage — and fish from boats, which is the paid half.
+      Wants a fishing boat, a net, and the fish landed on the deck where somebody can see them;
+      the boat is a model the game does not have, the net is an animation, and the catch is a
+      number in `livelihoods.ts` beside the herd. The reason to build it: a harbour (**23**) that
+      creates a livelihood is the first thing in this economy that pays for itself.
+
+
+## What the economy is for — September 12th
+
+Three things said while 30 was being built, which between them are the shape of the whole
+simulation rather than any one feature in it.
+
+- [ ] **42. `can_form`: a trade that can found another of itself.** A typo — `can_form` for
+      `can_farm` — that turned out to name something the design was missing, and is worth keeping
+      under some name. `can_farm` is a *capability*: this person knows how to work a field. `can_form`
+      is the thing above it: a farmer who has earned enough can **form another farm** — buy the
+      beasts, raise the shed, and put somebody in it — and a builder who has earned enough can take
+      on a second yard. It is the difference between a person who does the work and a holding that
+      can reproduce, and it is the engine under **25**: the money a trade earns does not only feed
+      its holder, it buys the next one of itself.
+
+      Which trades can do it follows from **35**: a trade that leaves a holding standing when its
+      holder dies (a farm with beasts, a yard with jobs at the hall, a boat) is a trade that can
+      found another. A doctor cannot — there is no second surgery to buy — so a village gets more
+      doctors only by enrolment (**24a**), never by multiplication. That asymmetry is worth having:
+      it is why a village fills up with farmers and still has exactly one doctor.
+
+      **And it is not a property that gates people.** Every villager has it: anybody may decide to
+      take up a trade, because everybody has to eat and mining, hunting and farming are how eating
+      is paid for. So there is no class of villager who is barred from becoming something — what
+      varies is the *trade*, not the person. Three things decide what somebody can actually be, and
+      none of them is a licence: what the place supports (`Trade.needs` in `entities/trades.ts` —
+      no shore, no sailor), what they were taught (inheritance, **30**), and what the village is
+      short of (the mayor's enrolment, **24a**). That keeps the capability list honest: `can_farm`
+      and the rest describe what somebody has *learned to do*, and are never a permission to learn
+      it.
+
+- [ ] **43. The world starts established, and the economy's job is to keep it that way.** Stated
+      plainly, because it changes what the bench is measuring: the first villages are *put* there.
+      They are not bootstrapped from one family with an axe — a world that had to grow itself from
+      nothing before anything was interesting would be a boring world to arrive in. The seed places
+      villages of the size they would have reached, with a food store, a herd and a spread of ages,
+      and the assumption is that they have been standing for years.
+
+      So the economy is never asked to *create* a civilisation; it is asked to **sustain** one and
+      then to grow it. That makes the sanity bench (**31**) a test of survival before it is a test of
+      growth: run the villages the seed actually places, for 400 days, and the first question is
+      whether they are still there. A model that cannot hold what it was handed has failed before
+      any question about expansion is worth asking.
+
+- [ ] **44. Houses are the cap, and tax is how a village lifts it.** The loop that makes the whole
+      thing drive itself, and every piece of it exists except the joins:
+
+      1. `register.ts` will not let a village grow past the size it was founded at — births only
+         backfill the dead (`const missing = village.founded - village.people.length`). Houses are
+         what that ceiling should be made of: a house holds a household, so `founded` rises when a
+         house is raised and never otherwise.
+      2. A house is decided on by whoever can pay for it — a villager with enough gold, or the hall
+         with enough tax (**24b**). Wealth is already tracked per person and `prosperity.ts` already
+         spends it on a second storey.
+      3. The mayor knows where the builder is (**24a**, the hall as a directory), the builder takes
+         the job (**37**, the hall holding the money until it is finished), and the house goes up
+         the way the player's own house does — a `Commission` drawn by `BuildingSite`.
+      4. More people means more earners, which means more tax, which means the next house.
+
+      The brake has to be ground rather than arithmetic: a new house needs a plot that passes the
+      same footprint check the player's does, so a village in a narrow valley simply runs out of
+      room while one on a plain keeps going. That is also what makes two villages in one world
+      different from each other without anybody writing a rule saying so.

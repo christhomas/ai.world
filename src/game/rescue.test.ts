@@ -40,7 +40,7 @@ const cave = (id: string, x: number, z: number): Site => ({ id, name: `${id} Cav
 
 /** The world outside a village, holding only what this file ever looks at. */
 const around = (pois: Poi[] = [], caves: Site[] = [], wrecks: Site[] = []): Structures =>
-  ({ doors: [], villages: [], pois, all: [], piers: [], signposts: [], caves, wrecks, hulks: [], castles: [] });
+  ({ doors: [], villages: [], pois, all: [], piers: [], signposts: [], caves, wrecks, derelicts: [], castles: [] });
 
 /** A shrine one good walk away: somewhere to blame, kept by nothing. */
 const STONES = around([poi('Standing Stones', 40, 0)]);

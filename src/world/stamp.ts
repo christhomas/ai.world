@@ -286,7 +286,7 @@ export function structureProp(s: Structure, storeys = 1): PropKind {
     case StructureKind.NoticeBoard: return PropKind.NoticeBoard;
     case StructureKind.CaveMouth: return PropKind.CaveMouth;
     case StructureKind.Shipwreck: return PropKind.Shipwreck;
-    case StructureKind.Hulk: return PropKind.Hulk;
+    case StructureKind.Derelict: return PropKind.Derelict;
     case StructureKind.Fence: return PropKind.Fence;
     case StructureKind.Paddock: return PropKind.None;
     case StructureKind.CastleWard: return PropKind.None;
@@ -324,7 +324,7 @@ export function stampStructure(
     case StructureKind.Fence: stampSingleProp(chunk, ox, oz, s); break;
     case StructureKind.CaveMouth:
     case StructureKind.Shipwreck:
-    case StructureKind.Hulk:
+    case StructureKind.Derelict:
       stampFootprint(chunk, ox, oz, s);
       stampCentreProp(chunk, ox, oz, s);
       break;

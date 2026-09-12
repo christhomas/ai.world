@@ -81,6 +81,14 @@ export function createInteractions(ctx: Surroundings) {
     }
     // a body under your feet is the most specific thing there is, so it beats the village
     // furniture standing around it: a rabbit dropped in the square was unskinnable without this
+    /*
+     * The craft answers before anything else, in both directions.
+     *
+     * In the air it is the only thing a key could sensibly mean, and on the ground a hull that
+     * large is never what somebody was aiming past. It sits above the skinning because a body under
+     * the fin of a spacecraft is the less surprising of the two things to be told about.
+     */
+    if (travel.tryDerelict()) return;
     if (camp.trySkin()) return;
     /*
      * The ferry before the boatwright, and both before anything else on a pier.

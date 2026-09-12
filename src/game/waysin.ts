@@ -1,4 +1,5 @@
 import { createWing } from './gliding';
+import { createCraft } from './craft';
 import { createShafts, openCountry } from './shafts';
 import { createSwallows } from './swallows';
 import { liftAt } from '../world/thermals';
@@ -40,6 +41,21 @@ export function createWaysIn(o: {
   });
   player.carries(air);
 
+  /*
+   * And the thing in the crater, which is a place rather than a piece of kit.
+   *
+   * It borrows the same seam the wing uses — `player.carries` takes whatever is flying — so climbing
+   * in is a matter of handing the hero this instead, and climbing out is handing the wing back. Two
+   * things can never be open at once, which is right: nobody flies a hang glider out of a cockpit.
+   */
+  const craft = createCraft({
+    world: () => player.ground,
+    hero: () => player.entity,
+    say: o.say,
+    knockOut: o.knockOut,
+    onLanded: () => player.carries(air),
+  });
+
   // the holes in the ground, which take anybody carrying silk and nobody else
   const shafts = createShafts({
     seed, state, places,
@@ -56,5 +72,5 @@ export function createWaysIn(o: {
     say: o.say, knockOut: o.knockOut,
   });
 
-  return { air, shafts, swallows };
+  return { air, craft, shafts, swallows };
 }

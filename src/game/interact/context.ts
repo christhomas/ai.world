@@ -2,6 +2,7 @@ import type { ChunkManager } from '../../world/chunkManager';
 import type { EntityManager } from '../../entities/manager';
 import type { EntityRenderer } from '../../entities/pool';
 import type { Entity } from '../../entities/entity';
+import type { Flier } from '../craft';
 import type { Player } from '../../entities/player';
 import type { Eyrie } from '../eyries';
 import type { Skies } from '../skies';
@@ -142,6 +143,15 @@ export interface Surroundings {
    * a house bigger afterwards, whoever paid for it, and until this existed a house went up in one
    * player's save and nowhere else.
    */
+  /**
+   * The craft in the crater, asked for rather than held.
+   *
+   * `createWaysIn` is built after the interactions — the wing needs somewhere to say things, and
+   * saying things is this layer's business — so this is a closure over a thing that does not exist
+   * yet at the moment the interactions are made. The same arrangement the weather and the offer
+   * dialogue already use.
+   */
+  craft: () => Flier;
   told: (delta: {
     kind: 'built'; id: string; village: string; x: number; z: number; rot: number; day: number;
     /** What was ordered, and the building it was added to. Absent on a house, which is neither. */

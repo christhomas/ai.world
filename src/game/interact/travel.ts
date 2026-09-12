@@ -21,7 +21,10 @@ import { nearestVillageTill } from '../tills';
  * back down anywhere you have already been.
  */
 export function travelInteractions(ctx: Surroundings) {
-  const { player, state, structures, chunks, dialogue, hud, sound, sailing, ferries, eyries, persist } = ctx;
+  const { player, state, structures, chunks, dialogue, hud, sound, sailing, ferries, eyries, persist, discover } = ctx;
+
+  /** How near the hull you have to be for Enter to mean it, in tiles. It is a big thing to miss. */
+  const DERELICT_REACH = 4.5;
   const { skies, mount, discovered } = ctx;
 
   const dockTile = (line: FerryLine, end: 'from' | 'to'): [number, number] => {
@@ -124,6 +127,39 @@ export function travelInteractions(ctx: Surroundings) {
           return null;
         } },
         { label: 'Another time', next: () => null },
+      ],
+    });
+    return true;
+  };
+
+  /**
+   * The thing in the crater: climbing in, and setting it down again.
+   *
+   * One key for both, because they are the same question asked at two moments — Enter at the hull
+   * gets you in, Enter in the air puts you down wherever you are. No inventory, no purchase and no
+   * licence: it is a place you found, and the whole of the reward for finding it is that it works.
+   */
+  const tryDerelict = (): boolean => {
+    const flier = ctx.craft();
+    if (flier.flying) { flier.land(); return true; }
+    const derelict = structures.derelicts.find((h) => Math.hypot(h.x - player.x, h.z - player.z) < DERELICT_REACH);
+    if (!derelict) return false;
+    discover(derelict.name);
+    dialogue.start({
+      speaker: 'A Fallen Star', emoji: '🛸',
+      pages: [
+        'Grey, smooth, and nothing in this country is either. One fin is buried and the other stands'
+        + ' clear of the grass; a light on the flank has not gone out in all the time it has lain here.',
+        'There is a seat, and it is the right shape for you, which is the strangest thing about it.',
+      ],
+      choices: [
+        { label: 'Climb in', next: () => {
+          player.carries(flier);
+          if (!flier.lift()) hud.flash('Not here — it wants ground under it.');
+          else { sound.chime(); persist(); }
+          return null;
+        } },
+        { label: 'Leave it be', next: () => null },
       ],
     });
     return true;
@@ -327,5 +363,5 @@ export function travelInteractions(ctx: Surroundings) {
     });
   };
 
-  return { tryFerry, tryBoat, tryEagle, trySkyward, trySky, sailFerries, aboard };
+  return { tryFerry, tryBoat, tryDerelict, tryEagle, trySkyward, trySky, sailFerries, aboard };
 }
