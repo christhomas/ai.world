@@ -22,8 +22,16 @@ import { startServer, type RunningServer } from './serve';
  * part, and the encryption is below it.
  */
 
-/** Enough for a proxied handshake on a busy machine, and short enough to fail a test quickly. */
-const PATIENCE = 5_000;
+/**
+ * Enough for a proxied handshake on a busy machine, and short enough to fail a test quickly.
+ *
+ * Raised from five seconds to twenty on a day the machine was running at a load average of twenty
+ * and this failed eight times in a row while passing every time it was run on its own. That is not
+ * a handshake that is too slow, it is a wait that was measuring the machine — and a test that fails
+ * because something else is busy is worse than no test, because it teaches everybody to ignore it.
+ * What it still catches is the thing it was written for: a proxied upgrade that never completes.
+ */
+const PATIENCE = 20_000;
 
 /** The forwarded headers a real proxy adds. The server ignores both; a proxy still sends them. */
 const FORWARDED = ['X-Forwarded-Proto: https', 'X-Forwarded-For: 203.0.113.9'];

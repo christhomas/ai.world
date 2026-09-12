@@ -22,6 +22,7 @@ import type { Player } from '../entities/player';
 import { DungeonMinimap } from '../ui/dungeonmap';
 import { FACEWORK, putTheCrewToWork, type Digger } from './crews';
 import { ITEMS } from './items';
+import { nameOfHome } from '../world/homes';
 import type { Register } from '../world/register';
 import type { GameState } from './state';
 import type { HeroGear } from '../render/herogear';
@@ -45,6 +46,17 @@ export interface PlaceContext {
   fallen: (who: Entity) => void;
   /** Who lives in the villages, so a man killed underground is the man the street knows. */
   register: Register;
+  /**
+   * Whose house this is, for a door that opens onto one.
+   *
+   * Asked rather than worked out here: matching households to houses wants the village's own
+   * layout and its roll, and a room does not otherwise know what a village is. Empty for a free
+   * house — nobody's, standing, and a place anybody may shelter in.
+   *
+   * Optional, because a room can be stood up without a village behind it: a test that wants to know
+   * what the probes see indoors has no register and should not have to invent one.
+   */
+  familyOf?: (door: Doorway) => string;
   /**
    * And what a death in these workings does to the village that works them.
    *
@@ -168,6 +180,18 @@ export interface InteriorVisit {
   /** The doorway this room was entered by, so the game can tell one room from another. */
   door: Doorway;
   title: string;
+}
+
+/**
+ * What a room is called once it is known whose it is.
+ *
+ * A house is the only one of these that belongs to anybody: a store belongs to the village the way
+ * a road does. So this is one line of special case rather than a second naming scheme — "The Vos
+ * house in Ashford", or "An empty house in Ashford" for one nobody lives in any more.
+ */
+function titleOf(door: Doorway, family: string): string {
+  if (door.kind !== 'house') return interiorTitle(door.kind as InteriorKind, door.village);
+  return `${nameOfHome(family)} in ${door.village}`;
 }
 
 /** Where the hero stands when arriving underground: clear of the stairs, so the exit prompt waits. */
@@ -524,7 +548,7 @@ export class Places {
       this.ctx.register,
     );
     const keeper = map.keeper ? this.placeKeeper(map.keeper, door, crowd, rng) : null;
-    this.indoors = { world, scene, renderer, crowd, keeper, door, exit: [door.x, door.z], title: interiorTitle(door.kind as InteriorKind, door.village) };
+    this.indoors = { world, scene, renderer, crowd, keeper, door, exit: [door.x, door.z], title: titleOf(door, this.ctx.familyOf?.(door) ?? '') };
     this.ctx.chime();
   }
 

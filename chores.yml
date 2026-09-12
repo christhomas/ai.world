@@ -141,6 +141,19 @@ tasks:
     cmds:
       - 'echo "open http://localhost:5173/tools/faces.html (run: chore web) — or stay in the terminal with: chore art faces"'
 
+  # The design canvas in `design/`, from the terminal. `chore design` lists the artboards, `chore
+  # design read HudA` prints the words on one, and `chore design check` says where the drawing and
+  # the game have drifted apart — which is the one of the three worth running unprompted, because a
+  # design goes stale silently and nobody finds out until somebody builds from it.
+  design:
+    desc: Read the design canvas, and check it against the game
+    args: [what, which]
+    vars:
+      WHAT: ''
+      WHICH: ''
+    cmds:
+      - 'pnpm exec tsx tools/design.ts {{.WHAT}} {{.WHICH}}'
+
   check:
     desc: Typecheck and test, the gate before a commit
     cmds:

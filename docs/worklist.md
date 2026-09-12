@@ -3732,7 +3732,20 @@ than by remembering — and the first thing found was that the gap is not where 
 
 ## Who owns a house, and where everybody is at midnight — September 12th
 
-- [ ] **64. Every building belongs to somebody, and the ones that do not are free houses.** A house
+- [~] **64. Every building belongs to somebody, and the ones that do not are free houses.**
+      *The ownership rule is built* — `world/homes.ts`. A village's houses come out of the seed in a
+      fixed order, its households come off the register in the order they were founded, and the
+      first household lives in the first house. Nothing is written down: two people who have never
+      spoken walk into the same cottage and are told the same family lives there, because the
+      arithmetic says so. Walk into one now and it is "The Vos house in Ashford" — or **"An empty
+      house in Ashford"**, which is a free house: nobody's, standing, with a roof.
+
+      What is left is what the free house is *for*: a bed you may sleep in for nothing, vacant or
+      occupied and showing which, and villagers who travel using them. Also left, and worth knowing
+      about: a family does not keep a *particular* house across a resettling, because the rule is
+      positional. A deed on the register is the honest fix and it is a bigger change than this.
+
+      The original note: A house
       you walk into is nobody's today: it has a keeper standing in it because the room needed one,
       and no owner at all. Ownership is the missing half of a village that has an economy — it is
       what **47** means by a holding, what **49** means by a household, and what **44** means when
@@ -3778,3 +3791,32 @@ than by remembering — and the first thing found was that the gap is not where 
       `HudPhone.dc.html` and `TitlePhone.dc.html`) which is the right place to start rather than
       inventing a second answer beside it. Worth checking those against what the HUD has grown since
       September 8th: the shared meter, the registry page, the hall's rows on the roll.
+
+
+- [x] **68. A tool for reading the design canvas, and checking it against the game.** `chore design`
+      — `list` the artboards, `read` the words on one, `check` where the drawing and the game have
+      drifted apart. It found, on the first run: a title screen still offering the polygon world
+      that was retired, a key hint for the map that moved to the number row, and three HUD artboards
+      that know nothing about breath, seeing-through or the Domesday page.
+
+      It is deliberately **not** a client for Claude Design's own service, and it does not need to
+      be: Claude Design speaks MCP at `https://api.anthropic.com/v1/design/mcp`, added with
+      `claude mcp add --scope user --transport http claude-design <url>` and authorised by the same
+      claude.ai login — which is now in this machine's user config and connected. Talking to the
+      design tool is a solved problem. What no protocol provides is the other half: the design and
+      the game live in one repository and nothing had ever compared them.
+
+      The one judgement in it: the "what the interface has grown" checks are asked only of artboards
+      that draw the interface. A title screen has no health bar and no business mentioning one, and
+      a check that complains about that is the failure mode of every staleness tool ever written.
+
+- [x] **69. Two test waits were measuring the machine rather than the server.** Eight socket tests
+      failed together and passed one by one, on a day this machine sat at a load average of twenty
+      with four stale dev servers left behind by old agent worktrees. The waits were five and eight
+      seconds; they are twenty now. A test that fails because something else is busy is worse than
+      no test, because it teaches everybody to ignore it — and what these still catch is the thing
+      they were written for, a proxied upgrade that never completes.
+
+      The other half of the same lesson: `patchwork.test.ts` was growing eight patches of endless
+      country at about five seconds apiece. It grows one now. A test suite that starves the machine
+      it runs on will be blamed on whatever fails first, which will not be the test that caused it.

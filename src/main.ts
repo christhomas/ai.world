@@ -80,6 +80,7 @@ import { createMeeting } from './game/meeting';
 import { createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
 import { Cutaway, rememberCutaway, wantsCutaway } from './render/cutaway';
+import { familyOfDoor } from './world/homes';
 import { growCountry } from './game/country';
 import { countryStamp } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
@@ -316,20 +317,19 @@ export function startGame(
     aDeathBelow: (anchorId) => mines.aDeathBelow(anchorId),
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
-    setCaveAmbience: (on) => { sound.cave = on; },
-    persist: () => persist(),
+    setCaveAmbience: (on) => { sound.cave = on; }, persist: () => persist(),
     report: (delta) => online.report(delta),
-    // A floor is the world's if there is a world listening. It grows the same rooms from the same
-    // anchor name and owns what walks about in them; this side draws what it is told and spawns
-    // nothing of its own.
+    // A floor is the world's if there is a world listening: it grows the same rooms from the same
+    // anchor name and owns what walks about in them, and this side draws what it is told.
     wentBelow: (below) => {
       if (!online.connected) return false;
       online.floor(below.place, below.anchorId, below.kind, below.floor, below.style);
-      // built from what is handed over rather than from `places.underground`, which is not the
-      // floor being entered yet: this is called on the way in, before the visit is the visit
+      // from what is handed over rather than from `places.underground`: this is called on the way
+      // in, before the visit is the visit
       floorLife = new Wildlife(below.renderer, below.monsters);
       return true;
     },
+    familyOf: (door) => familyOfDoor(structures.villages, register, door),
     cameUp: () => { floorLife = null; },
   });
 

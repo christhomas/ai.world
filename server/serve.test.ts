@@ -29,7 +29,14 @@ import { startServer, type RunningServer } from './serve';
  * cores, to take a welcome past four seconds. The number is a bound on a busy machine rather than a
  * measurement of anything.
  */
-const PATIENCE = 8000;
+/*
+ * How long to wait for a socket to say something, in milliseconds.
+ *
+ * Twenty seconds rather than eight, for the reason written out in `proxy.test.ts`: under a load
+ * average of twenty these timed out together and passed one by one, which is a wait measuring the
+ * machine rather than the server. A test nobody trusts is a test nobody reads.
+ */
+const PATIENCE = 20_000;
 
 class Player {
   private readonly socket: WebSocket;

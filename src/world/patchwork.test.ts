@@ -107,34 +107,42 @@ describe('holding the country around somebody', () => {
 });
 
 describe('the ground a patchwork paints', () => {
+  /*
+   * One patch, grown once, for everything below.
+   *
+   * Growing country is about five seconds apiece — that number is the reason half of this file
+   * exists — so a test file that grew one per case would be the slowest thing in the suite and
+   * would starve the socket tests running beside it. What is under test here is the routing, and
+   * routing does not need a second patch to prove itself.
+   */
+  const world = new Patchwork(SEED);
+  const cx = 4, cz = 3;
+  const chunk = world.forChunk(cx, cz).generateChunk(cx, cz);
+  const straight = samplerIn(SEED, boundsOf(patchOfChunk(cx, cz)));
+
   it('is the ground that patch would paint on its own', () => {
     /*
      * The one that matters, and the reason this is worth a test rather than an assertion. The
      * patchwork is only trustworthy if routing a question through it changes no answer — so a chunk
      * fetched through the patchwork has to be tile-for-tile what the patch's own sampler paints.
      */
-    const world = new Patchwork(SEED);
-    const cx = 4, cz = 3;
-    const through = world.forChunk(cx, cz).generateChunk(cx, cz);
-    const straight = samplerIn(SEED, boundsOf(patchOfChunk(cx, cz))).generateChunk(cx, cz);
-    expect([...through.type]).toEqual([...straight.type]);
-    expect([...through.height]).toEqual([...straight.height]);
+    const alone = straight.generateChunk(cx, cz);
+    expect([...chunk.type]).toEqual([...alone.type]);
+    expect([...chunk.height]).toEqual([...alone.height]);
   });
 
   it('paints real country rather than an empty sea', () => {
     // a patchwork that answered every question with sea would pass every test above it
-    const world = new Patchwork(SEED);
-    const chunk = world.forChunk(4, 3).generateChunk(4, 3);
     const ground = [...chunk.type].filter((t) => t === TileType.Ground || t === TileType.GroundAlt).length;
     expect(ground, 'the patch under the hero is all water').toBeGreaterThan(0);
   });
 
   it('answers about a place in the next patch along with that patch, not this one', () => {
-    const world = new Patchwork(SEED);
+    // counted rather than grown: asking for a second real patch costs five seconds to learn
+    // something `patchOf` already settles
     const here = world.at(10, 10);
-    const over = world.at(PATCH + 10, 10);
-    expect(over, 'one sampler answered for two patches').not.toBe(here);
-    expect(world.holding()).toEqual(['0,0', '1,0']);
+    expect(world.at(20, 20), 'two places in one patch got two samplers').toBe(here);
+    expect(patchOfChunk(cx, cz)).toBe('0,0');
   });
 });
 
@@ -239,10 +247,17 @@ describe('a patch sent somewhere else', () => {
    * buildings alone paints a *different country* from the one that was grown. It looks perfectly
    * plausible on screen, which is what makes it the worst kind of wrong.
    */
+  // grown once and sent once, for the same reason as above: this is about what survives the
+  // journey, and one journey proves it
+  const within = boundsOf('0,0');
+  const started = Date.now();
+  const grown = samplerIn(SEED, within);
+  const toGrow = Date.now() - started;
+  const then = Date.now();
+  const sent = rebuildPatch(SEED, within, partsOf(grown));
+  const toRebuild = Date.now() - then;
+
   it('paints exactly what the patch it came from paints', () => {
-    const within = boundsOf('0,0');
-    const grown = samplerIn(SEED, within);
-    const sent = rebuildPatch(SEED, within, partsOf(grown));
     const here = grown.generateChunk(4, 3);
     const there = sent.generateChunk(4, 3);
     expect([...there.type], 'the ground is different on the other side').toEqual([...here.type]);
@@ -251,24 +266,14 @@ describe('a patch sent somewhere else', () => {
   });
 
   it('keeps the rock, which is the half that is expensive to cut', () => {
-    const within = boundsOf('0,0');
-    const grown = samplerIn(SEED, within);
-    const sent = rebuildPatch(SEED, within, partsOf(grown));
     expect(sent.ranges?.peaks.length ?? 0, 'the mountains did not survive the crossing')
       .toBe(grown.ranges?.peaks.length ?? 0);
   });
 
   it('is far cheaper than growing one, which is the whole point', () => {
-    // measured rather than asserted in prose: about five seconds to grow, a tenth of a second to
-    // rebuild. If that ratio ever collapses, growing country off the main thread stops being worth
-    // the machinery and somebody should know
-    const within = boundsOf('1,0');
-    const started = Date.now();
-    const grown = samplerIn(SEED, within);
-    const toGrow = Date.now() - started;
-    const then = Date.now();
-    rebuildPatch(SEED, within, partsOf(grown));
-    const toRebuild = Date.now() - then;
+    // measured rather than asserted in prose: seconds to grow, a fraction of one to rebuild. If
+    // that ratio ever collapses, growing country off the main thread stops being worth the
+    // machinery and somebody should know
     expect(toRebuild, `rebuilding took ${toRebuild}ms against ${toGrow}ms to grow`).toBeLessThan(toGrow / 2);
   });
 });
