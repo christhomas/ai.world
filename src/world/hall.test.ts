@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WORKS, nextWork, whatTheHallBuys } from './hall';
+import { WATCH_WAGE, WORKS, nextWork, whatTheHallBuys, whoStandsWatch } from './hall';
 import { Register } from './register';
 import type { Person } from './people';
 
@@ -81,5 +81,60 @@ describe('a village that has been saving', () => {
     const works = register.worksOf('Testing');
     expect(works.length, 'four hundred days of taxes and the hall never bought anything').toBeGreaterThan(0);
     expect(works[0]).toBe(WORKS[0].id);
+  });
+});
+
+/**
+ * The man on the tower.
+ *
+ * A watchtower is the only thing a hall buys that goes on costing after it is built, which is what
+ * makes it interesting rather than decorative: a well is dug and then it is simply a well, and a
+ * tower with nobody on it is scenery. So the village carries a wage for as long as it wants to be
+ * watched, and this is the first standing cost this economy has ever had.
+ */
+describe('who is on the tower', () => {
+  const aged = (id: string, born: number): Person => ({ id, trade: '', born } as Person);
+
+  it('is nobody at all until the village has built one', () => {
+    expect(whoStandsWatch(1e6, [], [aged('a', 0)])).toBeNull();
+    expect(whoStandsWatch(1e6, ['well', 'storey'], [aged('a', 0)])).toBeNull();
+  });
+
+  it('is somebody with no trade of their own, because a smith is not taken off the forge', () => {
+    const people = [worker('smith'), aged('idle', 5)];
+    expect(whoStandsWatch(1e6, ['watchtower'], people)?.who).toBe('idle');
+  });
+
+  it('is the youngest when everybody has a trade, the way any village would decide it', () => {
+    const old = { ...worker('old'), born: 0 } as Person;
+    const young = { ...worker('young'), born: 20 } as Person;
+    expect(whoStandsWatch(1e6, ['watchtower'], [old, young])?.who).toBe('young');
+  });
+
+  it('is nobody on a morning the village cannot pay him', () => {
+    // an empty tower is exactly what running out of money looks like, and it is honest to show it
+    expect(whoStandsWatch(WATCH_WAGE - 0.01, ['watchtower'], [aged('a', 0)])).toBeNull();
+    expect(whoStandsWatch(WATCH_WAGE, ['watchtower'], [aged('a', 0)])?.wage).toBe(WATCH_WAGE);
+  });
+
+  it('is the same man every morning while nothing about the village changes', () => {
+    // derived rather than appointed: two asks of the same village give the same answer, which is
+    // what lets a village re-lived from its founding arrive where everybody else already is
+    const people = [aged('b', 3), aged('a', 9)];
+    expect(whoStandsWatch(1e6, ['watchtower'], people)?.who)
+      .toBe(whoStandsWatch(1e6, ['watchtower'], [...people].reverse())?.who);
+  });
+});
+
+describe('a village with a tower to man', () => {
+  it('pays the man on it out of the treasury, day after day', () => {
+    const register = new Register(4, 30);
+    register.settle('Testing', 9, ['farmer', 'seller', 'hunter', 'soldier']);
+    // long enough to raise a well, a second storey and a tower, and then to stand somebody on it
+    register.advance(1200);
+    expect(register.worksOf('Testing'), 'the village never got as far as a tower').toContain('watchtower');
+    const manned = register.watchOf('Testing');
+    expect(manned, 'a tower was built and nobody was ever stood on it').not.toBe('');
+    expect(register.hallPaid(manned), 'the watchman worked for nothing').toBeGreaterThan(0);
   });
 });

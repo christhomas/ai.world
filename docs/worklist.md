@@ -3628,7 +3628,29 @@ simulation rather than any one feature in it.
       hire. `__entitiesFull` now reports height, trade and what somebody is doing, which is what that
       check needs when a soldier is to hand.
 
-- [ ] **56a. Who else can post a guard.** The order today is the player's, which is the smallest
+- [~] **56a. Who else can post a guard.** *The village half is built, as of the 12th.* A watchtower
+      is now one of the things a hall buys — 3,800 gold, between a second storey and a bath house,
+      which is the honest place for it: safety before comfort, and dearer than either because a
+      village only wants one when it has learned why. And it is **the first thing in this economy
+      that goes on costing after it is built**. Everything else a hall buys is paid for once and
+      then simply owned; a tower with nobody on it is scenery, so the village carries a wage —
+      twelve gold a day, a little over a farmhand's and a little under a tradesman's, because
+      standing on a platform in the rain is not skilled work but nobody does it for less than they
+      would earn in a field.
+
+      Who stands up there is derived rather than appointed, the way everything else here is:
+      whoever has no trade of their own, because a village does not take its smith off the forge to
+      watch a road, and failing that the youngest. So a village that buries its watchman has
+      somebody else up there the next morning without anything having to notice, and one that
+      cannot pay the wage this morning has an empty tower — which is exactly what running out of
+      money looks like. `whatTheHallSpends` puts the wage before the purchase, for the reason a
+      household's dinner comes before anything else: it is owed.
+
+      What is left is the rest of the item — a farmer hiring a man to stand over his herd
+      (**39**), and the man on the village's tower actually being *drawn* on it, which is
+      `posted.ts`'s `takePost` pointed at a villager rather than at a sword you hired.
+
+      The original note: The order today is the player's, which is the smallest
       version of the idea and not the one that matters. A farmer should be able to hire a man to
       stand over his herd (**39**) and a village should be able to post one on its own tower out of
       the treasury (**24b**) — `hires.ts` already names the side every bargain is fought for, so

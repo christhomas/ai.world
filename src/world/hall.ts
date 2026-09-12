@@ -73,8 +73,50 @@ export function taxedForTheHall(people: readonly Person[]): { owed: Map<string, 
 export const WORKS: ReadonlyArray<{ id: string; costs: number; note: string }> = [
   { id: 'well', costs: 900, note: 'A well on the square: the first thing a village buys, and the one every village wants.' },
   { id: 'storey', costs: 2600, note: 'A second storey on the houses, which is the village saying it means to stay.' },
+  { id: 'watchtower', costs: 3800, note: 'A watchtower, and a man on it: the first thing a village buys that it would rather not have needed.' },
   { id: 'bathhouse', costs: 6200, note: 'A bath house, which is what a village builds when it has run out of things it needs.' },
 ];
+
+/**
+ * What the village pays the man on the tower, a day.
+ *
+ * A watchtower is the only thing in this list that goes on costing after it is built, and that is
+ * the point of it being here. Everything else a hall buys is paid for once — a well is dug and then
+ * it is simply a well — but a tower with nobody on it is scenery, so the village carries a wage for
+ * as long as it wants to be watched. It is the first standing cost this economy has ever had.
+ *
+ * Twelve gold, which is a little over a farmhand's day and a little under a tradesman's: standing
+ * on a platform in the rain is not skilled work, but nobody does it for less than they would earn
+ * in a field. A village that cannot pay it stands nobody up there, and the tower waits.
+ */
+export const WATCH_WAGE = 12;
+
+/**
+ * Who the village has standing on its tower this morning, and what it costs to keep him there.
+ *
+ * Nothing is remembered between days: the man is chosen again from the people who are there, so a
+ * village that buries its watchman puts somebody else up the tower the next morning without
+ * anything having to notice that the first one is gone. That is the same trick the rest of this
+ * simulation runs on — derived rather than stored — and it is what makes a village re-lived from
+ * its founding arrive at the village everybody else is looking at.
+ *
+ * Who it falls to is whoever has no trade of their own, because a village does not take its smith
+ * off the forge to watch a road. If everybody has a trade it is the youngest of them, on the same
+ * reasoning any village would use. And a village that cannot pay the wage this morning has nobody
+ * up there this morning, which is honest: the tower is only worth what the village can afford.
+ */
+export function whoStandsWatch(
+  purse: number, built: readonly string[], people: readonly Person[],
+): { who: string; wage: number } | null {
+  if (!built.includes('watchtower')) return null;
+  if (purse < WATCH_WAGE) return null;
+  if (people.length === 0) return null;
+  const spare = people.filter((p) => p.trade === '');
+  const chosen = spare.length > 0
+    ? spare.reduce((first, p) => (p.id < first.id ? p : first))
+    : people.reduce((youngest, p) => (p.born > youngest.born ? p : youngest));
+  return { who: chosen.id, wage: WATCH_WAGE };
+}
 
 /** What the hall can afford next, or nothing: the cheapest thing it has not already raised. */
 export function nextWork(purse: number, built: readonly string[]): typeof WORKS[number] | null {
@@ -112,4 +154,38 @@ export function whatTheHallBuys(
     wages.set(last.id, Math.round(((wages.get(last.id) ?? 0) + dust) * 100) / 100);
   }
   return { work: work.id, costs: work.costs, wages };
+}
+
+/**
+ * Everything the hall spends this morning, in one answer.
+ *
+ * Two kinds of spending that have to happen in one order and share one purse: the man on the tower
+ * is paid first, and whatever is left decides what can be built. A wage comes before a purchase for
+ * the reason a household's dinner does — it is owed — and a village that spent its last thousand on
+ * a bath house and then could not pay its watchman would have done things in the wrong order.
+ *
+ * Handed back as one map of who gets what, because that is what the register applies: a coin
+ * leaving the hall has to arrive in somebody's purse in the same act, and two calls would be two
+ * chances for one of them to be forgotten.
+ */
+export function whatTheHallSpends(
+  purse: number, built: readonly string[], people: readonly Person[],
+): { wages: Map<string, number>; spent: number; work: string | null; watch: string } {
+  const wages = new Map<string, number>();
+  let spent = 0;
+
+  const watch = whoStandsWatch(purse, built, people);
+  if (watch) {
+    wages.set(watch.who, watch.wage);
+    spent = watch.wage;
+  }
+
+  const bought = whatTheHallBuys(Math.round((purse - spent) * 100) / 100, built, people);
+  if (bought) {
+    for (const [id, much] of bought.wages) {
+      wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
+    }
+    spent = Math.round((spent + bought.costs) * 100) / 100;
+  }
+  return { wages, spent, work: bought?.work ?? null, watch: watch?.who ?? '' };
 }

@@ -65,6 +65,15 @@ export const STONES_KEPT = 60;
 export interface Settlement {
   people: Person[];
   /**
+   * Who is standing on the village's watchtower today, or nobody.
+   *
+   * Worked out again every morning out of who is here and what the hall can pay — see
+   * `whoStandsWatch` — rather than being an appointment somebody holds. A village that buries its
+   * watchman has a different man up there tomorrow without anything having to notice, and one that
+   * runs out of money has an empty tower, which is exactly what being unable to pay looks like.
+   */
+  watch: string;
+  /**
    * What the hall holds, which is nobody's.
    *
    * `inheritance.ts` turned a village treasury down when it went in, and said why: there was no pot
