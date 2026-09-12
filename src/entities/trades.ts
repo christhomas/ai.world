@@ -33,6 +33,27 @@ export const TRADES: Trade[] = [
     id: 'hunter', label: 'Hunter', weight: 3, needs: ['woods', 'market'],
     lines: ['Wolves have been bold this week.', 'I take it to the market before it turns.'],
   },
+  /*
+   * The logger, and the first trade in this world that another trade cannot do without.
+   *
+   * Everything else here earns by selling to somebody outside the valley or to the player. A logger
+   * fells the wood behind the village and stacks it in the yard, and the builder cannot raise a
+   * roof without it — so a village with a wood and no logger is a village that has stopped
+   * building, and a logger in a village with nothing to build is a man cutting for the next valley.
+   * `game/timber.ts` is the yard between them.
+   *
+   * `woods` and nothing else: he needs trees, and the market a hunter needs is not his business —
+   * what he cuts is used where it is stacked as often as it is sold.
+   */
+  {
+    id: 'logger', label: 'Logger', weight: 2, needs: ['woods'],
+    lines: [
+      'Six good lengths today, and the saw wants setting again.',
+      'Anything they put up here came off my stack.',
+      'The stand up the hill is the last of the old timber.',
+      'Cut it green and it will twist on you. Everybody learns that once.',
+    ],
+  },
   {
     id: 'soldier', label: 'Soldier', weight: 2, needs: ['gate'],
     lines: ['The road is quiet. Long may it stay so.', 'Coin buys a sword arm, if you were asking.'],

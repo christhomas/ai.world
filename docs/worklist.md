@@ -3680,7 +3680,35 @@ simulation rather than any one feature in it.
       It also gives `founded` an honest definition at last: a village holds as many people as its
       houses have room for, so growing is building and nothing else.
 
-- [ ] **50. A logger, and wood as the first material.** Every price in this world is paid in coin
+- [~] **50. A logger, and wood as the first material.** *The chain exists as of the 13th, and the
+      design argument is the good part.* The herd was the obvious precedent and it is the wrong one:
+      a village's cattle are a number because which cow is which is nobody's business, and no cow is
+      ever in anybody's pack. Wood is the opposite in every respect — `ITEMS.wood` exists, a saw
+      makes it, a player carries it and sells it over a counter — so a second village-quantity of
+      wood would have put **two kinds of wood in one game**, and the first player to fell a tree and
+      walk into a village that could not build would find the wood on his back was not the wood the
+      builder was short of.
+
+      So timber stays the item it already is, and what is new is the **yard**: somewhere the stuff
+      sits between being cut and being built with, counted per village because timber is heavy and a
+      yard is where it was landed. That makes it tradeable *today* rather than later — wood put out
+      at a village market lands on the same stack the loggers cut onto, so a player walking into a
+      place with nothing behind it can be the supply himself.
+
+      The yard lives on `Houses`, which is the builder's books, and that turned out to be the honest
+      home rather than a compromise: it is already per-village, already persisted, and a stack of
+      timber waiting for a job is a builder's book as much as the job is. It is kept rather than
+      derived — against this codebase's instinct, and argued in the file — because it is a running
+      total of two histories, one of which is what a *player* chose to have built.
+
+      A `logger` is the first trade another trade cannot do without. An order is refused before a
+      coin moves, because the deposit is not refundable, and the refusal says which kind of short
+      you are: *"Give the sawyers a few days"* where there are loggers, *"Nobody here cuts — bring it
+      in yourself"* where there are not.
+
+      Two things left: the logger has **no behaviour tree**, so he potters about the square like a
+      seller instead of walking out to the stand; and a shop counter does not take wood, only a
+      market stall does. Every price in this world is paid in coin
       and nothing is ever short of anything — which is why a builder can, in principle, build until
       the money runs out. Wood is the answer: a logger fells trees and brings the timber to market,
       the builder buys it, and a house cannot be built out of an empty yard however much gold is on

@@ -250,6 +250,9 @@ export function villageInteractions(ctx: Surroundings) {
             handover.offer(state, id);
             online.stockStall(stall.id, { id, price: askingPrice(id), count: 1 });
             market.took(stall.village, id, 1);
+            // and wood put out here is wood that has reached this village: it goes on the same
+            // stack the loggers cut onto, so a player can be the supply for a place that has none
+            if (id === 'wood') ctx.houses.yard.land(stall.village, 1);
             hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);
             return null;
           },

@@ -56,6 +56,18 @@ const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.tim
  * distance in `BUILD.PIER_WITHIN`, and so no village that offers a boat has nowhere to build one.
  */
 /**
+ * How many of a village's people fell timber for a living.
+ *
+ * A function rather than a filter written out twice, because two quite different places ask it and
+ * they have to agree: the yard fills by it every morning, and the refusal a player gets at an empty
+ * yard tells them whether waiting would help. A village with none is a village where waiting never
+ * will, and saying so is the difference between a rule and a locked door.
+ */
+function loggersFor(people: readonly { trade: string }[]): number {
+  return people.filter((person) => person.trade === 'logger').length;
+}
+
+/**
  * Where the nearest open water is, as a bearing and a distance, or nothing within `reach`.
  *
  * Rings outward rather than scanning a square, so what comes back is the *nearest* wet tile rather
@@ -181,6 +193,28 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
       if (state.inventory.gold < down) {
         return { speaker: name, emoji: '🔨', pages: [`It is ${down} gold to start and you have ${state.inventory.gold}. Come back when you have it.`] };
       }
+      /*
+       * And the price that is not money.
+       *
+       * Asked before a coin moves, because the deposit is not refundable and a man who took it and
+       * then found he had no timber would have sold you a wait. He does not offer to order it in
+       * either: that is the whole point of the material, and the answer a village with an empty
+       * yard gives is the honest one — wait for the loggers, or go and cut it yourself and sell it
+       * over the trestle here, which puts it on the same stack.
+       */
+      const short = houses.yard.shortBy(village.name, entry.timber);
+      if (short > 0) {
+        return {
+          speaker: name, emoji: '🔨',
+          pages: [
+            `${entry.name[0].toUpperCase()}${entry.name.slice(1)} wants ${entry.timber} good lengths and the yard has ${houses.yard.at(village.name)}.`,
+            loggersFor(ctx.register.living(village.name)) > 0
+              ? `Give the sawyers a few days. ${short} short, and they cut six a day between them.`
+              : 'Nobody here cuts. Bring it in yourself and put it on a stall, and it goes on the same stack.',
+          ],
+        };
+      }
+      houses.yard.draw(village.name, entry.timber);
       // one act rather than two halves that have to agree: the gold leaves the rucksack
       // and arrives in the village, and `villageTill` decides who in it is the better off
       buy(holds(state.inventory), villageTill(ctx.register, village.name), down);
@@ -274,7 +308,10 @@ function launchHer(ctx: Surroundings, job: Commission, day: number): void {
 
 /** Choosing the plot, and what a finished house is for. */
 export function builderInteractions(ctx: Surroundings) {
-  const { player, state, structures, sampler, chunks, houses, grudges, dialogue, hud, sound, persist, seed } = ctx;
+  const {
+    player, state, structures, sampler, chunks, houses, grudges, register, dialogue, hud, sound,
+    persist, seed,
+  } = ctx;
 
   /** The world day with its fraction, which is what a thing being built actually measures. */
   const today = (): number => buildingDay(ctx);
@@ -626,6 +663,17 @@ export function builderInteractions(ctx: Surroundings) {
    * keeps, which sours its prices and eventually its welcome, and which fades once you have paid.
    */
   const builderDay = (): void => {
+    /*
+     * What the loggers cut, which is the other half of a builder's morning.
+     *
+     * Here rather than anywhere else because this is the one callback that already runs once a day
+     * and already knows both the register and the builder's books — and because a builder's day is
+     * exactly when he would look at what came into the yard. A village with no logger in it lands
+     * nothing, for ever, and that is the limit the whole material exists to be.
+     */
+    for (const village of register.settled()) {
+      houses.yard.felled(village, loggersFor(register.living(village)));
+    }
     const bills = houses.charge(state.day);
     if (bills.length === 0) return;
     for (const bill of bills) {

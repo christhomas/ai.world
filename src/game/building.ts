@@ -1,4 +1,5 @@
 import { hashString } from '../core/rng';
+import { Timber, type TimberJson } from './timber';
 
 /**
  * Having somebody build you a house.
@@ -179,6 +180,20 @@ export interface Buildable {
    * done — the house is simply taller — where a pool is a thing in the yard for ever after.
    */
   changes?: boolean;
+  /**
+   * Logs it eats, out of the yard of the village whose builder takes it on.
+   *
+   * The first price in this game that is not money, and the point of it is that it cannot be earned
+   * around. Gold is fungible and a player who wants a house badly enough will always find four
+   * hundred and twenty of it; timber has to have been *cut*, by somebody, in a place that has trees
+   * — so a village on a bare rock does not build however rich it is, and a house becomes a thing
+   * that required somebody's week rather than a line in a purse.
+   *
+   * By the size of the job in wood rather than by its price: a fountain is stone and costs ninety
+   * gold and wants almost nothing, a jetty is cheaper than a house and is nearly all timber. That
+   * is why this is its own column and not a fraction of `price`.
+   */
+  timber: number;
   /** What the builder says when he has finished, for the flash in the corner. */
   done: string;
   /**
@@ -193,19 +208,19 @@ export interface Buildable {
 
 export const CATALOGUE: readonly Buildable[] = [
   {
-    id: BUILDS.HOUSE, name: 'a house', price: BUILD.PRICE, days: BUILD.DAYS, on: 'land',
+    id: BUILDS.HOUSE, name: 'a house', price: BUILD.PRICE, days: BUILD.DAYS, on: 'land', timber: 40,
     done: 'The house is yours. There is a strongbox in it.', blocks: BUILD.PLOT,
   },
   {
     id: BUILDS.STOREY, name: 'a second storey', price: 260, days: 4, on: 'house', changes: true,
-    done: 'Another floor under the same roof.', blocks: null,
+    timber: 24, done: 'Another floor under the same roof.', blocks: null,
   },
   {
-    id: BUILDS.POOL, name: 'a bathing pool', price: 150, days: 3, on: 'house',
+    id: BUILDS.POOL, name: 'a bathing pool', price: 150, days: 3, on: 'house', timber: 8,
     done: 'The pool is filled and the lip is dry enough to sit on.', blocks: null,
   },
   {
-    id: BUILDS.FOUNTAIN, name: 'a fountain', price: 90, days: 2, on: 'house',
+    id: BUILDS.FOUNTAIN, name: 'a fountain', price: 90, days: 2, on: 'house', timber: 2,
     done: 'The fountain is running.', blocks: 0,
   },
   /*
@@ -222,7 +237,7 @@ export const CATALOGUE: readonly Buildable[] = [
    * launched there is nothing on the shore to walk into at all.
    */
   {
-    id: BUILDS.BOAT, name: 'a boat', price: 160, days: 5, on: 'shore', moves: true,
+    id: BUILDS.BOAT, name: 'a boat', price: 160, days: 5, on: 'shore', moves: true, timber: 30,
     done: 'She is off the stocks and riding at the jetty.', blocks: null,
   },
   /*
@@ -242,7 +257,7 @@ export const CATALOGUE: readonly Buildable[] = [
    * day it is finished nothing about it remembers who paid. That is what a harbour is.
    */
   {
-    id: BUILDS.JETTY, name: 'a jetty', price: 340, days: 4, on: 'shore',
+    id: BUILDS.JETTY, name: 'a jetty', price: 340, days: 4, on: 'shore', timber: 36,
     done: 'The last board is down. Anything that floats can lie alongside her now.', blocks: null,
   },
 ];
@@ -476,6 +491,8 @@ export interface Hired {
 export interface HouseJson {
   hired?: Hired | null;
   jobs?: Commission[];
+  /** What each village's timber yard holds. See `timber.ts` for why it rides with the commissions. */
+  yard?: TimberJson;
 }
 
 /**
@@ -490,9 +507,20 @@ export interface HouseJson {
 export class Houses {
   private taken: Hired | null = null;
   private readonly jobs: Commission[] = [];
+  /**
+   * The timber each village has by it, which is the one price in this game that is not money.
+   *
+   * Here because this class is the builder's books and a yard of timber waiting for a job is a
+   * builder's book as much as the job is — and because everything a yard has to be, this already
+   * is: per village, saved with the game, and reachable from every place a building is ordered.
+   * `timber.ts` holds the argument for why the stuff is the same wood a player carries rather than
+   * a village quantity like the herd.
+   */
+  readonly yard: Timber;
 
   constructor(json?: HouseJson) {
     this.taken = json?.hired ?? null;
+    this.yard = Timber.from(json?.yard);
     for (const job of json?.jobs ?? []) this.jobs.push({ ...job, store: job.store ? { gold: job.store.gold, items: { ...job.store.items } } : undefined });
   }
 
@@ -635,6 +663,6 @@ export class Houses {
   }
 
   toJSON(): HouseJson {
-    return { hired: this.taken, jobs: this.jobs };
+    return { hired: this.taken, jobs: this.jobs, yard: this.yard.toJSON() };
   }
 }
