@@ -116,7 +116,7 @@ export function startGame(
   // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
   const {
     graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
-    eyries, skyIsles, skyRenderer,
+    eyries, skyIsles, skyRenderer, endless, mountains,
   } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
@@ -655,7 +655,7 @@ export function startGame(
   const autoQuality = new AutoQuality(qualityWasChosen);
 
   const frames = createFrame({
-    seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
+    seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places, endless, mountains,
     skyline, rock, daycycle, weather, updraughts, swallows, seaEyes, shafts, holes, beam,
     couldBeAShaft: (x, z) => openCountry(chunks, x, z), seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,

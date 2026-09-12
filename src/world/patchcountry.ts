@@ -70,19 +70,32 @@ export class PatchCountry {
   /**
    * Follow somebody. Returns the patch they have walked into, or nothing if they are where they were.
    *
-   * The neighbours are grown on the way past, which is what stops a patch boundary being a stall:
-   * by the time anybody reaches the edge of the square they are in, the next one is already there.
+   * It grows *one* patch at most, and that is a correction rather than a simplification. It used to
+   * warm the eight neighbours on the way past, on the reasoning that a boundary should never be a
+   * stall — and a patch measured at five seconds to grow, so the first crossing froze the game for
+   * three quarters of a minute and the frame loop never came back. Nine seconds of work a frame is
+   * not a smoother boundary, it is no game at all.
+   *
+   * So the warming is somebody else's job and is deliberately not done here: see `warm`, and the
+   * work list item about growing country off the main thread, which is the only real answer.
    */
   moveTo(x: number, z: number): string | null {
     const now = patchOf(x, z);
-    if (now === this.standing) {
-      this.patches.around(x, z);
-      return null;
-    }
+    if (now === this.standing) return null;
     this.standing = now;
     this.current = this.patches.patch(now);
-    this.patches.around(x, z);
     return now;
+  }
+
+  /**
+   * Grow the neighbours, for a caller that can afford five seconds a patch.
+   *
+   * Which is nobody on the main thread of a running game. It is here for tests, for a world server
+   * standing a province up before anybody is in it, and as the thing a country worker will call
+   * once there is one.
+   */
+  warm(x: number, z: number): void {
+    this.patches.around(x, z);
   }
 
   /**

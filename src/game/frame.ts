@@ -11,7 +11,8 @@ import type { IsoCamera } from '../render/camera';
 import type { CropField } from '../render/crops';
 import type { DayCycle } from '../render/daycycle';
 import type { HeroGear } from '../render/herogear';
-import type { MountainMaterial } from '../render/mountains';
+import type { MountainMaterial, Mountains } from '../render/mountains';
+import type { PatchCountry } from '../world/patchcountry';
 import { dropsFor, type DropField } from '../render/drops';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import type { BuildingSite } from '../render/site';
@@ -85,6 +86,16 @@ export interface Framing {
   places: Places;
   skyline: Skyline;
   rock: MountainMaterial;
+  /**
+   * The country itself, when it has no edge, and the rock standing in the scene for it.
+   *
+   * Null for a bounded world, where the ground under the hero is the same ground it was when the
+   * game started and nothing has to be told anything. In an endless one the patch he is standing in
+   * changes as he walks, and three things have to be told when it does — what paints the chunks,
+   * what he can walk up, and how far back the camera stands.
+   */
+  endless: PatchCountry | null;
+  mountains: Mountains;
   daycycle: DayCycle;
   weather: Weather;
   /** The warm air over the country, drawn so a pilot can see where it is. */
@@ -180,7 +191,7 @@ export interface Framing {
 export function createFrame(ctx: Framing) {
   const {
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
+    skyline, rock, endless, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
@@ -398,6 +409,22 @@ export function createFrame(ctx: Framing) {
     // the rig writes where the camera is looking onto the scene, and the chunks read it back to
     // decide which props are worth handing to the GPU, so it has to be said before it is asked
     rig.follow(x, z, iso.zoom);
+    /*
+     * The country follows the hero, in a world that has one to follow.
+     *
+     * Asked every frame and answering nothing nearly every frame: `moveTo` grows the neighbouring
+     * patches on the way past — which is what stops a boundary being a stall — and only says
+     * something on the few frames where he has actually crossed into another square.
+     *
+     * His feet rather than the camera's aim, because what is being asked is which patch *he* is in.
+     * A camera that has swung out over the next patch must not swap the ground under him.
+     */
+    if (endless && endless.moveTo(player.entity.x, player.entity.z)) {
+      const now = endless.sampler;
+      mountains.show(now.ranges);
+      chunks.standOn(now.ranges);
+      skyline.standingBefore(now.ranges);
+    }
     chunks.update(x, z);
     // and the country itself: what this page is missing, from what it kept or from the world
     streamCountry();

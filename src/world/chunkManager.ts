@@ -6,7 +6,8 @@ import { blocking, type Footprints } from './footprints';
 import { BLOCKS_WALKING } from './biomes';
 import type { PropKind } from './biomes';
 import { PATCHES_PER_WORKER, type WorkerRequest, type WorkerResponse } from './messages';
-import { Tellings, patchOfChunk, type Patchwork } from './patchwork';
+import { partsOf } from './endless';
+import { Tellings, boundsOf, patchOfChunk, type Patchwork } from './patchwork';
 import { Standing } from './standing';
 import { TileType } from './terrain';
 import { mountainAt, type Ranges } from './ranges';
@@ -357,8 +358,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
     if (!this.told.needs(w, patch)) return patch;
     const sampler = this.patches!.patch(patch);
     w.postMessage({
-      type: 'patch', patch, seed: sampler.seed,
-      graph: sampler.graph, hydro: sampler.hydro, structures: sampler.structures,
+      type: 'patch', patch, seed: sampler.seed, within: boundsOf(patch), ...partsOf(sampler),
     } satisfies WorkerRequest);
     return patch;
   }

@@ -3661,3 +3661,18 @@ than by remembering — and the first thing found was that the gap is not where 
       everything that reads them. Last, not first: the bounded world is what everybody is playing
       until the day the endless one is better, and it is also the reference the endless one is
       checked against.
+
+- [ ] **60. Country grown off the main thread.** Measured today and it is the number that decides the
+      whole shape of an endless world: **a patch takes about five seconds to grow and a hundred and
+      thirty milliseconds to rebuild from its parts.** Growing one on the main thread is a five second
+      freeze; warming the eight neighbours is three quarters of a minute, which is what the first
+      walk across an endless world actually did — the game stopped and never came back.
+
+      So a worker grows patches and hands back `PatchParts` — roads, water, buildings and the cut
+      rock — and both sides put them together with `rebuildPatch`. What does *not* cross is the land
+      itself, a pair of functions over noise, and it does not have to: it is a pure function of the
+      seed and costs nothing to make again on the far side.
+
+      What is left to build is the worker itself and what asks it: grow the patch you are in first,
+      the one you are walking toward next, and the rest when nothing is waiting. Until then a
+      crossing is a five second stall, which is playable and is not shippable.

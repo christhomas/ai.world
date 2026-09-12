@@ -2,6 +2,8 @@ import type { MeshData } from './mesher';
 import type { RoadGraph } from './graph';
 import type { Hydrology } from './rivers';
 import type { Structures } from './structures';
+import type { Ranges } from './ranges';
+import type { Within } from './window';
 
 /**
  * How many patches of an endless country one worker keeps.
@@ -33,7 +35,11 @@ export type WorkerRequest =
    */
   | {
     type: 'patch'; patch: string; seed: number;
+    /** The square of country this is, which the sampler needs to know to paint its edges. */
+    within: Within;
     graph: RoadGraph; hydro: Hydrology; structures: Structures;
+    /** The rock already cut for this patch. Not recomputed on the far side: it is the expensive half. */
+    ranges: Ranges | null;
   }
   | { type: 'gen'; id: number; cx: number; cz: number; patch?: string }
   /**

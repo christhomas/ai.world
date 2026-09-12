@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
-import { samplerIn } from './endless';
+import { partsOf, rebuildPatch, samplerIn } from './endless';
 import { PATCH, Patchwork, Tellings, boundsOf, patchOf, patchOfChunk } from './patchwork';
 import { PatchCountry } from './patchcountry';
 import { TileType } from './ground';
@@ -200,11 +200,24 @@ describe('the country around whoever is walking', () => {
     expect(country.sampler, 'the same sampler answered for two patches').not.toBe(before);
   });
 
-  it('grows the neighbours on the way past, so an edge is never a stall', () => {
+  it('grows one patch at most while somebody is walking', () => {
+    /*
+     * Measured rather than assumed: a patch takes about five seconds to grow. Warming the eight
+     * neighbours on a crossing is three quarters of a minute of frozen main thread, which is what
+     * the first walk across an endless world actually did — the game stopped and did not come back.
+     */
     const { grow } = counted();
     const country = new PatchCountry(SEED, 10, 10, grow);
     country.moveTo(20, 20);
-    expect(country.store.holding().length, 'only the square underfoot was grown').toBe(9);
+    country.moveTo(PATCH + 20, 20);
+    expect(country.store.holding().length, 'a crossing grew the neighbours as well').toBe(2);
+  });
+
+  it('will warm the neighbours for somebody who can afford it', () => {
+    const { grow } = counted();
+    const country = new PatchCountry(SEED, 10, 10, grow);
+    country.warm(10, 10);
+    expect(country.store.holding().length).toBe(9);
   });
 
   it('knows how close somebody is to leaving the square they are in', () => {
@@ -213,5 +226,49 @@ describe('the country around whoever is walking', () => {
     expect(PatchCountry.toEdge(PATCH - 3, 250)).toBe(3);
     // and in the negative country, where a remainder is negative and would otherwise read as huge
     expect(PatchCountry.toEdge(-3, -250)).toBe(3);
+  });
+});
+
+describe('a patch sent somewhere else', () => {
+  /*
+   * The failure this exists to stop, and it shipped for one release before it was measured.
+   *
+   * A patch of the endless country is painted against the land under it and the rock standing on
+   * it. Neither crosses a worker boundary — the land is a pair of functions over noise, the rock is
+   * geometry that took most of the five seconds to cut — so a sampler rebuilt from roads, water and
+   * buildings alone paints a *different country* from the one that was grown. It looks perfectly
+   * plausible on screen, which is what makes it the worst kind of wrong.
+   */
+  it('paints exactly what the patch it came from paints', () => {
+    const within = boundsOf('0,0');
+    const grown = samplerIn(SEED, within);
+    const sent = rebuildPatch(SEED, within, partsOf(grown));
+    const here = grown.generateChunk(4, 3);
+    const there = sent.generateChunk(4, 3);
+    expect([...there.type], 'the ground is different on the other side').toEqual([...here.type]);
+    expect([...there.height], 'the land is a different shape on the other side').toEqual([...here.height]);
+    expect([...there.prop], 'different things are standing on it').toEqual([...here.prop]);
+  });
+
+  it('keeps the rock, which is the half that is expensive to cut', () => {
+    const within = boundsOf('0,0');
+    const grown = samplerIn(SEED, within);
+    const sent = rebuildPatch(SEED, within, partsOf(grown));
+    expect(sent.ranges?.peaks.length ?? 0, 'the mountains did not survive the crossing')
+      .toBe(grown.ranges?.peaks.length ?? 0);
+  });
+
+  it('is far cheaper than growing one, which is the whole point', () => {
+    // measured rather than asserted in prose: about five seconds to grow, a tenth of a second to
+    // rebuild. If that ratio ever collapses, growing country off the main thread stops being worth
+    // the machinery and somebody should know
+    const within = boundsOf('1,0');
+    const started = Date.now();
+    const grown = samplerIn(SEED, within);
+    const toGrow = Date.now() - started;
+    const then = Date.now();
+    rebuildPatch(SEED, within, partsOf(grown));
+    const toRebuild = Date.now() - then;
+    expect(toRebuild, `rebuilding took ${toRebuild}ms against ${toGrow}ms to grow`).toBeLessThan(toGrow / 2);
   });
 });

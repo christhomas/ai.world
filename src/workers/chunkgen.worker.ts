@@ -1,6 +1,7 @@
 import { WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
+import { rebuildPatch } from '../world/endless';
 import { TerrainSampler } from '../world/terrain';
 import { buildChunkMesh } from '../world/mesher';
 import { tilesOf } from '../world/tiles';
@@ -34,7 +35,19 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
     return;
   }
   if (msg.type === 'patch') {
-    patches.set(msg.patch, new TerrainSampler(msg.graph, { hydro: msg.hydro, structures: msg.structures }));
+    /*
+     * Put back together through the same function the main thread uses, and not by hand.
+     *
+     * It was by hand for one release and it was wrong: a patch of the endless country is painted
+     * against the land under it and the rock standing on it, and neither of those crosses a worker
+     * boundary — the land is a pair of functions over noise and the rock is expensive to cut. So a
+     * sampler rebuilt from roads, water and buildings alone paints a different country from the one
+     * it was grown as, which is the exact failure `twohalves.test.ts` exists to catch between the
+     * page and the world, happening quietly inside the page instead.
+     */
+    patches.set(msg.patch, rebuildPatch(msg.seed, msg.within, {
+      graph: msg.graph, hydro: msg.hydro, structures: msg.structures, ranges: msg.ranges,
+    }));
     // oldest first, which for a Map is insertion order and is near enough: a hero walks, so the
     // patch told about longest ago is the one furthest behind him
     while (patches.size > PATCHES_PER_WORKER) patches.delete(patches.keys().next().value as string);

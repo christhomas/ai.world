@@ -7,7 +7,10 @@ import { waterIn } from './localwater';
 import { rockIn } from './localrock';
 import { crossingsIn } from './localsea';
 import { TerrainSampler } from './terrain';
-import type { Founding } from './structures';
+import type { Founding, Structures } from './structures';
+import type { RoadGraph } from './graph';
+import type { Hydrology } from './rivers';
+import type { Ranges } from './ranges';
 import type { Within } from './window';
 
 /**
@@ -105,5 +108,55 @@ export function samplerIn(seed: number, within: Within): TerrainSampler {
     },
     // last, because the rock stands on the finished ground rather than being part of it
     rock: (ground) => rockIn(world, within, ground),
+  });
+}
+
+/**
+ * The parts of a grown patch that can be sent somewhere else.
+ *
+ * A patch takes about five seconds to grow and a hundred and thirty milliseconds to rebuild from
+ * these — so the difference between the two is the whole reason a country can be grown off the main
+ * thread at all. What is *not* here is as important as what is: the land itself is a pair of
+ * functions over noise, and functions do not cross a worker boundary. They do not have to. They are
+ * a pure function of the seed and cost nothing to make again on the other side, which is why
+ * `rebuildPatch` takes a seed rather than a country.
+ */
+export interface PatchParts {
+  graph: RoadGraph;
+  hydro: Hydrology;
+  structures: Structures;
+  /** The rock standing on this patch's high country, already cut. */
+  ranges: Ranges | null;
+}
+
+/** What a grown patch has to hand over to be rebuilt somewhere else. */
+export function partsOf(sampler: TerrainSampler): PatchParts {
+  return {
+    graph: sampler.graph, hydro: sampler.hydro, structures: sampler.structures,
+    ranges: sampler.ranges,
+  };
+}
+
+/**
+ * A patch, put back together from its parts on the other side of a worker boundary.
+ *
+ * It has to paint *exactly* what the patch that was grown paints, tile for tile, or the two halves
+ * of this game are in different countries again — and that failure is invisible until somebody walks
+ * into a wall that is not drawn. `patchwork.test.ts` holds it to that.
+ *
+ * The country is made here rather than sent because it is free: `countryFor` is lazy and a land
+ * query is microseconds. The rock is *not* free and is not recomputed — it is handed back as the
+ * cut geometry it already is, which is what `rock` being a function rather than a field allows.
+ */
+export function rebuildPatch(seed: number, within: Within, parts: PatchParts): TerrainSampler {
+  const world = countryFor(seed);
+  return new TerrainSampler(parts.graph, {
+    within,
+    country: { land: (x, z) => world.land(x, z), highland: highlandNear(world, within) },
+    hydro: parts.hydro,
+    structures: parts.structures,
+    // a patch with no high country in it has no rock, and the sampler wants to be told nothing
+    // rather than told about an empty range
+    rock: parts.ranges ? () => parts.ranges as Ranges : undefined,
   });
 }
