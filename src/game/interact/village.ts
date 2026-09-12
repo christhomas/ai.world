@@ -5,6 +5,7 @@ import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
 import { HORSE } from '../mount';
 import { compassDir } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
+import { turnToFace } from '../../entities/entity';
 import { faceFor } from '../talk';
 import { REACH, personWins } from '../places';
 import { feeFor } from '../../world/prosperity';
@@ -43,6 +44,8 @@ export function villageInteractions(ctx: Surroundings) {
   const tryLandlord = (): boolean => {
     const room = places.indoors;
     if (!room || room.door.kind !== 'inn') return false;
+    // he pours a drink facing his own barrels otherwise, which is funny exactly once
+    if (room.keeper) turnToFace(room.keeper, player.x, player.z);
     for (const village of structures.villages) {
       const pub = village.pub;
       if (!pub) continue;

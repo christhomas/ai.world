@@ -11,6 +11,7 @@ import type { IsoCamera } from '../render/camera';
 import type { CropField } from '../render/crops';
 import type { DayCycle } from '../render/daycycle';
 import type { HeroGear } from '../render/herogear';
+import { turnToFace } from '../entities/entity';
 import type { Cutaway } from '../render/cutaway';
 import type { MountainMaterial, Mountains } from '../render/mountains';
 import type { PatchCountry } from '../world/patchcountry';
@@ -51,6 +52,15 @@ import type { Walked } from './walked';
 import type { Wildlife } from './wildlife';
 import { haulPace } from './woodcraft';
 import type { Entity } from '../entities/entity';
+
+/**
+ * How near the counter you have to be before the keeper looks up, in tiles.
+ *
+ * A shade over the reach at which you can talk to him, so he is already looking at you by the time
+ * there is anything to say — and short enough that somebody crossing the far side of the room does
+ * not have him turning on the spot like a weathervane.
+ */
+const WATCHES_YOU = 3.2;
 
 /** How far above his feet the hero's middle is, for the window the mountains keep open. */
 const HERO_EYE = 1.2;
@@ -275,6 +285,21 @@ export function createFrame(ctx: Framing) {
     // and the same hole in whatever is standing in front of him — a cottage, a wall, a wood —
     // when he has asked for one. It costs a uniform whether it is on or off
     cutaway.look(heroSpot, iso.camera, iso.target);
+
+    /*
+     * Whoever is behind a counter watches whoever is standing at it.
+     *
+     * Not only when a conversation starts — a shopkeeper who snaps round the instant you press
+     * Enter and stares at the wall the rest of the time is worse than one who never moves. He is
+     * put facing the door when the room is built and has nothing to do all day, so following a
+     * customer with his eyes is the whole of the life he has.
+     *
+     * Within the counter's own reach, so a man walking past the window does not swing him round.
+     */
+    const keeper = places.indoors?.keeper;
+    if (keeper && Math.hypot(keeper.x - player.entity.x, keeper.z - player.entity.z) < WATCHES_YOU) {
+      turnToFace(keeper, player.entity.x, player.entity.z);
+    }
 
     /**
      * The guard is held, not tapped, and it is polled here rather than bound as a one-shot key so

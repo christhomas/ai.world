@@ -1,4 +1,4 @@
-import { yawFor, type Entity } from '../entities/entity';
+import { turnToFace, type Entity } from '../entities/entity';
 import { buy, holds } from '../world/deeds';
 import { heroOf } from '../world/health';
 import { personTill, villageTill } from './tills';
@@ -208,7 +208,7 @@ export function createMeeting(ctx: Meeting) {
       },
       paid: new Set(),
     };
-    e.yaw = yawFor(player.x - e.x, player.z - e.z);
+    turnToFace(e, player.x, player.z);
     e.state = 'idle';
     e.timer = 1e9;
     dialogue.start(dialogueFor(e, talkCtx), () => { e.timer = 1; });

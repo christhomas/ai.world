@@ -321,6 +321,23 @@ export function yawFor(vx: number, vz: number): number {
   return Math.atan2(-vz, vx);
 }
 
+/**
+ * Turn somebody to face a place — whoever is talking to them, nearly always.
+ *
+ * One line, and it is a function because it was written out by hand in one place and forgotten in
+ * four others: a shopkeeper sold you a knife while looking at the wall, a landlord poured a drink
+ * facing his own barrels, and a stall holder took your money over his shoulder. It is the smallest
+ * thing that makes a conversation read as one.
+ *
+ * Nothing happens when the two are on the same spot, because there is no direction to face and
+ * `atan2(0, 0)` would swing them to due east for no reason.
+ */
+export function turnToFace(e: Entity, x: number, z: number): void {
+  const dx = x - e.x, dz = z - e.z;
+  if (dx === 0 && dz === 0) return;
+  e.yaw = yawFor(dx, dz);
+}
+
 function turnToward(current: number, target: number, maxDelta: number): number {
   let d = target - current;
   d = Math.atan2(Math.sin(d), Math.cos(d));

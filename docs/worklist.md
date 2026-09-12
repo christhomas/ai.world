@@ -3703,7 +3703,19 @@ than by remembering — and the first thing found was that the gap is not where 
       rock mesh — it is the land itself, coming out of `localland.ts` as a ramp where the road world
       terraces. Two countries that do not look like the same game.
 
-- [ ] **63. Somebody you talk to turns to face you.** A shopkeeper carries on looking at the wall
+- [x] **63. Somebody you talk to turns to face you.** `turnToFace` in `entities/entity.ts`, which
+      is a function rather than a line because the line existed in exactly one place and was missing
+      from four others. A keeper behind a counter now watches whoever is standing at it — not only
+      from the moment Enter is pressed, because a shopkeeper who snaps round at the keystroke and
+      stares at the wall the rest of the time is worse than one who never moves. He is put facing
+      the door when the room is built and has nothing else to do all day; following a customer is
+      the whole of the life he has. Measured rather than eyeballed: before this, the storekeeper's
+      yaw was π/2 with the hero standing due south of him, and it is −π/2 now, which is him.
+
+      The landlord turns too. Still to do: stall holders, and anybody talked to through a path that
+      does not go by `startTalk`.
+
+      *The original note:* A shopkeeper carries on looking at the wall
       while he sells you a knife, which is funny once. Turning to face whoever is talking is the
       smallest thing that makes a conversation read as one — and the machinery is there: `yawFor` is
       what every creature already uses to face what it is doing, and a conversation knows both who
