@@ -115,6 +115,25 @@ interface Block {
   highI: number;
   highJ: number;
   sites: Site[];
+  /** What the last full search of this block found. See `nearestIn`. */
+  near?: Nearest;
+}
+
+/**
+ * The last point a block was fully searched from, and what it found.
+ *
+ * Both distances are real distances rather than squared ones, because what they are kept for is a
+ * subtraction: the gap between the winner and the runner-up is how far the asker may move before
+ * the answer could possibly change.
+ */
+interface Nearest {
+  x: number;
+  z: number;
+  owner: Site;
+  /** How far away the winner was. */
+  best: number;
+  /** And the runner-up, or `Infinity` where the block holds only one site. */
+  second: number;
 }
 
 /**
@@ -210,12 +229,12 @@ export class Scatter {
    * and copy what they want out of it, which is what keeps that safe without a defensive copy —
    * and a defensive copy here would give back exactly the cost this exists to remove.
    */
-  private gather(square: Square): readonly Site[] {
+  private gather(square: Square): Block {
     const cell = this.dials.far;
     const lowI = Math.floor(square.x0 / cell), highI = Math.floor(square.x1 / cell);
     const lowJ = Math.floor(square.z0 / cell), highJ = Math.floor(square.z1 / cell);
     const already = this.gathered.get(lowI)?.get(lowJ);
-    if (already && already.highI === highI && already.highJ === highJ) return already.sites;
+    if (already && already.highI === highI && already.highJ === highJ) return already;
     const sites: Site[] = [];
     for (let cj = lowJ; cj <= highJ; cj++) {
       for (let ci = lowI; ci <= highI; ci++) for (const one of this.standing(ci, cj)) sites.push(one);
@@ -223,15 +242,16 @@ export class Scatter {
     // same reasoning as the cells: a block is a pure function of the cells it covers, so emptying
     // the store costs only the gathering, and gathering is what this is bounded to do rarely
     if (this.blocks >= BLOCKS_KEPT) { this.gathered.clear(); this.blocks = 0; }
-    rowOf(this.gathered, lowI).set(lowJ, { highI, highJ, sites });
+    const block: Block = { highI, highJ, sites };
+    rowOf(this.gathered, lowI).set(lowJ, block);
     this.blocks++;
-    return sites;
+    return block;
   }
 
   /** The points of a patch of country: the same answer as `sitesIn`, without the repeated work. */
   sitesIn(window: Square): Site[] {
     const kept: Site[] = [];
-    for (const one of this.gather(window)) {
+    for (const one of this.gather(window).sites) {
       if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
       kept.push(one);
     }
@@ -248,20 +268,91 @@ export class Scatter {
    *
    * It lives here, on the point set, rather than in the mesher that wants it, because the mesher
    * could only ask by having the list built for it — a hundred and fifty sites gathered into a
-   * fresh array and thrown away, once for every tile of every chunk. Asking the question where the
-   * points are is what lets the answer be found without building anything at all.
+   * fresh array and thrown away, once for every tile of every chunk.
+   *
+   * ## Asking once per region rather than once per tile
+   *
+   * The question is asked for every tile of every chunk and the answer is constant across a whole
+   * face — which is to say most of the asking is re-deriving what the tile next door already
+   * settled. What stops that is the block remembering where it was last searched from and what it
+   * found, and a test that says whether the asker has moved far enough for that to matter.
+   *
+   * The test is the triangle inequality and it is exact, not a heuristic. Suppose the last full
+   * search stood at `p`, found the winner at distance `best` and the runner-up at `second`. Move
+   * `step` away from `p`. Every other site can have come closer by at most `step`, so none of them
+   * is nearer than `second - step`; the winner can have receded by at most `step`, so it is no
+   * further than `best + step`. If `best + step` is still less than `second - step` — that is, if
+   * `2·step < second - best` — the winner is *strictly* nearest at the new point as well. Strictly,
+   * so there is no tie to break and the first-past-the-post rule cannot come into it.
+   *
+   * That falls out as the region behaviour the tile-by-tile version had to pay for: deep inside a
+   * face the gap between the nearest site and the next is wide and thousands of tiles are answered
+   * by one subtraction, while along a border — exactly where two sites are near equidistant — the
+   * gap closes, the test fails, and the ground is searched properly. Nobody had to decide where the
+   * borders are; the gap knows.
+   *
+   * The one thing to be careful of is that the window, not just the block, decides the answer: a
+   * site outside the window is not a candidate however near it is. So the certified answer is only
+   * used when the winner is close enough to be inside the window wherever the window is — and when
+   * it is not, the plain filtered search below runs and settles it the old way.
    */
   nearestIn(window: Square, x: number, z: number): Site | null {
-    const around = this.gather(window);
+    const block = this.gather(window);
+    const sites = block.sites;
+    // How far a site may be from this point and still be certainly within the window. Worked out
+    // from the window rather than assumed to be half its width, because a caller is entitled to
+    // ask about a point that is not in the middle of the square it is asking about.
+    const reaches = Math.min(x - window.x0, window.x1 - x, z - window.z0, window.z1 - z);
+
+    const near = block.near;
+    if (near !== undefined) {
+      const dx = x - near.x, dz = z - near.z;
+      const stepped = dx * dx + dz * dz;
+      const gap = near.second - near.best;
+      // the winner is still strictly the nearest of the block: see the triangle inequality above
+      if (gap > 0 && 4 * stepped < gap * gap) {
+        // and it is still certainly inside the window, which is the other half of the question
+        const room = reaches - near.best;
+        if (room > 0 && stepped <= room * room) return near.owner;
+      }
+    }
+
+    // the whole block, winner and runner-up together, so the next question can be answered from it
     let owner: Site | null = null;
+    let best = Infinity, second = Infinity;
+    for (let n = 0; n < sites.length; n++) {
+      const one = sites[n];
+      const away = (one.x - x) ** 2 + (one.z - z) ** 2;
+      if (away < best) { second = best; best = away; owner = one; }
+      else if (away < second) second = away;
+    }
+
+    /*
+     * The block's nearest is the window's nearest, whenever it is near enough to be in the window.
+     *
+     * A site the window excludes is further than `reaches` in x or in z, and so further than
+     * `reaches` outright. So if the nearest site of the whole block is within `reaches`, no
+     * excluded site can beat it, and it is also the *first* of the block's minima — which is the
+     * same one the filtered walk below would have kept, since that walk sees the same sites in the
+     * same order with some of them missing.
+     */
+    if (owner !== null && reaches > 0 && best <= reaches * reaches) {
+      block.near = { x, z, owner, best: Math.sqrt(best), second: Math.sqrt(second) };
+      return owner;
+    }
+
+    // Otherwise the window really is what decides, and it is settled exactly as it always was.
+    // Nothing is remembered from this: what was found is an answer about a window rather than about
+    // the block, and the certificate above is only sound about the block.
+    let held: Site | null = null;
     let nearest = Infinity;
-    for (let n = 0; n < around.length; n++) {
-      const one = around[n];
+    for (let n = 0; n < sites.length; n++) {
+      const one = sites[n];
       if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
       const away = (one.x - x) ** 2 + (one.z - z) ** 2;
-      if (away < nearest) { nearest = away; owner = one; }
+      if (away < nearest) { nearest = away; held = one; }
     }
-    return owner;
+    return held;
   }
 }
 

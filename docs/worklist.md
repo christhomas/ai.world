@@ -4437,3 +4437,29 @@ than by remembering — and the first thing found was that the gap is not where 
       The rule the whole endless country rests on has to survive it: the same patch, grown twice or
       grown on two machines, must be the same patch. Any of these is provable the way the last one
       was — the country's fingerprint and each patch's parts and ground hashes, before and after.
+
+      *Answered on the 12th, by the second of the three and in a better form than it was proposed.*
+      Rather than finding the regions, the block remembers where it last searched from and what it
+      found, and a triangle inequality certifies the old answer: if the winner beat the runner-up by
+      more than twice the distance moved, the winner is still strictly nearest. That delivers the
+      region behaviour without anybody having to find a region — deep inside a face the gap between
+      first and second is wide and thousands of tiles cost one subtraction, and along a border, which
+      is exactly where two sites are near equidistant, the gap closes and the ground is searched
+      properly. **The gap knows where the borders are.** 87% of asks are answered by the
+      certificate; `nearestIn`'s own time fell 63%, a patch fell 555 ms → 490 ms, and the profile is
+      now flat — no function above 11%, where the original 6,250 ms was 78% in three of them.
+
+- [ ] **76. The same question, asked six times a tile.** Found while answering **75**, and it is the
+      bigger half of it: a patch has 262,144 tiles and `faceAt` is called **1,555,708** times growing
+      one. `localland.kindOf`'s own comment names why — *"asked for every tile of every chunk, and
+      eight more times per ring while a coastline is felt for"* — so the honest figure is six asks
+      per tile, of which five are re-asking something just answered.
+
+      Making each ask cheaper was **75** and it is done and close to its floor. This is the shape
+      problem underneath it: the answer to "which face is this tile in" should be worked out once per
+      tile and carried, rather than re-derived by each thing that wants it. It lives in `terrain.ts`
+      and `localland.ts` — one layer up from where the last two rounds of work were — and it is worth
+      more than everything left inside `nearestIn` put together.
+
+      The same two requirements as **75**: the country must not move (fingerprint and per-patch
+      hashes), and the numbers come from interleaved rounds rather than one run each way.
