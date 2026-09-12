@@ -83,15 +83,17 @@ export function spawnVillageFolk(o: Street, ctx: SpawnCtx): void {
     // halves of one crowd rather than two crowds
     const wanted = howManyAreOut(v.houses.length, ctx.rng());
     if (inChunk(v.x, v.z)) {
-      // the register first, because a body is chosen before an entity exists and the trade is
-      // what chooses it. The stablehand is the one the register does not name: keeping the horses
-      // is a job handed out here rather than a trade somebody is born to
+      // the register first, because a body is chosen before an entity exists and the trade and the
+      // sex are what choose it. The stablehand is the one the register does not name: keeping the
+      // horses is a job handed out here rather than a trade somebody is born to
 
       const posts = postsOf(v, o.world);
       const residents = o.residentsFor(v, posts, wanted);
       const stabled = o.hasStable(v.name);
       const herd = o.place(ctx, 'villager', [v.x, v.z], wanted, Math.max(8, v.radius * 0.7),
-        SPAWN.SCATTER, (n) => (n === 1 && stabled ? 'cowboy' : bodyForTrade(residents[n]?.trade)));
+        SPAWN.SCATTER, (n) => (n === 1 && stabled
+          ? 'cowboy'
+          : bodyForTrade(residents[n]?.trade, residents[n]?.sex)));
       herd.tag = v.name;
       if (herd.members.length > 0) herd.members[0].role = 'elder';
       // one of them keeps the horses, in the villages that have any

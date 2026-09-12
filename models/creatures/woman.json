@@ -1,0 +1,70 @@
+{
+  "note": [
+    "A woman, and half a village was drawn in a man's trousers until this file existed.",
+    "Long hair and a dress, which is what a village looked like from a distance for a thousand years and is the only version of this that survives being seen from up here. The rule is the miner's rule: the shape carries it, never the colour. Nothing below is a new colour — the dress takes the same palette entry the shirt does, so a woman is as many colours as a villager ever was, and what tells her apart is her outline.",
+    "Slighter than the man, at 0.9 against his 1.06. That is the trunk and the limbs and not the height: a woman is not a small man, and shrinking the whole figure would have made her a child.",
+    "Two cues rather than one, because one is a cue you lose the moment somebody turns round. From behind and from above it is the fall of hair; from the front and the side it is the hem, which is wider than her hips and wider than her shoulders and is the only wedge-shaped outline in the village."
+  ],
+  "from": "biped",
+  "with": {
+    "skin": "#f3d3b3",
+    "hair": "#ffffff",
+    "hairTint": 1,
+    "shirtTint": 0,
+    "pantsColor": "#8a7a6c",
+    "build": 0.9
+  },
+  "parts": [
+    {
+      "note": "the fall of hair, down the back to the shoulder blades. Its top is buried inside the skull's own hair rather than resting on it — two faces at the same height fight for the same pixels and the head shimmers as the camera turns. It takes the same tint as the hair above it, so a fair woman is fair all the way down, and it turns with the head so it swings when she looks at you",
+      "box": [
+        0.08,
+        0.36,
+        0.3
+      ],
+      "at": [
+        -0.155,
+        1.12,
+        0
+      ],
+      "color": "#ffffff",
+      "tint": 1,
+      "anim": "head",
+      "pivot": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "note": "the dress from the waist to the knee, a shade proud of the body so the two do not fight for the same pixels. Painted from the shirt's palette entry rather than a colour of its own, because a bodice and a skirt in two colours is a blouse and a skirt, and what is wanted is one garment",
+      "box": [
+        0.28,
+        0.26,
+        0.38
+      ],
+      "at": [
+        0,
+        0.58,
+        0
+      ],
+      "color": "#ffffff",
+      "tint": 0
+    },
+    {
+      "note": "and its hem, wider than the skirt above it and wider than her shoulders: the flare is the whole silhouette, and it is what you read at the far end of a street. It stops at the knee rather than the ankle so the walk shows beneath it — the priest's cassock learnt that first — and so that she is never mistaken for him",
+      "box": [
+        0.32,
+        0.2,
+        0.44
+      ],
+      "at": [
+        0,
+        0.36,
+        0
+      ],
+      "color": "#ffffff",
+      "tint": 0
+    }
+  ]
+}

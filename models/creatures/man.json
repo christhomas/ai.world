@@ -1,0 +1,48 @@
+{
+  "note": [
+    "A man, which is the body this game has always drawn, given a belt so that he is a shape rather than the absence of one.",
+    "He is here because a pair only reads as a pair. Draw the woman and leave everybody else as the plain villager and what a player sees is a village of villagers with some odd ones in it; draw both and the street is women and men. The belted tunic is the counterpart of her dress and the medieval answer to the same question: one garment, gathered at the waist, ending at mid-thigh instead of at the knee, with the leg showing below it.",
+    "The tunic takes the shirt's palette entry, as her dress takes it, so nothing here is a new colour — the belt is the one fixed thing on him, and it is a line rather than a mass.",
+    "Broader than she is, at 1.06 against her 0.9. Neither is far from the one the game has always used, and they do not need to be: the pair only has to be told apart from each other, and hair and hem do that on their own."
+  ],
+  "from": "biped",
+  "with": {
+    "skin": "#e8c49a",
+    "hair": "#ffffff",
+    "hairTint": 1,
+    "shirtTint": 0,
+    "pantsColor": "#4a3a2a",
+    "build": 1.06
+  },
+  "parts": [
+    {
+      "note": "the belt, standing a shade proud of the chest so the two do not fight for the same pixels, and set a little below the shirt's own hem so no two faces sit at the same height. Leather, and the only colour on him that is not out of the palette: a belt nobody can see is a tunic nobody can read",
+      "box": [
+        0.31,
+        0.05,
+        0.41
+      ],
+      "at": [
+        0,
+        0.65,
+        0
+      ],
+      "color": "#4a3524"
+    },
+    {
+      "note": "the tunic below the belt, to mid-thigh. Its top is buried inside the belt so the join is a line and not a seam, and it is painted from the shirt's palette entry, which is what makes the two of them one garment gathered at the waist rather than a shirt and a skirt",
+      "box": [
+        0.3,
+        0.18,
+        0.4
+      ],
+      "at": [
+        0,
+        0.56,
+        0
+      ],
+      "color": "#ffffff",
+      "tint": 0
+    }
+  ]
+}

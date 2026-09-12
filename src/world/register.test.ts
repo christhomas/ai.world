@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from './register';
-import { LIFE, ageOf, firstNameOf, stageOf, surnameOf, tradeTakenUp, type Person } from './people';
+import { LIFE, ageOf, firstNameOf, parentsFrom, sexAtBirth, stageOf, surnameOf, tradeTakenUp, type Person } from './people';
 import { FORTUNE } from './fortunes';
 
 const TRADES = ['farmer', 'hunter', 'seller'];
@@ -418,7 +418,7 @@ describe('what a grown child does for a living', () => {
   const child = (mother: string, father = ''): Person =>
     ({ ...bare, name: 'Kees Vos', mother, father });
   const bare: Person = {
-    id: 'x', name: '', village: 'Ashford', trade: '', born: 0, lives: 70,
+    id: 'x', name: '', village: 'Ashford', sex: 'woman', trade: '', born: 0, lives: 70,
     mother: '', father: '', knows: [], memories: [], opinions: [], purse: 0, hungry: 0,
   };
   /*
@@ -485,3 +485,112 @@ describe('what a grown child does for a living', () => {
     expect(share, 'a trade is still being rolled rather than inherited').toBeGreaterThan(0.5);
   });
 });
+
+/**
+ * Which of the two somebody is, which the register has never said.
+ *
+ * It has drawn mothers and fathers since the first day it existed and has never been able to
+ * answer "is this a woman", so a village's family tree could name Piet Vos as somebody's mother
+ * and a street could only ever be drawn as a street of men. These pin the three things that had
+ * to become true: that the answer exists at all, that it is the same answer everywhere, and that
+ * asking the question cost the founding nothing — a village must be the village it always was,
+ * with one more fact known about each of its people.
+ */
+describe('who is a woman and who is a man', () => {
+  it('says so about everybody, and says the same thing on another machine', () => {
+    const here = settle(new Register(5), 8);
+    const there = settle(new Register(5), 8);
+
+    expect(here.every((p) => p.sex === 'woman' || p.sex === 'man')).toBe(true);
+    expect(here.map((p) => `${p.id}:${p.sex}`)).toEqual(there.map((p) => `${p.id}:${p.sex}`));
+  });
+
+  it('founds a village of both, rather than a garrison or a nunnery', () => {
+    // the coin is taken off somebody's id rather than off the village's roll, and an id is a name
+    // and a number in a row — so a coin that was reading the wrong bit of the hash would come out
+    // as women and men alternating, or as all of one. Either would pass a test that only counted.
+    for (const seed of [1, 2, 3, 9, 21]) {
+      const village = settle(new Register(seed), 8);
+      const women = village.filter((p) => p.sex === 'woman').length;
+      expect(women, `seed ${seed}: nobody but men`).toBeGreaterThan(1);
+      expect(village.length - women, `seed ${seed}: nobody but women`).toBeGreaterThan(1);
+    }
+  });
+
+  it('never writes a man down as the mother of anybody', () => {
+    const register = new Register(22);
+    settle(register, 9);
+    register.advance(200);                        // long enough that everybody here was born here
+
+    const known = new Map(register.everybody().map((p) => [p.name, p.sex]));
+    for (const person of register.everybody()) {
+      // the dead are not kept, so only the parents who are still alive can be checked — which is
+      // every parent of every child young enough to be living beside them
+      if (known.has(person.mother)) expect(known.get(person.mother), `${person.name}'s mother`).toBe('woman');
+      if (known.has(person.father)) expect(known.get(person.father), `${person.name}'s father`).toBe('man');
+    }
+  });
+
+  it('draws a name for a woman out of the list of them, so a tree reads without a field being read', () => {
+    // the whole reason the given names were sorted into two lists: a clerk's tree is names, and a
+    // tree in which Greta is the father is a tree nobody believes
+    const women = new Set<string>();
+    const men = new Set<string>();
+    for (let seed = 1; seed <= 12; seed++) {
+      for (const person of settle(new Register(seed), 8)) {
+        (person.sex === 'woman' ? women : men).add(firstNameOf(person));
+      }
+    }
+    expect([...women].filter((name) => men.has(name)), 'a name used for both').toEqual([]);
+    expect(women.size).toBeGreaterThan(4);
+    expect(men.size).toBeGreaterThan(4);
+  });
+
+  it('costs the village nothing to know: the answer is a function of who they are', () => {
+    // no stream is consulted and none is disturbed, which is what lets this be added to a world
+    // that already exists without founding every village in it differently
+    expect(sexAtBirth(3, 'Ashford-4'), 'the same person, asked twice').toBe(sexAtBirth(3, 'Ashford-4'));
+    const one = Array.from({ length: 40 }, (_, n) => sexAtBirth(3, `Ashford-${n}`));
+    const other = Array.from({ length: 40 }, (_, n) => sexAtBirth(4, `Ashford-${n}`));
+    expect(new Set(one).size, 'the id is not being read at all').toBe(2);
+    expect(one, 'two worlds with the same people in them').not.toEqual(other);
+  });
+
+  it('takes a mother from the women and a father from the men', () => {
+    const adults = [
+      { ...someone('a'), sex: 'man' as const },
+      { ...someone('b'), sex: 'woman' as const },
+      { ...someone('c'), sex: 'man' as const },
+    ];
+    const [mother, father] = parentsFrom(adults, draws(0.99, 0.0));
+    expect(mother.sex).toBe('woman');
+    expect(father.sex).toBe('man');
+  });
+
+  it('still finds a child parents in a village that has run out of one of them', () => {
+    /*
+     * The one that matters. A village whose last woman has been buried must not quietly stop
+     * having children: nothing in the register would say so, the place would simply thin out over
+     * a season, and a village draining away for a reason nobody can see is the failure this file
+     * has been bitten by twice already.
+     */
+    const men = [{ ...someone('a'), sex: 'man' as const }, { ...someone('b'), sex: 'man' as const }];
+    const [mother, father] = parentsFrom(men, draws(0.0, 0.99));
+    expect(men).toContain(mother);
+    expect(men).toContain(father);
+  });
+});
+
+/** Somebody with nothing about them but a name, for the two questions above that need people. */
+function someone(id: string): Person {
+  return {
+    id, name: id, village: 'Ashford', sex: 'woman', trade: 'farmer', born: -30, lives: 70,
+    mother: '', father: '', knows: [], memories: [], opinions: [], purse: 0, hungry: 0,
+  };
+}
+
+/** An rng that hands out exactly these draws, so a fallback can be asked for on purpose. */
+function draws(...values: number[]): () => number {
+  let at = 0;
+  return () => values[at++ % values.length];
+}

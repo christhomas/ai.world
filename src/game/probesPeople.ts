@@ -72,7 +72,7 @@ export function installPeopleProbes(ctx: Probed): void {
     return {
       village: here, day: register.today,
       people: register.living(here).map((p) => ({
-        name: p.name, trade: p.trade, born: p.born, lives: p.lives,
+        name: p.name, sex: p.sex, trade: p.trade, born: p.born, lives: p.lives,
         // what they have and whether they have eaten: the economy is the reason for this probe as
         // much as the family tree is, and a village's health is a column of numbers
         purse: p.purse, hungry: p.hungry,

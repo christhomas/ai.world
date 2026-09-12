@@ -322,7 +322,7 @@ const TOWER_IN_SIGHT = 70;
       const drawn = entities.within(player.x, player.z, HIRE.EARSHOT).find((e) => e.person === bargain.who);
       const at = drawn ?? player.entity;
       const [stood] = entities.spawnPack(
-        bodyForTrade(person.trade), at.x, at.z, 0, seed ^ hashString(bargain.who), COMPANY, 1,
+        bodyForTrade(person.trade, person.sex), at.x, at.z, 0, seed ^ hashString(bargain.who), COMPANY, 1,
       );
       if (!stood) continue;
       stood.person = person.id;

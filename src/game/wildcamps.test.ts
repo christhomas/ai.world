@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GIVEN } from '../world/people';
 import { TRADES } from '../entities/trades';
 import { Biome } from '../world/biomes';
 import { TileType } from '../world/terrain';
@@ -165,8 +166,11 @@ describe('camps out in the country', () => {
       expect(tradeIds.has(camp.trade), `${camp.trade} is nobody's trade`).toBe(true);
       expect(camp.who).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
     }
-    // the names come off the same two lists a village founds its families from, and no other
-    expect(new Set(camps.map((c) => c.who.split(' ')[0])).size).toBeLessThanOrEqual(20);
+    // the names come off the same two lists a village founds its families from, and no other.
+    // Held to the lists themselves rather than to a number: the given names were one list of twenty
+    // until they were split into women's and men's, and a hand-written bound would have read as a
+    // camp inventing names when all that had happened was the world learning who was who
+    expect(new Set(camps.map((c) => c.who.split(' ')[0])).size).toBeLessThanOrEqual(GIVEN.length);
     expect(new Set(camps.map((c) => c.who.split(' ')[1])).size).toBeLessThanOrEqual(24);
     expect(new Set(camps.map((c) => c.trade)).size).toBeGreaterThan(1);
   });

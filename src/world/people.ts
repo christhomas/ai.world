@@ -53,6 +53,21 @@ export const LIFE = {
 
 export type Stage = 'baby' | 'child' | 'adult';
 
+/**
+ * Whether somebody is a woman or a man.
+ *
+ * The register has drawn mothers and fathers since the beginning and never once said which of the
+ * two anybody was, so a village's family tree was a tree of names in which a man could be his
+ * grandson's mother. It is one word per person and it settles two quite different questions: who
+ * may be a child's mother, and — because `entities/trades.ts` chooses a body the way it chooses one
+ * for a trade — what a person standing in the street is drawn as.
+ *
+ * Named for the words a player would use rather than `f` and `m`, because these end up in the
+ * bodies table beside `miner` and `farmer` and a table that reads as English is a table somebody
+ * can change without looking anything up.
+ */
+export type Sex = 'woman' | 'man';
+
 /** Something that happened, worth carrying about. Named, so it outlives whoever it is about. */
 export interface Memory {
   what: 'died' | 'born' | 'saved' | 'robbed' | 'given' | 'feared' | 'inherited';
@@ -70,6 +85,14 @@ export interface Person {
   id: string;
   name: string;
   village: string;
+  /**
+   * A woman or a man. Fixed at birth and never changed afterwards, like the day they were born.
+   *
+   * Required rather than optional, and that is the point of it: a person the register cannot
+   * answer this about is a person the street has to guess at, and guessing is how a village ends
+   * up with a different set of women on every machine that draws it.
+   */
+  sex: Sex;
   /** Empty until they are grown; a trade comes with adulthood. */
   trade: string;
   /** The world day they were born. Everything about their age follows from it. */
@@ -104,6 +127,49 @@ export interface Person {
    * for what there was, which is what makes a purse the difference between eating and not.
    */
   hungry: number;
+}
+
+/**
+ * Which a newborn is, on an even chance — taken off who they are rather than off the stream that
+ * is deciding everything else about them.
+ *
+ * That is the whole design of this function and it is not fussiness. `settle` has the warning
+ * written out at length: adding one option to a weighted list reshuffles every draw after it, and
+ * a village founded on a reshuffled stream is a different village — different names, different
+ * trades, different people down the mine. A coin tossed for every child out of the village's own
+ * roll would have done exactly that to every village in every world, to add a field.
+ *
+ * So it is a stream of one, seeded from the world and from the person's id, which is unique to
+ * them and is built before anything else about them is. Nothing that was ever rolled moves; every
+ * village keeps the people it had and gains a fact about each of them. And it is still a pure
+ * function of the seed, which is what lets two players who have never spoken meet the same women.
+ */
+export function sexAtBirth(seed: number, id: string): Sex {
+  return mulberry32(derive(seed, SALT.SEX) ^ hashName(id))() < 0.5 ? 'woman' : 'man';
+}
+
+/**
+ * A mother and a father for a child, out of the grown people of a village.
+ *
+ * Any two adults was what this was, which is how a register ended up recording Piet Vos as
+ * somebody's mother. Now that it knows which is which, it takes a woman for the mother and a man
+ * for the father and the tree reads the way a tree should.
+ *
+ * The fallback is the load-bearing part and is not a formality. A village whose last woman has
+ * been buried must not quietly stop having children: nothing else in the register would say so,
+ * the place would simply thin out over a season, and that failure — a village that drains away
+ * for a reason nobody can see — is one this file has been bitten by twice already. So a sex with
+ * nobody left in it falls back to whoever is grown, and the roll is spent either way, because two
+ * draws that stay two draws are two villages that stay the same village on two machines.
+ */
+export function parentsFrom(adults: readonly Person[], rng: () => number): [Person, Person] {
+  const oneOf = (some: readonly Person[], roll: number): Person => {
+    const from = some.length > 0 ? some : adults;
+    return from[Math.floor(roll * from.length)];
+  };
+  const women = adults.filter((p) => p.sex === 'woman');
+  const men = adults.filter((p) => p.sex === 'man');
+  return [oneOf(women, rng()), oneOf(men, rng())];
 }
 
 /** Which part of a life somebody is in, on a given day. */
@@ -199,16 +265,19 @@ export function foundVillage(
     const household: string[] = [];
     const under = (person: Person): Person => { household.push(firstNameOf(person)); return person; };
 
-    // a couple, somewhere in the middle of their lives
+    // a couple, somewhere in the middle of their lives. Which of them is which is not rolled: a
+    // household is founded as a woman and a man, and it is the one place in the world where the
+    // answer was already written down in the names of the two variables
     const motherBorn = -Math.round(20 + rng() * 30);
     const fatherBorn = -Math.round(20 + rng() * 30);
-    const mother = under(born(rng, people.length, village, trades, motherBorn, lifeOf(-motherBorn), family, household));
-    const father = under(born(rng, people.length + 1, village, trades, fatherBorn, lifeOf(-fatherBorn), family, household));
+    const mother = under(born(rng, seed, people.length, village, trades, motherBorn, lifeOf(-motherBorn), family, 'woman', household));
+    const father = under(born(rng, seed, people.length + 1, village, trades, fatherBorn, lifeOf(-fatherBorn), family, 'man', household));
     people.push(mother, father);
 
     for (let n = 0; n < Math.floor(rng() * (LIFE.CHILDREN + 1)); n++) {
       const childBorn = -Math.round(rng() * LIFE.CHILD_UNTIL);
-      const child = under(born(rng, people.length, village, trades, childBorn, lifeOf(-childBorn), family, household));
+      // and their children, who are whichever they are: nothing here is told, so nothing is rolled
+      const child = under(born(rng, seed, people.length, village, trades, childBorn, lifeOf(-childBorn), family, undefined, household));
       child.mother = mother.name;
       child.father = father.name;
       child.trade = '';                        // a trade comes with growing up
@@ -237,14 +306,25 @@ export function foundVillage(
   return people;
 }
 
+/**
+ * One person, born into a household.
+ *
+ * `sex` is told for the two a household is founded on — a couple is a woman and a man, and the
+ * names of the variables at the one call site that does it have said so since the beginning — and
+ * left out for everybody else, who are whichever their own id makes them. Either way it is settled
+ * before the name is drawn, because a name comes out of the list for that sex.
+ */
 function born(
-  rng: () => number, index: number, village: string, trades: string[], bornOn: number, lives: number,
-  family: string, household: string[] = [],
+  rng: () => number, seed: number, index: number, village: string, trades: string[], bornOn: number,
+  lives: number, family: string, sex: Sex | undefined, household: string[] = [],
 ): Person {
+  const id = `${village.replace(/[^A-Za-z]/g, '')}-${index}`;
+  const theirs = sex ?? sexAtBirth(seed, id);
   return {
-    id: `${village.replace(/[^A-Za-z]/g, '')}-${index}`,
-    name: `${givenName(rng, household)} ${family}`,
+    id,
+    name: `${givenName(rng, household, theirs)} ${family}`,
     village,
+    sex: theirs,
     trade: trades.length > 0 ? trades[Math.floor(rng() * trades.length)] : '',
     born: bornOn,                              // negative: they were already here on day one
     lives,
@@ -321,11 +401,36 @@ function tradeOnceHeldBy(village: Village, name: string): string {
  *
  * The given names are the ones villagers have always had in this game; the family names exist so
  * that a world of hundreds does not run out and start repeating.
+ *
+ * They are two lists now rather than one. The register drew every name out of a single bag, so a
+ * household could be founded on Greta and Saskia and the clerk's family tree would go on calling
+ * Greta the father: sex is on the register to make that tree read properly, and a tree that reads
+ * properly starts with the names.
+ *
+ * Both lists are twenty long and the original twenty are the first ten of each, because the size
+ * of the pool is load-bearing rather than decorative. A name is drawn avoiding the ones already
+ * under that roof, and when there is nothing left to avoid with it gives up and allows a repeat —
+ * so halving the bag that any one person draws from doubles how often a village ends up with two
+ * Saskia Hoorns, which `register.test.ts` has watched for across forty seeds since long before
+ * this. Ten more of each restores the margin the single bag had.
  */
-const GIVEN = [
-  'Ella', 'Tomas', 'Greta', 'Piet', 'Anouk', 'Rolf', 'Maren', 'Jory', 'Hild', 'Oskar',
-  'Bram', 'Neel', 'Saskia', 'Joost', 'Lieve', 'Wim', 'Fenna', 'Dirk', 'Roos', 'Kees',
+const WOMEN = [
+  'Ella', 'Greta', 'Anouk', 'Maren', 'Hild', 'Saskia', 'Lieve', 'Fenna', 'Roos', 'Neel',
+  'Trijn', 'Femke', 'Elske', 'Nynke', 'Mieke', 'Aaltje', 'Sanne', 'Jantje', 'Betje', 'Truus',
 ];
+const MEN = [
+  'Tomas', 'Piet', 'Rolf', 'Jory', 'Oskar', 'Bram', 'Joost', 'Wim', 'Dirk', 'Kees',
+  'Klaas', 'Teun', 'Joris', 'Gerrit', 'Willem', 'Jelle', 'Sjoerd', 'Menno', 'Lars', 'Hendrik',
+];
+/** Both, for whoever is not on any register and has nobody to be a mother or a father to. */
+/**
+ * Every given name in the world, for anybody who wants a person rather than a woman or a man.
+ *
+ * Exported so that a test can hold a name to the list it came off rather than to a number written
+ * beside it — the number was twenty until the list was split by sex, and a bound that has to be
+ * edited every time the world grows a name is a bound nobody trusts.
+ */
+export const GIVEN = [...WOMEN, ...MEN];
 const FAMILY = [
   'Vos', 'Bakker', 'Mulder', 'Smit', 'Rietveld', 'Haan', 'Bos', 'Kroon',
   'Waal', 'Linden', 'Meer', 'Dijk', 'Veld', 'Stroom', 'Berg', 'Hout',
@@ -335,10 +440,15 @@ const FAMILY = [
 /**
  * A given name, avoiding any already in use under the same roof — otherwise a village turns up
  * couples called Jory Haan and Jory Haan, and a memory about one is a memory about both.
+ *
+ * The sex is optional because not everybody who needs a name is on a register: a bandit camped in
+ * the woods is named by `wildcamps.ts` and belongs to nobody's family, so he draws from both lists
+ * exactly as every villager used to.
  */
-export function givenName(rng: () => number, taken: readonly string[] = []): string {
-  const free = GIVEN.filter((name) => !taken.includes(name));
-  const pool = free.length > 0 ? free : GIVEN;
+export function givenName(rng: () => number, taken: readonly string[] = [], sex?: Sex): string {
+  const names = sex === 'woman' ? WOMEN : sex === 'man' ? MEN : GIVEN;
+  const free = names.filter((name) => !taken.includes(name));
+  const pool = free.length > 0 ? free : names;
   return pool[Math.floor(rng() * pool.length)];
 }
 

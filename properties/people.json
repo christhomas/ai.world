@@ -496,5 +496,153 @@
       "They know the road better than I do.",
       "We keep four, and two of them are trouble."
     ]
+  },
+  "woman": {
+    "note": [
+      "A villager the register knows to be a woman. Everything here is the villager's own numbers, because she is a villager: she walks at the same pace, has the same life in her, and her day is decided by her trade exactly as his is. Only the body differs, and it differs in `models/creatures/woman.json`.",
+      "The palettes are the villager's, unchanged, and that is deliberate. If a woman were drawn from a palette of her own then the colour would be carrying it, and the rule in this game is that the shape carries it \u2014 a street where every woman wears the same dye is a costume department, not a village.",
+      "The label stays \"Villager\" for the same reason the palettes do. She is one, and the hud has always said so; what has changed is that you can see which one she is.",
+      "The names are the register's women's names, for the handful of places that stand somebody up with no register entry behind them. Anybody the register does name is named by the register."
+    ],
+    "label": "Villager",
+    "emoji": "\ud83d\udc69",
+    "scale": 1,
+    "speed": 1.1,
+    "runSpeed": 1.1,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 60,
+    "palettes": [
+      [
+        "#c0392b",
+        "#2c1810"
+      ],
+      [
+        "#2980b9",
+        "#8b4513"
+      ],
+      [
+        "#27ae60",
+        "#ffd700"
+      ],
+      [
+        "#8e44ad",
+        "#6c5ce7"
+      ],
+      [
+        "#d35400",
+        "#00ced1"
+      ],
+      [
+        "#16a085",
+        "#ff69b4"
+      ],
+      [
+        "#7f8c8d",
+        "#2c1810"
+      ],
+      [
+        "#f1c40f",
+        "#4a2a10"
+      ]
+    ],
+    "names": [
+      "Ella",
+      "Greta",
+      "Anouk",
+      "Maren",
+      "Hild",
+      "Saskia",
+      "Lieve",
+      "Fenna",
+      "Roos",
+      "Neel"
+    ],
+    "lines": [
+      "Welcome to {village}!",
+      "Not much happens in {village}, and we like it that way.",
+      "The well water here is the sweetest around.",
+      "Watch the road at night.",
+      "Lovely weather for it.",
+      "Have you seen the old ruins?",
+      "{village} has stood here for generations."
+    ]
+  },
+  "man": {
+    "note": [
+      "A villager the register knows to be a man \u2014 the body this game has always drawn, now with a name of its own so that sex chooses a body the way a trade does.",
+      "Identical to the villager in every number here, and it should be: the pair exists to be told apart from each other in a street, and that argument is settled entirely in `models/creatures/man.json`. The lines are the villager's word for word, because a village's small talk is a village's small talk."
+    ],
+    "label": "Villager",
+    "emoji": "\ud83d\udc68",
+    "scale": 1,
+    "speed": 1.1,
+    "runSpeed": 1.1,
+    "herd": [
+      1,
+      1
+    ],
+    "behaviour": "wander",
+    "timid": false,
+    "hp": 60,
+    "palettes": [
+      [
+        "#c0392b",
+        "#2c1810"
+      ],
+      [
+        "#2980b9",
+        "#8b4513"
+      ],
+      [
+        "#27ae60",
+        "#ffd700"
+      ],
+      [
+        "#8e44ad",
+        "#6c5ce7"
+      ],
+      [
+        "#d35400",
+        "#00ced1"
+      ],
+      [
+        "#16a085",
+        "#ff69b4"
+      ],
+      [
+        "#7f8c8d",
+        "#2c1810"
+      ],
+      [
+        "#f1c40f",
+        "#4a2a10"
+      ]
+    ],
+    "names": [
+      "Tomas",
+      "Piet",
+      "Rolf",
+      "Jory",
+      "Oskar",
+      "Bram",
+      "Joost",
+      "Wim",
+      "Dirk",
+      "Kees"
+    ],
+    "lines": [
+      "Welcome to {village}!",
+      "Not much happens in {village}, and we like it that way.",
+      "The well water here is the sweetest around.",
+      "Watch the road at night.",
+      "Lovely weather for it.",
+      "Have you seen the old ruins?",
+      "{village} has stood here for generations."
+    ]
   }
 }

@@ -3271,7 +3271,24 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       register is agreed, and **46** and **49** are what it unlocks. The building of it is still to
       do.)
 
-- [ ] **46. A woman looks like a woman.** The other half of **34**: sex goes on the register so the
+- [x] **46. A woman looks like a woman.** *Done on the 12th, both halves of it.* Sex was not on the
+      register at all — nothing in `src/` mentioned it — so it went on first: `Person.sex`, derived
+      by `sexAtBirth` from a **stream of its own** under a new salt, keyed on the person's id. That
+      last part is the whole of why it was safe to add: `settle()` carries a written warning that one
+      extra draw reshuffles every weighted roll and refounds every village in every world, and a
+      separate stream costs the founding not a single draw. Parents are now a mother from the women
+      and a father from the men, in exactly the two draws it always took, falling back to any adult
+      so a village that has lost one sex does not quietly stop having children.
+
+      Then the shape. `models/creatures/woman.json` and `man.json`, built the way `BODIES` already
+      builds a miner or a priest — **the shape carries it, never the colour**: her hair falls to the
+      shoulder blades and her dress is wider across the hem than her own shoulders, stopping at the
+      knee so the walk still shows under it, which is the lesson the priest's cassock taught. His
+      tunic is belted and narrower than his shoulders. Both take the shirt's palette entry, so not
+      one new colour was introduced. A woman with a trade takes the trade's hat over the dress, the
+      way a real one would.
+
+      The original note: the other half of **34**: sex goes on the register so the
       family tree reads properly, and the moment it is there it should be *visible* — long hair and
       a dress, which is what a medieval village looked like and what makes a street readable at the
       distance this camera watches one from. The machinery is already built and already used for

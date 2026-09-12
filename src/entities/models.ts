@@ -43,6 +43,8 @@ import yeti from '../../models/creatures/yeti.json';
 import bigfoot from '../../models/creatures/bigfoot.json';
 import shopkeeper from '../../models/creatures/shopkeeper.json';
 import hero from '../../models/creatures/hero.json';
+import woman from '../../models/creatures/woman.json';
+import man from '../../models/creatures/man.json';
 import { Fields, PropertiesError, asNumber } from '../core/properties';
 import {
   ANIM_ROLES, biped, box, cone, cyl, ico, quadruped,
@@ -275,6 +277,9 @@ const FILES: Record<string, unknown> = {
   // the trades, which are the same person in different hats — and the hat is the whole of the
   // difference at the distance this camera watches a street from
   miner, priest, doctor, constable, mayor, farmer, cowboy,
+  // and the two the register chooses by sex rather than by trade, which is the same idea one step
+  // earlier: whoever has no hat of their own is still somebody, and a village is not all men
+  woman, man,
 };
 
 /** Every body in the game, by the name the rest of it knows the creature under. */

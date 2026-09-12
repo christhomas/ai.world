@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { Memory } from '../core/behaviour';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
-import { Entity, Herd, type TileWorld } from './entity';
+import { Entity, Herd, bodyOf, type TileWorld } from './entity';
+import { MODELS } from './models';
+import { PEOPLE } from './quarry';
 import { CREATURE_VERBS, type Mind } from './verbs';
-import { TRADES, pickTrade, tradeNamed, tradesFor } from './trades';
+import { TRADES, bodyForTrade, pickTrade, tradeNamed, tradesFor } from './trades';
+import type { PartDef } from './rigs';
 
 /** Flat, walkable, endless: a test wants a village green, not a landscape. */
 const green: TileWorld = {
@@ -157,5 +160,111 @@ describe('the verbs a working day is written in', () => {
 
     // and an empty field is nobody's business
     expect(runVerb('markPrey', { within: 4 }, wolf, { nearestPerson: () => null, playerX: 90, playerZ: 0 })).toBe('failure');
+  });
+});
+
+/**
+ * What somebody standing in a street is drawn as.
+ *
+ * A village was eleven trades and one body until the trades got hats, and it was two sexes and one
+ * body until the register learnt to say which was which. Both are the same argument, and the rule
+ * both follow is that the silhouette carries it rather than the colour: at the distance this camera
+ * watches a street from a hat is legible, a hem is legible, and a shirt is not.
+ *
+ * What is worth pinning is the order the two questions are asked in, that every answer is a body
+ * that exists, and that the woman and the man are told apart by their outline — because a pair
+ * told apart by a dye is a pair nobody can tell apart at all.
+ */
+
+/** The parts a model lays on over the plain person the generator drew. */
+const extrasOf = (id: string): PartDef[] => MODELS[id].slice(MODELS.villager.length);
+/** How wide something is across, which is the measurement a figure is read by from up here. */
+const across = (parts: readonly PartDef[]): number => Math.max(...parts.map((p) => p.size[2]));
+/** And how wide this body is at the shoulders, which is the widest the person underneath gets. */
+const shouldersOf = (id: string): number => across(MODELS[id].slice(0, MODELS.villager.length));
+
+describe('which body somebody is drawn with', () => {
+  it('gives a woman one of her own, and a man one of his', () => {
+    expect(bodyForTrade(undefined, 'woman')).toBe('woman');
+    expect(bodyForTrade(undefined, 'man')).toBe('man');
+  });
+
+  it('lets the trade win, because a woman with a trade wore the hat over the dress', () => {
+    expect(bodyForTrade('miner', 'woman')).toBe('miner');
+    expect(bodyForTrade('doctor', 'woman')).toBe('doctor');
+    // and the seven trades with no hat of their own fall through to the person wearing them
+    expect(bodyForTrade('seller', 'woman')).toBe('woman');
+    expect(bodyForTrade('hunter', 'man')).toBe('man');
+  });
+
+  it('draws anybody nobody has a register entry for as the villager they have always been', () => {
+    // a congregation at a church door, whoever is behind a counter, a street stood up by a page
+    // that has not been told who lives here yet: drawing those as men would be a guess
+    expect(bodyForTrade(undefined)).toBe('villager');
+    expect(bodyForTrade('seller')).toBe('villager');
+  });
+
+  it('gives a child with no trade yet a body, which an empty trade used not to', () => {
+    /*
+     * `(trade && BODIES[trade]) ?? 'villager'` handed back the empty string for a child, because
+     * an empty string is falsy and is not nullish. Nothing noticed for weeks: `manager.place`
+     * falls back to the herd's own kind when handed a body that does not exist, and the herd was
+     * villagers. It would notice now — a girl would be drawn as her mother's herd.
+     */
+    expect(bodyForTrade('', 'woman')).toBe('woman');
+    expect(bodyForTrade('')).toBe('villager');
+  });
+
+  it('never hands back a body the game cannot draw, or one it would not call a person', () => {
+    const everybody = ['clerk', 'sergeant', undefined, '', ...TRADES.map((t) => t.id)];
+    for (const trade of everybody) {
+      for (const sex of ['woman', 'man', undefined] as const) {
+        const body = bodyForTrade(trade, sex);
+        expect(KINDS[body], `a ${sex ?? 'nobody'} of trade "${trade}" is drawn as "${body}"`).toBeDefined();
+        expect(PEOPLE.has(body), `"${body}" is not counted as a person`).toBe(true);
+      }
+    }
+  });
+});
+
+describe('a woman looks like a woman', () => {
+  it('is told from a man by her outline rather than by her colour', () => {
+    // she flares below the waist and he tapers: her hem is wider across than her own shoulders,
+    // and his tunic is narrower than his. That is the whole of it at a hundred paces
+    expect(across(extrasOf('woman')), 'a hem no wider than she is').toBeGreaterThan(shouldersOf('woman'));
+    expect(across(extrasOf('man')), 'a tunic as broad as his shoulders').toBeLessThan(shouldersOf('man'));
+  });
+
+  it('wears hair that falls past her shoulders and turns with her head', () => {
+    const hair = extrasOf('woman').find((p) => p.anim === 'head');
+    expect(hair, 'nothing on her head moves when she looks at you').toBeDefined();
+    expect(hair!.offset[0], 'hair in front of her face').toBeLessThan(0);
+    expect(hair!.offset[1] - hair!.size[1] / 2, 'hair that stops at the jaw').toBeLessThan(1);
+  });
+
+  it('leaves the walk showing under the dress, so she is never the priest', () => {
+    const hem = Math.min(...extrasOf('woman').map((p) => p.offset[1] - p.size[1] / 2));
+    expect(hem, 'a hem above the knee').toBeLessThan(0.5);
+    expect(hem, 'a cassock to the ankle, which belongs to somebody else').toBeGreaterThan(0.2);
+  });
+
+  it('stands on no more ground than anybody else, so a hem is not a door blocked', () => {
+    // a footprint is measured off the parts, so a garment that flares is a person who takes up
+    // more room — which is how the doctor once became half again as deep as anybody else and
+    // could not get through a doorway sideways. He is the worst this village allows.
+    const widest = bodyOf(KINDS.doctor);
+    for (const body of ['woman', 'man']) {
+      expect(bodyOf(KINDS[body]).hw, `${body} lengthways`).toBeLessThanOrEqual(widest.hw);
+      expect(bodyOf(KINDS[body]).hd, `${body} across`).toBeLessThanOrEqual(widest.hd);
+    }
+  });
+
+  it('takes its colours out of the palette rather than inventing new ones', () => {
+    // the dress and the tunic are painted from the same palette entry the shirt is, so a street of
+    // women is as many colours as a street of villagers ever was and the shape is doing the work
+    for (const body of ['woman', 'man']) {
+      const own = extrasOf(body).filter((p) => p.tint === undefined);
+      expect(own.length, `${body} is wearing ${own.length} colours nobody else can`).toBeLessThanOrEqual(1);
+    }
   });
 });

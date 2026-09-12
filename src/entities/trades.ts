@@ -1,4 +1,5 @@
 import type { Rng } from '../core/rng';
+import type { Sex } from '../world/people';
 import type { Post } from './entity';
 
 /**
@@ -121,7 +122,40 @@ const BODIES: Record<string, string> = {
   clerk: 'mayor', sergeant: 'constable',
 };
 
-/** The body for a trade, or the plain villager everybody else is. */
-export function bodyForTrade(trade: string | undefined): string {
-  return (trade && BODIES[trade]) ?? 'villager';
+/**
+ * Which body a woman is drawn with, and which a man.
+ *
+ * The same table one step earlier, and written for the same reason. A village was eleven trades
+ * and one body; it was also, for as long as there has been a register, two sexes and one body —
+ * so half of every street was drawn in a man's trousers and a player could not tell a village
+ * from a garrison. Long hair and a dress against a belted tunic is what a medieval village looked
+ * like from a distance, and it is a silhouette rather than a colour, which is the rule `BODIES`
+ * follows and the only rule that survives being seen from up here.
+ *
+ * The plain `villager` stays, and is not a leftover. It is the body for anybody nobody has a
+ * register entry for — a congregation at a church door, whoever is behind a counter, a stranger
+ * stood up by a page that has not been told who lives here yet — and drawing those as men would
+ * be a guess the register never made.
+ */
+const SEXED: Record<Sex, string> = { woman: 'woman', man: 'man' };
+
+/**
+ * The body somebody is drawn with: their trade's if it has one, otherwise their own.
+ *
+ * The trade wins, which is what a woman with a trade would have worn: a farmer's hat goes over a
+ * dress the way it goes over anything else, and a doctor is known by her coat and her bag. Only
+ * six trades have a body at all, so most of a village — the sellers, the hunters, the soldiers,
+ * the children with no trade yet — falls through to the second question and is drawn as a woman
+ * or a man.
+ *
+ * The trade is tested rather than handed to `BODIES` raw, and it matters: an empty trade is what
+ * a child carries, and `(trade && BODIES[trade]) ?? 'villager'` — what this used to be — hands
+ * back the empty string for one, because `''` is falsy and is not nullish. Nothing ever noticed
+ * because `manager.place` falls back to the herd's own kind when a body it is given does not
+ * exist, and the herd was villagers. It would notice now: a girl would be drawn as her mother's
+ * herd rather than as a girl.
+ */
+export function bodyForTrade(trade: string | undefined, sex?: Sex): string {
+  const wears = trade ? BODIES[trade] : undefined;
+  return wears ?? (sex ? SEXED[sex] : 'villager');
 }
