@@ -178,7 +178,9 @@ export function createTidings(ctx: Telling) {
     /** The worst thing leaning on each village today, which is what the register is told. */
     const worst = new Map<string, number>();
     // a band camped on a village's doorstep costs it people, and the same people on every client
-    for (const press of roaming.pressings(structures.villages, state.day)) {
+    // and what each village has grown into, because a band leans harder on a place worth leaning
+    // on: a town has more in its granary than a hamlet. See `worthPressing`
+    for (const press of roaming.pressings(structures.villages, state.day, (v) => register.rankOf(v))) {
       const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
       const living = [...register.living(press.village)];
       for (let n = 0; n < press.toll && living.length > 0; n++) {

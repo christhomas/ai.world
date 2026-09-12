@@ -1,8 +1,9 @@
 import { hashString, mulberry32, rand2, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
+import type { Rank } from '../world/rank';
 import { compassDir, type Structures } from '../world/structures';
 import { groundOf, groundsOf, holdsABand } from './grounds';
-import { saidOfPress } from './roamwords';
+import { pressingOn } from './leaning';
 
 export { groundsOf } from './grounds';
 /*
@@ -164,6 +165,14 @@ export const ROAM = {
    * through is survivable and a band that has settled in is not.
    */
   TAKES: 3,
+  /**
+   * How much more a band wants a place, per rank above a village.
+   *
+   * A third again for a town, two thirds again for a city. Modest on purpose: it has to be felt
+   * across the years a place takes to grow and it must never be the reason a place cannot grow. See
+   * `worthPressing`, which is the brake item 51 asked for — one the player can see and fight.
+   */
+  WORTH_TAKING: 0.33,
   /** What a night in the open near a pressed village is multiplied by, at full pressure. */
   NIGHTS_WORSE: 2,
   /**
@@ -398,75 +407,6 @@ export function bandAt(band: Band, day: number): Where {
   };
 }
 
-/**
- * How bad a mood a band is in today, nought to one.
- *
- * Rolled per spell of days rather than per day, and lifted and dropped across the spell rather
- * than held flat, so a band has bad fortnights and quiet ones instead of a steady appetite. A
- * player who arrives during a quiet spell sees a village doing well enough with a wolf pack two
- * fields away, which is exactly the warning they should get.
- */
-export function temperOf(band: Band, day: number): number {
-  const since = Math.max(0, day + band.offset);
-  const rng = mulberry32(band.seed ^ Math.imul(Math.floor(since / ROAM.SPELL), 0x27d4));
-  const worst = rng();
-  if (worst < ROAM.QUIET) return 0;
-  const through = (since % ROAM.SPELL) / ROAM.SPELL;
-  return worst * Math.sin(through * Math.PI);
-}
-
-/**
- * How hard a band is leaning on a place today, nought to one. Nought for a band that is nowhere
- * near, nought during a quiet spell, and nought for one that has been broken up.
- *
- * @param standing how many of it are still on their feet, out of its whole size
- */
-export function pressureOn(band: Band, place: Steading, day: number, standing = band.size): number {
-  if (standing <= 0) return 0;
-  const now = bandAt(band, day);
-  const away = Math.hypot(place.x - now.x, place.z - now.z);
-  if (away >= ROAM.PRESS_WITHIN) return 0;
-  const close = 1 - away / ROAM.PRESS_WITHIN;
-  return ROAM.SORTS[band.kind].menace * (standing / band.size) * temperOf(band, day) * close;
-}
-
-/** What a night in the open near a pressed village is worth multiplying by. */
-export function nightsNear(pressure: number): number {
-  return 1 + Math.max(0, pressure) * ROAM.NIGHTS_WORSE;
-}
-
-/**
- * How many of a village's people a band takes today.
- *
- * Rolled from the band, the village and the day, so it is the same number on every screen and the
- * same number when a client that was offline yesterday works out what it missed. Whoever keeps
- * the register decides who: this only says how many.
- */
-export function tollOf(band: Band, place: Steading, day: number, pressure: number): number {
-  if (pressure <= 0) return 0;
-  const rng = mulberry32(band.seed ^ hashString(place.name) ^ Math.imul(Math.floor(day), 0x1b3f));
-  // the fraction is settled by the roll rather than rounded away, so light pressure is an
-  // occasional funeral instead of no funeral at all
-  return Math.floor(pressure * ROAM.TAKES + rng());
-}
-
-/**
- * Everything a band is doing to a village today, or null when it is doing nothing. Handed back
- * rather than applied: burying people is the register's business and this file will not do it.
- */
-export function pressingOn(band: Band, place: Steading, day: number, standing = band.size): Pressing | null {
-  const pressure = pressureOn(band, place, day, standing);
-  if (pressure <= 0) return null;
-  return {
-    band,
-    village: place.name,
-    pressure,
-    nights: nightsNear(pressure),
-    toll: tollOf(band, place, day, pressure),
-    said: saidOfPress(band, place, pressure),
-  };
-}
-
 /** The bands standing over any of these places today, whatever sort of mood they happen to be in. */
 export function bandsOver(bands: readonly Band[], places: readonly Steading[], day: number): Band[] {
   return bands.filter((band) => {
@@ -667,12 +607,21 @@ export class Roaming {
     return arrived;
   }
 
-  /** Everything every band is doing to these villages today, worst first. */
-  pressings(places: readonly Steading[], day = this.day): Pressing[] {
+  /**
+   * Everything every band is doing to these villages today, worst first.
+   *
+   * `rankOf` is handed in because a band leans harder on a place worth leaning on — a town has more
+   * in its granary than a hamlet — and what a place has grown into is the register's to say, not
+   * this file's. Left out, every place is read as a hamlet, which is what a caller with no register
+   * behind it should get.
+   */
+  pressings(
+    places: readonly Steading[], day = this.day, rankOf: (village: string) => Rank = () => 'hamlet',
+  ): Pressing[] {
     const out: Pressing[] = [];
     for (const band of this.abroad()) {
       for (const place of places) {
-        const pressing = pressingOn(band, place, day, this.standing(band));
+        const pressing = pressingOn(band, place, day, this.standing(band), rankOf(place.name));
         if (pressing) out.push(pressing);
       }
     }

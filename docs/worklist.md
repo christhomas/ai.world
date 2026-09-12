@@ -3471,7 +3471,24 @@ simulation rather than any one feature in it.
       and the rest describe what somebody has *learned to do*, and are never a permission to learn
       it.
 
-- [ ] **51. When a town grows too big, the world pushes back.** The answer to "what stops it running
+- [x] **51. When a town grows too big, the world pushes back.** *Done on the 12th, on top of **48**.*
+      A band leans harder on a place worth leaning on: a third again for a town, two thirds again for
+      a city. There is more in the granary, more in the purses and more standing in the paddock, so
+      an ogre that would have walked past a hamlet comes down out of the hills for a town.
+
+      **Nothing caps anything**, which was the instruction and is the whole design. A town under
+      pressure earns less, buries people and stops building — and it stops the moment somebody drives
+      the band off, which is a thing a player does with a sword rather than a thing the simulation
+      decides. A brake the player can see and fight is worth ten brakes in a constants file.
+
+      The multiplier is deliberately modest: it has to be felt across the years a place takes to grow
+      and it must never be the reason a place *cannot* grow. What it buys is that growth has a cost
+      and the cost arrives as a story.
+
+      It also forced a split that was overdue. `roaming.ts` answers where the bands are and where
+      they go next — a fact about the country, worked out from the seed and the same on every machine
+      for ever. `leaning.ts` answers what one of them *costs* a village on one day, which is the half
+      the register, the books and the chat all read. The answer to "what stops it running
       away", and a better one than a constant. A village that has outgrown what is around it is a
       village worth attacking: an ogre comes down out of the hills, a band camps on the road, wolves
       take the outlying herds. The machinery is there — `leanedOn` already makes a village poorer

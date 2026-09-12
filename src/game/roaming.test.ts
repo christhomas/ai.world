@@ -3,10 +3,12 @@ import { generateRoadGraph } from '../world/graph';
 import { TerrainSampler } from '../world/terrain';
 import type { Structures } from '../world/structures';
 import {
-  ROAM, Roaming, bandAt, bandFor, bandsNear, bandsOver, breaksAt, distanceTo, nightsNear,
-  groundsOf, outOfSight, planBands, pressingOn, pressureOn, regionOf, stopsOf, temperOf, tollOf, warningFor,
+  ROAM, Roaming, bandAt, bandFor, bandsNear, bandsOver, breaksAt, distanceTo,
+  groundsOf, outOfSight, planBands, regionOf, stopsOf, warningFor,
   type Band, wayTo, nameFor, DRAGON_COUNTRY,
 } from './roaming';
+// what a band does to the village it stands over lives beside where it stands: see `leaning.ts`
+import { nightsNear, pressingOn, pressureOn, temperOf, tollOf, worthPressing } from './leaning';
 
 /** Growing a world is the expensive part of these tests, so each one is grown once. */
 const worlds = new Map<number, Structures>();
@@ -573,5 +575,42 @@ describe('a dragon', () => {
     const band = { ...bandFor(5, stops, stops[0], 0), kind: 'dragon' as const };
     expect(nameFor(band)).not.toContain('ragon');
     expect(warningFor(band)).toContain('dragon');
+  });
+});
+
+describe('a place worth leaning on', () => {
+  /*
+   * The answer to "what stops a town running away", and a better one than a number in a constants
+   * file: a village that has outgrown what is around it is a village worth attacking. Nothing here
+   * caps anything — a town under pressure earns less, buries people and stops building, and it
+   * stops when somebody drives the band off. A brake the player can see and fight.
+   */
+  it('is leaned on harder the bigger it has grown', () => {
+    expect(worthPressing('hamlet')).toBe(1);
+    expect(worthPressing('village')).toBe(1);
+    expect(worthPressing('town')).toBeGreaterThan(worthPressing('village'));
+    expect(worthPressing('city')).toBeGreaterThan(worthPressing('town'));
+  });
+
+  it('is never leaned on so hard that growing is a mistake', () => {
+    // it has to be felt across the years a place takes to grow, and it must never be the reason a
+    // place cannot grow at all
+    expect(worthPressing('city')).toBeLessThan(2);
+  });
+
+  it('costs a town more people than the same band costs a hamlet', () => {
+    const stops = [
+      { name: 'Home', x: 0, z: 0, level: 2 },
+      { name: 'Next', x: 60, z: 0, level: 2 },
+      { name: 'Far', x: 0, z: 60, level: 2 },
+    ];
+    const band = bandFor(4242, stops, stops[0], 0);
+    let hamletDays = 0, townDays = 0;
+    for (let day = 0; day < 120; day++) {
+      const here = { name: 'Home', x: bandAt(band, day).x, z: bandAt(band, day).z };
+      hamletDays += tollOf(band, here, day, pressureOn(band, here, day, band.size, 'hamlet'));
+      townDays += tollOf(band, here, day, pressureOn(band, here, day, band.size, 'city'));
+    }
+    expect(townDays).toBeGreaterThan(hamletDays);
   });
 });
