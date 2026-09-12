@@ -627,14 +627,20 @@ export class Places {
      * What this person does, worked out before they exist rather than after.
      *
      * `Entity.kind` is readonly and the renderer pools by it, so a body cannot be changed once
-     * somebody is standing there — the trade has to be known first. It is the same order
-     * `spawnVillageFolk` had to be put into when the trades got bodies of their own, and for the
-     * same reason: what a person does is what decides what they are drawn as.
-     *
-     * A sergeant behind the desk of a watch house was a shopkeeper until now, which is a sergeant
-     * nobody can tell from a grocer, and the priest at the altar was one too.
+     * somebody is standing there: the trade has to be known first, which is the same order
+     * `spawnVillageFolk` had to be put into when trades got bodies of their own. A sergeant behind
+     * a watch house desk was a shopkeeper until then — one nobody could tell from a grocer.
      */
-    const trade = door.kind === 'townhall' ? 'clerk'
+    /*
+     * And a town hall has the mayor in it, when the village has one — see `mayorOf`, which elects
+     * nobody and simply reads off who has lived here longest of the people who hold a trade.
+     *
+     * It had a clerk until now: an anonymous body wearing the mayor's coat, because that body was
+     * made for a town hall and nobody had ever been put in it. A village nobody has walked into yet
+     * still gets the clerk, because a hall with nobody behind the desk is a room with a hole in it.
+     */
+    const mayor = door.kind === 'townhall' ? this.ctx.register.mayorOf(door.village) : null;
+    const trade = door.kind === 'townhall' ? (mayor ? 'mayor' : 'clerk')
       : door.kind === 'watchhouse' ? 'sergeant'
       : door.kind === 'church' ? 'priest'
       : undefined;
@@ -646,6 +652,9 @@ export class Places {
     keeper.y = 0.5;
     keeper.yaw = Math.PI / 2;   // facing the door
     if (trade) keeper.trade = trade;
+    // and if he is the mayor he is a *person*, not a body: his name, his register entry, and so his
+    // family, his purse and everything a conversation can ask about anybody who lives here
+    if (mayor) { keeper.person = mayor.id; keeper.name = mayor.name; }
     if (shop) { keeper.role = 'shopkeeper'; keeper.shop = door.kind as ShopType; }
     else if (civic) { keeper.role = 'keeper'; }
     // whoever is stood at the altar is the priest, and saying so is what makes him somebody you

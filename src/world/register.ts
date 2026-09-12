@@ -1,6 +1,6 @@
 import { PROSPER } from './prosperity';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
-import { taxedForTheHall } from './hall';
+import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { rankOfVillage, whatTheVillageSpends } from './growth';
 import { whoCouldHaveAChild } from './roofs';
@@ -366,6 +366,12 @@ export class Register {
 
   /** What this village has had built out of its own money. */
   worksOf(village: string): readonly string[] { return this.villages.get(village)?.works ?? []; }
+
+  /** Who speaks for this village: the longest-settled of the people who hold a trade. See `mayorOf`. */
+  mayorOf(village: string): Person | null {
+    const here = this.villages.get(village);
+    return here ? mayorOf(here.people) : null;
+  }
 
   /** What this place has grown into, counted off what is standing rather than declared. See `rank.ts`. */
   rankOf(village: string): Rank {

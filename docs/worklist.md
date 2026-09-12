@@ -3068,7 +3068,26 @@ in the order they would sensibly be built, which is not the order they arrived i
       all built; what is missing is the order, the price and the ground check ("is this a coast at
       all, and is it low enough").
 
-- [ ] **24. The town hall, the mayor, and what a village does with its money.** Asked for whole, and
+- [x] **24. The town hall, the mayor, and what a village does with its money.** *Whole, as of the
+      13th.* The purse and the vote went in with **24a**/**24b** — a tax each villager pays out of
+      what they hold, obeying the deed layer's one rule, and a wish list the hall saves up for
+      cheapest-first. **51** made the list depend on what a place has grown into, and **44** put a
+      roof in front of the wish list, which is the ordering a village would actually use.
+
+      What was left was the oldest gap in it: **nobody had ever been elected**. A town hall has
+      always had somebody behind the desk and he has always been a clerk — an anonymous body wearing
+      the mayor's coat, because that body was made for a town hall and there was nobody to put in
+      it. So the building holding a village's money was staffed by a person who does not exist on
+      the register, in a game where every other villager has a name, a family and a purse.
+
+      `mayorOf` elects nobody: it reads off the longest-settled of the people who hold a trade — the
+      one everybody has known longest, which is how a small place actually decides this, and which
+      needs no election, no term of office and nothing stored. He dies and the next-longest is behind
+      the desk the following morning without anything having to notice. The tie falls on the id
+      rather than the order of the roll, so two machines reading the same village get the same man.
+
+      A village nobody has walked into yet still gets its clerk, because a hall with nobody behind
+      the desk is a room with a hole in it. Asked for whole, and
       it answers an objection the code has been carrying since inheritance went in:
 
       > *"Shared out rather than banked, because there is no village pot to bank it in. A

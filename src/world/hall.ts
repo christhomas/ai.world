@@ -210,3 +210,31 @@ export function whatTheHallSpends(
   }
   return { wages, spent, work: bought?.work ?? null, watch: watch?.who ?? '' };
 }
+
+/**
+ * Who speaks for the village, which is the last thing item 24 asked for and the oldest gap in it.
+ *
+ * A town hall has always had somebody behind its desk, and he has always been a clerk — an
+ * anonymous body with the mayor's coat on, because the mayor's body was the one made for a town
+ * hall and nobody had ever been elected to wear it. So the building that holds a village's money
+ * was staffed by a person who does not exist on the register, in a game where every other villager
+ * has a name, a family, a purse and a trade.
+ *
+ * The rule is the one this simulation uses for everything: derived, never appointed. It falls to
+ * whoever has lived here longest of the people who hold a trade — the one everybody has known
+ * longest, which is how a small place actually decides these things, and which needs no election
+ * machinery, no term of office and nothing stored. A mayor who dies is replaced the next morning by
+ * the next-longest, without anything having to notice that the first one is gone.
+ *
+ * The tie is broken on the id rather than left to the order of the roll, so two machines reading
+ * the same village elect the same man.
+ */
+export function mayorOf(people: readonly Person[]): Person | null {
+  let mayor: Person | null = null;
+  for (const person of people) {
+    if (person.trade === '') continue;          // a village is not spoken for by its children
+    if (mayor === null || person.born < mayor.born
+      || (person.born === mayor.born && person.id < mayor.id)) mayor = person;
+  }
+  return mayor;
+}

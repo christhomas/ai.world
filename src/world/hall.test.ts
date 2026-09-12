@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WATCH_WAGE, WORKS, nextWork, whatTheHallBuys, whoStandsWatch } from './hall';
+import { WATCH_WAGE, WORKS, mayorOf, nextWork, whatTheHallBuys, whoStandsWatch } from './hall';
 import { Register } from './register';
 import { isARoof } from './roofs';
 import type { Person } from './people';
@@ -140,5 +140,52 @@ describe('a village with a tower to man', () => {
     const manned = register.watchOf('Testing');
     expect(manned, 'a tower was built and nobody was ever stood on it').not.toBe('');
     expect(register.hallPaid(manned), 'the watchman worked for nothing').toBeGreaterThan(0);
+  });
+});
+
+describe('who speaks for the village', () => {
+  const settled = (id: string, born: number, trade = 'farmer'): Person => ({ id, born, trade } as Person);
+
+  it('is the longest-settled of the people who hold a trade', () => {
+    const people = [settled('young', 20), settled('old', 2), settled('middling', 9)];
+    expect(mayorOf(people)?.id).toBe('old');
+  });
+
+  it('is never a child, because a village is not spoken for by its children', () => {
+    const people = [settled('child', 0, ''), settled('grown', 14)];
+    expect(mayorOf(people)?.id).toBe('grown');
+  });
+
+  it('is the same man on two machines reading the same village', () => {
+    // the tie falls on the id rather than on the order of the roll, which is not the same order
+    // everywhere: a village re-lived from its founding arrives at its people in its own sequence
+    const people = [settled('b', 4), settled('a', 4)];
+    expect(mayorOf(people)?.id).toBe(mayorOf([...people].reverse())?.id);
+  });
+
+  it('is nobody at all in a village with nobody in it', () => {
+    expect(mayorOf([])).toBeNull();
+    expect(mayorOf([settled('child', 0, '')])).toBeNull();
+  });
+
+  it('is somebody else the morning after he dies, without anything having to notice', () => {
+    const register = new Register(88, 30);
+    register.settle('Testing', 9, ['farmer', 'seller', 'hunter']);
+    const was = register.mayorOf('Testing');
+    expect(was).not.toBeNull();
+    register.bury(was!.id, 31);
+    const now = register.mayorOf('Testing');
+    expect(now).not.toBeNull();
+    expect(now!.id).not.toBe(was!.id);
+  });
+
+  it('is a real villager rather than a body in a coat', () => {
+    // which is the whole point: the man behind the desk of the building that holds a village's
+    // money now has a name, a family, a purse and a trade, like everybody else who lives there
+    const register = new Register(88, 30);
+    register.settle('Testing', 9, ['farmer', 'seller', 'hunter']);
+    const mayor = register.mayorOf('Testing')!;
+    expect(register.find(mayor.id)).toBeDefined();
+    expect(mayor.name).toMatch(/\S+ \S+/);
   });
 });
