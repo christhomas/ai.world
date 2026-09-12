@@ -47,6 +47,16 @@ const HUB_PLAZA = 5;
 const HIGH_ENOUGH_FOR_ROCK = 8;
 const HIGH_ENOUGH_FOR_SNOW = 18;
 
+/**
+ * The eight directions `waterAway` feels the ground in — the most-run loop in growing a patch, so
+ * a table rather than two and a half million sines and cosines for sixteen fixed numbers. Built by
+ * the very expression that used to stand in the loop, deliberately: these must be the
+ * same eight points to the last bit or a world grown before this table and one after it are
+ * different worlds. Hand-writing `0, 0.7071…` would be different numbers in the same coat, and
+ * which side of a face they fall on is what decides a coastline.
+ */
+const RING_X = Array.from({ length: 8 }, (_, k) => Math.cos((k / 8) * Math.PI * 2));
+const RING_Z = Array.from({ length: 8 }, (_, k) => Math.sin((k / 8) * Math.PI * 2));
 
 /**
  * The country a sampler draws, when it is not a whole world held in memory.
@@ -275,6 +285,14 @@ export class TerrainSampler {
    * arithmetic, so the ground is felt outward in rings until it stops being ground. Coarse on
    * purpose — it decides where a beach is drawn and how far the seabed reaches, and neither wants
    * more than a tile or so of precision.
+   *
+   * Measured on one 512-tile patch, because it is most of what growing one costs: this asks `dry`
+   * 1,324,956 times, ninety per cent of every such question the patch asks. Reaching out from the
+   * sea for the shore takes thirty-five probes and finds its shore five times in six; feeling round
+   * a dry tile for a coast takes exactly eight, every time, and finds water eight times in a
+   * thousand. A million probes for a boolean nearly always false is not a fault cheaper probing can
+   * fix: it is what "land is a shape" costs when the only way to ask about a shape is to feel for
+   * its edge, and a different way of asking is a different coastline and so a different country.
    */
   private waterAway(x: number, z: number, most: number, looking: boolean): number {
     if (!this.shaped) return most;
@@ -282,8 +300,7 @@ export class TerrainSampler {
     // water from dry ground, true to find the shore from out at sea
     for (let r = 1; r <= most; r += 1.5) {
       for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2;
-        if (this.dry(x + Math.cos(a) * r, z + Math.sin(a) * r) === looking) return r;
+        if (this.dry(x + RING_X[k] * r, z + RING_Z[k] * r) === looking) return r;
       }
     }
     return most;
@@ -653,6 +670,15 @@ export class TerrainSampler {
     return grid;
   }
 
+  /**
+   * Which of this world's villages a building belongs to, by standing in it.
+   *
+   * This looks like a question for `world/around.ts` and is not, which is worth saying because the
+   * next person to read it will reach for the seam. A sampler answers for its own square of
+   * country: in a patchwork the house being stamped was founded by *this* sampler, out of towns
+   * this sampler placed, so the list below is already the bounded one. Asking the patchwork would
+   * have a patch reaching up into the thing that holds it to find out about itself.
+   */
   private villageHolding(s: Structure): string {
     for (const v of this.structures.villages) {
       if (Math.hypot(v.x - s.tx, v.z - s.tz) <= v.radius) return v.name;

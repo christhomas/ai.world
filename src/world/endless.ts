@@ -92,7 +92,11 @@ export function samplerIn(seed: number, within: Within): TerrainSampler {
   const graph = graphIn(world, within);
   return new TerrainSampler(graph, {
     within,
-    country: { land: (x, z) => world.land(x, z), highland: highlandNear(world, within) },
+    // `world.land` is handed over rather than wrapped in an arrow that calls it. It is asked a
+    // million and a half times while one patch is grown, and a wrapper is a second call frame on
+    // every one of them for no reason: `landOf` already returns a closure over this world, so the
+    // function and the arrow that called it did exactly the same thing.
+    country: { land: world.land, highland: highlandNear(world, within) },
     hydro: waterIn(world, within),
     settling: {
       towns: townsIn(world, within),
@@ -152,7 +156,11 @@ export function rebuildPatch(seed: number, within: Within, parts: PatchParts): T
   const world = countryFor(seed);
   return new TerrainSampler(parts.graph, {
     within,
-    country: { land: (x, z) => world.land(x, z), highland: highlandNear(world, within) },
+    // `world.land` is handed over rather than wrapped in an arrow that calls it. It is asked a
+    // million and a half times while one patch is grown, and a wrapper is a second call frame on
+    // every one of them for no reason: `landOf` already returns a closure over this world, so the
+    // function and the arrow that called it did exactly the same thing.
+    country: { land: world.land, highland: highlandNear(world, within) },
     hydro: parts.hydro,
     structures: parts.structures,
     // a patch with no high country in it has no rock, and the sampler wants to be told nothing

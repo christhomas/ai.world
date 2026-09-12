@@ -4513,7 +4513,7 @@ than by remembering — and the first thing found was that the gap is not where 
       it finds is the work, and it matters beyond tidiness: the Pi this deploys to is slower than the
       machine it was measured on, and a phone build (**72**) has a battery.
 
-- [ ] **75. Ask once per region, not once per tile.** Raised while reading the CPU report: making a
+- [x] **75. Ask once per region, not once per tile.** Raised while reading the CPU report: making a
       cell lookup cheap took a patch from 6,250 ms to 710 ms, but **twelve million lookups per patch
       is still the shape of the thing**, and it is the wrong shape. What is left of the 710 ms is
       about 565 of it in `nearestIn`: a quarter of a million tiles each asking which of ~150 sites is
@@ -4547,7 +4547,35 @@ than by remembering — and the first thing found was that the gap is not where 
       certificate; `nearestIn`'s own time fell 63%, a patch fell 555 ms → 490 ms, and the profile is
       now flat — no function above 11%, where the original 6,250 ms was 78% in three of them.
 
-- [ ] **76. The same question, asked six times a tile.** Found while answering **75**, and it is the
+- [x] **76. The same question, asked six times a tile.** *Measured on the 12th, and the premise was
+      wrong — which is the result.* It is not one question asked six times with five re-asking
+      something just answered. It is one cheap question, `dry`, asked at **5.63 genuinely different
+      points per tile**: 1,474,745 calls growing a patch, of which **90% are `waterAway`** feeling
+      outward for a coast, and every probe of that is a different point. Nothing is being re-asked,
+      so there was nothing to carry.
+
+      The sharper finding underneath it is the one worth keeping. `shoreNear` asks "is there a coast
+      within 2.2 tiles of this dry tile", and the ring it searches steps 1.5 from a radius of 1 — so
+      the loop body runs for one radius only. It is not a ring *search*, it is a fixed eight-point
+      sample that never reaches a second ring. **1,035,459 probes, 70% of all the asking a patch
+      does, to produce a boolean that comes out true 999 times — 0.8%.**
+
+      Two ways to make that genuinely cheaper were found and both rejected with reasons rather than
+      by taste. Proving the eight probes share the centre's face would need `faceAt`'s certificate
+      margin exposed to `terrain.ts`, which is a second way to ask what face a point is in — the
+      exact fault that left the endless world un-terraced, in a new coat. And computing
+      distance-to-coast as a field rather than by probing changes the answers: the result is
+      quantised to 1.5-tile rings in eight fixed directions, so a field would be a different
+      coastline and therefore a different country. A world change in a performance costume.
+
+      What was done instead is answer-preserving to the last bit: the eight ring directions are a
+      table built by the very expression that was inside the loop (~2.65 million sines and cosines a
+      patch), and the land probe is handed the world's own function rather than an arrow that calls
+      it. −5.3%, faster in all five interleaved rounds. **A patch is 478 ms against the 6,250 ms it
+      was at the start of the night: thirteen times.**
+
+      And a note for whoever touches `terrain.ts` next: `architecture.test.ts` counts one line more
+      than `wc -l` does, so 699 is the real ceiling. Found while answering **75**, and it is the
       bigger half of it: a patch has 262,144 tiles and `faceAt` is called **1,555,708** times growing
       one. `localland.kindOf`'s own comment names why — *"asked for every tile of every chunk, and
       eight more times per ring while a coastline is felt for"* — so the honest figure is six asks
