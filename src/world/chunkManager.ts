@@ -128,6 +128,24 @@ export class ChunkManager implements TileWorld, ChunkSource {
     tint.attach(this.terrainMaterial);
     tint.attach(this.props.material);
   }
+
+  /**
+   * Let the hero be seen through whatever is standing in front of him.
+   *
+   * The props only. The ground is deliberately left whole: a terrace hides half a tile, which is
+   * nothing, and not cutting it removes the whole floor-through-the-feet case rather than guarding
+   * against it. Attached here rather than in the prop library because this is where the other edit
+   * to that material goes in, and two features editing one shader is precisely the trap
+   * `shaderpatch.ts` exists for.
+   *
+   * Taken as "something that can be attached to a material" rather than as a `Cutaway`, because
+   * what the ground streamer needs to know about seeing through a wall is exactly nothing — and
+   * the architecture test counts how many things in `world/` reach into `render/`, which is a
+   * number that should not go up for a type name.
+   */
+  seeThrough(cutaway: { attach: (material: THREE.Material) => void }): void {
+    cutaway.attach(this.props.material);
+  }
   private ready = 0;
   onFirstChunk: (() => void) | null = null;
   private firstChunkSeen = false;

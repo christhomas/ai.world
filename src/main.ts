@@ -79,6 +79,7 @@ import { createFrame } from './game/frame';
 import { createMeeting } from './game/meeting';
 import { createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
+import { Cutaway, rememberCutaway, wantsCutaway } from './render/cutaway';
 import { growCountry } from './game/country';
 import { countryStamp } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
@@ -122,8 +123,24 @@ export function startGame(
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, world, want: (wanted) => online.wantChunks(wanted),
   });
+  /*
+   * The hole in front of the hero, off unless he has asked for it.
+   *
+   * Attached to the props once, here, so that the shader is compiled with it whether it is on or
+   * not: the switch is a uniform and a uniform costs nothing, where recompiling a material as
+   * somebody ticks a box is a stutter they would blame on the game.
+   */
+  const cutaway = new Cutaway();
+  chunks.seeThrough(cutaway);
+  cutaway.show(wantsCutaway());
+
   const hud = new Hud(rig, seed);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
+  hud.setSeeThrough(cutaway.on);
+  hud.onSeeThroughChange = (on) => {
+    cutaway.show(on);
+    rememberCutaway(on);
+  };
   hud.onQualityChange = (level) => {
     // their choice, and it stands: nothing measured afterwards may argue with it
     autoQuality.leaveItAlone();
@@ -655,7 +672,7 @@ export function startGame(
   const autoQuality = new AutoQuality(qualityWasChosen);
 
   const frames = createFrame({
-    seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places, endless, mountains,
+    seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places, endless, mountains, cutaway,
     skyline, rock, daycycle, weather, updraughts, swallows, seaEyes, shafts, holes, beam,
     couldBeAShaft: (x, z) => openCountry(chunks, x, z), seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,

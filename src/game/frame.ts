@@ -11,6 +11,7 @@ import type { IsoCamera } from '../render/camera';
 import type { CropField } from '../render/crops';
 import type { DayCycle } from '../render/daycycle';
 import type { HeroGear } from '../render/herogear';
+import type { Cutaway } from '../render/cutaway';
 import type { MountainMaterial, Mountains } from '../render/mountains';
 import type { PatchCountry } from '../world/patchcountry';
 import { dropsFor, type DropField } from '../render/drops';
@@ -86,6 +87,8 @@ export interface Framing {
   places: Places;
   skyline: Skyline;
   rock: MountainMaterial;
+  /** The hole kept open in whatever is standing between the camera and the hero, when he wants one. */
+  cutaway: Cutaway;
   /**
    * The country itself, when it has no edge, and the rock standing in the scene for it.
    *
@@ -191,7 +194,7 @@ export interface Framing {
 export function createFrame(ctx: Framing) {
   const {
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, endless, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
+    skyline, rock, cutaway, endless, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
@@ -269,6 +272,9 @@ export function createFrame(ctx: Framing) {
     skyline.update(iso, player.entity.x, player.entity.z, dt, !places.indoors && !places.underground);
     heroSpot.set(player.entity.x, player.entity.y + HERO_EYE, player.entity.z);
     rock.look(heroSpot, iso.camera, iso.target);
+    // and the same hole in whatever is standing in front of him — a cottage, a wall, a wood —
+    // when he has asked for one. It costs a uniform whether it is on or off
+    cutaway.look(heroSpot, iso.camera, iso.target);
 
     /**
      * The guard is held, not tapped, and it is polled here rather than bound as a one-shot key so

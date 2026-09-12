@@ -66,6 +66,8 @@ export class Hud {
   onLightChange: ((sun: number, hemi: number) => void) | null = null;
   /** How hard the renderer should work per frame. */
   onQualityChange: ((level: Quality) => void) | null = null;
+  /** Whether to cut a hole in whatever is standing between the camera and the hero. */
+  onSeeThroughChange: ((on: boolean) => void) | null = null;
 
   constructor(rig: SceneRig, seed: number) {
     /*
@@ -107,6 +109,14 @@ export class Hud {
     const quality = $<HTMLSelectElement>('qualitySelect');
     quality.value = rig.quality;
     quality.addEventListener('change', () => this.onQualityChange?.(quality.value as Quality));
+    /*
+     * The hole in front of the hero. A switch rather than something always on, because it is an aid
+     * — and the last time it was on for everybody it was quietly hiding a collision fault rather
+     * than a sight problem, which is a thing an aid you cannot turn off will do.
+     */
+    const seeThrough = $<HTMLInputElement>('seeThroughToggle');
+    this.setSeeThrough = (on: boolean) => { seeThrough.checked = on; };
+    seeThrough.addEventListener('change', () => this.onSeeThroughChange?.(seeThrough.checked));
 
     // say what is really drawing this: a browser quietly rendering in software looks like a slow
     // computer, and nobody can tell the difference from inside the game
@@ -171,6 +181,8 @@ export class Hud {
   }
 
   setVolume: (v: number) => void = () => {};
+  /** Show the switch in the state the game is actually in, which is whatever was chosen last time. */
+  setSeeThrough: (on: boolean) => void = () => {};
 
   /** Active errands, ticked when their condition is met. */
   setQuests(quests: Quest[], state: GameState): void {

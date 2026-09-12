@@ -3673,3 +3673,40 @@ than by remembering — and the first thing found was that the gap is not where 
       What is left to build is the worker itself and what asks it: grow the patch you are in first,
       the one you are walking toward next, and the rest when nothing is waiting. Until then a
       crossing is a five second stall, which is playable and is not shippable.
+
+## Seeing what is in front of you — September 12th
+
+- [x] **62. The see-through circle, on demand.** It existed once and was taken out, and the reason is
+      worth keeping: it was hiding a collision fault rather than a sight problem — things you could
+      walk into were being quietly made transparent, so nobody could see they should not have been.
+      It comes back as a switch in Options, off until asked for and remembered afterwards, which is
+      the honest shape for an aid: one you can turn off is one nobody is being fooled by.
+
+      The switch is a **uniform, not a recompile**. `three` caches programs by a key and a material
+      patched differently is a different program, so rebuilding shaders as somebody ticks a box is a
+      stutter they would blame on the game. The shader is always there; what changes is nought or one.
+
+      Two things it gets right that the first attempt did not. It is a *named* patch — the season
+      tint edits the same prop material from somewhere else entirely, and `three` gives a material
+      exactly one `onBeforeCompile`, which is how this feature was silently erased the first time.
+      And the vertex half is guarded with `#ifdef USE_INSTANCING`, because the same material draws
+      instanced props and plain meshes and an unguarded `instanceMatrix` is a shader that will not
+      compile — a world with no trees in it.
+
+      Numbers measured by looking rather than reasoned: the hole opens over four units rather than
+      nine, because at nine it was under two units wide at the distance a cottage actually stands
+      from somebody walking past, which is a hole you cannot see through.
+
+- [ ] **61. The endless country's high ground is not terraced.** Found in the first endless
+      screenshot and worth chasing: a big pale slab reading as a smooth gradient where the bounded
+      world steps everything. `__peaks()` says there are no mountains in that patch, so it is not the
+      rock mesh — it is the land itself, coming out of `localland.ts` as a ramp where the road world
+      terraces. Two countries that do not look like the same game.
+
+- [ ] **63. Somebody you talk to turns to face you.** A shopkeeper carries on looking at the wall
+      while he sells you a knife, which is funny once. Turning to face whoever is talking is the
+      smallest thing that makes a conversation read as one — and the machinery is there: `yawFor` is
+      what every creature already uses to face what it is doing, and a conversation knows both who
+      is talking and where the hero is standing. What wants care is turning *back*: a man interrupted
+      at his work should return to it rather than standing at ninety degrees to his own bench for the
+      rest of the day.

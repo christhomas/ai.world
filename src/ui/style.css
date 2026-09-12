@@ -310,6 +310,15 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #optionsPanel .opt-note.software { color: #ffb36a; }
 
+/* what a switch is for, said beside it rather than under the whole section */
+#optionsPanel .opt-hint {
+  flex: 1 1 100%; margin-top: calc(2 * var(--ui-scale));
+  color: var(--ink-far); font-size: calc(11 * var(--ui-scale)); line-height: 1.4;
+}
+#optionsPanel .opt-row input[type="checkbox"] {
+  width: calc(16 * var(--ui-scale)); height: calc(16 * var(--ui-scale)); accent-color: var(--gold);
+}
+
 #optionsPanel .opt-foot {
   display: flex; gap: calc(8 * var(--ui-scale));
   margin-top: calc(18 * var(--ui-scale)); padding-top: calc(14 * var(--ui-scale));
