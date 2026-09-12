@@ -1,9 +1,10 @@
 import { WORLD } from '../core/config';
 import type { ChunkSource, ChunkTiles, TileWorld } from './tiles';
 
+import { aroundOf, type Around } from './around';
 import { chunkKey } from './spatial';
 import { mountainAt } from './ranges';
-import type { Pier } from './structures';
+import { VILLAGE_REACH, type Pier } from './structures';
 import { TileType, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
 import { Solids, boxesOf, type Body } from './solids';
@@ -73,7 +74,18 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * server has no meshes and must not guess: it is handed the same measurements the player's own
    * game took, so a wall is in the same place on both sides of the wire.
    */
-  constructor(private readonly sampler: TerrainSampler, private readonly footprints: Footprints) {}
+  /**
+   * @param around what is near a point, for the questions that mean "near here" rather than "in
+   *   this world". Defaulted to a filter over the sampler's own list, because that is what every
+   *   bounded world wants and because a dungeon floor, an interior and every test in the suite is a
+   *   bounded world. A country with no edge hands in `aroundPatches` instead and nothing else about
+   *   this class changes — which is the whole point of the argument existing.
+   */
+  constructor(
+    private readonly sampler: TerrainSampler,
+    private readonly footprints: Footprints,
+    private readonly around: Around = aroundOf(sampler.structures),
+  ) {}
 
   /** How many chunks are being held. What the memory of a busy world is made of. */
   get held(): number { return this.loaded.size; }
@@ -170,10 +182,9 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * have woken in one is a claim the world can check for itself.
    */
   atAVillage(x: number, z: number, within: number): boolean {
-    for (const village of this.sampler.structures.villages) {
-      if (Math.hypot(village.x - x, village.z - z) <= within) return true;
-    }
-    return false;
+    // the caller's own `within` is the reach, which is what makes this one of the easy ones to move
+    // across: the question already said how far it was willing to look
+    return this.around.nearestVillage(x, z, within) !== null;
   }
 
   /**
@@ -291,7 +302,10 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * town by morning.
    */
   peopled(x: number, z: number): boolean {
-    for (const village of this.sampler.structures.villages) {
+    // The reach is the widest a village can be plus the margin, because the bound is per village —
+    // a market town's radius is half as much again as a hamlet's, so asking for the widest and then
+    // measuring each one against its own edge is the only way to miss none and include none wrongly.
+    for (const village of this.around.villages(x, z, VILLAGE_REACH + KEPT_FROM_PEOPLE)) {
       if (Math.hypot(village.x - x, village.z - z) <= village.radius + KEPT_FROM_PEOPLE) return true;
     }
     return false;

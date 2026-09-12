@@ -225,6 +225,19 @@ const LAYOUT = {
   VILLAGE: { spread: 11, maxHouses: 6, minHouses: 3, squareR: 4 },
 } as const;
 
+/**
+ * How far a village ever reaches from its middle, in tiles.
+ *
+ * Derived rather than chosen, and it has to be: a village's `radius` is its spread plus the margin
+ * below, so the widest one there can be is the widest spread plus that margin. Written down because
+ * "which village am I standing in" is asked all over the game, and in a country grown a patch at a
+ * time that question has to be put as "villages within so many tiles of me, and then which of those
+ * am I inside" — see `world/around.ts`. This is the so-many-tiles, and it is the smallest number
+ * that cannot miss one.
+ */
+const VILLAGE_MARGIN = 8;    // how far past its last garden wall a village still counts as itself
+export const VILLAGE_REACH = Math.max(LAYOUT.HUB.spread, LAYOUT.TOWN.spread, LAYOUT.VILLAGE.spread) + VILLAGE_MARGIN;
+
 /** How many of a village's houses are shops: two, plus one each at six and eight houses. */
 function shopCount(houses: number): number {
   return Math.min(houses - 1, 2 + (houses >= 6 ? 1 : 0) + (houses >= 8 ? 1 : 0));
@@ -522,7 +535,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     const stable = assignStable(houses, biome);
     plazaR = 0;
     return {
-      name: villageName(), x: n.x, z: n.z, radius: spread + 8, level, biome, houses, shops, pub,
+      name: villageName(), x: n.x, z: n.z, radius: spread + VILLAGE_MARGIN, level, biome, houses, shops, pub,
       station, stable, church: chapel?.building ?? null, churchDoor: chapel?.door ?? null,
       hall, watchHouse, board, stalls,
     };

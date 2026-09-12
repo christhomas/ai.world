@@ -20,8 +20,18 @@ import { nearestVillageTill } from '../tills';
  * that go up through the cloud instead, and the loft at the top of that fall which will send you
  * back down anywhere you have already been.
  */
+/**
+ * How far a pier's takings travel to find a village, in tiles.
+ *
+ * `nearestVillageTill` has had this bound since it was written — a jetty in open country belongs to
+ * nobody, and its fare goes into the sea rather than into the nearest hamlet a province away. What
+ * is new is that the same number now bounds the *list* as well as the answer, so a country with no
+ * edge is asked about the villages near that jetty instead of about every village it holds.
+ */
+const PIER_TILL_REACH = 160;
+
 export function travelInteractions(ctx: Surroundings) {
-  const { player, state, structures, chunks, dialogue, hud, sound, sailing, ferries, eyries, persist, discover } = ctx;
+  const { player, state, structures, around, chunks, dialogue, hud, sound, sailing, ferries, eyries, persist, discover } = ctx;
 
   /** How near the hull you have to be for Enter to mean it, in tiles. It is a big thing to miss. */
   const DERELICT_REACH = 4.5;
@@ -65,7 +75,7 @@ export function travelInteractions(ctx: Surroundings) {
                * rule is that a coin leaving one purse arrives in another.
                */
               const pier = dest === 'to' ? line.fromPier : line.toPier;
-              buy(holds(state.inventory), nearestVillageTill(ctx.register, structures.villages, pier.dockX, pier.dockZ), fare);
+              buy(holds(state.inventory), nearestVillageTill(ctx.register, around.villages(pier.dockX, pier.dockZ, PIER_TILL_REACH), pier.dockX, pier.dockZ, PIER_TILL_REACH), fare);
               state.version++;
               riding = { line, dest };
               player.riding = true;
@@ -118,7 +128,7 @@ export function travelInteractions(ctx: Surroundings) {
           }
           // the boatwright is a voice on a pier rather than anybody on the register, so the money
           // goes to the village the pier belongs to and is spread across it
-          buy(holds(state.inventory), nearestVillageTill(ctx.register, structures.villages, pier.dockX, pier.dockZ), BOAT.PRICE);
+          buy(holds(state.inventory), nearestVillageTill(ctx.register, around.villages(pier.dockX, pier.dockZ, PIER_TILL_REACH), pier.dockX, pier.dockZ, PIER_TILL_REACH), BOAT.PRICE);
           state.version++;
           sailing.buy(pier.dockX + 0.5 + pier.dx, pier.dockZ + 0.5 + pier.dz, Math.atan2(-pier.dz, pier.dx));
           sound.jingle();
@@ -315,7 +325,15 @@ export function travelInteractions(ctx: Surroundings) {
     return true;
   };
 
-  /** Everywhere the loft could send a bird: the country's villages, and the landmarks on it. */
+  /**
+   * Everywhere the loft could send a bird: the country's villages, and the landmarks on it.
+   *
+   * Kept on the whole list, and it is the one site here that wants a decision rather than a
+   * distance. A loft's list is filtered by where the hero has *been*, which is a fact about him
+   * and not about the ground round him — the journal keeps its list for exactly this reason. What
+   * an endless country would need is a bound on how far a bird will fly, and that is a rule about
+   * birds that nobody has written yet, not a reach somebody forgot to type.
+   */
   const abroad = (): Destination[] => [
     ...structures.villages.map((v) => ({ name: v.name, x: v.x, z: v.z })),
     ...structures.pois.map((p) => ({ name: p.name, x: p.x, z: p.z })),

@@ -2,7 +2,7 @@ import { compassDir } from '../world/structures';
 import { SEASON_NAMES, seasonOf } from '../game/seasons';
 import { GAMEPLAY } from '../core/config';
 import { worldSeconds, ferryStateAt } from '../game/ferry';
-import { villageAt } from '../world/structures';
+import { VILLAGE_REACH, villageAt } from '../world/structures';
 import { BIOMES, HUB_NAME, SEA_NAME } from '../world/biomes';
 import type { CompassTarget } from './compass';
 import type { MapMarker } from './mapbase';
@@ -12,6 +12,7 @@ import type { Hud } from './hud';
 import type { GameState } from '../game/state';
 import type { Player } from '../entities/player';
 import type { Structures } from '../world/structures';
+import type { Around } from '../world/around';
 import type { TerrainSampler } from '../world/terrain';
 import type { FerryLine } from '../game/ferry';
 import type { Quest } from '../game/quests';
@@ -28,7 +29,18 @@ import type { Rucksack } from './rucksack';
 export interface ReadoutContext {
   player: Player;
   state: GameState;
+  /**
+   * Everything this world holds, for the readouts that are about the world rather than about where
+   * the hero is standing: the marks on the big map, the journal's list of where he has been, and
+   * finding the village an errand names by its name.
+   */
   structures: Structures;
+  /**
+   * And what is near him, for the ones that are. See `world/around.ts` — a country grown a square
+   * at a time cannot answer "the nearest village" off a list, because the list is only ever the
+   * squares somebody has walked into.
+   */
+  around: Around;
   sampler: TerrainSampler;
   discovered: Set<string>;
   questList: Quest[];
@@ -55,13 +67,36 @@ export interface ReadoutContext {
   discover: (name: string) => void;
 }
 
+/** How far these readouts are willing to look for something. Distances in tiles. */
+const READOUT = {
+  /**
+   * How far the compass will look for a town to point at.
+   *
+   * Villages stand some eighty tiles apart, so three of those is far enough that there is nearly
+   * always one to point at in settled country and short enough to be honest out at sea, where the
+   * right answer is no arrow rather than an arrow at a place a day's sail away. It was unbounded
+   * before, which in a bounded world means "the whole map" and in an endless one means "whichever
+   * square happened to be grown" — the second of those points the needle at nothing in particular.
+   */
+  TOWN_REACH: 240,
+} as const;
+
 export function createReadouts(ctx: ReadoutContext) {
   const {
-    player, state, structures, sampler, discovered, questList, ferries, sailing, places, rucksack,
-    hud, clock, compass: compassBar, companyMarkers, fogged, cameraTarget, discover, bound,
+    player, state, structures, around, sampler, discovered, questList, ferries, sailing, places,
+    rucksack, hud, clock, compass: compassBar, companyMarkers, fogged, cameraTarget, discover, bound,
   } = ctx;
   let areaLabel = 'The Crossroads';
 
+  /**
+   * Everything the big map shows, which is a question about the world rather than about here.
+   *
+   * Left on the whole list on purpose. A map is the one readout whose subject is *not* the hero's
+   * surroundings — you open it to find somewhere you are not — so bounding it by a reach would be
+   * drawing less map than the game has. In an endless country the list a patch holds is already the
+   * country that has been grown, which is exactly what a map of a world with no edge can honestly
+   * show: what you have been to, and no further.
+   */
   const markers = (): MapMarker[] => {
     const out: MapMarker[] = [
       ...structures.villages.map((v) => ({ x: v.x, z: v.z, color: '#ffffff', label: v.name })),
@@ -107,14 +142,27 @@ export function createReadouts(ctx: ReadoutContext) {
       : `${areaLabel} · ${state.clock()} · ${SEASON_NAMES[seasonOf(state.day)]}`,
   });
 
-  /** POI > village > biome; discovering a POI flashes a toast. */
+  /**
+   * POI > village > biome; discovering a POI flashes a toast.
+   *
+   * The landmark loop is deliberately still the whole list, and it is the one site in this file
+   * that could not simply be moved across. `Around.places` lumps caves and wrecks in with landmarks
+   * — rightly, since "what is near here" does not care which — and routing this through it would
+   * make standing seven tiles from a cave mouth name the area after it and mark it found. That may
+   * well be the better game; it is a decision about what discovers a cave rather than about how far
+   * a question reaches, and it is not one to make quietly while moving a call site. The reach is
+   * already written down, so it is one line on the day somebody decides.
+   */
   const areaName = (): string => {
     for (const poi of structures.pois) {
       if (Math.hypot(poi.x - player.x, poi.z - player.z) >= GAMEPLAY.POI_DISCOVER_RADIUS) continue;
       discover(poi.name);
       return poi.name;
     }
-    const v = villageAt(structures.villages, player.x, player.z);
+    // the villages whose edge could possibly be under him, and then which of them he is inside:
+    // `VILLAGE_REACH` is the widest a village ever gets, so a village he is standing in cannot be
+    // outside it. `pois` above is still the whole list on purpose — see the note on it below.
+    const v = villageAt(around.villages(player.x, player.z, VILLAGE_REACH), player.x, player.z);
     if (v) return v.name;
     const target = cameraTarget();
     const p = sampler.probe(target.x, target.z);
@@ -141,10 +189,7 @@ export function createReadouts(ctx: ReadoutContext) {
       }
       if (targets.length >= 2) break;
     }
-    let nearest = structures.villages[0];
-    for (const v of structures.villages) {
-      if (Math.hypot(v.x - player.x, v.z - player.z) < Math.hypot(nearest.x - player.x, nearest.z - player.z)) nearest = v;
-    }
+    const nearest = around.nearestVillage(player.x, player.z, READOUT.TOWN_REACH);
     if (nearest && !targets.some((t) => t.label.startsWith(nearest.name))) {
       targets.push({ label: nearest.name, x: nearest.x, z: nearest.z });
     }
@@ -164,6 +209,13 @@ export function createReadouts(ctx: ReadoutContext) {
     else compassBar.update(0, 0, []);
   };
 
+  /**
+   * The journal, which is a record rather than a neighbourhood.
+   *
+   * It lists where the hero has *been*, and where he has been is not a thing that can be asked of
+   * the ground around him — a village he walked through last month is not near him now and still
+   * belongs in the book. So this keeps the whole list too, for the same reason the map does.
+   */
   const journalInput = () => ({
     state, quests: questList, villages: structures.villages, pois: structures.pois,
     ferries: ferries.map((f) => f.line), seconds: worldSeconds(state.day, state.time),

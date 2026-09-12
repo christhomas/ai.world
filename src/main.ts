@@ -118,7 +118,7 @@ export function startGame(
   // the ground this game is played on, and everything standing on it that was settled before
   // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
   const {
-    graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
+    graph, islands, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline,
     eyries, skyIsles, skyRenderer, endless, grower, mountains,
   } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
@@ -513,7 +513,7 @@ export function startGame(
     player, state, discovered, eyries, skies,
     luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
     saidOfMine,
-    structures, sampler, chunks, manifest, entities, entityRenderer, places, seed,
+    structures, around, sampler, chunks, manifest, entities, entityRenderer, places, seed,
     market, party, duel, mount, sailing, plots, houses, grudges, fishing, online, handover, remains, ferries, quests, register, jail,
     gifts, hires, standing, rescues, nemesis,
     callOut: (to) => multiplayer.callOut(to),
@@ -592,7 +592,7 @@ export function startGame(
   const villageLuxury = new Map<string, Luxury>();
   // and everything the country did overnight, which is most of what makes it a country
   const tidings = createTidings({
-    seed, state, player, places, structures, sampler, register, roaming, nemesis, mines, online,
+    seed, state, player, places, structures, around, sampler, register, roaming, nemesis, mines, online,
     remains, sound, director, claimed, villageLuxury, discovered, realm, persist,
     builderDay: () => interactions.builderDay(),
     villageNights: () => interactions.villageNights(),
@@ -602,8 +602,8 @@ export function startGame(
   const { minesWorked } = tidings;
 
   const { markers, mapInput, areaName, compassTargets, updateHud, journalInput } = createReadouts({
-    player, state, structures, sampler, discovered, questList, ferries, sailing, places, rucksack,
-    hud, clock, compass,
+    player, state, structures, around, sampler, discovered, questList, ferries, sailing, places,
+    rucksack, hud, clock, compass,
     bound,
     companyMarkers: multiplayer.markers,
     fogged: () => !state.can('map'),

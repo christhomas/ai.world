@@ -3,6 +3,7 @@ import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
 import { luxuryFor, storeysFor, type Luxury } from '../world/prosperity';
 import type { Site, Structures } from '../world/structures';
+import type { Around } from '../world/around';
 import type { TerrainSampler } from '../world/terrain';
 import type { Sound } from './audio';
 import type { Director } from './director';
@@ -28,7 +29,13 @@ export interface Telling {
   state: GameState;
   player: Player;
   places: Places;
+  /**
+   * Everything this world holds, for looking a village up by the name a working, a pressing or a
+   * roaming band already gave it — which is a different question from what is near the hero.
+   */
   structures: Structures;
+  /** And what is near a place, for how far a piece of news travels. See `world/around.ts`. */
+  around: Around;
   sampler: TerrainSampler;
   register: Register;
   roaming: Roaming;
@@ -59,7 +66,7 @@ export interface Telling {
 
 export function createTidings(ctx: Telling) {
   const {
-    seed, state, player, places, structures, sampler, register, roaming, nemesis, mines, online,
+    seed, state, player, places, structures, around, sampler, register, roaming, nemesis, mines, online,
     remains, sound, director, claimed, villageLuxury, discovered, realm, builderDay, villageNights,
     say, flash, persist,
   } = ctx;
@@ -103,7 +110,7 @@ export function createTidings(ctx: Telling) {
       if (!home || !settled.has(village)) continue;
       // the story reaches the village that works it and its nearest neighbours, which is how
       // somebody in a pub two valleys over can warn you off a hole you have never seen
-      const heardIn = [village, ...structures.villages
+      const heardIn = [village, ...around.villages(home.x, home.z, MINES.HEARD_WITHIN)
         .filter((v) => v.name !== village && settled.has(v.name))
         .sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z))
         .slice(0, MINES.HEARD_IN - 1)

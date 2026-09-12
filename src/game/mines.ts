@@ -48,6 +48,15 @@ export const MINES = {
    */
   HEARD_IN: 2,
   /**
+   * And how far away those neighbours may be, in tiles.
+   *
+   * A count on its own is not a rule about country. "The two nearest settled villages" is a sensible
+   * thing to say in a world of sixteen of them and an empty one in a country with no edge, where the
+   * two nearest could be a province away across ground nobody has walked into. The pub's own talking
+   * range, because this is the same news travelling by the same road — see `PUB.TALK_RANGE`.
+   */
+  HEARD_WITHIN: 150,
+  /**
    * How many people in a village carry the story.
    *
    * Nobody holds more than a couple of memories, so telling everybody would mean a whole village

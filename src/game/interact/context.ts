@@ -8,6 +8,7 @@ import type { Eyrie } from '../eyries';
 import type { Skies } from '../skies';
 import type { Luxury } from '../../world/prosperity';
 import type { Structures } from '../../world/structures';
+import type { Around } from '../../world/around';
 import type { TerrainSampler } from '../../world/terrain';
 import type { Manifest } from '../../world/manifest';
 import type { DialogueBox, DialogueChoice, DialogueNode } from '../../ui/dialogue';
@@ -62,7 +63,17 @@ export interface Surroundings {
   discovered: Set<string>;
 
   // the world around them
+  /**
+   * Everything this world holds. Kept for the questions that are about the world itself — a door
+   * by its tile, a village by the name an errand gave it — rather than about where the hero is.
+   */
   structures: Structures;
+  /**
+   * And what is near him, which is what most of these interactions were always asking. See
+   * `world/around.ts`: pressing Enter at a notice board means "the village whose board this is",
+   * and in a country grown a square at a time that has to be put as a distance.
+   */
+  around: Around;
   sampler: TerrainSampler;
   chunks: ChunkManager;
   manifest: Manifest;

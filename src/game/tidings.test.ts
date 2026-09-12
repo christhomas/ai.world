@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { aroundOf } from '../world/around';
 import { Register } from '../world/register';
 import { createTidings, type Telling } from './tidings';
 import type { Band, Pressing, Roaming } from './roaming';
@@ -59,6 +60,9 @@ interface Around {
  * than coaxed out of a seed that happens to put two bands on one place.
  */
 function telling(around: Around = {}) {
+  const theCountry = {
+    villages: [{ name: VILLAGE, x: 0, z: 0, radius: 10 }], pois: [], caves: [], wrecks: [],
+  } as unknown as Structures;
   const register = around.register ?? new Register(1);
   const said: string[] = [];
   const flashed: string[] = [];
@@ -77,7 +81,10 @@ function telling(around: Around = {}) {
     state,
     player: { x: 0, z: 0 } as unknown as Player,
     places: { outdoors: around.outdoors ?? false } as unknown as Places,
-    structures: { villages: [{ name: VILLAGE, x: 0, z: 0, radius: 10 }] } as unknown as Structures,
+    structures: theCountry,
+    // the real seam over the same stub country: what is near a place is a filter over a list here,
+    // exactly as it is in every bounded world, so nothing about this test has to know it exists
+    around: aroundOf(theCountry),
     sampler: { storeys: new Map<string, number>() } as unknown as TerrainSampler,
     register,
     roaming: { advance: () => [], pressings: () => around.pressings ?? [] } as unknown as Roaming,

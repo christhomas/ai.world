@@ -5,6 +5,7 @@ import type { PropLibrary } from '../render/props';
 import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import { SkyIslands } from '../render/skyisland';
+import { aroundOf, aroundPatches } from '../world/around';
 import { ChunkManager } from '../world/chunkManager';
 import { generateRoadGraph, planIslands } from '../world/graph';
 import { growWorld } from '../world/growworld';
@@ -102,6 +103,23 @@ export function growCountry(ctx: Growing) {
    */
   const highPlaces = sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs;
   const structures = sampler.structures;
+  /*
+   * What is near wherever anybody is standing, which is what the game has always meant by asking
+   * for "the structures".
+   *
+   * This is the one place in the game the two kinds of country part company on that question, and
+   * it is the right place: the fork between bounded and endless already lives on this page. A
+   * bounded world holds every village it will ever have in one list, so the answer is a filter. An
+   * endless one has villages in whichever squares somebody has walked into, so the answer is to ask
+   * those squares — and never to grow one, because a question about your surroundings that cost a
+   * second of country would stutter the frame it was asked in.
+   *
+   * Everything above this line goes on holding `structures` as well, and should: a signpost naming
+   * the towns of the patch it stands in is a different question from what is near the hero, and so
+   * is a console that lists every village in the world on purpose. `world/around.ts` is only for the
+   * ones that meant "near me" all along.
+   */
+  const around = endless ? aroundPatches(endless.store) : aroundOf(structures);
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
@@ -160,7 +178,7 @@ export function growCountry(ctx: Growing) {
   }
 
   return {
-    graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, mountains, skyline,
+    graph, islands, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, mountains, skyline,
     eyries, skyIsles, skyRenderer,
     /**
      * The country itself, for a world that has no edge: what to tell when the hero has walked into

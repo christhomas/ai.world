@@ -3,7 +3,7 @@ import { askingPrice, lotLine, type Pitch } from '../market';
 import { tradableItems } from '../online';
 import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
 import { HORSE } from '../mount';
-import { compassDir } from '../../world/structures';
+import { VILLAGE_REACH, compassDir } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
 import { turnToFace } from '../../entities/entity';
 import { faceFor } from '../talk';
@@ -25,8 +25,29 @@ import { KINDS } from '../../entities/animals';
  * What Enter does inside a settlement: step through a door, read the board, deal at a market
  * pitch, read a fingerpost, buy or mount a horse.
  */
+/**
+ * How far the notice board looks for something to post about, in tiles.
+ *
+ * The pub's own number, and deliberately so: a room and a board in the same village are the same
+ * voice talking about the same country, and a place worth a rumour in one is worth a notice in the
+ * other. `pub.ts` keeps its copy because it also has a near bound this has no use for — a board
+ * announcing the village it is nailed up in is not news, but it does not need saying twice.
+ */
+const BOARD_RANGE = 120;
+
+/** And how far outside a village you may stand and still be at something of its own, in tiles. */
+const STANDING_ROOM = 4;
+
 export function villageInteractions(ctx: Surroundings) {
-  const { player, state, structures, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, questLine, quests, handover, discovered, seed } = ctx;
+  const { player, state, structures, around, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, questLine, quests, handover, discovered, seed } = ctx;
+  /**
+   * The villages whose ground the hero could be on, which is what every door here belongs to.
+   *
+   * `VILLAGE_REACH` is the widest a village ever gets, and the slack is because the thing being
+   * pressed at can stand on the village's own edge with the hero a pace outside it: a notice board
+   * is nailed up at the end of the street, and you read it standing in the road.
+   */
+  const villagesHere = () => around.villages(player.x, player.z, VILLAGE_REACH + STANDING_ROOM);
 
   /**
    * The landlord, who is inside the pub.
@@ -46,7 +67,9 @@ export function villageInteractions(ctx: Surroundings) {
     if (!room || room.door.kind !== 'inn') return false;
     // he pours a drink facing his own barrels otherwise, which is funny exactly once
     if (room.keeper) turnToFace(room.keeper, player.x, player.z);
-    for (const village of structures.villages) {
+    // the villages whose ground he could be standing on, and then the one whose pub this door is:
+    // he is inside the building, so one of them is certainly it
+    for (const village of villagesHere()) {
       const pub = village.pub;
       if (!pub) continue;
       if (village.name !== room.door.village) continue;
@@ -153,14 +176,15 @@ export function villageInteractions(ctx: Surroundings) {
    * about places nearby. Accepting from the board saves hunting for the elder.
    */
   const tryBoard = (): boolean => {
-    for (const village of structures.villages) {
+    for (const village of villagesHere()) {
       if (!village.board) continue;
       if (Math.hypot(village.board[0] - player.x, village.board[1] - player.z) > 2.2) continue;
       const quest = quests.get(village.name);
       const status = quest ? state.quests.get(quest.id) : undefined;
-      const nearby = [...structures.pois, ...structures.caves, ...structures.wrecks]
+      // what this village would post about, which is the same question the pub's talk asks and is
+      // now asked the same way: near enough to be its business, and never the whole world
+      const nearby = around.places(village.x, village.z, BOARD_RANGE)
         .map((p) => ({ name: p.name, d: Math.hypot(p.x - village.x, p.z - village.z), x: p.x, z: p.z }))
-        .filter((p) => p.d < 120)
         .sort((a, b) => a.d - b.d)
         .slice(0, 3)
         .map((p) => `${state.discovered.has(p.name) ? p.name : 'somewhere unnamed'} — ${compassDir(p.x - village.x, p.z - village.z)}, ${Math.round(p.d)} tiles`);
@@ -287,7 +311,7 @@ export function villageInteractions(ctx: Surroundings) {
     personWins(player.x, player.z, entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE), x, z);
 
   const tryStall = (): boolean => {
-    const pitch = market.nearest(structures.villages, player.x, player.z);
+    const pitch = market.nearest(villagesHere(), player.x, player.z);
     if (!pitch) return false;
     if (someoneNearerThan(pitch.x, pitch.z)) return false;
     if (!online.connected) {
@@ -375,7 +399,7 @@ export function villageInteractions(ctx: Surroundings) {
 
   /** Say whose stall this is as you come to it: a bare awning looks the same as a busy one. */
   const noticeStall = (): void => {
-    const pitch = market.nearest(structures.villages, player.x, player.z);
+    const pitch = market.nearest(villagesHere(), player.x, player.z);
     if (!pitch || !pitch.stall) { noticedPitch = pitch ? noticedPitch : ''; return; }
     if (pitch.id === noticedPitch) return;
     noticedPitch = pitch.id;
@@ -394,7 +418,7 @@ export function villageInteractions(ctx: Surroundings) {
    * not got rich has nothing to offer and this says nothing at all.
    */
   const tryLuxury = (): boolean => {
-    const village = structures.villages
+    const village = villagesHere()
       .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
       .filter((o) => o.d < o.v.radius)
       .sort((a, b) => a.d - b.d)[0]?.v;

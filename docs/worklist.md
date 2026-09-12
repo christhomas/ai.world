@@ -3920,8 +3920,30 @@ than by remembering — and the first thing found was that the gap is not where 
       Left: the eyries, planned across the whole world; the sky islands, planned from the whole
       world's islands; and whatever else turns out to hold a list with no end in it.
 
-- [~] **59e. Ten places in the game layer ask for `sampler.structures`.** *The seam exists as of the
-      12th; the migration does not.* `world/around.ts` is the question every one of those call sites
+- [x] **59e. Ten places in the game layer ask for `sampler.structures`.** *Seam and migration both
+      done on the 12th.* Thirteen sites moved onto `Around`, five kept with the reason written down,
+      and two flagged as decisions rather than distances.
+
+      The reaches are the interesting part, because each one is a judgement and each is now written
+      down beside the thing it bounds. `VILLAGE_REACH` is *derived* rather than typed — the largest
+      village spread plus its margin, the smallest number that cannot miss a village you are standing
+      in. A pub's board and the mine rumours both use the pub's own talking range, because a room and
+      a board in one village are the same voice talking about the same country. The compass gets
+      three village spacings: nearly always a town to point at in settled country, and honestly no
+      arrow at sea, where before it pointed at whichever square happened to have been grown.
+
+      What was kept is as important. The debug console asks about the whole world on purpose —
+      `/towns` lists the towns and `/teleport silverholm` goes there wherever it is — and bounding it
+      would let the tools see less than the player. A map is the one readout whose subject is not
+      your surroundings. And `villageHolding` only looks like a candidate: a sampler answers for its
+      own square about a house that same sampler founded, so asking the patchwork would have a patch
+      reach up into the thing holding it.
+
+      The load-bearing test is that a two-square reach names twenty-five patches, holds two, and
+      grows none of them: **a question about what is near you must never cost five seconds of
+      country.**
+
+      The original note: `world/around.ts` is the question every one of those call sites
       is actually asking — villages within so many tiles, the nearest village within so many tiles,
       places within so many tiles — with two ways of answering it: `aroundOf(structures)` filters the
       list a bounded world already has, and `aroundPatches(patchwork)` asks the patches that have
