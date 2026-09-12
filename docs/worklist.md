@@ -3025,3 +3025,77 @@ other, and the order is chosen so that each one can be *seen* working before the
       first group needs a boat put under the hero and a pod that happens to be breaching; the
       second needs two browsers in one world. Both are shots the tool could learn — the shape is a
       row in `SHOTS` — and neither is stale in the way the eleven above were.
+
+## What we talked about on the night of the 11th — September 12th
+
+Six ideas, most of them from the person who plays it, written down before they evaporate. They are
+in the order they would sensibly be built, which is not the order they arrived in.
+
+- [ ] **23. A jetty you can commission.** `BUILDS` already takes `on: 'land' | 'house'`, so a jetty
+      is a fifth entry in the catalogue. It has a reason to exist that the others do not: since
+      **22** a coast that is all cliff gets no ferry at all, so an island can be cut off — and a
+      player who wants one pays for the harbour. The pier tiles, the stepping-down and the dock are
+      all built; what is missing is the order, the price and the ground check ("is this a coast at
+      all, and is it low enough").
+
+- [ ] **24. The town hall, the mayor, and what a village does with its money.** Asked for whole, and
+      it answers an objection the code has been carrying since inheritance went in:
+
+      > *"Shared out rather than banked, because there is no village pot to bank it in. A
+      > `Settlement` holds food, houses, trades and people, and inventing a treasury for this would
+      > be inventing a thing nothing else in the game can see or spend."* — `world/inheritance.ts`
+
+      A mayor is somebody who can see it; a vote is something to spend it on. Both objections
+      answered by the same feature.
+
+      - The **hall** already exists — six biome variants — and is raised where a village has
+        `CIVIC_HOUSES` (eight) or more. Keep that rule rather than giving every hamlet one: a town
+        hall is what a village grows into, which is what makes **25** matter.
+      - The **mayor's body** already exists and is already worn — by the clerk, because it was the
+        body made for a town hall. Nobody has been elected to it.
+      - The **purse**: `Settlement` gains one, filled by a tax each villager pays out of what they
+        hold. It must obey the deed layer's one rule — a coin leaving one purse arrives in another —
+        which `livelihoods.test.ts` already enforces by summing both sides.
+      - The **vote**: a short list of things a village can want, each with a price. A harbour (23), a
+        bridge, a well, a bath house, a granary. What they choose should follow from what they lack,
+        which the register already knows: a village with no ferry, a village that went hungry.
+      - And the part that closes the circle: **the village commissions the hero.** The builder verb
+        goes one way today — you pay a man. A village with a purse and a vote can pay *you*.
+
+- [ ] **25. Villages that grow, and a builder who eats.** The observation that makes 24 work: if a
+      hall needs eight houses, houses have to be able to arrive. Today a village's house count is
+      fixed the moment it is settled.
+
+      Every piece is already here. `prosperity.ts` decides what a village can afford and already
+      spends it on a second storey; a `Commission` already carries a village and a price; and the
+      player's own houses are drawn by `BuildingSite` from commissions rather than from the world's
+      structure list — *precisely because they were not there when the terrain was generated*. So a
+      village's new house is the same object, drawn by the same code, on the same plot rules.
+
+      The part worth arguing about: **the builder is not on the register today and that was
+      deliberate** — "a builder who can be carried off by a wolf half way through the job is a house
+      that dangles". The way to have both is the one the shops already use: the *voice* in the pub
+      stays a regular who cannot die mid-job, and the *earnings* go to whoever in the village holds
+      the builder's trade, falling back to the village the way `personTill` already falls back to
+      `villageTill`. Then building is a living: he earns, he eats, and a village that builds keeps
+      its own tradesmen fed.
+
+- [ ] **26. The seam audit's one fix.** Five holes found on the 12th, all of the same shape: the
+      world resolved a kill and the client's half of the consequence never ran. No deed judged (so
+      murder online does not blacken your name), no rustling (kill a cow, nobody minds), no mine
+      cleared, no trouble credited, no band told it had lost one. The fix is not five patches:
+      `authority.onCreatureKilled` is a second, thinner copy of `blows.felled()`, and what a kill
+      *means* should be one function both call, in `consequences.ts` where the rest of "what follows"
+      already lives. `authority.test.ts` has the fake to hold it.
+
+- [ ] **27. Zarch, the rest of it.** `game/craft.ts` flies and `PropKind.Hulk` is drawn. What is
+      left: where it crashes (one to a world, on open ground, well away from the villages), climbing
+      in and out, and the gun — which is `archery.ts`'s height-aware shot with a different noise,
+      because that is already the one thing in the game that can reach something which is not
+      standing on the ground.
+
+- [ ] **28. The remaining screenshots, and the hunting loop walked end to end.** The sea and
+      shared-world shots need a boat under the hero and two browsers in one world — both of which
+      `shots.cjs` can now do, since the Domesday shot already opens a second page and joins a real
+      server. And nobody has yet played kill → skin with a knife → carry the pelt to a country that
+      pays for it, which is the loop **22** was supposed to make possible again.
