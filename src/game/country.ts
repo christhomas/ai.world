@@ -11,6 +11,7 @@ import { growWorld } from '../world/growworld';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
+import { PatchCountry } from '../world/patchcountry';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { WorldKind } from '../save/store';
 import type { ManifestJson } from '../world/manifest';
@@ -66,15 +67,23 @@ export function growCountry(ctx: Growing) {
    * moving them would move the ground out from under a house that was built on one. They go up the
    * wire with the join for the same reason — see `growWorld`.
    */
-  const islands = islandsOf(manifest, seed);
+  /*
+   * A country with no edge, when that is the kind of world this is.
+   *
+   * It is grown round the origin because that is where a fresh hero stands; when a save says
+   * otherwise the first `moveTo` of the frame puts it where he actually is, which costs one patch
+   * grown and thrown away and is not worth a special case to avoid.
+   */
+  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0) : null;
+  const islands = endless ? [] : islandsOf(manifest, seed);
   /*
    * And the country itself, through the one call there is. Not "the same call the world makes" —
    * literally the one call, which is the difference between two halves that agree and two halves
    * that cannot disagree. `src/world/growworld.ts` says why that distinction cost this project two
    * unplayable worlds.
    */
-  const graph = growWorld(seed, world, islands);
-  const sampler = new TerrainSampler(graph);
+  const sampler = endless ? endless.sampler : new TerrainSampler(growWorld(seed, world, islands));
+  const graph = sampler.graph;
   /**
    * The world's mountains, whichever kind this world grew: the road-tree world's domes, or the
    * polygon world's ranges described in the same terms. Everything that stands something on a
@@ -84,7 +93,10 @@ export function growCountry(ctx: Growing) {
   const structures = sampler.structures;
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
-  const chunks = new ChunkManager(rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial);
+  // handed the patchwork as well, for a world whose chunks are painted patch by patch
+  const chunks = new ChunkManager(
+    rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial, endless?.store,
+  );
   chunks.useSeasonTint(seasonTintMaterials);
 
   // The mountains go into the scene once and stay there. They are one shape the size of a county,
@@ -138,5 +150,12 @@ export function growCountry(ctx: Growing) {
   return {
     graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, mountains, skyline,
     eyries, skyIsles, skyRenderer,
+    /**
+     * The country itself, for a world that has no edge: what to tell when the hero has walked into
+     * another patch, and what to ask for the sampler that answers where he is now.
+     *
+     * Null for a bounded world, which is the whole of how the rest of the game tells them apart.
+     */
+    endless,
   };
 }

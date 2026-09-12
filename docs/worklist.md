@@ -3585,7 +3585,22 @@ than by remembering — and the first thing found was that the gap is not where 
       that paints nothing and never answers. Both ends keep the same number and drop in the same
       order, and four tests hold them to it.
 
-- [~] **59d. `growCountry` grows one of everything.** *Started.* `PatchCountry` is the shape the
+- [~] **59d. `growCountry` grows one of everything.** *It grows an endless one now, and the endless
+      one is playable.* `?world=endless` boots: a `PatchCountry` round the origin, the patch's own
+      sampler, the chunk manager handed the patchwork so each chunk is painted by the patch it falls
+      in. Walked in a browser on seed 7 — ground, roads, a river, terraced cliffs, farmland, eighty
+      creatures, a hero standing on it, and the minimap drawn. It is a country.
+
+      What it is not yet is *endless*: nothing calls `moveTo`, so the sampler never changes and the
+      hero would walk off the edge of the first patch into nothing. That is the next thing, and the
+      screenshot is the reason it is worth doing rather than an argument that it might be.
+
+      One known complaint, and it is the right one: *"This world does not match the one you joined"*.
+      The page grew an endless country and the world it joined grew a road one. That is **59f**, and
+      the fingerprint catching it on the first run is the two-halves bench doing exactly what it was
+      built for.
+
+      *Started earlier:* `PatchCountry` is the shape the
       game will hold instead of a sampler: there is a *current* sampler, it is the one for the patch
       the hero is standing in, and it changes when he walks into another. Everything that already
       asks the sampler about the ground *under it* keeps working unchanged, because the ground under
