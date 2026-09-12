@@ -138,6 +138,9 @@ export function tryMove(world: TileWorld, e: Entity, dx: number, dz: number, cro
     if (!slide(world, e, dx / slices, dz / slices, crowd)) break;
     moved = true;
   }
+  // a man who takes a step is no longer standing on the tower, whether he meant to leave it or
+  // was knocked off it. One line, because this is the only way anything in the world moves itself
+  if (moved) e.perch = null;
   return moved;
 }
 

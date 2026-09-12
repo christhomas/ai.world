@@ -179,6 +179,20 @@ export class Entity {
    */
   told: Told | null = null;
   /**
+   * The height this one is standing at, when it is standing on something the ground knows nothing
+   * about — the fighting platform of a watchtower, so far, and nothing else.
+   *
+   * The world's heights are the terrain's. A prop that is solid is something to walk *round*, not
+   * something to stand on, so a man posted on a tower would otherwise be dragged down to the grass
+   * by `settleOntoTheGround` a few frames after he got up there. Nought is not the same as "not
+   * perched", hence null.
+   *
+   * It is cleared by walking — see `tryMove` — which is the whole of the rule: a man who takes a
+   * step is a man who is no longer on the platform, whether he meant to leave it, was knocked off
+   * it, or was told to go somewhere else.
+   */
+  perch: number | null = null;
+  /**
    * What this one is doing right now, in two or three words.
    *
    * "mining", "hunting", "buying food", "waiting where he was put". Not a state machine and not a
@@ -465,10 +479,6 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   if (e.strike > 0) e.strike = Math.max(0, e.strike - dt);
   e.attackCooldown -= dt;
 
-  if (e.trade === 'doctor') {
-    (globalThis as Record<string, unknown>).__TICKED =
-      `tree=${ctx.treeFor ? (ctx.treeFor(e) ? 'yes' : 'null') : 'no treeFor'} doing=${e.doing}`;
-  }
   // what this creature does next is decided in behaviours/, by kind or by trade
   ctx.treeFor?.(e)?.({
       dt,
@@ -521,6 +531,20 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
     case 'walk':
     case 'flee':
     case 'hop': {
+      /*
+       * Anybody about to take a step climbs down off whatever they were standing on first.
+       *
+       * It has to happen here rather than after the step, because a man on a platform twenty feet
+       * up cannot take one: `slide` refuses a step that drops further than a creature can drop, so
+       * he would stand in the air for ever with his legs going. There is no climb animated, in the
+       * same way there is none on the way up — what matters is that he is down, and that the only
+       * way to be up there is to have been told to be.
+       */
+      if (e.perch !== null) {
+        e.perch = null;
+        const down = groundY(world, k, e.x, e.z);
+        if (down !== null) e.y = down;
+      }
       let dx: number, dz: number;
       if (e.state === 'flee') {
         dx = e.fleeX; dz = e.fleeZ;
@@ -589,6 +613,11 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
  */
 function settleOntoTheGround(e: Entity, k: AnimalKind, world: TileWorld, dt: number): void {
   if (k.behaviour === 'fly') return;
+  // and leave anybody standing on something the terrain has never heard of where they are
+  if (e.perch !== null) {
+    e.y += (e.perch - e.y) * Math.min(1, dt * 6);
+    return;
+  }
   const gy = groundY(world, k, e.x, e.z);
   if (gy !== null) e.y += (gy - e.y) * Math.min(1, dt * 12);
 }

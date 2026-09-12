@@ -4,6 +4,7 @@ import type { Params, Vocabulary } from '../core/behaviourFile';
 import { BEHAVIOUR, canStand, throwBlow, yawFor, type Entity, type Post, type TileWorld } from './entity';
 import { blowOf, tellOf } from './motion';
 import { dig, eatSomething, sell, spend, stalkQuarry, take, tendStock } from './living';
+import { loose, takePost } from './posted';
 import type { Rng } from '../core/rng';
 
 /**
@@ -212,6 +213,9 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
 
     // picking somebody out, closing on them, and the blow itself
     markPrey, markTrouble, markFoe, forget, stalk, circle, charge, dive, bite, arrest,
+
+    // standing somewhere above the ground, and shooting from it
+    takePost, loose,
 
     // backing off, and getting over it
     flee, graze, idle, waitAt, beHealed,

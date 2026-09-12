@@ -3262,6 +3262,13 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       week is money moving inside the valley for a service somebody actually needed — and if he
       does not pay, he loses beasts, which is the same decision the player makes about a warband.
 
+- [ ] **24b. The mayor offers to build a hall.** *And the argument for building this sooner rather
+      than later, stated plainly: a treasury that never spends will always out-accumulate every
+      person in the village, because a person has to buy dinner and a treasury does not.* That is
+      not a tax rate problem and lowering the rate would only slow it down —
+      `chore sanity` measures it at sixty-two per cent of all the money in the world after four
+      hundred and fifty days.
+
 - [ ] **24b. The mayor offers to build a hall.** When the treasury reaches the price, the mayor puts
       it to the village and a builder raises it — the same `Commission` the player's house uses, with
       the village as the customer and the hall's purse paying. It needs a price (a hall is the most a
@@ -3472,3 +3479,64 @@ simulation rather than any one feature in it.
       cargo went down, so the salvage should be better than a cave's), a reason the fish-folk are
       there rather than a spawn table, and the flooding itself doing something — deep water you
       swim rather than walk, which `breath.ts` already has the machinery for.
+
+## The tower, and the rest of the morning's list — September 12th
+
+- [x] **56. A watchtower with a man on it.** A watchtower has stood in this country since the first
+      landmarks went in and has never been anything but a shape on a hill. A hired sword can be told
+      to take one now: he walks to the foot of it, stands on the fighting platform, and puts arrows
+      into whatever comes near enough to be worth one.
+
+      Four pieces, and the interesting one is the last.
+
+      - **`Entity.perch`** — the height somebody is standing at when it is not the ground's. A prop
+        is something to walk round rather than something to stand on, so without this a man on a
+        platform is dragged down to the grass a few frames later.
+      - **`takePost` and `loose`** (`entities/posted.ts`). `loose` is its own verb rather than a
+        bite with a long reach: it measures the *flight* of the arrow the way `archery.ts` does, so
+        a man twenty feet up reaches things a man beside the tower cannot, and it never closes the
+        distance — a bowman who walks toward what he is shooting at has thrown away the only thing a
+        bow is for.
+      - **The `watch` order**, above the trouble branch in the `hired` tree so that a posted man does
+        not climb down to hit a wolf with his sword, and wrapped so a *quiet* watch still claims the
+        tick — without that the first wolf a mile off empties the tower.
+      - **And coming down is a property of walking, not a verb.** A man knocked off a tower has to
+        come down just as surely as one told to go somewhere else, so the climb-down is in the walk
+        case in `entity.ts`: it must happen *before* the step, because `slide` refuses a step that
+        drops twenty feet and he would otherwise stand in the air for ever with his legs going.
+
+      Seven tests drive the real compiled tree. What has **not** been done is walking it in a
+      browser: the villages near a tower on the seeds tried had no soldier standing in the street to
+      hire. `__entitiesFull` now reports height, trade and what somebody is doing, which is what that
+      check needs when a soldier is to hand.
+
+- [ ] **56a. Who else can post a guard.** The order today is the player's, which is the smallest
+      version of the idea and not the one that matters. A farmer should be able to hire a man to
+      stand over his herd (**39**) and a village should be able to post one on its own tower out of
+      the treasury (**24b**) — `hires.ts` already names the side every bargain is fought for, so
+      neither is a new kind of bargain. And a tower should be something a village can *build*
+      (**44**, **50**): a tower that has to be paid for and manned is the first building in this
+      economy whose worth is obvious from the road.
+
+- [ ] **57. Where new people come from, when a valley has emptied.** Three ideas that are one idea.
+      The shrine that raises a villager (**53**) must be **expensive and rare** — it is magic, and
+      magic that is affordable is a tap. The ordinary way should be **people walking in**: an
+      explorer or a hiker from another village finds an empty place and, if there is more food and
+      more money in it than where they came from, they move. `resettle` already does exactly this
+      for a ruin whose neighbour walks over, so the machinery is there and what is missing is the
+      *reason* — a comparison between two villages that anybody could make.
+
+      And it buys something neither of the other two do: **families that are not from here**. A
+      village left alone marries its own children to each other for four hundred days; somebody
+      arriving from three valleys away is new blood, and the day the register knows that is the day
+      **inherited features** become worth having — a face, a build, a colouring passed down the way
+      a trade is (**30**), so that a stranger's children look like the stranger. The faces are
+      already generated per person; what they are not yet is *inherited*.
+
+- [ ] **58. A hero who can swim.** Deep water is a wall today: you wade to your chest and stop. If
+      you could swim, the map changes shape — every island you can see becomes somewhere you could
+      *try* to reach, and the things already in the water become the reason not to. The pieces are
+      there: `breath.ts` holds a lungful and counts it down, sharks and orcas already hunt anything
+      afloat, and `swallows.ts` knows what to do with somebody who goes under. What it needs is a
+      stroke that is slower than walking, a shore you can always climb back onto, and the honest
+      answer to being caught out in deep water with a fin behind you.

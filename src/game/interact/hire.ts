@@ -6,6 +6,7 @@ import { faceFor } from '../talk';
 import { COMPANY } from '../../entities/manager';
 import { bodyForTrade } from '../../entities/trades';
 import { hashString } from '../../core/rng';
+import { StructureKind } from '../../world/structures';
 import type { Entity } from '../../entities/entity';
 import type { Surroundings } from './context';
 
@@ -36,6 +37,20 @@ export function hireInteractions(ctx: Surroundings & { hires: Hires }) {
 
   /** The village somebody belongs to, which is what sets the going rate there. */
   const homeOf = (village: string) => structures.villages.find((v) => v.name === village) ?? null;
+
+  /** The nearest watchtower worth pointing at, or nothing if there is none in sight. */
+  const towerNear = (): { x: number; z: number } | null => {
+    let best: { x: number; z: number } | null = null;
+    let away = TOWER_IN_SIGHT;
+    for (const poi of structures.pois) {
+      if (poi.kind !== StructureKind.Tower) continue;
+      const off = Math.hypot(poi.x - player.x, poi.z - player.z);
+      if (off > away) continue;
+      away = off;
+      best = { x: poi.x, z: poi.z };
+    }
+    return best;
+  };
 
   /** The nearest person on the register who is out on the street to be spoken to. */
   const nearestResident = (): Entity | null => {
@@ -94,7 +109,17 @@ const ORDER_WORDS: ReadonlyArray<{ order: Order; said: string }> = [
   { order: ORDERS.FOLLOW, said: 'Stay at my shoulder' },
   { order: ORDERS.HOLD, said: 'Wait here' },
   { order: ORDERS.FIGHT, said: 'Go in first' },
+  { order: ORDERS.WATCH, said: 'Take the tower' },
 ];
+
+/**
+ * How far a tower may be and still be the tower he is being told to take, in tiles.
+ *
+ * Far enough that you can point at one you can see, and near enough that "take the tower" is never
+ * an order to walk half a day. Out of sight of one, the choice is not offered at all — which is
+ * better than a man agreeing and then setting off over the horizon.
+ */
+const TOWER_IN_SIGHT = 70;
 
   /** The one already walking with you: what was agreed, how long is left, and how to end it. */
   const partCompany = (e: Entity, bargain: Bargain): void => {
@@ -110,12 +135,20 @@ const ORDER_WORDS: ReadonlyArray<{ order: Order; said: string }> = [
           : `${left === 1 ? 'One day' : `${left} days`} of me left on what you paid.`,
       ],
       choices: [
-        ...ORDER_WORDS.filter(({ order }) => order !== hires.orderFor(bargain.who)).map(({ order, said }) => ({
+        ...ORDER_WORDS
+          .filter(({ order }) => order !== hires.orderFor(bargain.who))
+          // a man cannot be sent to a tower that is not there, so the order is not offered
+          .filter(({ order }) => order !== ORDERS.WATCH || towerNear() !== null)
+          .map(({ order, said }) => ({
           label: said,
           next: () => {
             // where he is standing when he is told, for the orders that mean somewhere. "Wait" and
-            // "wait *there*" are different instructions, and the second is the one anybody means
-            const at = order === ORDERS.HOLD ? { x: e.x, z: e.z } : undefined;
+            // "wait *there*" are different instructions, and the second is the one anybody means.
+            // "Take the tower" means a particular tower, which is the nearest one either of you
+            // can see
+            const at = order === ORDERS.HOLD ? { x: e.x, z: e.z }
+              : order === ORDERS.WATCH ? towerNear() ?? undefined
+              : undefined;
             hires.tell(side(), bargain.who, order, at);
             e.told = hires.toldTo(bargain.who);
             sound.select();

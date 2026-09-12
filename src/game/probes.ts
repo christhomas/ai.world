@@ -172,6 +172,9 @@ export function installProbes(ctx: Probed): void {
   (debug as { __piers?: unknown }).__piers = structures.piers;
   // where the hulls are, so a test can walk up to one and go down into it
   (debug as { __wrecks?: unknown }).__wrecks = structures.wrecks;
+  // and where the towers are, for checking that a man told to take one is actually on it
+  (debug as { __towers?: unknown }).__towers = structures.pois
+    .filter((p) => p.kind === StructureKind.Tower).map((p) => ({ name: p.name, x: p.x, z: p.z }));
   (debug as { __descent?: () => unknown }).__descent = () => places.underground?.world.map.descent ?? null;
   (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
   (debug as { __descend?: () => void }).__descend = () => commandWorld.descend();
@@ -303,6 +306,11 @@ export function installProbes(ctx: Probed): void {
     crowdAround().within(player.x, player.z, 90).map((e) => ({
       kind: e.kind.id, name: e.name, role: e.role, x: e.x, z: e.z,
       hp: e.hp, dead: e.dead, yaw: Math.round(e.yaw * 100) / 100, id: e.worldId ?? null,
+      // how high they are standing, what they do for a living, and what they are doing about it.
+      // A man posted on a watchtower is exactly the thing that cannot be checked from outside
+      // without a height in the readout: on the platform and in the grass beside it are the same
+      // two numbers otherwise
+      y: Math.round(e.y * 100) / 100, trade: e.trade, doing: e.doing,
       // the box it is collided against, so a test can ask whether two of them are inside each other
       body: bodyOf(e.kind),
     }));

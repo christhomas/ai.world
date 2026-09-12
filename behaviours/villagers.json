@@ -633,6 +633,25 @@
     "note": "Bought and paid for. Keep at the shoulder of whoever is paying, and put down whatever goes for anybody near them. The gate can wait until the bargain is done. What he has been told changes which of these he takes, not how he takes it: told to hold he still defends himself, told to fight he still walks round a boulder rather than into it.",
     "first": [
       {
+        "note": "Posted to a tower. He goes to the foot of it, he is on the fighting platform a moment later, and from up there he shoots whatever comes near enough to be worth an arrow. Above the trouble branch on purpose: a bowman who climbs down to go and hit something with his sword is a bowman who has thrown away the only thing a bow is for, and a tower with nobody on it is a tower. He is not safe up there — anything that reaches the foot of it can still be a problem when he steps off — but while he is on it he outranges nearly everything in the country.",
+        "when": { "ask": "told", "with": { "to": "watch" } },
+        "then": {
+          "steps": [
+            { "do": "takePost", "with": { "height": 5.3, "within": 1.8 } },
+            {
+              "note": "Wrapped so that a quiet watch still claims the tick. Without it a man with nothing to shoot at falls through to the branch below, which sends him off after whatever is nearest with teeth — and the first wolf a mile away empties the tower.",
+              "anyway": {
+                "steps": [
+                  { "do": "markFoe", "with": { "within": 16 } },
+                  { "anyway": { "do": "loose", "with": { "damage": 22, "cooldown": 1.8, "tiles": 16 } } }
+                ]
+              }
+            }
+          ]
+        },
+        "doing": "on the tower"
+      },
+      {
         "note": "Something with teeth on somebody is the whole of what a sword arm is for.",
         "steps": [
           {

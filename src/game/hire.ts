@@ -133,6 +133,16 @@ export const ORDERS = {
   HOLD: 'hold',
   /** Go for what is dangerous rather than waiting for it to go for somebody. */
   FIGHT: 'fight',
+  /**
+   * Take the tower and shoot from it.
+   *
+   * The one order that is about a *place* rather than about you: `at` is the foot of the tower, and
+   * what he does there is stand on the platform and put arrows into whatever comes near it. It is
+   * the first thing in this game that makes a building worth paying for — a watchtower with nobody
+   * on it is scenery, and the same man standing in the open is worth a good deal less than the same
+   * man twenty feet up.
+   */
+  WATCH: 'watch',
 } as const;
 
 export type Order = typeof ORDERS[keyof typeof ORDERS];
