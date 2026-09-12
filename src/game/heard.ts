@@ -61,6 +61,8 @@ export interface OnlineEvents {
   onWorldSilent: () => void;
   /** The world has walked our own hero, and this is where it says he is standing. */
   onWhereYouAre: (seq: number, x: number, z: number, y: number) => void;
+  /** What came up out of the field this page has already lifted, and whether it was there to lift. */
+  onHarvested: (seq: number, told: { ok: boolean; crop: string; amount: number }) => void;
   /** What was in the chest this page has already opened, and whether it was this hero's to open. */
   onChestOpened: (seq: number, told: { ok: boolean; gold: number; key: boolean; prize: string | null }) => void;
   /** Something another player changed about the world, or the backlog of it on joining. */
@@ -161,6 +163,9 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'clock':
       o.events.onClock(message.clock);
+      break;
+    case 'harvested':
+      o.events.onHarvested(message.seq, { ok: message.ok, crop: message.crop, amount: message.amount });
       break;
     case 'opened':
       o.events.onChestOpened(message.seq, {

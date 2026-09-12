@@ -14,6 +14,7 @@ import { provinceOfHome } from '../src/world/provinces';
 import { Manifest } from '../src/world/manifest';
 import { generateDungeon } from '../src/dungeon/generate';
 import { BIG_CHEST_PRIZES, whatAChestHolds } from '../src/world/chests';
+import { CROPS } from '../src/game/farming';
 
 /**
  * The simulation on its own, with no sockets and no files anywhere near it.
@@ -1267,5 +1268,77 @@ describe('a chest, and whether it was yours to open', () => {
     const [answer] = rowan.of('opened');
     expect(answer.ok).toBe(true);
     expect(['potion', 'gem']).toContain(answer.prize);
+  });
+});
+
+describe('a crop, and whether it was there to lift', () => {
+  /*
+   * The second thing a page asks. What comes up is not in question — a crop yields what a crop
+   * yields — but whether it was ripe is arithmetic the world is in a better position to do, because
+   * a page can be wound forward and a world with other people in it cannot.
+   */
+  const stand = (who: Pretend, x: number, z: number): void => {
+    who.say({ type: 'move', x, z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+  };
+  const world = (): Simulation => new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+
+  it('hands over what was sown, once it is ripe', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(5, 'Rowan');
+    stand(rowan, 12.5, 44.5);
+    rowan.say({ type: 'delta', delta: { kind: 'sow', tile: '12,44', crop: 'wheat', day: 1 } });
+    rowan.say({ type: 'setclock', day: 40, time: 0.5 });
+    rowan.say({ type: 'harvest', seq: 1, tile: '12,44' });
+
+    const [answer] = rowan.of('harvested');
+    expect(answer).toMatchObject({ seq: 1, tile: '12,44', ok: true, crop: 'wheat' });
+    expect(answer.amount).toBe(CROPS.wheat.yield);
+  });
+
+  it('refuses a crop that is not ripe yet, by its own clock', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(5, 'Rowan');
+    stand(rowan, 12.5, 44.5);
+    rowan.say({ type: 'delta', delta: { kind: 'sow', tile: '12,44', crop: 'wheat', day: 2 } });
+    rowan.say({ type: 'harvest', seq: 1, tile: '12,44' });
+    expect(rowan.of('harvested')[0]).toMatchObject({ ok: false, amount: 0 });
+  });
+
+  it('refuses bare ground', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(5, 'Rowan');
+    stand(rowan, 12.5, 44.5);
+    rowan.say({ type: 'harvest', seq: 1, tile: '12,44' });
+    expect(rowan.of('harvested')[0]).toMatchObject({ ok: false });
+  });
+
+  it('refuses a field the hero is not standing in', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(5, 'Rowan');
+    stand(rowan, 80.5, 80.5);
+    rowan.say({ type: 'delta', delta: { kind: 'sow', tile: '12,44', crop: 'wheat', day: 1 } });
+    rowan.say({ type: 'setclock', day: 40, time: 0.5 });
+    rowan.say({ type: 'harvest', seq: 1, tile: '12,44' });
+    expect(rowan.of('harvested')[0]).toMatchObject({ ok: false });
+  });
+
+  it('gives it to whoever asked first, and tells the other one no', () => {
+    const sim = world();
+    const rowan = new Pretend(sim).join(5, 'Rowan');
+    stand(rowan, 12.5, 44.5);
+    rowan.say({ type: 'delta', delta: { kind: 'sow', tile: '12,44', crop: 'wheat', day: 1 } });
+    // wound on while he is the only one here: a world with two people in it does not take its time
+    // of day from either of them
+    rowan.say({ type: 'setclock', day: 40, time: 0.5 });
+
+    const wren = new Pretend(sim).join(5, 'Wren');
+    stand(wren, 12.5, 44.5);
+    rowan.say({ type: 'harvest', seq: 1, tile: '12,44' });
+    wren.say({ type: 'harvest', seq: 1, tile: '12,44' });
+
+    expect(rowan.of('harvested')[0].ok, 'the one who got there first was refused').toBe(true);
+    expect(wren.of('harvested')[0].ok, 'one field paid out twice').toBe(false);
+    // and the one who lost it is told the field is bare, so it is drawn bare on his screen
+    expect(wren.of('delta').map((d) => d.delta)).toContainEqual({ kind: 'reap', tile: '12,44' });
   });
 });

@@ -392,6 +392,16 @@ export class Online {
   }
 
   /**
+   * Lifting a ripe crop, and asking whether there was one there.
+   *
+   * The field is already empty and the crop is already in the pack; this asks the world, which keeps
+   * the clock and the sowing, whether that was so. Answered by `harvested`.
+   */
+  harvest(seq: number, tile: string): void {
+    if (this.connected) this.send({ type: 'harvest', seq, tile });
+  }
+
+  /**
    * The hero has gone underground: which floor, hanging off which anchor, and how deep.
    *
    * The world grows the same floor from its own root seed and the anchor's name, so this carries no

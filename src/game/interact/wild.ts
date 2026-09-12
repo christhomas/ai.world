@@ -285,7 +285,13 @@ export function wildInteractions(ctx: Surroundings) {
         return true;
       }
       const lifted = plots.harvest(tx, tz, growingDay())!;
-      online.report({ kind: 'reap', tile: `${tx},${tz}` });
+      const tile = `${tx},${tz}`;
+      online.report({ kind: 'reap', tile });
+      // and ask whether it was there to lift. The field is already empty and the crop is already in
+      // the pack — see `Harvests` — because a ripe field should answer the button, not the network
+      online.harvest(plots.claims.ask({
+        tile, crop: lifted.crop.id, amount: lifted.amount, planted: standing.planted,
+      }), tile);
       state.give(lifted.crop.id, lifted.amount);
       sound.jingle();
       hud.flash(`Harvested ${lifted.amount}× ${lifted.crop.name} ${lifted.crop.emoji}`);

@@ -78,6 +78,14 @@ key back and shuts the lid. That is the same bargain walking has made since the 
 holding the hero, and it is the answer to "why not decide everything on the server": you can, as
 long as the page acts first and is put right afterwards.
 
+`harvest` followed the same night, and it is the better illustration. A sowing already travels —
+tile, crop, and the day it went in — and the world keeps the clock, so whether a thing is ripe is
+arithmetic the world is in a *better* position to do than the page: a page can be wound forward, and
+a world with other people in it cannot. `server/farming.ts` checks that something is sown there,
+that it is ripe by the world's day, and that the hero the world has been walking is standing on the
+tile — which out of doors is a real check, because that is where the world owns him. A refusal puts
+the plant back in the ground as ripe as it was, which is the honest undo: the tile was never empty.
+
 What it does not do yet: the world does not keep anybody's pack, so the one thing it takes on trust
 is which of the twelve prizes you are already carrying — which can only change *which* prize comes
 out, never whether one does. And underground it checks reach against where the hero says he is,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Season } from './seasons';
-import { CROPS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './farming';
+import { CROPS, Harvests, NOT_YOURS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './farming';
 import { ITEMS } from './items';
 
 describe('farming', () => {
@@ -70,5 +70,66 @@ describe('growing by the hour', () => {
     const planting = plots.at(2, 2)!;
     expect(ripeness(planting, 4)).toBe(0);
     expect(isRipe(planting, 6)).toBe(true);                    // turnips take two days
+  });
+});
+
+describe('a crop lifted before the world agreed', () => {
+  const books = () => {
+    const out = { pack: new Map<string, number>(), sown: [] as string[], said: [] as string[] };
+    const put = {
+      carry: (crop: string, by: number) => { out.pack.set(crop, (out.pack.get(crop) ?? 0) + by); },
+      resow: (tile: string, crop: string, planted: number) => { out.sown.push(`${tile}=${crop}@${planted}`); },
+      flash: (message: string) => { out.said.push(message); },
+    };
+    return { out, put };
+  };
+
+  it('costs nothing when the world agrees', () => {
+    const { out, put } = books();
+    const claims = new Harvests();
+    const seq = claims.ask({ tile: '3,4', crop: 'wheat', amount: 3, planted: 2 });
+    claims.answered(seq, { ok: true, crop: 'wheat', amount: 3 }, put);
+    expect(out.pack.size).toBe(0);
+    expect(out.sown).toEqual([]);
+    expect(claims.pending).toBe(0);
+  });
+
+  it('puts the plant back, as ripe as it was, when somebody else got there first', () => {
+    const { out, put } = books();
+    const claims = new Harvests();
+    const seq = claims.ask({ tile: '3,4', crop: 'wheat', amount: 3, planted: 2.25 });
+    claims.answered(seq, { ok: false, crop: '', amount: 0 }, put);
+    expect(out.pack.get('wheat')).toBe(-3);
+    expect(out.sown).toEqual(['3,4=wheat@2.25']);
+    expect(out.said).toEqual([NOT_YOURS]);
+  });
+
+  it('settles on the world’s count when the two disagree', () => {
+    const { out, put } = books();
+    const claims = new Harvests();
+    const seq = claims.ask({ tile: '3,4', crop: 'wheat', amount: 3, planted: 2 });
+    claims.answered(seq, { ok: true, crop: 'wheat', amount: 5 }, put);
+    expect(out.pack.get('wheat')).toBe(2);
+    expect(out.said).toEqual([]);
+  });
+
+  it('swaps the crop when the world says a different thing was growing there', () => {
+    const { out, put } = books();
+    const claims = new Harvests();
+    const seq = claims.ask({ tile: '3,4', crop: 'wheat', amount: 3, planted: 2 });
+    claims.answered(seq, { ok: true, crop: 'turnip', amount: 2 }, put);
+    expect(out.pack.get('wheat')).toBe(-3);
+    expect(out.pack.get('turnip')).toBe(2);
+  });
+
+  it('answers once, and ignores an answer to nothing', () => {
+    const { out, put } = books();
+    const claims = new Harvests();
+    const seq = claims.ask({ tile: '3,4', crop: 'wheat', amount: 3, planted: 2 });
+    claims.answered(seq, { ok: false, crop: '', amount: 0 }, put);
+    claims.answered(seq, { ok: false, crop: '', amount: 0 }, put);
+    claims.answered(77, { ok: false, crop: '', amount: 0 }, put);
+    expect(out.pack.get('wheat')).toBe(-3);
+    expect(out.sown).toHaveLength(1);
   });
 });

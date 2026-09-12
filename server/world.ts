@@ -296,6 +296,21 @@ export class SharedWorld {
     }
   }
 
+  /**
+   * What is growing on a tile, if anything, as far as this world knows.
+   *
+   * The log is already the answer — a sowing stays in it until somebody reaps it — so this is a
+   * lookup rather than a second book. It reads the province the tile is in, which is the one the
+   * sowing was filed under, so a field nobody has been near for a week is read back off the disk by
+   * the same machinery that would have grown it.
+   */
+  sownAt(tile: string): Extract<WorldDelta, { kind: 'sow' }> | null {
+    const where = deltaAt({ kind: 'sow', tile, crop: '', day: 0 });
+    if (!where) return null;
+    const kept = this.province(provinceOf(where.x, where.z)).deltas.get(`sow:${tile}`);
+    return kept?.kind === 'sow' ? kept : null;
+  }
+
   /** Record something a player changed. Returns false when it was already known. */
   apply(delta: WorldDelta): boolean {
     const changed = this.remember(delta);

@@ -471,6 +471,17 @@ export type ClientMessage =
    */
   | { type: 'open'; seq: number; place: string; index: number; owns: string[] }
   /**
+   * Lifting a ripe crop, and asking the world whether there was one there.
+   *
+   * The same bargain as `open`, over a fact the world is in a better position to hold than the page
+   * is: a sowing travels already, with the day it went in, and the world keeps the clock. So whether
+   * a thing is ripe is arithmetic the world does — on its own day rather than on the asker's.
+   *
+   * The tile is the whole of the request. What comes up is not sent because it is not a choice: a
+   * crop yields what a crop yields, and both halves read it out of the same table.
+   */
+  | { type: 'harvest'; seq: number; tile: string }
+  /**
    * Asking the world for a piece of itself.
    *
    * Both halves grow the country from the seed today, which is why they can disagree about which
@@ -650,6 +661,13 @@ export type ServerMessage =
       type: 'opened'; seq: number; place: string; index: number; ok: boolean;
       gold: number; key: boolean; prize: string | null;
     }
+  /**
+   * What came up, and whether there was anything there to lift.
+   *
+   * `ok: false` means the page puts it back: nothing sown, not ripe by the world's day, not standing
+   * on it, or somebody else lifted it first.
+   */
+  | { type: 'harvested'; seq: number; tile: string; ok: boolean; crop: string; amount: number }
   | { type: 'delta'; delta: WorldDelta; from: string }
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }

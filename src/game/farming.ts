@@ -70,6 +70,14 @@ export function daysUntilSeason(crop: Crop, day: number): number {
 /** The tiles you own, what is in them, and what they are worth when lifted. */
 export class Plots {
   private readonly planted = new Map<string, Planting>();
+  /**
+   * Crops lifted on this page's word but not yet on the world's.
+   *
+   * Kept with the plots rather than with whoever presses the button, because the answer arrives from
+   * the wire long after the field has been walked away from, and this is the thing that still exists
+   * when it does.
+   */
+  readonly claims = new Harvests();
 
   constructor(json?: PlotJson) {
     for (const [key, planting] of Object.entries(json ?? {})) {
@@ -111,5 +119,80 @@ export class Plots {
 
   toJSON(): PlotJson {
     return Object.fromEntries(this.planted);
+  }
+}
+
+/**
+ * A crop lifted before the world agreed there was one there.
+ *
+ * The same bargain a chest makes (`game/opening.ts`), for the same reason: pressing the button on a
+ * ripe field should fill the pack now, not after a round trip. What the world settles afterwards is
+ * whether anything was sown there, whether it was ripe *by the world's clock* rather than by this
+ * page's, and whether somebody else lifted it first — three things a page cannot know on its own in
+ * a world with other people in it.
+ *
+ * A refusal puts the plant back in the ground exactly as it was, which is the honest undo: the tile
+ * was never empty, and a page that had simply forgotten the sowing would be a field that vanished.
+ */
+export interface Lifted {
+  tile: string;
+  /** What the page thought it lifted, so it can be handed back. */
+  crop: string;
+  amount: number;
+  /** The day it went in, so putting it back does not restart its growing. */
+  planted: number;
+}
+
+/** What the world said came up. */
+export interface Came {
+  ok: boolean;
+  crop: string;
+  amount: number;
+}
+
+/** Everything undoing a harvest has to reach. */
+export interface PutBackInTheGround {
+  /** Crop in or out of the pack, by the sign. */
+  carry: (crop: string, by: number) => void;
+  /** Put the plant back where it was, still as ripe as it was. */
+  resow: (tile: string, crop: string, planted: number) => void;
+  flash: (message: string) => void;
+}
+
+/** Why the world said no, in the words somebody standing in a field would want. */
+export const NOT_YOURS = 'Somebody else had already been through that field.';
+
+export class Harvests {
+  private asked = 0;
+  private readonly waiting = new Map<number, Lifted>();
+
+  /** How many answers are still owed. */
+  get pending(): number { return this.waiting.size; }
+
+  ask(lifted: Lifted): number {
+    const seq = ++this.asked;
+    this.waiting.set(seq, lifted);
+    return seq;
+  }
+
+  answered(seq: number, told: Came, o: PutBackInTheGround): void {
+    const lifted = this.waiting.get(seq);
+    if (!lifted) return;
+    this.waiting.delete(seq);
+
+    if (!told.ok) {
+      o.carry(lifted.crop, -lifted.amount);
+      o.resow(lifted.tile, lifted.crop, lifted.planted);
+      o.flash(NOT_YOURS);
+      return;
+    }
+    // the world's numbers win, quietly: nothing the player did was wrong, and a field that says one
+    // thing and a pack that says another is worse than a pack that settles
+    if (told.crop !== lifted.crop) {
+      o.carry(lifted.crop, -lifted.amount);
+      o.carry(told.crop, told.amount);
+      return;
+    }
+    if (told.amount !== lifted.amount) o.carry(lifted.crop, told.amount - lifted.amount);
   }
 }

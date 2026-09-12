@@ -4072,7 +4072,11 @@ than by remembering — and the first thing found was that the gap is not where 
          in it was never a decision — `world/chests.ts` works it out from the vault's seed and both
          halves run it — so the only thing left to decide is whether this hero could open it:
          standing there, in reach, and first. The page opens the lid without waiting and `Openings`
-         (`game/opening.ts`) takes the gold back if the world says no. That is the shape every other
+         (`game/opening.ts`) takes the gold back if the world says no. `harvest` followed the same
+         night and is the more interesting of the two: a sowing already travels, with the day it went
+         in, and the world keeps the clock — so *is it ripe* is arithmetic the world does better than
+         a page can, because a page can be wound forward and a world with other people in it cannot.
+         A refusal puts the plant back in the ground as ripe as it was. That is the shape every other
          decision should move in; see **73**.
       3. **Then the app**: protocol client, chunk mesher, rigs from `models/creatures/*.json`, and
          the Ledger II interface (10a + 13a, four themes).

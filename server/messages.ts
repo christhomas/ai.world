@@ -7,6 +7,7 @@ import type { Entity } from '../src/entities/entity';
 import { WORLD } from '../src/core/config';
 import { GroundWorld } from '../src/world/groundworld';
 import { BOAT, helm } from '../src/game/sailing';
+import { cropLifted } from './farming';
 import { JUMP } from '../src/entities/leap';
 import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride';
 import type { Client, Party, Room, Rooms } from './rooms';
@@ -48,6 +49,18 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'delta':
       worldChange(rooms, me, room, message);
+      return;
+    case 'harvest':
+      cropLifted({
+        sown: room.world.sownAt(String(message.tile).slice(0, LIMITS.THING_ID)),
+        day: room.world.clock.day + room.world.clock.time,
+        // out of doors the world walks the hero itself, so this is the one position in the exchange
+        // that the asking client did not choose
+        hero: me.hero ?? me.presence,
+        apply: (delta) => room.world.apply(delta),
+        broadcast: (delta) => rooms.broadcast(me.seed, { type: 'delta', delta, from: me.presence.id }, me),
+        send: (reply) => rooms.send(me, reply),
+      }, message);
       return;
     case 'recall': case 'retain':
       aboutAVillager(rooms, me, room, message);

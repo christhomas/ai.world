@@ -171,6 +171,16 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     // straight to the places, which is what opened it: nothing in between has an opinion about a
     // chest, and a hop through `main.ts` would only be a line of plumbing to keep in step
     onChestOpened: (seq, told) => ctx.places.opened(seq, told),
+    // and the same for a crop, which is undone in three motions: out of the pack, back in the
+    // ground as ripe as it was, and a line saying somebody else had been through the field
+    onHarvested: (seq, told) => ctx.plots.claims.answered(seq, told, {
+      carry: (crop, by) => { if (by > 0) ctx.state.give(crop, by); else ctx.state.take(crop, -by); },
+      resow: (tile, crop, planted) => {
+        const [x, z] = tile.split(',').map(Number);
+        ctx.plots.plant(x, z, crop, planted);
+      },
+      flash: (message) => ctx.hud.flash(message),
+    }),
     onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
     onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },
     onMail: (letters) => {
