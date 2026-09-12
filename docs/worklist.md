@@ -3652,7 +3652,21 @@ simulation rather than any one feature in it.
       too big in the first place. The rule to hold on to: a brake the player can *see and fight* is
       worth ten brakes in a constants file.
 
-- [ ] **52. A world that has crashed is repopulated, not restarted.** How the simulation is tuned
+- [x] **52. A world that has crashed is repopulated, not restarted.** *Done on the 13th, and it
+      needed almost nothing new — which is the argument that it was the right shape.* `refound` is an
+      operator's command: it founds a village again under whatever rules the game is running today
+      and lives it forward to the present, so what comes out is a village of the age it would have
+      been rather than a fresh one standing in an old world.
+
+      It is **deliberate and recorded**, which is the whole of what the item asked for beyond what
+      `resettle` already did quietly. The `found` delta exists and already travels, so a refounding
+      is that delta on a later day — which means the Domesday Book can say a village was refounded on
+      such a day without one new thing being stored anywhere.
+
+      An operator's command rather than a player's, because that is what it is for: a world people
+      are living in cannot be reset when the economy turns out to be wrong — that is a world nobody
+      can live in — so the honest move is to let a village fail, change the rules, and found it again
+      under them. How the simulation is tuned
       once people are playing in it. A running world cannot be reset when the economy is found to be
       wrong — that is a world nobody can live in — so the honest move is to let it fail, change the
       rules, and *magic people back*: the same act that founded the world in the first place
@@ -4887,3 +4901,24 @@ than by remembering — and the first thing found was that the gap is not where 
 
       The same two requirements as **75**: the country must not move (fingerprint and per-patch
       hashes), and the numbers come from interleaved rounds rather than one run each way.
+
+- [ ] **77. `register.ts` wants splitting, and shaving it is not the answer.** It sat within a line or
+      two of the 700-line cap through the whole night of the 12th and had to be trimmed **six times**
+      to let a feature in — the watchman, growth, the shrine, people walking in, holdings, a
+      refounding. Every trim took prose out of a file whose prose is most of its value, and the
+      seventh will too.
+
+      Four things have already been lifted out of it and each was the right cut: what is standing
+      over a village (`pressing.ts`), what a villager remembers (`remembering.ts`), why anybody moves
+      (`movingon.ts`), and what a shrine sends (`shrine.ts`). What is left is genuinely one subject —
+      a book of who is alive — but it has two halves that barely touch: **founding** a village
+      (`settle`, `foundOn`, `relive`, and the derivation a founding rolls off) and **living a day** in
+      one (`advance`, `liveADay`, and the seven privates under it).
+
+      The cut to make is the first of those, because it is the half with the fewest callers and the
+      one every *other* half already goes through. The thing to be careful of: `relive` is the seam
+      between them — founding a village again and living it forward is how every told-not-derived
+      fact is replayed, so whichever side it lands on has to be able to reach the other.
+
+      And a note worth keeping: `architecture.test.ts` counts one line more than `wc -l` does, so the
+      real ceiling is 699.

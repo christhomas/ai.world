@@ -41,6 +41,8 @@ export interface CommandWorld {
   drop(): unknown;
   discover(place: string): unknown;
   thin(village: string, many: number): unknown;
+  /** Found a village again under today's rules, which is how a running world is tuned. */
+  refound(village: string): unknown;
   hire(many: number): unknown;
   tell(order: string): unknown;
   setTime(fraction: number): unknown;
@@ -92,6 +94,7 @@ export function registerCommands(bus: CommandBus, world: CommandWorld): void {
   bus.define('drop', () => world.drop());
   bus.define('discover', ([place]) => world.discover(place as string));
   bus.define('thin', ([village, many]) => world.thin(village as string, many as number));
+  bus.define('refound', ([village]) => world.refound(village as string));
   bus.define('hire', ([many]) => world.hire(many as number));
   bus.define('tell', ([order]) => world.tell(order as string));
 

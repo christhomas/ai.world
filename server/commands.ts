@@ -101,6 +101,12 @@ export const COMMANDS: Record<string, CommandSpec> = {
   drop: spec('drop', 'Drop what the hero is carrying where they stand'),
   discover: spec('discover', 'Name a place, so it is on the map', [text('place')]),
   thin: spec('thin', 'Take a number of villagers out of a village', [text('village'), num('many')]),
+  /*
+   * How a running world is tuned, and the reason it is an operator's command rather than a
+   * player's. A world people are living in cannot be reset when the economy turns out to be wrong,
+   * so the honest move is to let a village fail, change the rules, and found it again under them.
+   */
+  refound: spec('refound', 'Found a village again under the rules the world is running today', [text('village')]),
   hire: spec('hire', 'Take on a number of hands', [num('many')]),
   tell: spec('tell', 'Tell everybody in your pay what to do: follow, hold or fight', [text('order')]),
 

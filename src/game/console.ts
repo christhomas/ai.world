@@ -338,6 +338,28 @@ export function openConsole(ctx: Consoled) {
       for (const person of doomed) register.bury(person.id, state.day);
       return { village, buried: doomed.length, left: register.living(village).length, fortune: register.fortune(village) };
     },
+    /*
+     * Found a village again, under whatever rules the game is running today.
+     *
+     * The honest answer to tuning a simulation people are living in. A running world cannot be
+     * reset when the economy turns out to be wrong — that is a world nobody can live in — so the
+     * move is to let it fail, change the rules, and found the place again: the same act that made
+     * the world in the first place, used on a village that has emptied.
+     *
+     * It is deliberate and recorded rather than quiet. The `found` delta already exists and already
+     * travels, so a refounding is that delta on a later day, which means the Domesday Book can say a
+     * village was refounded on such a day without anything new being stored anywhere.
+     *
+     * `foundOn` re-founds and lives the place forward to today, so what comes out is a village of
+     * the age it would have been, rather than a fresh one standing in an old world.
+     */
+    refound: (village) => {
+      const houses = register.livedIn(village);
+      if (houses === 0) return { village, refounded: false, souls: 0 };
+      register.foundOn(village, houses, register.tradesOf(village));
+      online.report({ kind: 'found', name: village });
+      return { village, refounded: true, souls: register.living(village).length };
+    },
     hire: (many) => {
       // stand somebody's own soldiers up without walking a village: for trying a fight out
       const folk = structures.villages.flatMap((v) => [...register.living(v.name)]).filter((p) => p.trade === 'soldier');

@@ -131,7 +131,7 @@ export class Register {
   }
 
   /**
-   * Found a village on somebody else's list of trades, replacing one founded on a different list.
+   * Found a village again — on somebody else's list of trades, or on today's rules.
    *
    * The world's word about a village, arriving after this page has already had a go at the same
    * question. Which trades a place can support is read off the land around it — a shore only where
@@ -139,10 +139,10 @@ export class Register {
    * country the reader has grown, and the founding *rolls off that list*: a village founded on nine
    * trades and the same village founded on six are the same names doing different jobs.
    *
-   * Not hypothetical and not rare: a page opens its own book the moment it puts anybody in a
-   * street, holding a hundred and twenty-one chunks of country where a world holds seven. Measured
-   * in Stonemere — the page founded it on six trades and the world on ten, and the same twenty-five
-   * people came out with different jobs on the two sides of the wire.
+   * Not hypothetical: a page opens its own book the moment it puts anybody in a street, holding a
+   * hundred and twenty-one chunks of country where a world holds seven. In Stonemere the page
+   * founded it on six trades and the world on ten, and the same twenty-five people came out with
+   * different jobs on the two sides of the wire.
    *
    * Re-founding rather than patching, because the trades are an input to the founding and not a
    * field on it. What survives is everything that was told rather than derived, replayed forward by
@@ -178,6 +178,9 @@ export class Register {
    * the larder ran out decides whether he was paid at all.
    */
   herdOf(village: string): number { return this.villages.get(village)?.herd ?? 0; }
+
+  /** The houses it was laid out with, which is what founding it again wants. */
+  livedIn = (v: string): number => this.villages.get(v)?.houses ?? 0;
 
   /**
    * Something carried beasts off, and the paddock is that much emptier.
@@ -250,9 +253,9 @@ export class Register {
   /**
    * The trades a village was founded on, or nothing for one nobody has settled.
    *
-   * Read back because the founding rolls off this list, so a village founded off a different one is
-   * a different village — the same people doing different jobs. How much land a reader can see
-   * decides the list, so it has to be handed to anybody who has to found the place again.
+   * Read back because the founding rolls off this list: a village founded off a different one is
+   * the same people doing different jobs. How much land a reader can see decides the list, so it
+   * has to be handed to anybody founding the place again.
    */
   tradesOf(village: string): string[] {
     return this.villages.get(village)?.trades ?? [];
@@ -373,11 +376,8 @@ export class Register {
   /** What this village has had built out of its own money. */
   worksOf(village: string): readonly string[] { return this.villages.get(village)?.works ?? []; }
 
-  /** Who speaks for this village: the longest-settled of the people who hold a trade. See `mayorOf`. */
-  mayorOf(village: string): Person | null {
-    const here = this.villages.get(village);
-    return here ? mayorOf(here.people) : null;
-  }
+  /** Who speaks for this village: the longest-settled trade-holder. See `mayorOf`. */
+  mayorOf = (v: string): Person | null => mayorOf(this.villages.get(v)?.people ?? []);
 
   /** What this place has grown into, counted off what is standing rather than declared. See `rank.ts`. */
   rankOf(village: string): Rank {
