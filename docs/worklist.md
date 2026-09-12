@@ -4013,3 +4013,37 @@ than by remembering — and the first thing found was that the gap is not where 
       `~/.config/anthropic/design-key`, readable by its owner alone — read from stdin rather than
       from an argument, because an argument is in a shell history for ever. Until then the client
       says so and stops.
+
+## The Flutter app — September 12th
+
+- [ ] **72. A Flutter client for iOS and Android, built to the Ledger II design.** Asked for
+      outright, and it is the same design as **71**: `design/mobile/` targets *"a Flutter phone build
+      (iOS + Android, landscape) and retrofitting the existing web build"*, and says the same thing
+      twice over — the artboards are **references, not code**. "Recreate these designs in the target
+      environment: Flutter widgets for the app, and the existing TypeScript/DOM UI in `src/ui/` for
+      the web build. Nothing here should be shipped as HTML."
+
+      **The good news, and it is better than it looks: a Flutter client does not need the world
+      generator.** The wire already carries the country. `want-chunks` asks and the world answers
+      with `packChunk` — heights, corners, tile kinds, water, biomes, props, apron and all, as bytes
+      — because "both halves grow the landscape from the seed today, which is why they can be in
+      different countries, and the answer is for one of them to grow it and the other to be told".
+      So the app asks for ground and draws it. None of `world/` has to exist in Dart.
+
+      **The cost is where the decisions live.** `docs/server-authority.md` is honest about it: the
+      simulation is moving to the server, but today a client still decides a great deal — a
+      conversation, a shop, a quest, what Enter does when you press it. Every one of those is a
+      thing a Flutter app would otherwise have to reimplement, which is how a second client becomes
+      a second game. So the order of work is not "start drawing":
+
+      1. **Measure the seam.** What does a page still decide that the world does not? `game/talk.ts`,
+         `game/interact/*`, `game/quests.ts`, the shops. That list is the real size of this job.
+      2. **Move what is decided into commands** — which is the road `server-authority.md` already
+         sets out, and which the web build wants anyway.
+      3. **Then the app**: protocol client, chunk mesher, rigs from `models/creatures/*.json`, and
+         the Ledger II interface (10a + 13a, four themes).
+
+      One thing to settle early, because it decides the rendering: the phone build could draw with
+      Flutter's own canvas or with a GL surface. The design is flat-shaded low-poly geometry with a
+      cutaway shader, which is a GL question rather than a widget question — and the interface above
+      it is ordinary widgets either way.
