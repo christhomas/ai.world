@@ -210,7 +210,24 @@ describe('a castle', () => {
     }
   });
 
-  it('has a drowned undercroft on every floor, crossed on stones and not on water', () => {
+  it('has a drowned undercroft on every floor that is swum rather than waded', () => {
+    /*
+     * This read "crossed on stones and not on water" until the 12th, and checked it by asking
+     * whether `heightAt` was null over every flooded tile. That was the right check for as long as
+     * deep water was a wall — and the hero learned to swim that evening, which does not consult
+     * `heightAt` at all. So the test went on passing while the thing it was written to protect
+     * quietly stopped being true.
+     *
+     * What is true now is better, and it is the same bargain the wreck's flooded hold makes: the
+     * stones are the free way across, and the water is the short way at a price. Breath drains
+     * while a hero is out of his depth and none of it comes back until he is out, so swimming to
+     * the island costs him the guard he would want when he gets there. The puzzle stopped being
+     * "find the real stones" and became "is it worth the crossing", which is a better question.
+     *
+     * So what is checked here is what actually holds: there is water, nothing *walks* on it, and it
+     * is genuinely water rather than a hole in the floor — because a hole is a wall to everybody,
+     * and that is the version of this room nobody should ship by accident.
+     */
     for (const seed of [3, 11, 29, 58, 601, 4242]) {
       for (let floor = 1; floor <= CASTLE.FLOORS; floor++) {
         const map = generateCastle(seed, floor);
@@ -221,6 +238,8 @@ describe('a castle', () => {
           if (map.tiles[i] !== DTile.Water) continue;
           const x = i % map.size, z = (i - x) / map.size;
           expect(world.heightAt(x + 0.5, z + 0.5), 'somebody can walk on the water').toBeNull();
+          expect(world.waterAt(x + 0.5, z + 0.5), 'the flooded room is a pit rather than a pool')
+            .not.toBeNull();
         }
       }
     }

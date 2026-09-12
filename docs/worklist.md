@@ -3641,9 +3641,13 @@ simulation rather than any one feature in it.
       worth of air, and the fish-folk are waiting at the end of both. Being winded in the water is
       being winded — no drowning, no new way to die.
 
-      Two things left: the fish-folk want a reason to be there rather than a spawn table, and the
-      castle's drowned undercroft has the same hole this one had — its test only asks whether
-      `heightAt` is null over the water, which a swimmer does not care about.
+      One thing left: the fish-folk want a reason to be there rather than a spawn table. The castle's
+      drowned undercroft had the same hole and is shut — its test asked whether `heightAt` was null
+      over every flooded tile, which a swimmer does not consult, so it went on passing while the
+      thing it was written to protect stopped being true. It now checks what actually holds: nothing
+      walks on the water, and the water is a pool rather than a pit. The crossing is the wreck's
+      bargain — stones free, water short and paid for in breath — and the puzzle turned from "find
+      the real stones" into "is it worth the swim", which is the better question.
 
       The original note: The hold is a fight and a few chests today. What it wants, in
       the order it would be built: something to *find* that is worth the swim (a wreck is where a
