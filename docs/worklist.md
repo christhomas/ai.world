@@ -4036,8 +4036,28 @@ than by remembering — and the first thing found was that the gap is not where 
       thing a Flutter app would otherwise have to reimplement, which is how a second client becomes
       a second game. So the order of work is not "start drawing":
 
-      1. **Measure the seam.** What does a page still decide that the world does not? `game/talk.ts`,
-         `game/interact/*`, `game/quests.ts`, the shops. That list is the real size of this job.
+      1. **Measure the seam.** *Done, and the numbers are the useful part.* Splitting `src/game` and
+         `src/ui` by whether a module touches `three` or the DOM at all:
+
+         | | lines |
+         |---|---|
+         | drawing and DOM | **6,730** |
+         | pure decision | **22,876** |
+
+         Twenty-three thousand lines of decisions that are not drawing anything — a conversation, a
+         shop, a hire, a warband, a mine, a rescue, what a blow means. That is what a second client
+         reimplements if nothing moves, and it is why "just write a Flutter UI" is the wrong shape of
+         answer.
+
+         **But they are already TypeScript, and the server already runs TypeScript from `src/`.**
+         `server/sim.ts` imports `src/world/*`, `src/entities/*`, `src/dungeon/*` today. So moving a
+         decision server-side is not a rewrite in another language — it is moving a file across a
+         boundary that already exists, which is the cheapest kind of large job there is.
+
+         The page can already *say* thirty-eight kinds of thing over the wire — moves, swings,
+         steers, trades, duels, stalls, party, mail — plus the catch-all `delta`, which is the honest
+         shape of the problem: a page **decides** and then **reports**. Turning `delta` into commands
+         the world runs is the whole of step 2.
       2. **Move what is decided into commands** — which is the road `server-authority.md` already
          sets out, and which the web build wants anyway.
       3. **Then the app**: protocol client, chunk mesher, rigs from `models/creatures/*.json`, and
