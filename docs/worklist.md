@@ -3328,7 +3328,27 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       enough to be a decision — and a thing worth carrying to the next valley, where they have never
       seen this one.
 
-- [ ] **33. A farm you can improve.** A farmer pays a builder for a bigger stable —
+- [~] **33. A farm you can improve.** *Half built on the 13th, and the other half is deliberately
+      waiting.* `world/stables.ts` is the ladder — byre, stable, barn, steading — each rung holding
+      `BEASTS_PER_FARM` more than the last, so a world where farms are bigger is a world where every
+      size is bigger. The size goes into `works`, which is already replayed from the founding on
+      every machine, so a stable needs no new field anywhere and nothing new for the register to
+      store. Where it departs from `roofs.ts` is the interesting part: a village has one set of roofs
+      and may have four farms, so the entry carries the holding too and a farm is asked about on its
+      own rather than summed with its neighbours.
+
+      **A village whose farms are all byres comes out exactly where it is today**, which is what
+      makes it safe to land before anything spends money on one.
+
+      A stable wants **wood** as well as gold, and it is the building that would be strangest without
+      it: gold is fungible and a rich farmer will always find four hundred of it, but a village on a
+      bare rock with no logger should not be able to double its herd by being wealthy. It is priced
+      off one claim — a stall is a third of a person's room — quoted off what a roof costs, so a
+      builder is not worth more to a family than to a farmer for the same morning.
+
+      What waits: making the herd cap a property of the individual farm rather than of the farmer,
+      which is an edit to `holdings.ts`'s noun and was sequenced behind **35** rather than done
+      concurrently with it. Two agents in one file is how a merge goes wrong. A farmer pays a builder for a bigger stable —
       `LIVELIHOOD.HERD_PER_FARMER` becomes a number per farm rather than a constant for the world —
       or clears trees to widen the fields (`FOOD.PER_FARMER`). The first money in the game that buys
       *capacity* rather than a thing, and it gives the builder a third customer after the player and
@@ -3743,9 +3763,26 @@ simulation rather than any one feature in it.
       you are: *"Give the sawyers a few days"* where there are loggers, *"Nobody here cuts — bring it
       in yourself"* where there are not.
 
-      Two things left: the logger has **no behaviour tree**, so he potters about the square like a
-      seller instead of walking out to the stand; and a shop counter does not take wood, only a
-      market stall does. Every price in this world is paid in coin
+      *The logger has a day as of the 13th*: out to the woods at first light, cutting all day, the
+      inn, then home — the miner's shape, because the trade is. Three decisions in it are worth
+      keeping. He carries nothing: what he cuts is landed in the village's yard once a day, exactly
+      as a miner's gold is minted rather than carried home, because a tree that also made him carry
+      timber to a stall would mint the same wood twice. The felling borrows the sword's swing, which
+      is the nearest motion a body in this game has and is the same borrowing the pick already makes.
+      And he has a **home branch** — the miner's tree was found to be missing one by counting who was
+      still out at one in the morning, and a logger written without it would have repeated that bug
+      the same night.
+
+      His twin in `unwatched.ts` draws the line exactly: where he is standing is that file's
+      business, what he cut is the builder's. A coarse form that also yielded logs would stack the
+      same wood twice and a village's yard would fill faster for being *looked at*, which is the one
+      fault that file exists to make impossible.
+
+      And the test that would have caught it shipping without a day now loops `TRADES` rather than a
+      hand-written list of eight — because a list beside a list falls out of step, which is precisely
+      how it happened.
+
+      One thing left: a shop counter does not take wood, only a market stall does. Every price in this world is paid in coin
       and nothing is ever short of anything — which is why a builder can, in principle, build until
       the money runs out. Wood is the answer: a logger fells trees and brings the timber to market,
       the builder buys it, and a house cannot be built out of an empty yard however much gold is on

@@ -532,6 +532,17 @@ export const LONG_RUN: Record<string, LongRun> = {
   seller: keepsItsHours,
   farmer: keepsItsHours,
   hunter: keepsItsHours,
+  /*
+   * A logger's day is hours like a miner's: out to the trees at first light, home at dusk.
+   *
+   * And, exactly as with the miner, what a week of his *work* comes to is not this form's business
+   * and must not be. The timber he cuts is landed in the village's yard by `builderDay`, once a
+   * day, whether or not anybody was there to watch — so a form that also yielded logs would stack
+   * the same wood twice, and a village's yard would fill faster for being looked at. That is the
+   * fault this whole file exists to make impossible, and it is worth saying which side of the line
+   * each half falls on: where he is standing is here, what he cut is over there.
+   */
+  logger: keepsItsHours,
   constable: keepsItsHours,
   doctor: keepsItsHours,
   soldier: keepsItsHours,

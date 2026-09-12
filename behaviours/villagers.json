@@ -403,6 +403,112 @@
       }
     ]
   },
+  "logger": {
+    "note": [
+      "Out to the stand at first light, cut all day, and home at dusk.",
+      "The shape is the miner's, because the trade is: a man who walks out of the village to where the material is, works a face all day, and brings nothing back on his shoulder. What he cuts is landed in the village's yard by `builderDay` in `game/interact/builder.ts`, once a day, whether or not anybody was there to watch \u2014 exactly as a miner's gold is minted by `game/mines.ts` rather than carried home in his hands. So there is no `take` and no `sell` in here, and that is deliberate: a tree that also made him carry timber to a stall would mint the same wood twice.",
+      "`woods` is the post, which is the same one the hunter walks to, and it is the right one for the same reason `heights` is right for the miner: posts are a fact about the village and the stand he is actually cutting is not something `postsOf` knows. He walks to the trees; which tree is his own business.",
+      "`dig` is the felling, and the borrowing is honest rather than lazy. `living.ts` explains why a miner's pick is drawn with the sword's `swing` \u2014 it is the nearest motion a body in this game actually has \u2014 and an axe into a trunk is nearer to it than the pick was. He stands at the stand and swings, which reads from twenty paces up as a man working, which is where this camera watches from.",
+      "A longer day than a farmer's and the same as a miner's: the walk out is half of it."
+    ],
+    "first": [
+      {
+        "when": {
+          "ask": "wounded",
+          "with": {
+            "share": 0.5
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "doctor",
+                "within": 2
+              }
+            },
+            {
+              "do": "beHealed"
+            }
+          ]
+        },
+        "doing": "hurt, getting seen to"
+      },
+      {
+        "note": "First light to late afternoon at the trees. `goTo` walks him out and gives way to the saw the moment he is there; `dig` never succeeds, so he holds the stand until the hour changes and this branch stops being true \u2014 which is how the miner holds his face all day.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.24,
+            "to": 0.72
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "woods"
+              }
+            },
+            {
+              "do": "dig",
+              "with": {
+                "every": 1.8
+              }
+            }
+          ]
+        },
+        "doing": "cutting timber"
+      },
+      {
+        "note": "The inn, bought rather than merely attended: `spend` pays whoever keeps the place, and a village whose books credit the innkeeper every day and never show a coin crossing the bar is an economy happening in the dark.",
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.72,
+            "to": 0.92
+          }
+        },
+        "then": {
+          "steps": [
+            {
+              "do": "goTo",
+              "with": {
+                "post": "inn",
+                "within": 2.5
+              }
+            },
+            {
+              "do": "spend",
+              "with": {
+                "on": "food"
+              }
+            }
+          ]
+        },
+        "doing": "buying a drink"
+      },
+      {
+        "note": "And then home, which is the branch the miner's tree was found to be missing: a man with nowhere to go at the end of the day walks the street until sunrise.",
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        },
+        "doing": "at home"
+      }
+    ],
+    "steps": [
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home"
+        }
+      }
+    ]
+  },
   "constable": {
     "note": "Trouble first, whatever the hour: an animal on a villager is what the job is for, and somebody the law wants is worse. Otherwise the square, the gate, and the inn.",
     "first": [

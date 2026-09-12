@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import creatures from '../../behaviours/creatures.json';
+import villagers from '../../behaviours/villagers.json';
 import { Memory } from '../core/behaviour';
 import { BehaviourError, compile, compileAll, type BehaviourFile, type Spec } from '../core/behaviourFile';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
 import { allTrees, tradeTree, treeFor } from './behaviours';
+import { TRADES } from './trades';
 
 /**
  * The files are data, so nothing stops somebody writing nonsense in one. What stops it reaching a
@@ -24,9 +26,30 @@ describe('the behaviour files', () => {
   });
 
   it('cover every trade a villager can have', () => {
-    for (const trade of ['innkeeper', 'seller', 'farmer', 'hunter', 'soldier', 'sailor', 'climber', 'explorer']) {
-      expect(tradeTree(trade), `nobody knows how to be a ${trade}`).not.toBeNull();
+    // asked of the trades themselves rather than of a list written out here, because a list beside
+    // a list is a list that falls out of step: a trade added to `TRADES` with no day written for it
+    // is a villager who potters about the square, which is what a logger did the night he arrived
+    for (const trade of TRADES) {
+      expect(tradeTree(trade.id), `nobody knows how to be a ${trade.label}`).not.toBeNull();
     }
+  });
+
+  it('send a logger out to the trees and keep him there all day', () => {
+    /*
+     * The one trade whose day had to be written after the trade was. What is worth pinning is the
+     * shape rather than the hours: he walks to the wood, he works it, and he brings nothing back —
+     * because what he cut is landed in the village's yard once a day by `builderDay`, exactly as a
+     * miner's gold is minted by `mines.ts` rather than carried home in his hands. A `take` or a
+     * `sell` anywhere in here would stack the same wood twice.
+     */
+    const day = JSON.stringify(villagers.logger);
+    expect(day).toContain('"woods"');
+    expect(day, 'a logger who walks to the trees and does not cut them').toContain('"dig"');
+    expect(day, 'he is carrying timber as well as having cut it').not.toContain('"take"');
+    expect(day, 'he is selling the same wood the yard already counted').not.toContain('"sell"');
+    // and a day with no way home ends with a man walking the street until sunrise, which is how
+    // the miner's own missing branch was found
+    expect(day).toContain('"home"');
   });
 
   it('let a trade outrank a species: a hunter is a hunter before they are a villager', () => {
