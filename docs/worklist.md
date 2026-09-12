@@ -3933,7 +3933,48 @@ than by remembering — and the first thing found was that the gap is not where 
       it runs on will be blamed on whatever fails first, which will not be the test that caused it.
 
 
-- [~] **70. An API client for Claude Design.** Asked for outright, and the endpoints were worth
+- [x] **70. Reading the Claude Design projects, and the API under them.** *Done, by two routes.*
+      The endpoint is `https://api.anthropic.com/v1/design/mcp`, MCP over HTTP, with **two doors**: a
+      bad `x-api-key` comes back as the platform's own `authentication_error` envelope — so an
+      ordinary API key opens it — and a bad bearer token comes back as a bare `unauthorized`, which
+      is the OAuth door. `tools/designapi.ts` takes the first and `chore design-api tools` discovers
+      the surface rather than hard-coding it.
+
+      And the route that needed no key at all: **shell out to `claude -p` with
+      `--allowedTools mcp__claude-design`**. The CLI already holds the login and already has the
+      server connected, so it can be asked to list projects, read files and write them to disk. That
+      is how the design below was fetched.
+
+      Twenty-three tools on that server, worth knowing about: `list_projects`, `list_files`,
+      `read_file`, `write_files`, `finalize_plan`, `render_preview`, `list_comments`, `ack_comments`,
+      `get_conversation`, `list_design_systems`, `read_design_skill`, `create_support_js` and the
+      sharing and membership ones.
+
+      The original note follows.
+
+- [ ] **71. Ledger II: the mobile interface handoff.** Fetched into `design/mobile/` — a README of
+      16 KB and a 1,889-line design document rendering thirteen rounds of work. It is far more than
+      the September 8th artboards and it **supersedes them for the phone**.
+
+      What it asks for: **build `10a` + `13a`, and nothing else** — two surfaces (*dark glass while
+      you play, paper while you read*), one contextual **action card** that names the verb, one 44px
+      row grammar shared by every list in the game, and four themes over one unchanged layout
+      (Stone, Vellum, Steel, Hairline — a theme may change five things only: surface, rule, ink,
+      accent, face). `12a/12b/12c` are rejected architectures kept as history: **do not build**.
+
+      The part worth reading before anything else is **reserved geometry** — named bands that own
+      each edge, "the part today's UI lacks, and the reason its panels overlap". That is not a
+      guess: the two bugs found while doing **67a** were exactly that, a status slab capped at the
+      width of a ten-block meter and a pack panel pinned 44px below a corner that had grown.
+
+      It also fixes a reported bug this list does not have: **keys leaking from panels into the
+      world**, with an explicit three-state focus rule.
+
+      Notable, and a little uncanny: the handoff quotes this repository back at itself — `glyphs.ts`
+      for the icon paths, `clock.ts` for the day bar, `compass.ts` for the arrows, `touch.ts` for
+      where the ring is drawn, and `style.css`'s own `--ui-scale`. Whoever drew it read the code.
+
+- [~] **70a. The API client still wants a key.** Asked for outright, and the endpoints were worth
       finding rather than assuming.
 
       **What was found.** Claude Design is at `https://api.anthropic.com/v1/design/mcp` and speaks
