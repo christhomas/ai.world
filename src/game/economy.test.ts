@@ -133,7 +133,10 @@ describe('the coin in a village, against the books that village keeps', () => {
             // today's tax comes off today's row, the way `hungry` says whether today's dinner was
             // eaten: what the hall took is a fact about the day being audited rather than the day
             // before it
-            expected += row.earns - row.spends - ate - now.tax;
+            // and what the hall paid out, on the few days a village buys something: the same rule as
+            // the tax, in the other direction. Without it every villager gets richer on one morning
+            // for no stated reason, which is the shape of a bug rather than of a building
+            expected += row.earns - row.spends - ate - now.tax + now.paid;
             observed += now.purse - row.purse;
           }
           /*
@@ -630,18 +633,22 @@ describe('what a village does with what it has put by', () => {
     expect(wrong, 'a village was rich the week it was founded').toEqual([]);
     expect(storeys.length, 'a hundred days and not one village put a storey on a house').toBeGreaterThan(2);
     /*
-     * A bath house is not asked of a hundred days any more, and the reason is worth keeping.
+     * The bath house is not a fixed expectation either way any more, and the reason is the treasury.
      *
-     * Exactly one village in twenty-one ever managed one here, and `chore sanity` found out what
-     * had been paying for it: a herd over its cap used to come down by sixteen hundredths of a
-     * percent a day, so a village that had buried two of its three farmers went on selling beasts
-     * nobody was keeping for the rest of the century. With that fixed, nothing affords the most
-     * expensive thing a village can buy inside one generation — which is the right answer rather
-     * than a regression. A hundred days is one generation and this bench audits a generation's
-     * books; whether a village ever *grows* is a question for four hundred and fifty days, and
-     * `sanity.test.ts` asks it there.
+     * It used to be required, and exactly one village in twenty-one ever managed it — paid for, as
+     * `chore sanity` found, by a herd over its cap that came down by sixteen hundredths of a percent
+     * a day. With that fixed nothing afforded one, and the line became "none, or the herd is paying
+     * too well again". Now the hall *spends*: a village that has saved nine hundred buys a well and
+     * the money goes straight back into its people's purses, which is what a treasury is for and
+     * which moves the figure this is measured against.
+     *
+     * So what is asserted is the thing that has been true throughout and is worth keeping true: a
+     * village builds *something* out of its own money inside a generation. Which particular thing
+     * is a balance question and belongs in the account below rather than in a test.
      */
-    expect(luxuries.length, 'a village afforded a bath house in a hundred days: the herd is paying too well again').toBe(0);
+    const bought = RUNS.reduce((sum, run) => sum + [...run.books.values()]
+      .filter((evenings) => evenings.some((e) => e.roll.some((row) => row.paid > 0))).length, 0);
+    expect(storeys.length + luxuries.length + bought, 'no village built anything at all').toBeGreaterThan(2);
     // and it must stay rare: a bath house in every village is a bath house worth nothing
     expect(luxuries.length, 'every village in the country has a bath house').toBeLessThan(built.length / 2);
   });

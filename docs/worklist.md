@@ -3262,7 +3262,37 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       week is money moving inside the valley for a service somebody actually needed — and if he
       does not pay, he loses beasts, which is the same decision the player makes about a warband.
 
-- [ ] **24b. The mayor offers to build a hall.** *The argument for building it sooner rather than
+- [~] **24b. The hall spends what it took.** *The money moves now, which was the whole complaint.*
+      `chore sanity` measured the hole at **62% of all the money in the world** sitting in treasuries
+      after four hundred and fifty days; it is **30% now**, and the bench's line on it passes.
+      Villagers are richer for it: 46,000 in purses against 33,000 before.
+
+      A village buys the cheapest thing it has not got, one a day at most, and only what it can pay
+      for outright — a village does not borrow, and it saves for the next rung rather than skipping
+      to a cheaper one it already has. Three rungs to start: a well at 900, a second storey at 2,600,
+      a bath house at 6,200. `Settlement.works` remembers what was raised, which is a change of model
+      worth naming: what a village had used to be *derived from what its people held that evening*,
+      so a hard winter took its second storey away — which is not a thing that happens to a building.
+      Bought things stay bought.
+
+      And the money goes back to the people who raised it, shared among whoever holds a trade, last
+      share taking the rounding. There is no builder on the register yet — that is **25** — and when
+      there is, he is paid instead of the village. The roll carries a `paid` column beside the `tax`
+      one for the same reason: without it the audit sees a morning where everybody in the village got
+      richer with nothing in any book to explain it, which is the shape of a bug rather than of a
+      building.
+
+      Two bugs found on the way. The day-map of what the hall paid was **cleared per village**, which
+      wiped what the village lived before it had been paid that same morning — caught by the audit as
+      twenty-six people sharing nine hundred gold out of nowhere. And the economy bench's building
+      test had to change its question: it used to demand a bath house, then forbid one, and now asks
+      the thing that has been true throughout — a village builds *something* out of its own money
+      inside a generation.
+
+      Left: the mayor *offering* it and the village voting (**24**), a builder who is paid by name
+      (**25**), and the works being visible on the ground rather than only in the books.
+
+      The original note follows. *The argument for building it sooner rather than
       later, stated plainly: a treasury that never spends will always out-accumulate every person in
       the village, because a person has to buy dinner and a treasury does not. That is not a tax
       rate problem and lowering the rate would only slow it down — `chore sanity` measures it at

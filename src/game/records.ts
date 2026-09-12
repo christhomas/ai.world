@@ -69,6 +69,15 @@ export interface RollRow {
    */
   tax: number;
   /**
+   * And what the hall paid *them*, on the day it bought something.
+   *
+   * Nought on nearly every day and the whole village's wages on the few. It is on the row for the
+   * same reason the tax is: the books are per person, and a village total cannot be squared against
+   * a roll that lost somebody overnight. Without it the audit sees a day where everybody in the
+   * village got richer for no stated reason, which is exactly the shape of a bug.
+   */
+  paid: number;
+  /**
    * And what their dinner costs, which is the rest of what a day takes out of a purse.
    *
    * Its own column rather than folded into `spends`, because the two are not the same fact: keep
@@ -204,6 +213,7 @@ export function theRoll(
       // bench reads it off the hall itself, the way it already reads what a mine minted.
       spends: spentOnLiving(person) + pitchFor(person),
       tax: register.taxPaidBy(person.id),
+      paid: register.hallPaid(person.id),
       food: person.trade ? FOOD.MEAL : 0,
       hungry: person.hungry,
       mother: person.mother,

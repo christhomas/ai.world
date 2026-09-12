@@ -100,6 +100,15 @@ export interface Settlement {
   trades: string[];
   /** Who has been buried here, newest last. */
   buried: Burial[];
+  /**
+   * What the village has paid to have built, oldest first.
+   *
+   * Owned rather than implied. What a village had was worked out from what its people held that
+   * evening — so a village that had a hard winter lost its second storey, which is not a thing that
+   * happens to a building. These are bought out of the hall, they stay bought, and the money goes
+   * back into the village that raised it.
+   */
+  works: string[];
 }
 
 /** The day every village is founded on, whenever the player happens to arrive. */

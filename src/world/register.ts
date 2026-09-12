@@ -1,6 +1,6 @@
 import { PROSPER } from './prosperity';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
-import { taxedForTheHall } from './hall';
+import { taxedForTheHall, whatTheHallBuys } from './hall';
 import type { Burial, Change, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
 import { mulberry32 } from '../core/rng';
@@ -140,7 +140,7 @@ export class Register {
     // a village is founded with a few days in the cellar, not starving on its first morning
     const farmers = people.filter((p) => p.trade === 'farmer').length;
     const settlement: Settlement = {
-      people, founded: people.length, houses, trades, food: people.length * 3, buried: [], purse: 0,
+      people, founded: people.length, houses, trades, food: people.length * 3, buried: [], purse: 0, works: [],
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -222,6 +222,8 @@ export class Register {
    * the only thing that ever needed to.
    */
   private readonly paid = new Map<string, number>();
+  /** And what it paid out, per person, on that same day. Cleared every morning. */
+  private readonly earned = new Map<string, number>();
 
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
@@ -408,11 +410,43 @@ export class Register {
     this.pay(village, tax.owed);
     village.purse = Math.round((village.purse + tax.raised) * 100) / 100;
     for (const person of village.people) this.paid.set(person.id, -(tax.owed.get(person.id) ?? 0));
+    this.build(village);
     return trading;
   }
 
   /** What the hall took from one person on the last day they lived through. */
   taxPaidBy(id: string): number { return this.paid.get(id) ?? 0; }
+
+  /** And what it paid them, for work the village bought. Nought on nearly every day. */
+  hallPaid(id: string): number { return this.earned.get(id) ?? 0; }
+
+  /** What this village has had built out of its own money. */
+  worksOf(village: string): readonly string[] { return this.villages.get(village)?.works ?? []; }
+
+  /**
+   * The village spends what it has raised.
+   *
+   * One thing a day at most, cheapest first, and only what it can pay for outright — a village does
+   * not borrow. The money does not leave the world: it goes back to the people who do the work,
+   * shared among whoever holds a trade, which is the same shape as every other village-wide payment
+   * here. There is no builder on the register yet; when there is, he is paid instead of the village.
+   *
+   * This is what stops the treasury being a hole that money falls into. `chore sanity` measured the
+   * hole at sixty-two per cent of all the money in the world.
+   */
+  private build(village: Settlement): void {
+    // nought for everybody here first, and only for the people of *this* village: it cleared the
+    // whole map to begin with, which quietly wiped what another village had paid out the same
+    // morning. The audit caught it as twenty-six people getting nine hundred gold between them
+    // with nothing in any book to explain it
+    for (const person of village.people) this.earned.set(person.id, 0);
+    const bought = whatTheHallBuys(village.purse, village.works, village.people);
+    if (!bought) return;
+    village.purse = Math.round((village.purse - bought.costs) * 100) / 100;
+    village.works.push(bought.work);
+    this.pay(village, bought.wages);
+    for (const [id, much] of bought.wages) this.earned.set(id, much);
+  }
 
   /**
    * One day in one village: the old are buried, the gaps are filled, the young grow up, and
