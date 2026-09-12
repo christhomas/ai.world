@@ -600,9 +600,9 @@ describe('a place worth leaning on', () => {
 
   it('costs a town more people than the same band costs a hamlet', () => {
     const stops = [
-      { name: 'Home', x: 0, z: 0, level: 2 },
-      { name: 'Next', x: 60, z: 0, level: 2 },
-      { name: 'Far', x: 0, z: 60, level: 2 },
+      { name: 'Home', x: 0, z: 0, lived: true },
+      { name: 'Next', x: 60, z: 0, lived: true },
+      { name: 'Far', x: 0, z: 60, lived: true },
     ];
     const band = bandFor(4242, stops, stops[0], 0);
     let hamletDays = 0, townDays = 0;

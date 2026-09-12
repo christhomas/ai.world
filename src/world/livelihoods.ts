@@ -2,6 +2,7 @@ import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
 import type { Person } from './people';
+import { ableToWork } from './wounds';
 
 /**
  * The four ways a villager gets a coin, and the coin actually going from one hand to another.
@@ -382,12 +383,16 @@ export function aDaysTrade(
     return { herd, grown: 0, meat: 0, paid };
   }
 
-  const farmers = people.filter((p) => p.trade === 'farmer');
+  // a man who is laid up does not work, and his trade earns the village nothing while he is: see
+  // `wounds.ts`. He still eats and still pays for his dinner, which is what makes a bad week
+  // expensive rather than fatal
+  const working = people.filter(ableToWork);
+  const farmers = working.filter((p) => p.trade === 'farmer');
   const cattle = aDayOfCattle(herd, farmers.length);
 
   // what a trade brings in from beyond the village: the seam, the sea, the road, the far country,
   // and what a traveller spends at an inn on his way through
-  for (const person of people) add(person.id, earnedInADay(person, pressure));
+  for (const person of working) add(person.id, earnedInADay(person, pressure));
 
   // the meat the next valley bought, which is the farmers' and is one of the three ways money
   // gets into a village at all

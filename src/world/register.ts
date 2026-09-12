@@ -5,6 +5,7 @@ import { Pressings } from './pressing';
 import { rankOfVillage, whatTheVillageSpends } from './growth';
 import { whoCouldHaveAChild } from './roofs';
 import type { Rank } from './rank';
+import { doctoredBy, laidUpFor, mendThem } from './wounds';
 import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Settlement } from './settlement';
@@ -14,6 +15,7 @@ import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
 import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, parentsFrom, remember, sexAtBirth, stageOf, surnameOf, tradeTakenUp, type Memory, type Person, type Sex } from './people';
 import { compactAll, type Opinion } from './memory';
+import { recallFor, toldOf, whoKnows } from './remembering';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
 
 /**
@@ -136,16 +138,14 @@ export class Register {
    * country the reader has grown, and the founding *rolls off that list*: a village founded on nine
    * trades and the same village founded on six are the same names doing different jobs.
    *
-   * That is not hypothetical and it is not rare. A page opens its own book the moment it puts
-   * anybody in a street, which it does for the second or so before a world has said anything at all
-   * — and it does it holding a hundred and twenty-one chunks of country where the world holds seven.
-   * Measured in Stonemere: the page founded it on six trades and the world on ten, and the same
-   * twenty-five people came out with different jobs on the two sides of the wire.
+   * Not hypothetical and not rare: a page opens its own book the moment it puts anybody in a
+   * street, holding a hundred and twenty-one chunks of country where a world holds seven. Measured
+   * in Stonemere — the page founded it on six trades and the world on ten, and the same twenty-five
+   * people came out with different jobs on the two sides of the wire.
    *
    * Re-founding rather than patching, because the trades are an input to the founding and not a
-   * field on it. What survives is everything that was told rather than derived: the deaths are
-   * replayed from `killed` on the way forward, which is the same machinery a client uses when it
-   * learns late about a killing.
+   * field on it. What survives is everything that was told rather than derived, replayed forward by
+   * the same machinery a client uses when it learns late about a killing.
    */
   foundOn(village: string, houses: number, trades: string[]): void {
     const known = this.villages.get(village);
@@ -234,10 +234,9 @@ export class Register {
   /**
    * The trades a village was founded on, or nothing for one nobody has settled.
    *
-   * Read back because the founding rolls off this list and a village founded off a different one is
-   * a different village — different names on the same people. The list is worked out from the land
-   * round the place, and how much land a reader can see depends on how much of it they have grown,
-   * so the answer has to be handed from whoever founded it to anybody who has to found it again.
+   * Read back because the founding rolls off this list, so a village founded off a different one is
+   * a different village — the same people doing different jobs. How much land a reader can see
+   * decides the list, so it has to be handed to anybody who has to found the place again.
    */
   tradesOf(village: string): string[] {
     return this.villages.get(village)?.trades ?? [];
@@ -270,49 +269,24 @@ export class Register {
   }
 
   /**
-   * Something happened that one of these people will not forget.
+   * The three doors into a villager's memory, which is the one thing about him nobody can derive.
    *
-   * The one door into a villager's memory from outside the register, and it exists because a memory
-   * is the one thing about a villager that no client can work out for itself. Who lives here, what
-   * they do and when they die all follow from the seed and a short list of deaths; what a man thinks
-   * of *you* follows from what you did, and what you did happened on your screen.
-   *
-   * So the world that owns the villagers owns this, and everybody else is told. A client with no
-   * world behind it calls it on its own register and is the world, which is what playing alone is.
-   *
-   * @returns whether there was anybody of that name still alive to remember it
+   * Who lives here, what they do and when they die all follow from the seed and a short list of
+   * deaths. What a man thinks of *you* follows from what you did, and what you did happened on your
+   * screen — so this half travels, and `remembering.ts` is where it is kept.
    */
   recall(id: string, what: Memory['what'], about: string, day = this.day): boolean {
-    const person = this.find(id);
-    if (!person) return false;
-    remember(person, { what, who: about, day: Math.floor(day) });
-    return true;
+    return recallFor(this.find(id), what, about, day);
   }
 
-  /**
-   * What the world says one of these people holds, put back where a conversation will find it.
-   *
-   * The receiving end of the above. A client derives the same villager the world did — same seed,
-   * same deaths, same days lived — so everything about him already agrees except the part that was
-   * never derivable, and this is that part arriving. It replaces rather than merges, because the
-   * world's copy is the whole of what he holds by definition: anything this client thought he
-   * remembered and the world does not is a thing this client made up.
-   */
   told(id: string, mind: { memories: Memory[]; opinions: Opinion[] }): void {
-    const person = this.find(id);
-    if (!person) return;
-    person.memories = mind.memories;
-    person.opinions = mind.opinions;
+    toldOf(this.find(id), mind);
   }
 
-  /**
-   * Who counts this person as somebody they know. Derived rather than stored: keeping both
-   * directions in step is work, and a link nobody prunes is a name that outlives its owner.
-   */
+  /** Who counts this person as somebody they know. Derived rather than stored, so nothing outlives its owner. */
   knownTo(id: string): Person[] {
     const person = this.find(id);
-    if (!person) return [];
-    return this.living(person.village).filter((p) => p.knows.includes(id));
+    return person ? whoKnows(this.living(person.village), id) : [];
   }
 
   /**
@@ -456,6 +430,7 @@ export class Register {
       ...this.fillTheGaps(name, village, day, pressure),
       ...this.growUp(name, village, day),
       ...this.takeTheKilled(village, day),
+      ...this.mendThePeople(village),
       ...raiseWhoIsDue(name, village, day, this.streamFor(`${name}:shrine`, day)),
     ];
     // A village losing its last soul is worth saying out loud, once. It is noticed here rather
@@ -481,6 +456,21 @@ export class Register {
     this.magicked.set(village, [...already, on]);
     here.raised.push(on);
     return raiseWhoIsDue(village, here, on, this.streamFor(`${village}:shrine`, on));
+  }
+
+  /**
+   * Somebody has been hurt by something — the middle condition a villager never had.
+   *
+   * Told rather than worked out, exactly as a violent death is: what bit him happened out in the
+   * world where the register could not see it. A doctor in the village halves it. See `wounds.ts`.
+   */
+  hurt(id: string, severity: number): number {
+    const person = this.find(id);
+    if (!person) return 0;
+    const here = this.villages.get(person.village);
+    const days = laidUpFor(severity, here ? doctoredBy(here.people) : null);
+    if (days > (person.hurt ?? 0)) person.hurt = days;
+    return person.hurt ?? 0;
   }
 
   /** The ones something with teeth got to, on the day it got to them. */
@@ -520,6 +510,12 @@ export class Register {
     if (!settlement) return;
     this.villages.delete(village);
     this.settle(village, settlement.houses, settlement.trades);
+  }
+
+  /** A day of mending, and the doctor's fee for the morning he set a bone. See `wounds.ts`. */
+  private mendThePeople(village: Settlement): Change[] {
+    this.pay(village, mendThem(village.people));
+    return [];
   }
 
   /**

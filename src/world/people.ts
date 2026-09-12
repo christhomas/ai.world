@@ -127,6 +127,16 @@ export interface Person {
    * for what there was, which is what makes a purse the difference between eating and not.
    */
   hungry: number;
+  /**
+   * Days laid up by a wound, counted down by the days the village lives. Absent for anybody well.
+   *
+   * The same shape as `hungry` and for the same reason: it is the fact about a *person* that
+   * survives being walked away from, where the hit points on the body standing in the street do not.
+   * A villager used to have two conditions, alive and buried; this is the middle one. See
+   * `wounds.ts`, which is also the first answer this economy has had to why a doctor is worth
+   * feeding.
+   */
+  hurt?: number;
 }
 
 /**

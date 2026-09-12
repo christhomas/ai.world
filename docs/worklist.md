@@ -3307,7 +3307,32 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       be unlocked by infrastructure — no harbour, no fishermen — which is what makes **23** the
       first thing in this economy that pays for itself.
 
-- [ ] **36. A villager who can be hurt.** A builder met by a wolf can run, fight back, or be hurt —
+- [~] **36. A villager who can be hurt.** *The middle condition exists as of the 12th.* A villager
+      had exactly two states — alive and buried — which made every wolf in the country a coin flip
+      and left the village doctor with nothing whatever to do in a game that has had doctors since
+      the first village was laid out.
+
+      Now there is a middle. `wounds.ts`: a man who has been mauled is laid up for up to six days,
+      and what it costs the village is his work — `aDaysTrade` counts only the people who can work,
+      so a hurt farmer's herd earns nothing and a hurt trader brings nothing in. He still eats and
+      still pays for his dinner, which is what makes a bad week expensive rather than fatal. **It is
+      deliberately not a way to die**: hunger, teeth and years are what kill people here, and a
+      fourth would have every unwatched valley quietly losing people to grazed knees.
+
+      A village with a doctor mends him in half the time, and he pays the doctor a day's keep on the
+      morning the bone is set — once, not for lying still afterwards. That is the **first money in
+      this world that changes hands for work somebody needed at the moment they needed it**: a
+      seller's takings and an innkeeper's beds are paid by everybody every day whether anybody wanted
+      anything, and this is paid by the man with the broken arm to the man who set it.
+
+      The wound is on the *person* rather than on the body in the street, the same shape as being
+      hungry, because it has to survive being walked away from.
+
+      What is left is the half that happens in the world: something with teeth actually hurting a
+      villager rather than killing him outright, and the behaviour that follows — run, fight back, or
+      go and find the doctor. The register door is open and waiting for it.
+
+      The original note: A builder met by a wolf can run, fight back, or be hurt —
       and then go to the doctor, take a bed, buy medicine, or be treated for nothing. Another
       dimension for the register's people, and the first use the doctor has ever had.
 
