@@ -1,0 +1,21 @@
+{
+  "note": "A squid out of its element, hauled up into a drowned hold. The mantle is a cone pointing back over it, the eyes are the whole of the face, and the arms are eight boxes that wave whether it is moving or not — which is what makes it read as a squid rather than as a lump with eyes.",
+  "parts": [
+    { "note": "The mantle, laid back over the body and tapering to a point behind.", "cone": [0.34, 1.0], "at": [-0.34, 0.5, 0], "color": "#ffffff", "tint": 0, "rot": [0, 0, "1/4"] },
+    { "note": "And the two fins at the tip of it.", "box": [0.3, 0.05, 0.34], "at": [-0.78, 0.55, 0.18], "color": "#ffffff", "tint": 0, "rot": [0.35, 0, 0] },
+    { "box": [0.3, 0.05, 0.34], "at": [-0.78, 0.55, -0.18], "color": "#ffffff", "tint": 0, "rot": [-0.35, 0, 0] },
+    { "ico": 0.3, "at": [0.1, 0.48, 0], "color": "#ffffff", "tint": 0, "anim": "head", "pivot": [0, 0.4, 0] },
+    { "note": "The eyes, which are most of the animal. Ringed, because a black dot on a dark body is a squid nobody can see.", "ico": 0.14, "at": [0.22, 0.56, 0.2], "color": "#f2e8c8", "anim": "head", "pivot": [0, 0.4, 0] },
+    { "ico": 0.14, "at": [0.22, 0.56, -0.2], "color": "#f2e8c8", "anim": "head", "pivot": [0, 0.4, 0] },
+    { "ico": 0.08, "at": [0.3, 0.57, 0.24], "color": "#111111", "anim": "head", "pivot": [0, 0.4, 0] },
+    { "ico": 0.08, "at": [0.3, 0.57, -0.24], "color": "#111111", "anim": "head", "pivot": [0, 0.4, 0] },
+    { "note": "The two long hunting arms, out in front, and six shorter ones under it.", "box": [0.7, 0.08, 0.08], "at": [0.62, 0.34, 0.12], "color": "#ffffff", "tint": 1, "anim": "armL", "pivot": [0.28, 0.42, 0.12] },
+    { "box": [0.7, 0.08, 0.08], "at": [0.62, 0.34, -0.12], "color": "#ffffff", "tint": 1, "anim": "armR", "pivot": [0.28, 0.42, -0.12] },
+    { "box": [0.44, 0.09, 0.09], "at": [0.44, 0.16, 0.26], "color": "#ffffff", "tint": 1, "anim": "legL", "pivot": [0.24, 0.34, 0.22] },
+    { "box": [0.44, 0.09, 0.09], "at": [0.44, 0.16, -0.26], "color": "#ffffff", "tint": 1, "anim": "legR", "pivot": [0.24, 0.34, -0.22] },
+    { "box": [0.38, 0.09, 0.09], "at": [0.42, 0.12, 0.08], "color": "#ffffff", "tint": 1, "anim": "legR", "pivot": [0.24, 0.34, 0.08] },
+    { "box": [0.38, 0.09, 0.09], "at": [0.42, 0.12, -0.08], "color": "#ffffff", "tint": 1, "anim": "legL", "pivot": [0.24, 0.34, -0.08] },
+    { "box": [0.3, 0.08, 0.08], "at": [0.36, 0.3, 0.3], "color": "#ffffff", "tint": 1, "anim": "tail", "pivot": [0.2, 0.4, 0.26] },
+    { "box": [0.3, 0.08, 0.08], "at": [0.36, 0.3, -0.3], "color": "#ffffff", "tint": 1, "anim": "tail", "pivot": [0.2, 0.4, -0.26] }
+  ]
+}

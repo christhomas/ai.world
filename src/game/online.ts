@@ -386,9 +386,18 @@ export class Online {
    * The world grows the same floor from its own root seed and the anchor's name, so this carries no
    * seed of its own — two people who name the same floor are standing in the same one because the
    * arithmetic says so, not because they agreed about it.
+   *
+   * The style is sent as well as the kind, because for the drowned places the two are different
+   * questions: the kind is what salts the anchor's seed, and the style is what the rooms are grown
+   * as. A whirlpool's cavern hangs off a `dungeon` anchor and a wreck's hold off a `wreck` one, and
+   * both are flooded. A world that grew one of those as a vault while the page grew it as a flooded
+   * hold would put every creature in it inside a wall.
    */
-  floor(place: string, anchor: string, kind: 'dungeon' | 'cave' | 'thicket', floor: number): void {
-    if (this.connected) this.send({ type: 'floor', place, anchor, kind, floor });
+  floor(
+    place: string, anchor: string, kind: 'dungeon' | 'cave' | 'thicket' | 'wreck', floor: number,
+    style?: 'vault' | 'cave' | 'thicket' | 'sunken' | 'castle',
+  ): void {
+    if (this.connected) this.send({ type: 'floor', place, anchor, kind, floor, style });
   }
 
   /**

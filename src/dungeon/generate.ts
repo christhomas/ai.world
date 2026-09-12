@@ -54,7 +54,22 @@ export const DUNGEON = {
  * place — it comes back as the same `DungeonMap`, and is walked, drawn and mapped by the same
  * three files as everything else down here.
  */
-export type DungeonStyle = 'vault' | 'cave' | 'thicket' | 'castle' | 'sunken';
+/** The five kinds of floor there are. One list, because two lists of these would disagree. */
+export const DUNGEON_STYLES = ['vault', 'cave', 'thicket', 'castle', 'sunken'] as const;
+
+export type DungeonStyle = (typeof DUNGEON_STYLES)[number];
+
+/**
+ * A style out of whatever came over the wire, or a stated fallback.
+ *
+ * Here rather than in the server because it is the generator that decides what a style *is*, and
+ * the day a sixth one is added is the day a hand-written list of five in `sim.ts` stops matching
+ * it. A world that grows a floor in a style the page did not ask for is monsters inside walls, and
+ * nothing about that failure points at a list of strings.
+ */
+export function asDungeonStyle(said: unknown, fallback: DungeonStyle): DungeonStyle {
+  return DUNGEON_STYLES.includes(said as DungeonStyle) ? said as DungeonStyle : fallback;
+}
 
 export function generateDungeon(seed: number, style: DungeonStyle = 'vault', floor = 1): DungeonMap {
   if (style === 'castle') return generateCastle(seed, floor);

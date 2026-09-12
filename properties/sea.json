@@ -1,5 +1,5 @@
 {
-  "note": "The two things that hunt you in water, where none of the answers that work on land do: you cannot climb, you cannot outrun what swims, and a boat is only a place to be caught standing. Fields are as described in beasts.json.",
+  "note": "What hunts you in water, where none of the answers that work on land do: you cannot climb, you cannot outrun what swims, and a boat is only a place to be caught standing. The last two of the four never see open sea — they are what is waiting in a drowned hold, and a shark is the one thing that is in both places. Fields are as described in beasts.json.",
   "shark": {
     "note": "It circles before it commits, which is the only warning water ever gives. Two damage a pass against a hero who cannot back away is what makes swimming a decision.",
     "label": "Shark",
@@ -40,5 +40,49 @@
     ],
     "names": ["Blackfin", "Two-Patch", "The Matriarch", "Cutwater"],
     "lines": ["*rolls to look at you*", "*breathes out hard*"]
+  },
+  "squid": {
+    "note": "The slow half of a drowned hold. It does not chase — it does not have to, in a room you have to wade across — and what it costs you is the time you spend getting past it, which is time the fish-folk are using. Hits harder than anything else this shallow.",
+    "label": "Squid",
+    "emoji": "\ud83e\udd91",
+    "scale": 1.2,
+    "speed": 1.1,
+    "runSpeed": 2.6,
+    "herd": [1, 2],
+    "behaviour": "hunt",
+    "timid": false,
+    "damage": 18,
+    "hp": 60,
+    "gold": [14, 34],
+    "drop": { "id": "gem", "chance": 0.12 },
+    "palettes": [
+      ["#7a3b5c", "#c86a86"],
+      ["#5c3b7a", "#9a6ac8"],
+      ["#8a4a3a", "#d08a62"]
+    ],
+    "names": ["The Grip", "Ten Arms", "Old Ink", "The Hold-Fast"],
+    "lines": ["*an arm comes out of the dark*", "*the water goes black*"]
+  },
+  "fishfolk": {
+    "note": "Whatever was aboard when she went down, or whatever moved in afterwards — the game does not say, and the villagers have four stories about it. They come in twos and threes and they use a room: the point of a drowned hold is that it is a fight you cannot back out of a doorway from, because the doorway is underwater too.",
+    "label": "Fish-folk",
+    "emoji": "\ud83d\udc1f",
+    "scale": 1,
+    "speed": 1.5,
+    "runSpeed": 4.4,
+    "herd": [2, 4],
+    "behaviour": "hunt",
+    "timid": false,
+    "damage": 14,
+    "hp": 44,
+    "gold": [8, 22],
+    "drop": { "id": "fang", "chance": 0.35 },
+    "palettes": [
+      ["#3f6b52", "#8fc4a0"],
+      ["#2f5668", "#7fb0c4"],
+      ["#4a6b3f", "#a6c48f"]
+    ],
+    "names": ["Gill", "The Wader", "Split-Tail", "Barnacle", "The Drowned Man"],
+    "lines": ["*a wet clicking*", "*rises out of the water*", "*gills working*"]
   }
 }

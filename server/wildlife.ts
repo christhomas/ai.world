@@ -110,8 +110,8 @@ export class Wildlife {
    * same map and the same seed the client draws it from, so it is the same monsters in the same
    * rooms rather than an agreement to have similar ones.
    */
-  fill(map: DungeonMap, seed: number, floor: number): void {
-    this.manager.spawnMonsters(map.monsterSpots, seed + floor, floor);
+  fill(map: DungeonMap, seed: number, floor: number, style?: string): void {
+    this.manager.spawnMonsters(map.monsterSpots, seed + floor, floor, style);
     if (map.boss) this.manager.spawnOne('troll', map.boss[0] + 0.5, map.boss[1] + 0.5, seed + 99);
   }
 

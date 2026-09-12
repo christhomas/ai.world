@@ -170,6 +170,8 @@ export function installProbes(ctx: Probed): void {
   debug.__doors = structures.doors;
   (debug as { __villages?: unknown }).__villages = structures.villages;
   (debug as { __piers?: unknown }).__piers = structures.piers;
+  // where the hulls are, so a test can walk up to one and go down into it
+  (debug as { __wrecks?: unknown }).__wrecks = structures.wrecks;
   (debug as { __descent?: () => unknown }).__descent = () => places.underground?.world.map.descent ?? null;
   (debug as { __boss?: () => unknown }).__boss = () => places.underground?.world.map.boss ?? null;
   (debug as { __descend?: () => void }).__descend = () => commandWorld.descend();

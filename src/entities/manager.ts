@@ -288,14 +288,14 @@ export class EntityManager {
   private enrolled = 0;
 
   /** Spawn monsters directly (used by dungeons). A spot that names its occupant gets it: @see SpawnSpot. */
-  spawnMonsters(anchors: ReadonlyArray<SpawnSpot>, seed: number, floor = 1): Entity[] {
+  spawnMonsters(anchors: ReadonlyArray<SpawnSpot>, seed: number, floor = 1, style?: string): Entity[] {
     const rng = mulberry32(seed);
     const out: Entity[] = [];
     const key = 'dungeon';
     let list = this.spawned.get(key);
     if (!list) { list = []; this.spawned.set(key, list); }
     for (const [x, z, named] of anchors) {
-      const kindId = named ?? pickKind(dungeonMonsters(floor), rng());
+      const kindId = named ?? pickKind(dungeonMonsters(floor, style), rng());
       if (!kindId || !KINDS[kindId]) continue;
       const herd = this.spawnHerdAt(kindId, x, z, rng, key, out);
       if (herd.members.length === 0) continue;

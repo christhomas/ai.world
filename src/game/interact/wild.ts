@@ -101,18 +101,45 @@ export function wildInteractions(ctx: Surroundings) {
     return true;
   };
 
-  /** A wreck's hold can be looted once; the anchor remembers it. */
+  /**
+   * A wreck you can go aboard, and a hold you can go down into.
+   *
+   * It was one thing you could do once — press Enter, take the salvage, and afterwards be told
+   * forever that it was picked clean — which made a landmark you can see from half a mile off into
+   * a chest with a boat drawn round it. A hull the sea runs in and out of is a way *in*: below the
+   * waterline she is flooded, and what is down there is not what is in a cave.
+   *
+   * The floor is the drowned kind (`sunken`), which the game already has for the caverns under a
+   * whirlpool — the same green-black light and the same water underfoot — and what lives in it is
+   * the drowned roster rather than the depth-one one: fish-folk in twos and threes, a squid that
+   * makes a room cost you something to cross, and now and then a shark that has come in under the
+   * hull with the tide.
+   *
+   * The anchor is the wreck's own, and it is `ensure`d here as a wreck before anything else asks
+   * for it. That matters: an anchor's seed comes from its kind as well as its id, so a wreck whose
+   * hold was first opened by going below and a wreck first opened by searching it have to end up
+   * with the same seed, or two people in one world would find different salvage in the same boat.
+   */
   const tryWreck = (): boolean => {
     for (const wreck of structures.wrecks) {
       if (Math.hypot(wreck.x - player.x, wreck.z - player.z) > 3.4) continue;
       discover(wreck.name);
       const anchor = manifest.ensure(`wreck:${wreck.id}`, 'wreck', wreck.x, wreck.z);
       const lootId = `${anchor.id}:hold`;
+      const goBelow = {
+        label: 'Go below',
+        next: () => {
+          places.enterDungeon({ name: wreck.name, x: wreck.x, z: wreck.z }, 'wreck', anchor.id);
+          return null;
+        },
+      };
       if (state.opened.has(lootId)) {
-        dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['Picked clean. Only sand and barnacles now.'] });
+        dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: [
+          'Picked clean above the waterline. Below it the water is still going in and out of her, and it is a long way down to the keel.',
+        ], choices: [goBelow, { label: 'Leave it', next: () => null }] });
         return true;
       }
-      dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['The hold is half buried, but the hatch still gives. Search it?'], choices: [
+      dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['The hold is half buried, but the hatch still gives. Search it — or go down into her?'], choices: [
         { label: 'Search', next: () => {
           const roll = mulberry32(anchor.seed);
           const gold = 25 + Math.floor(roll() * 60);
@@ -128,6 +155,7 @@ export function wildInteractions(ctx: Surroundings) {
           persist();
           return null;
         } },
+        goBelow,
         { label: 'Leave it', next: () => null },
       ] });
       return true;

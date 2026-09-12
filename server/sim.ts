@@ -19,7 +19,7 @@ import { Chronicle } from './chronicle';
 import { countryStamp, growWorld } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
 import type { WorldKind } from '../src/save/store';
-import { generateDungeon } from '../src/dungeon/generate';
+import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
 import { DungeonWorld } from '../src/dungeon/world';
 import { Manifest } from '../src/world/manifest';
 import { TerrainSampler } from '../src/world/terrain';
@@ -617,14 +617,24 @@ export class Simulation {
     if (this.underworlds.has(key)) return;
 
     const anchorId = String(message.anchor).slice(0, LIMITS.PLACE);
-    const kind = message.kind === 'cave' || message.kind === 'thicket' ? message.kind : 'dungeon';
+    const kind = message.kind === 'cave' || message.kind === 'thicket' || message.kind === 'wreck'
+      ? message.kind : 'dungeon';
     const floor = Math.max(1, Math.min(FLOORS, Math.floor(Number(message.floor) || 1)));
     const seed = new Manifest(client.seed).deriveSeed(anchorId, kind, null);
-    const style = kind === 'dungeon' ? 'vault' : kind;
+    /*
+     * What the rooms are grown as, which is not always what the anchor is.
+     *
+     * A page that says nothing is a page from before the drowned places existed, and it means what
+     * it has always meant: grow it the way the anchor kind says. A page that does say is taken at
+     * its word within the four the generator knows — a whirlpool's cavern and a wreck's hold are
+     * both `sunken` and hang off anchors of two different kinds, so this cannot be worked out from
+     * `kind` at either end.
+     */
+    const style = asDungeonStyle(message.style, kind === 'dungeon' || kind === 'wreck' ? 'vault' : kind);
     const world = new DungeonWorld(generateDungeon(seed, style, floor), place, style);
     // a floor has no chunks streaming into it: what lives down there is put there once, now
     const alive = new Wildlife(seed + floor, world, { getTiles: () => null });
-    alive.fill(world.map, seed, floor);
+    alive.fill(world.map, seed, floor, style);
     this.underworlds.set(key, alive);
     this.rooms.ownCreatures(client.seed, place, alive);
   }

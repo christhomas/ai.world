@@ -9,7 +9,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
 
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -428,7 +428,24 @@ export type ClientMessage =
    * Leaving is not a message. The place in `move` says where somebody is standing, and when that
    * stops being a floor they have left it.
    */
-  | { type: 'floor'; place: string; anchor: string; kind: 'dungeon' | 'cave' | 'thicket'; floor: number }
+  | {
+    type: 'floor'; place: string; anchor: string; kind: 'dungeon' | 'cave' | 'thicket' | 'wreck'; floor: number;
+    /**
+     * What the floor is made of, when that is not the same question as what the anchor is.
+     *
+     * `kind` is what salts the anchor's seed and `style` is what the rooms are grown as, and for
+     * three of the four they are the same word. They are not for the drowned places: a whirlpool's
+     * cavern hangs off a `dungeon` anchor and a wreck's hold off a `wreck` one, and both are grown
+     * as `sunken` — flooded rooms, a drowned roster, the green-black light. Sent rather than
+     * inferred because the two halves have to agree about the shape of a room to agree about where
+     * anything in it is standing, and a floor the world grew as a vault while the page grew it as a
+     * flooded hold is monsters inside walls.
+     *
+     * Optional, because a page that says nothing means what pages have always meant: grow it the
+     * way the anchor kind says.
+     */
+    style?: 'vault' | 'cave' | 'thicket' | 'sunken' | 'castle';
+  }
   /**
    * Asking the world for a piece of itself.
    *

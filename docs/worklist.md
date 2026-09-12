@@ -3184,7 +3184,13 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       are what make land a quantity at all), and the upper half of the population band, which
       guards nothing until houses can lift the ceiling. Each one goes in the day its feature does.
 
-- [ ] **32. A map of one province, priced like a week's work.** The fog and the Region Map already
+- [ ] **32. A map of one province, priced like a week's work.** *Asked for again, harder: the map
+      should be dear, or small, and the whole country dearer still — the point is that nobody gets
+      hold of it easily.* A twenty-five gold trinket that lifts the fog off everything is the
+      cheapest thing in the game removing the most expensive thing in it, which is the reason to
+      walk anywhere.
+
+      The original note follows. The fog and the Region Map already
       exist: `state.explored` fills in as you walk and a 25-gold trinket lifts it. Twenty-five gold
       is a tenth of a boat for the removal of every reason to explore, and in an endless world one
       map cannot cover "the region" anyway. One map per province, sold where that province is, dear
@@ -3432,3 +3438,37 @@ simulation rather than any one feature in it.
       same footprint check the player's does, so a village in a narrow valley simply runs out of
       room while one on a plain keeps going. That is also what makes two villages in one world
       different from each other without anybody writing a rule saying so.
+
+## The wreck, and what is under a hull — September 12th
+
+- [x] **54. A shipwreck you can go aboard, and the drowned hold under it.** A hull on a beach was a
+      chest with a boat drawn round it: press Enter, take the salvage, and be told forever
+      afterwards that it was picked clean. It is a way in now — "Go below" at any wreck — and below
+      the waterline she is flooded.
+
+      Almost all of it was already built. The `sunken` floor style has existed since the whirlpools
+      went in (green-black light, water underfoot), and a wreck already had an anchor of its own,
+      `wreck:<id>`, which is what remembers whether the hold has been picked over. What was missing
+      was the door, a roster, and a word.
+
+      - **The roster.** A drowned hold is not a cave with water in it, so it does not draw from the
+        depth table: `properties/spawning.json` has a `drowned` group — fish-folk 6, squid 3, shark
+        2 — and `dungeonMonsters(floor, style)` hands it back for anything flooded. Fish-folk are
+        most of it because a fight in waist-deep water wants numbers; the squid is what makes a room
+        cost you something to cross; the shark is there because it is the one creature in the game
+        that belongs both out in the open sea and in the dark under a hull.
+      - **Two new creatures**, `models/creatures/squid.json` and `fishfolk.json`, with properties in
+        `properties/sea.json`. Both use behaviour trees that already existed.
+      - **And the word.** This is the part worth remembering. A floor's *style* decides its rooms —
+        `generateDungeon(seed, style, floor)` grows a flooded hold differently from a vault — and the
+        style was never sent over the wire: the world grew every floor from the anchor kind alone.
+        So a shared-world wreck would have been a hold on the page and a vault on the server, with
+        every creature in it standing inside a wall. `floor` carries a `style` now (PROTOCOL_VERSION
+        18), and the same fix quietly corrects two places that were already wrong this way: a
+        whirlpool's cavern and a castle.
+
+- [ ] **55. What else is down there.** The hold is a fight and a few chests today. What it wants, in
+      the order it would be built: something to *find* that is worth the swim (a wreck is where a
+      cargo went down, so the salvage should be better than a cave's), a reason the fish-folk are
+      there rather than a spawn table, and the flooding itself doing something — deep water you
+      swim rather than walk, which `breath.ts` already has the machinery for.

@@ -24,6 +24,8 @@ import frog from '../../models/creatures/frog.json';
 import duck from '../../models/creatures/duck.json';
 import shark from '../../models/creatures/shark.json';
 import orca from '../../models/creatures/orca.json';
+import squid from '../../models/creatures/squid.json';
+import fishfolk from '../../models/creatures/fishfolk.json';
 import heron from '../../models/creatures/heron.json';
 import goat from '../../models/creatures/goat.json';
 import eagle from '../../models/creatures/eagle.json';
@@ -268,7 +270,7 @@ export function readModel(where: string, contents: unknown): PartDef[] {
 const FILES: Record<string, unknown> = {
   ogre, wight, nettle, dragon,
   cow, sheep, horse, chicken, deer, rabbit, fox, bear, camel, lizard, vulture, frog, duck,
-  shark, orca, heron, goat, eagle, hare, wolf, elk,
+  shark, orca, squid, fishfolk, heron, goat, eagle, hare, wolf, elk,
   traveller, villager, rat, bat, slime, skeleton, troll, yeti, bigfoot, shopkeeper, hero,
   // the trades, which are the same person in different hats — and the hat is the whole of the
   // difference at the distance this camera watches a street from

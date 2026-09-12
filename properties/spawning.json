@@ -116,6 +116,18 @@
     "kinds": { "shark": 7, "orca": 3 }
   },
 
+  "drowned": {
+    "note": [
+      "What is waiting in a flooded hold, which is a different place from a cave with water in it.",
+      "It does not go by depth the way the vault floors do: a wreck is one room deep, the only one there is, so this is the whole of what lives there. Fish-folk are most of it because a fight in waist-deep water wants numbers rather than one large thing; the squid is the one that makes a room cost you something to cross; and the shark is here because it is the one creature in the game that belongs both out in the open sea and in the dark under a hull."
+    ],
+    "kinds": {
+      "fishfolk": 6,
+      "squid": 3,
+      "shark": 2
+    }
+  },
+
   "dungeon": {
     "note": [
       "What waits underground, by how far down you are: one table per floor, counting from one, and anything deeper than the list goes holds whatever the bottom holds.",

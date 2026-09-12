@@ -307,7 +307,7 @@ export function startGame(
     // nothing of its own.
     wentBelow: (below) => {
       if (!online.connected) return false;
-      online.floor(below.place, below.anchorId, below.kind, below.floor);
+      online.floor(below.place, below.anchorId, below.kind, below.floor, below.style);
       // built from what is handed over rather than from `places.underground`, which is not the
       // floor being entered yet: this is called on the way in, before the visit is the visit
       floorLife = new Wildlife(below.renderer, below.monsters);

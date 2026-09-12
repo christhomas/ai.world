@@ -1,0 +1,24 @@
+{
+  "note": "Fish-folk: a person's frame with a fish's head on it, which is the only way this reads at the distance the camera watches from. The silhouette does the work — a crest down the skull, a snout instead of a face and a fin on each forearm — and the colours are the ones a fish is, not the ones a man is.",
+  "parts": [
+    { "note": "The skull, longer than a man's, with the snout carried forward.", "box": [0.4, 0.28, 0.26], "at": [0.04, 1.28, 0], "color": "#ffffff", "tint": 0, "anim": "head", "pivot": [0, 1.12, 0] },
+    { "box": [0.22, 0.16, 0.18], "at": [0.3, 1.22, 0], "color": "#ffffff", "tint": 0, "anim": "head", "pivot": [0, 1.12, 0] },
+    { "note": "The crest, which is what makes it a fish from behind as well as from in front.", "cone": [0.1, 0.34], "at": [-0.02, 1.52, 0], "color": "#ffffff", "tint": 1, "anim": "head", "pivot": [0, 1.12, 0], "rot": [0, 0, -0.25] },
+    { "note": "Eyes on the sides of the head rather than the front of it, which is the whole difference between a fish and a man.", "ico": 0.09, "at": [0.18, 1.32, 0.14], "color": "#e8d98a", "anim": "head", "pivot": [0, 1.12, 0] },
+    { "ico": 0.09, "at": [0.18, 1.32, -0.14], "color": "#e8d98a", "anim": "head", "pivot": [0, 1.12, 0] },
+    { "ico": 0.05, "at": [0.22, 1.33, 0.18], "color": "#111111", "anim": "head", "pivot": [0, 1.12, 0] },
+    { "ico": 0.05, "at": [0.22, 1.33, -0.18], "color": "#111111", "anim": "head", "pivot": [0, 1.12, 0] },
+    { "note": "Gills, three to a side, in the paler colour so they carry.", "box": [0.04, 0.12, 0.04], "at": [-0.06, 1.18, 0.15], "color": "#ffffff", "tint": 1, "anim": "head", "pivot": [0, 1.12, 0] },
+    { "box": [0.04, 0.12, 0.04], "at": [-0.06, 1.18, -0.15], "color": "#ffffff", "tint": 1, "anim": "head", "pivot": [0, 1.12, 0] },
+    { "box": [0.26, 0.5, 0.36], "at": [0, 0.9, 0], "color": "#ffffff", "tint": 0 },
+    { "note": "A dorsal fin down the spine, raked back.", "cone": [0.14, 0.4], "at": [-0.16, 1.14, 0], "color": "#ffffff", "tint": 1, "rot": [0, 0, -0.5] },
+    { "box": [0.12, 0.44, 0.12], "at": [0, 0.92, 0.25], "color": "#ffffff", "tint": 0, "anim": "armL", "pivot": [0, 1.1, 0.25] },
+    { "box": [0.12, 0.44, 0.12], "at": [0, 0.92, -0.25], "color": "#ffffff", "tint": 0, "anim": "armR", "pivot": [0, 1.1, -0.25] },
+    { "note": "And a fin off each forearm, which is what a webbed arm reads as from three paces.", "box": [0.22, 0.24, 0.04], "at": [-0.12, 0.82, 0.3], "color": "#ffffff", "tint": 1, "anim": "armL", "pivot": [0, 1.1, 0.25] },
+    { "box": [0.22, 0.24, 0.04], "at": [-0.12, 0.82, -0.3], "color": "#ffffff", "tint": 1, "anim": "armR", "pivot": [0, 1.1, -0.25] },
+    { "box": [0.14, 0.48, 0.14], "at": [0, 0.46, 0.1], "color": "#ffffff", "tint": 0, "anim": "legL", "pivot": [0, 0.68, 0.1] },
+    { "box": [0.14, 0.48, 0.14], "at": [0, 0.46, -0.1], "color": "#ffffff", "tint": 0, "anim": "legR", "pivot": [0, 0.68, -0.1] },
+    { "note": "Splayed feet, because a thing that swims does not stand on a man's foot.", "box": [0.3, 0.07, 0.22], "at": [0.06, 0.05, 0.1], "color": "#ffffff", "tint": 1, "anim": "legL", "pivot": [0, 0.68, 0.1] },
+    { "box": [0.3, 0.07, 0.22], "at": [0.06, 0.05, -0.1], "color": "#ffffff", "tint": 1, "anim": "legR", "pivot": [0, 0.68, -0.1] }
+  ]
+}

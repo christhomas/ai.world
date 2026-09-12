@@ -84,8 +84,16 @@ export interface PlaceContext {
   wentBelow: (below: {
     place: string;
     anchorId: string;
-    kind: 'dungeon' | 'cave' | 'thicket';
+    kind: 'dungeon' | 'cave' | 'thicket' | 'wreck';
     floor: number;
+    /**
+     * And what the rooms are grown as, which for the drowned places is not what the anchor is.
+     *
+     * A whirlpool's cavern hangs off a `dungeon` anchor and a wreck's hold off a `wreck` one, and
+     * both are `sunken`. The world has to be told, or it grows a vault where the page has a flooded
+     * hold and every creature in it is standing inside a wall.
+     */
+    style: DungeonStyle;
     /** What will draw the floor's monsters, and what will hold them, once it is told about them. */
     renderer: EntityRenderer;
     monsters: EntityManager;
@@ -101,7 +109,7 @@ export interface PlaceContext {
  * and behaves exactly as they do — from up here, the gatehouse of a castle is a cave mouth with
  * better masonry. Everything past `enterDungeon` is `dungeon/`'s business.
  */
-export type PlaceStyle = 'dungeon' | 'cave' | 'thicket' | 'castle' | 'sunken';
+export type PlaceStyle = 'dungeon' | 'cave' | 'thicket' | 'castle' | 'sunken' | 'wreck';
 
 /**
  * A named spot with a way in: a shrine, a cave mouth, or a castle's gatehouse.
@@ -257,6 +265,14 @@ export class Places {
     // one: an anchor's seed comes from its id as well as its kind, and no vault was ever called
     // `castle:Kestrelmarch` or `sunken:-1240,880`
     const anchorKind = kind === 'castle' || kind === 'sunken' ? 'dungeon' : kind;
+    /*
+     * A wreck is the one of these that has an anchor kind of its own already.
+     *
+     * `wreck:<id>` is ensured the moment anybody walks up to the hull — it is what remembers
+     * whether the hold has been picked over — so going below decks must not quietly mint a second
+     * anchor under the same name with a dungeon's salt on it. It does not: the id is the wreck's
+     * and `ensure` hands back whatever is already filed under it.
+     */
     const anchor = manifest.ensure(anchorId, anchorKind, poi.x, poi.z);
     /*
      * What the floor below is made of, handed to `dungeon/`.
@@ -266,7 +282,7 @@ export class Places {
      * generator has always called the thing under a shrine. The other three are the same word on
      * both sides of the seam, which is what makes this line the whole of the handover.
      */
-    const style: DungeonStyle = kind === 'dungeon' ? 'vault' : kind;
+    const style: DungeonStyle = kind === 'dungeon' ? 'vault' : kind === 'wreck' ? 'sunken' : kind;
     const world = new DungeonWorld(generateDungeon(anchor.seed, style, floor), `${anchor.id}:${floor}`, style, props.footprints);
     world.unlocked = state.keys.has(lockFor(anchor.id, floor));
     const scene = new DungeonScene(world, props, rig.water.material, anchor.seed, state.opened);
@@ -309,10 +325,10 @@ export class Places {
     // used, which is what keeps a game with no server behind it playing exactly as it did.
     // a castle goes over the wire as a dungeon, because that is a word the protocol already knows
     // and the anchor id is what the world actually grows the floor from
-    const told = this.ctx.wentBelow({ place, anchorId, kind: anchorKind, floor, renderer, monsters });
+    const told = this.ctx.wentBelow({ place, anchorId, kind: anchorKind, style, floor, renderer, monsters });
     monsters.toldWhatLives = told;
     if (!told) {
-      monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor);
+      monsters.spawnMonsters(world.map.monsterSpots, anchor.seed + floor, floor, style);
       if (world.map.boss) {
         const [bx, bz] = world.map.boss;
         monsters.spawnOne('troll', bx + 0.5, bz + 0.5, anchor.seed + 99);
@@ -349,6 +365,9 @@ export class Places {
     this.ctx.flash(kind === 'cave' ? `You squeeze into ${named}`
       : kind === 'castle' ? `You pass under the gate of ${poi.name}${depth}`
       : kind === 'sunken' ? `You come to in ${named}, half drowned${depth}`
+      // gone down on purpose rather than been taken down, which is the whole difference between
+      // a whirlpool's cavern and a wreck's hold
+      : kind === 'wreck' ? `You climb down into ${named}, into the water${depth}`
       : `You descend into ${named}${depth}`);
     this.ctx.persist();
   }

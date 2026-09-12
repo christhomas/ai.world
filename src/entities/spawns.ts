@@ -77,8 +77,24 @@ export const NIGHT_PREDATORS: Record<Biome, string[]> = perCountry((country) => 
 const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> =
   file.group('dungeon').list('floors', (floor, where) => weights(new Fields(where, floor)));
 
-/** What lives on a floor. Anything deeper than the table goes holds whatever the bottom holds. */
-export function dungeonMonsters(floor: number): readonly SpawnWeight[] {
+/**
+ * What is waiting in a flooded hold.
+ *
+ * Not a band of the table above, because a drowned place is not a deep place: a wreck is one room
+ * deep and the only room there is, so it has a roster of its own rather than a rung on a ladder.
+ */
+export const DROWNED_MONSTERS: readonly SpawnWeight[] = weights(file.group('drowned').group('kinds'));
+
+/**
+ * What lives on a floor. Anything deeper than the table goes holds whatever the bottom holds.
+ *
+ * The style is asked for as well as the depth, because the two questions are different: how far
+ * down you are says how hard it should be, and what sort of place it is says what could possibly
+ * live there. Everything but a drowned hold answers by depth alone, which is how it has always
+ * worked, and a drowned hold answers by what it is.
+ */
+export function dungeonMonsters(floor: number, style?: string): readonly SpawnWeight[] {
+  if (style === 'sunken') return DROWNED_MONSTERS;
   const band = Math.min(Math.max(1, Math.floor(floor)), DUNGEON_BANDS.length);
   return DUNGEON_BANDS[band - 1];
 }
