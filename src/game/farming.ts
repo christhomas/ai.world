@@ -1,3 +1,4 @@
+import { Claims } from './claims';
 import { SEASON_LENGTH, Season, seasonOf } from './seasons';
 
 /**
@@ -176,22 +177,19 @@ export interface PutBackInTheGround {
 export const NOT_YOURS = 'Somebody else had already been through that field.';
 
 export class Harvests {
-  private asked = 0;
-  private readonly waiting = new Map<number, Lifted>();
+  /** The keeping and the numbering, which is the same in every one of these. See `claims.ts`. */
+  private readonly claims = new Claims<Lifted>();
 
   /** How many answers are still owed. */
-  get pending(): number { return this.waiting.size; }
+  get pending(): number { return this.claims.pending; }
 
   ask(lifted: Lifted): number {
-    const seq = ++this.asked;
-    this.waiting.set(seq, lifted);
-    return seq;
+    return this.claims.ask(lifted);
   }
 
   answered(seq: number, told: Came, o: PutBackInTheGround): void {
-    const lifted = this.waiting.get(seq);
+    const lifted = this.claims.answered(seq);
     if (!lifted) return;
-    this.waiting.delete(seq);
 
     if (!told.ok) {
       o.carry(lifted.crop, -lifted.amount);
@@ -237,21 +235,18 @@ export interface LiftItBackOut {
 export const WOULD_NOT_TAKE = 'That ground would not take the seed.';
 
 export class Sowings {
-  private asked = 0;
-  private readonly waiting = new Map<number, Put>();
+  /** The keeping and the numbering, which is the same in every one of these. See `claims.ts`. */
+  private readonly claims = new Claims<Put>();
 
-  get pending(): number { return this.waiting.size; }
+  get pending(): number { return this.claims.pending; }
 
   ask(put: Put): number {
-    const seq = ++this.asked;
-    this.waiting.set(seq, put);
-    return seq;
+    return this.claims.ask(put);
   }
 
   answered(seq: number, ok: boolean, o: LiftItBackOut): void {
-    const put = this.waiting.get(seq);
+    const put = this.claims.answered(seq);
     if (!put) return;
-    this.waiting.delete(seq);
     if (ok) return;
     o.unplant(put.tile);
     o.carry(put.seed, 1);

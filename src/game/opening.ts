@@ -1,3 +1,5 @@
+import { Claims } from './claims';
+
 /**
  * A chest you have already opened, until the world says otherwise.
  *
@@ -52,17 +54,15 @@ export interface PutBack {
 export const REFUSED = 'Somebody had already been through that chest.';
 
 export class Openings {
-  private asked = 0;
-  private readonly waiting = new Map<number, Opened>();
+  /** The keeping and the numbering, which is the same in every one of these. See `claims.ts`. */
+  private readonly claims = new Claims<Opened>();
 
   /** How many answers are still owed. Nothing needs it but a probe and a test. */
-  get pending(): number { return this.waiting.size; }
+  get pending(): number { return this.claims.pending; }
 
   /** The page has opened one. Keep what it gave itself, and take a number for the answer. */
   ask(given: Opened): number {
-    const seq = ++this.asked;
-    this.waiting.set(seq, given);
-    return seq;
+    return this.claims.ask(given);
   }
 
   /**
@@ -76,9 +76,8 @@ export class Openings {
    * purse that quietly settles on the right number.
    */
   answered(seq: number, told: Told, o: PutBack): void {
-    const given = this.waiting.get(seq);
+    const given = this.claims.answered(seq);
     if (!given) return;                      // an answer to something else, or answered twice
-    this.waiting.delete(seq);
 
     if (!told.ok) {
       o.gold(-given.gold);

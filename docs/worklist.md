@@ -4669,6 +4669,17 @@ than by remembering — and the first thing found was that the gap is not where 
       Depends on **72** step 2 for the vocabulary, and it is the thing that makes moving decisions to
       the server a change nobody playing it can detect.
 
+      *Started on the 12th–13th.* Three actions have the full shape now — a chest, a crop lifted, a
+      seed put in — and the third of them is what made the pattern worth extracting: the same twelve
+      lines had been written three times in one night, which is the fault item 26 was about arriving
+      in a different coat. `game/claims.ts` is the keeping and the numbering, once; each caller keeps
+      its own undo, because what it means to put a thing back is exactly the part that differs every
+      time. The rule that makes it safe is written there: **what was given is kept, not recomputed**
+      — a rollback that worked out what it should undo could work it out differently by then.
+
+      What is left is the list: a swing, a door, a trade, a hire, a build. The item's own division
+      still holds — predict what the hand feels, and let the ledger take its time.
+
 - [~] **74. Why one tab of this game costs more than a core.** Measured by accident on the evening of
       the 12th: an Edge renderer holding the game at **160% CPU** while the tab sat there, which is
       the top process on the machine and more than one core. Over a core means it is not only the
