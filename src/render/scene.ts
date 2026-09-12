@@ -190,6 +190,21 @@ export interface SceneRig {
    * afterwards so the slab is cut for the light that is about to be drawn.
    */
   fitShadow(): void;
+  /**
+   * Draw the shadows again on the next frame.
+   *
+   * The shadow pass is a second traversal of the whole scene and a second set of draw calls, at
+   * 2048 by 2048 on the quality most players are on, and three.js runs it on *every* frame by
+   * default. That is right for a scene where something is always moving and wasteful for this one,
+   * where the usual case is a hero standing still in a village looking at country that has not
+   * changed since the last frame — the sun crosses the sky once every two hours of real time, which
+   * is about a fortieth of a degree a frame.
+   *
+   * So the pass is off by default and asked for: by whatever moves the sun or the camera, and at a
+   * slow floor besides, so that a chunk arriving or a door opening is never more than a tenth of a
+   * second from being shadowed. See `DayCycle.apply`, which is the one thing that calls it.
+   */
+  redrawShadows(): void;
   resize(): void;
   /** How hard to work per frame. Saved, so the choice survives a return to the title. */
   quality: Quality;
@@ -206,6 +221,9 @@ export function createSceneRig(container: HTMLElement): SceneRig {
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // and drawn when something has changed rather than on every frame: see `redrawShadows`
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -337,6 +355,9 @@ export function createSceneRig(container: HTMLElement): SceneRig {
       cam.far = far;
       sun.shadow.bias = -SHADOW_BIAS / (far - cam.near);
       cam.updateProjectionMatrix();
+    },
+    redrawShadows() {
+      renderer.shadowMap.needsUpdate = true;
     },
     resize() {
       renderer.setSize(window.innerWidth, window.innerHeight);

@@ -55,6 +55,31 @@ export interface DayCycleInput {
  * Drives sun, sky and window glow from the time of day. Pure colour/intensity lerps,
  * so the low-poly look survives the night instead of turning to mud.
  */
+/**
+ * When the shadows are worth drawing again.
+ *
+ * `STILL` is how far the sun may move and be called still, in world units. It sits at a fifth of a
+ * tile because the sun is sixty units out and the shadow map is a couple of thousand pixels across
+ * a hundred-odd tiles, so a fifth of a tile of light movement is comfortably under one pixel of
+ * shadow movement — small enough that nobody could see the difference and large enough to catch the
+ * sun's own crawl, which is a fortieth of a degree a frame.
+ *
+ * `FLOOR` is how long the shadows may stand while nothing at all moves, in milliseconds. A tenth of
+ * a second: long enough to save five frames in six, short enough that a chunk arriving or a felled
+ * tree is shadowed before anybody notices it was not.
+ */
+export const SHADOW = { STILL: 0.2, FLOOR: 100 } as const;
+
+/**
+ * The decision itself, kept apart from the light so it can be held to in a test.
+ *
+ * @param moved how far the sun has gone since the shadows were last drawn, in world units
+ * @param since how long ago that was, in milliseconds
+ */
+export function shadowsWorthDrawing(moved: number, since: number): boolean {
+  return moved >= SHADOW.STILL || since >= SHADOW.FLOOR;
+}
+
 export class DayCycle {
   /** Unlit material shared by every window-glow instance. */
   readonly glowMaterial = new THREE.MeshBasicMaterial({ color: WINDOW_DAY });
@@ -65,6 +90,9 @@ export class DayCycle {
   private daySunIntensity: number;
   private dayHemiIntensity: number;
   private dayAmbientIntensity: number;
+  /** Where the sun was when the shadows were last drawn, and when that was. */
+  private readonly lastLight = new THREE.Vector3(NaN, NaN, NaN);
+  private drawnAt = 0;
 
   constructor(private readonly rig: SceneRig) {
     this.daySunIntensity = rig.sun.intensity;
@@ -77,6 +105,31 @@ export class DayCycle {
   setDayIntensities(sun: number, hemi: number): void {
     this.daySunIntensity = sun;
     this.dayHemiIntensity = hemi;
+  }
+
+  /**
+   * Ask for the shadow pass, but only when it would draw something different.
+   *
+   * The pass is a second traversal of the scene and a second set of draw calls — the most expensive
+   * thing this renderer does after the picture itself — and three.js runs it every frame by
+   * default. Almost always for nothing: the sun crosses the sky once every two hours of real time,
+   * about a fortieth of a degree a frame, and a hero standing still in a village is looking at
+   * country that did not move either.
+   *
+   * So it is drawn when the light has actually gone somewhere — which includes the camera moving,
+   * because the sun is hung over whatever the camera is looking at — and otherwise at a slow floor,
+   * so that a chunk arriving, a door opening or a tree coming down is never more than a tenth of a
+   * second from being shadowed. Nothing in the game has to remember to ask.
+   */
+  private shadowsIfTheyHaveChanged(sun: THREE.Vector3): void {
+    const now = performance.now();
+    // NaN on the first frame, which is a distance no comparison calls small: the shadows are drawn
+    // once before anything has been remembered, which is what a first frame wants
+    const moved = this.lastLight.distanceTo(sun);
+    if (!shadowsWorthDrawing(Number.isNaN(moved) ? Infinity : moved, now - this.drawnAt)) return;
+    this.lastLight.copy(sun);
+    this.drawnAt = now;
+    this.rig.redrawShadows();
   }
 
   /** Returns the night factor in [0,1]. */
@@ -98,6 +151,7 @@ export class DayCycle {
     // the rig cut its shadow slab for wherever the sun was when the camera last moved, which was
     // before this; a low sun needs a far deeper slab than a high one, so it is cut again here
     this.rig.fitShadow();
+    this.shadowsIfTheyHaveChanged(sun.position);
     // the night floor is moonlight: dark enough to want a lantern, bright enough to walk by
     sun.intensity = this.daySunIntensity * (0.22 + 0.78 * day) * (1 - wet * 0.45);
     this.tmp.copy(DAY_SUN).lerp(DUSK_SUN, dusk).lerp(NIGHT_SUN, night);

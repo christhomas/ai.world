@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SHADOW, shadowsWorthDrawing } from './daycycle';
 import { CAMERA } from '../core/config';
 import { QUALITY, shadowFar } from './scene';
 
@@ -97,5 +98,41 @@ describe('quality levels', () => {
     expect(QUALITY.high.shadows).toBe(true);
     expect(QUALITY.low.shadows).toBe(false);
     for (const level of Object.values(QUALITY)) expect(level.label).toMatch(/[a-z]/);
+  });
+});
+
+describe('when the shadows are worth drawing again', () => {
+  /*
+   * The shadow pass is a second traversal of the scene and a second set of draw calls, at 2048 by
+   * 2048 on the quality most people play at, and three.js runs it every frame unless it is told
+   * otherwise. A CPU profile put the renderer process at 160% of a core on a tab nobody was
+   * touching; this is one of the three things that explains it.
+   */
+  it('draws them when the light has actually gone somewhere', () => {
+    expect(shadowsWorthDrawing(SHADOW.STILL, 0)).toBe(true);
+    expect(shadowsWorthDrawing(SHADOW.STILL * 4, 0)).toBe(true);
+  });
+
+  it('does not draw them again for a sun that has barely crawled', () => {
+    // the sun crosses the sky once in two hours of real time, which is a fortieth of a degree a
+    // frame: sixty times a second it moves far less than one pixel of the shadow map
+    expect(shadowsWorthDrawing(SHADOW.STILL / 10, 0)).toBe(false);
+    expect(shadowsWorthDrawing(0, 0)).toBe(false);
+  });
+
+  it('draws them anyway on a slow floor, so the world can change without asking', () => {
+    // a chunk arriving, a door opening, a tree coming down: none of them move the sun, and none of
+    // them should have to know that shadows exist
+    expect(shadowsWorthDrawing(0, SHADOW.FLOOR)).toBe(true);
+    expect(shadowsWorthDrawing(0, SHADOW.FLOOR - 1)).toBe(false);
+  });
+
+  it('saves most of the pass while somebody stands still, and none of it while they walk', () => {
+    // standing still at sixty frames a second: ten passes a second instead of sixty
+    const frames = 60;
+    const still = Array.from({ length: frames }, (_, n) => shadowsWorthDrawing(0, (n % 6) * (1000 / frames)));
+    expect(still.filter(Boolean).length).toBeLessThanOrEqual(frames / 5);
+    // and walking, where the camera drags the sun along with it, every frame as before
+    expect(shadowsWorthDrawing(SHADOW.STILL * 2, 0)).toBe(true);
   });
 });
