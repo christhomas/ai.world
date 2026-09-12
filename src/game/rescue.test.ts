@@ -311,7 +311,7 @@ describe('what a raid takes', () => {
     said: 'wolves out of Deep Wood', tiles: 18, dir: 'north',
   };
   const folk = (n: number) => Array.from({ length: n }, (_, i) => ({
-    id: `p${i}`, name: `Person ${i}`, village: 'Ashford', trade: 'farmer',
+    id: `p${i}`, name: `Person ${i}`, village: 'Ashford', sex: i % 2 === 0 ? ('woman' as const) : ('man' as const), trade: 'farmer',
     born: -30, lives: 80, mother: '', father: '', knows: [] as string[], memories: [], opinions: [], purse: 0, hungry: 0,
   }));
 

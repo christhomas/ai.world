@@ -3,7 +3,7 @@ import { FOOD, cellarCap, eat, grownInADay, saidOfFood, heartsLeft, lookingForFo
 import type { Person } from './people';
 
 const soul = (trade: string, purse = 50): Person => ({
-  id: `p${Math.random()}`, name: 'Maren', village: 'Ashford', trade, born: -30, lives: 70,
+  id: `p${Math.random()}`, name: 'Maren', village: 'Ashford', sex: 'woman', trade, born: -30, lives: 70,
   mother: '', father: '', knows: [], memories: [], opinions: [], purse, hungry: 0,
 });
 

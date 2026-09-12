@@ -5,7 +5,7 @@ import { PROSPER, TRADERS, earnedInADay, feeFor, luxuryFor, saidOfWealth, spentO
 import type { Person } from './people';
 
 const person = (trade: string): Person => ({
-  id: 'x', name: 'Maren', village: 'Ashford', trade, born: -30, lives: 70,
+  id: 'x', name: 'Maren', village: 'Ashford', sex: 'woman', trade, born: -30, lives: 70,
   mother: '', father: '', knows: [], memories: [], opinions: [], purse: 0, hungry: 0,
 });
 

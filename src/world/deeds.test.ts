@@ -17,7 +17,7 @@ let next = 0;
 const villager = (purse: number, trade = 'seller'): Person => {
   next++;
   return {
-    id: `p${next}`, name: `Person ${next}`, village: 'Testing', trade,
+    id: `p${next}`, name: `Person ${next}`, village: 'Testing', sex: 'woman', trade,
     born: 0, lives: 100, mother: '', father: '', knows: [], memories: [], opinions: [],
     purse, hungry: 0,
   };

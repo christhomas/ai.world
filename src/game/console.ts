@@ -34,6 +34,20 @@ export interface Consoled {
   player: Player;
   iso: IsoCamera;
   places: Places;
+  /**
+   * Everything this world holds, and deliberately not what is near the hero.
+   *
+   * Every other reader of the structures in this game has moved to `world/around.ts`, which asks
+   * "what is within so many tiles of here" because that is the only form of the question a country
+   * grown a square at a time can answer. This file is the exception and should stay one. `/towns`
+   * lists the towns; `/teleport silverholm` goes to Silverholm wherever it is; `/teleport dock`
+   * finds a jetty and names it after whoever it belongs to. None of those means "near me" — they
+   * mean "in this world", which is exactly what a console is for, and bounding them would make the
+   * debug tools able to see less than the player can.
+   *
+   * In a country with no edge this is the country that has been grown, which is the honest answer
+   * to "list everything" in a world where everything is not a finite thing.
+   */
   structures: Structures;
   sampler: TerrainSampler;
   entities: EntityManager;

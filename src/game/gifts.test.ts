@@ -14,7 +14,7 @@ import { GameState } from './state';
 
 /** Somebody who lives in Ashford, with a trade and an age and nothing else about them. */
 const villager = (trade: string, born = -30): Person => ({
-  id: `ashford-${trade}`, name: `Maren Vos`, village: 'Ashford', trade, born, lives: 70,
+  id: `ashford-${trade}`, name: `Maren Vos`, village: 'Ashford', sex: 'woman', trade, born, lives: 70,
   mother: '', father: '', knows: [], memories: [], opinions: [], purse: 0, hungry: 0,
 });
 

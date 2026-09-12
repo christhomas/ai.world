@@ -29,7 +29,7 @@ let next = 0;
 function person(trade: string, purse = 100): Person {
   next++;
   return {
-    id: `p${next}`, name: `Person ${next}`, village: 'Testing', trade,
+    id: `p${next}`, name: `Person ${next}`, village: 'Testing', sex: 'man', trade,
     born: 0, lives: 100, mother: '', father: '', knows: [], memories: [], opinions: [],
     purse, hungry: 0,
   };
