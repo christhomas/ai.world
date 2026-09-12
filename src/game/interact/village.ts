@@ -67,9 +67,26 @@ export function villageInteractions(ctx: Surroundings) {
     if (!room || room.door.kind !== 'inn') return false;
     // he pours a drink facing his own barrels otherwise, which is funny exactly once
     if (room.keeper) turnToFace(room.keeper, player.x, player.z);
-    // the villages whose ground he could be standing on, and then the one whose pub this door is:
-    // he is inside the building, so one of them is certainly it
-    for (const village of villagesHere()) {
+    /*
+     * The village whose pub this door belongs to, asked by *name* rather than by where the hero is
+     * standing — because indoors he is not standing anywhere.
+     *
+     * This searched the country round him and then threw away everything whose name did not match
+     * the door's. Both halves are right on their own and together they were a bug that emptied the
+     * game in every village but one: coordinates go **room-local** the moment you walk through a
+     * door, so the hero is at about (8, 10) inside every pub in the world. Searching from there
+     * returns whichever village stands near the *origin* — and then the name check throws it away,
+     * because it is not the village whose door this is.
+     *
+     * So the landlord answered in exactly one village per world: the one that happens to be built
+     * at (0, 0). Everywhere else the shopkeeper answered instead, and with him went the builder —
+     * houses, storeys, pools, fountains, jetties and the commissioned boat — the darts, the errand,
+     * the village's rumours and the news from the mine. Two separate walks dead-ended on it before
+     * anybody worked out why.
+     *
+     * The door already knows which village it is. Nothing here needs to search at all.
+     */
+    for (const village of structures.villages) {
       const pub = village.pub;
       if (!pub) continue;
       if (village.name !== room.door.village) continue;
