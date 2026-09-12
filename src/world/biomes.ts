@@ -139,6 +139,8 @@ export const enum PropKind {
   HouseYours = 86,
   CaveMouth = 56,
   Shipwreck = 57,
+  /** The crashed craft: not from here, and it shows. */
+  Hulk = 130,
   // interior furniture
   Bed = 60,
   Table = 61,
@@ -204,6 +206,7 @@ export const BLOCKS_WALKING: ReadonlySet<PropKind> = new Set<PropKind>([
   PropKind.Cactus, PropKind.Boulder, PropKind.DeadTree,
   PropKind.Well, PropKind.Shrine, PropKind.Ruins, PropKind.Tower, PropKind.Campfire, PropKind.GiantTree,
   PropKind.Stall, PropKind.Sign, PropKind.Signpost, PropKind.CaveMouth, PropKind.Shipwreck, PropKind.NoticeBoard,
+  PropKind.Hulk,
   // the whole point of a fence: the animals inside it stay inside it, and so does anybody who
   // climbs in after them, which is why the paddock is built with a gap in it for a gate
   PropKind.Fence,

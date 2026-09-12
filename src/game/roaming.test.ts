@@ -5,7 +5,7 @@ import type { Structures } from '../world/structures';
 import {
   ROAM, Roaming, bandAt, bandFor, bandsNear, bandsOver, breaksAt, distanceTo, nightsNear,
   groundsOf, outOfSight, planBands, pressingOn, pressureOn, regionOf, stopsOf, temperOf, tollOf, warningFor,
-  type Band, wayTo, nameFor,
+  type Band, wayTo, nameFor, DRAGON_COUNTRY,
 } from './roaming';
 
 /** Growing a world is the expensive part of these tests, so each one is grown once. */
@@ -504,6 +504,32 @@ describe('a dragon', () => {
     expect(ROAM.SORTS.dragon.least).toBe(1);
     expect(ROAM.SORTS.dragon.most).toBe(1);
     expect(ROAM.SORTS.dragon.menace).toBe(1);
+  });
+
+  it('keeps out of the country a player starts in', () => {
+    /*
+     * Asked for in as many words: the middle of the world is where somebody begins, and a dragon
+     * over the village you started in is a game that kills you before you have a sword.
+     *
+     * A radius rather than a ring, and that is the load-bearing part. The endless country rests on
+     * "a place's content is settled by a bounded neighbourhood, never by how you got there" — and a
+     * ring counted outward from the middle is exactly the traversal that rule forbids. A distance
+     * is the same answer asked from any direction.
+     */
+    const stops = stopsOf(world(5));
+    const near = stops.filter((s) => Math.hypot(s.x, s.z) < DRAGON_COUNTRY);
+    const far = stops.filter((s) => Math.hypot(s.x, s.z) >= DRAGON_COUNTRY);
+    expect(near.length, 'this world has no near country to speak of').toBeGreaterThan(0);
+
+    const rolled = (where: typeof stops) => {
+      let dragons = 0;
+      for (const home of where) for (let era = 0; era < 40; era++) {
+        if (bandFor(5, stops, home, era).kind === 'dragon') dragons++;
+      }
+      return dragons;
+    };
+    expect(rolled(near), 'a dragon was put on the country a player starts in').toBe(0);
+    if (far.length > 0) expect(rolled(far), 'and none in the far country either').toBeGreaterThan(0);
   });
 
   it('is rare: most of what a country holds is something a player can beat', () => {

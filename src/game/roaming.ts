@@ -59,6 +59,22 @@ export { nameFor, warningFor, wayTo } from './roamwords';
  */
 const DRAGON_CIRCUIT = 440;
 
+/**
+ * How far from the middle of the world a dragon will be found, in tiles.
+ *
+ * Asked for, and rightly: a dragon over the village you started in is a world that kills you before
+ * you have a sword. The far country gets them and the near country does not, so the thing you hear
+ * about in a pub three villages away is a thing you go and find rather than a thing that arrives.
+ *
+ * Distance from the origin rather than a ring or a quadrant, and that is deliberate. The endless
+ * country rests on one rule — *a place's content is settled by a bounded neighbourhood, never by a
+ * traversal and never by how you got there* — and a ring numbered outward from the middle is the
+ * traversal that rule exists to forbid: where you are would depend on which edge you came out
+ * through. A radius is the same answer from every direction, needs nothing remembered, and two
+ * players a continent apart agree about it without a byte crossing.
+ */
+export const DRAGON_COUNTRY = 260;
+
 export const ROAM = {
   /** Near enough that saying which way it lies would be silly, in tiles. */
   NEARLY_THERE: 30,
@@ -280,12 +296,18 @@ export interface RoamingJson {
   era: Record<string, number>;
 }
 
-/** Which sort of band a roll makes, by how much of the country each sort is meant to have. */
-function sortOf(roll: number): BandKind {
+/**
+ * Which sort of band a roll makes, by how much of the country each sort is meant to have.
+ *
+ * `far` is whether this ground is out in the country rather than in the middle of the world. Only
+ * the far country keeps dragons; near the origin the roll that would have been one is a wolf pack
+ * instead, which is the commonest thing and the one a new player can beat.
+ */
+function sortOf(roll: number, far: boolean): BandKind {
   let seen = 0;
   for (const kind of Object.keys(ROAM.SORTS) as BandKind[]) {
     seen += ROAM.SORTS[kind].share;
-    if (roll < seen) return kind;
+    if (roll < seen) return kind === 'dragon' && !far ? 'wolf' : kind;
   }
   return 'wolf';
 }
@@ -308,7 +330,8 @@ export function bandFor(seed: number, stops: readonly Stop[], home: Stop, era: n
   // the ground's own name and nothing about where it fell in a list, so the pack at Stonemere is
   // the same pack whether Stonemere was the first place anybody looked at or the hundredth
   const rng = mulberry32(derive(seed, SALT.ROAM) ^ hashString(home.name) ^ Math.imul(era, 0x85eb));
-  const kind = sortOf(rng());
+  // where this band lives decides what it may be: the near country has no dragons in it
+  const kind = sortOf(rng(), Math.hypot(home.x, home.z) >= DRAGON_COUNTRY);
   const away = (s: Stop) => Math.hypot(s.x - home.x, s.z - home.z);
   // the round is drawn from what lies near home, and only falls back to the nearest places
   // anywhere when home is somewhere nothing else is: a band that could be summoned to the far

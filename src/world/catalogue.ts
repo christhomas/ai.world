@@ -162,6 +162,7 @@ export const CATALOGUE: readonly Catalogued[] = [
   { kind: PropKind.Campfire, name: 'campfire', group: 'wild' },
   { kind: PropKind.CaveMouth, name: 'cave mouth', group: 'wild' },
   { kind: PropKind.Shipwreck, name: 'shipwreck', group: 'wild' },
+  { kind: PropKind.Hulk, name: 'the hulk', group: 'wild' },
 ];
 
 /** The order the groups are shown in, and what to call each of them. */

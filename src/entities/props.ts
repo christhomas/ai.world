@@ -464,6 +464,31 @@ prop(PropKind.Shipwreck, [
   ico(0.3, 0, 0x8a8a8a, [2.2, 0.15, 0.7]),
 ]);
 
+/*
+ * The hulk: something that came down here, a long time before anybody was watching.
+ *
+ * It reads as wrong on purpose. Everything else in this country is timber, thatch, stone and
+ * canvas in the colours those come in; this is one smooth grey shell, a canopy the wrong colour for
+ * glass, and a light on it that has not gone out. Nothing else in the world is that shape, which is
+ * the whole of how a player knows to walk over and press Enter.
+ *
+ * Tilted, because it landed badly: the hull sits nose-down with one fin buried and the other still
+ * up, and the ground around it is scorched — `landmarks.ts` puts it on open ground for that reason,
+ * so the shape is not lost against a cliff.
+ */
+prop(PropKind.Hulk, [
+  box(4.6, 1.1, 2.4, 0x8f97a3, [0, 0.7, 0], [1, 1, 1], [0, 0, -0.14]),
+  box(2.6, 0.7, 1.9, 0x9aa3b0, [0.6, 1.35, 0], [1, 1, 1], [0, 0, -0.14]),
+  box(1.5, 0.45, 1.2, 0x2f5d6d, [1.1, 1.75, 0], [1, 1, 1], [0, 0, -0.14]),
+  box(2.2, 0.14, 0.9, 0x79818c, [-1.4, 0.9, 1.3], [1, 1, 1], [0.35, 0, -0.1]),
+  box(2.2, 0.14, 0.9, 0x79818c, [-1.4, 0.55, -1.3], [1, 1, 1], [-0.2, 0, -0.1]),
+  box(0.5, 1.3, 0.12, 0x6f7681, [-2.0, 1.2, 0], [1, 1, 1], [0, 0, -0.5]),
+  cyl(0.34, 0.34, 0.5, 8, 0x3a3f47, [-2.3, 0.7, 0], [1, 1, 1], [0, 0, 1.57]),
+  ico(0.18, 0, 0x7fe0c8, [1.9, 1.55, 0]),
+  ico(0.22, 0, 0x2a2a2a, [2.6, 0.2, 0.9]),
+  ico(0.18, 0, 0x2a2a2a, [-2.9, 0.16, -0.7]),
+]);
+
 // three stages of growth, shown on any planted square
 prop(PropKind.Seedling, [
   box(0.9, 0.06, 0.9, 0x6b4a2b, [0, 0.03, 0]),

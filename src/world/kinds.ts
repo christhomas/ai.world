@@ -45,4 +45,12 @@ export const enum StructureKind {
   CastleTower = 23,
   CastleGate = 24,
   CastleKeep = 25,
+  /**
+   * The thing in the crater: a craft that came down here a long time before anybody was watching.
+   *
+   * One to a world, on ordinary open ground well away from the villages — which is most of what
+   * makes it findable rather than given. See `landmarks.ts` for where it lands and `game/craft.ts`
+   * for what it is like to fly.
+   */
+  Hulk = 26,
 }
