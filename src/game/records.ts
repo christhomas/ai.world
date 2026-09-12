@@ -246,10 +246,19 @@ function lineFor(row: RollRow): string {
   const kin = row.mother || row.father
     ? ` Child of ${[row.mother, row.father].filter(Boolean).join(' and ')}.`
     : '';
-  // what comes in against what the whole day takes out, keep and dinner together, because the
-  // difference between those two numbers is the only thing anybody reading this wants to know
+  /*
+   * What comes in against what the whole day takes out, keep and dinner together, because the
+   * difference between those two numbers is the only thing anybody reading this wants to know.
+   *
+   * Both rounded, which they were not: a clerk was reading out *"Takes 2.5483870967741935 a day,
+   * and a day costs 1"* — half of one sentence to the tenth and the other half to seventeen decimal
+   * places, because the row behind it is deliberately unrounded and only one of the two numbers
+   * remembered to say so. The row is right to keep its pennies (`chore economy` adds a hundred days
+   * of them to the coin); the sentence a person reads is where they are spent.
+   */
+  const aDay = (much: number): number => Math.round(much * 10) / 10;
   const living = row.trade
-    ? ` Takes ${row.earns} a day, and a day costs ${Math.round((row.spends + row.food) * 10) / 10}.`
+    ? ` Takes ${aDay(row.earns)} a day, and a day costs ${aDay(row.spends + row.food)}.`
     : '';
   const known = row.knows > 0 ? ` Knows ${row.knows}.` : ' Keeps to themselves.';
   const going = row.hungry > 0 ? ` Has not eaten in ${row.hungry} days.` : '';

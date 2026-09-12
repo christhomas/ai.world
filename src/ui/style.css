@@ -1,3 +1,73 @@
+/* ------------------------------------------------------------------------
+   Themes: five tokens, one layout
+
+   A theme may change **only five things** — surface, rule, ink, accent,
+   action — plus the pair of faces it is set in. Position, size, spacing and
+   every hit target are identical across all four, which is not a stylistic
+   preference but the property that makes a theme cheap: *a new theme cannot
+   break a screen and needs no re-test.* The moment a theme is allowed to move
+   something, every theme becomes a layout and four themes become four
+   interfaces to check.
+
+   Written as tokens rather than as four stylesheets for the same reason, and
+   because the phone build reads the same five: whatever draws this interface
+   next — a browser, or Flutter over a GL surface — is reading one table.
+
+   Stone is the default because it is the one that reads over a sunlit field
+   *and* a cave floor, which is the whole problem this game's HUD has.
+   ------------------------------------------------------------------------ */
+:root,
+:root[data-theme='stone'] {
+  --theme-surface: rgba(6, 9, 22, 0.72);
+  --theme-rule: rgba(214, 221, 255, 0.14);
+  --theme-ink: #eef2ff;
+  --theme-dim: #7f8bb3;
+  --theme-accent: #ffd76a;
+  --theme-action: rgba(150, 140, 255, 0.62);
+  --theme-page: #f6efdc;                       /* the book's paper, which is not the glass */
+  --theme-display: 'Space Grotesk', system-ui, sans-serif;
+  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* Paper, for somebody reading in daylight rather than playing in a cave. */
+:root[data-theme='vellum'] {
+  --theme-surface: #f6efdc;
+  --theme-rule: #8a6a3d;
+  --theme-ink: #2a2418;
+  --theme-dim: #8a7a5a;
+  --theme-accent: #8a6a3d;
+  --theme-action: #8a2a14;
+  --theme-page: #f6efdc;
+  --theme-display: 'EB Garamond', Georgia, serif;
+  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* Cold and instrumental: the readings first, the country second. */
+:root[data-theme='steel'] {
+  --theme-surface: #1b2230;
+  --theme-rule: #4d5a6d;
+  --theme-ink: #e8eef7;
+  --theme-dim: #8a97a8;
+  --theme-accent: #2f6fd0;
+  --theme-action: #c2352a;
+  --theme-page: #151b26;
+  --theme-display: 'Barlow Condensed', system-ui, sans-serif;
+  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* Almost nothing: a hairline and white ink, for somebody who wants the picture. */
+:root[data-theme='hairline'] {
+  --theme-surface: rgba(4, 6, 10, 0.66);
+  --theme-rule: rgba(255, 255, 255, 0.5);
+  --theme-ink: #ffffff;
+  --theme-dim: rgba(255, 255, 255, 0.7);
+  --theme-accent: #ffffff;
+  --theme-action: #ffffff;
+  --theme-page: #f7f6f2;
+  --theme-display: 'IBM Plex Mono', ui-monospace, monospace;
+  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
   /*
@@ -31,10 +101,10 @@
    * eight things that happened to be added on eight different days. Dark enough in the middle to
    * read a pale glyph on over a sunlit field, pale enough at the rim to find over a cave floor.
    */
-  --ui-glass: rgba(10, 13, 28, 0.62);
-  --ui-glass-lit: rgba(150, 140, 255, 0.62);   /* the same control, with a thumb on it */
-  --ui-rim: rgba(214, 221, 255, 0.34);
-  --ui-ink: #eef2ff;
+  --ui-glass: var(--theme-surface);
+  --ui-glass-lit: var(--theme-action);         /* the same control, with a thumb on it */
+  --ui-rim: var(--theme-rule);
+  --ui-ink: var(--theme-ink);
   /* lifts the glass off whatever it is lying on. In HUD units like everything else: a two-pixel
      shadow under a button that has grown to 144px is a shadow nobody can see. */
   --ui-lift: 0 calc(2 * var(--ui-scale)) calc(10 * var(--ui-scale)) rgba(0, 0, 0, 0.45);

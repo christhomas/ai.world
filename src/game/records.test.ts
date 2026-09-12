@@ -91,3 +91,21 @@ describe('the books a village keeps', () => {
     expect(births.rows.every((row) => row.lives > 0), 'the books have the dead down as living').toBe(true);
   });
 });
+
+describe('what a clerk reads out', () => {
+  /*
+   * Found by standing at a clerk's counter and reading the screen: *"Takes 2.5483870967741935 a
+   * day, and a day costs 1."* Half of one sentence to the tenth and the other half to seventeen
+   * decimal places, because the row behind it is deliberately unrounded — `chore economy` adds a
+   * hundred days of pennies to the coin and cannot do that against a rounded ledger — and only one
+   * of the two numbers in the sentence remembered that a person was going to read it.
+   */
+  it('rounds every number in the sentence, not merely the last one', () => {
+    const register = new Register(5, 30);
+    register.settle('Testing', 9, ['farmer', 'seller', 'hunter']);
+    register.advance(60);
+    const roll = theRoll(register, 'Testing', 60);
+    const said = roll.detail.join(" ");
+    expect(said, 'a clerk read out a wage to seventeen decimal places').not.toMatch(/\d\.\d{3,}/);
+  });
+});

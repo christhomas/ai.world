@@ -55,6 +55,13 @@ export interface ReadoutContext {
   companyMarkers: () => MapMarker[];
   /** Whether the fog of war still covers the map. */
   fogged: () => boolean;
+  /**
+   * What a village has grown into, which is a thing a player standing in one should be able to see.
+   *
+   * Handed in rather than reached for, because a readout has no business holding the register: it
+   * is asking a question about the place under the hero, and the answer is one word.
+   */
+  rankOf: (village: string) => string;
   /** Where the camera is looking, which is what the area name follows. */
   cameraTarget: () => { x: number; z: number };
   /**
@@ -85,6 +92,7 @@ export function createReadouts(ctx: ReadoutContext) {
   const {
     player, state, structures, around, sampler, discovered, questList, ferries, sailing, places,
     rucksack, hud, clock, compass: compassBar, companyMarkers, fogged, cameraTarget, discover, bound,
+    rankOf,
   } = ctx;
   let areaLabel = 'The Crossroads';
 
@@ -163,7 +171,22 @@ export function createReadouts(ctx: ReadoutContext) {
     // `VILLAGE_REACH` is the widest a village ever gets, so a village he is standing in cannot be
     // outside it. `pois` above is still the whole list on purpose — see the note on it below.
     const v = villageAt(around.villages(player.x, player.z, VILLAGE_REACH), player.x, player.z);
-    if (v) return v.name;
+    /*
+     * And what it has become, when it has become anything.
+     *
+     * Found by walking one: a village went from thirty-one souls to ninety-three over two hundred
+     * days, and a player standing in the square could not tell. `rankOf` had exactly two callers in
+     * the whole game and both of them were the raiding bands — so the one thing that knew a village
+     * had grown into a town was the thing that came to burn it.
+     *
+     * A hamlet is not labelled, because a hamlet is what a place is when nothing has happened to it
+     * and a name that says so on every quiet village in the country would be noise. What is worth
+     * saying is that this one is *more* than that.
+     */
+    if (v) {
+      const grown = rankOf(v.name);
+      return grown === 'hamlet' || grown === 'village' ? v.name : `${v.name}, a ${grown}`;
+    }
     const target = cameraTarget();
     const p = sampler.probe(target.x, target.z);
     return p.hub ? HUB_NAME : p.land ? BIOMES[p.biome].name : SEA_NAME;

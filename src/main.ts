@@ -542,11 +542,8 @@ export function startGame(
     hideChat: () => chat.hide(),
     flash: (message) => hud.flash(message),
   });
-  /**
-   * How hard the world is currently looking for the player. A fight, a band on the road and a
-   * scheme in a village all report to it, and everything that stands something up in the world
-   * asks it how far to look — so it is built before any of them.
-   */
+  // how hard the world is looking for the player: fights, bands and schemes all report to it, and
+  // everything that stands something up asks it how far to look, so it is built before any of them
   const director = new Director();
 
   const blows = createBlows({
@@ -607,6 +604,7 @@ export function startGame(
     bound,
     companyMarkers: multiplayer.markers,
     fogged: () => !state.can('map'),
+    rankOf: (village) => register.rankOf(village),
     cameraTarget: () => iso.target,
     discover,
   });

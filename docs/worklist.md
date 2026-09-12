@@ -5016,3 +5016,31 @@ than by remembering — and the first thing found was that the gap is not where 
 
       And a note worth keeping: `architecture.test.ts` counts one line more than `wc -l` does, so the
       real ceiling is 699.
+
+- [~] **78. A village grows only in its books.** *Found on the 13th by walking one, and it is the
+      third of the kind.* Crossroads Town went from **31 souls to 93** over two hundred days with the
+      **same ten roofs, the same thirteen doors and the same name over the square**. The population
+      tripled and nothing was built that a player can walk up to.
+
+      Checked rather than guessed. `Settlement.works` — the ledger of every roof, well and hall a
+      village buys out of its own purse — is read by `births.ts`, `holdings.ts` and the register, and
+      by **no drawing code, no structure generation and no UI**. The houses that are drawn come from
+      the seed's `structures.villages[].houses`, fixed at ten, and nothing ever appends to it. And
+      `register.rankOf` had exactly **two callers in the whole game**, both of them the raiding bands
+      — so *the one thing that knew a village had become a town was the thing that came to burn it.*
+
+      **Half fixed.** A player standing in a village that has grown now reads *"Crossroads Town, a
+      town"* — a hamlet and a village are left unlabelled, because that is what a place is when
+      nothing has happened to it and saying so everywhere would be noise.
+
+      **The other half is the real work**, and it is the one already argued for in item **25**: a
+      player's own commissions are drawn by `BuildingSite` from the commission list rather than from
+      the world's structures, *precisely because they were not there when the terrain was generated*.
+      A village's raised roofs are the same object on the same plot rules, and the day they go
+      through that path is the day a valley you walked out of two seasons ago looks different when
+      you come back.
+
+      One thing flagged and not chased: `sampler.storeys` did move from 1 to 2 over those days, which
+      is the one growth mechanism that *is* wired to the drawing — but the scene gained 88 triangles,
+      and five houses gaining a storey is not 88 triangles. Either the taller houses were outside the
+      frame or the chunks were never rebuilt after the value changed.
