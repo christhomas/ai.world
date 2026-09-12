@@ -3544,7 +3544,40 @@ simulation rather than any one feature in it.
       whether they are still there. A model that cannot hold what it was handed has failed before
       any question about expansion is worth asking.
 
-- [ ] **44. Houses are the cap, and tax is how a village lifts it.** The loop that makes the whole
+- [x] **44. Houses are the cap, and tax is how a village lifts it.** *Done on the 12th, and the loop
+      turns.* `world/growth.ts`: a village's ceiling stops meaning "the size it happened to be
+      founded at" and becomes "what its roofs hold", rising by a houseful the morning a house goes
+      up and on no other occasion. A village with a spare bed does not build — it fills the bed —
+      which is what makes this a growth loop rather than a building spree: the pace is set by how
+      fast a village *fills*, not by how rich it is. It stops when the ground runs out, keeps back
+      the watchman's day, and raises nothing at all if nobody there holds a trade.
+
+      Every number is derived. A house holds four, which is what `foundVillage` puts under one roof.
+      A house costs 432 gold — a crew, for as long as a house takes, at a builder's day rate — and
+      the striking part is that `game/building.ts` charges the *player* 420 for the same job, having
+      arrived there years earlier on completely different reasoning. Two price systems that cannot
+      see each other agreeing to within three per cent is the best evidence available that either is
+      right. And it is cheaper than the cheapest thing on the hall's wish list, deliberately: a
+      village that had to find 900 for a well before it could house anybody would dig the well, add
+      a storey to every roof and build a bath house while its people slept four to a room.
+
+      The ground brake needed no new machinery. `structures.ts` lays a village out by trying eighty
+      plots and keeping what fits, so a valley village comes out with three houses and a plain one
+      with six — that founding count *is* the ground's verdict, and reading it back is why two
+      villages in one world end up with different destinies without a rule anywhere saying so.
+
+      Two things the benches found within minutes of it being wired in. A village will not add
+      mouths it cannot feed: growth is conditional on the cellar, because without that four villages
+      grew and then starved themselves out of existence in a hundred days. And the audit's own floor
+      was wrong in a way only growth exposed — it assumed a dead villager had paid yesterday's tax
+      twice, when a purse that jumps overnight (an inheritance) pays four times as much the
+      following morning. Both are now written down where they happened.
+
+      What it comes to, at day 450: Ashford 19 → 43, Oakcross 26 → 62, Saltcombe 16 → 20. Every one
+      exactly full, every trade still held, none emptied. Saltcombe is small because its coast ran
+      out of ground, which is the point.
+
+      The original note: The loop that makes the whole
       thing drive itself, and every piece of it exists except the joins:
 
       1. `register.ts` will not let a village grow past the size it was founded at — births only

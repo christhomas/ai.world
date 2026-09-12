@@ -80,7 +80,9 @@ describe('a village that has been saving', () => {
     register.advance(400);
     const works = register.worksOf('Testing');
     expect(works.length, 'four hundred days of taxes and the hall never bought anything').toBeGreaterThan(0);
-    expect(works[0]).toBe(WORKS[0].id);
+    // the houses a growing village raises go into the same list — see `growth.ts` — and they are
+    // not on the hall's wish list at all: a roof is a need and this is the order the wants come in
+    expect(works.filter((work) => work !== 'house')[0]).toBe(WORKS[0].id);
   });
 });
 

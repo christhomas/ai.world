@@ -1,6 +1,8 @@
 import { PROSPER } from './prosperity';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
-import { taxedForTheHall, whatTheHallSpends } from './hall';
+import { taxedForTheHall } from './hall';
+import { Pressings } from './pressing';
+import { whatTheVillageSpends } from './growth';
 import type { Burial, Change, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
 import { mulberry32 } from '../core/rng';
@@ -31,52 +33,17 @@ export type { Burial, Change, Settlement } from './settlement';
 
 export class Register {
   private readonly villages = new Map<string, Settlement>();
-  /**
-   * How hard each village is being leaned on, nought to one, as roaming.ts reckons it — and the
-   * day somebody said so, which is the whole of what makes it safe to keep.
-   *
-   * Told rather than worked out: what a warband is doing is the game's business and this only
-   * keeps the register. It matters here because nobody trades while their neighbours are being
-   * buried, which is what makes a village's prosperity something the player can protect.
-   *
-   * Dated, because nothing in this world ever says a band has *gone*. `roaming.pressings` hands
-   * back the villages a band is standing over and says nothing whatever about the rest, so an
-   * undated pressing is one that never lifts. `chore test economy` found what that cost: one
-   * morning's band over Thornby, and the place was empty by the fiftieth day with twenty-one of
-   * its twenty-seven stones reading starved — nobody had earned or farmed a thing since, because
-   * the register still believed the band was standing there. Worse, `settle` relives a village
-   * from its founding, so walking into a village a band happened to be near meant re-living all
-   * forty of its days under today's siege: sixteen graves and nobody alive, on arrival.
-   *
-   * So a pressing is about one day — the day after it was told, which is the next one the
-   * register will live — and has to be said again tomorrow. The game says it every frame, so a
-   * band that is still there presses again in the morning and one that has moved on stops
-   * mattering without anybody having to notice that it left.
-   */
-  private readonly pressure = new Map<string, { pressure: number; told: number }>();
+  /** What is standing over each village today, which is the one thing here that comes from outside. */
+  private readonly pressure = new Pressings();
 
   /** Somebody has looked at what the bands are doing, and this is what stands over here today. */
   leanedOn(village: string, pressure: number): void {
-    this.pressure.set(village, { pressure, told: this.day });
+    this.pressure.leanedOn(village, pressure, this.day);
   }
 
-  /**
-   * How hard a village is being leaned on now, for whoever is writing its books.
-   *
-   * "Now" is the day the register is about to live, because that is the day the answer changes
-   * anything: a pressing that has already been spent on a day gone by is history, and the roll
-   * would be quoting a wage nobody is going to be paid. The game re-tells this every frame, so
-   * the counter always has today's news in front of it.
-   */
+  /** How hard a village is being leaned on today. See `Pressings`. */
   pressureOn(village: string): number {
-    const told = this.pressure.get(village);
-    return told !== undefined && told.told === this.day ? told.pressure : 0;
-  }
-
-  /** And what it comes to on one particular day, which is the only day it was ever about. */
-  private pressingOn(village: string, day: number): number {
-    const told = this.pressure.get(village);
-    return told !== undefined && told.told + 1 === day ? told.pressure : 0;
+    return this.pressure.now(village, this.day);
   }
 
   /**
@@ -429,15 +396,22 @@ export class Register {
   watchOf(village: string): string { return this.villages.get(village)?.watch ?? ''; }
 
   /**
-   * The village spends what it has raised.
+   * How many people this village has room for, which is what its roofs hold.
    *
-   * One thing a day at most, cheapest first, and only what it can pay for outright — a village does
-   * not borrow. The money does not leave the world: it goes back to the people who do the work,
-   * shared among whoever holds a trade, which is the same shape as every other village-wide payment
-   * here. There is no builder on the register yet; when there is, he is paid instead of the village.
+   * It was the size it happened to be founded at, for as long as a village could only shrink. A
+   * village that builds houses raises its own ceiling — see `growth.ts` — so this is the number that
+   * says how big it is allowed to get, and it moves.
+   */
+  roomIn(village: string): number { return this.villages.get(village)?.founded ?? 0; }
+
+  /**
+   * The village spends what it has raised: a roof, a wage, or something it merely wants.
    *
-   * This is what stops the treasury being a hole that money falls into. `chore sanity` measured the
-   * hole at sixty-two per cent of all the money in the world.
+   * One thing a day at most and only what it can pay for outright, because a village does not
+   * borrow. The money never leaves the world — it goes back to whoever holds a trade, the shape
+   * every village-wide payment here takes — and that is what stops the treasury being a hole money
+   * falls into, which `chore sanity` once measured at sixty-two per cent of all the coin there is.
+   * The order and the reasoning are in `growth.ts` and `hall.ts`; this only applies the answer.
    */
   private build(village: Settlement): void {
     // nought for everybody here first, and only for the people of *this* village: it cleared the
@@ -445,13 +419,18 @@ export class Register {
     // morning. The audit caught it as twenty-six people getting nine hundred gold between them
     // with nothing in any book to explain it
     for (const person of village.people) this.earned.set(person.id, 0);
-    // the wage on the tower and whatever is built, in the order a village would do them: see
-    // `whatTheHallSpends`, which is where the argument about which comes first is written down
-    const spending = whatTheHallSpends(village.purse, village.works, village.people);
+    // the house it needs, the wage on the tower and whatever it wants, in the order a village would
+    // do them: see `whatTheVillageSpends`, where the argument about which comes first is written
+    // down. A roof before a well, because a village houses its people before it pleases them
+    const spending = whatTheVillageSpends(
+      village.purse, village.works, village.houses, village.founded, village.people, village.food);
     village.watch = spending.watch;
     if (spending.spent === 0) return;
     village.purse = Math.round((village.purse - spending.spent) * 100) / 100;
-    if (spending.work) village.works.push(spending.work);
+    village.works.push(...spending.works);
+    // a raised roof is a raised ceiling: what the village can hold is what its houses hold, and
+    // this is the one line that lets a village become bigger than it was founded. See `growth.ts`
+    village.founded += spending.holdsMore;
     this.pay(village, spending.wages);
     for (const [id, much] of spending.wages) this.earned.set(id, much);
   }
@@ -468,7 +447,7 @@ export class Register {
   private liveADay(name: string, village: Settlement, day: number): Change[] {
     // one pressing, read once, and handed to both the halves of the day it changes: what a village
     // earns and what it grows. Read twice out of a map, they could disagree with each other
-    const pressure = this.pressingOn(name, day);
+    const pressure = this.pressure.on(name, day);
     const work = this.trade(village, pressure);
     const changes = [
       ...this.buryTheOld(village, day),

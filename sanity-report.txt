@@ -1,4 +1,4 @@
-SANITY BENCH — PASS — 2026-09-12T20:15:24.237Z
+SANITY BENCH — PASS — 2026-09-12T21:09:24.320Z
 
   6 villages on 3 seeds, 450 days each — five or six generations, which is
   long enough for drift to show. Nothing here is added up: the audit in economy-report.txt does that,
@@ -7,67 +7,65 @@ SANITY BENCH — PASS — 2026-09-12T20:15:24.237Z
 
   PASS          18  villages lived from founding to day 450, and whether anybody is still in them
                     every one of them still standing, and none of them emptied on the way
-  PASS           9  untroubled villages inside 0.5× to 1.5× the size they were founded at
-                    Ashford (seed 1): founded 19, 18 at day 450
-                    Oakcross (seed 1): founded 26, 26 at day 450
-                    Saltcombe (seed 1): founded 16, 16 at day 450
-                    Ashford (seed 7): founded 16, 16 at day 450
-                    Oakcross (seed 7): founded 25, 25 at day 450
-                    Saltcombe (seed 7): founded 12, 12 at day 450
-                    Ashford (seed 1234): founded 19, 19 at day 450
-                    Oakcross (seed 1234): founded 23, 23 at day 450
-                    Saltcombe (seed 1234): founded 16, 16 at day 450
+  PASS           9  untroubled villages inside the beds they have built, and at least 0.5× full
+                    Ashford (seed 1): founded 19, 43 in 43 beds at day 450
+                    Oakcross (seed 1): founded 26, 62 in 62 beds at day 450
+                    Saltcombe (seed 1): founded 16, 20 in 20 beds at day 450
+                    Ashford (seed 7): founded 16, 40 in 40 beds at day 450
+                    Oakcross (seed 7): founded 25, 61 in 61 beds at day 450
+                    Saltcombe (seed 7): founded 12, 16 in 16 beds at day 450
+                    Ashford (seed 1234): founded 19, 43 in 43 beds at day 450
+                    Oakcross (seed 1234): founded 23, 59 in 59 beds at day 450
+                    Saltcombe (seed 1234): founded 16, 20 in 20 beds at day 450
   PASS          18  villages still holding at least half the trades their place supports, at day 450
-                    Ashford (seed 1): 6 of 10 — constable, farmer, hunter, innkeeper, miner, seller
+                    Ashford (seed 1): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
                     Oakcross (seed 1): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
-                    Thornby (seed 1): 9 of 10 — climber, constable, doctor, explorer, farmer, hunter, miner, seller, soldier
-                    Blackmarsh (seed 1): 8 of 10 — constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller
-                    Fernreach (seed 1): 8 of 10 — climber, constable, doctor, explorer, farmer, hunter, seller, soldier
+                    Thornby (seed 1): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
+                    Blackmarsh (seed 1): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
+                    Fernreach (seed 1): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
                     Saltcombe (seed 1): 6 of 6 — constable, doctor, explorer, innkeeper, sailor, seller
-                    Ashford (seed 7): 8 of 10 — doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
+                    Ashford (seed 7): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
                     Oakcross (seed 7): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
-                    Thornby (seed 7): 8 of 10 — climber, constable, doctor, farmer, hunter, innkeeper, miner, seller
+                    Thornby (seed 7): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
                     Blackmarsh (seed 7): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
-                    Fernreach (seed 7): 8 of 10 — constable, explorer, farmer, hunter, innkeeper, miner, seller, soldier
+                    Fernreach (seed 7): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
                     Saltcombe (seed 7): 6 of 6 — constable, doctor, explorer, innkeeper, sailor, seller
                     Ashford (seed 1234): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
                     Oakcross (seed 1234): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
                     Thornby (seed 1234): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
-                    Blackmarsh (seed 1234): 8 of 10 — climber, constable, explorer, farmer, hunter, miner, seller, soldier
-                    Fernreach (seed 1234): 9 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, soldier
-                    Saltcombe (seed 1234): 5 of 6 — constable, doctor, innkeeper, sailor, seller
+                    Blackmarsh (seed 1234): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
+                    Fernreach (seed 1234): 10 of 10 — climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier
+                    Saltcombe (seed 1234): 6 of 6 — constable, doctor, explorer, innkeeper, sailor, seller
   PASS          15  villages with fields that still have somebody farming them
                     every field in the world has a farmer on it
   PASS          18  villages whose herd stayed inside what their farmers could keep
                     no village ran a herd it had nobody to keep for more than 35 days
   PASS          18  villages that never held more meals than 12 days a head for longer than a funeral takes
                     nothing anywhere banked a year of dinners
-  NOTE           8  villages where one purse holds more than 50% of everything in the place
-                    Ashford (seed 1): one purse holds 51% of 7810.59
-                    Oakcross (seed 1): one purse holds 83% of 4804.63
-                    Thornby (seed 1): one purse holds 50% of 7883.44
-                    Fernreach (seed 7): one purse holds 70% of 5613.73
-                    Saltcombe (seed 7): one purse holds 90% of 4282.06
-                    Ashford (seed 1234): one purse holds 74% of 5348.12
-                    Blackmarsh (seed 1234): one purse holds 87% of 4550.2
-                    Fernreach (seed 1234): one purse holds 91% of 4410.69
+  NOTE           6  villages where one purse holds more than 50% of everything in the place
+                    Blackmarsh (seed 1): one purse holds 69% of 5774.94
+                    Saltcombe (seed 1): one purse holds 55% of 7211.97
+                    Ashford (seed 7): one purse holds 59% of 6769.05
+                    Thornby (seed 7): one purse holds 61% of 6526.09
+                    Saltcombe (seed 7): one purse holds 53% of 7286.51
+                    Saltcombe (seed 1234): one purse holds 75% of 5298.98
                     Somebody has to be the richest, so this is not a fault on its own. It is the shape a village
                     takes when the money has stopped moving: nothing a villager can buy costs what they have.
-  PASS       58631  gold sitting in halls nobody can spend from — 30% of every coin in the world
-                    seed 1: 18592.16 in the halls against 46210.83 in the purses — 29% of it banked
-                    seed 7: 22016.69 in the halls against 48836.51 in the purses — 31% of it banked
-                    seed 1234: 18022.05 in the halls against 40242.37 in the purses — 31% of it banked
+  PASS       67348  gold sitting in halls nobody can spend from — 26% of every coin in the world
+                    seed 1: 21065.18 in the halls against 59409.51 in the purses — 26% of it banked
+                    seed 7: 23226.46 in the halls against 58592.78 in the purses — 28% of it banked
+                    seed 1234: 23055.99 in the halls against 69555.99 in the purses — 25% of it banked
                     A hall is the one place a coin goes and does not come back: a purse buys dinner and is inherited,
                     and a treasury is spent on nothing at all until somebody votes to build something. Anything over
                     34% says the spending half is overdue rather than that the tax is wrong.
   PASS          18  villages that held 3950 between them at some point, and 18 that stood 210 a head
-                    Ashford (seed 1): a bath house from day 105
-                    Oakcross (seed 1): a bath house from day 92
-                    Thornby (seed 1): a bath house from day 121
-                    Blackmarsh (seed 1): a bath house from day 278
+                    Ashford (seed 1): a bath house from day 106
+                    Oakcross (seed 1): a bath house from day 69
+                    Thornby (seed 1): a bath house from day 124
+                    Blackmarsh (seed 1): a bath house from day 201
                     Fernreach (seed 1): a bath house from day 103
-                    Saltcombe (seed 1): a bath house from day 126
-                    Ashford (seed 7): a bath house from day 121
-                    Oakcross (seed 7): a bath house from day 109
+                    Saltcombe (seed 1): a bath house from day 125
+                    Ashford (seed 7): a bath house from day 120
+                    Oakcross (seed 7): a bath house from day 68
 
   Written by src/game/sanity.test.ts to sanity-report.txt. Run it again with: chore sanity

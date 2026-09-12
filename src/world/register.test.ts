@@ -122,7 +122,16 @@ describe('the village register', () => {
     register.advance(400);                        // several lifetimes
     const now = register.living('Ashford').length;
     expect(now).toBeGreaterThan(founded / 2);
-    expect(now).toBeLessThanOrEqual(founded);
+    /*
+     * Held to the room it has rather than to the size it was founded at.
+     *
+     * Those were the same number for as long as a village could only shrink. A village that builds
+     * houses raises its own ceiling, so the bound that matters is the one that was always meant:
+     * a village never holds more people than it has beds for.
+     */
+    expect(now).toBeLessThanOrEqual(register.roomIn('Ashford'));
+    expect(register.roomIn('Ashford'), 'four hundred days and it never raised a roof')
+      .toBeGreaterThan(founded);
   });
 
   it('replaces people killed by wolves faster than it replaces nobody', () => {
@@ -261,7 +270,10 @@ describe('the village register', () => {
     const founded = settle(register).length;
 
     register.advance(1000);                       // a dozen generations
-    expect(register.save()['Ashford'].length).toBeLessThanOrEqual(founded);
+    // against the room it has built itself, which is the ceiling now: what this is watching for is
+    // a book that keeps the dead as well as the living, and that would run to thousands
+    expect(register.save()['Ashford'].length).toBeLessThanOrEqual(register.roomIn('Ashford'));
+    expect(register.roomIn('Ashford')).toBeLessThan(founded * 4);
   });
 
   it('carries a death across to a player who was not there to see it', () => {

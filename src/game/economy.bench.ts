@@ -174,6 +174,15 @@ export interface Standing {
   hall: number;
   /** Souls on the roll that evening, children counted. */
   souls: number;
+  /**
+   * How many the village had beds for that evening, which is what its roofs hold.
+   *
+   * It was the founding size for as long as a village could only shrink, and it is not any more:
+   * a village that raises a house raises its own ceiling. Recorded beside the souls because the
+   * question the sanity bench asks — is this village a believable size — became a question about
+   * the two together the morning growth went in.
+   */
+  room: number;
   /** How many of them held a trade, which is how many of them the village lives off. */
   working: number;
 }
@@ -299,6 +308,7 @@ function stood(register: Register, village: string, day: number): Standing {
     food: register.larderOf(village),
     hall: register.hallOf(village),
     souls: here.length,
+    room: register.roomIn(village),
     working: here.filter((p) => p.trade !== '').length,
   };
 }

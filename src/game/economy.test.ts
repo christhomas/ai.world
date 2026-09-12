@@ -1,6 +1,8 @@
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PROSPER } from '../world/prosperity';
+import { taxOn } from '../world/hall';
+import type { Person } from '../world/people';
 import {
   DAYS, FOUNDED, LEFT_ALONE, RUNS, VILLAGES, at, coins, eachHead, midPurse, who, worth, type Books,
 } from './economy.bench';
@@ -219,17 +221,24 @@ describe('the coin in a village, against the books that village keeps', () => {
              * can account for.
              */
             /*
-             * And the hall's share, twice over.
+             * And the hall's share, twice over — but not the same share twice.
              *
              * What the hall takes leaves a purse and arrives in no other, so without it a tax reads
-             * as money buried with its owner — two hundred and fifty gold of it across this bench,
-             * the morning the tax went in. Twice because this row is last night's and there was a
-             * morning after it: the same reason the day's keep and the day's dinner are subtracted
-             * here. It is a floor rather than a reckoning, and a floor is allowed to be generous by
-             * a day of being alive.
+             * as money buried with its owner: two hundred and fifty gold of it across this bench,
+             * the morning the tax went in. It has to be counted twice because this row is last
+             * night's and there was a morning after it, the same reason the day's keep and the
+             * day's dinner are subtracted here.
+             *
+             * The second one is worked out rather than repeated, and that is not a refinement. A
+             * tax is a share of what somebody *holds*, so the morning after an inheritance takes
+             * far more than the morning before it did — and this bench found exactly that case: a
+             * hunter whose purse went from two hundred to eight hundred and fifty overnight, then
+             * died, having paid a tax four times the one written in her last row. Repeating last
+             * night's figure read the difference as a gold nobody could account for.
              */
-            const least = had.purse - had.spends - had.food - had.tax * 2;
+            const least = had.purse - had.spends - had.food - had.tax - taxOn({ purse: had.purse } as Person);
             if (stone.left + 1e-6 < least) { lost += least - stone.left; void village; }
+
           }
         }
       }

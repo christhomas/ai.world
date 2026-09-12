@@ -73,17 +73,21 @@ const report = (line: Line): void => {
  */
 const DAYS = 450;
 
+
+
 /**
- * How far a village's population may drift from what it was founded at before it is a finding.
+ * How empty a village may stand before it is a finding, as a share of the beds it has built.
  *
- * Both ends matter and for different reasons. A village down to half its founding size is emptying
- * — slowly, without a raid or a famine, which is the failure that would never show up in an audit.
- * The upper bound guards nothing today, because the register will not let a village grow past
- * `founded` at all; it is here for the day houses lift that ceiling, when a village doubling every
- * hundred days is precisely the thing nobody would notice until the valley was full.
+ * One end of what used to be a pair. The other was a ceiling on growth, and it retired the morning
+ * a village could raise its own roof: a place at twice its founding size has not drifted, it has
+ * grown, and the ceiling that matters now is the honest one — a village never holds more people
+ * than it has beds for, which the bench checks directly rather than as a multiple of anything.
+ *
+ * This end still matters, and for the reason it always did. A village at half the room it has built
+ * is emptying out slowly, without a raid or a famine to explain it, which is precisely the failure
+ * an audit of the books would never show.
  */
 const THIN = 0.5;
-const CROWDED = 1.5;
 
 /**
  * How many of the trades a place could support it must still hold.
@@ -215,24 +219,36 @@ describe('a world left to itself for four hundred and fifty days', () => {
     expect(gone, 'a village emptied itself over four hundred days with nothing done to it').toEqual([]);
   });
 
-  it('holds its population near the size it was founded at', () => {
+  it('holds its population to the beds it has, and fills most of them', () => {
+    /*
+     * This asked whether a village had stayed near the size it was founded at, which was the right
+     * question for as long as a village could only shrink. A village builds houses now, and a house
+     * raises the ceiling — so a place that has doubled has not drifted, it has grown, and judging it
+     * against its founding would be marking the feature down as a fault.
+     *
+     * What is still worth asking is the pair of questions underneath that one. A village must never
+     * hold more people than it has beds for, which would be the growth loop failing to keep up with
+     * its own births. And it must not be standing half empty, which is what a village looks like on
+     * its way out — the same `THIN` as before, against the room rather than the founding.
+     */
     const drifted: string[] = [];
     const detail: string[] = [];
     for (const run of RUNS) {
       for (const village of LEFT_ALONE) {
         const founded = run.founded.get(village)!;
-        const now = lastStanding(run, village).souls;
-        detail.push(`${at(run, village)}: founded ${founded}, ${now} at day ${DAYS}`);
-        if (now < founded * THIN || now > founded * CROWDED) drifted.push(`${at(run, village)}: ${founded} → ${now}`);
+        const { souls, room } = lastStanding(run, village);
+        detail.push(`${at(run, village)}: founded ${founded}, ${souls} in ${room} beds at day ${DAYS}`);
+        if (souls > room) drifted.push(`${at(run, village)}: ${souls} people in ${room} beds`);
+        if (souls < room * THIN) drifted.push(`${at(run, village)}: ${souls} people rattling around ${room} beds`);
       }
     }
     report({
       verdict: drifted.length === 0 ? 'PASS' : 'FAIL',
       count: RUNS.length * LEFT_ALONE.length,
-      what: `untroubled villages inside ${THIN}× to ${CROWDED}× the size they were founded at`,
+      what: `untroubled villages inside the beds they have built, and at least ${THIN}× full`,
       detail: drifted.length === 0 ? detail : drifted,
     });
-    expect(drifted, 'a village drifted away from the size it was founded at').toEqual([]);
+    expect(drifted, 'a village is overflowing its houses or rattling around in them').toEqual([]);
   });
 });
 

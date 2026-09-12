@@ -103,8 +103,26 @@ export interface Settlement {
   herd: number;
   /** The day the last of them died, for a place that has been emptied. */
   emptied?: number;
-  /** The size it was founded at. Births aim to hold it near this. */
+  /**
+   * How many people the village's roofs hold. Births aim to hold it near this.
+   *
+   * It used to mean the size it happened to be founded at, full stop, and that was the whole of why
+   * no village in this world could ever get bigger: births backfilled the dead against a ceiling
+   * nothing could lift. It is made of houses now — a house holds a household, so the ceiling rises
+   * by a houseful the morning a house is raised and on no other occasion. See `growth.ts`.
+   */
   founded: number;
+  /**
+   * How many houses the village was laid out with, which is the ground's own verdict on the site.
+   *
+   * Emphatically the *founding* count and not the number standing today: `structures.ts` decides it
+   * by trying eighty plots and keeping whatever the footprint check will have, so a village in a
+   * narrow valley comes out with three and one on a plain with six, and `roomFor` reads that back
+   * to say how much room there is to grow into. Houses raised since are counted out of `works`,
+   * where they are replayed like everything else a village has paid for — a village is founded on
+   * day one and lived forward to today, so anything stored about a grown one is a thing the
+   * re-living would have to reproduce exactly, and a number that never changes cannot drift.
+   */
   houses: number;
   trades: string[];
   /** Who has been buried here, newest last. */
@@ -116,6 +134,11 @@ export interface Settlement {
    * evening — so a village that had a hard winter lost its second storey, which is not a thing that
    * happens to a building. These are bought out of the hall, they stay bought, and the money goes
    * back into the village that raised it.
+   *
+   * Houses are in here too, one entry each, and they are the one sort of entry that repeats: a
+   * village digs one well and raises as many roofs as it has ground for. `housesStanding` counts
+   * them, which is how a grown village knows how big it is without keeping a second number that
+   * could disagree with this one.
    */
   works: string[];
 }
