@@ -612,7 +612,7 @@ describe('what a village does with what it has put by', () => {
     }
 
     report({
-      verdict: wrong.length === 0 && storeys.length > 0 && luxuries.length > 0 ? 'PASS' : 'FAIL',
+      verdict: wrong.length === 0 && storeys.length > 0 ? 'PASS' : 'FAIL',
       count: storeys.length,
       what: `villages that raised a second storey out of their own purses, and ${luxuries.length} that raised a bath house`,
       detail: wrong.length > 0 ? wrong : built
@@ -629,7 +629,19 @@ describe('what a village does with what it has put by', () => {
 
     expect(wrong, 'a village was rich the week it was founded').toEqual([]);
     expect(storeys.length, 'a hundred days and not one village put a storey on a house').toBeGreaterThan(2);
-    expect(luxuries.length, 'nothing a village earns is ever enough to build anything with').toBeGreaterThan(0);
+    /*
+     * A bath house is not asked of a hundred days any more, and the reason is worth keeping.
+     *
+     * Exactly one village in twenty-one ever managed one here, and `chore sanity` found out what
+     * had been paying for it: a herd over its cap used to come down by sixteen hundredths of a
+     * percent a day, so a village that had buried two of its three farmers went on selling beasts
+     * nobody was keeping for the rest of the century. With that fixed, nothing affords the most
+     * expensive thing a village can buy inside one generation — which is the right answer rather
+     * than a regression. A hundred days is one generation and this bench audits a generation's
+     * books; whether a village ever *grows* is a question for four hundred and fifty days, and
+     * `sanity.test.ts` asks it there.
+     */
+    expect(luxuries.length, 'a village afforded a bath house in a hundred days: the herd is paying too well again').toBe(0);
     // and it must stay rare: a bath house in every village is a bath house worth nothing
     expect(luxuries.length, 'every village in the country has a bath house').toBeLessThan(built.length / 2);
   });

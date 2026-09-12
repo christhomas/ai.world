@@ -421,8 +421,17 @@ describe('what a grown child does for a living', () => {
     id: 'x', name: '', village: 'Ashford', trade: '', born: 0, lives: 70,
     mother: '', father: '', knows: [], memories: [], opinions: [], purse: 0, hungry: 0,
   };
+  /*
+   * A village with one of everything already in it, plus whoever the test is about.
+   *
+   * Necessary because the mayor looks at what the place is short of before anybody inherits
+   * anything: a village missing a seller raises a seller, whoever their parents were, and that is
+   * the intended order. What is under test here is the *next* question — what a child does when
+   * the village is fairly staffed — so these villages are.
+   */
+  const staffed = (): Person[] => TRADE_LIST.map((trade) => ({ ...bare, name: `A ${trade}`, trade }));
   const villageOf = (people: Person[], buried: { name: string; trade: string }[] = []) =>
-    ({ people, buried });
+    ({ people: [...staffed(), ...people], buried });
 
   it('takes the family trade', () => {
     const father = { ...bare, name: 'Wim Vos', trade: 'farmer' };

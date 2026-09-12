@@ -1,6 +1,7 @@
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { formAnOpinion, type Opinion } from './memory';
+import { shortOf } from './vacancies';
 
 /**
  * Who lives in a village, and what they are to one another.
@@ -260,8 +261,9 @@ function born(
 /**
  * What somebody takes up when they come of age.
  *
- * Until now it was a coin toss against everything the village supports, which made a village a bag
- * of jobs that happened to contain some people. A trade is inherited: a farmer's child takes the
+ * Three things decide it, in this order: what the village is short of, what their parents did, and
+ * a roll. Until now it was only the roll, which made a village a bag of jobs that happened to
+ * contain some people. A trade is inherited: a farmer's child takes the
  * farm, a miner's child goes down the same shaft, and a household is a thing that persists rather
  * than a surname two people happen to share.
  *
@@ -277,6 +279,16 @@ function born(
 export function tradeTakenUp(
   person: Person, trades: readonly string[], village: Village, rng: () => number,
 ): string {
+  /*
+   * What the village is short of comes first, because inheritance on its own is drift: every
+   * funeral is a chance to lose a trade and no funeral is ever a chance to gain one back. The
+   * threshold in `shortOf` is a whole person, which in a village of a dozen means the jobs a place
+   * cannot be without — so this fills the fields and the market and leaves the doctor, the
+   * innkeeper and the climber to families and to the tenth who strike out.
+   */
+  const vacancy = shortOf(trades, village.people.filter((p) => p.trade !== '').map((p) => p.trade));
+  if (vacancy) return vacancy;
+
   const rolled = () => trades[Math.floor(rng() * trades.length)];
   const family = [person.mother, person.father]
     .map((name) => tradeOnceHeldBy(village, name))

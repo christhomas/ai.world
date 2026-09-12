@@ -90,6 +90,22 @@ describe('keeping cattle', () => {
     expect(days).toBeLessThan(40);
   });
 
+  it('works a dead farmer\'s beasts off in about a month, not in about a year', () => {
+    /*
+     * Found by `chore sanity` at four hundred and fifty days: villages running a herd nobody was
+     * keeping for a hundred and ninety days at a stretch. The herd grew by a calving and sold a
+     * calving on the same morning and the two all but cancelled, so an over-cap herd came down by
+     * sixteen hundredths of a percent a day. A full paddock does not calve now.
+     */
+    const farmers = 1;
+    const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
+    let herd = cap * 3;                          // three farmers' worth, two of them just buried
+    let days = 0;
+    while (herd > cap + 0.01 && days < 400) { herd = aDayOfCattle(herd, farmers).herd; days++; }
+    expect(days).toBeGreaterThan(7);             // not the whole surplus at the butcher in one morning
+    expect(days).toBeLessThan(45);
+  });
+
   it('loses the herd when the last farmer is buried', () => {
     expect(aDayOfCattle(12, 0)).toEqual({ herd: 0, sold: 0, meals: 0, gold: 0 });
   });

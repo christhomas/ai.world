@@ -3105,7 +3105,19 @@ in the order they would sensibly be built, which is not the order they arrived i
 Talked through at length on the morning of the 12th. Numbered so a decision can be given as "29:
 yes" rather than re-argued. Numbers are never reused, here or in chat.
 
-- [ ] **24a. The mayor enrols the trades.** Today a grown child takes `village.trades[random]` —
+- [~] **24a. The mayor enrols the trades.** *The enrolment is built* — `world/vacancies.ts`,
+      `shortOf(trades, held)`, called first by `tradeTakenUp`. What a village is short of is decided
+      without a list of important jobs: `TRADES` already says how common each trade should be
+      against the others, so a village's establishment is that weighting applied to however many
+      people work, and a vacancy is a trade a whole person short — or one nobody is doing at all
+      whose establishment rounds to one. That threshold is what keeps it from swallowing inheritance
+      whole: in a village of nine working people it fills the fields and the market and leaves the
+      doctor, the innkeeper and the climber to families and to the tenth who strike out. Villages
+      now hold five to ten of the trades their ground supports at day 450, against two to four
+      before it. Still to do: the hall as a **directory** — where the doctor is, where the builder
+      drinks — and vacancies as something a player can read and answer.
+
+      The original note follows. Today a grown child takes `village.trades[random]` —
       `register.ts:638`, a coin toss. Instead the mayor looks at what the village is missing and
       enrols the next adult into it: no doctor, next adult is a doctor. A mayor exists from day one
       and is just a villager with the job; the hall is a building they eventually get, and until
@@ -3134,12 +3146,43 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       `register.test.ts`, the last of which holds a village at 90 days to more than half of its
       people doing what a parent did.
 
-- [ ] **31. The sanity bench.** `chore economy` proves coin conservation and would say nothing at
-      all about a map full of cow sheds, because every shed was paid for honestly. A second bench,
-      over 400+ days rather than 100: population inside a sane band, every trade still represented,
-      no village holding more buildings than people, no purse or hall holding an absurd share of
-      the world's money, herds and fields inside what the land could carry. The guard rail for
-      everything else in this section — build it first.
+- [x] **31. The sanity bench.** Built as `src/game/sanity.test.ts` and `chore sanity`: the same
+      villages `chore economy` audits, lived four hundred and fifty days instead of a hundred —
+      five or six generations, which is long enough for drift to show — and judged on whether they
+      are still places anybody would believe in rather than on whether the books add up. Nothing in
+      it is added up; every number it reads is a fact about the simulation, which is exactly what
+      the audit is forbidden to touch.
+
+      It found four things the morning it was written, and two of them were real faults.
+
+      1. **Villages had drifted down to two trades between sixteen people**, with no farmer in the
+         fields and no seller at the market — caused by **30** the day before, because inheritance
+         on its own is drift: every funeral is a chance to lose a trade and no funeral is ever a
+         chance to gain one back. Fixed by building the enrolment half of **24a** (below).
+      2. **A herd over its cap came down by sixteen hundredths of a percent a day.** An over-full
+         paddock calved while it was being sold down and the two all but cancelled, so a village
+         that had buried two of its three farmers went on selling beasts nobody was keeping for a
+         hundred and ninety days at a stretch. A full paddock does not calve now, and a dead man's
+         beasts are worked off in about a month, which is what the comment had claimed all along.
+      3. **Sixty-two per cent of all the money in the world sits in the halls**, because the tax
+         went in before anything a village could vote to spend it on. Reported as a NOTE with the
+         number, and it is the argument for **24b**.
+      4. **One purse holds half or more of its village** in eleven of eighteen villages. Also a
+         NOTE: somebody has to be the richest, but it is the shape a village takes when the money
+         has stopped moving.
+
+      And it moved one expectation. `chore economy` used to require that some village afford a bath
+      house inside a hundred days; exactly one ever did, and what had been paying for it was the
+      herd bug. A hundred days is one generation and that bench audits a generation's books —
+      whether a village ever *grows* is a four-hundred-and-fifty-day question, and it is asked here
+      now.
+
+- [ ] **31a. The sanity bench, the rest of it.** Three of the bounds the original note asked for are
+      not in it yet, because nothing they judge exists: **no village holding more buildings than
+      people** (buildings are not counted per village until **44**), the herd and the fields against
+      *what the land could carry* rather than against what the farmers can keep (**33** and **50**
+      are what make land a quantity at all), and the upper half of the population band, which
+      guards nothing until houses can lift the ceiling. Each one goes in the day its feature does.
 
 - [ ] **32. A map of one province, priced like a week's work.** The fog and the Region Map already
       exist: `state.explored` fills in as you walk and a 25-gold trinket lifts it. Twenty-five gold
@@ -3156,12 +3199,14 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       world as generated and the world as it is, so it wants a bound — a farm may clear only so far
       from its own buildings, or a village deforests a county over a century.
 
-- [ ] **34. Households.** Sex on the register, so the family tree the clerk already draws reads
+- [x] **34. Households — sex on the register: agreed.** Sex on the register, so the family tree the clerk already draws reads
       properly — today `fillTheGaps` picks any two adults as mother and father. Pairs form, one or
       two children arrive, and the mechanics of neither are simulated. Population stops being capped
       at `founded` and becomes a floor: gold buys a house, a house holds a family. What must be
       measured before it ships is the doubling — the only brakes are age, hunger, wolves and
-      dragons, and **31** is how we would find out.
+      dragons, and **31** is how we would find out. (Ticked only for the decision: sex on the
+      register is agreed, and **46** and **49** are what it unlocks. The building of it is still to
+      do.)
 
 - [ ] **46. A woman looks like a woman.** The other half of **34**: sex goes on the register so the
       family tree reads properly, and the moment it is there it should be *visible* — long hair and
@@ -3273,6 +3318,60 @@ simulation rather than any one feature in it.
       short of (the mayor's enrolment, **24a**). That keeps the capability list honest: `can_farm`
       and the rest describe what somebody has *learned to do*, and are never a permission to learn
       it.
+
+- [ ] **51. When a town grows too big, the world pushes back.** The answer to "what stops it running
+      away", and a better one than a constant. A village that has outgrown what is around it is a
+      village worth attacking: an ogre comes down out of the hills, a band camps on the road, wolves
+      take the outlying herds. The machinery is there — `leanedOn` already makes a village poorer
+      while something is standing over it, and `chore sanity` is what would tell us a place had got
+      too big in the first place. The rule to hold on to: a brake the player can *see and fight* is
+      worth ten brakes in a constants file.
+
+- [ ] **52. A world that has crashed is repopulated, not restarted.** How the simulation is tuned
+      once people are playing in it. A running world cannot be reset when the economy is found to be
+      wrong — that is a world nobody can live in — so the honest move is to let it fail, change the
+      rules, and *magic people back*: the same act that founded the world in the first place
+      (**43**), used again on a village that has emptied. `resettle` already does exactly this for a
+      ruin somebody's neighbour walks over to. What it needs is to be a deliberate, recorded act
+      rather than a quiet one, so the Domesday Book can say a village was refounded under new rules
+      on such a day.
+
+- [ ] **53. The shrine that raises a villager.** The player's version of **52**, and the thing that
+      gives a dead valley a way back. A magic shrine, a fee big enough to be a decision — the price
+      of a house rather than the price of a meal — and a new soul on the register. It answers a
+      question the endless world will otherwise keep asking: you walk into a village where everybody
+      starved and there is nothing whatever to do about it. Shrines already exist, already take
+      money and already do something when you enter one, so this is a use for a building rather than
+      a building.
+
+- [ ] **49. Houses come in sizes, and a house is what limits a family.** The other half of **44**,
+      and the thing that makes the population cap a *place* rather than a number. A small, medium,
+      large and huge house, each with its own model, its own building stages (**40**) and its own
+      maximum occupancy. A couple has children when there is food in the store and room under the
+      roof, and not otherwise — so a family that wants more children has to pay a builder for a
+      bigger house, which is another customer for the yard and another reason for money to move.
+      And if the food runs short they go hungry and die, which the register already does properly:
+      `hungry` is on the roll, `cause: 'hunger'` is on the stone, and nothing about starving has to
+      be invented for this.
+
+      It also gives `founded` an honest definition at last: a village holds as many people as its
+      houses have room for, so growing is building and nothing else.
+
+- [ ] **50. A logger, and wood as the first material.** Every price in this world is paid in coin
+      and nothing is ever short of anything — which is why a builder can, in principle, build until
+      the money runs out. Wood is the answer: a logger fells trees and brings the timber to market,
+      the builder buys it, and a house cannot be built out of an empty yard however much gold is on
+      the table.
+
+      What it buys is a *limit that is not arithmetic*. A village on a plain with a wood behind it
+      builds; one on a rock does not, whatever it earns. It gives the farmer a second reason to
+      hire (**39** is guards, this is clearing — and **33**'s wider fields produce the timber as a
+      by-product, so clearing land and having wood to build with are the same act). It gives the
+      market something to actually trade that is not meat. And it is the first thing in this
+      economy where two trades need each other rather than both needing the player.
+
+      The trees are already there and already felled by the player's axe, so the ground truth
+      exists: what is missing is a stock of timber somewhere a builder can be short of it.
 
 - [ ] **47. A holding has an owner, and the owner need not be the worker.** A farm belongs to
       whoever paid to build it. Normally that is the farmer, and when he dies it passes down the

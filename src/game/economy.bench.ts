@@ -30,7 +30,7 @@ export const FOUNDED = 1;
  * it starts with, how old they are and when they die are all draws, and a bench that ran one draw
  * would be a bench about one village rather than about the arithmetic behind all of them.
  */
-const SEEDS = [1, 7, 1234];
+export const SEEDS = [1, 7, 1234];
 
 // --- what a village is, for the purposes of a hundred days ---------------------------------
 
@@ -150,10 +150,42 @@ export interface Run {
   taxed: Map<string, Map<number, number>>;
   /** What each village was founded at, for judging whether it has held itself together. */
   founded: Map<string, number>;
+  /**
+   * What the *place* held each evening, as against what its people wrote down.
+   *
+   * The herd, the larder and the hall's purse are facts about a village rather than entries in
+   * anybody's ledger, and there is no book in the game that reports them — a player sees the beasts
+   * by looking at the paddock. The audit in `economy.test.ts` must not read this and does not: it
+   * judges the books by the books, on purpose, so that it cannot be right by construction. It is
+   * here for `sanity.test.ts`, which asks a different question — not "do the books add up" but "is
+   * this still a place anybody could believe in" — and cannot ask it from a ledger of purses.
+   */
+  standing: Map<string, Standing[]>;
+}
+
+/** What a village held one evening, beyond what was in its people's pockets. */
+export interface Standing {
+  day: number;
+  /** Cattle the farmers keep between them. */
+  herd: number;
+  /** Meals in the store. */
+  food: number;
+  /** What the hall holds, which is nobody's. */
+  hall: number;
+  /** Souls on the roll that evening, children counted. */
+  souls: number;
+  /** How many of them held a trade, which is how many of them the village lives off. */
+  working: number;
 }
 
 /**
  * Live every village forward, keeping the books each evening.
+ *
+ * How many days is asked for rather than fixed, because there are two questions to put to the same
+ * world and they want different lengths of it. A hundred days is what an audit needs: long enough
+ * that everybody who was alive at the start is dead by the end, short enough to run in a second.
+ * Whether a village is still *believable* after four hundred is a different question, and
+ * `sanity.test.ts` asks the same villages for four times as long.
  *
  * The order inside a day is `tidings.ts`'s order, because a bench that runs the day in a different
  * order from the game is a bench about a game nobody plays: the bands are read first and the
@@ -164,7 +196,7 @@ export interface Run {
  * prediction: the wage in tonight's roll is what tomorrow will pay, and holding tomorrow's purse
  * to tonight's row is the whole of the audit.
  */
-function liveAHundredDays(seed: number): Run {
+export function liveForward(seed: number, days = DAYS): Run {
   const register = new Register(seed);
   const mines = new Mines(seed, FOUNDED);
   const books = new Map<string, Books[]>();
@@ -172,6 +204,7 @@ function liveAHundredDays(seed: number): Run {
   const taxed = new Map<string, Map<number, number>>();
   const restarted = new Map<string, Set<number>>();
   const founded = new Map<string, number>();
+  const standing = new Map<string, Standing[]>();
 
   register.minesAt(VILLAGES.filter((v) => v.mine).map((v) => v.village));
   const workings: Working[] = VILLAGES.filter((v) => v.mine).map((v) => ({
@@ -190,6 +223,7 @@ function liveAHundredDays(seed: number): Run {
     minted.set(regime.village, new Map());
     taxed.set(regime.village, new Map());
     restarted.set(regime.village, new Set());
+    standing.set(regime.village, []);
   }
   // the one that has to exist from the start to be emptied and then put back on its feet
   for (const regime of VILLAGES.filter((r) => r.settledFrom)) {
@@ -199,9 +233,10 @@ function liveAHundredDays(seed: number): Run {
     minted.set(regime.village, new Map());
     taxed.set(regime.village, new Map());
     restarted.set(regime.village, new Set());
+    standing.set(regime.village, []);
   }
 
-  for (let day = FOUNDED + 1; day <= FOUNDED + DAYS; day++) {
+  for (let day = FOUNDED + 1; day <= FOUNDED + days; day++) {
     // what the bands are doing, said before the day is lived, exactly as the game says it
     for (const regime of VILLAGES) {
       const band = regime.band;
@@ -209,6 +244,7 @@ function liveAHundredDays(seed: number): Run {
     }
     for (const regime of VILLAGES) {
       books.get(regime.village)!.push(shut(register, regime.village, day - 1));
+      standing.get(regime.village)!.push(stood(register, regime.village, day - 1));
     }
 
     // and what they took, which is the register's business and happens before the day turns over
@@ -237,10 +273,11 @@ function liveAHundredDays(seed: number): Run {
     }
   }
   for (const regime of VILLAGES) {
-    books.get(regime.village)!.push(shut(register, regime.village, FOUNDED + DAYS));
+    books.get(regime.village)!.push(shut(register, regime.village, FOUNDED + days));
+    standing.get(regime.village)!.push(stood(register, regime.village, FOUNDED + days));
   }
 
-  return { seed, books, minted, taxed, restarted, founded };
+  return { seed, books, minted, taxed, restarted, founded, standing };
 }
 
 /** The books of one village, shut for the night. */
@@ -253,8 +290,21 @@ function shut(register: Register, village: string, day: number): Books {
   };
 }
 
+/** What the place itself held that evening, read straight off the village rather than off a book. */
+function stood(register: Register, village: string, day: number): Standing {
+  const here = register.living(village);
+  return {
+    day,
+    herd: register.herdOf(village),
+    food: register.larderOf(village),
+    hall: register.hallOf(village),
+    souls: here.length,
+    working: here.filter((p) => p.trade !== '').length,
+  };
+}
+
 /** Every run, lived once and read by everything below. */
-export const RUNS = SEEDS.map(liveAHundredDays);
+export const RUNS = SEEDS.map((seed) => liveForward(seed));
 
 /** A village named the way a report has to name one, so a failure can be gone and looked at. */
 export const at = (run: Run, village: string, day: number): string => `${village} (seed ${run.seed}) on day ${day}`;

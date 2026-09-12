@@ -150,6 +150,7 @@ tasks:
       - task: wire
       - task: halves
       - task: economy
+      - task: sanity
 
   typecheck:
     desc: Types only
@@ -167,7 +168,7 @@ tasks:
       SUITE: ''
     args:
       - name: suite
-        desc: 'collisions, wire (protocol), halves (world), economy (villages), or a path to match — nothing runs everything'
+        desc: 'collisions, wire (protocol), halves (world), economy (villages), sanity (four hundred days), or a path to match — nothing runs everything'
     cmds:
       - |
         case "{{.SUITE}}" in
@@ -176,6 +177,7 @@ tasks:
           wire|protocol)      {{.CHORE_EXE}} wire ;;
           halves|world)       {{.CHORE_EXE}} halves ;;
           economy|villages)   {{.CHORE_EXE}} economy ;;
+          sanity)             {{.CHORE_EXE}} sanity ;;
           *)                  pnpm vitest run "{{.SUITE}}" ;;
         esac
 
@@ -224,6 +226,20 @@ tasks:
       REPORT: economy-report.txt
     cmds:
       - 'pnpm vitest run src/game/economy.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
+
+  # The fifth bench, and the other half of the one above: four hundred and fifty days of the same
+  # villages, judged on whether they are still places anybody would believe in rather than on
+  # whether the books add up. The audit passes a village that has lost every farmer it ever had, to
+  # the coin, every evening. This asks what a person would ask on walking in — is anybody still
+  # here, do they do more than two things between them, are there beasts in the field, does one man
+  # own everything. It is the guard rail under everything that makes a village grow. See
+  # `src/game/sanity.test.ts`.
+  sanity:
+    desc: Live a village forward four hundred and fifty days and ask whether it is still a village
+    vars:
+      REPORT: sanity-report.txt
+    cmds:
+      - 'pnpm vitest run src/game/sanity.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
   # The fourth, and the only one that looks at the screen rather than at the arithmetic behind it: a
   # script plays the game in a browser and says whether what is drawn is what the world has. It
   # serves the page itself when nothing is answering on the port and puts that server away

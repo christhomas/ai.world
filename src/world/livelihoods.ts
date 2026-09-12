@@ -211,7 +211,17 @@ export interface Herding {
 export function aDayOfCattle(herd: number, farmers: number): Herding {
   if (farmers <= 0) return { herd: 0, sold: 0, meals: 0, gold: 0 };
   const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
-  const after = herd + herd * LIVELIHOOD.CALVES;
+  /*
+   * A paddock that is already over-full does not calve.
+   *
+   * Without this line the herd grew by a calving and sold a calving on the same morning, and the
+   * two very nearly cancelled: an over-cap herd came down by sixteen hundredths of a *percent* a
+   * day, which is a half-life of over a year. The comment below claimed a fortnight and the
+   * arithmetic said never, and nothing noticed because a hundred days is not long enough to see
+   * it. `chore sanity` runs four hundred and fifty and found villages that had been running
+   * beasts nobody was keeping for a hundred and ninety days at a stretch.
+   */
+  const after = herd > cap ? herd : herd + herd * LIVELIHOOD.CALVES;
   /*
    * Only what the paddocks will not hold, and never more than a day's work at the butcher.
    *
@@ -220,8 +230,9 @@ export function aDayOfCattle(herd: number, farmers: number): Herding {
    * what stops a village burying three of its four farmers and the survivor waking up to a
    * hundred and sixty gold — the cap falls with the farmers, and without a rate the entire surplus
    * goes to market in one morning. The bench found it as a farmer averaging sixty-seven a day
-   * against every other trade's three. A herd over its cap shrinks by a calving a day, which is
-   * a fortnight or two to work off a dead man's beasts, and looks from the road like what it is.
+   * against every other trade's three. A herd over its cap now comes down by a calving a day and
+   * calves nothing back, which is about a month to work off a dead man's beasts and looks from the
+   * road like what it is.
    */
   const sold = Math.max(0, Math.min(after - cap, after * LIVELIHOOD.CALVES));
   return {
