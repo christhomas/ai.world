@@ -9,6 +9,7 @@ import { PEOPLE as PEOPLE_KINDS } from '../entities/quarry';
 import type { ChunkManager } from '../world/chunkManager';
 import type { Structures } from '../world/structures';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './archery';
+import { GUN, fire } from './gun';
 import type { Sound } from './audio';
 import { BREATH, Breath, guardCovers } from './breath';
 import { clearedTheMine, whatAKillMeans } from './consequences';
@@ -55,6 +56,14 @@ export interface Fighting {
   hires: Hires;
   sailing: Sailing;
   skies: Skies;
+  /**
+   * The thing in the crater, if the game has built one yet.
+   *
+   * Handed in as a closure because it is made further down `main.ts` than this is, and because
+   * what it answers changes every time somebody climbs in or out. Nothing here flies it: all this
+   * asks is whether the hero is in the seat, because a man in a cockpit does not have a bow.
+   */
+  craft: () => { flying: boolean; altitude: number };
   sound: Sound;
   director: Director;
   /** Is a conversation up? Nothing may be swung while somebody is being spoken to. */
@@ -257,12 +266,46 @@ export function createBlows(ctx: Fighting) {
   };
 
   /**
+   * Fire the craft's gun, which is the same key as the bow because it is the same question.
+   *
+   * A man in that seat has no bow in his hands and no quiver on his back, so pressing shoot while
+   * flying can only mean one thing. What it costs is nothing but the cooldown: whatever the machine
+   * is, it did not come with arrows, and the price of using it is having to fly.
+   *
+   * The height it shoots from is the craft's own, worked out against the ground beneath it rather
+   * than taken as an absolute, because the craft eases up and down as the country rises under it.
+   * That is what makes a shot at something in the valley below the long shot it looks like.
+   */
+  const gun = (): void => {
+    drawCooldown = GUN.COOLDOWN;
+    player.entity.attackCooldown = GUN.COOLDOWN;
+    const hover = ctx.craft().altitude - (chunks.heightAt(player.x, player.z) ?? 0);
+    const res = thrown(
+      (manager, world) => fire(state, manager, world, player.x, player.z, player.entity.yaw, hover, seed, true, standing),
+      { damage: GUN.DAMAGE, range: GUN.RANGE, arc: GUN.ARC, first: true },
+    );
+    if (res.hit.length === 0) { sound.select(); return; }
+    sound.thud();
+    if (res.killed.length > 0) {
+      sound.chime();
+      const rustling = felled(res.killed);
+      const names = res.killed.map((e: Entity) => e.kind.label).join(', ');
+      const won = [res.gold > 0 ? `${res.gold} gold` : '', ...res.loot.map((id) => ITEMS[id]?.name ?? id)].filter(Boolean);
+      flash(won.length ? `${names} (+${won.join(', ')})` : `${names}`);
+      if (rustling) flash(rustling);
+      persist();
+    }
+    if (res.regard) { flash(`You are ${res.regard}.`); persist(); }
+  };
+
+  /**
    * Loose an arrow. A shot reaches things a swing cannot, because it measures its range as a
    * slant rather than along the ground: an eagle nine tiles up is nine tiles away to a bow and
    * out of the world to a sword.
    */
   const loose = (): void => {
     if (talking() || drawCooldown > 0) return;
+    if (ctx.craft().flying) { gun(); return; }
     if (!canShoot(state)) {
       flash(bowInHand(state) ? 'Your quiver is empty.' : 'You need a bow in your hand for that.');
       return;

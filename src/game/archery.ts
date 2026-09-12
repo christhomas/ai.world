@@ -77,16 +77,37 @@ export function canShoot(state: GameState): boolean {
  * Pure in everything it is given, so what an arrow would hit can be asked without shooting: the
  * aiming is all here, and `shoot` below only spends the arrow and settles what falls.
  */
+/**
+ * What a shot is taken with: how far it carries, how tightly it is aimed, and from what height.
+ *
+ * A bow's own numbers by default, because the bow was the only thing in the game that could reach
+ * something off the ground when this was written. It is handed in so that anything else which
+ * shoots — the derelict's gun, and whatever comes after it — picks its mark by this same rule
+ * rather than by a second copy of it that will drift. What makes the rule worth sharing is the part
+ * that is hard to get right: the cone is measured across the ground so that nothing can be shot at
+ * directly overhead, the range is measured along the flight so that height counts, and a wall
+ * stops it.
+ */
+export interface Sight {
+  range: number;
+  arc: number;
+  /** Where the shot leaves from, as a height above the ground under the shooter. */
+  eye: number;
+}
+
+const FROM_THE_SHOULDER: Sight = { range: BOW.RANGE, arc: BOW.ARC, eye: BOW.SHOULDER };
+
 export function markFor(
   entities: EntityManager, world: TileWorld, x: number, z: number, yaw: number,
+  sight: Sight = FROM_THE_SHOULDER,
 ): Entity | null {
   // yaw is a +x-facing rig's heading: forward is (cos yaw, -sin yaw), as a swing reads it
   const fx = Math.cos(yaw), fz = -Math.sin(yaw);
-  const eye = (world.heightAt(x, z) ?? 0) + BOW.SHOULDER;
-  const cone = Math.cos(BOW.ARC);
+  const eye = (world.heightAt(x, z) ?? 0) + sight.eye;
+  const cone = Math.cos(sight.arc);
   // the flat ring is only a sieve: nothing can be within the arrow's flight and outside a circle
   // of the same size on the ground, so this can never drop a creature the slant test would keep
-  for (const e of entities.within(x, z, BOW.RANGE)) {
+  for (const e of entities.within(x, z, sight.range)) {
     if (!e.kind.hp || e.dead) continue;
     const dx = e.x - x, dz = e.z - z, dy = e.y - eye;
     const ground = Math.hypot(dx, dz);
@@ -94,7 +115,7 @@ export function markFor(
     // of them and cannot be shot: there is no drawing a bow at your own hat
     const aim = ground || 1;
     if ((dx / aim) * fx + (dz / aim) * fz < cone) continue;
-    if (Math.hypot(ground, dy) > BOW.RANGE) continue;
+    if (Math.hypot(ground, dy) > sight.range) continue;
     // and nothing solid in the way: an arrow is stopped by a wall, which is the difference between
     // a bow and a wish
     if (inTheWay(world, x, z, e.x, e.z)) continue;

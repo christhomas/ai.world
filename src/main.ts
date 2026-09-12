@@ -557,7 +557,7 @@ export function startGame(
     flash: (message) => hud.flash(message),
     hurt: () => hud.hurt(),
     converse: (node) => dialogue.start(node),
-    fightingInAMine, battlefield, rustled, persist,
+    fightingInAMine, battlefield, rustled, persist, craft: () => craft,
     fell: (kind, x, z) => interactions.fell(kind, x, z),
     troubleKilled: (kind, x, z) => interactions.troubleKilled(kind, x, z),
     heWentDown: () => interactions.heWentDown(),

@@ -3096,11 +3096,20 @@ in the order they would sensibly be built, which is not the order they arrived i
       *means* should be one function both call, in `consequences.ts` where the rest of "what follows"
       already lives. `authority.test.ts` has the fake to hold it.
 
-- [ ] **27. Zarch, the rest of it.** `game/craft.ts` flies and `PropKind.Derelict` is drawn. What is
-      left: where it crashes (one to a world, on open ground, well away from the villages), climbing
-      in and out, and the gun — which is `archery.ts`'s height-aware shot with a different noise,
-      because that is already the one thing in the game that can reach something which is not
-      standing on the ground.
+- [x] **27. Zarch, the rest of it.** *Done on the 12th, and two thirds of it turned out to be done
+      already.* Reading it rather than remembering it: `landmarks.ts` has placed one derelict to a
+      world on open ordinary ground away from the middle since the crater went in, and
+      `interact/travel.ts` has had climbing in and out on the same key since the same day — Enter at
+      the hull gets you in, Enter in the air puts you down. So what was actually left was the gun.
+
+      `game/gun.ts`, and it is the bow's rule rather than a second copy of it: `markFor` took the
+      numbers it was using as an argument, so a shot from a cockpit is picked by the same arithmetic
+      that already measured a slant rather than a distance across the ground — which is exactly the
+      problem a craft hovering four units up has about everything it flies over. What differs is
+      argued in the file: no ammunition (whatever it is did not come with a quiver), the machine's
+      damage rather than whatever is in the pilot's pack, a tighter cone because the whole craft is
+      the sight, a longer reach to make up for how slowly it aims, and a trigger's cooldown rather
+      than a draw's. Shoot while flying and you fire it, because a man in that seat has no bow.
 
 - [ ] **28. The remaining screenshots, and the hunting loop walked end to end.** The sea and
       shared-world shots need a boat under the hero and two browsers in one world — both of which
