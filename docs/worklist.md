@@ -3274,6 +3274,33 @@ simulation rather than any one feature in it.
       and the rest describe what somebody has *learned to do*, and are never a permission to learn
       it.
 
+- [ ] **47. A holding has an owner, and the owner need not be the worker.** A farm belongs to
+      whoever paid to build it. Normally that is the farmer, and when he dies it passes down the
+      family the way his purse does. But the hall can pay for one too — the same `Commission`, with
+      the village as the customer — and then the village owns the farm and *hires* somebody to work
+      it. The inheritance is the hall's: the worker dies, the farm does not change hands, and the
+      mayor enrols the next pair of arms into it (**24a**).
+
+      That is the piece that makes a treasury do something no individual can. A village that has
+      lost its farms to a bad decade cannot wait for a rich farmer to appear; it can vote to buy
+      one back. And it gives the wage a reason to exist — a hired hand on the village's farm is
+      paid by the hall out of what the farm earns, which is money moving inside the valley for work
+      somebody actually needed, the same shape as **39**.
+
+- [ ] **48. A village becomes a town becomes a city.** Falls out of **44** for free: if buildings
+      are what a village's population is capped by, then buildings are also what a village *is*.
+      Count them and a place has a rank — hamlet, village, town, city — reached by nothing but the
+      economy growing, never by a rule saying "this seed places a city here". The hall already
+      works this way at one threshold (`CIVIC_HOUSES`, eight, is what earns a village its town
+      hall), so this is that idea taken the whole distance.
+
+      What a rank should *do* is the part to get right, and the answer that keeps it honest is: it
+      unlocks buildings and trades rather than making numbers bigger. A town can hold a market and
+      a watch house; a city can hold things no village has ever had. The player would see it
+      without being told — arriving at the same valley a year later and finding a skyline is worth
+      more than any label — and it gives the Domesday Book something it has never had, which is a
+      village that is *going somewhere*.
+
 - [ ] **43. The world starts established, and the economy's job is to keep it that way.** Stated
       plainly, because it changes what the bench is measuring: the first villages are *put* there.
       They are not bootstrapped from one family with an axe — a world that had to grow itself from
