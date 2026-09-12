@@ -82,10 +82,22 @@ new pays the full 38 seconds.
 
 This is the single biggest item and it alone is ~100 % of the 160 %.
 
-*Fix:* make a patch cheaper rather than more parallel — `scattercells.standing` is 65 % of it and is
-O(tries² × 9 cells) with a `spacing()` field probe per candidate (`src/world/scattercells.ts:75`),
-so hoisting the spacing probe out of `candidates()` and replacing `refusedBy`'s linear neighbour
-scan with a per-cell grid is the change that pays.
+*Fix:* make a patch cheaper rather than more parallel.
+
+> **Correction, written after fixing it.** The functions named above were the right ones and the
+> reason given for them was wrong, so it is corrected here rather than quietly left standing. It is
+> not that a cell is expensive to settle: a patch is only nine cells across, `tries` is six, and the
+> whole of `candidates`, `spacing` and `refusedBy` comes to a few hundred cells of arithmetic — a
+> couple of milliseconds. It is that a cell is *asked about* twelve million times. `faceAt` gathers
+> the seven-by-seven block of cells around a point, and the sampler asks it for every tile of every
+> chunk — a quarter of a million times a patch — so the same block was gathered, keyed by a freshly
+> built `"ci:cj"` string per cell, and copied into a fresh array that was thrown away, over and
+> over. What paid was keeping the gathered block, keying cells by two integers instead of a string,
+> and letting the scatter answer "which of your points is nearest" without building the list at all.
+> **Measured: 6,250 ms a patch before, 710 ms after — 8.9× — with the grown country byte-for-byte
+> identical.** In the browser, `lastTook` fell from ~4,700 ms to 635 ms and the ring of eight
+> neighbours from ~40 seconds to ~5. The lesson worth keeping is that the profile named the right
+> function and said nothing about why, and the *why* was a call count, not a cost per call.
 
 ## 2. Twenty-seven chat lines a second, each forcing two synchronous layouts
 

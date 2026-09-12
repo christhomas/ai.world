@@ -45,12 +45,26 @@ export const PATCH = 512;
 /**
  * How many patches are held at once.
  *
- * Nine: the one the hero is standing in and the eight around it, so walking to any edge finds the
- * next patch already grown. It is also the smallest number that does not thrash — with four, a hero
- * walking a circle round a corner where four patches meet would grow and drop the same square over
- * and over.
+ * Twelve: the one the hero is standing in, the eight around it, and three of slack.
+ *
+ * The nine are the ring — the square he is on and the eight he might walk into — so that walking
+ * to any edge finds the next patch already grown. Nine was the whole number for a while, and the
+ * trouble with it was that holding exactly as many as are wanted *at this instant* is a different
+ * thing from holding what is wanted: anything that asked about a tenth square pushed the count
+ * over the bound, and something in the ring was dropped to make room for it.
+ *
+ * `wanted` below is what stops the square that gets dropped being one the hero is about to stand
+ * on. The slack is the other half of the same answer: with room for three more, a stray look at
+ * somewhere else costs nothing at all rather than costing a patch — and a patch is five seconds.
+ * Three because a hero at a corner can see into three squares that are not in his own ring, and
+ * because the cost is a few megabytes apiece and this is the cheapest five seconds anybody will
+ * ever buy.
+ *
+ * It is still the smallest number that does not thrash for the older reason, which has not gone
+ * away: with four, a hero walking a circle round a corner where four patches meet would grow and
+ * drop the same square over and over.
  */
-export const KEEPS = 9;
+export const KEEPS = 12;
 
 /** Which patch a point is in. Negative country included, which `Math.floor` gets right and `|0` does not. */
 export function patchOf(x: number, z: number): string {
@@ -132,9 +146,32 @@ export class Patchwork {
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.patch(`${px + dx},${pz + dz}`);
   }
 
-  /** Whether this square is already grown and to hand. */
+  /** Whether this square is already grown and to hand. A question, which changes nothing. */
   has(patch: string): boolean {
     return this.held.has(patch);
+  }
+
+  /**
+   * The same question, asked by somebody who is about to need the answer — so the square is now
+   * the most recently wanted of the ones held.
+   *
+   * The difference from `has` is small to read and was the whole of a bug, so it is worth writing
+   * down. `Grower.want` is called every frame with the squares the hero is standing in and walking
+   * towards, and it asked with `has`, which does not touch. So the only thing keeping the ring
+   * alive was the chunk painter happening to ask about the same squares by another route.
+   *
+   * One look at a tenth square was enough to break that. The count went over its bound, the least
+   * recently *touched* square was dropped — and that could perfectly well be one of the eight the
+   * hero was walking towards, because nothing had touched it since the painter last wanted a chunk
+   * there. `want` then asked for it again, five seconds of a worker later it arrived, arriving put
+   * the count over the bound again, and the world settled into growing the same country for ever
+   * at a hundred per cent of a core. Asking for a thing is a use of it, and this is how you say so.
+   */
+  wanted(patch: string): boolean {
+    const held = this.held.get(patch);
+    if (!held) return false;
+    held.touched = ++this.clock;
+    return true;
   }
 
   /**

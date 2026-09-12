@@ -92,15 +92,18 @@ function sitesAround(country: Country, x: number, z: number, reach: number): Sit
  *
  * The nearest site, which is what a Voronoi cell means. Looks over a window wide enough that the
  * nearest site cannot possibly be outside it.
+ *
+ * The looking is done by the scatter rather than here, and that is worth a word because it reads
+ * like the wrong place for it. This is the single most asked question in the whole of growing a
+ * patch — the sampler asks it for every tile of every chunk, a quarter of a million times — and
+ * asking it from out here means the scatter must first gather its hundred and fifty sites into an
+ * array for this loop to walk, and then that array is thrown away. `nearestIn` answers from the
+ * list the scatter is already keeping, so nothing is built at all. Same sites, same order, same
+ * tie: what changed is that the country is no longer rebuilt to be looked at.
  */
 export function faceAt(country: Country, x: number, z: number): Face | null {
   const reach = country.dials.far * LOOK_OUT;
-  const around = sitesAround(country, x, z, reach);
-  let owner: Site | null = null, nearest = Infinity;
-  for (const site of around) {
-    const away = (site.x - x) ** 2 + (site.z - z) ** 2;
-    if (away < nearest) { nearest = away; owner = site; }
-  }
+  const owner = country.scatter.nearestIn({ x0: x - reach, z0: z - reach, x1: x + reach, z1: z + reach }, x, z);
   return owner ? faceOf(country, owner) : null;
 }
 

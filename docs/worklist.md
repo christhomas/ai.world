@@ -4333,6 +4333,18 @@ than by remembering — and the first thing found was that the gap is not where 
 
       Four candidates worth separating before anything is changed, because they have different fixes:
 
+      *Measured, and three of the four answered, on the night of the 12th. The report is
+      `docs/cpu-report-2026-09-12.md`.* Growing a patch of endless country was **6,250 ms** and is
+      now **710 ms** — the cost was never that settling a cell is expensive, it was that a cell was
+      asked about twelve million times per patch through a freshly built string key. The ring of
+      eight neighbours now completes in ten seconds rather than forty, and the country is provably
+      the same one: the same fingerprint, and the same per-patch hash of roads, water, villages and
+      3,600 ground samples. The shadow map stopped redrawing sixty times a second for a sun that
+      moves a fortieth of a degree a frame. What is left is the sim worker that keeps ticking when
+      the tab is hidden, and the 27-lines-a-second chat bug, both in hand.
+
+      The four candidates as they were written:
+
       1. **A loop that does not throttle.** `requestAnimationFrame` stops when a tab is hidden;
          `setInterval` and workers do not. A simulation tick on a timer would explain a tab nobody
          is looking at costing a core, and it is the cheapest thing to check.

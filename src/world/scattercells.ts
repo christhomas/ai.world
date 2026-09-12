@@ -88,13 +88,62 @@ function candidates(seed: number, cell: number, ci: number, cj: number, dials: C
  * dozen cells.
  *
  * Bounded, because a player who walks a long way would otherwise carry every cell they have ever
- * seen. The oldest are forgotten and worked out again if wanted, which costs a hash apiece.
+ * seen. What is remembered is emptied and worked out again if wanted, which costs a hash apiece.
  */
 const CELLS_KEPT = 4096;
 
+/**
+ * How many gathered squares of cells are remembered. See `gather`.
+ *
+ * A patch of country is nine cells across and every question about it gathers the seven-by-seven
+ * block around the point asked about, so a whole patch is answered out of about a hundred distinct
+ * blocks. A few hundred is room for the patch being grown, the ring of country around it, and the
+ * questions that stray past both.
+ */
+const BLOCKS_KEPT = 512;
+
+/** A square of ground a question is asked about, in tiles. The same shape `Within` has. */
+interface Square {
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+}
+
+/** One gathered block of cells: which cells it covers, and every site standing in them. */
+interface Block {
+  highI: number;
+  highJ: number;
+  sites: Site[];
+}
+
+/**
+ * A store of one thing per cell, held as a map of rows rather than under a `"ci:cj"` key.
+ *
+ * Two integer lookups rather than a string, and this is a measured decision rather than a
+ * stylistic one. Growing one patch asks about a cell some twelve million times — every tile of
+ * every chunk asks which face it is on, and each of those questions looks at the forty-nine cells
+ * around it — and building a key string for each of those asks cost more than everything the cells
+ * themselves do put together. A packed number would be cheaper still and is not worth the risk: a
+ * world with no edge to it has no bound on how large a cell number may grow, and two cells that
+ * packed to the same number would be two places in the country quietly becoming one.
+ */
+type Rows<Kept> = Map<number, Map<number, Kept>>;
+
+/** The row a cell is in, made if this is the first thing that row has been asked for. */
+function rowOf<Kept>(rows: Rows<Kept>, ci: number): Map<number, Kept> {
+  let row = rows.get(ci);
+  if (!row) { row = new Map(); rows.set(ci, row); }
+  return row;
+}
+
 export class Scatter {
-  private readonly known = new Map<string, Array<Site & { rank: number }>>();
-  private readonly stood = new Map<string, Site[]>();
+  private readonly known: Rows<Array<Site & { rank: number }>> = new Map();
+  private readonly stood: Rows<Site[]> = new Map();
+  private readonly gathered: Rows<Block> = new Map();
+  /** How many cells and blocks are remembered, so each store can be held inside its bound. */
+  private cells = 0;
+  private blocks = 0;
 
   constructor(
     private readonly seed: number,
@@ -104,15 +153,16 @@ export class Scatter {
 
   /** One cell's candidates, worked out once. */
   private cell(ci: number, cj: number): Array<Site & { rank: number }> {
-    const key = `${ci}:${cj}`;
-    const known = this.known.get(key);
+    const known = this.known.get(ci)?.get(cj);
     if (known) return known;
     const made = candidates(this.seed, this.dials.far, ci, cj, this.dials, this.spacing);
-    if (this.known.size >= CELLS_KEPT) {
-      const oldest = this.known.keys().next().value;
-      if (oldest !== undefined) this.known.delete(oldest);
-    }
-    this.known.set(key, made);
+    // Everything here is a pure function of the seed and the cell, so forgetting one costs the
+    // arithmetic to make it again and nothing else. That is why the whole store is emptied rather
+    // than the oldest entry hunted down: keeping an order across rows is bookkeeping on every
+    // single lookup, to save re-deriving a handful of points that cost microseconds each.
+    if (this.cells >= CELLS_KEPT) { this.known.clear(); this.stood.clear(); this.gathered.clear(); this.cells = 0; this.blocks = 0; }
+    rowOf(this.known, ci).set(cj, made);
+    this.cells++;
     return made;
   }
 
@@ -126,8 +176,7 @@ export class Scatter {
    * windows overlaps the same cells and did the same refusing over again.
    */
   private standing(ci: number, cj: number): Site[] {
-    const key = `${ci}:${cj}`;
-    const known = this.stood.get(key);
+    const known = this.stood.get(ci)?.get(cj);
     if (known) return known;
     const neighbours: Array<Site & { rank: number }> = [];
     for (let j = cj - 1; j <= cj + 1; j++) {
@@ -136,29 +185,83 @@ export class Scatter {
     const kept = this.cell(ci, cj)
       .filter((one) => !refusedBy(one, neighbours))
       .map((one) => ({ x: one.x, z: one.z, claim: one.claim, id: one.id }));
-    if (this.stood.size >= CELLS_KEPT) {
-      const oldest = this.stood.keys().next().value;
-      if (oldest !== undefined) this.stood.delete(oldest);
-    }
-    this.stood.set(key, kept);
+    // the row is fetched after the cells above, because working one of them out may have emptied
+    // the stores to stay inside their bound, and a row held from before that would be an orphan
+    rowOf(this.stood, ci).set(cj, kept);
     return kept;
   }
 
-  /** The points of a patch of country: the same answer as `sitesIn`, without the repeated work. */
-  sitesIn(window: { x0: number; z0: number; x1: number; z1: number }): Site[] {
+  /**
+   * Every site standing in the block of cells a square covers, gathered once and kept.
+   *
+   * This is the piece that decides what an endless country costs to grow, so it is worth being
+   * plain about. A face is found by looking at the ground within three claims of a point, which is
+   * a seven-by-seven block of cells and about a hundred and fifty sites. The sampler asks that
+   * question for every tile of every chunk of a patch — a quarter of a million times — and the
+   * point next door is in the same block as the point before it, because a cell is sixty-two tiles
+   * wide and a tile is one. So the same block was gathered over and over: twelve million cell
+   * lookups and a quarter of a million arrays built and thrown away, to answer about a hundred
+   * distinct questions.
+   *
+   * Keyed by the near corner of the block and checked against the far one, so two blocks that
+   * start at the same cell and end at different ones can never be taken for each other.
+   *
+   * The list handed back is the kept one and must not be written to. Both callers below read it
+   * and copy what they want out of it, which is what keeps that safe without a defensive copy —
+   * and a defensive copy here would give back exactly the cost this exists to remove.
+   */
+  private gather(square: Square): readonly Site[] {
     const cell = this.dials.far;
-    const lowI = Math.floor(window.x0 / cell), highI = Math.floor(window.x1 / cell);
-    const lowJ = Math.floor(window.z0 / cell), highJ = Math.floor(window.z1 / cell);
-    const kept: Site[] = [];
+    const lowI = Math.floor(square.x0 / cell), highI = Math.floor(square.x1 / cell);
+    const lowJ = Math.floor(square.z0 / cell), highJ = Math.floor(square.z1 / cell);
+    const already = this.gathered.get(lowI)?.get(lowJ);
+    if (already && already.highI === highI && already.highJ === highJ) return already.sites;
+    const sites: Site[] = [];
     for (let cj = lowJ; cj <= highJ; cj++) {
-      for (let ci = lowI; ci <= highI; ci++) {
-        for (const one of this.standing(ci, cj)) {
-          if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
-          kept.push(one);
-        }
-      }
+      for (let ci = lowI; ci <= highI; ci++) for (const one of this.standing(ci, cj)) sites.push(one);
+    }
+    // same reasoning as the cells: a block is a pure function of the cells it covers, so emptying
+    // the store costs only the gathering, and gathering is what this is bounded to do rarely
+    if (this.blocks >= BLOCKS_KEPT) { this.gathered.clear(); this.blocks = 0; }
+    rowOf(this.gathered, lowI).set(lowJ, { highI, highJ, sites });
+    this.blocks++;
+    return sites;
+  }
+
+  /** The points of a patch of country: the same answer as `sitesIn`, without the repeated work. */
+  sitesIn(window: Square): Site[] {
+    const kept: Site[] = [];
+    for (const one of this.gather(window)) {
+      if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
+      kept.push(one);
     }
     return kept;
+  }
+
+  /**
+   * The site nearest a point, of those a window holds.
+   *
+   * Exactly the set `sitesIn` would hand back and exactly the same tie: a point equally far from
+   * two sites belongs to whichever the gathering reached first. That is not a detail to be tidied
+   * up later — it is what decides which face a tile stands on, and a tile that changed hands would
+   * be a different country on two machines that agree by construction.
+   *
+   * It lives here, on the point set, rather than in the mesher that wants it, because the mesher
+   * could only ask by having the list built for it — a hundred and fifty sites gathered into a
+   * fresh array and thrown away, once for every tile of every chunk. Asking the question where the
+   * points are is what lets the answer be found without building anything at all.
+   */
+  nearestIn(window: Square, x: number, z: number): Site | null {
+    const around = this.gather(window);
+    let owner: Site | null = null;
+    let nearest = Infinity;
+    for (let n = 0; n < around.length; n++) {
+      const one = around[n];
+      if (one.x < window.x0 || one.x > window.x1 || one.z < window.z0 || one.z > window.z1) continue;
+      const away = (one.x - x) ** 2 + (one.z - z) ** 2;
+      if (away < nearest) { nearest = away; owner = one; }
+    }
+    return owner;
   }
 }
 

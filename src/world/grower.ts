@@ -49,9 +49,14 @@ export class Grower {
    *
    * Cheap to call every frame with the same patch, which is what the caller does: "grow what is
    * around the hero" is a question with the same answer for minutes at a time.
+   *
+   * It asks with `wanted` rather than `has`, and that one word is what keeps the ring of squares
+   * round the hero from being dropped out from under the very thing asking for them. Being asked
+   * for is a use: a square somebody is walking towards is wanted now, whether or not anything has
+   * happened to paint a chunk on it lately. See `Patchwork.wanted`.
    */
   want(patch: string): void {
-    if (this.patches.has(patch) || this.asked.includes(patch)) return;
+    if (this.patches.wanted(patch) || this.asked.includes(patch)) return;
     this.asked.push(patch);
     this.pump();
   }
@@ -72,10 +77,16 @@ export class Grower {
     return [...this.asked];
   }
 
-  /** Send the next one, if nothing is already out. */
+  /**
+   * Send the next one, if nothing is already out.
+   *
+   * `wanted` again rather than `has`, for the same reason and with a second one of its own: every
+   * square still in the queue is by definition one somebody has asked for, so walking the queue is
+   * a use of every square it skips past as well as of the one it settles on.
+   */
   private pump(): void {
     if (this.busy) return;
-    const next = this.asked.find((patch) => !this.patches.has(patch));
+    const next = this.asked.find((patch) => !this.patches.wanted(patch));
     if (!next) return;
     this.busy = true;
     this.send({ type: 'grow', seed: this.seed, patch: next });
