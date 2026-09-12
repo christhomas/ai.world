@@ -2,8 +2,9 @@ import { PROSPER } from './prosperity';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
-import { whatTheVillageSpends } from './growth';
+import { rankOfVillage, whatTheVillageSpends } from './growth';
 import { whoCouldHaveAChild } from './roofs';
+import type { Rank } from './rank';
 import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Settlement } from './settlement';
@@ -392,16 +393,16 @@ export class Register {
   /** What this village has had built out of its own money. */
   worksOf(village: string): readonly string[] { return this.villages.get(village)?.works ?? []; }
 
+  /** What this place has grown into, counted off what is standing rather than declared. See `rank.ts`. */
+  rankOf(village: string): Rank {
+    const here = this.villages.get(village);
+    return here ? rankOfVillage(here.houses, here.works) : 'hamlet';
+  }
+
   /** Who is standing on this village's tower today, or nobody. See `whoStandsWatch`. */
   watchOf(village: string): string { return this.villages.get(village)?.watch ?? ''; }
 
-  /**
-   * How many people this village has room for, which is what its roofs hold.
-   *
-   * It was the size it happened to be founded at, for as long as a village could only shrink. A
-   * village that builds houses raises its own ceiling — see `growth.ts` — so this is the number that
-   * says how big it is allowed to get, and it moves.
-   */
+  /** How many this village has room for: what its roofs hold, which moves as it builds. */
   roomIn(village: string): number { return this.villages.get(village)?.founded ?? 0; }
 
   /**

@@ -1,6 +1,7 @@
 import { WATCH_WAGE, whatTheHallSpends } from './hall';
 import { PROSPER } from './prosperity';
 import { shareOut } from './livelihoods';
+import { rankOfRoofs, type Rank } from './rank';
 import {
   STANDARD, biggestRoofAmong, familiesWantingRoom, isARoof, oneSizeUp, workOf, type Roof,
 } from './roofs';
@@ -245,7 +246,8 @@ export function whatTheVillageSpends(
   // morning a house goes up, the hall is handed the watchman's wage and not a coin more — he is
   // still paid, because a wage is owed, and there is nothing left over to buy anything with.
   const left = raised ? Math.min(purse - onTheHouse, WATCH_WAGE) : purse;
-  const hall = whatTheHallSpends(Math.round(left * 100) / 100, built, people);
+  // what the village has grown into decides what its hall may buy at all: see `rank.ts`
+  const hall = whatTheHallSpends(Math.round(left * 100) / 100, built, people, rankOfVillage(laidOut, built));
   for (const [id, much] of hall.wages) {
     wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
   }
@@ -257,4 +259,15 @@ export function whatTheVillageSpends(
     holdsMore: raised?.holdsMore ?? 0,
     watch: hall.watch,
   };
+}
+
+/**
+ * What a village has grown into, counted off what is standing in it.
+ *
+ * Here rather than in `rank.ts` because counting a village's roofs is this file's job and what the
+ * count *means* is that one's — and the two must not ask each other, which is what a module cycle
+ * is. See the note on `untilTheNextRank`.
+ */
+export function rankOfVillage(laidOut: number, built: readonly string[]): Rank {
+  return rankOfRoofs(housesStanding(laidOut, built));
 }

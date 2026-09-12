@@ -1,6 +1,7 @@
 import { PROSPER } from './prosperity';
 import { LIVELIHOOD } from './livelihoods';
 import type { Person } from './people';
+import { atLeast, type Rank } from './rank';
 
 /**
  * The village's own money: what the hall takes, and what makes it different from a purse.
@@ -70,11 +71,25 @@ export function taxedForTheHall(people: readonly Person[]): { owed: Map<string, 
  * Ordered cheapest first, and one a day at most. A village that emptied its treasury into four
  * buildings on one morning is a village nobody watched change.
  */
-export const WORKS: ReadonlyArray<{ id: string; costs: number; note: string }> = [
+export const WORKS: ReadonlyArray<{ id: string; costs: number; note: string; needs?: Rank }> = [
   { id: 'well', costs: 900, note: 'A well on the square: the first thing a village buys, and the one every village wants.' },
   { id: 'storey', costs: 2600, note: 'A second storey on the houses, which is the village saying it means to stay.' },
   { id: 'watchtower', costs: 3800, note: 'A watchtower, and a man on it: the first thing a village buys that it would rather not have needed.' },
   { id: 'bathhouse', costs: 6200, note: 'A bath house, which is what a village builds when it has run out of things it needs.' },
+  /*
+   * And two that a place has to have grown into, rather than saved up for.
+   *
+   * This is the whole of what a rank is allowed to do (`rank.ts`): unlock things a smaller place has
+   * not got, never make its numbers bigger. A market hall is a town's — a village's market is
+   * stalls on the square, and a roof over it is what a place builds when the stalls stopped being
+   * enough. An aqueduct is a city's, and a city is years of building away: nobody has seen one yet,
+   * which is precisely the point of having something at the top of a ladder.
+   *
+   * They are reachable by money *and* by growing, and both conditions are honest: a rich hamlet
+   * cannot buy its way into being a town, and a big poor town cannot wish an aqueduct into being.
+   */
+  { id: 'markethall', costs: 9400, needs: 'town', note: 'A roof over the market, which is what a village builds when its stalls have stopped being enough.' },
+  { id: 'aqueduct', costs: 21000, needs: 'city', note: 'Water brought in from the hills, which nobody has ever needed before and no village could ever pay for.' },
 ];
 
 /**
@@ -119,9 +134,15 @@ export function whoStandsWatch(
 }
 
 /** What the hall can afford next, or nothing: the cheapest thing it has not already raised. */
-export function nextWork(purse: number, built: readonly string[]): typeof WORKS[number] | null {
+export function nextWork(
+  purse: number, built: readonly string[], rank: Rank = 'city',
+): typeof WORKS[number] | null {
   for (const work of WORKS) {
     if (built.includes(work.id)) continue;
+    // a thing the place is not big enough for is skipped rather than saved for, which is the one
+    // exception to the rule below and has to be: a village saving for a market hall it cannot have
+    // would never buy its bath house, and would sit on the money until it had grown into a town
+    if (work.needs && !atLeast(rank, work.needs)) continue;
     return purse >= work.costs ? work : null;   // cheapest first, and it saves up rather than skipping
   }
   return null;
@@ -139,9 +160,9 @@ export function nextWork(purse: number, built: readonly string[]): typeof WORKS[
  * dust, and dust is money the world invented.
  */
 export function whatTheHallBuys(
-  purse: number, built: readonly string[], people: readonly Person[],
+  purse: number, built: readonly string[], people: readonly Person[], rank: Rank = 'city',
 ): { work: string; costs: number; wages: Map<string, number> } | null {
-  const work = nextWork(purse, built);
+  const work = nextWork(purse, built, rank);
   if (!work) return null;
   const working = people.filter((p) => p.trade !== '');
   if (working.length === 0) return null;        // nobody to do the work, so nothing is built
@@ -169,7 +190,7 @@ export function whatTheHallBuys(
  * chances for one of them to be forgotten.
  */
 export function whatTheHallSpends(
-  purse: number, built: readonly string[], people: readonly Person[],
+  purse: number, built: readonly string[], people: readonly Person[], rank: Rank = 'city',
 ): { wages: Map<string, number>; spent: number; work: string | null; watch: string } {
   const wages = new Map<string, number>();
   let spent = 0;
@@ -180,7 +201,7 @@ export function whatTheHallSpends(
     spent = watch.wage;
   }
 
-  const bought = whatTheHallBuys(Math.round((purse - spent) * 100) / 100, built, people);
+  const bought = whatTheHallBuys(Math.round((purse - spent) * 100) / 100, built, people, rank);
   if (bought) {
     for (const [id, much] of bought.wages) {
       wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);

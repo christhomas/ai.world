@@ -3593,7 +3593,28 @@ simulation rather than any one feature in it.
       paid by the hall out of what the farm earns, which is money moving inside the valley for work
       somebody actually needed, the same shape as **39**.
 
-- [ ] **48. A village becomes a town becomes a city.** Falls out of **44** for free: if buildings
+- [x] **48. A village becomes a town becomes a city.** *Done on the 12th, and it did fall out of 44
+      for nothing.* If the roofs a place has cap its population, the roofs are also what the place
+      *is* — so `rank.ts` counts them and nothing anywhere says "put a city here". Every threshold
+      hangs off the eight houses that already earn a village its hall, rather than off a second set
+      of numbers for the same question: a hamlet is under it, a village has it, a town has twice it,
+      a city four times.
+
+      What a rank does is the part that was worth getting right, and the rule is that it unlocks
+      buildings and never makes numbers bigger — a town that simply earned more per head than a
+      village would be a multiplier wearing a noun. So the hall's wish list grew two entries a
+      smaller place cannot reach at any price: a **market hall** for a town, which is what a village
+      builds when stalls on the square have stopped being enough, and an **aqueduct** for a city,
+      which nobody has ever seen because a city is years of building away. Both are skipped rather
+      than saved for when a place is too small, which had to be: a village saving for a market hall
+      it cannot have would never buy its bath house.
+
+      **A module cycle cost an hour, and is worth writing down.** `rank.ts` asked `growth.ts` to count
+      roofs while `growth.ts` asked `rank.ts` what the count meant. At module-init time that left a
+      constant undefined, so a roof's price was `NaN` — and because `purse < NaN` is false, every
+      village "raised" a longhouse it could not pay for and its treasury went to `NaN` with it. The
+      bench found it in a minute; finding *why* took the rest. `rank.ts` counts nothing now, and says
+      so in a comment and a test. Falls out of **44** for free: if buildings
       are what a village's population is capped by, then buildings are also what a village *is*.
       Count them and a place has a rank — hamlet, village, town, city — reached by nothing but the
       economy growing, never by a rule saying "this seed places a city here". The hall already
