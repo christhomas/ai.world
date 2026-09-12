@@ -5071,7 +5071,7 @@ than by remembering — and the first thing found was that the gap is not where 
       And a note worth keeping: `architecture.test.ts` counts one line more than `wc -l` does, so the
       real ceiling is 699.
 
-- [~] **78. A village grows only in its books.** *Found on the 13th by walking one, and it is the
+- [x] **78. A village grows only in its books.** *Found on the 13th by walking one, and it is the
       third of the kind.* Crossroads Town went from **31 souls to 93** over two hundred days with the
       **same ten roofs, the same thirteen doors and the same name over the square**. The population
       tripled and nothing was built that a player can walk up to.
@@ -5098,3 +5098,53 @@ than by remembering — and the first thing found was that the gap is not where 
       is the one growth mechanism that *is* wired to the drawing — but the scene gained 88 triangles,
       and five houses gaining a storey is not 88 triangles. Either the taller houses were outside the
       frame or the chunks were never rebuilt after the value changed.
+
+      **Done on the 13th.** `spareplots.ts` finds, at founding time, the plots a village has *not*
+      built on — the eleventh house, the twelfth — on a derived stream of its own, after everything
+      else is standing, checked against the founding's own footprint rule but never registered. That
+      last part is the whole trick: continuing the founding loop instead registers footprints and
+      pushes the shops, the chapel and the paddock aside, which `golden.test.ts` caught within the
+      hour. `game/villageroofs.ts` turns the works ledger into sites and `frame.ts` hands them to
+      `BuildingSite` beside the player's own, so they are drawn *and* solid on the same rules.
+
+      Three decisions written into the code rather than only here: a village builds in its own
+      country's cottage and never in `HouseYours`, because the one house in the world with a chimney
+      on it should stay findable from the ridge; four sizes are drawn as the one model that exists,
+      which is the truthful version of that compromise; and every roof is `done`, because the
+      register keeps the day a roof was *paid for* and not the morning it was begun.
+
+      That last one is the thing left behind, and it is worth a number of its own — see **79**.
+
+## Found while landing the roofs — September 13th
+
+- [ ] **79. A village's building work has no mornings.** A raised roof is drawn finished the day it
+      is paid for, because `Settlement.works` records *what* was bought and never *when* it was
+      begun. A frame going up in a village you are walking through is the whole of why the four
+      stages exist, and villages are the only builder in the world that cannot use them.
+
+      What it needs is one more fact in the books: the day the work started, so `stageAt` has the
+      same subtraction to do for a village that it already does for a commission. Cheap in itself.
+      The care needed is in `relive` — it is a told-not-derived fact and has to survive a replay.
+
+- [ ] **80. Money is destroyed at the purse ceiling, and no book records it.** `Register.pay` clamps
+      a purse at `PROSPER.MOST`, and whatever would have gone over the top simply stops existing.
+      Found by the audit: every discrepancy in the hundred-day run is *negative*, which is the
+      signature of coins leaving the world rather than arriving in it.
+
+      It matters because the deed layer's one rule is that a coin leaving one purse arrives in
+      another, and this is the single place in the game that breaks it — quietly, in the one
+      direction an audit reads as "the world is poorer than its transactions say".
+
+      Two honest fixes and they are different games: the overflow goes to the village hall, which
+      makes a ceiling into a tax and gives a rich man's surplus somewhere to be; or the transaction
+      is refused at the source, which means a man who cannot hold more simply does not earn it.
+      Either way the deed has to be written for what actually moved, not for what was offered.
+
+- [ ] **81. Two villages in nine never grow at all.** Saltcombe on seed 7 is still 12 souls in 12
+      beds after four hundred and fifty days; Oakcross on seed 1234 is still 23. Every bound on the
+      sanity bench passes them, and a place that stands still for five generations while its
+      neighbours triple is either a fact about its ground worth reading in the landscape, or a
+      village that quietly cannot afford its first roof and never will.
+
+      Worth finding out which before anything is tuned: if it is the ground, it is content; if it is
+      the ladder's first rung, it is the same bug in every marginal village in the world.
