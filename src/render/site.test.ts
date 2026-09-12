@@ -71,6 +71,19 @@ describe('what is standing on a plot', () => {
     expect(propOf(site({ what: BUILDS.BOAT, stage: 'done' }))).toBe(PropKind.BoatReady);
   });
 
+  it('drives a jetty out and leaves it standing, which the boat did not', () => {
+    /*
+     * The other awkward one, awkward the opposite way from a storey and from a boat. A storey has
+     * no site of its own; a boat has one and then stops having one. A jetty's site is the shore
+     * tile at the landward end while the whole of the thing is out over water — which costs this
+     * table nothing, because a prop is drawn at its tile's height with its parts wherever they are.
+     */
+    expect(propOf(site({ what: BUILDS.JETTY, stage: 'marked' }))).toBe(PropKind.JettyPiles);
+    expect(propOf(site({ what: BUILDS.JETTY, stage: 'begun' }))).toBe(PropKind.JettyDriven);
+    expect(propOf(site({ what: BUILDS.JETTY, stage: 'nearly' }))).toBe(PropKind.JettyBearers);
+    expect(propOf(site({ what: BUILDS.JETTY, stage: 'done' }))).toBe(PropKind.JettyDone);
+  });
+
   it('shows something different on every morning of every kind of job', () => {
     // the rule the whole table exists for, asked of all of them at once rather than kind by kind:
     // a wait that looks the same on the second morning as on the first is a wait with nothing in it

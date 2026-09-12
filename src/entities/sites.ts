@@ -396,3 +396,76 @@ export const boatReady: PropPart[] = [
   box(0.3, 0.3, 0.3, TIMBER, [-0.6, 1.12, 0.35]),
   ...ladder(0.1, -1.25, 0.2),
 ];
+
+/*
+ * A jetty, which is the one thing in this file that is not built on the ground.
+ *
+ * Everything else here stands on its own plot and stands on it from below: a house on its sill, a
+ * pool in its hole, a hull on stocks. A jetty leaves the land. Its site is the shore tile at the
+ * landward end — that is what the ground check measures and what the drawing takes its height from
+ * — and the whole of the thing reaches out past that tile, over water there is no ground under.
+ *
+ * So it breaks the two rules the rest of this file keeps, and it breaks them on purpose. It sprawls
+ * a long way off its own tile, because reaching off the land is what a jetty is for. And its piles
+ * hang below nought, because the deck leaves the bank level with the bank and the water is further
+ * down — which is also why a jetty may only be built off a low shore, and why `BUILD.HARBOUR_LEVEL`
+ * exists to refuse a cliff. `sites.test.ts` states both exemptions rather than quietly skipping it.
+ *
+ * The order is a pile driver's order: two piles in at the water's edge with the rest lying on the
+ * bank, then the whole double row driven and standing out of the water with nothing on it, then
+ * bearers across them and the boards laid half way, and then decked to the end with a bollard on it.
+ */
+
+/** How far out the deck runs, in tiles, and where the piles that carry it stand. */
+const DECK_OUT = 4;
+const PILES: readonly number[] = [0.6, 1.6, 2.6, 3.6, 4.4];
+/** How far a pile hangs below the deck it carries: down into water a low bank is only just above. */
+const PILE_DROP = 1.3;
+
+/** One pile, driven: it stands a little proud of the deck and reaches well below it. */
+function pile(x: number, z: number, driven: boolean): PropPart {
+  return driven
+    ? cyl(0.11, 0.13, 1.7, 6, CUT, [x, 0.85 - PILE_DROP, z])
+    : cyl(0.11, 0.13, 1.7, 6, TIMBER, [x, 0.13, z], [1, 1, 1], [0, 0, Math.PI / 2]);
+}
+
+/** Driving begun: the first pair in at the water's edge, the rest on the bank, and the maul. */
+export const jettyPiles: PropPart[] = [
+  pile(PILES[0], 0.55, true),
+  pile(PILES[0], -0.55, true),
+  // the rest of them lying along the bank, out of the way of the man swinging
+  ...([0.35, 0.6, 0.85] as const).map((y) => cyl(0.11, 0.13, 1.7, 6, TIMBER, [-0.4, y, 1.3], [1, 1, 1], [0, 0, Math.PI / 2])),
+  // and the maul, stood on its head where he left it
+  box(0.22, 0.26, 0.22, CUT, [0.1, 0.13, -1.2]),
+  box(0.07, 0.9, 0.07, TIMBER, [0.1, 0.71, -1.2]),
+];
+
+/** Driven: the whole double row standing out over the water, and nothing yet across them. */
+export const jettyDriven: PropPart[] = PILES.flatMap((x) => [
+  pile(x, 0.55, true),
+  pile(x, -0.55, true),
+]);
+
+/** Bearers on, and the boards down as far as a man can walk dry: the rest stacked on the bank. */
+export const jettyBearers: PropPart[] = [
+  ...jettyDriven,
+  box(DECK_OUT + 0.4, 0.12, 0.12, TIMBER, [DECK_OUT / 2 + 0.3, 0.78, 0.55]),
+  box(DECK_OUT + 0.4, 0.12, 0.12, TIMBER, [DECK_OUT / 2 + 0.3, 0.78, -0.55]),
+  // half a deck, from the shore end outward, which is the only end you could lay it from
+  box(2.2, 0.1, 1.5, DECK, [1.2, 0.9, 0]),
+  box(1.6, 0.1, 0.5, TIMBER, [-0.3, 0.05, 1.3]),
+  box(1.6, 0.1, 0.46, TIMBER, [-0.3, 0.15, 1.3]),
+];
+
+/** Decked to the end, with a bollard to take a line and a ladder over the side into the water. */
+export const jettyDone: PropPart[] = [
+  ...jettyDriven,
+  box(DECK_OUT + 0.4, 0.12, 0.12, TIMBER, [DECK_OUT / 2 + 0.3, 0.78, 0.55]),
+  box(DECK_OUT + 0.4, 0.12, 0.12, TIMBER, [DECK_OUT / 2 + 0.3, 0.78, -0.55]),
+  box(DECK_OUT + 0.5, 0.1, 1.5, DECK, [DECK_OUT / 2 + 0.25, 0.9, 0]),
+  // the bollard: the whole reason anybody built it, and the one part of it visible from a boat
+  cyl(0.13, 0.15, 0.6, 8, CUT, [DECK_OUT + 0.1, 1.25, 0.42]),
+  box(0.3, 0.1, 0.3, CUT, [DECK_OUT + 0.1, 1.57, 0.42]),
+  // and a coil of rope on the boards beside it
+  cyl(0.2, 0.22, 0.09, 8, TWINE, [DECK_OUT - 0.4, 0.99, -0.42]),
+];

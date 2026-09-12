@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BUILD, CATALOGUE, Houses, beside, buildable, builderIn, canAttachTo, canBuildAt, canLayAKeel,
-  daysFor, deposit, isFinished, onOffer, owed, progressOf, saidOfJob, stageAt, stillOnItsSite,
-  storeysOf, type Commission, BUILDS,
+  BUILD, CATALOGUE, Houses, buildable, builderIn, daysFor, deposit, isFinished, onOffer, owed,
+  progressOf, saidOfJob, stageAt, stillOnItsSite, storeysOf, type Commission, BUILDS,
 } from './building';
+// the four "may it go here" rules came out of `building.ts` when a jetty joined the catalogue and
+// that file ran out of room; they are the same functions and these are the same tests of them
+import { beside, canAttachTo, canBuildAt, canBuildOnShore } from './siting';
+import { jettiesIn, mooringOf } from './jetties';
 import { BOAT, moorageFor } from './sailing';
 import { GRUDGE } from './grudge';
 
@@ -466,13 +469,14 @@ describe('having a boat built', () => {
   const ashore = { x: 0, z: 0 };
   const village = { x: 20, z: 20 };
   /** A shore with the water at the end of it and a jetty in sight: the case that should be allowed. */
-  const keelAt = (toWater: number, toPier: number) =>
-    canLayAKeel(ashore.x, ashore.z, true, village, [], true, toWater, toPier);
+  const keelAt = (toWater: number, toJetty: number) =>
+    canBuildOnShore(buildable(BUILDS.BOAT), ashore.x, ashore.z, true, village, [], true,
+      { toWater, toJetty, level: 1 });
 
   it('is on the menu to somebody who owns nothing, the way a house is', () => {
     // she goes on a piece of shore rather than on a building, so there is nothing to own first —
     // which is the whole of what `on` decides, and the reason it is a word rather than a boolean
-    const offered = onOffer([], 10 + BUILD.DAYS, true).map((entry) => entry.id);
+    const offered = onOffer([], 10 + BUILD.DAYS, { water: true, harbour: true }).map((entry) => entry.id);
     expect(offered).toContain(BUILDS.BOAT);
     expect(offered, 'a pool was offered to somebody with no house').not.toContain(BUILDS.POOL);
   });
@@ -484,7 +488,7 @@ describe('having a boat built', () => {
      * would be taking sixty-four gold for a job the player can never stand anywhere: the refusal
      * would arrive after the money had gone, and the money is the part that does not come back.
      */
-    const inland = onOffer([], 10 + BUILD.DAYS, false).map((entry) => entry.id);
+    const inland = onOffer([], 10 + BUILD.DAYS, { water: false, harbour: false }).map((entry) => entry.id);
     expect(inland, 'a boat was offered in a village with no water near it').not.toContain(BUILDS.BOAT);
     expect(inland, 'and the rest of his trade went with it').toContain(BUILDS.HOUSE);
   });
@@ -518,10 +522,12 @@ describe('having a boat built', () => {
   it('still asks everything a house is asked, because a yard is a piece of ground', () => {
     // the shore rules are added to the ground rules rather than replacing them: level, clear, and
     // near enough to a village that somebody will walk out to it every morning
-    expect(canLayAKeel(0, 0, false, village, [], true, 1, 1).ok, 'laid on ground that will not take it').toBe(false);
-    expect(canLayAKeel(0, 0, true, null, [], true, 1, 1).ok, 'laid where no village could send a man').toBe(false);
-    expect(canLayAKeel(0, 0, true, village, [{ x: 1, z: 1 }], true, 1, 1).ok, 'laid on top of something').toBe(false);
-    expect(canLayAKeel(0, 0, true, village, [], false, 1, 1).ok, 'laid through a tree').toBe(false);
+    const boat = buildable(BUILDS.BOAT);
+    const close = { toWater: 1, toJetty: 1, level: 1 };
+    expect(canBuildOnShore(boat, 0, 0, false, village, [], true, close).ok, 'laid on ground that will not take it').toBe(false);
+    expect(canBuildOnShore(boat, 0, 0, true, null, [], true, close).ok, 'laid where no village could send a man').toBe(false);
+    expect(canBuildOnShore(boat, 0, 0, true, village, [{ x: 1, z: 1 }], true, close).ok, 'laid on top of something').toBe(false);
+    expect(canBuildOnShore(boat, 0, 0, true, village, [], false, close).ok, 'laid through a tree').toBe(false);
   });
 
   it('leaves the shore bare once she has been launched, and not before', () => {

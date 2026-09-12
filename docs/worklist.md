@@ -3031,7 +3031,37 @@ other, and the order is chosen so that each one can be *seen* working before the
 Six ideas, most of them from the person who plays it, written down before they evaporate. They are
 in the order they would sensibly be built, which is not the order they arrived in.
 
-- [ ] **23. A jetty you can commission.** `BUILDS` already takes `on: 'land' | 'house'`, so a jetty
+- [x] **23. A jetty you can commission.** *Done on the 12th, and it settles the ordering problem that
+      **45** created.* A jetty is a player's commission rather than a hall work, and the argument is
+      the item's own motivation: a coast that is all cliff gets no ferry, so an island can be cut off
+      — and a cut-off island has no village with a treasury on it. A tech tree also only reads as a
+      tree if a player walks it; a village that quietly raises its own jetty on day 40 is not a
+      decision anybody made.
+
+      The public-versus-private objection is answered without changing who pays, and all three
+      answers fall out of a jetty not being the kind of thing that floats away. It is **told to the
+      world** like a house, so every client sees it and it counts as a harbour for everybody's
+      boatyard: you got the bill, the village got the jetty. It becomes one **the day the last board
+      goes down rather than the day it is paid for**, because a boat is handed over at settle-up by a
+      builder who holds her until he has his money, and a jetty is nobody's to hold. And the
+      settle-up line says so: *"She is the village's jetty now, and yours to tie up at like anybody
+      else."*
+
+      The circularity — a boat needs a jetty, a jetty needs building first — is settled by one
+      condition already on the table: **a thing that will float away needs a mooring, and a thing
+      that is the mooring does not.** So a coast with no harbour is offered the jetty and refused the
+      boat, and four days later it is offered both. Enforced in two places with one measure, because
+      the deposit is not refundable.
+
+      It breaks the two rules every other building site keeps — it sprawls off its own plot and its
+      piles hang below nought — and the tests now **assert both exemptions**, so a jetty that ever
+      sits politely on its tile fails and says why.
+
+      One limitation stated plainly: you cannot walk out along a commissioned jetty, because a
+      seeded pier's deck is stamped into the terrain and a commission is a prop plus a wall. It had
+      one real consequence, which was fixed rather than noted — a boat moored past the end of a
+      four-tile deck would be out of reach from the bank, so she lies alongside the near end, which
+      is what a small boat actually does at a landing stage. `BUILDS` already takes `on: 'land' | 'house'`, so a jetty
       is a fifth entry in the catalogue. It has a reason to exist that the others do not: since
       **22** a coast that is all cliff gets no ferry at all, so an island can be cut off — and a
       player who wants one pays for the harbour. The pier tiles, the stepping-down and the dock are

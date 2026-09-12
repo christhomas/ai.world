@@ -1,7 +1,9 @@
 import {
-  BUILD, beside, buildable, builderIn, canAttachTo, canBuildAt, canLayAKeel, deposit, isFinished,
+  BUILD, BUILDS, buildable, builderIn, deposit, isFinished,
   Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
 } from '../building';
+import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
+import { jettiesIn, type Mooring } from '../jetties';
 import { moorageFor } from '../sailing';
 import { buy, give, holds } from '../../world/deeds';
 import { boxOf, handOver, packOf } from '../../world/goods';
@@ -9,7 +11,7 @@ import { settle } from '../../world/works';
 import { villageTill } from '../tills';
 import { ITEMS } from '../items';
 import { footprintLevel } from '../../world/footprint';
-import type { Pier, Structure, Village } from '../../world/structures';
+import type { Structure, Village } from '../../world/structures';
 import { regardOf } from '../grudge';
 import type { DialogueChoice, DialogueNode, Surroundings } from './context';
 
@@ -53,10 +55,42 @@ const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.tim
  * the plot the player is standing on, to decide whether a keel may be laid there. One measure, one
  * distance in `BUILD.PIER_WITHIN`, and so no village that offers a boat has nowhere to build one.
  */
-function toTheJetty(piers: ReadonlyArray<Pier>, x: number, z: number): number {
+/**
+ * Where the nearest open water is, as a bearing and a distance, or nothing within `reach`.
+ *
+ * Rings outward rather than scanning a square, so what comes back is the *nearest* wet tile rather
+ * than whichever one happened to be looked at first, and it stops the moment it finds one. Water is
+ * the same question a boat asks: ground with nothing to stand on.
+ *
+ * The bearing is the half that matters as much as the distance, and it is why this hands back a
+ * point rather than a number. A jetty runs out the way the sea is, not the way the player happened
+ * to be facing when they pressed Enter — a man standing on a beach looking inland still wants his
+ * jetty over the water — and a hull on the stocks points the way she will go in.
+ *
+ * `step` is how coarsely to look. One tile for a plot, where the true distance is the answer and
+ * the reach is eight; four for a village, where the question is only whether this place has a coast
+ * at all and ringing ninety tiles a tile at a time would be thirty thousand samples on a key press.
+ */
+function toTheWater(
+  heightAt: (x: number, z: number) => number | null,
+  x: number, z: number, reach: number, step = 1,
+): { away: number; bearing: number } | null {
+  for (let r = step; r <= reach; r += step) {
+    const around = Math.max(8, Math.round(r * 8 / step));
+    for (let a = 0; a < around; a++) {
+      const angle = (a / around) * Math.PI * 2;
+      const wx = x + Math.cos(angle) * r, wz = z + Math.sin(angle) * r;
+      // the bearing is in the game's own convention, where yaw 0 is +x and turning is towards -z
+      if (heightAt(wx, wz) === null) return { away: r, bearing: Math.atan2(-(wz - z), wx - x) };
+    }
+  }
+  return null;
+}
+
+function toTheJetty(jetties: ReadonlyArray<Mooring>, x: number, z: number): number {
   let nearest = Infinity;
-  for (const pier of piers) {
-    nearest = Math.min(nearest, Math.hypot(pier.dockX + 0.5 - x, pier.dockZ + 0.5 - z));
+  for (const jetty of jetties) {
+    nearest = Math.min(nearest, Math.hypot(jetty.dockX + 0.5 - x, jetty.dockZ + 0.5 - z));
   }
   return nearest;
 }
@@ -118,7 +152,14 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
      * is `onOffer`'s business rather than this file's: it depends on what you already own, and what
      * a builder will take on is a fact about builders rather than about the room he is sitting in.
      */
-    const offered = onOffer(mine, day, toTheJetty(ctx.structures.piers, village.x, village.z) <= BUILD.PIER_WITHIN);
+    // what the coast round this village allows, asked exactly as the ground will ask it when the
+    // player is standing on the spot: water at all, and a jetty already there. Coarsely for the
+    // water, because the question here is whether this place has a sea rather than how far it is
+    const jetties = jettiesIn(ctx.structures.piers, houses.entries(), day);
+    const offered = onOffer(mine, day, {
+      water: toTheWater(ctx.chunks.heightAt.bind(ctx.chunks), village.x, village.z, BUILD.WITHIN, 4) !== null,
+      harbour: toTheJetty(jetties, village.x, village.z) <= BUILD.PIER_WITHIN,
+    });
     choices.push({
       label: 'Have something built',
       next: () => ({
@@ -199,7 +240,11 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
             ? 'Paid in full. The key is under the step, and there is a box inside for whatever you would rather not carry.'
             : built.moves
               ? 'Paid in full. We put her down the beach on the ebb — she is at the jetty, and she is yours.'
-              : 'Paid in full. Enjoy it.'],
+              // a jetty is the one thing on this list that is not handed to anybody. It was the
+              // village's the day the boards went down; what was owing was only ever the bill
+              : built.on === 'shore'
+                ? 'Paid in full. She is the village\'s jetty now, and yours to tie up at like anybody else.'
+                : 'Paid in full. Enjoy it.'],
         };
       },
     });
@@ -221,7 +266,8 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
  * paid for and does not exist.
  */
 function launchHer(ctx: Surroundings, job: Commission, day: number): void {
-  const lies = moorageFor(job, ctx.structures.piers) ?? { x: job.x, z: job.z, yaw: job.rot ?? 0 };
+  const jetties = jettiesIn(ctx.structures.piers, ctx.houses.entries(), day);
+  const lies = moorageFor(job, jetties) ?? { x: job.x, z: job.z, yaw: job.rot ?? 0 };
   ctx.houses.launch(job, day);
   ctx.sailing.buy(lies.x, lies.z, lies.yaw);
 }
@@ -297,8 +343,10 @@ export function builderInteractions(ctx: Surroundings) {
    * the commission is made, the world hears about it — a village is a building bigger for
    * everybody, whoever paid — and the corner says how long it will be.
    */
-  const begin = (x: number, z: number, wants: Buildable, to?: string): void => {
-    const job = houses.place(x, z, today(), player.entity.yaw, to);
+  const begin = (
+    x: number, z: number, wants: Buildable, to?: string, facing = player.entity.yaw,
+  ): void => {
+    const job = houses.place(x, z, today(), facing, to);
     if (!job) return;
     /*
      * Everybody hears about a building, and nobody needs to hear about a boat.
@@ -318,7 +366,9 @@ export function builderInteractions(ctx: Surroundings) {
     }
     state.version++;
     sound.chime();
-    hud.flash(wants.moves ? `A keel on the blocks. ${wants.days} days.` : `Pegs and string. ${wants.days} days.`);
+    hud.flash(wants.moves ? `A keel on the blocks. ${wants.days} days.`
+      : wants.id === BUILDS.JETTY ? `The first piles are in. ${wants.days} days.`
+        : `Pegs and string. ${wants.days} days.`);
     persist();
   };
 
@@ -328,54 +378,49 @@ export function builderInteractions(ctx: Surroundings) {
     const wants = buildable(held.what);
     const name = builderIn(held.village, seed);
     if (wants.on === 'house') return addToAHouse(wants, name);
-    if (wants.on === 'shore') return layAKeel(wants, name);
+    if (wants.on === 'shore') return onTheShore(wants, name);
     return buildOnLand(wants, name);
   };
 
   /**
-   * How far the nearest open water is from a tile, in tiles, or Infinity if there is none near.
+   * The shore: a boatyard or a jetty, which are the same ground rules and a different last question.
    *
-   * Rings outward rather than scanning a square, so the answer is the distance to the nearest wet
-   * tile rather than to whichever wet tile happened to be looked at first — and it stops the moment
-   * it finds one, which for a plot actually on a shore is the first ring. Water is the same
-   * question the boat itself asks: ground with nothing to stand on.
-   */
-  const toTheWater = (x: number, z: number): number => {
-    for (let r = 1; r <= BUILD.SHORE_WITHIN; r++) {
-      for (let a = 0; a < r * 8; a++) {
-        const angle = (a / (r * 8)) * Math.PI * 2;
-        const wx = x + Math.cos(angle) * r, wz = z + Math.sin(angle) * r;
-        if (chunks.heightAt(wx, wz) === null) return r;
-      }
-    }
-    return Infinity;
-  };
-
-  /**
-   * A boat: the same ground rules as a house, and two more that only a coast can satisfy.
+   * Both are sited on dry land and checked exactly as a house's plot is, with the world's own
+   * footprint rule — a hull is built above the tide line and a jetty leaves the bank level with it.
+   * What is added is the sea, measured here because only the world can answer it, and a jetty for
+   * the one of the two that will float away. `canBuildOnShore` is handed the measurements and knows
+   * nothing else.
    *
-   * She is laid on dry land — a hull is built above the tide line and goes in on the last day — so
-   * the plot is checked exactly as a house's is, with the world's own footprint rule. What is added
-   * is the sea at the end of it and a jetty to tie her to, and both are measured here because both
-   * are questions about the world. `canLayAKeel` is handed the two distances and knows nothing else.
+   * The bearing to the water is what both of them are turned to face. A man standing on a beach
+   * looking inland still wants his jetty over the sea and his hull pointing at it, so the facing is
+   * taken off the water rather than off the player — which is the one place a shore job differs
+   * from a house, where the way you were standing is the only statement of intent there is.
    */
-  const layAKeel = (wants: Buildable, name: string): boolean => {
+  const onTheShore = (wants: Buildable, name: string): boolean => {
     const tx = Math.floor(player.x), tz = Math.floor(player.z);
     const x = tx + 0.5, z = tz + 0.5;
-    const flat = footprintLevel(sampler, tx, tz, BUILD.PLOT, BUILD.PLOT, null) !== null;
-    const verdict = canLayAKeel(
-      x, z, flat, villageNear(x, z), standingNear(x, z), clearOfTrees(tx, tz),
-      toTheWater(x, z), toTheJetty(structures.piers, x, z),
+    const level = footprintLevel(sampler, tx, tz, BUILD.PLOT, BUILD.PLOT, null);
+    const water = toTheWater(chunks.heightAt.bind(chunks), x, z, BUILD.SHORE_WITHIN);
+    const jetties = jettiesIn(structures.piers, houses.entries(), today());
+    const verdict = canBuildOnShore(
+      wants, x, z, level !== null, villageNear(x, z), standingNear(x, z), clearOfTrees(tx, tz),
+      { toWater: water?.away ?? Infinity, toJetty: toTheJetty(jetties, x, z), level: level ?? 0 },
     );
     if (!verdict.ok) {
       dialogue.start({ speaker: name, emoji: '🔨', pages: [`Not here. ${verdict.why}`] });
       return true;
     }
+    const facing = water?.bearing ?? player.entity.yaw;
     dialogue.start({
       speaker: name, emoji: '🔨',
-      pages: [`A yard, then. ${wants.days} days on the stocks, and she goes down the beach the day you pay me the rest.`],
+      pages: [wants.moves
+        ? `A yard, then. ${wants.days} days on the stocks, and she goes down the beach the day you pay me the rest.`
+        : `Off here, then. ${wants.days} days of driving piles, and the village has a jetty at the end of it.`],
       choices: [
-        { label: 'Lay her keel here', next: () => { begin(x, z, wants); return null; } },
+        {
+          label: wants.moves ? 'Lay her keel here' : 'Run her out from here',
+          next: () => { begin(x, z, wants, undefined, facing); return null; },
+        },
         { label: 'Let me walk the shore', next: () => null },
       ],
     });

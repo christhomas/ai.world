@@ -12,6 +12,7 @@ import {
 } from './buildings';
 import {
   boatFrames, boatKeel, boatPlanked, boatReady,
+  jettyBearers, jettyDone, jettyDriven, jettyPiles,
   chimney, fountainBasin, fountainDry, fountainMarked, houseFrame, housePegs, houseRoof,
   poolDug, poolLined, poolMarked, storeyRaised, storeyScaffold, storeyTimber,
 } from './sites';
@@ -547,6 +548,12 @@ prop(PropKind.CropRipe, [
   prop(PropKind.BoatFrames, boatFrames);
   prop(PropKind.BoatPlanked, boatPlanked);
   prop(PropKind.BoatReady, boatReady);
+  // and the jetty, whose four are piles, a row of them, boards half way out, and a deck with a
+  // bollard on the end — every one of them drawn from the shore tile and standing over water
+  prop(PropKind.JettyPiles, jettyPiles);
+  prop(PropKind.JettyDriven, jettyDriven);
+  prop(PropKind.JettyBearers, jettyBearers);
+  prop(PropKind.JettyDone, jettyDone);
 }
 
 /*

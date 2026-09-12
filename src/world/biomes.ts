@@ -172,6 +172,18 @@ export const enum PropKind {
   BoatFrames = 141,
   BoatPlanked = 142,
   BoatReady = 143,
+  /**
+   * And a jetty, which is the only commission that reaches off its own tile.
+   *
+   * Four again, and the last of them stays: a jetty is finished where it stands and stays standing,
+   * which is the ordinary case that the boat was the exception to. What is unusual about these is
+   * underneath rather than in the list — they are drawn from the shore tile at the landward end and
+   * everything about them is out over water. See `entities/sites.ts`.
+   */
+  JettyPiles = 144,
+  JettyDriven = 145,
+  JettyBearers = 146,
+  JettyDone = 147,
   CaveMouth = 56,
   Shipwreck = 57,
   /** The crashed craft: not from here, and it shows. */

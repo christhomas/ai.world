@@ -126,6 +126,10 @@ export const CATALOGUE: readonly Catalogued[] = [
   { kind: PropKind.BoatFrames, name: 'a boat framed', group: 'building' },
   { kind: PropKind.BoatPlanked, name: 'a boat planked', group: 'building' },
   { kind: PropKind.BoatReady, name: 'a boat waiting for the tide', group: 'building' },
+  { kind: PropKind.JettyPiles, name: 'the first piles driven', group: 'building' },
+  { kind: PropKind.JettyDriven, name: 'a row of piles', group: 'building' },
+  { kind: PropKind.JettyBearers, name: 'a jetty half decked', group: 'building' },
+  { kind: PropKind.JettyDone, name: 'a jetty', group: 'building' },
 
   // a group of their own, because they are only ever seen together and are only ever a castle
   { kind: PropKind.CastleKeep, name: 'keep', group: 'castle' },

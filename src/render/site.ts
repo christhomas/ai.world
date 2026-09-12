@@ -97,6 +97,20 @@ const LOOKS: Record<string, Partial<Record<Site['stage'], PropKind>>> = {
     nearly: PropKind.BoatPlanked,
     done: PropKind.BoatReady,
   },
+  /*
+   * A jetty, whose last row stays — which makes it the ordinary case the boat was the exception to.
+   *
+   * It is the other kind of awkward: not a thing with no site of its own, and not a thing that
+   * leaves, but a thing whose site is the tile at the landward end while everything about it is out
+   * over water. That costs this table nothing at all — a prop is drawn at its tile's height with
+   * parts wherever its parts are — and it is what lets the whole of item 23 be four rows here.
+   */
+  jetty: {
+    marked: PropKind.JettyPiles,
+    begun: PropKind.JettyDriven,
+    nearly: PropKind.JettyBearers,
+    done: PropKind.JettyDone,
+  },
 };
 
 /** What to draw on one plot today, or nothing. */

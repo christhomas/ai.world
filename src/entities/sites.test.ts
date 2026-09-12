@@ -4,6 +4,7 @@ import { PROPS } from './props';
 import { partPoints, type PropPart } from './shapes';
 import {
   boatFrames, boatKeel, boatPlanked, boatReady,
+  jettyBearers, jettyDone, jettyDriven, jettyPiles,
   fountainBasin, fountainDry, fountainMarked, houseFrame, housePegs, houseRoof,
   poolDug, poolLined, poolMarked, storeyRaised, storeyScaffold, storeyTimber,
 } from './sites';
@@ -41,6 +42,20 @@ const EVERY_STAGE: ReadonlyArray<[string, PropPart[]]> = [
   ['a scaffold a lift higher', storeyRaised],
   ['a keel laid', boatKeel], ['a boat framed', boatFrames], ['a boat planked', boatPlanked],
   ['a boat waiting for the tide', boatReady],
+];
+
+/**
+ * And the one kind that is not built on the ground at all, held to a different pair of rules.
+ *
+ * A jetty leaves the land. Its site is the shore tile at the landward end — that is what the ground
+ * check measures and what the drawing takes its height from — and everything about it reaches out
+ * past that tile over water there is no ground under. So it sprawls off its own plot on purpose,
+ * and its piles hang below nought on purpose, and being held to `EVERY_STAGE`'s two rules would
+ * mean drawing a jetty that stopped at the water's edge and stood on top of the sea.
+ */
+const OVER_WATER: ReadonlyArray<[string, PropPart[]]> = [
+  ['the first piles driven', jettyPiles], ['a row of piles', jettyDriven],
+  ['a jetty half decked', jettyBearers], ['a jetty', jettyDone],
 ];
 
 /** The blue everything in this world holds water in: a pool, a fountain, the bucket in a well. */
@@ -144,6 +159,47 @@ describe('a building site on the mornings before it is finished', () => {
     expect(colours(boatReady).has(HULL), 'her planking is not the hull colour').toBe(true);
     expect(colours(boatReady).has(DECK), 'her deck is not the deck colour').toBe(true);
     expect(colours(boatReady).has(SAIL), 'her sail is not the sail colour').toBe(true);
+  });
+
+  it('reaches a jetty off the land and hangs its piles under it', () => {
+    /*
+     * The two rules every other site keeps, broken deliberately and in one direction each. If a
+     * jetty ever stopped sprawling it would be a jetty that stops at the water's edge; if its piles
+     * ever came up to nought it would be a deck standing on the sea. So the exemptions are asserted
+     * rather than skipped, and the day somebody draws a jetty that sits politely on its own tile
+     * this fails and says why.
+     */
+    for (const [what, parts] of OVER_WATER) {
+      expect(lowest(parts), `${what} stands on the water rather than in it`).toBeLessThan(0);
+    }
+    // and from the morning the row is driven she is off the land. Not on the first morning: that
+    // one is two piles at the water's edge with the rest of them still lying on the bank, which is
+    // exactly why it is worth walking past a second time
+    expect(widest(jettyPiles), 'she is out over the water before a pile is driven').toBeLessThan(2.35);
+    for (const [what, parts] of OVER_WATER.slice(1)) {
+      expect(widest(parts), `${what} does not reach off the land`).toBeGreaterThan(2.35);
+    }
+  });
+
+  it('drives the piles before it lays a board on them', () => {
+    // the order a man with a maul would do it in, and the only order that makes riding past worth
+    // doing: two piles in at the edge, then the whole row, then boards half way, then a deck
+    const boards = (parts: readonly PropPart[]): number =>
+      parts.filter((part) => part.shape === 'box' && part.size[0] > 1.5 && part.size[2] > 1).length;
+    expect(boards(jettyPiles), 'boards down before the piles were in').toBe(0);
+    expect(boards(jettyDriven), 'boards down before the piles were in').toBe(0);
+    expect(boards(jettyBearers), 'nothing to walk on half way through').toBe(1);
+    expect(jettyDriven.length).toBeGreaterThan(jettyPiles.length);
+    /*
+     * And the deck is what grows at the end rather than the reach. The piles are all in by the
+     * third morning — they have to be, because you cannot drive one from a deck that is over it —
+     * so the last day's work is boards, and boards are what the measurement has to watch.
+     */
+    const deck = (parts: readonly PropPart[]): number =>
+      Math.max(0, ...parts.filter((part) => part.shape === 'box' && part.size[2] > 1).map((part) => part.size[0]));
+    expect(deck(jettyDriven)).toBe(0);
+    expect(deck(jettyBearers)).toBeGreaterThan(0);
+    expect(deck(jettyDone), 'the last day laid no boards').toBeGreaterThan(deck(jettyBearers));
   });
 
   it('connects the water last, which is what the mason would do', () => {

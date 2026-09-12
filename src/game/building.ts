@@ -34,6 +34,7 @@ export const BUILDS = {
   POOL: 'pool',
   FOUNTAIN: 'fountain',
   BOAT: 'boat',
+  JETTY: 'jetty',
 } as const;
 
 export const BUILD = {
@@ -108,6 +109,25 @@ export const BUILD = {
    * enough that a yard two headlands away does not count as being at one.
    */
   PIER_WITHIN: 60,
+  /**
+   * How far a commissioned jetty reaches out over the water, in tiles of deck.
+   *
+   * Shorter than the six the world lays its own ferry piers at (`PIER_LENGTH` in `piers.ts`), and
+   * that is the difference between the two spoken plainly: a ferry pier is a work of the country
+   * and has to take a vessel with a gangplank; this is a landing stage a village's builder put up
+   * because somebody paid him to, and four boards of it is enough to tie a small boat alongside.
+   */
+  JETTY_REACH: 4,
+  /**
+   * How high the bank may be where a jetty leaves it, in terraces.
+   *
+   * The same rule and the same number `piers.ts` lays its own off, for the same reason written out
+   * at length there: above it the thing that gets built is not a harbour, it is a wall of planks
+   * with a staircase down it and a boat tied to the bottom. A player paying for a jetty deserves
+   * the refusal rather than the wall — and a coast that is all cliff having no harbour is the fact
+   * that makes paying for one somewhere else worth doing.
+   */
+  HARBOUR_LEVEL: 2,
 } as const;
 
 /**
@@ -205,6 +225,26 @@ export const CATALOGUE: readonly Buildable[] = [
     id: BUILDS.BOAT, name: 'a boat', price: 160, days: 5, on: 'shore', moves: true,
     done: 'She is off the stocks and riding at the jetty.', blocks: null,
   },
+  /*
+   * A jetty, which is the first thing in this catalogue that is the gate on another.
+   *
+   * Dearer than the boat and slower, and it has to be: it is a row of piles driven into a seabed
+   * and a deck over them, and it is the thing that makes every boat after it possible. Since a
+   * coast that is all cliff gets no ferry at all, an island can be cut off entirely — and the
+   * answer the worklist asks for is that a player who wants a harbour pays for one.
+   *
+   * It is not `moves`, and that word is doing real work here rather than merely being false. A boat
+   * needs a jetty within reach; a jetty is what that means, so asking it of itself would be a rule
+   * no coast in the world could ever satisfy. `canBuildOnShore` reads exactly that.
+   *
+   * The village gets the jetty. It is told to the world the way a house is — the difference being
+   * that a house is yours and a jetty is not anybody's: it is a place boats tie up, and after the
+   * day it is finished nothing about it remembers who paid. That is what a harbour is.
+   */
+  {
+    id: BUILDS.JETTY, name: 'a jetty', price: 340, days: 4, on: 'shore',
+    done: 'The last board is down. Anything that floats can lie alongside her now.', blocks: null,
+  },
 ];
 
 /**
@@ -216,21 +256,39 @@ export const CATALOGUE: readonly Buildable[] = [
  * Finished and paid for, both — a man who is owed for the last job does not take the next one, and
  * a pool beside a frame is a pool beside a building site.
  */
-export function onOffer(mine: readonly Commission[], day: number, harbour = false): Buildable[] {
+/**
+ * What a village's coast allows, as the pub needs to know it.
+ *
+ * Two questions rather than one, and they are the same two `canBuildOnShore` asks of the plot: is
+ * there water near this village at all, and is there already a jetty near it. They default to the
+ * inland answer so that anything asking the old question gets the old answer.
+ */
+export interface Coast {
+  water: boolean;
+  harbour: boolean;
+}
+
+export function onOffer(
+  mine: readonly Commission[], day: number, coast: Coast = { water: false, harbour: false },
+): Buildable[] {
   const standing = mine.some((job) =>
     buildable(job.what).on === 'land' && isFinished(job, day) && owed(job, day) <= 0);
   /*
    * Asked of what a thing goes *on* rather than of what it is: everything but the yard jobs can be
-   * ordered by somebody who owns nothing, and a boat needs a shore rather than a house of your own.
+   * ordered by somebody who owns nothing, and the two shore jobs need a coast rather than a house.
    *
-   * `harbour` is why this is a menu question and not only a ground question. The deposit is not
+   * The coast is why this is a menu question and not only a ground question. The deposit is not
    * refundable and the dialogue says so, so offering a boat to a man drinking forty miles inland
-   * would be taking sixty-four gold for a job he can never stand anywhere — the refusal would
-   * arrive after the money had gone. A builder in a village with no jetty near it does not offer
-   * boats, which is what "gated by the ground" has to mean when there is a deposit involved. It
-   * defaults to false so that anything asking the old question gets the old answer.
+   * would be taking sixty-four gold for a job he can never stand anywhere: the refusal would arrive
+   * after the money had gone. So the menu asks exactly what the ground will ask — water for either
+   * of them, and a jetty as well for the one that will float away — and a village with a coast and
+   * no harbour is offered the jetty and not the boat, which is the tech tree in one line.
    */
-  return CATALOGUE.filter((entry) => (entry.on === 'shore' ? harbour : entry.on !== 'house' || standing));
+  return CATALOGUE.filter((entry) => {
+    if (entry.on === 'house') return standing;
+    if (entry.on !== 'shore') return true;
+    return coast.water && (!entry.moves || coast.harbour);
+  });
 }
 
 /** One entry by name. Anything unknown is a house, which is what every save older than the list holds. */
@@ -348,116 +406,6 @@ export function deposit(price: number = BUILD.PRICE): number {
   return Math.round(price * BUILD.DEPOSIT);
 }
 
-/**
- * Is this somewhere a house could go?
- *
- * `flat` is whether the ground itself will take a building, which the world already knows how to
- * answer. `clear` is whether anything is growing on it — an oak is not a structure and so is not
- * in `standing`, but a house built round one has a tree through the roof, which was the first
- * thing that looked wrong when this was played. The rest is about not putting one on top of
- * something else, or so far out that nobody would walk to it.
- *
- * `clear` is last and defaults to true because it was added after the rest: everything that only
- * cares about ground and neighbours can go on calling this the way it always did.
- */
-export function canBuildAt(
-  x: number, z: number, flat: boolean,
-  village: { x: number; z: number } | null,
-  standing: ReadonlyArray<{ x: number; z: number }>,
-  clear = true,
-): { ok: true } | { ok: false; why: string } {
-  if (!flat) return { ok: false, why: 'The ground here will not take a house.' };
-  if (!clear) return { ok: false, why: 'There is something growing on that. Clear it or pick another spot.' };
-  if (!village) return { ok: false, why: 'No village near enough to send a builder.' };
-  if (Math.hypot(village.x - x, village.z - z) > BUILD.WITHIN) {
-    return { ok: false, why: 'That is too far out. No builder is walking that every morning.' };
-  }
-  for (const thing of standing) {
-    if (Math.hypot(thing.x - x, thing.z - z) < BUILD.CLEAR_OF) {
-      return { ok: false, why: 'Too close to what is already standing there.' };
-    }
-  }
-  return { ok: true };
-}
-
-/**
- * Is this somewhere a keel could be laid?
- *
- * The ground half is `canBuildAt`'s, unchanged and asked first: a yard is a flat, clear patch of
- * ground with nothing standing on it and a village near enough to walk a builder out from, exactly
- * like a house's plot. What a shore adds is the two things that make it a shore rather than a
- * field, and they are handed in as distances rather than as a world, so this stays a function of
- * numbers that a test can ask anything of.
- *
- * The jetty is the gate the worklist asks for and it is worth saying why it is the right one. Water
- * alone would let a hull be laid beside any pond in the country; a jetty is a thing somebody built,
- * which means the coast there is low enough to land at — `piers.ts` refuses a cliff — and it means
- * the boat has somewhere to lie when nobody is aboard. It is also the ordering the worklist names:
- * the harbour is what makes the boat possible, so the boat is what gives the harbour a reason.
- *
- * @param toWater how far the nearest navigable water is, in tiles. Infinity where there is none.
- * @param toPier  and the nearest jetty, measured the same way.
- */
-export function canLayAKeel(
-  x: number, z: number, flat: boolean,
-  village: { x: number; z: number } | null,
-  standing: ReadonlyArray<{ x: number; z: number }>,
-  clear: boolean,
-  toWater: number,
-  toPier: number,
-): { ok: true } | { ok: false; why: string } {
-  const ground = canBuildAt(x, z, flat, village, standing, clear);
-  if (!ground.ok) return ground;
-  if (toWater > BUILD.SHORE_WITHIN) {
-    return { ok: false, why: 'A boat wants building where she can be slid into the water, not carried to it.' };
-  }
-  if (toPier > BUILD.PIER_WITHIN) {
-    return { ok: false, why: 'There is nowhere hereabouts to tie her up. Build her by a jetty or not at all.' };
-  }
-  return { ok: true };
-}
-
-/**
- * Where an addition stands, given the house it belongs to and where its owner was standing.
- *
- * The side of the house you are on is the side it goes, which is the same statement of intent the
- * house's own facing is taken from — you walked round to the side you wanted and pressed Enter.
- * A storey is the exception and sits exactly on the house, because it *is* the house.
- */
-export function beside(
-  parent: { x: number; z: number }, what: string, fromX: number, fromZ: number,
-): { x: number; z: number } {
-  if (buildable(what).changes) return { x: parent.x, z: parent.z };
-  const dx = fromX - parent.x, dz = fromZ - parent.z;
-  const away = Math.hypot(dx, dz);
-  // standing in the doorway is not a direction, so the yard goes out the front by default
-  if (away < 0.5) return { x: parent.x + BUILD.BESIDE_AT, z: parent.z };
-  return {
-    x: parent.x + (dx / away) * BUILD.BESIDE_AT,
-    z: parent.z + (dz / away) * BUILD.BESIDE_AT,
-  };
-}
-
-/**
- * Can this be added to that house?
- *
- * Four refusals, and each of them is a sentence somebody would actually say. The building has to
- * be yours and finished — a builder will not start a pool beside a frame — it has to be paid for,
- * because a man owed four hundred gold for the house does not begin the next job on credit, and a
- * house can only have one second storey.
- */
-export function canAttachTo(
-  parent: Commission | null, what: string, day: number, already: readonly Commission[],
-): { ok: true } | { ok: false; why: string } {
-  const wants = buildable(what);
-  if (!parent) return { ok: false, why: `Stand by a house of your own. ${wants.name} has to go on something.` };
-  if (!isFinished(parent, day)) return { ok: false, why: 'That one is not finished. One thing at a time.' };
-  if (owed(parent, day) > 0) return { ok: false, why: 'Settle up for that one first. I do not start the next on credit.' };
-  if (wants.changes && already.some((job) => job.to === parent.id && job.what === what)) {
-    return { ok: false, why: 'It has one of those already.' };
-  }
-  return { ok: true };
-}
 
 /**
  * How many floors a house is standing at today.
