@@ -1,4 +1,4 @@
-import { PROSPER } from './prosperity';
+import { payAndSweep } from './purses';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
 import { mayorOf, taxedForTheHall } from './hall';
@@ -344,22 +344,6 @@ export class Register {
   }
 
   /**
-   * Move money into and out of the purses of a village, by id.
-   *
-   * The one place a purse is written, so the cap and the floor are applied once. Both are
-   * deliberately kept: a purse that could go negative would be somebody in debt, which this world
-   * has no idea what to do with, and the cap is what stops one long-lived shopkeeper in a quiet
-   * corner ending the century with everything.
-   */
-  private pay(village: Settlement, owed: ReadonlyMap<string, number>): void {
-    for (const person of village.people) {
-      const much = owed.get(person.id);
-      if (much === undefined || much === 0) continue;
-      person.purse = Math.min(PROSPER.MOST, Math.max(0, person.purse + much));
-    }
-  }
-
-  /**
    * A day's work for everybody still working in a village, and what it did to the herd.
    *
    * Nobody earns while the place is being raided, which is the whole reason a village under
@@ -376,11 +360,11 @@ export class Register {
     // anybody in it: see `harvest.ts`, where the herd and the boats sit side by side
     const trading = aDaysTrade(village.people, village.herd, pressure, village);
     village.herd = trading.herd;
-    this.pay(village, trading.paid);
+    payAndSweep(village, trading.paid);
     // and the hall's share of what is left, which is the same act as every other coin that moves
     // here: out of the purses it came from, into the one place that is not anybody's
     const tax = taxedForTheHall(village.people);
-    this.pay(village, tax.owed);
+    payAndSweep(village, tax.owed);
     // the hall's share of the day, and what its own farms made: a village that owns a farm takes
     // what the farm takes, which is the whole of what owning one means. See `shareTheTake`
     village.purse = Math.round((village.purse + tax.raised + trading.toTheHall) * 100) / 100;
@@ -443,7 +427,7 @@ export class Register {
     // a raised roof is a raised ceiling: what the village can hold is what its houses hold, and
     // this is the one line that lets a village become bigger than it was founded. See `growth.ts`
     village.founded += spending.holdsMore;
-    this.pay(village, spending.wages);
+    payAndSweep(village, spending.wages);
     for (const [id, much] of spending.wages) this.earned.set(id, much);
     // and whatever was founded this morning, which is the one thing a village gains that it did not
     // already hold: a farm bought by a man who has earned one, or by the hall out of a good decade
@@ -552,7 +536,7 @@ export class Register {
 
   /** A day of mending, and the doctor's fee for the morning he set a bone. See `wounds.ts`. */
   private mendThePeople(village: Settlement): Change[] {
-    this.pay(village, mendThem(village.people));
+    payAndSweep(village, mendThem(village.people));
     return [];
   }
 
@@ -567,7 +551,7 @@ export class Register {
     const meal = aDaysDinner(village.people, village.food, work);
     village.food = meal.food;
     // what dinner cost goes to whoever's dinner it was: the fields, the woods and the herd
-    this.pay(village, meal.paid);
+    payAndSweep(village, meal.paid);
     return meal.starved
       .map((p) => this.remove(p, day, 'hunger'))
       .filter((c): c is Change => c !== null);
