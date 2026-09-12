@@ -3585,7 +3585,19 @@ than by remembering — and the first thing found was that the gap is not where 
       that paints nothing and never answers. Both ends keep the same number and drop in the same
       order, and four tests hold them to it.
 
-- [ ] **59d. `growCountry` grows one of everything.** One sampler, one mountain mesh added to the
+- [~] **59d. `growCountry` grows one of everything.** *Started.* `PatchCountry` is the shape the
+      game will hold instead of a sampler: there is a *current* sampler, it is the one for the patch
+      the hero is standing in, and it changes when he walks into another. Everything that already
+      asks the sampler about the ground *under it* keeps working unchanged, because the ground under
+      it is exactly what the current patch answers for. A crossing is announced rather than silent —
+      `moveTo` returns the patch walked into — because the mountains in the scene, the eyries and
+      what the workers have been told all belong to the patch that was left, and something has to
+      rebuild them once, then, rather than every frame or never. It follows a position rather than
+      holding the player, because the world server wants the same object and has no player.
+
+      The original note follows.
+
+- [ ] **59d-i. What is left of it.** One sampler, one mountain mesh added to the
       scene for ever, eyries planned across the whole world, sky islands planned from the whole
       world, a skyline built from every range there is. Each of those is a list that has no end in an
       endless country, and each has the same answer: it is a question about the country *near the

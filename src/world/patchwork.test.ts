@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { samplerIn } from './endless';
 import { PATCH, Patchwork, Tellings, boundsOf, patchOf, patchOfChunk } from './patchwork';
+import { PatchCountry } from './patchcountry';
 import { TileType } from './ground';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
@@ -171,5 +172,46 @@ describe('telling a painter about a patch', () => {
     told.needs(1, 'a');                          // 'a' is the most recent now, so 'b' is the old one
     told.needs(1, 'c');
     expect(told.holding(1)).toEqual(['a', 'c']);
+  });
+});
+
+describe('the country around whoever is walking', () => {
+  /*
+   * `PatchCountry` is what the game holds instead of a sampler. It matters that a crossing is
+   * *announced*: the mountains in the scene belong to the patch that was left, the eyries were
+   * planned from it, and the workers have been told about it. Something has to rebuild those, once,
+   * at the moment it happens — rather than every frame, or never.
+   */
+  it('answers with the patch whoever it is following is standing in', () => {
+    const { grow } = counted();
+    const country = new PatchCountry(SEED, 10, 10, grow);
+    expect(country.patch).toBe('0,0');
+    const first = country.sampler;
+    expect(country.moveTo(20, 20), 'a step across a field was called a new patch').toBeNull();
+    expect(country.sampler).toBe(first);
+  });
+
+  it('says so when somebody walks into another one', () => {
+    const { grow } = counted();
+    const country = new PatchCountry(SEED, 10, 10, grow);
+    const before = country.sampler;
+    expect(country.moveTo(PATCH + 10, 10)).toBe('1,0');
+    expect(country.patch).toBe('1,0');
+    expect(country.sampler, 'the same sampler answered for two patches').not.toBe(before);
+  });
+
+  it('grows the neighbours on the way past, so an edge is never a stall', () => {
+    const { grow } = counted();
+    const country = new PatchCountry(SEED, 10, 10, grow);
+    country.moveTo(20, 20);
+    expect(country.store.holding().length, 'only the square underfoot was grown').toBe(9);
+  });
+
+  it('knows how close somebody is to leaving the square they are in', () => {
+    expect(PatchCountry.toEdge(0, 250)).toBe(0);
+    expect(PatchCountry.toEdge(10, 250)).toBe(10);
+    expect(PatchCountry.toEdge(PATCH - 3, 250)).toBe(3);
+    // and in the negative country, where a remainder is negative and would otherwise read as huge
+    expect(PatchCountry.toEdge(-3, -250)).toBe(3);
   });
 });
