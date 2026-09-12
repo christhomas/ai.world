@@ -4,6 +4,7 @@ import { KINDS } from '../entities/animals';
 import { canRecover, grownFolk, saidOf, type Fortune } from '../world/fortunes';
 import { LIFE, type Person } from '../world/people';
 import { compassDir, type Structures, type Village } from '../world/structures';
+import { aroundOf, placesBetween } from '../world/around';
 import { huntersOf } from './camp';
 import type { Kindness } from './gifts';
 import { hauntsOf } from './haunts';
@@ -162,12 +163,15 @@ function manyOf(label: string): string {
   return label.endsWith('f') ? `${label.slice(0, -1)}ves` : `${label}s`;
 }
 
-/** Every named place a villager could walk to and point at, nearest first. */
+/**
+ * Every named place a villager could walk to and point at, nearest first.
+ *
+ * The same question `pub.ts` asks when it decides what the room is talking about, and now the same
+ * words: what is near *here*, rather than everything in the world with the far ones filtered out.
+ * See `world/around.ts` for why the difference matters to a country grown a patch at a time.
+ */
 function placesNear(village: Asking, structures: Structures): Array<{ name: string; x: number; z: number; d: number }> {
-  return [...structures.pois, ...structures.caves, ...structures.wrecks]
-    .map((p) => ({ name: p.name, x: p.x, z: p.z, d: Math.hypot(p.x - village.x, p.z - village.z) }))
-    .filter((p) => p.d > RESCUE.NEAREST && p.d < RESCUE.REACH)
-    .sort((a, b) => a.d - b.d);
+  return placesBetween(aroundOf(structures), village, RESCUE.NEAREST, RESCUE.REACH);
 }
 
 /** One place turned into the half of a Trouble that is about the map rather than the creature. */

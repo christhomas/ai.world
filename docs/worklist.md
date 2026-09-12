@@ -3760,9 +3760,27 @@ than by remembering — and the first thing found was that the gap is not where 
       Left: the eyries, planned across the whole world; the sky islands, planned from the whole
       world's islands; and whatever else turns out to hold a list with no end in it.
 
-- [ ] **59e. Ten places in the game layer ask for `sampler.structures`.** The villages list, the
-      nearest village, what is standing near a point. In a patchwork the honest version of each is
-      "within so many tiles of here", which is what they all actually mean.
+- [~] **59e. Ten places in the game layer ask for `sampler.structures`.** *The seam exists as of the
+      12th; the migration does not.* `world/around.ts` is the question every one of those call sites
+      is actually asking — villages within so many tiles, the nearest village within so many tiles,
+      places within so many tiles — with two ways of answering it: `aroundOf(structures)` filters the
+      list a bounded world already has, and `aroundPatches(patchwork)` asks the patches that have
+      been grown and does not grow one to answer, because a question about what is near you must
+      never cost five seconds of country.
+
+      The reach is deliberately not optional anywhere in it. In an endless world there is always
+      another village somewhere, so "the nearest village" with no bound is a question with no honest
+      answer; being made to write down how far you are willing to walk is most of the value.
+
+      Two call sites moved, and they turned out to be one: `pub.ts` and `rescue.ts` had the same
+      `placesNear` written out twice — somewhere near enough to be this village's business and far
+      enough to be a journey — so both now call `placesBetween`. The other hundred-odd uses of
+      `structures.` across twenty-five files are the rest of this item, and most of them are
+      `structures.villages` in a context that means "the village I am standing in".
+
+      The original note: the villages list, the nearest village, what is standing near a point. In a
+      patchwork the honest version of each is "within so many tiles of here", which is what they all
+      actually mean.
 
 - [ ] **59f. Both halves have to switch together.** `server/sim.ts` grows its world the same way, and
       `growworld.ts` exists precisely so that neither half can grow a country the other cannot see.

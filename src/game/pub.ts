@@ -2,6 +2,7 @@ import { hashString, mulberry32, pick, type Rng } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { Biome } from '../world/biomes';
 import { compassDir, type Structures, type Village } from '../world/structures';
+import { aroundOf, placesBetween } from '../world/around';
 import { ITEMS } from './items';
 import type { Quest } from './quests';
 
@@ -166,12 +167,16 @@ export function errandDone(errand: Quest, discovered: ReadonlySet<string>, carri
   return errand.kind === 'visit' ? discovered.has(errand.target) : carried(errand.target) >= errand.count;
 }
 
-/** Named places worth mentioning here, nearest first. */
+/**
+ * Named places worth mentioning here, nearest first.
+ *
+ * Asked as "what is near this village" rather than taken off a list of everything in the world,
+ * which is the same question with an answer in a country that is grown as you walk into it — see
+ * `world/around.ts`. `rescue.ts` was asking it in exactly these words too, so the two of them now
+ * ask it in one place.
+ */
 function placesNear(village: Village, structures: Structures): Array<{ name: string; x: number; z: number; d: number }> {
-  return [...structures.pois, ...structures.caves, ...structures.wrecks]
-    .map((p) => ({ name: p.name, x: p.x, z: p.z, d: Math.hypot(p.x - village.x, p.z - village.z) }))
-    .filter((p) => p.d > PUB.TALK_MIN && p.d < PUB.TALK_RANGE)
-    .sort((a, b) => a.d - b.d);
+  return placesBetween(aroundOf(structures), village, PUB.TALK_MIN, PUB.TALK_RANGE);
 }
 
 /**

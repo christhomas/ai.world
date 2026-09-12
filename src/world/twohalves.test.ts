@@ -110,6 +110,24 @@ function asThePageHasIt(seed: number) {
       grow(Math.floor(x / CS), Math.floor(z / CS));
       return solids.at(x, z, body);
     },
+    /**
+     * The surface of a river, a lake or the sea, by the same rule the ground world uses.
+     *
+     * It did not have one while water was simply a wall — nothing that walked could be anywhere
+     * water was, so both halves agreed by agreeing that the answer was nowhere. A hero who can swim
+     * makes the water a place, and a place is exactly the sort of thing the two halves have to agree
+     * about: this test found twenty-nine points where the page thought a man could not be and the
+     * world had him afloat, which is precisely what it is for.
+     */
+    waterAt(x: number, z: number): number | null {
+      const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
+      grow(cx, cz);
+      const t = tiles.get(`${cx},${cz}`)!;
+      const i = (Math.floor(z) - cz * CS) * CS + (Math.floor(x) - cx * CS);
+      const type = t.types[i] as TileType;
+      if (type === TileType.Water) return t.waters[i];
+      return type === TileType.Seabed ? WORLD.WATER_Y : null;
+    },
   };
 }
 
@@ -161,7 +179,7 @@ describe('the same world, grown on both sides', () => {
       // the page's ground, as a world something can be asked to stand in
       const pageWorld = {
         heightAt: (x: number, z: number) => page.heightAt(x, z),
-        waterAt: () => null,
+        waterAt: (x: number, z: number) => page.waterAt(x, z),
         blocked: (x: number, z: number, body?: ReturnType<typeof bodyBox>) => page.solidAt(x, z, body),
         isRoad: (x: number, z: number) => world.isRoad(x, z),
       };
