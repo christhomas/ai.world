@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PropKind } from '../world/biomes';
+import { Biome, PropKind } from '../world/biomes';
 import { addPropInstances, disposeInstances } from './instancing';
 import type { PropLibrary } from './props';
 import { WORLD } from '../core/config';
@@ -112,6 +112,23 @@ const LOOKS: Record<string, Partial<Record<Site['stage'], PropKind>>> = {
     done: PropKind.JettyDone,
   },
 };
+
+/*
+ * And the houses a village raised for itself, which are the one kind of work here nobody paid a
+ * deposit for.
+ *
+ * Six rows rather than one, because a village builds in its own country's cottage — the same prop
+ * the terrain draws the other ten houses with, picked the way everything else picks it, by adding
+ * the biome to the plains kind. One `done` row each and no unfinished ones: the register keeps the
+ * day a roof was *paid for* and not the morning it was begun, so there is no honest way to show a
+ * frame going up. `game/villageroofs.ts` says what that costs and what would fix it.
+ *
+ * Deliberately not `HouseYours`: the one house in the world with a chimney on it is the player's,
+ * and it is meant to be findable from the ridge without opening the map.
+ */
+for (let biome = Biome.Plains; biome <= Biome.Snow; biome++) {
+  LOOKS[`raised-${biome}`] = { done: (PropKind.HousePlains + biome) as PropKind };
+}
 
 /** What to draw on one plot today, or nothing. */
 export function propOf(site: Site): PropKind | null {

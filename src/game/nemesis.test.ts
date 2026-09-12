@@ -22,7 +22,7 @@ const house = (n: number): Structure => ({
 /** A village on paper: a name, somewhere on the road, and a station on the street. */
 const village = (name: string, x: number): Village => ({
   name, board: null, x, z: 0, radius: 20, level: 0, biome: Biome.Plains,
-  houses: [house(0)], shops: [], pub: null, stable: null,
+  houses: [house(0)], spare: [], shops: [], pub: null, stable: null,
   station: { house: house(0), doorX: x, doorZ: 0 },
   church: null, churchDoor: null, hall: null, watchHouse: null, stalls: [],
 });

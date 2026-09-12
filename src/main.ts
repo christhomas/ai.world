@@ -30,6 +30,7 @@ import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
 import { CropField } from './render/crops';
 import { BuildingSite } from './render/site';
+import { roofWatch } from './game/villageroofs';
 import { Beam } from './render/beam';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
@@ -77,11 +78,10 @@ import { createWatch } from './game/watch';
 import { createTidings } from './game/tidings';
 import { createFrame } from './game/frame';
 import { createMeeting } from './game/meeting';
-import { createConsequences } from './game/consequences';
+import { aftermath, createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
 import { Cutaway, rememberCutaway, wantsCutaway } from './render/cutaway';
 import { familyOfDoor } from './world/homes';
-import { aftermath } from './game/consequences';
 import { growCountry } from './game/country';
 import { countryStamp, whyCountriesDiffer } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
@@ -238,6 +238,8 @@ export function startGame(
   rig.scene.add(ownBoat);
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
+  // and on the same sites, the houses the villages built themselves: `game/villageroofs.ts`
+  const villageRoofs = roofWatch(() => structures.villages, (v) => register.worksOf(v));
 
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
@@ -677,7 +679,7 @@ export function startGame(
     skyline, rock, daycycle, weather, updraughts, swallows, seaEyes, shafts, holes, beam,
     couldBeAShaft: (x, z) => openCountry(chunks, x, z), seasonTintMaterials, skyRenderer, skies, wildlife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
-    buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
+    buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
     noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, streamCountry, areaName,
     arriving, outdoors, persist,

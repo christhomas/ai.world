@@ -17,6 +17,7 @@ const house = (n: number): Structure => ({
  * checked. What is left here is what a stable is once there is one.
  */
 const village = (name: string, biome = Biome.Plains, houses = ROOFS, keeps = true): Village => ({
+  spare: [],
   name, board: null, station: null, x: 0, z: 0, radius: 20, level: 0, biome,
   houses: Array.from({ length: houses }, (_, n) => house(n)),
   shops: [], pub: null, church: null, churchDoor: null, hall: null, watchHouse: null, stalls: [],

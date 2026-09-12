@@ -17,6 +17,7 @@ export type { Castle } from './castles';
 
 export { StructureKind } from './kinds';
 import { mulberry32, shuffle } from '../core/rng';
+import { sparePlots } from './spareplots';
 import { SALT, derive } from '../core/salts';
 import type { Biome } from './biomes';
 import type { TerrainSampler, TileSample } from './terrain';
@@ -143,6 +144,8 @@ export interface Village {
   level: number;
   biome: Biome;
   houses: Structure[];
+  /** Plots it has not built on: where its *next* houses stand. See `spareplots.ts`. */
+  spare: Structure[];
   shops: Shop[];
   /** The pub, if the village runs to one. */
   pub: Pub | null;
@@ -226,14 +229,12 @@ const LAYOUT = {
 } as const;
 
 /**
- * How far a village ever reaches from its middle, in tiles.
+ * How far a village ever reaches from its middle, in tiles: the widest spread plus the margin.
  *
- * Derived rather than chosen, and it has to be: a village's `radius` is its spread plus the margin
- * below, so the widest one there can be is the widest spread plus that margin. Written down because
- * "which village am I standing in" is asked all over the game, and in a country grown a patch at a
- * time that question has to be put as "villages within so many tiles of me, and then which of those
- * am I inside" — see `world/around.ts`. This is the so-many-tiles, and it is the smallest number
- * that cannot miss one.
+ * Derived rather than chosen, and it has to be. "Which village am I standing in" is asked all over
+ * the game, and in a country grown a patch at a time it has to be asked as "villages within so many
+ * tiles of me, and then which of those am I inside" — see `world/around.ts`. This is the
+ * so-many-tiles, and it is the smallest number that cannot miss one.
  */
 const VILLAGE_MARGIN = 8;    // how far past its last garden wall a village still counts as itself
 export const VILLAGE_REACH = Math.max(LAYOUT.HUB.spread, LAYOUT.TOWN.spread, LAYOUT.VILLAGE.spread) + VILLAGE_MARGIN;
@@ -301,13 +302,11 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
    * Could somebody walk from the road out to here?
    *
    * The ground climbs away from the road, so a landmark placed far off it can sit above a step
-   * nobody can climb — and nothing in the game would ever say so: the quest naming it would
-   * simply be impossible. So the line from the road node to the spot is walked, and a spot is
-   * refused if the ground ever jumps more than a terrace between one step and the next.
-   *
-   * Measured in terraces rather than in the hero's units on purpose: one terrace is a stride and
-   * two is a wall, which is a fact about how this world is built and belongs here rather than
-   * being borrowed from whoever happens to be walking.
+   * nobody can climb, and nothing in the game would ever say so — the quest naming it would simply
+   * be impossible. So the line out to the spot is walked, and the spot refused if the ground ever
+   * jumps more than a terrace between one step and the next. Terraces rather than the hero's units
+   * on purpose: one terrace is a stride and two is a wall, which is a fact about this world rather
+   * than about whoever happens to be walking.
    */
   const walkableFrom = (fromX: number, fromZ: number, toX: number, toZ: number): boolean => {
     const dx = toX - fromX, dz = toZ - fromZ;
@@ -451,10 +450,6 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
   };
 
   /**
-   * What each country's stables keep. A village keeps what the country round it rides, which is why
-   * you go to the desert for a camel rather than shopping for one at home.
-   */
-  /**
    * A stable: a house with a paddock fenced off beside it. `paddock.ts` finds the ground.
    *
    * Laid last of everything in a village, so the yard has to fit round what is already standing
@@ -533,9 +528,15 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     const watchHouse = big && station ? placeCivic(side, StructureKind.WatchHouse, roadNormal - Math.PI * 2 / 3, -1) : null;
     // last, so that the paddock has to fit round everything else rather than the other way about
     const stable = assignStable(houses, biome);
+    // where its *next* houses would stand, so growing is something a player can walk up to rather
+    // than a number in a book — found last, on a stream of its own. See `spareplots.ts`.
+    const spare = sparePlots(
+      { seed: graph.seed, spread, roadWidth: probe.roadWidth, biome, at: n, most: maxHouses,
+        along: { ux: probe.ux, uz: probe.uz }, across: { nx, nz } },
+      { land: (x, z) => sampler.landProbe(x, z), fits: footprintOk });
     plazaR = 0;
     return {
-      name: villageName(), x: n.x, z: n.z, radius: spread + VILLAGE_MARGIN, level, biome, houses, shops, pub,
+      name: villageName(), x: n.x, z: n.z, radius: spread + VILLAGE_MARGIN, level, biome, houses, spare, shops, pub,
       station, stable, church: chapel?.building ?? null, churchDoor: chapel?.door ?? null,
       hall, watchHouse, board, stalls,
     };
@@ -548,11 +549,9 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
      * No hub, because an endless world has no middle to put one in; no cap, because a cap is a
      * fact about a whole world; no spacing against what was built already, because that is the
      * order dependence this exists to end — the places handed in were kept apart before they got
-     * here, by a rule that does not care what else exists.
-     *
-     * `all` is not cleared between them and does not need to be: the only thing that reads it is
-     * the check that two buildings do not stand on each other, and two villages far enough apart
-     * to be two villages cannot.
+     * here, by a rule that does not care what else exists. `all` is not cleared between them and
+     * does not need to be: the only thing reading it is the check that two buildings do not stand
+     * on each other, and two villages far enough apart to be two villages cannot.
      */
     for (const town of settling.towns) {
       rng = mulberry32(derive(graph.seed, SALT.STRUCTURES ^ hashOfPlace(town.id)));
@@ -624,10 +623,9 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
    *
    * Two ways of finding them, because there are two ways of having a world. The road tree walks its
    * own nodes in a shuffled order and stops when it has enough of each — both the count and the
-   * order are facts about a whole world. A patch asks each place whether it holds one.
-   *
-   * Jetties are in neither yet for an endless world: a pier belongs to an island, and an endless
-   * country has ports and ferries instead, which is `localsea` and its own piece of work.
+   * order are facts about a whole world. A patch asks each place whether it holds one. Jetties are
+   * in neither yet for an endless world: a pier belongs to an island, and an endless country has
+   * ports and ferries instead, which is `localsea` and its own piece of work.
    */
   const between = settling
     ? markThePlaces({ sampler, sample, all, villages, footprintOk, settling })

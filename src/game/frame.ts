@@ -32,6 +32,7 @@ import type { WorldMap } from '../ui/worldmap';
 import type { Sound } from './audio';
 import { BREATH, type Breath } from './breath';
 import { buildable, stageAt, stillOnItsSite, storeysOf, type Houses } from './building';
+import type { Raised } from './villageroofs';
 import type { Director } from './director';
 import { listenForWater } from './earshot';
 import type { Plots } from './farming';
@@ -155,6 +156,13 @@ export interface Framing {
   remains: Remains;
   cropField: CropField;
   buildingSite: BuildingSite;
+  /**
+   * What the villages have built for themselves, drawn on the same site as the player's own work.
+   *
+   * A closure rather than the register and the structure list, because this file has no business
+   * with either and the answer is the same one all day: see `villageroofs.ts`.
+   */
+  villageRoofs: (day: number) => readonly Raised[];
   /** The hero's own boat, bobbing wherever he moored it. */
   ownBoat: THREE.Object3D;
   minimap: Minimap;
@@ -209,7 +217,7 @@ export function createFrame(ctx: Framing) {
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
     skyline, rock, cutaway, endless, grower, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
-    buildingSite, ownBoat, minimap, worldMap, hud, sound, online, remains,
+    buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
     updraughts, swallows, seaEyes, shafts, holes, couldBeAShaft,
     sailFerries, ageCamps, runClock, carcasses, noticeStall, musterHires, startTalk, updateHud,
@@ -536,7 +544,11 @@ export function createFrame(ctx: Framing) {
       // finishing that job does: there is nothing standing beside the house to draw instead
       storeys: storeysOf(job, all, state.day + state.time),
     }));
-    buildingSite.update(standing, player.x, player.z, (x2, z2) => chunks.heightAt(x2, z2));
+    // and the houses the villages raised, which are somebody else's commissions on somebody else's
+    // plots and are otherwise the same thing: a finished building standing where it was paid for
+    const raised = villageRoofs(state.day);
+    const onSites = raised.length === 0 ? standing : [...standing, ...raised];
+    buildingSite.update(onSites, player.x, player.z, (x2, z2) => chunks.heightAt(x2, z2));
     /**
      * And a finished house is a wall to everybody, not only a picture.
      *
@@ -547,11 +559,11 @@ export function createFrame(ctx: Framing) {
      * Rebuilt only when the set of houses or their stages actually changes, because this runs
      * every frame and almost every frame the answer is the same one as last time.
      */
-    const walls = standing.filter((job) => job.stage === 'done').map((job) => `${job.id}`).join('|');
+    const walls = onSites.filter((job) => job.stage === 'done').map((job) => `${job.id}`).join('|');
     if (walls !== wallsBuilt) {
       wallsBuilt = walls;
       const tiles: Array<{ x: number; z: number }> = [];
-      for (const job of standing) {
+      for (const job of onSites) {
         if (job.stage !== 'done') continue;
         // how much ground each kind is a wall to: a house is its plot, a fountain is the tile it
         // stands on, and a pool is water you can step into rather than a thing you walk round
