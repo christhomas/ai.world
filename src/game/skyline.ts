@@ -47,7 +47,18 @@ export class Skyline {
   private readonly up = new THREE.Vector3();
   private readonly toPeak = new THREE.Vector3();
 
-  constructor(private readonly ranges: Ranges | null) {}
+  constructor(private ranges: Ranges | null) {}
+
+  /**
+   * The mountains to stand back from now.
+   *
+   * A bounded world has one set for ever. A country with no edge has the ones belonging to the patch
+   * the hero is standing in, and they change when he walks into the next — so the camera has to be
+   * told, or it goes on making room for peaks a province behind him.
+   */
+  standingBefore(ranges: Ranges | null): void {
+    this.ranges = ranges;
+  }
 
   /**
    * Work out how far up to look, from where the picture actually cuts off.

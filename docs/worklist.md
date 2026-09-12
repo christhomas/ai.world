@@ -3597,11 +3597,20 @@ than by remembering — and the first thing found was that the gap is not where 
 
       The original note follows.
 
-- [ ] **59d-i. What is left of it.** One sampler, one mountain mesh added to the
-      scene for ever, eyries planned across the whole world, sky islands planned from the whole
-      world, a skyline built from every range there is. Each of those is a list that has no end in an
-      endless country, and each has the same answer: it is a question about the country *near the
-      hero*, asked again as he moves.
+- [~] **59d-i. What is left of it.** *The mountains are done.* Three things held the world's rock
+      and each would have failed differently on a patch crossing: the mesh in the scene (a range
+      dragged along behind the hero until the sky is a wall), `ChunkManager.ranges` (which is what
+      `heightAt` and the walking checks read, so a stale one is a hero standing on the memory of a
+      mountain in the next province), and `Skyline` (a camera making room for peaks a province
+      behind him). All three can be told now — `Mountains.show`, `chunks.standOn`,
+      `skyline.standingBefore` — and the live path already goes through the first of them, so there
+      is one way of standing rock up rather than two. `Mountains` owns the three things that have to
+      happen together on a swap: the old mesh leaves, its geometry is disposed, the new one is built.
+      Handed the same ranges twice it does nothing, which is what makes it safe to call on every
+      crossing. Six tests.
+
+      Left: the eyries, planned across the whole world; the sky islands, planned from the whole
+      world's islands; and whatever else turns out to hold a list with no end in it.
 
 - [ ] **59e. Ten places in the game layer ask for `sampler.structures`.** The villages list, the
       nearest village, what is standing near a point. In a patchwork the honest version of each is

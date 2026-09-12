@@ -263,3 +263,56 @@ float rockDither(vec2 p) {
 function mix(a: readonly [number, number, number], b: readonly [number, number, number], t: number): [number, number, number] {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
+
+/**
+ * The mountains standing in the scene, when which mountains those are can change.
+ *
+ * A bounded world builds one mesh and leaves it there for the session — the whole of a world's
+ * mountain country is fewer triangles than a single chunk of ground, so there has never been
+ * anything to gain by taking it away. A country with no edge cannot do that: the rock belongs to
+ * the patch the hero is standing in, and when he walks into the next one the old range is a
+ * province behind him and the new one has never been built.
+ *
+ * So this owns the swap, and owns it in one place because there are three things that have to
+ * happen together and forgetting any of them is a different kind of wrong. The old mesh leaves the
+ * scene, or the hero walks east and drags a mountain range with him. Its geometry is disposed, or
+ * the session leaks a few megabytes every patch and a long walk ends with the tab dying. And the
+ * new one is built from the new patch's rock, or the far country is flat.
+ *
+ * The material is deliberately *not* rebuilt. It carries the cutaway uniforms that hide whatever is
+ * between the camera and the hero, and those are updated every frame from outside; a new material
+ * per patch would mean re-finding that wiring on every crossing.
+ */
+export class Mountains {
+  private mesh: THREE.Mesh | null = null;
+  private showing: Ranges | null = null;
+
+  constructor(private readonly scene: THREE.Scene, private readonly material: THREE.Material) {}
+
+  /** What is standing in the scene at the moment, for anything that has to agree with it. */
+  get ranges(): Ranges | null {
+    return this.showing;
+  }
+
+  /**
+   * Stand this rock in the scene instead of whatever was there.
+   *
+   * Handed the same ranges twice it does nothing at all, which is what makes it safe to call on
+   * every patch crossing without asking first — and what stops a hero walking in and out of the
+   * same corner rebuilding a range every few seconds.
+   */
+  show(ranges: Ranges | null): void {
+    if (ranges === this.showing) return;
+    this.showing = ranges;
+    if (this.mesh) {
+      this.scene.remove(this.mesh);
+      this.mesh.geometry.dispose();
+      this.mesh = null;
+    }
+    if (!ranges) return;
+    const built = buildMountainMesh(ranges, this.material);
+    if (!built) return;
+    this.scene.add(built);
+    this.mesh = built;
+  }
+}

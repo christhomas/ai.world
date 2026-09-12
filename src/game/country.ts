@@ -1,6 +1,6 @@
 import { WORLD } from '../core/config';
 import { DayCycle } from '../render/daycycle';
-import { MountainMaterial, buildMountainMesh } from '../render/mountains';
+import { MountainMaterial, Mountains } from '../render/mountains';
 import type { PropLibrary } from '../render/props';
 import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
@@ -92,10 +92,17 @@ export function growCountry(ctx: Growing) {
   // world — the whole of a world's mountain country is fewer triangles than a single chunk of
   // ground, so there is nothing to gain by taking them away again.
   const rock = new MountainMaterial();
-  if (sampler.ranges) {
-    const range = buildMountainMesh(sampler.ranges, rock.material);
-    if (range) rig.scene.add(range);
-  }
+  /*
+   * Held by something that can swap it, even though a bounded world never will.
+   *
+   * One code path rather than two: the rock of a country with no edge belongs to the patch the hero
+   * is standing in and changes as he walks, and the difference between that and this is a call to
+   * `show`. `Mountains` owns the three things that have to happen together on a swap — the old mesh
+   * leaves the scene, its geometry is disposed, the new one is built — and handed the same ranges
+   * twice it does nothing, so the endless world can call it on every crossing without asking first.
+   */
+  const mountains = new Mountains(rig.scene, rock.material);
+  mountains.show(sampler.ranges);
   // and the camera's own answer to them: it stands further back near a range, because a peak is
   // taller than the picture is and would otherwise be cut off by the top of its own frustum
   const skyline = new Skyline(sampler.ranges);
@@ -129,7 +136,7 @@ export function growCountry(ctx: Growing) {
   }
 
   return {
-    graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, skyline,
+    graph, islands, manifest, sampler, structures, highPlaces, daycycle, chunks, rock, mountains, skyline,
     eyries, skyIsles, skyRenderer,
   };
 }

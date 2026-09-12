@@ -143,8 +143,15 @@ export class ChunkManager implements TileWorld, ChunkSource {
 
   stats = { loaded: 0, drawn: 0, pending: 0 };
 
-  /** The world's mountains, when it has any: geometry to stand on, not chunks to stream. */
-  private readonly ranges: Ranges | null;
+  /**
+   * The mountains that can be stood on, when there are any: geometry, not chunks to stream.
+   *
+   * Not readonly any more. In a bounded world it is set once and is the world's; in an endless one
+   * it is the rock of the patch the hero is in, and it changes under him as he walks. It is what
+   * `heightAt` and the walking checks read, so a stale one is a hero standing on the memory of a
+   * mountain in the next province.
+   */
+  private ranges: Ranges | null;
 
   /**
    * The country, when it has no edge: which patches each worker has been told about.
@@ -189,6 +196,11 @@ export class ChunkManager implements TileWorld, ChunkSource {
       } satisfies WorkerRequest);
       this.workers.push(w);
     }
+  }
+
+  /** The rock under this patch, for a country whose mountains change as you cross it. */
+  standOn(ranges: Ranges | null): void {
+    this.ranges = ranges;
   }
 
   update(x: number, z: number): void {
