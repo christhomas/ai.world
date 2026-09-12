@@ -3931,3 +3931,27 @@ than by remembering — and the first thing found was that the gap is not where 
       The other half of the same lesson: `patchwork.test.ts` was growing eight patches of endless
       country at about five seconds apiece. It grows one now. A test suite that starves the machine
       it runs on will be blamed on whatever fails first, which will not be the test that caused it.
+
+
+- [~] **70. An API client for Claude Design.** Asked for outright, and the endpoints were worth
+      finding rather than assuming.
+
+      **What was found.** Claude Design is at `https://api.anthropic.com/v1/design/mcp` and speaks
+      MCP over HTTP. It has **two doors**: probed with a deliberately bad `x-api-key` it answers the
+      platform's own error shape — `{"type":"error","error":{"type":"authentication_error"}}` — which
+      means an ordinary Anthropic API key opens it; probed with a bad `authorization: Bearer` it
+      answers a bare `unauthorized`, which is the OAuth door the Claude Code MCP client goes through.
+      A script can hold a key to the first.
+
+      **What was built.** `tools/designapi.ts` and `chore design-api`. It discovers rather than
+      guesses: `tools/list` is what says which calls exist, so the only thing this file knows about
+      Claude Design is one URL and the shape of MCP — the day the service grows a tool, this finds it
+      without being edited. `tools` prints what the service offers; `call <tool> k=v` calls one.
+      Seven tests on the half that needs no network — a reply may come back as JSON or as a single
+      `data:` line of an event stream, and a client that insists on one of the two works until the
+      day it does not.
+
+      **What is left: the key.** `printf %s "sk-ant-..." | chore design-api key` keeps one in
+      `~/.config/anthropic/design-key`, readable by its owner alone — read from stdin rather than
+      from an argument, because an argument is in a shell history for ever. Until then the client
+      says so and stops.

@@ -154,6 +154,19 @@ tasks:
     cmds:
       - 'pnpm exec tsx tools/design.ts {{.WHAT}} {{.WHICH}}'
 
+  # Claude Design itself, over its own API: `chore design-api tools` asks the service what it can
+  # do and prints it, `chore design-api call <tool> k=v` calls one. It needs an Anthropic API key —
+  # `printf %s "sk-ant-..." | chore design-api key` keeps one in ~/.config/anthropic/design-key,
+  # readable by you alone and never in a shell history.
+  design-api:
+    desc: Talk to Claude Design over its API, and see what it offers
+    args: [what, rest]
+    vars:
+      WHAT: ''
+      REST: ''
+    cmds:
+      - 'pnpm exec tsx tools/designapi.ts {{.WHAT}} {{.REST}} {{.CLI_ARGS}}'
+
   check:
     desc: Typecheck and test, the gate before a commit
     cmds:
