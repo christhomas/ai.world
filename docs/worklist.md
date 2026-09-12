@@ -3540,3 +3540,61 @@ simulation rather than any one feature in it.
       afloat, and `swallows.ts` knows what to do with somebody who goes under. What it needs is a
       stroke that is slower than walking, a shore you can always climb back onto, and the honest
       answer to being caught out in deep water with a fin behind you.
+
+## Retiring the bounded world — September 12th
+
+Asked for outright: *"I want the endless world, this is the future of the map, we should retire the
+bounded world."* What follows is what actually stands between here and that, found by reading rather
+than by remembering — and the first thing found was that the gap is not where the code says it is.
+
+- [ ] **59. The endless country becomes the country.** `EDGE_OF_THE_WORLD = 480` is the world today.
+      The endless one is built, proved and wired to nothing: `src/world/endless.ts` is imported by
+      its own tests and by nothing else in the game.
+
+- [x] **59a. What the generator still owes — nothing, as it turns out.** `samplerIn(seed, within)`
+      already answers with roads, water, villages, signposts, caves, wrecks, ferries *and rock*:
+      `localrock.ts` stands mountains on the high country and `endless.test.ts` holds two
+      overlapping patches to identical summits in the ground they share. The comment at the top of
+      `endless.ts` still says the rock is the one thing missing, and it is stale — that was true when
+      it was written and has not been true since B6.
+
+- [x] **59b. A patchwork, so the game can hold a country with no edge.** `src/world/patchwork.ts`.
+      The endless world answers for *a patch*; everything in this game hangs off one sampler grown
+      once. A `Patchwork` holds a bounded number of patch samplers, routes a question to the patch it
+      falls in, grows one when it is first asked for and drops the least recently wanted. Squares are
+      512 tiles — a province's own number, so "load the province I am walking into" and "grow the
+      ground I am walking into" are one boundary crossing rather than two out of step — and no chunk
+      ever straddles two. Eleven tests, the load-bearing one being that a chunk fetched through the
+      patchwork is tile-for-tile what that patch's own sampler paints.
+
+- [ ] **59c. The chunk workers are handed a world at start-up.** `ChunkManager`'s constructor posts
+      `{ graph, hydro, structures }` to each worker once and they paint every chunk from it for the
+      rest of the session. That is the single deepest bounded-world assumption in the game. It wants
+      to become per-patch: a worker is told about a patch the first time it is asked to paint a chunk
+      in one, and forgets patches the same way the patchwork does.
+
+- [ ] **59d. `growCountry` grows one of everything.** One sampler, one mountain mesh added to the
+      scene for ever, eyries planned across the whole world, sky islands planned from the whole
+      world, a skyline built from every range there is. Each of those is a list that has no end in an
+      endless country, and each has the same answer: it is a question about the country *near the
+      hero*, asked again as he moves.
+
+- [ ] **59e. Ten places in the game layer ask for `sampler.structures`.** The villages list, the
+      nearest village, what is standing near a point. In a patchwork the honest version of each is
+      "within so many tiles of here", which is what they all actually mean.
+
+- [ ] **59f. Both halves have to switch together.** `server/sim.ts` grows its world the same way, and
+      `growworld.ts` exists precisely so that neither half can grow a country the other cannot see.
+      An endless world needs the same treatment: one call, both halves, and `twohalves.test.ts`
+      pointed at it.
+
+- [ ] **59g. A save says which world it is.** `WorldKind` has been `'road'` alone since the polygon
+      world was retired, and `kindOf` quietly answers `'road'` to anything. The same seed grows a
+      completely different country as an endless one, so opening an old save as the new kind would
+      move the ground out from under every house, field and anchor in it. The kind comes back, and
+      it travels with the join.
+
+- [ ] **59h. And then the edge comes out.** `EDGE_OF_THE_WORLD`, the island plan, the road tree and
+      everything that reads them. Last, not first: the bounded world is what everybody is playing
+      until the day the endless one is better, and it is also the reference the endless one is
+      checked against.
