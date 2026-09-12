@@ -69,6 +69,19 @@ export interface CreatureProperties {
    */
   blow?: Blow;
   /**
+   * Can cross deep water under its own power, slowly.
+   *
+   * Not the same as `behaviour: 'swim'`, which is a creature that lives in the water and cannot
+   * leave it — a shark on a lawn is the bug that rule exists to stop. This is a creature that walks
+   * on land and can strike out into water it cannot stand up in, which today is the hero and
+   * nobody else. A villager stays on the shore, and a cow is not going to the island.
+   *
+   * It changes the shape of the map rather than one creature's abilities: every island on the
+   * horizon becomes somewhere you could *try* to reach, and everything already in the water becomes
+   * the reason not to.
+   */
+  paddles?: boolean;
+  /**
    * Somebody's property. It can be killed like anything else, and the village will find out.
    * Kept on the kind rather than worked out from where it is standing, because a cow that has
    * wandered off is still a cow that belongs to whoever it wandered off from.
@@ -115,6 +128,7 @@ function readCreature(f: Fields, id: string): CreatureProperties {
     climb: f.maybeNum('climb'),
     damage: f.maybeNum('damage'),
     blow,
+    paddles: f.maybeFlag('paddles'),
     owned: f.maybeFlag('owned'),
     hp: f.maybeNum('hp'),
     gold: f.maybePair('gold'),

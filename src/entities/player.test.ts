@@ -33,6 +33,19 @@ const riverbank = (at: number): TileWorld => ({
   waterAt: (x: number) => (x >= at ? 0 : null),
 });
 
+/**
+ * And a cliff across it, which stops him still.
+ *
+ * A river stopped every hero in the game until one of them learned to swim; what is left that
+ * nothing can cross is ground that is not ground and not water either — the edge of what has been
+ * grown, or the side of a mountain. So a driver that has to give up on somewhere unreachable is
+ * tested against this rather than against a river it can now simply swim.
+ */
+const cliff = (at: number): TileWorld => ({
+  ...field(),
+  heightAt: (x: number) => (x >= at ? null : 0),
+});
+
 /** A keyboard with nothing held down, unless a test says otherwise. */
 const hands = (...held: string[]): Input =>
   ({ isDown: (...keys: string[]) => keys.some((k) => held.includes(k)) }) as unknown as Input;
@@ -115,13 +128,27 @@ describe('a hero driven by something other than the keyboard', () => {
      * holding W would get, and is right for a player. A script is not watching: a driver that can
      * push at a riverbank for ever is a test that hangs instead of one that fails.
      */
-    const { player, walk } = hero(riverbank(5));
+    const { player, walk } = hero(cliff(5));
     player.walkTo(40, 0);
     walk(1);
-    expect(player.x, 'walked into the river').toBeLessThan(5);
+    expect(player.x, 'walked off the edge of the world').toBeLessThan(5);
     expect(player.x, 'never set off at all').toBeGreaterThan(1);
     walk(Player.GIVES_UP + 1);
     expect(player.steering, 'still shoving at the far bank').toBe(false);
+  });
+
+  it('swims the river he used to stop at, and keeps going', () => {
+    /*
+     * The other half of the test above, and the thing that made it need rewriting: a river is not
+     * an obstacle any more, it is a slower way across. Sent east from the bank he goes into the
+     * water and stays going, which is what turns every island on the horizon into somewhere a
+     * player might try to reach.
+     */
+    const { player, walk } = hero(riverbank(5));
+    player.walkTo(40, 0);
+    walk(3);
+    expect(player.x, 'the river is still a wall').toBeGreaterThan(5);
+    expect(player.steering, 'gave up in the middle of the water').toBe(true);
   });
 
   it('keeps going while he is still getting nearer, however slowly', () => {

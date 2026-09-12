@@ -3568,7 +3568,22 @@ simulation rather than any one feature in it.
       a trade is (**30**), so that a stranger's children look like the stranger. The faces are
       already generated per person; what they are not yet is *inherited*.
 
-- [ ] **58. A hero who can swim.** Deep water is a wall today: you wade to your chest and stop. If
+- [~] **58. A hero who can swim.** *He can, as of the 12th.* `paddles` is a creature property and the
+      hero is the only one with it, so deep water stopped being a wall for him and stayed one for
+      everybody else — a cow is not going to the island. `canStand` lets a paddler be where there is
+      water and no bottom, `groundY` and `settleOnto` float him at the surface, and `stride` gives
+      him a stroke at **0.4** of his walking pace, which is slow enough that the far shore is a
+      commitment. Climbing out is the same rule read backwards and needs no code: the shore has
+      ground on it and is within a hero's climb of the water, so nobody is ever stranded afloat.
+      `SeaHunt` counts a swimmer as being out there and wears his grace down three times as fast as
+      a boat's, which is the honest answer to being in deep water with a fin behind you. All of it
+      is in the arithmetic both halves share, so the world walks a swimmer exactly as the page does.
+
+      What is left, and worth having: a stroke to *watch* (he walks on the spot out there today), a
+      mounted hero who should not be able to ride into the sea, and breath or stamina, so that a
+      crossing can be misjudged rather than only interrupted. The original note:
+
+      Deep water is a wall today: you wade to your chest and stop. If
       you could swim, the map changes shape — every island you can see becomes somewhere you could
       *try* to reach, and the things already in the water become the reason not to. The pieces are
       there: `breath.ts` holds a lungful and counts it down, sharks and orcas already hunt anything

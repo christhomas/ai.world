@@ -200,6 +200,7 @@
     "speed": 5.5,
     "runSpeed": 5.5,
     "climb": 0.56,
+  "paddles": true,
     "herd": [
       1,
       1

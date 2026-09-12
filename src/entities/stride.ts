@@ -80,6 +80,20 @@ export const LONGEST_STEP = 0.25;
 export const FASTEST = 3.5;
 
 /**
+ * Swimming, as a fraction of the pace the same hero walks at.
+ *
+ * Slower than walking on purpose, and by enough to feel. A crossing has to be a decision — long
+ * enough that the far shore is a commitment rather than a detour, long enough for something with a
+ * fin to have time to reach you. At a little over two tiles a second the widest river is a few
+ * seconds and an island on the horizon is a minute of open water with no way to hurry.
+ *
+ * It is here rather than with whatever is holding the keyboard because the server walks the hero
+ * with this same function: a page that swam at walking pace would be corrected the whole way
+ * across, which is the one thing shared arithmetic exists to prevent.
+ */
+export const SWIM = 0.4;
+
+/**
  * Move a hero by one steer, and say whether they got anywhere.
  *
  * Nothing here is trusted: the direction is normalised, the pace is clamped and the step is
@@ -95,8 +109,22 @@ export function stride(world: TileWorld, e: Entity, steer: Steer, crowd?: Crowd)
   if (pace <= 0) return false;
   const dx = steer.dx / len, dz = steer.dz / len;
   e.yaw = yawFor(dx, dz);
-  const step = e.kind.speed * pace * dt;
+  // a stroke rather than a stride, when there is nothing underfoot to push off
+  const stroke = afloat(world, e) ? SWIM : 1;
+  const step = e.kind.speed * pace * dt * stroke;
   return tryMove(world, e, dx * step, dz * step, crowd);
+}
+
+/**
+ * Is this creature swimming — out where there is water and no bottom within reach?
+ *
+ * Asked of where it *is* rather than of where it is going, because a stroke is slower for the whole
+ * of the step that starts in the water: a hero wading out of the shallows gets the last of his
+ * footing, and one reaching the shore is still swimming until he is standing on it.
+ */
+export function afloat(world: TileWorld, e: Entity): boolean {
+  if (e.kind.paddles !== true) return false;
+  return world.heightAt(e.x, e.z) === null && world.waterAt(e.x, e.z) !== null;
 }
 
 /**
@@ -108,5 +136,11 @@ export function stride(world: TileWorld, e: Entity, steer: Steer, crowd?: Crowd)
  */
 export function settleOnto(world: TileWorld, e: Entity): void {
   const h = world.heightAt(e.x, e.z);
-  if (h !== null) e.y = h;
+  if (h !== null) { e.y = h; return; }
+  // and a swimmer floats at the surface, which is the height the water is rather than the height of
+  // whatever is at the bottom of it
+  if (e.kind.paddles === true) {
+    const surface = world.waterAt(e.x, e.z);
+    if (surface !== null) e.y = surface;
+  }
 }

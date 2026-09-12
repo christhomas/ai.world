@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import { HEALTH } from '../world/health';
 import { WORLD } from '../core/config';
 import { hashString } from '../core/rng';
+import { afloat } from '../entities/stride';
 import type { Entity } from '../entities/entity';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
@@ -248,9 +249,13 @@ export function createWatch(ctx: Watched) {
       watchBands();
       watchCamps();
     },
-    /** Something takes an interest in a boat that has been in deep water a while. */
+    /** Something takes an interest in whoever has been out in deep water a while. */
     hunted: (dt: number): void => {
-      const arrived = seaHunt.update(dt, sailing.sailing, player.x, player.z, sampler, entities);
+      // by hull or by arm: a man in the water is out there too, and is noticed sooner for it
+      const swimming = afloat(player.ground, player.entity);
+      const arrived = seaHunt.update(
+        dt, sailing.sailing || swimming, player.x, player.z, sampler, entities, swimming,
+      );
       if (!arrived) return;
       sound.thud();
       flash(`${arrived} in the water. They are circling.`);

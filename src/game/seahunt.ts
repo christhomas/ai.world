@@ -17,6 +17,14 @@ export const HUNT = {
   DEEP: 22,
   /** How long a stretch of deep-water sailing before something notices, in seconds. */
   NOTICE: [8, 26] as const,
+  /**
+   * And how much of that a swimmer gets.
+   *
+   * A man in the water is noticed sooner than a hull is, which is both true and the thing that makes
+   * swimming a decision rather than a shortcut. It is a fraction rather than a second figure so the
+   * two can never drift apart: whatever a boat's grace is worth, a swimmer's is a third of it.
+   */
+  SWIMMER_SHARE: 0.34,
   /** How far off they surface, and how far out before they lose interest and go. */
   ARRIVE: 15,
   LOSE_INTEREST: 40,
@@ -42,19 +50,30 @@ export class SeaHunt {
    */
   update(
     dt: number,
-    sailing: boolean,
+    /**
+     * Out over deep water, by boat or by arm.
+     *
+     * It was `sailing` when a boat was the only way to be out there. A hero who can swim is out
+     * there too, and rather more interesting to whatever is down below — so what this asks now is
+     * whether anybody is on the water at all, and `swimming` says which way.
+     */
+    afloat: boolean,
     x: number,
     z: number,
     sampler: TerrainSampler,
     entities: EntityManager,
+    swimming = false,
   ): string | null {
     const here = sampler.probe(x, z);
     const deep = !here.land && here.roadDist > HUNT.DEEP;
+    // a swimmer uses up his grace faster than a boat does, which is the whole of why an island on
+    // the horizon is a gamble rather than an errand
+    const wear = swimming ? dt / HUNT.SWIMMER_SHARE : dt;
 
     if (this.hunting) {
       // ashore, or in the shallows, or nothing left of the pack: they go
       const gone = entities.packSize === 0;
-      if (!sailing || !deep || gone) {
+      if (!afloat || !deep || gone) {
         entities.despawnPack();
         this.hunting = false;
         this.sailed = 0;
@@ -63,12 +82,12 @@ export class SeaHunt {
       return null;
     }
 
-    if (!sailing || !deep) {
+    if (!afloat || !deep) {
       this.sailed = Math.max(0, this.sailed - dt);
       return null;
     }
 
-    this.sailed += dt;
+    this.sailed += wear;
     if (this.sailed < this.nextAt) return null;
 
     const rng = mulberry32(derive(this.seed, SALT.HUNT) ^ Math.floor(x * 31 + z * 131));

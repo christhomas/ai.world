@@ -18,7 +18,10 @@ import type { TileWorld } from '../world/tiles';
  * two files rather than a cycle.
  */
 
-/** Can this kind stand at (x,z), stepping from height `fromY` (or anywhere if undefined)? */
+/**
+ * Can this kind stand at (x,z) — or, for a kind that paddles, be there at all — stepping from height
+ * `fromY` (or from anywhere if it is undefined)?
+ */
 /**
  * @param yaw which way the body is facing, so that what is asked about is the shape it is drawn as.
  * Left out by whoever is asking about a place rather than about a walk — somewhere to spawn, a spot
@@ -30,9 +33,23 @@ export function canStand(
   if (swims(kind)) return world.waterAt(x, z) !== null;
   if (kind.behaviour === 'fly') return true;
   const h = world.heightAt(x, z);
+  /*
+   * Out of his depth, and swimming.
+   *
+   * `heightAt` is null over anything too deep to stand up in, which is what has always made deep
+   * water a wall. For a kind that paddles it is not a wall but a different way of getting about:
+   * there is water there, so there is somewhere to be. Nothing else in this function applies — a
+   * swimmer is not standing on anything, cannot be blocked by what is buried under the seabed, and
+   * has no step height to clear, because the surface is all one height.
+   *
+   * Climbing back out is the same rule read the other way: the tile he is heading for has ground
+   * under it, and he is stepping onto it from the water's surface, which is within a hero's climb
+   * of any shore this world grows. Nobody is ever stranded afloat.
+   */
+  if (h === null) return kind.paddles === true && world.waterAt(x, z) !== null;
   // asked as the body it is, not as the point at its middle — and at the height it is at, which is
   // the ground for everybody except somebody in the middle of a jump
-  if (h === null || world.blocked(x, z, bodyBox(kind, yaw, over))) return false;
+  if (world.blocked(x, z, bodyBox(kind, yaw, over))) return false;
   // Not onto a mountain. The rim of one is gentle for a tile or two before the flank stands up, so
   // a deer following its herd wanders up it and is then stuck on a cliff with nothing to eat; the
   // goats and the things that climb are placed on the high ground rather than walking to it.
@@ -44,7 +61,10 @@ export function canStand(
 
 export function groundY(world: TileWorld, kind: AnimalKind, x: number, z: number): number | null {
   if (swims(kind)) return world.waterAt(x, z);
-  return world.heightAt(x, z);
+  const h = world.heightAt(x, z);
+  // a swimmer floats at the surface, which is the only height there is out there
+  if (h === null && kind.paddles === true) return world.waterAt(x, z);
+  return h;
 }
 
 /**

@@ -366,6 +366,11 @@ export class Player {
       // a full terrace step triggers a little hop; ramps just glide
       if (this.hop <= 0 && Math.abs(h - e.y) > 0.3) this.hop = Player.HOP_TIME;
       e.y += (h - e.y) * Math.min(1, dt * (this.hop > 0 ? 22 : 14));
+    } else if (e.kind.paddles === true) {
+      // out of his depth: he floats at the surface instead, eased the same way so that wading out
+      // until the bottom drops away is one continuous movement rather than a step down
+      const surface = this.world.waterAt(e.x, e.z);
+      if (surface !== null) e.y += (surface - e.y) * Math.min(1, dt * 14);
     }
     /*
      * How far off his own ground he is drawn: a jump, a terrace hop, or settling back to nothing.

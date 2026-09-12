@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { TileWorld } from './entity';
-import { FASTEST, LONGEST_STEP, newHero, stride } from './stride';
+import { FASTEST, LONGEST_STEP, SWIM, newHero, settleOnto, stride } from './stride';
+import { Entity, Herd } from './entity';
+import { KINDS } from './animals';
+import { mulberry32 } from '../core/rng';
 
 /**
  * One step of a hero, which two halves of the game take in step with each other.
@@ -57,5 +60,58 @@ describe('one step of a hero', () => {
     expect(walkedBy({ dx: 1, dz: 0, pace: 0, dt: 0.2 })).toBe(0);
     expect(walkedBy({ dx: 1, dz: 0, pace: 1, dt: 0 })).toBe(0);
     expect(walkedBy({ dx: 1, dz: 0, pace: -5, dt: 0.2 })).toBe(0);
+  });
+});
+
+/**
+ * Deep water: no bottom within reach, and a surface to float on.
+ *
+ * The shore is at x < 0, so a hero at the origin is afloat and one step west is standing again.
+ */
+const sea: TileWorld = {
+  heightAt: (x) => (x < 0 ? 0.2 : null),
+  waterAt: (x) => (x < 0 ? null : 0.3),
+  blocked: () => false,
+  isRoad: () => false,
+};
+
+describe('a hero out of his depth', () => {
+  it('swims where he used to be stopped', () => {
+    const hero = newHero(4, 0);
+    hero.y = 0.3;
+    const moved = stride(sea, hero, { dx: 1, dz: 0, pace: 1, dt: LONGEST_STEP });
+    expect(moved, 'deep water is still a wall').toBe(true);
+    expect(hero.x).toBeGreaterThan(4);
+  });
+
+  it('swims slower than he walks, by enough to feel', () => {
+    const swimmer = newHero(4, 0);
+    stride(sea, swimmer, { dx: 1, dz: 0, pace: 1, dt: LONGEST_STEP });
+    const walker = newHero(4, 0);
+    stride(field, walker, { dx: 1, dz: 0, pace: 1, dt: LONGEST_STEP });
+    expect(swimmer.x - 4).toBeCloseTo((walker.x - 4) * SWIM, 5);
+  });
+
+  it('floats at the surface rather than at the bottom', () => {
+    const hero = newHero(4, 0);
+    hero.y = 99;
+    settleOnto(sea, hero);
+    expect(hero.y).toBe(0.3);
+  });
+
+  it('can always climb back onto the shore', () => {
+    const hero = newHero(0.2, 0);
+    hero.y = 0.3;
+    stride(sea, hero, { dx: -1, dz: 0, pace: 1, dt: LONGEST_STEP });
+    expect(hero.x, 'the shore was a wall from the water side').toBeLessThan(0);
+    settleOnto(sea, hero);
+    expect(hero.y, 'he climbed out and stayed at sea level').toBe(0.2);
+  });
+
+  it('is a thing about the hero, not about everything that walks', () => {
+    // a cow does not swim to the island. `paddles` is the hero's alone, and `canStand` is the gate
+    const cow = new Entity(KINDS.cow, 4, 0, new Herd(KINDS.cow, 4, 0, 4, 0, 0), '', mulberry32(1));
+    const moved = stride(sea, cow, { dx: 1, dz: 0, pace: 1, dt: LONGEST_STEP });
+    expect(moved, 'a cow walked out to sea').toBe(false);
   });
 });
