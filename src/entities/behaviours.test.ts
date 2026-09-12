@@ -34,6 +34,21 @@ describe('the behaviour files', () => {
     }
   });
 
+  it('send a fisherman down to the water and keep him there all day', () => {
+    /*
+     * A sailor's hours with a logger's middle, which is what the trade is: a sailor goes away and a
+     * fisherman comes back before dark. What he lands is counted once a day out of the boats the
+     * village keeps — `aDaysTrade` in `world/livelihoods.ts` — so a `take` or a `sell` in here
+     * would land the same fish twice, exactly as they would mint the same timber twice next door.
+     */
+    const day = JSON.stringify(villagers.fisherman);
+    expect(day).toContain('"shore"');
+    expect(day, 'a fisherman who walks to the water and stands looking at it').toContain('"dig"');
+    expect(day, 'he is carrying fish as well as having landed them').not.toContain('"take"');
+    expect(day, 'he is selling the catch the village already counted').not.toContain('"sell"');
+    expect(day).toContain('"home"');
+  });
+
   it('send a logger out to the trees and keep him there all day', () => {
     /*
      * The one trade whose day had to be written after the trade was. What is worth pinning is the

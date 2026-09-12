@@ -16,6 +16,14 @@ import type { Structures } from '../world/structures';
  * the wiring file regardless: somebody looking for "how does a village know which hole is its
  * hole" now has one place to look.
  */
+/**
+ * How near a pier has to be to count as a village's harbour, in tiles.
+ *
+ * The builder's own reach for the same question — a village he will walk out from to raise a boat
+ * beside — because a harbour a village cannot get to is not its harbour.
+ */
+const HARBOUR_REACH = 60;
+
 export function minesOfAVillage(ctx: {
   structures: Structures;
   register: Register;
@@ -40,6 +48,17 @@ export function minesOfAVillage(ctx: {
   // said before anybody settles, because a village is founded once and its trades are fixed then:
   // tell the register after the fact and the mining village has already been raised without miners
   register.minesAt(claimed.keys());
+  /*
+   * And which villages have a harbour, on exactly the same terms and for the same reason.
+   *
+   * A jetty is what lets a village keep boats, and boats are what let a coast be paid for its fish
+   * (`harvest.ts`). Which village a pier belongs to is the game's business rather than the
+   * register's — the same division `minesAt` above draws about a hole in a hill — so it is told
+   * here, where the structures are already in hand and before anybody has been founded.
+   */
+  register.harboursAt(structures.villages
+    .filter((v) => structures.piers.some((p) => Math.hypot(p.dockX - v.x, p.dockZ - v.z) < HARBOUR_REACH))
+    .map((v) => v.name));
 
   /**
    * What a village believes about its mine, for anybody who has to put it into words.

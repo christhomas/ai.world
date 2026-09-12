@@ -2,6 +2,7 @@ import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
 import { BEASTS_PER_FARM } from './holdings';
+import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { ableToWork } from './wounds';
 
@@ -190,63 +191,6 @@ export function pitchFor(person: Person): number {
   return Math.min(LIVELIHOOD.SELLING, Math.max(0, person.purse - PROSPER.KEEPS_BACK));
 }
 
-/** What a day of keeping cattle came to. */
-export interface Herding {
-  /** The herd this evening, after the calves and after the butcher. */
-  herd: number;
-  /** Beasts that went to market today. */
-  sold: number;
-  /** What they came to in the larder. */
-  meals: number;
-  /** And what the neighbours paid for the rest, which is money the village did not have. */
-  gold: number;
-}
-
-/**
- * A day of a village's cattle.
- *
- * Pure in the herd and the number of farmers, so a village re-lived from its founding arrives at
- * the same paddock as the village somebody watched — which matters, because the register does
- * exactly that whenever a player first walks into a place.
- *
- * A village with no farmers has no herd, and loses the one it had. That is not a punishment: cows
- * that nobody feeds are cows that walk off, and a village whose last farmer has been buried has
- * bigger problems than its beef.
- */
-export function aDayOfCattle(herd: number, farmers: number): Herding {
-  if (farmers <= 0) return { herd: 0, sold: 0, meals: 0, gold: 0 };
-  const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
-  /*
-   * A paddock that is already over-full does not calve.
-   *
-   * Without this line the herd grew by a calving and sold a calving on the same morning, and the
-   * two very nearly cancelled: an over-cap herd came down by sixteen hundredths of a *percent* a
-   * day, which is a half-life of over a year. The comment below claimed a fortnight and the
-   * arithmetic said never, and nothing noticed because a hundred days is not long enough to see
-   * it. `chore sanity` runs four hundred and fifty and found villages that had been running
-   * beasts nobody was keeping for a hundred and ninety days at a stretch.
-   */
-  const after = herd > cap ? herd : herd + herd * LIVELIHOOD.CALVES;
-  /*
-   * Only what the paddocks will not hold, and never more than a day's work at the butcher.
-   *
-   * The first half is the whole model: a herd under its cap keeps everything and grows toward it,
-   * and a herd at its cap sells exactly the calves and stays the size it is. The second half is
-   * what stops a village burying three of its four farmers and the survivor waking up to a
-   * hundred and sixty gold — the cap falls with the farmers, and without a rate the entire surplus
-   * goes to market in one morning. The bench found it as a farmer averaging sixty-seven a day
-   * against every other trade's three. A herd over its cap now comes down by a calving a day and
-   * calves nothing back, which is about a month to work off a dead man's beasts and looks from the
-   * road like what it is.
-   */
-  const sold = Math.max(0, Math.min(after - cap, after * LIVELIHOOD.CALVES));
-  return {
-    herd: after - sold,
-    sold,
-    meals: sold * LIVELIHOOD.MEALS_PER_BEAST,
-    gold: sold * LIVELIHOOD.PRICE_PER_BEAST,
-  };
-}
 
 /**
  * Hand a pool of money out in proportion to a set of shares.
@@ -282,13 +226,19 @@ export function shareOut(pool: number, shares: ReadonlyMap<string, number>): Map
  *
  * The herd's meat is the farmers', shared between them: it came off their paddocks.
  */
-export function whoFed(people: readonly Person[], fromHerd = 0): Map<string, number> {
+export function whoFed(
+  people: readonly Person[], fromHerd = 0, shore = false, fromBoats = 0,
+): Map<string, number> {
   const shares = new Map<string, number>();
   const farmers = people.filter((p) => p.trade === 'farmer');
+  const crews = people.filter((p) => p.trade === 'fisherman');
   for (const person of people) {
     if (!person.trade) continue;
     const meat = person.trade === 'farmer' && farmers.length > 0 ? fromHerd / farmers.length : 0;
-    shares.set(person.id, broughtIn(person) + meat);
+    // the catch is the fishermen's, shared between them, for the reason the meat is the farmers':
+    // it came off their boats. The shellfish is nobody's in particular and is already in `broughtIn`
+    const fish = person.trade === 'fisherman' && crews.length > 0 ? fromBoats / crews.length : 0;
+    shares.set(person.id, broughtIn(person, shore) + meat + fish);
   }
   return shares;
 }
@@ -301,9 +251,9 @@ export function whoFed(people: readonly Person[], fromHerd = 0): Map<string, num
  * farmer and is worth having rather than smoothing over.
  */
 export function paidForFood(
-  people: readonly Person[], spent: number, fromHerd = 0,
+  people: readonly Person[], spent: number, fromHerd = 0, shore = false, fromBoats = 0,
 ): Map<string, number> {
-  return shareOut(spent, whoFed(people, fromHerd));
+  return shareOut(spent, whoFed(people, fromHerd, shore, fromBoats));
 }
 
 /**
@@ -340,6 +290,24 @@ export interface Trading {
    * for, which is a quiet way of taking money out of a farmer's pocket.
    */
   meat: number;
+  /**
+   * And how much came off the boats, kept apart for the reason the meat is.
+   *
+   * What somebody is paid for the village's dinner is what they put into it, and a fisherman put in
+   * his boat. Folded into `grown` it would be food nobody landed and nobody was paid for, which is
+   * the same quiet way of taking money out of a pocket — this time out of the pocket of the one
+   * trade the harbour was built for.
+   */
+  fish: number;
+  /**
+   * Whether this village has a shore, carried along so the evening does not have to ask again.
+   *
+   * The shellfish are in everybody's share of the dinner money — they are food somebody gathered,
+   * and the rule here is that what you are paid for the village's dinner is what you put into it.
+   * `aDaysDinner` works out those shares hours after `aDaysTrade` has finished, and giving it the
+   * coast on the day's own record is what saves the register from being handed the village twice.
+   */
+  shore: boolean;
   /** What each purse is owed for the day's work, before anybody has eaten. */
   paid: Map<string, number>;
 }
@@ -358,7 +326,9 @@ export interface Trading {
  */
 export function aDaysTrade(
   people: readonly Person[], herd: number, pressure: number,
+  village: { trades?: readonly string[]; holdings?: readonly { kind: string }[] } = {},
 ): Trading {
+  const coast = coastOf(village);
   const paid = new Map<string, number>();
   const add = (id: string, much: number): void => { paid.set(id, (paid.get(id) ?? 0) + much); };
   const keep = (): number => {
@@ -384,7 +354,7 @@ export function aDaysTrade(
    */
   if (pressure > PROSPER.UNTROUBLED) {
     keep();
-    return { herd, grown: 0, meat: 0, paid };
+    return { herd, grown: 0, meat: 0, fish: 0, shore: coast.shore, paid };
   }
 
   // a man who is laid up does not work, and his trade earns the village nothing while he is: see
@@ -393,6 +363,9 @@ export function aDaysTrade(
   const working = people.filter(ableToWork);
   const farmers = working.filter((p) => p.trade === 'farmer');
   const cattle = aDayOfCattle(herd, farmers.length);
+  // and the boats, which are the coast's answer to the paddocks: see `aDaysFishing` for why the
+  // two are the same shape and deliberately not the same behaviour
+  const caught = aDaysFishing(coast.boats, working.filter((p) => p.trade === 'fisherman').length);
 
   // what a trade brings in from beyond the village: the seam, the sea, the road, the far country,
   // and what a traveller spends at an inn on his way through
@@ -401,6 +374,18 @@ export function aDaysTrade(
   // the meat the next valley bought, which is the farmers' and is one of the three ways money
   // gets into a village at all
   for (const [id, much] of shareOut(cattle.gold, new Map(farmers.map((p) => [p.id, 1])))) {
+    add(id, much);
+  }
+  /*
+   * And the fish, the same way, which is the fourth — and the first one a village can *build*.
+   *
+   * A seam is where it is, a wood is where it is, and a road brings whoever it brings. A harbour is
+   * the one source of outside money in this economy that somebody decided to have: three hundred
+   * and forty gold and thirty lengths of timber, and a coast that had none now has one. That is
+   * what item 41 means by a harbour being the first thing here that pays for itself.
+   */
+  const crews = working.filter((p) => p.trade === 'fisherman');
+  for (const [id, much] of shareOut(caught.gold, new Map(crews.map((p) => [p.id, 1])))) {
     add(id, much);
   }
 
@@ -422,8 +407,11 @@ export function aDaysTrade(
 
   return {
     herd: cattle.herd,
-    grown: people.reduce((sum, person) => sum + broughtIn(person), 0) + cattle.meals,
+    grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore), 0)
+      + cattle.meals + caught.meals,
     meat: cattle.meals,
+    fish: caught.meals,
+    shore: coast.shore,
     paid,
   };
 }
@@ -450,8 +438,17 @@ export function aDaysTrade(
  */
 export function aDaysIncome(
   people: readonly Person[], herd: number, pressure: number, store = Infinity,
+  /**
+   * The village itself, when the caller has it, because a coast earns from the water.
+   *
+   * Optional for the same reason it is optional on `aDaysTrade`: a caller with only a list of
+   * people gets the inland answer, which is what every caller got before there was a catch. Left
+   * out where a village *does* fish, the roll under-reports every fisherman's day — and the audit
+   * reads that row, so the money would arrive in purses with nothing in any book to explain it.
+   */
+  village?: Parameters<typeof aDaysTrade>[3],
 ): Map<string, number> {
-  const day = aDaysTrade(people, herd, pressure);
+  const day = aDaysTrade(people, herd, pressure, village);
   const income = new Map(day.paid);
 
   /*
@@ -538,9 +535,9 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
    */
   const spare = Math.max(0, all - food);
   const meal = eat(people, food);
-  const paid = paidForFood(people, meal.spent, work.meat);
+  const paid = paidForFood(people, meal.spent, work.meat, work.shore, work.fish);
   // and the money for it comes from the next valley, because that is where the food went
-  for (const [id, much] of paidForFood(people, spare * FOOD.ABROAD, work.meat)) {
+  for (const [id, much] of paidForFood(people, spare * FOOD.ABROAD, work.meat, work.shore, work.fish)) {
     paid.set(id, (paid.get(id) ?? 0) + much);
   }
   return { food: Math.max(0, food - meal.eaten), sold: spare, starved: meal.starved, paid };

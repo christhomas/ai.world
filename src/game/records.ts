@@ -179,7 +179,11 @@ export function theRoll(
    * are spending their keep. A wage that could be worked out from one row was a wage that came
    * from nowhere, which is exactly what this stopped being.
    */
-  const income = aDaysIncome(living, register.herdOf(village), pressure, register.larderOf(village));
+  // the village as well as its people: a coast is paid for its fish, and a roll that did not know
+  // that would under-report every fisherman's day. See `harvest.ts`
+  const income = aDaysIncome(
+    living, register.herdOf(village), pressure, register.larderOf(village), register.madeOf(village),
+  );
   const trades = commonest(grown.map((p) => p.trade), 3);
   const gist = [
     `${village} has ${many(living.length, 'soul', 'souls')} on the roll, of whom ${many(living.length - grown.length, 'is a child', 'are children')}.`,

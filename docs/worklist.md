@@ -3634,7 +3634,34 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       paid for it. It is also the first thing a village can build that *moves*, which is what makes
       a coastal village different from an inland one in a way a player can see from the shore.
 
-- [ ] **41. Fishermen, and what a coast eats.** `can_fish` from **35** needs somewhere to come from
+- [x] **41. Fishermen, and what a coast eats.** *Done on the 13th, and the design is the part worth
+      reading.* A catch is the **second way food has ever reached a village** — there has only ever
+      been the herd — so it was built as two deliberately different shapes.
+
+      **Shellfish are a floor**, per *head* rather than per trade: a child with a bucket at low water
+      brings back what a soldier would, so it wants no boat, no jetty and no trade. The arithmetic is
+      the whole argument — a village eats one meal a head, so an inland place with no farmer breaks
+      exactly even and dies the first week anybody is ill, and **the same place on a shore runs half
+      a meal a head to the good and cannot starve.** That is why fishing villages exist, said as a
+      number. It never makes anybody rich.
+
+      **Fish are the paid half, capped by hulls**: `min(boats, fishermen)`, so more boats is more
+      fish where more fishermen alone is only more people standing on a jetty. That is what makes a
+      harbour an investment, and it is the first outside money in this economy that somebody
+      *decided* to have.
+
+      And the difference from a farm is stated in the code: cattle are capital — a herd breeds,
+      grows towards a cap its buildings decide, and wolves cost a month — while a shoal belongs to
+      nobody. No stock to grow, none to run down, and tomorrow is the same offer. **A coast's income
+      has no memory**, so a coast is the place to be when things go badly and the place to leave when
+      they go well. A farm ruined takes a season; a fleet that missed a week has missed a week.
+
+      It joins the roofs, too: a coastal village that feeds itself is one whose families are not
+      going hungry, so it grows where an inland rock does not.
+
+      `livelihoods.ts` hit 799 lines, so the herd and the boats came out together into `harvest.ts` —
+      an honest split rather than a filing one, since what is left next door is about a *person* and
+      what moved is about *a thing a village owns*. `can_fish` from **35** needs somewhere to come from
       and something to bring back. A coastal village lives partly off the water: shellfish as a
       staple — gathered rather than hunted, so it is a floor under a coastal larder the way
       `PROSPER.A_DAY` is a floor under a wage — and fish from boats, which is the paid half.

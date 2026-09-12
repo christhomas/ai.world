@@ -1,9 +1,9 @@
 import { PROSPER } from './prosperity';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
+import { fillTheGaps } from './births';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { rankOfVillage, whatTheVillageSpends } from './growth';
-import { whoCouldHaveAChild } from './roofs';
 import type { Rank } from './rank';
 import { doctoredBy, laidUpFor, mendThem } from './wounds';
 import { walkOver, whoWalksIn } from './movingon';
@@ -33,8 +33,6 @@ import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortu
  */
 const FOUNDED_ON = 1;
 
-/** At most this share of a village's founding size can be born in one day. */
-const BIRTH_RATE = 0.06;
 
 export type { Burial, Change, Settlement } from './settlement';
 
@@ -83,10 +81,17 @@ export class Register {
    * because who works which hole is the game's business, not the register's.
    */
   private worksAMine = new Set<string>();
+  /** And which have a harbour, however it got there: grown from the seed, or paid for by somebody. */
+  private hasAHarbour = new Set<string>();
 
   /** Which villages have a mine. Must be said before anybody settles, or the founding misses it. */
   minesAt(villages: Iterable<string>): void {
     this.worksAMine = new Set(villages);
+  }
+
+  /** And which have a jetty, which is what lets a village keep boats. Same rule: say it first. */
+  harboursAt(villages: Iterable<string>): void {
+    this.hasAHarbour = new Set(villages);
   }
 
   /**
@@ -116,7 +121,10 @@ export class Register {
     // a village is founded with a few days in the cellar, not starving on its first morning
     const farmers = people.filter((p) => p.trade === 'farmer').length;
     const settlement: Settlement = {
-      people, founded: people.length, houses, trades, food: people.length * 3, buried: [], purse: 0, works: [],
+      people, founded: people.length, houses, trades, food: people.length * 3, buried: [], purse: 0,
+      // a harbour it already has counts as a thing it has raised: `holdings.ts` will not put a boat
+      // anywhere there is nothing to tie one up at, and a seeded jetty is a jetty
+      works: this.hasAHarbour.has(village) ? ['jetty'] : [],
       // no tower, so nobody on it. It fills in on the first morning the village can afford both
       watch: '',
       // and no magic has been done here. A raising is remembered across a re-living; see `shrine.ts`
@@ -181,6 +189,10 @@ export class Register {
 
   /** The houses it was laid out with, which is what founding it again wants. */
   livedIn = (v: string): number => this.villages.get(v)?.houses ?? 0;
+
+  /** What this village is *made of*, for whoever has to work out what a day of it comes to. */
+  madeOf = (v: string): { trades?: readonly string[]; holdings?: readonly { kind: string }[] } =>
+    this.villages.get(v) ?? {};
 
   /**
    * Something carried beasts off, and the paddock is that much emptier.
@@ -354,7 +366,9 @@ export class Register {
    * settled until it has eaten, so `dinner` does that half.
    */
   private trade(village: Settlement, pressure: number): Trading {
-    const trading = aDaysTrade(village.people, village.herd, pressure);
+    // the village as well, because what a coast eats is a fact about the place rather than about
+    // anybody in it: see `harvest.ts`, where the herd and the boats sit side by side
+    const trading = aDaysTrade(village.people, village.herd, pressure, village);
     village.herd = trading.herd;
     this.pay(village, trading.paid);
     // and the hall's share of what is left, which is the same act as every other coin that moves
@@ -550,53 +564,10 @@ export class Register {
     return gone.map((p) => this.remove(p, day, 'age')).filter((c): c is Change => c !== null);
   }
 
-  /** A village replaces what it has lost, at a pace: a hard winter means a run of births. */
+    /** Who is born here this morning, which is a question about families. See `births.ts`. */
   private fillTheGaps(name: string, village: Settlement, day: number, pressure: number): Change[] {
-    const missing = village.founded - village.people.length;
-    if (missing <= 0) return [];
-    /*
-     * No births while it is being raided, and births again the moment it is not.
-     *
-     * This used to test how far the village had fallen: below a line, none ever again — so a place
-     * stayed barren after the thing killing it was dealt with, and every troubled village drained
-     * away. Seed 1's Crossroads Town: thirty people, seven by day sixty, none by day one hundred
-     * and twenty. Pressure is the honest test, and it makes a rescue worth making up to the last
-     * family.
-     */
-    if (pressure > PROSPER.UNTROUBLED) return [];
-    // and a place with nobody left in it is a ruin rather than a village: somebody has to be there
-    // for anybody to be born
-    if (village.people.length === 0) return [];
-
-    const rng = this.streamFor(name, day);
-    const wanted = Math.min(missing, Math.max(1, Math.round(village.founded * BIRTH_RATE)));
-    const changes: Change[] = [];
-
-    for (let n = 0; n < wanted; n++) {
-      // room under their own roof and food in the store, which is what limits a family now that a
-      // roof has a size. Asked inside the loop, so each birth sees the bed the last one took
-      const parents = whoCouldHaveAChild(village.people, village.houses, village.works, village.food, day);
-      if (parents.length < 2) break;            // a village of children does not repopulate itself
-
-      const [mother, father] = parentsFrom(parents, rng);
-      const id = `${name.replace(/[^A-Za-z]/g, '')}-${day}-${n}`;
-      const sex = sexAtBirth(this.seed, id);     // off their id, so a birth costs this stream nothing
-      // a child takes their mother's family name, so a village keeps its families legible
-      const surname = surnameOf(mother) || familyName(rng);
-      const household = village.people.filter((p) => surnameOf(p) === surname).map(firstNameOf);
-      const child = this.baby(id, `${givenName(rng, household, sex)} ${surname}`, name, day, sex);
-      child.mother = mother.name;
-      child.father = father !== mother ? father.name : '';
-      child.lives = Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE));
-      child.knows = [mother.id, father.id].filter((known, at, all) => all.indexOf(known) === at);
-      village.people.push(child);
-
-      for (const parent of [mother, father]) {
-        remember(parent, { what: 'born', who: child.name, day: day });
-      }
-      changes.push({ kind: 'born', id: child.id, name: child.name, village: name, day: day });
-    }
-    return changes;
+    return fillTheGaps({ seed: this.seed, streamFor: (v, d) => this.streamFor(v, d), baby: (...a) => this.baby(...a) },
+      name, village, day, pressure);
   }
 
   /**

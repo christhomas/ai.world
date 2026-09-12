@@ -42,6 +42,39 @@ export const FOOD = {
    */
   PER_HEAD: 1,
   /**
+   * And what the rocks give anybody who lives beside them: shellfish, gathered.
+   *
+   * The floor under a coastal larder, and it is a floor in the way `PROSPER.A_DAY` is a floor under
+   * a wage rather than in the way a farmer is a source. Nobody is employed to do it and nobody is
+   * good at it: a child with a bucket at low water brings back the same as a soldier would, which
+   * is why it is per head and not per trade.
+   *
+   * Half a meal, and the halfness is the whole design. A village eats `MEAL` a head a day, so an
+   * inland place with no farmer breaks exactly even on its gardens and dies the first week anybody
+   * is ill; the same place on a shore runs half a meal a head to the good and cannot starve. That
+   * is *why fishing villages exist*, said as a number — they are not richer than farming villages
+   * and they are much harder to kill, and a coast is therefore somewhere to settle when the ground
+   * is poor rather than somewhere with a better farm.
+   *
+   * It wants no boat, no jetty and no trade. Gathering shellfish needs a shore and a bucket, and
+   * making it wait on a harbour would have turned the floor into another thing to build.
+   */
+  PER_SHORE: 0.5,
+  /**
+   * What one boat lands in a day, in meals.
+   *
+   * Above a farmer's four, because a boat is a day's work by a crew rather than by a man and
+   * because it had better be worth the harbour: a jetty is three hundred and forty gold and thirty
+   * lengths of timber, and the thing it unlocks has to pay for itself or nobody will ever build
+   * one. This is the paid half of what a coast eats, against the shellfish's unpaid floor.
+   *
+   * Per *boat* rather than per fisherman, which is the same shape the herd has: a village's catch
+   * is capped by the hulls it keeps and not by how many men would like to go out in them. That is
+   * what makes a harbour an investment — more boats is more fish — where more fishermen alone is
+   * only more people standing on a jetty.
+   */
+  PER_BOAT: 5,
+  /**
    * Nobody farms while the place is being raided. Same threshold the purses use, and for the same
    * reason: people who are being buried are not out in the fields.
    */
@@ -139,10 +172,13 @@ export const FOOD = {
  * than a wage-earner. Counting only the working adults leaves a village of two dozen growing
  * sixteen dinners a night, and it dies of arithmetic within the season.
  */
-export function broughtIn(person: Person): number {
-  if (person.trade === 'farmer') return FOOD.PER_HEAD + FOOD.PER_FARMER;
-  if (person.trade === 'hunter') return FOOD.PER_HEAD + FOOD.PER_HUNTER;
-  return FOOD.PER_HEAD;
+export function broughtIn(person: Person, shore = false): number {
+  // the rocks first, because they are the one thing here that everybody gets and nobody works at:
+  // a child with a bucket at low water brings back what a soldier would
+  const gathered = FOOD.PER_HEAD + (shore ? FOOD.PER_SHORE : 0);
+  if (person.trade === 'farmer') return gathered + FOOD.PER_FARMER;
+  if (person.trade === 'hunter') return gathered + FOOD.PER_HUNTER;
+  return gathered;
 }
 
 /**
@@ -152,9 +188,11 @@ export function broughtIn(person: Person): number {
  * this file knows about food. What breeds, what is kept back and what goes to the butcher is
  * `livelihoods.ts`, which hands the meat over already counted.
  */
-export function grownInADay(people: readonly Person[], pressure: number, fromHerd = 0): number {
+export function grownInADay(
+  people: readonly Person[], pressure: number, fromHerd = 0, shore = false, fromBoats = 0,
+): number {
   if (pressure > FOOD.UNTROUBLED) return 0;
-  return people.reduce((sum, person) => sum + broughtIn(person), 0) + fromHerd;
+  return people.reduce((sum, person) => sum + broughtIn(person, shore), 0) + fromHerd + fromBoats;
 }
 
 /** The most a village will hold before the rest spoils. */
