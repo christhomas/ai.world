@@ -3201,7 +3201,29 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       are what make land a quantity at all), and the upper half of the population band, which
       guards nothing until houses can lift the ceiling. Each one goes in the day its feature does.
 
-- [ ] **32. A map of one province, priced like a week's work.** *Asked for again, harder: the map
+- [x] **32. A map of one province, priced like a week's work.** *Done on the 12th, and the price is
+      the interesting part.* There are two maps now. A **Province Map** at 263 gold covers the one
+      province the shop that sold it stands in — so a map bought in Ashford is a map of Ashford —
+      and it is country rather than cargo: nothing goes in the pack, `state.charted` gains a province
+      id, and there is no second copy of a map anywhere to disagree with the first. A **Grand
+      Survey** at 1,650 is the old all-seeing trinket with its old item id, so anybody who already
+      owns one still owns it and it still works.
+
+      Neither number was picked. A day of a grown adult's work is the middle of what a soldier asks
+      (`HIRE.ASKING_LEAST`..`ASKING_MOST`, 37.5 gold), which is the one place in this game a person's
+      time is already sold over a counter — and a mapmaker is being paid for the same thing, a day
+      walking about in country with wolves in it. A province is a week of that; the country is a
+      working life of it. Against the shelf that puts a province map dearer than a horse or a boat
+      and cheaper than a house: a thing you buy *instead* of a boat. The survey is deliberately not
+      priced per province, because the world has no edge and any finite count would be a bargain to
+      somebody who walks far enough.
+
+      One thing left open on purpose: the survey is still handed out free by big chests, a sailor's
+      remains, an explorer's camp and an explorer's bond. At 1,650 that makes a found one a genuine
+      treasure worth 825 over a counter, which may be exactly right — or those tables may want to
+      hand over a province map instead. That is a separate decision from the pricing.
+
+      The original note: *Asked for again, harder: the map
       should be dear, or small, and the whole country dearer still — the point is that nobody gets
       hold of it easily.* A twenty-five gold trinket that lifts the fog off everything is the
       cheapest thing in the game removing the most expensive thing in it, which is the reason to

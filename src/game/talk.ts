@@ -1,5 +1,6 @@
 import type { Rng } from '../core/rng';
 import { capitalise, stepWithin } from './dials';
+import { saidOfAChart } from './cartography';
 import { AWAY, buy, give, holds } from '../world/deeds';
 import { personTill } from './tills';
 import { isDaytime, type Entity } from '../entities/entity';
@@ -554,7 +555,8 @@ function buyMenu(s: Counter): DialogueNode {
   return across(s, [greeting], [
     ...s.def.items.map((id) => {
       const item = ITEMS[id];
-      const owned = s.ctx.state.owns(id) ? ' ✓' : '';
+      // a map is ticked when it is this valley you have already bought, not when you own the thing
+      const owned = s.ctx.state.owns(id) || (item.charts && s.ctx.state.hasChart(s.e.x, s.e.z)) ? ' ✓' : '';
       return {
         label: `${item.emoji} ${item.name} — ${asking(s, item)}g${owned}`,
         // what it gives you, and failing that what it is: a sack of ore grants nothing and still
@@ -567,11 +569,16 @@ function buyMenu(s: Counter): DialogueNode {
   ]);
 }
 
-/** Purchases go into the rucksack; wearing them is the player's business. */
+/** Purchases go into the rucksack; a map charts country instead, for which see `cartography.ts`. */
 function buyOne(s: Counter, id: string): DialogueNode {
   const { ctx } = s;
   const item = ITEMS[id];
   const price = asking(s, item);
+  // he will not sell you the country round his own shop twice, and says so before any money is out
+  if (item.charts && ctx.state.hasChart(s.e.x, s.e.z)) {
+    return across(s, [saidOfAChart(s.village, true)],
+      [{ label: 'Back', next: () => buyMenu(s) }, { label: 'Leave', next: () => null }]);
+  }
   if (ctx.state.inventory.gold < price) {
     return across(s, [`That's ${price} gold, friend. You've only got ${ctx.state.inventory.gold}.`], [
       { label: 'Back', next: () => buyMenu(s) },
@@ -581,12 +588,14 @@ function buyOne(s: Counter, id: string): DialogueNode {
   // the shopkeeper is paid, and he is somebody: `e.person` is his row on the register, which
   // outlives the body behind the counter
   buy(holds(ctx.state.inventory), personTill(ctx.register ?? null, s.e.person, s.village), price);
-  ctx.state.give(item.id, 1);
+  // the province the counter stands in, which is the country the map is of
+  if (item.charts) ctx.state.chart(s.e.x, s.e.z);
+  else ctx.state.give(item.id, 1);
   ctx.onInventoryChange();
   const note = itemSummary(item);
   return across(s, [
     `${item.name}, good choice. That's ${price} gold.`,
-    `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`,
+    item.charts ? saidOfAChart(s.village, false) : `It's in your pack.${note ? ` ${capitalise(note)}.` : ''}`,
   ], [
     { label: 'Buy more', next: () => buyMenu(s) },
     { label: 'Sell something', next: () => sellMenu(s) },

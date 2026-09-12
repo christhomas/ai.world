@@ -2,6 +2,7 @@ import { WORLD } from '../core/config';
 import { BIOMES, type Biome } from '../world/biomes';
 import type { RoadGraph } from '../world/graph';
 import { parseChunkKey } from '../world/spatial';
+import { PROVINCE, provinceCorner, type ProvinceId } from '../world/provinces';
 
 /** Pixels per tile in the pre-rendered base image. Everything else scales from this. */
 export const BASE_SCALE = 1.6;
@@ -185,7 +186,7 @@ const FOG = {
 
 export class Fog {
   readonly canvas: HTMLCanvasElement;
-  /** The union of everywhere that has been walked, in white on black. Never shrinks. */
+  /** Everywhere walked and everywhere bought a map of, in white on black. Never shrinks. */
   private readonly mask: HTMLCanvasElement;
   private known = 0;
 
@@ -199,7 +200,15 @@ export class Fog {
     this.repaint();
   }
 
-  reveal(chunkKeys: Iterable<string>): void {
+  /**
+   * Everywhere the hero has been, and everywhere he has bought a map of.
+   *
+   * Two sorts of knowing, punched into one mask because the fog does not care which is which: a
+   * chunk walked over and a province paid for are both country he can find his way across. They are
+   * kept apart everywhere else — see `GameState.charted` — because only one of them means he has
+   * actually *been* there, and the map is the one place that difference stops mattering.
+   */
+  reveal(chunkKeys: Iterable<string>, charted: Iterable<ProvinceId> = []): void {
     const m = this.mask.getContext('2d')!;
     const CS = WORLD.CHUNK_SIZE, s = BASE_SCALE, o = this.base.pad * BASE_SCALE;
     m.fillStyle = '#fff';
@@ -207,6 +216,13 @@ export class Fog {
     for (const key of chunkKeys) {
       const [cx, cz] = parseChunkKey(key);
       m.fillRect(o + cx * CS * s, o + cz * CS * s, CS * s, CS * s);
+      seen++;
+    }
+    // a bought province comes out in one square, and its edge is feathered with everything else's,
+    // so where a map runs out looks like the edge of what somebody knows rather than a cut sheet
+    for (const id of charted) {
+      const corner = provinceCorner(id);
+      m.fillRect(o + corner.x * s, o + corner.z * s, PROVINCE * s, PROVINCE * s);
       seen++;
     }
     // the mask only grows, so a call that adds nothing is a call that need not repaint the fog —

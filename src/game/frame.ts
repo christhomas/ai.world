@@ -228,6 +228,8 @@ export function createFrame(ctx: Framing) {
   /** Counts pulls of the tiller, so the world's answers can name the one they have caught up to. */
   let helmSeq = 0;
   let areaLabel = 'The Crossroads';
+  /** How many provinces had been bought a map of last time the fog was asked to catch up. */
+  let chartsHeld = state.charted.size;
   /** What the water listener last worked out, for the debug hook and for nothing else. */
   let heard = { nearness: 0, drop: 0 };
 
@@ -554,7 +556,11 @@ export function createFrame(ctx: Framing) {
     }
     entityRenderer.update(iso.camera);
 
-    if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))) reveal();
+    // the fog follows both halves of what somebody knows: the chunk he has just walked into, and a
+    // province he has just bought a map of over a counter. Without the second, a map paid for in a
+    // shop shows nothing until the buyer happens to cross a chunk line on his way out of the village
+    if (state.markExplored(Math.floor(player.x / WORLD.CHUNK_SIZE), Math.floor(player.z / WORLD.CHUNK_SIZE))
+      || state.charted.size !== chartsHeld) { chartsHeld = state.charted.size; reveal(); }
     areaLabel = skies.aloft?.name ?? areaName();
     arriving();
     updateHud(dt, areaLabel, weatherStrength > 0.4 ? (season === Season.Winter ? '❄' : '🌧') : '');

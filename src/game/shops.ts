@@ -22,7 +22,11 @@ const isCatch = (item: Item) => item.loot === true;
 export const SHOP_DEFS: Record<ShopType, ShopDef> = {
   store: {
     name: 'General Store', title: 'the Storekeeper',
-    items: ['apple', 'bread', 'wheatseed', 'turnipseed', 'pumpkinseed', 'tunic', 'boots', 'stick', 'rope', 'lantern', 'map', 'rod', 'shovel', 'saw', 'firerocks', 'knife', 'tent', 'glider', 'parachute'],
+    // both maps are on the shelf, and a store in a village is the only place the smaller one means
+    // anything: what it charts is the country round the counter it was bought over, so the same row
+    // in the next valley is a different map. The survey beside it is the whole country and costs
+    // what a whole country costs, which is why it can sit there in plain sight and stay rare.
+    items: ['apple', 'bread', 'wheatseed', 'turnipseed', 'pumpkinseed', 'tunic', 'boots', 'stick', 'rope', 'lantern', 'chart', 'map', 'rod', 'shovel', 'saw', 'firerocks', 'knife', 'tent', 'glider', 'parachute'],
     // the general store will take anything off your hands
     buys: () => true,
     greetings: ['Welcome to the general store! Need supplies for the road?', 'Come in, come in. Everything a traveller could want.'],

@@ -5,6 +5,7 @@ import { KINDS } from '../entities/animals';
 import { GameState } from './state';
 import { ITEMS, itemSummary, sellPrice } from './items';
 import { dialogueFor, stepWithin } from './talk';
+import { PROVINCE } from '../world/provinces';
 
 describe('shop dialogue', () => {
   const keeper = (shop: 'store' | 'smith' | 'inn' | 'apothecary', rng = mulberry32(5)) => {
@@ -117,6 +118,45 @@ describe('shop dialogue', () => {
     const night = dialogueFor(keeper('smith', rng), { state, rng, time: 0.95, quests: new Map(), onInventoryChange: () => {}, onQuestChange: () => {} });
     expect(night.choices).toBeUndefined();
     expect(night.pages[0]).toContain('shut for the night');
+  });
+
+  /**
+   * A map sold over a counter is the country round that counter, and it is the only thing in the
+   * shop that does not go into the pack. What you carry away is knowing where you are, so it is
+   * written into what the hero has been shown — and a keeper who has already sold you his own
+   * valley has nothing left to sell, which he says before any money is counted out.
+   */
+  it('sells the country round the village, and puts nothing in the pack for it', () => {
+    const rng = mulberry32(5);
+    const e = keeper('store', rng);
+    const state = new GameState();
+    state.inventory.gold = ITEMS.chart.price + 5;
+    const ctx = { state, rng, time: 0.5, quests: new Map(), onInventoryChange: () => {}, onQuestChange: () => {} };
+
+    const row = dialogueFor(e, ctx).choices![0].next()!.choices!.find((c) => c.label.includes('Province Map'))!;
+    expect(row.note).toBe(ITEMS.chart.desc);          // no ability, so the shelf says what it is
+    const bought = row.next()!;
+    expect(state.inventory.gold).toBe(5);
+    expect(state.count('chart')).toBe(0);             // country, not cargo
+    expect(state.hasChart(e.x, e.z)).toBe(true);
+    expect(bought.pages[1]).toContain('Testford');    // it says which valley you have just bought
+    // and the valley over the province line is somebody else's map still
+    expect(state.hasChart(e.x + PROVINCE, e.z)).toBe(false);
+  });
+
+  it('will not sell the same valley twice, and ticks the row once it is sold', () => {
+    const rng = mulberry32(5);
+    const e = keeper('store', rng);
+    const state = new GameState();
+    state.inventory.gold = ITEMS.chart.price * 2;
+    state.chart(e.x, e.z);
+    const ctx = { state, rng, time: 0.5, quests: new Map(), onInventoryChange: () => {}, onQuestChange: () => {} };
+
+    const row = dialogueFor(e, ctx).choices![0].next()!.choices!.find((c) => c.label.includes('Province Map'))!;
+    expect(row.label).toContain('✓');
+    const refused = row.next()!;
+    expect(refused.pages[0]).toContain('already');
+    expect(state.inventory.gold).toBe(ITEMS.chart.price * 2);   // he took nothing for it
   });
 });
 

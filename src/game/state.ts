@@ -3,6 +3,7 @@ import { HEALTH } from '../world/health';
 import { ITEMS, Inventory, type InventoryJson } from './shops';
 import { SLOTS, type Ability, type EquipSlot, type Item, isConsumable, isEquippable } from './items';
 import { chunkKey } from '../world/spatial';
+import { provinceOf, type ProvinceId } from '../world/provinces';
 import type { HorseSave } from './mount';
 import type { PlotJson } from './farming';
 import type { HouseJson } from './building';
@@ -22,6 +23,19 @@ export interface GameStateJson {
   day: number;
   inventory: InventoryJson;
   explored: string[];
+  /**
+   * The provinces somebody has bought a map of.
+   *
+   * Beside `explored` rather than folded into it, and the difference is the whole point: `explored`
+   * is ground the hero has actually stood on, which is what decides whether he has *been* somewhere
+   * — see `interact/travel.ts` — and a map he read over a counter is not that. Writing a bought
+   * province into `explored` would have him remembering a valley he has never seen.
+   *
+   * Absent from every save written before tonight, and those load as a hero who has bought no maps,
+   * which is exactly what they are. Somebody who already owns the old all-seeing map is untouched
+   * by this: that is still an item, still in his pocket, and still lifts the fog off everything.
+   */
+  charted?: string[];
   quests: Record<string, QuestStatus>;
   discovered: string[];
   /** Ids of opened dungeon chests. */
@@ -104,6 +118,8 @@ export class GameState {
   /** What is worn where. Items here are not in the rucksack. */
   readonly equipped: Partial<Record<EquipSlot, string>> = {};
   readonly explored = new Set<string>();
+  /** The country somebody has paid to be shown, a province at a time. See `cartography.ts`. */
+  readonly charted = new Set<ProvinceId>();
   readonly quests = new Map<string, QuestStatus>();
   readonly discovered = new Set<string>();
   readonly opened = new Set<string>();
@@ -296,6 +312,27 @@ export class GameState {
     return changed;
   }
 
+  /** Is the country round this place on a map somebody has already bought? */
+  hasChart(x: number, z: number): boolean {
+    return this.charted.has(provinceOf(x, z));
+  }
+
+  /**
+   * Buy the country round a place, as a map of the province it stands in.
+   *
+   * Taken from a pair of coordinates rather than handed a province, because everywhere that sells
+   * one knows where it is standing and none of them should have to know what a province is. Returns
+   * false when that country was already bought, which is a shopkeeper declining to sell the same
+   * sheet twice rather than a failure.
+   */
+  chart(x: number, z: number): boolean {
+    const id = provinceOf(x, z);
+    if (this.charted.has(id)) return false;
+    this.charted.add(id);
+    this.version++;
+    return true;
+  }
+
   /**
    * Swinging at things, in the units prowess.ts counts. Kept as the raw total rather than as a
    * level so the level's cost can be retuned without everybody's save resetting to nothing.
@@ -331,6 +368,7 @@ export class GameState {
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
       inventory: { ...this.inventory.toJSON(), equipped: { ...this.equipped } },
       explored: [...this.explored],
+      charted: [...this.charted],
       quests: Object.fromEntries(this.quests),
       discovered: [...this.discovered],
       opened: [...this.opened],
@@ -367,6 +405,9 @@ export class GameState {
     }
     if (typeof json.standing === 'number') g.standing = json.standing;
     for (const k of json.explored ?? []) g.explored.add(k);
+    // nothing here on a save from before maps were country, which reads back as a hero who has
+    // bought none — and whose all-seeing trinket, if he has one, is in the inventory above
+    for (const k of json.charted ?? []) g.charted.add(k);
     for (const [k, v] of Object.entries(json.quests ?? {})) g.quests.set(k, v);
     for (const k of json.discovered ?? []) g.discovered.add(k);
     for (const k of json.opened ?? []) g.opened.add(k);

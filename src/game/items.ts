@@ -1,3 +1,5 @@
+import { CARTOGRAPHY, priceOfAMap } from './cartography';
+
 /**
  * Every item in the game. Gear carries the stats it grants while worn; consumables carry an
  * effect; tools grant an ability only while equipped, so a lantern in your pack lights nothing.
@@ -24,7 +26,7 @@ export type Ability = 'light' | 'map' | 'climb' | 'fish' | 'dig' | 'fell' | 'kin
 
 const ABILITY_NOTES: Record<Ability, string> = {
   light: 'lights your way at night',
-  map: 'reveals the whole map',
+  map: 'lifts the fog off the whole country, for good',
   climb: 'climb two terraces at once',
   fish: 'lets you fish at the water',
   dig: 'turn over the ground for metal',
@@ -61,6 +63,16 @@ export interface Item {
    * alive; a tool is about doing a job, and doing a job only requires having brought it.
    */
   tool?: boolean;
+  /**
+   * Country rather than cargo: what is handed over is a province charted, not a thing for the pack.
+   *
+   * A map of the valley you are standing in is knowledge and behaves like it. It goes into what the
+   * hero has been shown — `GameState.charted` — rather than into the rucksack, which is why there is
+   * no second copy of it anywhere to disagree with the first, and why buying one twice in the same
+   * village is a thing the keeper refuses rather than a thing the pack quietly stacks. The province
+   * it covers is the one the counter stands in; see `cartography.ts` for what it costs and why.
+   */
+  charts?: boolean;
   /** Consumables only. */
   effect?: ItemEffect;
   /** Fish and other things shops buy but do not sell. */
@@ -125,7 +137,18 @@ const list: Item[] = [
   { id: 'greaves', name: 'Iron Greaves', emoji: '🦿', price: 90, desc: 'Shins that fear no wolf.', slot: 'feet', defence: 20 },
 
   // --- pocket ---
-  { id: 'map', name: 'Region Map', emoji: '🗺️', price: 25, desc: 'Hand-drawn. Keep it to hand and the fog lifts.', slot: 'trinket', ability: 'map' },
+  // the two maps, and the whole of the argument between them is in `cartography.ts`. A province is
+  // country you can be sold by somebody who walked it; the country entire is not, so the one is a
+  // week of a man's work and the other is a working life of it.
+  //
+  // Somebody who bought the old twenty-five gold map before tonight still has it, still wears it in
+  // the same pocket, and it still lifts the fog off everything — it is this very item, under a name
+  // that says what it always did. What changed is what it costs to come by another, which is a
+  // question nobody who already owns one ever has to ask.
+  { id: 'chart', name: 'Province Map', emoji: '🗺️', price: priceOfAMap(CARTOGRAPHY.A_PROVINCE), charts: true,
+    desc: `One province — ${CARTOGRAPHY.SIDE} tiles square — of the country round the village selling it, paced out and drawn by somebody who walked it. Buy it where you mean to go.` },
+  { id: 'map', name: 'Grand Survey', emoji: '📜', price: priceOfAMap(CARTOGRAPHY.A_COUNTRY), slot: 'trinket', ability: 'map',
+    desc: 'Every road there is, on one sheet of vellum, with a lifetime of walking behind it. Keep it to hand and the fog never comes back anywhere.' },
   { id: 'rope', name: 'Climbing Rope', emoji: '🪢', price: 12, desc: 'Twenty feet of good hemp. Coiled on your belt.', slot: 'trinket', ability: 'climb' },
   { id: 'charm', name: 'Luck Charm', emoji: '🍀', price: 70, desc: 'A pressed clover in glass. It cannot hurt.', slot: 'trinket', hearts: 20 },
 

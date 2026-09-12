@@ -260,7 +260,7 @@ export function startGame(
   const discovered = state.discovered;
   const urlTime = url.searchParams.get('t');
   if (urlTime !== null) state.time = Math.max(0, Math.min(0.999, Number(urlTime) || 0));
-  fog.reveal(state.explored);
+  fog.reveal(state.explored, state.charted);
   const elderErrands = generateQuests(structures, seed);
   // the elder's errand and the pub's, in one list: the journal, the map and the compass all read
   // it, so anything not in here is a job the player has taken on and cannot then find again
@@ -685,7 +685,7 @@ export function startGame(
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,
     tickDialogue: (dt) => dialogue.update(dt),
-    reveal: () => fog.reveal(state.explored),
+    reveal: () => fog.reveal(state.explored, state.charted),
     refreshJournal: () => journal.refresh(journalInput),
     floorLife: () => floorLife,
     sync: (dt, heightAt) => multiplayer.sync(dt, heightAt),
