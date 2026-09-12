@@ -166,6 +166,15 @@ export const ROAM = {
    */
   TAKES: 3,
   /**
+   * The share of a village's herd a dragon carries off in a day, at its worst.
+   *
+   * A share rather than a flat number, so that a dragon over a big herd is a catastrophe and one
+   * over four cows is a bad week rather than the end of farming there. A twelfth: a fortnight's
+   * visit costs a village most of its cattle, which is ruinous and survivable, and it is the shape
+   * of thing a player can arrive in the middle of and change the ending of.
+   */
+  DRAGON_TAKES: 1 / 12,
+  /**
    * How much more a band wants a place, per rank above a village.
    *
    * A third again for a town, two thirds again for a city. Modest on purpose: it has to be felt
@@ -279,6 +288,8 @@ export interface Pressing {
   nights: number;
   /** How many of the village's people it takes today. Nearly always nought. */
   toll: number;
+  /** And how many of its cattle, which is what a dragon takes instead of people. See `cattleTaken`. */
+  cattle: number;
   /** How somebody who lives there would put it. */
   said: string;
 }
@@ -617,11 +628,12 @@ export class Roaming {
    */
   pressings(
     places: readonly Steading[], day = this.day, rankOf: (village: string) => Rank = () => 'hamlet',
+    herdOf: (village: string) => number = () => 0,
   ): Pressing[] {
     const out: Pressing[] = [];
     for (const band of this.abroad()) {
       for (const place of places) {
-        const pressing = pressingOn(band, place, day, this.standing(band), rankOf(place.name));
+        const pressing = pressingOn(band, place, day, this.standing(band), rankOf(place.name), herdOf(place.name));
         if (pressing) out.push(pressing);
       }
     }

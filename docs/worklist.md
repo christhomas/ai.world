@@ -3372,7 +3372,29 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       `models/creatures/`, chosen by sex rather than by trade, and a woman with a trade takes the
       trade's hat over the dress the way a real one would.
 
-- [ ] **35. Capabilities, and holdings that outlive a person.** Two ideas that compose. A person
+- [x] **35. Capabilities, and holdings that outlive a person.** *Done on the 13th, and it is the
+      thing 41, 42 and 47 were all waiting on.* Two ideas kept apart because they genuinely are: a
+      **capability** is read off the trade and never stored on the person, so it cannot drift and is
+      not a permission list; a **holding** is a farm, a yard or a boat, with an id, an owner, a
+      worker and a gate — and the owner need not be the worker.
+
+      A farm goes down the family by exactly the rule a purse does, and then falls to the hall when
+      the name dies out: a purse divides and a farm does not. Vacancies are filled before new
+      holdings are raised, which is a village putting somebody on the farm it has before it clears
+      ground for another.
+
+      `leavesAHolding(trade)` is the asymmetry the whole cluster needed — true for a farmer, false
+      for a doctor — so a village multiplies farmers and only ever enrols doctors.
+
+      **A real bug the bench caught**, and the reason it is worth writing down: the first version
+      divided a herd the way `shareOut` divides money, to the hundredth. Wrong precedent. Money comes
+      in coins and a herd does not — it is whatever a calving *rate* left, like 13.371 — and a
+      250-day probe across eight villages found three of them holding a herd their own paddocks did
+      not add up to.
+
+      And it found the precondition for **47** already standing in the wild: over those 250 days a
+      hall-owned farm existed on 706 village-days and was **vacant on 659 of them**. Villages that
+      have lost their farms to a bad decade, waiting for exactly the vote 47 describes. Two ideas that compose. A person
       carries what they can do — `can_farm`, `can_build`, `can_mine`, `can_fish` — granted by
       inheritance, by being hired and taught, or by the mayor enrolling them. A *trade* separately
       says whether the work leaves a **holding** standing when the worker dies: a farm with beasts,
@@ -3417,7 +3439,22 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       that "a builder who can be carried off by a wolf half way through the job is a house that
       dangles".
 
-- [ ] **38. A dragon takes the herd.** What a dragon is *for*, economically. It flies a round of four
+- [x] **38. A dragon takes the herd.** *Done on the 13th.* A dragon carries off cattle where a band
+      takes people, and the difference is a difference in kind rather than a number: wolves take
+      people, a dragon takes the herd, and you can tell which is overhead by what the village has
+      lost. A share of what is standing rather than a flat count, so a dragon over a big herd is a
+      catastrophe and one over four cows is a bad week rather than the end of farming there — a
+      twelfth a day at its worst, which makes a fortnight's visit ruinous and survivable.
+
+      That is what a dragon is *for*, economically. The herd is the farmers' whole living: fewer
+      cattle is less meat sold to the next valley, which is one of only three ways money reaches a
+      village at all — so a village does not merely fear the thing, it gets poorer in a way anybody
+      living there could explain, the Domesday Book shows the herd falling week on week, and killing
+      it is worth doing for a reason that is not a quest marker.
+
+      The loss travels as a `herd` delta carrying the **running total**, for the reason `cleared`
+      does: the log keeps one entry per village and a later one replaces the earlier, so an
+      increment would be swallowed while a total survives arriving twice or out of order. What a dragon is *for*, economically. It flies a round of four
       stops across a quarter of the country (`ROAM`), and a village it passes over loses beasts —
       `Settlement.herd`, the number the farmers' whole living is made of. A village does not merely
       fear it, it gets poorer, the Domesday Book shows the herd falling, and killing the thing is

@@ -10,6 +10,7 @@ import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
+import { whatTheVillageHolds } from './holdings';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
@@ -178,6 +179,21 @@ export class Register {
    */
   herdOf(village: string): number { return this.villages.get(village)?.herd ?? 0; }
 
+  /**
+   * Something carried beasts off, and the paddock is that much emptier.
+   *
+   * Told rather than worked out, exactly as a violent death is. What it costs is not the cattle but
+   * the meat the next valley was going to buy, which is one of three ways money reaches a village
+   * at all. See `cattleTaken`. Returns how many it got, never more than were standing there.
+   */
+  cattleLost(village: string, many: number): number {
+    const here = this.villages.get(village);
+    if (!here || many <= 0) return 0;
+    const taken = Math.min(here.herd, Math.floor(many));
+    here.herd -= taken;
+    return taken;
+  }
+
   larderOf(village: string): number { return this.villages.get(village)?.food ?? 0; }
 
   /**
@@ -268,13 +284,7 @@ export class Register {
     return undefined;
   }
 
-  /**
-   * The three doors into a villager's memory, which is the one thing about him nobody can derive.
-   *
-   * Who lives here, what they do and when they die all follow from the seed and a short list of
-   * deaths. What a man thinks of *you* follows from what you did, and what you did happened on your
-   * screen — so this half travels, and `remembering.ts` is where it is kept.
-   */
+  /** The three doors into a villager's memory, the one thing nobody can derive. See `remembering.ts`. */
   recall(id: string, what: Memory['what'], about: string, day = this.day): boolean {
     return recallFor(this.find(id), what, about, day);
   }
@@ -306,11 +316,7 @@ export class Register {
     return changes;
   }
 
-  /**
-   * Somebody walks over the hill and takes on an empty village. One a day, and `movingon.ts` holds
-   * the reason anybody would — the machinery for it existed for months and nothing ever called it,
-   * because it had to be told which two villages and nothing in the world had a reason to say.
-   */
+  /** Somebody walks over the hill and takes on an empty village, one a day. See `movingon.ts`. */
   private peopleWalkIn(day: number): Change[] {
     const walk = whoWalksIn(this.villages, day);
     return walk ? this.resettle(walk.to, walk.from, day) : [];
@@ -439,6 +445,9 @@ export class Register {
       ...this.mendThePeople(village),
       ...raiseWhoIsDue(name, village, day, this.streamFor(`${name}:shrine`, day)),
     ];
+    // and who holds what, re-hung after the funerals and the growing-up so that the day's dead and
+    // the day's new adults are both settled before a farm changes hands. See `holdings.ts`
+    village.holdings = whatTheVillageHolds(name, village, day);
     // A village losing its last soul is worth saying out loud, once. It is noticed here rather
     // than counted at the top of the day because the killing that emptied it may have happened
     // hours ago, out in the world, with nobody keeping score.
@@ -464,12 +473,7 @@ export class Register {
     return raiseWhoIsDue(village, here, on, this.streamFor(`${village}:shrine`, on));
   }
 
-  /**
-   * Somebody has been hurt by something — the middle condition a villager never had.
-   *
-   * Told rather than worked out, exactly as a violent death is: what bit him happened out in the
-   * world where the register could not see it. A doctor in the village halves it. See `wounds.ts`.
-   */
+  /** Somebody has been hurt: the middle condition a villager never had. Told, like a death. `wounds.ts`. */
   hurt(id: string, severity: number): number {
     const person = this.find(id);
     if (!person) return 0;
@@ -672,17 +676,12 @@ export class Register {
   /**
    * Settle everybody's memory down to what is worth writing, on the day it is being written.
    *
-   * This is what stops "only the living" from being a smaller claim than it sounds. A village of
-   * twenty is bounded; twenty people each carrying a history of everything that ever happened near
-   * them is not, and that history is exactly what a province's file would fill up with once
-   * villagers are the server's (C5). Ten slights become one opinion here, at the moment the place
-   * stops being anybody's business.
+   * What stops "only the living" being a smaller claim than it sounds: a village of twenty is
+   * bounded, and twenty people each carrying a history of everything that ever happened near them
+   * is not. Ten slights become one opinion here, at the moment the place stops being anybody's
+   * business — which is what a province's file would otherwise fill up with.
    *
-   * The natural caller is a province being written out with nobody in it — `writeProvince` and
-   * `keepNear` in `server/world.ts`. Nothing there holds a register yet, so this is also callable
-   * from wherever a client puts a village down.
-   *
-   * @param day the world day it is being put away on, which is where every fading starts from next
+   * @param day the world day it is being put away on, where every fading starts from next
    */
   compact(day = this.day): void {
     for (const village of this.villages.values()) compactAll(village.people, Math.floor(day));

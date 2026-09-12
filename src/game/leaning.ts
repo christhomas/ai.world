@@ -95,11 +95,38 @@ export function tollOf(band: Band, place: Steading, day: number, pressure: numbe
 }
 
 /**
+ * How many of a village's cattle a dragon takes today.
+ *
+ * What a dragon is *for*, economically. It flies a round of four stops across a quarter of the
+ * country and a village it passes over loses beasts — which is better than a dragon that eats
+ * people, because bands already do that and because a herd is a thing this economy can actually
+ * feel. The farmers' whole living is the herd: fewer cattle is less meat sold to the next valley,
+ * which is less money in the village, which is a hall that stops building.
+ *
+ * So a village does not merely fear the thing. It gets poorer in a way anybody living there could
+ * explain, the Domesday Book shows the herd falling week on week, and killing it is worth doing for
+ * a reason that is not a quest marker.
+ *
+ * Only a dragon, and that is the point rather than a simplification: a wolf pack that could carry
+ * off cattle would make the distinction between the sorts of band into a number rather than a
+ * difference in kind. Wolves take people, a dragon takes the herd, and you can tell which is
+ * overhead by what the village has lost.
+ */
+export function cattleTaken(band: Band, place: Steading, day: number, pressure: number, herd: number): number {
+  if (band.kind !== 'dragon' || pressure <= 0 || herd <= 0) return 0;
+  const rng = mulberry32(band.seed ^ hashString(place.name) ^ Math.imul(Math.floor(day), 0x5e17));
+  // a share of what is standing in the paddock rather than a flat number, so a dragon over a big
+  // herd is a catastrophe and one over four cows is a bad week rather than the end of farming
+  const taken = herd * pressure * ROAM.DRAGON_TAKES;
+  return Math.min(herd, Math.floor(taken + rng()));
+}
+
+/**
  * Everything a band is doing to a village today, or null when it is doing nothing. Handed back
  * rather than applied: burying people is the register's business and this file will not do it.
  */
 export function pressingOn(
-  band: Band, place: Steading, day: number, standing = band.size, rank: Rank = 'hamlet',
+  band: Band, place: Steading, day: number, standing = band.size, rank: Rank = 'hamlet', herd = 0,
 ): Pressing | null {
   const pressure = pressureOn(band, place, day, standing, rank);
   if (pressure <= 0) return null;
@@ -109,6 +136,7 @@ export function pressingOn(
     pressure,
     nights: nightsNear(pressure),
     toll: tollOf(band, place, day, pressure),
+    cattle: cattleTaken(band, place, day, pressure, herd),
     said: saidOfPress(band, place, pressure),
   };
 }

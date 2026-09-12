@@ -1,3 +1,4 @@
+import type { Holding } from './holdings';
 import type { Person } from './people';
 
 /**
@@ -120,6 +121,20 @@ export interface Settlement {
    * the paddock is drawn from this.
    */
   herd: number;
+  /**
+   * The farms, yards and boats the village has, and who owns and works each of them.
+   *
+   * The line above is the herd and this is who keeps it, which is a distinction the village did not
+   * have until now: `herd` is a number belonging to nobody in particular, and a farm is a thing with
+   * a gate and a family name on it that is still standing the morning after its farmer is buried.
+   * The herd is not stored on them — `shareTheBeasts` divides it — because one number that two
+   * places keep is one number two places can disagree about.
+   *
+   * Optional, and it has to be: a village is founded before it holds anything and lives its first
+   * morning before the farms are hung on the people in it. Absent means "not worked out yet", which
+   * is a different thing from empty and is what the register sees on day one. See `holdings.ts`.
+   */
+  holdings?: Holding[];
   /** The day the last of them died, for a place that has been emptied. */
   emptied?: number;
   /**

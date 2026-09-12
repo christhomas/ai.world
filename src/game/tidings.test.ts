@@ -36,8 +36,8 @@ const TRADES = ['farmer', 'hunter', 'seller'];
 const bandNamed = (name: string): Band => ({ id: `band:${name}`, seed: 7 } as unknown as Band);
 
 /** Everything a pressing carries, so a test can say exactly what is leaning on where, and how hard. */
-function leaning(band: Band, pressure: number, said: string, toll = 0): Pressing {
-  return { band, village: VILLAGE, pressure, nights: 1, toll, said };
+function leaning(band: Band, pressure: number, said: string, toll = 0, cattle = 0): Pressing {
+  return { band, village: VILLAGE, pressure, nights: 1, toll, cattle, said };
 }
 
 interface Around {

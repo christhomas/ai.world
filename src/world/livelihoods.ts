@@ -1,6 +1,7 @@
 import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
+import { BEASTS_PER_FARM } from './holdings';
 import type { Person } from './people';
 import { ableToWork } from './wounds';
 
@@ -74,15 +75,18 @@ export const LIVELIHOOD = {
    */
   TAX: 0.005,
   /**
-   * How many beasts one farmer's paddocks hold.
+   * How many beasts one farmer's paddocks hold, which is a fact about a farm and lives on one.
    *
-   * The cap rather than the herd: a herd grows up to this and then stops, because a farmer with
-   * six cows has a farmer's day and a farmer with six hundred has a ranch and a different game.
-   * Six is what a seven-tile yard and the field behind it read as from the road, and it is what
-   * `paddock.ts` can actually stand up inside its rails without the beasts walking through one
-   * another.
+   * The number and the argument for it are `BEASTS_PER_FARM` in `holdings.ts`, and it is named here
+   * because everything that asks this question asks it of a livelihood. It reads across rather than
+   * being written down twice, for the reason `settlement.ts` gives about houses: a number two files
+   * keep is a number two files can disagree about.
+   *
+   * It is a cap per *farmer* here and a cap per *farm* there, and today those are the same thing
+   * because a village has exactly as many farms as it has farmers. The morning a farmer can own two
+   * farms they come apart, and this is the line that will have to say which of the two it meant.
    */
-  HERD_PER_FARMER: 6,
+  HERD_PER_FARMER: BEASTS_PER_FARM,
   /**
    * What a farmer starts with when a village is founded.
    *

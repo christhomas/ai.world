@@ -98,6 +98,19 @@ export type WorldDelta =
    */
   | { kind: 'told'; mine: string }
   /**
+   * What is left in a village's paddock, after something carried part of it off.
+   *
+   * A herd is otherwise derived — every client lives the same village from its founding and arrives
+   * at the same number of cattle — so this exists for the one thing no seed implies: a dragon flying
+   * over and taking beasts, which happened on somebody's screen. See `cattleTaken`.
+   *
+   * The running total rather than what was taken, for the reason `cleared` carries one: the log
+   * keeps a single entry per village and a later one replaces the earlier, so an increment would be
+   * swallowed. A total survives that, arrives in any order, and can be applied twice without
+   * counting anything twice.
+   */
+  | { kind: 'herd'; village: string; head: number }
+  /**
    * Somebody has paid a village's builder to put up a house, and where.
    *
    * A building is a fact about a village rather than about the player who paid for it: the village
@@ -904,6 +917,8 @@ export function deltaKey(delta: WorldDelta): string {
     // change to one, so replacing is exactly right and adding would double-count
     case 'cleared': return `cleared:${delta.mine}`;
     case 'told': return `told:${delta.mine}`;
+    // one entry per village, newest wins: a paddock carries a state rather than a change
+    case 'herd': return `herd:${delta.village}`;
     // one entry per building, so a house started and then described again is one house
     case 'built': return `built:${delta.id}`;
   }
@@ -994,6 +1009,11 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       return { kind: 'cleared', mine: id(delta.mine), many: Math.max(0, Math.min(LIMITS.CLEARED, Math.floor(many))) };
     }
     case 'told': return { kind: 'told', mine: id(delta.mine) };
+    case 'herd': {
+      const head = Number(delta.head);
+      if (!Number.isFinite(head)) return null;
+      return { kind: 'herd', village: id(delta.village), head: Math.max(0, Math.min(LIMITS.CLEARED, Math.floor(head))) };
+    }
     case 'built': {
       const day = Number(delta.day);
       const x = Number(delta.x), z = Number(delta.z), rot = Number(delta.rot);

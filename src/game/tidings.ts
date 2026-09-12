@@ -180,7 +180,13 @@ export function createTidings(ctx: Telling) {
     // a band camped on a village's doorstep costs it people, and the same people on every client
     // and what each village has grown into, because a band leans harder on a place worth leaning
     // on: a town has more in its granary than a hamlet. See `worthPressing`
-    for (const press of roaming.pressings(structures.villages, state.day, (v) => register.rankOf(v))) {
+    for (const press of roaming.pressings(
+      structures.villages, state.day, (v) => register.rankOf(v), (v) => register.herdOf(v),
+    )) {
+      // and what a dragon takes instead of people: the herd the farmers' whole living is made of,
+      // so a village it passes over gets poorer in a way anybody living there could explain
+      const carried = press.cattle > 0 ? register.cattleLost(press.village, press.cattle) : 0;
+      if (carried > 0) online.report({ kind: 'herd', village: press.village, head: register.herdOf(press.village) });
       const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
       const living = [...register.living(press.village)];
       for (let n = 0; n < press.toll && living.length > 0; n++) {

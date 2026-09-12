@@ -8,7 +8,7 @@ import {
   type Band, wayTo, nameFor, DRAGON_COUNTRY,
 } from './roaming';
 // what a band does to the village it stands over lives beside where it stands: see `leaning.ts`
-import { nightsNear, pressingOn, pressureOn, temperOf, tollOf, worthPressing } from './leaning';
+import { cattleTaken, nightsNear, pressingOn, pressureOn, temperOf, tollOf, worthPressing } from './leaning';
 
 /** Growing a world is the expensive part of these tests, so each one is grown once. */
 const worlds = new Map<number, Structures>();
@@ -612,5 +612,61 @@ describe('a place worth leaning on', () => {
       townDays += tollOf(band, here, day, pressureOn(band, here, day, band.size, 'city'));
     }
     expect(townDays).toBeGreaterThan(hamletDays);
+  });
+});
+
+describe('what a dragon is for', () => {
+  /*
+   * Economically, rather than dramatically. A dragon flies a round of four stops across a quarter
+   * of the country, and a village it passes over loses beasts — which is better than a dragon that
+   * eats people, because bands already do that and because a herd is a thing this economy can feel:
+   * fewer cattle is less meat sold to the next valley, which is less money, which is a hall that
+   * stops building.
+   */
+  const at = (x: number, z: number) => ({ name: 'Home', x, z });
+
+  it('takes cattle where a wolf pack takes nobody’s', () => {
+    const stops = [
+      { name: 'Home', x: 0, z: 0, lived: true },
+      { name: 'Next', x: 900, z: 0, lived: true },
+      { name: 'Far', x: 0, z: 900, lived: true },
+    ];
+    // a dragon's country is the far part of the world, which is what `DRAGON_COUNTRY` means
+    const dragon = { ...bandFor(4242, stops, stops[0], 0), kind: 'dragon' as const, size: 1 };
+    const wolves = { ...dragon, kind: 'wolf' as const };
+    let dragonTook = 0, wolvesTook = 0;
+    for (let day = 0; day < 200; day++) {
+      const now = bandAt(dragon, day);
+      const here = at(now.x, now.z);
+      dragonTook += cattleTaken(dragon, here, day, pressureOn(dragon, here, day), 60);
+      wolvesTook += cattleTaken(wolves, here, day, pressureOn(wolves, here, day), 60);
+    }
+    expect(dragonTook, 'the dragon never touched a cow').toBeGreaterThan(0);
+    expect(wolvesTook, 'a wolf pack carried off cattle, which is a dragon’s job').toBe(0);
+  });
+
+  it('takes a share of what is standing, so a big herd is a catastrophe and four cows are a bad week', () => {
+    const stops = [{ name: 'Home', x: 0, z: 0, lived: true }, { name: 'Next', x: 900, z: 0, lived: true }];
+    const dragon = { ...bandFor(11, stops, stops[0], 0), kind: 'dragon' as const, size: 1 };
+    const worst = { ...at(0, 0) };
+    let big = 0, small = 0;
+    for (let day = 0; day < 200; day++) {
+      const now = bandAt(dragon, day);
+      const here = at(now.x, now.z);
+      big += cattleTaken(dragon, here, day, pressureOn(dragon, here, day), 120);
+      small += cattleTaken(dragon, here, day, pressureOn(dragon, here, day), 4);
+    }
+    void worst;
+    expect(big).toBeGreaterThan(small);
+  });
+
+  it('never takes more than is standing in the paddock', () => {
+    const stops = [{ name: 'Home', x: 0, z: 0, lived: true }, { name: 'Next', x: 900, z: 0, lived: true }];
+    const dragon = { ...bandFor(3, stops, stops[0], 0), kind: 'dragon' as const, size: 1 };
+    for (let day = 0; day < 120; day++) {
+      const here = at(bandAt(dragon, day).x, bandAt(dragon, day).z);
+      expect(cattleTaken(dragon, here, day, 1, 2)).toBeLessThanOrEqual(2);
+      expect(cattleTaken(dragon, here, day, 1, 0)).toBe(0);
+    }
   });
 });
