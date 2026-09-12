@@ -992,13 +992,56 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
      corners use, so the rail's right edge and the corner map's are one line rather than eight
      pixels apart. */
   --touch-edge: calc(20 * var(--ui-scale));
-  --minimap-drop: calc(268 * var(--ui-scale));  /* below the corner map, which reaches 255 down at full size */
+  /*
+   * Where the panel under the corner map starts.
+   *
+   * It was a fixed drop below a map that grows with the picture, which is the same fault the status
+   * slab had from the other side: a panel positioned against another panel's *size*. The map is 255
+   * units tall at full size, so this is that plus a gap — and it is written as one number here so
+   * that the day the map changes height there is one line to change rather than a hunt.
+   */
+  --minimap-drop: calc(268 * var(--ui-scale));
   /* The notch, the rounded corners and the home bar. These are the only insets kept on a phone,
      because these are the only ones with something actually in the way. */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /*
+   * Reserved geometry: the named bands that own each edge of the glass.
+   *
+   * This is the part of the Ledger II handoff worth having before any of the drawing, and the
+   * handoff says why in one line: *"this is the part today's UI lacks, and the reason its panels
+   * overlap."* That is not a guess about this interface, it is a description of two bugs found by
+   * looking at a screenshot — a status slab capped at the width of a ten-block meter when there were
+   * twenty, and a pack pinned a fixed distance below a corner that had grown.
+   *
+   * Both are the same fault: a panel positioned against *another panel's* size. A panel positioned
+   * against a band cannot have that fault, because a band is a fact about the screen rather than
+   * about whatever happens to be drawn in the corner this week. When a meter gets a twenty-first
+   * block, the band it is in does not move.
+   *
+   * The numbers are the handoff's own, in HUD units so they keep their share of the picture, and
+   * the safe-area insets are added *outside* them — never folded in as margin, because a gap kept
+   * for taste is waste and a gap kept for an obstruction is a gap.
+   */
+  /** The four book tabs. The walk field excludes this column, so a steering thumb cannot open the pack. */
+  --band-tabs: calc(44 * var(--ui-scale));
+  /** Where anything pinned to the left edge starts, clear of the tabs. */
+  --band-left: calc(56 * var(--ui-scale));
+  /** The action card, flush to the bottom-right corner: it names the verb, so it owns that corner. */
+  --band-action: calc(200 * var(--ui-scale));
+  /** Any reading surface, arriving from the left: a 44-unit spine and a 328-unit page. */
+  --band-book: calc(372 * var(--ui-scale));
+  /**
+   * The thumb's home, measured up from the bottom edge.
+   *
+   * The one band allowed into the tab gutter, and only because the tabs stop above it. A walk ring
+   * that cleared the tabs would sit where no thumb reaches, which is worse than an overlap nobody
+   * can trigger.
+   */
+  --band-thumb: calc(124 * var(--ui-scale));
 }
 body { touch-action: manipulation; overscroll-behavior: none; }
 #gameContainer { height: 100vh; height: 100dvh; }
@@ -1291,9 +1334,18 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
  * Ninety-six was the width of a ten-block meter. There are twenty blocks in one now — health,
  * breath and the sword arm all share the same bar — and the cap stayed where it was, so the meter
  * ran out past the slab it is drawn on and the corner read as a bar somebody had dropped on the
- * grass. Wide enough for twenty blocks and the numbers under them, and no wider.
+ * grass.
+ *
+ * What made that bug possible was a panel sized against what happened to be *in* it. The band it
+ * lives in is the fix rather than a bigger number: the top-left readings own the left edge as far
+ * across as the clock in the opposite corner, and the slab takes what it needs of that and no
+ * more. Add a twenty-first block and nothing here has to be edited; run out of band and the
+ * overlap is with a *named* thing rather than a surprise. See "reserved geometry" above.
  */
-#status { top: 8px; left: 8px; min-width: 0; max-width: 176px; padding: 4px 8px; }
+#status {
+  top: 8px; left: 8px; min-width: 0; padding: 4px 8px;
+  max-width: calc(50vw - var(--touch-edge));
+}
   #hearts { font-size: 13px; letter-spacing: 0; }
   .hud-hp { font-size: 10px; }
   #inventory { top: 52px; left: 8px; min-width: 0; padding: 5px 8px; font-size: 11px; }

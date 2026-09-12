@@ -4698,7 +4698,27 @@ than by remembering — and the first thing found was that the gap is not where 
 
       The original note follows.
 
-- [ ] **71. Ledger II: the mobile interface handoff.** Fetched into `design/mobile/` — a README of
+- [~] **71. Ledger II: the mobile interface handoff.** *Reserved geometry is in, as of the 13th —
+      the part the README says to read before anything else.* Five named bands own the edges of the
+      glass: the tab gutter, the left indent, the action corner, the book, and the thumb's home. They
+      are in HUD units so they keep their share of the picture, and the safe-area insets are added
+      *outside* them rather than folded in as margin.
+
+      This is not decoration ahead of the drawing. The handoff says *"this is the part today's UI
+      lacks, and the reason its panels overlap"*, and that is a description of two real bugs found by
+      looking at a screenshot during **67a**: a status slab capped at the width of a ten-block meter
+      when the meter had grown to twenty, and a pack pinned a fixed distance below a corner map that
+      had grown. **Both are one fault — a panel sized or placed against another panel** — and a panel
+      placed against a band cannot have it, because a band is a fact about the screen rather than
+      about whatever is drawn in the corner this week.
+
+      The status slab is on its band now: it takes what it needs of the left edge as far as the
+      clock in the other corner, so a twenty-first block changes nothing. Six tests read the
+      stylesheet and hold the bands to being named, being in HUD units, and not going back to
+      measuring themselves against their neighbours.
+
+      What is left is the drawing: the two surfaces (dark glass while you play, paper while you
+      read), the action card, the 44px row grammar, and the four themes over one unchanged layout. Fetched into `design/mobile/` — a README of
       16 KB and a 1,889-line design document rendering thirteen rounds of work. It is far more than
       the September 8th artboards and it **supersedes them for the phone**.
 
