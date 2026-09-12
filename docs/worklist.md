@@ -3934,8 +3934,25 @@ simulation rather than any one feature in it.
       more than any label — and it gives the Domesday Book something it has never had, which is a
       village that is *going somewhere*.
 
-- [ ] **43. The world starts established, and the economy's job is to keep it that way.** Stated
-      plainly, because it changes what the bench is measuring: the first villages are *put* there.
+- [x] **43. The world starts established, and the economy's job is to keep it that way.** *Closed on
+      the 13th as a statement that is now true and enforced rather than as work to do.* Every part of
+      it holds in code, and each has somewhere that would fail if it stopped holding:
+
+      - **The villages are put there**, of the size they would have reached: `settle` founds them
+        with a store (three days a head), a herd (a few beasts for every farmer) and a spread of ages
+        out of `foundVillage`, which is exactly "they have been standing for years".
+      - **The bench asks survival first.** `sanity.test.ts` opens with *"still has all the villages it
+        started with"* and calls it "the first question and the only one that is not a matter of
+        degree" — a model that cannot hold what it was handed has failed before any question about
+        expansion is worth asking.
+      - **And then growth**, which is **44** and **48** and is now measured the same way: villages
+        inside the beds they have built, at least half full, every trade still held.
+
+      What changed tonight is that the second half of the sentence stopped being aspiration. The
+      economy sustains a world and grows it: villages fill their houses, raise bigger ones, become
+      towns, and get leaned on harder for it. The original note:
+
+      Stated plainly, because it changes what the bench is measuring: the first villages are *put* there.
       They are not bootstrapped from one family with an axe — a world that had to grow itself from
       nothing before anything was interesting would be a boring world to arrive in. The seed places
       villages of the size they would have reached, with a food store, a herd and a spread of ages,
