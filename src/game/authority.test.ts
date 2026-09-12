@@ -37,7 +37,13 @@ function aClient() {
   const wildlife = new Wildlife(renderer, manager, null);
   const state = new GameState();
   const bodies: Array<{ kind: string; x: number; z: number }> = [];
+  const noticed: Array<{ kind: string; x: number; z: number }> = [];
+  const cleared: Array<{ mine: string | null; many: number }> = [];
+  const rustling: string[] = [];
+  const said: string[] = [];
   const buried: string[] = [];
+  /** Which mine the hero is standing in, for the tests that care. Set by the test itself. */
+  let inAMine: string | null = null;
 
   const ctx = {
     seed: 1, state, wildlife, entities: manager,
@@ -54,12 +60,22 @@ function aClient() {
     arrested: () => {},
     fallen: (who: { name: string }) => { buried.push(who.name); },
     fell: (kind: string, x: number, z: number) => { bodies.push({ kind, x, z }); },
+    // the rest of what a kill means, which this side used to leave out altogether
+    troubleKilled: (kind: string, x: number, z: number) => { noticed.push({ kind, x, z }); },
+    reportCleared: (mine: string | null, many: number) => { cleared.push({ mine, many }); },
+    rustled: (beast: { kind: { label: string } }) => { rustling.push(beast.kind.label); return 'They have heard.'; },
+    fightingInAMine: () => inAMine,
+    flash: (message: string) => { said.push(message); },
   } as unknown as Authority;
 
   const authority = createAuthority(ctx);
   /** The world telling us what lives here, and then that one of them is dead. */
   const worldSays = authority.heeding;
-  return { authority, worldSays, state, wildlife, bodies, buried };
+  return {
+    authority, worldSays, state, wildlife, bodies, buried,
+    noticed, cleared, rustling, said,
+    inTheMine: (id: string | null) => { inAMine = id; },
+  };
 }
 
 /** One creature of the world's, standing where it can be killed. */
@@ -122,5 +138,56 @@ describe('a creature the world killed for us', () => {
     worldSays.onCreatures('surface', [wolf()], []);
     worldSays.onCreatureKilled('mine:deep', 7, true);
     expect(bodies).toEqual([]);
+  });
+});
+
+/**
+ * The rest of what a kill means, on the side that was only doing one of the four.
+ *
+ * In a shared world the world owns every animal, so *every* kill comes through here. That is what
+ * made these four bugs rather than four corner cases: hunt all day and the law never heard of you,
+ * the mine you cleared stayed haunted, and the village whose cow you took went on liking you.
+ */
+describe('everything else a kill means', () => {
+  it('tells the law what was killed and where', () => {
+    const { worldSays, noticed } = aClient();
+    worldSays.onCreatures('surface', [wolf()], []);
+    worldSays.onCreatureKilled('surface', 7, true);
+    // where the world had it, which is the same place the carcass went
+    expect(noticed, 'a kill the world resolved left the constable none the wiser')
+      .toEqual([{ kind: 'wolf', x: 12, z: 34 }]);
+  });
+
+  it('counts it against the mine when it happened down one', () => {
+    const { worldSays, cleared, inTheMine } = aClient();
+    inTheMine('cave:1');
+    worldSays.onCreatures('surface', [wolf()], []);
+    worldSays.onCreatureKilled('surface', 7, true);
+    expect(cleared, 'the mine is as haunted as it was').toEqual([{ mine: 'cave:1', many: 1 }]);
+  });
+
+  it('counts nothing against a mine for a killing in the open air', () => {
+    const { worldSays, cleared } = aClient();
+    worldSays.onCreatures('surface', [wolf()], []);
+    worldSays.onCreatureKilled('surface', 7, true);
+    expect(cleared).toEqual([{ mine: null, many: 1 }]);
+  });
+
+  it('lets the village hear about its own beast', () => {
+    const { worldSays, rustling, said } = aClient();
+    worldSays.onCreatures('surface', [wolf(9, 'cow')], []);
+    worldSays.onCreatureKilled('surface', 9, true);
+    expect(rustling, 'somebody took a village cow and nobody minded').toEqual(['Cow']);
+    expect(said, 'and nobody was told what the village made of it').toContain('They have heard.');
+  });
+
+  it('says nothing to a player who did not kill it, and still leaves the carcass', () => {
+    // somebody else's kill is somebody else's standing: the body is a thing in the grass, the
+    // village's opinion is about whoever swung
+    const { worldSays, said, bodies } = aClient();
+    worldSays.onCreatures('surface', [wolf(9, 'cow')], []);
+    worldSays.onCreatureKilled('surface', 9, false);
+    expect(said).toEqual([]);
+    expect(bodies.length).toBe(1);
   });
 });

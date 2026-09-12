@@ -11,6 +11,7 @@ import type { Structures } from '../world/structures';
 import { BOW, bowInHand, canShoot, quiver, shoot } from './archery';
 import type { Sound } from './audio';
 import { BREATH, Breath, guardCovers } from './breath';
+import { clearedTheMine, whatAKillMeans } from './consequences';
 import { COMBAT, struck, swing, type SwingResult } from './combat';
 import type { Director } from './director';
 import type { Duel } from './duel';
@@ -118,10 +119,7 @@ export function createBlows(ctx: Fighting) {
    * entry per mine and a later one replaces the earlier, so an increment would be swallowed. A
    * total survives that, arrives in any order, and can be applied twice without counting twice.
    */
-  const reportCleared = (id: string | null, many: number) => {
-    mines.slain(id, many);
-    if (id) online.report({ kind: 'cleared', mine: id, many: mines.clearedIn(id) });
-  };
+  const reportCleared = clearedTheMine(mines, online);
 
   /**
    * Every blow the hero throws, from the arm going out to the world hearing about it.
@@ -154,22 +152,15 @@ export function createBlows(ctx: Fighting) {
    * @returns what the last village to lose an animal was heard to say, for whoever wants to
    * put it on the screen, and nothing when none of them was anybody's.
    */
-  const felled = (killed: readonly Entity[]): string | null => {
-    // what lived in the workings is what made them damage, so killing it is the one thing a
-    // player can do that moves a village's whole economy. Anybody on the register is not what
-    // lived down there — he is the village's own, at the face, and cutting him down makes a mine
-    // emptier of people rather than emptier of trouble. Counting him would let a player make a
-    // hole "safe" by murdering the crew that works it, which is the economy read backwards.
-    const lurking = killed.filter((e) => e.person === '').length;
-    if (lurking > 0) reportCleared(fightingInAMine(), lurking);
-    let rustling: string | null = null;
-    for (const e of killed) {
-      fell(e.kind.id, e.x, e.z);
-      troubleKilled(e.kind.id, e.x, e.z);
-      if (e.kind.owned === true) rustling = rustled(e);
-    }
-    return rustling;
-  };
+  /*
+   * What a kill means is `consequences.ts`'s to say, and this is one of its two callers.
+   *
+   * The other is `authority.onCreatureKilled` — a creature the *world* killed — and the whole
+   * reason the rule moved out of here is that the two had drifted: this one left a carcass, cleared
+   * the mine, told the law and let the village hear about its cow, and that one left a carcass.
+   */
+  const felled = (killed: readonly Entity[]): string | null =>
+    whatAKillMeans(killed, { fell, troubleKilled, reportCleared, rustled, fightingInAMine }).rustling;
 
   const attack = () => {
     if (talking() || swingCooldown > 0) return;

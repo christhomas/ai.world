@@ -81,6 +81,7 @@ import { createConsequences } from './game/consequences';
 import { joinAWorld } from './game/joining';
 import { Cutaway, rememberCutaway, wantsCutaway } from './render/cutaway';
 import { familyOfDoor } from './world/homes';
+import { aftermath } from './game/consequences';
 import { growCountry } from './game/country';
 import { countryStamp } from './world/growworld';
 import { streamTheCountry } from './game/streaming';
@@ -350,15 +351,14 @@ export function startGame(
   // Built before the multiplayer half because the world's answers arrive through it.
   const { walked, walking, outdoors, heeding, bites } = createAuthority({
     seed, state, player, chunks, entities, places, sailing, sound, wildlife, placeName,
+    // and the rest of what a kill means, which lives with the rule itself
+    ...aftermath(() => ({ interactions, online, rustled, hud }), mines, fightingInAMine),
     floorLife: () => floorLife,
     aloft: () => skies.aloft !== null,
     steer: (seq, dx, dz, pace, dt) => online.steer(seq, dx, dz, pace, dt),
     bitten: (attacker, damage) => onAttack(attacker, damage),
     arrested: (by) => arrested(by),
     fallen: (who) => fallen(who),
-    // the same carcass list a local kill writes to. Reached through `interactions`, which is built
-    // further down this file, so it is a closure rather than a reference
-    fell: (kind, x, z) => interactions.fell(kind, x, z),
   });
 
   // the multiplayer half of the game, and the dialogue that answers an offer of goods, which the

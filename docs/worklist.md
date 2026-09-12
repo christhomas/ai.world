@@ -3080,7 +3080,15 @@ in the order they would sensibly be built, which is not the order they arrived i
       `villageTill`. Then building is a living: he earns, he eats, and a village that builds keeps
       its own tradesmen fed.
 
-- [ ] **26. The seam audit's one fix.** Five holes found on the 12th, all of the same shape: the
+- [x] **26. The seam audit's one fix.** *Done on the 12th.* `whatAKillMeans(killed, aftermath)` in
+      `consequences.ts` is the one rule, and both halves call it: `blows.felled()` is a single line
+      now, and `authority.onCreatureKilled` hands it a list of one. So a kill the world resolved
+      leaves a carcass, empties a mine of that much trouble, reaches the constable, and — if the
+      thing had an owner — reaches the village that owned it, exactly as a kill this page resolved
+      always did. `aftermath()` beside it holds the wiring, so the day a fifth consequence is added
+      there is one file to change. Five tests in `authority.test.ts`. The original entry:
+
+      Five holes found on the 12th, all of the same shape: the
       world resolved a kill and the client's half of the consequence never ran. No deed judged (so
       murder online does not blacken your name), no rustling (kill a cow, nobody minds), no mine
       cleared, no trouble credited, no band told it had lost one. The fix is not five patches:
@@ -4067,3 +4075,35 @@ than by remembering — and the first thing found was that the gap is not where 
       Flutter's own canvas or with a GL surface. The design is flat-shaded low-poly geometry with a
       cutaway shader, which is a GL question rather than a widget question — and the interface above
       it is ordinary widgets either way.
+
+- [ ] **73. Lag, and who is allowed to be wrong.** The answer to "why not decide everything on the
+      server" is that you can, and games do — but only with prediction and reconciliation underneath
+      it, or every action waits a round trip and the game feels like it is being played through a
+      letterbox.
+
+      Half of it already exists and is worth naming, because it is the pattern everything else should
+      copy. Walking: the page moves the hero the instant a key is pressed and sends `steer` with a
+      sequence number; the world runs the same step and answers `youAre` with the sequence it has
+      caught up to; `walked.toldWhereHeIs(..., seq, ...)` puts the hero where the world says he is
+      and then **replays every steer newer than that sequence**, so a correction does not throw away
+      the keys pressed while the answer was in flight. `authority` counts answers, corrections and
+      the worst error, which is how anybody would ever know it had stopped working. Boats go through
+      the same door.
+
+      What does not: every other decision the page makes — a swing, a trade, a hire, a door. Those
+      are decided locally and *reported*, which is why they cannot disagree and why the server cannot
+      yet be the authority over them. The work is to give each one the same three parts walking has:
+
+      1. **A sequence number per action**, so an answer can name which one it is answering.
+      2. **A prediction the page can undo** — the page does the optimistic thing (the coin leaves the
+         purse, the blow lands) and keeps enough to roll it back.
+      3. **An answer that either confirms or corrects**, and a replay of anything newer.
+
+      The rule for which of the three a given action needs: the ones a player would *feel* a round
+      trip on are movement, swings and doors, and those need all three. A trade, a hire or a build
+      can simply wait for the world to say yes — nobody notices 80ms on a purchase, and pretending
+      otherwise buys a rollback path for nothing. So this is not "predict everything", it is "predict
+      what the hand feels, and let the ledger take its time".
+
+      Depends on **72** step 2 for the vocabulary, and it is the thing that makes moving decisions to
+      the server a change nobody playing it can detect.

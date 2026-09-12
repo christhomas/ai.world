@@ -139,3 +139,116 @@ export function createConsequences(ctx: Consequence) {
     },
   };
 }
+
+/**
+ * Everything the world has to be told when something dies. Handed in, so this decides nothing.
+ *
+ * Separate from `Consequence` above because it is a different question: that one is *this* player's
+ * game reacting, and this is the world's own bookkeeping, which is the same however the thing died.
+ */
+export interface Aftermath {
+  /** A carcass, left where it fell, for anybody who walks back to it with a knife. */
+  fell: (kind: string, x: number, z: number) => void;
+  /** The law's memory: who has been killing what, and where. */
+  troubleKilled: (kind: string, x: number, z: number) => void;
+  /** How much of a mine has been fought through, which is what the danger down there is made of. */
+  reportCleared: (mine: string | null, many: number) => void;
+  /** A beast with an owner is somebody's livelihood; taking it is remembered as what it is. */
+  rustled: (beast: Entity) => string;
+  /** Which mine this is happening in, or nothing for a killing in the open air. */
+  fightingInAMine: () => string | null;
+}
+
+/**
+ * What a kill means, in one place.
+ *
+ * A creature dying is not one event, it is four: a carcass in the grass, a mine that is emptier of
+ * trouble than it was, a constable who now knows who started it, and — if the thing had an owner —
+ * a village that thinks rather less of you. Every one of those is a fact about the *world* rather
+ * than about whoever swung.
+ *
+ * It was written twice. `blows.felled` did all four for a creature this page killed, and
+ * `authority.onCreatureKilled` did one of them for a creature the world killed, because it was
+ * written later, from the other side, by somebody solving a different problem. The seam audit found
+ * the gap as separate bugs, which is how a duplicated rule always presents: kill a cow in a shared
+ * world and nobody minds, clear a mine and the village still believes it is haunted, cut something
+ * down in front of a constable and your name stays clean.
+ *
+ * The rule to keep when this grows: what a kill *means* lives here, and who gets the gold does not.
+ * Spoils belong to whoever landed the blow, and that is the one part of a death that is genuinely
+ * about a person rather than about the world.
+ */
+export function whatAKillMeans(killed: readonly Entity[], o: Aftermath): { rustling: string | null } {
+  /*
+   * What lived in the workings is what made them dangerous, so killing it is the one thing a player
+   * can do that moves a village's whole economy. Anybody on the register is not what lived down
+   * there — he is the village's own, at the face — and cutting him down makes a mine emptier of
+   * people rather than emptier of trouble. Counting him would let a player make a hole "safe" by
+   * murdering the crew that works it, which is the economy read backwards.
+   */
+  const lurking = killed.filter((e) => e.person === '').length;
+  if (lurking > 0) o.reportCleared(o.fightingInAMine(), lurking);
+
+  let rustling: string | null = null;
+  for (const e of killed) {
+    o.fell(e.kind.id, e.x, e.z);
+    o.troubleKilled(e.kind.id, e.x, e.z);
+    if (e.kind.owned === true) rustling = o.rustled(e);
+  }
+  return { rustling };
+}
+
+/**
+ * Telling everybody that a mine is that much emptier of trouble.
+ *
+ * Out of `blows.ts` because the world's half of a kill needs it too, and a rule that two callers
+ * reach for is a rule that belongs where they can both see it.
+ *
+ * The running total goes on the wire rather than the handful just killed: the delta log keeps one
+ * entry per mine and a later one replaces the earlier, so an increment would be swallowed. A total
+ * survives that, arrives in any order, and can be applied twice without counting anything twice.
+ */
+export function clearedTheMine(
+  mines: { slain: (id: string | null, many: number) => void; clearedIn: (id: string) => number },
+  online: { report: (delta: { kind: 'cleared'; mine: string; many: number }) => void },
+): (id: string | null, many: number) => void {
+  return (id, many) => {
+    mines.slain(id, many);
+    if (id) online.report({ kind: 'cleared', mine: id, many: mines.clearedIn(id) });
+  };
+}
+
+/**
+ * The four things a kill means, wired up for whoever is doing the killing.
+ *
+ * Here rather than in `main.ts` because it is the rule's own wiring: the day a fifth consequence is
+ * added, the place that knows about it and the place that hands it over should be the same file.
+ * `main.ts` was also at the size this codebase holds a module to, and a paragraph of plumbing is
+ * exactly what should not be the thing that pushes it over.
+ *
+ * Taken as one thunk rather than five arguments because most of what it needs is built *after* the
+ * authority that uses it — the wire, the interface, what a village makes of a dead cow — and none
+ * of it is called until somebody kills something, which is long after all of it exists.
+ */
+export function aftermath(
+  later: () => {
+    interactions: {
+      fell: (kind: string, x: number, z: number) => void;
+      troubleKilled: (kind: string, x: number, z: number) => void;
+    };
+    online: { report: (delta: { kind: 'cleared'; mine: string; many: number }) => void };
+    rustled: (beast: Entity) => string;
+    hud: { flash: (message: string) => void };
+  },
+  mines: { slain: (id: string | null, many: number) => void; clearedIn: (id: string) => number },
+  fightingInAMine: () => string | null,
+): Aftermath & { flash: (message: string) => void } {
+  return {
+    fell: (kind, x, z) => later().interactions.fell(kind, x, z),
+    troubleKilled: (kind, x, z) => later().interactions.troubleKilled(kind, x, z),
+    reportCleared: (mine, many) => clearedTheMine(mines, later().online)(mine, many),
+    rustled: (beast) => later().rustled(beast),
+    fightingInAMine,
+    flash: (message) => later().hud.flash(message),
+  };
+}

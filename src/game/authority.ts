@@ -5,6 +5,7 @@ import type { Player } from '../entities/player';
 import type { ChunkManager } from '../world/chunkManager';
 import type { Sound } from './audio';
 import { spoils } from './combat';
+import { whatAKillMeans } from './consequences';
 import type { Places } from './places';
 import type { Sailing } from './sailing';
 import type { GameState } from './state';
@@ -67,12 +68,27 @@ export interface Authority {
    * animal, so that is every kill: you could hunt all day and come home with nothing.
    */
   fell: (kind: string, x: number, z: number) => void;
+  /**
+   * And the rest of what a kill means, which this side was missing altogether.
+   *
+   * A carcass was the only one of the four it did. Killing something in a shared world left the law
+   * none the wiser, the mine as haunted as it was, and the village perfectly content about its cow —
+   * because the world owns the animals there, so *every* kill came through here. `consequences.ts`
+   * holds the rule and both sides call it.
+   */
+  troubleKilled: (kind: string, x: number, z: number) => void;
+  reportCleared: (mine: string | null, many: number) => void;
+  rustled: (beast: Entity) => string;
+  fightingInAMine: () => string | null;
+  /** And a line for the player, for the one consequence that is worth saying out loud. */
+  flash: (message: string) => void;
 }
 
 export function createAuthority(ctx: Authority) {
   const {
     seed, state, player, chunks, entities, places, sailing, sound, wildlife, floorLife, aloft,
     placeName, steer, bitten, arrested, fallen, fell,
+    troubleKilled, reportCleared, rustled, fightingInAMine, flash,
   } = ctx;
 
   /**
@@ -157,10 +173,17 @@ export function createAuthority(ctx: Authority) {
         // distance — is theirs, and it is the same `fallen` that has always done it.
         if (body && body.person !== '') fallen(body);
         if (body && body.person === '') {
-          // and the body itself, for whoever it was worth killing: a wolf is a pelt to anybody who
-          // walks back to it with a knife. Left for everybody rather than only for whoever landed
-          // the blow, because a carcass is a thing lying in the grass and not a reward
-          fell(body.kind.id, body.x, body.z);
+          /*
+           * And everything a kill means, which is the same rule the page's own swing goes through.
+           *
+           * Left for everybody rather than only for whoever landed the blow, because a carcass is a
+           * thing lying in the grass and not a reward — and because a village hearing about its cow
+           * is a fact about the village.
+           */
+          const { rustling } = whatAKillMeans([body], {
+            fell, troubleKilled, reportCleared, rustled, fightingInAMine,
+          });
+          if (rustling && mine) flash(rustling);
         }
         if (body && mine) {
           const won = spoils(body, seed);
