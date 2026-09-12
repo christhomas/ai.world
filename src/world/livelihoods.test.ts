@@ -3,9 +3,10 @@ import { ITEMS } from '../game/items';
 import { FOOD, broughtIn, cellarCap } from './food';
 import { PROSPER, spentOnLiving } from './prosperity';
 import {
-  LIVELIHOOD, aDayOfCattle, aDaysIncome, aDaysTrade, boughtInTheVillage, paidForFood,
+  LIVELIHOOD, aDaysIncome, aDaysTrade, boughtInTheVillage, paidForFood,
   DINNER, aDaysDinner, paidForService, pitchFor, shareOut, soldAtMarket, whoFed,
 } from './livelihoods';
+import { aDayOfCattle } from './harvest';
 import { taxedForTheHall } from './hall';
 import type { Person } from './people';
 
