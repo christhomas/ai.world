@@ -468,11 +468,11 @@ export function startGame(
   dialogue.onType = () => sound.blip();
   dialogue.onMove = () => sound.select();
 
-  // stopping in front of somebody: everything a person offers you, worked out at the moment you
-  // speak to them
+  // stopping in front of somebody: everything a person offers, worked out as you speak to them
   const { heroFace, startTalk, talkCtx } = createMeeting({
     state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue, quests, persist,
     rng: lineRng,
+    countryAt: (x, z) => sampler.biomeOf(x, z),
     villageWelcome: (village) => villageWelcome(village),
     wordOfHim: (person) => interactions.wordOfHim(person),
     saidOfMine,

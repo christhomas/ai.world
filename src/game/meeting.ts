@@ -19,6 +19,7 @@ import { booksKeptIn } from './enquiry';
 import { ITEMS } from './shops';
 import type { GameState } from './state';
 import { DOCTOR, dialogueFor, type TalkCtx } from './talk';
+import type { Biome } from '../world/biomes';
 
 /**
  * Stopping in front of somebody.
@@ -51,6 +52,16 @@ export interface Meeting {
   dialogue: DialogueBox;
   /** The lines a person says are seeded, so the same villager says the same things. */
   rng: () => number;
+  /**
+   * What country the hero is standing in, which is what a fur is worth here.
+   *
+   * The one price in this game that depends on where it is paid. It was a sentence rather than a
+   * rule until the hunting loop was walked end to end: the game told a hunter his pelt was worth
+   * twenty-three gold in the desert and fifteen in the snow, and then every shop in the world paid
+   * him thirteen, because the local price was worked out in exactly one place — the line that
+   * advertises it.
+   */
+  countryAt: (x: number, z: number) => Biome;
   /** The elder's errand in each village, which a conversation can take on or finish. */
   quests: Map<string, Quest>;
   /** What a village you saved does for you, when you walk back into it. */
@@ -75,7 +86,7 @@ export interface Meeting {
 export function createMeeting(ctx: Meeting) {
   const {
     state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue,
-    rng, quests, villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist,
+    rng, quests, villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist, countryAt,
   } = ctx;
 
   /**
@@ -90,6 +101,9 @@ export function createMeeting(ctx: Meeting) {
 
   const talkCtx: TalkCtx = {
     state, rng, quests, time: state.time, register, day: state.day,
+    // where this counter stands, read when a price is asked for rather than when the game is built:
+    // the hero walks, and the whole point of a fur is that it is worth more somewhere else
+    country: () => countryAt(player.x, player.z),
     wordOfHim,
     saidOfMine,
     onInventoryChange: () => { sound.chime(); persist(); },

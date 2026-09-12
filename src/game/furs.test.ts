@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from '../entities/animals';
 import { Biome } from '../world/biomes';
-import { FUR, Carcasses, hideOf, isFur, paidFor, priceOf, skin } from './furs';
-import { ITEMS } from './items';
+import { FUR, Carcasses, hideOf, isFur, paidAtACounter, paidFor, priceOf, skin } from './furs';
+import { ITEMS, sellPrice } from './items';
 
 const TRIES = 600;
 
@@ -135,5 +135,46 @@ describe('the bodies left lying about', () => {
     for (let i = 0; i < FUR.KEPT + 5; i++) ground.fell('wolf', i * 10, 0);
     expect(ground.all).toHaveLength(FUR.KEPT);
     expect(ground.all[0].x).toBe(50);          // the oldest went first
+  });
+});
+
+describe('what a counter actually pays for a pelt', () => {
+  /*
+   * The bug this exists to stop happening again, found by walking the hunting loop end to end in a
+   * browser rather than by any test in this suite.
+   *
+   * This file opens by calling furs "the one trade in this world worth a long walk". For as long as
+   * it has said so, `paidFor` was called in exactly one place in the whole game — the line that
+   * tells a hunter what his pelt is worth the moment he skins it — and the sale itself asked the
+   * catalogue. So the game promised twenty-three gold in the desert and fifteen in the snow, and
+   * then every shop everywhere paid thirteen: less than its own lowest quote, and the long walk
+   * bought nothing at all.
+   */
+  const pelt = 'pelt';
+
+  it('pays more where the animal is rare than where it is common', () => {
+    const snow = paidAtACounter(pelt, ITEMS[pelt].price, () => Biome.Snow);
+    const desert = paidAtACounter(pelt, ITEMS[pelt].price, () => Biome.Desert);
+    expect(desert).toBeGreaterThan(snow);
+  });
+
+  it('pays what it said it would pay when the pelt was taken', () => {
+    // the two numbers a player sees are the flash after skinning and the row at the counter, and
+    // they are now the same number asked the same way
+    for (const biome of [Biome.Snow, Biome.Desert, Biome.Forest, Biome.Plains]) {
+      expect(paidAtACounter(pelt, ITEMS[pelt].price, () => biome)).toBe(paidFor(pelt, biome));
+    }
+  });
+
+  it('pays the catalogue for everything that is not a fur, wherever it is sold', () => {
+    for (const id of ['apple', 'rope', 'lantern']) {
+      const price = ITEMS[id].price;
+      expect(paidAtACounter(id, price, () => Biome.Desert)).toBe(sellPrice(ITEMS[id]));
+    }
+  });
+
+  it('pays the catalogue for a fur at a counter with no country behind it', () => {
+    // a test, a dungeon, anywhere the game cannot say where it is: the price it always paid
+    expect(paidAtACounter(pelt, ITEMS[pelt].price)).toBe(sellPrice(ITEMS[pelt]));
   });
 });

@@ -52,12 +52,22 @@ export const SHOP_DEFS: Record<ShopType, ShopDef> = {
 };
 
 /** What a shop will pay for each carried item it is willing to buy. */
-export function sellableAt(def: ShopDef, carried: Iterable<[string, number]>): Array<{ item: Item; count: number; price: number }> {
+export function sellableAt(
+  def: ShopDef, carried: Iterable<[string, number]>,
+  /**
+   * What this counter will actually pay for one of something, when that depends on where it is.
+   *
+   * Handed in rather than worked out, because only one kind of thing in this world is worth more in
+   * one country than another — a fur — and this file knows about shelves rather than about
+   * countries. Left out and every price is the catalogue's, which is what it always was.
+   */
+  here: (id: string, item: Item) => number = (_id, item) => sellPrice(item),
+): Array<{ item: Item; count: number; price: number }> {
   const out: Array<{ item: Item; count: number; price: number }> = [];
   for (const [id, count] of carried) {
     const item = ITEMS[id];
     if (!item || count <= 0 || !def.buys(item)) continue;
-    out.push({ item, count, price: sellPrice(item) });
+    out.push({ item, count, price: here(id, item) });
   }
   return out.sort((a, b) => b.price * b.count - a.price * a.count);
 }

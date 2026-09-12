@@ -3141,7 +3141,32 @@ in the order they would sensibly be built, which is not the order they arrived i
       the sight, a longer reach to make up for how slowly it aims, and a trigger's cooldown rather
       than a draw's. Shoot while flying and you fire it, because a man in that seat has no bow.
 
-- [ ] **28. The remaining screenshots, and the hunting loop walked end to end.** The sea and
+- [~] **28. The remaining screenshots, and the hunting loop walked end to end.** *The loop was walked
+      on the 13th, in a real browser, and it found a real one.* Kill, skin and carry all work and the
+      prose is good — nine wolves came at the hero in snow country, three died to a stick, and
+      *"You are swinging on empty"* is breath doing its job. Then:
+
+      > snow: *"Skinned it: Wolf Pelt. Traders in this country pay about **15g**."*
+      > desert: *"Skinned it: Wolf Pelt. Traders in this country pay about **23g**."*
+      > every shop anywhere: **13g.**
+
+      **`paidFor` was called in exactly one place in the whole game** — the flash after skinning —
+      and the sale asked the catalogue. So `furs.ts`'s opening line, *"the one trade in this world
+      worth a long walk"*, described something no player could do, and the flat price was below even
+      the game's own lowest quote. **Fixed**: `paidAtACounter` is the one rule, the sell row quotes
+      what the sale will pay, and there are four tests, one of which is the loop this bug walked
+      through.
+
+      Three smaller things the walk turned up, none fixed: the hero is *given* the skinning knife in
+      his opening kit, so the bare-handed path `furs.ts` argues for is unreachable unless he throws
+      it away; pressing Enter over a body did nothing once after a long running fight and could not
+      be reproduced; and `__enterShop` always enters the *first* village's store, which makes a
+      location-dependent shop walk impossible through the probes.
+
+      Still to do: the two missing shots. `shots.cjs` defines fifteen and neither `sea` nor a
+      shared-world one is among them — both are an hour of work and neither is blocked.
+
+      The original note: The sea and
       shared-world shots need a boat under the hero and two browsers in one world — both of which
       `shots.cjs` can now do, since the Domesday shot already opens a second page and joins a real
       server. And nobody has yet played kill → skin with a knife → carry the pelt to a country that

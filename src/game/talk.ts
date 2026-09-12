@@ -6,6 +6,9 @@ import { personTill } from './tills';
 import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
 import { ITEMS, SHOP_DEFS, type ShopDef, itemSummary, sellPrice, sellableAt } from './shops';
+import { paidAtACounter } from './furs';
+import { CLERK_LINES, CONGREGATION_LINES, HOW_PEOPLE_GET_BY, SERGEANT_LINES } from './talkwords';
+import type { Biome } from '../world/biomes';
 import type { GameState } from './state';
 import type { Quest } from './quests';
 import { gossipFor } from './gossip';
@@ -35,6 +38,8 @@ export interface TalkCtx {
   markup?: number;
   /** Being patched up, which only a doctor can offer. */
   mending?: Mending;
+  /** What country this counter stands in: a fur is worth more in one with no wolves. See `furs.ts`. */
+  country?: () => Biome;
   /**
    * The books kept in the room this conversation is happening in, when it is a room that keeps
    * any: the churchyard's stones, the apothecary's births.
@@ -95,22 +100,6 @@ const WORD_OF_HIM = 0.22;
 /** Below this much gold, somebody will tell you how people here get by. */
 const POOR = 60;   // a hero starts with fifty, so the first person they meet tells them
 
-/**
- * How to make a living, said by the people who make one.
- *
- * A world full of things to do teaches nobody anything if none of them is ever mentioned. These
- * are said only to somebody visibly short of money, and they name a thing that can be done with
- * what a beginner already has rather than with the tools they cannot afford yet.
- */
-const HOW_PEOPLE_GET_BY = [
-  'Anybody can eat who can catch a rabbit. The store buys meat, and the hide off it too if you have a knife.',
-  'There are deer in the open country. Slow work with a stick, but a hide is a hide.',
-  'The herbs on the wet ground by the water are worth picking. The apothecary takes them, or grind them yourself if you have the bowl.',
-  'Wolves pay better than deer, and cost more too. Wait until you have a proper blade.',
-  'Ask the elder if there is anything wants doing. There generally is, and it pays.',
-  'Whatever you take, carry it to a village that has none of it. That is the whole of trade.',
-];
-
 /** What a doctor asks, and what waiting instead costs you. */
 export const DOCTOR = {
   /** Gold a heart's worth of mending costs, which is less than a salve and much less than dying. */
@@ -140,31 +129,6 @@ export interface Mending {
   take: (paid: boolean) => string;
 }
 
-const CONGREGATION_LINES = [
-  'We gather here most mornings. It is quieter than the square.',
-  'The chapel bell has not rung in years. We still come.',
-  'Say a word for the travellers on the road, would you?',
-  'The old priest planted that tree by the door. Or so they say.',
-  'Peace be on your road, stranger.',
-];
-
-// What the two civic counters say before they are asked anything. Both tell you what the building
-// is for without saying "you may read the roll here", because a greeting that is a menu is not a
-// greeting; a clerk is proud of his book and a sergeant would rather you moved along, and that is
-// the whole of the difference between them.
-const CLERK_LINES = [
-  'The roll is kept here. Everybody in the parish, written down in one hand, and that hand is mine.',
-  'Births, trades, what a man has put by. All of it in the book, and the book flatters nobody.',
-  'Mind the ink. I have been at this since dawn and I would rather not begin again.',
-  'You are not from here, so you are not on it. Ask anyway, if you like.',
-];
-
-const SERGEANT_LINES = [
-  'Watch house. State your business, or stand where I can see you.',
-  'The sheet is a public record. What is on it is not always comfortable. That is not my doing.',
-  'Cell is at the back. Empty more often than you would think, in a village this size.',
-  'We write down everybody we take in. Everybody, and what it cost them.',
-];
 
 const pick = (rng: Rng, list: string[]): string => list[Math.floor(rng() * list.length)];
 
@@ -211,11 +175,10 @@ export function dialogueFor(e: Entity, ctx: TalkCtx): DialogueNode {
 /**
  * Somebody at the chapel: the few gathered outside the door, and the priest stood at the altar.
  *
- * They share a role and most of what they say, and what separates them is the book. The priest is
- * in the room where the parish keeps its dead, so he is the one who can be asked about them; the
- * congregation on the step can tell you only that it is quieter here than the square. Neither of
- * them is checked against where the hero is standing, because an enquiry only ever arrives when he
- * is already in the room the book is kept in.
+ * The book is what separates them: the priest is in the room where the parish keeps its dead and
+ * can be asked about them, and the congregation on the step can only say it is quieter here than
+ * the square. Neither is checked against where the hero stands — an enquiry only ever arrives when
+ * he is already in the room.
  */
 function chapelDialogue(e: Entity, ctx: TalkCtx): DialogueNode {
   const who: Keeper = {
@@ -376,10 +339,9 @@ function questDialogue(e: Entity, q: Quest, ctx: TalkCtx): DialogueNode {
  * Everything one conversation across a counter is about: who is talking, what they deal in, and
  * how many of a thing the player has dialled up to sell.
  *
- * It exists so that each turn of the conversation below can be a function you read on its own.
- * The tree used to be one function of nested closures, which meant the shape of the conversation
- * was only ever visible as the shape of the code, and buying a lantern lived thirty columns in
- * from the left margin.
+ * It exists so each turn of the conversation below is a function you can read on its own. The tree
+ * used to be one function of nested closures, so the shape of the conversation was only visible as
+ * the shape of the code and buying a lantern lived thirty columns in from the margin.
  */
 interface Counter {
   e: Entity;
@@ -542,10 +504,10 @@ function purseLine(s: Counter): string {
  * The stock, with today's price against each thing, a tick beside what you already own, and what
  * each one actually does written underneath it.
  *
- * The shelf used to be a list of names and prices, which asks the player to buy a thing to find
- * out what it is for. Every one of these notes was already written and already on screen
- * somewhere else — the rucksack shows it, and so does the journal — so a shop that withheld it was
- * not being mysterious, it was being the one place that forgot.
+ * The shelf used to be names and prices, which asks a player to buy a thing to find out what it is
+ * for. Every one of these notes was already on screen somewhere else — the rucksack and the journal
+ * both show it — so a shop that withheld it was not being mysterious, it was the one place that
+ * forgot.
  */
 function buyMenu(s: Counter): DialogueNode {
   const dear = (s.ctx.markup ?? 0) > 0;
@@ -606,14 +568,17 @@ function buyOne(s: Counter, id: string): DialogueNode {
 /** The trestle: everything in the pack this shop deals in, with a number against each. */
 function sellMenu(s: Counter): DialogueNode {
   const { ctx } = s;
-  const stock = sellableAt(s.def, ctx.state.inventory.items.entries());
+  // priced where the counter stands, so a row says what the sale will actually pay: a fur is worth
+  // more in a country that has none of it. See `paidAtACounter`
+  const stock = sellableAt(s.def, ctx.state.inventory.items.entries(),
+    (id, item) => paidAtACounter(id, item.price, ctx.country));
   if (stock.length === 0) {
     const refusal = `Nothing in that pack I can use. ${s.def.name === 'Inn' ? 'Fish and food, mind.' : ''}`.trim();
     return across(s, [refusal], [{ label: 'Back', next: () => shopRoot(s) }]);
   }
   const all = stock.reduce((sum, row) => sum + row.price * row.count, 0);
-  // anything sold, dropped or eaten since the last look may have left a number stranded above
-  // what is actually in the pack, and offering to sell nine of six is how a shop loses its money
+  // anything sold, dropped or eaten since the last look can strand a number above what is in the
+  // pack, and offering to sell nine of six is how a shop loses money
   for (const { item, count } of stock) {
     const asked = s.wanted.get(item.id);
     if (asked !== undefined) s.wanted.set(item.id, Math.max(1, Math.min(count, asked)));
@@ -655,7 +620,7 @@ function sellSome(s: Counter, id: string, n: number): DialogueNode {
   const item = ITEMS[id];
   const sold = ctx.state.take(id, n);
   if (sold === 0) return sellMenu(s);
-  const paid = sellPrice(item) * sold;
+  const paid = paidAtACounter(id, item.price, ctx.country) * sold;
   // from outside the valley rather than out of his purse: a villager holds tens of gold and you
   // walk in with hundreds of gold of pelts, which go on to a city this game never draws. Out of
   // his purse it is a village that will not buy your furs, or one a morning's hunting empties
@@ -675,7 +640,10 @@ function sellSome(s: Counter, id: string, n: number): DialogueNode {
 function sellAll(s: Counter, stock: ReturnType<typeof sellableAt>): DialogueNode {
   const { ctx } = s;
   let paid = 0;
-  for (const { item, count } of stock) paid += sellPrice(item) * ctx.state.take(item.id, count);
+  // the same local price one sale gets: the lot must never be worth less than one at a time
+  for (const { item, count } of stock) {
+    paid += paidAtACounter(item.id, item.price, ctx.country) * ctx.state.take(item.id, count);
+  }
   give(AWAY, holds(ctx.state.inventory), paid);        // from outside the valley; see `sellSome`
   ctx.onInventoryChange();
   return across(s, [`The lot for ${paid} gold. Pleasure doing business.`], [

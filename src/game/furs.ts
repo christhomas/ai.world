@@ -106,6 +106,27 @@ export function paidFor(id: string, biome: Biome): number {
   return Math.max(1, Math.floor(priceOf(id, biome) * SELL_SHARE));
 }
 
+/**
+ * What a counter pays for one of something, which for a fur depends on where the counter stands.
+ *
+ * The catalogue's half-price for everything else the game sells, and the local price for a fur —
+ * the only thing in this world whose worth depends on where it is sold. A shopkeeper in snow
+ * country has seen a hundred wolf pelts; one in the desert has seen none.
+ *
+ * This file has opened by calling furs "the one trade in this world worth a long walk" since the
+ * day it was written, and until the hunting loop was walked end to end that was a sentence rather
+ * than a rule. `paidFor` was called in exactly one place in the whole game — the line that tells a
+ * hunter what his pelt is worth the moment he skins it — and the sale itself asked the catalogue.
+ * So the game promised twenty-three gold in the desert and fifteen in the snow, and then every shop
+ * everywhere paid him thirteen, which is less than its own lowest quote.
+ *
+ * `where` is left out by a counter with no country behind it, and then a fur is worth what the
+ * catalogue says, which is what every shop paid before this existed.
+ */
+export function paidAtACounter(id: string, price: number, where?: () => Biome): number {
+  return isFur(id) && where ? paidFor(id, where()) : Math.max(1, Math.floor(price * SELL_SHARE));
+}
+
 /** A body lying where it fell, with its hide still on it. */
 export interface Carcass {
   /** Which kind fell, which is what decides the hide. */
