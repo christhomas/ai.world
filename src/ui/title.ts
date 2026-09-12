@@ -38,17 +38,28 @@ interface Switch {
 }
 
 /*
- * Empty, and worth keeping empty rather than deleting.
+ * The machinery was kept empty for a year on the argument that a title screen which can offer a
+ * choice about a world is a thing this game would want again. This is it.
  *
- * There was one switch: "Mountains", which chose the polygon world. It is gone with that world —
- * the country it grew read as a honeycomb at map scale, which is what made the choice a choice, and
- * the answer in the end was to make the good country mountainous rather than to keep the bad one
- * for its cliffs.
- *
- * The machinery stays because a title screen that can offer a choice about a world is a thing this
- * game will want again, and because it is nine lines. A list with nothing in it draws nothing.
+ * There was one switch before: "Mountains", which chose the polygon world, and it went with that
+ * world — the country it grew read as a honeycomb at map scale, and the answer in the end was to
+ * make the good country mountainous rather than keep the bad one for its cliffs.
  */
-const SWITCHES: readonly Switch[] = [];
+export const SWITCHES: readonly Switch[] = [
+  {
+    id: 'endless',
+    label: 'Endless country',
+    /*
+     * Off by default, and that is a statement about where the endless world has got to rather than
+     * a preference. It grows a square at a time as you walk into it, so it has no edge and no map
+     * of itself — and the server still grows the bounded kind, so a shared world is the road tree
+     * whatever a page chooses. Somebody who picks this is choosing a country to walk alone in,
+     * which is worth being told rather than found out.
+     */
+    note: 'no edge, and no end. Single player for now.',
+    fallback: false,
+  },
+];
 
 /** Where a switch remembers itself between visits, so it is set once rather than every time. */
 const switchKey = (id: string) => `ai.world/new/${id}`;
@@ -66,9 +77,15 @@ function setSwitch(id: string, on: boolean): void {
   try { localStorage.setItem(switchKey(id), on ? '1' : '0'); } catch { /* nothing to do */ }
 }
 
-/** How a saved world describes itself in its slot. */
-function nameOf(_world: WorldKind | undefined): string {
-  return 'open country';
+/**
+ * How a saved world describes itself in its slot.
+ *
+ * It matters again now that there are two kinds: the same seed grows a completely different country
+ * as an endless one, so a slot that did not say which it was would be a slot you could not tell
+ * apart from its neighbour until you were standing in it.
+ */
+export function nameOf(world: WorldKind | undefined): string {
+  return world === 'endless' ? 'endless country' : 'open country';
 }
 
 import { $ } from './dom';
@@ -137,8 +154,13 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
           <div class="tswitch-label">${sw.label}<span class="tswitch-note">${sw.note}</span></div>
         </div>`).join('');
     };
-    /** What the switches currently add up to, read at the moment a world is actually made. */
-    const chosenWorld = (): WorldKind => 'road';
+    /**
+     * What the switches currently add up to, read at the moment a world is actually made.
+     *
+     * At the moment rather than when the screen was drawn: somebody flips a switch and then picks a
+     * slot, and the world they get has to be the one the switch was showing when they pressed it.
+     */
+    const chosenWorld = (): WorldKind => (switchIsOn('endless', false) ? 'endless' : 'road');
 
     const pick = (i: number, act: string) => {
       const key = SLOT_KEYS[i];

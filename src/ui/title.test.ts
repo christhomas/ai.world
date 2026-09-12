@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { kindOf, type SessionSave, type WorldKind } from '../save/store';
+import { SWITCHES, nameOf } from './title';
 
 /**
  * The world type decides the whole terrain: the same seed grows two completely different
@@ -35,5 +36,25 @@ describe('which world a save is in', () => {
      * two it meant. So the kind is written down before the game can even grow one on purpose.
      */
     expect(continuing({ seed: 1, world: 'endless' } as SessionSave)).toBe('endless');
+  });
+});
+
+describe('choosing a country before you go into it', () => {
+  /*
+   * The switch machinery on the title screen was kept empty for a year on the argument that a title
+   * screen which can offer a choice about a world is a thing this game would want again. These are
+   * the two things that have to be true about the choice it now offers.
+   */
+  it('offers the endless country, and starts nobody in it by accident', () => {
+    const endless = SWITCHES.find((sw) => sw.id === 'endless');
+    expect(endless, 'the choice is not on the screen').toBeDefined();
+    expect(endless!.fallback, 'somebody would get an endless world without asking for one').toBe(false);
+  });
+
+  it('says in the slot which country a save is, because the same seed grows two of them', () => {
+    // a slot that did not say would be one you could not tell from its neighbour until you were
+    // standing in it, and by then the ground under your house is the other world's ground
+    expect(nameOf('endless')).not.toBe(nameOf('road'));
+    expect(nameOf(undefined), 'a save from before the choice existed').toBe(nameOf('road'));
   });
 });

@@ -4212,9 +4212,22 @@ than by remembering — and the first thing found was that the gap is not where 
       somewhere that is now open sea, and there is nothing left in the save that says which of the
       two it meant.
 
-- [ ] **59g-i. And the title screen offers it.** The kind is readable and writable now; what nobody
-      can do yet is *choose* one without editing a link. That waits until an endless world is worth
-      choosing.
+- [x] **59g-i. And the title screen offers it.** *Done on the 13th, because it became worth
+      choosing.* The switch machinery on the title screen was kept empty for a year on the argument
+      that a screen which can offer a choice about a world is a thing this game would want again —
+      and this is it: **Endless country · no edge, and no end. Single player for now.**
+
+      Off by default, and that is a statement about where the endless world has got to rather than a
+      preference. It is worth choosing now — it is terraced, a patch costs 478 ms rather than six and
+      a quarter seconds, and what is near you can be asked without growing country to answer — but
+      the server still grows the bounded kind, so a shared world is the road tree whatever a page
+      picks. Somebody choosing this is choosing a country to walk alone in, which is worth being told
+      rather than found out.
+
+      A slot says which country it holds again, too. That stopped mattering when there was one kind
+      and matters again now there are two: the same seed grows a completely different country, so a
+      slot that did not say would be one you could not tell from its neighbour until you were
+      standing in it — and by then the ground under your house is the other world's ground.
 
 - [x] **59g-old. The original note, kept for why it mattered.** `WorldKind` had been `'road'` alone since the polygon
       world was retired, and `kindOf` quietly answers `'road'` to anything. The same seed grows a
