@@ -17,13 +17,27 @@ const job = (began = 10): Commission => ({
 describe('having a house built', () => {
   it('is nothing at all on the day it is commissioned', () => {
     expect(progressOf(job(), 10)).toBe(0);
-    expect(stageAt(job(), 10)).toBe('pegs');
+    expect(stageAt(job(), 10)).toBe('marked');
   });
 
   it('goes up in recognisable stages rather than inflating', () => {
     const j = job();
     const seen = [0, 2, 4, 6].map((d) => stageAt(j, 10 + d));
-    expect(seen).toEqual(['pegs', 'frame', 'roof', 'house']);
+    expect(seen).toEqual(['marked', 'begun', 'nearly', 'done']);
+  });
+
+  it('gives every kind the same three stages to be seen at, whatever its number of days is', () => {
+    /*
+     * The stages are fractions of the whole job rather than days, which is what lets a fountain
+     * that takes two days and a house that takes six both be worth riding past twice. Before this
+     * they were the house's own thresholds and everything shorter spent its whole life pegged out.
+     */
+    for (const entry of CATALOGUE) {
+      const hired: Commission = { ...job(), what: entry.id, price: entry.price };
+      const seen = [0, 0.3, 0.7, 1].map((part) => stageAt(hired, 10 + entry.days * part));
+      expect(seen, `${entry.name} is not worth looking at twice`)
+        .toEqual(['marked', 'begun', 'nearly', 'done']);
+    }
   });
 
   it('takes days, so it is a thing being built rather than a purchase', () => {

@@ -10,6 +10,10 @@ import {
   CHURCH_WINDOWS, HALL_WINDOWS, HOUSE_WINDOWS, WATCH_WINDOWS,
   church, glazing, house, townHall, watchHouse, type HouseStyle,
 } from './buildings';
+import {
+  chimney, fountainBasin, fountainDry, fountainMarked, houseFrame, housePegs, houseRoof,
+  poolDug, poolLined, poolMarked, storeyRaised, storeyScaffold, storeyTimber,
+} from './sites';
 import { box, cone, cyl, dodec, footprintOf, ico, prism, type PropPart } from './shapes';
 
 /**
@@ -509,69 +513,33 @@ prop(PropKind.CropRipe, [
 ]);
 
 /**
- * A house of the player's own, in the four states somebody riding past would recognise it in.
+ * Everything a builder can be told to put up, in every state it stands in before it is finished.
  *
- * They are built to the same 3x3 footprint and the same colours as the world's own cottages,
- * so a finished one belongs in the landscape rather than looking like a game object dropped on
- * it — but with a plain stone chimney the village houses do not have, because the one house
- * that is yours should be findable from the ridge without opening the map.
+ * The shapes are in `sites.ts`, which explains why each kind is shown the way it is; this is only
+ * the list of numbers they are drawn under. A house is four states, and the pool, the fountain and
+ * the second storey are three apiece plus whatever they leave behind on the last morning — a pool,
+ * a fountain, and a cottage a floor taller.
+ *
+ * The finished house is `buildings.ts`'s cottage with a stone chimney on it, because the one house
+ * in the world that is yours should be findable from the ridge without opening the map, and it
+ * grows with the roof it comes out of when a storey goes under it.
  */
 {
-  const timber = 0x8a6238, cut = 0x6b4a2b, stone = 0x8f8f8f;
-  // pegs and string: four corner stakes and a line between them, which is all a site is on day one
-  prop(PropKind.HousePegs, [
-    ...([[-1.3, -1.3], [1.3, -1.3], [1.3, 1.3], [-1.3, 1.3]] as const).map(([x, z]) =>
-      cyl(0.05, 0.07, 0.55, 5, cut, [x, 0.27, z])),
-    box(2.6, 0.02, 0.02, 0xd8cfb4, [0, 0.5, -1.3]),
-    box(2.6, 0.02, 0.02, 0xd8cfb4, [0, 0.5, 1.3]),
-    box(0.02, 0.02, 2.6, 0xd8cfb4, [-1.3, 0.5, 0]),
-    box(0.02, 0.02, 2.6, 0xd8cfb4, [1.3, 0.5, 0]),
-    box(1.1, 0.14, 0.5, cut, [0.6, 0.07, 1.0]),
-  ]);
-  // the frame: a sill on the ground and four uprights, open to the weather
-  const posts = ([[-1.1, -1.1], [1.1, -1.1], [1.1, 1.1], [-1.1, 1.1]] as const).map(([x, z]) =>
-    box(0.18, 1.7, 0.18, timber, [x, 0.85, z]));
-  prop(PropKind.HouseFrame, [
-    box(2.6, 0.2, 2.6, cut, [0, 0.1, 0]),
-    ...posts,
-    box(2.4, 0.14, 0.14, timber, [0, 1.7, -1.1]),
-    box(2.4, 0.14, 0.14, timber, [0, 1.7, 1.1]),
-    box(0.14, 0.14, 2.4, timber, [-1.1, 1.7, 0]),
-    box(0.14, 0.14, 2.4, timber, [1.1, 1.7, 0]),
-    box(0.1, 1.9, 0.1, cut, [1.6, 0.95, -1.5], [1, 1, 1], [0, 0, 0.3]),
-  ]);
-  // walls up and the rafters on, but no slates: the state a house spends the longest in
-  prop(PropKind.HouseRoof, [
-    box(2.6, 0.2, 2.6, cut, [0, 0.1, 0]),
-    box(2.4, 1.5, 2.4, 0xf1e4c8, [0, 0.95, 0]),
-    box(0.08, 0.95, 0.62, 0x3a2a1a, [1.22, 0.68, 0]),
-    ...([-1.0, -0.5, 0, 0.5, 1.0]).map((z) =>
-      box(0.1, 1.5, 0.1, timber, [-0.62, 2.3, z], [1, 1, 1], [0, 0, -0.72])),
-    ...([-1.0, -0.5, 0, 0.5, 1.0]).map((z) =>
-      box(0.1, 1.5, 0.1, timber, [0.62, 2.3, z], [1, 1, 1], [0, 0, 0.72])),
-    box(0.12, 0.12, 2.8, timber, [0, 2.75, 0]),
-    box(0.45, 1.2, 0.45, stone, [-0.8, 1.3, 0]),
-  ]);
-  // and finished, with the chimney that says which one is yours
   const yours = { wall: 0xf1e4c8, roof: 0x7d5a3a, trim: 0x6b4a2b, roofType: 'gable' } as const;
-  prop(PropKind.HouseYours, [
-    ...house(yours),
-    box(0.5, 1.5, 0.5, stone, [-0.8, 2.2, 0]),
-    box(0.62, 0.16, 0.62, 0x6e6e6e, [-0.8, 2.95, 0]),
-  ], glazing(HOUSE_WINDOWS));
-  /*
-   * The same house with a floor added, which is what a second storey is.
-   *
-   * `house` has taken a number of storeys since villagers started spending an inheritance on one —
-   * the walls grow by a floor under the same roof and a second row of windows says so from the
-   * road — so a commissioned storey is that house rather than a new model. The chimney goes up with
-   * the roof it comes out of, which is the one thing that has to move by hand.
-   */
-  prop(PropKind.HouseYoursTwo, [
-    ...house(yours, 2),
-    box(0.5, 1.5, 0.5, stone, [-0.8, 3.4, 0]),
-    box(0.62, 0.16, 0.62, 0x6e6e6e, [-0.8, 4.15, 0]),
-  ], glazing(HOUSE_WINDOWS));
+  prop(PropKind.HousePegs, housePegs);
+  prop(PropKind.HouseFrame, houseFrame);
+  prop(PropKind.HouseRoof, houseRoof);
+  prop(PropKind.HouseYours, [...house(yours), ...chimney()], glazing(HOUSE_WINDOWS));
+  prop(PropKind.HouseYoursTwo, [...house(yours, 2), ...chimney(2)], glazing(HOUSE_WINDOWS));
+  prop(PropKind.PoolMarked, poolMarked);
+  prop(PropKind.PoolDug, poolDug);
+  prop(PropKind.PoolLined, poolLined);
+  prop(PropKind.FountainMarked, fountainMarked);
+  prop(PropKind.FountainBasin, fountainBasin);
+  prop(PropKind.FountainDry, fountainDry);
+  prop(PropKind.StoreyTimber, storeyTimber);
+  prop(PropKind.StoreyScaffold, storeyScaffold);
+  prop(PropKind.StoreyRaised, storeyRaised);
 }
 
 /*

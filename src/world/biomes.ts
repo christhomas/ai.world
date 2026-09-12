@@ -137,6 +137,28 @@ export const enum PropKind {
   HouseFrame = 84,
   HouseRoof = 85,
   HouseYours = 86,
+  /**
+   * And the same courtesy paid to everything else a builder can be told to put up.
+   *
+   * A house had four states and every other job in the catalogue had one, so a pool, a fountain and
+   * a second storey were a week of pegs and string — or, in the storey's case, of nothing whatever
+   * — and then a finished thing on the last morning. Three states each, told in the order the work
+   * is done in, is what makes riding past a site twice worth doing for any of them rather than for
+   * houses alone. What each one shows and why is in `entities/sites.ts`.
+   *
+   * None of them is in `BLOCKS_WALKING`, deliberately: an unfinished building is something you walk
+   * about on rather than round, and what a commission is solid to is decided on the day it is
+   * finished — see the walls `game/frame.ts` lays down, which only finished work gets.
+   */
+  PoolMarked = 131,
+  PoolDug = 132,
+  PoolLined = 133,
+  FountainMarked = 134,
+  FountainBasin = 135,
+  FountainDry = 136,
+  StoreyTimber = 137,
+  StoreyScaffold = 138,
+  StoreyRaised = 139,
   CaveMouth = 56,
   Shipwreck = 57,
   /** The crashed craft: not from here, and it shows. */

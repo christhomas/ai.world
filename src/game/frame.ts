@@ -535,12 +535,12 @@ export function createFrame(ctx: Framing) {
      * Rebuilt only when the set of houses or their stages actually changes, because this runs
      * every frame and almost every frame the answer is the same one as last time.
      */
-    const walls = standing.filter((job) => job.stage === 'house').map((job) => `${job.id}`).join('|');
+    const walls = standing.filter((job) => job.stage === 'done').map((job) => `${job.id}`).join('|');
     if (walls !== wallsBuilt) {
       wallsBuilt = walls;
       const tiles: Array<{ x: number; z: number }> = [];
       for (const job of standing) {
-        if (job.stage !== 'house') continue;
+        if (job.stage !== 'done') continue;
         // how much ground each kind is a wall to: a house is its plot, a fountain is the tile it
         // stands on, and a pool is water you can step into rather than a thing you walk round
         const reach = buildable(job.what).blocks;

@@ -78,14 +78,16 @@ export const BUILD = {
    */
   UNPAID_A_DAY: 4,
   /**
-   * How far along a job has to be before a passer-by would call it a frame, and then a roof.
+   * How far along a job has to be before a passer-by would call it begun, and then nearly there.
    *
-   * Set so each of the three visible stages gets roughly a third of the week the builder takes,
-   * which is what makes walking past twice worth doing: at a quarter done there is something
-   * standing, and past halfway it has a roof on it.
+   * Fractions of the whole job rather than days, so they mean the same thing to a fountain that
+   * takes two days and a house that takes six: each of the three visible stages gets roughly a
+   * third of whatever the builder was given, which is what makes walking past twice worth doing.
+   * At a quarter done there is something standing on the site, and past halfway it is recognisably
+   * the thing that was ordered.
    */
-  FRAME_AT: 0.25,
-  ROOF_AT: 0.6,
+  BEGUN_AT: 0.25,
+  NEARLY_AT: 0.6,
 } as const;
 
 /**
@@ -238,8 +240,16 @@ export function isFinished(job: Commission, day: number): boolean {
   return progressOf(job, day) >= 1;
 }
 
-/** What is standing on the plot right now. */
-export type Stage = 'pegs' | 'frame' | 'roof' | 'house';
+/**
+ * How far on the work is, in the only terms a passer-by has: marked out, begun, nearly, done.
+ *
+ * The four were called pegs, frame, roof and house while a house was the only thing anybody could
+ * order, and the names stopped being true the day the catalogue grew: a fountain has no frame and
+ * a bathing pool never had a roof on it. These say how far along rather than what is standing,
+ * which is the question every kind of job can answer — and what each kind actually shows at each
+ * of them is `render/site.ts`'s business and no longer a word buried in a type.
+ */
+export type Stage = 'marked' | 'begun' | 'nearly' | 'done';
 
 /**
  * What a passer-by would see. Four stages rather than a smooth grow, because a building site is a
@@ -247,10 +257,10 @@ export type Stage = 'pegs' | 'frame' | 'roof' | 'house';
  */
 export function stageAt(job: Commission, day: number): Stage {
   const done = progressOf(job, day);
-  if (done >= 1) return 'house';
-  if (done >= BUILD.ROOF_AT) return 'roof';
-  if (done >= BUILD.FRAME_AT) return 'frame';
-  return 'pegs';
+  if (done >= 1) return 'done';
+  if (done >= BUILD.NEARLY_AT) return 'nearly';
+  if (done >= BUILD.BEGUN_AT) return 'begun';
+  return 'marked';
 }
 
 /** What is owed today: the deposit to begin, the remainder when it is done, nothing between. */

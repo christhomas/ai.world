@@ -111,6 +111,16 @@ export const CATALOGUE: readonly Catalogued[] = [
   { kind: PropKind.HouseYours, name: 'your house', group: 'building' },
   { kind: PropKind.HouseYoursTwo, name: 'your house, two storeys', group: 'building' },
   { kind: PropKind.Fountain, name: 'fountain', group: 'building' },
+  // and the mornings before each of the other three is finished, which used to be pegs or nothing
+  { kind: PropKind.PoolMarked, name: 'a pool marked out', group: 'building' },
+  { kind: PropKind.PoolDug, name: 'a pool dug', group: 'building' },
+  { kind: PropKind.PoolLined, name: 'a pool lined and dry', group: 'building' },
+  { kind: PropKind.FountainMarked, name: 'a fountain struck out', group: 'building' },
+  { kind: PropKind.FountainBasin, name: 'a fountain basin', group: 'building' },
+  { kind: PropKind.FountainDry, name: 'a fountain standing dry', group: 'building' },
+  { kind: PropKind.StoreyTimber, name: 'timber for a storey', group: 'building' },
+  { kind: PropKind.StoreyScaffold, name: 'scaffolding', group: 'building' },
+  { kind: PropKind.StoreyRaised, name: 'scaffolding, a lift higher', group: 'building' },
 
   // a group of their own, because they are only ever seen together and are only ever a castle
   { kind: PropKind.CastleKeep, name: 'keep', group: 'castle' },
@@ -174,7 +184,7 @@ export const GROUPS: ReadonlyArray<{ group: PropGroup; name: string }> = [
   { group: 'civic', name: 'what a village builds' },
   { group: 'trade', name: 'trade' },
   { group: 'farm', name: 'the farm' },
-  { group: 'building', name: 'a house going up' },
+  { group: 'building', name: 'something going up' },
   { group: 'castle', name: 'the castle' },
   { group: 'furniture', name: 'indoors' },
   { group: 'keep', name: 'inside a keep' },

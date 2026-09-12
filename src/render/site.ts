@@ -29,7 +29,7 @@ export interface Site {
   z: number;
   /** Which way the front of it looks, in radians. */
   rot?: number;
-  stage: 'pegs' | 'frame' | 'roof' | 'house';
+  stage: 'marked' | 'begun' | 'nearly' | 'done';
   /** What is being built. Absent means a house, which is what every plot was before there was a list. */
   what?: string;
   /** How many floors a finished house is standing at: two once a storey has been added to it. */
@@ -39,25 +39,44 @@ export interface Site {
 /**
  * Which prop stands on the plot at each stage of each kind of work.
  *
- * A house is the four stages the word `Stage` is named for. The rest borrow the pegs — a plot
- * marked out with string is what a pool or a fountain looks like while it is being dug, and the
- * alternative is modelling a hole — and then appear finished on the last day.
+ * Every kind has its own three unfinished states, told in the order the work would actually be
+ * done in — a pool is marked out, then a hole, then a dry stone tank; a fountain is a circle in the
+ * turf, then a basin, then a column with nothing running. They used to share the house's pegs and
+ * string for all three, which meant that for every kind but one the whole wait looked the same and
+ * riding past a second time told you nothing.
  *
- * A storey has no entry at all, and that is the interesting one: it is not a thing standing beside
- * a house, it *is* the house, so while it goes up the house looks as it did and on the last day it
- * is a floor taller. Drawing a frame for it would put a timber skeleton inside a finished cottage
- * that a player can walk through, which is a worse lie than nothing.
+ * A storey is still the awkward one and is worth reading the entry twice. It is not a thing
+ * standing beside a house, it *is* the house — both commissions are drawn, on the same tile — so
+ * what goes here is seen around a cottage that is already finished. A frame would be a timber
+ * skeleton inside a room a player can walk into. Scaffolding is not: it goes round the outside of
+ * a building that is already there, which is exactly what is true, and it comes down on the last
+ * morning leaving the house a floor taller. The finished row is empty for the same reason it
+ * always was — there is nothing left standing beside the house to draw.
  */
 const LOOKS: Record<string, Partial<Record<Site['stage'], PropKind>>> = {
   house: {
-    pegs: PropKind.HousePegs,
-    frame: PropKind.HouseFrame,
-    roof: PropKind.HouseRoof,
-    house: PropKind.HouseYours,
+    marked: PropKind.HousePegs,
+    begun: PropKind.HouseFrame,
+    nearly: PropKind.HouseRoof,
+    done: PropKind.HouseYours,
   },
-  pool: { pegs: PropKind.HousePegs, frame: PropKind.HousePegs, roof: PropKind.HousePegs, house: PropKind.Pool },
-  fountain: { pegs: PropKind.HousePegs, frame: PropKind.HousePegs, roof: PropKind.HousePegs, house: PropKind.Fountain },
-  storey: {},
+  pool: {
+    marked: PropKind.PoolMarked,
+    begun: PropKind.PoolDug,
+    nearly: PropKind.PoolLined,
+    done: PropKind.Pool,
+  },
+  fountain: {
+    marked: PropKind.FountainMarked,
+    begun: PropKind.FountainBasin,
+    nearly: PropKind.FountainDry,
+    done: PropKind.Fountain,
+  },
+  storey: {
+    marked: PropKind.StoreyTimber,
+    begun: PropKind.StoreyScaffold,
+    nearly: PropKind.StoreyRaised,
+  },
 };
 
 /** What to draw on one plot today, or nothing. */

@@ -3320,7 +3320,24 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       the first thing the treasury is *for*, which is the answer to the bench's finding that a hall
       which only collects is a drain.
 
-- [ ] **40. Every building looks unfinished before it is finished.** `CATALOGUE` already gives each
+- [x] **40. Every building looks unfinished before it is finished.** *Done on the 12th.* Every kind
+      a builder takes on now has its own three mornings: a pool is marked out, then dug, then lined
+      and standing dry; a fountain is struck out, then a basin, then standing dry with the water
+      connected last, which is what a mason would actually do; a storey is timber, then scaffold,
+      then scaffold a lift higher. The storey is the one worth reading twice — it is drawn on the
+      same tile as the finished cottage, so a *frame* would be a skeleton standing inside a walkable
+      room, and scaffolding goes round the outside instead, coming down on the last morning to leave
+      the house a floor taller.
+
+      Two things fell out of it that were worth more than the geometry. `Stage` was
+      `pegs | frame | roof | house` — house nouns that had quietly become lies, because a fountain
+      has no frame and a pool never had a roof — and is now `marked | begun | nearly | done`, which
+      says how far along a thing is rather than what is standing. And the unfinished shapes went
+      into `entities/sites.ts` of their own, which `props.ts` needed anyway at 679 lines of its 700.
+
+      The original note:
+
+      `CATALOGUE` already gives each
       kind its own number of days — a house six, a storey four, a pool three, a fountain two — but
       only the house has the four stages that make waiting worth watching: pegs, frame, rafters,
       roof. A pool and a fountain are pegs and string until the last morning, and a storey draws
