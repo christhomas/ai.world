@@ -3621,7 +3621,22 @@ than by remembering — and the first thing found was that the gap is not where 
       An endless world needs the same treatment: one call, both halves, and `twohalves.test.ts`
       pointed at it.
 
-- [ ] **59g. A save says which world it is.** `WorldKind` has been `'road'` alone since the polygon
+- [x] **59g. A save says which world it is.** `WorldKind` is `'road' | 'endless'` again, `kindOf`
+      answers `endless` when a save says so, and `?world=endless` on a link asks for one — but only
+      where there is no save to contradict it, so a shared link can never open somebody's own world
+      as the wrong country.
+
+      Done early, and deliberately before the game can grow one on purpose, because it is the one
+      mistake in this whole list that cannot be undone afterwards: a world written as endless and
+      read back as a road world puts a house, a sown field and every anchor in the manifest
+      somewhere that is now open sea, and there is nothing left in the save that says which of the
+      two it meant.
+
+- [ ] **59g-i. And the title screen offers it.** The kind is readable and writable now; what nobody
+      can do yet is *choose* one without editing a link. That waits until an endless world is worth
+      choosing.
+
+- [ ] **59g-old. The original note.** `WorldKind` has been `'road'` alone since the polygon
       world was retired, and `kindOf` quietly answers `'road'` to anything. The same seed grows a
       completely different country as an endless one, so opening an old save as the new kind would
       move the ground out from under every house, field and anchor in it. The kind comes back, and

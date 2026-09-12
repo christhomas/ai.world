@@ -50,7 +50,7 @@ import type { RoamingJson } from '../game/roaming';
  * — `kindOf` is where that happens. And a world kind is exactly the shape of thing this game will
  * want again.
  */
-export type WorldKind = 'road';
+export type WorldKind = 'road' | 'endless';
 
 /**
  * The world a save is asking for, as this build can actually grow it.
@@ -59,9 +59,16 @@ export type WorldKind = 'road';
  * road world of the same seed rather than a blank screen: the ground under their house is different
  * and there is nothing to be done about that, and a game that opens is better than one that will
  * not.
+ *
+ * `endless` is the second kind, and it is here before the game can play one on purpose. A save has
+ * to be able to *say* which country it is in from the first day an endless world exists at all,
+ * because the alternative is a save written as an endless world, read back as a road world, and a
+ * house, a sown field and every anchor in the manifest standing somewhere that is now open sea.
+ * That is a mistake that cannot be undone afterwards — there is nothing in the save that says which
+ * of the two it meant.
  */
 export function kindOf(asked: string | undefined | null): WorldKind {
-  return 'road';
+  return asked === 'endless' ? 'endless' : 'road';
 }
 
 export interface SessionSave {

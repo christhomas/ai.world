@@ -1,4 +1,4 @@
-import { IndexedDbStore } from './save/store';
+import { IndexedDbStore, kindOf } from './save/store';
 import type { SessionSave, WorldKind } from './save/store';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
@@ -44,10 +44,16 @@ export async function boot(): Promise<void> {
   startGame(store, slotKey, saved, seed, url, world);
 }
 
-/** `?world=mesh` or `?world=road` on a share link, for growing a scratch world of a given kind. */
+/**
+ * `?world=endless` or `?world=road` on a link, for growing a scratch world of a given kind.
+ *
+ * A link can ask, and a save cannot be overruled by one: `boot` takes the link's answer only when
+ * there is no save to contradict it. That is what stops a shared link opening somebody's own world
+ * as the wrong country and moving the ground out from under everything they have built.
+ */
 function worldFromLink(url: URL): WorldKind | null {
   const asked = url.searchParams.get('world');
-  return asked ? 'road' : null;                 // one country now: see `WorldKind`
+  return asked ? kindOf(asked) : null;
 }
 
 boot().catch((err) => {

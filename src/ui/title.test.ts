@@ -26,4 +26,14 @@ describe('which world a save is in', () => {
     // every world that already exists was grown by the road tree, whatever anybody picks today
     expect(continuing({ seed: 1 } as SessionSave)).toBe('road');
   });
+
+  it('keeps an endless world endless, which is the whole reason the field exists', () => {
+    /*
+     * The mistake this prevents cannot be undone afterwards. A world written as an endless one and
+     * read back as a road world puts a house, a sown field and every anchor in the manifest
+     * somewhere that is now open sea, and there is nothing left in the save that says which of the
+     * two it meant. So the kind is written down before the game can even grow one on purpose.
+     */
+    expect(continuing({ seed: 1, world: 'endless' } as SessionSave)).toBe('endless');
+  });
 });
