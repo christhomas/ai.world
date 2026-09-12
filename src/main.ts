@@ -319,7 +319,7 @@ export function startGame(
     flash: (message) => hud.flash(message),
     chime: () => sound.chime(),
     setCaveAmbience: (on) => { sound.cave = on; }, persist: () => persist(),
-    report: (delta) => online.report(delta), open: (ask) => online.open(ask),
+    open: (ask) => online.open(ask),
     // A floor is the world's if there is a world listening: it grows the same rooms from the same
     // anchor name and owns what walks about in them, and this side draws what it is told.
     wentBelow: (below) => {
@@ -454,8 +454,8 @@ export function startGame(
    * for frames, but the chunk workers and the audio graph do not, so they are stood down too.
    */
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { loop.stop(); chunks.pause(); sound.quiet(true); }
-    else { chunks.resume(); sound.quiet(false); loop.start(); }
+    if (document.hidden) { loop.stop(); chunks.pause(); sound.quiet(true); online.quiet(true); }
+    else { chunks.resume(); sound.quiet(false); loop.start(); online.quiet(false); }
   });
 
   // the panels, and the noises they make

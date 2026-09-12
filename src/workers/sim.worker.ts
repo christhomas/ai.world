@@ -1,6 +1,7 @@
 import { Simulation } from '../../server/sim';
 import type { Wire } from '../../server/rooms';
 import { BrowserVault } from '../net/browservault';
+import { WORLD_PAUSE, WORLD_RESUME } from '../net/link';
 
 /**
  * The world server, running in a thread beside the game.
@@ -40,6 +41,22 @@ const wire: Wire = {
 const player = sim.attach(wire);
 sim.start();
 
+/**
+ * Everything the page says, and the two things it says to this thread rather than through it.
+ *
+ * A hidden tab draws nothing — the browser stops asking for frames and `main.ts` stands the chunk
+ * workers and the audio down on `visibilitychange` — but this world went on running at its full
+ * ten ticks a second with nobody watching, plus a clock broadcast every five seconds to a page
+ * that was not listening. Nothing was wrong with it; nothing had ever told it to stop.
+ *
+ * `stop()` is the right thing to reach for rather than a flag of our own, because it is the same
+ * door the Raspberry Pi goes out of: it clears both intervals and saves every room, so a tab put
+ * in the background is also a tab whose world is on disk. `start()` refuses to arm a second ticker
+ * and resets the clock it measures its own step from, so a world coming back from an hour in the
+ * background takes one ordinary tick rather than an hour of them at once.
+ */
 self.onmessage = (e: MessageEvent<string>) => {
+  if (e.data === WORLD_PAUSE) { sim.stop(); return; }
+  if (e.data === WORLD_RESUME) { sim.start(); return; }
   player.receive(e.data);
 };

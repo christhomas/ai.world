@@ -39,12 +39,17 @@ export const COAST = {
   /** How far the camera may travel before the field is measured again, in world units. */
   RESTEP: 6,
   /**
-   * And how long it may stand still first, in milliseconds.
+   * And how often a camera that is standing still asks whether the ground has changed under it,
+   * in milliseconds.
    *
    * Movement is not the only thing that changes the answer: the ground streams in a chunk at a
    * time, so the sea round somebody who has just arrived is measured against a world that is not
    * there yet. Without this the water at the end of a teleport stays flat open ocean for as long
    * as the player stands still on the beach, which is exactly as long as they are looking at it.
+   *
+   * It used to be how often the field was re-measured, which is not the same thing and cost two
+   * and a half sweeps and texture uploads a second for ever, long after the last chunk had
+   * arrived. It is now how often the *question* is asked; the sweep follows only from a yes.
    */
   REFRESH: 400,
 } as const;
@@ -118,6 +123,16 @@ export class CoastField {
   private atX = Infinity;
   private atZ = Infinity;
   private atTime = -Infinity;
+  /**
+   * And how much ground there was under it at the time: how many of the chunks it covers existed.
+   *
+   * This is what the refresh timer was really asking about. The field is a function of the ground,
+   * so a camera that has not moved wants measuring again only when the ground itself has changed —
+   * and the ground does change under a stationary camera, a chunk at a time, as the world streams
+   * in around somebody who has just arrived. Counting the chunks asks that question directly
+   * instead of guessing at it on a clock.
+   */
+  private atChunks = -1;
 
   constructor() {
     // open sea until somebody says otherwise: a frame drawn before the first sweep should look
@@ -138,13 +153,25 @@ export class CoastField {
    * The origin is snapped to whole cells so the grid stands still in the world as the view moves
    * over it. Without that every sweep samples the ground half a cell off from the last one and the
    * whole sea shimmers as you walk.
+   *
+   * A camera standing still used to re-sweep every four hundred milliseconds regardless — two and
+   * a half full chamfer sweeps and texture uploads a second, for ever, over ground that had long
+   * since finished arriving. The timer could not simply go, because it was doing a real job: it
+   * was how a field measured against a half-built world got measured again, and without it the sea
+   * at the end of a teleport stays flat open ocean for as long as the player stands on the beach
+   * looking at it. So the timer keeps its job and loses the work — it now decides how often the
+   * ground is *asked* whether it has changed, which costs a couple of hundred map look-ups, and
+   * the sweep happens only when the answer is yes.
    */
   update(x: number, z: number, source: ChunkSource, now: number, force = false): boolean {
     const still = Math.abs(x - this.atX) < COAST.RESTEP && Math.abs(z - this.atZ) < COAST.RESTEP;
     if (!force && still && now - this.atTime < COAST.REFRESH) return false;
+    this.atTime = now;
+    // the cheap question, asked only where it is the whole question: the camera has not moved, so
+    // the field covers the same chunks it did, so nothing but a chunk arriving can have changed it
+    if (!force && still && this.chunksUnder(source) === this.atChunks) return false;
     this.atX = x;
     this.atZ = z;
-    this.atTime = now;
     this.x0 = Math.floor((x - HALF) / COAST.CELL) * COAST.CELL;
     this.z0 = Math.floor((z - HALF) / COAST.CELL) * COAST.CELL;
     this.sample(source);
@@ -158,6 +185,40 @@ export class CoastField {
   }
 
   /**
+   * Which chunks the field presently lies across, first and last in each direction, inclusive.
+   *
+   * One place rather than two, because the sweep and the cheap check that decides whether to run
+   * it have to agree about exactly which chunks they are talking about. A count taken over a
+   * different window from the one that was measured is a count that changes for no reason.
+   */
+  private chunkBounds(): { firstX: number; firstZ: number; lastX: number; lastZ: number } {
+    const CS = WORLD.CHUNK_SIZE;
+    return {
+      firstX: Math.floor(this.x0 / CS),
+      firstZ: Math.floor(this.z0 / CS),
+      lastX: Math.floor((this.x0 + this.span) / CS),
+      lastZ: Math.floor((this.z0 + this.span) / CS),
+    };
+  }
+
+  /**
+   * How many of the chunks under the field have been made.
+   *
+   * A chunk is generated once and kept, so this only ever climbs as the world streams in around
+   * the camera, and the moment it stops climbing the ground has stopped changing. It is a couple
+   * of hundred map look-ups and no cell arithmetic at all, which is what makes it worth asking
+   * before the sweep rather than after it.
+   */
+  private chunksUnder(source: ChunkSource): number {
+    const { firstX, firstZ, lastX, lastZ } = this.chunkBounds();
+    let made = 0;
+    for (let cz = firstZ; cz <= lastZ; cz++) {
+      for (let cx = firstX; cx <= lastX; cx++) if (source.getTiles(cx, cz)) made++;
+    }
+    return made;
+  }
+
+  /**
    * Read the ground into the land grid, one chunk at a time.
    *
    * Chunk by chunk rather than cell by cell on purpose: a chunk is eight cells across, so asking
@@ -168,15 +229,15 @@ export class CoastField {
     this.land.fill(0);
     const CS = WORLD.CHUNK_SIZE;
     const perChunk = CS / COAST.CELL;
-    const firstX = Math.floor(this.x0 / CS);
-    const firstZ = Math.floor(this.z0 / CS);
-    const lastX = Math.floor((this.x0 + this.span) / CS);
-    const lastZ = Math.floor((this.z0 + this.span) / CS);
+    const { firstX, firstZ, lastX, lastZ } = this.chunkBounds();
+    // counted on the way past, so the next stationary frame knows whether this is still the answer
+    let made = 0;
 
     for (let cz = firstZ; cz <= lastZ; cz++) {
       for (let cx = firstX; cx <= lastX; cx++) {
         const tiles = source.getTiles(cx, cz);
         if (!tiles) continue;
+        made++;
         // where this chunk's own first cell lands in the field
         const baseX = Math.round((cx * CS - this.x0) / COAST.CELL);
         const baseZ = Math.round((cz * CS - this.z0) / COAST.CELL);
@@ -193,6 +254,7 @@ export class CoastField {
         }
       }
     }
+    this.atChunks = made;
   }
 
   /** What the shader needs to find itself in the field: the corner, the scale, and the range. */

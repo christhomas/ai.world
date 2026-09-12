@@ -1,4 +1,4 @@
-import { socketLink, workerLink, type Link, type LinkEvents } from '../net/link';
+import { WORLD_PAUSE, WORLD_RESUME, socketLink, workerLink, type Link, type LinkEvents } from '../net/link';
 import {
   EMOTES, PROTOCOL_VERSION, cleanChat, cleanName,
   type ClientMessage, type Clock, type Presence, type ServerMessage,
@@ -238,6 +238,23 @@ export class Online {
    * knows, rather than left to work it out from the animals standing still.
    */
   get reaching(): boolean { return this.wanted && this.status !== 'online' && this.outFor > GRACE; }
+
+  /**
+   * Nobody is looking at this tab. Stand the world in the next thread down, and start it again
+   * when somebody comes back.
+   *
+   * Only the world in this tab, which is what `local` tests. A server on somebody's machine is
+   * running for other people as well as for this one, and a player who alt-tabs has not left: the
+   * two words go to a worker we own and to nothing else.
+   *
+   * Not a disconnect. The link stays open, nobody is dropped from the roster, and the wildlife is
+   * not handed back — this is the same world, standing still, which is exactly what a player who
+   * comes back to the tab expects to find.
+   */
+  quiet(hidden: boolean): void {
+    if (!this.local || !this.link?.ready) return;
+    this.link.send(hidden ? WORLD_PAUSE : WORLD_RESUME);
+  }
 
   /** Let go of the link without letting go of the intention. */
   private drop(): void {

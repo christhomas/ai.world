@@ -293,6 +293,33 @@ describe('dealing with one', () => {
     expect(bandFor(1, stopsOf(structures), band.circuit[0], 1)).toEqual(arrived[0]);
   });
 
+  it('holds the roster between calls, and lets go of it the moment a ground changes hands', () => {
+    /*
+     * Rolling the roster is not cheap — every stop in the country sorted by distance from every
+     * band's home — and it was being rolled on every frame, because the frame loop asks for the
+     * day's news, which asks `pressings`, which asks `abroad`, which asks this. Half a millisecond
+     * a frame and thirty milliseconds a second for an answer that changes once in many days.
+     *
+     * Identity rather than equality, because equality is what the bug already satisfied: what is
+     * under test is that the work was not done a second time.
+     */
+    const roaming = opened();
+    const held = roaming.roster();
+    expect(roaming.roster(), 'rolled again for nothing').toBe(held);
+    expect(roaming.abroad().length).toBeGreaterThan(0);
+    expect(roaming.roster(), 'and asking what is abroad rolled it again').toBe(held);
+
+    // and the one thing that can make it wrong: a broken band's ground taken over by something else
+    const band = roaming.abroad()[0];
+    for (let member = 0; member < band.size - breaksAt(band); member++) roaming.felled(band, member, 10);
+    expect(roaming.roster(), 'a kill is not a new pack').toBe(held);
+
+    roaming.advance(10 + ROAM.BROKEN_FOR);
+    const after = roaming.roster();
+    expect(after, 'a ground changed hands and the old roster was handed back').not.toBe(held);
+    expect(after.find((b) => b.id === band.id)!.era).toBe(band.era + 1);
+  });
+
   it('counts one kill once, however many people saw it', () => {
     const roaming = opened();
     const band = roaming.abroad()[0];

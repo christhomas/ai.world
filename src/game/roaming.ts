@@ -530,6 +530,8 @@ export class Roaming {
 
   /** The places that hold one, worked out once: every list below is over these. */
   private readonly grounds: Stop[];
+  /** What `roster` holds between calls. Thrown away wherever an era is written, and nowhere else. */
+  private rostered: Band[] | null = null;
 
   constructor(private readonly seed: number, structures: Structures, day = 1) {
     this.stops = stopsOf(structures);
@@ -563,9 +565,19 @@ export class Roaming {
     return name === null ? null : this.grounds.find((stop) => stop.name === name) ?? null;
   }
 
-  /** Every band in the country, broken ones included: the whole roster, by the name of its ground. */
+  /**
+   * Every band in the country, broken ones included: the whole roster, by the name of its ground.
+   *
+   * Held between calls, because `bandFor` is pure in the seed, the stops, the ground and the era,
+   * and only the era ever moves — once in many days, when a broken band's ground is taken over.
+   * Rolling it afresh cost half a millisecond of every frame: the frame loop asks `pressings`,
+   * which asks `abroad`, which asks this, and this sorts every stop in the country by distance
+   * from every band's home for the answer the frame before already had. The held array is what
+   * comes back, so nothing may sort or splice it; filter it into a fresh list, as callers here do.
+   */
   roster(): Band[] {
-    return this.grounds.map((home) => this.bandOf(home));
+    if (!this.rostered) this.rostered = this.grounds.map((home) => this.bandOf(home));
+    return this.rostered;
   }
 
   /** Every band actually out in the country. A broken one is not in it, and nor is its ground. */
@@ -644,6 +656,7 @@ export class Roaming {
       this.broken.delete(id);
       const era = (this.era.get(id) ?? 0) + 1;
       this.era.set(id, era);
+      this.rostered = null;                     // the held roster is a roster of the era before
       // the dead pack's losses go with it: nothing about it is true of what has taken its place
       for (const key of [...this.lost]) if (key.startsWith(`${id}#`)) this.lost.delete(key);
       const home = this.groundNamed(id);
@@ -680,7 +693,7 @@ export class Roaming {
     const roaming = new Roaming(seed, structures, day);
     for (const key of json?.lost ?? []) roaming.lost.add(key);
     for (const [id, on] of Object.entries(json?.broken ?? {})) roaming.broken.set(id, on);
-    for (const [id, era] of Object.entries(json?.era ?? {})) roaming.era.set(id, era);
+    for (const [id, era] of Object.entries(json?.era ?? {})) { roaming.era.set(id, era); roaming.rostered = null; }
     return roaming;
   }
 }

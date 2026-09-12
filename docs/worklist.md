@@ -4343,6 +4343,17 @@ than by remembering — and the first thing found was that the gap is not where 
       moves a fortieth of a degree a frame. What is left is the sim worker that keeps ticking when
       the tab is hidden, and the 27-lines-a-second chat bug, both in hand.
 
+      **Three real bugs came out of it, which is the argument for measuring rather than guessing.**
+      The chat was appending 27 duplicate lines a second, because what had been said was remembered
+      per village while the pressings arrive per band — so two bands leaning on one place made each
+      other's line new again for ever. Beside it, `leanedOn` was told once per pressing and the list
+      arrives worst-first, so a village with two bands over it was recorded at the *lightest* of them:
+      two threats made a place safer than one, and a village being bled by a dragon went on trading
+      because a wolf pack was also nearby. And gating the day's news on the day uncovered the worst
+      of the three — the toll loop **buries people**, and it was running every frame, so a settled
+      village under real pressure emptied itself in about a second. It had gone unseen because the
+      pressed villages in the measured runs were ones nobody had walked into.
+
       The four candidates as they were written:
 
       1. **A loop that does not throttle.** `requestAnimationFrame` stops when a tab is hidden;
@@ -4357,3 +4368,26 @@ than by remembering — and the first thing found was that the gap is not where 
       An investigation is running; the report lands in `docs/cpu-report-2026-09-12.md`. *Fixing* what
       it finds is the work, and it matters beyond tidiness: the Pi this deploys to is slower than the
       machine it was measured on, and a phone build (**72**) has a battery.
+
+- [ ] **75. Ask once per region, not once per tile.** Raised while reading the CPU report: making a
+      cell lookup cheap took a patch from 6,250 ms to 710 ms, but **twelve million lookups per patch
+      is still the shape of the thing**, and it is the wrong shape. What is left of the 710 ms is
+      about 565 of it in `nearestIn`: a quarter of a million tiles each asking which of ~150 sites is
+      nearest, which is 39 million distance tests for an answer that is *constant across large
+      areas* — a Voronoi face is a region, and the tile next door is almost always in the same one.
+
+      Three ways to stop asking, roughly in order of how much they buy:
+
+      1. **Answer per region rather than per tile.** Work out the faces for a chunk once — by flood
+         fill from a seed tile, or by walking the cell block and only re-testing where two sites are
+         within a tile of being equidistant — and the interior of a face costs nothing at all.
+      2. **Carry the previous answer.** A scan across a row of tiles changes face a handful of times;
+         testing the last answer first and only re-searching when it loses turns most tiles into one
+         comparison.
+      3. **Cut what is compared.** The ~150 sites come from `LOOK_OUT`; a proper nearest-site
+         structure over the cell block would compare a handful. Narrowing `LOOK_OUT` itself is not on
+         the table — it would move villages, which is a world change wearing a performance costume.
+
+      The rule the whole endless country rests on has to survive it: the same patch, grown twice or
+      grown on two machines, must be the same patch. Any of these is provable the way the last one
+      was — the country's fingerprint and each patch's parts and ground hashes, before and after.

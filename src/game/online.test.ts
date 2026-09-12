@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Link, LinkEvents } from '../net/link';
+import { WORLD_PAUSE, WORLD_RESUME, type Link, type LinkEvents } from '../net/link';
 import { PROTOCOL_VERSION, type ServerMessage } from '../../server/protocol';
 import { Online, type OnlineEvents } from './online';
 
@@ -246,5 +246,51 @@ describe('whose world it is', () => {
     const online = new Online(watching().events, world.linkFor);
     online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
     expect(online.away, 'counted as away before the world had answered').toBe(false);
+  });
+});
+
+/**
+ * A tab nobody is looking at should cost nothing.
+ *
+ * The page already stands the frame loop, the chunk workers and the audio graph down when it is
+ * hidden, and the world in the next thread went on ticking ten times a second through all of it —
+ * measured at two hundred messages in ten hidden seconds with not one frame drawn. Nothing was
+ * wrong with the worker; nothing had ever told it to stop.
+ */
+describe('the world in the next thread, while the tab is hidden', () => {
+  const welcome = (): ServerMessage =>
+    ({ type: 'welcome', id: 'p1', seed: 3, players: [], clock: { day: 1, time: 0.4 }, deltas: [] });
+
+  it('is stood down when nobody is looking, and started again when somebody is', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    online.connect('', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');   // no address: the tab's own world
+    world.say(welcome());
+    world.sent.length = 0;
+
+    online.quiet(true);
+    online.quiet(false);
+    expect(world.sent).toEqual([WORLD_PAUSE, WORLD_RESUME]);
+  });
+
+  it('says nothing of the sort to somebody else\'s server', () => {
+    // a server is running for other people as well as for this one, and a player who alt-tabs has
+    // not left the world — the two words go to a worker we own and to nothing else
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    online.connect('ws://somewhere', 3, 'Rowan', { day: 1, time: 0.4 }, 'road');
+    world.say(welcome());
+    world.sent.length = 0;
+
+    online.quiet(true);
+    online.quiet(false);
+    expect(world.sent).toEqual([]);
+  });
+
+  it('says neither word to a world that is not there to hear it', () => {
+    const world = deadWorld();
+    const online = new Online(watching().events, world.linkFor);
+    online.quiet(true);                                  // never connected to anything at all
+    expect(world.sent).toEqual([]);
   });
 });

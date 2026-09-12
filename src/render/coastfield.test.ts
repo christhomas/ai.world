@@ -33,6 +33,16 @@ function coastAt(east: number): ChunkSource {
   };
 }
 
+/** The same world, but streamed: nothing has been generated until somebody says it has. */
+function arrivingCoastAt(east: number): ChunkSource & { arrive(): void } {
+  const made = coastAt(east);
+  let here = false;
+  return {
+    arrive: () => { here = true; },
+    getTiles: (cx: number, cz: number) => (here ? made.getTiles(cx, cz) : null),
+  };
+}
+
 describe('how far the water is from land', () => {
   it('measures nought on the land and one cell off it', () => {
     const size = 5;
@@ -90,9 +100,34 @@ describe('the coast around the camera', () => {
     expect(field.update(0, 0, world, 0)).toBe(true);
     expect(field.update(1, 0, world, 10)).toBe(false);
     expect(field.update(COAST.RESTEP + 1, 0, world, 20)).toBe(true);
-    // and standing still is not the same as nothing having changed: the ground streams in
+    /*
+     * And once it has stopped it stays stopped, however long anybody stands there.
+     *
+     * The refresh timer used to make this line true, which meant a hero standing on a beach paid
+     * for a full chamfer sweep and a texture upload two and a half times a second, for ever, over
+     * ground that had finished arriving minutes ago. The timer still decides how often the ground
+     * is asked; what it no longer does is assume the answer is yes.
+     */
     expect(field.update(COAST.RESTEP + 1, 0, world, 30)).toBe(false);
-    expect(field.update(COAST.RESTEP + 1, 0, world, 30 + COAST.REFRESH)).toBe(true);
+    expect(field.update(COAST.RESTEP + 1, 0, world, 30 + COAST.REFRESH)).toBe(false);
+    expect(field.update(COAST.RESTEP + 1, 0, world, 30 + COAST.REFRESH * 20)).toBe(false);
+  });
+
+  it('measures again where it stood still while the ground arrived underneath it', () => {
+    /*
+     * The other half of the same rule, and the job the timer was really doing. The sea around
+     * somebody who has just teleported is measured against a world that has not been generated
+     * yet, so it comes out as flat open ocean — and it would stay that way for exactly as long as
+     * they stood on the beach looking at it. Standing still is not the same as nothing changing.
+     */
+    const field = new CoastField();
+    const streaming = arrivingCoastAt(40);
+    expect(field.update(0, 0, streaming, 0)).toBe(true);
+    expect(read(field, 42, 0), 'a beach that has not been generated is open sea').toBe(COAST.RANGE);
+
+    streaming.arrive();
+    expect(field.update(0, 0, streaming, COAST.REFRESH)).toBe(true);
+    expect(read(field, 42, 0), 'and once the chunks are there, it is a beach').toBe(0);
   });
 
   it('stands still in the world as the camera moves over it', () => {

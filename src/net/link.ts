@@ -21,6 +21,23 @@
  */
 export type Parcel = string | ArrayBuffer;
 
+/**
+ * The two words the page says to the worker *itself* rather than to the world inside it.
+ *
+ * A tab nobody is looking at should cost nothing, and the page already stands down the frame loop,
+ * the chunk workers and the audio graph when it is hidden. The world in the next thread went on
+ * ticking at ten times a second regardless, because nothing had ever told it not to — measured at
+ * two hundred messages in ten hidden seconds, with the tab drawing not one frame.
+ *
+ * Bare words rather than a message type, and that is what makes them safe: everything the game
+ * says to a world is JSON, `JSON.parse` of either of these throws, and the worker looks for them
+ * before it hands anything on. So neither can ever be mistaken for something a player said, and a
+ * real server — which never hears them, because only the tab's own world is ever paused — would
+ * ignore them if it did.
+ */
+export const WORLD_PAUSE = 'pause';
+export const WORLD_RESUME = 'resume';
+
 export interface Link {
   send(parcel: Parcel): void;
   close(): void;

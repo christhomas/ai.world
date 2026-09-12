@@ -64,8 +64,24 @@ export function createTidings(ctx: Telling) {
     say, flash, persist,
   } = ctx;
 
-  /** The last thing each village was heard to say about its trouble, so it is not said twice. */
+  /**
+   * The last thing each band was heard to say about the village it is leaning on.
+   *
+   * Keyed by the band *and* the village, and the key is the whole of a bug that put twenty-seven
+   * lines a second into the chat. `Roaming.pressings` hands back one entry per band **per village**,
+   * so two bands camped on Stonedale are two pressings with two different sentences. Keyed by the
+   * village alone, each band's line was forever unlike the one the other band had just stored, so
+   * each was "new" again on every frame, for ever — the same two sentences about bears and the
+   * walking dead, appended until the tab was closed, every one of them forcing two synchronous
+   * layouts in `chat.ts` on the way past.
+   *
+   * A memo keyed by less than the thing it is remembering does not merely forget: it alternates,
+   * and alternating is indistinguishable from news.
+   */
   const pressSaid = new Map<string, string>();
+
+  /** What one band has to say about one village, which is the thing above being remembered. */
+  const heardOf = (band: string, village: string): string => `${band}:${village}`;
 
   /**
    * The mines being worked today, and who would hear about a bad day at one.
@@ -131,73 +147,139 @@ export function createTidings(ctx: Telling) {
     }
   };
 
+  /**
+   * Everything the country did overnight, worked out once for the day it belongs to.
+   *
+   * Every line of it is about `state.day` and nothing else: the nemesis floors the clock it is
+   * handed, a band's round is a pure function of the day, a toll is rolled from the band, the
+   * village and the day, and the register advances to a whole day or does nothing at all. So all
+   * of it gave the same answer sixty times a second and paid for it sixty times a second —
+   * measured at half a millisecond a frame, thirty milliseconds a second, most of it rebuilding
+   * every band in the country from the seed to ask where it was standing.
+   *
+   * Worse than the cost, and the reason this is a fix rather than a tidying: the toll loop below
+   * *buries people*, and it buried a fresh handful on every frame. `tollOf` is deterministic, so
+   * every frame took the same number again off a village that was one shorter than it had been a
+   * sixtieth of a second earlier — a village under real pressure emptied in the time it takes to
+   * read this sentence. It went unnoticed because the villages being pressed in the measured runs
+   * were ones nobody had walked into, and a village nobody has settled has no people in it to take.
+   */
+  const theDayTurning = (): void => {
+    // a day turning over is a day in the villages too: lives run out, and children are born
+    for (const word of nemesis.advance(clockAt(state), realm())) say(word.said);
+    for (const band of roaming.advance(state.day)) flash(warningOfBand(band));
+    /** The worst thing leaning on each village today, which is what the register is told. */
+    const worst = new Map<string, number>();
+    // a band camped on a village's doorstep costs it people, and the same people on every client
+    for (const press of roaming.pressings(structures.villages, state.day)) {
+      const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
+      const living = [...register.living(press.village)];
+      for (let n = 0; n < press.toll && living.length > 0; n++) {
+        const [taken] = living.splice(Math.floor(pick() * living.length), 1);
+        const death = register.bury(taken.id, state.day);
+        if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
+      }
+      /*
+       * Nobody trades while their neighbours are being buried, which is what makes a village's
+       * prosperity something the player can protect rather than a number that only goes up.
+       *
+       * Told once per village and not once per pressing, and it is the same fault as the memo
+       * above wearing different clothes. `pressings` comes back worst first and `leanedOn`
+       * overwrites, so a village with two bands over it was recorded at whichever pressure came
+       * *last* — the lightest of them. Two bands made a place safer than one: the register
+       * believed the gentler of the two, and a village being bled by a dragon went on trading
+       * and bearing children because a wolf pack was also in the neighbourhood.
+       */
+      if (!worst.has(press.village)) {
+        worst.set(press.village, press.pressure);
+        register.leanedOn(press.village, press.pressure);
+      }
+      // a band says its piece about a village once, not every morning until it is dealt with:
+      // news repeated daily stops being news and starts being wallpaper
+      const heard = heardOf(press.band.id, press.village);
+      if (press.pressure >= ROAM.PRESS_BLED && pressSaid.get(heard) !== press.said) {
+        pressSaid.set(heard, press.said);
+        // the news is remembered without the direction, because the direction changes with every
+        // step the player takes and would make the same news new again for ever
+        const where = structures.villages.find((v) => v.name === press.village);
+        const way = where ? wayTo(where, player) : null;
+        say(way ? `${press.said} ${way}` : press.said);
+        director.saw('trouble');
+      }
+    }
+    // a builder who has finished and not been paid has said so in the pub by now, and the village
+    // holds it against you for every day it goes on standing there unsettled
+    builderDay();
+    for (const change of [...register.advance(state.day), ...villageNights()]) {
+      if (change.kind === 'died' && discovered.has(change.village)) {
+        say(`Word from ${change.village}: ${change.name} has died.`);
+      }
+    }
+    /*
+     * And the same word again, now that the register has lived the day.
+     *
+     * A pressing is deliberately about one day and expires, so `Pressings` keeps the day it was
+     * told on and answers two different questions from it: what to charge the village while it
+     * lives that day, which wants the telling to have come *before* the day was lived, and what is
+     * standing over the place *now*, which the clerk's book and the domesday report both ask and
+     * which wants a telling dated today.
+     *
+     * Saying it every frame satisfied both by accident — the first frame of a morning told the
+     * register before it advanced and every frame after it told the register again, from the far
+     * side. Once a day is the honest version, so it is said twice on purpose and the comment is
+     * here rather than the accident being left to be rediscovered.
+     */
+    for (const [village, pressure] of worst) register.leanedOn(village, pressure);
+    /**
+     * A day at the face, in every village that has a mine.
+     *
+     * After the register has caught up, because a mine is worked by people and the register is
+     * who they are. What comes up goes into the miners' own purses, so it leaves again through
+     * their dinner and their upkeep the way anybody else's money does — which is the whole reason
+     * to mint it there rather than crediting a village a number nobody spends.
+     */
+    for (const dug of mines.advance(state.day, minesWorked(), (v) => register.living(v))) {
+      if (dug.lost) {
+        // what he had on him was minted this morning and is now on the floor where he fell, which
+        // is the only reason anybody would go down a mine that has just killed somebody
+        remains.leave(dug.lost.name, 'miner', dug.x, dug.z, dug.dropped, 'nugget', seed ^ Math.floor(dug.x * 131 + dug.z * 977));
+        const death = register.bury(dug.lost.id, dug.day);
+        if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
+      }
+      if (dug.scared && discovered.has(dug.village)) {
+        say(dug.lost
+          ? `Word from ${dug.village}: ${dug.lost.name} did not come up out of ${dug.name}.`
+          : `Word from ${dug.village}: they came running up out of ${dug.name} today.`);
+      }
+    }
+  };
+
+  /** The day whose news has been told. Nought would be a day, and day one is the first there is. */
+  let toldOn = -1;
+
   return {
     minesWorked,
     /** Everything the country did while nobody was looking, once a frame. */
     theDaysNews: (): void => {
-      // a day turning over is a day in the villages too: lives run out, and children are born
-      for (const word of nemesis.advance(clockAt(state), realm())) say(word.said);
-      for (const band of roaming.advance(state.day)) flash(warningOfBand(band));
-      // a band camped on a village's doorstep costs it people, and the same people on every client
-      for (const press of roaming.pressings(structures.villages, state.day)) {
-        const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
-        const living = [...register.living(press.village)];
-        for (let n = 0; n < press.toll && living.length > 0; n++) {
-          const [taken] = living.splice(Math.floor(pick() * living.length), 1);
-          const death = register.bury(taken.id, state.day);
-          if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
-        }
-        // a village under the same band says so once, not every morning until it is dealt with:
-        // news repeated daily stops being news and starts being wallpaper
-        // nobody trades while their neighbours are being buried, which is what makes a village's
-        // prosperity something the player can protect rather than a number that only goes up
-        register.leanedOn(press.village, press.pressure);
-        if (press.pressure >= ROAM.PRESS_BLED && pressSaid.get(press.village) !== press.said) {
-          pressSaid.set(press.village, press.said);
-          // the news is remembered without the direction, because the direction changes with every
-          // step the player takes and would make the same news new again for ever
-          const where = structures.villages.find((v) => v.name === press.village);
-          const way = where ? wayTo(where, player) : null;
-          say(way ? `${press.said} ${way}` : press.said);
-          director.saw('trouble');
-        }
+      if (toldOn !== state.day) {
+        toldOn = state.day;
+        theDayTurning();
       }
-      // a builder who has finished and not been paid has said so in the pub by now, and the village
-      // holds it against you for every day it goes on standing there unsettled
-      builderDay();
-      for (const change of [...register.advance(state.day), ...villageNights()]) {
-        if (change.kind === 'died' && discovered.has(change.village)) {
-          say(`Word from ${change.village}: ${change.name} has died.`);
-        }
-      }
-      /**
-       * A day at the face, in every village that has a mine.
+      /*
+       * And the two things that are not about the day at all, which is why they are out here where
+       * the gate cannot reach them.
        *
-       * After the register has caught up, because a mine is worked by people and the register is
-       * who they are. What comes up goes into the miners' own purses, so it leaves again through
-       * their dinner and their upkeep the way anybody else's money does — which is the whole reason
-       * to mint it there rather than crediting a village a number nobody spends.
+       * The first is what every village is worth this evening. It keeps its own gate — the day
+       * *and* the number of villages — because walking into a new place settles it on the spot,
+       * and a village first assessed tomorrow would stand its houses a storey short all afternoon.
+       * It runs after the day's news for the reason it always did: a day's wages and a day's gold
+       * are both in the purses by now.
        */
-      for (const dug of mines.advance(state.day, minesWorked(), (v) => register.living(v))) {
-        if (dug.lost) {
-          // what he had on him was minted this morning and is now on the floor where he fell, which
-          // is the only reason anybody would go down a mine that has just killed somebody
-          remains.leave(dug.lost.name, 'miner', dug.x, dug.z, dug.dropped, 'nugget', seed ^ Math.floor(dug.x * 131 + dug.z * 977));
-          const death = register.bury(dug.lost.id, dug.day);
-          if (death) online.report({ kind: 'died', who: death.id, village: death.village, day: death.day });
-        }
-        if (dug.scared && discovered.has(dug.village)) {
-          say(dug.lost
-            ? `Word from ${dug.village}: ${dug.lost.name} did not come up out of ${dug.name}.`
-            : `Word from ${dug.village}: they came running up out of ${dug.name} today.`);
-        }
-      }
-      // and last, because a day's wages and a day's gold are both in the purses by now: what every
-      // village in the country is worth this evening, and what it has managed to build with it
       whatTheyHaveMadeOfThemselves();
       // and the other half of it: a mine the player has fought through is still a mine nobody will
       // go down until somebody walks into the village and says otherwise. Standing in the square is
-      // that somebody, which is why this is proximity and not a menu
+      // that somebody, which is why this is proximity and not a menu — and why it is asked every
+      // frame rather than every morning
       for (const working of places.outdoors ? minesWorked() : []) {
         const home = structures.villages.find((v) => v.name === working.village);
         if (!home || Math.hypot(home.x - player.x, home.z - player.z) > home.radius) continue;
