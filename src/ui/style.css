@@ -1287,7 +1287,13 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
      corner map down the right, and everything the world says about itself between them. */
   #breath { color: #8fd2ff; font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
 #breath .warded { color: #ffd76a; }
-#status { top: 8px; left: 8px; min-width: 0; max-width: 96px; padding: 4px 8px; }
+/*
+ * Ninety-six was the width of a ten-block meter. There are twenty blocks in one now — health,
+ * breath and the sword arm all share the same bar — and the cap stayed where it was, so the meter
+ * ran out past the slab it is drawn on and the corner read as a bar somebody had dropped on the
+ * grass. Wide enough for twenty blocks and the numbers under them, and no wider.
+ */
+#status { top: 8px; left: 8px; min-width: 0; max-width: 176px; padding: 4px 8px; }
   #hearts { font-size: 13px; letter-spacing: 0; }
   .hud-hp { font-size: 10px; }
   #inventory { top: 52px; left: 8px; min-width: 0; padding: 5px 8px; font-size: 11px; }
@@ -1424,8 +1430,22 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
      is a gap.
      ------------------------------------------------------------------------- */
   :root { --touch-edge: 0px; }
-  #status { top: var(--safe-top); left: var(--safe-left); }
-  #inventory { top: calc(var(--safe-top) + 44px); left: var(--safe-left); }
+  /*
+   * Flush into the corner, with the notch taken out of the padding rather than out of the position.
+   *
+   * Offsetting them by the safe area lifted both slabs off the corner and left them floating in the
+   * picture — which is the difference between a readout that belongs to the frame and a box
+   * somebody has left lying on the game. `design/HudA.dc.html` states the rule for the whole set:
+   * flush slabs, hairlines, square corners, no borders.
+   */
+  #status {
+    top: 0; left: 0;
+    /* the base padding, plus whatever the notch takes: no notch and this is exactly what it was */
+    padding-top: calc(var(--safe-top) + 10px); padding-left: calc(var(--safe-left) + 12px);
+  }
+  /* under the status slab rather than over it: two meters and their numbers are taller than the
+     forty-four this assumed when there was one */
+  #inventory { top: calc(var(--safe-top) + 72px); left: 0; padding-left: calc(var(--safe-left) + 12px); }
   #minimap { top: var(--safe-top); right: var(--safe-right); }
   /* under the rail rather than behind it: the rail is 48 tall and the name wants air under it */
   #areaName { top: calc(var(--safe-top) + 52px); }
@@ -1433,7 +1453,10 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #touchPanels { top: 0; }
   /* the compass sits under the rail rather than behind it, now that the rail is on the edge */
   #compass { top: calc(var(--safe-top) + 96px); }
-  #chatPanel, #toast, #duelbar { left: var(--safe-left); }
+  /* the news runs off the left edge as bands, so the rules down their left-hand side stack into
+     the edge of the screen rather than into a margin nobody can see */
+  #chatPanel { left: 0; padding-left: var(--safe-left); }
+  #toast, #duelbar { left: var(--safe-left); }
   /* under the pack panel, which ends at 108, and clear of the button rail's underside at 112 */
   #duelbar { top: calc(var(--safe-top) + 116px); }
   #castbar { bottom: var(--safe-bottom); }

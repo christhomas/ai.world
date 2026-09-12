@@ -3883,10 +3883,20 @@ than by remembering — and the first thing found was that the gap is not where 
       `translateX(-50%)` on top of that shifted it half its own width to the left. Centred by margin
       now.
 
-      Left of the design, and worth doing next: the status block in the top-left is still a box
-      rather than being *flush into the corner*, and the news is two big slabs where the design has
-      thin bands off the left edge. And the thumb ring is drawn at rest where the design says the
-      corner should be world until a finger lands on it. The awkward set across the top middle can go
+      **67a, done the same evening.** The status block and the pack are flush into the corner now,
+      with the notch taken out of their *padding* rather than their position — offsetting them by the
+      safe area lifted both slabs off the corner and left them floating in the picture, which is the
+      difference between a readout that belongs to the frame and a box somebody left lying on the
+      game. The news runs off the left edge as bands, so the coloured rules down their left-hand
+      sides stack into the edge of the screen rather than into a margin nobody can see. And the thumb
+      ring turned out to be right already: `.stick-base.show` only exists under a finger, which is
+      exactly what the design asks for.
+
+      Two real bugs found by looking at it. The status slab was capped at **96px wide — the width of
+      a ten-block meter** — and there are twenty blocks in one now, so health ran out past the slab
+      it is drawn on and the corner read as a bar dropped on the grass. And the pack panel sat 44px
+      below the top, which was right when the corner held one meter and wrong since breath joined it:
+      "50 gold" was drawn straight over the breath reading. The awkward set across the top middle can go
       now that the minimap opens the map and the panels have numbers. What replaces it is a design
       question rather than a plumbing one — and there is a design already in the repo (`design/`,
       `HudPhone.dc.html` and `TitlePhone.dc.html`) which is the right place to start rather than
