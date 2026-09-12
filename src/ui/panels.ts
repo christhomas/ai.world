@@ -1,4 +1,5 @@
 import { Roster } from './roster';
+import { rememberCutaway } from '../render/cutaway';
 import type * as THREE from 'three';
 import type { Screen } from '../game/screen';
 import type { Places } from '../game/places';
@@ -31,6 +32,8 @@ import type { WorldMap, WorldMapInput } from './worldmap';
  */
 export interface Panels {
   hud: Hud;
+  /** The hole kept open in front of the hero, which both a key and the Options switch turn on. */
+  cutaway: { on: boolean; show: (on: boolean) => void };
   chat: Chat;
   dialogue: DialogueBox;
   journal: Journal;
@@ -70,6 +73,14 @@ export function screenOf(p: Panels): Screen {
     toggleJournal: () => p.journal.toggle(p.journalInput),
     toggleRucksack: () => p.rucksack.toggle(),
     toggleRoster: () => p.roster.toggle(),
+    toggleSeeThrough: () => {
+      const on = !p.cutaway.on;
+      p.cutaway.show(on);
+      rememberCutaway(on);
+      // the switch in Options is the same switch, so it has to move too
+      p.hud.setSeeThrough(on);
+      return on;
+    },
     toggleOptions: () => p.hud.toggleOptions(),
     toggleMap: () => {
       // whichever map the hero is standing in: a dungeon has its own, and it is the one that is

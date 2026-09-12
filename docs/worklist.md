@@ -3676,7 +3676,13 @@ than by remembering — and the first thing found was that the gap is not where 
 
 ## Seeing what is in front of you — September 12th
 
-- [x] **62. The see-through circle, on demand.** It existed once and was taken out, and the reason is
+- [x] **62. The see-through circle, on demand — and on a key.** `2`, because every letter on the
+      keyboard is already a verb, a panel or a spell and `q`/`e` turn the camera; `1` opens the
+      roster and this is the next digit along. A key rather than only a switch in Options because it
+      is wanted *now*: you are behind a wall, you cannot see yourself, and walking to a menu to fix
+      that is the same problem twice. It says which way it has gone, because a hole you cannot see
+      through a clear doorway is indistinguishable from one that did not turn on. The key and the
+      switch are the same switch — pressing it moves the tick in Options — and both remember. It existed once and was taken out, and the reason is
       worth keeping: it was hiding a collision fault rather than a sight problem — things you could
       walk into were being quietly made transparent, so nobody could see they should not have been.
       It comes back as a switch in Options, off until asked for and remembered afterwards, which is
@@ -3722,3 +3728,36 @@ than by remembering — and the first thing found was that the gap is not where 
       is talking and where the hero is standing. What wants care is turning *back*: a man interrupted
       at his work should return to it rather than standing at ninety degrees to his own bench for the
       rest of the day.
+
+
+## Who owns a house, and where everybody is at midnight — September 12th
+
+- [ ] **64. Every building belongs to somebody, and the ones that do not are free houses.** A house
+      you walk into is nobody's today: it has a keeper standing in it because the room needed one,
+      and no owner at all. Ownership is the missing half of a village that has an economy — it is
+      what **47** means by a holding, what **49** means by a household, and what **44** means when
+      it says a house holds a family.
+
+      And the interesting part is the exception. Some houses are *old* and nobody's — a village that
+      shrank, a family that died out — and a free house with a bed in it is somewhere anybody may
+      sleep for nothing. **Anybody**: the rule is the same for the hero and for a villager, which is
+      what stops it being a player convenience. So a free house is vacant or occupied, it shows
+      which, and walking into an occupied one finds somebody asleep in the bed.
+
+      What it buys beyond a free night: villagers who travel. A hunter a day's walk from home, a
+      traveller between towns, somebody who has left a village that is dying — all of them need
+      somewhere to be at night that is not their own bed, and a country with free houses in it has
+      an answer. That is the layer this adds: the map stops being a thing villagers are *placed on*
+      and starts being a thing they *cross*.
+
+- [ ] **65. At midnight, a village should look like it is asleep.** There are as many people on the
+      street at two in the morning as at noon, which is the single loudest thing wrong with a
+      village as a picture. Everybody should be somewhere by then: their own house, an inn, or a
+      free house (**64**) if they are away from home. The ones still out should be out *for a
+      reason* — a constable on his round, somebody walking home from the pub, a hunter who has been
+      caught out by the dark — and being few is what makes them worth looking at.
+
+      The machinery is nearly all there. `behaviours/villagers.json` already runs a day with hours
+      in it (`time` is a fraction of the day and every trade's tree reads it), the houses exist, and
+      `waitAt` already holds somebody somewhere. What is missing is the hour that sends them in, and
+      a bed to be in rather than a spot on the floor to stand at.

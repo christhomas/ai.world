@@ -133,6 +133,17 @@ export function bindKeys(ctx: Keys): void {
    * a book.
    */
   input.onKey('1', () => { if (screen.busy() !== 'talking') screen.toggleRoster(); });
+  /*
+   * And the hole in whatever is standing in front of him, on the next digit along.
+   *
+   * A key rather than only a switch in Options because it is the sort of thing you want *now* —
+   * you are behind a wall, you cannot see yourself, and walking to a menu to fix it is the same
+   * problem twice. It says which way it has gone, because a hole you cannot see through a clear
+   * doorway is indistinguishable from one that did not turn on.
+   */
+  input.onKey('2', () => {
+    screen.say(screen.toggleSeeThrough() ? 'Seeing through what is in front' : 'Solid walls again');
+  });
   // The console lives on the key it has been on since Quake: one row under Escape, and spare in
   // every other game. Both of the characters that live on it, because a keyboard laid out for
   // another country puts the other one under the same thumb.

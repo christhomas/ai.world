@@ -31,6 +31,7 @@ synthesised as you play.
 | **F** | Free camera |
 | **P** | Photo mode: the interface steps aside, Space takes the picture |
 | **N** | Save and return to the title, which puts the whole world away rather than leaving it running |
+| **2** | See through whatever stands between you and the camera. A wall hides as much ground behind it as it is tall, and this thins it out |
 | **O** | Options: light, graphics, volume, multiplayer, seed |
 
 On a phone or tablet the controls draw themselves: a thumb stick wherever your thumb lands, the

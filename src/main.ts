@@ -620,6 +620,7 @@ export function startGame(
    */
   const screen = screenOf({
     hud, chat, dialogue, journal, rucksack, worldMap, kinPanel, roster, playerList, photo, places,
+    cutaway,
     canvas: rig.renderer, seed,
     journalInput, mapInput,
     companyInput: () => multiplayer.playerListInput,

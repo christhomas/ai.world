@@ -49,6 +49,11 @@ export interface Screen {
   toggleCompany(): void;
   /** Photo mode answers whether it is now on, because the camera has to follow it. */
   togglePhoto(): boolean;
+  /**
+   * The hole in whatever stands between you and the camera. Answers whether it is now on, because
+   * it is the sort of thing you want the game to tell you it has done.
+   */
+  toggleSeeThrough(): boolean;
   /** The console, which is the one door that is not on Escape. */
   toggleConsole(): void;
   /** Saying something to the other people in a shared world. */
