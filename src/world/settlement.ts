@@ -22,6 +22,15 @@ export interface Change {
   day: number;
   /** How they went, for a death: their years, or something with teeth. */
   cause?: 'age' | 'violence' | 'hunger';
+  /**
+   * Where they walked from, for a resettling.
+   *
+   * `village` is where somebody now is, which is the whole of what a death or a birth needs to say.
+   * A person who has moved is the one case where the place they left matters as much: the village
+   * they came from is a village one person lighter, and anybody keeping books on both — the audit
+   * does — has to know which two places the day touched.
+   */
+  from?: string;
 }
 
 /**

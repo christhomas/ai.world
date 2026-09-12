@@ -3715,7 +3715,33 @@ simulation rather than any one feature in it.
       (**44**, **50**): a tower that has to be paid for and manned is the first building in this
       economy whose worth is obvious from the road.
 
-- [ ] **57. Where new people come from, when a valley has emptied.** Three ideas that are one idea.
+- [~] **57. Where new people come from, when a valley has emptied.** *The ordinary way is built, as of
+      the 12th.* `resettle` has been able to move people into an emptied village since the day
+      villages could empty, and had never once been called by the simulation — because it has to be
+      *told* which village sends and which receives, and nothing in the world had a reason to say.
+      `world/movingon.ts` is the reason, and it is deliberately a comparison anybody standing in a
+      street could make: food and coin per head, together, because either alone is a lie — a village
+      with a full cellar and no money cannot buy a plough, and one with money and no food is about
+      to have neither.
+
+      Of the places that could spare somebody, the one whose people would gain least by staying is
+      the one that sends them. That reads backwards for a moment and is right: a crowded village with
+      a thin living has people who would rather be elsewhere, and a rich one with room to spare does
+      not. A ruin has to have stood empty a while first, because whatever emptied it may still be
+      there and walking in the next morning is not resettlement, it is the second helping. One move a
+      day at most — a valley that repopulates overnight is a respawn rather than a recovery.
+
+      A resettling now says where somebody walked *from* as well as where they are, which the audit
+      needed: a day somebody moved is a day when neither village's roll is the set of people it was
+      the evening before.
+
+      What is left: the register does not know where its villages stand, so somebody can in principle
+      walk four provinces to a ruin. It is written down in the file as a gap rather than left as a
+      surprise, and the day the register learns its geography this takes a distance. And the other
+      two thirds of the item — the shrine (**53**), and inherited features, which is what people
+      walking in was the precondition for.
+
+      The original note: three ideas that are one idea.
       The shrine that raises a villager (**53**) must be **expensive and rare** — it is magic, and
       magic that is affordable is a tap. The ordinary way should be **people walking in**: an
       explorer or a hiker from another village finds an empty place and, if there is more food and

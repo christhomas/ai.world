@@ -266,7 +266,7 @@ export function liveForward(seed: number, days = DAYS): Run {
       register.bury(here[(day * 7) % here.length].id, day);
     }
 
-    register.advance(day);
+    const walked = register.advance(day);
 
     for (const dug of mines.advance(day, workings, (village) => register.living(village))) {
       const bank = minted.get(dug.village)!;
@@ -279,6 +279,21 @@ export function liveForward(seed: number, days = DAYS): Run {
       if (!regime.settledFrom) continue;
       const came = register.resettle(regime.village, regime.settledFrom, day);
       if (came.length > 0) restarted.get(regime.village)!.add(day);
+    }
+    /*
+     * And the register does it on its own now, which the audit has to be told about.
+     *
+     * A day somebody walked from one village to another is a day when neither village's roll is the
+     * set of people it was the evening before — so a row-by-row comparison is pairing up people who
+     * are not the same people. **Both** places are marked, not only the one that gained: the village
+     * that sent somebody is a village one purse lighter, and the row that left took its money with
+     * it. The whole-run check in `nothing leaves the world in a pocket` is what covers the money
+     * across a move, which is where a resettling belongs.
+     */
+    for (const change of walked) {
+      if (change.kind !== 'resettled') continue;
+      restarted.get(change.village)?.add(day);
+      if (change.from) restarted.get(change.from)?.add(day);
     }
   }
   for (const regime of VILLAGES) {

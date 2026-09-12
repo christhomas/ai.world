@@ -3,6 +3,7 @@ import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods
 import { taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
+import { whoWalksIn } from './movingon';
 import type { Burial, Change, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
 import { mulberry32 } from '../core/rng';
@@ -260,7 +261,7 @@ export class Register {
       settler.village = lost;
       settler.knows = [];
       ruin.people.push(settler);
-      changes.push({ kind: 'resettled', id: settler.id, name: settler.name, village: lost, day });
+      changes.push({ kind: 'resettled', id: settler.id, name: settler.name, village: lost, from, day });
     }
     ruin.emptied = undefined;
     return changes;
@@ -337,8 +338,28 @@ export class Register {
     while (this.day < end) {
       this.day++;
       for (const [name, village] of this.villages) changes.push(...this.liveADay(name, village, this.day));
+      changes.push(...this.peopleWalkIn(this.day));
     }
     return changes;
+  }
+
+  /**
+   * Somebody walks over the hill and takes on an empty village.
+   *
+   * `resettle` has been able to do this since villages could empty and was never once called by the
+   * simulation, because it has to be told which village sends and which receives and nothing had a
+   * reason to say. `movingon.ts` is the reason: of the places that could spare anybody, the one
+   * whose people would gain least by staying is the one that sends them.
+   *
+   * Once a day and one village at a time, because a valley repopulating itself overnight is not a
+   * recovery, it is a respawn. What it buys beyond keeping the map inhabited is families that are
+   * not from here — a village left alone marries its own children to each other for four hundred
+   * days, and a stranger from the next valley is the new blood that makes inherited features worth
+   * having.
+   */
+  private peopleWalkIn(day: number): Change[] {
+    const walk = whoWalksIn(this.villages, day);
+    return walk ? this.resettle(walk.to, walk.from, day) : [];
   }
 
   /**
