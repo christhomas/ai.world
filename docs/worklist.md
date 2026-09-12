@@ -3999,8 +3999,13 @@ than by remembering — and the first thing found was that the gap is not where 
       for the icon paths, `clock.ts` for the day bar, `compass.ts` for the arrows, `touch.ts` for
       where the ring is drawn, and `style.css`'s own `--ui-scale`. Whoever drew it read the code.
 
-- [~] **70a. The API client still wants a key.** Asked for outright, and the endpoints were worth
-      finding rather than assuming.
+- [x] **70a. The API client still wants a key.** *Dropped on the 12th, and rightly.* The CLI on this
+      machine is already logged in to Claude Design, so `claude -p "..." --allowedTools
+      "mcp__claude-design"` reaches every one of those 23 tools with no second credential anywhere —
+      no key in a file, no key in an environment, nothing to leak. `tools/designapi.ts` stays where
+      it is: the endpoint and the two doors it found are worth keeping written down, and the day
+      something without a login needs to read a design (a CI job, say) it is already built. It is
+      simply not the road for a person at a terminal. What was found, for the record:
 
       **What was found.** Claude Design is at `https://api.anthropic.com/v1/design/mcp` and speaks
       MCP over HTTP. It has **two doors**: probed with a deliberately bad `x-api-key` it answers the
@@ -4117,3 +4122,24 @@ than by remembering — and the first thing found was that the gap is not where 
 
       Depends on **72** step 2 for the vocabulary, and it is the thing that makes moving decisions to
       the server a change nobody playing it can detect.
+
+- [~] **74. Why one tab of this game costs more than a core.** Measured by accident on the evening of
+      the 12th: an Edge renderer holding the game at **160% CPU** while the tab sat there, which is
+      the top process on the machine and more than one core. Over a core means it is not only the
+      render loop — a renderer process holds the workers too, so the chunk workers and the country
+      worker are in that number.
+
+      Four candidates worth separating before anything is changed, because they have different fixes:
+
+      1. **A loop that does not throttle.** `requestAnimationFrame` stops when a tab is hidden;
+         `setInterval` and workers do not. A simulation tick on a timer would explain a tab nobody
+         is looking at costing a core, and it is the cheapest thing to check.
+      2. **The country worker with nothing to do.** A patch takes five seconds to grow. Something
+         asking for patches that are never walked into would look exactly like this.
+      3. **Per-frame work that should be per-change** — instance buffers rebuilt, `needsUpdate` set
+         every frame, shadows re-rendered when nothing moved.
+      4. **Allocation per frame** hard enough to make the collector visible.
+
+      An investigation is running; the report lands in `docs/cpu-report-2026-09-12.md`. *Fixing* what
+      it finds is the work, and it matters beyond tidiness: the Pi this deploys to is slower than the
+      machine it was measured on, and a phone build (**72**) has a battery.

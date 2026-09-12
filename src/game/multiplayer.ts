@@ -181,6 +181,15 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       },
       flash: (message) => ctx.hud.flash(message),
     }),
+    // and the other direction: a seed the ground would not take comes back out and goes in the pack
+    onSown: (seq, ok) => ctx.plots.sowings.answered(seq, ok, {
+      unplant: (tile) => {
+        const [x, z] = tile.split(',').map(Number);
+        ctx.plots.clear(x, z);
+      },
+      carry: (seed, by) => ctx.state.give(seed, by),
+      flash: (message) => ctx.hud.flash(message),
+    }),
     onStalls: (stalls) => { market.receive(stalls); handover.settle(); },
     onFolk: (names) => { if (names.length > 1) chat.line(`Known in this world: ${names.join(', ')}.`, 'sys'); },
     onMail: (letters) => {

@@ -5,6 +5,12 @@ import { join, dirname } from 'node:path';
 /**
  * Claude Design, over its own API.
  *
+ * **Not the road to take from a terminal.** The Claude CLI on a developer's machine is already
+ * logged in to Claude Design, so `claude -p "..." --allowedTools "mcp__claude-design"` reaches the
+ * same tools with no second credential in existence — nothing in a file, nothing in an environment,
+ * nothing to leak. This is here for the case that has no login: a job on a build machine. If you
+ * are a person reading this, use the CLI.
+ *
  * Claude Design is reachable at `https://api.anthropic.com/v1/design/mcp`. It speaks MCP over
  * HTTP — JSON-RPC in, JSON or an event stream back — and it takes an ordinary Anthropic API key in
  * the `x-api-key` header. That last part was worth finding out rather than assuming: probed with a

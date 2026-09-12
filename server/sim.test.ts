@@ -1342,3 +1342,20 @@ describe('a crop, and whether it was there to lift', () => {
     expect(wren.of('delta').map((d) => d.delta)).toContainEqual({ kind: 'reap', tile: '12,44' });
   });
 });
+
+describe('a seed, and whether the ground will take it', () => {
+  /*
+   * One test for the wiring only. `server/farming.test.ts` drives the rule itself with a fake field,
+   * which is where the seasons and the ground and the races are settled; all this says is that a
+   * `sow` message reaches it and an answer comes back.
+   */
+  it('answers a page that says it has sown something', () => {
+    const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(9, 'Rowan');
+    rowan.say({ type: 'move', x: 12.5, z: 44.5, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'sow', seq: 1, tile: '12,44', crop: 'wheat' });
+    // refused, because this world grows no ground at all: nothing is plantable in a world with no
+    // tiles in it, which is exactly the answer a page should get rather than silence
+    expect(rowan.of('sown')[0]).toMatchObject({ seq: 1, tile: '12,44', ok: false });
+  });
+});

@@ -297,6 +297,20 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return false;
   }
 
+  /**
+   * Will anything grow here?
+   *
+   * The same three tile types the page asks about, so a world and a page agree about whether a spot
+   * is a field or a road. Asked by the world when somebody says they have put a seed in the ground:
+   * the tile is the one thing in that sentence the world can check for itself.
+   */
+  isPlantable(x: number, z: number): boolean {
+    const hit = this.tileAt(x, z);
+    if (!hit) return false;
+    const type = hit.tiles.types[hit.i];
+    return type === TileType.Ground || type === TileType.GroundAlt || type === TileType.Sand;
+  }
+
   isRoad(x: number, z: number): boolean {
     const hit = this.tileAt(x, z);
     return hit ? hit.tiles.types[hit.i] === TileType.Road : false;

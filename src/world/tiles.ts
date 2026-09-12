@@ -37,6 +37,11 @@ export interface TileWorld {
   /** Water surface height if (x,z) is a river/lake tile, else null. */
   waterAt(x: number, z: number): number | null;
   /**
+   * Will anything grow here? Optional, because not every world has fields in it: a dungeon floor is
+   * a grid of rooms and nothing in it was ever going to take a seed.
+   */
+  isPlantable?(x: number, z: number): boolean;
+  /**
    * Is anything solid here — and, for somebody who has a shape, is it in the way of that shape?
    *
    * `body` is the asker's own box, turned the way it faces. Without it the asker is a point, and a

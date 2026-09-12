@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Season } from './seasons';
-import { CROPS, Harvests, NOT_YOURS, Plots, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './farming';
+import { CROPS, Harvests, NOT_YOURS, Plots, Sowings, WOULD_NOT_TAKE, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from './farming';
 import { ITEMS } from './items';
 
 describe('farming', () => {
@@ -131,5 +131,54 @@ describe('a crop lifted before the world agreed', () => {
     claims.answered(77, { ok: false, crop: '', amount: 0 }, put);
     expect(out.pack.get('wheat')).toBe(-3);
     expect(out.sown).toHaveLength(1);
+  });
+});
+
+describe('a seed put in before the world agreed', () => {
+  const books = () => {
+    const out = { pack: new Map<string, number>(), pulled: [] as string[], said: [] as string[] };
+    const put = {
+      unplant: (tile: string) => { out.pulled.push(tile); },
+      carry: (seed: string, by: number) => { out.pack.set(seed, (out.pack.get(seed) ?? 0) + by); },
+      flash: (message: string) => { out.said.push(message); },
+    };
+    return { out, put };
+  };
+
+  it('costs nothing when the ground takes it', () => {
+    const { out, put } = books();
+    const sowings = new Sowings();
+    sowings.answered(sowings.ask({ tile: '3,4', seed: 'wheatseed' }), true, put);
+    expect(out.pulled).toEqual([]);
+    expect(out.pack.size).toBe(0);
+    expect(sowings.pending).toBe(0);
+  });
+
+  it('lifts the seed back out and returns it when the world says no', () => {
+    const { out, put } = books();
+    const sowings = new Sowings();
+    sowings.answered(sowings.ask({ tile: '3,4', seed: 'wheatseed' }), false, put);
+    expect(out.pulled).toEqual(['3,4']);
+    expect(out.pack.get('wheatseed')).toBe(1);
+    expect(out.said).toEqual([WOULD_NOT_TAKE]);
+  });
+
+  it('answers once', () => {
+    const { out, put } = books();
+    const sowings = new Sowings();
+    const seq = sowings.ask({ tile: '3,4', seed: 'wheatseed' });
+    sowings.answered(seq, false, put);
+    sowings.answered(seq, false, put);
+    expect(out.pack.get('wheatseed')).toBe(1);
+  });
+});
+
+describe('taking a plant back out of the ground', () => {
+  it('says whether one was there', () => {
+    const plots = new Plots();
+    plots.plant(3, 4, 'wheat', 1);
+    expect(plots.clear(3, 4)).toBe(true);
+    expect(plots.at(3, 4)).toBe(null);
+    expect(plots.clear(3, 4), 'it pulled up a plant that was not there').toBe(false);
   });
 });

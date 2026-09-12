@@ -402,6 +402,16 @@ export class Online {
   }
 
   /**
+   * Putting a seed in the ground, and asking whether it will take.
+   *
+   * The page has already planted it. What the world knows better is the ground under the tile, the
+   * day of the year, and whether somebody else sowed it first. Answered by `sown`.
+   */
+  sow(seq: number, tile: string, crop: string): void {
+    if (this.connected) this.send({ type: 'sow', seq, tile, crop });
+  }
+
+  /**
    * The hero has gone underground: which floor, hanging off which anchor, and how deep.
    *
    * The world grows the same floor from its own root seed and the anchor's name, so this carries no

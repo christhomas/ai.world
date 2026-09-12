@@ -78,6 +78,8 @@ export class Plots {
    * when it does.
    */
   readonly claims = new Harvests();
+  /** And seeds put in on this page's word, waiting for the same answer from the other direction. */
+  readonly sowings = new Sowings();
 
   constructor(json?: PlotJson) {
     for (const [key, planting] of Object.entries(json ?? {})) {
@@ -105,6 +107,17 @@ export class Plots {
     if (this.planted.has(key)) return false;
     this.planted.set(key, { crop: cropId, planted: day });
     return true;
+  }
+
+  /**
+   * Take a plant out of the ground, ripe or not, and say whether one was there.
+   *
+   * Not a thing the player can do — there is no digging a seed back up in the game. It is the undo
+   * for a sowing the world refused: the page put the plant in before it asked, and this is how it
+   * comes back out. See `Sowings`.
+   */
+  clear(x: number, z: number): boolean {
+    return this.planted.delete(Plots.key(x, z));
   }
 
   /** Lift a ripe plant, returning what it yielded. */
@@ -194,5 +207,54 @@ export class Harvests {
       return;
     }
     if (told.amount !== lifted.amount) o.carry(lifted.crop, told.amount - lifted.amount);
+  }
+}
+
+/**
+ * A seed put in the ground before the world agreed it would take.
+ *
+ * The other direction of the same bargain, and the shorter one: nothing has to be handed over, so
+ * the answer is only yes or no. A refusal lifts the seed back out and puts it in the pack, which is
+ * what happens when the ground was not what the page thought it was, when the page's calendar had
+ * run ahead of the world's, or when somebody else sowed that tile first.
+ */
+export interface Put {
+  tile: string;
+  /** The seed item, so it can go back in the pack — not the crop it would have become. */
+  seed: string;
+}
+
+/** Everything undoing a sowing has to reach. */
+export interface LiftItBackOut {
+  /** Take the plant out of the ground again. */
+  unplant: (tile: string) => void;
+  /** And give the seed back. */
+  carry: (seed: string, by: number) => void;
+  flash: (message: string) => void;
+}
+
+/** Why the world said no, in the words somebody kneeling in a field would want. */
+export const WOULD_NOT_TAKE = 'That ground would not take the seed.';
+
+export class Sowings {
+  private asked = 0;
+  private readonly waiting = new Map<number, Put>();
+
+  get pending(): number { return this.waiting.size; }
+
+  ask(put: Put): number {
+    const seq = ++this.asked;
+    this.waiting.set(seq, put);
+    return seq;
+  }
+
+  answered(seq: number, ok: boolean, o: LiftItBackOut): void {
+    const put = this.waiting.get(seq);
+    if (!put) return;
+    this.waiting.delete(seq);
+    if (ok) return;
+    o.unplant(put.tile);
+    o.carry(put.seed, 1);
+    o.flash(WOULD_NOT_TAKE);
   }
 }

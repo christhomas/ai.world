@@ -318,7 +318,11 @@ export function wildInteractions(ctx: Surroundings) {
             if (!ok) return { speaker: 'Bare Earth', emoji: '🌱', pages: [`${crop.name} will not take now. Wait about ${daysUntilSeason(crop, state.day)} days.`] };
             state.take(id, 1);
             plots.plant(tx, tz, crop.id, growingDay());
-            online.report({ kind: 'sow', tile: `${tx},${tz}`, crop: crop.id, day: state.day });
+            const tile = `${tx},${tz}`;
+            online.report({ kind: 'sow', tile, crop: crop.id, day: state.day });
+            // and ask, the same way a harvest does: the seed is already in the ground, and the
+            // world says afterwards whether that ground, that day and that tile allowed it
+            online.sow(plots.sowings.ask({ tile, seed: id }), tile, crop.id);
             sound.select();
             hud.flash(`${crop.name} sown. Ripe in ${crop.days} days.`);
             persist();

@@ -482,6 +482,14 @@ export type ClientMessage =
    */
   | { type: 'harvest'; seq: number; tile: string }
   /**
+   * Putting a seed in the ground, and asking whether it will take.
+   *
+   * The counterpart to `harvest`, and the world holds all three things worth checking: what the
+   * ground is made of, what day it is — so a page wound forward cannot plant out of season — and
+   * whether somebody is already growing something on that tile.
+   */
+  | { type: 'sow'; seq: number; tile: string; crop: string }
+  /**
    * Asking the world for a piece of itself.
    *
    * Both halves grow the country from the seed today, which is why they can disagree about which
@@ -668,6 +676,8 @@ export type ServerMessage =
    * on it, or somebody else lifted it first.
    */
   | { type: 'harvested'; seq: number; tile: string; ok: boolean; crop: string; amount: number }
+  /** Whether the seed took. `ok: false` means the page lifts it back out and returns the seed. */
+  | { type: 'sown'; seq: number; tile: string; ok: boolean }
   | { type: 'delta'; delta: WorldDelta; from: string }
   | { type: 'said'; id: string; name: string; text: string }
   | { type: 'trade-offered'; offer: TradeOffer; fromName: string }
