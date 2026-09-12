@@ -1,8 +1,9 @@
-import { WATCH_WAGE, whatTheHallSpends } from './hall';
-import { PROSPER } from './prosperity';
-import { shareOut } from './livelihoods';
-import { canDo } from './holdings';
-import { rankOfRoofs, type Rank } from './rank';
+import { WATCH_WAGE, WORKS, whatTheHallSpends } from './hall';
+import {
+  A_CREW_TAKES, A_DAY_OF_BUILDING, whatTheHallFounds, whoFoundsAnother, whoIsPaidToRaiseIt,
+} from './founding';
+import { THE_HALL, type Holding } from './holdings';
+import { atLeast, rankOfRoofs, type Rank } from './rank';
 import {
   STANDARD, biggestRoofAmong, familiesWantingRoom, isARoof, oneSizeUp, workOf, type Roof,
 } from './roofs';
@@ -52,30 +53,6 @@ import { type Person } from './people';
  * and who lives there, it says what changes. The register applies it, because the register is the
  * one place a coin is allowed to move.
  */
-
-/**
- * Days a crew takes over a house.
- *
- * Six, which is what the builder who raises the player's own house takes over it — `BUILD.DAYS` in
- * `game/building.ts`. It is the same job done by people who do it for a living, so it is the same
- * six days. Written out here rather than imported because the world may not read the game, and the
- * two arriving at the same number from opposite ends of the codebase is worth more than the import
- * would have been.
- */
-const A_CREW_TAKES = 6;
-
-/**
- * What a village pays a man for a day of building, in gold.
- *
- * `WATCH_WAGE` is the only daily wage the hall has ever had, and `hall.ts` says exactly where it
- * sits: twelve gold is "a little over a farmhand's day and a little under a tradesman's", because
- * standing on a platform in the rain is not skilled work. Raising a house is: it is joinery and
- * roofing and a wall that has to stand up. So it is paid at a tradesman's rate, and what a
- * tradesman is worth over an ordinary hand is already settled in `prosperity.ts` — `TRADED` against
- * `A_DAY`, half again, which is the same ratio that decides why a village with an inn in it ends
- * the season better off than one without.
- */
-const A_DAY_OF_BUILDING = WATCH_WAGE * (PROSPER.TRADED / PROSPER.A_DAY);
 
 /**
  * What a roof of a given size costs the hall.
@@ -207,26 +184,14 @@ export function whatTheVillageBuilds(
   const roof = oneSizeUp(biggestRoofAmong(wanting) ?? STANDARD);
   const costs = costOfARoof(roof);
   if (purse < costs + WATCH_WAGE) return null;
-  const working = people.filter((person) => person.trade !== '');
-  if (working.length === 0) return null;
-  const builders = working.filter((person) => canDo(person, 'can_build'));
-  const paidForIt = builders.length > 0 ? builders : working;
+  const wages = whoIsPaidToRaiseIt(people, costs);
+  if (!wages) return null;
   return {
     costs,
-    /*
-     * Paid to the builders where a village has any, and shared among everybody who holds a trade
-     * where it has none.
-     *
-     * The second is what a village without a builder actually does — everybody who can lift a beam
-     * turns out — and it is what this did for every village until tonight, including the ones whose
-     * men were down the mine that morning. `hall.ts` has carried a note for weeks saying that when
-     * a builder reaches the register, this is the line that names him instead. He has.
-     *
-     * `shareOut` either way, so the shares come to exactly what was spent and no coin is invented
-     * on the way: it leaves the remainder on the last of them rather than rounding it into
-     * existence.
-     */
-    wages: shareOut(costs, new Map(paidForIt.map((person) => [person.id, 1]))),
+    // paid to the builders where a village has any and to everybody who holds a trade where it has
+    // none, which is `whoIsPaidToRaiseIt`'s rule — a shed and a roof are the same crew, so the rule
+    // lives in one place and both call it
+    wages,
     holdsMore: roof.holds,
     roof,
   };
@@ -244,11 +209,23 @@ export function whatTheVillageBuilds(
  * Handed back as one map of who gets what, for the reason the hall's is: a coin leaving the
  * treasury has to arrive in somebody's purse in the same act, and two calls would be two chances
  * for one of them to be forgotten.
+ *
+ * **A villager's purchase is in here too, and that is worth defending.** This is the hall's morning
+ * and a farmer buying a second farm is not the hall's business — but it is the *village's* morning,
+ * and what the two purchases have in common is exactly what item 47 says: the same commission with a
+ * different customer. Both hire the same crew, both pay it out of a purse, and both have to be one
+ * answer for the reason the paragraph above gives. A second call would be a second chance to move a
+ * coin out of somewhere and not into anywhere. What separates them is `spent`, which is the hall's
+ * money and only ever the hall's: a farmer's four hundred and eighty-six is a debit in `wages`
+ * alongside the credits it becomes, and the treasury never sees it.
  */
 export function whatTheVillageSpends(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
-  larder = Infinity,
-): { wages: Map<string, number>; spent: number; works: string[]; holdsMore: number; watch: string } {
+  larder = Infinity, holdings: readonly Holding[] = [], herd = 0, day = 0,
+): {
+  wages: Map<string, number>; spent: number; works: string[]; holdsMore: number; watch: string;
+  founded: Holding[];
+} {
   const raised = whatTheVillageBuilds(purse, built, laidOut, holds, people, larder);
   const wages = new Map<string, number>(raised?.wages ?? []);
   const works: string[] = raised ? [workOf(raised.roof)] : [];
@@ -265,13 +242,61 @@ export function whatTheVillageSpends(
     wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
   }
   if (hall.work) works.push(hall.work);
+
+  /*
+   * And whoever founds a holding this morning, which is at most one person and usually nobody.
+   *
+   * The hall goes first and out of what is left after everything above it, because a farm is the
+   * last thing on a village's list rather than the first: a roof is a need, the wish list is what
+   * the village decided to want, and buying a farm back is what it does with the money it still has
+   * afterwards. `whatTheHallFounds` keeps clear of the next thing on the wish list on top of that,
+   * so a farm can never be the reason a village does not get its bath house.
+   *
+   * A villager may found one on a morning the hall does not, and never on the same morning — one
+   * building a morning is the rule this whole file runs on, and a village where the hall and a
+   * farmer both raised a shed before noon is a village nobody watched change.
+   */
+  const name = people[0]?.village ?? '';
+  const over = Math.round((purse - onTheHouse - hall.spent) * 100) / 100;
+  const saving = whatItIsSavingFor(built, rankOfVillage(laidOut, built));
+  const founding = name === '' ? null
+    : whatTheHallFounds(name, over, saving, people, holdings, built, herd, day)
+      ?? whoFoundsAnother(name, people, holdings, built, day);
+  if (founding) for (const [id, much] of founding.wages) {
+    wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
+  }
+  // the buyer's own side of it, folded into the same entry so one person is one line: a farmer who
+  // is on the crew he is paying gets his slice back in the same number, which is what owning some
+  // of the work means
+  if (founding && founding.payer !== THE_HALL) {
+    wages.set(founding.payer, Math.round(((wages.get(founding.payer) ?? 0) - founding.costs) * 100) / 100);
+  }
+  const onTheFarm = founding && founding.payer === THE_HALL ? founding.costs : 0;
+
   return {
     wages,
-    spent: Math.round((onTheHouse + hall.spent) * 100) / 100,
+    spent: Math.round((onTheHouse + hall.spent + onTheFarm) * 100) / 100,
     works,
     holdsMore: raised?.holdsMore ?? 0,
     watch: hall.watch,
+    founded: founding ? [founding.holding] : [],
   };
+}
+
+/**
+ * What the hall is still putting money by for, whether or not it can reach it yet.
+ *
+ * `nextWork` answers a different question — what the hall can buy *today* — and answers nothing
+ * where the purse is short, which is exactly the case this has to know about: a village three
+ * hundred gold into a nine hundred gold well is a village with nothing spare, and one that read its
+ * own savings as nought would have spent them on a farm and started the well again. Same list, same
+ * order, same rule about a rank a place has not grown into being skipped rather than saved for.
+ */
+function whatItIsSavingFor(built: readonly string[], rank: Rank): number {
+  const next = WORKS.find(
+    (work) => !built.includes(work.id) && (!work.needs || atLeast(rank, work.needs)),
+  );
+  return next?.costs ?? 0;
 }
 
 /**

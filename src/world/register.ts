@@ -381,7 +381,9 @@ export class Register {
     // here: out of the purses it came from, into the one place that is not anybody's
     const tax = taxedForTheHall(village.people);
     this.pay(village, tax.owed);
-    village.purse = Math.round((village.purse + tax.raised) * 100) / 100;
+    // the hall's share of the day, and what its own farms made: a village that owns a farm takes
+    // what the farm takes, which is the whole of what owning one means. See `shareTheTake`
+    village.purse = Math.round((village.purse + tax.raised + trading.toTheHall) * 100) / 100;
     for (const person of village.people) this.paid.set(person.id, -(tax.owed.get(person.id) ?? 0));
     this.build(village);
     return trading;
@@ -430,9 +432,12 @@ export class Register {
     // do them: see `whatTheVillageSpends`, where the argument about which comes first is written
     // down. A roof before a well, because a village houses its people before it pleases them
     const spending = whatTheVillageSpends(
-      village.purse, village.works, village.houses, village.founded, village.people, village.food);
+      village.purse, village.works, village.houses, village.founded, village.people, village.food,
+      village.holdings ?? [], village.herd, this.day);
     village.watch = spending.watch;
-    if (spending.spent === 0) return;
+    // a villager founding a holding spends none of the hall's money, so what the hall spent is no
+    // longer the whole test for "nothing happened here this morning"
+    if (spending.spent === 0 && spending.founded.length === 0) return;
     village.purse = Math.round((village.purse - spending.spent) * 100) / 100;
     village.works.push(...spending.works);
     // a raised roof is a raised ceiling: what the village can hold is what its houses hold, and
@@ -440,6 +445,9 @@ export class Register {
     village.founded += spending.holdsMore;
     this.pay(village, spending.wages);
     for (const [id, much] of spending.wages) this.earned.set(id, much);
+    // and whatever was founded this morning, which is the one thing a village gains that it did not
+    // already hold: a farm bought by a man who has earned one, or by the hall out of a good decade
+    village.holdings = [...(village.holdings ?? []), ...spending.founded];
   }
 
   /**

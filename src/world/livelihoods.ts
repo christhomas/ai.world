@@ -1,7 +1,7 @@
 import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
-import { BEASTS_PER_FARM } from './holdings';
+import { BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing } from './holdings';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { ableToWork } from './wounds';
@@ -76,16 +76,14 @@ export const LIVELIHOOD = {
    */
   TAX: 0.005,
   /**
-   * How many beasts one farmer's paddocks hold, which is a fact about a farm and lives on one.
+   * How many beasts a farm's paddocks hold. The number and the argument are `BEASTS_PER_FARM`.
    *
-   * The number and the argument for it are `BEASTS_PER_FARM` in `holdings.ts`, and it is named here
-   * because everything that asks this question asks it of a livelihood. It reads across rather than
-   * being written down twice, for the reason `settlement.ts` gives about houses: a number two files
-   * keep is a number two files can disagree about.
-   *
-   * It is a cap per *farmer* here and a cap per *farm* there, and today those are the same thing
-   * because a village has exactly as many farms as it has farmers. The morning a farmer can own two
-   * farms they come apart, and this is the line that will have to say which of the two it meant.
+   * **The seam this name left is settled, and it settled towards the farm.** It was written as a cap
+   * per *farmer* when a farmer had exactly one farm and a farm had exactly one farmer, so the two
+   * readings were the same number in every village that had ever existed. They come apart the
+   * morning a man can own two, and the rails are the farm's: six head is what a farm's fences hold,
+   * whoever owns them — but only of a farm somebody is standing in, so a man who owns two and works
+   * one has six. The old name is kept because half the bench quotes it; `mannedFarms` is what counts.
    */
   HERD_PER_FARMER: BEASTS_PER_FARM,
   /**
@@ -308,6 +306,11 @@ export interface Trading {
    * coast on the day's own record is what saves the register from being handed the village twice.
    */
   shore: boolean;
+  /**
+   * The take of the holdings the village itself owns, less the wages it paid the hands standing in
+   * them. Nought wherever every farm is somebody's own, which is everywhere until one is bought.
+   */
+  toTheHall: number;
   /** What each purse is owed for the day's work, before anybody has eaten. */
   paid: Map<string, number>;
 }
@@ -326,7 +329,7 @@ export interface Trading {
  */
 export function aDaysTrade(
   people: readonly Person[], herd: number, pressure: number,
-  village: { trades?: readonly string[]; holdings?: readonly { kind: string }[] } = {},
+  village: { trades?: readonly string[]; holdings?: readonly Standing[] } = {},
 ): Trading {
   const coast = coastOf(village);
   const paid = new Map<string, number>();
@@ -354,7 +357,7 @@ export function aDaysTrade(
    */
   if (pressure > PROSPER.UNTROUBLED) {
     keep();
-    return { herd, grown: 0, meat: 0, fish: 0, shore: coast.shore, paid };
+    return { herd, grown: 0, meat: 0, fish: 0, shore: coast.shore, toTheHall: 0, paid };
   }
 
   // a man who is laid up does not work, and his trade earns the village nothing while he is: see
@@ -362,7 +365,11 @@ export function aDaysTrade(
   // expensive rather than fatal
   const working = people.filter(ableToWork);
   const farmers = working.filter((p) => p.trade === 'farmer');
-  const cattle = aDayOfCattle(herd, farmers.length);
+  // the paddocks are counted off the farms somebody is standing in rather than off the men, which
+  // is the same number until a man owns two: `mannedFarms` settles that seam, and it says the
+  // rails belong to the farm
+  const farms = mannedFarms(village.holdings, working);
+  const cattle = aDayOfCattle(herd, farms ? farms.length : farmers.length);
   // and the boats, which are the coast's answer to the paddocks: see `aDaysFishing` for why the
   // two are the same shape and deliberately not the same behaviour
   const caught = aDaysFishing(coast.boats, working.filter((p) => p.trade === 'fisherman').length);
@@ -371,11 +378,14 @@ export function aDaysTrade(
   // and what a traveller spends at an inn on his way through
   for (const person of working) add(person.id, earnedInADay(person, pressure));
 
-  // the meat the next valley bought, which is the farmers' and is one of the three ways money
-  // gets into a village at all
-  for (const [id, much] of shareOut(cattle.gold, new Map(farmers.map((p) => [p.id, 1])))) {
-    add(id, much);
-  }
+  // the meat the next valley bought: one of the four ways money gets into a village at all, and it
+  // belongs to whoever owns the paddocks rather than to whoever was standing in them. When those
+  // are the same man — every farm there has ever been until a village buys one — not a coin of this
+  // moves anywhere it did not move before. See `shareTheTake`
+  const take = farms
+    ? shareTheTake(farms, cattle.gold, people)
+    : { purses: shareOut(cattle.gold, new Map(farmers.map((p) => [p.id, 1]))), toTheHall: 0 };
+  for (const [id, much] of take.purses) add(id, much);
   /*
    * And the fish, the same way, which is the fourth — and the first one a village can *build*.
    *
@@ -412,6 +422,7 @@ export function aDaysTrade(
     meat: cattle.meals,
     fish: caught.meals,
     shore: coast.shore,
+    toTheHall: take.toTheHall,
     paid,
   };
 }

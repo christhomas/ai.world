@@ -108,17 +108,23 @@ export interface Herding {
 /**
  * A day of a village's cattle.
  *
- * Pure in the herd and the number of farmers, so a village re-lived from its founding arrives at
+ * Pure in the herd and the number of farms, so a village re-lived from its founding arrives at
  * the same paddock as the village somebody watched — which matters, because the register does
  * exactly that whenever a player first walks into a place.
  *
- * A village with no farmers has no herd, and loses the one it had. That is not a punishment: cows
- * that nobody feeds are cows that walk off, and a village whose last farmer has been buried has
- * bigger problems than its beef.
+ * **Farms with somebody in them, and not farmers**, which is the same number in every village that
+ * has only ever had one farm to each farmer and stops being the same the morning a man buys a
+ * second. The rails belong to the farm — see `mannedFarms`, where that seam is settled — so two
+ * farms are twelve head of room whoever owns them, and a shed with nobody standing in it is nought
+ * head of room however many the owner has.
+ *
+ * A village with no farm anybody works has no herd, and loses the one it had. That is not a
+ * punishment: cows that nobody feeds are cows that walk off, and a village whose last farmer has
+ * been buried has bigger problems than its beef.
  */
-export function aDayOfCattle(herd: number, farmers: number): Herding {
-  if (farmers <= 0) return { herd: 0, sold: 0, meals: 0, gold: 0 };
-  const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
+export function aDayOfCattle(herd: number, farms: number): Herding {
+  if (farms <= 0) return { herd: 0, sold: 0, meals: 0, gold: 0 };
+  const cap = farms * LIVELIHOOD.HERD_PER_FARMER;
   /*
    * A paddock that is already over-full does not calve.
    *
@@ -136,7 +142,7 @@ export function aDayOfCattle(herd: number, farmers: number): Herding {
    * The first half is the whole model: a herd under its cap keeps everything and grows toward it,
    * and a herd at its cap sells exactly the calves and stays the size it is. The second half is
    * what stops a village burying three of its four farmers and the survivor waking up to a
-   * hundred and sixty gold — the cap falls with the farmers, and without a rate the entire surplus
+   * hundred and sixty gold — the cap falls with the farms, and without a rate the entire surplus
    * goes to market in one morning. The bench found it as a farmer averaging sixty-seven a day
    * against every other trade's three. A herd over its cap now comes down by a calving a day and
    * calves nothing back, which is about a month to work off a dead man's beasts and looks from the

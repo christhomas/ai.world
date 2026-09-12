@@ -1,4 +1,5 @@
 import { stageOf, surnameOf, type Person } from './people';
+import { PROSPER } from './prosperity';
 
 /**
  * What a person can do, and the things they work that outlive them.
@@ -35,17 +36,18 @@ import { stageOf, surnameOf, type Person } from './people';
  *
  * ## What this file is allowed to decide, and what it is not
  *
- * It decides *who holds what and who works it*, and nothing else. Not one coin moves anywhere in
- * this module. That is deliberate and it is the reason it can be trusted: every function here is
- * pure in what it is handed, so a village re-lived from its founding arrives at the same farms with
- * the same names on the same gates as the village somebody has been standing in — which is the
- * bargain the whole world is built on. Where money has to change hands for a holding — a farmer
- * buying his second farm, a hall buying one back — the register is handed the answer and moves the
- * money through the one door it has for moving money. See `livelihoods.ts` for that door.
+ * It decides *who holds what, who works it, and whose the day's take therefore is* — and not one
+ * coin moves anywhere in this module. The distinction is worth keeping sharp, because the third of
+ * those sounds like money and is not: `shareTheTake` says whose a holding's earnings *are*, which is
+ * a fact about ownership, and hands the answer back for somebody else to apply. Every function here
+ * is pure in what it is handed, so a village re-lived from its founding arrives at the same farms
+ * with the same names on the same gates as the village somebody has been standing in — which is the
+ * bargain the whole world is built on. The register is the one place a coin is allowed to move.
  *
- * It also invents no prices. What a farm costs to found is a number the bench has to settle, the way
- * every other number in this economy was settled, and a number put here today on a guess would be a
- * guess wearing the authority of a constant.
+ * It also invents no prices. What a farm costs to found is `founding.ts`'s, because pricing a shed
+ * means knowing what a crew charges for a week, and this file sits underneath everything that knows
+ * that. What it prices instead is a *day* of somebody else's work on your holding, which is the one
+ * number ownership cannot be stated without.
  */
 
 /**
@@ -204,6 +206,18 @@ export interface Holding {
   /** The day it was founded, which is the only history a holding keeps. */
   founded: number;
 }
+
+/**
+ * A holding as a day's work needs to see it, which is less than a holding.
+ *
+ * Everything but what sort of thing it is may be missing, and that is not laxity — it is the honest
+ * description of the callers there are. Something counting the hulls a village keeps needs only the
+ * kind; a test standing a coast up to see what it lands has no business inventing owners for boats
+ * it will never ask about. What a missing field *means* is settled once here rather than at each
+ * site that reads one: no worker named is nobody standing in it, and no owner named is the hall's,
+ * which are the two right answers and are also what a village's books would say.
+ */
+export type Standing = { kind: string } & Partial<Omit<Holding, 'kind'>>;
 
 /** Whatever a village can be asked about here, which is deliberately less than a settlement. */
 export interface Village {
@@ -395,6 +409,112 @@ export function nameOfHolding(holding: Holding): string {
  * builders.
  */
 export const BEASTS_PER_FARM = 6;
+
+/**
+ * What an owner pays somebody else to work a holding for a day.
+ *
+ * `PROSPER.A_DAY` — "what a day is worth to somebody the player never watched", which is the floor
+ * under every wage in this world and is exactly what a hired hand's day is. He is not a tradesman
+ * selling a skill to the people around him; he is a pair of arms in somebody else's field, and this
+ * world already has a number for that and has had since before there was a village to stand it in.
+ *
+ * Two against the two pounds and a sixth a full paddock brings in — `BEASTS_PER_FARM` head calving
+ * at `CALVES` and sold at `PRICE_PER_BEAST` — so an owner who is not working it clears a few
+ * hundredths a day and no more. That thinness is the point rather than a disappointment. A farm
+ * worked by somebody else should be barely worth having, because the man doing the work is the man
+ * who should be eating; what the second farm is actually *for* is that the village has another
+ * paddock and therefore more beasts, which is a gain to the place rather than to the owner.
+ */
+export const A_DAYS_HIRE = PROSPER.A_DAY;
+
+/**
+ * Whose a holding's day is, when the owner and the worker are not the same person.
+ *
+ * This is the whole of what an owner *is* in this world, and it is one rule rather than two:
+ *
+ *   **what a holding earns belongs to whoever holds it, and whoever holds it pays whoever works it
+ *   a day's hire.**
+ *
+ * Everything the work list wanted from both halves of this falls out of that sentence. A hall that
+ * has bought a farm takes what the farm makes and pays its hand — so a treasury can do a thing no
+ * purse in the village can, and the wage it carries is drawn out of what the farm brought in rather
+ * than out of the taxes, which is money moving inside the valley for work somebody needed. And a
+ * farmer who has formed a second farm is in precisely the same position with precisely the same
+ * arithmetic: he owns it, somebody else stands in it, and he pays that somebody a day.
+ *
+ * **When the two are the same man, not a coin of it moves**, and that matters more than it reads. It
+ * is the ordinary case; it is every farm in every village until tonight; and it means this rule can
+ * go in underneath a working economy without moving a single number in it. The wage is paid by the
+ * owner to the worker, and a man does not pay himself.
+ *
+ * **The wage is capped by the day's take**, which is the clause that makes "out of what the farm
+ * earns" literal instead of a rate. An owner cannot pay out of a paddock what the paddock did not
+ * make, so a bad week costs the hand his wage and never costs the hall money it has not got. Without
+ * it a village that bought three farms and had a thin month would be a treasury paying wages on
+ * beasts that were not there, which is the shape of a subsidy rather than of an employer.
+ *
+ * An owner who is no longer on the roll is treated as the hall. That is a guard rather than a rule —
+ * `passedOn` settles every estate before the morning — but money handed to a name nobody answers to
+ * is money that leaves the world, and the one thing this economy is audited for is that it does not.
+ */
+export function shareTheTake(
+  holdings: readonly Standing[], gold: number, people: readonly Person[],
+): { purses: Map<string, number>; toTheHall: number } {
+  const purses = new Map<string, number>();
+  const add = (who: string, much: number): void => {
+    purses.set(who, Math.round(((purses.get(who) ?? 0) + much) * 100) / 100);
+  };
+  const living = new Set(people.map((person) => person.id));
+  let toTheHall = 0;
+  // to the coin and by the same rule every other pool here is shared by, so what the holdings
+  // between them take is exactly what the day made
+  for (let at = 0; at < holdings.length; at++) {
+    const holding = holdings[at];
+    const took = shareOf(gold, holdings.length, at);
+    const worker = holding.worker ?? '';
+    const owner = living.has(holding.owner ?? '') ? holding.owner! : THE_HALL;
+    if (owner === worker) { add(worker, took); continue; }
+    const wage = Math.min(A_DAYS_HIRE, took);
+    add(worker, wage);
+    if (owner === THE_HALL) toTheHall = Math.round((toTheHall + took - wage) * 100) / 100;
+    else add(owner, took - wage);
+  }
+  return { purses, toTheHall };
+}
+
+/** One holding's share of a pool, to the coin, with the remainder on the last of them. */
+function shareOf(pool: number, among: number, at: number): number {
+  if (among <= 0 || pool <= 0) return 0;
+  const each = Math.floor((pool / among) * 100) / 100;
+  return at === among - 1 ? Math.round((pool - each * (among - 1)) * 100) / 100 : each;
+}
+
+/**
+ * The farms of a village that somebody is actually standing in this morning.
+ *
+ * The answer to a question that had two names and one meaning until tonight: `HERD_PER_FARMER` was a
+ * cap per *farmer* and `BEASTS_PER_FARM` a cap per *farm*, identical in every village that has ever
+ * existed because a farmer had exactly one farm and a farm had exactly one farmer. The day a man can
+ * own two, they come apart, and this says which of the two the paddocks meant — **the farm**. Six
+ * head is what a farm's rails hold. A man who owns two farms and works one of them has twelve head
+ * of room and one pair of hands, and the beasts do not care whose name is on the gate.
+ *
+ * *Manned* is the other half of it, and it is the half that keeps a village honest: a shed with
+ * nobody in it feeds nothing, so a farm whose worker is dead, gone or laid up counts for nought this
+ * morning. That is exactly the rule the herd has always run on — `aDaysTrade` has counted only the
+ * farmers who could work since `wounds.ts` went in — said about farms instead of about men.
+ *
+ * Nothing at all for a caller that says nothing about holdings, which has to mean "then ask the
+ * question the old way" rather than "then the village has no farms": every test in this economy and
+ * every caller with only a list of people in its hand wants the answer it has always had.
+ */
+export function mannedFarms(
+  holdings: readonly Standing[] | undefined, working: readonly Person[],
+): Standing[] | null {
+  if (holdings === undefined) return null;
+  const able = new Set(working.map((person) => person.id));
+  return holdings.filter((holding) => holding.kind === 'farm' && able.has(holding.worker ?? ''));
+}
 
 /**
  * The village's herd, divided across the farms that keep it.
