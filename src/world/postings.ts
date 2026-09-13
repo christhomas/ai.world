@@ -92,6 +92,20 @@ export const POST = {
    * same rule `spentOnLiving` uses about what a man will lay out on himself.
    */
   LAYS_OUT: 0.2,
+  /**
+   * What a builder asks for a day on somebody else's yard, in gold.
+   *
+   * The seat `POSTINGS` has held open for the builder since it was written, filled at last. Item 37
+   * says a village pays for *a day of building bought each morning from whoever turns up* rather
+   * than holding a fee in escrow, so this is a day and not a share of a price.
+   *
+   * Above a guard's eight, because a guard stands and a builder works, and because a village that
+   * could hire a builder for what it pays a man to lean on a gate would never build anything the
+   * slow way. Below what the hall pays its own crew for a roof, which is a price divided by the
+   * days it takes: a yard is a business somebody runs and a roof is the village buying a thing, and
+   * the second should be the better morning's work or nobody would ever raise one.
+   */
+  BUILDER: 12,
 } as const;
 
 /**
@@ -183,8 +197,6 @@ export function wageForAGuard(pressure: number): number {
 export function postsToday(
   people: readonly Person[], holdings: readonly Held[], pressure: number, day = Infinity,
 ): Post[] {
-  const wage = wageForAGuard(pressure);
-  if (wage <= 0) return [];
   const purses = new Map(people.map((person) => [person.id, person.purse]));
   const byId = (one: Person, two: Person): number => (one.id < two.id ? -1 : 1);
   // grown, because a nine-year-old on a gate with a dragon overhead is not a thing a village does.
@@ -194,9 +206,17 @@ export function postsToday(
     ...grown.filter((person) => person.trade === 'soldier').sort(byId),
     ...grown.filter((person) => person.trade === '').sort(byId),
   ];
+  /*
+   * A guard's wage is nought at peace — a farm with nothing overhead posts nobody — and this used
+   * to return on that before anything else was considered. Which was right while the gate was the
+   * only post there was, and stopped being right the moment a yard could hire a builder: how hard
+   * something is leaning on the village has nothing to do with whether a house gets built, so a
+   * village at peace employed nobody at all. Found by the first test that asked for a crew.
+   */
+  const wage = wageForAGuard(pressure);
   const posts: Post[] = [];
   let next = 0;
-  for (const holding of holdings) {
+  for (const holding of wage <= 0 ? [] : holdings) {
     if (holding.kind !== 'farm') continue;
     const held = purses.get(holding.owner);
     if (held === undefined || held * POST.LAYS_OUT < wage) continue;
@@ -204,6 +224,46 @@ export function postsToday(
     if (!man) break;                              // nobody left in the village to ask
     next++;
     posts.push({ kind: 'guard', holding: holding.id, who: man.id, funder: holding.owner, wage });
+  }
+  return [...posts, ...crewsToday(grown, holdings, purses, posts)];
+}
+
+/**
+ * A day of building on every yard whose owner can pay for one.
+ *
+ * The seat `POSTINGS` has held open since it was written. The table declared two sorts of post and
+ * only one of them ever happened: `postsToday` looked for `farm` in as many words, so the `crew`
+ * row — a yard, wanting `can_build`, *a day of building* — described something no code path
+ * reached. Item 37 is what was waiting on it.
+ *
+ * **Bought by the day rather than held in escrow**, which is that item's argument settled against
+ * its own first sentence: a fee held for a dead man dangles. A builder who dies on the fourth day
+ * has been paid for four days and his replacement is paid for the two that are left, where escrow
+ * would hand the dead man's four to his successor.
+ *
+ * Nobody stands two posts in one morning, the same rule the gates run on — a village with one
+ * builder and three yards builds on one of them, which is the honest answer and reads from the road
+ * as what it is.
+ */
+function crewsToday(
+  grown: readonly Person[], holdings: readonly Held[],
+  purses: ReadonlyMap<string, number>, already: readonly Post[],
+): Post[] {
+  const taken = new Set(already.map((post) => post.who));
+  // whoever can actually do it, which is the capability rather than the trade name: `can_build` is
+  // what `POSTINGS` asks for and what a wright, a mason or anybody else with the hands would have
+  const hands = grown.filter((person) => canDo(person, 'can_build') && !taken.has(person.id))
+    .sort((one, two) => (one.id < two.id ? -1 : 1));
+  const posts: Post[] = [];
+  let next = 0;
+  for (const holding of holdings) {
+    if (holding.kind !== 'yard') continue;
+    const held = purses.get(holding.owner);
+    if (held === undefined || held * POST.LAYS_OUT < POST.BUILDER) continue;
+    const hand = hands[next];
+    if (!hand) break;
+    next++;
+    posts.push({ kind: 'crew', holding: holding.id, who: hand.id, funder: holding.owner, wage: POST.BUILDER });
   }
   return posts;
 }
