@@ -5576,3 +5576,19 @@ than by remembering — and the first thing found was that the gap is not where 
       The order to do it in: one field at a time, red-green, data first. Write the value into every
       creature's entry, make the reader required, delete the fallbacks that field caused, run the
       suite. `chore fallbacks` says when a field is finished — its sites stop appearing.
+
+      **Every field, stated, with no exceptions** — Chris, 13 September: *"config is easy and it's
+      just a line and a field with a zero in, that's not noise, that's certainty."* The argument for
+      exempting the conventional ones — why make every entry repeat `scale: 1` — was mine and it was
+      wrong, because it turns one mechanical rule into a judgement call per field, and a judgement
+      call is the thing that lets the next optional field in. No optional values on a creature, no
+      defaults in the loader, nothing to sweep.
+
+      It also dissolves the `altitude` disagreement rather than settling it. With every bird stating
+      its own flying height, `?? 2` in one spawn path and `?? 7` in another stops being a question
+      anybody has to answer: the two call sites were arguing about a number that belongs to the
+      creature, and once the creature says it there is nothing left to argue about.
+
+      **Done so far:** `damage` (30 entries, six fallbacks deleted).
+      **Left:** `altitude`, `climb`, `hp`, `paddles`, `owned`, `gold` — and then the conventional
+      ones, which are the same job with less to decide.
