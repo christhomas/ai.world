@@ -387,11 +387,29 @@ export function stepToward(world: TileWorld, e: Entity, dx: number, dz: number, 
    * So the opposite side is not an option here at all. It is reconsidered only when a straight step
    * works again, which is the moment the obstacle is behind him and the side is meaningless.
    */
-  for (const turn of TURNS) {
-    e.x = fromX; e.z = fromZ;
-    const cos = Math.cos(turn * e.side), sin = Math.sin(turn * e.side);
-    if (tryMove(world, e, (dx * cos - dz * sin) * stepLen, (dx * sin + dz * cos) * stepLen) && madeGood() >= stepLen * HEAD_ON) {
-      return true;
+  /*
+   * Every turn on the chosen side first — and only if all of them fail, the other side.
+   *
+   * The two rules here pull against each other and both are needed. Sticking to one side is what
+   * gets a man round a flat wall: reconsider whenever the going is briefly bad and he turns back
+   * every time, because the far end of a wall is further than the near end for most of the journey.
+   * But an inside corner — two walls meeting at his back — can be entered on the wrong side, and
+   * then *every* turn on that side is into one of the two walls and he is pinned for good.
+   *
+   * So the side is kept until it is exhausted rather than until it is inconvenient. One blocked
+   * turn proves nothing; all three prove he is stuck, and that is the one moment reconsidering is
+   * right. `doorstep.test.ts` has a case for each: a flat wall he must not turn back along, and a
+   * corner he must back out of.
+   */
+  for (const side of [e.side, -e.side]) {
+    for (const turn of TURNS) {
+      e.x = fromX; e.z = fromZ;
+      const cos = Math.cos(turn * side), sin = Math.sin(turn * side);
+      if (tryMove(world, e, (dx * cos - dz * sin) * stepLen, (dx * sin + dz * cos) * stepLen)
+        && madeGood() >= stepLen * HEAD_ON) {
+        e.side = side;
+        return true;
+      }
     }
   }
   e.x = slidX; e.z = slidZ;
