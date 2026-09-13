@@ -3,6 +3,7 @@ import {
   A_CREW_TAKES, A_DAY_OF_BUILDING, whatTheHallFounds, whoFoundsAnother, whoIsPaidToRaiseIt,
 } from './founding';
 import { THE_HALL, isTheHall, type Holding } from './holdings';
+import { type Stable } from './stables';
 import { atLeast, rankOfRoofs, type Rank } from './rank';
 import {
   STANDARD, biggestRoofAmong, familiesWantingRoom, isARoof, oneSizeUp, workOf, type Roof,
@@ -365,3 +366,68 @@ export function whatItIsSavingFor(built: readonly string[], rank: Rank): number 
 export function rankOfVillage(laidOut: number, built: readonly string[]): Rank {
   return rankOfRoofs(housesStanding(laidOut, built));
 }
+
+/**
+ * What a stall is worth against a person's room: a third of it.
+ *
+ * One claim rather than a day-rate and a number of days, because inventing two numbers to arrive at
+ * a third is how a price ends up unarguable-with. The claim is about the building: a room is a
+ * floor, walls, a window, a chimney and a roof that has to keep a family dry through a winter; a
+ * stall is posts, a beam, a roof and a hard standing, and nothing in it minds a draught. A third is
+ * what is left when you take the joinery, the glazing and the hearth out of a room, and everything
+ * else about the price then follows from what a village already pays its own builders.
+ */
+const A_STALL = 1 / 3;
+
+/**
+ * What a stable of this size costs the person paying for it, in gold.
+ *
+ * Quoted off `costOfARoof` rather than written out again, because two prices for one day's work is
+ * how a builder ends up worth more to a family than to a farmer for the same morning. A house is
+ * `STANDARD.holds` people; divide it out and what is left is what a village pays to house one, and
+ * a stall is a third of that.
+ *
+ * The whole size rather than the rung, which is `costOfARoof`'s own rule: going up a size means
+ * pulling the old one down and building the new one, so what is paid is what the new one costs. A
+ * farm that climbs the ladder therefore pays for its barn twice over on the way, which is exactly
+ * what a farm that outgrew two buildings has actually done.
+ *
+ * Computed on being asked rather than at module load, and that is not fussiness. A constant here
+ * that read another module's constant while both were still initialising is precisely the
+ * arithmetic that once made `rank.ts` and `growth.ts` hand every village in the world a bill of
+ * `NaN`.
+ */
+export function costOfAStable(stable: Stable): number {
+  const aRoomApiece = costOfARoof(STANDARD) / STANDARD.holds;
+  return Math.round(stable.beasts * aRoomApiece * A_STALL);
+}
+
+/** Lengths of cut timber one stall wants: posts, a beam, and boards enough to roof it. */
+const TIMBER_PER_BEAST = 5;
+
+/**
+ * And what it costs in timber, which is the half a purse cannot argue with.
+ *
+ * A stable is the most straightforwardly wooden thing anybody in this world builds — posts, beams,
+ * boards, and almost nothing else. It is cheaper in wood *per beast* than a house is per person,
+ * because a stall is smaller than a room; what makes it the wooden building is that nearly all of
+ * its price is wood, where a house is also stone, thatch and glass. A stable for twelve wants
+ * sixty lengths against a house's forty, and a steading wants a hundred and twenty — a fortnight of
+ * one man's cutting, which is the sentence the material was put in to be able to say.
+ *
+ * That answers the question this item was handed with. A stable is the building that would be
+ * *strangest* without a timber price: gold is fungible and a rich farmer will always find four
+ * hundred of it, and a village on a bare rock with no logger in it should not be able to double its
+ * herd by being wealthy.
+ */
+export function timberForAStable(stable: Stable): number {
+  return stable.beasts * TIMBER_PER_BEAST;
+}
+
+/**
+ * How many beasts a village's farms can keep between them.
+ *
+ * What `aDayOfCattle` wants in place of `farmers * BEASTS_PER_FARM`: the same number for a village
+ * whose farms are all byres, and a larger one the moment anybody has built anything. Handed the
+ * farms rather than reaching for them, so this file still never asks `holdings.ts` anything.
+ */

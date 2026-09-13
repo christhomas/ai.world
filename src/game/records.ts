@@ -1,6 +1,7 @@
 import type { Burial, Register } from '../world/register';
 import { spentOnLiving } from '../world/prosperity';
-import { aDaysIncome, pitchFor } from '../world/livelihoods';
+import { pitchFor } from '../world/livelihoods';
+import { aDaysIncome } from '../world/expected';
 import { FOOD } from '../world/food';
 
 /**

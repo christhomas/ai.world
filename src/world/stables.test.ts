@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { BEASTS_PER_FARM } from './holdings';
 import {
-  BYRE, STABLES, beastsAt, costOfAStable, herdRoomFor, holdingOfWork, isAStable, oneSizeUp,
-  stableAt, stableOfWork, timberForAStable, workOf,
+  BYRE, STABLES, beastsAt, herdRoomFor, holdingOfWork, isAStable, oneSizeUp,
+  stableAt, stableOfWork, workOf,
 } from './stables';
+// the pricing lives with the other pricing: `stables.ts` counts and must import nothing
+import { costOfAStable, timberForAStable } from './growth';
 
 /**
  * The first money in this game that buys capacity rather than a thing.

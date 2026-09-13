@@ -1,5 +1,6 @@
 import { FOOD, heartsLeft, lookingForFood } from '../src/world/food';
-import { aDaysIncome, pitchFor } from '../src/world/livelihoods';
+import { pitchFor } from '../src/world/livelihoods';
+import { aDaysIncome } from '../src/world/expected';
 import { spentOnLiving } from '../src/world/prosperity';
 import { ageOf } from '../src/world/people';
 import type { Register } from '../src/world/register';

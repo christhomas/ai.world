@@ -2,6 +2,7 @@ import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
 import { BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing } from './holdings';
+import { herdRoomFor } from './stables';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { ableToWork } from './wounds';
@@ -9,13 +10,11 @@ import { ableToWork } from './wounds';
 /**
  * The four ways a villager gets a coin, and the coin actually going from one hand to another.
  *
- * The economy had a source and a drain and nothing in between. `mines.ts` minted gold out of the
- * ground and shared it among a crew; `prosperity.ts` paid everybody else a flat daily float out of
- * nowhere at all; `food.ts` charged everybody for dinner and burnt the money. Add it up over a
- * hundred days and every purse in the world was filled by the same invisible hand and emptied into
- * the same invisible hole, and not one coin ever passed between two people. A village with a
- * market in it was richer than a village without one because a constant said so, not because
- * anybody had ever bought anything from anybody.
+ * The economy had a source and a drain and nothing in between. `mines.ts` minted gold and shared it
+ * among a crew; `prosperity.ts` paid everybody else a flat daily float out of nowhere; `food.ts`
+ * charged for dinner and burnt the money. Over a hundred days every purse was filled by the same
+ * invisible hand and emptied into the same invisible hole, and not one coin passed between two
+ * people. A village with a market was richer than one without because a constant said so.
  *
  * So this is the middle. Four livelihoods, and each of them is somebody being paid by somebody:
  *
@@ -48,14 +47,12 @@ export const LIVELIHOOD = {
   /**
    * The share of what a villager has spare that the hall takes each day.
    *
-   * Three hundredths of whatever they hold above their week of dinners. Small on purpose: a village
-   * of thirty people carrying a dozen gold apiece raises something like five a day, so a harbour is
-   * a season's taxes rather than an afternoon's — which is what makes it a thing a village decides
-   * to do rather than a thing that happens.
+   * Three hundredths of whatever they hold above their week of dinners. Small on purpose: thirty
+   * people carrying a dozen gold apiece raise about five a day, so a harbour is a season's taxes
+   * rather than an afternoon's — which is what makes it a thing a village decides to do.
    *
-   * It also has to be far under what a day earns, or the tax is the reason nobody in the country
-   * can save. `PROSPER` has the arithmetic of a working day; this is a slice off the top of what is
-   * left after it, and it stops entirely at `KEEPS_BACK`.
+   * It also has to be far under what a day earns, or the tax is why nobody in the country can save.
+   * A slice off what is left after a working day, stopping entirely at `KEEPS_BACK`.
    *
    * A hundredth of that to start with, and the reason is the best kind: the bench said so within an
    * hour. At three hundredths the sum came out beautifully — 410 in the hall by day thirty, 3,700
@@ -329,7 +326,12 @@ export interface Trading {
  */
 export function aDaysTrade(
   people: readonly Person[], herd: number, pressure: number,
-  village: { trades?: readonly string[]; holdings?: readonly Standing[] } = {},
+  village: {
+    trades?: readonly string[];
+    holdings?: readonly Standing[];
+    /** What the village has built, so a farm that was built up holds what it was built to hold. */
+    works?: readonly string[];
+  } = {},
 ): Trading {
   const coast = coastOf(village);
   const paid = new Map<string, number>();
@@ -369,7 +371,20 @@ export function aDaysTrade(
   // is the same number until a man owns two: `mannedFarms` settles that seam, and it says the
   // rails belong to the farm
   const farms = mannedFarms(village.holdings, working);
-  const cattle = aDayOfCattle(herd, farms ? farms.length : farmers.length);
+  // by id and with what the village has built, so a farm that was built up holds what it was built
+  // to hold rather than the same as every other farm. See `aDayOfCattle`
+  // a holding's id is optional on `Standing` — a farm mid-founding has none yet — and one with no
+  // id has nothing built against it either, so it counts as a byre like any other
+  const ids = farms ? farms.map((f) => f.id ?? '').filter((id) => id !== '') : farmers.map((p) => p.id);
+  const cattle = aDayOfCattle(
+    herd,
+    // a holding's id is optional on `Standing` — a farm mid-founding has none yet — and one with no
+    // id has no stable recorded against it either, so it counts as a byre like any other
+    ids,
+    // what those farms hold between them, which is the rest of item 33: a farmer who paid for a
+    // barn carries more than one who did not, where this used to be farms times a constant
+    herdRoomFor(village.works ?? [], ids),
+  );
   // and the boats, which are the coast's answer to the paddocks: see `aDaysFishing` for why the
   // two are the same shape and deliberately not the same behaviour
   const caught = aDaysFishing(coast.boats, working.filter((p) => p.trade === 'fisherman').length);
@@ -427,83 +442,6 @@ export function aDaysTrade(
   };
 }
 
-/**
- * What a day is expected to pay each person, for a book that has to say so before the day happens.
- *
- * The town hall's roll quotes a figure against every name — what they take in a day — and a player
- * pays a clerk for it. It has to be the whole of what somebody earns now that most of a villager's
- * income is other villagers' money, or the roll is quoting the smallest part of a wage and calling
- * it the wage.
- *
- * It is a forecast, and it is held to being an exact one. Everything a day pays follows from what
- * the village looked like the evening before — who is alive, what they hold, what is in the larder
- * and what is in the paddock — so a book written on that evening can be right to the coin about the
- * morning, and `chore test economy` audits a hundred days of exactly that. The two places it can
- * still be wrong are the two places the evening genuinely does not know the morning: somebody born
- * or come of age overnight, and a village whose larder runs out in the middle of dinner. Both are
- * news rather than noise, which is the right thing for a ledger to be wrong about.
- *
- * `store` is what is in the cellar, because whether the food runs out decides whether the farmers
- * are paid for it. Left out, it assumes there is enough, which is what a caller with no village
- * behind it wants.
- */
-export function aDaysIncome(
-  people: readonly Person[], herd: number, pressure: number, store = Infinity,
-  /**
-   * The village itself, when the caller has it, because a coast earns from the water.
-   *
-   * Optional for the same reason it is optional on `aDaysTrade`: a caller with only a list of
-   * people gets the inland answer, which is what every caller got before there was a catch. Left
-   * out where a village *does* fish, the roll under-reports every fisherman's day — and the audit
-   * reads that row, so the money would arrive in purses with nothing in any book to explain it.
-   */
-  village?: Parameters<typeof aDaysTrade>[3],
-): Map<string, number> {
-  const day = aDaysTrade(people, herd, pressure, village);
-  const income = new Map(day.paid);
-
-  /*
-   * What dinner will come to, by the same rule `eat` uses.
-   *
-   * Asked whatever is going on outside the village, and that is not an oversight: nobody farms
-   * while the place is being raided, but the cellar is still there and people still eat out of it
-   * and still pay each other for it. A forecast that stopped at the same threshold the *work*
-   * stops at would have the whole village down as earning nothing on a day when the last of the
-   * store was changing hands.
-   *
-   * Two things decide it and both have to be asked in the right order. Who can pay is asked of the
-   * purse a person will have when they sit down, which is after the morning's work has been paid
-   * — asking it of last night's purse puts anybody who was broke at bedtime down as going hungry
-   * on a day they were paid before dinner. And how many of them get any is capped by what is
-   * actually in the larder, because `eat` goes richest first: the people who can pay are at the
-   * front of the queue, so the pool is the smaller of how many can pay and how much there is.
-   */
-  const canPay = people.filter(
-    (p) => p.trade && p.purse + (day.paid.get(p.id) ?? 0) >= FOOD.MEAL,
-  ).length;
-  /*
-   * A caller with no village behind it says nothing about the store, and that has to mean "assume
-   * there is enough" rather than "assume an infinite glut". Left as arithmetic on `Infinity` it
-   * came out as a surplus of infinity, a pool of infinity, and every share in the village NaN —
-   * which is what the test that guards this found within a minute of the surplus going in.
-   */
-  const known = Number.isFinite(store);
-  const larder = known ? Math.min(cellarCap(people), store + day.grown) : Infinity;
-  const pool = Math.min(canPay, Math.floor(Math.min(larder, canPay))) * FOOD.MEAL;
-  // plus what the cellar will not hold, which goes to the next valley rather than on the ground
-  const spare = known ? Math.max(0, store + day.grown - larder) : 0;
-
-  for (const [id, much] of paidForFood(people, pool + spare * FOOD.ABROAD, day.meat)) {
-    income.set(id, (income.get(id) ?? 0) + much);
-  }
-  // the keep and the pitch are both in `paid` as debits, which is where they belong: the roll says
-  // what a day takes in and what it costs on separate lines, and this is the taking-in line
-  for (const one of people) {
-    income.set(one.id, (income.get(one.id) ?? 0) + spentOnLiving(one) + pitchFor(one));
-  }
-  return income;
-}
-
 /** What a village grew, what it ate, and who was paid for it. */
 export interface Dinner {
   /** What is left in the store this evening. */
@@ -557,25 +495,21 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
 /**
  * A sale in the street, made by somebody a player is actually watching.
  *
- * The one place the seen half of this world and the unseen half meet over money, and until now
- * they disagreed about it. A hunter you watch walks his deer to the market and `verbs.ts` credited
- * him what the meat was worth out of thin air; a hunter nobody watches is paid his share of what
- * the village spent on dinner. Same man, same deer, two different economies — and the visible one
- * was the one minting money, which is exactly backwards.
+ * The one place the seen half of this world and the unseen half meet over money, and they used to
+ * disagree. A hunter you watch was credited what the meat was worth out of thin air; a hunter
+ * nobody watches is paid his share of what the village spent on dinner. Same man, same deer, two
+ * economies — and the visible one was minting, which is exactly backwards.
  *
- * So a sale is a transfer. Somebody in the village buys the deer, and it is their coin the hunter
- * walks away with. The market seller first, because that is her trade and buying what hunters and
- * farmers bring in is the whole of it; then the other trades whose business is other people; then
- * whoever in the village has the deepest purse, because a village with no stall still eats. Nobody
- * buys themselves out of their own reserve — a week of dinners is kept back, the same reserve
- * `spentOnLiving` will not spend below — so a poor village simply cannot afford the whole deer,
- * and the hunter gets what there is.
+ * So a sale is a transfer: somebody in the village buys the deer and it is their coin he walks away
+ * with. The market seller first, because buying what hunters bring in is her trade; then the other
+ * trades whose business is other people; then the deepest purse, because a village with no stall
+ * still eats. Nobody buys past their own week of dinners — `spentOnLiving`'s reserve — so a poor
+ * village cannot afford the whole deer and the hunter gets what there is.
  *
- * That the hunter ends the day better off than an unwatched one is not a leak and is not smoothed
- * over. He really did carry a deer in while somebody was looking. What must not happen — and now
- * cannot — is the village as a whole being a coin richer for having been visited.
+ * That he ends better off than an unwatched one is not a leak: he really did carry a deer in while
+ * somebody was looking. What must not happen is the *village* being a coin richer for the visit.
  *
- * Returns what actually changed hands, which the caller wants for the body standing in the street.
+ * Returns what changed hands, which the caller wants for the body standing in the street.
  */
 export function soldAtMarket(
   people: readonly Person[], sellerId: string, coin: number, what = '',
@@ -637,11 +571,10 @@ export const DINNER: ReadonlySet<string> = new Set([
  * A villager buys something in their own village, from whoever sells it.
  *
  * The mirror of `soldAtMarket` and the other half of the same complaint. A village pays its
- * seller, its innkeeper and its doctor every single day in the books — that is what `paidForService`
- * is — and nobody has ever been seen handing over a coin for any of it. The evening at the inn was
- * a man walking to a door, standing there, and a number going down: `spend` in `verbs.ts` took the
- * money out of the body's own purse, which is destroyed the moment a player walks away, and gave it
- * to nobody at all.
+ * seller, its innkeeper and its doctor every day in the books — `paidForService` — and nobody was
+ * ever seen handing over a coin for any of it. The evening at the inn was a man walking to a door
+ * and a number going down: `spend` took it out of a body's purse, which is destroyed the moment a
+ * player walks away, and gave it to nobody.
  *
  * So it is a transfer, to the trade that sells the thing where the game knows which — a bed and a
  * drink are the innkeeper's, gear is the seller's — and to whichever trader is here when it does

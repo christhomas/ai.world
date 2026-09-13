@@ -122,9 +122,27 @@ export interface Herding {
  * punishment: cows that nobody feeds are cows that walk off, and a village whose last farmer has
  * been buried has bigger problems than its beef.
  */
-export function aDayOfCattle(herd: number, farms: number): Herding {
-  if (farms <= 0) return { herd: 0, sold: 0, meals: 0, gold: 0 };
-  const cap = farms * LIVELIHOOD.HERD_PER_FARMER;
+export function aDayOfCattle(
+  herd: number,
+  /** The farms somebody is standing in, by id. A count was enough until they differed. */
+  farms: readonly string[],
+  /**
+   * How many beasts those farms hold between them — `herdRoomFor` in `stables.ts`.
+   *
+   * Handed in rather than worked out here, and the reason is a cycle rather than taste. `stables.ts`
+   * prices a stable against what a roof costs, so it imports `growth.ts`, which reaches
+   * `livelihoods.ts`, which imports this file. Importing `stables` from here closed that ring, and a
+   * ring is not a slow failure: `LIVELIHOOD` came out `undefined` at module-init time and a farm's
+   * stock price was `NaN` before a single test ran. The same shape as the roof that cost `NaN` in
+   * September, which is on record in `rank.ts`.
+   *
+   * So the caller measures the room and this decides what a day does with it. Left out, every farm
+   * is a byre, which is what a farm with nothing built on it is.
+   */
+  room = farms.length * LIVELIHOOD.HERD_PER_FARMER,
+): Herding {
+  if (farms.length === 0) return { herd: 0, sold: 0, meals: 0, gold: 0 };
+  const cap = room;
   /*
    * A paddock that is already over-full does not calve.
    *
