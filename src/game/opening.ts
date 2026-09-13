@@ -1,4 +1,4 @@
-import { Claims } from './claims';
+import { claimsFor } from './predicted';
 
 /**
  * A chest you have already opened, until the world says otherwise.
@@ -55,7 +55,7 @@ export const REFUSED = 'Somebody had already been through that chest.';
 
 export class Openings {
   /** The keeping and the numbering, which is the same in every one of these. See `claims.ts`. */
-  private readonly claims = new Claims<Opened>();
+  private readonly claims = claimsFor<Opened>('chest');
 
   /** How many answers are still owed. Nothing needs it but a probe and a test. */
   get pending(): number { return this.claims.pending; }

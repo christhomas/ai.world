@@ -49,18 +49,40 @@ describe('what may be done before the world agrees', () => {
      * The assertion that makes this worth having. Every file reaching for `Claims` is predicting
      * something; if what it predicts is not on the list, the list has stopped being the rule and
      * become a description of what three files happened to do.
+     *
+     * It used to count the files and then assert something else entirely — that `chest` and `crop`
+     * are on the list — which is two true statements with nothing joining them. Greptile found it
+     * on #66: a fourth file predicting `trade` would have been counted, checked against nothing,
+     * and left the suite green while the rule and the code drifted apart. And `claimsFor` was the
+     * guarded door nobody went through, which is this codebase's own recurring fault: written,
+     * tested, documented, and reached by nothing.
+     *
+     * So the rule is now the one the finding asked for. Every claim is made through `claimsFor`,
+     * which names the act out loud, and those names are read back here and held against the list.
+     * A prediction of something the ledger owns cannot be written at all — `claimsFor` throws —
+     * and a prediction of something nobody has decided about fails here.
      */
     const sources = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
       const path = join(dir, e.name);
       if (e.isDirectory()) return sources(path);
       return e.isFile() && path.endsWith('.ts') && !path.endsWith('.test.ts') ? [path] : [];
     });
-    const predicting = sources('src')
-      .filter((f) => !f.endsWith(join('game', 'predicted.ts')) && !f.endsWith(join('game', 'claims.ts')))
-      .filter((f) => /new Claims</.test(readFileSync(f, 'utf8')));
-    // every one of them is a hand, and the list has to know what it is claiming for
-    expect(predicting.length, 'nothing predicts anything, so this rule guards nothing')
-      .toBeGreaterThan(0);
-    expect(inTheHand()).toEqual(expect.arrayContaining(['chest', 'crop']));
+    const elsewhere = sources('src')
+      .filter((f) => !f.endsWith(join('game', 'predicted.ts')) && !f.endsWith(join('game', 'claims.ts')));
+
+    // the machinery is reached one way, so that reaching for it is saying what for
+    const raw = elsewhere.filter((f) => /new Claims</.test(readFileSync(f, 'utf8')));
+    expect(raw, 'a claim made without naming its act is a prediction nobody decided on').toEqual([]);
+
+    // and what each of them named, held against the list
+    const claimed = elsewhere.flatMap((f) => [...readFileSync(f, 'utf8')
+      .matchAll(/claimsFor<[^>]*>\('([^']+)'\)/g)].map((m) => m[1]));
+    expect(claimed.length, 'nothing predicts anything, so this rule guards nothing').toBeGreaterThan(0);
+    for (const act of claimed) {
+      expect(inTheHand(), `${act} is predicted in the code and is not a hand on the list`).toContain(act);
+    }
+    // and the two the list is carrying for those files, named here so that quietly dropping one
+    // from `ACTS` is a failure rather than a smaller set agreeing with itself
+    expect([...new Set(claimed)].sort()).toEqual(['chest', 'crop']);
   });
 });

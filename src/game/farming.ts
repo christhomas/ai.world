@@ -1,4 +1,4 @@
-import { Claims } from './claims';
+import { claimsFor } from './predicted';
 import { SEASON_LENGTH, Season, seasonOf } from './seasons';
 
 /**
@@ -178,7 +178,7 @@ export const NOT_YOURS = 'Somebody else had already been through that field.';
 
 export class Harvests {
   /** The keeping and the numbering, which is the same in every one of these. See `claims.ts`. */
-  private readonly claims = new Claims<Lifted>();
+  private readonly claims = claimsFor<Lifted>('crop');
 
   /** How many answers are still owed. */
   get pending(): number { return this.claims.pending; }
@@ -236,7 +236,7 @@ export const WOULD_NOT_TAKE = 'That ground would not take the seed.';
 
 export class Sowings {
   /** The keeping and the numbering, which is the same in every one of these. See `claims.ts`. */
-  private readonly claims = new Claims<Put>();
+  private readonly claims = claimsFor<Put>('crop');
 
   get pending(): number { return this.claims.pending; }
 
