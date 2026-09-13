@@ -4254,9 +4254,21 @@ Asked for outright: *"I want the endless world, this is the future of the map, w
 bounded world."* What follows is what actually stands between here and that, found by reading rather
 than by remembering — and the first thing found was that the gap is not where the code says it is.
 
-- [ ] **59. The endless country becomes the country.** `EDGE_OF_THE_WORLD = 480` is the world today.
+- [~] **59. The endless country becomes the country.** `EDGE_OF_THE_WORLD = 480` is the world today.
       The endless one is built, proved and wired to nothing: `src/world/endless.ts` is imported by
       its own tests and by nothing else in the game.
+
+      **That last sentence stopped being true on the 13th and is kept for the record.** Every child
+      of this item is done but one. `endless.ts` is reached by the page, by the country worker and —
+      since 59f — by the world server, which grows a patchwork and settles the people of each square
+      as it arrives. The title screen offers it, a save says which country it holds, its mountains
+      have a size (**83**) and there are villages in the clouds over them (**85**).
+
+      What is left is **59h**, and it is deliberately a decision rather than a task: taking
+      `EDGE_OF_THE_WORLD` out deletes the world everybody is currently playing and the reference the
+      endless one is checked against. The precondition written into 59h is "the day the endless one
+      is better", and judging that is a walk rather than a test — which is also what **84** asks
+      for.
 
 - [x] **59a. What the generator still owes — nothing, as it turns out.** `samplerIn(seed, within)`
       already answers with roads, water, villages, signposts, caves, wrecks, ferries *and rock*:
