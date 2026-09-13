@@ -1,4 +1,5 @@
 import { FOOD, heartsLeft, lookingForFood } from '../src/world/food';
+import { ownedBy } from '../src/world/holdings';
 import { pitchFor } from '../src/world/livelihoods';
 import { aDaysIncome } from '../src/world/expected';
 import { spentOnLiving } from '../src/world/prosperity';
@@ -159,7 +160,7 @@ export function domesdayOf(world: Surveyed): Domesday {
         hungry: p.hungry ?? 0,
         hearts: heartsLeft(p),
         starving: lookingForFood(p),
-        earns: Math.round((income.get(p.id) ?? 0) * 100) / 100,
+        earns: Math.round((income.get(ownedBy(p)) ?? 0) * 100) / 100,
         spends: Math.round((spentOnLiving(p) + pitchFor(p) + (p.trade ? FOOD.MEAL : 0)) * 100) / 100,
         mother: p.mother, father: p.father,
         doing: body?.doing ?? '',

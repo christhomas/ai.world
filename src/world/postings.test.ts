@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ownerFromSave } from './holdings';
+import { ownedBy, ownerFromSave } from './holdings';
 import { POST, POSTINGS, couldStand, postsToday, turnedAway, wageForAGuard, wagesOwed } from './postings';
 import { PROSPER } from './prosperity';
 import type { Person } from './people';
@@ -146,8 +146,8 @@ describe('what the post is worth to the man who paid for it', () => {
       1,
     );
     const owed = wagesOwed(posts);
-    expect(owed.get(one.id)).toBe(wageForAGuard(1));
-    expect(owed.get(two.id)).toBe(wageForAGuard(1));
+    expect(owed.get(ownedBy(one))).toBe(wageForAGuard(1));
+    expect(owed.get(ownedBy(two))).toBe(wageForAGuard(1));
     expect([...owed.values()].reduce((sum, much) => sum + much, 0))
       .toBe(posts.reduce((sum, post) => sum + post.wage, 0));
   });

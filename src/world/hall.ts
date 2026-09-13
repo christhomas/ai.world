@@ -1,4 +1,5 @@
 import { PROSPER } from './prosperity';
+import { ownedBy, type Owner } from './holdings';
 import { LIVELIHOOD } from './livelihoods';
 import type { Person } from './people';
 import { atLeast, type Rank } from './rank';
@@ -41,13 +42,13 @@ export function taxOn(person: Person): number {
   return Math.round(spare * LIVELIHOOD.TAX * 100) / 100;
 }
 
-export function taxedForTheHall(people: readonly Person[]): { owed: Map<string, number>; raised: number } {
-  const owed = new Map<string, number>();
+export function taxedForTheHall(people: readonly Person[]): { owed: Map<Owner, number>; raised: number } {
+  const owed = new Map<Owner, number>();
   let raised = 0;
   for (const person of people) {
     const much = taxOn(person);
     if (much <= 0) continue;
-    owed.set(person.id, -much);
+    owed.set(ownedBy(person), -much);
     raised += much;
   }
   return { owed, raised: Math.round(raised * 100) / 100 };
@@ -242,7 +243,7 @@ export function payrollOf(built: readonly string[], souls: number): number {
  */
 export function whoTheHallEmploys(
   purse: number, built: readonly string[], people: readonly Person[],
-): { paid: Map<string, number>; costs: number; jobs: number; watch: string } | null {
+): { paid: Map<Owner, number>; costs: number; jobs: number; watch: string } | null {
   /*
    * Who the village puts on its own books, in the order it would.
    *
@@ -263,7 +264,7 @@ export function whoTheHallEmploys(
   ];
   if (spare.length === 0) return null;
 
-  const paid = new Map<string, number>();
+  const paid = new Map<Owner, number>();
   let costs = 0;
   let at = 0;
   // who is actually on the tower, which used to be asked separately and answered by a different
@@ -275,7 +276,7 @@ export function whoTheHallEmploys(
     for (let n = 0; n < postsFor(post, people.length); n++) {
       if (at >= spare.length) break;
       if (costs + post.wage > purse) return finish(paid, costs, watch);
-      paid.set(spare[at].id, Math.round(((paid.get(spare[at].id) ?? 0) + post.wage) * 100) / 100);
+      paid.set(ownedBy(spare[at]), Math.round(((paid.get(ownedBy(spare[at])) ?? 0) + post.wage) * 100) / 100);
       costs = Math.round((costs + post.wage) * 100) / 100;
       if (post.of === 'watchtower' && watch === '') watch = spare[at].id;
       at++;
@@ -285,8 +286,8 @@ export function whoTheHallEmploys(
 }
 
 function finish(
-  paid: Map<string, number>, costs: number, watch: string,
-): { paid: Map<string, number>; costs: number; jobs: number; watch: string } | null {
+  paid: Map<Owner, number>, costs: number, watch: string,
+): { paid: Map<Owner, number>; costs: number; jobs: number; watch: string } | null {
   return paid.size === 0 ? null : { paid, costs, jobs: paid.size, watch };
 }
 
@@ -345,18 +346,18 @@ export function nextWork(
  */
 export function whatTheHallBuys(
   purse: number, built: readonly string[], people: readonly Person[], rank: Rank = 'city',
-): { work: string; costs: number; wages: Map<string, number> } | null {
+): { work: string; costs: number; wages: Map<Owner, number> } | null {
   const work = nextWork(purse, built, rank);
   if (!work) return null;
   const working = people.filter((p) => p.trade !== '');
   if (working.length === 0) return null;        // nobody to do the work, so nothing is built
   const each = Math.round((work.costs / working.length) * 100) / 100;
-  const wages = new Map<string, number>();
-  for (const person of working) wages.set(person.id, each);
+  const wages = new Map<Owner, number>();
+  for (const person of working) wages.set(ownedBy(person), each);
   const dust = Math.round((work.costs - each * working.length) * 100) / 100;
   if (dust !== 0) {
     const last = working[working.length - 1];
-    wages.set(last.id, Math.round(((wages.get(last.id) ?? 0) + dust) * 100) / 100);
+    wages.set(ownedBy(last), Math.round(((wages.get(ownedBy(last)) ?? 0) + dust) * 100) / 100);
   }
   return { work: work.id, costs: work.costs, wages };
 }
@@ -375,8 +376,8 @@ export function whatTheHallBuys(
  */
 export function whatTheHallSpends(
   purse: number, built: readonly string[], people: readonly Person[], rank: Rank = 'city',
-): { wages: Map<string, number>; spent: number; work: string | null; watch: string } {
-  const wages = new Map<string, number>();
+): { wages: Map<Owner, number>; spent: number; work: string | null; watch: string } {
+  const wages = new Map<Owner, number>();
   let spent = 0;
 
   /*

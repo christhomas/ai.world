@@ -1,7 +1,7 @@
 import { FOOD, cellarCap } from './food';
 import { aDaysTrade, paidForFood, pitchFor } from './livelihoods';
 import { spentOnLiving } from './prosperity';
-import type { Standing } from './holdings';
+import { ownedBy, type Owner, type Standing } from './holdings';
 import type { Person } from './people';
 
 /**
@@ -51,7 +51,7 @@ export function aDaysIncome(
    * reads that row, so the money would arrive in purses with nothing in any book to explain it.
    */
   village?: Parameters<typeof aDaysTrade>[3],
-): Map<string, number> {
+): Map<Owner, number> {
   const day = aDaysTrade(people, herd, pressure, village);
   const income = new Map(day.paid);
 
@@ -72,7 +72,7 @@ export function aDaysIncome(
    * front of the queue, so the pool is the smaller of how many can pay and how much there is.
    */
   const canPay = people.filter(
-    (p) => p.trade && p.purse + (day.paid.get(p.id) ?? 0) >= FOOD.MEAL,
+    (p) => p.trade && p.purse + (day.paid.get(ownedBy(p)) ?? 0) >= FOOD.MEAL,
   ).length;
   /*
    * A caller with no village behind it says nothing about the store, and that has to mean "assume
@@ -92,7 +92,7 @@ export function aDaysIncome(
   // the keep and the pitch are both in `paid` as debits, which is where they belong: the roll says
   // what a day takes in and what it costs on separate lines, and this is the taking-in line
   for (const one of people) {
-    income.set(one.id, (income.get(one.id) ?? 0) + spentOnLiving(one) + pitchFor(one));
+    income.set(ownedBy(one), (income.get(ownedBy(one)) ?? 0) + spentOnLiving(one) + pitchFor(one));
   }
   return income;
 }
