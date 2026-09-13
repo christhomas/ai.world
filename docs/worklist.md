@@ -4936,10 +4936,17 @@ than by remembering — and the first thing found was that the gap is not where 
       3. **Then the app**: protocol client, chunk mesher, rigs from `models/creatures/*.json`, and
          the Ledger II interface (10a + 13a, four themes).
 
-      One thing to settle early, because it decides the rendering: the phone build could draw with
-      Flutter's own canvas or with a GL surface. The design is flat-shaded low-poly geometry with a
-      cutaway shader, which is a GL question rather than a widget question — and the interface above
-      it is ordinary widgets either way.
+      **Decision — native 3D surface, not Flutter's 2D canvas.** The app owns its Ledger II interface
+      in Flutter widgets, while an opaque `Texture` supplies the world. Its native renderer owns the
+      depth buffer, terrain meshes, skeletal rigs and the existing camera-relative cutaway calculation.
+      That preserves the WebGL build's low-poly geometry and shader semantics without asking
+      `CustomPainter` to become a second 3D engine. The Dart seam is deliberately narrow: decoded
+      chunk parcels, snapshots, camera/input state and a texture identifier; it does not expose
+      platform graphics objects to widgets.
+
+      The first Android and iOS spike must render one streamed terrain chunk, one creature rig and
+      the cutaway volume through that texture on actual hardware. Only then does the app take on
+      the rest of the chunk mesher and protocol client.
 
 - [ ] **73. Lag, and who is allowed to be wrong.** The answer to "why not decide everything on the
       server" is that you can, and games do — but only with prediction and reconciliation underneath
