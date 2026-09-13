@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { whatShipped } from './release';
 
@@ -72,8 +74,36 @@ describe('an issue that already says which version', () => {
  * looking for, because finding out at `git push` is finding out late.
  */
 describe('what a release writes down about itself', () => {
-  const changelog = readFileSync('CHANGELOG.md', 'utf8');
-  const readme = readFileSync('README.md', 'utf8');
+  /*
+   * Found from the repository rather than from the working directory.
+   *
+   * These read two files by relative path, which worked here and failed in the pipeline for three
+   * and a half hours across eighteen runs — and failed *quietly*, because `indexOf` answers -1 for
+   * a section that is not there and `slice(-1)` is the last character of the file rather than an
+   * error. So the test reported "expected '\n' to contain (CHANGELOG.md)", which names the symptom
+   * and hides the cause completely.
+   *
+   * Both halves are fixed: the path is worked out from this file's own location, and a missing
+   * section is an error that says which file was read.
+   */
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const read = (name: string): string => readFileSync(join(root, name), 'utf8');
+  const changelog = read('CHANGELOG.md');
+  const readme = read('README.md');
+
+  /** The changelog section of the README, or a failure that says what it looked in. */
+  const changelogSection = (): string => {
+    const at = readme.indexOf('## Changelog');
+    if (at < 0) {
+      // say what WAS there, because "the section is missing" is the symptom and the headings are
+      // the evidence: a truncated file, a different file and a renamed section look identical
+      // otherwise, and this has already cost a day of guessing from a pipeline log
+      const headings = [...readme.matchAll(/^## .*$/gm)].map((m) => m[0]).join(' | ');
+      throw new Error(`no "## Changelog" in ${join(root, 'README.md')}`
+        + ` (${readme.length} bytes, ${readme.split('\n').length} lines)\nheadings: ${headings}`);
+    }
+    return readme.slice(at);
+  };
 
   it('has a section for every version that has ever been tagged', () => {
     const tagged = execFileSync('git', ['tag', '--list', 'v*'], { encoding: 'utf8' })
@@ -83,14 +113,14 @@ describe('what a release writes down about itself', () => {
   });
 
   it('keeps the README to ten, which is what the guard allows', () => {
-    const section = readme.slice(readme.indexOf('## Changelog'));
+    const section = changelogSection();
     const shown = [...section.matchAll(/^### v\d+\.\d+\.\d+ /gm)];
     expect(shown.length).toBeGreaterThan(0);
     expect(shown.length).toBeLessThanOrEqual(10);
   });
 
   it('points the reader at the rest of them', () => {
-    const section = readme.slice(readme.indexOf('## Changelog'));
+    const section = changelogSection();
     expect(section, 'ten releases with no way to the other hundred and twenty-six')
       .toContain('(CHANGELOG.md)');
   });
@@ -98,7 +128,7 @@ describe('what a release writes down about itself', () => {
   it('says the same thing in both places about the versions it shows twice', () => {
     // two records of one fact drifting apart is the fault this project finds most often, so the
     // README's ten are rebuilt from the changelog rather than maintained beside it
-    const section = readme.slice(readme.indexOf('## Changelog'));
+    const section = changelogSection();
     for (const [, tag, said] of section.matchAll(/^### (v[\d.]+) — \S+\n\n(.+)$/gm)) {
       const full = changelog.match(new RegExp(`^## ${tag.replace(/\./g, '\\.')} — \\S+\\n\\n(.+)$`, 'm'));
       expect(full, `${tag} is in the README and not in the changelog`).not.toBeNull();
