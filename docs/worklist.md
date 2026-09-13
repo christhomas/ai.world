@@ -4319,7 +4319,7 @@ than by remembering — and the first thing found was that the gap is not where 
 
       The original note follows.
 
-- [~] **59d-i. What is left of it.** *The mountains are done.* Three things held the world's rock
+- [x] **59d-i. What is left of it.** *The mountains are done.* Three things held the world's rock
       and each would have failed differently on a patch crossing: the mesh in the scene (a range
       dragged along behind the hero until the sky is a wall), `ChunkManager.ranges` (which is what
       `heightAt` and the walking checks read, so a stale one is a hero standing on the memory of a
@@ -4334,6 +4334,12 @@ than by remembering — and the first thing found was that the gap is not where 
       Left: the eyries, planned across the whole world; the sky islands, planned from the whole
       world's islands; and whatever else turns out to hold a list with no end in it.
 
+
+      **Done on the 13th.** `highcountry.ts` owns the eyries and the sky islands the way `Mountains`
+      owns the rock: `standOn(sampler)` replans when the square changes and does nothing when it has
+      not, and the lists are refilled rather than rebound because the frame, the hearing and the
+      console all take them once and keep them. Wiring it up turned up **83**, which was the larger
+      finding by some way.
 - [x] **59e. Ten places in the game layer ask for `sampler.structures`.** *Seam and migration both
       done on the 12th.* Thirteen sites moved onto `Around`, five kept with the reason written down,
       and two flagged as decisions rather than distances.
@@ -5208,3 +5214,45 @@ than by remembering — and the first thing found was that the gap is not where 
       Worth measuring while it is being built: the mines are the only source of new money and they
       mint about 750 gold per seed in a hundred days. Something has to be a sink of the same size,
       and "a village buys a thing" is the only honest candidate on the list.
+
+## Found while standing things on the mountains — September 13th
+
+- [x] **83. No mountain in the game had a size.** *Found and fixed on the 13th, while closing 59d-i.*
+      `rangesAsMassifs` set a peak's radius from the area of the mesh face it grew from, and it
+      returned **nought for every peak in the game**. The face-area rule was written for the polygon
+      world, which had a mesh. That world was retired, and the only country left that has `ranges` at
+      all is the endless one, whose patches have no mesh — so `?? 0` was the only branch that ever
+      ran, and had been for as long as the endless world has existed.
+
+      Nothing is ever inside a radius of nought. No eagle had a crag, no sky island was planned, and
+      `highland(x, z)` — how the world decides what lives up high, and what the server now leans on
+      for everything it spawns — answered no everywhere. The mountains were drawn, walked on and
+      climbed, and nothing that was meant to live on them knew they were there.
+
+      The rock knows its own reach. `owner` says which peak each triangle belongs to, so the furthest
+      vertex of a peak's own triangles is its footprint — a better answer than the face area ever
+      was, and where a mesh exists the larger of the two is taken. It cannot move the bounded world,
+      which has no `ranges` for this to run against.
+
+      **The shape of it is worth keeping.** A fallback that is always taken is invisible: the code
+      reads as though it handles two cases, the tests pass, and the feature is simply absent. It took
+      standing something *on* the mountains to notice that nothing ever had.
+
+- [ ] **84. Thirty-eight crags to a square, and nobody has judged that number.** Falls straight out
+      of **83**: with the peaks finally sized, every one of the 19 or so in a 512-tile patch clears
+      `EYRIE.WORTH_FLYING` and gets its pair of perches, so a patch has 38 to 58 of them. The number
+      was never chosen — it is what the planner does now that its input is not nought — and the
+      bounded world it was tuned against had no massifs at all, so there is no prior to compare to.
+
+      Two honest questions and they are different: whether 19 mountains to a 512-tile square is the
+      right mountain country (terrain's business), and whether every mountain should have eagles on
+      it (the eyries'). Worth walking one before touching either.
+
+- [ ] **85. The endless world has no islands, so it has no villages in the clouds.** The other half
+      of what 59d-i turned up. A sky island is planned from `graph.islands`, and a patch's graph has
+      an empty list — islands are a road-tree idea, planned across a whole country from its coast.
+
+      So the endless country has mountains and now has eagles, and has nothing at all above them. It
+      wants the same treatment the rest of the world got: an island is a function of the seed and of
+      where it is, planned per patch rather than per country, and consistent across a boundary so a
+      patch grown twice hangs it in the same place.
