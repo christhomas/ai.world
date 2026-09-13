@@ -5410,3 +5410,43 @@ than by remembering — and the first thing found was that the gap is not where 
       off something in `works`, and the station comes out of the seed rather than out of the ledger
       — so either the station becomes a thing a village buys, or a post can hang off a trade the
       village holds rather than a building it raised.
+
+- [ ] **91. A village becomes a town by voting to, and the hall is what it builds to do it.** Raised
+      on the 13th, on top of **89**, and it is the plan the other two are waiting on rather than a
+      job to pick up this week.
+
+      The shape: a village that has outgrown itself **votes**. What it votes for is a town hall —
+      an actual building the mayor has raised out of the treasury — and the moment that hall stands,
+      the place is a town. The same again, later and dearer, for a city. So a rank is not a
+      threshold a place crosses without noticing; it is a thing a village decided to do and then
+      paid for, and the evidence is standing on the square where anybody can see it.
+
+      **This is a deliberate reversal of 48 and the reversal is the point.** Rank is derived today —
+      `rank.ts` counts roofs and nothing anywhere says "put a city here", which was the right call
+      when the alternative was a number in a table. A vote is better than both: it is still not a
+      number in a table, and it is something that *happens on a day*, to a place, for a reason, with
+      a building at the end of it. The roof count stops being the rank and becomes what makes the
+      vote possible, which is the job it should always have had.
+
+      Four things to get right, and the first is the one that will bite:
+
+      - **A vote is a told fact, not a derived one.** It belongs with `killed` and `raised` — the
+        short list of things a village re-lived from its founding cannot work out for itself. It has
+        to survive `relive`, it has to travel on the wire, and two machines that both know about the
+        vote must arrive at the same town. Everything **88** taught applies: the day it happened is
+        part of the fact, and stamping it with today's date on a replay is the failure mode.
+      - **There is already a hall on the square.** `structures.ts` places a `TownHall` at founding
+        when a village has eight houses. Either that becomes the thing the vote unlocks — a plot
+        kept empty until somebody votes for it, which `spareplots.ts` already knows how to find —
+        or the seeded one stops being a hall. It cannot stay as it is, or a village would vote to
+        build the building it is standing in.
+      - **The hall entity is born here.** That is **89**: the treasury has no owner until there is a
+        hall to own it. Which raises the good question of where a hamlet's money lives before it has
+        one, and the honest answer may be that it does not have any — a village with no hall does
+        not tax, and the first vote is the day the place starts collecting.
+      - **What it costs and who may call it.** The mayor is derived (longest-settled trade-holder),
+        so there is somebody to call a vote without any machinery. What carries it is the open
+        question: everybody, the trade-holders, the householders.
+
+      It also gives a player something to be part of, which none of the economy does yet: you could
+      be in a village on the morning it votes.
