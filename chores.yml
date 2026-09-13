@@ -246,6 +246,11 @@ tasks:
   # audits every coin against it, so a village that quietly stopped paying anybody, or buried
   # people without writing it down, or was still being charged rent by a warband that left three
   # weeks ago, shows up as a village, a day and a number. See `src/game/economy.test.ts`.
+  fallbacks:
+    desc: Which defaults are taken every single time, which means the real value never arrives
+    cmds:
+      - 'pnpm tsx tools/fallbacks.ts {{.CLI_ARGS}}'
+
   economy:
     desc: Live a village forward a hundred days and hold its own books to it
     vars:

@@ -5506,11 +5506,29 @@ than by remembering — and the first thing found was that the gap is not where 
       (`map.get(id) ?? 0` while building a fresh map) and correct. Two were `person.hurt ?? 0`, at
       877,875 and 443,775 hits — which is how the wound system was found to have no caller at all.
 
-      **What is left** is the other 233 sites, which this run never reached: the render layer, the
-      UI, the interactions, the dungeon, the boat. The harness has to drive a browser to reach most
-      of them, or the sweep has to run under the whole test suite with the counts merged across
-      workers. Also worth the same treatment: the 37 defaulted parameters on exported functions,
-      where the failure is a caller that forgot to pass something and got a plausible number.
+      **It is a chore now, not a scratch file.** `chore fallbacks` does the whole thing: refuses to
+      start on a dirty tree, rewrites every fallback it understands, runs the suite in one worker so
+      the counts are not split between threads, puts every file back with `git checkout` whatever
+      happened, and prints the list. The injected names say what they mean — `sawAValue(41, x) ??
+      usedTheDefault(41, 0)` — because a technique worth keeping has to be readable by whoever runs
+      it next, and the first version was not.
+
+      Across the **whole suite**: 298 fallbacks, **226 reached**, 21 always-defaulted.
+
+      **And the run taught the technique its own limit, which is the more useful result.** "Always"
+      means nothing without a big sample. `person.hurt ?? 0` took the nought **877,875 times** over
+      450 simulated days — that is a feature with no caller, and it was. `victim.kind.damage ?? 0`
+      took it **three times**, and a wolf declares a damage of ten and a bear thirty: the three
+      creatures a unit test happened to hit were not predators, and the field is fine. The two look
+      identical in an unsorted list, which is exactly how a sweep like this talks somebody into a bug
+      that is not there. The tool now sorts by count and marks anything under a thousand hits as a
+      question rather than an answer.
+
+      **What is left**: the 21 sites need reading with that in mind, of which only the two
+      accumulators in `hall.ts` clear the bar on volume and both are correct by construction. The
+      render and UI layers are still barely reached — that wants a browser run rather than a suite
+      run. And the 37 defaulted *parameters* on exported functions want the same treatment, where
+      the failure is a caller that forgot an argument and got a plausible number back.
 
 - [x] **93. No villager was ever hurt.** *Found by 92 on the 13th and fixed the same hour.*
       `Register.hurt` is the door into everything **36** built — a villager laid up for some days,
