@@ -5212,7 +5212,7 @@ than by remembering — and the first thing found was that the gap is not where 
       owes more than he has has simply not paid it, which is reported and not made good. What it
       uncovered is **82**.
 
-- [ ] **82. Money is created by the mines and banked by the halls, and nothing takes it back out.**
+- [~] **82. Money is created by the mines and banked by the halls, and nothing takes it back out.**
       *Uncovered by fixing 80, on the 13th.* Two hundred thousand gold that used to vanish at the
       purse ceiling now sits in village treasuries instead. Over 450 days on three seeds the banked
       share went from **17% of every coin in the world to 57%**, and the sanity bench's own note on
@@ -5351,3 +5351,62 @@ than by remembering — and the first thing found was that the gap is not where 
       village grew further as well. The sanity bench had been printing the cause every run with the
       right diagnosis under it; it is an assertion now rather than a paragraph, because a note that
       reports a fault every time is a note somebody stops reading.
+
+      **Half done on the 13th, and the diagnosis changed on the way.** It is not the tax rate. The
+      hall's list of things to buy is **six items long** and then empty for ever, while what it takes
+      grows with every person who moves in — measured, a mature village gains 143 to 188 gold a day
+      with nothing to spend it on, against six a day at a hundred days. A sink that does not scale
+      with its source is a delay, not a sink, and a building is bought once.
+
+      Two standing costs went in, both putting money back into the purses it came from: **upkeep**
+      (the hall keeps up what the hall built — a well silts, a bath house burns fuel) and **posts**
+      (a watch that is a rota of one per twenty souls, a bath keeper, a market warden). 60% of the
+      world's coin in halls is 45% now.
+
+      One thing tried and rejected, rightly: a lid on the pot — the hall not collecting once it had
+      enough. *The pot can never be full.* A tax rate that depends on a treasury balance is not a
+      thing a village does; anybody over the threshold pays, every morning, whatever the hall holds.
+      The fix belongs entirely on the spending side.
+
+      **What is left** is more kinds of work put out to contract, because the posts only exist for
+      buildings a village has. **90** is the next one and the best one.
+
+- [ ] **89. The town hall is a villager who happens to be an unmoving building.** Raised on the 13th
+      while the hall was being turned into a contracting party, and it is a simplification rather
+      than a feature. Today the treasury is `village.purse` — a number on a settlement, owned by
+      nobody, special-cased everywhere it is touched — while `THE_HALL` already exists as a string
+      that can own a holding. So half of this is built and the half that is built is the awkward
+      half: an owner that is a magic string rather than a thing.
+
+      Make the hall an **entity** whose body is the building. Then the ownership relation is uniform
+      — every coin in the world is owned by an entity, and one of those entities does not walk. The
+      deed layer stops having a special case, `THE_HALL` stops being a string, and a holding owned by
+      the village is owned the same way a holding owned by a farmer is.
+
+      And the part that makes it worth more than tidiness: **you could talk to it**. Walk up to the
+      hall and ask, the way you ask anybody — what the village is saving for, who is on the watch,
+      what it paid out this week, who the mayor is. That is one dialogue path instead of a bespoke
+      screen, and it is the natural home for everything a treasury knows. A building that answers
+      questions is a much better interface than a panel about a building.
+
+      Two things to be careful of, and both are about it not being a person: it has no lifespan and
+      must never appear on the roll of the living, and it cannot be inherited when the mayor dies —
+      which is precisely the distinction `Settlement.purse` already documents as the whole
+      difference between a treasury and a rich man.
+
+- [ ] **90. The hall contracts the constable, instead of the law working freelance.** Raised on the
+      13th, out of **82**, and it is the best of the posts because it is the one that is obviously
+      wrong today. A village has a constable; the constable holds a trade; a trade earns by trading.
+      So the law in this world is somebody who makes a living the way a seller does, and what a
+      village pays for being policed is nothing at all.
+
+      A constable is exactly what a village hall contracts. It scales with the place — a town wants
+      more of them than a hamlet — it puts money back into purses the way the watch does, and it
+      gives the station on the square a reason to cost something. It also makes a poor village a
+      more dangerous one, honestly and without a number anywhere saying so: a hall that cannot pay
+      is a village with nobody to send.
+
+      The one thing to work out is what a constable's post is *attached to*. Every post so far hangs
+      off something in `works`, and the station comes out of the seed rather than out of the ledger
+      — so either the station becomes a thing a village buys, or a post can hang off a trade the
+      village holds rather than a building it raised.
