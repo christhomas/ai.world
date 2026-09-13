@@ -5,7 +5,7 @@ import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
 import { raiseWhoIsDue } from './shrine';
 import { payAndSweep } from './purses';
-import { whatTheVillageHolds } from './holdings';
+import { THE_HALL, whatTheVillageHolds } from './holdings';
 import { handOnWhatTheyHad } from './inheritance';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
@@ -133,9 +133,16 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day:
   // here: out of the purses it came from, into the one place that is not anybody's
   const tax = taxedForTheHall(village.people);
   payAndSweep(village, tax.owed);
-  // the hall's share of the day, and what its own farms made: a village that owns a farm takes
-  // what the farm takes, which is the whole of what owning one means. See `shareTheTake`
-  village.purse = Math.round((village.purse + tax.raised + trading.toTheHall) * 100) / 100;
+  /*
+   * The hall's share of the day, and what its own farms made.
+   *
+   * A village that owns a farm takes what the farm takes, which is the whole of what owning one
+   * means — see `shareTheTake`. It goes through `pay` like every other coin that moves, addressed
+   * to the hall by name, because the hall is a name money can be owed to (item 89). It used to be
+   * an assignment straight onto the settlement, which is a movement no book could see: not capped,
+   * not audited, not a deed. `onepurse.test.ts` is what keeps it that way.
+   */
+  payAndSweep(village, new Map([[THE_HALL, tax.raised + trading.toTheHall]]));
   for (const person of village.people) o.taxed(person.id, -(tax.owed.get(person.id) ?? 0));
   theVillageSpends(o, village, day);
   return trading;
@@ -167,7 +174,8 @@ export function theVillageSpends(o: TheDay, village: Settlement, day: number): v
   // a villager founding a holding spends none of the hall's money, so what the hall spent is no
   // longer the whole test for "nothing happened here this morning"
   if (spending.spent === 0 && spending.founded.length === 0) return;
-  village.purse = Math.round((village.purse - spending.spent) * 100) / 100;
+  // and what it spent leaves the same way it arrived: named, through `pay`, where a book can see it
+  payAndSweep(village, new Map([[THE_HALL, -spending.spent]]));
   village.works.push(...spending.works);
   // a raised roof is a raised ceiling: what the village can hold is what its houses hold, and
   // this is the one line that lets a village become bigger than it was founded. See `growth.ts`
