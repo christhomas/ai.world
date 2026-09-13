@@ -94,7 +94,14 @@ describe('what a release writes down about itself', () => {
   /** The changelog section of the README, or a failure that says what it looked in. */
   const changelogSection = (): string => {
     const at = readme.indexOf('## Changelog');
-    if (at < 0) throw new Error(`no "## Changelog" section in ${join(root, 'README.md')}`);
+    if (at < 0) {
+      // say what WAS there, because "the section is missing" is the symptom and the headings are
+      // the evidence: a truncated file, a different file and a renamed section look identical
+      // otherwise, and this has already cost a day of guessing from a pipeline log
+      const headings = [...readme.matchAll(/^## .*$/gm)].map((m) => m[0]).join(' | ');
+      throw new Error(`no "## Changelog" in ${join(root, 'README.md')}`
+        + ` (${readme.length} bytes, ${readme.split('\n').length} lines)\nheadings: ${headings}`);
+    }
     return readme.slice(at);
   };
 
