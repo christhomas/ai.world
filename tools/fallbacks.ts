@@ -185,8 +185,76 @@ function report(sites: Site[], visits: number[], defaults: number[]): void {
   console.log('their own. Widen the run before believing one, or go and read what feeds that value.');
 }
 
+/**
+ * Put every file back, and take the generated ones away.
+ *
+ * Its own function because `finally` is not the only way out of this program. A `finally` unwinds
+ * an exception and does not run for a signal: `timeout 110 chore fallbacks` sent SIGTERM, node
+ * stopped where it stood, and the checkout was left with **99 files rewritten** — all of which
+ * typecheck and pass, so nothing downstream objects and somebody commits an instrumented tree.
+ *
+ * Safe to call twice: `git checkout` on an unmodified path does nothing and `rmSync` is told the
+ * files may already be gone.
+ */
+function putItBack(): void {
+  execFileSync('git', ['checkout', '--', 'src', 'server']);
+  rmSync(COUNTER_MODULE, { force: true });
+  rmSync('src/world/fallbacksweep.test.ts', { force: true });
+}
+
+/**
+ * And the same on the way out that a `finally` cannot reach.
+ *
+ * Ctrl-C and a timeout are the two ordinary ways a long sweep ends early, and both of them kill
+ * node without unwinding. A tool that edits every file in a repository has to put them back
+ * however it exits, not only when it is allowed to finish.
+ */
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+  process.on(signal, () => {
+    console.error(`\n${signal} — putting every file back before going`);
+    try { putItBack(); } catch { /* nothing left to do about it, and saying so is the point */ }
+    process.exit(130);
+  });
+}
+
+/**
+ * Is this mess ours? Asked before refusing to start, so a killed run heals itself.
+ *
+ * The signal handlers above cannot be relied on and it is worth writing down why rather than
+ * hoping: `timeout` and a shell's Ctrl-C signal the whole **process group**, so node is killed at
+ * the same moment as the `git checkout` it would spawn to clean up. A handler that has to start a
+ * child process cannot be trusted to survive the thing that triggered it.
+ *
+ * So the honest recovery is on the way in rather than on the way out. An instrumented tree is
+ * recognisable — every rewritten file imports `fallbacksweep`, and nothing else in this repository
+ * ever would — so a run that finds one knows it is looking at the wreck of an earlier run and not
+ * at somebody's work. That is the whole test: it must never mistake real edits for its own.
+ */
+function ourOwnWreck(dirty: string): boolean {
+  // the last field, not `slice(3)`: a porcelain line's status column is one or two characters and
+  // the padding varies, so a fixed offset eats the first letter of some paths and not others
+  const files = dirty.split('\n').map((line) => line.trim().split(/\s+/).pop() ?? '').filter(Boolean);
+  if (files.length === 0) return false;
+  // every single one, not most: one file of somebody's real work in the list and this is their tree
+  return files.every((file) => {
+    try {
+      // the depth of the relative path varies — `../../src/core/...` from `src/world`, `../src/…`
+      // from `server` — so match the module rather than one spelling of the way to it
+      return readFileSync(file, 'utf8').includes('core/fallbacksweep')
+        || file.endsWith('fallbacksweep.ts') || file.endsWith('fallbacksweep.test.ts');
+    } catch {
+      return false;
+    }
+  });
+}
+
 function main(): void {
-  const dirty = execFileSync('git', ['status', '--porcelain', 'src', 'server'], { encoding: 'utf8' }).trim();
+  let dirty = execFileSync('git', ['status', '--porcelain', 'src', 'server'], { encoding: 'utf8' }).trim();
+  if (dirty && ourOwnWreck(dirty)) {
+    console.error('an earlier run was killed before it could put things back — undoing that first\n');
+    putItBack();
+    dirty = execFileSync('git', ['status', '--porcelain', 'src', 'server'], { encoding: 'utf8' }).trim();
+  }
   if (dirty) {
     console.error('This rewrites your source and puts it back with `git checkout`, so it will not');
     console.error('start on a dirty tree — it could not tell its own edits from yours. Commit or');
@@ -242,9 +310,7 @@ function main(): void {
   } finally {
     // home again before anything is printed, whatever happened, so a failed sweep still leaves a
     // tree somebody can work in
-    execFileSync('git', ['checkout', '--', 'src', 'server']);
-    rmSync(COUNTER_MODULE, { force: true });
-    rmSync('src/world/fallbacksweep.test.ts', { force: true });
+    putItBack();
   }
 
   try {
