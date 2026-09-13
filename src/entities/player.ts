@@ -373,6 +373,10 @@ export class Player {
       const surface = this.world.waterAt(e.x, e.z);
       if (surface !== null) e.y += (surface - e.y) * Math.min(1, dt * 14);
     }
+    // and the stroke comes in over the same second the ground goes out from under him, so that the
+    // shelving bottom is one movement to watch rather than a walk that becomes a swim in a frame
+    const swimming = h === null && whatCarriesHim(e.kind, e.mounted).paddles === true ? 1 : 0;
+    e.afloat += (swimming - e.afloat) * Math.min(1, dt * 6);
     /*
      * How far off his own ground he is drawn: a jump, a terrace hop, or settling back to nothing.
      *
