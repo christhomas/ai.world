@@ -332,3 +332,68 @@ function standable(world: TileWorld, kind: AnimalKind, x: number, z: number, fro
   if (fromY !== undefined && Math.abs(h - fromY) > kind.climb) return false;
   return true;
 }
+
+/**
+ * How much of a step has to be made good for it to count as getting anywhere, as a share of the step.
+ *
+ * `tryMove` slides along whatever refuses it, which is right for a wall met at an angle and no use
+ * for one met square: a man walking straight at the back of his own house slides along it by the
+ * few hundredths his heading is off square, and calls that a step. Half a step is a wall met at
+ * thirty degrees or more, which is a wall worth sliding along.
+ */
+const HEAD_ON = 0.5;
+
+/** How far off straight somebody will turn to get past something: a little first, then square. */
+// a little off straight, then square, then a step that gives ground — a walker pinned into an
+// inside corner has to back out of it, and nothing shallower than this will
+const TURNS = [Math.PI / 4, Math.PI / 2, (Math.PI * 3) / 4];
+
+/**
+ * One step towards where somebody is going — or, if that is into something, round it.
+ *
+ * Found by `doorstep.test.ts` (65a). A villager going home at night is aimed at his door in a
+ * straight line. Standing square behind his own house, every step of that line is into the back
+ * wall: the step was refused, he stood idle, the tree set him walking at the wall again, and he did
+ * that until morning — never moving and never giving up, which is what the browser showed.
+ *
+ * So when the straight step gets nowhere, he turns off it, a little each way before a lot, and keeps
+ * turning the same way (`Entity.side`) until a straight step works again. Keeping the side is the
+ * whole of it: halfway along the back wall, the straight line to the door slides him back the way he
+ * came, and a man who chose afresh each step would walk up and down behind the house all night.
+ *
+ * Not a path. Nothing here knows the way through a village; it is what somebody does with his
+ * hands on a wall, and it gets round anything that has an outside corner.
+ */
+export function stepToward(world: TileWorld, e: Entity, dx: number, dz: number, stepLen: number, rng: () => number): boolean {
+  const fromX = e.x, fromZ = e.z;
+  const madeGood = (): number => Math.hypot(e.x - fromX, e.z - fromZ);
+  if (tryMove(world, e, dx * stepLen, dz * stepLen) && madeGood() >= stepLen * HEAD_ON) {
+    e.side = 0;
+    return true;
+  }
+  // what the straight step did manage, kept in case no way round does better
+  const slidX = e.x, slidZ = e.z;
+  if (e.side === 0) e.side = rng() < 0.5 ? 1 : -1;
+  /*
+   * One side, and he stays on it.
+   *
+   * The first version of this tried the chosen side and then the other one in the same step, which
+   * looks like thoroughness and is a man changing his mind twice a second: `doorstep.test.ts`
+   * traced him sliding east and west along the back of his own house for a minute, `side` flipping
+   * every few ticks, never reaching either corner. Whichever way round you go, the far end of the
+   * wall is further away than the near end for most of the journey — so a walker who reconsiders
+   * whenever the going is briefly bad always turns back, and a wall is a trap rather than a detour.
+   *
+   * So the opposite side is not an option here at all. It is reconsidered only when a straight step
+   * works again, which is the moment the obstacle is behind him and the side is meaningless.
+   */
+  for (const turn of TURNS) {
+    e.x = fromX; e.z = fromZ;
+    const cos = Math.cos(turn * e.side), sin = Math.sin(turn * e.side);
+    if (tryMove(world, e, (dx * cos - dz * sin) * stepLen, (dx * sin + dz * cos) * stepLen) && madeGood() >= stepLen * HEAD_ON) {
+      return true;
+    }
+  }
+  e.x = slidX; e.z = slidZ;
+  return slidX !== fromX || slidZ !== fromZ;
+}

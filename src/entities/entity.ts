@@ -7,7 +7,7 @@ import type { Rng } from '../core/rng';
 import type { AnimalKind, Behaviour } from './animals';
 import type { ShopType } from '../world/structures';
 import { lastsFor, mirrors, type Blow } from './motion';
-import { bodyBox, canStand, groundY, tryMove, type Crowd } from './walking';
+import { bodyBox, canStand, groundY, stepToward, tryMove, type Crowd } from './walking';
 // The hours a village keeps are their own small thing now; re-exported because everything has
 // always asked this file for them and moving a definition is not a reason to move every import.
 export { AWAKE, isDaytime } from './waking';
@@ -125,6 +125,13 @@ export class Entity {
   tz: number;
   fleeX = 0;
   fleeZ = 0;
+  /**
+   * Which way somebody is going round the thing in their way: 1 or -1, and 0 when nothing is.
+   *
+   * Remembered rather than decided afresh each step, because the two ways round a house are equally
+   * good from behind it and only one of them is good once you are halfway along — see `stepToward`.
+   */
+  side = 0;
   /**
    * The palette this one was painted from, which nothing changes.
    *
@@ -494,6 +501,7 @@ export function damageEntity(e: Entity, damage: number, fromX: number, fromZ: nu
   return false;
 }
 
+
 export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
   const k = e.kind;
   const { world } = ctx;
@@ -602,7 +610,10 @@ export function updateEntity(e: Entity, dt: number, ctx: Ctx): void {
       const stepLen = speed * dt;
       const desiredYaw = yawFor(dx, dz);
       e.yaw = turnToward(e.yaw, desiredYaw, dt * BEHAVIOUR.TURN_RATE);
-      moving = tryMove(world, e, dx * stepLen, dz * stepLen);
+      // somebody running away goes wherever there is room; somebody going somewhere goes round
+      moving = e.state === 'flee'
+        ? tryMove(world, e, dx * stepLen, dz * stepLen)
+        : stepToward(world, e, dx, dz, stepLen, ctx.rng);
       if (!moving) {
         if (e.state === 'flee') {
           // bounce off the obstacle at a new angle
