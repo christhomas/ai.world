@@ -39,11 +39,10 @@ import { Tiers, arrive, worthKeeping, type Arrival } from './tiers';
  * somebody is standing in it, and let go of the moment they walk out. A shop is one of those as
  * much as a mine is.
  *
- * It matters which list somebody is in. Every other key is read as a chunk of the country by the
- * sweep at the top of `update`, and a key that is not a chunk comes out of `parseChunkKey` as
- * nowhere — which is never worth keeping. So anybody filed under a name of their own would be
- * swept away on the first step across the room, which is the hardest kind of fault to see from
- * outside: the person is made, they are handed back, and then they are not there.
+ * It matters which list somebody is in. Every other key is read as a chunk by the sweep at the top
+ * of `update`, and a key that is not a chunk comes out of `parseChunkKey` as nowhere, which is
+ * never worth keeping — so anybody filed under a name of their own is swept away on the first step
+ * across the room. The hardest kind of fault to see: the person is made, handed back, and gone.
  */
 export const A_PLACE = 'dungeon';
 
@@ -241,6 +240,8 @@ export class EntityManager {
       banked: (p: string, coin: number, what: string) => { aSaleReached(this.register, p, coin, what); },
       spends: (p: string, coin: number, from: string) => aPurchaseReached(this.register, p, coin, from),
       fed: (p: string) => { const who = this.register?.find(p); if (who) who.hungry = 0; },
+      // what the register is holding against him, which is what sends a villager to the surgery
+      laidUpFor: (p: string) => this.register?.find(p)?.hurt ?? 0,
       // asked once a tick and handed to everybody, because a village's constables all heard the
       // same news about the same person on the same morning
       wanted: this.guiltOf() > 0,
@@ -396,16 +397,15 @@ export class EntityManager {
    * somewhere near an anchor, and what comes out is a stranger. A building's keeper is the other
    * way round. The room decides who he is before he exists — `Entity.kind` is readonly and the
    * trade is what chooses the body, so a sergeant has to be known to be a sergeant before there is
-   * anybody there at all — and then he stands on the one tile behind his own counter and nowhere
-   * else. Rolled through `spawnPack` he would be scattered off that tile, and worse: the spawn asks
-   * `canStand` about the ground beside a counter, which can perfectly well answer no, and the shop
-   * would then have nobody in it at all.
+   * anybody there at all — then he stands on the one tile behind his counter and nowhere else.
+   * Rolled through `spawnPack` he would be scattered off it, and worse: the spawn asks `canStand`
+   * about the ground beside a counter, which can answer no, and the shop would have nobody in it.
    *
    * So this places nobody and asks nothing. It takes what it is handed, files it under the place,
-   * gives it to the renderer and gives it a roster number — which between them are the whole of
-   * what belonging to a crowd means: found by `within`, thought for by `update`, and buried through
-   * the same `onFallen` as everybody else. It is the opposite end of the same idea as `guests`,
-   * which is for creatures that are drawn here and thought for somewhere else.
+   * gives it to the renderer and gives it a roster number — between them the whole of what
+   * belonging to a crowd means: found by `within`, thought for by `update`, buried through the same
+   * `onFallen`. The opposite end of the same idea as `guests`, which is for creatures drawn here
+   * and thought for somewhere else.
    */
   admit(who: Entity, key: string = A_PLACE): Entity {
     let list = this.spawned.get(key);

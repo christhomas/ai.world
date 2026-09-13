@@ -78,6 +78,13 @@ export interface Mind {
   spends?: (person: string, coin: number, from: string) => number;
   /** And somebody has eaten: the register is what remembers how long it is since they last did. */
   fed?: (person: string) => void;
+  /**
+   * How many days this person is laid up for, which only the register knows.
+   *
+   * A body in the street has hit points and they mend or it dies; a villager has a wound that
+   * outlives the body being unloaded, and that is the one a doctor is for. See `wounded`.
+   */
+  laidUpFor?: (person: string) => number;
 }
 
 /** Where this creature's attention is: whatever it has marked, or the hero if it has marked nothing. */
@@ -195,9 +202,23 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
      */
     dangerous: () => (tick) => tick.world.self.kind.damage > 0,
 
-    /** Is this creature hurt below a share of its hit points? */
+    /**
+     * Is this one hurt — in the body standing here, or on the register that outlives it?
+     *
+     * Two questions with one answer, because a behaviour wants both and they are not the same fact.
+     * The body's hit points are what a creature bleeding in front of you has; the register's wound
+     * is what a *villager* carries for days afterwards — it is what stops him working, what a
+     * doctor halves, and what he pays a day's keep for on the morning the bone is set.
+     *
+     * `wounds.ts` puts it on the person deliberately, and item 36 says why: it has to survive being
+     * walked away from, the same shape as being hungry. Which left this asking only the body, so
+     * the villager who is laid up for six days never walked to the surgery — and the one who did
+     * was the one with a scratch that would be gone by morning. The branch in
+     * `behaviours/villagers.json` was written for the first man and only ever met the second.
+     */
     wounded: (params) => (tick) => {
-      const { self } = tick.world;
+      const { self, laidUpFor } = tick.world;
+      if (self.person !== '' && (laidUpFor?.(self.person) ?? 0) > 0) return true;
       const full = self.kind.hp;
       return self.hp <= full * number(params, 'share', 0.34);
     },
