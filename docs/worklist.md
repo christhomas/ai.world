@@ -4506,10 +4506,16 @@ than by remembering — and the first thing found was that the gap is not where 
       move the ground out from under every house, field and anchor in it. The kind comes back, and
       it travels with the join.
 
-- [ ] **59h. And then the edge comes out.** `EDGE_OF_THE_WORLD`, the island plan, the road tree and
-      everything that reads them. Last, not first: the bounded world is what everybody is playing
-      until the day the endless one is better, and it is also the reference the endless one is
-      checked against.
+- [~] **59h. And then the edge comes out.** `EDGE_OF_THE_WORLD`, the island plan, the road tree and
+      everything that reads them remain the bounded-world implementation. **Decision: retain it.**
+      Road is the default and the shared-world kind; endless remains an explicit, single-player
+      choice. This is not a compatibility shim: `WorldKind` keeps old road saves on their original
+      ground, and no new road save may be silently read as endless.
+
+      Reconsider removal only after the physical-device walk in **84** proves patch boundaries do
+      not interrupt play and a shared endless-world playtest proves both peers agree on every
+      arrived patch. Until then the bounded world is both the production country and the
+      deterministic reference used to check the endless one.
 
 - [x] **60. Country grown off the main thread.** Built: `workers/country.worker.ts` grows a square
       and posts back its parts, `world/grower.ts` does the asking, and the page rebuilds — five
@@ -5635,3 +5641,17 @@ than by remembering — and the first thing found was that the gap is not where 
       thirty — the sample was three prey), and `watch.ts` reading as unreachable (the import is
       `./game/watch`, and a grep for `./watch` missed it). Both took under a minute to disprove.
       Verify before believing, and prefer the candidates with volume behind them.
+
+      **Triage, September 14th.** The ratchet now reads **29**. Deleted as superseded or
+      test-only conveniences: `seasonProgress`, `hauntNear`, `planBands`, `bandsOver`, `regionOf`,
+      `bestOver`, `landingOf`, `packWeight`, `towardsNext`, `territoryOf`, `adjoins`, `markUnder`,
+      `characterAt`, and `hurtBy`.
+
+      The candidate list changed while it was read: `tradeTree`, `partPoints`, and `patchStamp`
+      remain because their behavior tests still need a public seam; they must instead be migrated to
+      the production doors (`treeFor`, the collision shape, and the per-patch agreement message)
+      before that seam can go. `measureFootprint` is a renderer-to-collision contract, not a game
+      feature; keep its geometry test but teach the audit that kind of checked test seam is
+      explained. `saidOfFood`, `saidOfWealth`, `opinionOf`, and `regardFor` are deliberately held
+      for the resident and hall dialogue work: wire them into words a player can ask for rather than
+      delete the information they were built to say.

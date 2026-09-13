@@ -145,19 +145,6 @@ export function provinceOfHome(home: Homed): ProvinceId {
  */
 export const PROVINCE_REACH = 96;
 
-/**
- * Do these two provinces touch — or are they the same one?
- *
- * The check that makes the bound above worth having. An agent may be outside its own province and
- * may not be *far* outside it, and "not far" said exactly is "in a province that shares a border or
- * a corner with the one it belongs to". Which is what lets a province be caught up on its own: the
- * ground its agents can reach is its own and its eight neighbours', and never a ninth.
- */
-export function adjoins(a: ProvinceId, b: ProvinceId): boolean {
-  const one = provinceAt(a), two = provinceAt(b);
-  return Math.abs(one.px - two.px) <= 1 && Math.abs(one.pz - two.pz) <= 1;
-}
-
 /** Where a province's leavings are written. One file each, named as the province is. */
 export function provincePath(dataDir: string, seed: number, id: ProvinceId): string {
   const { px, pz } = provinceAt(id);

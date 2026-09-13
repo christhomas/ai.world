@@ -62,6 +62,13 @@ jobs:
           rm -rf "$unpack"
           chore --version
 
+      # Setup is never allowed to alter the checkout: archives and reports belong in temporary or
+      # ignored paths. Run before benches create their reports, while any tracked change is a fault.
+      - name: Verify checkout is clean
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+
       # types, then the whole suite, then the bench — the same three a commit is gated on locally
       - run: chore check
 
@@ -134,6 +141,12 @@ jobs:
           sudo install -m 0755 "$unpack/chore" /usr/local/bin/chore
           rm -rf "$unpack"
           chore --version
+
+      # As above: Playwright setup must not repair or overwrite files the playthrough will inspect.
+      - name: Verify checkout is clean
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
 
       # Playwright is borrowed here exactly as it is borrowed at a desk, and stays out of
       # `package.json` on purpose. Everything that installs this project's dependencies would

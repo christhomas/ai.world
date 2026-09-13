@@ -5,7 +5,7 @@ import { EntityManager } from '../entities/manager';
 import { EntityRenderer } from '../entities/pool';
 import { BOW, markFor } from './archery';
 import { CRAFT } from './craft';
-import { GUN, fire, markUnder } from './gun';
+import { GUN, fire } from './gun';
 import { GameState } from './state';
 
 /**
@@ -50,18 +50,18 @@ describe('the craft’s gun', () => {
     const manager = setup();
     const far = quarry(manager, BOW.RANGE + 2, 0, GROUND);
     expect(markFor(manager, flat, 0, 0, 0), 'a bow could already reach that far').toBeNull();
-    expect(markUnder(manager, flat, 0, 0, 0, CRAFT.HOVER)).toBe(far);
+    expect(fire(new GameState(), manager, flat, 0, 0, 0, CRAFT.HOVER, 1).hit).toEqual([far]);
   });
 
   it('shoots from the craft’s height, so what is below it is properly below it', () => {
     const manager = setup();
     // directly ahead and on the ground: from a cockpit four units up that is a shot downwards
     const beast = quarry(manager, 8, 0, GROUND);
-    expect(markUnder(manager, flat, 0, 0, 0, CRAFT.HOVER)).toBe(beast);
+    expect(fire(new GameState(), manager, flat, 0, 0, 0, CRAFT.HOVER, 1).hit).toEqual([beast]);
     // and the same creature far enough out that the slant, not the ground distance, puts it away
     beast.x = GUN.RANGE - 1;
     beast.y = GROUND + 12;
-    expect(markUnder(manager, flat, 0, 0, 0, CRAFT.HOVER)).toBeNull();
+    expect(fire(new GameState(), manager, flat, 0, 0, 0, CRAFT.HOVER, 1).hit).toEqual([]);
   });
 
   it('is aimed more tightly than a bow', () => {
@@ -70,7 +70,7 @@ describe('the craft’s gun', () => {
     const off = Math.tan((GUN.ARC + BOW.ARC) / 2) * 8;
     const beast = quarry(manager, 8, off, GROUND);
     expect(markFor(manager, flat, 0, 0, 0), "the bow could not see it either").toBe(beast);
-    expect(markUnder(manager, flat, 0, 0, 0, CRAFT.HOVER)).toBeNull();
+    expect(fire(new GameState(), manager, flat, 0, 0, 0, CRAFT.HOVER, 1).hit).toEqual([]);
   });
 
   it('costs no ammunition, because whatever it is did not come with a quiver', () => {

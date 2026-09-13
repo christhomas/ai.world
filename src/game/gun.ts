@@ -1,4 +1,4 @@
-import { BEHAVIOUR, damageEntity, type Entity, type TileWorld } from '../entities/entity';
+import { BEHAVIOUR, damageEntity, type TileWorld } from '../entities/entity';
 import type { EntityManager } from '../entities/manager';
 import { markFor, type ShotResult, type Sight } from './archery';
 import { deedOf, spoils } from './combat';
@@ -101,10 +101,3 @@ export function fire(
 
 /** Whatever was killed from the air, for whoever has to be told about it. */
 export type GunShot = ReturnType<typeof fire>;
-
-/** A creature the gun would reach, for a test or a probe that wants to ask without firing. */
-export function markUnder(
-  entities: EntityManager, world: TileWorld, x: number, z: number, yaw: number, hover: number,
-): Entity | null {
-  return markFor(entities, world, x, z, yaw, sightFrom(hover));
-}

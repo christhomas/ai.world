@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Person } from './people';
 import { Register } from './register';
-import { WOUND, ableToWork, doctoredBy, hurtBy, laidUpFor, mendThem } from './wounds';
+import { WOUND, ableToWork, doctoredBy, laidUpFor, mendThem } from './wounds';
 
 /**
  * A villager who can be hurt.
@@ -39,10 +39,6 @@ describe('how long somebody is laid up', () => {
     expect(laidUpFor(1, doctor)).toBe(Math.round(WOUND.WORST * (1 - WOUND.DOCTOR_SAVES)));
   });
 
-  it('measures a bite against the only scale of harm the game has', () => {
-    expect(hurtBy(0)).toBe(0);
-    expect(hurtBy(1e6), 'a wound worse than dying').toBe(1);
-  });
 });
 
 describe('a village with somebody laid up', () => {

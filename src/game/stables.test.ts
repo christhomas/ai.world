@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Biome } from '../world/biomes';
 import { StructureKind, type Structure, type Village } from '../world/structures';
 import { TileType } from '../world/terrain';
-import { BREEDS, STABLE, bestOver, breedOf, goingOf, paceOf, stableAt, type Going } from './stables';
+import { BREEDS, STABLE, breedOf, goingOf, paceOf, stableAt, type Going } from './stables';
 
 /** A house, in as much detail as a stable cares about: there is one, and it has a roof. */
 const house = (n: number): Structure => ({
@@ -52,21 +52,15 @@ describe('the three animals a stable will sell you', () => {
   it('gives the camel the sand and takes the road off it again', () => {
     expect(paceOf(BREEDS.camel, 'sand')).toBeGreaterThan(paceOf(BREEDS.horse, 'sand'));
     expect(paceOf(BREEDS.camel, 'road')).toBeLessThan(paceOf(BREEDS.horse, 'road'));
-    expect(bestOver('sand')).toBe(BREEDS.camel);
-    expect(bestOver('road')).toBe(BREEDS.horse);
     // and it is not simply the dearer animal winning everywhere it goes
     expect(BREEDS.camel.price).toBeGreaterThan(BREEDS.horse.price);
   });
 
   it('leaves the broken ground and the heights to the goat', () => {
-    expect(bestOver('rough')).toBe(BREEDS.goat);
     expect(paceOf(BREEDS.goat, 'rough')).toBeGreaterThan(paceOf(BREEDS.horse, 'rough'));
     expect(paceOf(BREEDS.goat, 'rough')).toBeGreaterThan(paceOf(BREEDS.camel, 'rough'));
     // the cheapest of the three, and the only one that is never quickest on flat country
     expect(BREEDS.goat.price).toBeLessThan(BREEDS.horse.price);
-    for (const going of ['road', 'open', 'sand'] as Going[]) {
-      expect(bestOver(going)).not.toBe(BREEDS.goat);
-    }
   });
 
   it('makes every one of them worth the money over your own two feet', () => {
@@ -76,8 +70,6 @@ describe('the three animals a stable will sell you', () => {
         expect(paceOf(breed, going)).toBeGreaterThan(STABLE.ON_FOOT);
       }
     }
-    // no breed is best everywhere, which is the whole reason there are three of them
-    expect(new Set(GOINGS.map((going) => bestOver(going).id)).size).toBeGreaterThan(1);
   });
 
   it('reads the going off the tile underfoot', () => {

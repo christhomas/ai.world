@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Biome } from '../world/biomes';
-import { SEASON_LENGTH, Season, isWet, seasonAffects, seasonOf, seasonProgress, seasonTint } from './seasons';
+import { SEASON_LENGTH, Season, isWet, seasonAffects, seasonOf, seasonTint } from './seasons';
 
 describe('seasons', () => {
   it('turns with the day counter and wraps into years', () => {
@@ -9,8 +9,6 @@ describe('seasons', () => {
     expect(seasonOf(SEASON_LENGTH + 1)).toBe(Season.Summer);
     expect(seasonOf(SEASON_LENGTH * 3 + 1)).toBe(Season.Winter);
     expect(seasonOf(SEASON_LENGTH * 4 + 1)).toBe(Season.Spring);   // next year
-    expect(seasonProgress(1, 0)).toBe(0);
-    expect(seasonProgress(SEASON_LENGTH, 0.99)).toBeLessThan(1);
     expect(seasonTint(Season.Winter).frost).toBeGreaterThan(0);
     expect(seasonTint(Season.Summer).frost).toBe(0);
     expect(seasonAffects(Biome.Desert)).toBe(false);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PROWESS, costOf, learnedFrom, levelFor, saidOf, towardsNext } from './prowess';
+import { PROWESS, costOf, learnedFrom, levelFor, saidOf } from './prowess';
 import { KINDS } from '../entities/animals';
 import { HEALTH } from '../world/health';
 import { GameState } from './state';
@@ -36,15 +36,8 @@ describe('getting better at fighting', () => {
 
   it('runs out rather than growing for ever', () => {
     expect(levelFor(costOf(PROWESS.MOST) * 100)).toBe(PROWESS.MOST);
-    expect(towardsNext(costOf(PROWESS.MOST) * 100)).toBe(1);
   });
 
-  it('reports progress through a level between nought and one', () => {
-    for (const p of [0, 50, 200, 1000, 9000]) {
-      expect(towardsNext(p)).toBeGreaterThanOrEqual(0);
-      expect(towardsNext(p)).toBeLessThanOrEqual(1);
-    }
-  });
 
   it('has something to say at every level it can reach', () => {
     for (let n = 1; n <= PROWESS.MOST; n++) expect(saidOf(n).length).toBeGreaterThan(0);
