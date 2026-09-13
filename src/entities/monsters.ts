@@ -39,6 +39,6 @@ export const MONSTER_KINDS: Record<MonsterId, AnimalKind> = {
 };
 
 /** Can a blade reach this creature at all? Anything with no hit points is beyond one. */
-export function canBeCut(kind: { hp?: number }): boolean {
-  return (kind.hp ?? 0) > 0;
+export function canBeCut(kind: { hp: number }): boolean {
+  return kind.hp > 0;
 }

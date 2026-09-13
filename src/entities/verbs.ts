@@ -198,7 +198,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
     /** Is this creature hurt below a share of its hit points? */
     wounded: (params) => (tick) => {
       const { self } = tick.world;
-      const full = self.kind.hp ?? 1;
+      const full = self.kind.hp;
       return self.hp <= full * number(params, 'share', 0.34);
     },
   },
@@ -645,7 +645,7 @@ function beHealed(params: Params): CreatureNode {
       const paid = spends?.(self.person, fee, 'doctor') ?? fee;
       self.purse -= paid;
     }
-    bodyOf(self).mend(self.kind.hp ?? 0);
+    bodyOf(self).mend(self.kind.hp);
     return 'success';
   };
 }

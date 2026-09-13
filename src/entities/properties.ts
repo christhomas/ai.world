@@ -88,7 +88,7 @@ export interface CreatureProperties {
    */
   owned: boolean;
   /** Hit points; creatures with hp can be killed by the hero. */
-  hp?: number;
+  hp: number;
   /** Gold dropped when killed. */
   gold: [number, number];
   /** Something to carry home, and how often it drops. */
@@ -138,7 +138,7 @@ function readCreature(f: Fields, id: string): CreatureProperties {
     blow,
     paddles: f.flag('paddles'),
     owned: f.flag('owned'),
-    hp: f.maybeNum('hp'),
+    hp: f.num('hp'),
     gold: f.pair('gold'),
     drop: dropOf(f),
   };

@@ -209,6 +209,7 @@
     "climb": 0,
     "paddles": false,
     "owned": false,
+    "hp": 0,
     "gold": [
       0,
       0
@@ -230,6 +231,7 @@
     "climb": 0.56,
     "paddles": true,
     "owned": false,
+    "hp": 100,
     "herd": [
       1,
       1

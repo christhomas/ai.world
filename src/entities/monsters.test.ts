@@ -98,8 +98,8 @@ describe('the ogre', () => {
 
   it('is a real fight for anybody who wants one, and worth having had', () => {
     expect(canBeCut(MONSTER_KINDS.ogre)).toBe(true);
-    expect(MONSTER_KINDS.ogre.hp!).toBeGreaterThan(KINDS.bear.hp!);
-    expect(MONSTER_KINDS.ogre.gold![0]).toBeGreaterThan(0);
+    expect(MONSTER_KINDS.ogre.hp).toBeGreaterThan(KINDS.bear.hp);
+    expect(MONSTER_KINDS.ogre.gold[0]).toBeGreaterThan(0);
   });
 });
 
@@ -129,7 +129,7 @@ describe('the wight', () => {
   it('has no hit points, so a swing looks for something to hurt and finds nothing', () => {
     // this is the whole of "a sword does not answer it": combat skips creatures without hp, so
     // the blade going through is the absence of a special case rather than one
-    expect(MONSTER_KINDS.wight.hp).toBeUndefined();
+    expect(MONSTER_KINDS.wight.hp).toBe(0);
     expect(canBeCut(MONSTER_KINDS.wight)).toBe(false);
     // and nothing you cannot kill has anything on it to take. `gold` is stated now and `drop` is
     // still absent, which is the distinction item 94 kept on purpose: carrying nought is a value a

@@ -394,7 +394,7 @@ export function installProbes(ctx: Probed): void {
     hit.hp = Math.max(1, hit.hp - damage);
     hit.hurt = BEHAVIOUR.HURT_TIME;
     hit.bar = BEHAVIOUR.BAR_TIME;
-    return { kind: hit.kind.id, name: hit.name, hp: hit.hp, of: hit.kind.hp ?? 1, x: hit.x, z: hit.z };
+    return { kind: hit.kind.id, name: hit.name, hp: hit.hp, of: hit.kind.hp, x: hit.x, z: hit.z };
   };
   // the wing, so a headless browser can take off without having to land two keypresses a tenth of
   // a second apart

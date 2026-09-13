@@ -306,7 +306,7 @@ export class Entity {
     this.timer = rng() * 2;
     this.tx = x;
     this.tz = z;
-    this.hp = kind.hp ?? 1;
+    this.hp = kind.hp;
   }
 
   line(rng: Rng): string {

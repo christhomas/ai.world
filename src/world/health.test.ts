@@ -58,8 +58,22 @@ describe('a creature as something alive', () => {
     expect(e.hp).toBe(30);
   });
 
-  it('treats a kind with no health of its own as an ordinary adult', () => {
-    expect(bodyOf({ hp: 50, kind: {} }).most).toBe(HEALTH.FULL);
+  /*
+   * There is no longer such a thing as a kind with no health of its own, and the test that used to
+   * say so is this one.
+   *
+   * It asserted that an absent `kind.hp` came out as `HEALTH.FULL`, which was true and was an
+   * accident: the hero's entry had no hit points in it and the fallback was quietly supplying the
+   * player's own. That made a nought mean two incompatible things — "a blade does not answer this"
+   * to `canBeCut`, and "this is the hero" here — and item 94 could not settle the field until they
+   * were separated. So the hero says a hundred in its own entry, which is where a fact about the
+   * player belongs, and a nought now means the one thing it always should have.
+   */
+  it('takes what its kind says it can take, the hero included', () => {
+    expect(bodyOf({ hp: 50, kind: { hp: 30 } }).most).toBe(30);
+    expect(bodyOf({ hp: 50, kind: KINDS.hero }).most).toBe(HEALTH.FULL);
+    // and a kind that says nought is a kind a blade does not answer, rather than a full-health one
+    expect(bodyOf({ hp: 5, kind: { hp: 0 } }).most).toBe(0);
   });
 });
 

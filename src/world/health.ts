@@ -96,8 +96,20 @@ export function spent(of: Living): boolean {
  * `kind.hp` is the maximum for everything in the bestiary — a creature that has never been hurt is
  * at it — so there is no second field to keep in step, which is why nothing has ever had to.
  */
-export function bodyOf(e: { hp: number; kind: { hp?: number } }): Living {
-  const most = e.kind.hp ?? HEALTH.FULL;
+export function bodyOf(e: { hp: number; kind: { hp: number } }): Living {
+  /*
+   * What this body can take, which is its kind's and nobody else's business.
+   *
+   * It used to read `e.kind.hp ?? HEALTH.FULL`, and the hero's entry simply had no hit points in
+   * it, so the fallback was quietly the player's own health. That made a nought mean two things at
+   * once — "a blade does not answer this", which is what `canBeCut` reads, and "this is the hero,
+   * give it a hundred" — and the two collided the moment every creature had to state a value.
+   *
+   * The hero says a hundred in its own entry now, which is where a fact about the player belongs.
+   * Item 94, and it is the clearest case in the whole item: one field, two readings, no way to tell
+   * them apart until the silence was taken away.
+   */
+  const most = e.kind.hp;
   return {
     get hp() { return e.hp; },
     get most() { return most; },

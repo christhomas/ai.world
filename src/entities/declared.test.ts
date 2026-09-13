@@ -44,7 +44,7 @@ const FILES: ReadonlyArray<[string, Record<string, unknown>]> = [
  * The ones with a sensible nought are exactly the ones worth stating, because those are where the
  * silence was being read six different ways.
  */
-const MUST_SAY = ['damage', 'altitude', 'climb', 'paddles', 'owned', 'gold'] as const;
+const MUST_SAY = ['damage', 'altitude', 'climb', 'paddles', 'owned', 'gold', 'hp'] as const;
 
 describe('what every creature says about itself', () => {
   for (const field of MUST_SAY) {

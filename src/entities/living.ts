@@ -174,7 +174,7 @@ export function eatSomething(params: Params): CreatureNode {
     if (paid <= 0) return 'failure';
     self.purse -= paid;
     fed?.(self.person);
-    self.hp = self.kind.hp ?? self.hp;
+    self.hp = self.kind.hp;
     self.state = 'idle';
     self.timer = 2;
     return 'success';

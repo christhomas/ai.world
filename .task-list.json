@@ -1,0 +1,13 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "what": "Give every creature an explicit hp. The hero and the shopkeeper need real values; a lizard, a frog and the wight are nought, which is what canBeCut already reads absence as. Make the loader require it and delete the hp fallbacks.",
+      "added": "2026-09-13T09:18:53+00:00",
+      "handed": null,
+      "at": null,
+      "done": null,
+      "check": "! grep -q \"hp: f.maybeNum\" src/entities/properties.ts"
+    }
+  ]
+}
