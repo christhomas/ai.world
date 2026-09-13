@@ -184,7 +184,37 @@ export const THE_HALL = 'the hall';
  * What it does not settle is what the hall *is* — an entity with a body, the mayor's house at first
  * and a building the village voted for later. That waits on **91**, and does not block this.
  */
-export type Owner = string;
+export type Owner = string & { readonly isOwner: unique symbol };
+
+/**
+ * Why it is branded rather than a union of the two things it is.
+ *
+ * A union — `{ person: string } | { hall: true }` — is the shape that reads best and it changes
+ * what an owner *is on disk*. `Holding.owner` rides in the save and crosses the wire as a string,
+ * so a union means a migration and two representations during it, which is a large price for a
+ * type that is only trying to stop one mistake.
+ *
+ * A brand costs nothing at runtime and buys the thing that was actually missing: an owner cannot
+ * be produced by writing a string. It has to come through `ownedBy` or be `THE_HALL`, so the day
+ * somebody adds a seventh place that sets an owner, the compiler asks them which of the two it is
+ * rather than trusting them to remember. That is the whole of what the doc comment above has been
+ * claiming since it was written, and what a bare alias did not do.
+ *
+ * What it does not buy is narrowing: `isTheHall` is still a question rather than a type guard,
+ * because both sides of the brand are the same type. The union is the better answer the day the
+ * save format is being changed for another reason anyway.
+ */
+export const THE_HALL_OWNER = THE_HALL as Owner;
+
+/** Somebody on the register, as an owner. The one door a person's id comes through. */
+export function ownedBy(person: Pick<Person, 'id'>): Owner {
+  return person.id as Owner;
+}
+
+/** An owner read back off a save or the wire, where it is a string and has to be taken as one. */
+export function ownerFromSave(id: string): Owner {
+  return id as Owner;
+}
 
 /** Is this the village itself rather than one of its people? */
 export function isTheHall(owner: Owner): boolean {
@@ -223,7 +253,7 @@ export interface Holding {
    */
   house: string;
   /** Who holds it today: a villager's id, or `THE_HALL`. */
-  owner: string;
+  owner: Owner;
   /** Who works it today, or nobody at all, which is a vacancy for a mayor to fill. */
   worker: string;
   /** The day it was founded, which is the only history a holding keeps. */
@@ -278,7 +308,7 @@ export function foundAHolding(
     id: `${village.replace(/[^A-Za-z]/g, '')}-${sort.kind}-${highest + 1}`,
     kind: sort.kind,
     house: owner ? surnameOf(owner) : '',
-    owner: owner ? owner.id : THE_HALL,
+    owner: owner ? ownedBy(owner) : THE_HALL_OWNER,
     worker: owner ? owner.id : '',
     founded: day,
   };
@@ -316,8 +346,8 @@ function passedOn(holding: Holding, people: readonly Person[], day: number): Hol
   const family = holding.house === ''
     ? [] : people.filter((person) => surnameOf(person) === holding.house);
   const heir = family.find((person) => stageOf(person, day) === 'adult') ?? family[0] ?? null;
-  if (heir) return { ...holding, owner: heir.id };
-  return { ...holding, owner: THE_HALL, house: '' };
+  if (heir) return { ...holding, owner: ownedBy(heir) };
+  return { ...holding, owner: THE_HALL_OWNER, house: '' };
 }
 
 /**
@@ -495,7 +525,7 @@ export function shareTheTake(
     const holding = holdings[at];
     const took = shareOf(gold, holdings.length, at);
     const worker = holding.worker ?? '';
-    const owner = living.has(holding.owner ?? '') ? holding.owner! : THE_HALL;
+    const owner: Owner = living.has(holding.owner ?? '') ? holding.owner! : THE_HALL_OWNER;
     if (owner === worker) { add(worker, took); continue; }
     const wage = Math.min(A_DAYS_HIRE, took);
     add(worker, wage);

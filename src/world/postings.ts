@@ -1,4 +1,4 @@
-import { THE_HALL, isTheHall, canDo, type Capability } from './holdings';
+import { THE_HALL, isTheHall, canDo, type Capability, type Owner } from './holdings';
 import { stageOf, type Person } from './people';
 
 /**
@@ -147,8 +147,8 @@ export interface Post {
   holding: string;
   /** Who is standing it this morning. */
   who: string;
-  /** Whose purse it comes out of: a villager's id, or `THE_HALL`. */
-  funder: string;
+  /** Whose purse it comes out of: a villager, or the hall. See `Owner`. */
+  funder: Owner;
   /** What today costs, in gold. */
   wage: number;
 }
@@ -157,7 +157,7 @@ export interface Post {
 export interface Held {
   id: string;
   kind: string;
-  owner: string;
+  owner: Owner;
 }
 
 /**

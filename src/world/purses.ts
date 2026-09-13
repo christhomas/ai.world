@@ -1,5 +1,5 @@
 import { PROSPER } from './prosperity';
-import { THE_HALL, isTheHall } from './holdings';
+import { THE_HALL, isTheHall, ownerFromSave } from './holdings';
 import type { Settlement } from './settlement';
 
 /**
@@ -62,7 +62,8 @@ export function pay(
      * bench watches it; a hall that stopped being able to hold more would be a village that stopped
      * being able to save for the thing it is saving for.
      */
-    if (isTheHall(id)) {
+    // the keys of an owed map are owners; they arrive as strings because a Map is a Map
+    if (isTheHall(ownerFromSave(id))) {
       village.purse = Math.round((village.purse + much) * 100) / 100;
       continue;
     }

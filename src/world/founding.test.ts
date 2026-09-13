@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ownerFromSave } from './holdings';
 import { A_CREW_TAKES, A_DAY_OF_BUILDING, costOfFounding, whatTheHallFounds, whoFoundsAnother, whoIsPaidToRaiseIt } from './founding';
 import { A_DAYS_HIRE, BEASTS_PER_FARM, THE_HALL, shareTheTake, sortOf, type Holding } from './holdings';
 import { LIVELIHOOD } from './livelihoods';
@@ -24,7 +25,7 @@ const villager = (id: string, trade: string, over: Partial<Person> = {}): Person
 } as Person);
 
 const farm = (id: string, owner: string, worker: string): Holding =>
-  ({ id, kind: 'farm', house: owner === THE_HALL ? '' : 'Vos', owner, worker, founded: 0 });
+  ({ id, kind: 'farm', house: owner === THE_HALL ? '' : 'Vos', owner: ownerFromSave(owner), worker, founded: 0 });
 
 /** What a full paddock actually brings in over a day, which is what the wage has to sit under. */
 const A_FARMS_DAY = BEASTS_PER_FARM * LIVELIHOOD.CALVES * LIVELIHOOD.PRICE_PER_BEAST;

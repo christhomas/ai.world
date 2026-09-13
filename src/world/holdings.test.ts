@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ownerFromSave } from './holdings';
 import {
   BEASTS_PER_FARM, SORTS, THE_HALL, canDo, capabilitiesOf, foundAHolding, heldBy, leavesAHolding,
   nameOfHolding, possibleHere, shareTheBeasts, sortOf, vacancies, whatTheVillageHolds,
@@ -148,7 +149,7 @@ describe('what a funeral does to a farm', () => {
   it('never moves the hall\'s own, because a treasury outlives everybody', () => {
     const hand = villager('hand', 'farmer', { name: 'Piet Vos' });
     const hall: Holding = {
-      id: 'Testing-farm-9', kind: 'farm', house: '', owner: THE_HALL, worker: 'hand', founded: 0,
+      id: 'Testing-farm-9', kind: 'farm', house: '', owner: ownerFromSave(THE_HALL), worker: 'hand', founded: 0,
     };
     const after = whatTheVillageHolds('Testing', hamlet([], [], [hall]), 40);
     expect(after[0].owner).toBe(THE_HALL);
@@ -166,7 +167,7 @@ describe('what a funeral does to a farm', () => {
 describe('an owner who is not the worker', () => {
   it('puts a spare pair of arms into a standing farm before raising a new one', () => {
     const hall: Holding = {
-      id: 'Testing-farm-1', kind: 'farm', house: '', owner: THE_HALL, worker: '', founded: 0,
+      id: 'Testing-farm-1', kind: 'farm', house: '', owner: ownerFromSave(THE_HALL), worker: '', founded: 0,
     };
     const held = whatTheVillageHolds('Testing', hamlet([villager('a', 'farmer')], [], [hall]), 30);
     expect(held).toHaveLength(1);
@@ -178,7 +179,7 @@ describe('an owner who is not the worker', () => {
     const owner = villager('owner', 'seller', { name: 'Greta Vos' });
     const hired = villager('hired', 'farmer', { name: 'Jan Hoorn' });
     const theirs: Holding = {
-      id: 'Testing-farm-1', kind: 'farm', house: 'Vos', owner: 'owner', worker: '', founded: 0,
+      id: 'Testing-farm-1', kind: 'farm', house: 'Vos', owner: ownerFromSave('owner'), worker: '', founded: 0,
     };
     const held = whatTheVillageHolds('Testing', hamlet([owner, hired], [], [theirs]), 30);
     expect(held).toHaveLength(1);
@@ -190,7 +191,7 @@ describe('an owner who is not the worker', () => {
     const owner = villager('owner', 'farmer', { name: 'Greta Vos' });
     const other = villager('other', 'farmer', { name: 'Jan Hoorn' });
     const theirs: Holding = {
-      id: 'Testing-farm-1', kind: 'farm', house: 'Vos', owner: 'owner', worker: '', founded: 0,
+      id: 'Testing-farm-1', kind: 'farm', house: 'Vos', owner: ownerFromSave('owner'), worker: '', founded: 0,
     };
     const held = whatTheVillageHolds('Testing', hamlet([owner, other], [], [theirs]), 30);
     expect(held.find((one) => one.id === 'Testing-farm-1')!.worker).toBe('owner');
@@ -198,10 +199,10 @@ describe('an owner who is not the worker', () => {
 
   it('is named for whoever holds it, or for the village when the hall does', () => {
     const theirs: Holding = {
-      id: 'x', kind: 'farm', house: 'Vos', owner: 'owner', worker: 'owner', founded: 0,
+      id: 'x', kind: 'farm', house: 'Vos', owner: ownerFromSave('owner'), worker: 'owner', founded: 0,
     };
     expect(nameOfHolding(theirs)).toBe('the Vos farm');
-    expect(nameOfHolding({ ...theirs, house: '', owner: THE_HALL })).toBe('the village farm');
+    expect(nameOfHolding({ ...theirs, house: '', owner: ownerFromSave(THE_HALL) })).toBe('the village farm');
   });
 
   it('can be founded by the hall with nobody in it yet', () => {
