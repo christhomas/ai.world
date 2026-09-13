@@ -17,7 +17,7 @@ import { growerFor } from '../world/countryworker';
 import { TerrainSampler, TileType } from '../world/terrain';
 import type { WorldKind } from '../save/store';
 import type { ManifestJson } from '../world/manifest';
-import { planEyries } from './eyries';
+import { HighCountry } from './highcountry';
 import { Skyline } from './skyline';
 
 /**
@@ -149,37 +149,25 @@ export function growCountry(ctx: Growing) {
   // taller than the picture is and would otherwise be cut off by the top of its own frustum
   const skyline = new Skyline(sampler.ranges);
 
-  // the crags with eagles on them: one pair per range big enough to be worth flying over, each
-  // perch shuffled round the shoulder until it stands on ground somebody can actually reach
-  const eyries = planEyries(seed, highPlaces, (x, z) => sampler.probe(x, z).land);
-
-  // The villages in the clouds: additional geometry over the world's islands, not a replacement
-  // for any of it. The chunks below are generated and drawn exactly as they were, and the sky
-  // islands go into the same outdoor scene on top of them, so standing at a rim and looking down
-  // shows the real country.
-  const skyIsles = planSkyIslands(seed, graph.islands, highPlaces, (x, z) => sampler.probe(x, z).land).map((site) =>
-    buildSkyIsland(
-      site,
-      manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over).seed,
-      (x, z) => sampler.probe(x, z).land,
-    ));
+  /*
+   * The crags with eagles on them and the villages in the clouds, both of which belong to the rock
+   * under them — so in a country with no edge both belong to the patch the hero is standing in.
+   *
+   * Held by something that can swap them, for the same reason the mountains are: one code path
+   * rather than two, and a bounded world simply never crosses. `highcountry.ts` says what goes
+   * wrong without it, which is the mountains' own failure one layer up — islands over country
+   * behind you, and crags that are not there.
+   */
   const skyRenderer = new SkyIslands(rig.scene, props, rig.water.material, daycycle.glowMaterial);
   skyRenderer.useSeasonTint(seasonTintMaterials);
-  const groundSample = sampler.newSample();
-  for (const isle of skyIsles) {
-    skyRenderer.add(isle, (x, z) => {
-      // where the fall lands. Taken from the sampler rather than from a loaded chunk because the
-      // island is built before anything has streamed in, and a plume that stops at zero when the
-      // ground under it is four terraces up hangs in the air with a gap under it.
-      sampler.sampleTile(Math.floor(x), Math.floor(z), groundSample);
-      return groundSample.type === TileType.Skip || groundSample.type === TileType.Seabed
-        ? WORLD.WATER_Y : groundSample.height;
-    });
-  }
+  const high = new HighCountry(seed, manifest, skyRenderer);
+  high.standOn(sampler);
+  const eyries = high.eyries;
+  const skyIsles = high.isles;
 
   return {
     graph, islands, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, mountains, skyline,
-    eyries, skyIsles, skyRenderer,
+    eyries, skyIsles, skyRenderer, high,
     /**
      * The country itself, for a world that has no edge: what to tell when the hero has walked into
      * another patch, and what to ask for the sampler that answers where he is now.

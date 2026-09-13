@@ -141,7 +141,15 @@ export class SkyIslands {
     for (const p of this.placed) p.clouds.rotation.y = this.turned;
   }
 
-  dispose(): void {
+  /**
+   * Take every island out of the sky and give its geometry back.
+   *
+   * Out of `dispose` because a country with no edge needs one half of it and not the other: the
+   * islands over the patch behind the hero have to leave, and the two materials every island in the
+   * world shares have to stay. Disposing those and then adding another island puts a group into the
+   * scene holding a material the renderer has already freed, which draws nothing and says nothing.
+   */
+  clear(): void {
     for (const p of this.placed) {
       this.scene.remove(p.group);
       this.scene.remove(p.clouds);
@@ -152,6 +160,10 @@ export class SkyIslands {
       p.clouds.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
     }
     this.placed.length = 0;
+  }
+
+  dispose(): void {
+    this.clear();
     this.cloudMaterial.dispose();
     this.landMaterial.dispose();
   }

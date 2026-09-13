@@ -648,15 +648,51 @@ export function liftField(mesh: WorldMesh): Ranges {
  * of loss that leaves no error behind it — the eagles simply were not there, and nothing said so.
  */
 export function rangesAsMassifs(ranges: Ranges, mesh: WorldMesh | null): Massif[] {
-  return ranges.peaks.map((peak) => ({
+  const reach = reachOfEachPeak(ranges, mesh);
+  return ranges.peaks.map((peak, at) => ({
     x: peak.x,
     z: peak.z,
-    // the reach of the face it stands on, pulled in the same way the rock itself is, so a bird
-    // lands on the shoulder of the mountain that is actually there
-    radius: Math.sqrt((mesh?.faces[peak.face]?.area ?? 0) / Math.PI) * RANGE.SPREAD,
+    radius: reach[at],
     // terraces, because that is what a Massif counts in and what everything reading one expects
     height: peak.lift / WORLD.STEP,
     hollow: 0,
   }));
+}
+
+/**
+ * How far each peak's rock actually reaches, measured off the triangles rather than off the map.
+ *
+ * This used to be the area of the mesh face the peak grew from, and it returned **nought for every
+ * peak in the game**. The face-area rule was written for the polygon world, which had a mesh; that
+ * world was retired, and the only kind of country left that has `ranges` at all is the endless one,
+ * whose patches have no mesh. So `mesh?.faces[...] ?? 0` was the branch that always ran.
+ *
+ * What it cost is larger than it looks, because a radius of nought means nothing is ever inside it:
+ * no eagle ever had a crag to perch on, no sky island was ever planned, and `highland(x, z)` — which
+ * is how the world decides what lives up there — answered no everywhere in the endless country. The
+ * mountains were drawn, walked on and climbed, and nothing that was supposed to live on them knew
+ * they were there.
+ *
+ * The rock knows its own reach. `owner` says which peak each triangle belongs to, so the furthest
+ * vertex of a peak's own triangles is its footprint — which is a better answer than the face area
+ * ever was, since it is the mountain that is standing there rather than a circle of the same area as
+ * the region it grew from. The mesh is still taken, and still used where there is one, because a
+ * world that has a face has said something about how far its rock was *meant* to spread and the two
+ * should not disagree; the larger of the two is the honest reading of "how far does this reach".
+ */
+export function reachOfEachPeak(ranges: Ranges, mesh: WorldMesh | null): number[] {
+  const out = ranges.peaks.map((peak) =>
+    Math.sqrt((mesh?.faces[peak.face]?.area ?? 0) / Math.PI) * RANGE.SPREAD);
+  for (let tri = 0; tri < ranges.owner.length; tri++) {
+    const peak = ranges.owner[tri];
+    if (peak < 0 || peak >= out.length) continue;
+    const apex = ranges.peaks[peak];
+    for (let vertex = 0; vertex < 3; vertex++) {
+      const at = tri * 9 + vertex * 3;
+      const away = Math.hypot(ranges.tris[at] - apex.x, ranges.tris[at + 2] - apex.z);
+      if (away > out[peak]) out[peak] = away;
+    }
+  }
+  return out;
 }
 

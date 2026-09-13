@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FaceKind, generateMesh, type WorldMesh } from './mesh';
-import { RANGE, buildRanges, mountainAt, planBowl, type Ranges } from './ranges';
+import { RANGE, buildRanges, mountainAt, planBowl, reachOfEachPeak, type Ranges } from './ranges';
 import { highlandAt, highlandLift, highlandRidges } from './highland';
 
 /**
@@ -288,5 +288,51 @@ describe('mountain country', () => {
       expect(peak.y, `${peak.face}`).toBeCloseTo(under + peak.lift, 4);
       expect(under, 'and that ground is high before the rock is counted').toBeGreaterThan(0);
     }
+  });
+});
+
+/*
+ * How far a peak's rock reaches, which returned nought for every peak in the game until the 13th.
+ *
+ * The face-area rule was written for the polygon world, which had a mesh. That world was retired,
+ * and the only country left with `ranges` at all is the endless one, whose patches have no mesh —
+ * so the `?? 0` branch was the only branch that ever ran. Nothing was ever inside a radius of
+ * nought, so no eagle had a crag, no sky island was planned, and the world's own `highland` test
+ * said no everywhere.
+ */
+describe('how far a peak reaches', () => {
+  it('measures the rock that is there when there is no mesh to ask', () => {
+    const ranges = {
+      peaks: [{ face: 0, range: 0, x: 0, z: 0, lift: 10, y: 10 }],
+      owner: Int32Array.from([0]),
+      // one triangle, its furthest vertex eight tiles out from the apex
+      tris: Float32Array.from([0, 0, 0, 8, 0, 0, 0, 0, 6]),
+      bowl: null,
+      index: { minX: 0, minZ: 0, cols: 1, rows: 1, starts: Int32Array.from([0, 1]), ids: Int32Array.from([0]) },
+    };
+    expect(reachOfEachPeak(ranges, null)).toEqual([8]);
+  });
+
+  it('takes the larger of the rock and what a mesh said the face was meant to spread to', () => {
+    const ranges = {
+      peaks: [{ face: 0, range: 0, x: 0, z: 0, lift: 10, y: 10 }],
+      owner: Int32Array.from([0]),
+      tris: Float32Array.from([0, 0, 0, 2, 0, 0, 0, 0, 1]),
+      bowl: null,
+      index: { minX: 0, minZ: 0, cols: 1, rows: 1, starts: Int32Array.from([0, 1]), ids: Int32Array.from([0]) },
+    };
+    const wide = reachOfEachPeak(ranges, { faces: [{ area: 10_000 }] } as never);
+    expect(wide[0]).toBeGreaterThan(2);
+  });
+
+  it('ignores a triangle that belongs to no peak', () => {
+    const ranges = {
+      peaks: [{ face: 0, range: 0, x: 0, z: 0, lift: 10, y: 10 }],
+      owner: Int32Array.from([-1]),
+      tris: Float32Array.from([0, 0, 0, 99, 0, 0, 0, 0, 99]),
+      bowl: null,
+      index: { minX: 0, minZ: 0, cols: 1, rows: 1, starts: Int32Array.from([0, 1]), ids: Int32Array.from([0]) },
+    };
+    expect(reachOfEachPeak(ranges, null)).toEqual([0]);
   });
 });

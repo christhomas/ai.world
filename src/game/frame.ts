@@ -19,6 +19,7 @@ import type { PatchCountry } from '../world/patchcountry';
 import { dropsFor, type DropField } from '../render/drops';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import type { BuildingSite } from '../render/site';
+import type { HighCountry } from './highcountry';
 import type { SkyIslands } from '../render/skyisland';
 import type { Weather } from '../render/weather';
 import type { Updraughts } from '../render/updraughts';
@@ -98,6 +99,8 @@ export interface Framing {
   entityRenderer: EntityRenderer;
   places: Places;
   skyline: Skyline;
+  /** The crags and the sky islands, which belong to the patch the hero is in. `highcountry.ts`. */
+  high: HighCountry;
   rock: MountainMaterial;
   /** The hole kept open in whatever is standing between the camera and the hero, when he wants one. */
   cutaway: Cutaway;
@@ -215,7 +218,7 @@ export interface Framing {
 export function createFrame(ctx: Framing) {
   const {
     seed, state, player, iso, rig, input, graph, chunks, sampler, entities, entityRenderer, places,
-    skyline, rock, cutaway, endless, grower, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
+    skyline, high, rock, cutaway, endless, grower, mountains, daycycle, weather, beam, seasonTintMaterials, skyRenderer, skies, wildlife, floorLife,
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack, sync,
@@ -485,6 +488,9 @@ export function createFrame(ctx: Framing) {
       mountains.show(now.ranges);
       chunks.standOn(now.ranges);
       skyline.standingBefore(now.ranges);
+      // and what stands on and above that rock: the eagles' crags and the islands in the sky, both
+      // of which are planned from the massifs under them. See `highcountry.ts`
+      high.standOn(now);
     }
     chunks.update(x, z);
     // and the country itself: what this page is missing, from what it kept or from the world
