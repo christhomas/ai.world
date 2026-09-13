@@ -610,9 +610,9 @@ export class EntityManager {
 
     spawnVillageFolk({
       villages: this.villages, world: this.world,
-      place: (...a) => this.place(...a),
+      place: (...a) => this.place(...a), hasStable: (v) => this.hasStable(v),
       residentsFor: (v, posts, wanted) => this.residentsFor(v, posts, wanted),
-      hasStable: (village) => this.hasStable(village),
+      onTheTower: (v) => this.register?.watchOf(v) ?? '',   // empty: no tower, or nobody paid to man it
     }, ctx);
     spawnLivestock({
       villages: this.villages, world: this.world, place: (...a) => this.place(...a),

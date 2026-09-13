@@ -5,6 +5,7 @@ import type { Herd, Post, TileWorld } from './entity';
 import { SPAWN } from './spawning';
 import { bodyForTrade, pickTrade } from './trades';
 import { postsOf } from './villagers';
+import { civicFor, whereItStands } from '../world/civics';
 import { heartsLeft } from '../world/food';
 import type { SpawnCtx } from './manager';
 
@@ -30,6 +31,23 @@ import type { SpawnCtx } from './manager';
  * somebody's pay is a question about the register, and the register belongs to the manager.
  */
 
+/**
+ * The foot of a village's watchtower, or nothing where it has not bought one.
+ *
+ * The same question `civics.ts` answers when it decides where to *draw* the tower, asked through
+ * the same function rather than worked out again here. That is the entire point of it being a
+ * function: a man standing twelve tiles from his own tower is two files disagreeing about one
+ * place, and it would read as a pathing bug rather than as two numbers nobody made match.
+ */
+export function towerFoot(
+  village: { x: number; z: number; radius: number; board: readonly [number, number] | null },
+): { x: number; z: number } | null {
+  const civic = civicFor('watchtower');
+  if (!civic) return null;
+  const at = whereItStands(civic, village, [], 0);
+  return at ? { x: at.x, z: at.z } : null;
+}
+
 /** What this needs of the manager: the villages, the ground, and the few things only it can answer. */
 export interface Street {
   villages: readonly Village[];
@@ -48,6 +66,15 @@ export interface Street {
   ) => Person[];
   /** Whether this village keeps a stable, which is what makes one of them a stablehand. */
   hasStable: (village: string) => boolean;
+  /**
+   * Who the hall is paying to stand on the tower today, or nothing.
+   *
+   * Asked of the manager rather than worked out here, for the reason everything else in this
+   * interface is: `Settlement.watch` is the register's, and nothing in `entities/` may reach into
+   * the world layer. Nothing, for a village with no tower or no money to man one — an empty tower
+   * is exactly what running out looks like and is not a missing answer.
+   */
+  onTheTower: (village: string) => string;
 }
 
 /** Villagers on the square (first one is the elder), a congregation by the church, keepers at shop doors. */
@@ -134,6 +161,21 @@ export function spawnVillageFolk(o: Street, ctx: SpawnCtx): void {
            * every villager had before there were trades: about the village, near home, not working.
            */
           e.trade = resident.trade;
+          /*
+           * And the one villager who is not going about his own day.
+           *
+           * The village has been paying a watchman since the tower went in — named every morning
+           * out of who is here and what the hall can pay, so a village that buries him has somebody
+           * else up there tomorrow without anything having to notice — and nothing in this layer
+           * had ever read the field. He was paid, named, and there was nobody on the tower.
+           *
+           * An order rather than a trade, because that is what it is: he has no trade, which is
+           * precisely why the hall picked him. `told` is the same sentence a hired sword gets, said
+           * by the village instead of by a player, which is the thing `Told.by` was written wide
+           * enough to allow.
+           */
+          const foot = o.onTheTower(v.name) === resident.id ? towerFoot(v) : null;
+          if (foot) e.told = { by: v.name, to: resident.id, what: 'watch', at: foot };
           /*
            * And as hungry as the register says he is.
            *
