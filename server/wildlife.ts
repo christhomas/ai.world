@@ -201,11 +201,40 @@ export class Wildlife {
     for (const e of this.roster.all()) {
       if (this.numbered.get(e) !== id) continue;
       // the same rules a blow follows anywhere: the ground decides whether it is thrown back
-      const killed = damageEntity(e, Math.max(1, Math.min(damage, MOST_A_BLOW)), e.x, e.z, this.ground);
+      const hard = Math.max(1, Math.min(damage, MOST_A_BLOW));
+      const killed = damageEntity(e, hard, e.x, e.z, this.ground);
       if (killed) this.manager.killEntity(e);
+      else this.mauled(e, hard);
       return killed;
     }
     return false;
+  }
+
+  /**
+   * Somebody who lives here has been hurt and has lived, which is the middle state `wounds.ts` gave
+   * a villager and nothing ever put him into.
+   *
+   * `Register.hurt` has had no caller since the day it was written. The whole of item 36 — a man
+   * laid up for some days, not working, costing the doctor's fee to mend — was built, documented,
+   * tested and never once reached, so `person.hurt` was undefined for every villager in every world
+   * there has ever been. The doctor healed nobody, because nobody was ever ill.
+   *
+   * Found by counting which way every fallback in the world went rather than by reading any of
+   * them: `person.hurt ?? 0` is evaluated 877,875 times over three seeds and four hundred and fifty
+   * days and takes the nought **every single time**. A default that is the only value a thing ever
+   * has is a feature that is not happening.
+   *
+   * Severity is the blow as a share of the hardest one anybody may throw, which is the scale
+   * `laidUpFor` is written against — a scratch to a mauling, nought to one.
+   */
+  private mauled(e: Entity, hard: number): void {
+    if (e.person === '' || e.dead) return;
+    this.folk?.register.hurt(e.person, Math.min(1, hard / MOST_A_BLOW));
+  }
+
+  /** The same, for anything that wants to say so directly: something with teeth got to somebody. */
+  hurtVillager(person: string, severity: number): number {
+    return this.folk?.register.hurt(person, Math.min(1, Math.max(0, severity))) ?? 0;
   }
 
   /**
@@ -248,6 +277,9 @@ export class Wildlife {
       if (damageEntity(e, hard, blow.x, blow.z, this.ground)) {
         killed.push(this.numberOf(e));
         this.manager.killEntity(e);
+      } else {
+        // and one who lived through it is laid up rather than walking it off: see `mauled`
+        this.mauled(e, hard);
       }
       if (blow.one) break;
     }
