@@ -331,12 +331,12 @@ const EMPTY: readonly Solid[] = [];
  * opinion — the class of fault that let a house be solid on one side of a chunk boundary and not
  * the other.
  */
-export function pointInBox(s: Solid, x: number, z: number, room = 0): boolean {
+export function pointInBox(s: Solid, x: number, z: number): boolean {
   // into the prop's own frame, where the box is square to the axes, and grown by whatever width
   // the asker carries about with it
   const dx = x - s.x, dz = z - s.z;
   const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
-  return Math.abs(dx * cos - dz * sin) <= s.hw + room && Math.abs(dx * sin + dz * cos) <= s.hd + room;
+  return Math.abs(dx * cos - dz * sin) <= s.hw && Math.abs(dx * sin + dz * cos) <= s.hd;
 }
 
 /** How far a turned box reaches from its own middle along a direction. */
@@ -421,12 +421,12 @@ export function sweptBoxHitsBox(s: Solid, x0: number, z0: number, x1: number, z1
  * stretch that is within its depth. If those two stretches overlap, the segment is inside the box
  * somewhere along its length.
  */
-export function segmentHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number, room = 0): boolean {
+export function segmentHitsBox(s: Solid, x0: number, z0: number, x1: number, z1: number): boolean {
   const cos = Math.cos(-s.rot), sin = Math.sin(-s.rot);
   const ax = (x0 - s.x) * cos - (z0 - s.z) * sin, az = (x0 - s.x) * sin + (z0 - s.z) * cos;
   const bx = (x1 - s.x) * cos - (z1 - s.z) * sin, bz = (x1 - s.x) * sin + (z1 - s.z) * cos;
   let lo = 0, hi = 1;
-  for (const [from, to, half] of [[ax, bx, s.hw + room], [az, bz, s.hd + room]] as const) {
+  for (const [from, to, half] of [[ax, bx, s.hw], [az, bz, s.hd]] as const) {
     const d = to - from;
     if (Math.abs(d) < 1e-9) {
       // no movement across this pair of faces: either it starts between them or it never is

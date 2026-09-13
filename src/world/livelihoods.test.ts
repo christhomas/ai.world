@@ -63,7 +63,7 @@ describe('sharing a pool out', () => {
 
 describe('keeping cattle', () => {
   it('grows a young herd toward what the paddocks hold, selling nothing', () => {
-    const day = aDayOfCattle(2, aFewFarms(1));
+    const day = aDayOfCattle(2, aFewFarms(1), LIVELIHOOD.HERD_PER_FARMER);
     expect(day.herd).toBeGreaterThan(2);
     expect(day.sold).toBe(0);
     expect(day.gold).toBe(0);
@@ -72,7 +72,7 @@ describe('keeping cattle', () => {
   it('sells exactly what was born once the herd is full, and stays that size', () => {
     const farmers = 2;
     const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
-    const day = aDayOfCattle(cap, aFewFarms(farmers));
+    const day = aDayOfCattle(cap, aFewFarms(farmers), cap);
     expect(day.herd).toBeCloseTo(cap, 10);
     expect(day.sold).toBeCloseTo(cap * LIVELIHOOD.CALVES, 10);
     expect(day.gold).toBeGreaterThan(0);
@@ -87,7 +87,7 @@ describe('keeping cattle', () => {
      */
     let herd: number = LIVELIHOOD.FIRST_HERD;
     let days = 0;
-    while (herd < LIVELIHOOD.HERD_PER_FARMER - 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(1)).herd; days++; }
+    while (herd < LIVELIHOOD.HERD_PER_FARMER - 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(1), LIVELIHOOD.HERD_PER_FARMER).herd; days++; }
     expect(days).toBeGreaterThan(5);
     expect(days).toBeLessThan(40);
   });
@@ -103,13 +103,13 @@ describe('keeping cattle', () => {
     const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
     let herd = cap * 3;                          // three farmers' worth, two of them just buried
     let days = 0;
-    while (herd > cap + 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(farmers)).herd; days++; }
+    while (herd > cap + 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(farmers), cap).herd; days++; }
     expect(days).toBeGreaterThan(7);             // not the whole surplus at the butcher in one morning
     expect(days).toBeLessThan(45);
   });
 
   it('loses the herd when the last farmer is buried', () => {
-    expect(aDayOfCattle(12, aFewFarms(0))).toEqual({ herd: 0, sold: 0, meals: 0, gold: 0 });
+    expect(aDayOfCattle(12, aFewFarms(0), 0)).toEqual({ herd: 0, sold: 0, meals: 0, gold: 0 });
   });
 });
 
@@ -168,7 +168,7 @@ describe('a village\'s working day', () => {
     const day = aDaysTrade(people, 8, 0);
     // what came in from beyond: the wages of the trades whose customers are elsewhere, and the
     // meat the next valley bought. Everything else in the day is one villager paying another
-    const outside = aDayOfCattle(8, aFewFarms(2)).gold
+    const outside = aDayOfCattle(8, aFewFarms(2), 2 * LIVELIHOOD.HERD_PER_FARMER).gold
       + people.filter((p) => ['seller', 'innkeeper', 'doctor'].includes(p.trade)).length * PROSPER.TRADED
       + people.filter((p) => ['soldier', 'miner', 'sailor', 'climber', 'explorer', 'constable'].includes(p.trade)).length * PROSPER.A_DAY;
     expect(total(day.paid)).toBeCloseTo(outside, 8);
