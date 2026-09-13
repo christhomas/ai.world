@@ -182,7 +182,14 @@ export function upkeepOf(built: readonly string[]): number {
  *   has built everything is not finished, it is staffed — and one that falls on hard times stops
  *   renewing, which is a thing you can see from the road when the tower is empty.
  */
-export const POSTS: ReadonlyArray<{ of: string; job: string; wage: number; per: number }> = [
+export const POSTS: ReadonlyArray<{
+  /** The building whose work this is: a village has to have raised something to need the job. */
+  of: string;
+  job: string;
+  wage: number;
+  /** One post, and another for every this-many souls: how a village's work grows with the village. */
+  per: number;
+}> = [
   /*
    * The watch, which is a rota and not a man.
    *

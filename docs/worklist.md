@@ -5411,6 +5411,28 @@ than by remembering — and the first thing found was that the gap is not where 
       — so either the station becomes a thing a village buys, or a post can hang off a trade the
       village holds rather than a building it raised.
 
+      **Tried on the 13th and backed out, with what it cost written down.** The design is right and
+      the wiring is not finished. A post that hangs off a *trade* rather than a building works —
+      `held` beside `of`, filled from whoever holds that trade — and the constable coming off
+      `earnedInADay` and onto the payroll is the correct half of the move: nobody buys policing the
+      way they buy bread, and a constable earning his day "from beyond the village" is the one trade
+      where that sentence means nothing. `PAID_BY_THE_HALL` is the right name for it, and it sits
+      beside `FED_BY_NEIGHBOURS`, which is the same shape with a different payer.
+
+      What went wrong is the books, twice and differently, which is the part to start from:
+
+      - With the constable's trade income zeroed, the audit went red with **eight village-days out
+        by exactly 1.00 gold**, purses having moved *more* than the books say. Exactly one coin,
+        rarely — eight days out of 1,691 — which is the signature of an edge rather than a rate.
+      - With it restored and only the post added, a *different* audit went red: *"never buries a
+        coin"*. So the payroll touches the books in more than one place, and the second place is
+        about a funeral.
+
+      Neither was chased, because a red audit is not a thing to commit at six in the morning. The
+      next attempt should start by instrumenting one named village-day out of that list rather than
+      by reasoning about it — the discrepancy is small, constant and rare, which is exactly the kind
+      of thing that is obvious from one dump and invisible from the outside.
+
 - [ ] **91. A village becomes a town by voting to, and the hall is what it builds to do it.** Raised
       on the 13th, on top of **89**, and it is the plan the other two are waiting on rather than a
       job to pick up this week.
@@ -5450,3 +5472,15 @@ than by remembering — and the first thing found was that the gap is not where 
 
       It also gives a player something to be part of, which none of the economy does yet: you could
       be in a village on the morning it votes.
+
+      **Where a hamlet's money lives, settled.** The mayor's house *is* the village hall. The hall
+      entity exists from the first morning and only its **body** changes: the mayor's house at first,
+      a building the village voted for afterwards. So tax, payroll, ownership and every deed work
+      identically at every scale from hamlet to city, and the vote moves an address rather than
+      introducing a mechanism — which is why this is a simplification and not a feature.
+
+      The trap it avoids is the one `Settlement.purse` already names: the chest is *"emphatically not
+      the mayor's… which is the whole difference between a treasury and a rich man"*. Keeping it in
+      his purse would make it inheritable, and the day he died his son would own the village. So the
+      chest is its own purse from the beginning and never his; what he has is the keeping of it.
+      That is also the real-world shape of the thing, which is where this started.
