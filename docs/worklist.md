@@ -3928,6 +3928,23 @@ simulation rather than any one feature in it.
       The trees are already there and already felled by the player's axe, so the ground truth
       exists: what is missing is a stock of timber somewhere a builder can be short of it.
 
+
+      **The cart is unobtainable, found by `chore reachable` on the 13th.** Every piece of it exists
+      and nothing joins them. `items.ts` prices a Horse Cart at 120 and its description promises the
+      player the mechanic outright — *"Built by a village wright out of wood you carried in. Hauls
+      more, and faster, behind a horse."* `frame.ts` reads `state.count('cart') > 0` and applies
+      `haulPace`. `woodcraft.ts` has the wright's half — `cartBuilt(woodSold)` and
+      `woodWanted(woodSold)`, both tested.
+
+      The only other mention of `'cart'` in `src` or `server` is that one speed check. No shop
+      stocks it, no conversation grants it, and **nothing anywhere counts `woodSold`**. So a player
+      can fell trees, haul timber and sell it for the rest of the world's life and the wright will
+      never build anything — while the item text tells them that is exactly what should happen.
+
+      What it needs: somewhere to keep the tally (the village's own books are the obvious home, since
+      it is the market that is buying), the sale to add to it, and the wright to hand one over when
+      `cartBuilt` says so. `woodWanted` is already written for the sentence a seller should hear.
+
 - [x] **47. A holding has an owner, and the owner need not be the worker.** A farm belongs to
       whoever paid to build it. Normally that is the farmer, and when he dies it passes down the
       family the way his purse does. But the hall can pay for one too — the same `Commission`, with
