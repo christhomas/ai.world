@@ -82,9 +82,39 @@ export function isARoof(work: string): boolean {
   return work === RAISED || work.startsWith(`${RAISED}:`);
 }
 
-/** What goes in `works` when one goes up: what it is, and what size it came out. */
-export function workOf(roof: Roof): string {
-  return `${RAISED}:${roof.id}`;
+/** How long a village takes over one, in days. The same six a builder takes over a player's. */
+export const RAISING_TAKES = 6;
+
+/**
+ * What goes in `works` when one goes up: what it is, what size it came out, and the morning it was
+ * begun.
+ *
+ * The day is item 79, and it is here rather than anywhere else because `works` is the only thing a
+ * village writes down about its own building. Without it a raised roof could only ever be drawn
+ * finished: the ledger said *what* was bought and never *when*, so villages were the one builder in
+ * the world that could not use the four stages a passer-by reads a site by — and a frame going up
+ * in a village you are walking through is most of why those stages exist.
+ *
+ * Appended after the size, so an entry written before today reads back exactly as it did: no day
+ * means a roof that was already standing when this was added, which is the truthful answer for a
+ * village that has been there since before anybody was counting.
+ */
+export function workOf(roof: Roof, day?: number): string {
+  return day === undefined ? `${RAISED}:${roof.id}` : `${RAISED}:${roof.id}@${Math.floor(day)}`;
+}
+
+/**
+ * The morning a roof was begun, or nothing for one that was already standing.
+ *
+ * Nothing is a real answer and not a missing value: every roof this world raised before the day was
+ * written down is a roof with no beginning anybody recorded, and the only honest thing to say about
+ * it is that it is finished. See `game/villageroofs.ts`, which draws it that way.
+ */
+export function beganOn(work: string): number | null {
+  const at = work.indexOf('@');
+  if (at < 0) return null;
+  const day = Number(work.slice(at + 1));
+  return Number.isFinite(day) ? day : null;
 }
 
 /**
@@ -96,7 +126,8 @@ export function workOf(roof: Roof): string {
  * before rather than four fewer.
  */
 export function roofOfWork(work: string): Roof {
-  const id = work.slice(RAISED.length + 1);
+  const at = work.indexOf('@');
+  const id = work.slice(RAISED.length + 1, at < 0 ? undefined : at);
   return ROOFS.find((roof) => roof.id === id) ?? STANDARD;
 }
 

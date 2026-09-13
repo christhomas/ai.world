@@ -228,7 +228,8 @@ export function whatTheVillageSpends(
 } {
   const raised = whatTheVillageBuilds(purse, built, laidOut, holds, people, larder);
   const wages = new Map<string, number>(raised?.wages ?? []);
-  const works: string[] = raised ? [workOf(raised.roof)] : [];
+  // with the morning it was begun, so a village's building work has stages like anybody else's
+  const works: string[] = raised ? [workOf(raised.roof, day)] : [];
   const onTheHouse = raised?.costs ?? 0;
 
   // one building a morning, which is the hall's own rule and worth keeping: a village that put a

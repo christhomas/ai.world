@@ -1,4 +1,5 @@
-import { isARoof } from '../world/roofs';
+import { RAISING_TAKES, beganOn, isARoof } from '../world/roofs';
+import { BUILD } from './building';
 import type { Village } from '../world/structures';
 
 /**
@@ -28,24 +29,53 @@ export interface Raised {
   z: number;
   rot: number;
   what: string;
-  stage: 'done';
+  stage: 'marked' | 'begun' | 'nearly' | 'done';
   storeys: number;
 }
 
 /**
- * Every roof every village near the hero has raised.
+ * How far along a village's roof is today: the four stages a passer-by reads any site by.
  *
- * Finished, always: a village's building work is a day's wages in a ledger rather than a site with
- * pegs in it, and there is nothing anywhere that says which morning of its six a village house is
- * on. That is a thing worth having one day — a frame going up in a village you are walking through
- * is the whole of why the stages exist — and it needs the day the village began it, which the
- * register does not keep.
+ * Item 79. The ledger records the morning a roof was begun, so the same subtraction a player's own
+ * commission gets is available here — and a frame going up in a village you are walking through,
+ * which is most of why the stages exist at all, is a thing that can happen.
+ *
+ * A roof with no morning written against it is finished, and that is a real answer rather than a
+ * missing one: every roof raised before the day was recorded was already standing when anybody
+ * started counting, and saying so is the truth about it. The thresholds are `building.ts`'s, because
+ * a village's six days and a builder's six days are the same six days and a player watching both go
+ * up should not be reading two different clocks.
+ */
+export function raisedStage(work: string, today: number): Raised['stage'] {
+  const began = beganOn(work);
+  if (began === null) return 'done';
+  const done = Math.max(0, Math.min(1, (today - began) / RAISING_TAKES));
+  if (done >= 1) return 'done';
+  if (done >= BUILD.NEARLY_AT) return 'nearly';
+  if (done >= BUILD.BEGUN_AT) return 'begun';
+  return 'marked';
+}
+
+/**
+ * Every roof every village near the hero has raised, at whatever stage of building it has reached.
+ *
+ * It was finished-always until the 13th, because a village's building work was a day's wages in a
+ * ledger rather than a site with pegs in it and nothing anywhere said which morning of its six a
+ * village house was on. The ledger records the morning now — item 79 — so a frame going up in a
+ * village you are walking through is a thing that happens, which is the whole of why the four
+ * stages exist. A roof with no morning against it was already standing before anybody counted, and
+ * is drawn finished.
  *
  * Capped at the plots the founding found, so a village whose books have run ahead of its ground
  * draws what it has room for and no more. A roof with nowhere to stand is a roof nobody can see
  * anyway, and inventing a plot here would put a house through a paddock wall.
  */
-export function raisedRoofs(villages: readonly Village[], worksOf: (village: string) => readonly string[]): Raised[] {
+export function raisedRoofs(
+  villages: readonly Village[],
+  worksOf: (village: string) => readonly string[],
+  /** What day it is, for deciding how far along each one is. Left out, everything is finished. */
+  today?: number,
+): Raised[] {
   const out: Raised[] = [];
   for (const village of villages) {
     const raised = worksOf(village.name).filter(isARoof);
@@ -67,7 +97,7 @@ export function raisedRoofs(villages: readonly Village[], worksOf: (village: str
          * told which of the six to put up, the same way the terrain is told.
          */
         what: `raised-${plot.biome}`,
-        stage: 'done',
+        stage: today === undefined ? 'done' : raisedStage(raised[n], today),
         storeys: 1,
       });
     }
@@ -92,10 +122,11 @@ export function roofWatch(
   let built: readonly Raised[] = [];
   return (day) => {
     const villages = villagesNow();
-    const key = `${Math.floor(day)},${villages.length}`;
+    const today = Math.floor(day);
+    const key = `${today},${villages.length}`;
     if (key !== asked) {
       asked = key;
-      built = raisedRoofs(villages, worksOf);
+      built = raisedRoofs(villages, worksOf, today);
     }
     return built;
   };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GROWTH, costOfARoof, housesStanding, roomFor, whatTheVillageBuilds, whatTheVillageSpends } from './growth';
-import { ROOFS, STANDARD, holdsFor, isARoof, roofsOf, workOf } from './roofs';
+import { ROOFS, STANDARD, holdsFor, isARoof, roofOfWork, roofsOf, workOf } from './roofs';
 import { WATCH_WAGE, WORKS } from './hall';
 import { PROSPER } from './prosperity';
 import { LIFE, type Person } from './people';
@@ -192,7 +192,9 @@ describe('what size a village builds', () => {
   it('writes the size down, so a village re-lived comes out the same size it was', () => {
     const raised = whatTheVillageBuilds(1e9, [], full.laidOut, full.holds, townsfolk, STOCKED)!;
     const spending = whatTheVillageSpends(1e9, [], full.laidOut, full.holds, townsfolk, STOCKED);
-    expect(spending.works).toEqual([workOf(raised.roof)]);
+    // the size that went up, which is what this is about — the entry also carries the morning it
+    // was begun now, and that is `roofs.test.ts`'s business rather than this one's
+    expect(spending.works.map(roofOfWork)).toEqual([raised.roof]);
     expect(spending.works.every(isARoof)).toBe(true);
     expect(holdsFor(full.laidOut, spending.works)).toBe(full.holds + raised.roof.holds);
   });
@@ -288,8 +290,8 @@ describe('a village left alone with a tax take', () => {
     const grown = live(6, 0.5, 4000).built.filter(isARoof);
     // it starts with longhouses, because that is one rung up from what it was laid out with, and
     // ends with great houses, because by then somebody has filled a longhouse
-    expect(grown[0]).toBe(workOf(ROOFS[2]));
-    expect(grown[grown.length - 1]).toBe(workOf(ROOFS[3]));
+    expect(roofOfWork(grown[0])).toBe(ROOFS[2]);
+    expect(roofOfWork(grown[grown.length - 1])).toBe(ROOFS[3]);
   });
 
   it('is slower when it is poor, and ends up the same shape anyway', () => {

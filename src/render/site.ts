@@ -119,15 +119,24 @@ const LOOKS: Record<string, Partial<Record<Site['stage'], PropKind>>> = {
  *
  * Six rows rather than one, because a village builds in its own country's cottage — the same prop
  * the terrain draws the other ten houses with, picked the way everything else picks it, by adding
- * the biome to the plains kind. One `done` row each and no unfinished ones: the register keeps the
- * day a roof was *paid for* and not the morning it was begun, so there is no honest way to show a
- * frame going up. `game/villageroofs.ts` says what that costs and what would fix it.
+ * the biome to the plains kind — plus the three unfinished states, which are the ones a player's own
+ * house goes up through, because a building site looks like a building site whoever is paying. It
+ * was one `done` row each until the 13th, when the ledger started recording the morning a roof was
+ * begun and villages stopped being the one builder that could not show a frame. See item 79.
  *
  * Deliberately not `HouseYours`: the one house in the world with a chimney on it is the player's,
  * and it is meant to be findable from the ridge without opening the map.
  */
 for (let biome = Biome.Plains; biome <= Biome.Snow; biome++) {
-  LOOKS[`raised-${biome}`] = { done: (PropKind.HousePlains + biome) as PropKind };
+  LOOKS[`raised-${biome}`] = {
+    // pegs, a frame and a roof: the same three a player's own house goes up through, because a
+    // building site looks like a building site whoever is paying for it. Only the finished row is
+    // the country's own, which is the one that is a house rather than a stage of one
+    marked: PropKind.HousePegs,
+    begun: PropKind.HouseFrame,
+    nearly: PropKind.HouseRoof,
+    done: (PropKind.HousePlains + biome) as PropKind,
+  };
 }
 
 /** What to draw on one plot today, or nothing. */

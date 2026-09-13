@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Biome } from '../world/biomes';
 import { StructureKind, type Structure, type Village } from '../world/structures';
-import { raisedRoofs, roofWatch } from './villageroofs';
+import { raisedRoofs, raisedStage, roofWatch } from './villageroofs';
 
 function plot(tx: number, tz: number, biome: Biome = Biome.Plains): Structure {
   return { kind: StructureKind.House, tx, tz, hw: 1, hd: 1, level: 0, rot: 0, biome, path: [] };
@@ -65,5 +65,49 @@ describe('asking about them once a day rather than sixty times a second', () => 
     expect(watch(3.1)).toHaveLength(1);
     towns.push(village('Fell', [plot(9, 4)]));
     expect(watch(3.1)).toHaveLength(2);
+  });
+});
+
+/*
+ * Item 79: a village's building work has mornings now.
+ *
+ * It was drawn finished the day it was paid for, because the ledger recorded what was bought and
+ * never when it was begun — so villages were the one builder in the world that could not use the
+ * four stages a passer-by reads a site by, which is most of what the stages are for.
+ */
+describe('how far along a village roof is', () => {
+  it('walks the four stages over the six days it takes', () => {
+    const begun = 'house:cottage@100';
+    expect(raisedStage(begun, 100)).toBe('marked');
+    expect(raisedStage(begun, 102)).toBe('begun');
+    expect(raisedStage(begun, 104)).toBe('nearly');
+    expect(raisedStage(begun, 106)).toBe('done');
+    expect(raisedStage(begun, 400)).toBe('done');
+  });
+
+  /*
+   * A real answer rather than a missing one. Every roof raised before the morning was written down
+   * was already standing when anybody started counting, and saying so is the truth about it.
+   */
+  it('calls a roof with no morning against it finished, which it is', () => {
+    expect(raisedStage('house:longhouse', 100)).toBe('done');
+    expect(raisedStage('house', 100)).toBe('done');
+  });
+
+  it('draws a village mid-build as a site rather than as a house', () => {
+    const drawn = raisedRoofs([village('Ashby', [plot(4, 9)])], () => ['house:cottage@100'], 102);
+    expect(drawn[0].stage).toBe('begun');
+  });
+
+  it('and everything as finished when nobody says what day it is', () => {
+    const drawn = raisedRoofs([village('Ashby', [plot(4, 9)])], () => ['house:cottage@100']);
+    expect(drawn[0].stage).toBe('done');
+  });
+
+  it('asks the same question again when the day turns, because the frame has moved on', () => {
+    const watch = roofWatch(() => [village('Ashby', [plot(4, 9)])], () => ['house:cottage@100']);
+    expect(watch(100.5)[0].stage).toBe('marked');
+    expect(watch(104.1)[0].stage).toBe('nearly');
+    expect(watch(106.0)[0].stage).toBe('done');
   });
 });

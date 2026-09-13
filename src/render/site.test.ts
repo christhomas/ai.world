@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PropKind } from '../world/biomes';
+import { Biome, PropKind } from '../world/biomes';
 import { propOf, type Site } from './site';
 import { BUILDS } from '../game/building';
 
@@ -134,5 +134,26 @@ describe('what is standing on a plot', () => {
       }
     }
     expect(missing, 'named in the table and modelled nowhere').toEqual([]);
+  });
+});
+
+/*
+ * A village's own building work, which goes up through the same three unfinished states a player's
+ * house does and finishes as that country's cottage rather than as the player's.
+ */
+describe('a roof a village raised for itself', () => {
+  const raised = (biome: Biome, stage: Site['stage']): Site =>
+    ({ id: 'Ashby-roof-0', x: 4.5, z: 9.5, what: `raised-${biome}`, stage });
+
+  it('shows pegs, a frame and a roof on the way up', () => {
+    expect(propOf(raised(Biome.Plains, 'marked'))).toBe(PropKind.HousePegs);
+    expect(propOf(raised(Biome.Plains, 'begun'))).toBe(PropKind.HouseFrame);
+    expect(propOf(raised(Biome.Plains, 'nearly'))).toBe(PropKind.HouseRoof);
+  });
+
+  it('finishes as its own country\'s cottage, never as the player\'s house', () => {
+    expect(propOf(raised(Biome.Plains, 'done'))).toBe(PropKind.HousePlains);
+    expect(propOf(raised(Biome.Snow, 'done'))).toBe(PropKind.HouseSnow);
+    expect(propOf(raised(Biome.Desert, 'done'))).not.toBe(PropKind.HouseYours);
   });
 });
