@@ -1,5 +1,11 @@
 #!/bin/sh
-# Issue #30 — triage the exports nothing reaches.
+# Issue #30 — "95. Triage the exports nothing reaches."
+#
+# Named for the ISSUE number, not the worklist number, because the issue number is what the
+# task-runner keys on — it is the identity the machine uses. The worklist number lives on in the
+# issue title, where it is the identity a person uses: numbers there are global and never reused, so
+# "95, yes" has to keep meaning one thing for ever. Two numbering systems, each in the place that
+# reads it, and the title is where they meet.
 #
 # The task is a ratchet: `chore reachable` counts exported names called only by their own tests, it
 # stood at 43 when the issue was written, and the work is to make that number smaller by deciding,
