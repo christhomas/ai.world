@@ -6,6 +6,7 @@
     "emoji": "\ud83e\uddd1",
     "scale": 1,
     "speed": 1.3,
+    "altitude": 0,
     "runSpeed": 1.3,
     "herd": [
       1,
@@ -15,6 +16,10 @@
     "timid": false,
     "damage": 0,
     "hp": 50,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#e74c3c",
@@ -69,7 +74,10 @@
       "Seen any bears?",
       "Hi there~",
       "Mind the cliffs."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "villager": {
     "note": "Slower than a traveller and with more of a life to lose. Their day is decided by their trade rather than by their kind, which is why the tree that drives them is filed under the job.",
@@ -77,6 +85,7 @@
     "emoji": "\ud83e\uddd1\u200d\ud83c\udf3e",
     "scale": 1,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 1.1,
     "herd": [
       2,
@@ -86,6 +95,10 @@
     "timid": false,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#c0392b",
@@ -140,7 +153,10 @@
       "Lovely weather for it.",
       "Have you seen the old ruins?",
       "{village} has stood here for generations."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "shopkeeper": {
     "note": "Barely moves, because a shopkeeper who wanders is a shop you cannot find. No hit points at all: the person you buy from is not a fight anybody gets to have.",
@@ -148,6 +164,7 @@
     "emoji": "\ud83e\uddd1\u200d\ud83c\udf73",
     "scale": 1,
     "speed": 0.6,
+    "altitude": 0,
     "runSpeed": 0.6,
     "herd": [
       1,
@@ -188,6 +205,13 @@
       "Welcome, welcome! Have a look around.",
       "Best prices in {village}, I promise.",
       "Come back any time."
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false,
+    "gold": [
+      0,
+      0
     ]
   },
   "hero": {
@@ -201,9 +225,11 @@
     "emoji": "\ud83e\udddd",
     "scale": 1.06,
     "speed": 5.5,
+    "altitude": 0,
     "runSpeed": 5.5,
     "climb": 0.56,
     "paddles": true,
+    "owned": false,
     "herd": [
       1,
       1
@@ -225,6 +251,10 @@
     ],
     "lines": [
       "..."
+    ],
+    "gold": [
+      0,
+      0
     ]
   },
   "miner": {
@@ -236,6 +266,7 @@
     "emoji": "\u26cf\ufe0f",
     "scale": 1,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 1.1,
     "herd": [
       1,
@@ -245,6 +276,10 @@
     "timid": false,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#8a6a3d",
@@ -273,7 +308,10 @@
       "Cold work, but it pays.",
       "We lost a man in there last spring.",
       "There's gold in that hill, or my father was a liar."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "priest": {
     "note": [
@@ -283,6 +321,7 @@
     "emoji": "\u26ea",
     "scale": 1,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 1.1,
     "herd": [
       1,
@@ -292,6 +331,10 @@
     "timid": false,
     "damage": 0,
     "hp": 50,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#2a2632",
@@ -311,7 +354,10 @@
       "We bury our own here.",
       "Light a candle for whoever you have lost.",
       "The chapel is open to anybody."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "doctor": {
     "note": [
@@ -321,6 +367,7 @@
     "emoji": "\ud83e\ude7a",
     "scale": 1,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 1.1,
     "herd": [
       1,
@@ -330,6 +377,10 @@
     "timid": false,
     "damage": 0,
     "hp": 50,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#eef2f5",
@@ -349,7 +400,10 @@
       "That will want cleaning.",
       "Rest is most of it, whatever anybody tells you.",
       "I can show you the register, for a fee."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "constable": {
     "note": [
@@ -359,6 +413,7 @@
     "emoji": "\ud83d\udc6e",
     "scale": 1,
     "speed": 1.2,
+    "altitude": 0,
     "runSpeed": 1.2,
     "herd": [
       1,
@@ -368,6 +423,10 @@
     "timid": false,
     "damage": 0,
     "hp": 90,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#f0f2f4",
@@ -387,7 +446,10 @@
       "Anything you take here, I hear about.",
       "Quiet night. Let us keep it that way.",
       "The charge sheet is at the watch house."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "mayor": {
     "note": [
@@ -397,6 +459,7 @@
     "emoji": "\ud83c\udfa9",
     "scale": 1,
     "speed": 0.95,
+    "altitude": 0,
     "runSpeed": 0.95,
     "herd": [
       1,
@@ -406,6 +469,10 @@
     "timid": false,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#3a1c2c",
@@ -425,7 +492,10 @@
       "We are a market town, whatever Ashford says.",
       "Take your quarrels to the watch house, not to me.",
       "The roll is at the hall."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "farmer": {
     "note": [
@@ -435,6 +505,7 @@
     "emoji": "\ud83c\udf3e",
     "scale": 1,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 1.1,
     "herd": [
       1,
@@ -444,6 +515,10 @@
     "timid": false,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#9a7f5a",
@@ -468,7 +543,10 @@
       "Mind the fences.",
       "We plant when the ground says so, not the calendar.",
       "There is more work than there are hands."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "cowboy": {
     "note": [
@@ -478,6 +556,7 @@
     "emoji": "\ud83e\udd20",
     "scale": 1,
     "speed": 1.15,
+    "altitude": 0,
     "runSpeed": 1.15,
     "herd": [
       1,
@@ -487,6 +566,10 @@
     "timid": false,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#7a5a3a",
@@ -506,7 +589,10 @@
       "A horse is a week's wages and worth every coin.",
       "They know the road better than I do.",
       "We keep four, and two of them are trouble."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "woman": {
     "note": [
@@ -519,6 +605,7 @@
     "emoji": "\ud83d\udc69",
     "scale": 1,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 1.1,
     "herd": [
       1,
@@ -528,6 +615,10 @@
     "timid": false,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#c0392b",
@@ -582,7 +673,10 @@
       "Lovely weather for it.",
       "Have you seen the old ruins?",
       "{village} has stood here for generations."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "man": {
     "note": [
@@ -593,6 +687,7 @@
     "emoji": "\ud83d\udc68",
     "scale": 1,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 1.1,
     "herd": [
       1,
@@ -602,6 +697,10 @@
     "timid": false,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "palettes": [
       [
         "#c0392b",
@@ -656,6 +755,9 @@
       "Lovely weather for it.",
       "Have you seen the old ruins?",
       "{village} has stood here for generations."
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   }
 }

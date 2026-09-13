@@ -370,7 +370,9 @@ describe('the man in the field', () => {
     const him = VILLAIN_KINDS.nettle;
     expect(canBeCut(him), 'a blade has to work on him or the choice never arrives').toBe(true);
     expect(him.runSpeed).toBeLessThan(5.5);          // the hero's own pace: he never gets away by being quicker
-    expect(him.gold).toBeUndefined();
+    // nothing to go through his coat for. It used to be said by the field being absent and is said
+    // by the field now (item 94): every creature states what it carries, and his is nought
+    expect(him.gold).toEqual([0, 0]);
     expect(him.drop).toBeUndefined();
     expect(him.palettes.length, 'there is one of him').toBe(1);
     expect(knocked(him.hp!, him.hp), 'a full-health villain is not a beaten one').toBe(false);

@@ -278,7 +278,7 @@ function patrol(params: Params): CreatureNode {
     self.state = 'fly';
     const ground0 = ground.heightAt(herd.ax, herd.az);
     if (ground0 !== null) herd.baseY = ground0;
-    const want = herd.baseY + (self.kind.altitude ?? 7) + Math.sin(self.phase * 0.3) * 0.4;
+    const want = herd.baseY + self.kind.altitude + Math.sin(self.phase * 0.3) * 0.4;
     self.y += (want - self.y) * Math.min(1, dt * 2);
   });
 }
@@ -459,7 +459,7 @@ function dive(params: Params): CreatureNode {
     self.state = 'fly';
     const under = ground.heightAt(self.x, self.z) ?? self.herd.baseY;
     const close = away < number(params, 'drop', 2);
-    const want = under + (self.kind.altitude ?? 2) * (close ? 0.45 : 1);
+    const want = under + self.kind.altitude * (close ? 0.45 : 1);
     self.y += (want - self.y) * Math.min(1, dt * 4);
   });
 }

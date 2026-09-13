@@ -134,7 +134,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
           ? `<span class="slot-of">
                <span class="slot-day">Day ${st?.day ?? 1}<span class="slot-world">${nameOf(s.world)}</span></span>
                <span class="slot-facts">
-                 <span>${st?.inventory?.gold ?? 50} gold</span>
+                 <span>${st?.inventory?.gold} gold</span>
                  <span>${st?.discovered?.length ?? 0} place${(st?.discovered?.length ?? 0) === 1 ? '' : 's'} found</span>
                  <span class="slot-seed">seed ${s.seed}</span>
                </span>

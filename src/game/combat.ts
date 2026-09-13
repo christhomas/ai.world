@@ -60,7 +60,7 @@ export function deedOf(killed: Entity): Deed | null {
  * one alone. A function that both answers and acts has two callers who cannot both be right.
  */
 export function spoils(e: Entity, seed: number): { gold: number; loot: string[] } {
-  const [lo, hi] = e.kind.gold ?? [0, 0];
+  const [lo, hi] = e.kind.gold;
   const roll = mulberry32(seed ^ Math.floor(e.x * 131 + e.z * 977));
   const gold = lo + Math.floor(roll() * (hi - lo + 1));
   const loot: string[] = [];

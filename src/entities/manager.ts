@@ -315,7 +315,7 @@ export class EntityManager {
         const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
         if (!canStand(this.world, kind, px, pz)) continue;
         const e = new Entity(kind, px, pz, herd, key, rng);
-        e.y = kind.behaviour === 'fly' ? (this.world.heightAt(px, pz) ?? 0) + (kind.altitude ?? 2) : (this.world.heightAt(px, pz) ?? 0);
+        e.y = kind.behaviour === 'fly' ? (this.world.heightAt(px, pz) ?? 0) + kind.altitude : (this.world.heightAt(px, pz) ?? 0);
         e.yaw = rng() * Math.PI * 2;
         if (!this.renderer.add(e)) break;
         herd.members.push(e);
@@ -681,7 +681,7 @@ export class EntityManager {
         if (!canStand(this.world, kind, x, z)) continue;
         const e = new Entity(wears, x, z, herd, ctx.key, rng);
         e.y = kind.behaviour === 'fly'
-          ? (this.world.heightAt(x, z) ?? 0) + (kind.altitude ?? 7)
+          ? (this.world.heightAt(x, z) ?? 0) + kind.altitude
           : (this.world.waterAt(x, z) ?? this.world.heightAt(x, z) ?? 0);
         e.yaw = rng() * Math.PI * 2;
         if (!this.renderer.add(e)) break;

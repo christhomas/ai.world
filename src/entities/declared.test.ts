@@ -33,19 +33,34 @@ const FILES: ReadonlyArray<[string, Record<string, unknown>]> = [
   ['people.json', people], ['monsters.json', monsters], ['villain.json', villain],
 ];
 
+/**
+ * Every value a creature has, stated by every creature.
+ *
+ * Chris, 13 September: *"config is easy and it's just a line and a field with a zero in, that's not
+ * noise, that's certainty."* The argument for exempting the ones with an obvious answer — why make
+ * every entry repeat that it cannot climb — was mine and it was wrong. It turns one mechanical rule
+ * into a judgement call per field, and the judgement call is what lets the next optional field in.
+ *
+ * The ones with a sensible nought are exactly the ones worth stating, because those are where the
+ * silence was being read six different ways.
+ */
+const MUST_SAY = ['damage', 'altitude', 'climb', 'paddles', 'owned', 'gold'] as const;
+
 describe('what every creature says about itself', () => {
-  it('says how hard it hits, even when the answer is not at all', () => {
-    const silent: string[] = [];
-    for (const [file, table] of FILES) {
-      for (const [name, entry] of Object.entries(table)) {
-        // `note` is the prose at the top of each file, which is not a creature and has nothing to
-        // say about hitting anybody. Everything else in these files is one
-        if (!isACreature(entry)) continue;
-        if (!('damage' in entry)) silent.push(`${file}: ${name}`);
+  for (const field of MUST_SAY) {
+    it(`says its ${field}, even where the answer is nothing at all`, () => {
+      const silent: string[] = [];
+      for (const [file, table] of FILES) {
+        for (const [name, entry] of Object.entries(table)) {
+          // `note` is the prose at the top of each file, which is not a creature and has nothing to
+          // say about hitting anybody. Everything else in these files is one
+          if (!isACreature(entry)) continue;
+          if (!(field in entry)) silent.push(`${file}: ${name}`);
+        }
       }
-    }
-    expect(silent, 'a creature whose file does not say leaves every reader to guess').toEqual([]);
-  });
+      expect(silent, 'a creature whose file does not say leaves every reader to guess').toEqual([]);
+    });
+  }
 
   it('and what it says is a number nobody has to interpret', () => {
     for (const [file, table] of FILES) {

@@ -13,6 +13,7 @@
     "emoji": "\ud83d\udc04",
     "scale": 1.15,
     "speed": 0.9,
+    "altitude": 0,
     "runSpeed": 3,
     "herd": [
       3,
@@ -22,6 +23,10 @@
     "timid": true,
     "damage": 0,
     "hp": 60,
+    "gold": [
+      0,
+      0
+    ],
     "owned": true,
     "drop": {
       "id": "meat",
@@ -54,7 +59,9 @@
       "Got hay?",
       "*chews cud*",
       "*swishes tail*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false
   },
   "sheep": {
     "note": "The cow's argument with less of the animal: larger flocks, fewer hit points, and the same consequence for taking one.",
@@ -62,6 +69,7 @@
     "emoji": "\ud83d\udc11",
     "scale": 0.85,
     "speed": 0.9,
+    "altitude": 0,
     "runSpeed": 3.2,
     "herd": [
       4,
@@ -71,6 +79,10 @@
     "timid": true,
     "damage": 0,
     "hp": 40,
+    "gold": [
+      0,
+      0
+    ],
     "owned": true,
     "drop": {
       "id": "meat",
@@ -100,7 +112,9 @@
       "*nibbles*",
       "*stares blankly*",
       "Baa?"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false
   },
   "horse": {
     "note": "Owned like the rest of the farm and the quickest thing on it \u2014 at a run it is barely short of the hero, which is most of the reason anybody wants to be sitting on one.",
@@ -108,6 +122,7 @@
     "emoji": "\ud83d\udc34",
     "scale": 1.25,
     "speed": 1.4,
+    "altitude": 0,
     "runSpeed": 5,
     "herd": [
       2,
@@ -117,6 +132,10 @@
     "timid": true,
     "damage": 0,
     "hp": 80,
+    "gold": [
+      0,
+      0
+    ],
     "owned": true,
     "drop": {
       "id": "meat",
@@ -153,7 +172,9 @@
       "*snorts*",
       "*stamps hoof*",
       "Nicker~"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false
   },
   "deer": {
     "note": "It runs at exactly the hero's pace, so a deer is never caught by chasing it. Meat off a deer is a matter of cutting it off, or of owning a bow.",
@@ -161,6 +182,7 @@
     "emoji": "\ud83e\udd8c",
     "scale": 1.1,
     "speed": 1.2,
+    "altitude": 0,
     "runSpeed": 5.5,
     "herd": [
       2,
@@ -170,6 +192,10 @@
     "timid": true,
     "damage": 0,
     "hp": 30,
+    "gold": [
+      0,
+      0
+    ],
     "drop": {
       "id": "meat",
       "chance": 0.8
@@ -196,7 +222,10 @@
       "*freezes*",
       "*nibbles leaves*",
       "*bounds away*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "rabbit": {
     "note": "One hit point and quick with it. Nothing about a rabbit is a fight; it is a thing you either catch or do not.",
@@ -204,6 +233,7 @@
     "emoji": "\ud83d\udc07",
     "scale": 0.6,
     "speed": 1.5,
+    "altitude": 0,
     "runSpeed": 4.5,
     "herd": [
       2,
@@ -213,6 +243,10 @@
     "timid": true,
     "damage": 0,
     "hp": 10,
+    "gold": [
+      0,
+      0
+    ],
     "drop": {
       "id": "meat",
       "chance": 0.9
@@ -243,7 +277,10 @@
       "*thumps*",
       "*nibbles*",
       "*hops off*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "fox": {
     "note": "The one animal that is neither prey nor a threat: `timid` is false, so it does not run from you, and `dangerous` is absent, so it never means anything by watching.",
@@ -251,6 +288,7 @@
     "emoji": "\ud83e\udd8a",
     "scale": 0.75,
     "speed": 1.6,
+    "altitude": 0,
     "runSpeed": 5,
     "herd": [
       1,
@@ -260,6 +298,10 @@
     "timid": false,
     "damage": 0,
     "hp": 20,
+    "gold": [
+      0,
+      0
+    ],
     "drop": {
       "id": "meat",
       "chance": 0.7
@@ -282,7 +324,10 @@
       "*sniffs the air*",
       "*watches you*",
       "*pounces at nothing*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "bear": {
     "note": [
@@ -293,6 +338,7 @@
     "emoji": "\ud83d\udc3b",
     "scale": 1.5,
     "speed": 0.8,
+    "altitude": 0,
     "runSpeed": 4,
     "herd": [
       1,
@@ -333,7 +379,10 @@
       "*sniffs*",
       "*scratches tree*",
       "*yawns hugely*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "camel": {
     "note": "Desert livestock, and priced as the horse's opposite: as much animal to get through, none of the pace.",
@@ -341,6 +390,7 @@
     "emoji": "\ud83d\udc2a",
     "scale": 1.3,
     "speed": 1,
+    "altitude": 0,
     "runSpeed": 3.5,
     "herd": [
       2,
@@ -350,6 +400,10 @@
     "timid": true,
     "damage": 0,
     "hp": 80,
+    "gold": [
+      0,
+      0
+    ],
     "owned": true,
     "drop": {
       "id": "meat",
@@ -378,7 +432,9 @@
       "*spits*",
       "*hums*",
       "*blinks lazily*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false
   },
   "lizard": {
     "note": "No hit points, so a blade passes through it and there is nothing on it to take. Too small to be a fight and too small to be a meal \u2014 it is scenery that moves.",
@@ -386,6 +442,7 @@
     "emoji": "\ud83e\udd8e",
     "scale": 0.5,
     "speed": 1.2,
+    "altitude": 0,
     "runSpeed": 4,
     "herd": [
       1,
@@ -417,6 +474,13 @@
       "*flicks tongue*",
       "*skitters*",
       "*does push-ups*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false,
+    "gold": [
+      0,
+      0
     ]
   },
   "frog": {
@@ -425,6 +489,7 @@
     "emoji": "\ud83d\udc38",
     "scale": 0.4,
     "speed": 1.4,
+    "altitude": 0,
     "runSpeed": 3.5,
     "herd": [
       2,
@@ -456,6 +521,13 @@
       "*croaks*",
       "*blinks*",
       "*splash*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false,
+    "gold": [
+      0,
+      0
     ]
   },
   "goat": {
@@ -464,6 +536,7 @@
     "emoji": "\ud83d\udc10",
     "scale": 0.9,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 4,
     "herd": [
       2,
@@ -473,6 +546,10 @@
     "timid": true,
     "damage": 0,
     "hp": 30,
+    "gold": [
+      0,
+      0
+    ],
     "drop": {
       "id": "meat",
       "chance": 0.7
@@ -503,7 +580,10 @@
       "*chews*",
       "*headbutts rock*",
       "Meh-eh-eh"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "hare": {
     "note": "The rabbit again, wearing snow. Faster, because there is nowhere on an open snowfield to hide instead.",
@@ -511,6 +591,7 @@
     "emoji": "\ud83d\udc07",
     "scale": 0.65,
     "speed": 1.6,
+    "altitude": 0,
     "runSpeed": 5,
     "herd": [
       2,
@@ -520,6 +601,10 @@
     "timid": true,
     "damage": 0,
     "hp": 10,
+    "gold": [
+      0,
+      0
+    ],
     "drop": {
       "id": "meat",
       "chance": 0.9
@@ -542,7 +627,10 @@
       "*twitches*",
       "*sniffs snow*",
       "*bounds off*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "wolf": {
     "note": "One damage a bite is a tenth of a fresh hero, which is survivable one wolf at a time \u2014 and is exactly why they arrive in twos and fours. A pack is the first thing in the world that can actually finish you.",
@@ -550,6 +638,7 @@
     "emoji": "\ud83d\udc3a",
     "scale": 0.95,
     "speed": 1.5,
+    "altitude": 0,
     "runSpeed": 5.5,
     "herd": [
       2,
@@ -593,7 +682,10 @@
       "*howls*",
       "*watches you*",
       "*pads silently*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "elk": {
     "note": "The snow's deer: heavier, slower to bolt, and worth more meat for the walk out.",
@@ -601,6 +693,7 @@
     "emoji": "\ud83e\udd8c",
     "scale": 1.35,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 5,
     "herd": [
       2,
@@ -610,6 +703,10 @@
     "timid": true,
     "damage": 0,
     "hp": 50,
+    "gold": [
+      0,
+      0
+    ],
     "drop": {
       "id": "meat",
       "chance": 0.9
@@ -634,6 +731,9 @@
       "*snorts steam*",
       "*bellows*",
       "*paws the snow*"
-    ]
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   }
 }

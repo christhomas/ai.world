@@ -54,11 +54,11 @@ export interface CreatureProperties {
   names: string[];
   lines: string[];
   /** Fliers. */
-  altitude?: number;
+  altitude: number;
   /** Prey flee from the player; predators do not. */
   timid: boolean;
   /** Max height difference this kind can step across (default STEP_LIMIT). The hero climbs a full terrace. */
-  climb?: number;
+  climb: number;
   /** Damage per bite for predators that attack the hero. */
   damage: number;
   /**
@@ -80,17 +80,17 @@ export interface CreatureProperties {
    * horizon becomes somewhere you could *try* to reach, and everything already in the water becomes
    * the reason not to.
    */
-  paddles?: boolean;
+  paddles: boolean;
   /**
    * Somebody's property. It can be killed like anything else, and the village will find out.
    * Kept on the kind rather than worked out from where it is standing, because a cow that has
    * wandered off is still a cow that belongs to whoever it wandered off from.
    */
-  owned?: boolean;
+  owned: boolean;
   /** Hit points; creatures with hp can be killed by the hero. */
   hp?: number;
   /** Gold dropped when killed. */
-  gold?: [number, number];
+  gold: [number, number];
   /** Something to carry home, and how often it drops. */
   drop?: { id: string; chance: number };
 }
@@ -123,9 +123,9 @@ function readCreature(f: Fields, id: string): CreatureProperties {
     palettes: f.list('palettes', palette),
     names: f.words('names'),
     lines: f.words('lines'),
-    altitude: f.maybeNum('altitude'),
+    altitude: f.num('altitude'),
     timid: f.flag('timid'),
-    climb: f.maybeNum('climb'),
+    climb: f.num('climb'),
     /*
      * Required, as of item 94. It was optional, so twelve of the fourteen beasts and every bird and
      * every person said nothing — and each of the six places that reads it invented the same answer
@@ -136,10 +136,10 @@ function readCreature(f: Fields, id: string): CreatureProperties {
      */
     damage: f.num('damage'),
     blow,
-    paddles: f.maybeFlag('paddles'),
-    owned: f.maybeFlag('owned'),
+    paddles: f.flag('paddles'),
+    owned: f.flag('owned'),
     hp: f.maybeNum('hp'),
-    gold: f.maybePair('gold'),
+    gold: f.pair('gold'),
     drop: dropOf(f),
   };
 }

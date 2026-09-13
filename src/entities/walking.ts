@@ -55,7 +55,7 @@ export function canStand(
   // goats and the things that climb are placed on the high ground rather than walking to it.
   if (!kind.climb && world.buried?.(x, z)) return false;
   if (kind.behaviour === 'travel' && !world.isRoad(x, z)) return false;
-  if (fromY !== undefined && Math.abs(h - fromY) > (kind.climb ?? STEP_LIMIT)) return false;
+  if (fromY !== undefined && Math.abs(h - fromY) > kind.climb) return false;
   return true;
 }
 
@@ -313,6 +313,6 @@ function standable(world: TileWorld, kind: AnimalKind, x: number, z: number, fro
   const h = world.heightAt(x, z);
   if (h === null) return false;
   if (!kind.climb && world.buried?.(x, z)) return false;
-  if (fromY !== undefined && Math.abs(h - fromY) > (kind.climb ?? STEP_LIMIT)) return false;
+  if (fromY !== undefined && Math.abs(h - fromY) > kind.climb) return false;
   return true;
 }

@@ -131,8 +131,10 @@ describe('the wight', () => {
     // the blade going through is the absence of a special case rather than one
     expect(MONSTER_KINDS.wight.hp).toBeUndefined();
     expect(canBeCut(MONSTER_KINDS.wight)).toBe(false);
-    // and nothing you cannot kill has anything on it to take
-    expect(MONSTER_KINDS.wight.gold).toBeUndefined();
+    // and nothing you cannot kill has anything on it to take. `gold` is stated now and `drop` is
+    // still absent, which is the distinction item 94 kept on purpose: carrying nought is a value a
+    // thing can have, and leaving nothing behind is a thing it does not do at all
+    expect(MONSTER_KINDS.wight.gold).toEqual([0, 0]);
     expect(MONSTER_KINDS.wight.drop).toBeUndefined();
   });
 

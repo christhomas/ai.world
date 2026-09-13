@@ -1,27 +1,51 @@
 {
   "note": [
     "What lives underground and above the treeline: the things that come at you rather than away.",
-    "Almost every one of these is a fight priced by its purse, so the numbers here are read together — what it hits for against what a hero has, what it takes to put down against what a stick can do. Fields are as described in beasts.json."
+    "Almost every one of these is a fight priced by its purse, so the numbers here are read together \u2014 what it hits for against what a hero has, what it takes to put down against what a stick can do. Fields are as described in beasts.json."
   ],
   "rat": {
     "note": "The first thing in a cave, and the smallest bite in the game. It is there so that the first floor of anything is a fight you win while learning what a fight is.",
     "label": "Cave Rat",
-    "emoji": "🐀",
+    "emoji": "\ud83d\udc00",
     "scale": 0.6,
     "speed": 1.6,
+    "altitude": 0,
     "runSpeed": 3.4,
-    "herd": [2, 4],
+    "herd": [
+      2,
+      4
+    ],
     "behaviour": "hunt",
     "timid": false,
     "damage": 10,
     "hp": 20,
-    "gold": [2, 8],
-    "palettes": [
-      ["#6a5a4a", "#d8b8a8"],
-      ["#4a4a4a", "#b8b8b8"]
+    "gold": [
+      2,
+      8
     ],
-    "names": ["Gnasher", "Scritch", "Whisker", "Nibbler"],
-    "lines": ["*hisses*", "*scurries*"]
+    "palettes": [
+      [
+        "#6a5a4a",
+        "#d8b8a8"
+      ],
+      [
+        "#4a4a4a",
+        "#b8b8b8"
+      ]
+    ],
+    "names": [
+      "Gnasher",
+      "Scritch",
+      "Whisker",
+      "Nibbler"
+    ],
+    "lines": [
+      "*hisses*",
+      "*scurries*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "bat": {
     "note": [
@@ -29,64 +53,133 @@
       "A diving bat is the one thing in the game that ignores the ground: it comes at you through the rock a corridor is made of, so no corner and no doorway is ever between you and it. Everything else you escape by using the world; a bat you escape only by being faster."
     ],
     "label": "Bat",
-    "emoji": "🦇",
+    "emoji": "\ud83e\udd87",
     "scale": 0.7,
     "speed": 2.6,
     "runSpeed": 2.6,
-    "herd": [1, 3],
+    "herd": [
+      1,
+      3
+    ],
     "behaviour": "fly",
     "timid": false,
     "altitude": 2.4,
+    "climb": 0,
     "damage": 10,
     "hp": 10,
-    "gold": [1, 5],
-    "palettes": [
-      ["#3a2a3a", "#7a5a7a"]
+    "gold": [
+      1,
+      5
     ],
-    "names": ["Flitter", "Dusk", "Screech"],
-    "lines": ["*screeches*"]
+    "palettes": [
+      [
+        "#3a2a3a",
+        "#7a5a7a"
+      ]
+    ],
+    "names": [
+      "Flitter",
+      "Dusk",
+      "Screech"
+    ],
+    "lines": [
+      "*screeches*"
+    ],
+    "paddles": false,
+    "owned": false
   },
   "slime": {
     "note": "Slow enough to walk away from at any point, which is what makes it the safe fight: the gem is rare enough to be worth the time and the time is always yours.",
     "label": "Slime",
-    "emoji": "🟢",
+    "emoji": "\ud83d\udfe2",
     "scale": 0.8,
     "speed": 1,
+    "altitude": 0,
     "runSpeed": 2.2,
-    "herd": [1, 3],
+    "herd": [
+      1,
+      3
+    ],
     "behaviour": "hunt",
     "timid": false,
     "damage": 10,
     "hp": 30,
-    "gold": [4, 12],
-    "drop": { "id": "gem", "chance": 0.08 },
-    "palettes": [
-      ["#4fbf6f"],
-      ["#4f8fbf"],
-      ["#bf5f8f"]
+    "gold": [
+      4,
+      12
     ],
-    "names": ["Blob", "Squish", "Ooze", "Gel"],
-    "lines": ["*squelch*", "*wobbles*"]
+    "drop": {
+      "id": "gem",
+      "chance": 0.08
+    },
+    "palettes": [
+      [
+        "#4fbf6f"
+      ],
+      [
+        "#4f8fbf"
+      ],
+      [
+        "#bf5f8f"
+      ]
+    ],
+    "names": [
+      "Blob",
+      "Squish",
+      "Ooze",
+      "Gel"
+    ],
+    "lines": [
+      "*squelch*",
+      "*wobbles*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "skeleton": {
     "note": "Where the first floor stops being free. Two damage a swing and four hit points is a real exchange, and it is deliberately below the first stair rather than in the cave on the road out of the village.",
     "label": "Skeleton",
-    "emoji": "💀",
+    "emoji": "\ud83d\udc80",
     "scale": 1,
     "speed": 1.5,
+    "altitude": 0,
     "runSpeed": 3,
-    "herd": [1, 2],
+    "herd": [
+      1,
+      2
+    ],
     "behaviour": "hunt",
     "timid": false,
     "damage": 20,
     "hp": 40,
-    "gold": [10, 25],
-    "drop": { "id": "bone", "chance": 0.6 },
-    "palettes": [
-      ["#e8e4d8", "#5a4632"]
+    "gold": [
+      10,
+      25
     ],
-    "names": ["Bones", "Rattle", "Marrow", "Grim"],
-    "lines": ["*clatters*", "*jaw creaks*"]
+    "drop": {
+      "id": "bone",
+      "chance": 0.6
+    },
+    "palettes": [
+      [
+        "#e8e4d8",
+        "#5a4632"
+      ]
+    ],
+    "names": [
+      "Bones",
+      "Rattle",
+      "Marrow",
+      "Grim"
+    ],
+    "lines": [
+      "*clatters*",
+      "*jaw creaks*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "troll": {
     "note": [
@@ -94,162 +187,324 @@
       "At three points a blow and twenty-two hit points a stick beat it, so the boss of three floors lost to the weapon you are given for free while paying better than the ogre that is harder than it. Four points a blow and hit points just under the ogre's put it back where its purse says it belongs: a stick loses, an iron sword wins on its last heart, steel wins properly."
     ],
     "label": "Cave Troll",
-    "emoji": "👹",
+    "emoji": "\ud83d\udc79",
     "scale": 1.9,
     "speed": 1.2,
+    "altitude": 0,
     "runSpeed": 3.6,
-    "herd": [1, 1],
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "hunt",
     "timid": false,
     "damage": 40,
     "blow": "swing",
     "hp": 280,
-    "gold": [200, 320],
-    "drop": { "id": "gem", "chance": 1 },
-    "palettes": [
-      ["#6a7a5a", "#3a4a32"],
-      ["#7a6a5a", "#4a3a2a"]
+    "gold": [
+      200,
+      320
     ],
-    "names": ["Grumthar", "Old Stonejaw", "The Warden", "Bruk"],
-    "lines": ["*roars*", "*the floor shakes*"]
+    "drop": {
+      "id": "gem",
+      "chance": 1
+    },
+    "palettes": [
+      [
+        "#6a7a5a",
+        "#3a4a32"
+      ],
+      [
+        "#7a6a5a",
+        "#4a3a2a"
+      ]
+    ],
+    "names": [
+      "Grumthar",
+      "Old Stonejaw",
+      "The Warden",
+      "Bruk"
+    ],
+    "lines": [
+      "*roars*",
+      "*the floor shakes*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "yeti": {
     "note": [
       "The things that live above the treeline.",
-      "A mountain is a wall, and the whole point of a wall is that it decides where you may go. These two are what makes that frightening rather than merely inconvenient: they climb. `climb` is how far up a creature may step, and the hero's is 0.56 — one terrace, so two is a wall to him and to everything else in the game. Theirs is enormous, so the face you are pinned under is a road to them and they can come at you from anywhere, including straight down.",
+      "A mountain is a wall, and the whole point of a wall is that it decides where you may go. These two are what makes that frightening rather than merely inconvenient: they climb. `climb` is how far up a creature may step, and the hero's is 0.56 \u2014 one terrace, so two is a wall to him and to everything else in the game. Theirs is enormous, so the face you are pinned under is a road to them and they can come at you from anywhere, including straight down.",
       "Between a bear and a troll for damage, and slower than a running hero, so the answer is always allowed to be to leave. The yeti is the colder, heavier one."
     ],
     "label": "Yeti",
-    "emoji": "🦍",
+    "emoji": "\ud83e\udd8d",
     "scale": 1.75,
     "speed": 1.1,
+    "altitude": 0,
     "runSpeed": 3.9,
     "climb": 40,
-    "herd": [1, 1],
+    "paddles": false,
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "prowl",
     "timid": false,
     "damage": 30,
     "blow": "rear",
     "hp": 260,
-    "gold": [60, 140],
-    "drop": { "id": "pelt", "chance": 0.6 },
-    "palettes": [
-      ["#f2f5f8", "#c9d6e2"],
-      ["#e4ebf2", "#b4c4d4"]
+    "gold": [
+      60,
+      140
     ],
-    "names": ["Hoarfrost", "The White Thing", "Skarn", "Old Winter"],
-    "lines": ["*a long howl off the rocks*", "*snow comes down somewhere above you*"]
+    "drop": {
+      "id": "pelt",
+      "chance": 0.6
+    },
+    "palettes": [
+      [
+        "#f2f5f8",
+        "#c9d6e2"
+      ],
+      [
+        "#e4ebf2",
+        "#b4c4d4"
+      ]
+    ],
+    "names": [
+      "Hoarfrost",
+      "The White Thing",
+      "Skarn",
+      "Old Winter"
+    ],
+    "lines": [
+      "*a long howl off the rocks*",
+      "*snow comes down somewhere above you*"
+    ],
+    "owned": false
   },
   "bigfoot": {
     "note": "The other one above the treeline; the argument for both is beside the yeti. Quicker and lighter than it, and it keeps to the trees rather than the snow.",
     "label": "Bigfoot",
-    "emoji": "🦧",
+    "emoji": "\ud83e\udda7",
     "scale": 1.6,
     "speed": 1.4,
+    "altitude": 0,
     "runSpeed": 4.4,
     "climb": 40,
-    "herd": [1, 1],
+    "paddles": false,
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "prowl",
     "timid": false,
     "damage": 30,
     "blow": "punch",
     "hp": 220,
-    "gold": [40, 110],
-    "drop": { "id": "pelt", "chance": 0.5 },
-    "palettes": [
-      ["#4a3a2c", "#2e241a"],
-      ["#5a4636", "#3a2c20"]
+    "gold": [
+      40,
+      110
     ],
-    "names": ["The Woodwose", "Long Shanks", "Barkfoot", "Old Shaggy"],
-    "lines": ["*something very large moves in the trees*", "*a knock, twice, on wood*"]
+    "drop": {
+      "id": "pelt",
+      "chance": 0.5
+    },
+    "palettes": [
+      [
+        "#4a3a2c",
+        "#2e241a"
+      ],
+      [
+        "#5a4636",
+        "#3a2c20"
+      ]
+    ],
+    "names": [
+      "The Woodwose",
+      "Long Shanks",
+      "Barkfoot",
+      "Old Shaggy"
+    ],
+    "lines": [
+      "*something very large moves in the trees*",
+      "*a knock, twice, on wood*"
+    ],
+    "owned": false
   },
   "ogre": {
     "note": [
       "One pace, coming and ambling alike: a thing carrying that much of itself has no walk and no run, only a walk it never stops using. Well under the hero's 5.5, which is the whole of what it offers, and near enough to it that a head start spent deciding is a head start spent.",
-      "Four out of ten hearts a swing — twice, and you are running regardless — against thirty hit points, so fighting it is a decision rather than a reflex, and the purse is what it was keeping for anybody who sees that decision through.",
+      "Four out of ten hearts a swing \u2014 twice, and you are running regardless \u2014 against thirty hit points, so fighting it is a decision rather than a reflex, and the purse is what it was keeping for anybody who sees that decision through.",
       "No `climb`, so a terrace lip is a wall to it. The hero steps up one and it cannot follow: the second thing you can do about an ogre for free."
     ],
     "label": "Ogre",
-    "emoji": "🧌",
+    "emoji": "\ud83e\uddcc",
     "scale": 2.2,
     "speed": 3.4,
+    "altitude": 0,
     "runSpeed": 3.4,
-    "herd": [1, 1],
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "hunt",
     "timid": false,
     "damage": 40,
     "blow": "swing",
     "hp": 300,
-    "gold": [90, 180],
-    "drop": { "id": "nugget", "chance": 0.4 },
-    "palettes": [
-      ["#6d6a5a", "#494336"],
-      ["#5f5548", "#3e372e"],
-      ["#77705e", "#51493a"]
+    "gold": [
+      90,
+      180
     ],
-    "names": ["Grendel", "Old Hunger", "Stoneshoulder", "The Thing in the Ruin", "Bruk-Who-Stayed"],
-    "lines": ["*the ground comes up through your boots*", "*it has already started walking*", "*a slow, wet breath*"]
+    "drop": {
+      "id": "nugget",
+      "chance": 0.4
+    },
+    "palettes": [
+      [
+        "#6d6a5a",
+        "#494336"
+      ],
+      [
+        "#5f5548",
+        "#3e372e"
+      ],
+      [
+        "#77705e",
+        "#51493a"
+      ]
+    ],
+    "names": [
+      "Grendel",
+      "Old Hunger",
+      "Stoneshoulder",
+      "The Thing in the Ruin",
+      "Bruk-Who-Stayed"
+    ],
+    "lines": [
+      "*the ground comes up through your boots*",
+      "*it has already started walking*",
+      "*a slow, wet breath*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false
   },
   "wight": {
     "note": [
-      "Above the hero's pace on purpose: a spirit you can outrun is a spirit nobody ever buys a draught for. It has one pace as well, and for the opposite reason to the ogre's — it does not walk anywhere, it is simply nearer than it was.",
+      "Above the hero's pace on purpose: a spirit you can outrun is a spirit nobody ever buys a draught for. It has one pace as well, and for the opposite reason to the ogre's \u2014 it does not walk anywhere, it is simply nearer than it was.",
       "What its touch costs is less than the ogre's swing, and it never stops arriving.",
       "No `hp`, and no gold or drop to go with it. A swing looks for creatures with hit points and finds none here, so the blade goes through; nothing you cannot kill has anything to loot. What does answer a wight is daylight, its own ground, and a draught."
     ],
     "label": "Barrow Wight",
-    "emoji": "👻",
+    "emoji": "\ud83d\udc7b",
     "scale": 1.15,
     "speed": 5.8,
+    "altitude": 0,
     "runSpeed": 5.8,
-    "herd": [1, 1],
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "hunt",
     "timid": false,
     "damage": 20,
     "palettes": [
-      ["#2b3446", "#a9d8f0"],
-      ["#333040", "#cfe6f5"]
+      [
+        "#2b3446",
+        "#a9d8f0"
+      ],
+      [
+        "#333040",
+        "#cfe6f5"
+      ]
     ],
-    "names": ["The Pale Watch", "What Was Buried Here", "The Cold One", "A Grey Figure"],
+    "names": [
+      "The Pale Watch",
+      "What Was Buried Here",
+      "The Cold One",
+      "A Grey Figure"
+    ],
     "lines": [
       "*your blade goes through it, and it does not notice*",
       "*the cold arrives a moment before it does*",
       "*it will not follow you off this ground*",
       "*first light is a long way off*"
+    ],
+    "climb": 0,
+    "paddles": false,
+    "owned": false,
+    "gold": [
+      0,
+      0
     ]
   },
-
   "dragon": {
     "note": [
-      "The one thing in this world bigger than the world's own trouble. An ogre keeps a ruin; this keeps a quarter of the country and moves across it, which is what `ROAM.SORTS.dragon` is for — four stops, a wide round, and where it is depends on what day it is.",
+      "The one thing in this world bigger than the world's own trouble. An ogre keeps a ruin; this keeps a quarter of the country and moves across it, which is what `ROAM.SORTS.dragon` is for \u2014 four stops, a wide round, and where it is depends on what day it is.",
       "Nine hundred hit points against a hero's hundred, and a blow pitched so that two of them is a funeral. It is not a fight anybody wins by standing in front of it. What makes it survivable at all is the `altitude`: it flies out of a sword's reach entirely, so a bow or a spell is the only thing that touches it, and it has to come down to touch you.",
       "Faster than a hero can run, on purpose. Everything else in this world can be walked away from; the whole of what a dragon is, is that it cannot."
     ],
     "label": "Dragon",
-    "emoji": "🐉",
+    "emoji": "\ud83d\udc09",
     "scale": 2.8,
     "speed": 4.2,
     "runSpeed": 7.6,
-    "herd": [1, 1],
+    "herd": [
+      1,
+      1
+    ],
     "behaviour": "fly",
     "altitude": 9,
+    "climb": 0,
     "timid": false,
     "dangerous": true,
     "damage": 55,
     "blow": "bite",
     "hp": 900,
-    "gold": [600, 1400],
-    "drop": { "id": "gem", "chance": 1 },
-    "palettes": [
-      ["#4a5d3a", "#3c4a30"],
-      ["#6d3a3a", "#4a2626"],
-      ["#3a4a6d", "#26304a"],
-      ["#5a4a2b", "#3e3320"]
+    "gold": [
+      600,
+      1400
     ],
-    "names": ["Ashwing", "The Long Green", "Cinderhold", "Old Smoke", "Drakhan the Slow"],
+    "drop": {
+      "id": "gem",
+      "chance": 1
+    },
+    "palettes": [
+      [
+        "#4a5d3a",
+        "#3c4a30"
+      ],
+      [
+        "#6d3a3a",
+        "#4a2626"
+      ],
+      [
+        "#3a4a6d",
+        "#26304a"
+      ],
+      [
+        "#5a4a2b",
+        "#3e3320"
+      ]
+    ],
+    "names": [
+      "Ashwing",
+      "The Long Green",
+      "Cinderhold",
+      "Old Smoke",
+      "Drakhan the Slow"
+    ],
     "lines": [
       "*the light goes out of the field*",
       "*a sound like a sail tearing*",
       "*it has seen you*"
-    ]
+    ],
+    "paddles": false,
+    "owned": false
   }
 }
