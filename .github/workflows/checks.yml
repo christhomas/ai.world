@@ -45,15 +45,21 @@ jobs:
 
       # The same task runner the repository is driven by, pinned. `chores.yml` asks for 0.9.0 or
       # better; this is the version the tasks were last run against by hand.
+      # Unpacked outside the checkout, because the tarball carries a README.md of its own. This
+      # used to extract in the working directory, so every run quietly replaced THIS repository's
+      # README with chore's — and nothing noticed for as long as nothing read the README. A test
+      # that did reported a file full of headings like "Why not mise" and "Supported subset".
       - name: Install chore
         env:
           CHORE_VERSION: 0.10.1
         run: |
           set -euo pipefail
-          curl -fsSL -o chore.tar.gz \
+          unpack=$(mktemp -d)
+          curl -fsSL -o "$unpack/chore.tar.gz" \
             "https://github.com/antimatter-studios/chore/releases/download/v${CHORE_VERSION}/chore-${CHORE_VERSION}-linux-x86_64.tar.gz"
-          tar -xzf chore.tar.gz
-          sudo install -m 0755 chore /usr/local/bin/chore
+          tar -xzf "$unpack/chore.tar.gz" -C "$unpack"
+          sudo install -m 0755 "$unpack/chore" /usr/local/bin/chore
+          rm -rf "$unpack"
           chore --version
 
       # types, then the whole suite, then the bench — the same three a commit is gated on locally
@@ -112,15 +118,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Unpacked outside the checkout, because the tarball carries a README.md of its own. This
+      # used to extract in the working directory, so every run quietly replaced THIS repository's
+      # README with chore's — and nothing noticed for as long as nothing read the README. A test
+      # that did reported a file full of headings like "Why not mise" and "Supported subset".
       - name: Install chore
         env:
           CHORE_VERSION: 0.10.1
         run: |
           set -euo pipefail
-          curl -fsSL -o chore.tar.gz \
+          unpack=$(mktemp -d)
+          curl -fsSL -o "$unpack/chore.tar.gz" \
             "https://github.com/antimatter-studios/chore/releases/download/v${CHORE_VERSION}/chore-${CHORE_VERSION}-linux-x86_64.tar.gz"
-          tar -xzf chore.tar.gz
-          sudo install -m 0755 chore /usr/local/bin/chore
+          tar -xzf "$unpack/chore.tar.gz" -C "$unpack"
+          sudo install -m 0755 "$unpack/chore" /usr/local/bin/chore
+          rm -rf "$unpack"
           chore --version
 
       # Playwright is borrowed here exactly as it is borrowed at a desk, and stays out of
