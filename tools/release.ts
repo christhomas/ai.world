@@ -69,9 +69,32 @@ const WRITTEN: Array<{ file: string; find: RegExp; write: (v: string) => string 
 export function whatShipped(
   closed: ReadonlyArray<{ number: number; closedAt: string }>,
   since: string | null,
+  /**
+   * Issues that already say which version fixed them, which are never told again.
+   *
+   * The window alone is honest arithmetic and it still put two versions on one issue: four fixed in
+   * v0.92.3 were *closed* two hours after v0.92.3 was tagged, so the next release's window swept
+   * them up. An issue claiming two versions is worse than one claiming none — a reader now has to
+   * pick a line to believe — and the stamp already on it was written nearer the event than any
+   * later guess, so the first one wins.
+   */
+  already: ReadonlySet<number> = new Set(),
 ): number[] {
   const after = since === null ? 0 : Date.parse(since);
-  return closed.filter((issue) => Date.parse(issue.closedAt) > after).map((issue) => issue.number);
+  return closed
+    .filter((issue) => Date.parse(issue.closedAt) > after && !already.has(issue.number))
+    .map((issue) => issue.number);
+}
+
+/** Which issues have already been told, asked of the issues themselves rather than of a file. */
+function alreadyTold(numbers: readonly number[]): Set<number> {
+  const told = new Set<number>();
+  for (const issue of numbers) {
+    const said = run('gh', ['issue', 'view', String(issue), '--json', 'comments',
+                            '-q', '.comments[].body']);
+    if (/Shipped in \[v/.test(said)) told.add(issue);
+  }
+  return told;
 }
 
 /**
@@ -154,7 +177,8 @@ function main(): void {
 
   const closed = JSON.parse(run('gh', ['issue', 'list', '--state', 'closed', '--limit', '100', '--json', 'number,closedAt'])) as
     Array<{ number: number; closedAt: string }>;
-  stampTheIssues(version, whatShipped(closed, since));
+  const window = whatShipped(closed, since);
+  stampTheIssues(version, whatShipped(closed, since, alreadyTold(window)));
 }
 
 // importable, so the window above can be tested without cutting a release to find out

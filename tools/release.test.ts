@@ -32,3 +32,31 @@ describe('what a release shipped', () => {
     expect(whatShipped(closed, null)).toEqual([4, 6, 7]);
   });
 });
+
+/**
+ * And the fault the first version shipped with.
+ *
+ * The window is honest arithmetic and it still put two different versions on one issue. Four issues
+ * fixed in v0.92.3 were *closed* two hours after v0.92.3 was tagged, so the next release's window
+ * swept them up and stamped them again — and an issue saying it shipped in two versions is worse
+ * than one saying nothing, because now a reader has to decide which line to believe.
+ *
+ * A close timestamp is a proxy for when a fix shipped and it is a proxy that fails exactly this
+ * way. What cannot be argued with is the stamp already on the issue: it was written closer to the
+ * event than any later guess, so the first one wins and nothing overwrites it.
+ */
+describe('an issue that already says which version', () => {
+  const closed = [
+    { number: 4, closedAt: '2026-09-13T10:46:26Z' },
+    { number: 6, closedAt: '2026-09-13T11:21:04Z' },
+    { number: 9, closedAt: '2026-09-13T14:05:00Z' },
+  ];
+
+  it('is left alone, whatever the window says', () => {
+    expect(whatShipped(closed, '2026-09-13T09:34:20Z', new Set([4, 6]))).toEqual([9]);
+  });
+
+  it('stamps the whole window when nothing has been stamped', () => {
+    expect(whatShipped(closed, '2026-09-13T09:34:20Z', new Set())).toEqual([4, 6, 9]);
+  });
+});
