@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
+import { theTidyUp, whatIsDirty } from './fallbackguard';
 
 /**
  * Which way every fallback in the world actually goes.
@@ -48,6 +49,21 @@ import { readdirSync, statSync } from 'node:fs';
 
 /** Where the counters live while a sweep is running. Deleted with everything else afterwards. */
 const COUNTER_MODULE = 'src/core/fallbacksweep.ts';
+
+/**
+ * The note a running sweep leaves in the checkout, so the next one knows whose mess it is.
+ *
+ * This is what makes the recovery safe to do at all. It is written *after* the tree has been found
+ * clean and *before* a single byte is rewritten, so its presence is not a guess about what the
+ * files look like — it is a record that this program was mid-flight in a checkout that had nothing
+ * of anybody's in it. Everything dirty under `src` and `server` after that is the sweep's own
+ * writing, and `git checkout` on it cannot discard work that was never there.
+ *
+ * It replaces reading the files and deciding whether they look instrumented, which three separate
+ * reviewers objected to for the same reason and all of them were right: a file of somebody's real
+ * work that happens to mention this module would have been thrown away as wreckage.
+ */
+const IN_FLIGHT = '.fallbacks-in-flight';
 
 /** What the sweep rewrites. Test and bench files are left alone: their defaults are scaffolding. */
 const ROOTS = ['src/world', 'src/game', 'src/entities', 'src/render', 'src/ui', 'server'];
@@ -185,12 +201,79 @@ function report(sites: Site[], visits: number[], defaults: number[]): void {
   console.log('their own. Widen the run before believing one, or go and read what feeds that value.');
 }
 
+/**
+ * Put every file back, and take the generated ones away.
+ *
+ * Its own function because `finally` is not the only way out of this program. A `finally` unwinds
+ * an exception and does not run for a signal: `timeout 110 chore fallbacks` sent SIGTERM, node
+ * stopped where it stood, and the checkout was left with **99 files rewritten** — all of which
+ * typecheck and pass, so nothing downstream objects and somebody commits an instrumented tree.
+ *
+ * Safe to call twice: `git checkout` on an unmodified path does nothing and `rmSync` is told the
+ * files may already be gone.
+ */
+function putItBack(): void {
+  execFileSync('git', ['checkout', '--', 'src', 'server']);
+  rmSync(COUNTER_MODULE, { force: true });
+  rmSync('src/world/fallbacksweep.test.ts', { force: true });
+  rmSync(IN_FLIGHT, { force: true });
+}
+
+/**
+ * The signal handlers, and the window in which they are allowed to act.
+ *
+ * `theTidyUp` holds that window: nothing is put back until the sweep says it owns the tree, and
+ * nothing is put back once it says it has finished. Outside those two moments a Ctrl-C leaves the
+ * checkout exactly as it found it, which is the whole point — the handlers used to be installed as
+ * the program loaded, so a Ctrl-C during the opening `git status`, on a tree full of somebody's
+ * uncommitted work, ran `git checkout -- src server` over it.
+ */
+const tidy = theTidyUp(putItBack);
+
+/**
+ * And the same on the way out that a `finally` cannot reach.
+ *
+ * Ctrl-C and a timeout are the two ordinary ways a long sweep ends early, and both of them kill
+ * node without unwinding. A tool that edits every file in a repository has to put them back
+ * however it exits, not only when it is allowed to finish.
+ */
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+  process.on(signal, () => {
+    try {
+      // and it says so only when it actually did something, because "putting every file back" over
+      // a tree this program never touched is a frightening thing to print and a worse thing to mean
+      if (tidy.signalled()) console.error(`\n${signal} — putting every file back before going`);
+    } catch { /* nothing left to do about it, and saying so is the point */ }
+    process.exit(130);
+  });
+}
+
+/**
+ * What the working tree has in it that git did not put there, by whole path.
+ *
+ * `-z` rather than lines: git quotes a path with a space in it when it writes lines and does not
+ * when it writes records, so the line form has to be un-quoted and getting that wrong turns a real
+ * file into one that does not exist.
+ */
+function dirtyNow(): string[] {
+  return whatIsDirty(execFileSync('git', ['status', '--porcelain', '-z', 'src', 'server'], { encoding: 'utf8' }));
+}
+
 function main(): void {
-  const dirty = execFileSync('git', ['status', '--porcelain', 'src', 'server'], { encoding: 'utf8' }).trim();
-  if (dirty) {
+  /*
+   * A sweep that was killed before it could put things back left a note saying so, and the note was
+   * written on a tree that had already been found clean. So this is not a judgement about what the
+   * files look like — it is the earlier run's own word that everything dirty below is its writing.
+   */
+  if (existsSync(IN_FLIGHT)) {
+    console.error('an earlier run was killed before it could put things back — undoing that first\n');
+    putItBack();
+  }
+  const dirty = dirtyNow();
+  if (dirty.length > 0) {
     console.error('This rewrites your source and puts it back with `git checkout`, so it will not');
     console.error('start on a dirty tree — it could not tell its own edits from yours. Commit or');
-    console.error('stash first. Uncommitted:\n' + dirty);
+    console.error('stash first. Uncommitted:\n  ' + dirty.join('\n  '));
     process.exitCode = 1;
     return;
   }
@@ -206,6 +289,10 @@ function main(): void {
   const scratch = mkdtempSync(join(tmpdir(), 'fallbacks-'));
   const out = join(scratch, 'counts.json');
 
+  // the note first, then the writing: a run killed between these two lines has changed nothing, and
+  // a run killed after them is recognisable to the next one
+  writeFileSync(IN_FLIGHT, `started ${new Date().toISOString()} by chore fallbacks\n`);
+  tidy.own();
   const { sites, touched } = instrument();
   console.log(`instrumented ${sites.length} fallbacks in ${touched.length} files; running ${target.join(' ') || 'the whole suite'}`);
   console.log(`  e.g. ${touched[0]} now starts: ${readFileSync(touched[0], 'utf8').split('\n')[0]}`);
@@ -241,10 +328,9 @@ function main(): void {
     console.error('\nthe run failed; reporting on whatever it managed before it stopped');
   } finally {
     // home again before anything is printed, whatever happened, so a failed sweep still leaves a
-    // tree somebody can work in
-    execFileSync('git', ['checkout', '--', 'src', 'server']);
-    rmSync(COUNTER_MODULE, { force: true });
-    rmSync('src/world/fallbacksweep.test.ts', { force: true });
+    // tree somebody can work in — and the tree is somebody else's again the moment it is done
+    putItBack();
+    tidy.finished();
   }
 
   try {

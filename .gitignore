@@ -22,3 +22,6 @@ playtest-report.txt
 # throwaway scripts for looking at the game — screenshots, one-off probes
 .scratch/
 unreached-report.txt
+
+# the note a killed `chore fallbacks` leaves behind, so the next run knows to tidy up
+.fallbacks-in-flight
