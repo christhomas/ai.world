@@ -5484,3 +5484,41 @@ than by remembering — and the first thing found was that the gap is not where 
       his purse would make it inheritable, and the day he died his son would own the village. So the
       chest is its own purse from the beginning and never his; what he has is the keeping of it.
       That is also the real-world shape of the thing, which is where this started.
+
+## Sweeping the defaults — September 13th
+
+- [~] **92. Audit every default and fallback, because the ones that are always taken are invisible.**
+      Asked for on the 13th, after four of the night's worst faults turned out to be the same shape.
+      **83**: a mesh-face fallback that was the only branch that ever ran, so no mountain in the game
+      had a size. **87**: a check that ran after the taking, so a waiting chunk leaked a worker.
+      **88**: `today` standing in for the day being lived, invisible until a village was re-lived.
+      **81**: a field set to something other than what its own documentation said it meant. None of
+      them was visible to two and a half thousand passing tests; all four were obvious within a
+      minute of looking at the right number.
+
+      **The technique works and is worth keeping.** Reading 289 fallbacks finds nothing — the
+      dangerous ones look exactly like the safe ones. Counting them finds everything: rewrite every
+      `x ?? d` as `__fbL(n, x) ?? __fbR(n, d)`, run the benches and both worlds, and ask which sites
+      took the default *every* time they were reached. That is a mechanical transform, it is thrown
+      away afterwards, and it turns an unanswerable question into a sorted list.
+
+      First run: 289 sites, 56 reached, **five always-defaulted**. Three are accumulator patterns
+      (`map.get(id) ?? 0` while building a fresh map) and correct. Two were `person.hurt ?? 0`, at
+      877,875 and 443,775 hits — which is how the wound system was found to have no caller at all.
+
+      **What is left** is the other 233 sites, which this run never reached: the render layer, the
+      UI, the interactions, the dungeon, the boat. The harness has to drive a browser to reach most
+      of them, or the sweep has to run under the whole test suite with the counts merged across
+      workers. Also worth the same treatment: the 37 defaulted parameters on exported functions,
+      where the failure is a caller that forgot to pass something and got a plausible number.
+
+- [x] **93. No villager was ever hurt.** *Found by 92 on the 13th and fixed the same hour.*
+      `Register.hurt` is the door into everything **36** built — a villager laid up for some days,
+      not working, costing the doctor's fee to mend — and nothing in the game or the world had ever
+      called it. Written, documented, tested and unreachable; `person.hurt` was undefined for every
+      villager in every world there has ever been, and the doctor healed nobody because nobody was
+      ever ill.
+
+      `struck` and `swung` say so now: somebody on the register who takes a blow and lives is laid
+      up, at a severity that is the blow as a share of the hardest one anybody may throw. Done red
+      first — the test asked for a door that did not exist and said so before anything was written.
