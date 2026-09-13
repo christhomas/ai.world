@@ -134,6 +134,16 @@ describe('the village register', () => {
       .toBeGreaterThan(founded);
   });
 
+  /*
+   * A village that has been bled gets its people back, and the measure is its own beds.
+   *
+   * It used to assert the count came back to *exactly* the number it was founded with, which was
+   * true while the ceiling was that number. Since the 13th a village is founded at what its roofs
+   * hold rather than at the people the founding happened to generate — item 81, which is what
+   * unfroze the villages that never grew — so a village that loses a third fills back past the
+   * dozen it started with and up towards its beds. The question this was always asking is whether
+   * the dead are replaced, and it is asked of the ceiling that actually exists.
+   */
   it('replaces people killed by wolves faster than it replaces nobody', () => {
     const register = new Register(10);
     const village = settle(register);
@@ -143,7 +153,8 @@ describe('the village register', () => {
     expect(register.living('Ashford').length).toBeLessThan(founded);
 
     register.advance(20);
-    expect(register.living('Ashford').length).toBe(founded);
+    expect(register.living('Ashford').length).toBeGreaterThanOrEqual(founded);
+    expect(register.living('Ashford').length).toBeLessThanOrEqual(register.roomIn('Ashford'));
   });
 
   it('leaves the dead in the memory of the people who knew them, and nowhere else', () => {

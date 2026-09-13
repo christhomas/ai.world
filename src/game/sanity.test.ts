@@ -278,7 +278,17 @@ describe('a world left to itself for four hundred and fifty days', () => {
     const detail: string[] = [];
     for (const run of RUNS) {
       for (const village of LEFT_ALONE) {
-        const founded = run.founded.get(village)!;
+        /*
+         * The room it was founded with, not the souls it was founded with.
+         *
+         * Those were the same number until the 13th and are not now: a village laid out with five
+         * houses holds twenty and is generated with twelve people in it. This bound is about the
+         * *ground* — twice the houses, at twice the size — so it has to be measured against what
+         * the ground was laid out to hold. Against the souls it reads four times too tight, and
+         * Saltcombe on seed 7 failed it at 52 beds against a ceiling of 48 for having finally been
+         * allowed to grow at all. The bound is unchanged; what it is asked of is corrected.
+         */
+        const founded = run.roomAtFounding.get(village)!;
         const { room } = lastStanding(run, village);
         const most = founded * AT_MOST;
         detail.push(`${at(run, village)}: ${room} beds against ${Math.round(most)} the ground allows`);
@@ -327,7 +337,9 @@ describe('a world left to itself for four hundred and fifty days', () => {
       for (const village of JUDGED) {
         const nights = run.standing.get(village)!;
         const gap = nights[0].roofed - nights[0].room;
-        founding.push(`${at(run, village)}: founded holding ${nights[0].room} in ${nights[0].roofed} beds`);
+        if (nights[0].room !== nights[0].roofed) {
+          founding.push(`${at(run, village)}: founded holding ${nights[0].room} in ${nights[0].roofed} beds`);
+        }
         for (const night of nights) {
           if (night.roofed - night.room === gap) continue;
           drifted.push(
@@ -346,18 +358,31 @@ describe('a world left to itself for four hundred and fifty days', () => {
         ? ['no village\'s ceiling moved except with its buildings, on any night of the run']
         : drifted,
     });
+    /*
+     * The gap this used to report, kept as a question rather than as an observation.
+     *
+     * It said, every run: *"every village is founded holding fewer people than its own houses have
+     * beds for"*, and it was right — `settle` set the ceiling to the number of people the founding
+     * generated while the houses held half again as many. It read as a curiosity for as long as
+     * nobody chased it, and it was the whole of item **81**: births aim at the ceiling and stop
+     * there, while whether anybody *wants* a roof is asked of the family under it, which still had
+     * beds spare. Saltcombe on seed 7 stood at twelve souls for four hundred and fifty days with
+     * five thousand gold in its hall, and nothing in the world could ever have moved it.
+     *
+     * A village is founded at what its roofs hold now, so the gap should be nought — and this is
+     * the assertion that says so rather than the paragraph that used to describe it. A note that
+     * reports a fault every time it runs is a note somebody stops reading.
+     */
+    const short = founding;
     report({
-      verdict: 'NOTE',
+      verdict: short.length === 0 ? 'PASS' : 'FAIL',
       count: RUNS.length * JUDGED.length,
-      what: 'every village is founded holding fewer people than its own houses have beds for',
-      detail: [
-        '`settle` sets `founded` to the number of people it generated; the houses it laid out hold',
-        'more. The field is documented as "how many people the village\'s roofs hold", which is what',
-        'it becomes after the first roof goes up rather than what it starts as. A village therefore',
-        'begins with beds it is not allowed to fill, and `THIN` judges it against the smaller number.',
-        ...founding,
-      ],
+      what: 'villages founded holding exactly what their own houses have beds for',
+      detail: short.length === 0
+        ? ['every village begins at its own ceiling, so none of them starts frozen']
+        : short,
     });
+    expect(short, 'a village is founded with beds it is not allowed to fill').toEqual([]);
     expect(drifted, 'a village gained beds nothing built').toEqual([]);
   });
 });

@@ -150,8 +150,21 @@ export interface Run {
    * recomputed later from a purse that has moved on is a guess.
    */
   taxed: Map<string, Map<number, number>>;
-  /** What each village was founded at, for judging whether it has held itself together. */
+  /** How many people each village was founded with, for judging whether it has held together. */
   founded: Map<string, number>;
+  /**
+   * And how much room it was founded *with*, which is a different number and a different question.
+   *
+   * Whether a village still holds about as many people as it started with is about souls. Whether
+   * it has grown further than its ground could take it is about **room** — the beds its founding
+   * houses hold — and measuring that against the souls it happened to be generated with was the
+   * bench asking one number a question that belongs to the other.
+   *
+   * The two were the same until the 13th, when founding a village at what its roofs hold fixed the
+   * freeze in item **81**. They are not the same now: a village laid out with five houses holds
+   * twenty and is generated with twelve in it, and the ceiling is four times the first of those.
+   */
+  roomAtFounding: Map<string, number>;
   /**
    * What the *place* held each evening, as against what its people wrote down.
    *
@@ -242,6 +255,7 @@ export function liveForward(seed: number, days = DAYS): Run {
   const taxed = new Map<string, Map<number, number>>();
   const restarted = new Map<string, Set<number>>();
   const founded = new Map<string, number>();
+  const roomAtFounding = new Map<string, number>();
   const standing = new Map<string, Standing[]>();
 
   register.minesAt(VILLAGES.filter((v) => v.mine).map((v) => v.village));
@@ -257,6 +271,7 @@ export function liveForward(seed: number, days = DAYS): Run {
     if (regime.settledFrom) continue;                // a ruin is settled by its neighbour, later
     register.settle(regime.village, regime.houses, tradesAt(regime.posts));
     founded.set(regime.village, register.living(regime.village).length);
+    roomAtFounding.set(regime.village, register.roomIn(regime.village));
     books.set(regime.village, []);
     minted.set(regime.village, new Map());
     taxed.set(regime.village, new Map());
@@ -267,6 +282,7 @@ export function liveForward(seed: number, days = DAYS): Run {
   for (const regime of VILLAGES.filter((r) => r.settledFrom)) {
     register.settle(regime.village, regime.houses, tradesAt(regime.posts));
     founded.set(regime.village, register.living(regime.village).length);
+    roomAtFounding.set(regime.village, register.roomIn(regime.village));
     books.set(regime.village, []);
     minted.set(regime.village, new Map());
     taxed.set(regime.village, new Map());
@@ -330,7 +346,7 @@ export function liveForward(seed: number, days = DAYS): Run {
     standing.get(regime.village)!.push(stood(register, regime.village, FOUNDED + days));
   }
 
-  return { seed, books, minted, taxed, restarted, founded, standing };
+  return { seed, books, minted, taxed, restarted, founded, roomAtFounding, standing };
 }
 
 /** The books of one village, shut for the night. */

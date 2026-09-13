@@ -1,4 +1,5 @@
 import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './aday';
+import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
 import { mayorOf, taxedForTheHall } from './hall';
@@ -146,7 +147,23 @@ export class Register {
     // a village is founded with a few days in the cellar, not starving on its first morning
     const farmers = people.filter((p) => p.trade === 'farmer').length;
     const settlement: Settlement = {
-      people, founded: people.length, houses, trades, food: people.length * 3, buried: [], purse: 0,
+      /*
+       * The ceiling is what the roofs hold, which is what the field has always said it means.
+       *
+       * It was the number of people the founding happened to generate, and the two are not the same
+       * number: a village laid out with five houses holds twenty and is founded with twelve in it.
+       * The gap froze villages solid. Births aim at `founded`, so they stopped at twelve; and
+       * whether anybody *wants* a roof is asked of the family under it, which had sixteen beds and
+       * twelve people in them — so nothing was ever wanted, no roof was ever raised, and the
+       * ceiling never moved. Saltcombe on seed 7 stood at twelve souls for four hundred and fifty
+       * days with five thousand gold in its hall, and Oakcross on seed 1234 did the same.
+       *
+       * The sanity bench had been reporting the gap as a NOTE since the day it could see it —
+       * *"every village is founded holding fewer people than its own houses have beds for"* — with
+       * the right diagnosis written beside it: the field describes the value it takes after the
+       * first roof goes up rather than the one it starts with. It was the founding that was wrong.
+       */
+      people, founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [], purse: 0,
       // a harbour it already has counts as a thing it has raised: `holdings.ts` will not put a boat
       // anywhere there is nothing to tie one up at, and a seeded jetty is a jetty
       works: this.hasAHarbour.has(village) ? ['jetty'] : [],
