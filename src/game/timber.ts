@@ -92,24 +92,28 @@ export const TIMBER = {
 export type TimberJson = Record<string, number> | {
   yards: Record<string, number>;
   brought: Record<string, number>;
+  /** Last world day each yard received its own woodcutters' felling. */
+  felled?: Record<string, number>;
 };
 
 export class Timber {
   private readonly yards = new Map<string, number>();
   /** Cumulative logs carried in and sold here, which no building ever takes back down. */
   private readonly carriedIn = new Map<string, number>();
+  /** The last day accounted for each village's own felling. */
+  private readonly felledOn = new Map<string, number>();
   /** Villages whose standing stack has already been counted, so it is counted once. */
   private readonly opened = new Set<string>();
 
   constructor(json?: TimberJson) {
-    const stacks = json && 'yards' in json ? json.yards : (json as Record<string, number> | undefined);
+    const saved = json && isSavedYard(json) ? json : null;
+    const stacks = saved?.yards ?? json;
     for (const [village, logs] of Object.entries(stacks ?? {})) {
       this.yards.set(village, logs);
       this.opened.add(village);
     }
-    if (json && 'brought' in json) {
-      for (const [village, logs] of Object.entries(json.brought)) this.carriedIn.set(village, logs);
-    }
+    for (const [village, logs] of Object.entries(saved?.brought ?? {})) this.carriedIn.set(village, logs);
+    for (const [village, day] of Object.entries(saved?.felled ?? {})) this.felledOn.set(village, day);
   }
 
   static from(json?: TimberJson): Timber { return new Timber(json); }
@@ -172,6 +176,28 @@ export class Timber {
   }
 
   /**
+   * Felling accounted through a particular world day.
+   *
+   * The regular game path uses this rather than assuming it was called once per rendered midnight:
+   * a day skipped by a clock correction or a reopened save is still a day the woodcutters worked,
+   * and the same day cannot be landed twice. The first visit keeps the existing week's standing
+   * stock, then counts the day it was first observed.
+   */
+  felledThrough(village: string, woodcutters: number, day: number): void {
+    const today = Math.floor(day);
+    if (!Number.isFinite(today)) return;
+    if (!this.opened.has(village)) {
+      this.opened.add(village);
+      this.land(village, woodcutters * TIMBER.A_DAY * TIMBER.STANDING);
+      this.felledOn.set(village, today - 1);
+    }
+    const last = this.felledOn.get(village) ?? today - 1;
+    if (today <= last) return;
+    this.land(village, (today - last) * woodcutters * TIMBER.A_DAY);
+    this.felledOn.set(village, today);
+  }
+
+  /**
    * The builder takes what a job wants, or takes nothing and says so.
    *
    * All of it or none of it: half the timber for a house is a house nobody can start, and a yard
@@ -192,6 +218,16 @@ export class Timber {
   }
 
   toJSON(): TimberJson {
-    return { yards: Object.fromEntries(this.yards), brought: Object.fromEntries(this.carriedIn) };
+    return {
+      yards: Object.fromEntries(this.yards),
+      brought: Object.fromEntries(this.carriedIn),
+      felled: Object.fromEntries(this.felledOn),
+    };
   }
+}
+
+function isSavedYard(json: TimberJson): json is Exclude<TimberJson, Record<string, number>> {
+  return 'yards' in json
+    && typeof json.yards === 'object' && json.yards !== null
+    && 'brought' in json && typeof json.brought === 'object' && json.brought !== null;
 }

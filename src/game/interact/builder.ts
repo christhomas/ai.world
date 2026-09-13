@@ -675,7 +675,7 @@ export function builderInteractions(ctx: Surroundings) {
      * nothing, for ever, and that is the limit the whole material exists to be.
      */
     for (const village of register.settled()) {
-      houses.yard.felled(village, woodcuttersFor(register.living(village)));
+      houses.yard.felledThrough(village, woodcuttersFor(register.living(village)), state.day);
     }
     const bills = houses.charge(state.day);
     if (bills.length === 0) return;

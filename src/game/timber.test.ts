@@ -45,6 +45,22 @@ describe('a village yard', () => {
     expect(timber.at(ASHFORD)).toBe(TIMBER.HOLDS);
   });
 
+  it('accounts each elapsed day once, including across a reload', () => {
+    const timber = new Timber();
+    timber.felledThrough(ASHFORD, 1, 12);
+    expect(timber.at(ASHFORD)).toBe(TIMBER.A_DAY * (TIMBER.STANDING + 1));
+    timber.felledThrough(ASHFORD, 1, 12);
+    expect(timber.at(ASHFORD), 'the same day was landed twice').toBe(TIMBER.A_DAY * (TIMBER.STANDING + 1));
+    timber.felledThrough(ASHFORD, 1, 15);
+    expect(timber.at(ASHFORD), 'the two missed days were not landed').toBe(TIMBER.A_DAY * (TIMBER.STANDING + 4));
+
+    const reloaded = Timber.from(timber.toJSON());
+    reloaded.felledThrough(ASHFORD, 1, 15);
+    expect(reloaded.at(ASHFORD), 'reopening re-landed the saved day').toBe(TIMBER.A_DAY * (TIMBER.STANDING + 4));
+    reloaded.felledThrough(ASHFORD, 1, 17);
+    expect(reloaded.at(ASHFORD)).toBe(TIMBER.A_DAY * (TIMBER.STANDING + 6));
+  });
+
   it('takes all of what a job wants or none of it', () => {
     // half the timber for a house is a house nobody can start, and a yard quietly emptied by a job
     // that was then refused would be a village that lost its wood to a conversation
