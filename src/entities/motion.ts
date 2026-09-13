@@ -95,6 +95,8 @@ interface Strike {
 
 interface MotionFile {
   walking: Record<string, Cycle | string>;
+  swimming: Record<string, Cycle | string>;
+  floating: { note?: string; lean: number; bounce: number; sway: number };
   idling: Record<string, Cycle | string>;
   body: BodyFile & { note?: string };
   running: RunFile & { note?: string };
@@ -131,7 +133,7 @@ const file = motion as unknown as MotionFile;
 
 // a section somebody has deleted should say so, rather than failing later as an unreadable
 // property of undefined with no hint of which file it came from
-for (const name of ['walking', 'idling', 'body', 'running', 'flinch', 'dying', 'blows'] as const) {
+for (const name of ['walking', 'swimming', 'idling', 'body', 'running', 'flinch', 'dying', 'blows'] as const) {
   if (!file[name] || typeof file[name] !== 'object') fault(name, 'is missing from the file');
 }
 
@@ -161,6 +163,9 @@ function role(where: string, name: string): AnimRole {
 }
 
 const CYCLES: Record<string, Cycle> = sectionOf<Cycle>(file.walking, 'walking');
+/** The same vocabulary, for a body out of its depth. See `animations/motion.json`. */
+const STROKES: Record<string, Cycle> = sectionOf<Cycle>(file.swimming, 'swimming');
+const AFLOAT = file.floating;
 const IDLES: Record<string, Cycle> = sectionOf<Cycle>(file.idling, 'idling');
 const BLOWS: Record<string, Strike> = sectionOf<Strike>(file.blows, 'blows');
 const BODY = file.body;
@@ -197,6 +202,11 @@ for (const [name, cycle] of Object.entries(CYCLES)) {
   role('walking', name);
   checkCycle(`walking.${name}`, cycle, false);
 }
+for (const [name, cycle] of Object.entries(STROKES)) {
+  role('swimming', name);
+  checkCycle(`swimming.${name}`, cycle, false);
+}
+for (const field of ['lean', 'bounce', 'sway'] as const) figure(`floating.${field}`, AFLOAT[field], SANE_TURN);
 
 for (const [name, cycle] of Object.entries(IDLES)) {
   role('idling', name);
@@ -432,6 +442,14 @@ export function runShare(walk: number): number {
 export interface Moving {
   walk: number;
   flap: number;
+  /**
+   * How far out of its depth this body is, from nought on dry land to one swimming.
+   *
+   * A share rather than a flag, and that is the whole reason wading out reads as one movement: the
+   * ground does not drop away in a step, so neither does the pose. Everything on land is at nought
+   * and costs exactly what it always did.
+   */
+  afloat: number;
   phase: number;
   headPitch: number;
   /** Seconds left of the stagger after a hit, which is nought for anything unharmed. */
@@ -468,8 +486,13 @@ export function cycleTurn(part: AnimRole | undefined, e: Moving): [number, numbe
   const last = DYING.turn?.[part];
   if (!cycle && !idle && hit === undefined && last === undefined) return [0, 0, 0];
 
+  const out = Math.max(0, Math.min(1, e.afloat));
+  const stroke = STROKES[part];
   let turn = 0;
-  if (cycle) turn += cycleValue(cycle, e, 1 + (RUN.stride - 1) * runShare(e.walk));
+  if (cycle) turn += cycleValue(cycle, e, 1 + (RUN.stride - 1) * runShare(e.walk)) * (1 - out);
+  // the stroke fades in exactly as the stride fades out, which is what makes the shelving bottom
+  // one movement rather than a switch at the moment his feet leave it
+  if (stroke) turn += cycleValue(stroke, e, 1) * out;
   // the stand fades in exactly as the walk fades out, so nothing is ever holding perfectly still
   if (idle) turn += cycleValue(idle, e, 1) * (1 - e.walk);
   if (hit !== undefined) turn += hit * flinchAt(e.hurt);
@@ -511,12 +534,17 @@ export function bodyMotion(e: Moving): BodyMotion {
   const still = 1 - e.walk;
   const hit = flinchAt(e.hurt);
 
-  const bounce = BODY.bounce * (1 + (RUN.bounce - 1) * run) * e.walk;
+  const out = Math.max(0, Math.min(1, e.afloat));
+  // no ground to push off: the rise and fall of a walk comes from the legs straightening against
+  // something, and out there they are not
+  const bounce = BODY.bounce * (1 + (RUN.bounce - 1) * run) * e.walk * (1 - out * (1 - AFLOAT.bounce));
   const bob = Math.cos(e.phase * 2) * bounce
     + Math.sin(e.phase * BODY.breathRate) * BODY.breath * still
     - FLINCH.drop * hit;
-  const lean = BODY.lean * e.walk + RUN.lean * run + FLINCH.lean * hit;
-  const roll = Math.sin(e.phase) * BODY.sway * e.walk
+  // and he lies along the water rather than standing in it: a body upright out of its depth is
+  // treading, not swimming, and the lean is the whole difference
+  const lean = BODY.lean * e.walk + RUN.lean * run + FLINCH.lean * hit + AFLOAT.lean * out;
+  const roll = Math.sin(e.phase) * BODY.sway * e.walk * (1 - out * (1 - AFLOAT.sway))
     + Math.sin(e.phase * BODY.settleRate) * BODY.settle * still;
 
   // a body going down rolls over and keeps going into the ground, which is what hands it over to
