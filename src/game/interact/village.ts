@@ -1,5 +1,7 @@
 import { ITEMS, WOOD_ITEM } from '../items';
 import { familyOfDoor, saidOfAFreeHouse, whatABedCosts } from '../../world/homes';
+import { whatTheHallKnows } from '../../world/hall';
+import { whatTheHallSays } from '../hallwords';
 import { askingPrice, lotLine, type Pitch } from '../market';
 import { tradableItems } from '../online';
 import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
@@ -228,6 +230,37 @@ export function villageInteractions(ctx: Surroundings) {
         { label: 'Leave it be', next: () => null },
       ] });
     return true;
+  };
+
+  /**
+   * The hall, which is a building you can ask things.
+   *
+   * Item 89's readable half. `whatTheHallKnows` has gathered the four facts since the 13th and
+   * nothing ever asked it; the building has stood in every large village since before that and
+   * nothing in `src/game` read `village.hall`. Four issues were waiting on a hall that could be
+   * talked to — a vacancy wants somewhere to be read from, a contract wants a party that can be
+   * asked, a directory wants a place to be kept, and a vote wants a hall that exists to be voted
+   * for.
+   *
+   * A conversation rather than a panel, and the difference is not presentation: a panel is a thing
+   * the game shows and has to keep correct, and a conversation is a thing you *ask*, so it can say
+   * nobody has told me. An empty tower is the honest answer surprisingly often.
+   */
+  const tryHall = (): boolean => {
+    for (const village of villagesHere()) {
+      const hall = village.hall;
+      if (!hall) continue;
+      if (Math.hypot(hall.door[0] - player.x, hall.door[1] - player.z) > 2.2) continue;
+      const asked = whatTheHallKnows(register, village.name);
+      dialogue.start({
+        speaker: `The hall of ${village.name}`,
+        emoji: '🏛️',
+        pages: whatTheHallSays(asked, (id) => register.find(id) ?? null),
+        choices: [{ label: 'That is all', next: () => null }],
+      });
+      return true;
+    }
+    return false;
   };
 
   const tryBoard = (): boolean => {
@@ -518,5 +551,5 @@ export function villageInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryDoor, tryLandlord, tryFreeBed, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
+  return { tryDoor, tryLandlord, tryFreeBed, tryHall, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
 }

@@ -118,6 +118,7 @@ export function createInteractions(ctx: Surroundings) {
     if (village.tryLuxury()) return;
     if (village.tryStall()) return;
     if (nettle.tryScheme()) return;
+    if (village.tryHall()) return;   // a building you can ask what the village is up to
     if (village.tryBoard()) return;
     if (jail.tryCell()) return;   // the station door is a grille to look through, not a way in
     if (village.tryDoor()) return;
