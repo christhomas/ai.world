@@ -1,4 +1,5 @@
 import { RAISING_TAKES, beganOn, isARoof } from '../world/roofs';
+import { civicFor, whereItStands } from '../world/civics';
 import { BUILD } from './building';
 import type { Village } from '../world/structures';
 
@@ -78,7 +79,35 @@ export function raisedRoofs(
 ): Raised[] {
   const out: Raised[] = [];
   for (const village of villages) {
-    const raised = worksOf(village.name).filter(isARoof);
+    const works = worksOf(village.name);
+    const raised = works.filter(isARoof);
+    /*
+     * And the things a village bought that are not roofs.
+     *
+     * Six things a hall spends its treasury on and, until this line, one of them appeared: a
+     * village could pay 3,800 gold for a watchtower, carry the watchman's wage from that morning
+     * on, and a player walking in would see a field. Where each of them stands is `civics.ts`'s
+     * business, because a well belongs on the square and a tower belongs at the rim and one rule
+     * for all of them would be right about one and visibly wrong about the others.
+     *
+     * Queued behind the roofs on purpose: a bath house standing on the plot the next family was
+     * going to live on is a village that spent its money twice.
+     */
+    let after = raised.length;
+    for (const work of works) {
+      const civic = civicFor(beforeTheColon(work));
+      if (!civic) continue;
+      const at = whereItStands(civic, village, village.spare, after);
+      if (!at) continue;
+      if (civic.stands === 'plot') after++;
+      out.push({
+        id: `${village.name}-${civic.id}`,
+        x: at.x, z: at.z, rot: at.rot,
+        what: `civic-${civic.id}`,
+        stage: today === undefined ? 'done' : raisedStage(work, today),
+        storeys: 1,
+      });
+    }
     for (let n = 0; n < raised.length && n < village.spare.length; n++) {
       const plot = village.spare[n];
       out.push({
@@ -130,4 +159,15 @@ export function roofWatch(
     }
     return built;
   };
+}
+
+/**
+ * The work's own name, without the day written after it.
+ *
+ * A `works` entry is `watchtower` or `watchtower:412` depending on whether the morning it was begun
+ * was recorded, which is the same shape a roof entry has and for the same reason — see `roofs.ts`.
+ */
+function beforeTheColon(work: string): string {
+  const at = work.indexOf(':');
+  return at < 0 ? work : work.slice(0, at);
 }

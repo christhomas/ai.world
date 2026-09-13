@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Biome, PropKind } from '../world/biomes';
+import { CIVICS } from '../world/civics';
 import { addPropInstances, disposeInstances } from './instancing';
 import type { PropLibrary } from './props';
 import { WORLD } from '../core/config';
@@ -136,6 +137,24 @@ for (let biome = Biome.Plains; biome <= Biome.Snow; biome++) {
     begun: PropKind.HouseFrame,
     nearly: PropKind.HouseRoof,
     done: (PropKind.HousePlains + biome) as PropKind,
+  };
+}
+
+/*
+ * And the things a village bought out of its treasury that are not houses.
+ *
+ * A hall buys six things and, until this table had rows for them, one of them appeared. The
+ * unfinished stages are the house's own, because a well being dug and a house being framed are both
+ * a site with pegs in it and a player reads them the same way — the finished row is the only part
+ * that is particular to what is being built. `civics.ts` decides which of these a village has and
+ * where each one stands; this only says what it looks like.
+ */
+for (const civic of CIVICS) {
+  LOOKS[`civic-${civic.id}`] = {
+    marked: PropKind.HousePegs,
+    begun: PropKind.HouseFrame,
+    nearly: PropKind.HouseRoof,
+    done: civic.prop,
   };
 }
 
