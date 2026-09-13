@@ -5244,6 +5244,25 @@ than by remembering — and the first thing found was that the gap is not where 
       mint about 750 gold per seed in a hundred days. Something has to be a sink of the same size,
       and "a village buys a thing" is the only honest candidate on the list.
 
+      **Half done on the 13th, and the diagnosis changed on the way.** It is not the tax rate. The
+      hall's list of things to buy is **six items long** and then empty for ever, while what it takes
+      grows with every person who moves in — measured, a mature village gains 143 to 188 gold a day
+      with nothing to spend it on, against six a day at a hundred days. A sink that does not scale
+      with its source is a delay, not a sink, and a building is bought once.
+
+      Two standing costs went in, both putting money back into the purses it came from: **upkeep**
+      (the hall keeps up what the hall built — a well silts, a bath house burns fuel) and **posts**
+      (a watch that is a rota of one per twenty souls, a bath keeper, a market warden). 60% of the
+      world's coin in halls is 45% now.
+
+      One thing tried and rejected, rightly: a lid on the pot — the hall not collecting once it had
+      enough. *The pot can never be full.* A tax rate that depends on a treasury balance is not a
+      thing a village does; anybody over the threshold pays, every morning, whatever the hall holds.
+      The fix belongs entirely on the spending side.
+
+      **What is left** is more kinds of work put out to contract, because the posts only exist for
+      buildings a village has. **90** is the next one and the best one.
+
 ## Found while standing things on the mountains — September 13th
 
 - [x] **83. No mountain in the game had a size.** *Found and fixed on the 13th, while closing 59d-i.*
@@ -5368,25 +5387,6 @@ than by remembering — and the first thing found was that the gap is not where 
       village grew further as well. The sanity bench had been printing the cause every run with the
       right diagnosis under it; it is an assertion now rather than a paragraph, because a note that
       reports a fault every time is a note somebody stops reading.
-
-      **Half done on the 13th, and the diagnosis changed on the way.** It is not the tax rate. The
-      hall's list of things to buy is **six items long** and then empty for ever, while what it takes
-      grows with every person who moves in — measured, a mature village gains 143 to 188 gold a day
-      with nothing to spend it on, against six a day at a hundred days. A sink that does not scale
-      with its source is a delay, not a sink, and a building is bought once.
-
-      Two standing costs went in, both putting money back into the purses it came from: **upkeep**
-      (the hall keeps up what the hall built — a well silts, a bath house burns fuel) and **posts**
-      (a watch that is a rota of one per twenty souls, a bath keeper, a market warden). 60% of the
-      world's coin in halls is 45% now.
-
-      One thing tried and rejected, rightly: a lid on the pot — the hall not collecting once it had
-      enough. *The pot can never be full.* A tax rate that depends on a treasury balance is not a
-      thing a village does; anybody over the threshold pays, every morning, whatever the hall holds.
-      The fix belongs entirely on the spending side.
-
-      **What is left** is more kinds of work put out to contract, because the posts only exist for
-      buildings a village has. **90** is the next one and the best one.
 
 - [ ] **89. The town hall is a villager who happens to be an unmoving building.** Raised on the 13th
       while the hall was being turned into a contracting party, and it is a simplification rather
@@ -5610,13 +5610,15 @@ than by remembering — and the first thing found was that the gap is not where 
       **Left:** `altitude`, `climb`, `hp`, `paddles`, `owned`, `gold` — and then the conventional
       ones, which are the same job with less to decide.
 
-- [ ] **95. Triage the 198 exports nothing reaches.** `chore reachable` counts work that exists and
+- [ ] **95. Triage the exports nothing reaches.** `chore reachable` counts work that exists and
       is called only by its own tests, which is the class three of the 13th's worst faults belonged
       to — an injury system with no caller, a mountain radius whose fallback was the only branch, a
-      landlord matched on a key that never matched indoors. It is a **ratchet**: 198 today, may fall,
+      landlord matched on a key that never matched indoors. It is a **ratchet**: 43 today, may fall,
       must never rise.
 
-      It is not 198 bugs and the difference is the work. Spot-checking turned up three kinds:
+      It read 198 on its first run and **43** on its second: the first version called an internal
+      helper unreached whenever the public function beside it was its only caller, which was 155
+      of them. It is not 43 bugs either, and telling those apart is the work. Spot-checking turned up three kinds:
 
       - **Constants a test imports** to check a table against — `LONGEST_STEP`, `MIN_BODY`. Mild;
         arguably fine.
