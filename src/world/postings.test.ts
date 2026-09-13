@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ownerFromSave } from './holdings';
 import { POST, POSTINGS, couldStand, postsToday, turnedAway, wageForAGuard, wagesOwed } from './postings';
 import { PROSPER } from './prosperity';
 import type { Person } from './people';
@@ -27,7 +28,7 @@ function villager(trade: string, purse: number): Person {
   };
 }
 
-const farm = (id: string, owner: string) => ({ id, kind: 'farm', owner });
+const farm = (id: string, owner: string) => ({ id, kind: 'farm', owner: ownerFromSave(owner) });
 
 describe('who stands a post this morning', () => {
   it('posts nobody at all when there is nothing overhead', () => {
@@ -123,7 +124,7 @@ describe('what the post is worth to the man who paid for it', () => {
   it('turns back a share of a raid for each man on the gate, and never more than all of it', () => {
     // a man with a stick does not send a dragon home, and pretending otherwise would make one guard
     // the answer to everything. Three do not send back four cows out of three
-    const guard = { kind: 'guard', holding: 'f1', who: 'a', funder: 'b', wage: 12 };
+    const guard = { kind: 'guard', holding: 'f1', who: 'a', funder: ownerFromSave('b'), wage: 12 };
     expect(turnedAway([], 9), 'cattle came back with nobody watching them').toBe(0);
     expect(turnedAway([guard], 9)).toBe(3);
     expect(turnedAway([guard, guard], 9)).toBe(6);
@@ -132,7 +133,7 @@ describe('what the post is worth to the man who paid for it', () => {
   });
 
   it('rounds a saved beast down, because half a cow saved is a cow that was taken', () => {
-    const guard = { kind: 'guard', holding: 'f1', who: 'a', funder: 'b', wage: 12 };
+    const guard = { kind: 'guard', holding: 'f1', who: 'a', funder: ownerFromSave('b'), wage: 12 };
     expect(turnedAway([guard], 2)).toBe(0);
     expect(turnedAway([guard], 4)).toBe(1);
   });

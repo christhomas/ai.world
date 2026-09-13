@@ -1,8 +1,7 @@
 import { WATCH_WAGE } from './hall';
 import {
   BEASTS_PER_FARM, THE_HALL, canDo, foundAHolding, possibleHere, sortOf, vacancies,
-  type Holding, type Sort,
-} from './holdings';
+  type Holding, type Sort, THE_HALL_OWNER, ownedBy, type Owner } from './holdings';
 import { LIVELIHOOD, shareOut } from './livelihoods';
 import { PROSPER } from './prosperity';
 import { STANDARD } from './roofs';
@@ -120,7 +119,8 @@ export interface Founded {
   holding: Holding;
   costs: number;
   /** Whose purse it comes out of: a villager's id, or `THE_HALL`. */
-  payer: string;
+  /** Whose purse it came out of: a villager, or the hall. See `Owner`. */
+  payer: Owner;
   /** And into whose, because the village raises it with its own hands. */
   wages: Map<string, number>;
 }
@@ -198,7 +198,7 @@ export function whoFoundsAnother(
   // beasts, raise the shed, and put somebody in it" is three acts and only the first two are his:
   // who ends up in it is the village's answer the same evening, and may be nobody for a while
   const holding = foundAHolding(name, best.sort, best.person, holdings, day);
-  return { holding: { ...holding, worker: '' }, costs: best.costs, payer: best.person.id, wages };
+  return { holding: { ...holding, worker: '' }, costs: best.costs, payer: ownedBy(best.person), wages };
 }
 
 /** The one holding a village can be visibly short of, and the only one the hall buys. See below. */
@@ -255,5 +255,5 @@ export function whatTheHallFounds(
   if (purse - saving < costs + WATCH_WAGE) return null;
   const wages = whoIsPaidToRaiseIt(people, costs);
   if (!wages) return null;
-  return { holding: foundAHolding(name, sort, null, holdings, day), costs, payer: THE_HALL, wages };
+  return { holding: foundAHolding(name, sort, null, holdings, day), costs, payer: THE_HALL_OWNER, wages };
 }
