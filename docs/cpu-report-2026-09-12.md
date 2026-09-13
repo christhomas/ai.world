@@ -283,3 +283,35 @@ knowing which world that tab had open. Items 1, 2 and 4 are the three that matte
 
 *Everything above is read-only: no source file was changed, nothing was committed, and the
 throwaway vite server and snapshot used for the measurements were stopped.*
+
+---
+
+## Re-measured, 13 September 2026 — after every finding above was fixed
+
+Same method, same machine, same two worlds, a 10-second steady-state window with the hero standing
+still. The harness counts `requestAnimationFrame` from inside the page rather than trusting the
+`Frames` metric, which the headless shell reports as 0 whether or not anything is drawing — a
+measurement of a page that never drew a frame is a measurement of nothing, and that trap cost a
+reading before it was caught.
+
+| | road, 12 Sept | road, 13 Sept | endless, 13 Sept |
+|---|---|---|---|
+| ProcessTime over 10 s | 3.286 s | **0.407 s** | 0.433 s |
+| ThreadTime | 0.749 s | **0.205 s** | 0.215 s |
+| ScriptDuration | 0.392 s | **0.155 s** | 0.162 s |
+| % of a core | 33 % | **4.1 %** | 4.3 % |
+| rAF callbacks | 181 | 101 | 115 |
+| main-thread JS per frame | 3.23 ms | **1.53 ms** | 1.41 ms |
+
+Fewer frames came back in the second run, so the honest comparison is per frame: **process time per
+frame fell from 18.2 ms to 4.0 ms** and main-thread JS per frame roughly halved. The endless world
+is no longer the expensive one — it reads within a tenth of a percent of the road world standing
+still, where before it was the world that burned a core for forty seconds every time the ring moved.
+
+What is *not* re-measured here is the growing burst itself, because a hero standing still does not
+cross a patch boundary. That number is known from the work rather than from this window: a patch
+went from 6,250 ms to 478 ms and the ring of eight from ~40 core-seconds to ~5.
+
+All nine findings are fixed: the country worker (1), the chat (2), `theDaysNews` (3), the shadow
+pass (4), the coast field's timer (8) and `Patchwork`'s want-without-touch (9), with 5, 6 and 7
+answered as prices rather than bugs — and 7's hidden-tab half wired through `WORLD_PAUSE`.

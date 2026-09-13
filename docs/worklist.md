@@ -4941,7 +4941,7 @@ than by remembering — and the first thing found was that the gap is not where 
       What is left is the list: a swing, a door, a trade, a hire, a build. The item's own division
       still holds — predict what the hand feels, and let the ledger take its time.
 
-- [~] **74. Why one tab of this game costs more than a core.** Measured by accident on the evening of
+- [x] **74. Why one tab of this game costs more than a core.** Measured by accident on the evening of
       the 12th: an Edge renderer holding the game at **160% CPU** while the tab sat there, which is
       the top process on the machine and more than one core. Over a core means it is not only the
       render loop — a renderer process holds the workers too, so the chunk workers and the country
@@ -4985,6 +4985,18 @@ than by remembering — and the first thing found was that the gap is not where 
       it finds is the work, and it matters beyond tidiness: the Pi this deploys to is slower than the
       machine it was measured on, and a phone build (**72**) has a battery.
 
+
+      **Closed on the 13th, by measuring rather than by reading.** Every one of the report's nine
+      findings is fixed, and the same harness on the same machine now reads **4.1% of a core** for
+      the road world against 33% on the 12th — 18.2 ms of process time per frame down to 4.0 ms, and
+      main-thread JS per frame from 3.23 ms to 1.53 ms. The endless world reads within a tenth of a
+      percent of the road world standing still, where it used to be the one that burned a core for
+      forty seconds every time the ring moved.
+
+      One trap worth keeping: the headless shell reports `Frames` as 0 whether or not the page is
+      drawing, so the first reading was a confident measurement of nothing. The harness counts
+      `requestAnimationFrame` from inside the page instead. Same shape as the `__entities`
+      projection trap — a debug number that is always there and sometimes means nothing.
 - [x] **75. Ask once per region, not once per tile.** Raised while reading the CPU report: making a
       cell lookup cheap took a patch from 6,250 ms to 710 ms, but **twelve million lookups per patch
       is still the shape of the thing**, and it is the wrong shape. What is left of the 710 ms is
