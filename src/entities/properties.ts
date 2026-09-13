@@ -60,7 +60,7 @@ export interface CreatureProperties {
   /** Max height difference this kind can step across (default STEP_LIMIT). The hero climbs a full terrace. */
   climb?: number;
   /** Damage per bite for predators that attack the hero. */
-  damage?: number;
+  damage: number;
   /**
    * The shape this creature throws when it attacks. Left out for most of them: anything with an
    * arm punches and anything without bites, which covers the whole bestiary without a table. Set
@@ -126,7 +126,15 @@ function readCreature(f: Fields, id: string): CreatureProperties {
     altitude: f.maybeNum('altitude'),
     timid: f.flag('timid'),
     climb: f.maybeNum('climb'),
-    damage: f.maybeNum('damage'),
+    /*
+     * Required, as of item 94. It was optional, so twelve of the fourteen beasts and every bird and
+     * every person said nothing — and each of the six places that reads it invented the same answer
+     * separately, which is a fact about a cow being decided in `quarry.ts`. Every entry states it
+     * now, so a deer does nought damage because somebody wrote that down rather than because six
+     * call sites happened to agree, and a new creature cannot slip in without the question
+     * being asked: a file that omits it fails at load.
+     */
+    damage: f.num('damage'),
     blow,
     paddles: f.maybeFlag('paddles'),
     owned: f.maybeFlag('owned'),

@@ -86,7 +86,7 @@ export const NIGHT_PREDATORS: Record<Biome, string[]> = perCountry((country) => 
  * what a dangerous wood has is more of the wolves the wood already had.
  */
 export const BIOME_HUNTERS: Record<Biome, SpawnWeight[]> = perCountry((country) =>
-  weights(country.group('land')).filter((s) => (KINDS[s.kind]?.damage ?? 0) > 0));
+  weights(country.group('land')).filter((s) => KINDS[s.kind]?.damage > 0));
 
 /** What waits underground, by how far down you are. One entry per floor, counting from one. */
 const DUNGEON_BANDS: ReadonlyArray<readonly SpawnWeight[]> =

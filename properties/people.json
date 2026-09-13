@@ -13,6 +13,7 @@
     ],
     "behaviour": "travel",
     "timid": false,
+    "damage": 0,
     "hp": 50,
     "palettes": [
       [
@@ -83,6 +84,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 60,
     "palettes": [
       [
@@ -153,6 +155,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "palettes": [
       [
         "#ffffff",
@@ -200,13 +203,14 @@
     "speed": 5.5,
     "runSpeed": 5.5,
     "climb": 0.56,
-  "paddles": true,
+    "paddles": true,
     "herd": [
       1,
       1
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "palettes": [
       [
         "#2fb36a",
@@ -239,6 +243,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 60,
     "palettes": [
       [
@@ -285,6 +290,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 50,
     "palettes": [
       [
@@ -322,6 +328,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 50,
     "palettes": [
       [
@@ -359,6 +366,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 90,
     "palettes": [
       [
@@ -396,6 +404,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 60,
     "palettes": [
       [
@@ -433,6 +442,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 60,
     "palettes": [
       [
@@ -475,6 +485,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 60,
     "palettes": [
       [
@@ -515,6 +526,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 60,
     "palettes": [
       [
@@ -588,6 +600,7 @@
     ],
     "behaviour": "wander",
     "timid": false,
+    "damage": 0,
     "hp": 60,
     "palettes": [
       [

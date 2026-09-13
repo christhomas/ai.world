@@ -247,7 +247,7 @@ export function createBlows(ctx: Fighting) {
     director.saw('fight');
     // swinging at things teaches you to swing at things: practice, weighted by what you swung at
     for (const e of res.hit) {
-      const grew = state.practised(e.kind.damage ?? 0, res.killed.includes(e));
+      const grew = state.practised(e.kind.damage, res.killed.includes(e));
       if (grew) flash(grew);
     }
     if (res.killed.length > 0) {

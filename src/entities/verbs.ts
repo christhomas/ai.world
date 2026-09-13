@@ -193,7 +193,7 @@ export const CREATURE_VERBS: Vocabulary<Mind> = {
      * all is a fact about it. The number was called `dangerous` too until a rescale went looking
      * for every damage value in the game, searched for "damage", and found none of the creatures.
      */
-    dangerous: () => (tick) => (tick.world.self.kind.damage ?? 0) > 0,
+    dangerous: () => (tick) => tick.world.self.kind.damage > 0,
 
     /** Is this creature hurt below a share of its hit points? */
     wounded: (params) => (tick) => {
@@ -508,7 +508,11 @@ function bite(params: Params): CreatureNode {
     // it lands where the creature is now, against wherever the target has got to. A step back
     // during the wind-up is a step out of it, which is the only defence that needs no button.
     if (rangeTo(tick) > reach + BEHAVIOUR.BITE_SLIP) return 'failure';
-    const damage = number(params, 'damage', self.kind.damage ?? 1);
+    // what it bites for is its own, which is what `kind.damage` is for and the one reader where
+    // that is unambiguous. It defaulted to one for a creature that declared nothing; every creature
+    // declares it now (item 94), and a thing whose damage is nought has a harmless bite, which is
+    // the truthful reading rather than a one somebody reached for
+    const damage = number(params, 'damage', self.kind.damage);
     // the hero has hearts and a HUD; anybody else is just another creature to be hurt
     if (aim.who) strike(self, aim.who, damage); else tick.world.bite(self, damage);
     return 'success';

@@ -60,6 +60,16 @@ export function takePost(params: Params): CreatureNode {
 }
 
 /**
+ * What an arrow does when the behaviour that looses it does not say.
+ *
+ * One, which is what this has always been: the fallback it replaces read the archer's own damage
+ * and then defaulted to one, and every archer in the game is a person whose damage is nought. So
+ * one is not a new number, it is the number that was actually being used, with the reason written
+ * down and the wrong field out of the way.
+ */
+const AN_ARROW = 1;
+
+/**
  * Loose an arrow at whatever is marked, from where you are standing.
  *
  * The counterpart of `bite`, and deliberately built as its own verb rather than as a bite with a
@@ -83,9 +93,21 @@ export function loose(params: Params): CreatureNode {
 
     self.attackCooldown = number(params, 'cooldown', 1.6);
     self.yaw = yawFor(at.x - self.x, at.z - self.z);
-    // an arrow is one arrow: it stops in the first thing it reaches, and there is no wind-up to
-    // step out of, which is exactly what makes a bow worth having and worth being frightened of
-    strike(self, at, number(params, 'damage', self.kind.damage ?? 1));
+    /*
+     * An arrow is one arrow: it stops in the first thing it reaches, and there is no wind-up to
+     * step out of, which is exactly what makes a bow worth having and worth being frightened of.
+     *
+     * What it hits for is the *arrow's*, not the archer's, and that distinction was hiding inside a
+     * fallback until item 94 went looking. `self.kind.damage` is how hard a thing hits when it is
+     * the thing attacking you — a wolf's teeth, a bear's weight — and the same number is read
+     * elsewhere to decide whether a creature is dangerous at all. A bowman on a wall is neither: he
+     * is a man, and a man who is not attacking anybody is not dangerous, so his `damage` is nought
+     * and always was. The `?? 1` was quietly turning that nought into an arrow that does something,
+     * which is two different questions answered out of one field.
+     *
+     * So the arrow has its own number. A behaviour that wants a heavier one says so.
+     */
+    strike(self, at, number(params, 'damage', AN_ARROW));
     return 'success';
   };
 }
