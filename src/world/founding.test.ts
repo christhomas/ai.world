@@ -61,7 +61,7 @@ describe('who is paid to raise it', () => {
     const people = [villager('b', 'builder'), villager('f', 'farmer'), villager('s', 'seller')];
     const wages = whoIsPaidToRaiseIt(people, 300)!;
     expect([...wages.keys()]).toEqual(['b']);
-    expect(wages.get('b')).toBe(300);
+    expect(wages.get(ownerFromSave('b'))).toBe(300);
   });
 
   it('shares it among everybody who holds a trade where there are none', () => {
@@ -81,14 +81,14 @@ describe('what a holding earns, and whose it is', () => {
     const people = [villager('a', 'farmer'), villager('b', 'farmer')];
     const took = shareTheTake([farm('f1', 'a', 'a'), farm('f2', 'b', 'b')], 10, people);
     expect(took.toTheHall).toBe(0);
-    expect(took.purses.get('a')).toBe(5);
-    expect(took.purses.get('b')).toBe(5);
+    expect(took.purses.get(ownerFromSave('a'))).toBe(5);
+    expect(took.purses.get(ownerFromSave('b'))).toBe(5);
   });
 
   it('pays the hand a day and keeps the rest for the hall', () => {
     const people = [villager('hand', 'farmer')];
     const took = shareTheTake([farm('f1', THE_HALL, 'hand')], A_FARMS_DAY, people);
-    expect(took.purses.get('hand')).toBe(A_DAYS_HIRE);
+    expect(took.purses.get(ownerFromSave('hand'))).toBe(A_DAYS_HIRE);
     expect(took.toTheHall).toBeCloseTo(A_FARMS_DAY - A_DAYS_HIRE, 6);
     expect(took.toTheHall).toBeGreaterThan(0);
   });
@@ -96,7 +96,7 @@ describe('what a holding earns, and whose it is', () => {
   it('never pays out of a paddock what the paddock did not make', () => {
     const people = [villager('hand', 'farmer')];
     const thin = shareTheTake([farm('f1', THE_HALL, 'hand')], 0.5, people);
-    expect(thin.purses.get('hand')).toBe(0.5);
+    expect(thin.purses.get(ownerFromSave('hand'))).toBe(0.5);
     expect(thin.toTheHall).toBe(0);
   });
 
@@ -113,8 +113,8 @@ describe('what a holding earns, and whose it is', () => {
   it('treats an owner nobody answers to as the hall, so no coin leaves the world', () => {
     const people = [villager('hand', 'farmer')];
     const took = shareTheTake([farm('f1', 'ghost', 'hand')], 6, people);
-    expect(took.purses.get('ghost')).toBeUndefined();
-    expect(took.purses.get('hand')! + took.toTheHall).toBe(6);
+    expect(took.purses.get(ownerFromSave('ghost'))).toBeUndefined();
+    expect(took.purses.get(ownerFromSave('hand'))! + took.toTheHall).toBe(6);
   });
 });
 
