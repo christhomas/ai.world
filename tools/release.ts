@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 /**
  * Cutting a release, which in this project is one act with four parts.
@@ -51,6 +52,60 @@ const WRITTEN: Array<{ file: string; find: RegExp; write: (v: string) => string 
   { file: 'package.json', find: /^  "version": ".+",$/m, write: (v) => `  "version": "${v}",` },
 ];
 
+/**
+ * Which issues this release gets to claim.
+ *
+ * Not a judgement — a window. Everything closed since the previous tag went out is in this release,
+ * because there was no other release for it to have gone out in. That is worth writing down on the
+ * issue, because the question anybody asks of a closed issue six months later is *which version
+ * fixed this*, and an issue that only says "closed" cannot answer it.
+ *
+ * Milestones are the other way round and do not fit this project: a milestone is a bag you fill
+ * before you cut, and here a release is cut the moment one feature lands. There were twenty-one
+ * releases on 13 September 2026 against four issues closed, so most milestones would hold one issue
+ * or none, and several of those releases fixed something found while doing something else — nothing
+ * planned them and no bag would have held them.
+ */
+export function whatShipped(
+  closed: ReadonlyArray<{ number: number; closedAt: string }>,
+  since: string | null,
+): number[] {
+  const after = since === null ? 0 : Date.parse(since);
+  return closed.filter((issue) => Date.parse(issue.closedAt) > after).map((issue) => issue.number);
+}
+
+/**
+ * When the previous release went out, as GitHub reckons it — or nothing, for a first release.
+ *
+ * The tag's own commit date, rather than anything local: the issues are closed on GitHub's clock,
+ * and comparing two clocks is how an issue ends up stamped twice or not at all.
+ */
+function whenTheLastOneWent(): string | null {
+  const tags = run('git', ['tag', '--list', 'v*', '--sort=-creatordate']).split('\n').filter(Boolean);
+  const previous = tags[0];
+  if (!previous) return null;
+  return run('git', ['log', '-1', '--format=%cI', previous]);
+}
+
+/**
+ * Write the version onto every issue that shipped in it.
+ *
+ * A comment rather than a label, because a label is a set membership and this is a fact with a
+ * date: the comment sits in the issue's own history next to the close that caused it. It is the
+ * last thing a release does and the only thing it does not care about failing — the release is
+ * already tagged, pushed and building, and a missing comment is worth less than a crash here.
+ */
+function stampTheIssues(version: string, shipped: number[]): void {
+  for (const issue of shipped) {
+    try {
+      run('gh', ['issue', 'comment', String(issue), '--body', `Shipped in [v${version}](https://github.com/christhomas/ai.world/releases/tag/v${version}).`]);
+    } catch {
+      say(`could not comment on #${issue} — the release is out regardless`);
+    }
+  }
+  if (shipped.length > 0) say(`stamped v${version} on ${shipped.map((n) => `#${n}`).join(', ')}`);
+}
+
 function main(): void {
   const asked = process.argv[2];
   if (!asked) throw new Error('usage: release <version|major|minor|patch> ["what is in it"]');
@@ -67,6 +122,9 @@ function main(): void {
   const version = nextVersion(asked, now);
   if (version === now) throw new Error(`the chart is already ${now}`);
   say(`releasing ${now} → ${version}`);
+
+  // asked before the new tag exists, or the window this release covers would be empty
+  const since = whenTheLastOneWent();
 
   say('running the tests, because a release is the wrong place to find out');
   execFileSync('pnpm', ['test', '--run'], { stdio: 'inherit' });
@@ -93,6 +151,11 @@ function main(): void {
   run('gh', ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes', body]);
   say(`published the release — the image workflow is building ghcr.io/christhomas/ai-world:${version}`);
   say('watch it with: gh run watch $(gh run list --workflow=image.yml --limit 1 --json databaseId -q \'.[0].databaseId\')');
+
+  const closed = JSON.parse(run('gh', ['issue', 'list', '--state', 'closed', '--limit', '100', '--json', 'number,closedAt'])) as
+    Array<{ number: number; closedAt: string }>;
+  stampTheIssues(version, whatShipped(closed, since));
 }
 
-main();
+// importable, so the window above can be tested without cutting a release to find out
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
