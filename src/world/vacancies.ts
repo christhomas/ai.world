@@ -85,3 +85,38 @@ export function shortOf(
  * vacancy; a place that ought to have one and a half farmers and has one does not.
  */
 const WORTH_ONE = 0.5;
+
+/**
+ * Who does what in a village, and which of its trades nobody is doing.
+ *
+ * The other half of item 24a. Enrolment already works — a grown child takes the trade the village
+ * is short of rather than a coin toss — but nothing anywhere could *say* what a village holds or
+ * lacks, so the part of that item about the hall being a directory (where the doctor is, where the
+ * builder drinks) and about vacancies being something a player can read had nothing to read from.
+ *
+ * Derived and never stored, like everything else in this corner: a village that buries its doctor
+ * is short of one the next morning without anything having to notice, and a village re-lived from
+ * its founding arrives at the same list as the one somebody has been standing in.
+ *
+ * **Deliberately not dialogue.** What a village has is a fact about the village; who says it, and
+ * in what words, is the game's business. Putting both here would make the sentence untestable and
+ * the fact unreusable — a signpost, the compass and a quest all want this same answer, and only one
+ * of them is a conversation.
+ *
+ * `nobodyDoing` is bounded by the trades the *ground* supports, which is what `trades` is: a village
+ * with no shore is not short of a fisherman, it is a village with no shore. That is the same rule
+ * `shortOf` reads the establishment by, one question further on.
+ */
+export function directoryOf(
+  trades: readonly string[], people: readonly { id: string; trade: string }[],
+): { holding: Map<string, string[]>; nobodyDoing: string[] } {
+  const supported = new Set(trades);
+  const holding = new Map<string, string[]>();
+  for (const person of people) {
+    // a child and the very old hold no trade, and an empty string is not one
+    if (person.trade === '' || !supported.has(person.trade)) continue;
+    const already = holding.get(person.trade);
+    if (already) already.push(person.id); else holding.set(person.trade, [person.id]);
+  }
+  return { holding, nobodyDoing: trades.filter((trade) => !holding.has(trade)) };
+}

@@ -1,4 +1,4 @@
-SANITY BENCH — PASS — 2026-09-13T10:35:45.645Z
+SANITY BENCH — PASS — 2026-09-13T10:39:22.419Z
 
   6 villages on 3 seeds, 450 days each — five or six generations, which is
   long enough for drift to show. Nothing here is added up: the audit in economy-report.txt does that,

@@ -2,6 +2,7 @@ import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './ad
 import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
+import { directoryOf } from './vacancies';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { rankOfVillage, whatTheVillageSpends } from './growth';
@@ -409,6 +410,19 @@ export class Register {
 
   /** And what it paid them, for work the village bought. Nought on nearly every day. */
   hallPaid(id: string): number { return this.earned.get(id) ?? 0; }
+
+  /**
+   * Who does what here, and which of this ground's trades nobody is doing.
+   *
+   * The register is where the answer lives because the register is who is alive — see
+   * `directoryOf`, which decides it and knows nothing about villages. This only hands it the two
+   * lists it needs. Item 24a's directory, and the thing a vacancy has to be readable from before a
+   * player can answer one.
+   */
+  directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[] } {
+    const here = this.villages.get(village);
+    return directoryOf(here?.trades ?? [], here?.people ?? []);
+  }
 
   /** What this village has had built out of its own money. */
   worksOf(village: string): readonly string[] { return this.villages.get(village)?.works ?? []; }
