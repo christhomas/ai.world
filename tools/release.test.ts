@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { whatShipped } from './release';
 
 /**
@@ -58,5 +60,49 @@ describe('an issue that already says which version', () => {
 
   it('stamps the whole window when nothing has been stamped', () => {
     expect(whatShipped(closed, '2026-09-13T09:34:20Z', new Set())).toEqual([4, 6, 9]);
+  });
+});
+
+/**
+ * The changelog the release writes, and the README it keeps in step with it.
+ *
+ * `github-guard` refuses a version tag whose release nobody documented, and it reads the *tagged
+ * commit's* files — so a changelog written after the tag is a push that fails, and one written
+ * before it is a release that cannot go out undescribed. These check the shapes the guard is
+ * looking for, because finding out at `git push` is finding out late.
+ */
+describe('what a release writes down about itself', () => {
+  const changelog = readFileSync('CHANGELOG.md', 'utf8');
+  const readme = readFileSync('README.md', 'utf8');
+
+  it('has a section for every version that has ever been tagged', () => {
+    const tagged = execFileSync('git', ['tag', '--list', 'v*'], { encoding: 'utf8' })
+      .split('\n').filter(Boolean);
+    const written = new Set([...changelog.matchAll(/^## (v\d+\.\d+\.\d+) /gm)].map((m) => m[1]));
+    expect(tagged.filter((tag) => !written.has(tag)), 'a release nobody wrote down').toEqual([]);
+  });
+
+  it('keeps the README to ten, which is what the guard allows', () => {
+    const section = readme.slice(readme.indexOf('## Changelog'));
+    const shown = [...section.matchAll(/^### v\d+\.\d+\.\d+ /gm)];
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.length).toBeLessThanOrEqual(10);
+  });
+
+  it('points the reader at the rest of them', () => {
+    const section = readme.slice(readme.indexOf('## Changelog'));
+    expect(section, 'ten releases with no way to the other hundred and twenty-six')
+      .toContain('(CHANGELOG.md)');
+  });
+
+  it('says the same thing in both places about the versions it shows twice', () => {
+    // two records of one fact drifting apart is the fault this project finds most often, so the
+    // README's ten are rebuilt from the changelog rather than maintained beside it
+    const section = readme.slice(readme.indexOf('## Changelog'));
+    for (const [, tag, said] of section.matchAll(/^### (v[\d.]+) — \S+\n\n(.+)$/gm)) {
+      const full = changelog.match(new RegExp(`^## ${tag.replace(/\./g, '\\.')} — \\S+\\n\\n(.+)$`, 'm'));
+      expect(full, `${tag} is in the README and not in the changelog`).not.toBeNull();
+      expect(said.trim()).toBe(full![1].trim());
+    }
   });
 });

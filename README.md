@@ -597,6 +597,50 @@ and nor is the body it is drawn with, which is `models/creatures/<name>.json`. W
 Three readability passes are written up in `docs/human-code-report-2026-09-03.md`,
 `docs/human-code-report-2026-09-03-pass2.md` and `docs/human-code-report-2026-09-04.md`.
 
+## Changelog
+
+The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
+
+### v0.92.6 — 2026-09-13
+
+The watchman a village has been paying for since it bought the tower is now standing on it — and he and the tower agree to the tile about where the tower is.
+
+### v0.92.5 — 2026-09-13
+
+A village's treasury finally shows on the ground: the well it dug is on the square, the watchtower it bought is on the rim, the bath house is on a plot. Three of the six were bought and none of them ever appeared.
+
+### v0.92.4 — 2026-09-13
+
+The fish-folk are in a wreck for its cargo: a loaded hull is thick with them and a picked-over one is quiet, so the danger reads the payout before you dive. Wood sold over a shop counter reaches the village yard, and the wright sells the cart the item has always promised.
+
+### v0.92.3 — 2026-09-13
+
+every value on a creature is stated by the creature
+
+### v0.92.2 — 2026-09-13
+
+every creature states every value it has
+
+### v0.92.1 — 2026-09-13
+
+paying the hall is paying somebody
+
+### v0.92.0 — 2026-09-13
+
+villagers can be hurt, and the doctor has work
+
+### v0.91.0 — 2026-09-13
+
+the hall puts work out to contract
+
+### v0.90.0 — 2026-09-13
+
+villages founded at what their roofs hold
+
+### v0.89.0 — 2026-09-13
+
+a frame goes up in a village you are walking through
+
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

@@ -129,6 +129,66 @@ function stampTheIssues(version: string, shipped: number[]): void {
   if (shipped.length > 0) say(`stamped v${version} on ${shipped.map((n) => `#${n}`).join(', ')}`);
 }
 
+/**
+ * The changelog, which is the one place a release says what it was.
+ *
+ * Written before the commit and before the tag, and that order is the whole point rather than a
+ * detail. `github-guard`'s changelog hook reads the *tagged commit's* files when a version tag is
+ * pushed and refuses a tag whose release nobody documented — so a changelog written afterwards is a
+ * push that fails, and one written here is a release that cannot go out undescribed.
+ *
+ * Two files, and they are not the same file twice. `CHANGELOG.md` is every release there has ever
+ * been; the README carries the ten most recent and links onward, because a reader who has just
+ * found the project wants to know what happened lately and not what happened a hundred and thirty
+ * releases ago.
+ */
+const CHANGELOG = 'CHANGELOG.md';
+const README = 'README.md';
+
+/** How many releases the README shows before the rest are only in the changelog. See the guard. */
+const IN_THE_README = 10;
+
+/** Today, as the changelog dates things: the day the release went out, not the day it was written. */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Put this version at the top of `CHANGELOG.md`, under the preamble and above the last one. */
+function writeTheChangelog(version: string, body: string): void {
+  const text = readFileSync(CHANGELOG, 'utf8');
+  const at = text.indexOf('\n## v');
+  if (at < 0) throw new Error(`${CHANGELOG} has no released versions in it to write above`);
+  const entry = `\n## v${version} — ${today()}\n\n${body.trim()}\n`;
+  writeFileSync(CHANGELOG, text.slice(0, at) + entry + text.slice(at));
+}
+
+/**
+ * And the README's ten, which are rewritten rather than appended to.
+ *
+ * Rebuilt from the changelog every time, so the two cannot disagree about what a version said — the
+ * fault this project finds most often is two records of one fact drifting apart, and a summary
+ * maintained by hand beside the thing it summarises is exactly how that starts. Only the first line
+ * of each entry, because the README is a front page and not an archive.
+ */
+function writeTheReadme(): void {
+  const log = readFileSync(CHANGELOG, 'utf8');
+  const entries = [...log.matchAll(/^## (v\d+\.\d+\.\d+) — (\S+)\n([\s\S]*?)(?=\n## v|$)/gm)]
+    .slice(0, IN_THE_README)
+    .map(([, tag, when, said]) => {
+      const first = said.trim().split('\n')[0].trim();
+      return `### ${tag} — ${when}\n\n${first || '_No note was written for this one._'}\n`;
+    });
+  const section = ['## Changelog', '',
+    `The ten most recent releases. Every one since \`v0.1.0\` is in [${CHANGELOG}](${CHANGELOG}).`,
+    '', ...entries].join('\n').trimEnd();
+  const text = readFileSync(README, 'utf8');
+  const from = text.indexOf('## Changelog');
+  if (from < 0) throw new Error(`${README} has no "## Changelog" section to rewrite`);
+  const to = text.indexOf('\n## ', from + 1);
+  writeFileSync(README, text.slice(0, from) + section + '\n' + (to < 0 ? '' : text.slice(to + 1)));
+}
+
+
 function main(): void {
   const asked = process.argv[2];
   if (!asked) throw new Error('usage: release <version|major|minor|patch> ["what is in it"]');
@@ -160,7 +220,12 @@ function main(): void {
   say('chart, appVersion, the HelmRelease pin and the package all moved');
 
   const body = note || `Version ${version}.`;
-  run('git', ['add', 'chart/Chart.yaml', 'deploy/flux/helmrelease.yaml', 'package.json']);
+  // before the commit, because the guard reads the tagged commit and refuses an undocumented tag
+  writeTheChangelog(version, body);
+  writeTheReadme();
+  say(`${CHANGELOG} and the README's ten now say what ${version} was`);
+  run('git', ['add', 'chart/Chart.yaml', 'deploy/flux/helmrelease.yaml', 'package.json',
+              CHANGELOG, README]);
   run('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', `Release ${version}\n\n${body}`]);
   run('git', ['tag', '-a', `v${version}`, '-m', `v${version}`]);
   say(`committed and tagged v${version}`);
