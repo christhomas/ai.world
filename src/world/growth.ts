@@ -1,4 +1,4 @@
-import { WATCH_WAGE, WORKS, whatTheHallSpends } from './hall';
+import { WATCH_WAGE, WORKS, whatTheHallSpends, upkeepOf, whoTheHallEmploys } from './hall';
 import {
   A_CREW_TAKES, A_DAY_OF_BUILDING, whatTheHallFounds, whoFoundsAnother, whoIsPaidToRaiseIt,
 } from './founding';
@@ -232,11 +232,65 @@ export function whatTheVillageSpends(
   const works: string[] = raised ? [workOf(raised.roof, day)] : [];
   const onTheHouse = raised?.costs ?? 0;
 
+  /*
+   * Keeping up what the hall has already built, before it thinks about anything else.
+   *
+   * Item 82: the hall's list of wants is finite, so a mature village was gaining a hundred and
+   * fifty gold a day with nothing to spend it on. A well silts, a bath house burns fuel, a market
+   * hall's roof wants mending — none of that is a thing you buy once, and paying for it puts the
+   * money back into the purses it was taxed out of rather than leaving it in a pot.
+   *
+   * Taken first for the reason the watchman is paid first: a village that bought a bath house and
+   * let its well silt up has done things in the wrong order. What it cannot afford it does not pay,
+   * which is `whoStandsWatch`'s rule — the buildings do not fall down and the money does not come
+   * from nowhere either. `hall.ts` says what is owed; this is where it moves.
+   */
+  const owed = Math.min(upkeepOf(built), Math.max(0, purse - onTheHouse));
+  const keeping = owed > 0 ? whoIsPaidToRaiseIt(people, owed) : null;
+  const upkeep = keeping ? owed : 0;
+  if (keeping) for (const [id, much] of keeping) wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
+
+  /*
+   * And the work it has out to contract, which is the outflow that scales the way the income does.
+   *
+   * What a hall takes grows with the number of people in the village; what it spends on *buildings*
+   * cannot, because a building is bought once and a village's list of them is six long. So a big
+   * village out-earns any shopping list however long it is, and the treasury fills regardless — a
+   * sink that does not scale with its source is not a sink, it is a delay.
+   *
+   * A job scales. See `whoTheHallEmploys`: a watch is a rota that grows with the village, a bath
+   * house wants keeping, a market wants a warden, and every coin of it lands back in the purses it
+   * was taxed from. The hall itself is the party to it rather than anybody in the village, which is
+   * what makes these the only wages in this world that are not one man paying another.
+   */
+  const employed = whoTheHallEmploys(Math.max(0, purse - onTheHouse - upkeep), built, people);
+  if (employed) for (const [id, much] of employed.paid) {
+    wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
+  }
+  const kept = employed?.costs ?? 0;
+
   // one building a morning, which is the hall's own rule and worth keeping: a village that put a
   // house up and dug a well between breakfast and noon is a village nobody watched change. So on a
   // morning a house goes up, the hall is handed the watchman's wage and not a coin more — he is
   // still paid, because a wage is owed, and there is nothing left over to buy anything with.
-  const left = raised ? Math.min(purse - onTheHouse, WATCH_WAGE) : purse;
+  /*
+   * What is left for the hall to buy with.
+   *
+   * It used to keep back exactly the watchman's day on a morning a house went up, so a village
+   * could not spend its last coin on a roof and leave its tower empty. The payroll is taken before
+   * this now and the watch is part of it, so the reserve has already happened: what reaches the
+   * shopping list is simply what nobody is owed.
+   */
+  /*
+   * What is left for the hall to buy with: nothing at all on a morning a house went up.
+   *
+   * One building a morning is the hall's own rule and worth keeping — a village that put a house up
+   * and dug a well between breakfast and noon is a village nobody watched change. It used to be
+   * expressed as a cap of one watchman's wage, which did that job and also kept his day back; the
+   * payroll takes the watch before this now, so the reserve has already happened and the rule can
+   * simply say what it means.
+   */
+  const left = raised ? 0 : purse - upkeep - kept;
   // what the village has grown into decides what its hall may buy at all: see `rank.ts`
   const hall = whatTheHallSpends(Math.round(left * 100) / 100, built, people, rankOfVillage(laidOut, built));
   for (const [id, much] of hall.wages) {
@@ -258,7 +312,7 @@ export function whatTheVillageSpends(
    * farmer both raised a shed before noon is a village nobody watched change.
    */
   const name = people[0]?.village ?? '';
-  const over = Math.round((purse - onTheHouse - hall.spent) * 100) / 100;
+  const over = Math.round((purse - onTheHouse - upkeep - kept - hall.spent) * 100) / 100;
   const saving = whatItIsSavingFor(built, rankOfVillage(laidOut, built));
   const founding = name === '' ? null
     : whatTheHallFounds(name, over, saving, people, holdings, built, herd, day)
@@ -276,10 +330,11 @@ export function whatTheVillageSpends(
 
   return {
     wages,
-    spent: Math.round((onTheHouse + hall.spent + onTheFarm) * 100) / 100,
+    spent: Math.round((onTheHouse + upkeep + kept + hall.spent + onTheFarm) * 100) / 100,
     works,
     holdsMore: raised?.holdsMore ?? 0,
-    watch: hall.watch,
+    // whoever the payroll has on the tower, which is where the watch is decided now
+    watch: employed?.watch ?? '',
     founded: founding ? [founding.holding] : [],
   };
 }
@@ -293,7 +348,7 @@ export function whatTheVillageSpends(
  * own savings as nought would have spent them on a farm and started the well again. Same list, same
  * order, same rule about a rank a place has not grown into being skipped rather than saved for.
  */
-function whatItIsSavingFor(built: readonly string[], rank: Rank): number {
+export function whatItIsSavingFor(built: readonly string[], rank: Rank): number {
   const next = WORKS.find(
     (work) => !built.includes(work.id) && (!work.needs || atLeast(rank, work.needs)),
   );
