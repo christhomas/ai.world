@@ -5174,7 +5174,7 @@ than by remembering — and the first thing found was that the gap is not where 
 
 ## Found while landing the roofs — September 13th
 
-- [ ] **79. A village's building work has no mornings.** A raised roof is drawn finished the day it
+- [x] **79. A village's building work has no mornings.** A raised roof is drawn finished the day it
       is paid for, because `Settlement.works` records *what* was bought and never *when* it was
       begun. A frame going up in a village you are walking through is the whole of why the four
       stages exist, and villages are the only builder in the world that cannot use them.
@@ -5331,3 +5331,12 @@ than by remembering — and the first thing found was that the gap is not where 
       `relived.test.ts` now stands the two ways a village comes to exist side by side. It also asks
       that the founding days are *spread*, because comparing two lists passes when both are wrong
       the same way — which is what a replay bug looks like from the inside.
+
+      **Done on the 13th.** `works` carries the morning — `house:longhouse@142` — appended after the
+      size so an older entry reads back unchanged, and no day means a roof that was standing before
+      anybody counted. `raisedStage` does the same subtraction a commission gets against the same
+      thresholds, and `render/site.ts` gained pegs, a frame and a roof for a village site, because a
+      building site looks like a building site whoever is paying for it.
+
+      Starting this is what turned up **88**, which mattered more: the day handed to the morning's
+      spending was `today` rather than the morning being lived.
