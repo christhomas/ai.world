@@ -147,6 +147,21 @@ export class Mount {
     return mount;
   }
 
+  /**
+   * Take a save as the horse you own — or null, for owning none.
+   *
+   * `Mount.from` does this once, at load, and everything after that goes through `buy`. What has
+   * no way of being said is "put back the one that was here before", and the caller that needs it
+   * is the probe a script rides by: a stable's dialogue is the only door onto a saddle, so a
+   * headless browser has to be lent a horse, and a loan you cannot undo is a gift. `buy` will not
+   * serve as the undo, because a purchase rolls a fresh name and a fresh palette — the same hero
+   * would come back from a playtest owning a different-coloured animal with a different name, and
+   * the horse is saved, so that outlives the run that did it.
+   */
+  adopt(json: HorseSave | null): void {
+    this.saved = json ? { ...json } : null;
+  }
+
   /** Name a wild horse being offered for sale. */
   offer(): string {
     return ['a steady bay', 'a rangy grey', 'a stubborn chestnut', 'a bright-eyed roan'][Math.floor(this.rng() * 4)];

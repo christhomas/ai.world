@@ -615,8 +615,8 @@ export function startGame(
   // end because they reach into everything, and everything now exists.
   if (import.meta.env.DEV) {
     installProbes({
-      seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
-      online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
+      seed, world, state, player, rig, iso, sampler, structures, chunks, entities, entityRenderer, register, places,
+      online, market, warband, remains, plots, houses, mount, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
       commandWorld, placeName, walking, bites, doorsteps, streamTally,
       drift: () => wildlife.drift(),

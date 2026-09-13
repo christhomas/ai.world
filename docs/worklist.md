@@ -763,16 +763,75 @@ describing the same world.
       can see. The collision bench is identical either side of it — PASS, nothing touching, nothing
       intersected — and the golden fingerprint did not move, because where a prop is put has never
       gone through its box.)*
-- [ ] Nothing in the sweep test covers a mounted hero, who is the case that made stepping over things
-      visible: `tools/playtest.cjs` walks on foot only. *(Half of this is already done and nobody
-      had noticed: `SPEEDS` in `src/world/collisions.test.ts` walks the hero at a courser's pace of
-      three and a half for a quarter of a second, which is the mounted case as the arithmetic sees
-      it — a horse does not carry the hero, it multiplies his pace. What is missing is the played
-      one, and it needs a way onto a horse from a script: mounting is only reachable through a
-      stable's dialogue, so the playtest wants a probe of its own before it can ride.)*
-- [ ] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
-      CI on the way in, which is where all of this would have been caught.
-      visible: `tools/playtest.cjs` walks on foot only.
+- [x] Nothing in the sweep test covers a mounted hero, who is the case that made stepping over things
+      visible: `tools/playtest.cjs` walks on foot only. *(The mechanical half really was already
+      done, and the numbers say so: `SPEEDS` in `src/world/collisions.test.ts` walks the hero at pace
+      3.5 for a quarter of a second, and a hero walks at 5.5, so that is 4.8 tiles in one move —
+      a cottage and out the far side — against every named prop from eight sides. Three and a half
+      is a ceiling rather than a guess: the quickest thing in the game is a riding horse on a road
+      with a cart behind it, 2.6 by 1.3. So what was missing was only the played half. It is here:
+      `__ride`, `__unride` and `__mount` in `src/game/probes.ts` lend the hero a horse, because a
+      saddle has exactly one door in the game and it is a stablehand's dialogue. Lent rather than
+      given — a mount is *saved*, name, palette and breed, so whatever he owned is put aside on the
+      way in and handed back on the way out, and the playtest checks it was: a hero left in a saddle
+      walks at a different pace and every check after him measures something else. Four played
+      checks: the horse is drawn under him and not beside him, a saddle's height under his feet; the
+      wall that stops a walker stops a horse in the same place, 1.47 to 1.57 tiles from the middle of
+      a cottage against 1.60 on foot; a paddock rail one tile thick with grass on both sides holds
+      him outside it, 3.49 to 3.56 tiles from a middle whose rails are at 3; and getting down leaves
+      him on his feet, owning nothing, on ground he can stand on.
+      Three faults came out of playing it rather than out of writing it, and each has its own line
+      below. The larger part of the work was none of them: this file counted in milliseconds, and a
+      millisecond is not where anything in a game happens. The loop clamps a frame to a tenth of a
+      second, so a page given three frames a second runs the game at a third speed and one given a
+      frame a second runs it at a tenth — and this machine, with several agents driving browsers on
+      it at once, hands out between 3 and 30. Every fixed wait in here was therefore a measurement of
+      the machine: the same five-second press read a wall at 1.5 tiles on a quiet box and at 4 on a
+      busy one, which is the width of a house, and no check noticed. Nothing waits on the clock any
+      more. A press holds the key and then watches, inside the page, until the hero has stopped
+      getting anywhere over a window of frames — and takes the closest he *ever* got rather than
+      where he was standing at the end, which are the same number on foot and are not on a horse. A
+      wall is read as the smallest of three goes, because everything that stops a hero short — a
+      villager crossing the lane, a sheep against a rail — has moved on by the next go and a wall has
+      not, and he waits for the lane to be empty before he starts. A teleport waits for the country
+      to arrive rather than for five seconds, since ground nobody has streamed answers "solid" to
+      everything and one run had him ride clean past a house that was not built yet and then report
+      that no village in the world keeps a paddock. The drift check watches again when the world has
+      said nothing about its creatures, because a tally of nought reads as a perfect screen and means
+      only that nobody looked. And the way out of a shop steps off the doormat first: a doorstep
+      re-arms by being stood off, so a script pressing forward from where the door put it is pressing
+      at a latch, which cost about one run in three. Nine steps became thirteen, and thirteen of
+      thirteen three times running on a machine at a load average of ten to twenty-two.)*
+- [ ] **A mounted hero is hauled back to nearly walking pace, and both halves think the other one
+      owns him.** Found by the first playtest that ever rode. On a page running at 20–30 frames a
+      second a hero on a riding horse covers 5.8 to 6.2 tiles a second where his own pace says
+      11.55, which is barely more than the 5.36 he walks; the world corrects him on 83–100% of its
+      answers against 3% on foot, and his movement alternates a full 1.155-tile stride with a dead
+      frame, the stride and the correction cancelling inside one frame. `server/messages.ts` decides
+      whose hero it is with `place === 'surface' && riding === 'foot'`, so a `move` from somebody on
+      a horse is *not* outside, and the world snaps its own hero to whatever position that message
+      carried — while the client goes on heeding the world's answers, because `outdoors()` in
+      `src/game/authority.ts` excludes `player.riding`, which is a ferry, and not `mount.riding`.
+      Its own comment says "indoors, underground, on a horse and at sea" the client stays the
+      authority; the code has never said the horse part. Widening that one test to
+      `riding !== 'boat'` was tried and thrown away: it puts him back to 10.6–12.0 tiles a second.
+      Which of the two halves should give way is a real decision — `Steer.pace` and `FASTEST` exist
+      precisely so the world *can* walk a mounted hero — and it wants `server/sim.test.ts` cases of
+      its own, which is why it is a line here rather than a patch. To see it again: `__ride('horse')`,
+      hold `w` across open ground, and read `__walking()` either side of it.
+- [ ] **The stablehand names a horse that never turns up.** `mount.buy` rolls a name off the
+      stablehand's rng and flashes it — "Epona is yours" — but the animal that appears is built by
+      `restore`, and `Entity`'s constructor rolls its own name off the palette. Every message after
+      the sale calls it something else: you swing up onto Dusty, and Dusty is a good Riding Horse.
+      Cosmetic, and a one-line fix in `restore`, but it is a thing a player would notice on the day
+      they bought their first horse.
+- [ ] **A prop's box reaches past its tile, and nothing that asks about the ground says so.**
+      `__solid` is a point, so a gap that reads as clear down its middle can still be too narrow for
+      a man to walk down: this held the hero two tiles short of Stonemere's north rail with nothing
+      whatever in front of him along the line he was walking. The playtest works around it by asking
+      about a corridor rather than a line, which is the right thing for a playtest to do and the
+      wrong thing for the game to leave unanswered — there is no way to ask "can a body of this width
+      get from here to there", and pathing, herding and anything that plans a route all want one.
 - [x] The playtest needs a dev server and a borrowed playwright. It should be possible to run it in
       CI on the way in, which is where all of this would have been caught. *(`chore playtest` now
       serves the page itself when nothing is answering on the port, plays, and puts the server away

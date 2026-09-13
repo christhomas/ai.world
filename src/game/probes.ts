@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { ChunkManager } from '../world/chunkManager';
 import type { EntityManager } from '../entities/manager';
 import type { Entity } from '../entities/entity';
+import type { EntityRenderer } from '../entities/pool';
 import type { Player } from '../entities/player';
 import { bodyMotion } from '../entities/motion';
 import type { Register } from '../world/register';
@@ -24,6 +25,7 @@ import type { Eyrie } from './eyries';
 import type { Plots } from './farming';
 import type { Market } from './market';
 import { mineIdOf, type Mines, type Working } from './mines';
+import type { HorseSave, Mount } from './mount';
 import type { Nemesis } from './nemesis';
 import type { Online } from './online';
 import type { Places } from './places';
@@ -32,7 +34,7 @@ import type { Remains } from './remains';
 import { bandAt, bandsNear, type Roaming } from './roaming';
 import type { Sailing } from './sailing';
 import type { Skies } from './skies';
-import { stableAt } from './stables';
+import { BREEDS, stableAt } from './stables';
 import type { GameState } from './state';
 import { dialogueFor, type TalkCtx } from './talk';
 import type { Warband } from './warband';
@@ -63,6 +65,8 @@ export interface Probed {
   structures: Structures;
   chunks: ChunkManager;
   entities: EntityManager;
+  /** Who puts a creature on the screen, so a probe can lend the hero a horse and take it away again. */
+  entityRenderer: EntityRenderer;
   register: Register;
   places: Places;
   online: Online;
@@ -71,6 +75,8 @@ export interface Probed {
   remains: Remains;
   plots: Plots;
   houses: Houses;
+  /** What the hero rides, which is the only thing in the game that multiplies his pace. */
+  mount: Mount;
   sailing: Sailing;
   skies: Skies;
   skyIsles: readonly SkyIsland[];
@@ -114,8 +120,8 @@ export interface Probed {
 
 export function installProbes(ctx: Probed): void {
   const {
-    seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
-    online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
+    seed, world, state, player, rig, iso, sampler, structures, chunks, entities, entityRenderer, register, places,
+    online, market, warband, remains, plots, houses, mount, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands, jail,
     commandWorld, callOut, placeName, carcasses, markers, walking, drift, bites, doorsteps, streamTally,
     heard, nettleAbout, sentOut,
@@ -290,6 +296,67 @@ export function installProbes(ctx: Probed): void {
     return { on: isle.name, perch: isle.perch, y: isle.site.y };
   };
   (debug as { __ground?: () => unknown }).__ground = () => { skies.descend(); return { on: 'the ground' }; };
+  /*
+   * Get on a horse, and get off it again leaving nothing behind.
+   *
+   * A saddle has exactly one door in the game: walk up to a stablehand, open his dialogue, have the
+   * price on you, and pick a line out of a list. That is right for a player and impossible for a
+   * script, which is why the one case the collision bench treats as its worst — a courser, whose
+   * step is 4.8 tiles and so is a cottage and out the far side — had never been played at all. The
+   * bench's answer is arithmetic on a bare world; this is the same speed against the real village,
+   * with the real fences and the real house the drawing put there.
+   *
+   * Lent rather than given. The mount is *saved*, name, palette and breed, so a probe that bought
+   * one would leave the hero owning an animal he never paid for and remembering it forever after —
+   * a script that only meant to look at the game having quietly changed it. So whatever he owned is
+   * put aside on the way in and handed back on the way out, and `__unride` is not optional
+   * housekeeping: a hero left in the saddle walks at a different pace, sits a saddle's height off
+   * the ground and fights a different fight, so every check after one is measuring something else.
+   *
+   * `buy` draws twice from the rng the dialogue lines come out of — a name and a palette — which is
+   * the one mark this leaves on a page that has ridden. It costs a couple of villagers a different
+   * greeting and nothing else, and the alternative is a second rng existing only for tests.
+   */
+  let ownHorse: HorseSave | null | undefined;
+  (debug as { __ride?: (breed?: string) => unknown }).__ride = (id = 'horse') => {
+    const breed = BREEDS[id] ?? BREEDS.horse;
+    // only the first loan remembers: riding twice in a run must not stow the loan as the thing to
+    // give back, which would be the probe handing the hero its own horse and calling it his
+    if (ownHorse === undefined) { const his = mount.toJSON(); ownHorse = his ? { ...his } : null; }
+    if (mount.riding) mount.dismount(player, chunks);
+    mount.stable(entityRenderer);              // whatever is standing about goes away first
+    mount.buy(player.x + 1, player.z, chunks, entityRenderer, breed);
+    mount.mount(player);
+    // `mount.name` rather than what `buy` handed back, which is not the same string: `buy` rolls a
+    // name off the stablehand's rng and the horse that turns up rolls its own off its palette, so
+    // the two disagree. That is a fault of the game's and it is written up; what a probe must not do
+    // is report one name here and another from `__mount` a moment later, which reads as two horses.
+    return { on: mount.name, breed: breed.id, pace: breed.pace, saddle: breed.saddle };
+  };
+  (debug as { __unride?: () => unknown }).__unride = () => {
+    if (mount.riding) mount.dismount(player, chunks);
+    mount.stable(entityRenderer);
+    if (ownHorse !== undefined) { mount.adopt(ownHorse); ownHorse = undefined; }
+    if (mount.owned) mount.restore(chunks, entityRenderer);
+    return { riding: mount.riding, owns: mount.owned ? mount.name : null, place: placeName() };
+  };
+  /**
+   * Where the hero is and where the horse under him is, as two separate answers.
+   *
+   * Two, because the whole reason this file exists is that the thing on the screen and the thing in
+   * the simulation are allowed to disagree, and a horse is the case where the disagreement would be
+   * invisible: the hero is drawn a saddle's height up whether or not the animal is beneath him.
+   */
+  (debug as { __mount?: () => unknown }).__mount = () => {
+    const horse = mount.entity;
+    return {
+      owns: mount.owned, riding: mount.riding, on: mount.owned ? mount.name : null,
+      breed: mount.breed.id, saddle: mount.breed.saddle, pace: player.speedScale,
+      hero: { x: player.x, z: player.z, y: Math.round(player.y * 1000) / 1000 },
+      horse: horse ? { x: horse.x, z: horse.z, y: Math.round(horse.y * 1000) / 1000 } : null,
+      under: horse ? Math.round(Math.hypot(horse.x - player.x, horse.z - player.z) * 1000) / 1000 : null,
+    };
+  };
   (debug as { __director?: () => unknown }).__director = () => ({ quietFor: Math.round(director.quietFor), reach: Math.round(director.reach * 100) / 100, last: director.last });
   (debug as { __water?: () => unknown }).__water = () => { const now = heard(); return { ...now, drop: Math.round(now.drop * 10) / 10 }; };
   (debug as { __bodies?: () => unknown }).__bodies = () => carcasses();
