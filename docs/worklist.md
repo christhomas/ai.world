@@ -3713,7 +3713,7 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
 Three things said while 30 was being built, which between them are the shape of the whole
 simulation rather than any one feature in it.
 
-- [ ] **42. `can_form`: a trade that can found another of itself.** A typo — `can_form` for
+- [x] **42. `can_form`: a trade that can found another of itself.** A typo — `can_form` for
       `can_farm` — that turned out to name something the design was missing, and is worth keeping
       under some name. `can_farm` is a *capability*: this person knows how to work a field. `can_form`
       is the thing above it: a farmer who has earned enough can **form another farm** — buy the
@@ -3737,6 +3737,11 @@ simulation rather than any one feature in it.
       short of (the mayor's enrolment, **24a**). That keeps the capability list honest: `can_farm`
       and the rest describe what somebody has *learned to do*, and are never a permission to learn
       it.
+
+      **Done on the 13th.** `holdings.ts` gave the thing a name and `founding.ts` gave it a price:
+      a man whose purse has run past what a holding costs founds another of them, and which trades
+      may do it follows from whether the holding outlives its holder, exactly as argued here. Closed
+      together with **47**, which turned out to be the other half of one transaction.
 
 - [x] **51. When a town grows too big, the world pushes back.** *Done on the 12th, on top of **48**.*
       A band leans harder on a place worth leaning on: a third again for a town, two thirds again for
@@ -3923,7 +3928,7 @@ simulation rather than any one feature in it.
       The trees are already there and already felled by the player's axe, so the ground truth
       exists: what is missing is a stock of timber somewhere a builder can be short of it.
 
-- [ ] **47. A holding has an owner, and the owner need not be the worker.** A farm belongs to
+- [x] **47. A holding has an owner, and the owner need not be the worker.** A farm belongs to
       whoever paid to build it. Normally that is the farmer, and when he dies it passes down the
       family the way his purse does. But the hall can pay for one too — the same `Commission`, with
       the village as the customer — and then the village owns the farm and *hires* somebody to work
@@ -3935,6 +3940,13 @@ simulation rather than any one feature in it.
       one back. And it gives the wage a reason to exist — a hired hand on the village's farm is
       paid by the hall out of what the farm earns, which is money moving inside the valley for work
       somebody actually needed, the same shape as **39**.
+
+
+      **Done on the 13th.** `Holding` keeps the owner and the worker apart because they genuinely
+      come apart: normally one man, but the hall can hold one and hire a pair of arms, and a
+      daughter can inherit a farm she does not work. `whatTheVillageHolds` runs every morning, so a
+      farm survives its worker's funeral and the vacancy is filled without anything having to
+      notice. What the hall's own holdings make goes to the hall's purse — `shareTheTake`.
 
 - [x] **48. A village becomes a town becomes a city.** *Done on the 12th, and it did fall out of 44
       for nothing.* If the roofs a place has cap its population, the roofs are also what the place
