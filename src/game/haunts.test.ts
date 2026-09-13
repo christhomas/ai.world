@@ -164,3 +164,49 @@ describe('the word you get for walking onto kept ground', () => {
     expect(hulk).toMatch(/outrun/);
   });
 });
+
+/*
+ * Telling somebody the one thing they need to decide.
+ *
+ * A wight keeps to its ground and is quicker than you, so the question it poses is not "can I win"
+ * — nothing can — it is *"can I wait this out, or do I have to leave?"* `untilDawn` has answered
+ * that since the day it was written and nothing ever asked it: the warning named the danger and
+ * left out the only number that makes it a decision. Found by `chore reachable`, which counts work
+ * that exists and nothing calls.
+ *
+ * Only for a wight. An ogre is abroad at any hour, so how long until morning is no use to anybody
+ * standing in front of one — and saying it anyway would teach the player that dawn matters when it
+ * does not.
+ */
+describe('what a warning tells you to do about it', () => {
+  const wight: Haunt = { id: 'r', name: 'Barrow', x: 0, z: 0, ground: 'ruin', kind: 'wight' };
+  const ogre: Haunt = { id: 'w', name: 'Deepwood', x: 0, z: 0, ground: 'wood', kind: 'ogre' };
+
+  /** How long it says you have, or nothing where it says nothing. Asked of the sentence, not of a word. */
+  const minutes = (said: string): number | null => {
+    const m = said.match(/(\d+) minutes/);
+    return m ? Number(m[1]) : null;
+  };
+
+  it('tells you how long a wight has left, because waiting is the only other move', () => {
+    const said = warningFor(wight, AWAKE[1] + 0.01);
+    expect(said).toMatch(/no blade will touch/);
+    expect(minutes(said), 'the player is deciding whether to wait, and cannot without this')
+      .toBeGreaterThan(0);
+  });
+
+  it('counts down as the night goes on, so waiting gets easier to judge', () => {
+    const early = minutes(warningFor(wight, AWAKE[1] + 0.01))!;
+    const late = minutes(warningFor(wight, AWAKE[0] - 0.01))!;
+    expect(late).toBeLessThan(early);
+  });
+
+  it('says nothing about the hour for an ogre, which is abroad at any of them', () => {
+    expect(minutes(warningFor(ogre, AWAKE[1] + 0.01))).toBeNull();
+  });
+
+  it('still reads as a sentence when nobody says what time it is', () => {
+    expect(warningFor(wight)).toMatch(/no blade will touch/);
+    expect(minutes(warningFor(wight))).toBeNull();
+  });
+});

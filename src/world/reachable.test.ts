@@ -70,7 +70,18 @@ function exportsOf(text: string): string[] {
  *
  * Lower it when you triage. Never raise it.
  */
-const ALREADY_LIKE_THIS = 198;
+const ALREADY_LIKE_THIS = 43;
+/*
+ * It said 198 on its first run and 43 on its second, and the difference was all instrument.
+ *
+ * The first version asked "is this name in any *other* file", which counts an internal helper as
+ * unreached even when the public function two lines below it calls it and the whole world calls
+ * that. A hundred and fifty-five of the first count were that — noise, and enough of it to teach
+ * somebody to stop reading the report, which is the way an instrument like this really dies.
+ *
+ * Caught by using it: `untilDawn` was wired into a warning and the bench went on listing it. A
+ * suite that survives its own first finding is worth more than one that was right to begin with.
+ */
 
 describe('work that nothing reaches', () => {
   it('does not let any more work fall out of the program', () => {
@@ -88,6 +99,20 @@ describe('work that nothing reaches', () => {
           if (new RegExp(`\\b${name}\\b`).test(body)) { seen = true; break; }
         }
         if (seen) continue;
+        /*
+         * Used inside its own file is used.
+         *
+         * The first version missed this and said `untilDawn` was unreached the moment it had been
+         * wired — because what wired it was `warningFor`, two functions down in the same file, and
+         * `warningFor` is what `watch.ts` calls. An internal helper behind a public one is reached;
+         * it is only the *export* that is unnecessary, which is a tidiness question rather than the
+         * one this is asking.
+         *
+         * So: named anywhere in its own file beyond its own declaration counts. What is left is the
+         * thing worth finding — a name nothing anywhere calls, kept alive by its tests.
+         */
+        const here = text.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
+        if (here > 1) continue;
         // not reached by the program. Is it reached by a test? That is the shape we are hunting:
         // something with assertions on it and nothing behind it
         const tested = tests.some((t) => new RegExp(`\\b${name}\\b`).test(readFileSync(t, 'utf8')));

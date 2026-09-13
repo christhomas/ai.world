@@ -184,7 +184,9 @@ export function createWatch(ctx: Watched) {
     if (warned.has(rising.id)) return;
     warned.add(rising.id);
     sound.thud();
-    flash(warningFor(rising));
+    // with the hour, so a wight's warning carries the one number that makes it a decision rather
+    // than a fright: how long until it is light. See `warningFor`
+    flash(warningFor(rising, state.time));
   };
 
   /**

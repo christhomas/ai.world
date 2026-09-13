@@ -191,9 +191,26 @@ export function untilDawn(time: number): number {
  * has to become legible or it is merely unfair. Each says the thing that works, in the words a
  * player can act on without a menu.
  */
-export function warningFor(haunt: Haunt): string {
+export function warningFor(haunt: Haunt, time?: number): string {
   if (haunt.kind === 'wight') {
-    return `Something is standing in the ${haunt.name} that no blade will touch. It keeps to this ground, and it is quicker than you.`;
+    /*
+     * And how long it has left, because that is the whole of the decision.
+     *
+     * Nothing kills a wight, so the question it poses is never "can I win it" — it is *can I wait
+     * this out, or do I have to leave?* `untilDawn` has answered that since the day it was written
+     * and nothing ever asked it, so the warning named the danger and left out the only number that
+     * turns it into a choice. Found by `chore reachable`, which counts work nothing calls.
+     *
+     * Rounded up to the minute, because the hero has no clock and no way to make morning come
+     * sooner: this is a thing somebody would say out loud — *"it'll be light in five"* — rather
+     * than a countdown to be watched.
+     *
+     * Only for a wight. An ogre is abroad at any hour, so telling somebody in front of one how long
+     * until dawn would teach them that morning matters here, and it does not.
+     */
+    const left = time === undefined ? 0 : untilDawn(time);
+    const wait = left > 0 ? ` It will be light in about ${Math.max(1, Math.ceil(left / 60))} minutes.` : '';
+    return `Something is standing in the ${haunt.name} that no blade will touch. It keeps to this ground, and it is quicker than you.${wait}`;
   }
   return `Something very large is awake in the ${haunt.name}. You can outrun it, if you go now.`;
 }
