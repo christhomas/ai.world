@@ -5283,7 +5283,7 @@ than by remembering — and the first thing found was that the gap is not where 
       for the same reason, biggest ranges first. Four crags, two sky islands and two villages to a
       square now, at a fare of 51-59 gold against a working villager's purse of about 65.
 
-- [ ] **86. Every square has a Windcrag in it.** Small, and found in the same walk as **84**. An
+- [x] **86. Every square has a Windcrag in it.** Small, and found in the same walk as **84**. An
       eyrie takes the first unused name from a list of ten, and the list of taken names is per
       planning call — which in a country with no edge means per square. So the first crag of every
       patch is Windcrag, the second Stormperch, and a hero walking east meets a second Windcrag
@@ -5309,3 +5309,9 @@ than by remembering — and the first thing found was that the gap is not where 
       Asking before taking anything: 102 of 121 chunks and an empty queue. The regression is a
       source test, because `ChunkManager` needs a scene and four `Worker`s to exist — which is
       exactly why it lived this long.
+
+      **Done on the 13th.** Eighteen heads and fourteen tails drawn from the crag's own position, so
+      a crag is called the same thing whoever plans it and in whatever order. The test written for
+      the names found the same fragility a level down — the *facing* came from a shared stream, so a
+      crag planned alongside another came out somewhere else than it did alone. Harmless today and
+      fixed anyway, because it is the same sentence: what a place is like is a fact about the place.
