@@ -5250,7 +5250,7 @@ than by remembering — and the first thing found was that the gap is not where 
       reads as though it handles two cases, the tests pass, and the feature is simply absent. It took
       standing something *on* the mountains to notice that nothing ever had.
 
-- [ ] **84. Thirty-eight crags to a square, and nobody has judged that number.** Falls straight out
+- [x] **84. Thirty-eight crags to a square, and nobody has judged that number.** Falls straight out
       of **83**: with the peaks finally sized, every one of the 19 or so in a 512-tile patch clears
       `EYRIE.WORTH_FLYING` and gets its pair of perches, so a patch has 38 to 58 of them. The number
       was never chosen — it is what the planner does now that its input is not nought — and the
@@ -5275,3 +5275,21 @@ than by remembering — and the first thing found was that the gap is not where 
       and a road world's call is unchanged. The reach is stated rather than measured, which is the
       honest way round where the land is continuous and has no edge to measure to. Three or four
       places offered per patch, one or two kept — which is `SKY.MOST`, the same as a road world.
+
+      **Judged on the 13th, by walking it.** The terrain is not the problem and was worth checking
+      first: nineteen real mountains to a square averaging 35 terraces, and `highland` comes to
+      **14.2%** of it — mountain country rather than a mountain range with a country in it. The
+      eyries were. `EYRIE.MOST` is two crossings to a square, the same as villages in the clouds and
+      for the same reason, biggest ranges first. Four crags, two sky islands and two villages to a
+      square now, at a fare of 51-59 gold against a working villager's purse of about 65.
+
+- [ ] **86. Every square has a Windcrag in it.** Small, and found in the same walk as **84**. An
+      eyrie takes the first unused name from a list of ten, and the list of taken names is per
+      planning call — which in a country with no edge means per square. So the first crag of every
+      patch is Windcrag, the second Stormperch, and a hero walking east meets a second Windcrag
+      within ten minutes.
+
+      It is the same problem village names have already solved: a name has to be a function of the
+      thing rather than of the order it was planned in. The fix is probably to draw from the square's
+      own stream the way `skygrounds.ts` does, and to use enough name-parts that a repeat is a
+      coincidence rather than a certainty.
