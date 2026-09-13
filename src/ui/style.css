@@ -1628,9 +1628,7 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
     top: calc(var(--safe-top) + 72px); left: var(--safe-left); right: auto; margin: 0;
   }
   #compass { top: calc(var(--safe-top) + 96px); }
-  /* the news runs off the left edge as bands, so the rules down their left-hand side stack into
-     the edge of the screen rather than into a margin nobody can see */
-  /* News starts after the tab spine; every tab remains reachable while the log is open. */
+  /* News is a left-hand band, but the tab spine owns the physical edge. */
   #chatPanel {
     left: calc(var(--safe-left) + var(--band-tabs)); padding-left: 0;
     width: min(calc(50vw - var(--band-tabs)), 360px);
