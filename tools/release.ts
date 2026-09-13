@@ -180,6 +180,20 @@ function notesFor(version: string, body: string): string {
   }
 }
 
+/** Wait for every check to finish, for the case where nothing will merge it for us. */
+function waitForTheChecks(branch: string): void {
+  const until = Date.now() + WAIT_FOR_CI;
+  while (Date.now() < until) {
+    try {
+      run('gh', ['pr', 'checks', branch, '--watch', '--fail-fast']);
+      return;
+    } catch {
+      throw new Error('a check failed — the release is not going out on a red commit');
+    }
+  }
+  throw new Error('the checks have not finished in time');
+}
+
 /**
  * Wait until the pull request is actually in, or say why it never will be.
  *
@@ -354,7 +368,15 @@ function main(): void {
    * nothing here has to decide what "green" means. Then this waits for the merge to actually have
    * happened, because the tag goes on what main became and there is nothing to tag until it does.
    */
-  run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch', '--auto']);
+  try {
+    run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch', '--auto']);
+  } catch {
+    // auto-merge is a repository setting and not every clone's repository has it turned on. Saying
+    // so and waiting is better than requiring somebody to go and find a checkbox before releasing
+    say('auto-merge is off for this repository; waiting on the checks and merging by hand');
+    waitForTheChecks(branch);
+    run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch']);
+  }
   say('waiting for the checks — the playtest is a browser, and it takes a few minutes');
   waitForTheMerge(branch);
   say('released through a pull request and squashed onto main');
