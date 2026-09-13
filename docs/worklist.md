@@ -5197,7 +5197,7 @@ than by remembering — and the first thing found was that the gap is not where 
       is refused at the source, which means a man who cannot hold more simply does not earn it.
       Either way the deed has to be written for what actually moved, not for what was offered.
 
-- [ ] **81. Two villages in nine never grow at all.** Saltcombe on seed 7 is still 12 souls in 12
+- [x] **81. Two villages in nine never grow at all.** Saltcombe on seed 7 is still 12 souls in 12
       beds after four hundred and fifty days; Oakcross on seed 1234 is still 23. Every bound on the
       sanity bench passes them, and a place that stands still for five generations while its
       neighbours triple is either a fact about its ground worth reading in the landscape, or a
@@ -5340,3 +5340,14 @@ than by remembering — and the first thing found was that the gap is not where 
 
       Starting this is what turned up **88**, which mattered more: the day handed to the morning's
       spending was `today` rather than the morning being lived.
+
+      **Answered on the 13th, and it was the ladder's first rung.** `Settlement.founded` is
+      documented as what the roofs hold and was set to the people the founding generated — five
+      houses hold twenty, twelve were generated. Births aim at the ceiling and stop; whether anybody
+      wants a roof is asked of the family under it, which still had beds spare. Nothing wanted,
+      nothing raised, ceiling never moved. Not slow growth — none, by construction.
+
+      Saltcombe on seed 7 goes to 52 beds now and Oakcross on seed 1234 to 90, and every other
+      village grew further as well. The sanity bench had been printing the cause every run with the
+      right diagnosis under it; it is an assertion now rather than a paragraph, because a note that
+      reports a fault every time is a note somebody stops reading.
