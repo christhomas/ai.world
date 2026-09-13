@@ -1,4 +1,4 @@
-import { THE_HALL, canDo, type Capability } from './holdings';
+import { THE_HALL, isTheHall, canDo, type Capability } from './holdings';
 import { stageOf, type Person } from './people';
 
 /**
@@ -243,5 +243,5 @@ export function couldStand(person: Person, posting: Posting): boolean {
 
 /** Whether a post is the hall's to pay for rather than a villager's. See item 37. */
 export function paidByTheHall(post: Post): boolean {
-  return post.funder === THE_HALL;
+  return isTheHall(post.funder);
 }

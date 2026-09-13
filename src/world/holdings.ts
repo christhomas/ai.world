@@ -169,6 +169,29 @@ export function leavesAHolding(trade: string): boolean {
 export const THE_HALL = 'the hall';
 
 /**
+ * Who a thing belongs to: somebody, or the village itself.
+ *
+ * Item 89's type-level half. `owner` and `funder` were `string`, and the value in one is either a
+ * villager's id or the literal above — so every place that touched one had to remember, unaided,
+ * that the village is among the answers. `pay` did not remember, and dropped the entry on the
+ * floor: twelve coins named, five landed, and a fully green suite.
+ *
+ * A `string` cannot help with that and this can. It is deliberately not an interface or a class —
+ * the hall is not a person and giving it a person's shape would be the lie in the other direction.
+ * It is one of two things, said once, so the compiler asks the question at every site rather than
+ * each author having to ask it of themselves.
+ *
+ * What it does not settle is what the hall *is* — an entity with a body, the mayor's house at first
+ * and a building the village voted for later. That waits on **91**, and does not block this.
+ */
+export type Owner = string;
+
+/** Is this the village itself rather than one of its people? */
+export function isTheHall(owner: Owner): boolean {
+  return owner === THE_HALL;
+}
+
+/**
  * One holding: a farm, a yard or a boat, and the two people it answers to.
  *
  * The owner and the worker are kept apart because they genuinely come apart, and that is the whole
@@ -288,7 +311,7 @@ export function foundAHolding(
  * field two valleys away is not a thing anybody can work from where he now is.
  */
 function passedOn(holding: Holding, people: readonly Person[], day: number): Holding {
-  if (holding.owner === THE_HALL) return holding;
+  if (isTheHall(holding.owner)) return holding;
   if (people.some((person) => person.id === holding.owner)) return holding;
   const family = holding.house === ''
     ? [] : people.filter((person) => surnameOf(person) === holding.house);
@@ -476,7 +499,7 @@ export function shareTheTake(
     if (owner === worker) { add(worker, took); continue; }
     const wage = Math.min(A_DAYS_HIRE, took);
     add(worker, wage);
-    if (owner === THE_HALL) toTheHall = Math.round((toTheHall + took - wage) * 100) / 100;
+    if (isTheHall(owner)) toTheHall = Math.round((toTheHall + took - wage) * 100) / 100;
     else add(owner, took - wage);
   }
   return { purses, toTheHall };

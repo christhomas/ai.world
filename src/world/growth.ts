@@ -2,7 +2,7 @@ import { WATCH_WAGE, WORKS, whatTheHallSpends, upkeepOf, whoTheHallEmploys } fro
 import {
   A_CREW_TAKES, A_DAY_OF_BUILDING, whatTheHallFounds, whoFoundsAnother, whoIsPaidToRaiseIt,
 } from './founding';
-import { THE_HALL, type Holding } from './holdings';
+import { THE_HALL, isTheHall, type Holding } from './holdings';
 import { atLeast, rankOfRoofs, type Rank } from './rank';
 import {
   STANDARD, biggestRoofAmong, familiesWantingRoom, isARoof, oneSizeUp, workOf, type Roof,
@@ -323,10 +323,10 @@ export function whatTheVillageSpends(
   // the buyer's own side of it, folded into the same entry so one person is one line: a farmer who
   // is on the crew he is paying gets his slice back in the same number, which is what owning some
   // of the work means
-  if (founding && founding.payer !== THE_HALL) {
+  if (founding && !isTheHall(founding.payer)) {
     wages.set(founding.payer, Math.round(((wages.get(founding.payer) ?? 0) - founding.costs) * 100) / 100);
   }
-  const onTheFarm = founding && founding.payer === THE_HALL ? founding.costs : 0;
+  const onTheFarm = founding && isTheHall(founding.payer) ? founding.costs : 0;
 
   return {
     wages,
