@@ -292,6 +292,31 @@ export class ChunkManager implements TileWorld, ChunkSource {
        */
       const stillComing = now - job.since < WAIT_FOR_THE_WORLD || now < this.countryDue;
       if (!this.sent.has(key) && stillComing) { at++; continue; }
+      /*
+       * Which square of country paints this chunk — and if that square is not grown yet, this chunk
+       * waits rather than growing it here.
+       *
+       * The line that was quietly undoing the country worker. A chunk at the edge of the patch the
+       * hero is in belongs to the *next* patch, and painting it used to grow that patch on the main
+       * thread: five seconds of frozen game to draw one square of ground, which is exactly what the
+       * worker was built to avoid. The job stays in the queue, the worker is asked for the square,
+       * and the chunk is painted a moment later when it arrives.
+       *
+       * **Asked before anything is taken, which it was not until the 13th.** It used to sit after
+       * the three lines below, so a chunk whose patch had not arrived had already been spliced out
+       * of the queue, had already taken a worker off `idle`, and had already written itself into
+       * `pending` — where it stayed for ever, because `keepNear` will not queue a chunk that is
+       * pending. Four such chunks and every worker was gone and the page never painted another
+       * square of ground as long as it ran. Measured: an endless world stuck at 32 chunks of 121
+       * with 89 outstanding, unchanged after a minute, where a road world drains to nought in five
+       * seconds. It is the reason the country around a mountain was open blue.
+       */
+      const wanted = patchOfChunk(job.cx, job.cz);
+      if (this.patches && !this.patches.has(wanted)) {
+        this.wantPatch?.(wanted);
+        at++;
+        continue;
+      }
       this.queue.splice(at, 1);
       const w = this.idle.pop()!;
       const id = this.nextId++;
@@ -305,22 +330,6 @@ export class ChunkManager implements TileWorld, ChunkSource {
        * world is still answering.
        */
       const sent = this.sent.get(key);
-      /*
-       * Which square of country paints this chunk — and if that square is not grown yet, this chunk
-       * waits rather than growing it here.
-       *
-       * The line that was quietly undoing the country worker. A chunk at the edge of the patch the
-       * hero is in belongs to the *next* patch, and painting it used to grow that patch on the main
-       * thread: five seconds of frozen game to draw one square of ground, which is exactly what the
-       * worker was built to avoid. The job stays in the queue, the worker is asked for the square,
-       * and the chunk is painted a moment later when it arrives.
-       */
-      const wanted = patchOfChunk(job.cx, job.cz);
-      if (this.patches && !this.patches.has(wanted)) {
-        this.wantPatch?.(wanted);
-        at++;
-        continue;
-      }
       const patch = this.patches ? this.tell(w, job.cx, job.cz) : undefined;
       if (sent) {
         this.sent.delete(key);
