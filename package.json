@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "collisions": "vitest run src/world/collisions.test.ts && cat .collisions.txt",
+    "collisions": "vitest run src/world/collisions.test.ts && cat collision-report.txt",
     "typecheck": "tsc --noEmit",
     "server": "tsx server/index.ts",
     "worlds": "tsx server/worlds.ts"

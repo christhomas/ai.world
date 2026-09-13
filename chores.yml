@@ -246,6 +246,13 @@ tasks:
   # audits every coin against it, so a village that quietly stopped paying anybody, or buried
   # people without writing it down, or was still being charged rent by a warband that left three
   # weeks ago, shows up as a village, a day and a number. See `src/game/economy.test.ts`.
+  reachable:
+    desc: Exported work that only its own tests reach — a ratchet, so it can only ever shrink
+    vars:
+      REPORT: unreached-report.txt
+    cmds:
+      - 'pnpm vitest run src/world/reachable.test.ts; kept=$?; cat {{.REPORT}} || true; exit $kept'
+
   fallbacks:
     desc: Which defaults are taken every single time, which means the real value never arrives
     cmds:
