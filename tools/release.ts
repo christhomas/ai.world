@@ -180,6 +180,44 @@ function notesFor(version: string, body: string): string {
   }
 }
 
+/** Wait for every check to finish, for the case where nothing will merge it for us. */
+function waitForTheChecks(branch: string): void {
+  const until = Date.now() + WAIT_FOR_CI;
+  while (Date.now() < until) {
+    try {
+      run('gh', ['pr', 'checks', branch, '--watch', '--fail-fast']);
+      return;
+    } catch {
+      throw new Error('a check failed — the release is not going out on a red commit');
+    }
+  }
+  throw new Error('the checks have not finished in time');
+}
+
+/**
+ * Wait until the pull request is actually in, or say why it never will be.
+ *
+ * A release that tagged a commit main had not taken would be a version that exists on one machine,
+ * which is the whole class of fault this file was written to make impossible.
+ */
+function waitForTheMerge(branch: string): void {
+  const until = Date.now() + WAIT_FOR_CI;
+  for (;;) {
+    const seen = JSON.parse(run('gh', ['pr', 'view', branch, '--json', 'state,mergedAt'])) as
+      { state: string; mergedAt: string | null };
+    if (seen.state === 'MERGED') return;
+    if (seen.state === 'CLOSED') throw new Error(`the release request was closed without merging`);
+    if (Date.now() > until) {
+      throw new Error('the checks have not finished. The request is open and will merge itself when'
+        + ` they pass — then: git fetch origin main && git tag -a v… && git push origin v…`);
+    }
+    execFileSync('sleep', ['15']);
+  }
+}
+
+/** How long to wait on the checks before saying so. The playtest is a browser and is the slow one. */
+const WAIT_FOR_CI = 20 * 60 * 1000;
+
 /** Today, as the changelog dates things: the day the release went out, not the day it was written. */
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -318,9 +356,30 @@ function main(): void {
   run('git', ['push', '-u', 'origin', branch]);
   run('gh', ['pr', 'create', '--base', 'main', '--head', branch,
              '--title', `Release ${version}`, '--body', body]);
-  // squash, because linear history is what the guard asks for and a merge commit would be refused
-  run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch']);
-  say(`released through a pull request and squashed onto main`);
+  /*
+   * And then it waits, which is the part worth understanding rather than working around.
+   *
+   * `main` requires the `playtest` check — a real browser walking through a door and looking at the
+   * furniture from inside, which catches the faults a unit test cannot see. The tests have already
+   * run locally by this point, so this is not the same work twice: it is the one check that cannot
+   * be run on a laptop, on the exact commit that is about to become a release.
+   *
+   * `--auto` rather than a poll of our own: GitHub merges it the moment the checks are green, and
+   * nothing here has to decide what "green" means. Then this waits for the merge to actually have
+   * happened, because the tag goes on what main became and there is nothing to tag until it does.
+   */
+  try {
+    run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch', '--auto']);
+  } catch {
+    // auto-merge is a repository setting and not every clone's repository has it turned on. Saying
+    // so and waiting is better than requiring somebody to go and find a checkbox before releasing
+    say('auto-merge is off for this repository; waiting on the checks and merging by hand');
+    waitForTheChecks(branch);
+    run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch']);
+  }
+  say('waiting for the checks — the playtest is a browser, and it takes a few minutes');
+  waitForTheMerge(branch);
+  say('released through a pull request and squashed onto main');
 
   /*
    * The tag goes on what main actually became, not on what was written locally.
