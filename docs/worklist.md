@@ -5062,7 +5062,7 @@ than by remembering — and the first thing found was that the gap is not where 
       The same two requirements as **75**: the country must not move (fingerprint and per-patch
       hashes), and the numbers come from interleaved rounds rather than one run each way.
 
-- [ ] **77. `register.ts` wants splitting, and shaving it is not the answer.** It sat within a line or
+- [x] **77. `register.ts` wants splitting, and shaving it is not the answer.** It sat within a line or
       two of the 700-line cap through the whole night of the 12th and had to be trimmed **six times**
       to let a feature in — the watchman, growth, the shrine, people walking in, holdings, a
       refounding. Every trim took prose out of a file whose prose is most of its value, and the
@@ -5083,6 +5083,13 @@ than by remembering — and the first thing found was that the gap is not where 
       And a note worth keeping: `architecture.test.ts` counts one line more than `wc -l` does, so the
       real ceiling is 699.
 
+
+      **Done on the 13th, and not where this note said to cut.** The proposed seam — founding away
+      from living a day — runs straight through the thing it separates: `settle`, `foundOn` and
+      `relive` are eighty lines between them and all three *call* the day. The cut that works is the
+      other way round: the day never asks the register anything. `aday.ts` takes a `TheDay` of six
+      entries, and a seventh would mean the day had started asking a question that belongs to the
+      book. 666 lines to 493, fingerprint unchanged. `purses.ts` came out the same night.
 - [x] **78. A village grows only in its books.** *Found on the 13th by walking one, and it is the
       third of the kind.* Crossroads Town went from **31 souls to 93** over two hundred days with the
       **same ten roofs, the same thirteen doors and the same name over the square**. The population
