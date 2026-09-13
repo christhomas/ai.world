@@ -165,7 +165,10 @@ describe('who the probes see when the hero is indoors', () => {
     // The rule above is only worth pinning if it is the rule the probes actually use. They are
     // assembled with half the game around them and cannot be stood up here, so the call is read
     // instead — the same way `blows.test.ts` reads the frame for where the grace is counted down.
-    const probes = readFileSync(new URL('./probes.ts', import.meta.url), 'utf8');
+    // `probesCreatures.ts` since the probes about what is alive around the hero went out of
+    // `probes.ts` — which is where every probe that asks "who is near me" now lives, and so the
+    // only place this rule can be got wrong
+    const probes = readFileSync(new URL('./probesCreatures.ts', import.meta.url), 'utf8');
     expect(probes, 'the probes stopped asking which crowd the hero is in').toContain('places.crowd ?? entities');
     const console = readFileSync(new URL('./console.ts', import.meta.url), 'utf8');
     expect(console, 'the console`s own entities command stopped asking').toContain('places.crowd ?? entities');
