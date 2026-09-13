@@ -5248,7 +5248,7 @@ than by remembering — and the first thing found was that the gap is not where 
       right mountain country (terrain's business), and whether every mountain should have eagles on
       it (the eyries'). Worth walking one before touching either.
 
-- [ ] **85. The endless world has no islands, so it has no villages in the clouds.** The other half
+- [x] **85. The endless world has no islands, so it has no villages in the clouds.** The other half
       of what 59d-i turned up. A sky island is planned from `graph.islands`, and a patch's graph has
       an empty list — islands are a road-tree idea, planned across a whole country from its coast.
 
@@ -5256,3 +5256,10 @@ than by remembering — and the first thing found was that the gap is not where 
       wants the same treatment the rest of the world got: an island is a function of the seed and of
       where it is, planned per patch rather than per country, and consistent across a boundary so a
       patch grown twice hangs it in the same place.
+
+      **Done on the 13th.** `skygrounds.ts` draws a patch's own places on a stream salted by the
+      square, inset so no island straddles a boundary and is built by both sides. `planSkyIslands`
+      took an `IslandInfo` and read four of its fields, so it takes a `SkyGround` of exactly those
+      and a road world's call is unchanged. The reach is stated rather than measured, which is the
+      honest way round where the land is continuous and has no edge to measure to. Three or four
+      places offered per patch, one or two kept — which is `SKY.MOST`, the same as a road world.
