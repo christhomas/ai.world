@@ -18,6 +18,8 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@babel/parser": "^8.0.5",
+    "@babel/types": "^8.0.5",
     "@types/three": "^0.185.4",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.13",

@@ -1,3 +1,10 @@
+import { parse } from '@babel/parser';
+import type {
+  ArrowFunctionExpression,
+  FunctionDeclaration,
+  FunctionExpression,
+} from '@babel/types';
+
 export interface DefaultParameterSite {
   file: string;
   line: number;
@@ -9,77 +16,51 @@ export interface DefaultParameterSite {
 interface Edit { start: number; end: number; text: string }
 export interface InstrumentedParameters { source: string; sites: DefaultParameterSite[] }
 
-/** Return delimiter positions at the outer level of a TypeScript fragment. */
-function outerDelimiters(text: string, from: number, to: number, wanted: string): number[] {
-  const found: number[] = [];
-  let round = 0, square = 0, curly = 0, angle = 0;
-  let quote = '', lineComment = false, blockComment = false;
-  for (let at = from; at < to; at++) {
-    const char = text[at], next = text[at + 1] ?? '';
-    if (lineComment) { if (char === '\n') lineComment = false; continue; }
-    if (blockComment) { if (char === '*' && next === '/') { blockComment = false; at++; } continue; }
-    if (quote) {
-      if (char === '\\') { at++; continue; }
-      if (char === quote) quote = '';
+type ExportedFunction = FunctionDeclaration | FunctionExpression | ArrowFunctionExpression;
+interface NamedFunction { name: string; node: ExportedFunction }
+
+function exportedFunctions(source: string): NamedFunction[] {
+  const program = parse(source, {
+    plugins: ['typescript'],
+    sourceType: 'module',
+  }).program;
+  const found: NamedFunction[] = [];
+
+  for (const statement of program.body) {
+    if (statement.type === 'ExportNamedDeclaration') {
+      const declaration = statement.declaration;
+      if (declaration?.type === 'FunctionDeclaration') {
+        found.push({ name: declaration.id?.name ?? 'default', node: declaration });
+        continue;
+      }
+      if (declaration?.type !== 'VariableDeclaration') continue;
+      for (const variable of declaration.declarations) {
+        if (variable.id.type !== 'Identifier') continue;
+        if (variable.init?.type !== 'ArrowFunctionExpression' && variable.init?.type !== 'FunctionExpression') continue;
+        found.push({ name: variable.id.name, node: variable.init });
+      }
       continue;
     }
-    if (char === '/' && next === '/') { lineComment = true; at++; continue; }
-    if (char === '/' && next === '*') { blockComment = true; at++; continue; }
-    if (char === "'" || char === '"' || char === '`') { quote = char; continue; }
-    const outer = round === 0 && square === 0 && curly === 0 && angle === 0;
-    if (outer && wanted.includes(char)) found.push(at);
-    if (char === '(') round++; else if (char === ')') round--;
-    else if (char === '[') square++; else if (char === ']') square--;
-    else if (char === '{') curly++; else if (char === '}') curly--;
-    else if (char === '<') angle++; else if (char === '>' && angle > 0) angle--;
+
+    if (statement.type !== 'ExportDefaultDeclaration') continue;
+    const declaration = statement.declaration;
+    if (declaration.type === 'FunctionDeclaration') {
+      found.push({ name: declaration.id?.name ?? 'default', node: declaration });
+    } else if (declaration.type === 'ArrowFunctionExpression' || declaration.type === 'FunctionExpression') {
+      found.push({ name: declaration.type === 'FunctionExpression' ? declaration.id?.name ?? 'default' : 'default', node: declaration });
+    }
   }
+
   return found;
 }
 
-function closingParen(text: string, open: number): number {
-  let depth = 0, quote = '', lineComment = false, blockComment = false;
-  for (let at = open; at < text.length; at++) {
-    const char = text[at], next = text[at + 1] ?? '';
-    if (lineComment) { if (char === '\n') lineComment = false; continue; }
-    if (blockComment) { if (char === '*' && next === '/') { blockComment = false; at++; } continue; }
-    if (quote) { if (char === '\\') at++; else if (char === quote) quote = ''; continue; }
-    if (char === '/' && next === '/') { lineComment = true; at++; continue; }
-    if (char === '/' && next === '*') { blockComment = true; at++; continue; }
-    if (char === "'" || char === '"' || char === '`') { quote = char; continue; }
-    if (char === '(') depth++;
-    if (char === ')' && --depth === 0) return at;
-  }
-  return -1;
-}
-
-/** Find the declaration body, skipping object types embedded in the return type. */
-function functionBody(text: string, afterParameters: number): number {
-  let at = afterParameters;
-  while (at < text.length) {
-    const brace = text.indexOf('{', at);
-    const semicolon = text.indexOf(';', at);
-    if (brace < 0 || (semicolon >= 0 && semicolon < brace)) return -1;
-    const before = text.slice(at, brace).trimEnd();
-    const wholeReturn = text.slice(afterParameters, brace).trim();
-    const opensReturnObject = wholeReturn === ':' || /(?:=>|[&|<,?=(])\s*$/.test(before);
-    if (!opensReturnObject) return brace;
-
-    let depth = 1, end = brace + 1;
-    let quote = '', lineComment = false, blockComment = false;
-    for (; end < text.length && depth > 0; end++) {
-      const char = text[end], next = text[end + 1] ?? '';
-      if (lineComment) { if (char === '\n') lineComment = false; continue; }
-      if (blockComment) { if (char === '*' && next === '/') { blockComment = false; end++; } continue; }
-      if (quote) { if (char === '\\') end++; else if (char === quote) quote = ''; continue; }
-      if (char === '/' && next === '/') { lineComment = true; end++; continue; }
-      if (char === '/' && next === '*') { blockComment = true; end++; continue; }
-      if (char === "'" || char === '"' || char === '`') { quote = char; continue; }
-      if (char === '{') depth++;
-      else if (char === '}') depth--;
-    }
-    at = end;
-  }
-  return -1;
+function parameterName(source: string, start: number, initializerStart: number): string {
+  return source
+    .slice(start, initializerStart)
+    .replace(/=\s*$/, '')
+    .trim()
+    .replace(/[?:].*$/, '')
+    .trim();
 }
 
 /**
@@ -94,31 +75,26 @@ export function instrumentDefaultParameters(
 ): InstrumentedParameters {
   const sites: DefaultParameterSite[] = [];
   const edits: Edit[] = [];
-  const declarations = source.matchAll(/\bexport\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g);
-  for (const declaration of declarations) {
-    const name = declaration[1];
-    const open = source.indexOf('(', declaration.index + declaration[0].length);
-    const close = open < 0 ? -1 : closingParen(source, open);
-    const body = close < 0 ? -1 : functionBody(source, close + 1);
-    if (open < 0 || close < 0 || body < 0) continue;
-    const commas = outerDelimiters(source, open + 1, close, ',');
-    const starts = [open + 1, ...commas.map((position) => position + 1)];
-    const ends = [...commas, close];
+
+  for (const { name, node } of exportedFunctions(source)) {
+    const bodyStart = node.body?.start;
+    const bodyEnd = node.body?.end;
+    if (bodyStart === null || bodyStart === undefined || bodyEnd === null || bodyEnd === undefined) continue;
     const visits: number[] = [];
-    for (let part = 0; part < starts.length; part++) {
-      const equals = outerDelimiters(source, starts[part], ends[part], '=')
-        .find((position) => source[position + 1] !== '>' && source[position + 1] !== '=' && source[position - 1] !== '=');
-      if (equals === undefined) continue;
-      const initializerStart = equals + 1 + (source.slice(equals + 1, ends[part]).match(/^\s*/)?.[0].length ?? 0);
-      const initializerEnd = ends[part] - (source.slice(starts[part], ends[part]).match(/\s*$/)?.[0].length ?? 0);
-      const parameter = source.slice(starts[part], equals).trim().replace(/[?:].*$/, '').trim();
+
+    for (const parameter of node.params) {
+      if (parameter.type !== 'AssignmentPattern') continue;
+      const parameterStart = parameter.start;
+      const initializerStart = parameter.right.start;
+      const initializerEnd = parameter.right.end;
+      if (parameterStart === null || parameterStart === undefined || initializerStart === null || initializerStart === undefined || initializerEnd === null || initializerEnd === undefined) continue;
       const site = firstSite + sites.length;
       const initializerSource = source.slice(initializerStart, initializerEnd);
       sites.push({
         file,
-        line: source.slice(0, starts[part]).split('\n').length,
+        line: parameter.loc?.start.line ?? source.slice(0, parameterStart).split('\n').length,
         name,
-        parameter,
+        parameter: parameterName(source, parameterStart, initializerStart),
         source: initializerSource,
       });
       edits.push({
@@ -128,14 +104,25 @@ export function instrumentDefaultParameters(
       });
       visits.push(site);
     }
-    if (visits.length > 0) {
+
+    if (visits.length === 0) continue;
+    const visitSource = visits.map((site) => `visitedDefaultParameter(${site})`).join(', ');
+    if (node.body.type === 'BlockStatement') {
       edits.push({
-        start: body + 1,
-        end: body + 1,
-        text: `\n  ${visits.map((site) => `visitedDefaultParameter(${site});`).join(' ')} `,
+        start: bodyStart + 1,
+        end: bodyStart + 1,
+        text: `\n  ${visitSource.replaceAll(', ', '; ')}; `,
+      });
+    } else {
+      const bodySource = source.slice(bodyStart, bodyEnd);
+      edits.push({
+        start: bodyStart,
+        end: bodyEnd,
+        text: `(${visitSource}, ${bodySource})`,
       });
     }
   }
+
   if (sites.length === 0) return { source, sites };
   edits.sort((left, right) => right.start - left.start);
   let instrumented = source;
