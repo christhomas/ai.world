@@ -431,3 +431,52 @@ export function mayorOf(people: readonly Person[]): Person | null {
   }
   return mayor;
 }
+
+/**
+ * Everything a village hall could tell you, if you walked up and asked it.
+ *
+ * Item 89's readable half, and the half that does not wait on deciding what the hall's *body* is —
+ * the mayor's house at first and a building the village voted for later, which is a design decision
+ * rather than a function.
+ *
+ * All four answers are already derived and already correct; they are simply in four places, and a
+ * conversation that wanted to say *"what is this village up to"* would have to know which to ask.
+ * So they arrive together, in one shape, and the words that wrap them are the game's business
+ * rather than this file's — the same division `directoryOf` draws for who works what.
+ *
+ * Four issues are waiting on something like this and none of them wants a panel: a vacancy needs
+ * somewhere to be read from, a contract needs a hall that can be a party to it, and a vote needs a
+ * hall that exists to be voted for. What they all want is a thing that answers questions.
+ *
+ * A village nobody has settled answers nothing rather than throwing. A conversation can be struck up
+ * anywhere, and the answer to "what is this place saving for" in an empty valley is *nothing*.
+ */
+export function whatTheHallKnows(
+  book: {
+    hallOf: (village: string) => number;
+    mayorOf: (village: string) => Person | null;
+    watchOf: (village: string) => string;
+    worksOf: (village: string) => readonly string[];
+    rankOf: (village: string) => Rank;
+    livedIn: (village: string) => number;
+  },
+  village: string,
+): {
+  holds: number;
+  mayor: string;
+  watch: string;
+  raised: readonly string[];
+  savingFor: string | null;
+} {
+  const raised = book.worksOf(village);
+  const next = nextWork(Infinity, raised, book.rankOf(village));
+  return {
+    holds: book.hallOf(village),
+    mayor: book.mayorOf(village)?.id ?? '',
+    watch: book.watchOf(village),
+    raised,
+    // what it is putting money by for, whether or not it can reach it yet — which is the question
+    // somebody asking a hall means, rather than "what could you buy this morning"
+    savingFor: book.livedIn(village) === 0 ? null : next?.id ?? null,
+  };
+}
