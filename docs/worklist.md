@@ -4378,7 +4378,7 @@ than by remembering — and the first thing found was that the gap is not where 
       patchwork the honest version of each is "within so many tiles of here", which is what they all
       actually mean.
 
-- [~] **59f. Both halves have to switch together.** *Three of the four pieces done on the 12th; the
+- [x] **59f. Both halves have to switch together.** *Three of the four pieces done on the 12th; the
       server is not flipped, and why is written below.*
 
       **`GroundWorld` stands on a country rather than on one sampler.** A `Country` interface —
@@ -4429,6 +4429,14 @@ than by remembering — and the first thing found was that the gap is not where 
       An endless world needs the same treatment: one call, both halves, and `twohalves.test.ts`
       pointed at it.
 
+
+      **Done on the 13th — the server flipped.** `peopleOf` takes a `Country` and the village list
+      is a list that grows: `catchUp` folds in whatever square has arrived since last tick, telling
+      the register its mines before it settles anybody. Appended rather than replaced, because the
+      roster and `wildlife.ts` take that array once and keep it — handing out a fresh one every
+      patch would leave them all holding the country as it was the morning they started, which is
+      this item's own failure wearing different clothes. A bounded world goes through the same door
+      and catches up exactly once, which is what having an edge *is*. `server/endless.test.ts`.
 - [x] **59g. A save says which world it is.** `WorldKind` is `'road' | 'endless'` again, `kindOf`
       answers `endless` when a save says so, and `?world=endless` on a link asks for one — but only
       where there is no save to contradict it, so a shared link can never open somebody's own world
