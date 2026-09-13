@@ -123,7 +123,7 @@ export function takeOffTheRegister(
  * the purses of whoever sold it to them. What the village pays for its own dinner cannot be
  * settled until it has eaten, so `dinner` does that half.
  */
-export function aDaysWork(o: TheDay, village: Settlement, pressure: number): Trading {
+export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day: number): Trading {
   // the village as well, because what a coast eats is a fact about the place rather than about
   // anybody in it: see `harvest.ts`, where the herd and the boats sit side by side
   const trading = aDaysTrade(village.people, village.herd, pressure, village);
@@ -137,7 +137,7 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number): Tra
   // what the farm takes, which is the whole of what owning one means. See `shareTheTake`
   village.purse = Math.round((village.purse + tax.raised + trading.toTheHall) * 100) / 100;
   for (const person of village.people) o.taxed(person.id, -(tax.owed.get(person.id) ?? 0));
-  theVillageSpends(o, village);
+  theVillageSpends(o, village, day);
   return trading;
 }
 
@@ -151,7 +151,7 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number): Tra
  * falls into, which `chore sanity` once measured at sixty-two per cent of all the coin there is.
  * The order and the reasoning are in `growth.ts` and `hall.ts`; this only applies the answer.
  */
-export function theVillageSpends(o: TheDay, village: Settlement): void {
+export function theVillageSpends(o: TheDay, village: Settlement, day: number): void {
   // nought for everybody here first, and only for the people of *this* village: it cleared the
   // whole map to begin with, which quietly wiped what another village had paid out the same
   // morning. The audit caught it as twenty-six people getting nine hundred gold between them
@@ -162,7 +162,7 @@ export function theVillageSpends(o: TheDay, village: Settlement): void {
   // down. A roof before a well, because a village houses its people before it pleases them
   const spending = whatTheVillageSpends(
     village.purse, village.works, village.houses, village.founded, village.people, village.food,
-    village.holdings ?? [], village.herd, o.today);
+    village.holdings ?? [], village.herd, day);
   village.watch = spending.watch;
   // a villager founding a holding spends none of the hall's money, so what the hall spent is no
   // longer the whole test for "nothing happened here this morning"
@@ -264,7 +264,7 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
   // one pressing, read once, and handed to both the halves of the day it changes: what a village
   // earns and what it grows. Read twice out of a map, they could disagree with each other
   const pressure = o.pressureOn(name, day);
-  const work = aDaysWork(o, village, pressure);
+  const work = aDaysWork(o, village, pressure, day);
   const changes = [
     ...buryTheOld(o, village, day),
     ...dinner(o, village, day, work),
