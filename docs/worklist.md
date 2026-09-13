@@ -5540,3 +5540,39 @@ than by remembering — and the first thing found was that the gap is not where 
       `struck` and `swung` say so now: somebody on the register who takes a blow and lives is laid
       up, at a severity that is the blow as a share of the hardest one anybody may throw. Done red
       first — the test asked for a door that did not exist and said so before anything was written.
+
+- [ ] **94. State every value where the thing is declared, and delete the fallbacks.** Raised on the
+      13th, off the back of **92**, and it is the better answer than sweeping: rather than getting
+      good at finding defaults that are always taken, have none to find. A cow's damage belongs in
+      the entry for the cow, in `properties/beasts.json`, beside its speed and its emoji — then the
+      loader requires the field, a file that omits it fails loudly at load, and reading the JSON
+      tells you the whole truth about a cow without opening a single `.ts`.
+
+      **The evidence that this is a bug class and not tidying.** Attempting it turned up call sites
+      that had invented *different* answers for the same missing field:
+
+      - `kind.altitude ?? 2` in one spawn path and `kind.altitude ?? 7` in another, twenty lines
+        apart in `manager.ts`. A flier's height above the ground depends on which code spawned it.
+      - `kind.hp ?? HEALTH.FULL` in `health.ts` and `kind.hp ?? 1` in `probes.ts`. What a creature's
+        full health *is* depends on who is asking.
+
+      That is the same fault as the roof price and the mountain radius, one layer up: a fact about
+      the world decided in the code that happens to read it, differently each time, with nothing
+      anywhere saying which is right. Thirty-two of these exist across `src` and `server`.
+
+      **An attempt was made and backed out, and why is worth keeping.** Adding `numOr`/`flagOr`/
+      `pairOr` to the field reader — the default stated on the line that declares the field — is a
+      real improvement over `maybeNum` and worked. What it cannot do on its own is decide *what* the
+      default is where the readers disagree: settling `altitude` at nought makes every flying
+      creature fly at ground level, and settling `hp` at nought gives everything a maximum health of
+      nothing. Those disagreements have to be resolved first, one field at a time, by deciding what
+      the value means and writing it into the data.
+
+      Two tests also assert the absence itself — the wight *has* no hit points, and a swing that
+      finds nothing is the point of it. Those want reading before the field becomes required: `0`
+      and "not a living thing" may want to stay different, and if they do, that is a fact worth
+      writing down rather than a case to paper over.
+
+      The order to do it in: one field at a time, red-green, data first. Write the value into every
+      creature's entry, make the reader required, delete the fallbacks that field caused, run the
+      suite. `chore fallbacks` says when a field is finished — its sites stop appearing.
