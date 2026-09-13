@@ -5293,3 +5293,19 @@ than by remembering — and the first thing found was that the gap is not where 
       thing rather than of the order it was planned in. The fix is probably to draw from the square's
       own stream the way `skygrounds.ts` does, and to use enough name-parts that a repeat is a
       coincidence rather than a certainty.
+
+- [x] **87. A chunk that had to wait took a worker with it.** *Found on the 13th while taking a
+      screenshot of a mountain, by reading the debug line rather than looking at the picture.*
+      `chunks 32/36 queue 89`, unchanged after a minute, where a road world drains to nought in five
+      seconds — a range standing in open blue with no country round it.
+
+      `pump` splices the job out of the queue, takes a worker off `idle` and writes the key into
+      `pending` — and *then* asks whether the chunk's patch has been grown. If it has not, it
+      `continue`s, and none of those three are put back. `keepNear` will not re-queue a pending
+      chunk, so every chunk waiting on a patch was lost for good and took a worker with it. Four and
+      the page never painted another square of ground. The road world has no patchwork, so the
+      branch never ran there.
+
+      Asking before taking anything: 102 of 121 chunks and an empty queue. The regression is a
+      source test, because `ChunkManager` needs a scene and four `Worker`s to exist — which is
+      exactly why it lived this long.
