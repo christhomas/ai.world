@@ -125,16 +125,56 @@ class Pretend {
 }
 
 describe('and the simulation standing one up', () => {
-  it('opens an endless room and holds ground for it', () => {
+  /*
+   * The door, which was nailed shut.
+   *
+   * `sim.ts` hardcoded the room's kind to `'road'` — right for exactly as long as there was one
+   * country, and wrong from the moment there were two. An endless page opened a road room and then
+   * correctly reported *"this world is endless here and road in the world you joined"* on its first
+   * frame. Everything else about the endless server was built and unreachable behind it, which is
+   * why this asserts the *kind the client asked for* rather than that some ground exists: a road
+   * room has villages too, so "there are villages" proved nothing at all.
+   */
+  it('opens the country the client asked for, and says so back', () => {
     // ground is off by default so that no test pays two-thirds of a second by accident; this one is
     // about the ground, so it asks for it
     const sim = new Simulation({ vault: new Forgetful(), ground: true });
-    new Pretend(sim).say({
+    const rowan = new Pretend(sim);
+    rowan.say({
       type: 'join', world: 'endless', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
     });
+    expect(rowan.of('country')[0]?.kind).toBe('endless');
     const ground = sim.groundOf(7);
     expect(ground).not.toBeNull();
     expect(ground!.villages.length).toBeGreaterThan(0);
+  });
+
+  it('and a road room for a client that asks for one, or says nothing at all', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true });
+    const rowan = new Pretend(sim);
+    rowan.say({
+      type: 'join', world: 'road', seed: 11, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
+    });
+    expect(rowan.of('country')[0]?.kind).toBe('road');
+
+    // an older build, which says nothing about the country, lands where it always did
+    const bryn = new Pretend(sim);
+    bryn.say({ type: 'join', seed: 12, name: 'Bryn', version: PROTOCOL_VERSION, day: 2, time: 0.4 } as never);
+    expect(bryn.of('country')[0]?.kind).toBe('road');
+  });
+
+  /*
+   * And an endless room really is one. A road world stamps a fingerprint of its whole country; an
+   * endless one has no whole country to take one of, so silence there is the tell that this is not
+   * simply a road room wearing the word.
+   */
+  it('has no whole-country fingerprint, because it has no whole country', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true });
+    const rowan = new Pretend(sim);
+    rowan.say({
+      type: 'join', world: 'endless', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
+    });
+    expect(rowan.of('country')[0]?.stamp).toBe('');
   });
 
   it('still grows a road world exactly as it always did, which is the other half of one door', () => {

@@ -723,9 +723,22 @@ export class Simulation {
     }
     const seed = message.seed >>> 0;
     // the first player through the door sets the clock; after that the world keeps its own time
-    // one country now, whatever a client asks for: an older build joining with `mesh` gets the
-    // world that exists rather than a door that will not open. See `WorldKind`.
-    const kind: WorldKind = 'road';
+    /*
+     * Which country this room is, which is the client's to say and was hardcoded here until the
+     * 13th.
+     *
+     * `'road'` was right for exactly as long as there was one kind: an older build joining with
+     * `mesh` got the world that exists rather than a door that would not open. There are two kinds
+     * again, and a line that ignores what the client asked for is a line that opens a road room for
+     * a page holding an endless world — which the page then reports as *"this world is endless here
+     * and road in the world you joined"*, correctly, on its first frame.
+     *
+     * Anything but `endless` is a road world, so an old client and a client that says nothing both
+     * land where they always did. The first player through the door decides; after that the room
+     * keeps the country it opened as, because two people cannot stand in different countries and
+     * call it the same world.
+     */
+    const kind: WorldKind = message.world === 'endless' ? 'endless' : 'road';
     /*
      * A join that says nothing about islands gets the seed's own, not a world with none in it.
      *
