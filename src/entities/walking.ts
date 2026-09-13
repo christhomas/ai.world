@@ -186,9 +186,25 @@ function clearing(e: Entity): number {
   return e.leap > 0 ? JUMP.CLEARS : e.clears;
 }
 
+/**
+ * What decides where somebody may go: whatever is carrying them.
+ *
+ * A hero paddles — that is what stopped deep water being a wall for him — and every check about
+ * where he may step read *his* kind. Mounting moves a horse under him and changes nothing about
+ * that, so a rider could put a horse out to sea and the horse would swim, being a thing that
+ * `beasts.json` says in as many words does not. Nothing had ever asked it.
+ *
+ * A man on foot swims; a man on a horse goes where a horse goes, which is up to its chest. One
+ * function rather than the same `?? e.kind` written at four call sites, because the day a boat or
+ * a cart is something you sit on, this is where that is decided.
+ */
+export function whatCarriesHim(own: AnimalKind, mount: AnimalKind | null): AnimalKind {
+  return mount ?? own;
+}
+
 /** One slice of a move: the whole of it if it fits, else along whichever axis does. */
 function slide(world: TileWorld, e: Entity, dx: number, dz: number, crowd?: Crowd): boolean {
-  const k = e.kind;
+  const k = whatCarriesHim(e.kind, e.mounted);
   /*
    * Whoever is standing there stops you — unless you are already standing in them.
    *

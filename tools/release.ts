@@ -148,6 +148,23 @@ const README = 'README.md';
 /** How many releases the README shows before the rest are only in the changelog. See the guard. */
 const IN_THE_README = 10;
 
+/**
+ * What GitHub's release page says, taken from the changelog rather than written twice.
+ *
+ * `github-guard` ships the extractor that its own hook enforces — `git-changelog.sh notes vX.Y.Z`
+ * reads the same file, adds a compare link to the release before it, and is the reason the guard
+ * exists in the form it does: the changelog is the single source and the release body is a view of
+ * it. Falls back to the note as typed where the guard is not installed in this clone, because the
+ * guards are per-clone and a release must not depend on somebody having run an installer.
+ */
+function notesFor(version: string, body: string): string {
+  try {
+    return run('bash', ['.git/hooks/pre-push.d/git-changelog.sh', 'notes', `v${version}`]) || body;
+  } catch {
+    return body;
+  }
+}
+
 /** Today, as the changelog dates things: the day the release went out, not the day it was written. */
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -236,7 +253,7 @@ function main(): void {
 
   // The release is what builds the image the chart now names. Without it the cluster reconciles
   // against a version that exists in git and nowhere else.
-  run('gh', ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes', body]);
+  run('gh', ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes', notesFor(version, body)]);
   say(`published the release — the image workflow is building ghcr.io/christhomas/ai-world:${version}`);
   say('watch it with: gh run watch $(gh run list --workflow=image.yml --limit 1 --json databaseId -q \'.[0].databaseId\')');
 

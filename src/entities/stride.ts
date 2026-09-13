@@ -1,6 +1,7 @@
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { Entity, Herd, tryMove, yawFor, type Crowd, type TileWorld } from './entity';
+import { whatCarriesHim } from './walking';
 
 /**
  * One step of a hero, worked out the same way wherever it is worked out.
@@ -123,7 +124,8 @@ export function stride(world: TileWorld, e: Entity, steer: Steer, crowd?: Crowd)
  * footing, and one reaching the shore is still swimming until he is standing on it.
  */
 export function afloat(world: TileWorld, e: Entity): boolean {
-  if (e.kind.paddles !== true) return false;
+  // whatever is carrying him answers this: a rider is not swimming, he is on a horse in the shallows
+  if (whatCarriesHim(e.kind, e.mounted).paddles !== true) return false;
   return world.heightAt(e.x, e.z) === null && world.waterAt(e.x, e.z) !== null;
 }
 
@@ -139,7 +141,7 @@ export function settleOnto(world: TileWorld, e: Entity): void {
   if (h !== null) { e.y = h; return; }
   // and a swimmer floats at the surface, which is the height the water is rather than the height of
   // whatever is at the bottom of it
-  if (e.kind.paddles === true) {
+  if (whatCarriesHim(e.kind, e.mounted).paddles === true) {
     const surface = world.waterAt(e.x, e.z);
     if (surface !== null) e.y = surface;
   }

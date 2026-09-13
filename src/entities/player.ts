@@ -3,6 +3,7 @@ import type { IsoCamera } from '../render/camera';
 import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { Entity, Herd, canStand, spaceNear, tryMove, type Crowd, type TileWorld } from './entity';
+import { whatCarriesHim } from './walking';
 import { JUMP, leapHeight } from './leap';
 import { newHero, stride, type Steer } from './stride';
 import type { EntityRenderer } from './pool';
@@ -123,7 +124,7 @@ export class Player {
   shove(dx: number, dz: number): void {
     const e = this.entity;
     const nx = e.x + dx, nz = e.z + dz;
-    if (!canStand(this.world, e.kind, nx, nz, e.y)) return;
+    if (!canStand(this.world, whatCarriesHim(e.kind, e.mounted), nx, nz, e.y)) return;
     e.x = nx;
     e.z = nz;
     this.placed = false;                 // let the ground be found again under the new spot
@@ -366,7 +367,7 @@ export class Player {
       // a full terrace step triggers a little hop; ramps just glide
       if (this.hop <= 0 && Math.abs(h - e.y) > 0.3) this.hop = Player.HOP_TIME;
       e.y += (h - e.y) * Math.min(1, dt * (this.hop > 0 ? 22 : 14));
-    } else if (e.kind.paddles === true) {
+    } else if (whatCarriesHim(e.kind, e.mounted).paddles === true) {
       // out of his depth: he floats at the surface instead, eased the same way so that wading out
       // until the bottom drops away is one continuous movement rather than a step down
       const surface = this.world.waterAt(e.x, e.z);

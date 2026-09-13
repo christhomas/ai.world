@@ -179,6 +179,14 @@ export class Entity {
    */
   told: Told | null = null;
   /**
+   * What is carrying this one, when something is: the horse under a rider.
+   *
+   * Not a copy of the mount and not a link to it — only the *kind*, because the single question
+   * anything here asks of it is what may be crossed. A hero paddles and a horse does not, so which
+   * of the two is answering decides whether the sea is a road or a wall. See `whatCarriesHim`.
+   */
+  mounted: AnimalKind | null = null;
+  /**
    * The height this one is standing at, when it is standing on something the ground knows nothing
    * about — the fighting platform of a watchtower, so far, and nothing else.
    *
