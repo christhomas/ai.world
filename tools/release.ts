@@ -273,6 +273,19 @@ function writeTheChangelog(version: string, body: string, since: string | null):
 }
 
 /**
+ * What each release in the changelog said it was: its tag, its day, and its opening line.
+ *
+ * Pulled out of `writeTheReadme` and exported because it is the part that was wrong, silently, for
+ * eleven releases. The body was matched with `(?=\n## v|$)` under the `m` flag, where `$` is the
+ * end of a *line* — so the lazy body gave up at the blank line under the heading, every entry came
+ * back empty, and every line on the README's front page read "No note was written for this one".
+ *
+ * Nothing caught it because the release runs the suite *before* it writes these files: the thing it
+ * breaks is never the thing it checked. So the rule is testable on a changelog of its own now,
+ * rather than only on whatever the repository happens to contain this afternoon.
+ */
+
+/**
  * And the README's ten, which are rewritten rather than appended to.
  *
  * Rebuilt from the changelog every time, so the two cannot disagree about what a version said — the
@@ -280,14 +293,17 @@ function writeTheChangelog(version: string, body: string, since: string | null):
  * maintained by hand beside the thing it summarises is exactly how that starts. Only the first line
  * of each entry, because the README is a front page and not an archive.
  */
+export function whatEachSaid(log: string): Array<{ tag: string; when: string; said: string }> {
+  return [...log.matchAll(/^## (v\d+\.\d+\.\d+) — (\S+)\n([\s\S]*?)(?=\n## v|(?![\s\S]))/gm)]
+    .map(([, tag, when, body]) => ({ tag, when, said: body.trim().split('\n')[0].trim() }));
+}
+
 function writeTheReadme(): void {
   const log = readFileSync(CHANGELOG, 'utf8');
-  const entries = [...log.matchAll(/^## (v\d+\.\d+\.\d+) — (\S+)\n([\s\S]*?)(?=\n## v|$)/gm)]
+  const entries = whatEachSaid(log)
     .slice(0, IN_THE_README)
-    .map(([, tag, when, said]) => {
-      const first = said.trim().split('\n')[0].trim();
-      return `### ${tag} — ${when}\n\n${first || '_No note was written for this one._'}\n`;
-    });
+    .map(({ tag, when, said }) =>
+      `### ${tag} — ${when}\n\n${said || '_No note was written for this one._'}\n`);
   const section = ['## Changelog', '',
     `The ten most recent releases. Every one since \`v0.1.0\` is in [${CHANGELOG}](${CHANGELOG}).`,
     '', ...entries].join('\n').trimEnd();

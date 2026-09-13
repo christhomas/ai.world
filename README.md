@@ -640,7 +640,6 @@ villages founded at what their roofs hold
 ### v0.89.0 — 2026-09-13
 
 a frame goes up in a village you are walking through
-
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
