@@ -49,6 +49,22 @@ export interface Speaker {
   id: string;
   trade: string;
   stage: Stage;
+  /**
+   * Who they came from, for the features that are passed down rather than rolled.
+   *
+   * Resolved by whoever opens the conversation, because the register is the only thing that knows
+   * who anybody's parents are and nothing in `ui/` may go looking for it. Absent for a founder, a
+   * stranger, or a shopkeeper on no register at all — and absent is the face they have always had.
+   */
+  from?: { mother?: Speaker; father?: Speaker };
+}
+
+/** A speaker's descent as the face drawer wants it: the same shape, one layer at a time. */
+function descent(who: Speaker): { mother?: Face; father?: Face } | undefined {
+  if (!who.from) return undefined;
+  const one = (them?: Speaker): Face | undefined =>
+    them && faceOf(them.id, them.trade, them.stage, false, descent(them));
+  return { mother: one(who.from.mother), father: one(who.from.father) };
 }
 
 export interface DialogueNode {
@@ -127,7 +143,7 @@ export class DialogueBox {
 
   /** The hero's own face. Set it once at the start and whenever their gear changes. */
   setHero(who: Speaker): void {
-    this.hero = faceOf(who.id, who.trade, who.stage);
+    this.hero = faceOf(who.id, who.trade, who.stage, false, descent(who));
     drawFace(this.myFace, this.hero);
   }
 
@@ -168,7 +184,8 @@ export class DialogueBox {
 
   /** A drawn face where there is one, and the emoji the game has always used where there is not. */
   private showFace(node: DialogueNode): void {
-    this.speaking = node.face ? faceOf(node.face.id, node.face.trade, node.face.stage) : null;
+    this.speaking = node.face
+      ? faceOf(node.face.id, node.face.trade, node.face.stage, false, descent(node.face)) : null;
     this.theirFace.style.display = this.speaking ? '' : 'none';
     this.theirEmoji.style.display = this.speaking ? 'none' : '';
     if (this.speaking) drawFace(this.theirFace, this.speaking);

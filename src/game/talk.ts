@@ -15,6 +15,7 @@ import type { Quest } from './quests';
 import { gossipFor } from './gossip';
 import { bookRows, type Enquiry, type Keeper } from './enquiry';
 import { stageOf, type Person } from '../world/people';
+import { whoTheyCameFrom } from './descent';
 import type { Register } from '../world/register';
 
 export interface TalkCtx {
@@ -150,7 +151,10 @@ export function faceFor(e: Entity, ctx: { register?: Register; day?: number }): 
   const person = e.person !== '' ? ctx.register?.find(e.person) : undefined;
   if (person) {
     const stage = stageOf(person, ctx.day ?? 1);
-    return { id: person.id, trade: person.trade || e.trade, stage: stage === 'adult' ? 'adult' : 'child' };
+    return {
+      id: person.id, trade: person.trade || e.trade, stage: stage === 'adult' ? 'adult' : 'child',
+      from: whoTheyCameFrom(person, ctx.register, ctx.day ?? 1),
+    };
   }
   // a shopkeeper stands behind their counter rather than living on the register, but they are
   // still a person, so their name and their shop are enough to grow a face from

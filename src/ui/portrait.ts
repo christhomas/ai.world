@@ -39,6 +39,16 @@ export interface Face {
   trade: string;
   /** Mouth open, for the person currently speaking. */
   talking?: boolean;
+  /**
+   * Who they came from, for the features that are passed down rather than rolled.
+   *
+   * Faces rather than palettes, so a caller hands over the same thing it already has and descent
+   * goes back as far as it is given — a grandchild resembles a grandparent because the parent's own
+   * face was built the same way. Left out, and this is the face the id has always produced, which
+   * is the right answer for a founder, a stranger, or a shopkeeper who is not on any register.
+   */
+  mother?: Face;
+  father?: Face;
 }
 
 /** The line drawn around everything, which is what makes pixel art read. */
@@ -136,13 +146,82 @@ const LENGTHS: HairLength[] = ['crop', 'bob', 'long', 'twin', 'side', 'bun'];
 const FRINGES: Fringe[] = ['straight', 'parted', 'curtain', 'swept', 'oneEye', 'bare'];
 const MOODS: Mood[] = ['easy', 'bright', 'stern', 'tired'];
 
-/** A face for somebody, from anything that identifies them. */
-export function faceOf(id: string, trade: string, stage: Stage, talking = false): Face {
-  return { seed: hash(id), stage, trade, talking };
+/** A face for somebody, from anything that identifies them, and whoever they came from. */
+export function faceOf(
+  id: string, trade: string, stage: Stage, talking = false,
+  from?: { mother?: Face; father?: Face },
+): Face {
+  return { seed: hash(id), stage, trade, talking, ...(from ?? {}) };
 }
 
-/** What this face is made of. Exported so the choices can be checked without a canvas. */
-export function paletteFor(face: Face): Palette {
+/**
+ * The features a person is born with rather than chooses, and the ones they are not.
+ *
+ * The list is more visible than the mechanism. Skin, hair, eyes, the shape of a head and how far
+ * apart the eyes sit are descent — they are what makes somebody look like their mother across a
+ * square. Mood is a bad morning. Dress is a trade. Glasses, an earring, a clip and a beard are
+ * things a grown person put on, and a child inheriting its father's spectacles would be a stranger
+ * bug than a child inheriting nothing.
+ *
+ * Hair *volume* and *spikiness* are in, which is arguable and is argued this way: how much hair
+ * somebody has is descent, how they wear it is not — and `hair2`/`fringe` are the wearing, so they
+ * stay out. That keeps a family sharing a hairline without sharing a haircut.
+ */
+export const HERITABLE = [
+  'skin', 'hair', 'eye', 'head', 'eyes', 'eyeH', 'spacing', 'volume', 'spiky', 'brow',
+  'freckles', 'ahoge',
+] as const satisfies ReadonlyArray<keyof Palette>;
+
+/** How far back a face is worked out before it simply is what its own seed says. */
+const GENERATIONS = 6;
+
+/**
+ * How often a feature is something neither parent had.
+ *
+ * Small, and not zero. Nothing is what makes a line converge on one face over four hundred days of
+ * a village marrying its own children; too much and descent stops being legible, which is the whole
+ * thing this exists to make visible. One in fourteen means a child usually looks like its family and
+ * occasionally has its own nose.
+ */
+const THROWBACK = 0.07;
+
+/**
+ * What a child gets from each parent, one feature at a time.
+ *
+ * Per feature, not a blend of seeds. Blending makes mud: two brown-haired parents would have a
+ * brown-haired child by arithmetic rather than by descent, and nothing about the face would say
+ * whose it was. Taking mother's *or* father's, decided by the child's own seed, gives siblings who
+ * look alike without being identical, a resemblance that survives generations, and — with
+ * `THROWBACK` — the occasional child with a feature the line has not had.
+ */
+function inherited(own: Palette, mother: Palette, father: Palette, rng: () => number): Palette {
+  const out = { ...own };
+  for (const trait of HERITABLE) {
+    if (rng() < THROWBACK) continue;                         // its own, which the line has not had
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (out as any)[trait] = rng() < 0.5 ? mother[trait] : father[trait];
+  }
+  return out;
+}
+
+/**
+ * What this face is made of. Exported so the choices can be checked without a canvas.
+ *
+ * A face with parents is that person's own roll with the heritable half taken from one of them; a
+ * face without is exactly what it always was, which is what keeps every founder, stranger and
+ * shopkeeper looking the way they did before any of this existed.
+ */
+export function paletteFor(face: Face, back = GENERATIONS): Palette {
+  const own = ownPalette(face);
+  if (back <= 0 || !face.mother || !face.father) return own;
+  // the parents' own faces are worked out the same way, which is why a grandchild resembles a
+  // grandparent rather than only a parent. Bounded, because a family tree is not promised to end
+  return inherited(own, paletteFor(face.mother, back - 1), paletteFor(face.father, back - 1),
+                   mulberry32(face.seed ^ 0x9e3779b9));
+}
+
+/** The face somebody's own seed says, before anybody's parents are consulted. */
+function ownPalette(face: Face): Palette {
   const rng = mulberry32(face.seed);
   const pick = <T,>(list: readonly T[]): T => list[Math.floor(rng() * list.length)];
   const young = face.stage === 'child';
