@@ -1,4 +1,5 @@
 import { PROSPER } from './prosperity';
+import { THE_HALL } from './holdings';
 import type { Settlement } from './settlement';
 
 /**
@@ -32,18 +33,51 @@ import type { Settlement } from './settlement';
  * that is not anybody's. What the floor stops is reported separately and is *not* made good: a
  * man who owes more than he has has simply not paid it, and that is a hole in the day's books
  * rather than a coin the hall can find. It should be nought, and the audit says so.
+ *
+ * `unplaced` is the third and it is the one that should never happen at all: money owed to a name
+ * this village has never heard of. It is handed back rather than dropped because a coin that
+ * arrives nowhere is exactly what the books cannot see, and the whole point of them is that they
+ * can. See item 89.
  */
-export function pay(village: Settlement, owed: ReadonlyMap<string, number>): { over: number; short: number } {
-  let over = 0, short = 0;
-  for (const person of village.people) {
-    const much = owed.get(person.id);
-    if (much === undefined || much === 0) continue;
+export function pay(
+  village: Settlement, owed: ReadonlyMap<string, number>,
+): { over: number; short: number; unplaced: number } {
+  let over = 0, short = 0, unplaced = 0;
+  const purses = new Map(village.people.map((person) => [person.id, person]));
+
+  for (const [id, much] of owed) {
+    if (much === 0) continue;
+    /*
+     * The village itself is one of the names money can be owed to.
+     *
+     * `THE_HALL` funds a posting, owns a farm and takes a share of what that farm makes, so it
+     * turns up in the same maps a villager does — and this used to walk `village.people`, find
+     * nothing of that name, and drop the entry on the floor. A coin that leaves one book and
+     * arrives in none is the one thing the deed layer exists to make impossible, and it was
+     * happening silently, past a green suite. Item 89: paying the hall is paying somebody.
+     *
+     * No ceiling on it, deliberately. `PROSPER.MOST` is what one person keeps by them — the cap
+     * that stops a long-lived shopkeeper in a quiet corner ending the century with everything — and
+     * a treasury is not a person. What a village has put by is its own business and the sanity
+     * bench watches it; a hall that stopped being able to hold more would be a village that stopped
+     * being able to save for the thing it is saving for.
+     */
+    if (id === THE_HALL) {
+      village.purse = Math.round((village.purse + much) * 100) / 100;
+      continue;
+    }
+    const person = purses.get(id);
+    if (!person) { unplaced += much; continue; }
     const meant = person.purse + much;
     if (meant > PROSPER.MOST) over += meant - PROSPER.MOST;
     if (meant < 0) short -= meant;
     person.purse = Math.min(PROSPER.MOST, Math.max(0, meant));
   }
-  return { over: Math.round(over * 100) / 100, short: Math.round(short * 100) / 100 };
+  return {
+    over: Math.round(over * 100) / 100,
+    short: Math.round(short * 100) / 100,
+    unplaced: Math.round(unplaced * 100) / 100,
+  };
 }
 
 /**
