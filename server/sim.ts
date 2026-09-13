@@ -6,7 +6,8 @@ import {
 import { Rooms, type Client, type Room, type Wire } from './rooms';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
-import { GroundWorld } from '../src/world/groundworld';
+import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
+import { Patchwork } from '../src/world/patchwork';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
@@ -16,7 +17,7 @@ import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
-import { countryStamp, growWorld } from '../src/world/growworld';
+import { countryStamp, growPatch, growWorld } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
 import type { WorldKind } from '../src/save/store';
 import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
@@ -133,6 +134,8 @@ export class Simulation {
   private readonly reach: number;
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
+  /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
+  private readonly folk = new Map<number, { catchUp: () => void }>();
   /** The fingerprint of each of those countries, so a joining page can check it grew the same one. */
   private readonly stamps = new Map<number, string>();
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
@@ -200,21 +203,49 @@ export class Simulation {
     // road-tree world without them here and with them there gave the same seed two different
     // countries, and whichever filled a chunk first won; growing it with a *different* set of them
     // would do it again, which is why they travel with the join. `growworld.ts` says the rest.
-    const graph = growWorld(seed, kind, room?.islands);
-    const sampler = new TerrainSampler(graph);
+    /*
+     * Two countries, one door, and the difference is what the world is *made of* rather than how it
+     * is reached.
+     *
+     * A road world exists all at once: one graph, one sampler, and `oneCountry` over the whole of
+     * it. An endless one has no such moment — what exists is whatever somebody has walked into, a
+     * 512-tile square at a time — so it is a `Patchwork` and `patchedCountry` over that. Both come
+     * out as a `Country`, which is the interface `GroundWorld` has stood on since the 12th, so
+     * everything below this line is the same code for both.
+     *
+     * The stamp is the part that could not simply be the same. A bounded world's fingerprint is a
+     * fingerprint of the whole country, and there is no whole country here to take one of; an
+     * endless world is checked a patch at a time by `twohalves.test.ts` instead, which is the
+     * honest version of the same question and the better one — it asks *"are we on the same
+     * ground"* wherever somebody is standing rather than *"are we in the same world"* once.
+     */
+    const endless = kind === 'endless';
+    const patches = endless ? new Patchwork(seed, growPatch) : null;
+    const graph = endless ? null : growWorld(seed, kind, room?.islands);
+    const country = patches ? patchedCountry(patches) : oneCountry(new TerrainSampler(graph!));
     // and the fingerprint of it, so a joining page can be told which country it is standing in
     // rather than assuming its own answer was the same one
-    this.stamps.set(seed, countryStamp(graph));
-    const grown = new GroundWorld(sampler, blocking(propFootprints(), BLOCKS_WALKING));
+    if (graph) this.stamps.set(seed, countryStamp(graph));
+    const grown = new GroundWorld(country, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
+    /*
+     * The square the players are in, before anybody is put in a street.
+     *
+     * A patchwork with nothing in it has no villages at all, so the register would be handed an
+     * empty country and the first hero would arrive somewhere with nobody in it. The origin is
+     * where a fresh endless world puts somebody, it costs about half a second, and every other
+     * square arrives as it is walked into — which is what `catchUp` below is for.
+     */
+    if (patches) patches.at(0, 0);
     // The people too, now. They were held back for a long time on the argument that a village is the
     // seed and the register and every client already agrees about it — which was true until a
     // villager was given something of his own to remember, and then it was two men of the same name
     // holding two different views of you. `server/people.ts` says how one is assembled.
-    const folk = peopleOf(seed, sampler, Math.floor(room?.world.clock.day ?? 1), {
+    const folk = peopleOf(seed, country, Math.floor(room?.world.clock.day ?? 1), {
       onFallen: (who, id) => this.buried(seed, who, id),
       onArrest: (by, whom) => this.tellOfArrest(seed, by, whom),
     });
+    this.folk.set(seed, folk);
     const alive = new Wildlife(seed, grown, grown, folk);
     // and the book goes to the world, which is the one thing that knows when a place has stopped
     // being anybody's business — the moment ten slights are worth settling into one opinion
@@ -379,6 +410,7 @@ export class Simulation {
         room.world.keepNear([]);
         this.rooms.close(seed);
         this.ground.delete(seed);
+        this.folk.delete(seed);
         this.stamps.delete(seed);
         this.wildlife.delete(seed);
         this.rooms.forgetGround(seed);
@@ -386,6 +418,11 @@ export class Simulation {
       }
 
       room.world.tick(seconds);
+      // Whatever country has arrived since last tick, folded in: a hero walking into a square that
+      // was not there grows it, and its villages have to reach the register before anybody is put
+      // in one of their streets. Costs one set lookup per patch held in a world nobody is
+      // exploring, which is every tick of a road world for ever. See `server/people.ts`.
+      this.folk.get(seed)?.catchUp();
       // The book catches up before anybody walks a villager anywhere. A day turning over buries the
       // old, fills the gaps, grows the children up and pays everybody for a day's work, and the
       // street is brought back into line with it on the next step — so the order is the register
