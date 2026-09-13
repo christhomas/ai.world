@@ -533,7 +533,7 @@ export const LONG_RUN: Record<string, LongRun> = {
   farmer: keepsItsHours,
   hunter: keepsItsHours,
   /*
-   * A logger's day is hours like a miner's: out to the trees at first light, home at dusk.
+   * A lumberjack's day is hours like a miner's: out to the trees at first light, home at dusk.
    *
    * And, exactly as with the miner, what a week of his *work* comes to is not this form's business
    * and must not be. The timber he cuts is landed in the village's yard by `builderDay`, once a
@@ -542,7 +542,7 @@ export const LONG_RUN: Record<string, LongRun> = {
    * fault this whole file exists to make impossible, and it is worth saying which side of the line
    * each half falls on: where he is standing is here, what he cut is over there.
    */
-  logger: keepsItsHours,
+  lumberjack: keepsItsHours,
   /*
    * And the builder, on the same line drawn in the same place.
    *
@@ -565,7 +565,7 @@ export const LONG_RUN: Record<string, LongRun> = {
   /*
    * A fisherman's day is hours: down to the water at first light, in before dark.
    *
-   * And, as with the logger and the miner, what a week of his *work* comes to is not this form's
+   * And, as with the lumberjack and the miner, what a week of his *work* comes to is not this form's
    * business. The catch is landed by `aDaysTrade` once a day out of the boats the village keeps,
    * watched or not — so a form that also yielded meals would fill a larder faster for being looked
    * at, which is the one fault this whole file exists to make impossible.

@@ -64,8 +64,8 @@ const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.tim
  * yard tells them whether waiting would help. A village with none is a village where waiting never
  * will, and saying so is the difference between a rule and a locked door.
  */
-function loggersFor(people: readonly { trade: string }[]): number {
-  return people.filter((person) => person.trade === 'logger').length;
+function lumberjacksFor(people: readonly { trade: string }[]): number {
+  return people.filter((person) => person.trade === 'lumberjack').length;
 }
 
 /**
@@ -200,7 +200,7 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
        * Asked before a coin moves, because the deposit is not refundable and a man who took it and
        * then found he had no timber would have sold you a wait. He does not offer to order it in
        * either: that is the whole point of the material, and the answer a village with an empty
-       * yard gives is the honest one — wait for the loggers, or go and cut it yourself and sell it
+       * yard gives is the honest one — wait for the lumberjacks, or go and cut it yourself and sell it
        * over the trestle here, which puts it on the same stack.
        */
       const short = houses.yard.shortBy(village.name, entry.timber);
@@ -209,8 +209,8 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
           speaker: name, emoji: '🔨',
           pages: [
             `${entry.name[0].toUpperCase()}${entry.name.slice(1)} wants ${entry.timber} good lengths and the yard has ${houses.yard.at(village.name)}.`,
-            loggersFor(ctx.register.living(village.name)) > 0
-              ? `Give the sawyers a few days. ${short} short, and they cut six a day between them.`
+            lumberjacksFor(ctx.register.living(village.name)) > 0
+              ? `Give the lumberjacks a few days. ${short} short, and they cut six a day between them.`
               : 'Nobody here cuts. Bring it in yourself and put it on a stall, and it goes on the same stack.',
           ],
         };
@@ -667,15 +667,15 @@ export function builderInteractions(ctx: Surroundings) {
    */
   const builderDay = (): void => {
     /*
-     * What the loggers cut, which is the other half of a builder's morning.
+     * What the lumberjacks cut, which is the other half of a builder's morning.
      *
      * Here rather than anywhere else because this is the one callback that already runs once a day
      * and already knows both the register and the builder's books — and because a builder's day is
-     * exactly when he would look at what came into the yard. A village with no logger in it lands
+     * exactly when he would look at what came into the yard. A village with no lumberjack in it lands
      * nothing, for ever, and that is the limit the whole material exists to be.
      */
     for (const village of register.settled()) {
-      houses.yard.felled(village, loggersFor(register.living(village)));
+      houses.yard.felled(village, lumberjacksFor(register.living(village)));
     }
     const bills = houses.charge(state.day);
     if (bills.length === 0) return;

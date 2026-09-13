@@ -16,7 +16,7 @@ const ASHFORD = 'Ashford';
 const house = buildable(BUILDS.HOUSE);
 
 describe('a village yard', () => {
-  it('is found with a week of its own loggers behind it, and empty where nobody cuts', () => {
+  it('is found with a week of its own lumberjacks behind it, and empty where nobody cuts', () => {
     /*
      * A village that has stood for years has a stack by the sawpit. Opening every yard in the world
      * at nothing would mean no house anywhere could be commissioned until a player had stood about
@@ -67,7 +67,7 @@ describe('a village yard', () => {
   it('takes wood from anybody who brings it, not only from the men who cut it', () => {
     /*
      * The half that makes this a chain a player can stand in rather than a wall they wait at. A
-     * place with no logger in it never fills its own yard, and somebody who walks in with a saw and
+     * place with no lumberjack in it never fills its own yard, and somebody who walks in with a saw and
      * a pack full of timber can be the supply — out of an act the game already had.
      */
     const timber = new Timber();
@@ -107,7 +107,7 @@ describe('what a building costs in wood', () => {
   });
 
   it('makes a house a thing that took somebody a week to cut', () => {
-    // the sentence the whole feature exists to make true: one logger keeps one crew going, and
+    // the sentence the whole feature exists to make true: one lumberjack keeps one crew going, and
     // takes about as long over the timber as the crew takes over the house
     const daysOfCutting = house.timber / TIMBER.A_DAY;
     expect(daysOfCutting).toBeGreaterThan(4);
@@ -153,7 +153,7 @@ describe('the wood a player brought in', () => {
   });
 
   it('does not count what the village cut for itself', () => {
-    // the wright builds a cart for whoever brought the wood, and a logger did not bring it — he
+    // the wright builds a cart for whoever brought the wood, and a lumberjack did not bring it — he
     // lives here. Counting felling would hand every player a free cart for standing still
     const yard = new Timber();
     yard.felled(ASHFORD, 3);
