@@ -220,21 +220,38 @@ const finish = async () => {
    * replaced it, so the hero never arrived and the check measured nothing at all and said so as a
    * failure. What it actually needs is to be near enough to something living for the world to be
    * correcting it, so it goes and finds one.
+   *
+   * Which one it goes to is the page's business rather than this script's, and that is the second
+   * half of the same fault. This picked the nearest living thing; the tally counts something
+   * narrower, and it read `0 corrections, mean 0.00, worst 0.00 ()` on two unrelated branches —
+   * a measurement that never happened, reported as a failure with no cause in it.
+   *
+   * Two ways that happens, and the second is the one it was: the tally leaves out anything that
+   * flies, so an eagle overhead is nobody to stand by; and the world sends a client only what
+   * *changed*, so a man idling in a village is not in a snapshot at all and no tally will ever hear
+   * of him. The hero duly stood 4.2 tiles from a man who never moved and measured nothing for eight
+   * seconds. `__creature` answers with a creature the tally is actually about, so the thing stood
+   * beside and the thing measured are one animal.
    */
-  const grazing = await page.evaluate(() => {
-    const p = window.__player;
-    const near = window.__entitiesFull()
-      .filter((e) => !e.dead && e.id !== null)
-      .map((e) => ({ x: e.x, z: e.z, d: Math.hypot(e.x - p.x, e.z - p.z) }))
-      .sort((a, b) => a.d - b.d);
-    return near[0] ?? null;
-  });
-  if (grazing) await go(grazing.x + 3, grazing.z + 3, 6000);
-  await page.evaluate(() => window.__drift);
-  await page.waitForTimeout(8000);
-  const d = await page.evaluate(() => window.__drift);
-  say('creatures within reach are drawn where they are', d.wrongClose.of > 0 && d.wrongClose.mean < DRIFT,
-    `${d.wrongClose.of} corrections, mean ${d.wrongClose.mean.toFixed(2)}, worst ${d.wrongClose.worst.toFixed(2)} (${d.wrongClose.worstIs}), against ${DRIFT}`);
+  let d = null, beside = 'nothing to stand by';
+  // A creature can stop between being chosen and being reached, and then there is nothing to
+  // measure through no fault of the game, so this asks again rather than reporting the empty tally.
+  for (let tries = 0; tries < 3 && (d === null || d.wrongClose.of === 0); tries++) {
+    const stirring = await page.evaluate(() => window.__creature());
+    if (!stirring) { await page.waitForTimeout(3000); continue; }
+    await go(stirring.x + 3, stirring.z + 3, 6000);
+    await page.evaluate(() => window.__drift);
+    await page.waitForTimeout(8000);
+    d = await page.evaluate(() => window.__drift);
+    beside = `${stirring.kind} ${stirring.away.toFixed(1)} tiles off`;
+  }
+  // an empty tally and a good one are different failures, and the run has to say which: nothing
+  // measured used to read exactly like a world drawing every creature perfectly
+  const measured = d !== null && d.wrongClose.of > 0;
+  say('creatures within reach are drawn where they are', measured && d.wrongClose.mean < DRIFT,
+    measured
+      ? `${d.wrongClose.of} corrections, mean ${d.wrongClose.mean.toFixed(2)}, worst ${d.wrongClose.worst.toFixed(2)} (${d.wrongClose.worstIs}), against ${DRIFT}; stood by ${beside}`
+      : `nothing was measured: ${d ? d.drawn : 0} creatures drawn, went to ${beside} — the check found nothing moving to stand by, which is not the same as a world drawing them right`);
 
   // --- and the same wall, at a gallop ---
   /*

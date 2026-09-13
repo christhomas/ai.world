@@ -1,4 +1,4 @@
-import { KINDS } from '../entities/animals';
+import { KINDS, type AnimalKind } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import type { EntityRenderer } from '../entities/pool';
 import type { EntityManager } from '../entities/manager';
@@ -98,6 +98,31 @@ const FASTEST_GUESS = 1.4;
 
 /** How close a creature has to be before being drawn in the wrong place matters, in tiles. */
 const CLOSE = 8;
+
+/**
+ * How long ago the world last had something to say about a creature, before it stops being
+ * something a measurement can be taken against, in seconds.
+ *
+ * The world sends each client only what changed since the last snapshot, so a creature standing
+ * perfectly still is not in the message at all. Nothing arrives about it, the tally never hears of
+ * it, and standing beside it for an hour moves no number — which is an honest nought that reads
+ * exactly like a world drawing its creatures perfectly. Snapshots come three times a second, so a
+ * whole second of silence is a creature that has stopped rather than one between messages.
+ */
+const STILL_AFTER = 1;
+
+/**
+ * Whether being drawn in the wrong place costs the player anything, for this kind of creature.
+ *
+ * Nobody swings at a bird, and a flier is drawn behind on purpose, so a gap between where the world
+ * has an eagle and where the screen has it is nobody's problem. That makes it a rule about *which
+ * creatures a measurement is about*, and not only a line inside the tally: anything going to find
+ * something to measure against has to ask the same question, or it can stand under an eagle and
+ * measure nothing at all.
+ */
+function reachable(behaviour: AnimalKind['behaviour']): boolean {
+  return behaviour !== 'fly';
+}
 
 /**
  * The book of who lives where, on this side, and how to open a village in it.
@@ -208,7 +233,7 @@ export class Wildlife {
         this.wrong.total += out;
         if (out > this.wrong.worst) this.wrong.worst = out;
         this.recent = this.recent * 0.96 + out * 0.04;
-        if (hero && body.kind.behaviour !== 'fly' && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
+        if (hero && reachable(body.kind.behaviour) && Math.hypot(snap.x - hero.x, snap.z - hero.z) <= CLOSE) {
           this.wrongClose.n++;
           this.wrongClose.total += out;
           if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
@@ -263,6 +288,36 @@ export class Wildlife {
       wrongClose: { worst: close.worst, mean: close.n > 0 ? close.total / close.n : 0, of: close.n, worstIs: close.worstIs },
       recent: this.recent,
     };
+  }
+
+  /**
+   * The nearest creature the close tally would count, wherever it is, or null when there is none.
+   *
+   * For anything that goes looking for something to measure against. The close tally is the honest
+   * answer to "will my blow land where it looks like it will", and it is deliberately narrower than
+   * "the nearest living thing": it leaves out whatever flies. Something choosing where to stand by
+   * a different rule can therefore pick a bird, read an empty tally, and report *nothing measured*
+   * as *nothing wrong* — or, in a pipeline that insists on a measurement, as a failure with no
+   * cause in it. One rule, read from both ends, so the creature stood beside is the creature
+   * counted.
+   *
+   * `CLOSE` is deliberately not applied. The caller's whole purpose is to close that distance; what
+   * it needs is the creature worth walking to, and how far off it currently is.
+   *
+   * A creature the world has gone quiet about is skipped for the same reason a bird is: it is not
+   * something this measurement can be taken against, however near it is standing.
+   */
+  nearestCounted(hero: { x: number; z: number }): { id: number; kind: string; x: number; z: number; away: number } | null {
+    const now = performance.now() / 1000;
+    let best: { id: number; kind: string; x: number; z: number; away: number } | null = null;
+    for (const [id, body] of this.bodies) {
+      if (!reachable(body.kind.behaviour)) continue;
+      const told = this.wanted.get(id);
+      if (!told || now - told.at > STILL_AFTER) continue;
+      const away = Math.hypot(body.x - hero.x, body.z - hero.z);
+      if (!best || away < best.away) best = { id, kind: body.kind.id, x: body.x, z: body.z, away };
+    }
+    return best;
   }
 
   /** The creature the world calls by this number, if it is on our screen. */
