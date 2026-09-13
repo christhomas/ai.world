@@ -109,9 +109,12 @@ export function createMeeting(ctx: Meeting) {
 
   const talkCtx: TalkCtx = {
     state, rng, quests, time: state.time, register, day: state.day,
-    // where this counter stands, read when a price is asked for rather than when the game is built:
-    // the hero walks, and the whole point of a fur is that it is worth more somewhere else
-    country: () => countryAt(player.x, player.z),
+    // Indoors the player's coordinates belong to the room, not the overworld. Price a counter at
+    // its outside door; outdoors, the hero's current ground remains the answer.
+    country: () => {
+      const door = indoors();
+      return countryAt(door?.x ?? player.x, door?.z ?? player.z);
+    },
     wordOfHim,
     saidOfMine,
     yard: landWood,
