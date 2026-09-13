@@ -382,18 +382,28 @@ function main(): void {
   say('released through a pull request and squashed onto main');
 
   /*
-   * The tag goes on what main actually became, not on what was written locally.
-   *
-   * A squash makes a *new* commit, so the commit that exists here is not the commit that shipped.
-   * Tagging the local one would put the tag on an object nobody else has — and `git-tags-on-main`
-   * would refuse it, correctly, as a tag pointing off the branch.
+   * A squash creates a new commit. Name that exact commit through the pull request, not whichever
+   * unrelated change reached main before this process fetched it. The tree check makes the target
+   * prove it carries the chart version this release just wrote.
    */
+  const merged: unknown = JSON.parse(run('gh', ['pr', 'view', branch, '--json', 'mergeCommit']));
+  if (
+    !merged || typeof merged !== 'object' || !('mergeCommit' in merged)
+    || !merged.mergeCommit || typeof merged.mergeCommit !== 'object'
+    || !('oid' in merged.mergeCommit) || typeof merged.mergeCommit.oid !== 'string'
+  ) throw new Error(`release pull request ${branch} has no merge commit`);
+  const releaseCommit = merged.mergeCommit.oid;
+
   run('git', ['switch', 'main']);
   run('git', ['fetch', 'origin', 'main']);
-  run('git', ['reset', '--hard', 'origin/main']);
-  run('git', ['tag', '-a', `v${version}`, '-m', `v${version}`]);
+  run('git', ['merge-base', '--is-ancestor', releaseCommit, 'origin/main']);
+  const taggedChart = run('git', ['show', `${releaseCommit}:chart/Chart.yaml`]);
+  if (taggedChart.match(/^version: (.+)$/m)?.[1]?.trim() !== version) {
+    throw new Error(`merge commit ${releaseCommit} does not carry chart version ${version}`);
+  }
+  run('git', ['tag', '-a', `v${version}`, releaseCommit, '-m', `v${version}`]);
   run('git', ['push', 'origin', `v${version}`]);
-  say(`tagged v${version} on main as it now stands`);
+  say(`tagged v${version} on release commit ${releaseCommit}`);
 
   // The release is what builds the image the chart now names. Without it the cluster reconciles
   // against a version that exists in git and nowhere else.
