@@ -213,9 +213,26 @@ const NAMES = [
  *
  * The order is the island list's own, so the same seed picks the same islands on every machine.
  */
+/**
+ * Somewhere a sky island could hang: a centre and how far its ground reaches.
+ *
+ * The planner asked for an `IslandInfo` and read four fields of it — never the hub, never the biome,
+ * never the node index. Loosened to what it actually uses on the 13th, because the endless country
+ * has no islands in that sense at all: an island there is a `SkyGround` named by the patch it is in
+ * rather than a sub-tree of roads with a harbour town on it. `IslandInfo` satisfies this as it
+ * stands, so a road world's call is unchanged.
+ */
+export interface SkyGround {
+  id: string;
+  x: number;
+  z: number;
+  /** How far its ground reaches, which decides both how big the island is and how far off-centre. */
+  radius: number;
+}
+
 export function planSkyIslands(
   seed: number,
-  islands: readonly IslandInfo[],
+  islands: readonly SkyGround[],
   massifs: readonly Massif[],
   /**
    * Whether there is dry ground at a point on the world below. Optional only so that the shape of

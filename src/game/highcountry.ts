@@ -2,6 +2,7 @@ import { TileType } from '../world/terrain';
 import { WORLD } from '../core/config';
 import { rangesAsMassifs } from '../world/ranges';
 import { buildSkyIsland, planSkyIslands, type SkyIsland } from '../world/skyisland';
+import { skyGroundsIn } from '../world/skygrounds';
 import { planEyries, type Eyrie } from './eyries';
 import type { Manifest } from '../world/manifest';
 import type { SkyIslands } from '../render/skyisland';
@@ -63,7 +64,18 @@ export class HighCountry {
     // under every island he has ever walked past
     this.sky.clear();
     this.isles.length = 0;
-    this.isles.push(...planSkyIslands(this.seed, sampler.graph.islands, high, land).map((site) =>
+    /*
+     * What to hang a village in the clouds over.
+     *
+     * A road world hangs one over an island, which is a sub-tree of roads with a harbour town on
+     * it. An endless patch's graph has an empty island list and always will, so it draws its own
+     * places on a stream of its own — see `skygrounds.ts`, which is item 85 and says why an island
+     * was never what this actually needed.
+     */
+    const grounds = sampler.within
+      ? skyGroundsIn(this.seed, sampler.within, land)
+      : sampler.graph.islands;
+    this.isles.push(...planSkyIslands(this.seed, grounds, high, land).map((site) =>
       buildSkyIsland(site, this.manifest.ensure(site.id, 'skyisle', site.x, site.z, site.over).seed, land)));
 
     const sample = sampler.newSample();

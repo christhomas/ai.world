@@ -66,9 +66,8 @@ const RING_Z = Array.from({ length: 8 }, (_, k) => Math.sin((k / 8) * Math.PI * 
  * answers both from a bounded neighbourhood of the place being asked about, so this is the whole of
  * the join between the two: give a sampler one of these and it draws that country instead.
  *
- * What it cannot yet hand over is the rock. A bounded world's mountains are geometry grown from its
- * polygons, and a country given this way has high ground with nothing standing on it: walkable,
- * snowed on, drawn on the map, and missing its last few hundred feet.
+ * It hands over the rock too, now: `highland` is what `buildRanges` grows a patch's mountains from,
+ * so high ground given this way has peaks standing on it rather than being merely walkable.
  */
 export interface Ground {
   /** Somewhere you could stand: the same question `isLand` answers of a mesh. */
@@ -237,8 +236,16 @@ export class TerrainSampler {
     }
 
     // and now that the world has been grown, everything that cannot reach the window is let go
-    if (prebuilt?.within) this.narrowTo(prebuilt.within);
+    if (prebuilt?.within) { this.within = prebuilt.within; this.narrowTo(prebuilt.within); }
   }
+
+  /**
+   * The square of country this sampler answers for, or nothing for a world with an edge.
+   *
+   * Kept because a patch's own square is a fact about it that anything planning *per patch* needs
+   * and cannot work out — where to hang a village in the clouds, for one.
+   */
+  readonly within: Within | null = null;
 
   /**
    * Let go of everything that cannot reach the window.
@@ -287,12 +294,11 @@ export class TerrainSampler {
    * more than a tile or so of precision.
    *
    * Measured on one 512-tile patch, because it is most of what growing one costs: this asks `dry`
-   * 1,324,956 times, ninety per cent of every such question the patch asks. Reaching out from the
-   * sea for the shore takes thirty-five probes and finds its shore five times in six; feeling round
-   * a dry tile for a coast takes exactly eight, every time, and finds water eight times in a
-   * thousand. A million probes for a boolean nearly always false is not a fault cheaper probing can
-   * fix: it is what "land is a shape" costs when the only way to ask about a shape is to feel for
-   * its edge, and a different way of asking is a different coastline and so a different country.
+   * 1,324,956 times, ninety per cent of every such question the patch asks — thirty-five probes
+   * reaching out from the sea, exactly eight feeling round a dry tile. A million probes for a
+   * boolean nearly always false is not a fault cheaper probing can fix: it is what "land is a
+   * shape" costs when the only way to ask about one is to feel for its edge, and a different way
+   * of asking is a different coastline and so a different country.
    */
   private waterAway(x: number, z: number, most: number, looking: boolean): number {
     if (!this.shaped) return most;
@@ -350,10 +356,9 @@ export class TerrainSampler {
    * The road nearest a point, how far off it is, and how far along it.
    *
    * Two answers, and which you want depends on what you are asking. `drawn` measures to the road as
-   * it is drawn, which wanders (`wander.ts`); without it, to the line it was surveyed along, which
-   * does not. Whatever was *laid out* against a road — the rivers that avoid one, the villages that
-   * sit on one — wants the surveyed line, because bending it under them moves a river across a
-   * square. Whatever is *drawn* wants the drawn one.
+   * it is drawn, which wanders (`wander.ts`); without it, to the surveyed line, which does not.
+   * Whatever was *laid out* against a road — the rivers that avoid one, the villages that sit on
+   * one — wants the surveyed line, because bending it under them moves a river across a square.
    */
   private nearest(
     px: number, pz: number, cands: number[], drawn = false,
@@ -389,10 +394,6 @@ export class TerrainSampler {
     return (a.level + (b.level - a.level) * hit.t) * WORLD.STEP;
   }
 
-  /**
-   * Nearest water body. `wd` is the signed distance outside its edge (negative = in the water),
-   * `level` is the terrace the water surface belongs to (bed is one below).
-   */
   /**
    * Every water body in the candidate set, as how far outside it this point is and what terrace its
    * surface belongs to.
@@ -471,12 +472,11 @@ export class TerrainSampler {
      * The country this is in — a road through the mountains is a road in the mountains — cut down
      * into whatever valley it crosses, which is `cutForWater`'s whole subject.
      *
-     * Against *every* water near this point rather than against the nearest one. Each body the
-     * ground is near constrains it independently, and the binding constraint is the lowest of them
-     * — which is not always the closest. Taking the nearest was the worst wall in the world: at
-     * 158,-158 on seed 1 two neighbouring road tiles stood thirteen terraces apart, because the
-     * nearest water changed hands from one whose surface is at terrace 38 to one at terrace 22 and
-     * the cut jumped with it. Both were near both tiles the whole time.
+     * Against *every* water near this point rather than the nearest one. Each body constrains the
+     * ground independently and the binding constraint is the lowest of them, which is not always
+     * the closest. Taking the nearest was the worst wall in the world: at 158,-158 on seed 1 two
+     * neighbouring road tiles stood thirteen terraces apart, because the nearest water changed
+     * hands from a surface at terrace 38 to one at 22. Both were near both tiles the whole time.
      */
     let country = this.highlandAt(px, pz);
     this.eachWater(px, pz, riverCands, (wd, level) => {
