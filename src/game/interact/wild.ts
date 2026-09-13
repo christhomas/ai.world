@@ -7,6 +7,7 @@ import { FISHING } from '../fishing';
 import { Digging, groundOf, seamAt, type Ground } from '../digging';
 import { mineIdOf } from '../mines';
 import { villageAt } from '../../world/structures';
+import { AWAY, buy, holds } from '../../world/deeds';
 import { SHRINE_FEE } from '../../world/shrine';
 import type { Surroundings } from './context';
 
@@ -68,7 +69,20 @@ export function wildInteractions(ctx: Surroundings) {
     }
     const raised = register.raiseAtShrine(valley.name, state.day);
     if (raised.length === 0) { hud.flash('The stones are cold. Not today.'); return null; }
-    state.inventory.gold -= SHRINE_FEE;
+    /*
+     * And the coin goes into the bowl, which is out of the world.
+     *
+     * It left by subtraction until now — `state.inventory.gold -= SHRINE_FEE` — which is the thing
+     * `deeds.ts` was written to end, and the doctor's fee was called "one of the last places" when
+     * it was converted. It was not the last. This was, and it was the worst one to miss: the shrine
+     * is the most expensive act in the game, so the single largest sum a player ever spends was the
+     * one sum no instrument could see going.
+     *
+     * `AWAY` rather than a village's till, because nobody receives it. A coin laid in a bowl at a
+     * shrine is gone, and saying so out loud is the difference between money that left the world
+     * and money that was never counted.
+     */
+    buy(holds(state.inventory), AWAY, SHRINE_FEE);
     state.version++;
     sound.chime();
     hud.flash(`${raised[0].name} walks out of ${poi.name} and takes the road to ${valley.name}.`);
