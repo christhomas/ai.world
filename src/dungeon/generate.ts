@@ -17,6 +17,7 @@ import { DTile, type DungeonMap, type Chest, type Door, type Room, type Torch } 
 export { DTile, fullyConnected } from './map';
 export type { Chest, Door, DungeonMap, Furnishing, Levels, Room, Torch } from './map';
 export type { SpawnSpot } from '../entities/spawns';
+import { howManyGather, whatIsLeft, yearsSheHasLain } from '../world/pickings';
 
 /** How deep a vault goes, and what waits at the bottom. */
 export const DEPTH = {
@@ -229,6 +230,35 @@ export function generateDungeon(seed: number, style: DungeonStyle = 'vault', flo
     // deeper floors are busier
     for (let extra = 1; extra < floor; extra++) {
       if (rng() < DUNGEON.MONSTER_ROOM_CHANCE * 0.6) monsterSpots.push([centre(r)[0] + 1, centre(r)[1] + 1]);
+    }
+  }
+
+  /*
+   * And a drowned hold gathers them where the cargo is.
+   *
+   * The roster said twos and threes of fish-folk because a fight in waist-deep water wants numbers,
+   * which made them a spawn table rather than a reason to be there. They are picking her over, and
+   * have been since she went down: a ship that sank last season is still full and they are thick in
+   * her, and one that went down two generations ago has had everything carried out of it and has
+   * nobody left guarding nothing. See `world/pickings.ts`.
+   *
+   * The point is not that the room is harder. It is that the room is *readable* — the same number
+   * says how many are down there and what the strongbox is worth, so a player who looks into the
+   * water before he gets into it already knows whether this is the wreck to rob.
+   *
+   * Placed after the ordinary spots and drawn from the same stream, which is safe here for the
+   * reason the flooding was: every other style is pinned tile for tile by `golden.test.ts` and
+   * would move under anybody who took a number out of turn, and a wreck is the newest kind of floor
+   * with nothing to keep faith with.
+   */
+  if (style === 'sunken') {
+    const gathered = howManyGather(whatIsLeft(yearsSheHasLain(seed)), rooms.length - 1);
+    for (let extra = 0; extra < gathered; extra++) {
+      const room = rooms[1 + Math.floor(rng() * Math.max(1, rooms.length - 1))];
+      if (!room) continue;
+      const [cx, cz] = centre(room);
+      const at: [number, number] = [cx + (extra % 2 ? 1 : -1), cz + (extra % 3 ? 1 : -1)];
+      if (tiles[idx(at[0], at[1])] === DTile.Floor) monsterSpots.push(at);
     }
   }
 

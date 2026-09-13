@@ -1,5 +1,6 @@
 import { mulberry32 } from '../../core/rng';
 import { ITEMS } from '../items';
+import { saidOfTheWater, whatIsLeft, yearsSheHasLain } from '../../world/pickings';
 import { StructureKind } from '../../world/structures';
 import { CROPS, SEED_TO_CROP, canPlant, daysUntilSeason, isRipe, ripeness } from '../farming';
 import { FISHING } from '../fishing';
@@ -194,13 +195,23 @@ export function wildInteractions(ctx: Surroundings) {
           return null;
         },
       };
+      /*
+       * And what she looks like from the deck, before anybody gets wet.
+       *
+       * The fish-folk are in her for the cargo and have been since she went down, so how many of
+       * them there are and how much is left are the same number — which is only worth tying
+       * together if the player is shown it. Said here rather than found out down there: the whole
+       * bargain is that looking is cheaper than swimming.
+       */
+      const water = saidOfTheWater(whatIsLeft(yearsSheHasLain(anchor.seed)));
       if (state.opened.has(lootId)) {
         dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: [
           'Picked clean above the waterline. Below it the water is still going in and out of her, and it is a long way down to the keel.',
+          water,
         ], choices: [goBelow, { label: 'Leave it', next: () => null }] });
         return true;
       }
-      dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['The hold is half buried, but the hatch still gives. Search it — or go down into her?'], choices: [
+      dialogue.start({ speaker: wreck.name, emoji: '🚢', pages: ['The hold is half buried, but the hatch still gives. Search it — or go down into her?', water], choices: [
         { label: 'Search', next: () => {
           const roll = mulberry32(anchor.seed);
           const gold = 25 + Math.floor(roll() * 60);

@@ -1,3 +1,4 @@
+import { cargoLeft, whatIsLeft, yearsSheHasLain } from './pickings';
 import { mulberry32 } from '../core/rng';
 
 /**
@@ -126,7 +127,17 @@ export function whatAChestHolds(
   const [purse, spread] = chest.big
     ? (salvage ? [CHEST.HOLD_GOLD, CHEST.HOLD_SPREAD] : [CHEST.BIG_GOLD, CHEST.BIG_SPREAD])
     : (salvage ? [CHEST.SALVAGE_GOLD, CHEST.SALVAGE_SPREAD] : [CHEST.SMALL_GOLD, CHEST.SMALL_SPREAD]);
-  const gold = purse + Math.floor(roll() * spread);
+  /*
+   * And what the fish-folk have already had out of her.
+   *
+   * A crate in a hold is a piece of a cargo that has been going out of that hull, piece by piece,
+   * since she went down. How long that has been is the wreck's own business and comes off its own
+   * seed — see `pickings.ts` — so it is asked here rather than handed in: the chest already has the
+   * anchor's seed, which is the only thing the answer depends on, and a parameter would be a second
+   * copy of a fact that cannot then be relied on to agree.
+   */
+  const left = salvage ? whatIsLeft(yearsSheHasLain(seed)) : 1;
+  const gold = Math.round((purse + Math.floor(roll() * spread)) * left);
 
   /*
    * And what came up with it.
@@ -145,7 +156,8 @@ export function whatAChestHolds(
     // a potion is drunk and a gem is sold, so a second one is worth having; a shield is not
     const worth = BIG_CHEST_PRIZES.filter((item) => !owns(item) || item === 'potion' || item === 'gem');
     prize = worth[Math.floor(roll() * worth.length)] ?? null;
-  } else if (salvage) {
+  } else if (salvage && cargoLeft(left, 1) > 0) {
+    // a stripped wreck's crates hold nothing, which is what makes looking before diving worth doing
     prize = SALVAGE[Math.floor(roll() * SALVAGE.length)] ?? null;
   }
   return { gold, key: chest.key === true, prize };
