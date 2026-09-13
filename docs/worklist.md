@@ -5592,3 +5592,27 @@ than by remembering — and the first thing found was that the gap is not where 
       **Done so far:** `damage` (30 entries, six fallbacks deleted).
       **Left:** `altitude`, `climb`, `hp`, `paddles`, `owned`, `gold` — and then the conventional
       ones, which are the same job with less to decide.
+
+- [ ] **95. Triage the 198 exports nothing reaches.** `chore reachable` counts work that exists and
+      is called only by its own tests, which is the class three of the 13th's worst faults belonged
+      to — an injury system with no caller, a mountain radius whose fallback was the only branch, a
+      landlord matched on a key that never matched indoors. It is a **ratchet**: 198 today, may fall,
+      must never rise.
+
+      It is not 198 bugs and the difference is the work. Spot-checking turned up three kinds:
+
+      - **Constants a test imports** to check a table against — `LONGEST_STEP`, `MIN_BODY`. Mild;
+        arguably fine.
+      - **Superseded helpers** — `haunts.ts` has five, and `watch.ts` uses different ones. Dead, and
+        worse, their prose lies: `hauntNear` still says *"this is the question the frame loop asks"*
+        and the frame loop asks `toRaise`. Stale doc on dead code is how the next reader is misled.
+      - **A real gap.** `untilDawn` works out how long a player has to wait a haunt out — *"can I
+        wait this out, or do I have to leave?"* — and nothing anywhere shows it, so the question it
+        was written to answer cannot be asked.
+
+      **And the lesson about the instrument, which matters more than the list.** It produces
+      *candidates*, not findings. Twice on the 13th a candidate looked like a large bug and was not:
+      `kind.damage` reading as "nothing in the game is dangerous" (a wolf declares ten, a bear
+      thirty — the sample was three prey), and `watch.ts` reading as unreachable (the import is
+      `./game/watch`, and a grep for `./watch` missed it). Both took under a minute to disprove.
+      Verify before believing, and prefer the candidates with volume behind them.
