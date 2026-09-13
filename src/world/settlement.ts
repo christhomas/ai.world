@@ -75,6 +75,11 @@ export const STONES_KEPT = 60;
 export interface Settlement {
   people: Person[];
   /**
+   * Family deeds in roof order. A deed survives changes in the living roll; empty means a roof is
+   * free. See `homes.ts`.
+   */
+  deeds: string[];
+  /**
    * The days somebody was raised at a shrine and sent here.
    *
    * Kept rather than derived, for the reason a violent death is kept: nothing about the seed implies

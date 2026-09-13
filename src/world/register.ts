@@ -1,5 +1,6 @@
 import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './aday';
-import { holdsFor } from './roofs';
+import { householdDeeds, reconcileHomeDeeds } from './homes';
+import { holdsFor, roofsOf } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
 import { directoryOf } from './vacancies';
@@ -165,6 +166,7 @@ export class Register {
        * first roof goes up rather than the one it starts with. It was the founding that was wrong.
        */
       people, founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [], purse: 0,
+      deeds: householdDeeds(people, houses),
       // a harbour it already has counts as a thing it has raised: `holdings.ts` will not put a boat
       // anywhere there is nothing to tie one up at, and a seeded jetty is a jetty
       works: this.hasAHarbour.has(village) ? ['jetty'] : [],
@@ -223,9 +225,11 @@ export class Register {
    */
   private readonly theDay: TheDay;
 
-  /** Somebody is off the register: `aday.ts` writes every book, this finds the village. */
   private remove(person: Person, day: number, cause: 'age' | 'violence' | 'hunger'): Change | null {
-    return takeOffTheRegister(this.villages.get(person.village), person, day, cause);
+    const village = this.villages.get(person.village);
+    const change = takeOffTheRegister(village, person, day, cause);
+    if (village) reconcileHomeDeeds(village.deeds, village.people, roofsOf(village.houses, village.works).length);
+    return change;
   }
 
   /**
@@ -237,6 +241,11 @@ export class Register {
    */
   living(village: string): readonly Person[] {
     return this.villages.get(village)?.people ?? [];
+  }
+
+  /** Family deeds in roof order, or nothing for a village that has not been founded. */
+  deedsOf(village: string): readonly string[] {
+    return this.villages.get(village)?.deeds ?? [];
   }
 
   /**
@@ -473,7 +482,9 @@ export class Register {
     if (already.includes(on)) return [];
     this.magicked.set(village, [...already, on]);
     here.raised.push(on);
-    return raiseWhoIsDue(village, here, on, streamFor(this.seed, `${village}:shrine`, on));
+    const changes = raiseWhoIsDue(village, here, on, streamFor(this.seed, `${village}:shrine`, on));
+    reconcileHomeDeeds(here.deeds, here.people, roofsOf(here.houses, here.works).length);
+    return changes;
   }
 
   /** Somebody has been hurt: the middle condition a villager never had. Told, like a death. `wounds.ts`. */

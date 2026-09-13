@@ -258,6 +258,7 @@ describe('the one line the register has to add', () => {
    */
   const settlementOf = (register: Register, name: string): Settlement => ({
     people: [...register.living(name)],
+    deeds: [...register.deedsOf(name)],
     raised: [], watch: '', purse: 0, food: 40, herd: register.herdOf(name),
     founded: 8, houses: 4, trades: register.tradesOf(name), buried: [], works: [],
   });

@@ -176,10 +176,10 @@ export interface Raised {
  */
 export function whatTheVillageBuilds(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
-  larder = Infinity,
+  larder = Infinity, deeds?: readonly string[],
 ): Raised | null {
   if (people.length < holds) return null;
-  const wanting = familiesWantingRoom(people, laidOut, built, larder);
+  const wanting = familiesWantingRoom(people, laidOut, built, larder, deeds);
   if (wanting.length === 0) return null;
   if (housesStanding(laidOut, built) >= roomFor(laidOut)) return null;
   const roof = oneSizeUp(biggestRoofAmong(wanting) ?? STANDARD);
@@ -222,12 +222,12 @@ export function whatTheVillageBuilds(
  */
 export function whatTheVillageSpends(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
-  larder = Infinity, holdings: readonly Holding[] = [], herd = 0, day = 0,
+  larder = Infinity, holdings: readonly Holding[] = [], herd = 0, day = 0, deeds?: readonly string[],
 ): {
   wages: Map<string, number>; spent: number; works: string[]; holdsMore: number; watch: string;
   founded: Holding[];
 } {
-  const raised = whatTheVillageBuilds(purse, built, laidOut, holds, people, larder);
+  const raised = whatTheVillageBuilds(purse, built, laidOut, holds, people, larder, deeds);
   const wages = new Map<string, number>(raised?.wages ?? []);
   // with the morning it was begun, so a village's building work has stages like anybody else's
   const works: string[] = raised ? [workOf(raised.roof, day)] : [];

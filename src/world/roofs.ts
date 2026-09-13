@@ -193,7 +193,7 @@ export interface Household {
  * A roof nobody is short of stays free, and that is honest too — a village with an empty house is
  * not a village short of houses.
  */
-export function familiesUnder(people: readonly Person[], roofs: readonly Roof[]): Household[] {
+export function familiesUnder(people: readonly Person[], roofs: readonly Roof[], deeds?: readonly string[]): Household[] {
   const kin = new Map<string, Person[]>();
   for (const person of people) {
     const name = surnameOf(person);
@@ -205,9 +205,13 @@ export function familiesUnder(people: readonly Person[], roofs: readonly Roof[])
     .map((name) => ({ name, people: kin.get(name) ?? [], roofs: [] as Roof[], holds: 0 }));
   if (households.length === 0) return households;
 
+  const byName = new Map(households.map((family) => [family.name, family]));
   const give = (to: Household, roof: Roof): void => { to.roofs.push(roof); to.holds += roof.holds; };
   const free: Roof[] = [];
-  roofs.forEach((roof, at) => { if (at < households.length) give(households[at], roof); else free.push(roof); });
+  roofs.forEach((roof, at) => {
+    const family = deeds ? byName.get(deeds[at] ?? '') : households[at];
+    if (family) give(family, roof); else free.push(roof);
+  });
   for (const roof of free) {
     const wanting = households.find((family) => family.people.length >= family.holds);
     if (!wanting) break;
@@ -253,10 +257,11 @@ function fed(family: Household): boolean {
  */
 export function whoCouldHaveAChild(
   people: readonly Person[], laidOut: number, built: readonly string[], larder: number, day: number,
+  deeds?: readonly string[],
 ): Person[] {
   if (!foodInTheStore(people, larder)) return [];
   const out: Person[] = [];
-  for (const family of familiesUnder(people, roofsOf(laidOut, built))) {
+  for (const family of familiesUnder(people, roofsOf(laidOut, built), deeds)) {
     if (family.people.length >= family.holds) continue;
     if (!fed(family)) continue;
     out.push(...family.people.filter((person) => stageOf(person, day) === 'adult'));
@@ -275,9 +280,10 @@ export function whoCouldHaveAChild(
  */
 export function familiesWantingRoom(
   people: readonly Person[], laidOut: number, built: readonly string[], larder: number,
+  deeds?: readonly string[],
 ): Household[] {
   if (!foodInTheStore(people, larder)) return [];
-  return familiesUnder(people, roofsOf(laidOut, built))
+  return familiesUnder(people, roofsOf(laidOut, built), deeds)
     .filter((family) => family.people.length >= family.holds && fed(family));
 }
 

@@ -55,7 +55,7 @@ export function fillTheGaps(o: Births, name: string, village: Settlement, day: n
   for (let n = 0; n < wanted; n++) {
     // room under their own roof and food in the store, which is what limits a family now that a
     // roof has a size. Asked inside the loop, so each birth sees the bed the last one took
-    const parents = whoCouldHaveAChild(village.people, village.houses, village.works, village.food, day);
+    const parents = whoCouldHaveAChild(village.people, village.houses, village.works, village.food, day, village.deeds);
     if (parents.length < 2) break;            // a village of children does not repopulate itself
 
     const [mother, father] = parentsFrom(parents, rng);

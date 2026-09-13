@@ -10,18 +10,12 @@ import type { Structure } from './structures';
  * outlives its holder, a household that has somewhere to live, a house that can be built *for*
  * somebody. All of those need an owner first.
  *
- * ## Derived, not written down
+ * ## Deeded, then reconciled
  *
- * Nothing here is stored. A village's houses come out of the seed in a fixed order and its
- * households come off the register, and the rule is that the first household lives in the first
- * house. That is the same bargain the whole world is built on: two people who have never spoken
- * walk into the same cottage and are told the same family lives there, because the arithmetic says
- * so rather than because anybody agreed.
- *
- * It also means the answer moves as the village does, which is right. A family that dies out leaves
- * a house; a house built for a new household is the next one along. What it does *not* do is let a
- * particular family stay in a particular house across a resettling, and that is a real limitation —
- * see the work list. A deed on the register is the honest fix and it is a bigger change than this.
+ * A village's first deeds are seeded in house order, then stay on the register. Every morning the
+ * register frees a deed whose family has gone and gives the first free roof to a new household.
+ * That keeps a named family in its own house across births, deaths and changes in roll order while
+ * still making an empty village's roofs available to the people who resettle it.
  *
  * ## Free houses
  *
@@ -63,6 +57,30 @@ export function householdsOf(people: readonly Person[]): string[] {
   return seen;
 }
 
+/** The first deeds in a newly founded village, one entry for every roof that stands there. */
+export function householdDeeds(people: readonly Person[], houses: number): string[] {
+  const families = householdsOf(people);
+  return Array.from({ length: Math.max(0, houses) }, (_, at) => families[at] ?? '');
+}
+
+/**
+ * Keep the register's deeds honest after its population or roofs change.
+ *
+ * A deed never moves merely because the roll's order changed. It becomes free only when nobody of
+ * that family remains, and the next household without a roof takes the first free one.
+ */
+export function reconcileHomeDeeds(deeds: string[], people: readonly Person[], houses: number): void {
+  deeds.length = Math.max(0, houses);
+  const families = householdsOf(people);
+  for (let at = 0; at < deeds.length; at++) if (!families.includes(deeds[at])) deeds[at] = '';
+  for (const family of families) {
+    if (deeds.includes(family)) continue;
+    const free = deeds.indexOf('');
+    if (free < 0) break;
+    deeds[free] = family;
+  }
+}
+
 /**
  * Which house each household lives in, and which houses nobody lives in.
  *
@@ -70,12 +88,12 @@ export function householdsOf(people: readonly Person[]): string[] {
  * living somewhere this does not model — with family, over a shop, in the room behind the forge —
  * which is a better answer than inventing a house that is not standing anywhere.
  */
-export function homesOf(houses: readonly Structure[], people: readonly Person[]): Home[] {
+export function homesOf(houses: readonly Structure[], people: readonly Person[], deeds?: readonly string[]): Home[] {
   const families = householdsOf(people);
   return houses.map((house, at) => ({
     house,
-    family: families[at] ?? '',
-    free: at >= families.length,
+    family: deeds ? deeds[at] ?? '' : families[at] ?? '',
+    free: deeds ? (deeds[at] ?? '') === '' : at >= families.length,
   }));
 }
 
@@ -145,11 +163,14 @@ export function saidOfAFreeHouse(village: string): string {
  */
 export function familyOfDoor(
   villages: readonly { name: string; houses: Structure[] }[],
-  register: { living: (village: string) => readonly Person[] },
+  register: {
+    living: (village: string) => readonly Person[];
+    deedsOf: (village: string) => readonly string[];
+  },
   door: { kind: string; village: string; bx: number; bz: number },
 ): string {
   if (door.kind !== 'house') return '';
   const village = villages.find((v) => v.name === door.village);
   if (!village) return '';
-  return familyAt(homesOf(village.houses, register.living(door.village)), door.bx, door.bz);
+  return familyAt(homesOf(village.houses, register.living(door.village), register.deedsOf(door.village)), door.bx, door.bz);
 }

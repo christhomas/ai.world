@@ -1,5 +1,7 @@
 import { FORTUNE, grownFolk } from './fortunes';
+import { reconcileHomeDeeds } from './homes';
 import { LIFE } from './people';
+import { roofsOf } from './roofs';
 import { PROSPER } from './prosperity';
 import type { Change, Settlement } from './settlement';
 
@@ -227,5 +229,7 @@ export function walkOver(lost: string, ruin: Settlement, neighbour: Settlement, 
     changes.push({ kind: 'resettled', id: settler.id, name: settler.name, village: lost, from, day });
   }
   ruin.emptied = undefined;
+  reconcileHomeDeeds(neighbour.deeds, neighbour.people, roofsOf(neighbour.houses, neighbour.works).length);
+  reconcileHomeDeeds(ruin.deeds, ruin.people, roofsOf(ruin.houses, ruin.works).length);
   return changes;
 }

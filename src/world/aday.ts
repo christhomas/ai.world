@@ -10,6 +10,8 @@ import { handOnWhatTheyHad } from './inheritance';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { STONES_KEPT, type Change, type Settlement } from './settlement';
+import { reconcileHomeDeeds } from './homes';
+import { roofsOf } from './roofs';
 import { LIFE, outOfDays, remember, stageOf, tradeTakenUp, type Person, type Sex } from './people';
 
 /**
@@ -169,7 +171,7 @@ export function theVillageSpends(o: TheDay, village: Settlement, day: number): v
   // down. A roof before a well, because a village houses its people before it pleases them
   const spending = whatTheVillageSpends(
     village.purse, village.works, village.houses, village.founded, village.people, village.food,
-    village.holdings ?? [], village.herd, day);
+    village.holdings ?? [], village.herd, day, village.deeds);
   village.watch = spending.watch;
   // a villager founding a holding spends none of the hall's money, so what the hall spent is no
   // longer the whole test for "nothing happened here this morning"
@@ -273,6 +275,7 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
   // earns and what it grows. Read twice out of a map, they could disagree with each other
   const pressure = o.pressureOn(name, day);
   const work = aDaysWork(o, village, pressure, day);
+  const raised = raiseWhoIsDue(name, village, day, streamFor(o.seed, `${name}:shrine`, day));
   const changes = [
     ...buryTheOld(o, village, day),
     ...dinner(o, village, day, work),
@@ -280,8 +283,9 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
     ...growUp(o, name, village, day),
     ...takeTheKilled(o, village, day),
     ...mendThePeople(village),
-    ...raiseWhoIsDue(name, village, day, streamFor(o.seed, `${name}:shrine`, day)),
+    ...raised,
   ];
+  reconcileHomeDeeds(village.deeds, village.people, roofsOf(village.houses, village.works).length);
   // and who holds what, re-hung after the funerals and the growing-up so that the day's dead and
   // the day's new adults are both settled before a farm changes hands. See `holdings.ts`
   village.holdings = whatTheVillageHolds(name, village, day);

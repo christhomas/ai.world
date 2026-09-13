@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from './register';
-import { familyAt, homesOf, householdsOf, nameOfHome } from './homes';
+import { familyAt, homesOf, householdsOf, nameOfHome, reconcileHomeDeeds } from './homes';
 import { surnameOf } from './people';
 import type { Structure } from './structures';
 
@@ -79,6 +79,30 @@ describe('who lives where', () => {
     const first = homesOf(row(6), village(11).people).map((h) => h.family);
     const again = homesOf(row(6), village(11).people).map((h) => h.family);
     expect(again).toEqual(first);
+  });
+
+  it('keeps a family on its deed when the roll changes', () => {
+    const deeds = ['Vos', 'Rook'];
+    const people = [{ name: 'Bela Rook' }, { name: 'Ada Vos' }] as never;
+    expect(homesOf(row(2), people, deeds).map((home) => home.family)).toEqual(['Vos', 'Rook']);
+  });
+
+  it('frees an extinct family’s home and deeds it to a new household', () => {
+    const deeds = ['Vos', 'Rook', ''];
+    reconcileHomeDeeds(deeds, [{ name: 'Ada Vos' }] as never, 3);
+    expect(deeds).toEqual(['Vos', '', '']);
+    reconcileHomeDeeds(deeds, [{ name: 'Ada Vos' }, { name: 'Bela Rook' }] as never, 3);
+    expect(deeds).toEqual(['Vos', 'Rook', '']);
+  });
+
+  it('keeps every other family on its own deed when one household dies out', () => {
+    const { register, people } = village();
+    const before = [...register.deedsOf('Testing')];
+    const family = before[0];
+    for (const person of people.filter((person) => surnameOf(person) === family)) register.bury(person.id, 1);
+    const after = register.deedsOf('Testing');
+    expect(after[0]).toBe('');
+    expect(after.slice(1)).toEqual(before.slice(1));
   });
 
   it('answers by where the house is standing, which is how a door asks', () => {
