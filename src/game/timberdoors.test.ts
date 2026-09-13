@@ -5,7 +5,7 @@ import { join } from 'node:path';
 /**
  * Two doors into a yard, and no third one.
  *
- * A village's timber arrives one of exactly two ways: its own lumberjacks cut it (`felled`), or
+ * A village's timber arrives one of exactly two ways: its own woodcutters cut it (`felled`), or
  * somebody carried it in and sold it (`brought`). `land` is what both of those are built out of and
  * is nobody else's business — a caller reaching past them puts wood in the yard that the village
  * has no account of, and the wright's memory of who supplied him goes quietly wrong.

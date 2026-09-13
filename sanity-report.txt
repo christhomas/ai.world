@@ -1,4 +1,4 @@
-SANITY BENCH — PASS — 2026-09-13T13:26:18.240Z
+SANITY BENCH — PASS — 2026-09-13T13:33:52.131Z
 
   6 villages on 3 seeds, 450 days each — five or six generations, which is
   long enough for drift to show. Nothing here is added up: the audit in economy-report.txt does that,
@@ -32,23 +32,23 @@ SANITY BENCH — PASS — 2026-09-13T13:26:18.240Z
   PASS          18  villages founded holding exactly what their own houses have beds for
                     every village begins at its own ceiling, so none of them starts frozen
   PASS          18  villages still holding at least half the trades their place supports, at day 450
-                    Ashford (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Oakcross (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Thornby (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Blackmarsh (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Fernreach (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
+                    Ashford (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Oakcross (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Thornby (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Blackmarsh (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Fernreach (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Saltcombe (seed 1): 8 of 8 — builder, constable, doctor, explorer, fisherman, innkeeper, sailor, seller
-                    Ashford (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Oakcross (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Thornby (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Blackmarsh (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Fernreach (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
+                    Ashford (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Oakcross (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Thornby (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Blackmarsh (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Fernreach (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Saltcombe (seed 7): 8 of 8 — builder, constable, doctor, explorer, fisherman, innkeeper, sailor, seller
-                    Ashford (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Oakcross (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Thornby (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Blackmarsh (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
-                    Fernreach (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, lumberjack, miner, seller, soldier
+                    Ashford (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Oakcross (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Thornby (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Blackmarsh (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
+                    Fernreach (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Saltcombe (seed 1234): 8 of 8 — builder, constable, doctor, explorer, fisherman, innkeeper, sailor, seller
   PASS          15  villages with fields that still have somebody farming them
                     every field in the world has a farmer on it

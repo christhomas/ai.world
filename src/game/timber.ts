@@ -25,12 +25,12 @@
  *
  * Two things, and the second one is what makes this a chain rather than a tax.
  *
- * A village's **lumberjacks** cut it. That is the trade this exists for, and it is the first pair in
- * this economy that need each other rather than both needing the player: a builder with no lumberjack
- * in his village has nothing to build with, and a lumberjack with no builder has cut wood nobody wants.
+ * A village's **woodcutters** cut it. That is the trade this exists for, and it is the first pair in
+ * this economy that need each other rather than both needing the player: a builder with no woodcutter
+ * in his village has nothing to build with, and a woodcutter with no builder has cut wood nobody wants.
  *
  * And **anybody who sells wood at that village's market**, which is already an act the game has —
- * so a player who walks into a place that has no wood behind it and no lumberjack in it can be the
+ * so a player who walks into a place that has no wood behind it and no woodcutter in it can be the
  * supply himself. That is the whole loop of item 50 available to a player on the first afternoon,
  * out of parts that were all already there.
  *
@@ -45,12 +45,12 @@
 
 export const TIMBER = {
   /**
-   * Logs one lumberjack lands in a day.
+   * Logs one woodcutter lands in a day.
    *
-   * Six, and the number is chosen off the other end: a house wants forty, so one lumberjack keeps one
+   * Six, and the number is chosen off the other end: a house wants forty, so one woodcutter keeps one
    * building crew going and takes a week over it. That is the sentence this whole feature exists to
    * make true — a house is a thing that required somebody's week — and it means a village with one
-   * lumberjack builds steadily, a village with two builds twice as often, and a village with none does
+   * woodcutter builds steadily, a village with two builds twice as often, and a village with none does
    * not build at all however rich it gets.
    */
   A_DAY: 6,
@@ -59,14 +59,14 @@ export const TIMBER = {
    *
    * A village that has stood for years has a stack by the sawpit; starting every yard in the world
    * at nothing would mean no house anywhere could be commissioned until a player had waited a week
-   * watching a man cut wood, which is a rule that reads as a bug. A week of its own lumberjacks' work
+   * watching a man cut wood, which is a rule that reads as a bug. A week of its own woodcutters' work
    * is what a place that has always had a wood behind it would have, and it is exactly nothing for
    * a place that has never had anybody to cut it — which is the distinction the whole feature is
    * about, visible on the first afternoon rather than after one.
    */
   STANDING: 7,
   /**
-   * What a yard will hold before the lumberjacks stop.
+   * What a yard will hold before the woodcutters stop.
    *
    * Six houses' worth. A village does not fell timber it has nowhere to stack and nobody to sell,
    * and without a ceiling a quiet century would leave every village in the country able to build
@@ -123,7 +123,7 @@ export class Timber {
    * Everything ever carried into this village and sold, which is what the wright is paying back.
    *
    * Deliberately not the yard: the yard is a stack and this is a history, and the difference is a
-   * village that has built a house since. Deliberately not the felling either — a lumberjack lives
+   * village that has built a house since. Deliberately not the felling either — a woodcutter lives
    * here, and counting his week would hand a cart to a player who stood still for it.
    */
   sold(village: string): number {
@@ -144,11 +144,11 @@ export class Timber {
   }
 
   /**
-   * Wood landed at a village: cut by its own lumberjacks, or carried in and sold over a counter.
+   * Wood landed at a village: cut by its own woodcutters, or carried in and sold over a counter.
    *
    * One way in for both, because they are the same act from the yard's point of view — a stack of
    * timber does not know who brought it. Capped, and the surplus is simply not landed rather than
-   * being refused: a lumberjack who finds the yard full spends the day doing something else, and a
+   * being refused: a woodcutter who finds the yard full spends the day doing something else, and a
    * player selling into a full yard has still sold his wood, which the market has already paid for.
    */
   land(village: string, logs: number): void {
@@ -157,18 +157,18 @@ export class Timber {
   }
 
   /**
-   * A day's felling by however many lumberjacks a village has.
+   * A day's felling by however many woodcutters a village has.
    *
    * The first day it is asked about a village it also lands whatever was already stacked there, so
    * a place with a wood behind it is found with timber in it rather than with a week to wait. A
-   * village with no lumberjack is opened at nothing and stays at nothing, which is the limit.
+   * village with no woodcutter is opened at nothing and stays at nothing, which is the limit.
    */
-  felled(village: string, lumberjacks: number): void {
+  felled(village: string, woodcutters: number): void {
     if (!this.opened.has(village)) {
       this.opened.add(village);
-      this.land(village, lumberjacks * TIMBER.A_DAY * TIMBER.STANDING);
+      this.land(village, woodcutters * TIMBER.A_DAY * TIMBER.STANDING);
     }
-    this.land(village, lumberjacks * TIMBER.A_DAY);
+    this.land(village, woodcutters * TIMBER.A_DAY);
   }
 
   /**

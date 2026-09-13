@@ -417,7 +417,7 @@ const TIMBER_PER_BEAST = 5;
  *
  * That answers the question this item was handed with. A stable is the building that would be
  * *strangest* without a timber price: gold is fungible and a rich farmer will always find four
- * hundred of it, and a village on a bare rock with no lumberjack in it should not be able to double its
+ * hundred of it, and a village on a bare rock with no woodcutter in it should not be able to double its
  * herd by being wealthy.
  */
 export function timberForAStable(stable: Stable): number {

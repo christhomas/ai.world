@@ -268,7 +268,7 @@ export function villageInteractions(ctx: Surroundings) {
             online.stockStall(stall.id, { id, price: askingPrice(id), count: 1 });
             market.took(stall.village, id, 1);
             // and wood put out here is wood that has reached this village: it goes on the same
-            // stack the lumberjacks cut onto, so a player can be the supply for a place that has none,
+            // stack the woodcutters cut onto, so a player can be the supply for a place that has none,
             // and the village remembers who supplied it — see `Timber.brought`
             if (id === WOOD_ITEM) ctx.houses.yard.brought(stall.village, 1);
             hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);

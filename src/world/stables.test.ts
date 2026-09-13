@@ -119,7 +119,7 @@ describe('what a stable costs', () => {
     /*
      * The question this item was handed with, answered. A stable is posts and beams and boards and
      * almost nothing else, so it is the building that would be strangest without a timber price —
-     * and a rich farmer on a bare rock with no lumberjack in the village should not be able to double
+     * and a rich farmer on a bare rock with no woodcutter in the village should not be able to double
      * his herd by being wealthy, which is the whole of what `timber.ts` was built to make true.
      */
     // a stable for twelve wants more wood than a house wants for four, which is forty — and
@@ -127,7 +127,7 @@ describe('what a stable costs', () => {
     expect(timberForAStable(STABLES[1])).toBeGreaterThan(40);
     expect(timberForAStable(STABLES[1]) / STABLES[1].beasts).toBeLessThan(40 / 4);
     // and it is the wooden building: nearly all of what it costs is timber rather than stone,
-    // thatch and glazing, which is what makes a village with no lumberjack unable to raise one
+    // thatch and glazing, which is what makes a village with no woodcutter unable to raise one
     expect(timberForAStable(STABLES[1]) * 5).toBeGreaterThan(costOfAStable(STABLES[1]) * 0.6);
   });
 });

@@ -27,7 +27,7 @@ import { BYRE, beastsAt, oneSizeUp, stableAt, type Stable } from './stables';
  *
  * Gold says whether this farmer can afford it. Timber says whether the village *can build it at
  * all* — and that is the whole reason a stable is priced in wood. Gold is fungible and a rich
- * farmer will always find four hundred of it; a village on a bare rock with no lumberjack in it should
+ * farmer will always find four hundred of it; a village on a bare rock with no woodcutter in it should
  * not be able to double its herd by being wealthy. A place with a wood behind it climbs the ladder
  * and a place without one does not, whatever its farms earn, which is the same sentence the houses
  * already say and the reason the material exists.
