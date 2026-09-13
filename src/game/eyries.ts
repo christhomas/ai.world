@@ -25,6 +25,20 @@ export const EYRIE = {
   FARE_PER_TEN: 4,
   /** The bird will not stir for a range smaller than this, in tiles of reach. */
   WORTH_FLYING: 26,
+  /**
+   * How many crossings there are in one country, or in one square of a country that has no edge.
+   *
+   * Item 84, and it is here because the note below turned out to describe what was actually
+   * happening. A bird on every hummock makes the whole country trivial to cross — and once **83**
+   * gave the peaks a size, every one of the nineteen in a 512-tile square cleared `WORTH_FLYING`
+   * and got its pair. Thirty-eight crags against two villages is not a landmark, it is scenery, and
+   * there are ten names in the list because nobody ever expected to need twenty.
+   *
+   * Two, which is what a square gets of villages in the clouds, and for the same reason: a flight
+   * over a mountain should be a journey you remember taking rather than the way you always go.
+   * The biggest ranges win, so the crossing is over the mountain that was worth flying.
+   */
+  MOST: 2,
 } as const;
 
 /** A crag with a bird on it, and where that bird will take you. */
@@ -61,8 +75,21 @@ export function planEyries(
   const out: Eyrie[] = [];
   const taken = new Set<string>();
 
-  for (const [i, massif] of massifs.entries()) {
-    if (massif.radius < EYRIE.WORTH_FLYING) continue;
+  /*
+   * Biggest first, and only the first few.
+   *
+   * Ordered rather than taken as they come, because "which mountains are worth a bird" is a
+   * question about the mountains and not about the order something happened to list them in. The
+   * tie-break is the position, so two ranges of exactly the same reach are still ranked the same
+   * way every time — a patch grown twice has to put its crags in the same places.
+   */
+  const worth = massifs
+    .map((massif, at) => ({ massif, at }))
+    .filter((one) => one.massif.radius >= EYRIE.WORTH_FLYING)
+    .sort((a, b) => b.massif.radius - a.massif.radius || a.massif.x - b.massif.x || a.massif.z - b.massif.z)
+    .slice(0, EYRIE.MOST);
+
+  for (const { massif, at: i } of worth) {
     const reach = massif.radius * EYRIE.ON_THE_SHOULDER;
     const facing = rng() * Math.PI * 2;
 

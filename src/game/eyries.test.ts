@@ -107,3 +107,38 @@ describe('the flight into the clouds', () => {
     expect(SKYWARD.FARE).toBeGreaterThan(EYRIE.FARE_BASE);
   });
 });
+
+/*
+ * How many crossings a country gets, which was nobody's decision until item 84.
+ *
+ * The planner's own note said a bird on every hummock makes the country trivial to cross. Once 83
+ * gave the peaks a size, every one of the nineteen in a 512-tile square cleared `WORTH_FLYING` and
+ * got its pair — thirty-eight crags against two villages, and ten names in the list to share
+ * between them.
+ */
+describe('how many crossings there are', () => {
+  const flat = (x: number, z: number): { x: number; z: number; radius: number; height: number; hollow: number } =>
+    ({ x, z, radius: 40, height: 30, hollow: 0 });
+
+  it('keeps a handful however many mountains there are', () => {
+    const many = Array.from({ length: 19 }, (_, k) => flat(k * 200, 0));
+    expect(planEyries(7, many, () => true)).toHaveLength(EYRIE.MOST * 2);
+  });
+
+  it('picks the biggest, because that is the one worth flying over', () => {
+    const massifs = [flat(0, 0), { ...flat(500, 0), radius: 90 }, { ...flat(1000, 0), radius: 70 }];
+    const crags = planEyries(7, massifs, () => true);
+    // the two chosen are the 90 and the 70, so nothing sits near the 40 at the origin
+    expect(crags.every((c) => Math.hypot(c.x, c.z) > 200)).toBe(true);
+  });
+
+  it('ranks the same way every time, so a square grown twice puts its crags in the same places', () => {
+    const massifs = Array.from({ length: 8 }, (_, k) => ({ ...flat(k * 300, 0), radius: 40 }));
+    expect(planEyries(7, massifs, () => true)).toEqual(planEyries(7, massifs, () => true));
+  });
+
+  it('still leaves the small ranges alone, which was always the rule', () => {
+    const small = Array.from({ length: 5 }, (_, k) => ({ ...flat(k * 200, 0), radius: EYRIE.WORTH_FLYING - 1 }));
+    expect(planEyries(7, small, () => true)).toEqual([]);
+  });
+});
