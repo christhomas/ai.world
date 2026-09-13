@@ -14,6 +14,23 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.92.7 — 2026-09-13
+
+A villager gets round the back of his own house, the corner case that proves it exists, and a played run that measures something
+
+- Release through a pull request, and derive the changelog from them (#45)
+- Woodcutter, and a release that waits for the playtest (#46) — closes #43
+- The shrine's fee leaves the world by name, not by subtraction (#58)
+- A free house is a bed, not a caption (#60) — closes #52
+- Pin the crossing seam, which was described as missing and was not (#61) — closes #51
+- A villager walks into the back of his own house all night (#63) — closes #19
+- The list of what may be done before the world agrees (#64) — closes #55
+- CI was overwriting this repository's README with chore's own (#79)
+- The compiler asks who owns it, which the comment has claimed all along (#80) — closes #32
+- Exhaust one side of an obstacle before trying the other (#83)
+- The played run measured nothing and called it a failure (#91)
+- The corner the comment has claimed all along now exists (#92)
+
 ## v0.92.6 — 2026-09-13
 
 The watchman a village has been paying for since it bought the tower is now standing on it — and he and the tower agree to the tile about where the tower is.
