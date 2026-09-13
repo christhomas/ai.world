@@ -5315,3 +5315,19 @@ than by remembering — and the first thing found was that the gap is not where 
       the names found the same fragility a level down — the *facing* came from a shared stream, so a
       crag planned alongside another came out somewhere else than it did alone. Harmless today and
       fixed anyway, because it is the same sentence: what a place is like is a fact about the place.
+
+- [x] **88. A village re-lived dated its farms wrong.** *Found on the 13th while starting 79.* The
+      morning's spending was handed `today` — the day the register has reached — rather than the
+      morning being lived. Lived forward they are the same number; re-lived, `today` is the far end
+      while the morning walks from day two, so every holding founded in the replay carried the day
+      of the replay. Seed 7: days 83, 86, 112 one way and 120, 120, 120 the other, with the people,
+      the works and the hall agreeing to the penny.
+
+      `relive` is how a client that missed a death catches up, so it was two players holding
+      different histories of the same farms. Nothing reads a holding's founding day yet — a
+      divergence waiting for its first reader, which is the worst kind, because the reader arrives
+      long after the cause.
+
+      `relived.test.ts` now stands the two ways a village comes to exist side by side. It also asks
+      that the founding days are *spread*, because comparing two lists passes when both are wrong
+      the same way — which is what a replay bug looks like from the inside.
