@@ -187,6 +187,14 @@ export class Entity {
    */
   mounted: AnimalKind | null = null;
   /**
+   * How far out of its depth this body is, nought on the ground and one swimming.
+   *
+   * Eased rather than switched, for the reason the height already is: the bottom shelves away, and
+   * a pose that changed in the frame his feet left it would make one continuous movement look like
+   * two. Only a kind that paddles ever leaves nought. See `cycleTurn` and `animations/motion.json`.
+   */
+  afloat = 0;
+  /**
    * The height this one is standing at, when it is standing on something the ground knows nothing
    * about — the fighting platform of a watchtower, so far, and nothing else.
    *

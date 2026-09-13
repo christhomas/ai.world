@@ -92,7 +92,47 @@ export function familyAt(homes: readonly Home[], bx: number, bz: number): string
  * into one.
  */
 export function nameOfHome(family: string): string {
-  return family === '' ? 'An empty house' : `The ${family} house`;
+  return isFree(family) ? 'An empty house' : `The ${family} house`;
+}
+
+/**
+ * A house nobody lives in, which is a thing rather than an absence.
+ *
+ * A village shrinks: a family dies out, a household walks over the hill to an emptied valley, and
+ * the roofs stay up. What is left is a free house — nobody's, standing, with a roof — and until
+ * now that was only a caption. "An empty house in Ashford" told you whose it was not and offered
+ * nothing, so a village that had lost half its people differed from one that had not by a word.
+ */
+export function isFree(family: string): boolean {
+  return family === '';
+}
+
+/**
+ * What a night under that roof costs: nothing, or nothing doing.
+ *
+ * Nought for a free house and `null` for somebody's, which are different answers and not degrees of
+ * one. An inn charges because a bed is the innkeeper's trade; a free house charges nothing because
+ * there is nobody to pay. A house with a family in it is not cheap or dear — it is theirs.
+ *
+ * **The rule is the same for the hero and for a villager.** That is what keeps this from being a
+ * player convenience bolted onto a simulation: a villager on the road who finds an empty roof has
+ * found the same thing the hero has, for the same reason.
+ */
+export function whatABedCosts(family: string): number | null {
+  return isFree(family) ? 0 : null;
+}
+
+/**
+ * What the house says about itself from the doorway.
+ *
+ * Said outside rather than discovered inside, because a mechanic you find by trying every door in
+ * the village is a mechanic nobody finds. The village is named because which village it is in is
+ * the thing a player is deciding about — an empty roof three valleys from anywhere is worth more
+ * than one in the place he was going anyway.
+ */
+export function saidOfAFreeHouse(village: string): string {
+  return `Nobody has lived here for a long while. The roof holds, and in ${village} that is enough`
+    + ' — there is a bed, and no one to ask for anything for it.';
 }
 
 /**

@@ -182,5 +182,49 @@
       "tell": 0.3,
       "lean": -0.5
     }
+  },
+  "swimming": {
+    "note": "What a body does out of its depth. Deep water was a wall until the 12th and a place to walk on the spot after it: a hero out there played the walk cycle, legs striding against nothing, which reads as a bug rather than as swimming. These are the same fields a walk uses and they mean the same things, so a swimmer is describable in the vocabulary everything else already has. Blended by how far out of his depth he is rather than switched, because the ground does not drop away in a step and neither should the pose — wading out is one movement. The stroke is arms: they come over almost twice as far as they swing walking, and a half-cycle apart so one is pulling while the other reaches. The legs barely move — a flutter to keep him level, not a stride, because a man who kicked like he walked would be running underwater.",
+    "legL": {
+      "of": "walk",
+      "swing": 0.14,
+      "rate": 2
+    },
+    "legR": {
+      "of": "walk",
+      "swing": -0.14,
+      "rate": 2
+    },
+    "armL": {
+      "of": "walk",
+      "swing": 0.9
+    },
+    "armR": {
+      "of": "walk",
+      "swing": -0.9,
+      "offset": 3.14159
+    },
+    "head": {
+      "of": "walk",
+      "wave": 0.12,
+      "rate": 1,
+      "pitch": true
+    },
+    "tail": {
+      "of": "walk",
+      "swing": 0.3,
+      "rate": 2
+    },
+    "cape": {
+      "of": "walk",
+      "wave": 0.2,
+      "rate": 1
+    }
+  },
+  "floating": {
+    "note": "And what the whole body does, which no limb shows. A swimmer lies along the water rather than standing in it — a body upright out of its depth is treading, not swimming, and the lean is the whole difference. He barely rises and falls, because there is no ground to push off: the bounce of a walk comes from the legs straightening against something, and out there they are not.",
+    "lean": 0.55,
+    "bounce": 0.15,
+    "sway": 0.35
   }
 }

@@ -1,4 +1,5 @@
 import { ITEMS, WOOD_ITEM } from '../items';
+import { familyOfDoor, saidOfAFreeHouse, whatABedCosts } from '../../world/homes';
 import { askingPrice, lotLine, type Pitch } from '../market';
 import { tradableItems } from '../online';
 import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
@@ -192,6 +193,43 @@ export function villageInteractions(ctx: Surroundings) {
    * Reading the village board: the errand posted here, taken or not, and what the village knows
    * about places nearby. Accepting from the board saves hunting for the elder.
    */
+  /**
+   * A bed in a house nobody lives in.
+   *
+   * Item 64 gave a village free houses — nobody's, standing, with a roof, left over when a family
+   * dies out or walks over the hill — and then gave them nothing to be. *"An empty house in
+   * Ashford"* told you whose it was not and offered nothing, so a village that had lost half its
+   * people differed from one that had not by a caption.
+   *
+   * This is what it is for. There is no one to talk to and no one to pay, so it is not a
+   * conversation and not a trade: standing in the room and pressing the key is the whole of the
+   * intent, exactly as walking into the doorway is the whole of leaving.
+   *
+   * `whatABedCosts` answers with a number or nothing at all, and the two are different answers
+   * rather than degrees of one — a house with a family in it is not dear, it is *theirs*.
+   */
+  const tryFreeBed = (): boolean => {
+    const room = places.indoors;
+    // asked of the register rather than kept on the room: `places.ts` works the family out to name
+    // the room and has no other use for it, and a second copy is a second thing to disagree
+    const family = room && room.door.kind === 'house'
+      ? familyOfDoor(structures.villages, register, room.door) : '';
+    if (!room || room.door.kind !== 'house' || whatABedCosts(family) === null) return false;
+    dialogue.start({ speaker: room.title, emoji: '🛏️', pages: [saidOfAFreeHouse(room.door.village)],
+      choices: [
+        { label: 'Sleep until morning', next: () => {
+          state.rest();
+          state.version++;
+          persist();
+          sound.chime();
+          hud.flash('You sleep under somebody else\'s roof and wake at dawn, fully rested.');
+          return null;
+        } },
+        { label: 'Leave it be', next: () => null },
+      ] });
+    return true;
+  };
+
   const tryBoard = (): boolean => {
     for (const village of villagesHere()) {
       if (!village.board) continue;
@@ -480,5 +518,5 @@ export function villageInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryDoor, tryLandlord, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
+  return { tryDoor, tryLandlord, tryFreeBed, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
 }

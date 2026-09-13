@@ -51,6 +51,9 @@ export function createInteractions(ctx: Surroundings) {
       // say is the gossip, the errand and the darts board rather than a shop's stock list
       if (inside === 'keeper' && village.tryLandlord()) return;
       if (inside === 'keeper') startTalk(places.indoors.keeper!);
+      // a house nobody lives in has nobody to talk to and a bed in it, which is the one thing you
+      // can do in an empty room. Below the keeper, because a room with somebody in it is theirs
+      else if (village.tryFreeBed()) return;
       else if (inside === null) hud.flash('Stand at the door to leave, or at the counter to talk.');
       return;
     }
