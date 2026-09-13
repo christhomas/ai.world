@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EYRIE, SKYWARD, eyrieAt, packWeight, planEyries, tooDear, tooHeavy } from './eyries';
+import { EYRIE, SKYWARD, cragName, eyrieAt, packWeight, planEyries, tooDear, tooHeavy } from './eyries';
 import type { Massif } from '../world/mountains';
 
 const range = (x: number, z: number, radius: number): Massif => ({ x, z, radius, height: 80, hollow: 0 });
@@ -140,5 +140,49 @@ describe('how many crossings there are', () => {
   it('still leaves the small ranges alone, which was always the rule', () => {
     const small = Array.from({ length: 5 }, (_, k) => ({ ...flat(k * 200, 0), radius: EYRIE.WORTH_FLYING - 1 }));
     expect(planEyries(7, small, () => true)).toEqual([]);
+  });
+});
+
+/*
+ * What a crag is called, which used to be decided by the order it was planned in.
+ *
+ * Ten finished names, handed out in order, from a set of taken names that lived for one planning
+ * call — which in a country with no edge is one square. So every patch's first crag was Windcrag
+ * and a hero walking east met a second one inside ten minutes.
+ */
+describe('what a crag is called', () => {
+  const flat = (x: number, z: number, radius = 40) => ({ x, z, radius, height: 30, hollow: 0 });
+
+  it('is a function of where it stands, not of when it was planned', () => {
+    expect(cragName(7, 300, 120)).toBe(cragName(7, 300, 120));
+    expect(cragName(7, 300, 120)).not.toBe(cragName(7, 900, 640));
+  });
+
+  it('and of the seed, so two worlds do not share a country of Windcrags', () => {
+    expect(cragName(7, 300, 120)).not.toBe(cragName(8, 300, 120));
+  });
+
+  /*
+   * The fault itself: the same crag planned as part of one square and as part of another has to
+   * come out with the same name, or a hero crossing a boundary watches a mountain be renamed.
+   */
+  it('does not depend on how many crags were planned before it', () => {
+    const alone = planEyries(7, [flat(300, 120, 90)], () => true);
+    const crowded = planEyries(7, [flat(-900, -900, 95), flat(300, 120, 90)], () => true);
+    const same = crowded.find((c) => c.x === alone[0].x && c.z === alone[0].z);
+    expect(same?.name).toBe(alone[0].name);
+  });
+
+  it('never sends you from a crag to one of the same name', () => {
+    for (const seed of [1, 7, 42, 1234]) {
+      const crags = planEyries(seed, [flat(300, 120, 90), flat(2000, 90, 80)], () => true);
+      for (let i = 0; i < crags.length; i += 2) expect(crags[i].name).not.toBe(crags[i + 1].name);
+    }
+  });
+
+  it('draws on enough names that meeting the same one twice is a coincidence', () => {
+    const seen = new Set<string>();
+    for (let x = 0; x < 60; x++) seen.add(cragName(7, x * 137, x * 91));
+    expect(seen.size).toBeGreaterThan(30);
   });
 });

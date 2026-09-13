@@ -53,10 +53,45 @@ export interface Eyrie {
   fare: number;
 }
 
-const NAMES = [
-  'Windcrag', 'Stormperch', 'Thornspur', 'Cloudstep', 'Ravensrest',
-  'Highstoop', 'Greyfeather', 'Skyhold', 'Talonrock', 'Farsight',
+/**
+ * What a crag is called, built out of parts rather than taken from a list.
+ *
+ * Item 86. There were ten finished names and they were handed out in order, from a set of names
+ * already taken that lived for one planning call — which in a country with no edge means one
+ * square. So the first crag of every patch was Windcrag, the second Stormperch, and a hero walking
+ * east met a second Windcrag inside ten minutes.
+ *
+ * A name has to be a function of the thing rather than of the order it was planned in. These are
+ * drawn from the crag's own position, so the same crag is called the same thing whoever plans it,
+ * in whatever order, on whichever machine — the same rule the whole endless country rests on. And
+ * eighteen by fourteen is two hundred and fifty-two, which turns meeting another Windcrag from a
+ * certainty into a coincidence.
+ */
+const HEAD = [
+  'Wind', 'Storm', 'Thorn', 'Cloud', 'Raven', 'High', 'Grey', 'Sky', 'Talon',
+  'Far', 'Eagle', 'Frost', 'Crow', 'Stone', 'Bright', 'Cold', 'Iron', 'Hawk',
 ];
+const TAIL = [
+  'crag', 'perch', 'spur', 'step', 'rest', 'stoop', 'feather',
+  'hold', 'rock', 'sight', 'roost', 'scar', 'fell', 'reach',
+];
+
+/**
+ * A stream belonging to one spot on the map, which nothing else can advance.
+ *
+ * The same idea the whole endless country is built on, applied one level down. A shared stream
+ * makes every answer depend on how many answers came before it, and that is fine in a world planned
+ * all at once and wrong in one planned a square at a time.
+ */
+function atThisSpot(seed: number, x: number, z: number): () => number {
+  return mulberry32(derive(seed, SALT.EYRIE) ^ (Math.imul(Math.round(x), 0x9e3779b1) ^ Math.round(z)));
+}
+
+/** The name of the crag at this spot, which is the same name every time anybody asks. */
+export function cragName(seed: number, x: number, z: number): string {
+  const rng = atThisSpot(seed, x, z);
+  return HEAD[Math.floor(rng() * HEAD.length)] + TAIL[Math.floor(rng() * TAIL.length)];
+}
 
 /**
  * Where the birds wait.
@@ -71,7 +106,6 @@ export function planEyries(
   massifs: readonly Massif[],
   standable: (x: number, z: number) => boolean,
 ): Eyrie[] {
-  const rng = mulberry32(derive(seed, SALT.EYRIE));
   const out: Eyrie[] = [];
   const taken = new Set<string>();
 
@@ -91,7 +125,18 @@ export function planEyries(
 
   for (const { massif, at: i } of worth) {
     const reach = massif.radius * EYRIE.ON_THE_SHOULDER;
-    const facing = rng() * Math.PI * 2;
+    /*
+     * Which way round the range the pair sits, drawn from the mountain rather than from a stream
+     * shared with every other mountain.
+     *
+     * Found by a test written for the *names*, which is the useful kind of accident: it asserted
+     * that a crag planned alongside another comes out where it came out alone, and it did not — the
+     * shared stream had been advanced by the mountain ranked before it, so the perches moved. No
+     * live fault, because a massif belongs to exactly one square and a square is planned in one go
+     * with a deterministic order. But it is the same fragility the name had, and the fix is the
+     * same sentence: what a place is like is a fact about the place.
+     */
+    const facing = atThisSpot(seed, massif.x, massif.z)() * Math.PI * 2;
 
     // one perch each side, each allowed to slide round the shoulder to find footing
     const perch = (from: number): { x: number; z: number } | null => {
@@ -112,17 +157,29 @@ export function planEyries(
 
     const across = Math.hypot(near.x - far.x, near.z - far.z);
     const fare = Math.round(EYRIE.FARE_BASE + (across / 10) * EYRIE.FARE_PER_TEN);
-    const name = (n: number): string => {
-      for (const candidate of NAMES) {
+    /*
+     * A crag named after where it stands, and a second name if the first is taken.
+     *
+     * `taken` still does a job and a smaller one: two crags of the same range could draw the same
+     * name, and "fly from Frostscar to Frostscar" is nonsense wherever it comes from. Nudging the
+     * spot the name is drawn from is enough, and keeps the name a function of the place.
+     */
+    const named = (x: number, z: number): string => {
+      for (let nudge = 0; nudge < 8; nudge++) {
+        const candidate = cragName(seed, x + nudge, z);
         if (taken.has(candidate)) continue;
         taken.add(candidate);
         return candidate;
       }
-      return `Crag ${n}`;
+      return cragName(seed, x, z);
     };
 
-    const a: Eyrie = { id: `eyrie:${i}:a`, name: name(i * 2), x: near.x, z: near.z, partner: `eyrie:${i}:b`, fare };
-    const b: Eyrie = { id: `eyrie:${i}:b`, name: name(i * 2 + 1), x: far.x, z: far.z, partner: `eyrie:${i}:a`, fare };
+    const a: Eyrie = {
+      id: `eyrie:${i}:a`, name: named(near.x, near.z), x: near.x, z: near.z, partner: `eyrie:${i}:b`, fare,
+    };
+    const b: Eyrie = {
+      id: `eyrie:${i}:b`, name: named(far.x, far.z), x: far.x, z: far.z, partner: `eyrie:${i}:a`, fare,
+    };
     out.push(a, b);
   }
   return out;
