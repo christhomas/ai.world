@@ -1,4 +1,4 @@
-import { payAndSweep } from './purses';
+import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './aday';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
 import { mayorOf, taxedForTheHall } from './hall';
@@ -66,6 +66,31 @@ export class Register {
 
   constructor(private readonly seed: number, day = FOUNDED_ON) {
     this.day = Math.floor(day);
+    /*
+     * What a day in one village is allowed to know about the rest of the world: see `aday.ts`.
+     *
+     * Six things, built once and handed down, and the shortness of the list is the point of the
+     * cut. A day needs a settlement to change, a handful of numbers and somewhere to write down
+     * what the hall took and what it paid; it never asks who is alive in the next valley. The
+     * moment a seventh entry is wanted, the day has started asking a question that belongs to the
+     * book rather than to a Tuesday in one place, and that is worth noticing rather than quietly
+     * answering.
+     *
+     * `today` is a getter rather than a copy, and that is load-bearing: a village re-lived from
+     * its founding lives day two while the register stands on day four hundred, and what a village
+     * may build is asked against the latter. A number copied in here would have frozen it at the
+     * day the register was made.
+     */
+    const book = this;
+    this.theDay = {
+      seed: this.seed,
+      get today() { return book.day; },
+      pressureOn: (village, on) => this.pressure.on(village, on),
+      killedOn: (id) => this.killed.get(id),
+      taxed: (id, much) => { this.paid.set(id, much); },
+      waged: (id, much) => { this.earned.set(id, much); },
+      takeOff: (person, on, cause) => this.remove(person, on, cause),
+    };
   }
 
   /**
@@ -134,7 +159,7 @@ export class Register {
       herd: farmers * LIVELIHOOD.FIRST_HERD,
     };
     this.villages.set(village, settlement);
-    for (let day = FOUNDED_ON + 1; day <= this.day; day++) this.liveADay(village, settlement, day);
+    for (let day = FOUNDED_ON + 1; day <= this.day; day++) liveADay(this.theDay, village, settlement, day);
     return settlement.people;
   }
 
@@ -165,6 +190,25 @@ export class Register {
 
   /** The day the register has caught up to. */
   get today(): number { return this.day; }
+
+  /**
+   * What a day in one village is allowed to know about the rest of the world: see `aday.ts`.
+   *
+   * Six things, built once and handed down, and the shortness of the list is the point of the cut.
+   * A day needs a settlement to change, a handful of numbers and somewhere to write down what the
+   * hall took and what it paid; it never asks who is alive in the next valley. The moment a seventh
+   * entry is wanted, the day has started asking a question that belongs to the book rather than to
+   * a Tuesday in one place, and that is worth noticing rather than quietly answering.
+   *
+   * `today` is read through a getter rather than copied, because a replay lives day two while the
+   * register stands on day four hundred, and what a village may build is asked against the latter.
+   */
+  private readonly theDay: TheDay;
+
+  /** Somebody is off the register: `aday.ts` writes every book, this finds the village. */
+  private remove(person: Person, day: number, cause: 'age' | 'violence' | 'hunger'): Change | null {
+    return takeOffTheRegister(this.villages.get(person.village), person, day, cause);
+  }
 
   /**
    * Everybody alive in a village, or an empty list for a village nobody has settled.
@@ -331,7 +375,7 @@ export class Register {
 
     while (this.day < end) {
       this.day++;
-      for (const [name, village] of this.villages) changes.push(...this.liveADay(name, village, this.day));
+      for (const [name, village] of this.villages) changes.push(...liveADay(this.theDay, name, village, this.day));
       changes.push(...this.peopleWalkIn(this.day));
     }
     return changes;
@@ -341,36 +385,6 @@ export class Register {
   private peopleWalkIn(day: number): Change[] {
     const walk = whoWalksIn(this.villages, day);
     return walk ? this.resettle(walk.to, walk.from, day) : [];
-  }
-
-  /**
-   * A day's work for everybody still working in a village, and what it did to the herd.
-   *
-   * Nobody earns while the place is being raided, which is the whole reason a village under
-   * pressure stays poor and one left alone slowly does not: prosperity is a thing the player can
-   * protect rather than a number that only goes up.
-   *
-   * What is settled here is everything that does not wait for dinner: what a trade brings in from
-   * beyond the village, what the next valley paid for the meat, and everybody's keep going into
-   * the purses of whoever sold it to them. What the village pays for its own dinner cannot be
-   * settled until it has eaten, so `dinner` does that half.
-   */
-  private trade(village: Settlement, pressure: number): Trading {
-    // the village as well, because what a coast eats is a fact about the place rather than about
-    // anybody in it: see `harvest.ts`, where the herd and the boats sit side by side
-    const trading = aDaysTrade(village.people, village.herd, pressure, village);
-    village.herd = trading.herd;
-    payAndSweep(village, trading.paid);
-    // and the hall's share of what is left, which is the same act as every other coin that moves
-    // here: out of the purses it came from, into the one place that is not anybody's
-    const tax = taxedForTheHall(village.people);
-    payAndSweep(village, tax.owed);
-    // the hall's share of the day, and what its own farms made: a village that owns a farm takes
-    // what the farm takes, which is the whole of what owning one means. See `shareTheTake`
-    village.purse = Math.round((village.purse + tax.raised + trading.toTheHall) * 100) / 100;
-    for (const person of village.people) this.paid.set(person.id, -(tax.owed.get(person.id) ?? 0));
-    this.build(village);
-    return trading;
   }
 
   /** What the hall took from one person on the last day they lived through. */
@@ -398,79 +412,6 @@ export class Register {
   roomIn(village: string): number { return this.villages.get(village)?.founded ?? 0; }
 
   /**
-   * The village spends what it has raised: a roof, a wage, or something it merely wants.
-   *
-   * One thing a day at most and only what it can pay for outright, because a village does not
-   * borrow. The money never leaves the world — it goes back to whoever holds a trade, the shape
-   * every village-wide payment here takes — and that is what stops the treasury being a hole money
-   * falls into, which `chore sanity` once measured at sixty-two per cent of all the coin there is.
-   * The order and the reasoning are in `growth.ts` and `hall.ts`; this only applies the answer.
-   */
-  private build(village: Settlement): void {
-    // nought for everybody here first, and only for the people of *this* village: it cleared the
-    // whole map to begin with, which quietly wiped what another village had paid out the same
-    // morning. The audit caught it as twenty-six people getting nine hundred gold between them
-    // with nothing in any book to explain it
-    for (const person of village.people) this.earned.set(person.id, 0);
-    // the house it needs, the wage on the tower and whatever it wants, in the order a village would
-    // do them: see `whatTheVillageSpends`, where the argument about which comes first is written
-    // down. A roof before a well, because a village houses its people before it pleases them
-    const spending = whatTheVillageSpends(
-      village.purse, village.works, village.houses, village.founded, village.people, village.food,
-      village.holdings ?? [], village.herd, this.day);
-    village.watch = spending.watch;
-    // a villager founding a holding spends none of the hall's money, so what the hall spent is no
-    // longer the whole test for "nothing happened here this morning"
-    if (spending.spent === 0 && spending.founded.length === 0) return;
-    village.purse = Math.round((village.purse - spending.spent) * 100) / 100;
-    village.works.push(...spending.works);
-    // a raised roof is a raised ceiling: what the village can hold is what its houses hold, and
-    // this is the one line that lets a village become bigger than it was founded. See `growth.ts`
-    village.founded += spending.holdsMore;
-    payAndSweep(village, spending.wages);
-    for (const [id, much] of spending.wages) this.earned.set(id, much);
-    // and whatever was founded this morning, which is the one thing a village gains that it did not
-    // already hold: a farm bought by a man who has earned one, or by the hall out of a good decade
-    village.holdings = [...(village.holdings ?? []), ...spending.founded];
-  }
-
-  /**
-   * One day in one village: the old are buried, the gaps are filled, the young grow up, and
-   * whatever had teeth is accounted for last.
-   *
-   * Killings come last because that is when they actually happen — somebody dies during a day
-   * that has already been lived — and a village re-lived from its founding has to arrive at the
-   * same place as the village that watched it happen. The gap is filled the following morning.
-   */
-
-  private liveADay(name: string, village: Settlement, day: number): Change[] {
-    // one pressing, read once, and handed to both the halves of the day it changes: what a village
-    // earns and what it grows. Read twice out of a map, they could disagree with each other
-    const pressure = this.pressure.on(name, day);
-    const work = this.trade(village, pressure);
-    const changes = [
-      ...this.buryTheOld(village, day),
-      ...this.dinner(village, day, work),
-      ...this.fillTheGaps(name, village, day, pressure),
-      ...this.growUp(name, village, day),
-      ...this.takeTheKilled(village, day),
-      ...this.mendThePeople(village),
-      ...raiseWhoIsDue(name, village, day, this.streamFor(`${name}:shrine`, day)),
-    ];
-    // and who holds what, re-hung after the funerals and the growing-up so that the day's dead and
-    // the day's new adults are both settled before a farm changes hands. See `holdings.ts`
-    village.holdings = whatTheVillageHolds(name, village, day);
-    // A village losing its last soul is worth saying out loud, once. It is noticed here rather
-    // than counted at the top of the day because the killing that emptied it may have happened
-    // hours ago, out in the world, with nobody keeping score.
-    if (village.people.length === 0 && village.emptied === undefined) {
-      village.emptied = day;
-      changes.push({ kind: 'lost', id: name, name, village: name, day });
-    }
-    return changes;
-  }
-
-  /**
    * Pay a shrine to raise somebody, and send them to a village. See `shrine.ts` for the price and
    * the argument. Whoever calls this takes the fee: a register has never known what is in a purse.
    */
@@ -482,7 +423,7 @@ export class Register {
     if (already.includes(on)) return [];
     this.magicked.set(village, [...already, on]);
     here.raised.push(on);
-    return raiseWhoIsDue(village, here, on, this.streamFor(`${village}:shrine`, on));
+    return raiseWhoIsDue(village, here, on, streamFor(this.seed, `${village}:shrine`, on));
   }
 
   /** Somebody has been hurt: the middle condition a villager never had. Told, like a death. `wounds.ts`. */
@@ -493,12 +434,6 @@ export class Register {
     const days = laidUpFor(severity, here ? doctoredBy(here.people) : null);
     if (days > (person.hurt ?? 0)) person.hurt = days;
     return person.hurt ?? 0;
-  }
-
-  /** The ones something with teeth got to, on the day it got to them. */
-  private takeTheKilled(village: Settlement, day: number): Change[] {
-    const gone = village.people.filter((p) => this.killed.get(p.id) === day);
-    return gone.map((p) => this.remove(p, day, 'violence')).filter((c): c is Change => c !== null);
   }
 
   /** A death nothing could have foreseen — teeth, or a blade. This one has to be told to others. */
@@ -532,114 +467,6 @@ export class Register {
     if (!settlement) return;
     this.villages.delete(village);
     this.settle(village, settlement.houses, settlement.trades);
-  }
-
-  /** A day of mending, and the doctor's fee for the morning he set a bone. See `wounds.ts`. */
-  private mendThePeople(village: Settlement): Change[] {
-    payAndSweep(village, mendThem(village.people));
-    return [];
-  }
-
-  /**
-   * What a village grew and what it ate.
-   *
-   * The drain the whole economy needed: gold matters because bread costs money, and prosperity
-   * matters because a poor village buries people. Whoever cannot pay for what there is goes
-   * without, and long enough without is what kills them.
-   */
-  private dinner(village: Settlement, day: number, work: Trading): Change[] {
-    const meal = aDaysDinner(village.people, village.food, work);
-    village.food = meal.food;
-    // what dinner cost goes to whoever's dinner it was: the fields, the woods and the herd
-    payAndSweep(village, meal.paid);
-    return meal.starved
-      .map((p) => this.remove(p, day, 'hunger'))
-      .filter((c): c is Change => c !== null);
-  }
-
-  private buryTheOld(village: Settlement, day: number): Change[] {
-    const gone = village.people.filter((p) => outOfDays(p, day));
-    return gone.map((p) => this.remove(p, day, 'age')).filter((c): c is Change => c !== null);
-  }
-
-    /** Who is born here this morning, which is a question about families. See `births.ts`. */
-  private fillTheGaps(name: string, village: Settlement, day: number, pressure: number): Change[] {
-    return fillTheGaps({ seed: this.seed, streamFor: (v, d) => this.streamFor(v, d), baby: (...a) => this.baby(...a) },
-      name, village, day, pressure);
-  }
-
-  /**
-   * A day of growing up: children come of age and take a trade, and anybody short of company
-   * meets a neighbour.
-   *
-   * The meeting matters more than it looks. Without it a village slowly forgets itself — somebody
-   * born after their parents have died starts life knowing nobody, and never meets a soul, so
-   * there is nobody to tell you about them and nobody for them to mourn.
-   */
-  private growUp(name: string, village: Settlement, day: number): Change[] {
-    const rng = this.streamFor(name, day);
-
-    for (const person of village.people) {
-      if (person.trade === '' && stageOf(person, day) === 'adult' && village.trades.length > 0) {
-        person.trade = tradeTakenUp(person, village.trades, village, rng);
-      }
-      if (person.knows.length >= LIFE.KNOWS) continue;
-
-      const strangers = village.people.filter((p) => p !== person && !person.knows.includes(p.id));
-      if (strangers.length === 0) continue;
-      person.knows.push(strangers[Math.floor(rng() * strangers.length)].id);
-    }
-    return [];                                   // growing up is nobody's news
-  }
-
-  /**
-   * Take somebody off the register and leave them in the memory of the people who knew them.
-   * There is no book of the dead: asking a villager is how you find out somebody is gone.
-   */
-  private remove(person: Person, day: number, cause: 'age' | 'violence' | 'hunger'): Change | null {
-    const village = this.villages.get(person.village);
-    if (!village) return null;
-    const at = village.people.indexOf(person);
-    if (at < 0) return null;
-
-    village.people.splice(at, 1);
-    const estate = handOnWhatTheyHad(person, village, day);
-    // the parish register, written where every death already passes so it cannot disagree with
-    // who is alive
-    village.buried.push({
-      name: person.name, trade: person.trade, born: person.born, day, cause,
-      left: estate.left, to: estate.to,
-    });
-    if (village.buried.length > STONES_KEPT) village.buried.shift();
-    for (const survivor of village.people) {
-      const knew = survivor.knows.indexOf(person.id);
-      if (knew < 0) continue;
-      survivor.knows.splice(knew, 1);           // the id would dangle; the name in the memory will not
-      remember(survivor, { what: 'died', who: person.name, day });
-    }
-    return { kind: 'died', id: person.id, name: person.name, village: person.village, day, cause };
-  }
-
-  private baby(id: string, name: string, village: string, day: number, sex: Sex): Person {
-    const rng = this.streamFor(village, day);
-    return {
-      id, name, village, sex,                    // told rather than rolled: this stream restarts each birth
-      trade: '',                                 // a trade comes with growing up
-      born: day,
-      lives: Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE)),
-      mother: '', father: '', knows: [], memories: [], opinions: [],
-      purse: 0, hungry: 0,                                  // a baby has nothing; a trade is what starts it
-    };
-  }
-
-  /** A stream of its own for one village on one day, so villages never share rolls. */
-  private streamFor(village: string, day: number): () => number {
-    let hash = 0x811c9dc5 ^ day;
-    for (let i = 0; i < village.length; i++) {
-      hash ^= village.charCodeAt(i);
-      hash = Math.imul(hash, 0x01000193);
-    }
-    return mulberry32(derive(this.seed, SALT.PEOPLE) ^ (hash >>> 0));
   }
 
   /**
