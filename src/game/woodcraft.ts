@@ -250,6 +250,45 @@ export function woodWanted(woodSold: number): number {
 }
 
 /**
+ * What the wright says when he is asked about a cart, and whether there is one to sell.
+ *
+ * Here rather than in the conversation for the reason the two counts above it are: what a wright
+ * will and will not do is a fact about the trade, and a dialogue node is a thing that is hard to
+ * stand up in a test. The builder's conversation reads this and draws it.
+ *
+ * The gold and the wood answer different questions and neither stands in for the other. The wood
+ * decides whether a cart *exists* — that is the whole point of the material, and it is why a rich
+ * player in a village nobody has hauled to cannot simply buy one. The gold decides whether it is
+ * his today. So an offer is made to a man who cannot afford it: hiding it would be hiding the very
+ * thing he carried the timber in for.
+ */
+export function cartTalk(
+  { woodSold, owned, price, purse }: { woodSold: number; owned: boolean; price: number; purse: number },
+): { page: string; offer: boolean; affordable: boolean } {
+  if (owned) {
+    return { page: 'You have a cart already, and one is as many as a horse will pull.', offer: false, affordable: false };
+  }
+  const wanted = woodWanted(woodSold);
+  if (!cartBuilt(woodSold)) {
+    return {
+      page: wanted === WOOD.CART_WOOD
+        ? `A cart? Bring me the wood for it. ${wanted} good lengths sold here and I will have one standing.`
+        : `Coming along. Another ${wanted} lengths through the market and the cart is yours to buy.`,
+      offer: false,
+      affordable: false,
+    };
+  }
+  const affordable = purse >= price;
+  return {
+    page: affordable
+      ? `That is the cart, built out of the wood you brought in. ${price} gold and it is yours.`
+      : `That is the cart, built out of the wood you brought in. ${price} gold, and you have ${purse}. It will keep.`,
+    offer: true,
+    affordable,
+  };
+}
+
+/**
  * How fast the hero travels, as a multiple of walking pace. A cart is a horse cart: with nothing
  * in the shafts it is a box on wheels, which is why it only counts while you are mounted.
  */

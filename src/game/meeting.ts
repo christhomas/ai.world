@@ -71,6 +71,14 @@ export interface Meeting {
   /** And what a village believes about the mine it works. */
   saidOfMine: (village: string) => string;
   /**
+   * Wood sold over a counter, landed in the village whose counter it was.
+   *
+   * A stall already did this and a counter did not, so which of the two a player happened to use
+   * decided whether the village could build with what he sold it — and whether its wright would
+   * ever have the timber for a cart. See `TalkCtx.yard`.
+   */
+  landWood: (village: string, logs: number) => void;
+  /**
    * The doorway of the room the hero is standing in, or nothing out of doors.
    *
    * Records are kept by buildings rather than by people, so this is what decides whether the
@@ -86,7 +94,7 @@ export interface Meeting {
 export function createMeeting(ctx: Meeting) {
   const {
     state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue,
-    rng, quests, villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist, countryAt,
+    rng, quests, villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist, countryAt, landWood,
   } = ctx;
 
   /**
@@ -106,6 +114,7 @@ export function createMeeting(ctx: Meeting) {
     country: () => countryAt(player.x, player.z),
     wordOfHim,
     saidOfMine,
+    yard: landWood,
     onInventoryChange: () => { sound.chime(); persist(); },
     onQuestChange: (q: { village: string; id?: string }, status: 'active' | 'done') => {
       if (status === 'done') {

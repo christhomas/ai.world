@@ -131,3 +131,61 @@ describe('what a building costs in wood', () => {
       .toBeGreaterThan(0);
   });
 });
+
+/**
+ * What a village remembers about who brought the wood.
+ *
+ * The yard cannot answer that question and was never meant to: it is a stack that goes down every
+ * time somebody builds, so a village that put up a house would forget the week a player spent
+ * hauling timber into it. The wright works from a different number — everything carried in and sold
+ * over a counter, which only ever goes up, because it is a history and not a stock.
+ */
+describe('the wood a player brought in', () => {
+  const ASHFORD = 'Ashford';
+
+  it('survives the village building with it', () => {
+    const yard = new Timber();
+    yard.brought(ASHFORD, 40);
+    expect(yard.at(ASHFORD)).toBe(40);
+    expect(yard.draw(ASHFORD, 40)).toBe(true);
+    expect(yard.at(ASHFORD), 'the house took the stack').toBe(0);
+    expect(yard.sold(ASHFORD), 'but not the memory of who brought it').toBe(40);
+  });
+
+  it('does not count what the village cut for itself', () => {
+    // the wright builds a cart for whoever brought the wood, and a logger did not bring it — he
+    // lives here. Counting felling would hand every player a free cart for standing still
+    const yard = new Timber();
+    yard.felled(ASHFORD, 3);
+    expect(yard.at(ASHFORD)).toBeGreaterThan(0);
+    expect(yard.sold(ASHFORD)).toBe(0);
+  });
+
+  it('keeps each village its own count', () => {
+    const yard = new Timber();
+    yard.brought(ASHFORD, 10);
+    yard.brought('Stonedale', 3);
+    expect(yard.sold(ASHFORD)).toBe(10);
+    expect(yard.sold('Stonedale')).toBe(3);
+  });
+
+  it('remembers it across a save', () => {
+    const yard = new Timber();
+    yard.brought(ASHFORD, 12);
+    expect(Timber.from(yard.toJSON()).sold(ASHFORD)).toBe(12);
+  });
+
+  it('reads a yard saved before any of this existed', () => {
+    // the flat shape the save carried on the 13th: a yard per village and nothing else
+    const old = Timber.from({ Ashford: 30 } as never);
+    expect(old.at(ASHFORD)).toBe(30);
+    expect(old.sold(ASHFORD), 'nothing was recorded, so nobody brought anything').toBe(0);
+  });
+
+  it('counts wood sold into a full yard, which the seller was still paid for', () => {
+    const yard = new Timber();
+    yard.brought(ASHFORD, TIMBER.HOLDS + 20);
+    expect(yard.at(ASHFORD), 'the yard holds what it holds').toBe(TIMBER.HOLDS);
+    expect(yard.sold(ASHFORD), 'he sold the lot regardless').toBe(TIMBER.HOLDS + 20);
+  });
+});

@@ -6,6 +6,7 @@ import { personTill } from './tills';
 import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
 import { ITEMS, SHOP_DEFS, type ShopDef, itemSummary, sellPrice, sellableAt } from './shops';
+import { WOOD_ITEM } from './items';
 import { paidAtACounter } from './furs';
 import { CLERK_LINES, CONGREGATION_LINES, HOW_PEOPLE_GET_BY, SERGEANT_LINES } from './talkwords';
 import type { Biome } from '../world/biomes';
@@ -63,6 +64,15 @@ export interface TalkCtx {
    * the mine is: the gap between the two is the thing the player closes by walking home.
    */
   saidOfMine?: (village: string) => string;
+  /**
+   * Wood carried in and sold at this counter, landed in the village it was sold in.
+   *
+   * A market stall already did this and a shop counter did not, which made where you happened to be
+   * standing decide whether the village could build with what you sold it. Handed in rather than
+   * reached for, because a dialogue has never known which village's books it is writing to — the
+   * caller knows, and this file only knows that wood changed hands.
+   */
+  yard?: (village: string, logs: number) => void;
 }
 
 /**
@@ -621,6 +631,7 @@ function sellSome(s: Counter, id: string, n: number): DialogueNode {
   const sold = ctx.state.take(id, n);
   if (sold === 0) return sellMenu(s);
   const paid = paidAtACounter(id, item.price, ctx.country) * sold;
+  if (id === WOOD_ITEM) ctx.yard?.(s.village, sold);   // it has reached this village; see `TalkCtx.yard`
   // from outside the valley rather than out of his purse: a villager holds tens of gold and you
   // walk in with hundreds of gold of pelts, which go on to a city this game never draws. Out of
   // his purse it is a village that will not buy your furs, or one a morning's hunting empties
@@ -642,7 +653,9 @@ function sellAll(s: Counter, stock: ReturnType<typeof sellableAt>): DialogueNode
   let paid = 0;
   // the same local price one sale gets: the lot must never be worth less than one at a time
   for (const { item, count } of stock) {
-    paid += paidAtACounter(item.id, item.price, ctx.country) * ctx.state.take(item.id, count);
+    const sold = ctx.state.take(item.id, count);
+    paid += paidAtACounter(item.id, item.price, ctx.country) * sold;
+    if (item.id === WOOD_ITEM) ctx.yard?.(s.village, sold);
   }
   give(AWAY, holds(ctx.state.inventory), paid);        // from outside the valley; see `sellSome`
   ctx.onInventoryChange();

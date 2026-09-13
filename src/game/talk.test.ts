@@ -316,3 +316,61 @@ describe('the sell dial', () => {
     }
   });
 });
+
+/**
+ * Wood sold over a counter is wood that has reached the village.
+ *
+ * A market stall already landed it in the yard and a shop counter did not, which made where you
+ * stood when you sold it decide whether the village could build with it. The item's own
+ * description promises the player the mechanic outright — *"Built by a village wright out of wood
+ * you carried in"* — so the counter is the path most players will take to it.
+ */
+describe('selling wood into a village', () => {
+  const storekeeper = (village: string) => {
+    const rng = mulberry32(3);
+    const herd = new Herd(KINDS.shopkeeper, 0, 0, 0, 0, 1);
+    herd.tag = village;
+    const e = new Entity(KINDS.shopkeeper, 0, 0, herd, 'k', rng);
+    e.role = 'shopkeeper';
+    e.shop = 'store';
+    return e;
+  };
+
+  const sellingWood = (logs: number) => {
+    const landed: Array<[string, number]> = [];
+    const state = new GameState();
+    state.give('wood', logs);
+    const ctx = {
+      state, rng: mulberry32(3), time: 0.5, quests: new Map(),
+      onInventoryChange: () => {}, onQuestChange: () => {},
+      yard: (village: string, cut: number) => { landed.push([village, cut]); },
+    };
+    return { landed, state, menu: dialogueFor(storekeeper('Ashford'), ctx).choices![1].next()! };
+  };
+
+  it('lands what you sold one at a time in that village yard', () => {
+    const { landed, menu } = sellingWood(3);
+    menu.choices!.find((c) => c.label.includes('Cut Wood'))!.next();
+    expect(landed).toEqual([['Ashford', 1]]);
+  });
+
+  it('lands the whole lot when you sell the lot', () => {
+    const { landed, menu } = sellingWood(7);
+    menu.choices!.find((c) => c.label.startsWith('Sell the lot'))!.next();
+    expect(landed).toEqual([['Ashford', 7]]);
+  });
+
+  it('lands nothing when what you sold was not wood', () => {
+    const landed: Array<[string, number]> = [];
+    const state = new GameState();
+    state.give('pike', 2);
+    const ctx = {
+      state, rng: mulberry32(3), time: 0.5, quests: new Map(),
+      onInventoryChange: () => {}, onQuestChange: () => {},
+      yard: (village: string, cut: number) => { landed.push([village, cut]); },
+    };
+    dialogueFor(storekeeper('Ashford'), ctx).choices![1].next()!
+      .choices!.find((c) => c.label.startsWith('Sell the lot'))!.next();
+    expect(landed).toEqual([]);
+  });
+});

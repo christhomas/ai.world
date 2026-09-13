@@ -77,17 +77,38 @@ export const TIMBER = {
 } as const;
 
 /** What a village's yard holds, and how it got there. */
-export type TimberJson = Record<string, number>;
+/**
+ * A yard on disk: the stack that is standing, and the wood that was carried in to it.
+ *
+ * Two records rather than one, because they are two different kinds of number. The first goes up
+ * and down and is a *stock*; the second only ever goes up and is a *history*, and a history is what
+ * the wright works from — a village that put up a house would otherwise forget the week somebody
+ * spent hauling timber into it, which is the one thing it ought to remember.
+ *
+ * The bare `Record<string, number>` is the shape this was saved in before the second record
+ * existed, and it is still read: a yard from that day is a stack nobody is recorded as having
+ * brought, which is exactly what it was.
+ */
+export type TimberJson = Record<string, number> | {
+  yards: Record<string, number>;
+  brought: Record<string, number>;
+};
 
 export class Timber {
   private readonly yards = new Map<string, number>();
+  /** Cumulative logs carried in and sold here, which no building ever takes back down. */
+  private readonly carriedIn = new Map<string, number>();
   /** Villages whose standing stack has already been counted, so it is counted once. */
   private readonly opened = new Set<string>();
 
   constructor(json?: TimberJson) {
-    for (const [village, logs] of Object.entries(json ?? {})) {
+    const stacks = json && 'yards' in json ? json.yards : (json as Record<string, number> | undefined);
+    for (const [village, logs] of Object.entries(stacks ?? {})) {
       this.yards.set(village, logs);
       this.opened.add(village);
+    }
+    if (json && 'brought' in json) {
+      for (const [village, logs] of Object.entries(json.brought)) this.carriedIn.set(village, logs);
     }
   }
 
@@ -96,6 +117,30 @@ export class Timber {
   /** Logs in this village's yard. Nothing, for a village nobody has looked at or cut for. */
   at(village: string): number {
     return this.yards.get(village) ?? 0;
+  }
+
+  /**
+   * Everything ever carried into this village and sold, which is what the wright is paying back.
+   *
+   * Deliberately not the yard: the yard is a stack and this is a history, and the difference is a
+   * village that has built a house since. Deliberately not the felling either — a logger lives
+   * here, and counting his week would hand a cart to a player who stood still for it.
+   */
+  sold(village: string): number {
+    return this.carriedIn.get(village) ?? 0;
+  }
+
+  /**
+   * Wood a player carried in and sold here: it joins the stack, and it is remembered.
+   *
+   * The tally counts what was *sold*, not what fitted. A seller whose logs meet a full yard has
+   * still been paid for them by a market that wanted them, and refusing to credit the surplus would
+   * make the wright's memory depend on how much building the village happened to be doing.
+   */
+  brought(village: string, logs: number): void {
+    if (logs <= 0) return;
+    this.carriedIn.set(village, this.sold(village) + logs);
+    this.land(village, logs);
   }
 
   /**
@@ -147,6 +192,6 @@ export class Timber {
   }
 
   toJSON(): TimberJson {
-    return Object.fromEntries(this.yards);
+    return { yards: Object.fromEntries(this.yards), brought: Object.fromEntries(this.carriedIn) };
   }
 }

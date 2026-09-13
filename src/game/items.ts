@@ -80,6 +80,17 @@ export interface Item {
 }
 
 /** Shops pay this share of an item's price. */
+/**
+ * The two items the world itself has opinions about, named once.
+ *
+ * Wood is the only thing a village's books care about by name — sold over a counter or put out on
+ * a stall, it lands in the yard the builder draws from — and a cart is what a market eventually
+ * makes out of it. Three files matched those ids as bare strings, which is one file too many for a
+ * fact that has to agree with the catalogue below.
+ */
+export const WOOD_ITEM = 'wood';
+export const CART_ITEM = 'cart';
+
 export const SELL_SHARE = 0.5;
 
 export function sellPrice(item: Item): number {

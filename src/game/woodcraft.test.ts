@@ -3,7 +3,7 @@ import { Biome, PropKind } from '../world/biomes';
 import { TileType } from '../world/terrain';
 import { ITEMS } from './items';
 import {
-  Felling, Fire, WOOD, cartBuilt, fellingAt, haulPace, standOf, timberAt, treeName, woodWanted,
+  Felling, Fire, WOOD, cartBuilt, cartTalk, fellingAt, haulPace, standOf, timberAt, treeName, woodWanted,
   type Cut, type Stand,
 } from './woodcraft';
 
@@ -259,5 +259,54 @@ describe('the cart a market builds', () => {
     expect(haulPace(horse, false, true)).toBe(1);          // a cart you have to push is no help
     expect(haulPace(horse, true, false)).toBe(horse);
     expect(haulPace(horse, true, true)).toBeGreaterThan(horse);
+  });
+});
+
+/**
+ * What the wright says when you ask him about a cart.
+ *
+ * `cartBuilt` and `woodWanted` were written, tested and then never called by anything: the item
+ * priced a Horse Cart and its description promised the player the mechanic outright, `frame.ts`
+ * read the speed off it, and there was no shop, no conversation and no line of dialogue anywhere
+ * that could put one in a pack. A player could haul timber for the rest of the world's life and
+ * the wright would never build a thing.
+ *
+ * The words are here rather than in the conversation for the reason the two counts above are: a
+ * dialogue is hard to stand up in a test, and what a wright will and will not do is a fact about
+ * the trade rather than about the panel it is said through.
+ */
+describe('asking the wright about a cart', () => {
+  const PRICE = 120;
+
+  it('will not talk about one until the wood is in', () => {
+    const said = cartTalk({ woodSold: 0, owned: false, price: PRICE, purse: 500 });
+    expect(said.offer).toBe(false);
+    expect(said.page).toContain(String(WOOD.CART_WOOD));
+  });
+
+  it('counts down as the wood comes in', () => {
+    const said = cartTalk({ woodSold: WOOD.CART_WOOD - 7, owned: false, price: PRICE, purse: 500 });
+    expect(said.offer).toBe(false);
+    expect(said.page).toContain('7');
+  });
+
+  it('offers one once there is enough, at the catalogue price', () => {
+    const said = cartTalk({ woodSold: WOOD.CART_WOOD, owned: false, price: PRICE, purse: 500 });
+    expect(said.offer).toBe(true);
+    expect(said.page).toContain(String(PRICE));
+  });
+
+  it('still offers it when you cannot afford it, and says so', () => {
+    // the wood is what decides whether a cart exists; the gold decides whether it is yours today,
+    // and a wright who hid it would be hiding the thing the player hauled the wood for
+    const said = cartTalk({ woodSold: WOOD.CART_WOOD, owned: false, price: PRICE, purse: 4 });
+    expect(said.offer).toBe(true);
+    expect(said.affordable).toBe(false);
+  });
+
+  it('does not sell a second one to a man who has one', () => {
+    const said = cartTalk({ woodSold: WOOD.CART_WOOD * 4, owned: true, price: PRICE, purse: 500 });
+    expect(said.offer).toBe(false);
+    expect(said.page).toMatch(/yours|got one|already/i);
   });
 });

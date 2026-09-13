@@ -10,6 +10,7 @@ import { boxOf, handOver, packOf } from '../../world/goods';
 import { settle } from '../../world/works';
 import { villageTill } from '../tills';
 import { ITEMS } from '../items';
+import { cartChoice } from './wright';
 import { footprintLevel } from '../../world/footprint';
 import type { Structure, Village } from '../../world/structures';
 import { regardOf } from '../grudge';
@@ -241,6 +242,8 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
       }),
     });
   }
+  choices.push(cartChoice(ctx, village.name, name, houses.yard.sold(village.name)));
+
   for (const job of going) {
     // named rather than always "my house", because the catalogue has five things in it and asking
     // after your house while a boat is on the stocks is asking after the wrong job

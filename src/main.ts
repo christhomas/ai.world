@@ -477,7 +477,7 @@ export function startGame(
     countryAt: (x, z) => sampler.biomeOf(x, z),
     villageWelcome: (village) => villageWelcome(village),
     wordOfHim: (person) => interactions.wordOfHim(person),
-    saidOfMine,
+    saidOfMine, landWood: houses.yard.brought.bind(houses.yard),
     indoors: () => places.indoors?.door ?? null,
     flash: (message) => hud.flash(message),
   });
