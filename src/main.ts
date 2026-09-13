@@ -164,8 +164,8 @@ export function startGame(
   const kinPanel = new KinPanel();
   const roster = new Roster();          // everybody in the world, read live off the register
   const entityRenderer = new EntityRenderer(rig.scene);
-  // who lives in the villages: founded from the seed, then born and buried as the days pass
-  const register = new Register(seed);       // caught up to the saved day once the state is loaded
+  // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
+  const register = new Register(seed); register.theyStandAt(structures.villages);
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
     // What a villager is paid for what they sell — the same share of the shop price the player

@@ -399,9 +399,28 @@ export class Register {
     return changes;
   }
 
+  /**
+   * Where each village stands, for whoever has told it.
+   *
+   * The register has never known its own geography — it keeps books, and a book does not say where
+   * the building is. That was fine until somebody had to *walk*: `movingon.ts` could send the
+   * least-prosperous village in the world to an empty one on the far side of it, because nothing
+   * measured the walk and so there was no walk.
+   *
+   * Told rather than worked out, because the ground is `structures.ts`'s and nothing in here may go
+   * looking for it. Never told, and every decision that takes a distance behaves exactly as it did
+   * before there was one — which is the honest answer for a bench that has no map.
+   */
+  private standing = new Map<string, { x: number; z: number }>();
+
+  /** Where the villages are, as the world lays them out. Called once the country is grown. */
+  theyStandAt(where: Iterable<{ name: string; x: number; z: number }>): void {
+    for (const village of where) this.standing.set(village.name, { x: village.x, z: village.z });
+  }
+
   /** Somebody walks over the hill and takes on an empty village, one a day. See `movingon.ts`. */
   private peopleWalkIn(day: number): Change[] {
-    const walk = whoWalksIn(this.villages, day);
+    const walk = whoWalksIn(this.villages, day, (village) => this.standing.get(village));
     return walk ? this.resettle(walk.to, walk.from, day) : [];
   }
 

@@ -43,6 +43,20 @@ export const LEAVING = {
    * it is the second helping.
    */
   LEFT_A_WHILE: 12,
+  /**
+   * How far somebody will walk to start again, in tiles.
+   *
+   * Twelve hundred, which is a long way and is meant to be: this is not a commute, it is a family
+   * carrying what it owns to a place nobody is living in, and people have always done that further
+   * than seems reasonable. What it rules out is the thing that was actually happening — the
+   * least-prosperous village *in the world* answering an empty one on the far side of it, because
+   * nothing measured the walk and so there was no walk.
+   *
+   * A limit rather than a preference among the far ones, because the two are different claims. A
+   * village four provinces away is not a worse option, it is not an option: nobody there has heard
+   * that the valley emptied.
+   */
+  WORTH_MOVING: 1200,
 } as const;
 
 /** What somebody knows about a village, theirs or anybody's, without reading its books. */
@@ -58,6 +72,14 @@ export interface Living {
   room: number;
   /** Days since the last of them died, or nothing for a village with anybody in it. */
   emptyFor: number | null;
+  /**
+   * Where it stands, when whoever asked knows.
+   *
+   * Optional because the register learns its geography one caller at a time, and a place with no
+   * position is not a place that should be dropped out of a decision it used to be part of: without
+   * it this behaves exactly as it did before there was a distance at all.
+   */
+  at?: { x: number; z: number };
 }
 
 /**
@@ -104,9 +126,35 @@ export function whoMovesIn(empty: Living, from: readonly Living[], day: number):
     // only a village with more people than it has beds to spare, which is the same crowding the
     // growth loop answers by building: somewhere that cannot build is somewhere people leave
     if (place.people * LEAVING.WORTH_THE_WALK < place.room) continue;
-    if (leaving === null || livingIn(place) < livingIn(leaving)) leaving = place;
+    // and near enough that walking there is a thing a person would do. A village four provinces
+    // away is not a worse option, it is not an option — nobody there has heard the valley emptied
+    if (tooFar(place, empty)) continue;
+    if (leaving === null || betterToLeave(place, empty, leaving)) leaving = place;
   }
   return leaving?.village ?? null;
+}
+
+/** Whether these two are further apart than anybody would carry their life. Unknown is never too far. */
+function tooFar(from: Living, to: Living): boolean {
+  if (!from.at || !to.at) return false;
+  return Math.hypot(from.at.x - to.at.x, from.at.z - to.at.z) > LEAVING.WORTH_MOVING;
+}
+
+/**
+ * Which of two villages sends somebody: the thinner living, and the nearer where that is a tie.
+ *
+ * The tie-break is the whole of what geography buys here. Two crowded villages with the same thin
+ * living are the same decision to whoever is making it, and the only thing left to choose between
+ * them is the walk — so it chooses the walk, rather than whichever happened to come first out of a
+ * map, which is what it did before and was not a decision at all.
+ */
+function betterToLeave(place: Living, empty: Living, best: Living): boolean {
+  const theirs = livingIn(place);
+  const bests = livingIn(best);
+  if (theirs !== bests) return theirs < bests;
+  if (!place.at || !best.at || !empty.at) return false;
+  return Math.hypot(place.at.x - empty.at.x, place.at.z - empty.at.z)
+    < Math.hypot(best.at.x - empty.at.x, best.at.z - empty.at.z);
 }
 
 /**
@@ -123,6 +171,11 @@ export function whoMovesIn(empty: Living, from: readonly Living[], day: number):
 export function whoWalksIn(
   villages: Iterable<[string, { people: { purse: number }[]; food: number; founded: number; emptied?: number }]>,
   day: number,
+  /**
+   * Where a village stands, for whoever knows. Left out and nobody measures any walk, which is what
+   * this did before the register could be told its own geography.
+   */
+  standsAt: (village: string) => { x: number; z: number } | undefined = () => undefined,
 ): { to: string; from: string } | null {
   const places: Living[] = [...villages].map(([village, here]) => ({
     village,
@@ -131,6 +184,7 @@ export function whoWalksIn(
     purse: here.people.reduce((all, person) => all + person.purse, 0),
     room: here.founded,
     emptyFor: here.emptied === undefined ? null : day - here.emptied,
+    at: standsAt(village),
   }));
   for (const empty of places) {
     const from = whoMovesIn(empty, places, day);

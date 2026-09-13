@@ -104,3 +104,57 @@ describe('the one move a day', () => {
     expect(['Thornby', 'Blackmarsh']).toContain(walk!.to);
   });
 });
+
+/**
+ * And how far anybody is prepared to walk for it.
+ *
+ * `whoMovesIn` knew nothing about where any of these places are, which was written down in the file
+ * as a gap rather than left as a surprise: *"a villager walking to a ruin four provinces away is
+ * not a thing that should happen, and the day the register learns where its villages stand, this
+ * takes a distance"*. Until then the least-prosperous village in the world could send somebody to
+ * an empty one on the far side of the map, and the walk did not exist because nothing measured it.
+ *
+ * The decision itself does not change — of the places that could spare somebody, the one that would
+ * gain least by staying goes. What changes is who is asked: only the ones close enough that walking
+ * there is a thing a person would do.
+ */
+describe('how far somebody will walk to start again', () => {
+  const ruin = (): Living => ({
+    village: 'Ruin', people: 0, food: 0, purse: 0, room: 8, emptyFor: LEAVING.LEFT_A_WHILE + 1,
+    at: { x: 0, z: 0 },
+  });
+  const home = (name: string, x: number, purse: number): Living => ({
+    village: name, people: 10, food: 100, purse, room: 2, emptyFor: null, at: { x, z: 0 },
+  });
+
+  it('sends the nearest of two villages that would gain equally little', () => {
+    const near = home('Near', 40, 50);
+    const far = home('Far', 4000, 50);
+    expect(whoMovesIn(ruin(), [far, near], 500)).toBe('Near');
+    expect(whoMovesIn(ruin(), [near, far], 500)).toBe('Near');
+  });
+
+  it('will not send anybody four provinces', () => {
+    // the whole of the gap this closes: a village on the far side of the world is not an option,
+    // however thin the living there is
+    const desperate = home('Faraway', 100000, 1);
+    expect(whoMovesIn(ruin(), [desperate], 500)).toBeNull();
+  });
+
+  it('still prefers the thinner living among the ones close enough', () => {
+    const thin = home('Thin', 300, 1);
+    const rich = home('Rich', 40, 9000);
+    expect(whoMovesIn(ruin(), [rich, thin], 500), 'a rich village with room has nobody who wants to leave')
+      .toBe('Thin');
+  });
+
+  it('decides as it always did where nobody knows where anything is', () => {
+    // the register learns its geography one caller at a time, and a place with no position is not
+    // a place that should be excluded from a decision it used to be part of
+    const nowhere = (name: string, purse: number): Living => ({
+      village: name, people: 10, food: 100, purse, room: 2, emptyFor: null,
+    });
+    const empty: Living = { village: 'Ruin', people: 0, food: 0, purse: 0, room: 8, emptyFor: LEAVING.LEFT_A_WHILE + 1 };
+    expect(whoMovesIn(empty, [nowhere('Rich', 9000), nowhere('Thin', 1)], 500)).toBe('Thin');
+  });
+});
