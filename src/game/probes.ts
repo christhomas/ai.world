@@ -663,8 +663,26 @@ export function installProbes(ctx: Probed): void {
   (debug as { __enterInn?: () => string | null }).__enterInn = () => commandWorld.enterInn() as string | null;
   // the same door-finding as __enterInn, for any shop: the till is only reachable from inside,
   // so without this there is no way to drive a sale from a test
-  (debug as { __enterShop?: (type?: string) => string | null }).__enterShop = (type = 'store') => {
-    for (const village of structures.villages) {
+  /*
+   * Stand inside a shop, in a named village or in the first one that has the right sort.
+   *
+   * The village argument was the whole of a finding from walking the hunting loop: this took the
+   * first village in the world with a store, every time, so a walk that needed *this* village's
+   * counter could not be written at all. What that walk was chasing was a price that differs by
+   * country — a wolf pelt quoted at 15 gold in snow and 23 in desert — and a probe that can only
+   * ever stand in one country cannot test the thing the country changes.
+   *
+   * Matched loosely on the name so a walk can say `Ashford` without knowing how the seed spelled
+   * it, and it answers with the village it actually used so the walk can assert on that rather than
+   * assume. Unnamed behaves exactly as before, which keeps every walk already written running.
+   */
+  (debug as { __enterShop?: (type?: string, village?: string) => string | null })
+    .__enterShop = (type = 'store', village?: string) => {
+    const wanted = village?.toLowerCase();
+    const looking = wanted === undefined
+      ? structures.villages
+      : structures.villages.filter((v) => v.name.toLowerCase().includes(wanted));
+    for (const village of looking) {
       const shop = village.shops.find((s) => s.type === type);
       if (!shop) continue;
       const door = structures.doors.find((d) => d.bx === shop.house.tx && d.bz === shop.house.tz);
