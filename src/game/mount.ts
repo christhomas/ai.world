@@ -100,12 +100,16 @@ export class Mount {
   mount(player: Player): void {
     if (!this.entity) return;
     this.riding = true;
+    // and from here it is the horse that decides where he may go, not his own legs: a hero paddles
+    // and a horse does not, so the sea stops being a road the moment he is on one. `whatCarriesHim`
+    player.entity.mounted = this.entity.kind;
     player.entity.y = this.entity.y + this.breed.saddle;
   }
 
   dismount(player: Player, world: TileWorld): void {
     if (!this.entity) return;
     this.riding = false;
+    player.entity.mounted = null;         // back on his own legs, and able to swim again
     // step off to a tile the hero can actually stand on
     const spots: Array<[number, number]> = [[1.2, 0], [-1.2, 0], [0, 1.2], [0, -1.2]];
     for (const [dx, dz] of spots) {

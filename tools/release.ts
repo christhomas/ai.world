@@ -13,12 +13,27 @@ import { pathToFileURL } from 'node:url';
  * So they move together, here, in one command:
  *
  *   1. the chart's `version` and `appVersion`, and the pin in the HelmRelease
- *   2. a commit saying what is in it
- *   3. a tag on that commit, which is what a rollback goes back to
- *   4. a GitHub release, which is what builds and publishes the image the chart names
+ *   2. the changelog entry, and the ten the README shows, written before anything is committed
+ *   3. a commit on a release branch, a pull request, and a squash onto main
+ *   4. a tag on what main actually became, which is what a rollback goes back to
+ *   5. a GitHub release, which is what builds and publishes the image the chart names
+ *   6. the version written onto every issue that shipped in it
  *
  * It refuses to start on a dirty tree or off main, and it runs the tests before it writes anything.
  * A release is the one moment where being slow is free and being wrong is expensive.
+ *
+ * ## Why it goes through a pull request now
+ *
+ * It pushed straight to main until `github-guard` was installed, and the guard refused it: a pull
+ * request for every change, admins included, and linear history. The guard is right and this was
+ * wrong. A release is the change most worth having a record of, and "the tool that makes releases
+ * is the one thing allowed to write to main unobserved" is exactly the exception that makes a
+ * protection worth nothing.
+ *
+ * It costs nothing, which is worth writing down before anybody is tempted to bypass it: the branch
+ * requires no approving reviews and no status checks, so the request is opened and squashed in the
+ * same breath. This is still one command. What changed is that every release leaves a reviewable
+ * pull request behind it rather than an unexplained commit on main.
  */
 
 const run = (cmd: string, args: string[]): string =>
@@ -148,17 +163,74 @@ const README = 'README.md';
 /** How many releases the README shows before the rest are only in the changelog. See the guard. */
 const IN_THE_README = 10;
 
+/**
+ * What GitHub's release page says, taken from the changelog rather than written twice.
+ *
+ * `github-guard` ships the extractor that its own hook enforces — `git-changelog.sh notes vX.Y.Z`
+ * reads the same file, adds a compare link to the release before it, and is the reason the guard
+ * exists in the form it does: the changelog is the single source and the release body is a view of
+ * it. Falls back to the note as typed where the guard is not installed in this clone, because the
+ * guards are per-clone and a release must not depend on somebody having run an installer.
+ */
+function notesFor(version: string, body: string): string {
+  try {
+    return run('bash', ['.git/hooks/pre-push.d/git-changelog.sh', 'notes', `v${version}`]) || body;
+  } catch {
+    return body;
+  }
+}
+
 /** Today, as the changelog dates things: the day the release went out, not the day it was written. */
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * What actually went into this release: the pull requests merged since the last tag.
+ *
+ * Chris, 13 September 2026: *"having PRs means that we work on issues, and those issues are turned
+ * into PRs, which means we can measure work and produce better quality releases because we can say
+ * what PRs went into each release, meaning we can more accurately create CHANGELOG entries."*
+ *
+ * That is the argument for branch protection that is not about protection at all. A pull request is
+ * a *unit of work with a name*, and a release is a set of them — so what a version contains stops
+ * being a sentence somebody typed about their own work and becomes a list of what was merged. The
+ * headline note stays, because a list of titles says what changed and not what it was *for*; what
+ * it stops doing is standing alone.
+ *
+ * Empty for a release whose work went straight to main, which every release before the guard was
+ * installed did. That is the honest answer rather than a missing one, and the entry falls back to
+ * the note by itself.
+ */
+function whatWentIn(since: string | null): string[] {
+  if (!since) return [];
+  try {
+    const merged = run('gh', ['pr', 'list', '--state', 'merged', '--base', 'main', '--limit', '100',
+                              '--json', 'number,title,mergedAt,closingIssuesReferences']);
+    const rows = JSON.parse(merged || '[]') as Array<{
+      number: number; title: string; mergedAt: string;
+      closingIssuesReferences?: Array<{ number: number }>;
+    }>;
+    return rows
+      .filter((pr) => Date.parse(pr.mergedAt) > Date.parse(since))
+      .sort((a, b) => a.number - b.number)
+      .map((pr) => {
+        const closed = (pr.closingIssuesReferences ?? []).map((i) => `#${i.number}`).join(', ');
+        return `- ${pr.title} (#${pr.number})${closed ? ` — closes ${closed}` : ''}`;
+      });
+  } catch {
+    return [];
+  }
+}
+
 /** Put this version at the top of `CHANGELOG.md`, under the preamble and above the last one. */
-function writeTheChangelog(version: string, body: string): void {
+function writeTheChangelog(version: string, body: string, since: string | null): void {
   const text = readFileSync(CHANGELOG, 'utf8');
   const at = text.indexOf('\n## v');
   if (at < 0) throw new Error(`${CHANGELOG} has no released versions in it to write above`);
-  const entry = `\n## v${version} — ${today()}\n\n${body.trim()}\n`;
+  const went = whatWentIn(since);
+  const said = went.length > 0 ? `${body.trim()}\n\n${went.join('\n')}\n` : `${body.trim()}\n`;
+  const entry = `\n## v${version} — ${today()}\n\n${said}`;
   writeFileSync(CHANGELOG, text.slice(0, at) + entry + text.slice(at));
 }
 
@@ -194,8 +266,8 @@ function main(): void {
   if (!asked) throw new Error('usage: release <version|major|minor|patch> ["what is in it"]');
   const note = process.argv[3] ?? '';
 
-  const branch = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
-  if (branch !== 'main') throw new Error(`releases are cut from main, and this is ${branch}`);
+  const standing = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (standing !== 'main') throw new Error(`releases are cut from main, and this is ${standing}`);
   if (run('git', ['status', '--porcelain'])) {
     throw new Error('there are uncommitted changes — a release has to name a commit that exists');
   }
@@ -221,22 +293,52 @@ function main(): void {
 
   const body = note || `Version ${version}.`;
   // before the commit, because the guard reads the tagged commit and refuses an undocumented tag
-  writeTheChangelog(version, body);
+  writeTheChangelog(version, body, since);
   writeTheReadme();
   say(`${CHANGELOG} and the README's ten now say what ${version} was`);
+  /*
+   * And out through a pull request, because `main` is protected and should be.
+   *
+   * `github-guard` sets the branch up the way an agent-operated repository wants it — a pull
+   * request for every change, admins included, and linear history — and that refused the direct
+   * push this used to do. The guard is right and this was wrong: a release is the change most
+   * worth having a record of, and "the tool that makes releases is the one thing allowed to write
+   * to main unobserved" is exactly the exception that makes a protection worthless.
+   *
+   * It costs nothing, which is worth knowing before anybody is tempted to bypass it: the branch
+   * requires **no approving reviews and no status checks**, so the request can be opened and
+   * squashed in the same breath. `chore release` is still one command. What changed is that every
+   * release now leaves a reviewable pull request behind it rather than an unexplained commit.
+   */
+  const branch = `release/v${version}`;
+  run('git', ['switch', '-c', branch]);
   run('git', ['add', 'chart/Chart.yaml', 'deploy/flux/helmrelease.yaml', 'package.json',
               CHANGELOG, README]);
   run('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', `Release ${version}\n\n${body}`]);
-  run('git', ['tag', '-a', `v${version}`, '-m', `v${version}`]);
-  say(`committed and tagged v${version}`);
+  run('git', ['push', '-u', 'origin', branch]);
+  run('gh', ['pr', 'create', '--base', 'main', '--head', branch,
+             '--title', `Release ${version}`, '--body', body]);
+  // squash, because linear history is what the guard asks for and a merge commit would be refused
+  run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch']);
+  say(`released through a pull request and squashed onto main`);
 
-  run('git', ['push', 'origin', 'main']);
+  /*
+   * The tag goes on what main actually became, not on what was written locally.
+   *
+   * A squash makes a *new* commit, so the commit that exists here is not the commit that shipped.
+   * Tagging the local one would put the tag on an object nobody else has — and `git-tags-on-main`
+   * would refuse it, correctly, as a tag pointing off the branch.
+   */
+  run('git', ['switch', 'main']);
+  run('git', ['fetch', 'origin', 'main']);
+  run('git', ['reset', '--hard', 'origin/main']);
+  run('git', ['tag', '-a', `v${version}`, '-m', `v${version}`]);
   run('git', ['push', 'origin', `v${version}`]);
-  say('pushed');
+  say(`tagged v${version} on main as it now stands`);
 
   // The release is what builds the image the chart now names. Without it the cluster reconciles
   // against a version that exists in git and nowhere else.
-  run('gh', ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes', body]);
+  run('gh', ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes', notesFor(version, body)]);
   say(`published the release — the image workflow is building ghcr.io/christhomas/ai-world:${version}`);
   say('watch it with: gh run watch $(gh run list --workflow=image.yml --limit 1 --json databaseId -q \'.[0].databaseId\')');
 

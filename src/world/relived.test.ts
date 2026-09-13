@@ -24,7 +24,7 @@ import { Register } from './register';
  * divergence waiting for its first reader rather than a fault anybody could see.
  */
 describe('the two ways a village comes to exist', () => {
-  const TRADES = ['farmer', 'seller', 'builder', 'hunter', 'logger'];
+  const TRADES = ['farmer', 'seller', 'builder', 'hunter', 'lumberjack'];
 
   /** Lived forward a day at a time, which is what a page that was there does. */
   function livedForward(seed: number, to: number): Register {

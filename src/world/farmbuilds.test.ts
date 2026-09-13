@@ -44,7 +44,7 @@ describe('which farmer builds a bigger stable', () => {
   it('is nobody where the village has no wood, however rich the farmer', () => {
     /*
      * The whole reason a stable is priced in timber as well as gold. A rich farmer will always find
-     * four hundred coins; a village on a bare rock with no logger in it should not be able to
+     * four hundred coins; a village on a bare rock with no lumberjack in it should not be able to
      * double its herd by being wealthy.
      */
     expect(asking({ timber: 0 })).toBeNull();

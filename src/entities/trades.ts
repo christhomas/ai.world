@@ -59,19 +59,19 @@ export const TRADES: Trade[] = [
     ],
   },
   /*
-   * The logger, and the first trade in this world that another trade cannot do without.
+   * The lumberjack, and the first trade in this world that another trade cannot do without.
    *
-   * Everything else here earns by selling to somebody outside the valley or to the player. A logger
+   * Everything else here earns by selling to somebody outside the valley or to the player. A lumberjack
    * fells the wood behind the village and stacks it in the yard, and the builder cannot raise a
-   * roof without it — so a village with a wood and no logger is a village that has stopped
-   * building, and a logger in a village with nothing to build is a man cutting for the next valley.
+   * roof without it — so a village with a wood and no lumberjack is a village that has stopped
+   * building, and a lumberjack in a village with nothing to build is a man cutting for the next valley.
    * `game/timber.ts` is the yard between them.
    *
    * `woods` and nothing else: he needs trees, and the market a hunter needs is not his business —
    * what he cuts is used where it is stacked as often as it is sold.
    */
   {
-    id: 'logger', label: 'Logger', weight: 2, needs: ['woods'],
+    id: 'lumberjack', label: 'Lumberjack', weight: 2, needs: ['woods'],
     lines: [
       'Six good lengths today, and the saw wants setting again.',
       'Anything they put up here came off my stack.',

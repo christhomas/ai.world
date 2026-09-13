@@ -28,7 +28,7 @@ describe('the behaviour files', () => {
   it('cover every trade a villager can have', () => {
     // asked of the trades themselves rather than of a list written out here, because a list beside
     // a list is a list that falls out of step: a trade added to `TRADES` with no day written for it
-    // is a villager who potters about the square, which is what a logger did the night he arrived
+    // is a villager who potters about the square, which is what a lumberjack did the night he arrived
     for (const trade of TRADES) {
       expect(tradeTree(trade.id), `nobody knows how to be a ${trade.label}`).not.toBeNull();
     }
@@ -36,7 +36,7 @@ describe('the behaviour files', () => {
 
   it('send a fisherman down to the water and keep him there all day', () => {
     /*
-     * A sailor's hours with a logger's middle, which is what the trade is: a sailor goes away and a
+     * A sailor's hours with a lumberjack's middle, which is what the trade is: a sailor goes away and a
      * fisherman comes back before dark. What he lands is counted once a day out of the boats the
      * village keeps — `aDaysTrade` in `world/livelihoods.ts` — so a `take` or a `sell` in here
      * would land the same fish twice, exactly as they would mint the same timber twice next door.
@@ -49,7 +49,7 @@ describe('the behaviour files', () => {
     expect(day).toContain('"home"');
   });
 
-  it('send a logger out to the trees and keep him there all day', () => {
+  it('send a lumberjack out to the trees and keep him there all day', () => {
     /*
      * The one trade whose day had to be written after the trade was. What is worth pinning is the
      * shape rather than the hours: he walks to the wood, he works it, and he brings nothing back —
@@ -57,9 +57,9 @@ describe('the behaviour files', () => {
      * miner's gold is minted by `mines.ts` rather than carried home in his hands. A `take` or a
      * `sell` anywhere in here would stack the same wood twice.
      */
-    const day = JSON.stringify(villagers.logger);
+    const day = JSON.stringify(villagers.lumberjack);
     expect(day).toContain('"woods"');
-    expect(day, 'a logger who walks to the trees and does not cut them').toContain('"dig"');
+    expect(day, 'a lumberjack who walks to the trees and does not cut them').toContain('"dig"');
     expect(day, 'he is carrying timber as well as having cut it').not.toContain('"take"');
     expect(day, 'he is selling the same wood the yard already counted').not.toContain('"sell"');
     // and a day with no way home ends with a man walking the street until sunrise, which is how
