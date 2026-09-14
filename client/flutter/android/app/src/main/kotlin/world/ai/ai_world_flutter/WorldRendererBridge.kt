@@ -248,7 +248,8 @@ private class GLWorldRenderer(
     }
 
     private fun matrices(): Triple<FloatArray, FloatArray, FloatArray> {
-        val cp = cos(pitch), eyeDistance = zoom * 1.35f
+        val cp = cos(pitch)
+        val eyeDistance = zoom * 1.35f
         val eye = floatArrayOf(target[0] + cos(yaw) * cp * eyeDistance, target[1] + sin(pitch) * eyeDistance, target[2] + sin(yaw) * cp * eyeDistance)
         val view = FloatArray(16); Matrix.setLookAtM(view, 0, eye[0], eye[1], eye[2], target[0], target[1], target[2], 0f, 1f, 0f)
         val projection = FloatArray(16); val aspect = viewportWidth.toFloat() / viewportHeight
@@ -285,7 +286,8 @@ private class GLWorldRenderer(
             check(ok[0] != 0) { GLES30.glGetShaderInfoLog(shader) }
             return shader
         }
-        val vertex = compile(GLES30.GL_VERTEX_SHADER, vertexSource), fragment = compile(GLES30.GL_FRAGMENT_SHADER, fragmentSource)
+        val vertex = compile(GLES30.GL_VERTEX_SHADER, vertexSource)
+        val fragment = compile(GLES30.GL_FRAGMENT_SHADER, fragmentSource)
         val linked = GLES30.glCreateProgram(); GLES30.glAttachShader(linked, vertex); GLES30.glAttachShader(linked, fragment); GLES30.glLinkProgram(linked)
         GLES30.glDeleteShader(vertex); GLES30.glDeleteShader(fragment)
         val ok = IntArray(1); GLES30.glGetProgramiv(linked, GLES30.GL_LINK_STATUS, ok, 0)
