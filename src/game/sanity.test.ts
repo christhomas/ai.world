@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { FOOD, cellarCap } from '../world/food';
 import { GROWTH } from '../world/growth';
 import { ROOFS, STANDARD } from '../world/roofs';
+import { growWorld } from '../world/growworld';
+import { Register } from '../world/register';
+import { TerrainSampler } from '../world/terrain';
+import { FIELD, fieldOfWork, fieldRoomFor } from '../world/fields';
+import { whichFieldClears } from '../world/fieldbuilds';
 import { tradesFor } from '../entities/trades';
 import { PROSPER } from '../world/prosperity';
 import { LEFT_ALONE, SEEDS, VILLAGES, eachHead, liveForward, type Run, type Standing } from './economy.bench';
@@ -444,6 +449,84 @@ describe('what a village still does for a living', () => {
 // --- is there anything in the fields and the store ---------------------------------------------
 
 describe('what the land is carrying', () => {
+  it('keeps no more fields than the land it has could carry', () => {
+    /*
+     * The fields half of the same bound as the herd below, and the reason it had to wait. A farmer
+     * used to be the only quantity: four farmers meant four fields whether they stood on a wooded
+     * valley or a bare rock. Cleared acres now name the farm and the piece of generated ground, so
+     * there is finally a physical fact for this bench to hold them to.
+     *
+     * The ordinary bench villages have no map on purpose. For this one question, three real road
+     * worlds are grown and one established village in each is put under load for the full run. Its
+     * farmers start rich so the check cannot pass merely because nobody could afford an acre. The
+     * ceiling is the smaller of the local trees the farm can reach and `FIELD.MOST`; sharing one
+     * tree between two holdings is over the land's capacity too.
+     */
+    const over: string[] = [];
+    const detail: string[] = [];
+    let checked = 0;
+    let cleared = 0;
+
+    for (const seed of SEEDS) {
+      const sampler = new TerrainSampler(growWorld(seed, 'road'));
+      const village = sampler.structures.villages.find((place) => place.houses.length >= 6)!;
+      const register = new Register(seed);
+      const people = register.settle(village.name, village.houses.length, ['farmer', 'builder', 'seller']);
+      register.fieldsAreSurveyedBy((name, settlement) =>
+        name === village.name ? whichFieldClears(village, settlement, sampler) : null);
+      for (const person of people) person.purse = 1_000;
+      let unchanged = 0;
+      let previous = 0;
+      while (register.today < DAYS && (register.today < 20 || unchanged < FIELD.MOST)) {
+        register.advance(register.today + 1);
+        const current = register.worksOf(village.name).filter((work) => fieldOfWork(work) !== null).length;
+        unchanged = current === previous ? unchanged + 1 : 0;
+        previous = current;
+      }
+
+      const works = register.worksOf(village.name);
+      const fields = works.map(fieldOfWork)
+        .filter((field): field is NonNullable<typeof field> => field !== null);
+      const holdings = register.madeOf(village.name).holdings ?? [];
+      const farms = holdings.filter((holding) => holding.kind === 'farm');
+      const occupied = new Map<string, string>();
+      let roomHere = 0;
+
+      for (const holding of farms) {
+        checked++;
+        const room = new Set(fieldRoomFor(sampler, village, holding, register.living(village.name))
+          .map((tile) => `${tile.x},${tile.z}`));
+        const planted = new Set(fields.filter((field) => field.holding === holding.id)
+          .map((field) => `${field.x},${field.z}`));
+        const capacity = Math.min(FIELD.MOST, room.size);
+        roomHere += capacity;
+        cleared += planted.size;
+        if (planted.size > capacity) {
+          over.push(`${village.name} (seed ${seed}), ${holding.id}: ${planted.size} acres where ${capacity} fit`);
+        }
+        for (const tile of planted) {
+          if (!room.has(tile)) {
+            over.push(`${village.name} (seed ${seed}), ${holding.id}: ${tile} was not ground this farm could clear`);
+          }
+          const claimedBy = occupied.get(tile);
+          if (claimedBy && claimedBy !== holding.id) {
+            over.push(`${village.name} (seed ${seed}): ${tile} was counted for both ${claimedBy} and ${holding.id}`);
+          }
+          occupied.set(tile, holding.id);
+        }
+      }
+      detail.push(`${village.name} (seed ${seed}): ${fields.length} cleared acres against ${roomHere} the farms could carry`);
+    }
+
+    report({
+      verdict: over.length === 0 && cleared > 0 ? 'PASS' : 'FAIL',
+      count: checked,
+      what: 'farms whose fields stayed inside what their local ground could carry',
+      detail: over.length === 0 ? detail : over,
+    });
+    expect(cleared, 'the capacity bench never put a field under load').toBeGreaterThan(0);
+    expect(over, 'a farm has cleared ground that its land could not carry').toEqual([]);
+  });
   it('keeps no more beasts than the land it has could carry', () => {
     /*
      * Asked of the *land* rather than of the men, which is the whole of what item 31a wanted here
