@@ -29,7 +29,7 @@ import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
 import { CropField } from './render/crops';
 import { BuildingSite } from './render/site';
-import { roofWatch } from './game/villageroofs';
+import { villageWatch } from './game/villageroofs';
 import { Beam } from './render/beam';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
@@ -54,6 +54,7 @@ import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
+import { whichFieldClears } from './world/fieldbuilds';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
 import { Director } from './game/director';
@@ -88,7 +89,6 @@ import { openTheSave } from './game/keeping';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
-
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL,
@@ -165,7 +165,12 @@ export function startGame(
   const roster = new Roster();          // everybody in the world, read live off the register
   const entityRenderer = new EntityRenderer(rig.scene);
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
-  const register = new Register(seed); register.theyStandAt(structures.villages);
+  const register = new Register(seed);
+  register.theyStandAt(structures.villages);
+  register.fieldsAreSurveyedBy((name, settlement) => {
+    const village = structures.villages.find((at) => at.name === name);
+    return village ? whichFieldClears(village, settlement, sampler) : null;
+  });
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
     // What a villager is paid for what they sell — the same share of the shop price the player
@@ -217,9 +222,7 @@ export function startGame(
   const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
-
   const chat = new Chat();
-
   /** The world the hero is standing in: the surface, a dungeon floor, or a building. */
   const placeName = (): string => places.underground
     ? `${places.underground.poi.name}:${places.underground.floor}`
@@ -239,8 +242,9 @@ export function startGame(
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
   // and on the same sites, the houses the villages built themselves: `game/villageroofs.ts`
-  const villageRoofs = roofWatch(() => structures.villages, (v) => register.worksOf(v));
-
+  const villageRoofs = villageWatch(
+    () => structures.villages, (v) => register.worksOf(v), (fields) => chunks.clearFields(fields),
+  );
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines,
@@ -664,13 +668,6 @@ export function startGame(
     });
   }
 
-  /**
-   * Watches the frame times and turns the picture down if the machine cannot hold sixty.
-   *
-   * Only for somebody who has never chosen a level: the rig defaults to `high` — pixel ratio two
-   * and a 2048-square shadow map every frame — picked sight unseen on a machine nobody measured,
-   * and a player whose computer cannot hold that gets a slideshow with no clue why.
-   */
   const autoQuality = new AutoQuality(qualityWasChosen);
 
   const frames = createFrame({

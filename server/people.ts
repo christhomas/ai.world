@@ -1,4 +1,5 @@
 import { Register } from '../src/world/register';
+import { whichFieldClears } from '../src/world/fieldbuilds';
 import { rangesAsMassifs } from '../src/world/ranges';
 import { claimedMines } from '../src/game/mines';
 import { ITEMS, sellPrice } from '../src/game/items';
@@ -65,7 +66,13 @@ export function peopleOf(
   const villages: Village[] = [];
   const highPlaces: Massif[] = [];
   const mines = new Set<string>();
+  const samplerFor = new Map<string, TerrainSampler>();
   const seen = new Set<TerrainSampler>();
+  register.fieldsAreSurveyedBy((name, settlement) => {
+    const sampler = samplerFor.get(name);
+    const village = villages.find((at) => at.name === name);
+    return sampler && village ? whichFieldClears(village, settlement, sampler) : null;
+  });
 
   /** Fold in whatever country has arrived since last time. Cheap, and safe to call every tick. */
   const catchUp = (): void => {
@@ -84,6 +91,7 @@ export function peopleOf(
       // be the world.
       highPlaces.push(...(sampler.ranges ? rangesAsMassifs(sampler.ranges, sampler.mesh) : sampler.massifs));
       villages.push(...structures.villages);
+      for (const village of structures.villages) samplerFor.set(village.name, sampler);
     }
   };
   catchUp();

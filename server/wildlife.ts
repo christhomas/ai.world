@@ -9,6 +9,7 @@ import type { Village } from '../src/world/structures';
 import type { Register } from '../src/world/register';
 import { ITEMS } from '../src/game/items';
 import type { CreatureSnap, VillagerSnap } from './protocol';
+import { clearedFieldTiles } from '../src/world/fields';
 
 /**
  * Everything alive in a world, run by the server: the herds, and the people.
@@ -92,10 +93,18 @@ export class Wildlife {
   /** And where those villages are, for anything surveying the whole country rather than a corner. */
   get villages(): readonly Village[] { return this.folk?.villages ?? []; }
 
-  /** Put finished voted halls into the same dynamic collision layer the page uses. */
+  /** Put permanent village works into the server's collision layers. */
   syncBuildings(): void {
-    const ground = this.ground as TileWorld & { standsOn?: (tiles: Iterable<{ x: number; z: number }>) => void };
-    if (!ground.standsOn || !this.folk) return;
+    const ground = this.ground as TileWorld & {
+      standsOn?: (tiles: Iterable<{ x: number; z: number }>) => void;
+      clearFields?: (tiles: Iterable<{ x: number; z: number }>) => void;
+    };
+    if (!this.folk) return;
+    if (ground.clearFields) {
+      const works = this.folk.villages.flatMap((village) => this.folk!.register.worksOf(village.name));
+      ground.clearFields(clearedFieldTiles(works));
+    }
+    if (!ground.standsOn) return;
     let key = '';
     for (const village of this.folk.villages) {
       if (this.folk.register.hallOf(village.name)?.body === 'town-hall' && village.hall) key += `|${village.name}`;

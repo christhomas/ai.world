@@ -7,12 +7,14 @@ import { chunkKey } from './spatial';
 import { PIER_LENGTH } from './piers';
 import { mountainAt } from './ranges';
 import { VILLAGE_REACH, type Pier } from './structures';
-import { TileType, type TerrainSampler } from './terrain';
+import { TileType, type ChunkData, type TerrainSampler } from './terrain';
 import { tilesOf } from './tiles';
-import { Solids, boxesOf, type Body } from './solids';
+import { Solids, boxesFrom, type Body } from './solids';
 import type { Parcel } from './chunkparcel';
 import type { Footprints } from './footprints';
 import { Standing } from './standing';
+import { propsOf } from './propstream';
+import { withoutClearedTrees } from './fields';
 
 /**
  * The ground, for something that walks on it but never draws it.
@@ -109,6 +111,8 @@ export function patchedCountry(patches: Patchwork): Country {
 
 export class GroundWorld implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, ChunkTiles>();
+  private readonly sources = new Map<string, { chunk: ChunkData; seed: number }>();
+  private clearedFields = new Set<string>();
   /**
    * What is standing on each chunk, as boxes.
    *
@@ -165,6 +169,18 @@ export class GroundWorld implements TileWorld, ChunkSource {
 
   /** How many chunks are being held. What the memory of a busy world is made of. */
   get held(): number { return this.loaded.size; }
+
+  /** Keep the server's collisions on the same replayed field overlay the page draws. */
+  clearFields(tiles: Iterable<{ x: number; z: number }>): void {
+    const next = new Set<string>();
+    for (const tile of tiles) next.add(`${Math.floor(tile.x)},${Math.floor(tile.z)}`);
+    if (next.size === this.clearedFields.size && [...next].every((tile) => this.clearedFields.has(tile))) return;
+    this.clearedFields = next;
+    for (const [key, source] of this.sources) {
+      const props = withoutClearedTrees(propsOf(source.chunk, source.seed), next);
+      this.solids.put(key, boxesFrom(props, this.footprints));
+    }
+  }
 
   /**
    * A chunk of this world as something that can be sent: its tiles and what stands on them.
@@ -313,6 +329,7 @@ export class GroundWorld implements TileWorld, ChunkSource {
     for (const key of [...this.loaded.keys()]) {
       if (wanted.has(key)) continue;
       this.loaded.delete(key);
+      this.sources.delete(key);
       // and what was standing on it: a chunk nobody is near that kept its boxes would be a world
       // that only ever grows
       this.solids.drop(key);
@@ -440,10 +457,11 @@ export class GroundWorld implements TileWorld, ChunkSource {
     const painter = this.country.forChunk(cx, cz);
     const chunk = this.parcels.get(chunkKey(cx, cz)) ?? painter.generateChunk(cx, cz);
     const tiles = tilesOf(chunk);
-    this.loaded.set(chunkKey(cx, cz), tiles);
-    // the seed off the sampler that painted it, so props rolled in one square are rolled the same
-    // way by whichever half of the game is looking at that square
-    this.solids.put(chunkKey(cx, cz), boxesOf(chunk, painter.seed, this.footprints));
+    const key = chunkKey(cx, cz);
+    this.loaded.set(key, tiles);
+    this.sources.set(key, { chunk, seed: painter.seed });
+    const props = withoutClearedTrees(propsOf(chunk, painter.seed), this.clearedFields);
+    this.solids.put(key, boxesFrom(props, this.footprints));
     return tiles;
   }
 

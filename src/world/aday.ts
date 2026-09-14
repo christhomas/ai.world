@@ -13,6 +13,7 @@ import { STONES_KEPT, type Change, type Settlement } from './settlement';
 import { LIFE, outOfDays, remember, stageOf, tradeTakenUp, type Person, type Sex } from './people';
 import { whoIsPaidToRaiseIt } from './founding';
 import type { StablePurchase } from './farmbuilds';
+import type { FieldClearing } from './fieldbuilds';
 
 /**
  * One day in one village, from the morning's work to the last funeral.
@@ -58,6 +59,8 @@ waged: (id: string, much: number) => void;
 stableBought: (village: string, day: number) => StablePurchase | null;
 /** Somebody is off the register: every book that mentions them, in one place. */
 takeOff: (person: Person, day: number, cause: 'age' | 'violence' | 'hunger') => Change | null;
+/** A farm whose owner can afford to take one local tree into the fields this morning. */
+fieldToClear?: (village: string, settlement: Settlement) => FieldClearing | null;
 }
 
 
@@ -162,11 +165,7 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day:
  * falls into, which `chore sanity` once measured at sixty-two per cent of all the coin there is.
  * The order and the reasoning are in `growth.ts` and `hall.ts`; this only applies the answer.
  */
-export function theVillageSpends(o: TheDay, village: Settlement, day: number): void {
-  // nought for everybody here first, and only for the people of *this* village: it cleared the
-  // whole map to begin with, which quietly wiped what another village had paid out the same
-  // morning. The audit caught it as twenty-six people getting nine hundred gold between them
-  // with nothing in any book to explain it
+export function theVillageSpends(o: TheDay, name: string, village: Settlement, day: number): void {
   for (const person of village.people) o.waged(person.id, 0);
   // the house it needs, the wage on the tower and whatever it wants, in the order a village would
   // do them: see `whatTheVillageSpends`, where the argument about which comes first is written
@@ -186,24 +185,28 @@ export function theVillageSpends(o: TheDay, village: Settlement, day: number): v
   const spending = whatTheVillageSpends(
     village.hall.purse, village.works, village.houses, village.founded, village.people, village.rank,
     village.food, village.holdings ?? [], village.herd, day);
+  // A village raises at most one private holding in a morning; do not let field work debit the
+  // same farmer after the founding decision has already reserved their purse.
+  const clearing = spending.founded.length === 0 ? (o.fieldToClear?.(name, village) ?? null) : null;
   village.watch = spending.watch;
   // a villager founding a holding spends none of the hall's money, so what the hall spent is no
   // longer the whole test for "nothing happened here this morning"
-  if (spending.spent === 0 && spending.founded.length === 0 && spending.works.length === 0 && stableWages.size === 0) return;
+  if (spending.spent === 0 && spending.founded.length === 0 && spending.works.length === 0 && stableWages.size === 0 && !clearing) return;
   // and what it spent leaves the same way it arrived: named, through `pay`, where a book can see it
   payAndSweep(village, new Map([[THE_HALL_OWNER, -spending.spent]]));
-  village.works.push(...spending.works);
-  // a raised roof is a raised ceiling: what the village can hold is what its houses hold, and
-  // this is the one line that lets a village become bigger than it was founded. See `growth.ts`
+  village.works.push(...spending.works, ...(clearing ? [clearing.work] : []));
   village.founded += spending.holdsMore;
-  payAndSweep(village, spending.wages);
+  const wages = new Map(spending.wages);
+  if (clearing) {
+    wages.set(clearing.payer, (wages.get(clearing.payer) ?? 0) - clearing.costs);
+    for (const [id, much] of clearing.wages) wages.set(id, (wages.get(id) ?? 0) + much);
+  }
+  payAndSweep(village, wages);
   for (const person of village.people) {
     const id = ownedBy(person);
-    const much = Math.round(((stableWages.get(id) ?? 0) + (spending.wages.get(id) ?? 0)) * 100) / 100;
+    const much = Math.round(((stableWages.get(id) ?? 0) + (wages.get(id) ?? 0)) * 100) / 100;
     if (much !== 0) o.waged(person.id, much);
   }
-  // and whatever was founded this morning, which is the one thing a village gains that it did not
-  // already hold: a farm bought by a man who has earned one, or by the hall out of a good decade
   village.holdings = [...(village.holdings ?? []), ...spending.founded];
 }
 
@@ -304,7 +307,7 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
    * is paid to whoever is alive to fill it rather than into an estate moments before burial.
    * Buildings still stand before births are considered, so a roof raised today makes room today.
    */
-  theVillageSpends(o, village, day);
+  theVillageSpends(o, name, village, day);
   changes.push(
     ...fillTheGaps(o, name, village, day, pressure),
     ...growUp(o, name, village, day),

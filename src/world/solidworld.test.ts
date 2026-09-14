@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { generateWebGraph } from './roadweb';
 import { TerrainSampler } from './terrain';
 import { GroundWorld } from './groundworld';
-import { boxesOf } from './solids';
+import { boxesFrom } from './solids';
+import { propsOf } from './propstream';
 import { propFootprints } from '../entities/props';
 import { PropKind } from './biomes';
 import { WORLD } from '../core/config';
@@ -31,7 +32,7 @@ describe('every box in a piece of a real world', () => {
     const holes: string[] = [];
     let checked = 0;
     for (let cz = LOW + 1; cz < HIGH; cz++) for (let cx = LOW + 1; cx < HIGH; cx++) {
-      for (const box of boxesOf(sampler.generateChunk(cx, cz), sampler.seed, propFootprints())) {
+      for (const box of boxesFrom(propsOf(sampler.generateChunk(cx, cz), sampler.seed), propFootprints())) {
         checked++;
         const cos = Math.cos(box.rot), sin = Math.sin(box.rot);
         for (const [ax, az] of [[0, 0], [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9], [0.8, 0.8], [-0.8, 0.8], [0.8, -0.8], [-0.8, -0.8]]) {

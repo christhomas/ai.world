@@ -6,6 +6,7 @@ import { herdRoomFor } from './stables';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { ableToWork } from './wounds';
+import { foodAt } from './fields';
 
 /**
  * The four ways a villager gets a coin, and the coin actually going from one hand to another.
@@ -223,6 +224,7 @@ export function shareOut(pool: number, shares: ReadonlyMap<Owner, number>): Map<
  */
 export function whoFed(
   people: readonly Person[], fromHerd = 0, shore = false, fromBoats = 0,
+  fromFields: ReadonlyMap<Owner, number> = new Map(),
 ): Map<Owner, number> {
   const shares = new Map<Owner, number>();
   const farmers = people.filter((p) => p.trade === 'farmer');
@@ -230,11 +232,10 @@ export function whoFed(
   for (const person of people) {
     if (!person.trade) continue;
     const meat = person.trade === 'farmer' && farmers.length > 0 ? fromHerd / farmers.length : 0;
-    // the catch is the fishermen's, shared between them, for the reason the meat is the farmers':
-    // it came off their boats. The shellfish is nobody's in particular and is already in `broughtIn`
     const fish = person.trade === 'fisherman' && crews.length > 0 ? fromBoats / crews.length : 0;
     shares.set(ownedBy(person), broughtIn(person, shore) + meat + fish);
   }
+  for (const [owner, crop] of fromFields) shares.set(owner, (shares.get(owner) ?? 0) + crop);
   return shares;
 }
 
@@ -247,8 +248,9 @@ export function whoFed(
  */
 export function paidForFood(
   people: readonly Person[], spent: number, fromHerd = 0, shore = false, fromBoats = 0,
+  fromFields: ReadonlyMap<Owner, number> = new Map(),
 ): Map<Owner, number> {
-  return shareOut(spent, whoFed(people, fromHerd, shore, fromBoats));
+  return shareOut(spent, whoFed(people, fromHerd, shore, fromBoats, fromFields));
 }
 
 /**
@@ -276,6 +278,8 @@ export interface Trading {
   herd: number;
   /** Meals into the larder: the gardens, the fields, the woods and the butcher. */
   grown: number;
+  /** The field crop by owner, so dinner money follows the farm rather than merely the trade. */
+  fields?: ReadonlyMap<Owner, number>;
   /**
    * How much of that came off the herd.
    *
@@ -371,6 +375,22 @@ export function aDaysTrade(
   // is the same number until a man owns two: `mannedFarms` settles that seam, and it says the
   // rails belong to the farm
   const farms = mannedFarms(village.holdings, working);
+  const fields = new Map<Owner, number>();
+  let fieldMeals = 0;
+  const addField = (owner: Owner, meals: number): void => {
+    fields.set(owner, (fields.get(owner) ?? 0) + meals);
+    fieldMeals += meals;
+  };
+  if (village.holdings !== undefined) {
+    const byId = new Map(working.map((person) => [person.id, person]));
+    const farmerOwners = new Set(farmers.map(ownedBy));
+    for (const farm of village.holdings.filter((holding) => holding.kind === 'farm')) {
+      const worker = byId.get(farm.worker ?? '');
+      const owner = farm.owner ?? (worker ? ownedBy(worker) : undefined);
+      const recipient = owner && (worker || farmerOwners.has(owner)) ? owner : worker && ownedBy(worker);
+      if (recipient) addField(recipient, foodAt(village.works ?? [], farm.id ?? ''));
+    }
+  }
   // by id and with what the village has built, so a farm that was built up holds what it was built
   // to hold rather than the same as every other farm. See `aDayOfCattle`
   // a holding's id is optional on `Standing` — a farm mid-founding has none yet — and one with no
@@ -433,7 +453,8 @@ export function aDaysTrade(
   return {
     herd: cattle.herd,
     grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore), 0)
-      + cattle.meals + caught.meals,
+      + fieldMeals + cattle.meals + caught.meals,
+    fields,
     meat: cattle.meals,
     fish: caught.meals,
     shore: coast.shore,
@@ -484,9 +505,11 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
    */
   const spare = Math.max(0, all - food);
   const meal = eat(people, food);
-  const paid = paidForFood(people, meal.spent, work.meat, work.shore, work.fish);
+  const paid = paidForFood(people, meal.spent, work.meat, work.shore, work.fish, work.fields);
   // and the money for it comes from the next valley, because that is where the food went
-  for (const [id, much] of paidForFood(people, spare * FOOD.ABROAD, work.meat, work.shore, work.fish)) {
+  for (const [id, much] of paidForFood(
+    people, spare * FOOD.ABROAD, work.meat, work.shore, work.fish, work.fields,
+  )) {
     paid.set(id, (paid.get(id) ?? 0) + much);
   }
   return { food: Math.max(0, food - meal.eaten), sold: spare, starved: meal.starved, paid };

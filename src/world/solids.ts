@@ -1,7 +1,5 @@
 import { MIN_BLOCK, type Footprints } from './footprints';
-import { propsOf, type PropAt } from './propstream';
-import type { ChunkData } from './terrain';
-
+import type { PropAt } from './propstream';
 /**
  * What you bump into, taken from what is drawn.
  *
@@ -94,10 +92,6 @@ export function boxesFrom(props: Iterable<Pick<PropAt, 'kind' | 'x' | 'z'> & { r
   return out;
 }
 
-/** The same, for a world that holds the chunk itself and has no stream to hand. */
-export function boxesOf(chunk: ChunkData, seed: number, footprints: Footprints): Solid[] {
-  return boxesFrom(propsOf(chunk, seed), footprints);
-}
 
 /**
  * Everything solid in the world, bucketed by tile so asking about a point is cheap.
