@@ -62,6 +62,29 @@ jobs:
           rm -rf "$unpack"
           chore --version
 
+      # Setting the job up has no business writing into the tree the tests are about to read.
+      #
+      # The chore tarball carries a README.md of its own, and it used to be unpacked in the working
+      # directory: every run since that step existed quietly replaced this repository's README with
+      # the tool's, and nothing objected, because a clobbered file nothing asserts about is a file
+      # that is fine. It was found by a test written for an entirely different reason that happened
+      # to read the README, after eighteen red runs nobody could explain.
+      #
+      # That install is fixed. This is the class. Anything a setup step touched is either the same
+      # bug again or a generated file that should be in `.gitignore` and is not.
+      #
+      # Here and not at the end: the benches write their reports — `sanity-report.txt` and the
+      # economy one — and a guard that fails on those every time is a guard somebody switches off.
+      - name: The checkout is as it was checked out
+        run: |
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "setting the job up changed the checkout:" >&2
+            echo "$dirty" >&2
+            git diff --stat >&2
+            exit 1
+          fi
+
       # types, then the whole suite, then the bench — the same three a commit is gated on locally
       - run: chore check
 
@@ -167,6 +190,38 @@ jobs:
           rm -rf "$unpack"
           chore --version
 
+      - name: Borrow a playwright
+        env:
+          PLAYWRIGHT_VERSION: 1.52.0
+        run: |
+          set -euo pipefail
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --global "playwright@${PLAYWRIGHT_VERSION}"
+          playwright install --with-deps chrome
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+
+      # Setting the job up has no business writing into the tree the tests are about to read.
+      #
+      # The chore tarball carries a README.md of its own, and it used to be unpacked in the working
+      # directory: every run since that step existed quietly replaced this repository's README with
+      # the tool's, and nothing objected, because a clobbered file nothing asserts about is a file
+      # that is fine. It was found by a test written for an entirely different reason that happened
+      # to read the README, after eighteen red runs nobody could explain.
+      #
+      # That install is fixed. This is the class. Anything a setup step touched is either the same
+      # bug again or a generated file that should be in `.gitignore` and is not.
+      #
+      # Here and not at the end: the benches write their reports — `sanity-report.txt` and the
+      # economy one — and a guard that fails on those every time is a guard somebody switches off.
+      - name: The checkout is as it was checked out
+        run: |
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "setting the job up changed the checkout:" >&2
+            echo "$dirty" >&2
+            git diff --stat >&2
+            exit 1
+          fi
+
       # Playwright is borrowed here exactly as it is borrowed at a desk, and stays out of
       # `package.json` on purpose. Everything that installs this project's dependencies would
       # otherwise pay for it: the Pages build, and the server image, which runs `pnpm install
@@ -180,14 +235,6 @@ jobs:
       # itself it fetches chromium, firefox and webkit — three hundred megabytes to run none of
       # them — and the one wanted is Chrome, the same one a desk run opens, so that the pipeline and
       # the desk are looking through the same renderer rather than at two different pictures.
-      - name: Borrow a playwright
-        env:
-          PLAYWRIGHT_VERSION: 1.52.0
-        run: |
-          set -euo pipefail
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --global "playwright@${PLAYWRIGHT_VERSION}"
-          playwright install --with-deps chrome
-          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
 
       # No server to start and none to kill: `chore playtest` serves the page itself when nothing is
       # answering on the port and puts it away afterwards, win or lose. That is the same command a
