@@ -120,6 +120,7 @@ describe('whether the request came in over https', () => {
 describe('the first account', () => {
   const book = (): DatabaseSync => {
     const db = new DatabaseSync(':memory:');
+    db.exec('CREATE TABLE IF NOT EXISTS schema (domain TEXT PRIMARY KEY, version INTEGER NOT NULL)');
     migrate(db);
     return db;
   };

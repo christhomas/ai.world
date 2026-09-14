@@ -10,6 +10,7 @@ import { TOKEN_LASTS, newSessionId, readToken, signToken } from './tokens';
 const book = (): DatabaseSync => {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
+  db.exec('CREATE TABLE IF NOT EXISTS schema (domain TEXT PRIMARY KEY, version INTEGER NOT NULL)');
   migrate(db);
   return db;
 };
