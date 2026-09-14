@@ -489,7 +489,7 @@ export function aDaysTrade(
 
   return {
     herd: cattle.herd,
-    grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore, 0), 0)
+    grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore), 0)
       + fieldMeals + cattle.meals + caught.meals,
     fields,
     meat: cattle.meals,
