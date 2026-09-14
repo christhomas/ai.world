@@ -126,13 +126,9 @@ export interface Posting {
 }
 
 /**
- * Every sort of post there is.
- *
- * The guard is the one that runs today. The builder is a seat left deliberately empty, in the way
- * `SORTS` left the yard and the boat empty and said so: item 37 is the hall registering a job, and
- * a job is a holding this world does not raise yet — `whatTheVillageHolds` founds a farm, a yard
- * and a boat, and the yard has no work on its books. When it has, this is the row that pays for it,
- * and nothing else here has to change.
+ * The guard and the builder both run today. A crew post still stands on a yard when the village
+ * owns the yard; a player commission reaches the same row as a job kept on the hall's books. In
+ * both cases the work, not yesterday's worker, owns the post.
  */
 export const POSTINGS: readonly Posting[] = [
   { kind: 'guard', on: 'farm', wants: '', noun: 'a man on the gate' },
@@ -158,6 +154,12 @@ export interface Held {
   id: string;
   kind: string;
   owner: Owner;
+}
+
+/** Work on the hall's books that needs one builder this morning. */
+export interface CrewWork {
+  id: string;
+  funder: Owner;
 }
 
 /**
@@ -225,7 +227,14 @@ export function postsToday(
     next++;
     posts.push({ kind: 'guard', holding: holding.id, who: man.id, funder: holding.owner, wage });
   }
-  return [...posts, ...crewsToday(grown, holdings, purses, posts)];
+  const work: CrewWork[] = [];
+  for (const holding of holdings) {
+    if (holding.kind !== 'yard') continue;
+    const held = purses.get(ownerFromSave(holding.owner));
+    if (held === undefined || held * POST.LAYS_OUT < POST.BUILDER) continue;
+    work.push({ id: holding.id, funder: holding.owner });
+  }
+  return [...posts, ...crewsToday(grown, work, posts)];
 }
 
 /**
@@ -245,9 +254,8 @@ export function postsToday(
  * builder and three yards builds on one of them, which is the honest answer and reads from the road
  * as what it is.
  */
-function crewsToday(
-  grown: readonly Person[], holdings: readonly Held[],
-  purses: ReadonlyMap<Owner, number>, already: readonly Post[],
+export function crewsToday(
+  grown: readonly Person[], work: readonly CrewWork[], already: readonly Post[] = [],
 ): Post[] {
   const taken = new Set(already.map((post) => post.who));
   // whoever can actually do it, which is the capability rather than the trade name: `can_build` is
@@ -256,14 +264,11 @@ function crewsToday(
     .sort((one, two) => (one.id < two.id ? -1 : 1));
   const posts: Post[] = [];
   let next = 0;
-  for (const holding of holdings) {
-    if (holding.kind !== 'yard') continue;
-    const held = purses.get(ownerFromSave(holding.owner));
-    if (held === undefined || held * POST.LAYS_OUT < POST.BUILDER) continue;
+  for (const job of work) {
     const hand = hands[next];
     if (!hand) break;
     next++;
-    posts.push({ kind: 'crew', holding: holding.id, who: hand.id, funder: holding.owner, wage: POST.BUILDER });
+    posts.push({ kind: 'crew', holding: job.id, who: hand.id, funder: job.funder, wage: POST.BUILDER });
   }
   return posts;
 }

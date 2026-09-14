@@ -216,6 +216,9 @@ export function installProbes(ctx: Probed): void {
       const wants = buildable(what);
       houses.takeOn('Crossroads Town', wants.price, wants.price, wants.id);
       const job = houses.place(x, z, state.day - wants.days - 1, 0, to);
+      if (job) {
+        for (let day = job.began + 1; day <= job.began + wants.days; day++) houses.work(job, day, 0);
+      }
       state.version++;
       return job;
     };

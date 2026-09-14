@@ -346,6 +346,14 @@ export interface Commission {
   /** What has been handed over so far, and what the whole job costs. */
   paid: number;
   price: number;
+  /** Days somebody has actually worked. Missing keeps legacy commissions on their old calendar. */
+  worked?: number;
+  /** Last morning this job was worked, so reopening a save cannot buy the same day twice. */
+  workedOn?: number;
+  /** Deposit still on this job's hall account, available only for its daily crew. */
+  fund?: number;
+  /** Morning the last day of work was done, from which an unpaid balance starts to sour. */
+  finished?: number;
   /**
    * The last day the village was charged for a balance still standing. Kept on the commission
    * rather than counted from the finishing day, so that a debt settled and a debt never incurred
@@ -378,9 +386,14 @@ export function daysFor(job: Commission): number {
   return buildable(job.what).days;
 }
 
+/** Work completed: recorded for hall jobs, calendar-derived only for legacy and adopted buildings. */
+function workDone(job: Commission, day: number): number {
+  return job.worked ?? Math.max(0, day - job.began);
+}
+
 /** How far along a build is, from nought the day it is commissioned to one when it is finished. */
 export function progressOf(job: Commission, day: number): number {
-  return Math.max(0, Math.min(1, (day - job.began) / daysFor(job)));
+  return Math.max(0, Math.min(1, workDone(job, day) / daysFor(job)));
 }
 
 export function isFinished(job: Commission, day: number): boolean {
@@ -448,7 +461,7 @@ export function stillOnItsSite(job: Commission): boolean {
 
 /** What the builder says about a job in progress. */
 export function saidOfJob(job: Commission, day: number): string {
-  const left = Math.max(0, daysFor(job) - (day - job.began));
+  const left = Math.max(0, daysFor(job) - workDone(job, day));
   const what = buildable(job.what).name;
   if (left <= 0) return `Your ${what.replace(/^an? /, '')} is finished. There is the matter of the rest of the money.`;
   if (left === 1) return 'One more day on yours.';
@@ -456,12 +469,9 @@ export function saidOfJob(job: Commission, day: number): string {
 }
 
 /**
- * Whoever is drinking in the corner with sawdust still on him.
- *
- * A regular of the room rather than somebody on the village register, for the same reason the
- * pub's errand-giver is: a builder who can be carried off by a wolf half way through the job is a
- * house that dangles, and there is nothing the game could sensibly do about it. The name is grown
- * from the village so the same man is in the same pub for everybody playing that world.
+ * The familiar voice at the pub table. The commission no longer belongs to this man: the hall
+ * posts one of the village's living builders to it each morning. The stable name keeps the same
+ * conversation in the same pub for everybody playing that world.
  */
 const BUILDERS = [
   'Hob the Builder', 'Wick the Carpenter', 'Dann the Mason',
@@ -494,15 +504,13 @@ export interface HouseJson {
   /** What each village's timber yard holds. See `timber.ts` for why it rides with the commissions. */
   yard?: TimberJson;
 }
-
 /**
- * Every house somebody has had built, and the builder they are currently holding.
+ * Every commission on the halls' books, and the order waiting to be given a site.
  *
- * Shaped like `Plots` in farming.ts and for the same reason: the whole thing is derivable from a
- * day and a position, so nothing here ticks. A commission knows the day work started and every
- * question about it — how far along, what is owed, what is standing on the plot — is a
- * subtraction from today. A world reopened after a fortnight finds the house finished, because it
- * was always going to be.
+ * Shaped like `Plots` in farming.ts because both have to survive a save. New commissions record
+ * each paid day of work and the deposit left to fund the next one; reopening the world therefore
+ * invents neither progress nor wages. A missing work count keeps older saves on their original
+ * calendar-derived schedule.
  */
 export class Houses {
   private taken: Hired | null = null;
@@ -561,6 +569,7 @@ export class Houses {
     const job: Commission = {
       id: `${what}:${held.village}:${Math.floor(x)},${Math.floor(z)}`,
       what, x, z, village: held.village, began: day, paid: held.paid, price: held.price, rot,
+      worked: 0, workedOn: Math.floor(day), fund: held.paid,
       // what it was added to, when it is an addition. A storey shares its tile with the house it
       // is on, so the id would collide without the kind in it — which is exactly why the kind is
       // in the id already
@@ -615,6 +624,25 @@ export class Houses {
     return buildable(job.what).on === 'land';
   }
 
+  /** Put one paid morning into a commission whose account can meet the wage. */
+  work(job: Commission, day: number, wage: number): boolean {
+    const today = Math.floor(day);
+    if (job.worked === undefined || job.workedOn === today || isFinished(job, day)) return false;
+    if ((job.fund ?? 0) < wage) return false;
+    job.fund = Math.round(((job.fund ?? 0) - wage) * 100) / 100;
+    job.worked = Math.min(daysFor(job), job.worked + 1);
+    job.workedOn = today;
+    if (job.worked >= daysFor(job)) job.finished = today;
+    return true;
+  }
+
+  /** Unspent deposit released to the village when the finished commission is settled. */
+  takeSurplus(job: Commission): number {
+    const surplus = job.fund ?? 0;
+    job.fund = 0;
+    return surplus;
+  }
+
   /**
    * She is off the stocks. Records the day, which is what empties the yard.
    *
@@ -648,7 +676,7 @@ export class Houses {
     const bills: Array<{ village: string; weight: number }> = [];
     for (const job of this.jobs) {
       if (owed(job, day) <= 0) continue;
-      const from = job.charged ?? job.began + daysFor(job);
+      const from = job.charged ?? job.finished ?? job.began + daysFor(job);
       job.charged = Math.floor(day);
       const days = Math.floor(day) - Math.floor(from);
       if (days <= 0) continue;
