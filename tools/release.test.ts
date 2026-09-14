@@ -184,8 +184,8 @@ describe('what the README says a release was', () => {
     expect(whatEachSaid(log).at(-1)?.tag).toBe('v0.1.0');
   });
 
-  it('says so plainly when a release really was written with no note', () => {
-    const bare = ['# Changelog', '', '## v0.4.0 — 2026-09-14', '', '- Something (#1)', ''].join('\n');
-    expect(whatEachSaid(bare)[0]?.said).toBe('- Something (#1)');
+  it('keeps an actually empty note for the README fallback', () => {
+    const bare = ['# Changelog', '', '## v0.4.0 — 2026-09-14', '', ''].join('\n');
+    expect(whatEachSaid(bare)[0]?.said).toBe('');
   });
 });
