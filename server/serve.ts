@@ -7,7 +7,8 @@ import { Simulation } from './sim';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
 import { addAccount, migrate as migrateAccounts, sweepSessions } from './tools/accounts';
-import { openDurable } from './durable/db';
+import { migrateDomain, openDurable } from './durable/db';
+import { MINDS_SCHEMA } from './durable/minds';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
@@ -133,6 +134,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
    */
   const durable = options.durableDb === null ? null
     : openDurable(options.durableDb ?? join(dataDir, 'ai-world.sqlite'));
+  // the villagers' own tables, migrated here rather than in `minds.ts`: that file is imported by
+  // `sim.ts`, which a page playing alone runs in a Web Worker, and a value import of `node:sqlite`
+  // anywhere in that chain is a browser bundle reaching for a node built-in
+  if (durable) migrateDomain(durable, 'register', MINDS_SCHEMA);
   const sim = new Simulation({ dataDir, vault: new FileVault(), ground: true, minds: durable ?? undefined });
   const rooms = sim.rooms;
 

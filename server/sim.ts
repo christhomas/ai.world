@@ -18,7 +18,7 @@ import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Person } from '../src/world/people';
-import { HeldMinds, keepMinds, migrateMinds, mindsOf } from './durable/minds';
+import { HeldMinds, keepMinds, mindsOf } from './durable/minds';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
 import { countryStamp, growPatch, growWorld } from '../src/world/growworld';
@@ -188,7 +188,6 @@ export class Simulation {
 
   constructor(options: SimOptions = {}) {
     this.minds = options.minds ?? null;
-    if (this.minds) migrateMinds(this.minds);
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;

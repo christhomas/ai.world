@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { migrateDomain, openDurable, versionOf } from './db';
-import { HeldMinds, holdsAnything, keepMinds, migrateMinds, mindsOf } from './minds';
+import { readFileSync } from 'node:fs';
+import { HeldMinds, MINDS_SCHEMA, holdsAnything, keepMinds, mindsOf } from './minds';
 import type { Person } from '../../src/world/people';
 
 /**
@@ -15,7 +16,7 @@ import type { Person } from '../../src/world/people';
 const book = (): DatabaseSync => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE IF NOT EXISTS schema (domain TEXT PRIMARY KEY, version INTEGER NOT NULL)');
-  migrateMinds(db);
+  migrateDomain(db, 'register', MINDS_SCHEMA);
   return db;
 };
 
@@ -203,5 +204,25 @@ describe('one database, two owners', () => {
     const db = openDurable(':memory:');
     expect(() => migrateDomain(db, 'one', ['CREATE TABLE a (x INTEGER)', 'THIS IS NOT SQL'])).toThrow();
     expect(versionOf(db, 'one'), 'the step that worked is kept, the one that did not is not').toBe(1);
+  });
+});
+
+/**
+ * And the one thing about this file that is not about villagers at all.
+ *
+ * `sim.ts` imports it, and `sim.ts` is what a page playing alone runs in a Web Worker. A *value*
+ * import of `node:sqlite` anywhere in that chain is a browser bundle reaching for a node built-in:
+ * Vite externalises it, the page throws on load, and the world stops drawing. The playtest caught
+ * it, so this catches it next time.
+ */
+describe('what this file may import', () => {
+  it('names node:sqlite only as a type, and reaches nothing that does otherwise', () => {
+    const here = readFileSync(new URL('./minds.ts', import.meta.url), 'utf8');
+    for (const line of here.split('\n')) {
+      if (!line.startsWith('import')) continue;
+      expect(line.includes('node:sqlite') ? line : 'import type', 'node:sqlite must be a type import')
+        .toContain('import type');
+      expect(line, 'db.ts has a value import of node:sqlite in it').not.toMatch(/from '\.\/db'/);
+    }
   });
 });
