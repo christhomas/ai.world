@@ -23,15 +23,15 @@ const ZOOM = { MIN: 14, MAX: 120, STEP: 1.25 } as const;
 
 /** The colours: the living, the buried, and the remembered, told apart at a glance. */
 const INK = {
-  living: '#e8e2d0',
-  buried: '#8e97a6',
-  remembered: '#5d6472',
-  livingEdge: '#f4efe0',
-  tie: 'rgba(200,196,180,0.35)',
-  chosen: '#f1c40f',
-  paper: '#14161c',
-  text: '#1b1d24',
-  faint: '#9aa0ad',
+  living: '#f8f1df',
+  buried: '#d8c9aa',
+  remembered: '#c1b493',
+  livingEdge: '#6b3f1d',
+  tie: 'rgba(107,63,29,0.38)',
+  chosen: '#8a2a14',
+  paper: '#efe4c8',
+  text: '#2a2418',
+  faint: '#6f624c',
 } as const;
 
 export class KinPanel {

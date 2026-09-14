@@ -44,9 +44,10 @@ the world, which is the line between the two halves of the keyboard.
 | **9** | Options: light, graphics, volume, multiplayer, seed | **O** |
 
 On a phone or tablet the controls draw themselves: a thumb stick wherever your thumb lands, the
-action key and the sword to hand, and the panels along the side. Pinch the world to zoom, drag to
-look about. They appear for a touch screen and stay out of the way of a mouse — `?touch=1` and
-`?touch=0` settle any argument.
+action key and the sword to hand, and the panels along the side. Readouts and controls are dark
+glass over the world; the journal, rucksack, maps, roster, player list and options are opaque paper
+when opened to read. Pinch the world to zoom, drag to look about. They appear for a touch screen
+and stay out of the way of a mouse — `?touch=1` and `?touch=0` settle any argument.
 
 ![The game on a phone](docs/screenshots/phone.png)
 
