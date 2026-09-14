@@ -3254,6 +3254,16 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       before it. Every hall conversation now reads the live register as a **directory** — who holds
       each trade — followed by the vacancies somebody can answer.
 
+      And somebody can now answer one. The hall offers each vacant trade as a choice, and a
+      traveller who takes it is **sworn in**: written into the roll by the name they gave, named in
+      the directory as one who is passing through, and kept by the register beside the killings, the
+      votes and the raisings — the handful of things no seed implies, so a village re-lived from its
+      founding does not lose whoever walked in off the road. It costs nothing and pays nothing,
+      which this item has said from the beginning: the chest stays free for building. What the oath
+      buys is the thing a job market is made of — the village stops looking, and the next child to
+      come of age is raised into whatever it is short of *next* rather than into work already being
+      done. `src/world/sworn.test.ts`.
+
       The original note follows. Today a grown child takes `village.trades[random]` —
       `register.ts:638`, a coin toss. Instead the mayor looks at what the village is missing and
       enrols the next adult into it: no doctor, next adult is a doctor. A mayor exists from day one

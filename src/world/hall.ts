@@ -1,3 +1,4 @@
+import type { Sworn } from './vacancies';
 import { PROSPER } from './prosperity';
 import { ownedBy, type Owner } from './holdings';
 import { LIVELIHOOD } from './livelihoods';
@@ -489,7 +490,7 @@ export function whatTheHallKnows(
     rankOf: (village: string) => Rank;
     livedIn: (village: string) => number;
     directoryOf: (village: string) => {
-      holding: Map<string, string[]>; nobodyDoing: string[];
+      holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[];
     };
   },
   village: string,
@@ -499,7 +500,7 @@ export function whatTheHallKnows(
   watch: string;
   raised: readonly string[];
   savingFor: string | null;
-  directory: { holding: Map<string, string[]>; nobodyDoing: string[] };
+  directory: { holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[] };
 } {
   const raised = book.worksOf(village);
   const ballot = book.ballotOf(village);

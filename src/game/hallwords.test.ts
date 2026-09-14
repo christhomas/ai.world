@@ -66,7 +66,7 @@ describe('what a hall says when you ask it', () => {
     const said = whatTheHallSays(
       {
         holds: 900, mayor: 'p1', watch: '', raised: ['well:20'], savingFor: 'storey',
-        directory: { holding: new Map([['farmer', ['p1']]]), nobodyDoing: ['builder'] },
+        directory: { holding: new Map([['farmer', ['p1']]]), nobodyDoing: ['builder'], sworn: [] },
       },
       somebody('Ada Vos'),
     );
@@ -78,9 +78,25 @@ describe('what a hall says when you ask it', () => {
   it('says when every supported trade has somebody rather than showing a blank vacancy list', () => {
     const said = whatTheHallSays({
       holds: 0, mayor: '', watch: '', raised: [], savingFor: null,
-      directory: { holding: new Map([['doctor', ['p1']]]), nobodyDoing: [] },
+      directory: { holding: new Map([['doctor', ['p1']]]), nobodyDoing: [], sworn: [] },
     }, somebody('Maren Vos'));
     expect(said).toContain('There are no vacancies on the village roll.');
   });
 
+  /*
+   * The other half of item 24a: a vacancy somebody answered. The hall keeps its own book in the
+   * name that was given to it, because a traveller is not on the register and there is no `Person`
+   * to look up — which is why this line says the name straight rather than through `who`.
+   */
+  it('names the traveller who took the work, in the directory rather than as a vacancy', () => {
+    const said = whatTheHallSays({
+      holds: 0, mayor: '', watch: '', raised: [], savingFor: null,
+      directory: {
+        holding: new Map([['farmer', ['p1']]]), nobodyDoing: ['doctor'],
+        sworn: [{ trade: 'builder', who: 'Ash', day: 12 }],
+      },
+    }, somebody('Ada Vos'));
+    expect(said.join(' ')).toContain('Builder — Ash, who is passing through');
+    expect(said.join(' ')).toContain('Vacancies: Doctor');
+  });
 });
