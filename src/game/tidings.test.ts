@@ -53,6 +53,8 @@ interface Around {
   told?: () => string | null;
   /** Builder work performed for one named morning. */
   builderDay?: (day: number) => void;
+  /** Whether this village is known well enough for its deaths to reach the player. */
+  discovered?: boolean;
 }
 
 /**
@@ -102,7 +104,7 @@ function telling(around: Around = {}) {
       ? new Map([[VILLAGE, { name: 'Deepshaft', x: 5, z: 5 } as unknown as Site]])
       : new Map<string, Site>(),
     villageLuxury: new Map(),
-    discovered: new Set(),
+    discovered: new Set(around.discovered ? [VILLAGE] : []),
     realm: () => ({} as Realm),
     builderDay: around.builderDay ?? (() => {}),
     villageNights: () => [],
@@ -128,7 +130,7 @@ describe('the news a day brings', () => {
     const morning = (day: number): void => {
       shifts.push(...workTheHallJobs(houses, day, () => register.living(VILLAGE)));
     };
-    const { tidings, state } = telling({ register, builderDay: morning });
+    const { tidings, state, said } = telling({ register, builderDay: morning, discovered: true });
 
     state.day = 7;
     tidings.theDaysNews();
@@ -137,6 +139,7 @@ describe('the news a day brings', () => {
     expect(shifts.slice(0, 2).map((shift) => shift.who)).toEqual([first.id, first.id]);
     expect(shifts.slice(2).every((shift) => shift.who !== first.id)).toBe(true);
     expect(register.find(first.id)).toBeUndefined();
+    expect(said).toContain(`Word from ${VILLAGE}: ${first.name} has died.`);
   });
   it('lets two bands leaning on one village say their piece once each, not once a frame', () => {
     /*

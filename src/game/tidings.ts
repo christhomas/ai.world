@@ -284,6 +284,7 @@ export function createTidings(ctx: Telling) {
     if (mornings === 0) builderDay(today, standing);
     for (const change of [...changes, ...villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
+        say(`Word from ${change.village}: ${change.name} has died.`);
       }
     }
     /*
