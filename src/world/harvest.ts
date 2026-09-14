@@ -136,10 +136,10 @@ export function aDayOfCattle(
    * stock price was `NaN` before a single test ran. The same shape as the roof that cost `NaN` in
    * September, which is on record in `rank.ts`.
    *
-   * So the caller measures the room and this decides what a day does with it. Left out, every farm
-   * is a byre, which is what a farm with nothing built on it is.
+   * So the caller measures the room and this decides what a day does with it. Requiring the number
+   * prevents a caller from silently treating every bare field as a byre.
    */
-  room = farms.length * LIVELIHOOD.HERD_PER_FARMER,
+  room: number,
 ): Herding {
   if (farms.length === 0) return { herd: 0, sold: 0, meals: 0, gold: 0 };
   const cap = room;

@@ -168,7 +168,7 @@ function commonest(of: string[], take: number): Array<[string, number]> {
  * nothing at all. A book that has to be told the news before it can be right is not a record.
  */
 export function theRoll(
-  register: Register, village: string, today: number, pressure = register.pressureOn(village),
+  register: Register, village: string, today: number,
 ): Ledger<RollRow> {
   const living = register.living(village);
   const grown = living.filter((p) => p.trade);
@@ -184,7 +184,7 @@ export function theRoll(
   // the village as well as its people: a coast is paid for its fish, and a roll that did not know
   // that would under-report every fisherman's day. See `harvest.ts`
   const income = aDaysIncome(
-    living, register.herdOf(village), pressure, register.larderOf(village), register.madeOf(village),
+    living, register.herdOf(village), register.pressureOn(village), register.larderOf(village), register.madeOf(village),
   );
   const trades = commonest(grown.map((p) => p.trade), 3);
   const gist = [

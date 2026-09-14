@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, sep } from 'node:path';
-import { readdirSync, statSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 import { theTidyUp, whatIsDirty } from './fallbackguard';
+import { instrumentDefaultParameters } from './defaultparams';
+import { counterConfigSource, counterModuleSource, counterSetupSource } from './fallbackcounts';
 
 /**
  * Which way every fallback in the world actually goes.
@@ -45,9 +46,12 @@ import { theTidyUp, whatIsDirty } from './fallbackguard';
  *
  *     chore fallbacks                      # the whole suite, which is the widest net there is
  *     chore fallbacks -- src/world         # or narrow it to whatever you are chasing
+ *     chore fallbacks --parameters         # exported parameter defaults, still evaluated at call time
+ *     chore fallbacks --parameters -- src/world
  */
 
 /** Where the counters live while a sweep is running. Deleted with everything else afterwards. */
+const COUNTER_SETUP = 'src/core/fallbacksweep.setup.ts';
 const COUNTER_MODULE = 'src/core/fallbacksweep.ts';
 
 /**
@@ -130,40 +134,35 @@ function instrument(): { sites: Site[]; touched: string[] } {
     }
   }
 
-  writeFileSync(COUNTER_MODULE, [
-    '/* Written by `chore fallbacks` and deleted again by it. Never commit this file. */',
-    '',
-    '/*',
-    ' * The tallies hang off `globalThis` rather than off this module, and that is not laziness.',
-    ' *',
-    ' * A hundred files import this, and they reach it by whatever relative path they happen to sit',
-    ' * at — `../core/...` from one directory, `../../src/core/...` from another. Those are the same',
-    ' * file and can still be two module instances, and then every count is split between them and',
-    ' * the whole sweep reads as though nothing ever ran. One object, found by name, cannot split.',
-    ' */',
-    'interface Tally { visits: number[]; defaults: number[] }',
-    'const tally: Tally = ((globalThis as { __sweep?: Tally }).__sweep ??= { visits: [], defaults: [] });',
-    '',
-    '/** We reached this fallback, and here is what the left-hand side had in it. */',
-    'export function sawAValue<T>(site: number, value: T): T {',
-    '  tally.visits[site] = (tally.visits[site] || 0) + 1;',
-    '  return value;',
-    '}',
-    '',
-    '/** The left-hand side had nothing, so the default is what the expression came to. */',
-    'export function usedTheDefault<T>(site: number, value: T): T {',
-    '  tally.defaults[site] = (tally.defaults[site] || 0) + 1;',
-    '  return value;',
-    '}',
-    '',
-    'export function sweepSoFar(): Tally { return tally; }',
-    '',
-  ].join('\n'));
+  writeFileSync(COUNTER_MODULE, counterModuleSource('fallbacks'));
 
   return { sites, touched };
 }
+/** Rewrite exported default parameters while leaving their initializers at call time. */
+function instrumentParameters(): { sites: Site[]; touched: string[] } {
+  const sites: Site[] = [];
+  const touched: string[] = [];
+  for (const root of ROOTS) {
+    for (const file of everyFileUnder(root)) {
+      const text = readFileSync(file, 'utf8');
+      const up = '../'.repeat(file.split(sep).length - 1);
+      const transformed = instrumentDefaultParameters(
+        text, file, sites.length, `${up}${COUNTER_MODULE.replace(/\.ts$/, '')}`,
+      );
+      if (transformed.sites.length === 0) continue;
+      sites.push(...transformed.sites.map((site) => ({
+        file: site.file, line: site.line,
+        source: `${site.name}(${site.parameter} = ${site.source})`,
+      })));
+      writeFileSync(file, transformed.source);
+      touched.push(file);
+    }
+  }
+  writeFileSync(COUNTER_MODULE, counterModuleSource('parameters'));
+  return { sites, touched };
+}
 
-function report(sites: Site[], visits: number[], defaults: number[]): void {
+function report(sites: Site[], visits: number[], defaults: number[], noun = 'fallbacks'): void {
   const rows = sites.map((site, at) => ({
     site, visits: visits[at] ?? 0, defaults: defaults[at] ?? 0,
   })).filter((row) => row.visits > 0);
@@ -171,7 +170,7 @@ function report(sites: Site[], visits: number[], defaults: number[]): void {
   const always = rows.filter((row) => row.defaults === row.visits).sort((a, b) => b.visits - a.visits);
   const never = rows.filter((row) => row.defaults === 0);
 
-  console.log(`${sites.length} fallbacks in the source, ${rows.length} of them reached by this run.`);
+  console.log(`${sites.length} ${noun} in the source, ${rows.length} reached by this run.`);
   console.log(`  ${always.length} took the default every single time — the list below.`);
   console.log(`  ${never.length} never took it at all, and ${rows.length - always.length - never.length} took it sometimes.`);
   console.log('');
@@ -215,7 +214,7 @@ function report(sites: Site[], visits: number[], defaults: number[]): void {
 function putItBack(): void {
   execFileSync('git', ['checkout', '--', 'src', 'server']);
   rmSync(COUNTER_MODULE, { force: true });
-  rmSync('src/world/fallbacksweep.test.ts', { force: true });
+  rmSync(COUNTER_SETUP, { force: true });
   rmSync(IN_FLIGHT, { force: true });
 }
 
@@ -285,45 +284,41 @@ function main(): void {
    * there is without driving a browser. Narrow it by naming files when you are chasing something
    * particular: `chore fallbacks -- src/world`.
    */
-  const target = process.argv.slice(2);
+  const parameters = process.argv.includes('--parameters');
+  const target = process.argv.slice(2).filter((arg) => arg !== '--parameters');
   const scratch = mkdtempSync(join(tmpdir(), 'fallbacks-'));
   const out = join(scratch, 'counts.json');
+  const config = join(scratch, 'vitest.config.mts');
 
   // the note first, then the writing: a run killed between these two lines has changed nothing, and
   // a run killed after them is recognisable to the next one
   writeFileSync(IN_FLIGHT, `started ${new Date().toISOString()} by chore fallbacks\n`);
   tidy.own();
-  const { sites, touched } = instrument();
-  console.log(`instrumented ${sites.length} fallbacks in ${touched.length} files; running ${target.join(' ') || 'the whole suite'}`);
-  console.log(`  e.g. ${touched[0]} now starts: ${readFileSync(touched[0], 'utf8').split('\n')[0]}`);
-
-  /*
-   * The file that writes the counts out, which has to be a test because that is the only thing
-   * vitest will run — and has to contain a test, because a file with only an `afterAll` in it is a
-   * suite with nothing in it and vitest fails the run rather than shrugging.
-   */
-  writeFileSync('src/world/fallbacksweep.test.ts', [
-    "import { afterAll, it } from 'vitest';",
-    "import { writeFileSync } from 'node:fs';",
-    "import { sweepSoFar } from '../core/fallbacksweep';",
-    '',
-    '/* Written by `chore fallbacks`: dumps the counts when the run is over. */',
-    `afterAll(() => { writeFileSync(${JSON.stringify(out)}, JSON.stringify(sweepSoFar())); });`,
-    "it('is here so the sweep has somewhere to hang its afterAll', () => {});",
-    '',
-  ].join('\n'));
-
+  const { sites, touched } = parameters ? instrumentParameters() : instrument();
+  writeFileSync(COUNTER_SETUP, counterSetupSource(out));
+  writeFileSync(config, counterConfigSource(resolve('vite.config.ts'), resolve(COUNTER_SETUP)));
+  const noun = parameters ? 'defaulted parameters' : 'fallbacks';
+  console.log(`instrumented ${sites.length} ${noun} in ${touched.length} files; running ${target.join(' ') || 'the whole suite'}`);
+  if (touched[0]) console.log(`  e.g. ${touched[0]} now starts: ${readFileSync(touched[0], 'utf8').split('\n')[0]}`);
   try {
     /*
-     * One worker, no isolation, so every file shares the counters.
+     * One worker, no isolation, so every file shares the counters. The setup hook snapshots them
+     * after every test file; whichever file finishes last therefore writes the complete tally.
+     * Worker teardown does not run Node process-exit handlers, so relying on one final write loses
+     * the entire report.
      *
      * Vitest runs files in parallel workers by default and each would get its own copy of the
      * module — every count divided between however many threads the machine felt like, and the
-     * "always" test meaningless. These two flags are the whole reason the sweep can span more than
-     * one test file.
+     * "always" test meaningless.
      */
-    execFileSync('pnpm', ['exec', 'vitest', 'run', '--no-isolate', '--no-file-parallelism',
-      ...target], { stdio: 'inherit' });
+    // Instrumentation necessarily adds an import and an exported counter module. The architecture
+    // and reachability ratchets inspect that source shape, not runtime behavior, so a whole parameter
+    // sweep excludes them rather than reporting two known self-inflicted failures.
+    const exclusions = parameters && target.length === 0
+      ? ['--exclude', 'src/architecture.test.ts', '--exclude', 'src/world/reachable.test.ts']
+      : [];
+    execFileSync('pnpm', ['exec', 'vitest', 'run', '--config', config, '--no-isolate', '--no-file-parallelism',
+      ...exclusions, ...target], { stdio: 'inherit' });
   } catch {
     console.error('\nthe run failed; reporting on whatever it managed before it stopped');
   } finally {
@@ -336,7 +331,7 @@ function main(): void {
   try {
     const counts = JSON.parse(readFileSync(out, 'utf8')) as { visits: number[]; defaults: number[] };
     console.log('');
-    report(sites, counts.visits, counts.defaults);
+    report(sites, counts.visits, counts.defaults, parameters ? 'defaulted parameters' : 'fallbacks');
   } catch {
     console.error('the run left no counts behind, so there is nothing to report');
     process.exitCode = 1;

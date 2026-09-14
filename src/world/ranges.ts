@@ -529,13 +529,13 @@ export function mountainAt(ranges: Ranges, x: number, z: number): number | null 
  * *beside* a range has to ask: where a spring rises, where a village of miners would be, where the
  * air is thin. Nought once nothing is within reach.
  */
-export function nearestLift(ranges: Ranges, x: number, z: number, reach = RANGE.NEARBY): number {
+export function nearestLift(ranges: Ranges, x: number, z: number): number {
   let most = 0;
   for (const peak of ranges.peaks) {
     const away = Math.hypot(peak.x - x, peak.z - z);
-    if (away >= reach) continue;
+    if (away >= RANGE.NEARBY) continue;
     // its full height underneath it, none of it at the edge of reach
-    most = Math.max(most, peak.lift * (1 - away / reach));
+    most = Math.max(most, peak.lift * (1 - away / RANGE.NEARBY));
   }
   return most;
 }

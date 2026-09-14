@@ -254,7 +254,7 @@ tasks:
       - 'pnpm vitest run src/world/reachable.test.ts; kept=$?; cat {{.REPORT}} || true; exit $kept'
 
   fallbacks:
-    desc: Which defaults are taken every single time, which means the real value never arrives
+    desc: Which fallback expressions or exported parameter defaults are taken every single time
     cmds:
       - 'pnpm tsx tools/fallbacks.ts {{.CLI_ARGS}}'
 

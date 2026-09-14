@@ -36,10 +36,9 @@ import { tradeNamed } from '../entities/trades';
  *
  * @param trades what the place can support at all, which is a fact about where it is
  * @param held what the people who work there already do, one entry per worker
- * @param joining how many more are about to start work, counted into the establishment
  */
 export function shortOf(
-  trades: readonly string[], held: readonly string[], joining = 1,
+  trades: readonly string[], held: readonly string[],
 ): string | null {
   const weights = trades.map((trade) => tradeNamed(trade)?.weight ?? 1);
   const all = weights.reduce((sum, weight) => sum + weight, 0);
@@ -59,7 +58,7 @@ export function shortOf(
     return trades[heaviest];
   }
 
-  const hands = held.length + joining;
+  const hands = held.length + 1;
   let worst: string | null = null;
   let gap = 0;
   for (let at = 0; at < trades.length; at++) {
