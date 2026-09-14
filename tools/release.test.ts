@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { howTheChecksStand, whatEachSaid, whatShipped } from './release';
+import { chartVersionOf, howTheChecksStand, theReleaseCommit, whatEachSaid, whatShipped } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -236,5 +236,66 @@ describe('what the README says a release was', () => {
   it('keeps an actually empty note for the README fallback', () => {
     const bare = ['# Changelog', '', '## v0.4.0 — 2026-09-14', '', ''].join('\n');
     expect(whatEachSaid(bare)[0]?.said).toBe('');
+  });
+});
+
+/**
+ * Which commit a release tags.
+ *
+ * A release goes out through a pull request and is squashed, so the commit that exists locally is
+ * not the commit that shipped — a squash makes a new one. Resetting to `origin/main` and tagging
+ * whatever is on the end of it is a race with every other pull request in flight: the tag lands on
+ * somebody else's change, which is a version number pointing at a tree that never carried it.
+ *
+ * So the commit is asked for by name, and then made to prove it is the right one.
+ */
+describe('the commit a release actually became', () => {
+  const merged = (oid: string): string => JSON.stringify({ mergeCommit: { oid } });
+
+  it('is the one the pull request says it was squashed into', () => {
+    expect(theReleaseCommit(merged('abc123'), 'release/v0.92.8')).toBe('abc123');
+  });
+
+  /*
+   * Every one of these has to throw rather than fall back to `origin/main`, which is the whole
+   * point: a release that cannot name its own commit must stop, not guess at one.
+   */
+  it('refuses a pull request that has not been merged', () => {
+    expect(() => theReleaseCommit(JSON.stringify({ mergeCommit: null }), 'release/v0.92.8')).toThrow();
+  });
+
+  it('refuses an answer with no merge commit in it at all', () => {
+    expect(() => theReleaseCommit('{}', 'release/v0.92.8')).toThrow();
+  });
+
+  it('refuses an answer that is not an object', () => {
+    expect(() => theReleaseCommit('"nope"', 'release/v0.92.8')).toThrow();
+    expect(() => theReleaseCommit('null', 'release/v0.92.8')).toThrow();
+  });
+
+  it('names the branch in what it throws, because that is what somebody has to go and look at', () => {
+    expect(() => theReleaseCommit('{}', 'release/v0.92.8')).toThrow(/release\/v0\.92\.8/);
+  });
+});
+
+/**
+ * And the proof. A commit named by a pull request is still only a name until the tree under it is
+ * the tree this release wrote, which is what the chart version says.
+ */
+describe('what a commit says its chart version is', () => {
+  it('reads the version off the chart', () => {
+    expect(chartVersionOf('apiVersion: v2\nname: ai-world\nversion: 0.92.8\n')).toBe('0.92.8');
+  });
+
+  it('takes the chart\'s own version rather than the first version-looking line', () => {
+    expect(chartVersionOf('appVersion: 1.2.3\nversion: 0.92.8\n')).toBe('0.92.8');
+  });
+
+  it('trims what it reads, because a chart written by hand has trailing spaces in it', () => {
+    expect(chartVersionOf('version: 0.92.8   \n')).toBe('0.92.8');
+  });
+
+  it('answers nothing for a chart with no version, rather than something wrong', () => {
+    expect(chartVersionOf('name: ai-world\n')).toBeNull();
   });
 });
