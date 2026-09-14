@@ -155,8 +155,21 @@ export function travelInteractions(ctx: Surroundings) {
         });
         return true;
       }
+      return false;
     }
-    return false;
+  };
+
+  const ferryLabel = (): string => {
+    const now = worldSeconds(state.day, state.time);
+    for (const { line } of ferries) {
+      const st = ferryStateAt(line, now);
+      const nearBoat = Math.hypot(st.x - player.x, st.z - player.z) < FERRY.BOARD_RANGE;
+      const nearFrom = Math.hypot(line.fromPier.dockX + 0.5 - player.x, line.fromPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
+      const nearTo = Math.hypot(line.toPier.dockX + 0.5 - player.x, line.toPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
+      if (st.docked && nearBoat) return 'Board the ferry';
+      if (nearFrom || nearTo) return 'Wait for the ferry';
+    }
+    return 'Take the ferry';
   };
 
   /** Enter at a pier or beside your own boat: buy one, cast off, or step ashore. */
@@ -437,5 +450,5 @@ export function travelInteractions(ctx: Surroundings) {
     });
   };
 
-  return { tryFerry, tryBoat, tryDerelict, tryEagle, trySkyward, trySky, sailFerries, aboard };
+  return { tryFerry, ferryLabel, tryBoat, tryDerelict, tryEagle, trySkyward, trySky, sailFerries, aboard };
 }

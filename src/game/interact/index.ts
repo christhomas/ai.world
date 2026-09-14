@@ -59,7 +59,7 @@ export function createInteractions(ctx: Surroundings) {
   const ordered: readonly Interaction[] = [
     { verb: () => ctx.craft().flying ? 'Land the craft' : 'Board the craft', attempt: travel.tryDerelict },
     { verb: 'Skin the carcass', attempt: camp.trySkin },
-    { verb: 'Take the ferry', attempt: travel.tryFerry },
+    { verb: travel.ferryLabel, attempt: travel.tryFerry },
     { verb: () => ctx.sailing.sailing ? 'Step ashore' : 'Use the boat', attempt: travel.tryBoat },
     { verb: 'Fly over the mountains', attempt: travel.tryEagle },
     { verb: 'Fly to the sky island', attempt: travel.trySkyward },
