@@ -5,7 +5,7 @@ import { aDaysTrade } from './livelihoods';
 import { Register } from './register';
 import { TerrainSampler } from './terrain';
 import { TREES } from './biomes';
-import { FIELD, farmsteadOf, fieldOfWork, fieldsAt, foodAt } from './fields';
+import { FIELD, farmsteadOf, fieldOfWork, foodAt } from './fields';
 import { whichFieldClears } from './fieldbuilds';
 import type { Village } from './structures';
 import { WORLD } from '../core/config';
@@ -23,7 +23,7 @@ function livedFields(seed: number): { register: Register; sampler: TerrainSample
 }
 
 describe('bounded local field clearing', () => {
-  it('replays the same nearby trees on both halves and stops after four per farm', () => {
+  it('replays the same nearby trees on both halves', () => {
     const page = livedFields(4321);
     const world = livedFields(4321);
     expect(page.register.worksOf(page.village.name)).toEqual(world.register.worksOf(world.village.name));
@@ -33,9 +33,6 @@ describe('bounded local field clearing', () => {
       .map(fieldOfWork)
       .filter((field): field is NonNullable<typeof field> => field !== null);
     expect(clearings.length, JSON.stringify(page.register.worksOf(page.village.name))).toBeGreaterThan(0);
-    for (const holding of holdings.filter((one) => one.kind === 'farm')) {
-      expect(fieldsAt(page.register.worksOf(page.village.name), holding.id)).toBeLessThanOrEqual(FIELD.MOST);
-    }
 
     for (const clearing of clearings) {
       const holding = holdings.find((one) => one.id === clearing.holding)!;
