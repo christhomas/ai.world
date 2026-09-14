@@ -48,6 +48,8 @@ import { counterConfigSource, counterModuleSource, counterSetupSource } from './
  *     chore fallbacks -- src/world         # or narrow it to whatever you are chasing
  *     chore fallbacks --parameters         # exported parameter defaults, still evaluated at call time
  *     chore fallbacks --parameters -- src/world
+ *     chore fallbacks -- --browser            # the render/UI walk from tools/shots.cjs
+ *     chore fallbacks -- --browser town map interior
  */
 
 /** Where the counters live while a sweep is running. Deleted with everything else afterwards. */
@@ -162,7 +164,7 @@ function instrumentParameters(): { sites: Site[]; touched: string[] } {
   return { sites, touched };
 }
 
-function report(sites: Site[], visits: number[], defaults: number[], noun = 'fallbacks'): void {
+function report(sites: Site[], visits: number[], defaults: number[], noun = 'fallbacks', browserWalk = false): void {
   const rows = sites.map((site, at) => ({
     site, visits: visits[at] ?? 0, defaults: defaults[at] ?? 0,
   })).filter((row) => row.visits > 0);
@@ -189,15 +191,20 @@ function report(sites: Site[], visits: number[], defaults: number[], noun = 'fal
    *
    * So read from the top, and treat anything under the line as a question rather than an answer.
    */
-  const TELLING = 1000;
+  const TELLING = browserWalk ? 2 : 1000;
   for (const row of always) {
     const mark = row.visits >= TELLING ? '  ' : '? ';
     console.log(`${mark}${String(row.visits).padStart(9)}x  ${relative('.', row.site.file)}:${row.site.line}  ${row.site.source}`);
   }
   if (always.length === 0) console.log('  (nothing: every fallback this run reached had a real value at least once)');
   console.log('');
-  console.log(`Rows marked ? were reached fewer than ${TELLING} times: too thin a sample to mean anything on`);
-  console.log('their own. Widen the run before believing one, or go and read what feeds that value.');
+  if (browserWalk) {
+    console.log(`Rows marked ? were reached once. Two evaluations is the repeat threshold for this walk:`);
+    console.log('a once-per-session UI path still appears, while frame volume is not mistaken for wider coverage.');
+  } else {
+    console.log(`Rows marked ? were reached fewer than ${TELLING} times: too thin a sample to mean anything on`);
+    console.log('their own. Widen the run before believing one, or go and read what feeds that value.');
+  }
 }
 
 /**
@@ -285,7 +292,13 @@ function main(): void {
    * particular: `chore fallbacks -- src/world`.
    */
   const parameters = process.argv.includes('--parameters');
-  const target = process.argv.slice(2).filter((arg) => arg !== '--parameters');
+  const browserWalk = process.argv.includes('--browser');
+  if (parameters && browserWalk) {
+    console.error('--parameters and --browser are separate sweeps; choose one');
+    process.exitCode = 1;
+    return;
+  }
+  const target = process.argv.slice(2).filter((arg) => arg !== '--parameters' && arg !== '--browser');
   const scratch = mkdtempSync(join(tmpdir(), 'fallbacks-'));
   const out = join(scratch, 'counts.json');
   const config = join(scratch, 'vitest.config.mts');
@@ -295,10 +308,13 @@ function main(): void {
   writeFileSync(IN_FLIGHT, `started ${new Date().toISOString()} by chore fallbacks\n`);
   tidy.own();
   const { sites, touched } = parameters ? instrumentParameters() : instrument();
-  writeFileSync(COUNTER_SETUP, counterSetupSource(out));
-  writeFileSync(config, counterConfigSource(resolve('vite.config.ts'), resolve(COUNTER_SETUP)));
+  if (!browserWalk) {
+    writeFileSync(COUNTER_SETUP, counterSetupSource(out));
+    writeFileSync(config, counterConfigSource(resolve('vite.config.ts'), resolve(COUNTER_SETUP)));
+  }
   const noun = parameters ? 'defaulted parameters' : 'fallbacks';
-  console.log(`instrumented ${sites.length} ${noun} in ${touched.length} files; running ${target.join(' ') || 'the whole suite'}`);
+  const running = browserWalk ? `the browser walk${target.length ? ` (${target.join(', ')})` : ''}` : target.join(' ') || 'the whole suite';
+  console.log(`instrumented ${sites.length} ${noun} in ${touched.length} files; running ${running}`);
   if (touched[0]) console.log(`  e.g. ${touched[0]} now starts: ${readFileSync(touched[0], 'utf8').split('\n')[0]}`);
   try {
     /*
@@ -317,9 +333,18 @@ function main(): void {
     const exclusions = parameters && target.length === 0
       ? ['--exclude', 'src/architecture.test.ts', '--exclude', 'src/world/reachable.test.ts']
       : [];
-    execFileSync('pnpm', ['exec', 'vitest', 'run', '--config', config, '--no-isolate', '--no-file-parallelism',
-      ...exclusions, ...target], { stdio: 'inherit' });
+    if (browserWalk) {
+      const port = process.env.FALLBACK_PORT ?? String(20_000 + process.pid % 20_000);
+      execFileSync(process.execPath, ['tools/shots.cjs', ...target], {
+        stdio: 'inherit',
+        env: { ...process.env, PORT: port, OUT: join(scratch, 'shots'), FALLBACK_COUNTS: out },
+      });
+    } else {
+      execFileSync('pnpm', ['exec', 'vitest', 'run', '--config', config, '--no-isolate', '--no-file-parallelism',
+        ...exclusions, ...target], { stdio: 'inherit' });
+    }
   } catch {
+    process.exitCode = 1;
     console.error('\nthe run failed; reporting on whatever it managed before it stopped');
   } finally {
     // home again before anything is printed, whatever happened, so a failed sweep still leaves a
@@ -331,7 +356,7 @@ function main(): void {
   try {
     const counts = JSON.parse(readFileSync(out, 'utf8')) as { visits: number[]; defaults: number[] };
     console.log('');
-    report(sites, counts.visits, counts.defaults, parameters ? 'defaulted parameters' : 'fallbacks');
+    report(sites, counts.visits, counts.defaults, parameters ? 'defaulted parameters' : 'fallbacks', browserWalk);
   } catch {
     console.error('the run left no counts behind, so there is nothing to report');
     process.exitCode = 1;

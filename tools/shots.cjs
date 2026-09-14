@@ -36,6 +36,19 @@ const PORT = process.env.PORT || '5173';
  */
 const CHANNEL = process.env.CHANNEL ?? 'chrome';
 const OUT = process.env.OUT || 'docs/screenshots';
+const COUNTS_OUT = process.env.FALLBACK_COUNTS || '';
+const sweep = { visits: [], defaults: [] };
+
+/** Add one page's module-global counters before that page is closed. */
+const collectSweep = async (page) => {
+  if (!COUNTS_OUT) return;
+  const counts = await page.evaluate(() => globalThis.__sweep ?? null).catch(() => null);
+  if (!counts) return;
+  for (const key of ['visits', 'defaults']) {
+    for (let i = 0; i < counts[key].length; i++) sweep[key][i] = (sweep[key][i] || 0) + (counts[key][i] || 0);
+  }
+};
+const writeSweep = () => { if (COUNTS_OUT) fs.writeFileSync(COUNTS_OUT, JSON.stringify(sweep)); };
 const origin = `http://localhost:${PORT}`;
 /** The shape of the pictures in the README: wide enough to show a street, short enough to scroll past. */
 const VIEW = { width: 1440, height: 900 };
@@ -77,7 +90,11 @@ const stopServing = () => {
   ours = null;
 };
 const startServing = async () => {
-  if (await answering()) { console.log(`taking them against the server already on ${origin}`); return; }
+  if (await answering()) {
+    if (COUNTS_OUT) throw new Error(`fallback sweep needs an unused PORT, but ${origin} already answers`);
+    console.log(`taking them against the server already on ${origin}`);
+    return;
+  }
   console.log(`nothing on ${origin} — starting one`);
   ours = spawn('pnpm', ['vite', '--port', PORT, '--strictPort'], { detached: true, stdio: ['ignore', 'ignore', 'inherit'] });
   for (let i = 0; i < 60; i++) {
@@ -575,7 +592,12 @@ async function take(browser, shot) {
     }
   }
   let note;
-  const done = async () => { await page.close(); if (playing) await playing.close(); };
+  const done = async () => {
+    await collectSweep(page);
+    if (playing) await collectSweep(playing);
+    await page.close();
+    if (playing) await playing.close();
+  };
   try { note = await shot.setup(page, verbs(page)); }
   catch (e) { await done(); return { ok: false, why: e.message }; }
   if (note === null) { await done(); return { ok: false, why: 'nothing to photograph in this world today' }; }
@@ -612,6 +634,7 @@ async function take(browser, shot) {
     if (got.ok) console.log(`took   ${shot.name.padEnd(12)} ${got.note ?? ''}${got.errs ? ` (${got.errs} page errors)` : ''}`);
     else { missed++; console.log(`missed ${shot.name.padEnd(12)} ${got.why}`); }
   }
+  writeSweep();
   await browser.close();
   stopWorld();
   stopServing();
@@ -619,4 +642,4 @@ async function take(browser, shot) {
   // a missed shot leaves the old picture in place, which is the right thing to do and still wants
   // saying loudly enough that nobody ships a README half of which is a week older than the rest
   process.exitCode = missed ? 1 : 0;
-})().catch((e) => { console.error(e); stopWorld(); stopServing(); process.exit(1); });
+})().catch((e) => { console.error(e); writeSweep(); stopWorld(); stopServing(); process.exit(1); });

@@ -255,6 +255,11 @@ tasks:
 
   fallbacks:
     desc: Which fallback expressions or exported parameter defaults are taken every single time
+    vars:
+      TARGET: ''
+    args:
+      - name: target
+        desc: source/test targets, or --browser followed by screenshot names
     cmds:
       - 'pnpm tsx tools/fallbacks.ts {{.CLI_ARGS}}'
 
