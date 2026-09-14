@@ -78,7 +78,7 @@ export class Hud {
    */
   onMapTap: (() => void) | null = null;
 
-  constructor(rig: SceneRig, seed: number) {
+  constructor(rig: SceneRig, seed: number, worldName?: string) {
     /*
      * What this build calls itself, said twice and written once.
      *
@@ -111,6 +111,7 @@ export class Hud {
     sun.addEventListener('input', () => { sunV.textContent = (+sun.value).toFixed(1); this.onLightChange?.(+sun.value, +hemi.value); });
     hemi.addEventListener('input', () => { hemiV.textContent = (+hemi.value).toFixed(1); this.onLightChange?.(+sun.value, +hemi.value); });
     $('seedValue').textContent = String(seed);
+    $('worldNameValue').textContent = worldName ?? 'unnamed';
     const vol = $<HTMLInputElement>('volumeSlider');
     const volV = $('volumeValue');
     vol.addEventListener('input', () => { volV.textContent = `${Math.round(+vol.value * 100)}%`; this.onVolumeChange?.(+vol.value); });

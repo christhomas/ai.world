@@ -73,6 +73,8 @@ export function kindOf(asked: string | undefined | null): WorldKind {
 
 export interface SessionSave {
   seed: number;
+  /** Durable server/world-worker key. Absent on saves made before named worlds existed. */
+  worldName?: string;
   /** Which world this is. Absent on saves made before the choice existed, which were all road. */
   world?: WorldKind;
   cam: { x: number; z: number; rot: number; zoom: number };

@@ -4,11 +4,13 @@ import type { Village } from '../src/world/structures';
 import type { Blow, Standing } from './wildlife';
 import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
-import type { PartyMember, Presence, ServerMessage, TradeOffer } from './protocol';
+import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldRecord } from './protocol';
+import { worldKey } from './protocol';
 import type { WorldKind } from '../src/save/store';
 import type { Anchor } from '../src/world/manifest';
-import type { Vault } from './vault';
+import { Forgetful, type Vault } from './vault';
 import { SharedWorld, worldPath } from './world';
+import { WorldRecords } from './worldrecords';
 
 /**
  * The way to reach one player, whatever they are on the other end of.
@@ -170,6 +172,8 @@ export type Party = Set<Client>;
 
 /** Everyone in one world, and the little of that world the server keeps. */
 export interface Room {
+  /** The durable name of this room, absent only for a numeric save that has not been named yet. */
+  name?: string;
   clients: Set<Client>;
   world: SharedWorld;
   /**
@@ -194,10 +198,16 @@ export interface Room {
 }
 
 export class Rooms {
-  private readonly rooms = new Map<number, Room>();
+  private readonly rooms = new Map<string, Room>();
+  private readonly bySeed = new Map<number, string>();
+  private readonly records: WorldRecords;
+  private readonly vault: Vault;
   private nextId = 1;
 
-  constructor(private readonly dataDir: string, private readonly vault?: Vault) {}
+  constructor(private readonly dataDir: string, vault?: Vault) {
+    this.vault = vault ?? new Forgetful();
+    this.records = new WorldRecords(dataDir, this.vault);
+  }
 
   get worldCount(): number { return this.rooms.size; }
 
@@ -208,17 +218,34 @@ export class Rooms {
   }
 
   /** Every open world, for the ticker to walk. */
-  entries(): Array<[number, Room]> { return [...this.rooms]; }
+  entries(): Array<[number, Room]> {
+    return [...this.rooms.values()].map((room) => [room.world.seed, room]);
+  }
 
-  get(seed: number): Room | undefined { return this.rooms.get(seed); }
+  get(seed: number): Room | undefined {
+    const key = this.bySeed.get(seed >>> 0);
+    return key ? this.rooms.get(key) : undefined;
+  }
 
-  /** The room for a seed, read back from disk the first time anybody asks for it. */
-  open(seed: number, start: { day: number; time: number }, kind: WorldKind, islands?: Anchor[]): Room {
-    let room = this.rooms.get(seed);
+  worldRecord(name: unknown): WorldRecord | undefined { return this.records.find(name); }
+  worldRecordForSeed(seed: number): WorldRecord | undefined { return this.records.forSeed(seed); }
+
+  /** Resolve or create the durable record presented by a named join. */
+  claimWorld(name: unknown, seed: number, kind: WorldKind, islands: Anchor[]): WorldRecord {
+    return this.records.claim(name, seed, kind, islands);
+  }
+
+  /** The room for a world, read back from its old seed file the first time anybody asks for it. */
+  open(seed: number, start: { day: number; time: number }, kind: WorldKind, islands?: Anchor[], named?: WorldRecord): Room {
+    const root = seed >>> 0;
+    const already = this.bySeed.get(root);
+    const key = already ?? (named ? worldKey(named.name)! : `#${root}`);
+    let room = this.rooms.get(key);
     if (!room) {
-      const world = new SharedWorld(seed, worldPath(this.dataDir, seed), { ...start }, this.dataDir, this.vault);
-      room = { clients: new Set(), kind, islands, world };
-      this.rooms.set(seed, room);
+      const world = new SharedWorld(root, worldPath(this.dataDir, root), { ...start }, this.dataDir, this.vault);
+      room = { clients: new Set(), name: named?.name, kind, islands, world };
+      this.rooms.set(key, room);
+      this.bySeed.set(root, key);
     }
     return room;
   }
@@ -252,7 +279,7 @@ export class Rooms {
   }
 
   broadcast(seed: number, message: ServerMessage, except?: Client): number {
-    const room = this.rooms.get(seed);
+    const room = this.get(seed);
     if (!room) return 0;
     let sent = 0;
     for (const client of room.clients) if (client !== except) { this.send(client, message); sent++; }
@@ -313,7 +340,7 @@ export class Rooms {
    */
   everyone(message: ServerMessage): number {
     let sent = 0;
-    for (const seed of this.rooms.keys()) sent += this.broadcast(seed, message);
+    for (const room of this.rooms.values()) sent += this.broadcast(room.world.seed, message);
     return sent;
   }
 
@@ -381,7 +408,7 @@ export class Rooms {
    * carries on without them, everyone is told, and a world nobody is left in goes back to disk.
    */
   leave(client: Client): void {
-    const room = this.rooms.get(client.seed);
+    const room = this.get(client.seed);
     if (!room || !room.clients.delete(client)) return;
     if (client.duel) this.endDuel(client, client.duel.presence.id, client.presence.name);
     if (client.warband) this.endWarband(client, client.warband.presence.id, client.presence.name);
@@ -392,10 +419,14 @@ export class Rooms {
 
   /** Hold a world on disk and let it go; it will be read back when somebody returns. */
   close(seed: number): void {
-    const room = this.rooms.get(seed);
+    const root = seed >>> 0;
+    const key = this.bySeed.get(root);
+    if (!key) return;
+    const room = this.rooms.get(key);
     if (!room) return;
     room.world.save();
-    this.rooms.delete(seed);
+    this.rooms.delete(key);
+    this.bySeed.delete(root);
   }
 
   saveAll(): void {

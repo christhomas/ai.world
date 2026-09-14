@@ -38,6 +38,8 @@ export function defaultServer(url: URL): string {
  */
 export interface Joining {
   seed: number;
+  /** The world's durable, sayable key. Old numeric saves have none until the player names them. */
+  worldName?: string;
   /** Which country this seed grew here, so the server grows the same one. */
   world: WorldKind;
   /**
@@ -72,10 +74,10 @@ export interface Joining {
 /**
  * The link that puts somebody else in this world, on this server.
  *
- * A pure function of the three things it is made of, so it can be checked without a browser: where
- * the page is served from, which seed, and which world server. Everything else is stripped —
- * `?x=`/`?z=` say where the *sender* happens to be standing, and following an invite should not
- * put a guest in your shoes.
+ * A pure function of the four things it is made of, so it can be checked without a browser: where
+ * the page is served from, which seed lies underneath it, its sayable name, and which world server.
+ * Everything else is stripped — `?x=`/`?z=` say where the *sender* happens to be standing, and
+ * following an invite should not put a guest in your shoes.
  *
  * The address is passed through as written rather than resolved: a page reached at
  * `example.com:10081` hands out that host, and a page reached at `localhost` hands out localhost,
@@ -84,17 +86,18 @@ export interface Joining {
  * network — so what this can do is be plain about what it produced, which is why the link is now
  * on the screen rather than only on the clipboard.
  */
-export function inviteTo(here: string, seed: number, address: string): string {
+export function inviteTo(here: string, seed: number, address: string, worldName?: string): string {
   const invite = new URL(here);
   invite.search = '';                       // drop wherever the sender happens to be standing
   invite.hash = '';
-  invite.searchParams.set('seed', String(seed));
+  if (worldName && address) invite.searchParams.set('world', worldName);
+  else invite.searchParams.set('seed', String(seed));
   if (address) invite.searchParams.set('server', address);
   return invite.href;
 }
 
 export function joinAWorld(ctx: Joining): void {
-  const { seed, world, islands, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
+  const { seed, worldName, world, islands, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
   /** The rest of what a world has to be told at the door: which country, and which acre of it. */
   const here = () => ({ at: where(), islands });
 
@@ -115,9 +118,16 @@ export function joinAWorld(ctx: Joining): void {
    */
   const playAlone = (): void => {
     if (online.connected || online.status === 'connecting') return;
-    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here());
+    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
   };
-  playAlone();
+  // An invite already says whose server this is. Following it is the join; it must not quietly put
+  // the guest into a private worker with the right-looking world underneath them.
+  if (url.searchParams.has('server')) {
+    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
+    showChat();
+  } else {
+    playAlone();
+  }
 
   $('connectButton').addEventListener('click', () => {
     /*
@@ -136,7 +146,7 @@ export function joinAWorld(ctx: Joining): void {
     const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
     localStorage.setItem('ai.world/server', address);
-    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here());
+    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
     showChat();
   });
 
@@ -153,7 +163,14 @@ export function joinAWorld(ctx: Joining): void {
   linkBox.addEventListener('click', () => linkBox.select());
 
   $('inviteButton').addEventListener('click', () => {
-    const href = inviteTo(window.location.href, seed, serverInput.value.trim());
+    const address = serverInput.value.trim();
+    // Publishing a name also claims it on the named server. Otherwise the link could be copied
+    // before the world record it asks the server to resolve existed.
+    if (worldName && address && !online.away) {
+      online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
+      showChat();
+    }
+    const href = inviteTo(window.location.href, seed, address, worldName);
     /*
      * Shown as well as copied.
      *

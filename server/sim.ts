@@ -4,6 +4,7 @@ import {
   type ClientMessage, type CreatureSnap, type ServerMessage, type WorldDelta,
 } from './protocol';
 import { Rooms, type Client, type Room, type Wire } from './rooms';
+import { WorldRecordConflict } from './worldrecords';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
 import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
@@ -721,40 +722,39 @@ export class Simulation {
       wire.close();
       return null;
     }
-    const seed = message.seed >>> 0;
-    // the first player through the door sets the clock; after that the world keeps its own time
-    /*
-     * Which country this room is, which is the client's to say and was hardcoded here until the
-     * 13th.
-     *
-     * `'road'` was right for exactly as long as there was one kind: an older build joining with
-     * `mesh` got the world that exists rather than a door that would not open. There are two kinds
-     * again, and a line that ignores what the client asked for is a line that opens a road room for
-     * a page holding an endless world — which the page then reports as *"this world is endless here
-     * and road in the world you joined"*, correctly, on its first frame.
-     *
-     * Anything but `endless` is a road world, so an old client and a client that says nothing both
-     * land where they always did. The first player through the door decides; after that the room
-     * keeps the country it opened as, because two people cannot stand in different countries and
-     * call it the same world.
-     */
-    const kind: WorldKind = message.world === 'endless' ? 'endless' : 'road';
-    /*
-     * A join that says nothing about islands gets the seed's own, not a world with none in it.
-     *
-     * An empty list is an answer — "this world has no islands" — and it grows a different country
-     * from the one a fresh page grows, because a page works its islands out from the seed. The two
-     * were told apart by accident until the polygon world went: mesh rooms passed `[]` and never
-     * used it, and road rooms only ever heard from pages that sent theirs. Now that every room is a
-     * road room, silence has to mean the seed's own or a client that has not been updated puts a
-     * world server in a different country from every player in it.
-     */
+    const requestedSeed = message.seed >>> 0;
+    const requestedKind: WorldKind = message.world === 'endless' ? 'endless' : 'road';
     const said = cleanIslands(message.islands);
-    const islands = said.length > 0 ? said : undefined;
+    const requestedIslands = said.length > 0 ? said : undefined;
+
+    let record = message.worldName === undefined
+      ? this.rooms.worldRecordForSeed(requestedSeed)
+      : undefined;
+    if (message.worldName !== undefined) {
+      try {
+        record = this.rooms.claimWorld(message.worldName, requestedSeed, requestedKind, requestedIslands ?? []);
+      } catch (error) {
+        const reason = error instanceof WorldRecordConflict ? error.message : 'That world name could not be opened.';
+        wire.send(JSON.stringify({ type: 'error', reason } satisfies ServerMessage));
+        wire.close();
+        return null;
+      }
+    }
+
+    // A named record is the authority. An unnamed join still opens old seed-numbered saves exactly
+    // as it did before names existed.
+    const seed = record?.seed ?? requestedSeed;
+    const kind = record?.kind ?? requestedKind;
+    const islands = record ? (record.manifest.length > 0 ? record.manifest : undefined) : requestedIslands;
     const room = this.rooms.open(seed, {
       day: Math.max(1, Math.floor(message.day) || 1),
       time: Number(message.time) || 0.3,
-    }, kind, islands);
+    }, kind, islands, record);
+    if (room.kind !== kind) {
+      wire.send(JSON.stringify({ type: 'error', reason: 'That name belongs to a different kind of world.' } satisfies ServerMessage));
+      wire.close();
+      return null;
+    }
     // two players of the same seed in different countries are not in the same place at all, and a
     // world nobody can agree about is worse than a door that will not open
 
@@ -776,7 +776,7 @@ export class Simulation {
     const joining = this.rooms.admit(wire, room, seed, cleanName(message.name));
 
     this.rooms.send(joining, {
-      type: 'welcome', id: joining.presence.id, seed,
+      type: 'welcome', id: joining.presence.id, seed, world: record,
       players: [...room.clients].filter((c) => c !== joining).map((c) => c.presence),
       clock: room.world.clock,
       deltas: room.world.log,
