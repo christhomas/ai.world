@@ -26,6 +26,12 @@ const band = (name: string): string => {
   return found![1].trim();
 };
 
+/** What a selector declares, or nothing at all where it has no rule. See the row guard. */
+const sizing = (selector: string): string => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return CSS.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, 's'))?.[1] ?? '';
+};
+
 const declarations = (selector: string): string => {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const found = CSS.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, 's'));
@@ -73,13 +79,36 @@ describe('the row shared by every decision list', () => {
   });
 
   it('keeps list-specific rules from sizing their own rows', () => {
-    const verticalSize = /(?:^|;)\s*(?:block-size|height|min-height|max-height|padding|padding-block|padding-top|padding-bottom|flex|flex-basis)\s*:/;
+    /*
+     * Every way of setting the height of a row, including the logical spellings.
+     *
+     * `min-block-size` is `min-height` written the other way round and does exactly the same thing,
+     * so a guard that knows one and not the other is a guard somebody walks past without meaning
+     * to. Same for the block-axis padding, which adds to a row's height as surely as the physical
+     * kind does.
+     */
+    const verticalSize = new RegExp('(?:^|;)\\s*(?:'
+      + 'block-size|min-block-size|max-block-size'
+      + '|height|min-height|max-height'
+      + '|padding|padding-block|padding-block-start|padding-block-end|padding-top|padding-bottom'
+      + '|flex|flex-basis'
+      + ')\\s*:');
     const rows = [
-      '#dialogue .dlg-choice', '#journal li', '#players li', '.ro-table td',
+      /*
+       * `.ro-table tr` and not `td`: `roster.ts` puts `list-row` on the row itself, so a height set
+       * on the `tr` would have sized the row and walked straight past a guard watching the cell.
+       */
+      '#dialogue .dlg-choice', '#journal li', '#players li', '.ro-table tr', '.ro-table td',
       '#rucksack .r-item', '#optionsPanel .opt-row',
     ];
+    /*
+     * A selector with no rule at all passes, and that is the point of listing it: `.ro-table tr`
+     * has nothing of its own today, and this is here so that the day somebody gives it a height
+     * the guard is already watching. Asking `declarations` would fail on the absence instead.
+     */
     for (const selector of rows) {
-      expect(declarations(selector), `${selector} sizes itself instead of using .list-row`).not.toMatch(verticalSize);
+      expect(sizing(selector), `${selector} sizes itself instead of using .list-row`)
+        .not.toMatch(verticalSize);
     }
   });
 
