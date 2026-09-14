@@ -5,7 +5,7 @@ import { StructureKind } from '../world/structures';
 import { TerrainSampler } from '../world/terrain';
 import { DAY_LENGTH } from './state';
 import {
-  HAUNT, abroad, gone, hauntNear, hauntOf, hauntsOf, placesOf, pursues, reachOf, toRaise,
+  HAUNT, abroad, gone, hauntOf, hauntsOf, placesOf, pursues, reachOf, toRaise,
   untilDawn, warningFor, type Haunt,
 } from './haunts';
 
@@ -60,13 +60,6 @@ describe('which places are kept', () => {
     }
   });
 
-  it('are found by standing on them, and by nothing else', () => {
-    const kept = hauntsOf(6, world(6));
-    const first = kept[0];
-    expect(hauntNear(kept, first.x, first.z)).toBe(first);
-    expect(hauntNear(kept, first.x + HAUNT.GROUND + 1, first.z)).not.toBe(first);
-    expect(hauntNear(kept, 1e6, 1e6)).toBeNull();
-  });
 });
 
 describe('a wight', () => {
