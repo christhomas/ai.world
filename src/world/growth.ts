@@ -173,6 +173,33 @@ export interface Raised {
  * a ladder. A village that wanted a longhouse and put up a cottage would have done exactly that.
  * So a poor village takes longer to raise the next roof and gets the same roof in the end, which is
  * also why being poor costs a village its pace and never its shape.
+ *
+ * ## No timber, and that is the rule rather than an omission
+ *
+ * A player commissioning a house is refused before a coin moves unless the yard holds the lengths —
+ * that is the whole of item 50, and the builder has words for both kinds of short. A village
+ * raising a house for its own people pays gold and nothing else. The two look like one rule
+ * disagreeing with itself and they are not: **they are two different bargains.**
+ *
+ * Hiring a builder is buying somebody else's work and somebody else's material, and a yard that has
+ * no lengths in it cannot sell you what it has not got. A village housing its own is its own people
+ * spending their own days — the felling is part of the raising, not a purchase made before it, and
+ * the price in gold is what those days cost. A village with no woodcutter takes longer over it in
+ * exactly the way a poor village does, because the wage goes to whoever swings the axe either way.
+ *
+ * It was left open (item 100) because the alternative is expensive in a way this is not. The world
+ * simulation cannot see the yard and that is deliberate: `aday.ts` takes a `TheDay` of six entries,
+ * `Timber` lives in `game/` and is *kept* rather than derived — kept because it is a running total
+ * of two histories, what the village cut and **what a player chose to sell it**. Deriving a second,
+ * village-only timber number so that a house could be priced in it would put two expressions of
+ * "how much wood is here" in one game, which is how this fault starts in the first place.
+ *
+ * And the other bargain does not need one. A farmer hiring the builder for a bigger stable *is*
+ * priced in timber, and the yard reaches the replay the way a killing and a raising do — told, on a
+ * dated morning, because a number that depends on what one player did can never be derived from a
+ * seed. See `commissionAStable` (item 99). That is the same seam answered the other way for the
+ * other bargain, which is what makes both answers stand up rather than one of them being a
+ * compromise: whoever hires pays for the wood, and a village is not hiring.
  */
 export function whatTheVillageBuilds(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
