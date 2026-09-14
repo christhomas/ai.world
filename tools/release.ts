@@ -406,6 +406,37 @@ function readWhatWasWritten(): void {
       + `was; nothing was committed, pushed or tagged. The files it wrote were: ${FILES_A_RELEASE_WRITES.join(', ')}.`,
     );
   }
+ * The commit a squashed release actually became, named by the pull request rather than guessed at.
+ *
+ * A release goes out through a pull request and is squashed, so the commit that exists locally is
+ * not the commit that shipped: a squash makes a new one. The old code reset to `origin/main` and
+ * tagged whatever was on the end of it, which is a race with every other pull request in flight —
+ * the tag lands on somebody else's change, and a version number then points at a tree that never
+ * carried it.
+ *
+ * Every unexpected shape throws rather than falling back, and that is the whole of it: a release
+ * that cannot name its own commit must stop, not guess at one. The branch goes in the message
+ * because it is the thing somebody has to go and look at.
+ */
+export function theReleaseCommit(mergeCommitJson: string, branch: string): string {
+  const merged: unknown = JSON.parse(mergeCommitJson);
+  if (
+    !merged || typeof merged !== 'object' || !('mergeCommit' in merged)
+    || !merged.mergeCommit || typeof merged.mergeCommit !== 'object'
+    || !('oid' in merged.mergeCommit) || typeof merged.mergeCommit.oid !== 'string'
+  ) throw new Error(`release pull request ${branch} has no merge commit`);
+  return merged.mergeCommit.oid;
+}
+
+/**
+ * The version a chart declares, or nothing if it declares none.
+ *
+ * The proof that the commit named above is the right one. A name out of the pull request is still
+ * only a name until the tree under it is the tree this release wrote, and the chart version is what
+ * this release wrote. Anchored to the start of a line so `appVersion` is not mistaken for it.
+ */
+export function chartVersionOf(chart: string): string | null {
+  return chart.match(/^version: (.+)$/m)?.[1]?.trim() ?? null;
 }
 
 /**
@@ -521,18 +552,21 @@ function main(): void {
   say('released through a pull request and squashed onto main');
 
   /*
-   * The tag goes on what main actually became, not on what was written locally.
-   *
-   * A squash makes a *new* commit, so the commit that exists here is not the commit that shipped.
-   * Tagging the local one would put the tag on an object nobody else has — and `git-tags-on-main`
-   * would refuse it, correctly, as a tag pointing off the branch.
+   * A squash creates a new commit. Name that exact commit through the pull request, not whichever
+   * unrelated change reached main before this process fetched it. The tree check makes the target
+   * prove it carries the chart version this release just wrote.
    */
+  const releaseCommit = theReleaseCommit(run('gh', ['pr', 'view', branch, '--json', 'mergeCommit']), branch);
+
   run('git', ['switch', 'main']);
   run('git', ['fetch', 'origin', 'main']);
-  run('git', ['reset', '--hard', 'origin/main']);
-  run('git', ['tag', '-a', `v${version}`, '-m', `v${version}`]);
+  run('git', ['merge-base', '--is-ancestor', releaseCommit, 'origin/main']);
+  if (chartVersionOf(run('git', ['show', `${releaseCommit}:chart/Chart.yaml`])) !== version) {
+    throw new Error(`merge commit ${releaseCommit} does not carry chart version ${version}`);
+  }
+  run('git', ['tag', '-a', `v${version}`, releaseCommit, '-m', `v${version}`]);
   run('git', ['push', 'origin', `v${version}`]);
-  say(`tagged v${version} on main as it now stands`);
+  say(`tagged v${version} on release commit ${releaseCommit}`);
 
   // The release is what builds the image the chart now names. Without it the cluster reconciles
   // against a version that exists in git and nowhere else.
