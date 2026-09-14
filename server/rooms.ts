@@ -408,7 +408,7 @@ export class Rooms {
    * carries on without them, everyone is told, and a world nobody is left in goes back to disk.
    */
   leave(client: Client): void {
-    const room = this.rooms.get(client.seed);
+    const room = this.get(client.seed);
     if (!room || !room.clients.delete(client)) return;
     if (client.duel) this.endDuel(client, client.duel.presence.id, client.presence.name);
     if (client.warband) this.endWarband(client, client.warband.presence.id, client.presence.name);
