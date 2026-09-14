@@ -25,3 +25,4 @@ unreached-report.txt
 
 # the note a killed `chore fallbacks` leaves behind, so the next run knows to tidy up
 .fallbacks-in-flight
+shopwalk-report.txt

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { Biome } from '../world/biomes';
+import { createMeeting, type Meeting } from './meeting';
 import { installProbes, leaveShop, type Probed, whichShopsToTry } from './probes';
 import type { Doorway } from '../world/structures';
 
@@ -112,5 +114,29 @@ describe('leaving a shop from a test harness', () => {
     });
     expect(place).toBe('surface');
     expect(actions).toEqual(['leave', 'name']);
+  });
+});
+
+describe('the country used for an indoor shop price', () => {
+  it('uses the shop doorway while indoors and the hero outdoors', () => {
+    const seen: Array<[number, number]> = [];
+    const door = { x: 40, z: 41 } as Doorway;
+    let inside = true;
+    const meeting = createMeeting({
+      state: { time: 0, day: 0 },
+      player: { x: 5, z: 8 },
+      indoors: () => inside ? door : null,
+      countryAt: (x: number, z: number) => {
+        seen.push([x, z]);
+        return Biome.Desert;
+      },
+    } as Meeting);
+
+    const country = meeting.talkCtx.country;
+    if (!country) throw new Error('meeting did not provide a country resolver');
+    expect(country()).toBe(Biome.Desert);
+    inside = false;
+    expect(country()).toBe(Biome.Desert);
+    expect(seen).toEqual([[40, 41], [5, 8]]);
   });
 });
