@@ -54,8 +54,8 @@ export const EXCUSED = new Map<string, string>([
   ['src/game/stables.ts: bestOver', 'wire-or-delete decision tracked by issue #88'],
   ['src/game/whales.ts: landingOf', 'wire-or-delete decision tracked by issue #88'],
   ['src/render/footprint.ts: measureFootprint', 'wire-or-delete decision tracked by issue #88'],
-  ['src/ui/themes.ts: themeChosen', 'theme application caller is pending in issue #73'],
-  ['src/ui/themes.ts: wearTheme', 'theme application caller is pending in issue #73'],
+  ['src/ui/themes.ts: themeChosen', 'nothing applies a theme yet; the picker is issue #177'],
+  ['src/ui/themes.ts: wearTheme', 'nothing applies a theme yet; the picker is issue #177'],
   ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
   ['src/world/character.ts: characterAt', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
@@ -87,5 +87,35 @@ export function issueIn(reason: string): number | null {
  * and an opinion is what this list must never fill up with.
  */
 export function isCheckable(reason: string): boolean {
-  return issueIn(reason) !== null || /\btests?\b/.test(reason);
+  return issueIn(reason) !== null || namesATest(reason);
+}
+
+/**
+ * Words that can stand before "tests" without naming any.
+ *
+ * The whole difference between an excuse and a shrug. *"Not covered by tests"* satisfied the old
+ * check — it contains the word — while naming nothing anybody could go and read, and
+ * `staleexcuses.ts` had no issue to watch either, so an unreached export could sit behind it for
+ * ever. Every real excuse in this file names its suite: *"monster tests"*, *"brewing tests"*,
+ * *"food and fishing tests"*.
+ */
+const NAMES_NOTHING = new Set([
+  'by', 'the', 'a', 'an', 'any', 'no', 'not', 'in', 'with', 'without', 'and', 'or', 'of', 'for',
+  'these', 'those', 'some', 'its', 'our', 'their', 'more', 'other', 'unit', 'existing',
+  'are', 'is', 'were', 'was', 'have', 'has', 'had', 'be', 'been', 'only', 'just', 'all', 'few',
+]);
+
+/**
+ * Whether this reason names the tests that own the export, rather than mentioning tests at all.
+ *
+ * Two forms count. A file said outright — `castle.test` — is a thing somebody can open. And a word
+ * standing immediately before "test" or "tests" is the name of a suite, unless it is one of the
+ * words above, which are the ways of saying "tests" while naming none.
+ */
+export function namesATest(reason: string): boolean {
+  if (/\b[\w-]+\.test\b/.test(reason)) return true;
+  for (const said of reason.matchAll(/(\w+)\s+tests?\b/gi)) {
+    if (!NAMES_NOTHING.has(said[1].toLowerCase())) return true;
+  }
+  return false;
 }
