@@ -3,7 +3,7 @@ import {
   BUILD, CATALOGUE, Houses, buildable, builderIn, daysFor, deposit, isFinished, onOffer, owed,
   progressOf, saidOfJob, stageAt, stillOnItsSite, storeysOf, type Commission, BUILDS,
 } from './building';
-import { workTheHallJobs } from './halljobs';
+import { workHallJobsThrough, workTheHallJobs } from './halljobs';
 // the four "may it go here" rules came out of `building.ts` when a jetty joined the catalogue and
 // that file ran out of room; they are the same functions and these are the same tests of them
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from './siting';
@@ -11,6 +11,7 @@ import { jettiesIn, mooringOf } from './jetties';
 import { BOAT, moorageFor } from './sailing';
 import { GRUDGE } from './grudge';
 import { POST } from '../world/postings';
+import { THE_HALL_OWNER } from '../world/holdings';
 import { PROSPER } from '../world/prosperity';
 import { Register } from '../world/register';
 
@@ -160,6 +161,34 @@ describe('a commission that outlives the session', () => {
     expect(builders[0].purse).toBe(PROSPER.MOST);
     expect(builders[1].purse).toBe(nextPurse + POST.BUILDER);
     expect(houses.entries()[0]).toMatchObject({ worked: 1, fund: deposit() - POST.BUILDER });
+  });
+
+  it('buys every elapsed morning when the clock jumps ahead', () => {
+    const register = new Register(7);
+    register.settle('Ashford', 10, ['builder']);
+    const houses = new Houses();
+    houses.takeOn('Ashford', BUILD.PRICE, deposit());
+    houses.place(20, 20, 1);
+    const before = register.living('Ashford').reduce((sum, person) => sum + person.purse, 0);
+
+    expect(workHallJobsThrough(houses, 7, () => register.living('Ashford'))).toHaveLength(6);
+    expect(isFinished(houses.entries()[0], 7)).toBe(true);
+    expect(register.living('Ashford').reduce((sum, person) => sum + person.purse, 0))
+      .toBe(before + POST.BUILDER * 6);
+  });
+
+  it('does not post somebody already working another job that morning', () => {
+    const register = new Register(7);
+    register.settle('Ashford', 10, ['builder']);
+    const builders = [...register.living('Ashford')].filter((person) => person.trade === 'builder')
+      .sort((one, two) => one.id < two.id ? -1 : 1);
+    const houses = new Houses();
+    houses.takeOn('Ashford', BUILD.PRICE, deposit());
+    houses.place(20, 20, 1);
+
+    const busy = { kind: 'crew' as const, holding: 'yard:1', who: builders[0].id, funder: THE_HALL_OWNER, wage: POST.BUILDER };
+    expect(workTheHallJobs(houses, 2, () => register.living('Ashford'), [busy])[0]?.who)
+      .toBe(builders[1].id);
   });
   it('remembers a builder taken on before there is anywhere to put the house', () => {
     const h = new Houses();

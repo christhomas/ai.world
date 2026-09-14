@@ -56,7 +56,7 @@ export interface Telling {
   /** Everything Old Nettle's cycle reaches into, gathered when it is asked for rather than held. */
   realm: () => Realm;
   /** A builder who has finished and not been paid has said so in the pub by now. */
-  builderDay: () => void;
+  builderDay: (already?: ReadonlyMap<string, readonly Post[]>) => void;
   /** And whatever else happened in a village overnight, from the interactions that own it. */
   villageNights: () => Array<{ kind: string; village: string; name: string }>;
   /** A line into the console, which is where word from elsewhere arrives. */
@@ -267,7 +267,7 @@ export function createTidings(ctx: Telling) {
     }
     // a builder who has finished and not been paid has said so in the pub by now, and the village
     // holds it against you for every day it goes on standing there unsettled
-    builderDay();
+    builderDay(standing);
     for (const change of [...register.advance(state.day), ...villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
         say(`Word from ${change.village}: ${change.name} has died.`);

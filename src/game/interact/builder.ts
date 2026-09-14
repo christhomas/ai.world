@@ -2,11 +2,12 @@ import {
   BUILD, BUILDS, buildable, builderIn, deposit, isFinished,
   Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
 } from '../building';
-import { workTheHallJobs } from '../halljobs';
+import { workHallJobsThrough } from '../halljobs';
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
 import { jettiesIn, type Mooring } from '../jetties';
 import { moorageFor } from '../sailing';
 import { give, holds } from '../../world/deeds';
+import type { Post } from '../../world/postings';
 import { boxOf, handOver, packOf } from '../../world/goods';
 import { settle } from '../../world/works';
 import { villageTill } from '../tills';
@@ -663,7 +664,7 @@ export function builderInteractions(ctx: Surroundings) {
    * everybody will have said so in the pub by now. So it goes on the grudge the village already
    * keeps, which sours its prices and eventually its welcome, and which fades once you have paid.
    */
-  const builderDay = (): void => {
+  const builderDay = (busy: ReadonlyMap<string, readonly Post[]> = new Map()): void => {
     /*
      * What the woodcutters cut, which is the other half of a builder's morning.
      *
@@ -675,8 +676,8 @@ export function builderInteractions(ctx: Surroundings) {
     for (const village of register.settled()) {
       houses.yard.felled(village, woodcuttersFor(register.living(village)));
     }
-    const worked = workTheHallJobs(
-      houses, state.day, (village) => register.living(village),
+    const worked = workHallJobsThrough(
+      houses, state.day, (village) => register.living(village), [...busy.values()].flat(),
     );
     const bills = houses.charge(state.day);
     if (worked.length === 0 && bills.length === 0) return;

@@ -627,7 +627,7 @@ export class Houses {
   /** Put one paid morning into a commission whose account can meet the wage. */
   work(job: Commission, day: number, wage: number): boolean {
     const today = Math.floor(day);
-    if (job.worked === undefined || job.workedOn === today || isFinished(job, day)) return false;
+    if (job.worked === undefined || (job.workedOn !== undefined && job.workedOn >= today) || isFinished(job, day)) return false;
     if ((job.fund ?? 0) < wage) return false;
     job.fund = Math.round(((job.fund ?? 0) - wage) * 100) / 100;
     job.worked = Math.min(daysFor(job), job.worked + 1);
