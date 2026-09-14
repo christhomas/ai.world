@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { issueIn } from './excused';
+import { EXCUSED, isCheckable, issueIn, namesATest } from './excused';
 import { issuesNamed, whichHaveExpired, type IssueState } from './staleexcuses';
 
 /**
@@ -52,5 +52,40 @@ describe('what an excuse defers to', () => {
   it('reads its issue number back out of what it says', () => {
     expect(issueIn('wire-or-delete decision tracked by issue #88')).toBe(88);
     expect(issueIn('brewing tests verify the recipe table')).toBeNull();
+  });
+});
+
+/**
+ * And the half of an excuse that names a test rather than an issue.
+ *
+ * `/\btests?\b/` accepted anything containing the word, so *"not covered by tests"* passed while
+ * naming nothing anybody could go and read — and with no issue in it, `staleexcuses.ts` had
+ * nothing to watch either. An unreached export could sit behind that for ever, which is exactly
+ * what the excuse list is supposed to make impossible.
+ */
+describe('an excuse that names a test', () => {
+  it('names which tests, the way every real one in this file does', () => {
+    for (const said of ['monster tests inspect the curated kinds', 'brewing tests verify the table',
+                        'food and fishing tests own the aggregate-yield invariant',
+                        'castle.test checks that hangings occupy walls']) {
+      expect(namesATest(said), said).toBe(true);
+    }
+  });
+
+  it('is not satisfied by the word on its own', () => {
+    for (const shrug of ['not covered by tests', 'no tests reach it', 'covered in tests',
+                         'kept for the tests', 'unit tests only', 'there are tests']) {
+      expect(namesATest(shrug), shrug).toBe(false);
+      expect(isCheckable(shrug), `${shrug} — and so it is not an excuse`).toBe(false);
+    }
+  });
+
+  it('still takes an issue number instead, which is the other half', () => {
+    expect(isCheckable('wire-or-delete decision tracked by issue #88')).toBe(true);
+  });
+
+  /* Run against the real list, because the real list is the thing that rots. */
+  it('is true of every excuse this repository actually holds', () => {
+    expect([...EXCUSED].filter(([, why]) => !isCheckable(why)).map(([name]) => name)).toEqual([]);
   });
 });
