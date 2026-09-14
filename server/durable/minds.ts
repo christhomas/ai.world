@@ -1,5 +1,4 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { migrateDomain } from './db';
 import type { Memory, Person } from '../../src/world/people';
 import type { Opinion } from '../../src/world/memory';
 
@@ -30,7 +29,19 @@ import type { Opinion } from '../../src/world/memory';
  * The world's own told-facts log is the thing that replays; this is the thing that does not.
  */
 
-const SCHEMA: readonly string[] = [
+/**
+ * The tables, exported rather than migrated here, and that is load-bearing.
+ *
+ * `sim.ts` imports this file, and `sim.ts` is what a page playing alone runs in a Web Worker. A
+ * value import of `node:sqlite` anywhere in that chain is a browser bundle that reaches for a node
+ * built-in — Vite externalises it, the page throws on load, and the whole world stops drawing. The
+ * playtest caught exactly that.
+ *
+ * Everything this file does with a database is typed against a handle it is *given*, so `DatabaseSync`
+ * is a type import and erases. What could not be is the migration, which has to call into `db.ts`
+ * for real — so the schema comes out and `serve.ts`, which is only ever node, runs it.
+ */
+export const MINDS_SCHEMA: readonly string[] = [
   // 1 — what one villager of one world holds
   `CREATE TABLE mind (
      world    INTEGER NOT NULL,
@@ -47,10 +58,6 @@ const SCHEMA: readonly string[] = [
 export interface Mind {
   memories: Memory[];
   opinions: Opinion[];
-}
-
-export function migrateMinds(db: DatabaseSync): number {
-  return migrateDomain(db, 'register', SCHEMA);
 }
 
 /** Whether this villager holds anything worth keeping, which most of them never will. */
