@@ -5661,3 +5661,33 @@ than by remembering — and the first thing found was that the gap is not where 
       thirty — the sample was three prey), and `watch.ts` reading as unreachable (the import is
       `./game/watch`, and a grep for `./watch` missed it). Both took under a minute to disprove.
       Verify before believing, and prefer the candidates with volume behind them.
+
+## One tree per session — September 14th
+
+- [x] **137. Several sessions shared one working tree, so uncommitted work appeared and vanished
+      under whoever was in it.** *(Found by trying to hand the repository over cleanly three times
+      and failing each time: every attempt to leave the tree clean was followed within a minute by a
+      fresh set of modified files nobody in that session had touched. A day's timber accounting, a
+      deed-based `homes.ts` across ten files, twenty-two dead exports deleted, the phone HUD rail,
+      a release that tags its own merge commit — and then a **second** `howTheChecksStand` in
+      `release.ts`, the same function a pull request was already open for, with different rules
+      about whether a skipped check counts as passed. That is not a merge conflict. It is two
+      afternoons, and neither of them knew.*
+
+      *Three things go wrong and only the first is untidiness. **Work is invisible until somebody
+      trips over it** — all of that was finished-looking work existing only as unstaged edits, and
+      the default outcome is that the next `git checkout`, `git reset --hard` or `chore fallbacks`
+      throws it away and nobody ever learns it existed. **A green suite is green about a tree that
+      no longer exists** — a full run finished at 21:23 and the files under it had changed by
+      21:25, which is how a pull request went out with a test reading the wrong file. And **nothing
+      can tell whose edits are whose**, which is not a thing any tool can fix and is exactly why the
+      answer is to stop rather than to be clever.*
+
+      *`chore tree` is the cheap half, and it is the rule `chore fallbacks` already applies to
+      itself for the same reason — it could not tell its own edits from yours either. It refuses a
+      dirty checkout and prints the one command that fixes it, because a worktree costs nothing and
+      gives a session files nobody else is writing to. Dirty is the whole of the test: other
+      checkouts existing is the **answer** rather than the problem, and a clean tree with six
+      sessions on it is a repository doing the right thing. What it does not count is the report a
+      bench rewrites every run — a guard that fires on `sanity-report.txt` after you have just run
+      `chore sanity` is a guard somebody turns off in a week.)*
