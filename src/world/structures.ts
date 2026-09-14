@@ -516,8 +516,8 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     const station = assignStation(houses, biome);
     /*
      * Reserve the hall's eventual body while the square is laid out, but do not leave it standing.
-     * A place must vote and pay before this plan becomes a building; keeping the reserved structure
-     * on the village makes its position deterministic on every client without putting it in `all`.
+     * The prepared site remains in `all` so its ground and path are stamped and later buildings
+     * cannot overlap it; its kind draws no prop and blocks nobody before the vote is finished.
      */
     const side = squareSide(squareR, level, biome);
     const big = houses.length >= SQUARE.CIVIC_HOUSES;
@@ -533,7 +533,7 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
         along: { ux: probe.ux, uz: probe.uz }, across: { nx, nz } },
       { land: (x, z) => sampler.landProbe(x, z), fits: footprintOk });
     const plannedHall = hall ? all.indexOf(hall.building) : -1;
-    if (plannedHall >= 0) all.splice(plannedHall, 1);
+    if (plannedHall >= 0) all[plannedHall] = { ...hall!.building, kind: StructureKind.BuildingSite };
     plazaR = 0;
     return {
       name: villageName(), x: n.x, z: n.z, radius: spread + VILLAGE_MARGIN, level, biome, houses, spare, shops, pub,

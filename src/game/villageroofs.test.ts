@@ -60,13 +60,12 @@ describe('the houses a village raised for itself', () => {
 });
 
 describe('asking about them once a day rather than sixty times a second', () => {
-  it('works the answer out again when the day turns', () => {
+  it('sees work appended by a vote before the day turns', () => {
     let works = ['house:a'];
     const watch = roofWatch(() => [village('Ashby', [plot(4, 9), plot(7, 9)])], () => works);
     expect(watch(3.1)).toHaveLength(1);
-    works = ['house:a', 'house:b'];
-    expect(watch(3.9)).toHaveLength(1);      // still the same day, so still the same answer
-    expect(watch(4.0)).toHaveLength(2);
+    works = ['house:a', 'townhall@3'];
+    expect(watch(3.9).map((site) => site.id)).toContain('Ashby-hall');
   });
 
   it('and again when a patch arrives with a village on it, which does not wait for morning', () => {

@@ -194,18 +194,30 @@ describe('the water a ferry crosses', () => {
  * seeded civic building. Both sites still belong on the square and face the cobbles.
  */
 describe('the buildings a village raises for itself', () => {
-  const worlds = [1, 2, 3, 4, 5, 6].map((seed) => new TerrainSampler(generateRoadGraph(seed)).structures);
+  const samplers = [1, 2, 3, 4, 5, 6].map((seed) => new TerrainSampler(generateRoadGraph(seed)));
+  const worlds = samplers.map((sampler) => sampler.structures);
   const everywhere = worlds.flatMap((w) => w.villages);
 
   it('reserves every reachable hall site but seeds no hall building before a vote', () => {
     const canBecomeATown = everywhere.filter((v) => v.houses.length + v.spare.length >= 16);
     expect(canBecomeATown.filter((v) => v.hall).length, 'a future town with nowhere to put its hall')
       .toBe(canBecomeATown.length);
-    for (const world of worlds) {
+    for (let wi = 0; wi < worlds.length; wi++) {
+      const world = worlds[wi];
       expect(world.all.filter((structure) => structure.kind === StructureKind.TownHall),
         'a town hall stood before anybody voted for it').toEqual([]);
       expect(world.doors.filter((door) => door.kind === 'townhall'),
         'an unbuilt hall had a working doorway').toEqual([]);
+      const sites = world.all.filter((structure) => structure.kind === StructureKind.BuildingSite);
+      expect(sites).toHaveLength(world.villages.filter((village) => village.hall).length);
+      for (const site of sites) {
+        const CS = WORLD.CHUNK_SIZE;
+        const cx = Math.floor(site.tx / CS), cz = Math.floor(site.tz / CS);
+        const chunk = samplers[wi].generateChunk(cx, cz);
+        const at = (site.tz - cz * CS + 1) * chunk.size + (site.tx - cx * CS + 1);
+        expect(chunk.type[at], 'the reserved hall ground was not prepared').toBe(TileType.Floor);
+        expect(chunk.prop[at], 'the reserved site drew a hall before its vote').toBe(0);
+      }
     }
     const small = everywhere.filter((v) => v.houses.length < 8);
     expect(small.length, 'six worlds of nothing but towns').toBeGreaterThan(20);

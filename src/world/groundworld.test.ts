@@ -43,6 +43,25 @@ describe('the ground, with nobody drawing it', () => {
     expect(ground.blocked(9_000, 9_000), 'unknown ground is not walked into').toBe(true);
   });
 
+  it('blocks a building completed after the ground was generated', () => {
+    const ground = world();
+    ground.reach(0, 0, 2);
+    let open: { x: number; z: number } | null = null;
+    for (let z = -20; z <= 20 && !open; z++) {
+      for (let x = -20; x <= 20; x++) {
+        if (ground.heightAt(x + 0.5, z + 0.5) !== null && !ground.blocked(x + 0.5, z + 0.5)) {
+          open = { x, z };
+          break;
+        }
+      }
+    }
+    if (!open) throw new Error('no open ground to put the finished building on');
+    ground.standsOn([open]);
+    expect(ground.blocked(open.x + 0.5, open.z + 0.5)).toBe(true);
+    ground.standsOn([]);
+    expect(ground.blocked(open.x + 0.5, open.z + 0.5)).toBe(false);
+  });
+
   it('agrees with the terrain it was built from, tile for tile', () => {
     const sampler = new TerrainSampler(generateWebGraph(3));
     const ground = new GroundWorld(sampler, propFootprints());

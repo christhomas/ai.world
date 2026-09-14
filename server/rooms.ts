@@ -1,5 +1,6 @@
 import type { Entity } from '../src/entities/entity';
 import type { Register } from '../src/world/register';
+import type { Village } from '../src/world/structures';
 import type { Blow, Standing } from './wildlife';
 import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
@@ -56,6 +57,10 @@ export interface CreatureOwner {
    * to whatever is holding him. Null on a dungeon floor, where nothing is anybody's neighbour.
    */
   readonly register: Register | null;
+  /** Settlements whose halls can receive an authoritative civic vote. */
+  readonly villages: readonly Village[];
+  /** Bring collision into line after a voted hall finishes. */
+  syncBuildings(): void;
   /** Somebody has paid a villager to walk with them, or has stopped paying. */
   retain(person: string, on: boolean): void;
   /**

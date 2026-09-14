@@ -259,16 +259,12 @@ export function villageInteractions(ctx: Surroundings) {
       if (ballot?.ready) choices.unshift({
         label: `Vote aye — become a ${ballot.rank} (${ballot.costs}g)`,
         next: () => {
-          const voted = register.vote(village.name, state.day);
-          if (!voted) return { speaker: `The hall of ${village.name}`, emoji: '🏛️', pages: ['The motion cannot be put today.'] };
-          told(voted);
-          state.version++;
-          persist();
-          sound.chime();
-          hud.flash(`${village.name} voted to become a ${voted.rank}. Work begins on the hall.`);
+          // A vote spends a shared treasury and changes a shared rank. Ask the world that owns both;
+          // its accepted `voted` delta comes back to this player as well as everybody else.
+          online.vote(village.name);
           return {
             speaker: `The hall of ${village.name}`, emoji: '🏛️',
-            pages: [`The ${ballot.voters.length} resident electors vote aye. You vote aye with them. ${ballot.costs} gold leaves the treasury and work begins.`],
+            pages: [`Your aye is put with the ${ballot.voters.length} resident electors. The world will record the motion before ${ballot.costs} gold leaves the treasury.`],
             choices: [{ label: 'Let it be recorded', next: () => null }],
           };
         },

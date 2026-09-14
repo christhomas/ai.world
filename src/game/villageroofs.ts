@@ -148,24 +148,32 @@ export function raisedRoofs(
 /**
  * The same list, worked out about once a day instead of sixty times a second.
  *
- * What a village has raised changes when the register advances and at no other moment, so asking
- * it every frame is asking a question whose answer is already known — and the answer is a walk
- * over every village within reach and every line in its books. The count of villages is in the key
- * as well as the day, because in an endless country a patch arriving is the other way the answer
- * changes, and it does not wait for morning.
+ * What a village has raised usually changes when the register advances. A vote is the exception:
+ * it adds hall work immediately, on the same day, so the cache also watches each book's identity
+ * and length. The register only appends work; a replay replaces the array, and both are caught.
  */
 export function roofWatch(
   villagesNow: () => readonly Village[],
   worksOf: (village: string) => readonly string[],
 ): (day: number) => readonly Raised[] {
-  let asked = '';
+  let asked = Number.NaN;
+  let names: string[] = [];
+  let books: readonly (readonly string[])[] = [];
+  let lengths: number[] = [];
   let built: readonly Raised[] = [];
   return (day) => {
     const villages = villagesNow();
     const today = Math.floor(day);
-    const key = `${today},${villages.length}`;
-    if (key !== asked) {
-      asked = key;
+    let changed = today !== asked || villages.length !== names.length;
+    for (let at = 0; at < villages.length; at++) {
+      const book = worksOf(villages[at].name);
+      if (villages[at].name !== names[at] || book !== books[at] || book.length !== lengths[at]) changed = true;
+    }
+    if (changed) {
+      asked = today;
+      names = villages.map((village) => village.name);
+      books = villages.map((village) => worksOf(village.name));
+      lengths = books.map((book) => book.length);
       built = raisedRoofs(villages, worksOf, today);
     }
     return built;

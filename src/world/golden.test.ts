@@ -36,7 +36,12 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when the country stopped being flat (2026-09-10), and this is the one
+ * Last updated deliberately when a hall became a voted public work instead of a seeded building
+ * (2026-09-14). The deterministic hall plot remains levelled, cleared and joined to the square, but
+ * begins as an empty building site. Consequently only `structures` (the site's kind) and `chunks`
+ * (the absent completed-hall prop) move; graph, water, quests, and every other structure stay put.
+ *
+ * Previously updated when the country stopped being flat (2026-09-10), and this is the one
  * change so far that moves all five. It is worth saying exactly what moved and what did not.
  *
  * Two things were done and both were done to the road web's own levels, which is the field every
@@ -134,6 +139,6 @@ describe('generation fingerprint', () => {
  * water, quests, every village and every reserved hall site remain deterministic and unchanged.
  */
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: '5256f550', hydro: '57d1f709', structures: '1019333e', chunks: '4f130192', quests: '829c481b' },
-  2: { graph: '91f6d142', hydro: 'e1df1004', structures: 'f158f9ca', chunks: '19c7e2e9', quests: '10f6f7ad' },
+  1: { graph: '5256f550', hydro: '57d1f709', structures: '668000d3', chunks: '65b262e0', quests: '829c481b' },
+  2: { graph: '91f6d142', hydro: 'e1df1004', structures: '2d01947e', chunks: '6b1e656b', quests: '10f6f7ad' },
 };

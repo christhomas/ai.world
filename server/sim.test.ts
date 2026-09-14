@@ -1381,12 +1381,13 @@ describe('what a page may no longer simply announce', () => {
     expect(wren.of('delta'), 'a chest was opened by saying so').toEqual([]);
   });
 
-  it('refuses a key and a reaping for the same reason', () => {
+  it('refuses a key, a reaping and a civic vote reported as facts', () => {
     const sim = new Simulation({ vault: new Forgetful(), timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(22, 'Rowan');
     const wren = new Pretend(sim).join(22, 'Wren');
     rowan.say({ type: 'delta', delta: { kind: 'key', id: 'Barrow:1' } });
     rowan.say({ type: 'delta', delta: { kind: 'reap', tile: '4,4' } });
+    rowan.say({ type: 'delta', delta: { kind: 'voted', village: 'Anywhere', rank: 'city', day: 2 } });
     expect(wren.of('delta')).toEqual([]);
   });
 

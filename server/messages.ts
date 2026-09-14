@@ -13,6 +13,7 @@ import { JUMP } from '../src/entities/leap';
 import { ROPED_CLIMB, newHero, settleOnto, stride } from '../src/entities/stride';
 import type { Client, Party, Room, Rooms } from './rooms';
 import type { SharedWorld } from './world';
+import { callTownVote } from './voting';
 
 /**
  * What each message from a player means. One function per subject, so adding a message is a
@@ -50,6 +51,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
       return;
     case 'delta':
       worldChange(rooms, me, room, message);
+      return;
+    case 'vote':
+      civicVote(rooms, me, room, message);
       return;
     case 'sow':
       seedSown({
@@ -488,6 +492,26 @@ function aboutAVillager(rooms: Rooms, me: Client, room: Room, message: ClientMes
   const said = cleanRecall(message);
   if (!said) return;
   world.register?.recall(said.who, said.what, said.about, room.world.clock.day);
+}
+
+/** Call a civic vote from the hall the authoritative hero is actually standing beside. */
+function civicVote(rooms: Rooms, me: Client, room: Room, message: Extract<ClientMessage, { type: 'vote' }>): void {
+  if (me.standingIn !== 'surface') return;
+  const world = rooms.worldOf(me.seed, 'surface');
+  const villageName = String(message.village).slice(0, LIMITS.THING_ID);
+  const village = world?.villages.find((known) => known.name === villageName);
+  if (!world?.register || !village) return;
+  const vote = callTownVote({
+    register: world.register,
+    village,
+    hero: me.hero ?? me.presence,
+    day: room.world.clock.day,
+    commit: (delta) => room.world.apply(delta),
+  });
+  if (!vote) return;
+  world.syncBuildings();
+  // The caller did not apply this optimistically, so the accepted fact returns to everyone.
+  rooms.broadcast(me.seed, { type: 'delta', delta: vote, from: me.presence.id });
 }
 
 /** The short log of what players have altered about the world, passed on to everybody else in it. */

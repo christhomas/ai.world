@@ -455,8 +455,12 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         register.apply({ kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence' });
         break;
       case 'voted':
-        // rank is a told fact: late arrivals re-live the cost and the hall from its recorded morning
-        register.apply(delta);
+        // The world sends an accepted vote back to its caller too, so nobody spends the treasury
+        // optimistically and then disagrees with the authority.
+        if (register.apply(delta) && !catchingUp) {
+          sound.chime();
+          hud.flash(`${delta.village} voted to become a ${delta.rank}. Work begins on the hall.`);
+        }
         break;
     }
     state.version++;

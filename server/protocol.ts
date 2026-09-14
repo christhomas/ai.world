@@ -9,7 +9,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
 
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -390,6 +390,8 @@ export type ClientMessage =
   | { type: 'trade-accept'; from: string }
   | { type: 'trade-decline'; from: string }
   | { type: 'delta'; delta: WorldDelta }
+  /** Ask the world to call the next civic vote in the named village. */
+  | { type: 'vote'; village: string }
   /**
    * A blow landed on a creature the world owns.
    *
@@ -901,7 +903,7 @@ export function deltaAt(delta: WorldDelta): { x: number; z: number } | null {
  * opening hand something over, and sowing spends a seed to claim a tile. When every way a page can
  * sow is a hero standing in a field (the debug console can sow across the map), it joins them.
  */
-const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap']);
+const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap', 'voted']);
 
 /** Whether a client may report this change itself, or must ask the world for it instead. */
 export function mayReport(delta: WorldDelta): boolean {

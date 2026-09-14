@@ -484,7 +484,9 @@ export class Register {
     const votes = [...this.votes.values()]
       .filter((vote) => vote.village === village && vote.day === day)
       .sort((a, b) => a.rank === b.rank ? 0 : a.rank === 'town' ? -1 : 1);
-    for (const vote of votes) enactVote(here, vote);
+    for (const vote of votes) {
+      if (!enactVote(here, vote)) this.votes.delete(this.voteKey(vote));
+    }
     finishVotedHall(here, day);
   }
 
@@ -529,32 +531,56 @@ export class Register {
     return this.remove(person, Math.floor(day), 'violence');
   }
 
-  /** Apply a told death or vote, re-living its village when the fact arrived after its day. */
-  apply(change: Change | TownVote): void {
+  /** Apply a told death or vote, preserving facts that cannot be reconstructed by re-living. */
+  apply(change: Change | TownVote): boolean {
     if (change.kind === 'voted') {
-      const key = this.voteKey(change);
-      if (this.votes.has(key)) return;
-      this.votes.set(key, { ...change, day: Math.floor(change.day) });
-      if (this.villages.has(change.village)) this.relive(change.village);
-      return;
+      const voted = { ...change, day: Math.floor(change.day) };
+      const key = this.voteKey(voted);
+      if (this.votes.has(key) || !Number.isFinite(voted.day) || voted.day > this.day) return false;
+      const here = this.villages.get(voted.village);
+      if (here && voted.day === this.day) {
+        if (!enactVote(here, voted)) return false;
+        this.votes.set(key, voted);
+        return true;
+      }
+      this.votes.set(key, voted);
+      if (!here) return true;
+      this.relive(voted.village);
+      if (this.villages.get(voted.village)?.rank === voted.rank) return true;
+      // An invalid historical vote is not allowed to reserve its key. Re-live once more without it.
+      this.votes.delete(key);
+      this.relive(voted.village);
+      return false;
     }
-    if (change.kind !== 'died') return;
-    if (this.killed.has(change.id)) return;                  // already accounted for
+    if (change.kind !== 'died' || this.killed.has(change.id)) return false;
     this.killed.set(change.id, change.day);
 
     const here = this.find(change.id);
-    if (here && change.day >= this.day) { this.remove(here, change.day, 'violence'); return; }
+    if (here && change.day >= this.day) { this.remove(here, change.day, 'violence'); return true; }
 
     const village = change.village || here?.village || '';
     if (this.villages.has(village)) this.relive(village);
+    return true;
   }
 
-  /** Found a village again and live it forward to today, now that we know more about its past. */
+  /** Found a village again without erasing wounds, memories or opinions learned from players. */
   private relive(village: string): void {
     const settlement = this.villages.get(village);
     if (!settlement) return;
+    const remembered = new Map(settlement.people.map((person) => [person.id, {
+      memories: person.memories,
+      opinions: person.opinions,
+      hurt: person.hurt,
+    }]));
     this.villages.delete(village);
-    this.settle(village, settlement.houses, settlement.trades);
+    const people = this.settle(village, settlement.houses, settlement.trades);
+    for (const person of people) {
+      const held = remembered.get(person.id);
+      if (!held) continue;
+      person.memories = held.memories;
+      person.opinions = held.opinions;
+      if (held.hurt === undefined) delete person.hurt; else person.hurt = held.hurt;
+    }
   }
 
   /**

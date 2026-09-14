@@ -490,6 +490,11 @@ export class Online {
     if (this.connected) this.send({ type: 'delta', delta });
   }
 
+  /** Ask the world to call a civic vote where this hero is standing. */
+  vote(village: string): void {
+    if (this.connected) this.send({ type: 'vote', village });
+  }
+
   /**
    * Something happened that one of the world's villagers will not forget.
    *

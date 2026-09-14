@@ -53,4 +53,6 @@ export const enum StructureKind {
    * for what it is like to fly.
    */
   Derelict = 26,
+  /** Prepared, level ground and a path for a building that does not stand yet. */
+  BuildingSite = 27,
 }

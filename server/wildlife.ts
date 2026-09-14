@@ -36,6 +36,8 @@ export class Wildlife {
   private readonly roster = new Roster();
   private readonly manager: EntityManager;
   private turn = 0;
+  /** Finished village buildings currently copied into the world's dynamic collision layer. */
+  private buildings = '';
   /** The number each creature travels under, which is the one thing the wire needs and an Entity lacks. */
   private readonly numbered = new WeakMap<Entity, number>();
   private nextNumber = 1;
@@ -90,6 +92,26 @@ export class Wildlife {
   /** And where those villages are, for anything surveying the whole country rather than a corner. */
   get villages(): readonly Village[] { return this.folk?.villages ?? []; }
 
+  /** Put finished voted halls into the same dynamic collision layer the page uses. */
+  syncBuildings(): void {
+    const ground = this.ground as TileWorld & { standsOn?: (tiles: Iterable<{ x: number; z: number }>) => void };
+    if (!ground.standsOn || !this.folk) return;
+    let key = '';
+    for (const village of this.folk.villages) {
+      if (this.folk.register.hallOf(village.name)?.body === 'town-hall' && village.hall) key += `|${village.name}`;
+    }
+    if (key === this.buildings) return;
+    this.buildings = key;
+    const tiles: Array<{ x: number; z: number }> = [];
+    for (const village of this.folk.villages) {
+      if (this.folk.register.hallOf(village.name)?.body !== 'town-hall' || !village.hall) continue;
+      const hall = village.hall.building;
+      for (let dz = -hall.hd; dz <= hall.hd; dz++) {
+        for (let dx = -hall.hw; dx <= hall.hw; dx++) tiles.push({ x: hall.tx + dx, z: hall.tz + dz });
+      }
+    }
+    ground.standsOn(tiles);
+  }
   /**
    * Somebody has paid a villager to walk with them, or has stopped paying.
    *

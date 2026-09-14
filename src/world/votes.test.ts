@@ -33,6 +33,33 @@ describe('a vote to become a town', () => {
     expect(wealthOf(register, 'Testing'), 'the same vote charged twice').toBe(after);
   });
 
+  it('applies a current-day vote in place without erasing wounds or memories', () => {
+    const register = new Register(17, 30);
+    register.settle('Testing', 16, trades);
+    register.hallOf('Testing')!.purse = 5000;
+    const resident = register.living('Testing')[0];
+    resident.hurt = 3;
+    resident.memories = [{ what: 'given', who: 'Rowan', day: 30 }];
+
+    expect(register.apply({ kind: 'voted', village: 'Testing', rank: 'town', day: 30 })).toBe(true);
+    expect(register.find(resident.id)).toBe(resident);
+    expect(resident.hurt).toBe(3);
+    expect(resident.memories).toEqual([{ what: 'given', who: 'Rowan', day: 30 }]);
+  });
+
+  it('does not let a refused city motion reserve the later valid vote', () => {
+    const register = new Register(17, 30);
+    register.settle('Testing', 32, trades);
+    const hall = register.hallOf('Testing')!;
+    hall.purse = 5000;
+    expect(register.apply({ kind: 'voted', village: 'Testing', rank: 'town', day: 30 })).toBe(true);
+
+    expect(register.apply({ kind: 'voted', village: 'Testing', rank: 'city', day: 30 })).toBe(false);
+    hall.purse = 15000;
+    expect(register.apply({ kind: 'voted', village: 'Testing', rank: 'city', day: 30 })).toBe(true);
+    expect(register.rankOf('Testing')).toBe('city');
+  });
+
   it('crosses late and re-lives from the recorded day to the same declared rank', () => {
     const origin = new Register(17, 30);
     origin.settle('Testing', 9, trades);
