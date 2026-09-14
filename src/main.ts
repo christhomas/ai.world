@@ -668,13 +668,6 @@ export function startGame(
     });
   }
 
-  /**
-   * Watches the frame times and turns the picture down if the machine cannot hold sixty.
-   *
-   * Only for somebody who has never chosen a level: the rig defaults to `high` — pixel ratio two
-   * and a 2048-square shadow map every frame — picked sight unseen on a machine nobody measured,
-   * and a player whose computer cannot hold that gets a slideshow with no clue why.
-   */
   const autoQuality = new AutoQuality(qualityWasChosen);
 
   const frames = createFrame({
