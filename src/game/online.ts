@@ -495,6 +495,11 @@ export class Online {
     if (this.connected) this.send({ type: 'vote', village });
   }
 
+  /** Take work a village has nobody for. Asked rather than told; see `swear` on the wire. */
+  swear(village: string, trade: string): void {
+    if (this.connected) this.send({ type: 'swear', village, trade });
+  }
+
   /**
    * Something happened that one of the world's villagers will not forget.
    *

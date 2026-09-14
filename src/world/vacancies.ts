@@ -158,3 +158,23 @@ export interface Sworn {
   /** The world day the oath was taken, which is the only thing that dates it. */
   day: number;
 }
+
+/**
+ * Take an oath into the book a village keeps, or say it was already there.
+ *
+ * The bookkeeping half of `Register.apply`'s `sworn` case, out here because it is about vacancies
+ * rather than about registers and because `register.ts` is at the size the architecture test
+ * allows. What it does not do is decide *when* — whether a late oath re-lives the village is the
+ * register's business, since only the register knows which day it is standing on.
+ *
+ * Keyed by trade and day: the same telling arriving twice, which is the ordinary case once an oath
+ * travels on the wire and in a save, writes one oath.
+ */
+export function takeTheOath(
+  held: readonly Sworn[], trade: string, who: string, day: number,
+): Sworn | null {
+  const on = Math.floor(day);
+  if (!Number.isFinite(on)) return null;
+  if (held.some((one) => one.trade === trade && one.day === on)) return null;
+  return { trade, who, day: on };
+}
