@@ -1555,7 +1555,7 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #touchPanels .touch-btn { width: var(--band-tabs); height: var(--band-tabs); font-size: 19px; }
   #touchPanels .touch-btn + .touch-btn {
     border-left: none;
-    border-top: var(--ui-scale) solid rgba(214, 221, 255, 0.10);
+    border-top: var(--ui-scale) solid color-mix(in srgb, var(--rule) 10%, transparent);
   }
   /* the rail keeps its job on a narrow window, it only gets narrower */
   #titleRail { flex-basis: 232px; padding: 22px 20px 18px; gap: 20px; }
