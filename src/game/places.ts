@@ -525,10 +525,7 @@ export class Places {
     if (!visit) return null;
     const { player, state } = this.ctx;
     const chest = visit.world.chestNear(player.x, player.z, REACH.CHEST, state.opened);
-    if (chest >= 0) {
-      if (!preview) this.openChest(chest);
-      return 'chest';
-    }
+    if (chest >= 0) { if (!preview) this.openChest(chest); return 'chest'; }
     if (visit.world.lockedDoorAt(player.x, player.z, REACH.DOOR)) return 'locked';
     if (visit.world.nearDescent(player.x, player.z, REACH.STAIRS)) return 'descent';
     if (visit.world.nearStairs(player.x, player.z, REACH.STAIRS)) return 'stairs';
@@ -695,10 +692,7 @@ export class Places {
     if (!visit) return null;
     const { player } = this.ctx;
     if (visit.keeper && visit.world.nearKeeper(player.x, player.z)) return 'keeper';
-    if (visit.world.atDoor(player.x, player.z)) {
-      if (!preview) this.leaveBuilding();
-      return 'left';
-    }
+    if (visit.world.atDoor(player.x, player.z)) { if (!preview) this.leaveBuilding(); return 'left'; }
     return null;
   }
 }

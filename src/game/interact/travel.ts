@@ -155,8 +155,8 @@ export function travelInteractions(ctx: Surroundings) {
         });
         return true;
       }
-      return false;
     }
+    return false;
   };
 
   const ferryLabel = (): string => {

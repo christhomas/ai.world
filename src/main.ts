@@ -527,7 +527,6 @@ export function startGame(
     craft: () => craft,
   });
   const { atHand: talkNearest, offerTrade, partyMenu, noticeStall, takeShare, musterHires, hireFallen, hireMenu, tryGive } = interactions;
-  hud.onAction = talkNearest;
   splitTakings = takeShare;
   villageWelcome = interactions.villageWelcome;
   // something that comes to a camp in the night has to be put in the world by somebody who can
@@ -608,6 +607,7 @@ export function startGame(
     bound,
     companyMarkers: multiplayer.markers,
     fogged: () => !state.can('map'),
+    action: { at: () => interactions.action(), take: talkNearest },
     rankOf: (village) => register.rankOf(village),
     cameraTarget: () => iso.target,
     discover,
@@ -682,11 +682,7 @@ export function startGame(
     mount, sailing, breath, magic, plots, houses, fishing, heroGear, packField, cropField,
     buildingSite, villageRoofs, ownBoat, minimap, worldMap, hud, sound, online, remains,
     autoQuality, director, walked, castbar, blows, tidings, watch, announceWindUps, onAttack,
-    noticeStall, musterHires, startTalk,
-    updateHud: (dt, area, weather) => {
-      updateHud(dt, area, weather);
-      hud.setAction(interactions.action());
-    }, mapInput, markers, doorsteps, streamCountry, areaName,
+    noticeStall, musterHires, startTalk, updateHud, mapInput, markers, doorsteps, streamCountry, areaName,
     arriving, outdoors, persist,
     talking: () => dialogue.isOpen,
     tickDialogue: (dt) => dialogue.update(dt),

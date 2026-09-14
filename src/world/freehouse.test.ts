@@ -47,7 +47,7 @@ describe('and somebody who actually offers the bed', () => {
   it('is offered where the hero is standing, since there is nobody to talk to', () => {
     expect(body('src/game/interact/village.ts')).toContain('whatABedCosts(');
     expect(body('src/game/interact/index.ts'), 'the indoors chain never reaches it')
-      .toContain('village.tryFreeBed()');
+      .toContain('village.tryFreeBed(');
   });
 
   it('asks the register whose house it is, rather than keeping a second copy', () => {
