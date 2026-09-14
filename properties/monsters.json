@@ -45,7 +45,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "bat": {
     "note": [
@@ -86,7 +87,8 @@
       "*screeches*"
     ],
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "slime": {
     "note": "Slow enough to walk away from at any point, which is what makes it the safe fight: the gem is rare enough to be worth the time and the time is always yours.",
@@ -442,7 +444,8 @@
     "gold": [
       0,
       0
-    ]
+    ],
+    "drop": {}
   },
   "dragon": {
     "note": [

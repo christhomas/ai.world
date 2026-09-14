@@ -37,12 +37,12 @@ export function take(params: Params): CreatureNode {
   return (tick) => {
     const { self, quarry, remove } = tick.world;
     const prey = quarry(self, number(params, 'reach', 1.8));
-    if (!prey) return 'failure';
+    if (!prey || !prey.kind.drop) return 'failure';
     remove(prey);
     // onto the shoulder through the same deed a chest and a rucksack use. A shoulder holds one kind
     // of thing, which `carriedBy` is what says: given a second it drops what it had, because a man
     // walking to market has two hands
-    carriedBy(self).give(prey.kind.drop?.id ?? 'meat', 1);
+    carriedBy(self).give(prey.kind.drop.id, 1);
     self.state = 'idle';
     self.timer = 1;
     return 'success';
