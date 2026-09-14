@@ -55,6 +55,14 @@ function exportsOf(text: string): string[] {
   return names;
 }
 
+/** Explanation keys whose exported declaration no longer exists. */
+function staleExplanations(source: ReadonlyMap<string, string>, explanations: ReadonlyMap<string, string>): string[] {
+  const offered = new Set<string>();
+  for (const [path, text] of source) {
+    for (const name of exportsOf(text)) offered.add(`${path}: ${name}`);
+  }
+  return [...explanations.keys()].filter((one) => !offered.has(one));
+}
 /**
  * What was already like this when the bench was written, and the reason it is a number.
  *
@@ -71,6 +79,27 @@ function exportsOf(text: string): string[] {
  * Lower it when you triage. Never raise it.
  */
 const ALREADY_LIKE_THIS = 43;
+const ALREADY_UNEXPLAINED = 30;
+
+/**
+ * Reviewed exceptions. Every reason names the consumer that owns the export or the issue blocking
+ * its caller. Entries whose declaration disappears fail the bench instead of becoming suppressions.
+ */
+const EXPLAINED = new Map<string, string>([
+  ['src/dungeon/castlerooms.ts: HANGS_ON_WALLS', 'castle.test checks that file-driven hangings occupy walls'],
+  ['src/entities/monsters.ts: MONSTER_KINDS', 'monster tests inspect the curated monster kinds'],
+  ['src/entities/motion.ts: FLINCH_LASTS', 'motion tests use the exported duration as their timing boundary'],
+  ['src/entities/spawns.ts: DUNGEON_MONSTERS', 'danger tests exercise every shallow-dungeon spawn kind'],
+  ['src/entities/villain.ts: VILLAIN_KINDS', 'villain tests inspect the curated villain kinds'],
+  ['src/game/brewing.ts: RECIPE', 'brewing tests verify the recipe table consumers must satisfy'],
+  ['src/game/predicted.ts: claimsFor', 'prediction tests guard claim ownership across replay'],
+  ['src/game/predicted.ts: inTheHand', 'prediction tests guard held-item state across replay'],
+  ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
+  ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
+  ['src/world/farmbuilds.ts: whichFarmerBuilds', 'reserved for the timber-yard handoff tracked by issue #36'],
+  ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
+  ['src/world/vocabulary.ts: HOLDINGS', 'vocabulary tests verify every holding has words'],
+]);
 /*
  * It said 198 on its first run and 43 on its second, and the difference was all instrument.
  *
@@ -120,22 +149,45 @@ describe('work that nothing reaches', () => {
       }
     }
     orphans.sort();
+    const stale = staleExplanations(source, EXPLAINED);
+    const unexplained = orphans.filter((one) => !EXPLAINED.has(one));
+    const explained = orphans.filter((one) => EXPLAINED.has(one));
     writeFileSync(REPORT, [
       `UNREACHED — ${orphans.length} exported names reached only by their own tests`,
+      `UNEXPLAINED — ${unexplained.length} have no recorded reason`,
       '',
-      '  Written, tested, and called by nothing in the game. Some are constants a test imports to',
-      '  check a table against, which is mild. Some are a whole feature with a guard on it and',
-      '  nothing behind it, which is how an injury system sat here unreachable while its tests',
-      '  passed. Triage tells them apart; this only counts them.',
+      '  A reviewed test-owned invariant or a named blocking issue can explain an export. Everything',
+      '  else stays in the first list until somebody traces, removes, or wires it.',
       '',
-      ...orphans.map((one) => `  ${one}`),
+      'UNEXPLAINED',
+      ...(unexplained.length ? unexplained.map((one) => `  ${one}`) : ['  (none)']),
+      '',
+      'EXPLAINED',
+      ...(explained.length
+        ? explained.map((one) => `  ${one} — ${EXPLAINED.get(one)}`)
+        : ['  (none)']),
       '',
       `  Written by src/world/reachable.test.ts to ${REPORT}. Run it again with: chore reachable`,
       '',
     ].join('\n'));
 
-    // a ratchet, not a gate: what matters is that it never grows. See `ALREADY_LIKE_THIS`
+    expect(stale, 'explanations for removed exports must be removed').toEqual([]);
+    // Two ratchets: no new orphan at all, and no new orphan without an explicit reason.
     expect(orphans.length, `work fell out of the program — see ${REPORT}`)
       .toBeLessThanOrEqual(ALREADY_LIKE_THIS);
+    expect(unexplained.length, `unexplained work fell out of the program — see ${REPORT}`)
+      .toBeLessThanOrEqual(ALREADY_UNEXPLAINED);
+  });
+
+  it('retires explanations from declarations, not textual reachability guesses', () => {
+    const source = new Map([
+      ['src/a.ts', 'export const RECIPE = 1;'],
+      ['src/b.ts', '// RECIPE is deliberately only mentioned in prose'],
+    ]);
+    const explanations = new Map([['src/a.ts: RECIPE', 'test-owned invariant']]);
+
+    expect(staleExplanations(source, explanations)).toEqual([]);
+    source.set('src/a.ts', 'const RECIPE = 1;');
+    expect(staleExplanations(source, explanations)).toEqual(['src/a.ts: RECIPE']);
   });
 });
