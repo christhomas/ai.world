@@ -3498,26 +3498,19 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       and then go to the doctor, take a bed, buy medicine, or be treated for nothing. Another
       dimension for the register's people, and the first use the doctor has ever had.
 
-- [~] **37. The hall holds the money until the work is done.** *The seat is built and the letter of
-      it is argued against, on the 13th.* `postings.ts` has the builder's row in its table —
-      `crew` on a yard, wanting `can_build` — deliberately empty, because a job is a holding this
-      world does not raise yet.
+- [x] **37. The hall holds the money until the work is done.** *Done on the 14th.* A player
+      commission is now a persistent job on the hall's books rather than an arrangement with the
+      pub's regular. Its deposit funds one twelve-gold day at a time, and `crewsToday` chooses a
+      living holder of `can_build` afresh each morning. The worker is not written onto the job.
 
-      The divergence is worth reading before anybody builds the rest. The item says the money is
-      handed over when the thing is standing; the argument against is that **a fee held for a dead
-      man dangles, and the way out is to stop holding it.** What the player pays stays a price paid
-      once, and what the *village* does with it is a day of building bought each morning from
-      whoever turns up — which has the property escrow does not: a builder who dies on day four has
-      been paid for the four days he worked, and his replacement is paid for the two that are left.
-      Under escrow the dead man's four days go to his successor, which is wrong.
+      Progress is the number of paid days actually worked, persisted with the commission; elapsed
+      calendar days no longer finish a new house by themselves. The completed job releases what is
+      left of its deposit to the village when the balance is settled. Old saves without a work
+      count retain their calendar-derived progress.
 
-      What is left is the holding: a job on the hall's books that a builder can be posted to, which
-      is the thing `crew` is waiting for. You pay the mayor, not the builder;
-      the builder registers the job at the hall; the money is handed over when the thing is
-      standing. That is what lets another builder take over a half-built house when the first one is
-      killed — and it answers the objection that kept builders off the register in the first place,
-      that "a builder who can be carried off by a wolf half way through the job is a house that
-      dangles".
+      The regression kills the first builder after four mornings, reloads the hall's book, rejects
+      a duplicate fifth-day payment, pays a replacement for the last two mornings, and finds the
+      six-day house standing on day seven.
 
 - [x] **38. A dragon takes the herd.** *Done on the 13th.* A dragon carries off cattle where a band
       takes people, and the difference is a difference in kind rather than a number: wolves take

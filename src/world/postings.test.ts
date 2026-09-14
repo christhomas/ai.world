@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ownedBy, ownerFromSave } from './holdings';
-import { POST, POSTINGS, couldStand, postsToday, turnedAway, wageForAGuard, wagesOwed } from './postings';
+import { POST, postsToday, turnedAway, wageForAGuard, wagesOwed } from './postings';
 import { PROSPER } from './prosperity';
 import type { Person } from './people';
 
@@ -150,23 +150,5 @@ describe('what the post is worth to the man who paid for it', () => {
     expect(owed.get(ownedBy(two))).toBe(wageForAGuard(1));
     expect([...owed.values()].reduce((sum, much) => sum + much, 0))
       .toBe(posts.reduce((sum, post) => sum + post.wage, 0));
-  });
-});
-
-describe('the seat the builder will sit in', () => {
-  it('is in the table already, with the thing that decides who may take it', () => {
-    /*
-     * Item 37 in one row. A builder's job is a post on the yard, funded by the hall rather than by
-     * a villager, and who takes it is whoever knows how to build — which is `canDo`, asked here.
-     * It is left empty in the way `SORTS` left the yard and the boat empty and said so: a job is a
-     * holding this world does not raise yet, and when it does, nothing here changes.
-     */
-    const crew = POSTINGS.find((posting) => posting.kind === 'crew')!;
-    expect(crew.on).toBe('yard');
-    expect(couldStand(villager('builder', 0), crew), 'a builder could not take a building job').toBe(true);
-    expect(couldStand(villager('farmer', 0), crew), 'a farmer was handed a building job').toBe(false);
-    // and a guard is work anybody can do, which is why a village posts its spare hands
-    const guard = POSTINGS.find((posting) => posting.kind === 'guard')!;
-    expect(couldStand(villager('soldier', 0), guard)).toBe(true);
   });
 });

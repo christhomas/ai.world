@@ -3,12 +3,15 @@ import {
   BUILD, CATALOGUE, Houses, buildable, builderIn, daysFor, deposit, isFinished, onOffer, owed,
   progressOf, saidOfJob, stageAt, stillOnItsSite, storeysOf, type Commission, BUILDS,
 } from './building';
+import { workTheHallJobs } from './halljobs';
 // the four "may it go here" rules came out of `building.ts` when a jetty joined the catalogue and
 // that file ran out of room; they are the same functions and these are the same tests of them
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from './siting';
 import { jettiesIn, mooringOf } from './jetties';
 import { BOAT, moorageFor } from './sailing';
 import { GRUDGE } from './grudge';
+import { POST } from '../world/postings';
+import { Register } from '../world/register';
 
 const job = (began = 10): Commission => ({
   id: 'house:1', x: 20, z: 20, village: 'Ashford', began, paid: deposit(), price: BUILD.PRICE,
@@ -106,6 +109,40 @@ describe('having a house built', () => {
 describe('a commission that outlives the session', () => {
   const reload = (h: Houses): Houses => Houses.from(JSON.parse(JSON.stringify(h.toJSON())));
 
+  it('keeps a six-day job when its first builder dies on day four', () => {
+    const register = new Register(7);
+    register.settle('Ashford', 10, ['builder']);
+    const houses = new Houses();
+    houses.takeOn('Ashford', BUILD.PRICE, deposit());
+    houses.place(20, 20, 1);
+    const wages = new Map<string, number>();
+    const living = (): ReturnType<Register['living']> => register.living('Ashford');
+    const pay = (who: ReturnType<Register['living']>[number], much: number): void => {
+      wages.set(who.id, (wages.get(who.id) ?? 0) + much);
+    };
+
+    const firstDay = workTheHallJobs(houses, 2, living, pay);
+    for (let day = 3; day <= 5; day++) workTheHallJobs(houses, day, living, pay);
+    const first = firstDay[0]?.who;
+    expect(first).toBeDefined();
+    expect(register.bury(first!, 5)?.kind).toBe('died');
+    expect(register.find(first!)).toBeUndefined();
+
+    const afterTheDeath = reload(houses);
+    expect(workTheHallJobs(afterTheDeath, 5, living, pay)).toEqual([]);
+    const fifthDay = workTheHallJobs(afterTheDeath, 6, living, pay);
+    const sixthDay = workTheHallJobs(afterTheDeath, 7, living, pay);
+    const replacement = fifthDay[0]?.who;
+    expect(replacement).toBeDefined();
+    expect(replacement).not.toBe(first);
+    expect(sixthDay[0]?.who).toBe(replacement);
+    const saved = afterTheDeath.entries()[0];
+    expect(isFinished(saved, 7)).toBe(true);
+    expect(saved.worked).toBe(6);
+    expect(wages.get(first!)).toBe(POST.BUILDER * 4);
+    expect(wages.get(replacement!)).toBe(POST.BUILDER * 2);
+    expect(saved.fund).toBe(deposit() - POST.BUILDER * 6);
+  });
   it('remembers a builder taken on before there is anywhere to put the house', () => {
     const h = new Houses();
     h.takeOn('Ashford', BUILD.PRICE, deposit());
@@ -127,6 +164,7 @@ describe('a commission that outlives the session', () => {
     const job = h.place(20, 20, 10)!;
     expect(h.hired).toBeNull();
     expect(job.paid).toBe(deposit());
+    for (let day = 11; day <= 10 + BUILD.DAYS; day++) h.work(job, day, POST.BUILDER);
     expect(owed(job, 10 + BUILD.DAYS)).toBe(BUILD.PRICE - deposit());
   });
 
@@ -161,14 +199,18 @@ describe('a commission that outlives the session', () => {
  * tools. It is that the village he drinks in hears about it, once a day, until it is settled.
  */
 describe('a house that has not been paid for', () => {
-  const started = (): { houses: Houses; job: Commission } => {
+  const started = (finish = true): { houses: Houses; job: Commission } => {
     const houses = new Houses();
     houses.takeOn('Ashford', BUILD.PRICE, deposit());
-    return { houses, job: houses.place(20, 20, 10)! };
+    const job = houses.place(20, 20, 10)!;
+    if (finish) {
+      for (let day = 11; day <= 10 + BUILD.DAYS; day++) houses.work(job, day, POST.BUILDER);
+    }
+    return { houses, job };
   };
 
   it('costs nothing at all while the work is still going on', () => {
-    const { houses } = started();
+    const { houses } = started(false);
     expect(houses.charge(12)).toEqual([]);
     expect(houses.charge(10 + BUILD.DAYS)).toEqual([]);
   });

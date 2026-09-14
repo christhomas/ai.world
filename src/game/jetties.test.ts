@@ -3,6 +3,7 @@ import { BUILD, BUILDS, Houses, buildable, deposit, onOffer, type Commission } f
 import { canBuildOnShore } from './siting';
 import { jettiesIn, mooringOf } from './jetties';
 import { BOAT, moorageFor } from './sailing';
+import { POST } from '../world/postings';
 
 /**
  * The first tech tree this game has: a jetty, and then boats off it.
@@ -30,11 +31,18 @@ const shore = (over: Partial<{ toWater: number; toJetty: number; level: number }
 const onShore = (wants: typeof jetty, over = {}) =>
   canBuildOnShore(wants, 0, 0, true, village, [], true, shore(over));
 
-/** A jetty standing at the given spot, run out the given way. */
-function built(x: number, z: number, rot: number, began = 1): Commission {
+/** A commissioned jetty and the hall book that advances its paid work. */
+function commissioned(x: number, z: number, rot: number, began = 1): { houses: Houses; job: Commission } {
   const houses = new Houses();
   houses.takeOn('Ashford', jetty.price, deposit(jetty.price), BUILDS.JETTY);
-  return houses.place(x, z, began, rot)!;
+  return { houses, job: houses.place(x, z, began, rot)! };
+}
+
+/** A jetty standing at the given spot, run out the given way. */
+function built(x: number, z: number, rot: number, began = 1): Commission {
+  const { houses, job } = commissioned(x, z, rot, began);
+  for (let day = began + 1; day <= began + jetty.days; day++) houses.work(job, day, POST.BUILDER);
+  return job;
 }
 
 describe('a jetty, and the boats that follow it', () => {
@@ -103,9 +111,11 @@ describe('every jetty in the world, however it got there', () => {
      * to be handed to. What an unpaid balance costs is what it costs for a house — the village
      * hears about it every morning.
      */
-    const mine = built(10, 0, 0);
-    expect(jettiesIn([], [mine], 1 + jetty.days - 1), 'boats tied up to a row of piles').toHaveLength(0);
-    expect(jettiesIn([], [mine], 1 + jetty.days)).toHaveLength(1);
+    const { houses, job } = commissioned(10, 0, 0);
+    for (let day = 2; day < 1 + jetty.days; day++) houses.work(job, day, POST.BUILDER);
+    expect(jettiesIn([], [job], 1 + jetty.days - 1), 'boats tied up to a row of piles').toHaveLength(0);
+    houses.work(job, 1 + jetty.days, POST.BUILDER);
+    expect(jettiesIn([], [job], 1 + jetty.days)).toHaveLength(1);
   });
 
   it('counts nothing else anybody has had built', () => {
