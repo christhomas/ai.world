@@ -6,7 +6,7 @@ import { workTheHallJobs } from '../halljobs';
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
 import { jettiesIn, type Mooring } from '../jetties';
 import { moorageFor } from '../sailing';
-import { give, holds, purseOf } from '../../world/deeds';
+import { give, holds } from '../../world/deeds';
 import { boxOf, handOver, packOf } from '../../world/goods';
 import { settle } from '../../world/works';
 import { villageTill } from '../tills';
@@ -677,7 +677,6 @@ export function builderInteractions(ctx: Surroundings) {
     }
     const worked = workTheHallJobs(
       houses, state.day, (village) => register.living(village),
-      (who, wage) => { purseOf(who).give(wage); },
     );
     const bills = houses.charge(state.day);
     if (worked.length === 0 && bills.length === 0) return;
