@@ -199,20 +199,22 @@ type HallPost = {
 
 export const POSTS: readonly HallPost[] = [
   /*
-   * Unlike a watchman, a constable already holds the work as a trade. The station comes from the
-   * seed rather than the hall's building ledger, so this post hangs off the trade itself. Its wage
-   * matches the outside income it replaces: the change is who pays, not how rich the constable is.
-   */
-  { held: 'constable', job: 'constable', wage: PROSPER.A_DAY, per: 20 },
-  /*
    * The watch, which is a rota and not a man.
    *
    * One per twenty souls, because what a watch covers is the place rather than the tower: a hamlet
    * needs somebody up there at night and a town of ninety needs somebody up there all night, which
    * is three people taking turns. whoStandsWatch named exactly one and that is what it stays for
    * — the man on the tower now, for whoever is asking who to talk to — while this is the payroll.
+   * It remains first because house construction reserves this wage before spending: a new contract
+   * must not turn an already-manned tower into an empty one.
    */
   { of: 'watchtower', job: 'watchman', wage: WATCH_WAGE, per: 20 },
+  /*
+   * Unlike a watchman, a constable already holds the work as a trade. The station comes from the
+   * seed rather than the hall's building ledger, so this post hangs off the trade itself. Its wage
+   * matches the outside income it replaces: the change is who pays, not how rich the constable is.
+   */
+  { held: 'constable', job: 'constable', wage: PROSPER.A_DAY, per: 20 },
   /* Somebody has to draw the water, sweep the yard and mend the rope. One is enough for anywhere. */
   { of: 'well', job: 'water carrier', wage: 6, per: 60 },
   /* A bath house is fires, water and a floor to mop, and it is open every day it is not frozen. */
@@ -242,7 +244,7 @@ function postIsHeld(post: HallPost, built: readonly string[], people: readonly P
  * prefers whoever holds no trade, then the youngest trade-holder when everybody already has work.
  * Nobody fills two posts on the same day.
  *
- * And the hall pays only what it can. Posts are considered in listed order, so law and the watch
+ * And the hall pays only what it can. Posts are considered in listed order, so the watch and law
  * come before amenities; once the treasury cannot meet the next wage, the remaining posts go
  * unfilled for the day.
  */

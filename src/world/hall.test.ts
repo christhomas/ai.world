@@ -38,6 +38,15 @@ describe('the constable on the hall books', () => {
   it('sends nobody when the hall cannot afford the constable', () => {
     expect(whoTheHallEmploys(PROSPER.A_DAY - 0.01, [], [constable('law')])).toBeNull();
   });
+
+  it('does not let a constable displace the watch whose wage construction reserves', () => {
+    const law = constable('law');
+    const watch = idle('watch');
+    const employed = whoTheHallEmploys(WATCH_WAGE, ['watchtower'], [law, watch]);
+
+    expect(employed?.watch).toBe(watch.id);
+    expect(employed?.paid).toEqual(new Map([[watch.id, WATCH_WAGE]]));
+  });
 });
 
 const paid = (wages: Map<string, number>): number =>
