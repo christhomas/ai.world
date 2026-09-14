@@ -194,7 +194,6 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
       }
       /*
        * And the price that is not money.
-       *
        * Asked before a coin moves, because the deposit is not refundable and a man who took it and
        * then found he had no timber would have sold you a wait. He does not offer to order it in
        * either: that is the whole point of the material, and the answer a village with an empty

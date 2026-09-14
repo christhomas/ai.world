@@ -575,8 +575,6 @@ export function startGame(
     flash: (message) => hud.flash(message),
   });
 
-  // what the world stands up round the hero: the bands, Old Nettle, the keepers, the whales and
-  // the camps somebody else pitched
   const watch = createWatch({
     seed, player, state, structures, sampler, chunks, entities, roaming, nemesis, director,
     sailing, sound, persist,
