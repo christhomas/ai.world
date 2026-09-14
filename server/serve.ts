@@ -6,7 +6,11 @@ import { FileVault } from './filevault';
 import { Simulation } from './sim';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
-import { addAccount, openAccounts, sweepSessions } from './tools/accounts';
+import { addAccount, migrate as migrateAccounts, sweepSessions } from './tools/accounts';
+import { migrateDomain, openDurable } from './durable/db';
+import { MINDS_SCHEMA } from './durable/minds';
+import { join } from 'node:path';
+import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 
 /**
@@ -53,8 +57,12 @@ export interface ServerOptions {
    * the same reason: on a box reachable from the internet, a door that is not there beats a door
    * that is locked. `index.ts` reads both from the environment.
    */
-  toolsDb?: string;
   toolsSecret?: string;
+  /**
+   * Where the durable database lives. Defaults to `ai-world.sqlite` beside the worlds; `null`
+   * turns it off entirely, which is what a test that wants nothing on disk asks for.
+   */
+  durableDb?: string | null;
   /** Whether an `X-Forwarded-Proto` in front of this server can be believed. See `overHttps`. */
   trustProxy?: boolean;
 }
@@ -91,14 +99,13 @@ function wireFor(socket: WebSocket): Wire {
  * an async function and a route that returns a promise to a caller checking it for `true` is a
  * route that never fires. The handler owns the response from the moment it says yes.
  */
-function openTools(file: string, secret: string, trustProxy: boolean, quiet: boolean) {
-  const db = openAccounts(file);
+function openTools(db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean) {
+  migrateAccounts(db);
   const { made, say } = bootstrapAccount(db, process.env, addAccount);
   if (say && !quiet) (made ? console.log : console.error)(say);
   sweepSessions(db);
   const portal = portalFor({ db, secret, trustProxy });
   return {
-    db,
     takes: (req: IncomingMessage, res: ServerResponse): boolean => {
       if (whatIsAsked(req.method, req.url).want === 'nothing') return false;
       void portal(req, res).catch(() => {
@@ -117,7 +124,21 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   // `ground: true`: the server grows the world it is serving and owns the creatures in it, which
   // is what makes two players in one field look at the same deer. It costs about a tenth of a
   // second and twenty megabytes a world, measured, plus a couple of per cent of a core per player.
-  const sim = new Simulation({ dataDir, vault: new FileVault(), ground: true });
+  /*
+   * The one durable database, if this deployment has been given one.
+   *
+   * Both the tools portal and the half of a villager that no seed implies live in it, in their own
+   * tables — see `durable/db.ts` for why that is one file rather than two. Opened here so that the
+   * simulation and the portal are handed the same handle rather than each opening the same path,
+   * which is two write locks on one file and a `SQLITE_BUSY` waiting to happen.
+   */
+  const durable = options.durableDb === null ? null
+    : openDurable(options.durableDb ?? join(dataDir, 'ai-world.sqlite'));
+  // the villagers' own tables, migrated here rather than in `minds.ts`: that file is imported by
+  // `sim.ts`, which a page playing alone runs in a Web Worker, and a value import of `node:sqlite`
+  // anywhere in that chain is a browser bundle reaching for a node built-in
+  if (durable) migrateDomain(durable, 'register', MINDS_SCHEMA);
+  const sim = new Simulation({ dataDir, vault: new FileVault(), ground: true, minds: durable ?? undefined });
   const rooms = sim.rooms;
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;
@@ -126,8 +147,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
    * sign with. Opened before the first request rather than on one, because a bootstrap that fails
    * has to fail at boot where somebody is reading the log.
    */
-  const tools = options.toolsDb && options.toolsSecret
-    ? openTools(options.toolsDb, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false)
+  const tools = durable && options.toolsSecret
+    ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false)
     : null;
   const http = createServer((req, res) => {
     if (tools && tools.takes(req, res)) return;
@@ -184,8 +205,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       for (const socket of sockets.clients) socket.terminate();
       await new Promise<void>((done) => sockets.close(() => done()));
       await new Promise<void>((done) => http.close(() => done()));
-      // and the portal's file handle, or a test that opens twenty servers holds twenty databases
-      tools?.db.close();
+      // and the database, or a test that opens twenty servers holds twenty write locks
+      durable?.close();
     },
   };
 }
