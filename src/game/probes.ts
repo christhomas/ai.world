@@ -176,6 +176,21 @@ export function whichShopsToTry<T extends { name: string; x: number; z: number }
     Math.hypot(one.x - hero.x, one.z - hero.z) - Math.hypot(two.x - hero.x, two.z - hero.z));
 }
 
+/**
+ * Leave the building a shop probe is in, and report where the hero is afterward.
+ *
+ * The callback boundary keeps this rule testable without standing up the browser's full probe
+ * context. No building means no action and no place name; an interior is closed before the new
+ * place is read.
+ */
+export function leaveShop(
+  indoors: Places['indoors'], leaveBuilding: () => void, placeName: () => string,
+): string | null {
+  if (!indoors) return null;
+  leaveBuilding();
+  return placeName();
+}
+
 export function installProbes(ctx: Probed): void {
   const {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
@@ -631,7 +646,7 @@ export function installProbes(ctx: Probed): void {
     }
     return null;
   };
-  /*
+  /**
    * And out again, which nothing could do.
    *
    * `__enterShop` walks the hero through a door and the only ways back out were walking into it
@@ -640,10 +655,7 @@ export function installProbes(ctx: Probed): void {
    * page load, which is the other half of why the walk in item 106 could not be written: reading
    * two quotes in two countries needs a second shop and there was no way to reach one.
    */
-  (debug as { __leaveShop?: () => string | null }).__leaveShop = () => {
-    if (!places.indoors) return null;
-    places.leaveBuilding();
-    return placeName();
-  };
+  (debug as { __leaveShop?: () => string | null }).__leaveShop = () =>
+    leaveShop(places.indoors, () => places.leaveBuilding(), placeName);
   debug.__standAtCounter = () => { commandWorld.standAtCounter(); };
 }
