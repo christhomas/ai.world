@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { whatEachSaid, whatShipped } from './release';
+import { howTheChecksStand, whatEachSaid, whatShipped } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -78,9 +78,9 @@ describe('what a release writes down about itself', () => {
    * Found from the repository rather than from the working directory.
    *
    * These read two files by relative path, which worked here and failed in the pipeline for three
-   * and a half hours across eighteen runs — and failed *quietly*, because `indexOf` answers -1 for
-   * a section that is not there and `slice(-1)` is the last character of the file rather than an
-   * error. So the test reported "expected '\n' to contain (CHANGELOG.md)", which names the symptom
+   * and a half hours across eighteen runs — and failed *quietly*, because `indexOf` answers -1 for a
+   * section that is not there and `slice(-1)` is the last character of the file rather than an
+   * error. So the test reported "expected '\\n' to contain (CHANGELOG.md)", which names the symptom
    * and hides the cause completely.
    *
    * Both halves are fixed: the path is worked out from this file's own location, and a missing
@@ -134,6 +134,55 @@ describe('what a release writes down about itself', () => {
       expect(full, `${tag} is in the README and not in the changelog`).not.toBeNull();
       expect(said.trim()).toBe(full![1].trim());
     }
+  });
+});
+
+/**
+ * Whether a release may go out yet, read off what the checks say.
+ *
+ * Item 126, found by Greptile on #46. The wait was written as a loop with a twenty-minute deadline
+ * around `gh pr checks --watch`, which blocks until the checks finish — so the body never returned
+ * to the condition, the deadline was evaluated once before anything had happened, and a stuck
+ * runner meant a release that waited for ever with no message. It read as correct because its
+ * neighbour, the merge wait, has the same shape and polls.
+ *
+ * So the watching moves out of `gh` and into a poll on the same fifteen-second rhythm, and this is
+ * the part that decides. It is about *what the states mean*, which is the half worth pinning: a
+ * release that goes out on a red commit is the fault this whole file exists to prevent, and a
+ * release that refuses to go out on a green one is a person sitting and waiting for nothing.
+ */
+describe('how the checks stand', () => {
+  const rows = (...states: string[]) => states.map((state, n) => ({ name: `check ${n}`, state }));
+
+  it('is passed when every one of them is in', () => {
+    expect(howTheChecksStand(rows('SUCCESS', 'SUCCESS'))).toBe('passed');
+  });
+
+  it('is passed when the ones that did not run were skipped rather than failed', () => {
+    // a skipped job is a job a workflow decided not to run, which is not a red commit
+    expect(howTheChecksStand(rows('SUCCESS', 'SKIPPED', 'NEUTRAL'))).toBe('passed');
+  });
+
+  it('is failed the moment one of them is, without waiting for the rest', () => {
+    // the playtest takes two minutes and the suite nine: waiting out the slow one to be told what
+    // the fast one already said is the release standing about for no reason
+    expect(howTheChecksStand(rows('PENDING', 'FAILURE'))).toBe('failed');
+    expect(howTheChecksStand(rows('SUCCESS', 'CANCELLED'))).toBe('failed');
+    expect(howTheChecksStand(rows('TIMED_OUT'))).toBe('failed');
+  });
+
+  it('is waiting while any of them is still going', () => {
+    expect(howTheChecksStand(rows('SUCCESS', 'PENDING'))).toBe('waiting');
+    expect(howTheChecksStand(rows('QUEUED'))).toBe('waiting');
+  });
+
+  /*
+   * The one that decides whether the deadline can fire at all. A pull request seconds old has no
+   * checks on it yet, and "none of them has failed and all of them are in" is true of nothing —
+   * so an empty list read as passed would tag a commit before a single job had started.
+   */
+  it('is waiting when no check has been reported yet, not passed', () => {
+    expect(howTheChecksStand([])).toBe('waiting');
   });
 });
 
