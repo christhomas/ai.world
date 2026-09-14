@@ -99,6 +99,38 @@ jobs:
   # they are drawn, chases one animal by the number the world knows it by and swings at it, walks
   # through a door both ways and looks at the furniture from inside — the faults of the day it was
   # written were all invisible to everything in the job above and obvious in thirty seconds of this.
+  # Flutter owns only the interface and native renderer; the server still owns the world. This job
+  # proves the narrow seam on both hosts: identical Dart parcel/rig buffers, Metal on iOS and GLES3
+  # on Android. One macOS runner can compile both without pretending an iOS build works on Linux.
+  flutter:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: client/flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      # Flutter's Android template currently targets Java 17. Pinning it here prevents a runner JDK
+      # upgrade from changing the Gradle toolchain under an otherwise unchanged phone client.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.1
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test test/renderer_smoke_test.dart
+      - run: flutter build apk --debug
+      - run: flutter build ios --simulator --debug
+
   playtest:
     runs-on: ubuntu-latest
     # A browser that hangs should cost a quarter of an hour, not the six hours a job is allowed by
