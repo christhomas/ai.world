@@ -122,8 +122,21 @@ export function directoryOf(
    * A traveller who swore to work this ground is bounded by it exactly as a villager is: a village
    * with no shore has no fisherman whoever offers, and an oath to a trade the ground never
    * supported is an oath about somewhere else.
+   *
+   * And an oath lapses when the village comes to have its own.
+   *
+   * A village is re-founded from its seed whenever somebody walks over the hill and takes on an
+   * emptied one, and that founding rolls every trade afresh — so a place can end up with a smith of
+   * its own months after a traveller swore to be one. Taking the sworn trades out of that roll would
+   * mean an oath re-rolled the whole population, which is a far stranger thing than the one it
+   * fixes: a traveller taking a job must not change who lives there.
+   *
+   * So the villager wins and the oath is spent. It is also the truthful reading — the post the
+   * traveller took is not vacant any more, and a village with its own smith is not short of one.
+   * What the oath still buys is the thing item 24a asks for: while it stands, nobody is *raised*
+   * into that work. See `tradeTakenUp`.
    */
-  const took = sworn.filter((one) => supported.has(one.trade));
+  const took = sworn.filter((one) => supported.has(one.trade) && !holding.has(one.trade));
   const taken = new Set(took.map((one) => one.trade));
   return {
     holding,
