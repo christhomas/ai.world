@@ -65,11 +65,11 @@ export function villageInteractions(ctx: Surroundings) {
    * Now the door is a door — walk into it and you are in the room — and everything the door used
    * to say is said by the person behind the bar, because that is who was saying it all along.
    */
-  const tryLandlord = (): boolean => {
+  const tryLandlord = (preview = false): boolean => {
     const room = places.indoors;
     if (!room || room.door.kind !== 'inn') return false;
     // he pours a drink facing his own barrels otherwise, which is funny exactly once
-    if (room.keeper) turnToFace(room.keeper, player.x, player.z);
+    if (!preview && room.keeper) turnToFace(room.keeper, player.x, player.z);
     /*
      * The village whose pub this door belongs to, asked by *name* rather than by where the hero is
      * standing — because indoors he is not standing anywhere.
@@ -96,6 +96,7 @@ export function villageInteractions(ctx: Surroundings) {
       if (pub.house.tx !== room.door.bx || pub.house.tz !== room.door.bz) continue;
       const talk = pubTalk(village, structures, seed);
       if (!talk) continue;
+      if (preview) return true;
       const errand = talk.errand;
       const status = errand ? state.quests.get(errand.id) : undefined;
       const settled = errand !== null && status === 'active' && errandDone(errand, state.discovered, (id) => state.count(id));
@@ -182,9 +183,10 @@ export function villageInteractions(ctx: Surroundings) {
    * Walking into one does the same thing without being asked — see `doorways.ts`. This is what you
    * press when you are already standing on the step and would rather not shuffle.
    */
-  const tryDoor = (): boolean => {
+  const tryDoor = (preview = false): boolean => {
     for (const door of structures.doors) {
       if (Math.hypot(door.x - player.x, door.z - player.z) > REACH.BUILDING_DOOR) continue;
+      if (preview) return true;
       places.enterBuilding(door);
       return true;
     }
@@ -210,13 +212,14 @@ export function villageInteractions(ctx: Surroundings) {
    * `whatABedCosts` answers with a number or nothing at all, and the two are different answers
    * rather than degrees of one — a house with a family in it is not dear, it is *theirs*.
    */
-  const tryFreeBed = (): boolean => {
+  const tryFreeBed = (preview = false): boolean => {
     const room = places.indoors;
     // asked of the register rather than kept on the room: `places.ts` works the family out to name
     // the room and has no other use for it, and a second copy is a second thing to disagree
     const family = room && room.door.kind === 'house'
       ? familyOfDoor(structures.villages, register, room.door) : '';
     if (!room || room.door.kind !== 'house' || whatABedCosts(family) === null) return false;
+    if (preview) return true;
     dialogue.start({ speaker: room.title, emoji: '🛏️', pages: [saidOfAFreeHouse(room.door.village)],
       choices: [
         { label: 'Sleep until morning', next: () => {
@@ -246,13 +249,14 @@ export function villageInteractions(ctx: Surroundings) {
    * the game shows and has to keep correct, and a conversation is a thing you *ask*, so it can say
    * nobody has told me. An empty tower is the honest answer surprisingly often.
    */
-  const tryHall = (): boolean => {
+  const tryHall = (preview = false): boolean => {
     for (const village of villagesHere()) {
       const hall = register.hallOf(village.name);
       const body = bodyOfTheHall(hall, village.houses, register.living(village.name), village.hall?.building);
       if (!body) continue;
       const door = doorTile(body);
       if (Math.hypot(door[0] - player.x, door[1] - player.z) > 2.2) continue;
+      if (preview) return true;
       const asked = whatTheHallKnows(register, village.name);
       const ballot = village.hall ? register.ballotOf(village.name) : null;
       const choices: DialogueChoice[] = [{ label: 'That is all', next: () => null }];
@@ -277,10 +281,11 @@ export function villageInteractions(ctx: Surroundings) {
     }
     return false;
   };
-  const tryBoard = (): boolean => {
+  const tryBoard = (preview = false): boolean => {
     for (const village of villagesHere()) {
       if (!village.board) continue;
       if (Math.hypot(village.board[0] - player.x, village.board[1] - player.z) > 2.2) continue;
+      if (preview) return true;
       const quest = quests.get(village.name);
       const status = quest ? state.quests.get(quest.id) : undefined;
       // what this village would post about, which is the same question the pub's talk asks and is
@@ -416,10 +421,11 @@ export function villageInteractions(ctx: Surroundings) {
   const someoneNearerThan = (x: number, z: number): boolean =>
     personWins(player.x, player.z, entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE), x, z);
 
-  const tryStall = (): boolean => {
+  const tryStall = (preview = false): boolean => {
     const pitch = market.nearest(villagesHere(), player.x, player.z);
     if (!pitch) return false;
     if (someoneNearerThan(pitch.x, pitch.z)) return false;
+    if (preview) return true;
     if (!online.connected) {
       dialogue.start({ ...STALL, pages: ['A trestle and a striped awning, waiting for a trader. Join a world online to take it on.'] });
       return true;
@@ -430,9 +436,10 @@ export function villageInteractions(ctx: Surroundings) {
   };
 
   /** Read a fingerpost: names and distances of the nearest settlements. */
-  const trySignpost = (): boolean => {
+  const trySignpost = (preview = false): boolean => {
     for (const post of structures.signposts) {
       if (Math.hypot(post.x - player.x, post.z - player.z) > 2.4) continue;
+      if (preview) return true;
       const lines = post.directions.map((d) => `${d.name} — ${d.dir}, ${d.tiles} tiles`);
       dialogue.start({ speaker: 'Fingerpost', emoji: '🪧', pages: [lines.join('\n')] });
       return true;
@@ -441,8 +448,9 @@ export function villageInteractions(ctx: Surroundings) {
   };
 
   /** Enter near a horse: buy a wild one, or get on and off your own. */
-  const tryHorse = (): boolean => {
+  const tryHorse = (preview = false): boolean => {
     if (mount.riding) {
+      if (preview) return true;
       mount.dismount(player, chunks);
       hud.flash(`You dismount and tie up ${mount.name}.`);
       sound.select();
@@ -450,6 +458,7 @@ export function villageInteractions(ctx: Surroundings) {
       return true;
     }
     if (mount.near(player.x, player.z)) {
+      if (preview) return true;
       mount.mount(player);
       hud.flash(`You swing up onto ${mount.name}.`);
       sound.chime();
@@ -458,6 +467,7 @@ export function villageInteractions(ctx: Surroundings) {
     // horses in the field are half wild; the one you can buy is the stablehand's
     const hand = entities.within(player.x, player.z, GAMEPLAY.TALK_RANGE).find((e) => e.role === 'stablehand');
     if (!hand) return false;
+    if (preview) return true;
     const village = hand.herd.tag || 'the village';
     const home = structures.villages.find((v) => v.name === hand.herd.tag);
     const stable = home ? stableAt(home) : null;
@@ -523,7 +533,7 @@ export function villageInteractions(ctx: Surroundings) {
    * this charges for it, and what you get is a night's rest without an inn. A village that has
    * not got rich has nothing to offer and this says nothing at all.
    */
-  const tryLuxury = (): boolean => {
+  const tryLuxury = (preview = false): boolean => {
     const village = villagesHere()
       .map((v) => ({ v, d: Math.hypot(v.x - player.x, v.z - player.z) }))
       .filter((o) => o.d < o.v.radius)
@@ -533,6 +543,7 @@ export function villageInteractions(ctx: Surroundings) {
     if (luxury === 'none') return false;
     if (someoneNearerThan(village.x, village.z)) return false;
     if (Math.hypot(village.x - player.x, village.z - player.z) > REACH.BUILDING_DOOR + 3) return false;
+    if (preview) return true;
 
     const fee = feeFor(luxury);
     const name = luxury === 'sauna' ? 'the bath house' : 'the pool';

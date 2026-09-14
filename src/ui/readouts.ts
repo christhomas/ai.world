@@ -56,6 +56,18 @@ export interface ReadoutContext {
   /** Whether the fog of war still covers the map. */
   fogged: () => boolean;
   /**
+   * What Enter would do where the hero is standing, and doing it.
+   *
+   * Asked here rather than pushed in from outside, because everything else the corner of the screen
+   * says is asked here: the hour, the weather, the errands, the place name. A caller that wrapped
+   * `updateHud` to add one more would be a second place that knows when the readouts refresh.
+   *
+   * The two halves arrive together because they are one fact — the card names a verb and pressing
+   * it performs that verb, and a card wired to a different act than the one it names is the bug the
+   * card exists to prevent.
+   */
+  action: { at: () => string | null; take: () => void };
+  /**
    * What a village has grown into, which is a thing a player standing in one should be able to see.
    *
    * Handed in rather than reached for, because a readout has no business holding the register: it
@@ -92,9 +104,10 @@ export function createReadouts(ctx: ReadoutContext) {
   const {
     player, state, structures, around, sampler, discovered, questList, ferries, sailing, places,
     rucksack, hud, clock, compass: compassBar, companyMarkers, fogged, cameraTarget, discover, bound,
-    rankOf,
+    rankOf, action,
   } = ctx;
   let areaLabel = 'The Crossroads';
+  hud.onAction = action.take;
 
   /**
    * Everything the big map shows, which is a question about the world rather than about here.
@@ -226,6 +239,7 @@ export function createReadouts(ctx: ReadoutContext) {
     clock.setWeather(weatherGlyph);
     hud.setQuests(questList, state);
     hud.setArea(area);
+    hud.setAction(action.at());
     hud.tick(dt);
     rucksack.refresh();
     if (places.outdoors) compassBar.update(player.x, player.z, compassTargets());

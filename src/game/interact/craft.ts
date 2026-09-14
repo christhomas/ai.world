@@ -1,7 +1,7 @@
 import { PropKind } from '../../world/biomes';
 import { ITEMS } from '../items';
 import {
-  Felling, Fire, OVER_FIRE, WOOD, standOf, timberAt, treeName, type Stand,
+  Felling, Fire, OVER_FIRE, WOOD, fellingAt, standOf, timberAt, treeName, type Stand,
 } from '../woodcraft';
 import type { Surroundings } from './context';
 
@@ -61,7 +61,7 @@ export function craftInteractions(ctx: Surroundings) {
    * A stump and a whip both have something to say, but neither is allowed to speak over a tree
    * that would actually fall, so the excuse is held back until the whole reach has been searched.
    */
-  const tryFell = (): boolean => {
+  const tryFell = (preview = false): boolean => {
     // no saw is not a complaint: a reminder here would fire against every tree in the wood
     if (!state.can('fell')) return false;
 
@@ -76,11 +76,12 @@ export function craftInteractions(ctx: Surroundings) {
         continue;
       }
       // the stand is standing, so the only thing left that can refuse is the tree's own size
-      const cut = felling.fell(seed, tx, tz, stand, now());
+      const cut = preview ? fellingAt(seed, tx, tz, stand) : felling.fell(seed, tx, tz, stand, now());
       if (!cut) {
         excuse ??= `This ${treeName(kind)} is a whip, and not worth the saw.`;
         continue;
       }
+      if (preview) return true;
       const log = ITEMS[cut.item];
       state.give(cut.item, cut.count);
       sound.thud();
@@ -89,6 +90,7 @@ export function craftInteractions(ctx: Surroundings) {
       return true;
     }
     if (!excuse) return false;
+    if (preview) return true;
     hud.flash(excuse);
     return true;
   };
@@ -98,10 +100,11 @@ export function craftInteractions(ctx: Surroundings) {
    * the only thing that can refuse once the pack has been looked through, which is why it is the
    * only refusal written down.
    */
-  const tryKindle = (): boolean => {
+  const tryKindle = (preview = false): boolean => {
     if (!state.can('kindle') || state.count('wood') < WOOD.FIRE_LOGS || !rawInPack()) return false;
     // a fire already burning at your feet is the cook's business, not the fire-lighter's
     if (fire.burning(now()) && fire.near(player.x, player.z)) return false;
+    if (preview) return true;
     const lit = fire.light(player.x, player.z, now(), {
       logs: state.count('wood'), kindling: true, wet: raining(),
     });
@@ -120,10 +123,11 @@ export function craftInteractions(ctx: Surroundings) {
    * Enter at your own fire with something raw in the pack. The fire is the whole requirement:
    * there is no tool for cooking, only having got a fire going in the first place.
    */
-  const tryCook = (): boolean => {
+  const tryCook = (preview = false): boolean => {
     if (!fire.near(player.x, player.z) || !fire.burning(now())) return false;
     const raw = rawInPack();
     if (!raw) return false;
+    if (preview) return true;
     const done = fire.cook(raw, now())!;
     state.take(raw, 1);
     state.give(done, 1);

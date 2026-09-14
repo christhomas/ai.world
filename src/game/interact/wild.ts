@@ -90,9 +90,10 @@ export function wildInteractions(ctx: Surroundings) {
     return null;
   };
 
-  const tryShrine = (): boolean => {
+  const tryShrine = (preview = false): boolean => {
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.Shrine || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
+      if (preview) return true;
       const valley = valleyOf(poi);
       dialogue.start({ speaker: poi.name, emoji: '⛩️', pages: [
         'Worn steps lead down beneath the stones.',
@@ -116,6 +117,7 @@ export function wildInteractions(ctx: Surroundings) {
     // close down there, so it is a place you are inside rather than one you look down at.
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.GiantTree || Math.hypot(poi.x - player.x, poi.z - player.z) > 3.2) continue;
+      if (preview) return true;
       discover(poi.name);
       dialogue.start({ speaker: poi.name, emoji: '🌳', pages: [
         'The branches come down to the ground on every side, and there is a gap where the roots lift. It is dark in there and it does not smell of earth.',
@@ -127,6 +129,7 @@ export function wildInteractions(ctx: Surroundings) {
     }
     for (const cave of structures.caves) {
       if (Math.hypot(cave.x - player.x, cave.z - player.z) > 3.2) continue;
+      if (preview) return true;
       discover(cave.name);
       dialogue.start({ speaker: cave.name, emoji: '🕳️', pages: ['A cold draught comes out of the dark. Go in?'], choices: [
         { label: 'Go in', next: () => { places.enterDungeon(cave, 'cave', mineIdOf(cave)); return null; } },
@@ -150,9 +153,10 @@ export function wildInteractions(ctx: Surroundings) {
    * A pack lying in the grass where somebody was killed. Going through it is a small, grubby
    * decision the game does not moralise about — though something else might, later.
    */
-  const tryRemains = (): boolean => {
+  const tryRemains = (preview = false): boolean => {
     const pack = remains.nearest(player.x, player.z);
     if (!pack) return false;
+    if (preview) return true;
     const named = pack.items.map((id) => ITEMS[id]?.name ?? id);
     const worth = [pack.gold > 0 ? `${pack.gold} gold` : '', ...named].filter(Boolean);
     dialogue.start({
@@ -196,9 +200,10 @@ export function wildInteractions(ctx: Surroundings) {
    * hold was first opened by going below and a wreck first opened by searching it have to end up
    * with the same seed, or two people in one world would find different salvage in the same boat.
    */
-  const tryWreck = (): boolean => {
+  const tryWreck = (preview = false): boolean => {
     for (const wreck of structures.wrecks) {
       if (Math.hypot(wreck.x - player.x, wreck.z - player.z) > 3.4) continue;
+      if (preview) return true;
       discover(wreck.name);
       const anchor = manifest.ensure(`wreck:${wreck.id}`, 'wreck', wreck.x, wreck.z);
       const lootId = `${anchor.id}:hold`;
@@ -250,9 +255,10 @@ export function wildInteractions(ctx: Surroundings) {
   };
 
   /** Rest at a campfire: sleep to dawn, fully healed. */
-  const tryCampfire = (): boolean => {
+  const tryCampfire = (preview = false): boolean => {
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.Campfire || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
+      if (preview) return true;
       dialogue.start({ speaker: poi.name, emoji: '🔥', pages: ['The embers are still warm. Rest here until dawn?'], choices: [
         { label: 'Rest', next: () => { state.rest(); sound.chime(); hud.flash('You sleep by the fire and wake at dawn.'); persist(); return null; } },
         { label: 'Move on', next: () => null },
@@ -284,16 +290,18 @@ export function wildInteractions(ctx: Surroundings) {
     return null;
   };
 
-  const tryFish = (): boolean => {
+  const tryFish = (preview = false): boolean => {
     if (!fishing.active && !state.can('fish')) {
       // carrying a rod is not the same as holding one
       if (state.has('rod') && waterNearby()) {
+        if (preview) return true;
         hud.flash('Hold the fishing rod in your off hand to cast (I).');
         return true;
       }
       return false;
     }
     if (fishing.active) {
+      if (preview) return true;
       const caught = fishing.strike();
       if (caught) {
         state.give(caught.id, 1);
@@ -308,6 +316,7 @@ export function wildInteractions(ctx: Surroundings) {
     }
     const spot = waterNearby();
     if (!spot) return false;
+    if (preview) return true;
     fishing.cast(spot[0], spot[1], sampler.probe(player.x, player.z).biome, seed, state.day, raining());
     sound.select();
     return true;
@@ -324,19 +333,24 @@ export function wildInteractions(ctx: Surroundings) {
    * Enter with a shovel in hand: turn over the tile you are standing on. Highlands and hillsides
    * keep metal, meadows mostly keep stones, and a tile gives up what it had only once.
    */
-  const tryDig = (): boolean => {
+  const tryDig = (preview = false): boolean => {
     const tx = Math.floor(player.x), tz = Math.floor(player.z);
     if (!state.can('dig')) {
       // carrying a spade is not the same as holding one, but the reminder only comes where it
       // would have paid, so that a shovel in the pack does not answer every press out in the country
       if (state.has('shovel') && seamAt(seed, tx, tz, underfoot())) {
+        if (preview) return true;
         hud.flash('The gravel here is loose. Hold the shovel in your off hand to dig (I).');
         return true;
       }
       return false;
     }
-    const found = digging.dig(seed, tx, tz, underfoot());
+    const ground = underfoot();
+    const found = preview
+      ? (digging.turned(tx, tz) ? null : seamAt(seed, tx, tz, ground))
+      : digging.dig(seed, tx, tz, ground);
     if (!found) return false;
+    if (preview) return true;
     const item = ITEMS[found.item];
     state.give(item.id, found.count);
     sound.jingle();
@@ -361,15 +375,17 @@ export function wildInteractions(ctx: Surroundings) {
     return `about ${hours} hour${hours === 1 ? '' : 's'} to go`;
   };
 
-  const tryFarm = (): boolean => {
+  const tryFarm = (preview = false): boolean => {
     const tx = Math.floor(player.x), tz = Math.floor(player.z);
     const standing = plots.at(tx, tz);
     if (standing) {
       if (!isRipe(standing, growingDay())) {
+        if (preview) return true;
         const crop = CROPS[standing.crop];
         hud.flash(`${crop.name} coming along: ${untilRipe(crop, standing)} (${Math.round(ripeness(standing, growingDay()) * 100)}%).`);
         return true;
       }
+      if (preview) return true;
       const lifted = plots.harvest(tx, tz, growingDay())!;
       const tile = `${tx},${tz}`;
       // asked rather than announced: the world empties the tile itself when it agrees there was
@@ -390,8 +406,17 @@ export function wildInteractions(ctx: Surroundings) {
     if (seeds.length === 0) return false;
     const village = villageAt(structures.villages, player.x, player.z);
     const nearVillage = village !== null || structures.villages.some((v) => Math.hypot(v.x - player.x, v.z - player.z) < v.radius + 25);
-    if (!nearVillage) { hud.flash('Too far from any village to break ground here.'); return true; }
-    if (!chunks.isPlantable(player.x, player.z)) { hud.flash('Nothing will grow on this ground.'); return true; }
+    if (!nearVillage) {
+      if (preview) return true;
+      hud.flash('Too far from any village to break ground here.');
+      return true;
+    }
+    if (!chunks.isPlantable(player.x, player.z)) {
+      if (preview) return true;
+      hud.flash('Nothing will grow on this ground.');
+      return true;
+    }
+    if (preview) return true;
 
     dialogue.start({
       speaker: 'Bare Earth', emoji: '🌱',

@@ -45,6 +45,9 @@ export class Hud {
   private readonly options = $('optionsPanel');
   private readonly invEl = $('inventory');
   private readonly questEl = $('quests');
+  private readonly actionEl = $<HTMLButtonElement>('actionCard');
+  private readonly actionVerb = $('actionVerb');
+  private shownAction: string | null = null;
   /** Volume slider moved (0..1). */
   onVolumeChange: ((v: number) => void) | null = null;
   onReturnToTitle: (() => void) | null = null;
@@ -62,6 +65,8 @@ export class Hud {
   private shownVersion = -1;
   /** Clicking the pouch opens the rucksack. */
   onOpenRucksack: (() => void) | null = null;
+  /** The contextual card was pressed; identical to pressing Enter in the world. */
+  onAction: (() => void) | null = null;
   /** Options sliders moved: (sun, hemisphere) daytime intensities. */
   onLightChange: ((sun: number, hemi: number) => void) | null = null;
   /** How hard the renderer should work per frame. */
@@ -157,6 +162,7 @@ export class Hud {
 
     $('titleButton').addEventListener('click', () => this.onReturnToTitle?.());
     this.invEl.addEventListener('click', () => this.onOpenRucksack?.());
+    this.actionEl.addEventListener('click', () => this.onAction?.());
   }
 
   /** Redraw health and the carried summary when the state version changed. */
@@ -284,6 +290,15 @@ export class Hud {
    * caller is a version that is right in two places and forgotten in the third the day somebody
    * adds a fourth.
    */
+  /** Name the Enter action, or leave the reserved corner empty when nothing claims it. */
+  setAction(action: string | null): void {
+    if (action === this.shownAction) return;
+    this.shownAction = action;
+    this.actionEl.hidden = action === null;
+    this.actionVerb.textContent = action ?? '';
+    if (action) this.actionEl.setAttribute('aria-label', action);
+    else this.actionEl.removeAttribute('aria-label');
+  }
   setDebug(dt: number, text: () => string): void {
     this.debugAccum += dt;
     if (this.debugAccum < 0.25) return;

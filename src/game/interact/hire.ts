@@ -190,18 +190,23 @@ const TOWER_IN_SIGHT = 70;
    * Enter in front of somebody: your own hired man, or a soldier who would be. Anybody else, and
    * anybody already in somebody else's pay, is left to the ordinary conversation.
    */
-  const tryHire = (): boolean => {
+  const tryHire = (preview = false): boolean => {
     const e = nearestResident();
     if (!e) return false;
 
     const mine = hires.roster(side()).find((b) => b.who === e.person);
-    if (mine) { partCompany(e, mine); return true; }
+    if (mine) {
+      if (preview) return true;
+      partCompany(e, mine);
+      return true;
+    }
     if (hires.has(e.person)) return false;      // somebody else's sword arm is their business
 
     const person = register.find(e.person);
     const village = person ? homeOf(person.village) : null;
     const quote = person && village ? quoteFor(seed, person, village) : null;
     if (!quote) return false;
+    if (preview) return true;
     offerTerms(e, quote);
     return true;
   };

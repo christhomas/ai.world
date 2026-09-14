@@ -194,7 +194,6 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
       }
       /*
        * And the price that is not money.
-       *
        * Asked before a coin moves, because the deposit is not refundable and a man who took it and
        * then found he had no timber would have sold you a wait. He does not offer to order it in
        * either: that is the whole point of the material, and the answer a village with an empty
@@ -404,9 +403,10 @@ export function builderInteractions(ctx: Surroundings) {
     persist();
   };
 
-  const tryBuild = (): boolean => {
+  const tryBuild = (preview = false): boolean => {
     const held = houses.hired;
-    if (!held) return false;
+    // a preview asks only whether Enter would do something here; it answers and does not act
+    if (!held || preview) return held !== null;
     const wants = buildable(held.what);
     const name = builderIn(held.village, seed);
     if (wants.on === 'house') return addToAHouse(wants, name);
@@ -617,11 +617,11 @@ export function builderInteractions(ctx: Surroundings) {
   });
 
   /** Enter at your own house: the box inside it, or the reason there is not one yet. */
-  const tryChest = (): boolean => {
+  const tryChest = (preview = false): boolean => {
     // a house, rather than whatever is nearest: a storey stands on the same tile as the house it
     // is on and a pool three tiles off it, and neither has a strongbox under the window
     const job = houses.nearest(player.x, player.z, AT_THE_DOOR, Houses.isABuilding);
-    if (!job) return false;
+    if (!job || preview) return job !== null;
     const day = today();
     const name = builderIn(job.village, seed);
     if (!isFinished(job, day)) {

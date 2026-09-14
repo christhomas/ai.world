@@ -14,11 +14,12 @@ export function jailInteractions(ctx: Surroundings & { jail: Jail }) {
   const { player, state, structures, jail, dialogue } = ctx;
 
   /** Enter at the cell door: whoever is behind it, or the reason there is nobody. */
-  const tryCell = (): boolean => {
+  const tryCell = (preview = false): boolean => {
     for (const village of structures.villages) {
       const station = village.station;
       if (!station) continue;
       if (Math.hypot(station.doorX + 0.5 - player.x, station.doorZ + 0.5 - player.z) > REACH.BUILDING_DOOR) continue;
+      if (preview) return true;
 
       const speaker = `${village.name} Station`;
       if (jail.lawless(village.name, state.day)) {

@@ -94,9 +94,10 @@ export function wildCampInteractions(ctx: Surroundings) {
    * Enter at somebody else's camp. The pages say what the ground says, so a player who walked up
    * to it already knows which of the two this is before reading a word.
    */
-  const tryWildCamp = (): boolean => {
+  const tryWildCamp = (preview = false): boolean => {
     const camp = underfoot();
     if (!camp) return false;
+    if (preview) return true;
     if (emptied(camp)) {
       dialogue.start({
         speaker: `${camp.who}'s camp`, emoji: '⛺',

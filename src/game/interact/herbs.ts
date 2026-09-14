@@ -1,5 +1,5 @@
 import { ITEMS } from '../items';
-import { Picking, RECIPES, brew, canBrew, missing, patchOf } from '../brewing';
+import { Picking, RECIPES, brew, canBrew, herbAt, missing, patchOf } from '../brewing';
 import type { Surroundings } from './context';
 
 /**
@@ -19,11 +19,14 @@ export function herbInteractions(ctx: Surroundings) {
   /** The day with its fraction, because a plant does not wait for midnight to grow back. */
   const now = (): number => state.day + state.time;
 
-  const tryPick = (): boolean => {
+  const tryPick = (preview = false): boolean => {
     const tx = Math.floor(player.x), tz = Math.floor(player.z);
     sampler.sampleTile(tx, tz, probe);
-    const leaves = picking.pick(seed, tx, tz, patchOf(probe), now());
+    const leaves = preview && !picking.bare(tx, tz, now())
+      ? herbAt(seed, tx, tz, patchOf(probe))
+      : picking.pick(seed, tx, tz, patchOf(probe), now());
     if (leaves <= 0) return false;
+    if (preview) return true;
 
     state.give('herb', leaves);
     sound.select();
@@ -32,8 +35,9 @@ export function herbInteractions(ctx: Surroundings) {
     return true;
   };
 
-  const tryGrind = (): boolean => {
+  const tryGrind = (preview = false): boolean => {
     if (!state.can('grind') || state.count('herb') <= 0) return false;
+    if (preview) return true;
     dialogue.start({
       speaker: 'Mortar and Pestle', emoji: '🥣',
       pages: ['Leaves, and a stone bowl to ruin them in. What are you making?'],

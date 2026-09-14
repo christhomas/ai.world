@@ -78,7 +78,7 @@ export function travelInteractions(ctx: Surroundings) {
     ],
   });
 
-  const tryFerry = (): boolean => {
+  const tryFerry = (preview = false): boolean => {
     const now = worldSeconds(state.day, state.time);
     for (const { line } of ferries) {
       const st = ferryStateAt(line, now);
@@ -86,6 +86,7 @@ export function travelInteractions(ctx: Surroundings) {
       const nearFrom = Math.hypot(line.fromPier.dockX + 0.5 - player.x, line.fromPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
       const nearTo = Math.hypot(line.toPier.dockX + 0.5 - player.x, line.toPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
       if (st.docked && nearBoat) {
+        if (preview) return true;
         const dest = st.docked === 'from' ? 'to' : 'from';
         const destName = dest === 'to' ? line.toName : line.fromName;
         const fare = fareFor(line);
@@ -123,6 +124,7 @@ export function travelInteractions(ctx: Surroundings) {
         return true;
       }
       if (nearFrom || nearTo) {
+        if (preview) return true;
         /*
          * A board on an empty pier, and the one place a boat is for sale.
          *
@@ -157,9 +159,23 @@ export function travelInteractions(ctx: Surroundings) {
     return false;
   };
 
+  const ferryLabel = (): string => {
+    const now = worldSeconds(state.day, state.time);
+    for (const { line } of ferries) {
+      const st = ferryStateAt(line, now);
+      const nearBoat = Math.hypot(st.x - player.x, st.z - player.z) < FERRY.BOARD_RANGE;
+      const nearFrom = Math.hypot(line.fromPier.dockX + 0.5 - player.x, line.fromPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
+      const nearTo = Math.hypot(line.toPier.dockX + 0.5 - player.x, line.toPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
+      if (st.docked && nearBoat) return 'Board the ferry';
+      if (nearFrom || nearTo) return 'Wait for the ferry';
+    }
+    return 'Take the ferry';
+  };
+
   /** Enter at a pier or beside your own boat: buy one, cast off, or step ashore. */
-  const tryBoat = (): boolean => {
+  const tryBoat = (preview = false): boolean => {
     if (sailing.sailing) {
+      if (preview) return true;
       const spot = sailing.land(chunks);
       if (!spot) { hud.flash('No shore within reach. Steer closer to land.'); return true; }
       player.teleport(spot[0], spot[1]);
@@ -169,6 +185,7 @@ export function travelInteractions(ctx: Surroundings) {
       return true;
     }
     if (sailing.near(player.x, player.z)) {
+      if (preview) return true;
       sailing.board();
       hud.flash('You cast off. W and S to row, A and D to steer, Enter to land.');
       sound.chime();
@@ -177,6 +194,7 @@ export function travelInteractions(ctx: Surroundings) {
     // a pier is where boats are sold
     const pier = structures.piers.find((p) => Math.hypot(p.dockX + 0.5 - player.x, p.dockZ + 0.5 - player.z) < 4);
     if (!pier || sailing.bought) return false;
+    if (preview) return true;
     dialogue.start(boatwright(pier)!);
     return true;
   };
@@ -188,11 +206,16 @@ export function travelInteractions(ctx: Surroundings) {
    * gets you in, Enter in the air puts you down wherever you are. No inventory, no purchase and no
    * licence: it is a place you found, and the whole of the reward for finding it is that it works.
    */
-  const tryDerelict = (): boolean => {
+  const tryDerelict = (preview = false): boolean => {
     const flier = ctx.craft();
-    if (flier.flying) { flier.land(); return true; }
+    if (flier.flying) {
+      if (preview) return true;
+      flier.land();
+      return true;
+    }
     const derelict = structures.derelicts.find((h) => Math.hypot(h.x - player.x, h.z - player.z) < DERELICT_REACH);
     if (!derelict) return false;
+    if (preview) return true;
     discover(derelict.name);
     dialogue.start({
       speaker: 'A Fallen Star', emoji: '🛸',
@@ -248,11 +271,12 @@ export function travelInteractions(ctx: Surroundings) {
    * A crag with an eagle on it. It will carry you over the range and put you down on the far
    * side, which is the only way across a mountain that is not a day's walk round it.
    */
-  const tryEagle = (): boolean => {
+  const tryEagle = (preview = false): boolean => {
     const here = eyrieAt(eyries, player.x, player.z);
     if (!here) return false;
     const there = eyries.find((e) => e.id === here.partner);
     if (!there) return false;
+    if (preview) return true;
 
     if (state.inventory.gold < here.fare) {
       dialogue.start({ speaker: 'Eagle', emoji: '🦅', pages: [tooDear(here, state.inventory.gold)] });
@@ -290,9 +314,10 @@ export function travelInteractions(ctx: Surroundings) {
    * road-tree world is — and a place you can see from the ground and cannot reach in most of the
    * worlds anybody plays is worse than no place at all.
    */
-  const trySkyward = (): boolean => {
+  const trySkyward = (preview = false): boolean => {
     const isle = skies.calledFrom(player.x, player.z);
     if (!isle) return false;
+    if (preview) return true;
     dialogue.start({
       speaker: 'Eagle', emoji: '🦅',
       pages: [
@@ -348,11 +373,16 @@ export function travelInteractions(ctx: Surroundings) {
    * an island with its own villages and its own doors on it, and without this the whole ground-
    * level chain would happily open a door twenty-six units below their feet.
    */
-  const trySky = (): boolean => {
+  const trySky = (preview = false): boolean => {
     const isle = skies.aloft;
     if (!isle) return false;
-    if (skies.atLoft(player.x, player.z)) { openLoft(); return true; }
+    if (skies.atLoft(player.x, player.z)) {
+      if (preview) return true;
+      openLoft();
+      return true;
+    }
     if (!skies.atPerch(player.x, player.z)) return false;
+    if (preview) return true;
     dialogue.start({
       speaker: 'Eagle', emoji: '🦅',
       pages: ['The bird shifts along the crag and turns its head to the drop. It will take you back down for nothing; it wants to be flying, not to be paid.'],
@@ -420,5 +450,5 @@ export function travelInteractions(ctx: Surroundings) {
     });
   };
 
-  return { tryFerry, tryBoat, tryDerelict, tryEagle, trySkyward, trySky, sailFerries, aboard };
+  return { tryFerry, ferryLabel, tryBoat, tryDerelict, tryEagle, trySkyward, trySky, sailFerries, aboard };
 }
