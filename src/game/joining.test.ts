@@ -20,6 +20,17 @@ describe('an invite link', () => {
     expect(url.hash).toBe('');
     expect(url.pathname, 'the page it points at moved').toBe('/ai.world/');
   });
+  it('uses the name as the whole remote invite and leaves the seed underneath', () => {
+    const url = new URL(inviteTo(
+      'https://example.com/ai.world/?seed=3&x=240&z=-118',
+      7,
+      'wss://example.com:10081',
+      'Chris',
+    ));
+    expect(url.searchParams.get('world')).toBe('Chris');
+    expect(url.searchParams.get('seed')).toBe(null);
+    expect(url.searchParams.get('server')).toBe('wss://example.com:10081');
+  });
 
   it('leaves the server out when there is none, which is the link to a world played alone', () => {
     const url = new URL(inviteTo('http://localhost:5173/?seed=1', 1, ''));

@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { COMMANDS, parseCommand } from './commands';
-import type { ServerMessage } from './protocol';
+import type { ServerMessage, WorldRecord } from './protocol';
 import { FileVault } from './filevault';
 import { Simulation } from './sim';
 import { Rooms, type Wire } from './rooms';
@@ -98,6 +98,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       registry(sim, options, req, res);
       return;
     }
+    // A named invite reaches this before the game is grown, so seed, kind and manifest all come
+    // from the server's record rather than from facts copied into a link.
+    if (req.method === 'GET' && req.url?.startsWith('/world?')) {
+      namedWorld(rooms, req, res);
+      return;
+    }
     // the status page keeps its own address once there is a game to serve at the root
     if (pages && req.url !== '/status' && pages(req, res)) return;
     res.writeHead(200, { 'content-type': 'text/plain' });
@@ -140,6 +146,20 @@ function listen(http: Server, port: number): Promise<number> {
       done(typeof address === 'object' && address ? address.port : port);
     });
   });
+}
+/** Resolve one durable world name for a title/invite before the client grows its country. */
+function namedWorld(rooms: Rooms, req: IncomingMessage, res: ServerResponse): void {
+  const asked = new URL(req.url ?? '/', 'http://world.invalid').searchParams.get('name');
+  const record: WorldRecord | undefined = rooms.worldRecord(asked);
+  res.setHeader('access-control-allow-origin', '*');
+  res.setHeader('cache-control', 'no-store');
+  if (!record) {
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'No world has that name.' }));
+    return;
+  }
+  res.writeHead(200, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(record));
 }
 
 /**

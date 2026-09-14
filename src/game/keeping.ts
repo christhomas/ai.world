@@ -34,6 +34,7 @@ export interface Keeping {
   /** Which slot on the title screen this world belongs to. */
   slotKey: string;
   seed: number;
+  worldName?: string;
   world: WorldKind;
   saved: SessionSave | undefined;
   structures: Structures;
@@ -50,7 +51,7 @@ export interface Keeping {
 }
 
 export function openTheSave(ctx: Keeping) {
-  const { store, slotKey, seed, world, saved, structures, manifest, rng, cam, at, sky } = ctx;
+  const { store, slotKey, seed, worldName, world, saved, structures, manifest, rng, cam, at, sky } = ctx;
 
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
   /**
@@ -105,6 +106,7 @@ export function openTheSave(ctx: Keeping) {
   const persist = (): void => {
     void store.save<SessionSave>(slotKey, {
       seed,
+      worldName,
       world,
       cam: cam(),
       player: at(),

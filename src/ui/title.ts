@@ -3,6 +3,7 @@ import { randomSeed } from '../core/rng';
 import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
 import { GAME, today } from '../core/version';
+import { cleanWorldName } from '../../server/protocol';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
@@ -15,6 +16,8 @@ export interface SlotChoice {
   seed: number;
   /** Which world to grow. Taken from the save when continuing one, and chosen when starting one. */
   world: WorldKind;
+  /** The sayable name chosen for a new world, or kept with a continued one. */
+  worldName?: string;
 }
 
 /**
@@ -87,6 +90,10 @@ function setSwitch(id: string, on: boolean): void {
 export function nameOf(world: WorldKind | undefined): string {
   return world === 'endless' ? 'endless country' : 'open country';
 }
+/** Saved names are data even if storage was edited by hand. */
+const HTML_ESCAPE: Record<string, string> = {
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+};
 
 import { $ } from './dom';
 
@@ -109,6 +116,9 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
   const root = $('title');
   const list = $('slots');
   const switches = $('titleSwitches');
+  const worldNameInput = $('worldNameInput') as HTMLInputElement;
+  const worldSeedInput = $('worldSeedInput') as HTMLInputElement;
+  const worldError = $('titleWorldError');
   root.classList.add('show');
 
   return new Promise<SlotChoice>((resolve) => {
@@ -132,7 +142,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         const st = s?.state;
         const inside = s
           ? `<span class="slot-of">
-               <span class="slot-day">Day ${st?.day ?? 1}<span class="slot-world">${nameOf(s.world)}</span></span>
+               <span class="slot-day">${(s.worldName ?? `World ${s.seed}`).replace(/[&<>"']/g, (character) => HTML_ESCAPE[character])}<span class="slot-world">Day ${st?.day ?? 1} · ${nameOf(s.world)}</span></span>
                <span class="slot-facts">
                  <span>${st?.inventory?.gold} gold</span>
                  <span>${st?.discovered?.length ?? 0} place${(st?.discovered?.length ?? 0) === 1 ? '' : 's'} found</span>
@@ -176,12 +186,25 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         return;
       }
       if (act === 'continue' && saves[i]) {
-        // the saved world's own kind, whatever is on the screen or in the address bar: the ground
-        // under a house does not get to change because somebody clicked a different button today
-        finish({ key, save: saves[i], seed: saves[i]!.seed, world: saves[i]!.world ?? 'road' });
+        // Every part of a continued world's identity comes from its save. Older saves simply have
+        // no name yet and continue by seed, which is their intact migration path.
+        finish({ key, save: saves[i], seed: saves[i]!.seed, worldName: saves[i]!.worldName, world: saves[i]!.world ?? 'road' });
         return;
       }
-      finish({ key, save: undefined, seed: randomSeed(), world: chosenWorld() });
+      const worldName = cleanWorldName(worldNameInput.value);
+      if (!worldName) {
+        worldError.textContent = 'Give the world a name using letters, numbers, spaces, _ or -.';
+        worldNameInput.focus();
+        return;
+      }
+      const askedSeed = worldSeedInput.value.trim();
+      if (askedSeed && !/^\d+$/.test(askedSeed)) {
+        worldError.textContent = 'A seed is a whole number.';
+        worldSeedInput.focus();
+        return;
+      }
+      worldError.textContent = '';
+      finish({ key, save: undefined, seed: askedSeed ? Number(askedSeed) >>> 0 : randomSeed(), worldName, world: chosenWorld() });
     };
     list.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]');
@@ -209,6 +232,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       flip(sw);
     });
     const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest('input')) return;
       const n = Number(e.key);
       if (n >= 1 && n <= 3) pick(n - 1, saves[n - 1] ? 'continue' : 'new');
     };

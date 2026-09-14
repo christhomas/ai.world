@@ -182,6 +182,10 @@
     <section class="opt-section">
       <div class="rail-head"><span>This world</span></div>
       <div class="opt-row opt-static">
+        <label>World</label>
+        <span class="value-display" id="worldNameValue">unnamed</span>
+      </div>
+      <div class="opt-row opt-static">
         <label>Seed</label>
         <span class="value-display" id="seedValue">-</span>
       </div>
@@ -195,7 +199,7 @@
       </div>
       <!-- The link itself, not only a promise that it is on the clipboard. A copy you cannot see is
            a copy you cannot check, and the first question anybody asks of an invite is what is in
-           it — which server, which seed. Filled by the button; select-all on a click. -->
+           it — which server, which world. Filled by the button; select-all on a click. -->
       <input type="text" id="inviteLink" class="opt-link" readonly hidden aria-label="Invite link" />
       <p class="opt-note" id="onlineStatus">offline</p>
     </section>
@@ -217,6 +221,15 @@
       <div class="rail-block">
         <div class="rail-head"><span>A new world is made of</span></div>
         <div id="titleSwitches"></div>
+        <div class="title-world-fields">
+          <label for="worldNameInput">World name</label>
+          <input id="worldNameInput" type="text" maxlength="48" autocomplete="off" placeholder="for example, chris" />
+          <details>
+            <summary>Choose a seed</summary>
+            <input id="worldSeedInput" type="text" inputmode="numeric" autocomplete="off" placeholder="random" />
+          </details>
+          <p id="titleWorldError" role="alert"></p>
+        </div>
       </div>
       <p class="rail-foot">
         <span class="on-keys">WASD walk · Enter talk<br>M map · F free camera</span>

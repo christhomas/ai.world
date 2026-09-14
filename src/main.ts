@@ -91,7 +91,8 @@ import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
 
 export function startGame(
-  store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number, url: URL,
+  store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
+  worldName: string | undefined, url: URL,
   /**
    * Which world to grow. It comes from the save whenever there is one, because the same seed grows
    * two completely different countries and reopening a world as the other kind would put the ground
@@ -136,7 +137,7 @@ export function startGame(
   chunks.seeThrough(cutaway);
   cutaway.show(wantsCutaway());
 
-  const hud = new Hud(rig, seed);
+  const hud = new Hud(rig, seed, worldName);
   hud.onLightChange = (sun, hemi) => daycycle.setDayIntensities(sun, hemi);
   hud.setSeeThrough(cutaway.on);
   hud.onSeeThroughChange = (on) => {
@@ -246,7 +247,7 @@ export function startGame(
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines,
     plots, houses, sailing, mount, persist,
   } = openTheSave({
-    store, slotKey, seed, world, saved, structures, manifest,
+    store, slotKey, seed, worldName, world, saved, structures, manifest,
     rng: lineRng,
     cam: () => ({ x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom }),
     at: () => ({ x: player.x, z: player.z }),
@@ -539,7 +540,7 @@ export function startGame(
 
   // whose world this is: the one in the next thread until somebody asks for another
   joinAWorld({
-    seed, world, islands, where: () => ({ x: player.x, z: player.z }), state, online, url,
+    seed, worldName, world, islands, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),
     showChat: () => chat.show(),
     hideChat: () => chat.hide(),

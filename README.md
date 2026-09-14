@@ -51,8 +51,8 @@ and stay out of the way of a mouse — `?touch=1` and `?touch=0` settle any argu
 
 ![The game on a phone](docs/screenshots/phone.png)
 
-Three save slots on the title screen. `?seed=123` opens a particular world, and `&x=100&z=-50`
-starts you somewhere in it.
+Three save slots on the title screen. Give a new world a name; open **Choose a seed** only when you
+want a particular number underneath it. Old `?seed=123` links and saves still open unchanged.
 
 ---
 
@@ -243,17 +243,18 @@ book fills.
 
 ### Playing together
 
-`pnpm server` runs a small WebSocket server. Put its address in the options, pick a name, and
-anyone on the same seed shares your world: you see each other walk, wearing your own gear, with
-name plates over your heads. **T** chats, **G** offers the nearest traveller gold or an item from
-your pack, and they accept or decline.
+`pnpm server` runs a small WebSocket server. Worlds are joined by name: the first join creates a
+durable record for that name, seed, kind and island manifest; later joins resolve the same record.
+Names are trimmed and case-folded, so `Chris` and ` chris ` cannot become two worlds. Put the
+server address in the options, pick a player name, and anyone joining the named world sees everyone
+else in it.
 
-Joining somebody's world is a link rather than an instruction. **Copy an invite link** in the
-options puts this world and this server into one address and copies it to the clipboard; whoever
-opens it arrives on the same seed, talking to the same server, without touching the options at
-all. If the page is on https and the address in the link is a plain `ws://`, the button says so
-instead of handing out a link that a browser will refuse to open — see
-[a server other people can reach](#a-server-other-people-can-reach).
+Joining somebody's world is a link rather than an instruction. **Copy an invite link** puts the
+world name and server into one address. Whoever opens it resolves the seed, kind and manifest from
+the server and joins automatically; the seed remains visible in options for diagnosis and for
+anybody who deliberately chooses one. If the page is on https and the address in the link is a
+plain `ws://`, the button says so instead of handing out a link that a browser will refuse to open
+— see [a server other people can reach](#a-server-other-people-can-reach).
 
 ![Two travellers in one world](docs/screenshots/multiplayer.png)
 
@@ -369,10 +370,10 @@ pnpm install
 chore home
 ```
 
-Worlds are kept in `server/data`, one JSON file per seed, so they survive restarts and can be
-copied off like any other file. `chore worlds` lists what is in them. If you would rather run it
-in the container, build the image on the Pi (or `docker buildx build --platform linux/arm64`),
-since a Pi is ARM and an image built on an Intel machine will not run on it.
+World state remains in `server/data`, one JSON file per seed, and names live beside it in
+`world-records.json`. Keeping the old files is the migration: an existing seed save is adopted
+intact when it first gains a name. `chore worlds` lists both names and underlying seeds. If you
+would rather run it in a container, build the image on the Pi (or `docker buildx build --platform linux/arm64`), since a Pi is ARM and an image built on an Intel machine will not run on it.
 
 ### A server other people can reach
 
@@ -466,10 +467,9 @@ shadow is not worth a draw call, a tree's is. The loop also declines frames a fa
 beyond `GAMEPLAY.MAX_FPS`, because drawing this world 120 times a second costs twice as much and
 looks the same.
 
-**A server that knows almost nothing.** Because every client grows the same world, the server
-keeps one small JSON file per seed: the time of day, the short list of things players changed,
-the market, the post shelf, and every name it has met. Everything else — who is where, what they
-said, which monster moved — passes through and is gone.
+**A server that knows almost nothing.** The server keeps a small name record — seed, kind and island
+manifest — plus the existing per-seed state: time, player changes, market, post and visitors.
+Everything else — who is where, what they said, which monster moved — passes through and is gone.
 
 ### Behaviour lives in files
 
