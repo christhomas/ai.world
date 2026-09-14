@@ -49,9 +49,10 @@ export function campInteractions(ctx: Surroundings) {
    * Enter over a body: take the hide. A knife makes it certain, and bare hands are worth trying
    * once, which is the closest this game comes to telling you to go and buy the knife.
    */
-  const trySkin = (): boolean => {
+  const trySkin = (preview = false): boolean => {
     const body = carcasses.nearest(player.x, player.z);
     if (!body) return false;
+    if (preview) return true;
     const kind = KINDS[body.kind];
     const knife = state.can('skin');
     dialogue.start({
@@ -127,11 +128,12 @@ export function campInteractions(ctx: Surroundings) {
    * Enter with a tent on your back: sleep where you are standing. Half the healing of a bed, none
    * of the price, and whatever walks in while you are asleep.
    */
-  const tryCamp = (): boolean => {
+  const tryCamp = (preview = false): boolean => {
     if (!state.can('camp')) return false;
     // a tent is for the night, and a deck is not ground: by day it is only weight on your back,
     // which is also what keeps it from answering Enter presses meant for somebody standing there
     if (isDaytime(state.time) || sailing.sailing) return false;
+    if (preview) return true;
     const land: Country = {
       biome: sampler.biomeOf(player.x, player.z),
       toVillage: tilesToVillage(structures.villages, player.x, player.z),

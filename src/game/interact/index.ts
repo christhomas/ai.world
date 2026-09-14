@@ -25,6 +25,20 @@ export type { Surroundings } from './context';
  * A person adding an interaction writes it in the file for where it happens — a settlement, the
  * open country, or the water — and adds one line to the chain below.
  */
+/** One row in the Enter selector: the words and the act stay on the same row so they cannot reorder. */
+export interface Interaction {
+  verb: string | (() => string);
+  attempt: (preview?: boolean) => boolean;
+}
+
+/** Ask or run the first interaction that claims the press, preserving the chain's load-bearing order. */
+export function firstInteraction(interactions: readonly Interaction[], preview: boolean): string | null {
+  for (const interaction of interactions) {
+    if (!interaction.attempt(preview)) continue;
+    return typeof interaction.verb === 'function' ? interaction.verb() : interaction.verb;
+  }
+  return null;
+}
 export function createInteractions(ctx: Surroundings) {
   const village = villageInteractions(ctx);
   const wild = wildInteractions(ctx);
@@ -42,113 +56,110 @@ export function createInteractions(ctx: Surroundings) {
   const builder = builderInteractions(ctx);
   const { player, places, dialogue, hud, entities, skies, startTalk } = ctx;
 
-  const talkNearest = () => {
+  const ordered: readonly Interaction[] = [
+    { verb: () => ctx.craft().flying ? 'Land the craft' : 'Board the craft', attempt: travel.tryDerelict },
+    { verb: 'Skin the carcass', attempt: camp.trySkin },
+    { verb: 'Take the ferry', attempt: travel.tryFerry },
+    { verb: () => ctx.sailing.sailing ? 'Step ashore' : 'Use the boat', attempt: travel.tryBoat },
+    { verb: 'Fly over the mountains', attempt: travel.tryEagle },
+    { verb: 'Fly to the sky island', attempt: travel.trySkyward },
+    { verb: () => ctx.mount.riding ? 'Dismount' : 'Ride the horse', attempt: village.tryHorse },
+    { verb: 'Open the chest', attempt: builder.tryChest },
+    { verb: 'Tend the field', attempt: wild.tryFarm },
+    { verb: 'Visit the village baths', attempt: village.tryLuxury },
+    { verb: 'Visit the stall', attempt: village.tryStall },
+    { verb: 'Hear what troubles the village', attempt: nettle.tryScheme },
+    { verb: 'Ask the hall', attempt: village.tryHall },
+    { verb: 'Read the notice board', attempt: village.tryBoard },
+    { verb: 'Look into the cell', attempt: jail.tryCell },
+    { verb: 'Open the door', attempt: village.tryDoor },
+    { verb: 'Enter the shrine', attempt: wild.tryShrine },
+    { verb: 'Search the fallen pack', attempt: wild.tryRemains },
+    { verb: 'Search the wreck', attempt: wild.tryWreck },
+    { verb: 'Search the camp', attempt: wildcamps.tryWildCamp },
+    { verb: 'Rest by the fire', attempt: wild.tryCampfire },
+    { verb: 'Cook over the fire', attempt: craft.tryCook },
+    { verb: 'Light a fire', attempt: craft.tryKindle },
+    { verb: 'Read the signpost', attempt: village.trySignpost },
+    { verb: 'Fish', attempt: wild.tryFish },
+    { verb: 'Dig here', attempt: wild.tryDig },
+    { verb: 'Fell the tree', attempt: craft.tryFell },
+    { verb: 'Pick herbs', attempt: herbs.tryPick },
+    { verb: 'Grind herbs', attempt: herbs.tryGrind },
+    { verb: 'Make camp', attempt: camp.tryCamp },
+    { verb: 'Ask the elder', attempt: rescue.tryRescue },
+    { verb: 'Speak about hire', attempt: hire.tryHire },
+    // last because a waiting builder answers on any open patch of ground
+    { verb: 'Place the building', attempt: builder.tryBuild },
+  ];
+
+  const actionAtHand = (preview: boolean): string | null => {
     // the choice outranks every door in the game: there is a clock on it and people in the water
-    if (nettle.tryChoice()) return;
+    if (nettle.tryChoice(preview)) return 'Answer Old Nettle';
+
     if (places.indoors) {
-      const inside = places.interactIndoors();
-      // the landlord first: in a pub the person behind the bar is the room, and what they have to
-      // say is the gossip, the errand and the darts board rather than a shop's stock list
-      if (inside === 'keeper' && village.tryLandlord()) return;
-      if (inside === 'keeper') startTalk(places.indoors.keeper!);
-      // a house nobody lives in has nobody to talk to and a bed in it, which is the one thing you
-      // can do in an empty room. Below the keeper, because a room with somebody in it is theirs
-      else if (village.tryFreeBed()) return;
-      else if (inside === null) hud.flash('Stand at the door to leave, or at the counter to talk.');
-      return;
+      const inside = places.interactIndoors(preview);
+      // the landlord first: in a pub the person behind the bar is the room
+      if (inside === 'keeper' && village.tryLandlord(preview)) return 'Ask the landlord';
+      if (inside === 'keeper') {
+        if (!preview) startTalk(places.indoors.keeper!);
+        return 'Talk to ' + places.indoors.keeper!.name;
+      }
+      // Leaving wins at the threshold; an empty house's bed answers everywhere else in the room.
+      if (inside === 'left') return 'Leave the building';
+      if (village.tryFreeBed(preview)) return 'Sleep until morning';
+      if (!preview) hud.flash('Stand at the door to leave, or at the counter to talk.');
+      return null;
     }
+
     if (places.underground) {
-      const below = places.interactUnderground();
-      if (below === 'locked') hud.flash('The door is locked. A key must be down here somewhere.');
-      else if (below === 'descent') {
-        dialogue.start({ speaker: 'Stairs Down', emoji: '🕳️', pages: ['The steps go further down, into colder air. Follow them?'], choices: [
+      const below = places.interactUnderground(preview);
+      if (below === 'chest') return 'Open the chest';
+      if (below === 'locked') {
+        if (!preview) hud.flash('The door is locked. A key must be down here somewhere.');
+        return 'Try the locked door';
+      }
+      if (below === 'descent') {
+        if (!preview) dialogue.start({ speaker: 'Stairs Down', emoji: '🕳️', pages: ['The steps go further down, into colder air. Follow them?'], choices: [
           { label: 'Go deeper', next: () => { places.descend(); return null; } },
           { label: 'Not yet', next: () => null },
         ] });
+        return 'Go deeper';
       }
-      else if (below === 'stairs') {
-        dialogue.start({ speaker: 'Stairs', emoji: '🪜', pages: ['Climb back up to the daylight?'], choices: [
+      if (below === 'stairs') {
+        if (!preview) dialogue.start({ speaker: 'Stairs', emoji: '🪜', pages: ['Climb back up to the daylight?'], choices: [
           { label: 'Climb out', next: () => { places.exitDungeon(); return null; } },
           { label: 'Stay', next: () => null },
         ] });
-      } else if (below === null) hud.flash('Nothing here');
-      return;
+        return 'Climb out';
+      }
+      if (!preview) hud.flash('Nothing here');
+      return null;
     }
-    // Up on a sky island the whole ground-level chain is wrong, and dangerously so: the hero is
-    // standing twenty-six units directly above an island with its own villages, doors, shrines and
-    // diggable hillsides, every one of which would answer an Enter press meant for a crag.
+
+    // On a sky island every ground-level answer directly below the hero is wrong.
     if (skies.aloft) {
-      if (travel.trySky()) return;
-      hud.flash('Nothing here but cloud. The crag on the rim is where the bird waits.');
-      return;
+      if (travel.trySky(preview)) return skies.atLoft(player.x, player.z) ? 'Ask for a flight' : 'Fly back down';
+      if (!preview) hud.flash('Nothing here but cloud. The crag on the rim is where the bird waits.');
+      return null;
     }
-    // a body under your feet is the most specific thing there is, so it beats the village
-    // furniture standing around it: a rabbit dropped in the square was unskinnable without this
-    /*
-     * The craft answers before anything else, in both directions.
-     *
-     * In the air it is the only thing a key could sensibly mean, and on the ground a hull that
-     * large is never what somebody was aiming past. It sits above the skinning because a body under
-     * the fin of a spacecraft is the less surprising of the two things to be told about.
-     */
-    if (travel.tryDerelict()) return;
-    if (camp.trySkin()) return;
-    /*
-     * The ferry before the boatwright, and both before anything else on a pier.
-     *
-     * They stand on the same planks and answer the same key, and the wrong one was winning: press
-     * Enter on a jetty with the ferry tied up at the end of it and a man offered to sell you a boat.
-     * Reported as "it appears to just let you buy the boat itself — that's not a ferry", which is
-     * exactly right. Somebody standing on a pier where a ferry calls means the ferry; the boat is
-     * what is for sale when there is no crossing to take.
-     */
-    if (travel.tryFerry()) return;
-    if (travel.tryBoat()) return;
-    if (travel.tryEagle()) return;   // a crag with a bird on it, before anything else up here
-    // and the birds at the foot of a fall coming out of the sky, which is the way up to a village
-    // nobody can walk to. Ahead of the village furniture: an island under a sky island has houses
-    // on it, and losing the only way up to a doorway you can reach from twenty other tiles would
-    // be the worst trade in the chain.
-    if (travel.trySkyward()) return;
-    if (village.tryHorse()) return;
-    // your own front door, before the ground it stands on: a house you paid for outranks the
-    // furrow you could have dug there
-    if (builder.tryChest()) return;
-    if (wild.tryFarm()) return;
-    if (village.tryLuxury()) return;
-    if (village.tryStall()) return;
-    if (nettle.tryScheme()) return;
-    if (village.tryHall()) return;   // a building you can ask what the village is up to
-    if (village.tryBoard()) return;
-    if (jail.tryCell()) return;   // the station door is a grille to look through, not a way in
-    if (village.tryDoor()) return;
-    if (wild.tryShrine()) return;
-    if (wild.tryRemains()) return;
-    if (wild.tryWreck()) return;
-    if (wildcamps.tryWildCamp()) return;   // somebody else's camp: banked fire, or torn open
-    if (wild.tryCampfire()) return;
-    if (craft.tryCook()) return;
-    if (craft.tryKindle()) return;
-    if (village.trySignpost()) return;
-    if (wild.tryFish()) return;
-    // digging comes last of the ground-level things: a shovel in the pack should never swallow an
-    // Enter press meant for a person, a door or a line in the water
-    if (wild.tryDig()) return;
-    if (craft.tryFell()) return;
-    if (herbs.tryPick()) return;
-    if (herbs.tryGrind()) return;
-    if (camp.tryCamp()) return;
-    if (rescue.tryRescue()) return;   // an elder burying too many asks before anything else does
-    if (hire.tryHire()) return;
-    // last of everything, because it answers on any patch of open ground — and only at all when
-    // there is a builder taken on and waiting to be told where
-    if (builder.tryBuild()) return;
-    const e = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
-    if (e) startTalk(e); else hud.flash('No one close enough to talk to');
+
+    const chosen = firstInteraction(ordered, preview);
+    if (chosen) return chosen;
+    const nearest = entities.nearest(player.x, player.z, GAMEPLAY.TALK_RANGE);
+    if (nearest) {
+      if (!preview) startTalk(nearest);
+      return 'Talk to ' + nearest.name;
+    }
+    if (!preview) hud.flash('No one close enough to talk to');
+    return null;
   };
+
+  const talkNearest = (): void => { void actionAtHand(false); };
 
   return {
     atHand: talkNearest,
+    action: () => actionAtHand(true),
     fell: camp.fell,
     onTheft: wildcamps.onTheft,
     campsAround: wildcamps.campsAround,

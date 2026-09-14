@@ -20,7 +20,7 @@ synthesised as you play.
 | Key | What it does |
 |---|---|
 | **W A S D** or arrows | Walk. Under sail, W and S row while A and D swing the bow |
-| **Enter** or **Space** | The one key that does things: talk, open a door, read a board, board a boat, mount a horse, sow, harvest, open a chest, take the stairs |
+| **Enter** or **Space** | Do the action named in the bottom-right card: talk, open, board, mount, harvest, or take the stairs. The corner stays empty when nothing is in reach |
 | **X** | Swing whatever is in your hand |
 | **T** / **G** | Chat, and deal with the nearest traveller: goods, or a friendly bout |
 | **R** | A rally point where you stand |

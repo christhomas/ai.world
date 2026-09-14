@@ -404,9 +404,10 @@ export function builderInteractions(ctx: Surroundings) {
     persist();
   };
 
-  const tryBuild = (): boolean => {
+  const tryBuild = (preview = false): boolean => {
     const held = houses.hired;
     if (!held) return false;
+    if (preview) return true;
     const wants = buildable(held.what);
     const name = builderIn(held.village, seed);
     if (wants.on === 'house') return addToAHouse(wants, name);
@@ -617,11 +618,12 @@ export function builderInteractions(ctx: Surroundings) {
   });
 
   /** Enter at your own house: the box inside it, or the reason there is not one yet. */
-  const tryChest = (): boolean => {
+  const tryChest = (preview = false): boolean => {
     // a house, rather than whatever is nearest: a storey stands on the same tile as the house it
     // is on and a pool three tiles off it, and neither has a strongbox under the window
     const job = houses.nearest(player.x, player.z, AT_THE_DOOR, Houses.isABuilding);
     if (!job) return false;
+    if (preview) return true;
     const day = today();
     const name = builderIn(job.village, seed);
     if (!isFinished(job, day)) {

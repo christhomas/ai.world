@@ -100,8 +100,9 @@ export function nemesisInteractions(ctx: Surroundings & { nemesis: Nemesis }) {
    * rather than doing anything, so there is no way to spend the ninety seconds having accidentally
    * closed the only thing that mattered.
    */
-  const tryChoice = (): boolean => {
+  const tryChoice = (preview = false): boolean => {
     if (!nemesis.choice) return false;
+    if (preview) return true;
     showChoice();
     return true;
   };
@@ -118,11 +119,12 @@ export function nemesisInteractions(ctx: Surroundings & { nemesis: Nemesis }) {
    * Enter inside the village he has settled on. It tells you what the place has noticed, which is
    * never him: it is the well, or the road, or a fever that takes the strong first.
    */
-  const tryScheme = (): boolean => {
+  const tryScheme = (preview = false): boolean => {
     const scheme = nemesis.scheme;
     if (!scheme) return false;
     const village = structures.villages.find((v) => v.name === scheme.village);
     if (!village || Math.hypot(village.x - player.x, village.z - player.z) > village.radius) return false;
+    if (preview) return true;
 
     const days = Math.max(1, state.day - scheme.began);
     dialogue.start({

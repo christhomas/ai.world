@@ -86,12 +86,13 @@ export function rescueInteractions(ctx: Surroundings & { rescues: Rescues }) {
    * Enter in front of an elder whose village is losing people. Anybody else, and any elder whose
    * village is doing well enough, falls through to the ordinary conversation exactly as before.
    */
-  const tryRescue = (): boolean => {
+  const tryRescue = (preview = false): boolean => {
     const e = elderNear();
     if (!e) return false;
     const name = e.herd.tag;
     const contract = contractIn(name);
     if (!contract) return false;
+    if (preview) return true;
 
     const speaker = `Elder ${e.name}`;
     const emoji = '🧓';

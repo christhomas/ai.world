@@ -1012,6 +1012,83 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   width: 100%; margin-bottom: calc(6 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale)); font-family: inherit; font-size: calc(12 * var(--ui-scale));
   background: var(--surface); color: var(--ink); border: var(--ui-scale) solid var(--rule); }
 
+/* The Enter action, named before it happens. The corner stays empty when the selector has no row. */
+#actionCard {
+  position: fixed;
+  right: var(--safe-right);
+  bottom: var(--safe-bottom);
+  z-index: 1750;
+  display: grid;
+  width: var(--band-action);
+  min-height: calc(72 * var(--ui-scale));
+  padding: 0;
+  color: var(--ink, var(--ui-ink));
+  background: transparent;
+  border: 0;
+  font-family: var(--face, inherit);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--ui-lift);
+  touch-action: manipulation;
+}
+#actionCard[hidden] { display: none; }
+.action-card-head {
+  display: flex;
+  align-items: center;
+  height: calc(28 * var(--ui-scale));
+  padding: 0 calc(12 * var(--ui-scale));
+  color: var(--accent, var(--ui-ink));
+  background: var(--surface, var(--ui-glass));
+  border: var(--ui-scale) solid var(--rule, var(--ui-rim));
+  border-bottom: 0;
+  font-size: calc(10 * var(--ui-scale));
+  letter-spacing: calc(2 * var(--ui-scale));
+  text-transform: uppercase;
+}
+.action-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(10 * var(--ui-scale));
+  min-height: calc(44 * var(--ui-scale));
+  padding: 0 calc(12 * var(--ui-scale));
+  background: var(--surface, var(--ui-glass));
+  border: var(--ui-scale) solid color-mix(in srgb, var(--rule, var(--ui-rim)) 60%, transparent);
+}
+.action-card-row strong {
+  font-size: calc(12.5 * var(--ui-scale));
+  font-weight: 600;
+  letter-spacing: calc(1 * var(--ui-scale));
+  line-height: 1.2;
+}
+.action-card-row kbd {
+  flex: none;
+  color: color-mix(in srgb, var(--ink, var(--ui-ink)) 70%, transparent);
+  font: calc(9 * var(--ui-scale))/1 var(--face, monospace);
+  letter-spacing: var(--ui-scale);
+  text-transform: uppercase;
+}
+#actionCard:hover .action-card-row,
+#actionCard:focus-visible .action-card-row {
+  background: color-mix(in srgb, var(--accent, var(--ui-glass-lit)) 58%, var(--surface, var(--ui-glass)));
+}
+#actionCard:focus-visible {
+  outline: calc(2 * var(--ui-scale)) solid var(--accent, var(--ui-ink));
+  outline-offset: calc(-2 * var(--ui-scale));
+}
+body:has(#title.show, #dialogue.show, #worldmap.show, #kinpanel.show, #rucksack.show, #journal.show, #players.show, #roster.show, #optionsPanel.show, #photoHint.show, #touchMore.show) #actionCard {
+  display: none;
+}
+body.touch #touchAct {
+  right: calc(var(--band-action) + var(--safe-right) + var(--touch-gap));
+  bottom: calc(var(--safe-bottom) + var(--touch-edge));
+}
+body.touch #touchAct .touch-do { display: none; }
+@media (max-width: 620px) {
+  #actionCard { width: min(var(--band-action), calc(46vw - var(--safe-right))); }
+  .action-card-row { padding-inline: calc(9 * var(--ui-scale)); }
+  .action-card-row strong { font-size: calc(11.5 * var(--ui-scale)); }
+}
 /* ------------------------------------------------------------------------
    Played with thumbs
 
@@ -1326,6 +1403,10 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
     right: var(--hud-edge); width: var(--hud-rail); z-index: 300;
     /* the gaps between the panels are still the world, and the world is still walked on */
     pointer-events: none;
+  }
+  /* The bottom-right card owns its corner; the flexible log gives it room instead of sitting behind it. */
+  body:has(#actionCard:not([hidden])) #hudRail {
+    bottom: calc(var(--hud-edge) + 82 * var(--ui-scale));
   }
   #hudRail > * { pointer-events: auto; flex: 0 0 auto; }
   /* each panel gives up the corner it was pinned to and takes its place in the stack */
