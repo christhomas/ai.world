@@ -1,6 +1,8 @@
 import { THE_HALL_OWNER } from '../world/holdings';
 import { POST, crewsToday } from '../world/postings';
 import { stageOf, type Person } from '../world/people';
+import { purseOf } from '../world/deeds';
+import { PROSPER } from '../world/prosperity';
 import { isFinished, type Commission, type Houses } from './building';
 
 /** One paid morning recorded against one durable commission. */
@@ -16,7 +18,6 @@ export interface HallJobDay {
  */
 export function workTheHallJobs(
   books: Houses, day: number, living: (village: string) => readonly Person[],
-  pay: (who: Person, wage: number) => void,
 ): HallJobDay[] {
   const waiting = new Map<string, Commission[]>();
   for (const job of books.entries()) {
@@ -28,7 +29,8 @@ export function workTheHallJobs(
   }
   const worked: HallJobDay[] = [];
   for (const [village, jobs] of waiting) {
-    const people = living(village).filter((person) => stageOf(person, day) === 'adult');
+    const people = living(village).filter((person) =>
+      stageOf(person, day) === 'adult' && person.purse <= PROSPER.MOST - POST.BUILDER);
     const peopleById = new Map(people.map((person) => [person.id, person]));
     const crews = crewsToday(people, jobs.map((job) => ({ id: job.id, funder: THE_HALL_OWNER })));
     const jobsById = new Map(jobs.map((job) => [job.id, job]));
@@ -36,7 +38,7 @@ export function workTheHallJobs(
       const job = jobsById.get(crew.holding);
       const who = peopleById.get(crew.who);
       if (!job || !who || !books.work(job, day, crew.wage)) continue;
-      pay(who, crew.wage);
+      purseOf(who).give(crew.wage);
       worked.push({ job: job.id, who: who.id, wage: crew.wage });
     }
   }

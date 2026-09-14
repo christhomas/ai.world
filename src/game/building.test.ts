@@ -11,6 +11,7 @@ import { jettiesIn, mooringOf } from './jetties';
 import { BOAT, moorageFor } from './sailing';
 import { GRUDGE } from './grudge';
 import { POST } from '../world/postings';
+import { PROSPER } from '../world/prosperity';
 import { Register } from '../world/register';
 
 const job = (began = 10): Commission => ({
@@ -115,33 +116,50 @@ describe('a commission that outlives the session', () => {
     const houses = new Houses();
     houses.takeOn('Ashford', BUILD.PRICE, deposit());
     houses.place(20, 20, 1);
-    const wages = new Map<string, number>();
     const living = (): ReturnType<Register['living']> => register.living('Ashford');
-    const pay = (who: ReturnType<Register['living']>[number], much: number): void => {
-      wages.set(who.id, (wages.get(who.id) ?? 0) + much);
-    };
+    const firstPerson = [...living()].filter((person) => person.trade === 'builder')
+      .sort((one, two) => one.id < two.id ? -1 : 1)[0];
+    const firstPurse = firstPerson.purse;
 
-    const firstDay = workTheHallJobs(houses, 2, living, pay);
-    for (let day = 3; day <= 5; day++) workTheHallJobs(houses, day, living, pay);
+    const firstDay = workTheHallJobs(houses, 2, living);
+    for (let day = 3; day <= 5; day++) workTheHallJobs(houses, day, living);
     const first = firstDay[0]?.who;
-    expect(first).toBeDefined();
+    expect(first).toBe(firstPerson.id);
+    expect(firstPerson.purse).toBe(firstPurse + POST.BUILDER * 4);
     expect(register.bury(first!, 5)?.kind).toBe('died');
     expect(register.find(first!)).toBeUndefined();
 
     const afterTheDeath = reload(houses);
-    expect(workTheHallJobs(afterTheDeath, 5, living, pay)).toEqual([]);
-    const fifthDay = workTheHallJobs(afterTheDeath, 6, living, pay);
-    const sixthDay = workTheHallJobs(afterTheDeath, 7, living, pay);
+    expect(workTheHallJobs(afterTheDeath, 5, living)).toEqual([]);
+    const fifthDay = workTheHallJobs(afterTheDeath, 6, living);
     const replacement = fifthDay[0]?.who;
+    const replacementAfterOne = register.find(replacement!)!.purse;
+    const sixthDay = workTheHallJobs(afterTheDeath, 7, living);
     expect(replacement).toBeDefined();
     expect(replacement).not.toBe(first);
     expect(sixthDay[0]?.who).toBe(replacement);
+    expect(register.find(replacement!)!.purse).toBe(replacementAfterOne + POST.BUILDER);
     const saved = afterTheDeath.entries()[0];
     expect(isFinished(saved, 7)).toBe(true);
     expect(saved.worked).toBe(6);
-    expect(wages.get(first!)).toBe(POST.BUILDER * 4);
-    expect(wages.get(replacement!)).toBe(POST.BUILDER * 2);
     expect(saved.fund).toBe(deposit() - POST.BUILDER * 6);
+  });
+
+  it('does not charge a workday to a builder who cannot receive its full wage', () => {
+    const register = new Register(7);
+    register.settle('Ashford', 10, ['builder']);
+    const builders = [...register.living('Ashford')].filter((person) => person.trade === 'builder')
+      .sort((one, two) => one.id < two.id ? -1 : 1);
+    builders[0].purse = PROSPER.MOST;
+    const nextPurse = builders[1].purse;
+    const houses = new Houses();
+    houses.takeOn('Ashford', BUILD.PRICE, deposit());
+    houses.place(20, 20, 1);
+
+    expect(workTheHallJobs(houses, 2, () => register.living('Ashford'))[0]?.who).toBe(builders[1].id);
+    expect(builders[0].purse).toBe(PROSPER.MOST);
+    expect(builders[1].purse).toBe(nextPurse + POST.BUILDER);
+    expect(houses.entries()[0]).toMatchObject({ worked: 1, fund: deposit() - POST.BUILDER });
   });
   it('remembers a builder taken on before there is anywhere to put the house', () => {
     const h = new Houses();
