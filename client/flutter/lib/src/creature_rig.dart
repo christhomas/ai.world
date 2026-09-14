@@ -209,7 +209,7 @@ final class _RigBuilder {
   void _triangle(_Part p,List<double>a,List<double>b,List<double>c) {
     final ab=<double>[b[0]-a[0],b[1]-a[1],b[2]-a[2]], ac=<double>[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
     final n=<double>[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
-    final l=math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]); for(var i=0;i<3;i++) n[i]/=l;
+    final l=math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]); for(var i=0;i<3;i++) { n[i]/=l; }
     final base=vertices.length~/RenderMesh.floatsPerVertex; _vertex(p,a,n);_vertex(p,b,n);_vertex(p,c,n);indices.addAll([base,base+1,base+2]);
   }
   void _vertex(_Part p,List<double>point,List<double>normal) {

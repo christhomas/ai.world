@@ -99,7 +99,9 @@ ChunkParcel _oneChunk() {
       final i = (z + 1) * size + x + 1;
       final h = (x > 10 || z > 11) ? 0.5 : 1.0;
       heights[i] = h;
-      for (var k = 0; k < 4; k++) corners[i * 4 + k] = h;
+      for (var k = 0; k < 4; k++) {
+        corners[i * 4 + k] = h;
+      }
       types[i] = (x >= 6 && x <= 9) ? TileType.road.index : TileType.ground.index;
       if (z == 4 && x >= 1 && x <= 5) {
         types[i] = TileType.water.index;
