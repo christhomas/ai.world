@@ -406,8 +406,8 @@ export function builderInteractions(ctx: Surroundings) {
 
   const tryBuild = (preview = false): boolean => {
     const held = houses.hired;
-    if (!held) return false;
-    if (preview) return true;
+    // a preview asks only whether Enter would do something here; it answers and does not act
+    if (!held || preview) return held !== null;
     const wants = buildable(held.what);
     const name = builderIn(held.village, seed);
     if (wants.on === 'house') return addToAHouse(wants, name);
@@ -622,8 +622,7 @@ export function builderInteractions(ctx: Surroundings) {
     // a house, rather than whatever is nearest: a storey stands on the same tile as the house it
     // is on and a pool three tiles off it, and neither has a strongbox under the window
     const job = houses.nearest(player.x, player.z, AT_THE_DOOR, Houses.isABuilding);
-    if (!job) return false;
-    if (preview) return true;
+    if (!job || preview) return job !== null;
     const day = today();
     const name = builderIn(job.village, seed);
     if (!isFinished(job, day)) {
