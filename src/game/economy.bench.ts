@@ -2,9 +2,10 @@ import type { Post } from '../entities/entity';
 import { tradesFor } from '../entities/trades';
 import { Register } from '../world/register';
 import { holdsFor } from '../world/roofs';
-import { herdRoomFor } from '../world/stables';
+import { herdRoomFor, isAStable } from '../world/stables';
 import { Mines, mineIdOf, type Working } from './mines';
 import { theBirths, theRoll, theStones, type RollRow, type StoneRow } from './records';
+import { Timber } from './timber';
 
 /**
  * The villages `chore test economy` lives forward, and the books it keeps of them.
@@ -54,6 +55,8 @@ interface Regime {
   band?: { from: number; until: number; pressure: number; takesEvery: number };
   /** Where the people come from, for a ruin somebody puts back on its feet. */
   settledFrom?: string;
+  /** Farming land deliberately deprived of a wood supply; a material control, not an ordinary village. */
+  bare?: boolean;
   /**
    * A place too small to replace its own dead.
    *
@@ -69,6 +72,8 @@ const INLAND: Post[] = ['square', 'market', 'inn', 'shop', 'doctor', 'field', 'w
 
 /** And a place on a rock: boats, a market, a bed, and nothing growing anywhere near it. */
 const COASTAL: Post[] = ['square', 'market', 'inn', 'shop', 'doctor', 'shore'];
+/** Farming ground with no woods: farmers can prosper here, but its yard cannot fill itself. */
+const BARE: Post[] = ['square', 'market', 'inn', 'shop', 'doctor', 'field', 'gate', 'heights'];
 
 export const VILLAGES: Regime[] = [
   { village: 'Ashford', houses: 6, posts: INLAND },
@@ -81,11 +86,12 @@ export const VILLAGES: Regime[] = [
   { village: 'Fernreach', houses: 6, posts: INLAND, mine: true },
   { village: 'Saltcombe', houses: 5, posts: COASTAL },
   { village: 'Windle', houses: 1, posts: INLAND, hamlet: true },
+  { village: 'Stonedale', houses: 6, posts: BARE, bare: true },
 ];
 
 /** The villages nothing is done to, which every other one is read against. */
 export const LEFT_ALONE = VILLAGES
-  .filter((v) => v.band === undefined && !v.mine && !v.hamlet)
+  .filter((v) => v.band === undefined && !v.mine && !v.hamlet && !v.bare)
   .map((v) => v.village);
 
 /**
@@ -212,12 +218,12 @@ export interface Standing {
   /**
    * What the *land* could carry, as against what the farmers could keep.
    *
-   * The herd's cap is farms times what a farm holds, and what a farm holds is its buildings —
-   * `stables.ts`. The two are the same number today because nobody has built a stable yet, and
-   * they will not be the moment anybody does. Asked of the land rather than of the men, because a
-   * village that buries a farmer has not lost a paddock.
+   * The herd's cap is farms times what each farm's works hold — `stables.ts`. Asked of the land
+   * rather than of the men, because a village that buries a farmer has not lost a paddock.
    */
   carries: number;
+  /** Stable rungs raised, distinct from new farms that also increase carrying room. */
+  stables: number;
   /**
    * And the ceiling the village is actually using, against the one its roofs justify.
    *
@@ -250,6 +256,7 @@ export interface Standing {
 export function liveForward(seed: number, days = DAYS): Run {
   const register = new Register(seed);
   const mines = new Mines(seed, FOUNDED);
+  const timber = new Timber();
   const books = new Map<string, Books[]>();
   const minted = new Map<string, Map<number, number>>();
   const taxed = new Map<string, Map<number, number>>();
@@ -311,6 +318,12 @@ export function liveForward(seed: number, days = DAYS): Run {
       register.bury(here[(day * 7) % here.length].id, day);
     }
 
+    // The same builder morning the game runs: fell first, then let one full, prosperous farm ask.
+    for (const regime of VILLAGES) {
+      const people = register.living(regime.village);
+      timber.felled(regime.village, people.filter((person) => person.trade === 'woodcutter').length);
+      register.commissionStable(regime.village, timber, day);
+    }
     const walked = register.advance(day);
 
     for (const dug of mines.advance(day, workings, (village) => register.living(village))) {
@@ -375,6 +388,7 @@ function stood(register: Register, village: string, day: number): Standing {
       register.worksOf(village),
       (register.madeOf(village).holdings ?? []).filter((h) => h.kind === 'farm').map((h) => h.id),
     ),
+    stables: register.worksOf(village).filter(isAStable).length,
     roofed: holdsFor(register.livedIn(village), register.worksOf(village)),
   };
 }

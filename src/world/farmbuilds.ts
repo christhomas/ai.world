@@ -1,16 +1,17 @@
 import { costOfAStable, timberForAStable } from './growth';
 import { BYRE, beastsAt, oneSizeUp, stableAt, type Stable } from './stables';
+import { mannedFarms, ownedBy, type Owner } from './holdings';
+import { outOfDays } from './people';
+import { ableToWork } from './wounds';
+import type { Settlement } from './settlement';
 
 /**
  * A farmer paying a builder for a bigger stable, which is the first money in this game that buys
  * capacity rather than a thing.
  *
- * The ladder landed on the 13th — byre, stable, barn, steading — with its prices beside it, and
- * nothing ever called them. `costOfAStable` and `timberForAStable` sat in `growth.ts`, exported,
- * with seven assertions about what they cost and how the rungs compare, reachable from the test
- * file and from nowhere else. So every rung existed, every bill existed, and no farmer in any world
- * could climb one. It is the eighth feature found that way, and the pattern is always the same: the
- * parts are green and the join was never written.
+ * The ladder landed first — byre, stable, barn, steading — with its prices beside it, but no daily
+ * transaction called it. The committing edge below now joins those rules to a farmer's live purse
+ * and the village timber yard, while leaving the choice itself pure and directly testable.
  *
  * ## Why it is the farmer's decision and not the village's
  *
@@ -50,6 +51,7 @@ export interface Farming {
 
 export interface ABiggerStable {
   holding: string;
+  worker: string;
   stable: Stable;
   gold: number;
   timber: number;
@@ -94,9 +96,58 @@ export function whichFarmerBuilds(o: {
     const wood = timberForAStable(wanted);
     if (o.timber < wood) continue;                         // the village cannot build it at all
     if (o.purseOf(farm.worker) <= gold * KEEPS_BACK) continue;
-    return { holding: farm.holding, stable: wanted, gold, timber: wood };
+    return { holding: farm.holding, worker: farm.worker, stable: wanted, gold, timber: wood };
   }
   return null;
+}
+/** A farmer's stable commission, kept because timber can include wood a player carried in. */
+export interface StablePurchase {
+  village: string;
+  day: number;
+  holding: string;
+  farmer: Owner;
+  work: string;
+  gold: number;
+  timber: number;
+}
+
+/** The small part of a timber yard needed to make a stable commission. */
+export interface StableYard {
+  at(village: string): number;
+  draw(village: string, timber: number): boolean;
+}
+
+/**
+ * Commission one stable from a village's live books and yard.
+ *
+ * Selection is pure in `whichFarmerBuilds`; this is the committing edge. Timber is drawn before
+ * the purchase is recorded, all or nothing, so a failed draw can neither raise rails nor empty a
+ * partial stack. Money moves when the village lives the commissioned day, alongside every other
+ * payment in its books.
+ */
+export function commissionAStable(
+  village: string, settlement: Settlement, yard: StableYard, day: number,
+): StablePurchase | null {
+  const working = settlement.people.filter((person) => ableToWork(person) && !outOfDays(person, day));
+  const farms = (mannedFarms(settlement.holdings, working) ?? []).flatMap((farm) =>
+    farm.id && farm.worker ? [{ holding: farm.id, worker: farm.worker }] : []);
+  if (farms.length === 0) return null;
+  const purchase = whichFarmerBuilds({
+    farms,
+    purseOf: (worker) => settlement.people.find((person) => person.id === worker)?.purse ?? 0,
+    built: settlement.works,
+    herd: settlement.herd,
+    room: farms.reduce((room, farm) => room + beastsAt(settlement.works, farm.holding), 0),
+    timber: yard.at(village),
+  });
+  if (!purchase) return null;
+  const farmer = working.find((person) => person.id === purchase.worker);
+  if (!farmer || !yard.draw(village, purchase.timber)) return null;
+  return {
+    village, day: Math.floor(day), holding: purchase.holding, farmer: ownedBy(farmer),
+    work: `stable:${purchase.stable.id}:${purchase.holding}`,
+    gold: purchase.gold, timber: purchase.timber,
+  };
 }
 
 /** The byre every farm starts with, re-exported so a caller need not know two files to ask. */

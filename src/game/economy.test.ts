@@ -688,6 +688,28 @@ describe('what a village does with what it has put by', () => {
  * the money is *for*, so it is the one place in this file that reads a constant out of
  * `prosperity.ts` — and it is deliberately last, below everything that judges.
  */
+/** A full farm spends its own money on rails only where somebody has supplied the yard. */
+describe('farms climbing the stable ladder', () => {
+  it('raises stable rungs over a century with loggers, and none on bare farming ground', () => {
+    const wooded = VILLAGES.filter((village) => village.posts.includes('woods')).map((village) => village.village);
+    const grown = RUNS.flatMap((run) => wooded.map((village) => ({
+      run, village, last: run.standing.get(village)!.at(-1)!,
+    }))).filter(({ last }) => last.stables > 0);
+    const bare = RUNS.map((run) => ({ run, last: run.standing.get('Stonedale')!.at(-1)! }));
+
+    report({
+      verdict: grown.length > 0 && bare.every(({ last }) => last.stables === 0) ? 'PASS' : 'FAIL',
+      count: grown.length,
+      what: 'wooded villages whose farms outgrew byres while bare Stonedale raised no stable',
+      detail: [
+        ...grown.map(({ run, village, last }) => `${at(run, village, last.day)}: ${last.stables} stable rungs, room for ${last.carries}`),
+        ...bare.map(({ run, last }) => `${at(run, 'Stonedale', last.day)}: ${last.stables} stable rungs, room for ${last.carries}`),
+      ],
+    });
+    expect(grown.length, 'no farm in a wooded village outgrew its byre').toBeGreaterThan(0);
+    expect(bare.every(({ last }) => last.stables === 0), 'a bare village built with timber it never had').toBe(true);
+  });
+});
 describe('what the hundred days came to', () => {
   it('says so, and writes the account out', () => {
     const first = RUNS[0];

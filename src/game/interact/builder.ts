@@ -673,14 +673,22 @@ export function builderInteractions(ctx: Surroundings) {
      * exactly when he would look at what came into the yard. A village with no woodcutter in it lands
      * nothing, for ever, and that is the limit the whole material exists to be.
      */
+    let yardChanged = false;
     for (const village of register.settled()) {
+      const before = houses.yard.at(village);
       houses.yard.felled(village, woodcuttersFor(register.living(village)));
+      const stable = register.commissionStable(village, houses.yard, state.day);
+      if (stable) houses.rememberStablePurchase(stable);
+      if (stable || houses.yard.at(village) !== before) yardChanged = true;
     }
     const worked = workTheHallJobs(
       houses, day, (village) => register.living(village), [...busy.values()].flat(),
     );
     const bills = houses.charge(day);
-    if (worked.length === 0 && bills.length === 0) return;
+    if (worked.length === 0 && bills.length === 0) {
+      if (yardChanged) persist();
+      return;
+    }
     for (const bill of bills) {
       const before = grudges.regard(bill.village, day);
       const after = regardOf(grudges.slighted(bill.village, day, bill.weight));

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TIMBER, Timber } from './timber';
 import { BUILDS, CATALOGUE, Houses, buildable, deposit } from './building';
+import { Register } from '../world/register';
+import { STABLES, beastsAt, workOf } from '../world/stables';
+import { ownedBy } from '../world/holdings';
 
 /**
  * The first material, and the first limit in this economy that is not arithmetic.
@@ -78,12 +81,26 @@ describe('a village yard', () => {
   });
 
   it('rides in the save beside the commissions it pays for', () => {
-    // a yard is a running total of what was cut and what was built, and the second of those
-    // includes what a player chose to have built — which no seed implies and nothing can re-derive
+    // a yard and the choices that drew from it cannot be recovered from the seed
     const houses = new Houses();
     houses.yard.land(ASHFORD, 55);
+    const source = new Register(73);
+    const farmer = source.settle(ASHFORD, 10, ['farmer', 'builder']).find((person) => person.trade === 'farmer')!;
+    const holding = `${ASHFORD}-farm-1`;
+    houses.rememberStablePurchase({
+      village: ASHFORD, day: 2, holding, farmer: ownedBy(farmer),
+      work: workOf(STABLES[1], holding), gold: 1, timber: 1,
+    });
+
     const again = Houses.from(JSON.parse(JSON.stringify(houses.toJSON())));
+    const replay = new Register(73);
+    replay.rememberStablePurchases(again.stablePurchases());
+    replay.settle(ASHFORD, 10, ['farmer', 'builder']);
+    replay.advance(2);
+
     expect(again.yard.at(ASHFORD)).toBe(55);
+    expect(replay.worksOf(ASHFORD)).toContain(workOf(STABLES[1], holding));
+    expect(beastsAt(replay.worksOf(ASHFORD), holding)).toBe(STABLES[1].beasts);
   });
 });
 
