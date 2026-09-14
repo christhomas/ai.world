@@ -2,10 +2,12 @@ import {
   BUILD, BUILDS, buildable, builderIn, deposit, isFinished,
   Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
 } from '../building';
+import { workTheHallJobs } from '../halljobs';
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
 import { jettiesIn, type Mooring } from '../jetties';
 import { moorageFor } from '../sailing';
-import { buy, give, holds } from '../../world/deeds';
+import { give, holds } from '../../world/deeds';
+import type { Post } from '../../world/postings';
 import { boxOf, handOver, packOf } from '../../world/goods';
 import { settle } from '../../world/works';
 import { villageTill } from '../tills';
@@ -216,9 +218,8 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
         };
       }
       houses.yard.draw(village.name, entry.timber);
-      // one act rather than two halves that have to agree: the gold leaves the rucksack
-      // and arrives in the village, and `villageTill` decides who in it is the better off
-      buy(holds(state.inventory), villageTill(ctx.register, village.name), down);
+      // The deposit stays on the commission's hall account and buys one worker at a time.
+      holds(state.inventory).take(down);
       houses.takeOn(village.name, entry.price, down, entry.id);
       state.version++;
       sound.select();
@@ -258,11 +259,9 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
         if (state.inventory.gold < balance) {
           return { speaker: name, emoji: '🔨', pages: [`${balance} gold, and you have ${state.inventory.gold}. It stands there locked until you have it, and the village hears about it every day it does.`] };
         }
-        // one deed: the money leaves the rucksack, arrives in the village, and the commission
-        // records what it has been paid. Three lines that had to agree about one number, and they
-        // very nearly did not — the conversion that caught the deposit above missed this because
-        // `houses.pay` sat between the two halves of it
+        // The completed price lands in the village; the commission records the same payment.
         settle(holds(state.inventory), villageTill(ctx.register, village.name), job);
+        villageTill(ctx.register, village.name).give(houses.takeSurplus(job));
         const built = buildable(job.what);
         // and the one job that is handed over rather than simply finished: she comes off the
         // stocks when she is paid for, which is the same bargain as the key under the step
@@ -665,7 +664,7 @@ export function builderInteractions(ctx: Surroundings) {
    * everybody will have said so in the pub by now. So it goes on the grudge the village already
    * keeps, which sours its prices and eventually its welcome, and which fades once you have paid.
    */
-  const builderDay = (): void => {
+  const builderDay = (day: number, busy: ReadonlyMap<string, readonly Post[]> = new Map()): void => {
     /*
      * What the woodcutters cut, which is the other half of a builder's morning.
      *
@@ -677,11 +676,14 @@ export function builderInteractions(ctx: Surroundings) {
     for (const village of register.settled()) {
       houses.yard.felled(village, woodcuttersFor(register.living(village)));
     }
-    const bills = houses.charge(state.day);
-    if (bills.length === 0) return;
+    const worked = workTheHallJobs(
+      houses, day, (village) => register.living(village), [...busy.values()].flat(),
+    );
+    const bills = houses.charge(day);
+    if (worked.length === 0 && bills.length === 0) return;
     for (const bill of bills) {
-      const before = grudges.regard(bill.village, state.day);
-      const after = regardOf(grudges.slighted(bill.village, state.day, bill.weight));
+      const before = grudges.regard(bill.village, day);
+      const after = regardOf(grudges.slighted(bill.village, day, bill.weight));
       if (after !== before && after !== 'fine' && said.get(bill.village) !== after) {
         said.set(bill.village, after);
         hud.flash(after === 'unwelcome'

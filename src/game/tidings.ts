@@ -55,8 +55,8 @@ export interface Telling {
   discovered: Set<string>;
   /** Everything Old Nettle's cycle reaches into, gathered when it is asked for rather than held. */
   realm: () => Realm;
-  /** A builder who has finished and not been paid has said so in the pub by now. */
-  builderDay: () => void;
+  /** One builder morning, against the villagers alive at its start. */
+  builderDay: (day: number, already?: ReadonlyMap<string, readonly Post[]>) => void;
   /** And whatever else happened in a village overnight, from the interactions that own it. */
   villageNights: () => Array<{ kind: string; village: string; name: string }>;
   /** A line into the console, which is where word from elsewhere arrives. */
@@ -265,10 +265,24 @@ export function createTidings(ctx: Telling) {
         director.saw('trouble');
       }
     }
-    // a builder who has finished and not been paid has said so in the pub by now, and the village
-    // holds it against you for every day it goes on standing there unsettled
-    builderDay();
-    for (const change of [...register.advance(state.day), ...villageNights()]) {
+    /*
+     * Work and age one morning at a time. A clock jump must not post every missed shift against one
+     * frozen roster: somebody buried on Tuesday cannot keep drawing wages on Wednesday, and their
+     * replacement can take the yard the next morning. Work comes first because that is the ordinary
+     * one-day order this function has always used.
+     */
+    const changes = [];
+    const today = Math.floor(state.day);
+    let mornings = 0;
+    while (register.today < today) {
+      const day = register.today + 1;
+      builderDay(day, day === today ? standing : undefined);
+      changes.push(...register.advance(day));
+      mornings++;
+    }
+    // A commission may have been placed after today's register work; it still gets this morning.
+    if (mornings === 0) builderDay(today, standing);
+    for (const change of [...changes, ...villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
         say(`Word from ${change.village}: ${change.name} has died.`);
       }

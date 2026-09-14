@@ -252,7 +252,6 @@ export function startGame(
     at: () => ({ x: player.x, z: player.z }),
     sky: () => skies.save(),
   });
-  register.advance(state.day);                // a world reopened after a week finds a village changed
   /** Everything Old Nettle's cycle needs to reach into, gathered when it is asked for rather than held. */
   const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name, recall });
   // which hole each village works, what it believes about it, and whether the hero is down one
@@ -593,7 +592,7 @@ export function startGame(
   const tidings = createTidings({
     seed, state, player, places, structures, around, sampler, register, roaming, nemesis, mines, online,
     remains, sound, director, claimed, villageLuxury, discovered, realm, persist,
-    builderDay: () => interactions.builderDay(),
+    builderDay: (day, already) => interactions.builderDay(day, already),
     villageNights: () => interactions.villageNights(),
     say: (line) => chat.line(line, 'sys'),
     flash: (message) => hud.flash(message),

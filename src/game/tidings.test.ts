@@ -14,6 +14,8 @@ import type { Sound } from './audio';
 import type { GameState } from './state';
 import type { Site, Structures } from '../world/structures';
 import type { TerrainSampler } from '../world/terrain';
+import { BUILD, Houses, deposit } from './building';
+import { workTheHallJobs, type HallJobDay } from './halljobs';
 
 /**
  * The day's news, and the two ways of getting a memo wrong.
@@ -49,6 +51,10 @@ interface Around {
   mine?: boolean;
   /** What the mine has to say when somebody walks into the square, if anything. */
   told?: () => string | null;
+  /** Builder work performed for one named morning. */
+  builderDay?: (day: number) => void;
+  /** Whether this village is known well enough for its deaths to reach the player. */
+  discovered?: boolean;
 }
 
 /**
@@ -98,9 +104,9 @@ function telling(around: Around = {}) {
       ? new Map([[VILLAGE, { name: 'Deepshaft', x: 5, z: 5 } as unknown as Site]])
       : new Map<string, Site>(),
     villageLuxury: new Map(),
-    discovered: new Set(),
+    discovered: new Set(around.discovered ? [VILLAGE] : []),
     realm: () => ({} as Realm),
-    builderDay: () => {},
+    builderDay: around.builderDay ?? (() => {}),
     villageNights: () => [],
     say: (line) => { said.push(line); },
     flash: (message) => { flashed.push(message); },
@@ -110,6 +116,31 @@ function telling(around: Around = {}) {
 }
 
 describe('the news a day brings', () => {
+  it('replaces a builder who dies during a skipped run of mornings', () => {
+    const register = new Register(7);
+    register.settle(VILLAGE, 10, ['builder']);
+    const builders = [...register.living(VILLAGE)].filter((person) => person.trade === 'builder')
+      .sort((one, two) => one.id < two.id ? -1 : 1);
+    const first = builders[0];
+    first.lives = 3 - first.born;
+    const houses = new Houses();
+    houses.takeOn(VILLAGE, BUILD.PRICE, deposit());
+    houses.place(20, 20, 1);
+    const shifts: HallJobDay[] = [];
+    const morning = (day: number): void => {
+      shifts.push(...workTheHallJobs(houses, day, () => register.living(VILLAGE)));
+    };
+    const { tidings, state, said } = telling({ register, builderDay: morning, discovered: true });
+
+    state.day = 7;
+    tidings.theDaysNews();
+
+    expect(shifts).toHaveLength(6);
+    expect(shifts.slice(0, 2).map((shift) => shift.who)).toEqual([first.id, first.id]);
+    expect(shifts.slice(2).every((shift) => shift.who !== first.id)).toBe(true);
+    expect(register.find(first.id)).toBeUndefined();
+    expect(said).toContain(`Word from ${VILLAGE}: ${first.name} has died.`);
+  });
   it('lets two bands leaning on one village say their piece once each, not once a frame', () => {
     /*
      * The measured bug, exactly. `pressings` comes back one entry per band *per village*, and the
