@@ -284,8 +284,8 @@ export class Online {
    * walking this hero and owns the creatures round him, so which of them were in the arc is its
    * business. What it did about it comes back as a snapshot, or as a body falling.
    */
-  swing(place: string, damage: number, reach: number, arc: number, one = false): void {
-    this.send({ type: 'swing', place, damage, reach, arc, one });
+  swing(place: string, damage: number, reach: number, arc: number, yaw: number, one = false): void {
+    this.send({ type: 'swing', place, damage, reach, arc, yaw, one });
   }
 
   /**
