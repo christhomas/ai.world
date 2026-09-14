@@ -233,7 +233,7 @@ export function whoFed(
     if (!person.trade) continue;
     const meat = person.trade === 'farmer' && farmers.length > 0 ? fromHerd / farmers.length : 0;
     const fish = person.trade === 'fisherman' && crews.length > 0 ? fromBoats / crews.length : 0;
-    shares.set(ownedBy(person), broughtIn(person, shore, 0) + meat + fish);
+    shares.set(ownedBy(person), broughtIn(person, shore) + meat + fish);
   }
   for (const [owner, crop] of fromFields) shares.set(owner, (shares.get(owner) ?? 0) + crop);
   return shares;
@@ -386,10 +386,8 @@ export function aDaysTrade(
     for (const farm of farms) {
       const worker = byId.get(farm.worker ?? '');
       if (!worker) continue;
-      addField(farm.owner ?? ownedBy(worker), FOOD.PER_FARMER + foodAt(village.works ?? [], farm.id ?? ''));
+      addField(farm.owner ?? ownedBy(worker), foodAt(village.works ?? [], farm.id ?? ''));
     }
-  } else {
-    for (const farmer of farmers) addField(ownedBy(farmer), FOOD.PER_FARMER);
   }
   // by id and with what the village has built, so a farm that was built up holds what it was built
   // to hold rather than the same as every other farm. See `aDayOfCattle`
@@ -452,7 +450,7 @@ export function aDaysTrade(
 
   return {
     herd: cattle.herd,
-    grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore, 0), 0)
+    grown: people.reduce((sum, person) => sum + broughtIn(person, coast.shore), 0)
       + fieldMeals + cattle.meals + caught.meals,
     fields,
     meat: cattle.meals,

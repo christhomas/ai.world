@@ -29,7 +29,7 @@ import { type TradeOffer } from './game/online';
 import { Chat } from './ui/chat';
 import { CropField } from './render/crops';
 import { BuildingSite } from './render/site';
-import { roofWatch } from './game/villageroofs';
+import { villageWatch } from './game/villageroofs';
 import { Beam } from './render/beam';
 import { HeroGear } from './render/herogear';
 import { Rucksack } from './ui/rucksack';
@@ -55,7 +55,6 @@ import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
 import { whichFieldClears } from './world/fieldbuilds';
-import { clearedFieldTiles } from './world/fields';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
 import { Director } from './game/director';
@@ -90,7 +89,6 @@ import { openTheSave } from './game/keeping';
 import { bindKeys } from './game/keys';
 import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
-
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL,
@@ -224,9 +222,7 @@ export function startGame(
   const beam = new Beam(rig.scene, entityRenderer, heroGear.group);
   const castbar = $('castbar');
   const lineRng = mulberry32(derive(seed, SALT.DIALOGUE));
-
   const chat = new Chat();
-
   /** The world the hero is standing in: the surface, a dungeon floor, or a building. */
   const placeName = (): string => places.underground
     ? `${places.underground.poi.name}:${places.underground.floor}`
@@ -246,18 +242,9 @@ export function startGame(
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
   // and on the same sites, the houses the villages built themselves: `game/villageroofs.ts`
-  const roofsToday = roofWatch(() => structures.villages, (v) => register.worksOf(v));
-  let fieldsDay = -1;
-  const villageRoofs = (day: number): ReturnType<typeof roofsToday> => {
-    const today = Math.floor(day);
-    if (today !== fieldsDay) {
-      fieldsDay = today;
-      const works = structures.villages.flatMap((village) => register.worksOf(village.name));
-      chunks.clearFields(clearedFieldTiles(works));
-    }
-    return roofsToday(day);
-  };
-
+  const villageRoofs = villageWatch(
+    () => structures.villages, (v) => register.worksOf(v), (fields) => chunks.clearFields(fields),
+  );
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines,
