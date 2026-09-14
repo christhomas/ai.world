@@ -381,12 +381,14 @@ export function aDaysTrade(
     fields.set(owner, (fields.get(owner) ?? 0) + meals);
     fieldMeals += meals;
   };
-  if (farms) {
+  if (village.holdings !== undefined) {
     const byId = new Map(working.map((person) => [person.id, person]));
-    for (const farm of farms) {
+    const farmerOwners = new Set(farmers.map(ownedBy));
+    for (const farm of village.holdings.filter((holding) => holding.kind === 'farm')) {
       const worker = byId.get(farm.worker ?? '');
-      if (!worker) continue;
-      addField(farm.owner ?? ownedBy(worker), foodAt(village.works ?? [], farm.id ?? ''));
+      const owner = farm.owner ?? (worker ? ownedBy(worker) : undefined);
+      const recipient = owner && (worker || farmerOwners.has(owner)) ? owner : worker && ownedBy(worker);
+      if (recipient) addField(recipient, foodAt(village.works ?? [], farm.id ?? ''));
     }
   }
   // by id and with what the village has built, so a farm that was built up holds what it was built
