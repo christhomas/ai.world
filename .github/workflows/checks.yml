@@ -73,8 +73,10 @@ jobs:
       # That install is fixed. This is the class. Anything a setup step touched is either the same
       # bug again or a generated file that should be in `.gitignore` and is not.
       #
-      # Here and not at the end: the benches write their reports — `sanity-report.txt` and the
-      # economy one — and a guard that fails on those every time is a guard somebody switches off.
+      # Here and not at the end: the playthrough writes its own report, and a guard that fails on
+      # that every time is a guard somebody switches off. After the playwright borrow rather than
+      # before it, because borrowing one is setup too — `npm install --global` and `playwright
+      # install` both write outside the checkout, so this covers them at no cost.
       - name: The checkout is as it was checked out
         run: |
           dirty=$(git status --porcelain)
@@ -200,6 +202,19 @@ jobs:
           rm -rf "$unpack"
           chore --version
 
+      # Playwright is borrowed here exactly as it is borrowed at a desk, and stays out of
+      # `package.json` on purpose. Everything that installs this project's dependencies would
+      # otherwise pay for it: the Pages build, and the server image, which runs `pnpm install
+      # --frozen-lockfile` once per architecture — and a browser toolchain inside a world-server
+      # image is the shape of the thing that nearly killed that container. It would only
+      # half-declare it in any case, because the browser is a separate download keyed by the
+      # playwright version and no lockfile has ever held one. So: installed on its own, pinned, and
+      # pointed at with NODE_PATH, which is the mechanism the script already expects.
+      #
+      # The package's own postinstall is skipped and one browser asked for by name instead. Left to
+      # itself it fetches chromium, firefox and webkit — three hundred megabytes to run none of
+      # them — and the one wanted is Chrome, the same one a desk run opens, so that the pipeline and
+      # the desk are looking through the same renderer rather than at two different pictures.
       - name: Borrow a playwright
         env:
           PLAYWRIGHT_VERSION: 1.52.0
@@ -220,8 +235,10 @@ jobs:
       # That install is fixed. This is the class. Anything a setup step touched is either the same
       # bug again or a generated file that should be in `.gitignore` and is not.
       #
-      # Here and not at the end: the benches write their reports — `sanity-report.txt` and the
-      # economy one — and a guard that fails on those every time is a guard somebody switches off.
+      # Here and not at the end: the playthrough writes its own report, and a guard that fails on
+      # that every time is a guard somebody switches off. After the playwright borrow rather than
+      # before it, because borrowing one is setup too — `npm install --global` and `playwright
+      # install` both write outside the checkout, so this covers them at no cost.
       - name: The checkout is as it was checked out
         run: |
           dirty=$(git status --porcelain)
@@ -231,20 +248,6 @@ jobs:
             git diff --stat >&2
             exit 1
           fi
-
-      # Playwright is borrowed here exactly as it is borrowed at a desk, and stays out of
-      # `package.json` on purpose. Everything that installs this project's dependencies would
-      # otherwise pay for it: the Pages build, and the server image, which runs `pnpm install
-      # --frozen-lockfile` once per architecture — and a browser toolchain inside a world-server
-      # image is the shape of the thing that nearly killed that container. It would only
-      # half-declare it in any case, because the browser is a separate download keyed by the
-      # playwright version and no lockfile has ever held one. So: installed on its own, pinned, and
-      # pointed at with NODE_PATH, which is the mechanism the script already expects.
-      #
-      # The package's own postinstall is skipped and one browser asked for by name instead. Left to
-      # itself it fetches chromium, firefox and webkit — three hundred megabytes to run none of
-      # them — and the one wanted is Chrome, the same one a desk run opens, so that the pipeline and
-      # the desk are looking through the same renderer rather than at two different pictures.
 
       # No server to start and none to kill: `chore playtest` serves the page itself when nothing is
       # answering on the port and puts it away afterwards, win or lose. That is the same command a
