@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ownedBy, ownerFromSave } from './holdings';
 import { ITEMS } from '../game/items';
 import { FOOD, broughtIn, cellarCap } from './food';
 import { PROSPER, spentOnLiving } from './prosperity';
@@ -43,16 +44,16 @@ const aFewFarms = (many: number): string[] => Array.from({ length: many }, (_, n
 
 describe('sharing a pool out', () => {
   it('hands out every coin of it, and no more', () => {
-    const shares = new Map([['a', 1], ['b', 3], ['c', 5]]);
+    const shares = new Map([[ownerFromSave('a'), 1], [ownerFromSave('b'), 3], [ownerFromSave('c'), 5]]);
     const paid = shareOut(90, shares);
     expect(total(paid)).toBeCloseTo(90, 10);
-    expect(paid.get('b')).toBeCloseTo(30, 10);
+    expect(paid.get(ownerFromSave('b'))).toBeCloseTo(30, 10);
   });
 
   it('gives the odd penny to somebody rather than losing it', () => {
     // a third of ten, three ways: rounded shares would leave a hundredth of a coin unaccounted for
     // every day, which over a hundred villages and a hundred days is money the world invented
-    const paid = shareOut(10, new Map([['a', 1], ['b', 1], ['c', 1]]));
+    const paid = shareOut(10, new Map([[ownerFromSave('a'), 1], [ownerFromSave('b'), 1], [ownerFromSave('c'), 1]]));
     expect(total(paid)).toBeCloseTo(10, 12);
   });
 
@@ -63,7 +64,7 @@ describe('sharing a pool out', () => {
 
 describe('keeping cattle', () => {
   it('grows a young herd toward what the paddocks hold, selling nothing', () => {
-    const day = aDayOfCattle(2, aFewFarms(1));
+    const day = aDayOfCattle(2, aFewFarms(1), LIVELIHOOD.HERD_PER_FARMER);
     expect(day.herd).toBeGreaterThan(2);
     expect(day.sold).toBe(0);
     expect(day.gold).toBe(0);
@@ -72,7 +73,7 @@ describe('keeping cattle', () => {
   it('sells exactly what was born once the herd is full, and stays that size', () => {
     const farmers = 2;
     const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
-    const day = aDayOfCattle(cap, aFewFarms(farmers));
+    const day = aDayOfCattle(cap, aFewFarms(farmers), cap);
     expect(day.herd).toBeCloseTo(cap, 10);
     expect(day.sold).toBeCloseTo(cap * LIVELIHOOD.CALVES, 10);
     expect(day.gold).toBeGreaterThan(0);
@@ -87,7 +88,7 @@ describe('keeping cattle', () => {
      */
     let herd: number = LIVELIHOOD.FIRST_HERD;
     let days = 0;
-    while (herd < LIVELIHOOD.HERD_PER_FARMER - 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(1)).herd; days++; }
+    while (herd < LIVELIHOOD.HERD_PER_FARMER - 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(1), LIVELIHOOD.HERD_PER_FARMER).herd; days++; }
     expect(days).toBeGreaterThan(5);
     expect(days).toBeLessThan(40);
   });
@@ -103,13 +104,13 @@ describe('keeping cattle', () => {
     const cap = farmers * LIVELIHOOD.HERD_PER_FARMER;
     let herd = cap * 3;                          // three farmers' worth, two of them just buried
     let days = 0;
-    while (herd > cap + 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(farmers)).herd; days++; }
+    while (herd > cap + 0.01 && days < 400) { herd = aDayOfCattle(herd, aFewFarms(farmers), cap).herd; days++; }
     expect(days).toBeGreaterThan(7);             // not the whole surplus at the butcher in one morning
     expect(days).toBeLessThan(45);
   });
 
   it('loses the herd when the last farmer is buried', () => {
-    expect(aDayOfCattle(12, aFewFarms(0))).toEqual({ herd: 0, sold: 0, meals: 0, gold: 0 });
+    expect(aDayOfCattle(12, aFewFarms(0), 0)).toEqual({ herd: 0, sold: 0, meals: 0, gold: 0 });
   });
 });
 
@@ -118,14 +119,14 @@ describe('what the village paid for its dinner', () => {
     const people = [person('farmer'), person('soldier'), person('hunter')];
     const paid = paidForFood(people, 3);
     expect(total(paid)).toBeCloseTo(3, 10);
-    expect(paid.get(people[0].id)!).toBeGreaterThan(paid.get(people[2].id)!);
-    expect(paid.get(people[2].id)!).toBeGreaterThan(paid.get(people[1].id)!);
+    expect(paid.get(ownedBy(people[0]))!).toBeGreaterThan(paid.get(ownedBy(people[2]))!);
+    expect(paid.get(ownedBy(people[2]))!).toBeGreaterThan(paid.get(ownedBy(people[1]))!);
   });
 
   it('pays the farmers for the meat as well as for the field', () => {
     const people = [person('farmer'), person('soldier')];
-    const without = paidForFood(people, 10)?.get(people[0].id)!;
-    const with_ = paidForFood(people, 10, 16)?.get(people[0].id)!;
+    const without = paidForFood(people, 10)?.get(ownedBy(people[0]))!;
+    const with_ = paidForFood(people, 10, 16)?.get(ownedBy(people[0]))!;
     expect(with_).toBeGreaterThan(without);
   });
 
@@ -137,7 +138,7 @@ describe('what the village paid for its dinner', () => {
 
   it('leaves the children out of it', () => {
     const child = person('');
-    expect(whoFed([child, person('farmer')]).has(child.id)).toBe(false);
+    expect(whoFed([child, person('farmer')]).has(ownedBy(child))).toBe(false);
   });
 });
 
@@ -146,8 +147,8 @@ describe('selling a service', () => {
     const people = [person('seller'), person('innkeeper'), person('soldier'), person('farmer')];
     const paid = paidForService(people, 6);
     expect(total(paid)).toBeCloseTo(6, 10);
-    expect(paid.get(people[2].id)).toBeUndefined();
-    expect(paid.get(people[3].id)).toBeUndefined();
+    expect(paid.get(ownedBy(people[2]))).toBeUndefined();
+    expect(paid.get(ownedBy(people[3]))).toBeUndefined();
   });
 
   it('lets it leave the valley when there is nobody here to buy from', () => {
@@ -168,7 +169,7 @@ describe('a village\'s working day', () => {
     const day = aDaysTrade(people, 8, 0);
     // what came in from beyond: the wages of the trades whose customers are elsewhere, and the
     // meat the next valley bought. Everything else in the day is one villager paying another
-    const outside = aDayOfCattle(8, aFewFarms(2)).gold
+    const outside = aDayOfCattle(8, aFewFarms(2), 2 * LIVELIHOOD.HERD_PER_FARMER).gold
       + people.filter((p) => ['seller', 'innkeeper', 'doctor'].includes(p.trade)).length * PROSPER.TRADED
       + people.filter((p) => ['soldier', 'miner', 'sailor', 'climber', 'explorer', 'constable'].includes(p.trade)).length * PROSPER.A_DAY;
     expect(total(day.paid)).toBeCloseTo(outside, 8);
@@ -198,8 +199,8 @@ describe('a village\'s working day', () => {
     const people = [person('soldier', 500), person('seller', 500)];
     const day = aDaysTrade(people, 0, 0);
     // the soldier's day is his wage less his keep; the seller's is her wage plus both keeps
-    expect(day.paid.get(people[0].id)!).toBeCloseTo(PROSPER.A_DAY - PROSPER.UPKEEP, 10);
-    expect(day.paid.get(people[1].id)!).toBeCloseTo(PROSPER.TRADED + PROSPER.UPKEEP * 2 - PROSPER.UPKEEP, 10);
+    expect(day.paid.get(ownedBy(people[0]))!).toBeCloseTo(PROSPER.A_DAY - PROSPER.UPKEEP, 10);
+    expect(day.paid.get(ownedBy(people[1]))!).toBeCloseTo(PROSPER.TRADED + PROSPER.UPKEEP * 2 - PROSPER.UPKEEP, 10);
   });
 });
 
@@ -209,8 +210,8 @@ describe('what the roll quotes against a name', () => {
     const income = aDaysIncome(people, 12, 0);
     // a farmer earns nothing from beyond the village and everything from inside it: a roll that
     // quoted only the outside wage would have him down as earning nought a day
-    expect(income.get(people[0].id)!).toBeGreaterThan(0);
-    expect(income.get(people[2].id)!).toBeGreaterThan(PROSPER.TRADED);
+    expect(income.get(ownedBy(people[0]))!).toBeGreaterThan(0);
+    expect(income.get(ownedBy(people[2]))!).toBeGreaterThan(PROSPER.TRADED);
   });
 
   it('never quotes more dinner money than the village could pay for', () => {
@@ -218,7 +219,7 @@ describe('what the roll quotes against a name', () => {
     // buys a meal, so nobody sells one, so the farmer takes nothing for what he grew
     const broke = [person('farmer', 0), person('hunter', 0)];
     const income = aDaysIncome(broke, 0, 0, 0);
-    expect(income.get(broke[0].id)!).toBeCloseTo(0, 10);
+    expect(income.get(ownedBy(broke[0]))!).toBeCloseTo(0, 10);
   });
 
   it('holds the food pool to what a village of this size actually eats', () => {
@@ -440,7 +441,7 @@ describe('every trade clears what a day costs it', () => {
     const income = aDay(people);
     for (const soul of people.filter((p) => p.trade)) {
       const costs = spentOnLiving(soul) + pitchFor(soul) + FOOD.MEAL;
-      const takes = income.get(soul.id) ?? 0;
+      const takes = income.get(ownedBy(soul)) ?? 0;
       expect(takes, `a ${soul.trade} takes ${takes.toFixed(2)} and a day costs ${costs.toFixed(2)}`)
         .toBeGreaterThan(costs);
     }
@@ -451,7 +452,7 @@ describe('every trade clears what a day costs it', () => {
     const people = working();
     const income = aDay(people);
     for (const soul of people.filter((p) => pitchFor(p) > 0)) {
-      expect(income.get(soul.id) ?? 0).toBeGreaterThan(pitchFor(soul) * 2);
+      expect(income.get(ownedBy(soul)) ?? 0).toBeGreaterThan(pitchFor(soul) * 2);
     }
   });
 
@@ -460,7 +461,7 @@ describe('every trade clears what a day costs it', () => {
     // walking to — but a trade paying ten times another is a game with one job in it
     const people = working();
     const income = aDay(people);
-    const takes = people.filter((p) => p.trade).map((p) => income.get(p.id) ?? 0);
+    const takes = people.filter((p) => p.trade).map((p) => income.get(ownedBy(p)) ?? 0);
     expect(Math.max(...takes) / Math.min(...takes)).toBeLessThan(8);
   });
 
@@ -589,7 +590,7 @@ describe('the hall\'s share', () => {
     const person = villager('a', PROSPER.KEEPS_BACK + 100);
     const tax = taxedForTheHall([person]);
     expect(tax.raised).toBeCloseTo(100 * LIVELIHOOD.TAX, 2);
-    expect(person.purse + (tax.owed.get('a') ?? 0), 'somebody was taxed below their week of dinners')
+    expect(person.purse + (tax.owed.get(ownerFromSave('a')) ?? 0), 'somebody was taxed below their week of dinners')
       .toBeGreaterThanOrEqual(PROSPER.KEEPS_BACK);
   });
 

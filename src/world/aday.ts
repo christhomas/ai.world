@@ -5,7 +5,7 @@ import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
 import { raiseWhoIsDue } from './shrine';
 import { payAndSweep } from './purses';
-import { THE_HALL, whatTheVillageHolds } from './holdings';
+import { THE_HALL_OWNER, ownedBy, whatTheVillageHolds } from './holdings';
 import { handOnWhatTheyHad } from './inheritance';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
@@ -142,8 +142,8 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day:
    * an assignment straight onto the settlement, which is a movement no book could see: not capped,
    * not audited, not a deed. `onepurse.test.ts` is what keeps it that way.
    */
-  payAndSweep(village, new Map([[THE_HALL, tax.raised + trading.toTheHall]]));
-  for (const person of village.people) o.taxed(person.id, -(tax.owed.get(person.id) ?? 0));
+  payAndSweep(village, new Map([[THE_HALL_OWNER, tax.raised + trading.toTheHall]]));
+  for (const person of village.people) o.taxed(person.id, -(tax.owed.get(ownedBy(person)) ?? 0));
   theVillageSpends(o, village, day);
   return trading;
 }
@@ -175,7 +175,7 @@ export function theVillageSpends(o: TheDay, village: Settlement, day: number): v
   // longer the whole test for "nothing happened here this morning"
   if (spending.spent === 0 && spending.founded.length === 0) return;
   // and what it spent leaves the same way it arrived: named, through `pay`, where a book can see it
-  payAndSweep(village, new Map([[THE_HALL, -spending.spent]]));
+  payAndSweep(village, new Map([[THE_HALL_OWNER, -spending.spent]]));
   village.works.push(...spending.works);
   // a raised roof is a raised ceiling: what the village can hold is what its houses hold, and
   // this is the one line that lets a village become bigger than it was founded. See `growth.ts`

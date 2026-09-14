@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ownerFromSave, type Owner } from './holdings';
 import { PROSPER } from './prosperity';
 import type { Settlement } from './settlement';
 import { pay, payAndSweep } from './purses';
@@ -11,8 +12,8 @@ function village(purses: number[], hall = 0): Settlement {
   } as unknown as Settlement;
 }
 
-function owed(...much: number[]): Map<string, number> {
-  return new Map(much.map((m, n) => [`p${n}`, m]));
+function owed(...much: number[]): Map<Owner, number> {
+  return new Map(much.map((m, n) => [ownerFromSave(`p${n}`), m]));
 }
 
 describe('paying a village', () => {
@@ -72,7 +73,7 @@ describe('paying a village', () => {
 
   it('says nothing about the people it was not asked about', () => {
     const here = village([10, 10]);
-    payAndSweep(here, new Map([['p1', 5]]));
+    payAndSweep(here, new Map([[ownerFromSave('p1'), 5]]));
     expect(here.people.map((p) => p.purse)).toEqual([10, 15]);
   });
 });

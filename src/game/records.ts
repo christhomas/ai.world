@@ -1,4 +1,5 @@
 import type { Burial, Register } from '../world/register';
+import { ownedBy } from '../world/holdings';
 import { spentOnLiving } from '../world/prosperity';
 import { pitchFor } from '../world/livelihoods';
 import { aDaysIncome } from '../world/expected';
@@ -167,7 +168,7 @@ function commonest(of: string[], take: number): Array<[string, number]> {
  * nothing at all. A book that has to be told the news before it can be right is not a record.
  */
 export function theRoll(
-  register: Register, village: string, today: number, pressure = register.pressureOn(village),
+  register: Register, village: string, today: number,
 ): Ledger<RollRow> {
   const living = register.living(village);
   const grown = living.filter((p) => p.trade);
@@ -183,7 +184,7 @@ export function theRoll(
   // the village as well as its people: a coast is paid for its fish, and a roll that did not know
   // that would under-report every fisherman's day. See `harvest.ts`
   const income = aDaysIncome(
-    living, register.herdOf(village), pressure, register.larderOf(village), register.madeOf(village),
+    living, register.herdOf(village), register.pressureOn(village), register.larderOf(village), register.madeOf(village),
   );
   const trades = commonest(grown.map((p) => p.trade), 3);
   const gist = [
@@ -208,7 +209,7 @@ export function theRoll(
       // what the day does to that purse, which is the economy stated rather than inferred. All
       // three of them, so that the row adds up on its own: what comes in, what keep costs, what
       // dinner costs
-      earns: income.get(person.id) ?? 0,
+      earns: income.get(ownedBy(person)) ?? 0,
       // the keep, and what it costs to have somewhere to sell from. Both, or the row does not add
       // up and the village holds more than its own books can account for.
       //

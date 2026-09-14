@@ -174,6 +174,20 @@ export class Player {
     this.entity.x = x; this.entity.z = z;
     this.placed = false;
     this.riding = false;
+    /*
+     * And he lets go of the horse, not only of the saddle.
+     *
+     * `riding` says he is being carried and `mounted` says by what — and being put down somewhere
+     * else ends both, for one reason: the horse is not there. Clearing the first and keeping the
+     * second left him walking with a horse's abilities on his own legs, with no horse anywhere near
+     * him: no swimming, a horse's climb, a horse's body for what he could squeeze past.
+     *
+     * Not a bad frame. Nothing set it back, so it was the rest of the session, and the reason was
+     * invisible — he is not riding, there is no horse, and the state saying otherwise is not drawn.
+     * Found by Greptile on #45, which called it the dungeon case; it is every teleport. See
+     * `whatCarriesHim`.
+     */
+    this.entity.mounted = null;
     this.warped = true;
   }
 

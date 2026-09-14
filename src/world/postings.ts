@@ -1,4 +1,4 @@
-import { THE_HALL, isTheHall, canDo, type Capability, type Owner } from './holdings';
+import { THE_HALL, isTheHall, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
 import { stageOf, type Person } from './people';
 
 /**
@@ -197,7 +197,7 @@ export function wageForAGuard(pressure: number): number {
 export function postsToday(
   people: readonly Person[], holdings: readonly Held[], pressure: number, day = Infinity,
 ): Post[] {
-  const purses = new Map(people.map((person) => [person.id, person.purse]));
+  const purses = new Map(people.map((person) => [ownedBy(person), person.purse]));
   const byId = (one: Person, two: Person): number => (one.id < two.id ? -1 : 1);
   // grown, because a nine-year-old on a gate with a dragon overhead is not a thing a village does.
   // `Infinity` is "whatever they are now": a caller with no day in its hand is asking about today
@@ -218,7 +218,7 @@ export function postsToday(
   let next = 0;
   for (const holding of wage <= 0 ? [] : holdings) {
     if (holding.kind !== 'farm') continue;
-    const held = purses.get(holding.owner);
+    const held = purses.get(ownerFromSave(holding.owner));
     if (held === undefined || held * POST.LAYS_OUT < wage) continue;
     const man = spare[next];
     if (!man) break;                              // nobody left in the village to ask
@@ -247,7 +247,7 @@ export function postsToday(
  */
 function crewsToday(
   grown: readonly Person[], holdings: readonly Held[],
-  purses: ReadonlyMap<string, number>, already: readonly Post[],
+  purses: ReadonlyMap<Owner, number>, already: readonly Post[],
 ): Post[] {
   const taken = new Set(already.map((post) => post.who));
   // whoever can actually do it, which is the capability rather than the trade name: `can_build` is
@@ -258,7 +258,7 @@ function crewsToday(
   let next = 0;
   for (const holding of holdings) {
     if (holding.kind !== 'yard') continue;
-    const held = purses.get(holding.owner);
+    const held = purses.get(ownerFromSave(holding.owner));
     if (held === undefined || held * POST.LAYS_OUT < POST.BUILDER) continue;
     const hand = hands[next];
     if (!hand) break;
@@ -282,8 +282,8 @@ export function turnedAway(posts: readonly Post[], cattle: number): number {
 }
 
 /** What the day's posts cost each purse that funds one, ready for the ledger to apply. */
-export function wagesOwed(posts: readonly Post[]): Map<string, number> {
-  const owed = new Map<string, number>();
+export function wagesOwed(posts: readonly Post[]): Map<Owner, number> {
+  const owed = new Map<Owner, number>();
   for (const post of posts) {
     owed.set(post.funder, Math.round(((owed.get(post.funder) ?? 0) + post.wage) * 100) / 100);
   }

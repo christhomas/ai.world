@@ -1,7 +1,7 @@
 import { FOOD, broughtIn, cellarCap, eat } from './food';
 import { PROSPER, TRADERS, earnedInADay, spentOnLiving } from './prosperity';
 import { AWAY, buy, purseOf, sell } from './deeds';
-import { BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing } from './holdings';
+import { ownedBy, BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing, type Owner } from './holdings';
 import { herdRoomFor } from './stables';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
@@ -196,8 +196,8 @@ export function pitchFor(person: Person): number {
  * the one that knows whether that is a leak out of the village or a reason not to have collected
  * it in the first place.
  */
-export function shareOut(pool: number, shares: ReadonlyMap<string, number>): Map<string, number> {
-  const out = new Map<string, number>();
+export function shareOut(pool: number, shares: ReadonlyMap<Owner, number>): Map<Owner, number> {
+  const out = new Map<Owner, number>();
   let total = 0;
   for (const share of shares.values()) total += share;
   if (pool <= 0 || total <= 0) return out;
@@ -223,8 +223,8 @@ export function shareOut(pool: number, shares: ReadonlyMap<string, number>): Map
  */
 export function whoFed(
   people: readonly Person[], fromHerd = 0, shore = false, fromBoats = 0,
-): Map<string, number> {
-  const shares = new Map<string, number>();
+): Map<Owner, number> {
+  const shares = new Map<Owner, number>();
   const farmers = people.filter((p) => p.trade === 'farmer');
   const crews = people.filter((p) => p.trade === 'fisherman');
   for (const person of people) {
@@ -233,7 +233,7 @@ export function whoFed(
     // the catch is the fishermen's, shared between them, for the reason the meat is the farmers':
     // it came off their boats. The shellfish is nobody's in particular and is already in `broughtIn`
     const fish = person.trade === 'fisherman' && crews.length > 0 ? fromBoats / crews.length : 0;
-    shares.set(person.id, broughtIn(person, shore) + meat + fish);
+    shares.set(ownedBy(person), broughtIn(person, shore) + meat + fish);
   }
   return shares;
 }
@@ -247,7 +247,7 @@ export function whoFed(
  */
 export function paidForFood(
   people: readonly Person[], spent: number, fromHerd = 0, shore = false, fromBoats = 0,
-): Map<string, number> {
+): Map<Owner, number> {
   return shareOut(spent, whoFed(people, fromHerd, shore, fromBoats));
 }
 
@@ -262,10 +262,10 @@ export function paidForFood(
  * the valley, which is the one place money leaves this economy and is why a village without a
  * market never gets rich however long it is left in peace.
  */
-export function paidForService(people: readonly Person[], upkeep: number): Map<string, number> {
-  const shares = new Map<string, number>();
+export function paidForService(people: readonly Person[], upkeep: number): Map<Owner, number> {
+  const shares = new Map<Owner, number>();
   for (const person of people) {
-    if (TRADERS.includes(person.trade)) shares.set(person.id, 1);
+    if (TRADERS.includes(person.trade)) shares.set(ownedBy(person), 1);
   }
   return shareOut(upkeep, shares);
 }
@@ -309,7 +309,7 @@ export interface Trading {
    */
   toTheHall: number;
   /** What each purse is owed for the day's work, before anybody has eaten. */
-  paid: Map<string, number>;
+  paid: Map<Owner, number>;
 }
 
 /**
@@ -334,14 +334,14 @@ export function aDaysTrade(
   } = {},
 ): Trading {
   const coast = coastOf(village);
-  const paid = new Map<string, number>();
-  const add = (id: string, much: number): void => { paid.set(id, (paid.get(id) ?? 0) + much); };
+  const paid = new Map<Owner, number>();
+  const add = (id: Owner, much: number): void => { paid.set(id, (paid.get(id) ?? 0) + much); };
   const keep = (): number => {
     let upkeep = 0;
     for (const person of people) {
       const spent = spentOnLiving(person);
       upkeep += spent;
-      add(person.id, -spent);
+      add(ownedBy(person), -spent);
     }
     return upkeep;
   };
@@ -391,7 +391,7 @@ export function aDaysTrade(
 
   // what a trade brings in from beyond the village: the seam, the sea, the road, the far country,
   // and what a traveller spends at an inn on his way through
-  for (const person of working) add(person.id, earnedInADay(person, pressure));
+  for (const person of working) add(ownedBy(person), earnedInADay(person, pressure));
 
   // the meat the next valley bought: one of the four ways money gets into a village at all, and it
   // belongs to whoever owns the paddocks rather than to whoever was standing in them. When those
@@ -399,7 +399,7 @@ export function aDaysTrade(
   // moves anywhere it did not move before. See `shareTheTake`
   const take = farms
     ? shareTheTake(farms, cattle.gold, people)
-    : { purses: shareOut(cattle.gold, new Map(farmers.map((p) => [p.id, 1]))), toTheHall: 0 };
+    : { purses: shareOut(cattle.gold, new Map(farmers.map((p) => [ownedBy(p), 1]))), toTheHall: 0 };
   for (const [id, much] of take.purses) add(id, much);
   /*
    * And the fish, the same way, which is the fourth — and the first one a village can *build*.
@@ -410,7 +410,7 @@ export function aDaysTrade(
    * what item 41 means by a harbour being the first thing here that pays for itself.
    */
   const crews = working.filter((p) => p.trade === 'fisherman');
-  for (const [id, much] of shareOut(caught.gold, new Map(crews.map((p) => [p.id, 1])))) {
+  for (const [id, much] of shareOut(caught.gold, new Map(crews.map((p) => [ownedBy(p), 1])))) {
     add(id, much);
   }
 
@@ -426,7 +426,7 @@ export function aDaysTrade(
   for (const person of people) {
     const pitch = pitchFor(person);
     pitches += pitch;
-    add(person.id, -pitch);
+    add(ownedBy(person), -pitch);
   }
   for (const [id, much] of paidForService(people, keep() + pitches)) add(id, much);
 
@@ -451,7 +451,7 @@ export interface Dinner {
   /** Who has now gone long enough without to have died of it. */
   starved: Person[];
   /** And what dinner cost, going to whoever's dinner it was — plus what the surplus fetched. */
-  paid: Map<string, number>;
+  paid: Map<Owner, number>;
 }
 
 /**

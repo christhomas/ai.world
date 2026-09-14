@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ownedBy } from './holdings';
 import { FOOD, broughtIn, grownInADay } from './food';
 import { aDaysTrade, whoFed } from './livelihoods';
 import { aDaysFishing, coastOf } from './harvest';
@@ -141,8 +142,8 @@ describe('a village on a coast, over one day', () => {
     expect(coast.fish, 'two boats and three men landed the wrong number').toBe(2 * FOOD.PER_BOAT);
     // and the money for what went to the next valley is the crews', the way the meat is the
     // farmers': it came off their boats
-    const paidToCrew = people.slice(0, 3).reduce((sum, p) => sum + (coast.paid.get(p.id) ?? 0), 0);
-    const paidInland = people.slice(0, 3).reduce((sum, p) => sum + (inland.paid.get(p.id) ?? 0), 0);
+    const paidToCrew = people.slice(0, 3).reduce((sum, p) => sum + (coast.paid.get(ownedBy(p)) ?? 0), 0);
+    const paidInland = people.slice(0, 3).reduce((sum, p) => sum + (inland.paid.get(ownedBy(p)) ?? 0), 0);
     expect(paidToCrew).toBeGreaterThan(paidInland);
   });
 
@@ -154,8 +155,8 @@ describe('a village on a coast, over one day', () => {
      */
     const people = [...folk('fisherman', 2), ...folk('soldier', 2)];
     const fed = whoFed(people, 0, true, 10);
-    const crew = fed.get(people[0].id) ?? 0;
-    const soldier = fed.get(people[2].id) ?? 0;
+    const crew = fed.get(ownedBy(people[0])) ?? 0;
+    const soldier = fed.get(ownedBy(people[2])) ?? 0;
     expect(crew).toBeGreaterThan(soldier);
     expect(soldier, 'a soldier on a shore gathered nothing').toBe(FOOD.PER_HEAD + FOOD.PER_SHORE);
     expect(crew).toBe(FOOD.PER_HEAD + FOOD.PER_SHORE + 10 / 2);
