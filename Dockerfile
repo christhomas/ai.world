@@ -16,7 +16,16 @@
 
 # Matches the node the tests run on in CI, so the server is not first tried on a new runtime in
 # production.
-ARG NODE_VERSION=22-alpine
+#
+# 24 rather than 22, and the reason is `node:sqlite`. The server has durable state to keep that JSON
+# files cannot keep safely — a villager's memories across a restart, and the tools portal's users —
+# and the decision recorded on those issues is SQLite on the existing volume rather than a network
+# database beside a one-replica server. Node 22 has `node:sqlite` behind `--experimental-sqlite`;
+# 24 has it unflagged. The alternatives were shipping a flagged experimental API in production, or
+# taking a dependency into a `package.json` that the Pages build and this image both install, twice,
+# once per architecture — and a native module in a world-server image is the shape of the last thing
+# that nearly killed this container. A Node major is the cheaper of the three.
+ARG NODE_VERSION=24-alpine
 # The version this repository's lockfile was written by.
 ARG PNPM_VERSION=10.30.3
 # The port inside the container. Both compose and fly.toml publish this; the server itself reads
