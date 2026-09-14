@@ -77,7 +77,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "villager": {
     "note": "Slower than a traveller and with more of a life to lose. Their day is decided by their trade rather than by their kind, which is why the tree that drives them is filed under the job.",
@@ -156,7 +157,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "shopkeeper": {
     "note": "Barely moves, because a shopkeeper who wanders is a shop you cannot find. No hit points at all: the person you buy from is not a fight anybody gets to have.",
@@ -213,7 +215,8 @@
     "gold": [
       0,
       0
-    ]
+    ],
+    "drop": {}
   },
   "hero": {
     "note": [
@@ -257,7 +260,8 @@
     "gold": [
       0,
       0
-    ]
+    ],
+    "drop": {}
   },
   "miner": {
     "note": [
@@ -313,7 +317,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "priest": {
     "note": [
@@ -359,7 +364,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "doctor": {
     "note": [
@@ -405,7 +411,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "constable": {
     "note": [
@@ -451,7 +458,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "mayor": {
     "note": [
@@ -497,7 +505,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "farmer": {
     "note": [
@@ -548,7 +557,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "cowboy": {
     "note": [
@@ -594,7 +604,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "woman": {
     "note": [
@@ -678,7 +689,8 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   },
   "man": {
     "note": [
@@ -760,6 +772,7 @@
     ],
     "climb": 0,
     "paddles": false,
-    "owned": false
+    "owned": false,
+    "drop": {}
   }
 }

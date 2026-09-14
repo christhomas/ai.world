@@ -43,6 +43,7 @@
       "*the switch goes back and forth, back and forth*",
       "\"We will both of us be here next spring.\""
     ],
-    "owned": false
+    "owned": false,
+    "drop": {}
   }
 }

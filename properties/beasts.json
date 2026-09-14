@@ -482,7 +482,8 @@
     "gold": [
       0,
       0
-    ]
+    ],
+    "drop": {}
   },
   "frog": {
     "note": "Scenery that moves, like the lizard, and for the same reason: nothing to kill and nothing to carry home.",
@@ -530,7 +531,8 @@
     "gold": [
       0,
       0
-    ]
+    ],
+    "drop": {}
   },
   "goat": {
     "note": "The mountain's own livestock, and nobody's: it lives where no farm reaches, so `owned` is absent and killing one costs nothing but the walk.",
