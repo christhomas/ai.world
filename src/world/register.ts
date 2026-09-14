@@ -2,7 +2,7 @@ import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './ad
 import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
-import { directoryOf } from './vacancies';
+import { directoryOf , type Sworn } from './vacancies';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
@@ -77,8 +77,15 @@ export class Register {
    * it, and a family keeping its own house across a burial is one of those. The first deeds are
    * written in exactly the order the positional rule would have housed everybody, so nothing moves
    * on the morning this starts being kept — see `deedsAfter`.
-   */
+  */
   private readonly deeded = new Map<string, Deed[]>();
+  /** Travellers who have taken a village's vacant work, by village.
+   *
+   * Beside the killings, the votes and the raisings for the same reason as all three: a village is
+   * re-lived from its seed and must arrive at the same answer, and nothing about a seed predicts
+   * somebody walking in off the road and offering to do the work.
+   */
+  private readonly swornIn = new Map<string, Sworn[]>();
   /** The last whole day the register has caught up to. */
   /** Physical ground is supplied by the country; the register only records its deterministic answer. */
   private fieldSurvey: ((village: string, settlement: Settlement) => FieldClearing | null) | null = null;
@@ -215,6 +222,9 @@ export class Register {
       // and no magic has been done here. A raising is remembered across a re-living; see `shrine.ts`
       raised: this.magicked.get(village) ?? [],
       deeds: [...(this.deeded.get(village) ?? [])],
+      // nor has anybody walked in off the road and taken work here. An oath survives a re-founding
+      // the way a raising does, and the day reads this copy; see `swearIn`
+      sworn: [...(this.swornIn.get(village) ?? [])],
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -496,9 +506,34 @@ export class Register {
    * lists it needs. Item 24a's directory, and the thing a vacancy has to be readable from before a
    * player can answer one.
    */
-  directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[] } {
+  directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[] } {
     const here = this.villages.get(village);
-    return directoryOf(here?.trades ?? [], here?.people ?? []);
+    return directoryOf(here?.trades ?? [], here?.people ?? [], this.swornIn.get(village) ?? []);
+  }
+
+  /**
+   * A traveller takes work this village has nobody for. Item 24a's other half.
+   *
+   * The directory says what a village lacks; this is somebody answering it. Refused unless the
+   * trade is vacant *here and now* — work the ground supports, that no villager holds and no other
+   * traveller has already sworn to — because a vacancy that could be taken twice is not a vacancy,
+   * it is an announcement.
+   *
+   * Deliberately not a wage. Item 24a: *"nothing leaves the treasury, nobody is paid to take a
+   * job"*, which is what keeps the hall's money free for building. What the oath buys is the thing
+   * a job market is made of — the mayor stops looking, and the next adult to come of age is raised
+   * into whatever the village is short of next. See `tradeTakenUp`.
+   *
+   * Like `raiseAtShrine`, whoever calls this owns the conversation: a register has never known what
+   * was said or who was standing there.
+   */
+  swearIn(village: string, trade: string, who: string, day = this.day): Sworn | null {
+    if (!this.villages.get(village) || who === '') return null;
+    if (!this.directoryOf(village).nobodyDoing.includes(trade)) return null;
+    const oath: Sworn = { trade, who, day: Math.floor(day) };
+    this.swornIn.set(village, [...(this.swornIn.get(village) ?? []), oath]);
+    this.villages.get(village)?.sworn.push(oath);
+    return oath;
   }
 
   /**

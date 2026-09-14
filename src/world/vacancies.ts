@@ -108,7 +108,8 @@ const WORTH_ONE = 0.5;
  */
 export function directoryOf(
   trades: readonly string[], people: readonly { id: string; trade: string }[],
-): { holding: Map<string, string[]>; nobodyDoing: string[] } {
+  sworn: readonly Sworn[] = [],
+): { holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[] } {
   const supported = new Set(trades);
   const holding = new Map<string, string[]>();
   for (const person of people) {
@@ -117,5 +118,30 @@ export function directoryOf(
     const already = holding.get(person.trade);
     if (already) already.push(person.id); else holding.set(person.trade, [person.id]);
   }
-  return { holding, nobodyDoing: trades.filter((trade) => !holding.has(trade)) };
+  /*
+   * A traveller who swore to work this ground is bounded by it exactly as a villager is: a village
+   * with no shore has no fisherman whoever offers, and an oath to a trade the ground never
+   * supported is an oath about somewhere else.
+   */
+  const took = sworn.filter((one) => supported.has(one.trade));
+  const taken = new Set(took.map((one) => one.trade));
+  return {
+    holding,
+    nobodyDoing: trades.filter((trade) => !holding.has(trade) && !taken.has(trade)),
+    sworn: took,
+  };
+}
+
+/**
+ * A traveller who has taken a village's vacant work, by trade and by the name they gave.
+ *
+ * Not a villager: the register is who lives here, and somebody who walks in off the road does not.
+ * Kept by name rather than by id for that reason — there is no `Person` to point at, and the hall's
+ * book is written in the name whoever stood in front of it gave.
+ */
+export interface Sworn {
+  trade: string;
+  who: string;
+  /** The world day the oath was taken, which is the only thing that dates it. */
+  day: number;
 }

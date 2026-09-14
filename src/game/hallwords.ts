@@ -3,6 +3,7 @@ import { WORKS } from '../world/hall';
 import { PROMOTIONS } from '../world/rank';
 
 import type { Person } from '../world/people';
+import type { Sworn } from '../world/vacancies';
 
 /**
  * What a hall says when you ask it something.
@@ -35,6 +36,8 @@ export interface Asked {
   directory: {
     holding: ReadonlyMap<string, readonly string[]>;
     nobodyDoing: readonly string[];
+    /** Travellers who have taken work the village had nobody for. See `swearIn`. */
+    sworn: readonly Sworn[];
   };
 }
 
@@ -109,6 +112,14 @@ function saidOfTheDirectory(asked: Asked, who: (id: string) => Person | null): s
     const names = ids.map((id) => named(id, who)).filter((name) => name !== '');
     if (names.length === 0) continue;
     working.push((tradeNamed(trade)?.label ?? trade) + ' — ' + names.join(', '));
+  }
+  /*
+   * A traveller is written into the same list and marked as one. They are not on the register —
+   * there is no `Person` behind the name and `who` would find nothing — so the hall says the name
+   * it was given, which is exactly what a hall's book would contain.
+   */
+  for (const oath of asked.directory.sworn) {
+    working.push((tradeNamed(oath.trade)?.label ?? oath.trade) + ' — ' + oath.who + ', who is passing through');
   }
   const directory = working.length === 0
     ? 'The directory has no working names written in it.'
