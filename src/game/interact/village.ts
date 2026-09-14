@@ -370,7 +370,7 @@ export function villageInteractions(ctx: Surroundings) {
               }
               if (started.length > 0) {
                 persist();
-                hud.flash('The yard has enough timber. Your backlog job starts today.');
+                hud.flash('The yard has enough timber. Backlog work starts today.');
                 return null;
               }
             }
