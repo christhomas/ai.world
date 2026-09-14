@@ -435,7 +435,11 @@ const SHOTS = [
       if (!dock) return null;                       // a world whose coast raised no jetty today
       await ask(() => { window.__state.inventory.gold = 400; window.__state.version++; });
       await stand(dock.x, dock.z, 4000);
-      await key('Enter');                           // the boatwright, who is the jetty itself
+      await key('Enter');                           // read the ferry timetable
+      await p.waitForFunction(() => document.getElementById('dialogue')?.classList.contains('choosing'));
+      await key('Enter');                           // ask after a boat of your own
+      await p.waitForFunction(() => document.querySelector('.dlg-them .dlg-name')?.textContent === 'Boatwright'
+        && document.getElementById('dialogue')?.classList.contains('choosing'));
       await key('Enter');                           // buy her
       await wait(1200);
       await key('Enter');                           // cast off

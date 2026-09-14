@@ -79,6 +79,12 @@ export function travelInteractions(ctx: Surroundings) {
   });
 
   const tryFerry = (preview = false): boolean => {
+    /*
+     * A hull of your own lies one tile beyond the same pier. It has to win here: every point close
+     * enough to board it is also inside the pier's ferry range, so letting the ferry answer first
+     * makes a bought boat impossible to cast off. Away from that hull the ferry still owns the pier.
+     */
+    if (!preview && sailing.near(player.x, player.z)) return false;
     const now = worldSeconds(state.day, state.time);
     for (const { line } of ferries) {
       const st = ferryStateAt(line, now);
