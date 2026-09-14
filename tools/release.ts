@@ -520,6 +520,21 @@ function main(): void {
   run('git', ['switch', 'main']);
   run('git', ['fetch', 'origin', 'main']);
   run('git', ['merge-base', '--is-ancestor', releaseCommit, 'origin/main']);
+  /*
+   * And the local branch catches up with what was fetched, which a fetch does not do.
+   *
+   * `git fetch origin main` moves `origin/main` and leaves the checked-out `main` exactly where it
+   * was — which is the commit before the release, since the release went out through a pull request
+   * that was squashed on the server. Everything after this reads the working tree: the next
+   * release's `nextVersion` reads `chart/Chart.yaml` off disk, sees the version *before* this one,
+   * and cuts the same release again from a tree that is a release behind.
+   *
+   * `--ff-only` rather than a reset: main has just been fast-forwarded to a commit that contains
+   * our own, so a fast-forward is what this is. If it is not — somebody committed locally, or the
+   * squash landed somewhere unexpected — the release stops here with git's own message rather than
+   * throwing that work away, which a reset would do silently.
+   */
+  run('git', ['merge', '--ff-only', 'origin/main']);
   if (chartVersionOf(run('git', ['show', `${releaseCommit}:chart/Chart.yaml`])) !== version) {
     throw new Error(`merge commit ${releaseCommit} does not carry chart version ${version}`);
   }
