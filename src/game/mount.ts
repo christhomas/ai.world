@@ -42,8 +42,14 @@ export interface HorseSave {
  */
 export class Mount {
   entity: Entity | null = null;
-  riding = false;
+  /** Kept only so the mount can clear its rider's carrier when it leaves the world. */
+  private rider: Player | null = null;
   private saved: HorseSave | null = null;
+
+  /** The traversal carrier is the one source of truth for whether this horse is being ridden. */
+  get riding(): boolean {
+    return this.rider !== null && this.entity !== null && this.rider.entity.mounted === this.entity.kind;
+  }
 
   constructor(private readonly rng: Rng) {}
 
@@ -80,10 +86,16 @@ export class Mount {
   /** Leave the horse behind when the hero goes somewhere a horse cannot follow. */
   stable(renderer: EntityRenderer): void {
     if (!this.entity) return;
+    this.leaveRider();
     this.remember();
     renderer.remove(this.entity);
     this.entity = null;
-    this.riding = false;
+  }
+
+  /** Putting a rider down always restores their own traversal rules. */
+  private leaveRider(): void {
+    if (this.rider) this.rider.entity.mounted = null;
+    this.rider = null;
   }
 
   private remember(): void {
@@ -99,7 +111,7 @@ export class Mount {
 
   mount(player: Player): void {
     if (!this.entity) return;
-    this.riding = true;
+    this.rider = player;
     // and from here it is the horse that decides where he may go, not his own legs: a hero paddles
     // and a horse does not, so the sea stops being a road the moment he is on one. `whatCarriesHim`
     player.entity.mounted = this.entity.kind;
@@ -108,8 +120,7 @@ export class Mount {
 
   dismount(player: Player, world: TileWorld): void {
     if (!this.entity) return;
-    this.riding = false;
-    player.entity.mounted = null;         // back on his own legs, and able to swim again
+    this.leaveRider();
     // step off to a tile the hero can actually stand on
     const spots: Array<[number, number]> = [[1.2, 0], [-1.2, 0], [0, 1.2], [0, -1.2]];
     for (const [dx, dz] of spots) {
