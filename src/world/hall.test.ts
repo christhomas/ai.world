@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { WATCH_WAGE, WORKS, mayorOf, nextWork, whatTheHallBuys, whoStandsWatch } from './hall';
+import {
+  WATCH_WAGE, WORKS, mayorOf, nextWork, whatTheHallBuys, whoStandsWatch, whoTheHallEmploys,
+} from './hall';
 import { Register } from './register';
 import { isARoof } from './roofs';
 import type { Person } from './people';
+import { PROSPER } from './prosperity';
 
 /**
  * What the hall does with what it has taken.
@@ -20,6 +23,23 @@ import type { Person } from './people';
 
 const worker = (id: string): Person => ({ id, trade: 'farmer' } as Person);
 const idle = (id: string): Person => ({ id, trade: '' } as Person);
+const constable = (id: string, born = 0): Person => ({ id, trade: 'constable', born } as Person);
+
+describe('the constable on the hall books', () => {
+  it('pays only constables, with more posts as the village grows', () => {
+    const law = [constable('law-1'), constable('law-2'), constable('law-3')];
+    const people = [...law, ...Array.from({ length: 38 }, (_, n) => idle('idle-' + n))];
+
+    const employed = whoTheHallEmploys(PROSPER.A_DAY * 3, [], people);
+    expect(employed?.paid).toEqual(new Map(law.map((person) => [person.id, PROSPER.A_DAY])));
+    expect(employed?.jobs).toBe(3);
+  });
+
+  it('sends nobody when the hall cannot afford the constable', () => {
+    expect(whoTheHallEmploys(PROSPER.A_DAY - 0.01, [], [constable('law')])).toBeNull();
+  });
+});
+
 const paid = (wages: Map<string, number>): number =>
   Math.round([...wages.values()].reduce((sum, much) => sum + much, 0) * 100) / 100;
 

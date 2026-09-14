@@ -5417,7 +5417,7 @@ than by remembering — and the first thing found was that the gap is not where 
       mayor family's house — including in hamlets with no civic hall — and Enter at that door opens
       the hall conversation. The body may move after **91**'s vote; the identity and purse do not.
 
-- [ ] **90. The hall contracts the constable, instead of the law working freelance.** Raised on the
+- [x] **90. The hall contracts the constable, instead of the law working freelance.** Raised on the
       13th, out of **82**, and it is the best of the posts because it is the one that is obviously
       wrong today. A village has a constable; the constable holds a trade; a trade earns by trading.
       So the law in this world is somebody who makes a living the way a seller does, and what a

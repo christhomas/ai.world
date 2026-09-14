@@ -171,7 +171,7 @@ describe('a village\'s working day', () => {
     // meat the next valley bought. Everything else in the day is one villager paying another
     const outside = aDayOfCattle(8, aFewFarms(2), 2 * LIVELIHOOD.HERD_PER_FARMER).gold
       + people.filter((p) => ['seller', 'innkeeper', 'doctor'].includes(p.trade)).length * PROSPER.TRADED
-      + people.filter((p) => ['soldier', 'miner', 'sailor', 'climber', 'explorer', 'constable'].includes(p.trade)).length * PROSPER.A_DAY;
+      + people.filter((p) => ['soldier', 'miner', 'sailor', 'climber', 'explorer'].includes(p.trade)).length * PROSPER.A_DAY;
     expect(total(day.paid)).toBeCloseTo(outside, 8);
   });
 
@@ -421,7 +421,7 @@ describe('a purchase made in front of somebody', () => {
  * cellar capped: twenty meals a day went on the ground, every day, in every village, for the whole
  * life of the game. Hunting did not pay because a hunter's product was free.
  */
-describe('every trade clears what a day costs it', () => {
+describe('every trade paid through livelihoods clears what a day costs it', () => {
   /** A village big enough to hold one of everything, at a day when its cellar has filled. */
   const working = (): Person[] => [
     person('farmer', 60), person('farmer', 60), person('hunter', 60), person('hunter', 60),
@@ -439,7 +439,7 @@ describe('every trade clears what a day costs it', () => {
   it('leaves nobody in the village worse off for having worked', () => {
     const people = working();
     const income = aDay(people);
-    for (const soul of people.filter((p) => p.trade)) {
+    for (const soul of people.filter((p) => p.trade && p.trade !== 'constable')) {
       const costs = spentOnLiving(soul) + pitchFor(soul) + FOOD.MEAL;
       const takes = income.get(ownedBy(soul)) ?? 0;
       expect(takes, `a ${soul.trade} takes ${takes.toFixed(2)} and a day costs ${costs.toFixed(2)}`)
@@ -461,7 +461,8 @@ describe('every trade clears what a day costs it', () => {
     // walking to — but a trade paying ten times another is a game with one job in it
     const people = working();
     const income = aDay(people);
-    const takes = people.filter((p) => p.trade).map((p) => income.get(ownedBy(p)) ?? 0);
+    const takes = people.filter((p) => p.trade && p.trade !== 'constable')
+      .map((p) => income.get(ownedBy(p)) ?? 0);
     expect(Math.max(...takes) / Math.min(...takes)).toBeLessThan(8);
   });
 
