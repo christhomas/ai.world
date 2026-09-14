@@ -10,6 +10,7 @@ describe('a fresh hero', () => {
     expect(s.worn('feet')?.id).toBe('boots');
     expect(s.worn('hand')?.id).toBe('stick');
     expect(s.count('apple')).toBe(2);
+    expect(s.count('knife')).toBe(0);
     expect(s.attack).toBe(HEALTH.BARE_HANDS + ITEMS.stick.attack!);
     expect(s.armed).toBe(false);            // a stick does not frighten a wolf
     expect(s.defence).toBe(ITEMS.tunic.defence! + ITEMS.boots.defence!);
