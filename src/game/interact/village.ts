@@ -2,6 +2,7 @@ import { ITEMS, WOOD_ITEM } from '../items';
 import { familyOfDoor, saidOfAFreeHouse, whatABedCosts } from '../../world/homes';
 import { bodyOfTheHall, whatTheHallKnows } from '../../world/hall';
 import { whatTheHallSays } from '../hallwords';
+import { tradeNamed } from '../../entities/trades';
 import { askingPrice, lotLine, type Pitch } from '../market';
 import { tradableItems } from '../online';
 import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
@@ -260,6 +261,44 @@ export function villageInteractions(ctx: Surroundings) {
       const asked = whatTheHallKnows(register, village.name);
       const ballot = village.hall ? register.ballotOf(village.name) : null;
       const choices: DialogueChoice[] = [{ label: 'That is all', next: () => null }];
+      /*
+       * Item 24a's other half: a vacancy is something a player can read *and answer*.
+       *
+       * One choice for each trade this ground supports that nobody here is doing. It costs nothing
+       * and pays nothing — 24a is explicit that enrolment is not a wage, which is what keeps the
+       * hall's money free for building — so what the oath buys is that the village stops looking:
+       * the next child to come of age is raised into whatever it is short of next, and the
+       * directory names whoever took this.
+       *
+       * Written into the register rather than sent over the wire, which is the shrine's rule: a
+       * traveller's oath is a thing the book is told, and it survives the village being re-lived
+       * from its seed the way a raising and a killing do.
+       */
+      for (const trade of asked.directory.nobodyDoing) {
+        const label = tradeNamed(trade)?.label ?? trade;
+        choices.unshift({
+          label: `Take the work: ${label}`,
+          next: () => {
+            const oath = register.swearIn(village.name, trade, online.name, state.day);
+            if (!oath) return {
+              speaker: `The hall of ${village.name}`, emoji: '🏛️',
+              pages: [`Somebody has taken that work since you asked. The roll is written up again every morning.`],
+              choices: [{ label: 'Then it is taken', next: () => null }],
+            };
+            state.version++;
+            sound.chime();
+            persist();
+            hud.flash(`You are written into ${village.name}'s roll as its ${label.toLowerCase()}.`);
+            return {
+              speaker: `The hall of ${village.name}`, emoji: '🏛️',
+              pages: [
+                `You are written into the roll as ${village.name}'s ${label.toLowerCase()}. There is no wage in it — the chest is for building — and no village raises a child into work somebody is already doing, so that is one thing this place has stopped needing.`,
+              ],
+              choices: [{ label: 'Good', next: () => null }],
+            };
+          },
+        });
+      }
       if (ballot?.ready) choices.unshift({
         label: `Vote aye — become a ${ballot.rank} (${ballot.costs}g)`,
         next: () => {

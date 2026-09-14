@@ -376,7 +376,14 @@ export function tradeTakenUp(
    * cannot be without — so this fills the fields and the market and leaves the doctor, the
    * innkeeper and the climber to families and to the tenth who strike out.
    */
-  const vacancy = shortOf(trades, village.people.filter((p) => p.trade !== '').map((p) => p.trade));
+  const held = village.people.filter((p) => p.trade !== '').map((p) => p.trade);
+  /*
+   * Work a traveller has sworn to is work being done, so the mayor looks past it. Without this the
+   * village would raise a child into the very job somebody stood in front of the hall and took,
+   * which would make the oath a thing that changes nothing — and item 24a is explicit that what
+   * enrolment buys is not a wage but exactly this: the village stops looking.
+   */
+  const vacancy = shortOf(trades, [...held, ...(village.sworn ?? []).map((one) => one.trade)]);
   if (vacancy) return vacancy;
 
   const rolled = () => trades[Math.floor(rng() * trades.length)];
@@ -391,6 +398,8 @@ export function tradeTakenUp(
 interface Village {
   people: readonly Person[];
   buried: readonly { name: string; trade: string }[];
+  /** Travellers who have taken work here, which is work the mayor no longer needs to fill. */
+  sworn?: readonly { trade: string }[];
 }
 
 /** What somebody of this name did for a living, living or buried. Empty for a stranger. */

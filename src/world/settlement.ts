@@ -1,3 +1,4 @@
+import type { Sworn } from './vacancies';
 import type { Holding, Owner } from './holdings';
 import type { Person } from './people';
 import type { Rank } from './rank';
@@ -96,6 +97,15 @@ export interface Settlement {
    * happened raise the same person. See `shrine.ts`.
    */
   raised: number[];
+  /**
+   * Travellers who have taken work this village had nobody for. Item 24a's other half.
+   *
+   * Kept for the reason `raised` is kept: a village re-lived from its seed would otherwise lose
+   * whoever walked in off the road and offered. The register holds the copy that survives a
+   * re-founding; this is the one a day reads, so the mayor stops raising children into work
+   * somebody is already doing. See `swearIn` and `tradeTakenUp`.
+   */
+  sworn: Sworn[];
   /**
    * Who is standing on the village's watchtower today, or nobody.
    *
