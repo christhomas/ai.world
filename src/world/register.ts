@@ -3,6 +3,7 @@ import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
 import { directoryOf , type Sworn } from './vacancies';
+import type { SwornIn } from '../../server/protocol';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
@@ -509,13 +510,17 @@ export class Register {
    * Like `raiseAtShrine`, whoever calls this owns the conversation: a register has never known what
    * was said or who was standing there.
    */
-  swearIn(village: string, trade: string, who: string, day = this.day): Sworn | null {
+  swearIn(village: string, trade: string, who: string, day = this.day): SwornIn | null {
     if (!this.villages.get(village) || who === '') return null;
     if (!this.directoryOf(village).nobodyDoing.includes(trade)) return null;
-    const oath: Sworn = { trade, who, day: Math.floor(day) };
-    this.swornIn.set(village, [...(this.swornIn.get(village) ?? []), oath]);
-    this.villages.get(village)?.sworn.push(oath);
-    return oath;
+    const told: SwornIn = { kind: 'sworn', village, trade, who, day: Math.floor(day) };
+    return this.apply(told) ? told : null;
+  }
+
+  /** Every oath this register holds, for a save to write down. See `apply`. */
+  oaths(): SwornIn[] {
+    return [...this.swornIn].flatMap(([village, held]) =>
+      held.map((one) => ({ kind: 'sworn' as const, village, trade: one.trade, who: one.who, day: one.day })));
   }
 
   /** What this village has had built out of its own money. */
@@ -598,7 +603,21 @@ export class Register {
   }
 
   /** Apply a told death or vote, preserving facts that cannot be reconstructed by re-living. */
-  apply(change: Change | TownVote): boolean {
+  apply(change: Change | TownVote | SwornIn): boolean {
+    /*
+     * An oath, replayed. Dated and keyed by village, trade and day so the same telling arriving
+     * twice — from the wire and from a save, which is the ordinary case — writes it once.
+     */
+    if (change.kind === 'sworn') {
+      const on = Math.floor(change.day);
+      if (!Number.isFinite(on) || on > this.day) return false;
+      const held = this.swornIn.get(change.village) ?? [];
+      if (held.some((one) => one.trade === change.trade && one.day === on)) return false;
+      const oath: Sworn = { trade: change.trade, who: change.who, day: on };
+      this.swornIn.set(change.village, [...held, oath]);
+      this.villages.get(change.village)?.sworn.push(oath);
+      return true;
+    }
     if (change.kind === 'voted') {
       const voted = { ...change, day: Math.floor(change.day) };
       const key = this.voteKey(voted);

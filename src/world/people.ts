@@ -383,13 +383,31 @@ export function tradeTakenUp(
    * which would make the oath a thing that changes nothing — and item 24a is explicit that what
    * enrolment buys is not a wage but exactly this: the village stops looking.
    */
-  const vacancy = shortOf(trades, [...held, ...(village.sworn ?? []).map((one) => one.trade)]);
+  const sworn = (village.sworn ?? []).map((one) => one.trade);
+  const vacancy = shortOf(trades, [...held, ...sworn]);
   if (vacancy) return vacancy;
 
-  const rolled = () => trades[Math.floor(rng() * trades.length)];
+  /*
+   * And sworn work is off the list for the other two paths as well, which the first version of this
+   * missed entirely.
+   *
+   * Taking it out of the shortage search alone stops the *mayor* enrolling somebody into it and
+   * leaves the roll and the inheritance free to hand it out anyway — so a village with a traveller
+   * doing its doctoring still raised doctors, by a coin toss or by a daughter following her mother,
+   * and the oath bought nothing whatever. It has to be gone from every way a trade is taken up or
+   * it is gone from none of them.
+   *
+   * A village whose ground supports nothing else is the one case where this cannot hold: somebody
+   * has to do something, and the sworn trade is better than an empty one. That is what the fallback
+   * on the end of `left` is, and it happens only where the traveller has taken the last trade there
+   * is.
+   */
+  const left = trades.filter((trade) => !sworn.includes(trade));
+  const open = left.length > 0 ? left : trades;
+  const rolled = () => open[Math.floor(rng() * open.length)];
   const family = [person.mother, person.father]
     .map((name) => tradeOnceHeldBy(village, name))
-    .filter((trade) => trade !== '' && trades.includes(trade));
+    .filter((trade) => trade !== '' && open.includes(trade));
   if (family.length === 0 || rng() < LIFE.STRIKES_OUT) return rolled();
   return family[Math.floor(rng() * family.length)];
 }
