@@ -730,6 +730,21 @@ describe('hunting something the world owns', () => {
     expect(killed[0].by, 'and who did it, so they take what was on it').toBe(rowan.of('welcome')[0].id);
   });
 
+  it('throws a blow in its own direction instead of the preceding movement frame', () => {
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    walkAbout(rowan, 0, 0);
+    tickFor(sim, 600);
+
+    const prey = rowan.of('creatures').at(-1)!.near[0];
+    const yaw = Math.atan2(-prey.z, prey.x);
+    // Presence still faces exactly away. Turning and attacking inside one render frame must not use it.
+    rowan.say({ type: 'move', x: 0, z: 0, yaw: yaw + Math.PI, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    for (let blow = 0; blow < 30; blow++) rowan.say({ type: 'swing', ...wide, yaw });
+
+    expect(rowan.of('killed').map((k) => k.id)).toContain(prey.id);
+  });
+
   it('reaches nothing at all behind the hero', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(3, 'Rowan');

@@ -150,7 +150,7 @@ export function createBlows(ctx: Fighting) {
     // the ledger moves on every deed, not only on the ones that change what people call you
     state.standing = standing.value;
     const field = battlefield();
-    if (field) online.swing(field, reach.damage, reach.range, reach.arc, reach.first);
+    if (field) online.swing(field, reach.damage, reach.range, reach.arc, player.entity.yaw, reach.first);
     return res;
   };
 

@@ -242,6 +242,12 @@ export class Wildlife {
       body.state = snap.state;
       body.walk = snap.walk;
       body.hp = snap.hp;
+      // A swing is predicted on the page so it answers the hand immediately. If that prediction
+      // put the creature down but the world still reports it alive, the world's answer wins in
+      // full: health alone is not enough because `dead` keeps it untargetable and `dying` keeps
+      // sinking the body out of sight. Without this, one player could kill a cow only on their own
+      // screen while everybody else carried on watching it graze.
+      if (snap.hp > 0 && body.dead) { body.dead = false; body.dying = 0; }
       if (snap.who) this.thisIsWho(body, snap.who);
       this.wanted.set(snap.id, this.told(body, snap));
     }
