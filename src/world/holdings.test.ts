@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { THE_HALL_OWNER, ownerFromSave } from './holdings';
 import {
-  BEASTS_PER_FARM, SORTS, THE_HALL, canDo, capabilitiesOf, foundAHolding, heldBy, leavesAHolding,
-  nameOfHolding, possibleHere, shareTheBeasts, sortOf, vacancies, whatTheVillageHolds,
+  BEASTS_PER_FARM, SORTS, THE_HALL, canDo, capabilitiesOf, foundAHolding, leavesAHolding,
+  possibleHere, shareTheBeasts, sortOf, vacancies, whatTheVillageHolds,
   type Holding, type Village,
 } from './holdings';
 import { LIVELIHOOD } from './livelihoods';
@@ -183,7 +183,7 @@ describe('an owner who is not the worker', () => {
     };
     const held = whatTheVillageHolds('Testing', hamlet([owner, hired], [], [theirs]), 30);
     expect(held).toHaveLength(1);
-    expect(heldBy(held, 'owner')).toHaveLength(1);
+    expect(held.filter((one) => one.owner === ownerFromSave('owner'))).toHaveLength(1);
     expect(held[0].worker).toBe('hired');
   });
 
@@ -195,14 +195,6 @@ describe('an owner who is not the worker', () => {
     };
     const held = whatTheVillageHolds('Testing', hamlet([owner, other], [], [theirs]), 30);
     expect(held.find((one) => one.id === 'Testing-farm-1')!.worker).toBe('owner');
-  });
-
-  it('is named for whoever holds it, or for the village when the hall does', () => {
-    const theirs: Holding = {
-      id: 'x', kind: 'farm', house: 'Vos', owner: ownerFromSave('owner'), worker: 'owner', founded: 0,
-    };
-    expect(nameOfHolding(theirs)).toBe('the Vos farm');
-    expect(nameOfHolding({ ...theirs, house: '', owner: ownerFromSave(THE_HALL) })).toBe('the village farm');
   });
 
   it('can be founded by the hall with nobody in it yet', () => {

@@ -425,25 +425,9 @@ export function vacancies(holdings: readonly Holding[]): Holding[] {
   return holdings.filter((holding) => holding.worker === '');
 }
 
-/** Whatever this person holds, which is usually one thing and often nothing. */
-export function heldBy(holdings: readonly Holding[], who: string): Holding[] {
-  return holdings.filter((holding) => holding.owner === who);
-}
-
 /** And whatever they actually work, which is a different question in a village with a hall farm. */
 export function workedBy(holdings: readonly Holding[], who: string): Holding[] {
   return holdings.filter((holding) => holding.worker === who);
-}
-
-/**
- * What to call a holding out loud: "the Vos farm", or "the village farm" when the hall has it.
- *
- * Said as a place rather than as a fact about the deeds, which is how anybody standing at the gate
- * would say it — the same choice `nameOfHome` makes about walking into a house.
- */
-export function nameOfHolding(holding: Holding): string {
-  const noun = sortOf(holding.kind)?.noun ?? holding.kind;
-  return holding.house === '' ? `the village ${noun}` : `the ${holding.house} ${noun}`;
 }
 
 /**

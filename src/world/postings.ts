@@ -238,6 +238,17 @@ export function postsToday(
 }
 
 /**
+ * Whether this person could stand this sort of post.
+ *
+ * Trivial for a guard and the whole of the question for a builder, which is why it is a function
+ * rather than a condition written into the loop above: when the yard has work on its books, the man
+ * who takes it is whoever `canDo(person, 'can_build')`, and this is where that is asked.
+ */
+export function couldStand(person: Person, posting: Posting): boolean {
+  return posting.wants === '' || canDo(person, posting.wants);
+}
+
+/**
  * A day of building on every yard whose owner can pay for one.
  *
  * The seat `POSTINGS` has held open since it was written. The table declared two sorts of post and
@@ -258,9 +269,18 @@ export function crewsToday(
   grown: readonly Person[], work: readonly CrewWork[], already: readonly Post[] = [],
 ): Post[] {
   const taken = new Set(already.map((post) => post.who));
-  // whoever can actually do it, which is the capability rather than the trade name: `can_build` is
-  // what `POSTINGS` asks for and what a wright, a mason or anybody else with the hands would have
-  const hands = grown.filter((person) => canDo(person, 'can_build') && !taken.has(person.id))
+  /*
+   * Whoever can actually do it, which is the capability rather than the trade name: a wright, a
+   * mason or anybody else with the hands.
+   *
+   * Asked through `couldStand` off the `POSTINGS` row rather than by naming `can_build` here.
+   * `couldStand`'s own comment has always claimed to be *"where that is asked"*, and it was not —
+   * the capability was written out again in this line, so the table declared what a crew wants and
+   * a second copy decided it. The day a third post is added, the table is what somebody edits.
+   */
+  const crew = POSTINGS.find((posting) => posting.kind === 'crew');
+  const hands = grown.filter((person) =>
+    crew !== undefined && couldStand(person, crew) && !taken.has(person.id))
     .sort((one, two) => (one.id < two.id ? -1 : 1));
   const posts: Post[] = [];
   let next = 0;
@@ -284,26 +304,6 @@ export function turnedAway(posts: readonly Post[], cattle: number): number {
   if (cattle <= 0) return 0;
   const guards = posts.filter((post) => post.kind === 'guard').length;
   return Math.min(cattle, Math.floor(cattle * Math.min(1, guards * POST.SAVES)));
-}
-
-/** What the day's posts cost each purse that funds one, ready for the ledger to apply. */
-export function wagesOwed(posts: readonly Post[]): Map<Owner, number> {
-  const owed = new Map<Owner, number>();
-  for (const post of posts) {
-    owed.set(post.funder, Math.round(((owed.get(post.funder) ?? 0) + post.wage) * 100) / 100);
-  }
-  return owed;
-}
-
-/**
- * Whether this person could stand this sort of post.
- *
- * Trivial for a guard and the whole of the question for a builder, which is why it is a function
- * rather than a condition written into the loop above: when the yard has work on its books, the man
- * who takes it is whoever `canDo(person, 'can_build')`, and this is where that is asked.
- */
-export function couldStand(person: Person, posting: Posting): boolean {
-  return posting.wants === '' || canDo(person, posting.wants);
 }
 
 /** Whether a post is the hall's to pay for rather than a villager's. See item 37. */

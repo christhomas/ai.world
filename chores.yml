@@ -264,6 +264,10 @@ tasks:
       REPORT: shopwalk-report.txt
     cmds:
       - 'node tools/shopwalk.cjs; walked=$?; cat {{.REPORT}} || true; exit $walked'
+  excuses:
+    desc: Excuses for unreached exports that have outlived the issue they name — asks GitHub, so it needs a token
+    cmds:
+      - 'pnpm tsx tools/staleexcuses.ts'
 
   fallbacks:
     desc: Which fallback expressions or exported parameter defaults are taken every single time

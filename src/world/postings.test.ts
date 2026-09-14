@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ownedBy, ownerFromSave } from './holdings';
-import { POST, postsToday, turnedAway, wageForAGuard, wagesOwed } from './postings';
+import { POST, postsToday, turnedAway, wageForAGuard } from './postings';
 import { PROSPER } from './prosperity';
 import type { Person } from './people';
 
@@ -145,7 +145,10 @@ describe('what the post is worth to the man who paid for it', () => {
       [farm('f1', one.id), farm('f2', two.id)],
       1,
     );
-    const owed = wagesOwed(posts);
+    // added up off the posts themselves rather than through a helper: a post carries who funds it
+    // and what it costs, and the bill is that read one way round
+    const owed = new Map<string, number>();
+    for (const post of posts) owed.set(post.funder, (owed.get(post.funder) ?? 0) + post.wage);
     expect(owed.get(ownedBy(one))).toBe(wageForAGuard(1));
     expect(owed.get(ownedBy(two))).toBe(wageForAGuard(1));
     expect([...owed.values()].reduce((sum, much) => sum + much, 0))
