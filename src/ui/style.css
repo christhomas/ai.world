@@ -1557,6 +1557,32 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
     border-left: none;
     border-top: var(--ui-scale) solid color-mix(in srgb, var(--rule) 10%, transparent);
   }
+  /*
+   * And on a phone that is short as well as wide, the rail turns a corner rather than running off
+   * the bottom of the screen.
+   *
+   * Measured on a 568×320 landscape phone: the reading block ends at 79, the rail starts at 72 and
+   * is 265 tall, so it finished at 337 in a 320-high window and the last two controls could not be
+   * touched at all. Nothing said so — they were drawn, they were simply past the edge.
+   *
+   * Wrapping rather than shrinking, because the one thing a control on glass may not lose is its
+   * size: seven buttons at 34 apiece would have fitted and none of them would have been a
+   * comfortable target. A landscape phone is the one shape with width to spare, so the column
+   * becomes two columns and the buttons stay exactly as big as they were. `flex-wrap` on a column
+   * fills the first one down and then starts the next, which is the shape wanted with no
+   * arithmetic anywhere.
+   *
+   * The ceiling is what makes it wrap at all: without a height to run out of, a column flows past
+   * the bottom of the window for ever.
+   */
+  @media (max-height: 400px) {
+    #touchPanels {
+      flex-wrap: wrap;
+      max-height: calc(100dvh - 72px - var(--safe-bottom, 0px));
+      width: auto;
+      align-content: flex-start;
+    }
+  }
   /* the rail keeps its job on a narrow window, it only gets narrower */
   #titleRail { flex-basis: 232px; padding: 22px 20px 18px; gap: 20px; }
   #title h1 { font-size: 22px; letter-spacing: 4px; padding-left: 16px; }
