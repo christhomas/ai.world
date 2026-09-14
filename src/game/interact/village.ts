@@ -1,12 +1,12 @@
 import { ITEMS, WOOD_ITEM } from '../items';
 import { familyOfDoor, saidOfAFreeHouse, whatABedCosts } from '../../world/homes';
-import { whatTheHallKnows } from '../../world/hall';
+import { bodyOfTheHall, whatTheHallKnows } from '../../world/hall';
 import { whatTheHallSays } from '../hallwords';
 import { askingPrice, lotLine, type Pitch } from '../market';
 import { tradableItems } from '../online';
 import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
 import { HORSE } from '../mount';
-import { VILLAGE_REACH, compassDir } from '../../world/structures';
+import { VILLAGE_REACH, compassDir, doorTile } from '../../world/structures';
 import { GAMEPLAY } from '../../core/config';
 import { turnToFace } from '../../entities/entity';
 import { faceFor } from '../talk';
@@ -248,9 +248,11 @@ export function villageInteractions(ctx: Surroundings) {
    */
   const tryHall = (): boolean => {
     for (const village of villagesHere()) {
-      const hall = village.hall;
-      if (!hall) continue;
-      if (Math.hypot(hall.door[0] - player.x, hall.door[1] - player.z) > 2.2) continue;
+      const hall = register.hallOf(village.name);
+      const body = bodyOfTheHall(hall, village.houses, register.living(village.name));
+      if (!body) continue;
+      const door = doorTile(body);
+      if (Math.hypot(door[0] - player.x, door[1] - player.z) > 2.2) continue;
       const asked = whatTheHallKnows(register, village.name);
       dialogue.start({
         speaker: `The hall of ${village.name}`,

@@ -1,4 +1,4 @@
-import type { Holding } from './holdings';
+import type { Holding, Owner } from './holdings';
 import type { Person } from './people';
 
 /**
@@ -12,7 +12,6 @@ import type { Person } from './people';
  * Split out when the treasury pushed `register.ts` past the size the architecture test allows,
  * which was a fair moment to notice that the nouns and the verbs had been sharing a file.
  */
-
 
 /** Something that happened to the population, worth telling the player and worth logging. */
 export interface Change {
@@ -71,6 +70,16 @@ export interface Burial {
 /** How many of the dead a village's church keeps. Older stones are there; the ledger has moved on. */
 export const STONES_KEPT = 60;
 
+/** The village itself: one owner, one treasury, and the building that gives it a body. */
+export interface Hall {
+  /** The same identity used by holdings and payroll entries. */
+  readonly id: Owner;
+  /** A hamlet keeps its books in the mayor's house until a vote gives the hall its own building. */
+  body: 'mayor-house';
+  /** The village treasury, separate from every mayor and therefore never inherited. */
+  purse: number;
+}
+
 /** A village the register has been told about, so it knows how big to keep it. */
 export interface Settlement {
   people: Person[];
@@ -88,25 +97,11 @@ export interface Settlement {
    * Who is standing on the village's watchtower today, or nobody.
    *
    * Worked out again every morning out of who is here and what the hall can pay — see
-   * `whoStandsWatch` — rather than being an appointment somebody holds. A village that buries its
-   * watchman has a different man up there tomorrow without anything having to notice, and one that
-   * runs out of money has an empty tower, which is exactly what being unable to pay looks like.
+   * `whoStandsWatch` — rather than being an appointment somebody holds.
    */
   watch: string;
-  /**
-   * What the hall holds, which is nobody's.
-   *
-   * `inheritance.ts` turned a village treasury down when it went in, and said why: there was no pot
-   * to bank anything in, and inventing one would have been inventing a thing nothing in the game
-   * could see or spend. A hall is somewhere to keep it and a vote is something to spend it on, so
-   * there is a pot now.
-   *
-   * It is emphatically not the mayor's. A person's purse goes to their family the day they are
-   * buried; this stays exactly where it is for whoever is elected next, which is the whole
-   * difference between a treasury and a rich man. Nothing in `handOnWhatTheyHad` touches it and a
-   * test says so.
-   */
-  purse: number;
+  /** The village owner, its treasury, and where that owner can be found. */
+  hall: Hall;
   /**
    * Meals in the store. Grown by whoever farms, eaten every day, and spoiling past what a cellar
    * of this size can keep — so a village cannot bank a good decade against a bad year.

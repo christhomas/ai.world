@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from './register';
-import { whatTheHallKnows } from './hall';
+import { bodyOfTheHall, whatTheHallKnows } from './hall';
+import { homesOf } from './homes';
+import { THE_HALL_OWNER } from './holdings';
+import { surnameOf } from './people';
+import type { Structure } from './structures';
 
 /**
  * What a village hall could tell you, if you walked up and asked it.
  *
- * Item 89 (issue #25), the half that does not wait on deciding what the hall's *body* is — the
- * mayor's house at first and a building the village voted for later, which is #27 and a design
- * decision rather than a function.
+ * Item 89 (issue #25): the treasury is an entity, and its first body is the mayor's house. A later
+ * vote may move that body to another building (#27), without changing the hall's identity or purse.
  *
  * Everything a treasury knows is already derived and sitting in four different places: what it
  * holds, what it is saving for, who is standing on the tower this morning, who speaks for the
@@ -27,9 +30,9 @@ describe('what the hall knows', () => {
     return book;
   };
 
-  it('says what it holds, which is the one purse that is nobody\'s', () => {
+  it('says what its entity purse holds', () => {
     const book = settled();
-    expect(whatTheHallKnows(book, 'Ashford').holds).toBe(book.hallOf('Ashford'));
+    expect(whatTheHallKnows(book, 'Ashford').holds).toBe(book.hallOf('Ashford')?.purse ?? 0);
   });
 
   it('says who speaks for the village, and what it has raised', () => {
@@ -37,6 +40,27 @@ describe('what the hall knows', () => {
     const known = whatTheHallKnows(book, 'Ashford');
     expect(known.mayor).toBe(book.mayorOf('Ashford')?.id ?? '');
     expect(known.raised).toEqual(book.worksOf('Ashford'));
+  });
+
+  it('has an identity, begins in the mayor family home, and outlives its keeper', () => {
+    const book = settled();
+    const people = book.living('Ashford');
+    const houses = Array.from({ length: people.length }, (_, tx) => ({ tx }) as Structure);
+    const mayor = book.mayorOf('Ashford');
+    const hall = book.hallOf('Ashford');
+    if (!mayor || !hall) throw new Error('settled villages have a mayor and hall');
+    const mayorHome = homesOf(houses, people)
+      .find((home) => home.family === surnameOf(mayor))?.house;
+
+    expect(hall).toMatchObject({ id: THE_HALL_OWNER, body: 'mayor-house' });
+    expect(people.some((person) => person.id === hall.id)).toBe(false);
+    expect(bodyOfTheHall(hall, houses, people)).toBe(mayorHome);
+
+    hall.purse = 73;
+    mayor.purse = 0;
+    book.bury(mayor.id);
+    expect(book.hallOf('Ashford')).toBe(hall);
+    expect(hall.purse).toBe(73);
   });
 
   it('says what it is saving for, or nothing when it wants nothing', () => {

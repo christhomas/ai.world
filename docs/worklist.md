@@ -5388,12 +5388,12 @@ than by remembering — and the first thing found was that the gap is not where 
       right diagnosis under it; it is an assertion now rather than a paragraph, because a note that
       reports a fault every time is a note somebody stops reading.
 
-- [ ] **89. The town hall is a villager who happens to be an unmoving building.** Raised on the 13th
+- [x] **89. The town hall is a villager who happens to be an unmoving building.** Raised on the 13th
       while the hall was being turned into a contracting party, and it is a simplification rather
-      than a feature. Today the treasury is `village.purse` — a number on a settlement, owned by
-      nobody, special-cased everywhere it is touched — while `THE_HALL` already exists as a string
-      that can own a holding. So half of this is built and the half that is built is the awkward
-      half: an owner that is a magic string rather than a thing.
+      than a feature. Before this, the treasury was `village.purse` — a number on a settlement,
+      owned by nobody, special-cased everywhere it was touched — while `THE_HALL` already existed
+      as a string that could own a holding. So half of this was built, and that was the awkward
+      half: an owner that was a magic string rather than a thing.
 
       Make the hall an **entity** whose body is the building. Then the ownership relation is uniform
       — every coin in the world is owned by an entity, and one of those entities does not walk. The
@@ -5408,8 +5408,14 @@ than by remembering — and the first thing found was that the gap is not where 
 
       Two things to be careful of, and both are about it not being a person: it has no lifespan and
       must never appear on the roll of the living, and it cannot be inherited when the mayor dies —
-      which is precisely the distinction `Settlement.purse` already documents as the whole
+      which is precisely the distinction the old `Settlement.purse` documented as the whole
       difference between a treasury and a rich man.
+
+      **Done on the 14th.** Every settlement now carries one hall entity: the durable branded owner
+      used by holdings and payroll, its uncapped purse, and a body. Payment resolves that entity in
+      the same owner map as villagers rather than branching on a magic name. Its first body is the
+      mayor family's house — including in hamlets with no civic hall — and Enter at that door opens
+      the hall conversation. The body may move after **91**'s vote; the identity and purse do not.
 
 - [ ] **90. The hall contracts the constable, instead of the law working freelance.** Raised on the
       13th, out of **82**, and it is the best of the posts because it is the one that is obviously
@@ -5479,10 +5485,9 @@ than by remembering — and the first thing found was that the gap is not where 
         kept empty until somebody votes for it, which `spareplots.ts` already knows how to find —
         or the seeded one stops being a hall. It cannot stay as it is, or a village would vote to
         build the building it is standing in.
-      - **The hall entity is born here.** That is **89**: the treasury has no owner until there is a
-        hall to own it. Which raises the good question of where a hamlet's money lives before it has
-        one, and the honest answer may be that it does not have any — a village with no hall does
-        not tax, and the first vote is the day the place starts collecting.
+      - **The hall changes body here.** **89** gives every hamlet a hall entity and keeps its chest
+        under the mayor's roof. The vote moves that same identity and purse into a civic building;
+        it does not create a new owner or wait until town scale to begin collecting.
       - **What it costs and who may call it.** The mayor is derived (longest-settled trade-holder),
         so there is somebody to call a vote without any machinery. What carries it is the open
         question: everybody, the trade-holders, the householders.
@@ -5496,8 +5501,8 @@ than by remembering — and the first thing found was that the gap is not where 
       identically at every scale from hamlet to city, and the vote moves an address rather than
       introducing a mechanism — which is why this is a simplification and not a feature.
 
-      The trap it avoids is the one `Settlement.purse` already names: the chest is *"emphatically not
-      the mayor's… which is the whole difference between a treasury and a rich man"*. Keeping it in
+      The trap is the one the hall entity now makes explicit: the chest is emphatically not the
+      mayor's, which is the whole difference between a treasury and a rich man. Keeping it in
       his purse would make it inheritable, and the day he died his son would own the village. So the
       chest is its own purse from the beginning and never his; what he has is the keeping of it.
       That is also the real-world shape of the thing, which is where this started.

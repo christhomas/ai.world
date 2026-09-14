@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ownerFromSave, type Owner } from './holdings';
+import { THE_HALL_OWNER, ownerFromSave, type Owner } from './holdings';
 import { PROSPER } from './prosperity';
 import type { Settlement } from './settlement';
 import { pay, payAndSweep } from './purses';
@@ -8,7 +8,7 @@ import { pay, payAndSweep } from './purses';
 function village(purses: number[], hall = 0): Settlement {
   return {
     people: purses.map((purse, n) => ({ id: `p${n}`, purse })),
-    purse: hall,
+    hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: hall },
   } as unknown as Settlement;
 }
 
@@ -39,16 +39,16 @@ describe('paying a village', () => {
 
   it('sweeps it into the hall, so the village is worth what it was worth plus what it earned', () => {
     const here = village([PROSPER.MOST - 10], 100);
-    const before = here.people[0].purse + here.purse;
+    const before = here.people[0].purse + here.hall.purse;
     payAndSweep(here, owed(60));
-    expect(here.people[0].purse + here.purse).toBe(before + 60);
-    expect(here.purse).toBe(150);
+    expect(here.people[0].purse + here.hall.purse).toBe(before + 60);
+    expect(here.hall.purse).toBe(150);
   });
 
   it('leaves the hall alone when nobody is anywhere near the ceiling', () => {
     const here = village([10], 100);
     payAndSweep(here, owed(5));
-    expect(here.purse).toBe(100);
+    expect(here.hall.purse).toBe(100);
   });
 
   /*

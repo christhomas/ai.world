@@ -168,7 +168,7 @@ export function theVillageSpends(o: TheDay, village: Settlement, day: number): v
   // do them: see `whatTheVillageSpends`, where the argument about which comes first is written
   // down. A roof before a well, because a village houses its people before it pleases them
   const spending = whatTheVillageSpends(
-    village.purse, village.works, village.houses, village.founded, village.people, village.food,
+    village.hall.purse, village.works, village.houses, village.founded, village.people, village.food,
     village.holdings ?? [], village.herd, day);
   village.watch = spending.watch;
   // a villager founding a holding spends none of the hall's money, so what the hall spent is no

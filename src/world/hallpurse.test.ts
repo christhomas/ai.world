@@ -6,21 +6,16 @@ import type { Settlement } from './settlement';
 /**
  * The hall is paid the way anybody is paid.
  *
- * Item 89. A village's treasury is `Settlement.purse` — a bare number that belongs to nobody — and
- * `THE_HALL` is a string that can own a farm, fund a posting and take a share of a take. So every
- * place that moves money has to remember which of the two it is dealing with, and the ones that
- * forget do not fail: `pay` walks `village.people`, finds nothing called "the hall", and drops the
- * entry on the floor. Money that leaves a book and arrives nowhere is the one thing the deed layer
- * exists to make impossible, and this is the seam it cannot see across.
- *
- * The end of this item is a hall that is an entity with a purse, whose body happens to be a
- * building — the mayor's house at first and a voted one later (**91**). This is the first step of
- * it and the one everything else waits on: one `pay`, and it does not care which of them you name.
+ * Item 89. The treasury used to be a bare number on `Settlement`, while `THE_HALL` was a
+ * separate string that could own holdings. That split let payment entries name the hall without
+ * finding any purse, silently destroying the transfer. The hall is now the owner entity itself:
+ * it has the same durable identity in deeds and payroll, its own uncapped purse, and a body that
+ * begins at the mayor's house. It never enters the roll of living people and cannot be inherited.
  */
 function village(purses: number[], hall = 0): Settlement {
   return {
     people: purses.map((purse, n) => ({ id: `p${n}`, purse })),
-    purse: hall,
+    hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: hall },
   } as unknown as Settlement;
 }
 
@@ -28,13 +23,13 @@ describe('paying the village itself', () => {
   it('puts money in the hall when the hall is who is owed', () => {
     const here = village([10, 10], 100);
     payAndSweep(here, new Map([[THE_HALL_OWNER, 25]]));
-    expect(here.purse).toBe(125);
+    expect(here.hall.purse).toBe(125);
   });
 
   it('takes money out of the hall when the hall is who is paying', () => {
     const here = village([10], 100);
     payAndSweep(here, new Map([[THE_HALL_OWNER, -40]]));
-    expect(here.purse).toBe(60);
+    expect(here.hall.purse).toBe(60);
   });
 
   /*
@@ -44,9 +39,9 @@ describe('paying the village itself', () => {
    */
   it('never drops an entry it does not recognise', () => {
     const here = village([10, 10], 100);
-    const before = here.people.reduce((sum, p) => sum + p.purse, 0) + here.purse;
+    const before = here.people.reduce((sum, p) => sum + p.purse, 0) + here.hall.purse;
     payAndSweep(here, new Map([[ownerFromSave('p0'), 5], [THE_HALL_OWNER, 7]]));
-    const after = here.people.reduce((sum, p) => sum + p.purse, 0) + here.purse;
+    const after = here.people.reduce((sum, p) => sum + p.purse, 0) + here.hall.purse;
     expect(after - before, 'every coin named should have landed somewhere').toBe(12);
   });
 
