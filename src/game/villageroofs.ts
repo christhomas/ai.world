@@ -1,10 +1,9 @@
 import { whichFieldClears, type FieldClearing } from '../world/fieldbuilds';
-import { clearedFieldTiles } from '../world/fields';
+import { clearedFieldTiles, type FieldTile } from '../world/fields';
 import type { Settlement } from '../world/settlement';
 import type { TerrainSampler } from '../world/terrain';
 import { RAISING_TAKES, beganOn, isARoof } from '../world/roofs';
 import { civicFor, whereItStands } from '../world/civics';
-import { clearedFieldTiles, type FieldTile } from '../world/fields';
 import { BUILD } from './building';
 import type { Village } from '../world/structures';
 
