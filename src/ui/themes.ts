@@ -1,8 +1,8 @@
 /**
  * Which of the four the interface is dressed in.
  *
- * A theme may change only five things — surface, rule, ink, accent, action — plus the pair of faces
- * it is set in. Position, size, spacing and every hit target are identical across all four, and
+ * A theme may change only five things — surface, rule, ink, accent and face. Position, size, spacing
+ * and every hit target are identical across all four, and
  * that is the property rather than a preference: *a new theme cannot break a screen and needs no
  * re-test.* The moment a theme is allowed to move something, four themes become four interfaces.
  *
