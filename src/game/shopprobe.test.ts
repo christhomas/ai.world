@@ -23,14 +23,17 @@ const doors: Doorway[] = villages.map((village) => ({
 function shopProbe(hero: { x: number; z: number }) {
   const entered: Doorway[] = [];
   const debug: { __enterShop?: (type?: string, village?: string) => string | null } = {};
-  (globalThis as { window?: unknown }).window = debug;
+  const runtime = globalThis as { window?: unknown };
+  const priorWindow = runtime.window;
+  runtime.window = debug;
   const structures = { villages, doors, piers: [], wrecks: [], pois: [] };
   const places = {
     indoors: null,
     enterBuilding: (door: Doorway) => { entered.push(door); },
     leaveBuilding() {},
   };
-  installProbes({
+  try {
+    installProbes({
     seed: 1, world: undefined, state: { day: 0, time: 0 }, player: hero, rig: { scene: {} }, iso: {},
     sampler: {}, structures, chunks: {}, entities: {}, register: {}, places, online: {}, market: {},
     warband: {}, remains: {}, plots: {}, houses: {}, sailing: {}, skies: {}, skyIsles: [], eyries: [],
@@ -42,7 +45,10 @@ function shopProbe(hero: { x: number; z: number }) {
     doorsteps: { ready: false, resting: 0 }, streamTally: { asked: 0, kept: 0, arrived: 0, wanted: 0 },
     wildlife: { drift: 0, nearestCounted: null }, bites: [], heard: () => ({ nearness: 0, drop: 0 }),
     nettleAbout: () => null, sentOut: () => [],
-  } as unknown as Probed);
+    } as unknown as Probed);
+  } finally {
+    runtime.window = priorWindow;
+  }
   return { enterShop: debug.__enterShop!, entered };
 }
 
