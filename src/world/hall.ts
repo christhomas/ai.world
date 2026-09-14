@@ -1,7 +1,10 @@
 import { PROSPER } from './prosperity';
 import { ownedBy, type Owner } from './holdings';
 import { LIVELIHOOD } from './livelihoods';
-import type { Person } from './people';
+import { homesOf } from './homes';
+import { surnameOf, type Person } from './people';
+import type { Hall } from './settlement';
+import type { Structure } from './structures';
 import { atLeast, type Rank } from './rank';
 
 /**
@@ -434,11 +437,25 @@ export function mayorOf(people: readonly Person[]): Person | null {
 }
 
 /**
- * Everything a village hall could tell you, if you walked up and asked it.
+ * The building that gives the village owner a body today.
  *
- * Item 89's readable half, and the half that does not wait on deciding what the hall's *body* is —
- * the mayor's house at first and a building the village voted for later, which is a design decision
- * rather than a function.
+ * A hall exists before a place can vote for a civic building. Until that vote, the mayor keeps
+ * its separate chest and books under their own roof; replacing the mayor therefore moves the
+ * public address without inheriting the treasury.
+ */
+export function bodyOfTheHall(
+  hall: Hall | null, houses: readonly Structure[], people: readonly Person[],
+): Structure | null {
+  if (!hall || hall.body !== 'mayor-house') return null;
+  const mayor = mayorOf(people);
+  if (!mayor) return null;
+  const family = surnameOf(mayor);
+  return homesOf(houses, people).find((home) => home.family === family)?.house ?? null;
+}
+
+/**
+ * Everything a village hall could tell you, if you walk up to the building that is its current body.
+ * The body begins at the mayor's house and may move after a vote; the answers remain the hall's.
  *
  * All four answers are already derived and already correct; they are simply in four places, and a
  * conversation that wanted to say *"what is this village up to"* would have to know which to ask.
@@ -454,7 +471,7 @@ export function mayorOf(people: readonly Person[]): Person | null {
  */
 export function whatTheHallKnows(
   book: {
-    hallOf: (village: string) => number;
+    hallOf: (village: string) => Hall | null;
     mayorOf: (village: string) => Person | null;
     watchOf: (village: string) => string;
     worksOf: (village: string) => readonly string[];
@@ -472,7 +489,7 @@ export function whatTheHallKnows(
   const raised = book.worksOf(village);
   const next = nextWork(Infinity, raised, book.rankOf(village));
   return {
-    holds: book.hallOf(village),
+    holds: book.hallOf(village)?.purse ?? 0,
     mayor: book.mayorOf(village)?.id ?? '',
     watch: book.watchOf(village),
     raised,

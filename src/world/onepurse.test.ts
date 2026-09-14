@@ -11,8 +11,8 @@ import { describe, expect, it } from 'vitest';
  * reports what it could not place instead of dropping it.
  *
  * A purse written anywhere else is a movement that went through none of that. It cannot be audited,
- * it cannot be capped, and it cannot be seen: `village.purse = village.purse + x` is a coin
- * arriving from wherever the reader's attention was at the time.
+ * it cannot be capped, and it cannot be seen: `village.hall.purse = village.hall.purse + x` is a
+ * coin arriving from wherever the reader's attention was at the time.
  *
  * Read as source, the way `chunkpump.test.ts` reads an ordering, because the rule is about *where
  * the code is* and no runtime assertion can see that.
@@ -43,8 +43,7 @@ describe('who is allowed to move money', () => {
       if (ALLOWED.has(name)) continue;
       const text = readFileSync(file, 'utf8').split('\n');
       text.forEach((line, at) => {
-        // an assignment to a settlement's own purse, however it is spelled
-        if (/\b(village|settlement|here|room)\.purse\s*=/.test(line)) {
+        if (/\b(village|settlement|here|room)(?:\.hall)?\.purse\s*=/.test(line)) {
           wrong.push(`${file}:${at + 1}: ${line.trim().slice(0, 80)}`);
         }
       });

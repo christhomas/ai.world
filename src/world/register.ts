@@ -10,9 +10,9 @@ import type { Rank } from './rank';
 import { doctoredBy, laidUpFor, mendThem } from './wounds';
 import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
-import type { Burial, Change, Settlement } from './settlement';
+import type { Burial, Change, Hall, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
-import { whatTheVillageHolds, type Holding } from './holdings';
+import { THE_HALL_OWNER, whatTheVillageHolds, type Holding } from './holdings';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
@@ -36,7 +36,7 @@ import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortu
 const FOUNDED_ON = 1;
 
 
-export type { Burial, Change, Settlement } from './settlement';
+export type { Burial, Change, Hall, Settlement } from './settlement';
 
 export class Register {
   private readonly villages = new Map<string, Settlement>();
@@ -164,7 +164,8 @@ export class Register {
        * the right diagnosis written beside it: the field describes the value it takes after the
        * first roof goes up rather than the one it starts with. It was the founding that was wrong.
        */
-      people, founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [], purse: 0,
+      people, founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [],
+      hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: 0 },
       // a harbour it already has counts as a thing it has raised: `holdings.ts` will not put a boat
       // anywhere there is nothing to tie one up at, and a seeded jetty is a jetty
       works: this.hasAHarbour.has(village) ? ['jetty'] : [],
@@ -286,7 +287,7 @@ export class Register {
    * is worth, the Domesday Book. Nought for a village that has never been settled, which is the
    * same answer as a village that has spent everything and is honest about both.
    */
-  hallOf(village: string): number { return this.villages.get(village)?.purse ?? 0; }
+  hallOf(village: string): Hall | null { return this.villages.get(village)?.hall ?? null; }
 
   /**
    * What the hall took from each purse on the last day that person lived through.

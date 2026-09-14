@@ -1,5 +1,5 @@
 import { PROSPER } from './prosperity';
-import { THE_HALL, isTheHall, ownedBy, type Owner } from './holdings';
+import { ownedBy, type Owner } from './holdings';
 import type { Settlement } from './settlement';
 
 /**
@@ -28,11 +28,11 @@ import type { Settlement } from './settlement';
  * found.
  *
  * So the two ends are handed back rather than swallowed. A man who cannot hold any more has his
- * surplus taken by the hall, which turns the cap into a tax on the very rich and gives it
- * somewhere to be — and the hall is the right place, because it is the one purse in a village
- * that is not anybody's. What the floor stops is reported separately and is *not* made good: a
- * man who owes more than he has has simply not paid it, and that is a hole in the day's books
- * rather than a coin the hall can find. It should be nought, and the audit says so.
+ * surplus taken by the hall, which turns the cap into a tax on the very rich and gives it somewhere
+ * to be. The hall is the right place because its purse belongs to the village entity, not to a
+ * person who can die and pass it down. What the floor stops is reported separately and is *not*
+ * made good: a man who owes more than he has has simply not paid it, and that is a hole in the
+ * day's books rather than a coin the hall can find. It should be nought, and the audit says so.
  *
  * `unplaced` is the third and it is the one that should never happen at all: money owed to a name
  * this village has never heard of. It is handed back rather than dropped because a coin that
@@ -43,36 +43,24 @@ export function pay(
   village: Settlement, owed: ReadonlyMap<Owner, number>,
 ): { over: number; short: number; unplaced: number } {
   let over = 0, short = 0, unplaced = 0;
-  const purses = new Map(village.people.map((person) => [ownedBy(person), person]));
+  const purses = new Map<Owner, { purse: number }>(
+    village.people.map((person) => [ownedBy(person), person]),
+  );
+  purses.set(village.hall.id, village.hall);
 
   for (const [id, much] of owed) {
     if (much === 0) continue;
-    /*
-     * The village itself is one of the names money can be owed to.
-     *
-     * `THE_HALL` funds a posting, owns a farm and takes a share of what that farm makes, so it
-     * turns up in the same maps a villager does — and this used to walk `village.people`, find
-     * nothing of that name, and drop the entry on the floor. A coin that leaves one book and
-     * arrives in none is the one thing the deed layer exists to make impossible, and it was
-     * happening silently, past a green suite. Item 89: paying the hall is paying somebody.
-     *
-     * No ceiling on it, deliberately. `PROSPER.MOST` is what one person keeps by them — the cap
-     * that stops a long-lived shopkeeper in a quiet corner ending the century with everything — and
-     * a treasury is not a person. What a village has put by is its own business and the sanity
-     * bench watches it; a hall that stopped being able to hold more would be a village that stopped
-     * being able to save for the thing it is saving for.
-     */
-    if (isTheHall(id)) {
-      village.purse = Math.round((village.purse + much) * 100) / 100;
-      continue;
-    }
-    const person = purses.get(id);
-    if (!person) { unplaced += much; continue; }
-    const meant = person.purse + much;
-    if (meant > PROSPER.MOST) over += meant - PROSPER.MOST;
+    const purse = purses.get(id);
+    if (!purse) { unplaced += much; continue; }
+
+    // A treasury has no personal wealth ceiling, but shares the same floor and payment path.
+    const most = purse === village.hall ? Number.POSITIVE_INFINITY : PROSPER.MOST;
+    const meant = purse.purse + much;
+    if (meant > most) over += meant - most;
     if (meant < 0) short -= meant;
-    person.purse = Math.min(PROSPER.MOST, Math.max(0, meant));
+    purse.purse = Math.min(most, Math.max(0, meant));
   }
+
   return {
     over: Math.round(over * 100) / 100,
     short: Math.round(short * 100) / 100,
@@ -88,5 +76,5 @@ export function pay(
  */
 export function payAndSweep(village: Settlement, owed: ReadonlyMap<Owner, number>): void {
   const { over } = pay(village, owed);
-  if (over > 0) village.purse = Math.round((village.purse + over) * 100) / 100;
+  if (over > 0) village.hall.purse = Math.round((village.hall.purse + over) * 100) / 100;
 }

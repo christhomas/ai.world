@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ownerFromSave } from './holdings';
+import { THE_HALL_OWNER, ownerFromSave } from './holdings';
 import {
   BEASTS_PER_FARM, SORTS, THE_HALL, canDo, capabilitiesOf, foundAHolding, heldBy, leavesAHolding,
   nameOfHolding, possibleHere, shareTheBeasts, sortOf, vacancies, whatTheVillageHolds,
@@ -258,7 +258,8 @@ describe('the one line the register has to add', () => {
    */
   const settlementOf = (register: Register, name: string): Settlement => ({
     people: [...register.living(name)],
-    raised: [], watch: '', purse: 0, food: 40, herd: register.herdOf(name),
+    raised: [], watch: '', hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: 0 },
+    food: 40, herd: register.herdOf(name),
     founded: 8, houses: 4, trades: register.tradesOf(name), buried: [], works: [],
   });
 

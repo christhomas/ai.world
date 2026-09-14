@@ -78,7 +78,7 @@ function staleExplanations(source: ReadonlyMap<string, string>, explanations: Re
  *
  * Lower it when you triage. Never raise it.
  */
-const ALREADY_LIKE_THIS = 42;
+const ALREADY_LIKE_THIS = 41;
 const ALREADY_UNEXPLAINED = 0;
 
 /**
@@ -115,7 +115,6 @@ const EXPLAINED = new Map<string, string>([
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
   ['src/world/food.ts: saidOfFood', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/growworld.ts: patchStamp', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/hall.ts: whatTheHallKnows', 'hall dialogue caller is pending in PR #66 for issue #25'],
   ['src/world/holdings.ts: heldBy', 'directory ownership lookup is pending in issue #49'],
   ['src/world/holdings.ts: nameOfHolding', 'directory holding names are pending in issue #49'],
   ['src/world/memory.ts: opinionOf', 'wire-or-delete decision tracked by issue #88'],

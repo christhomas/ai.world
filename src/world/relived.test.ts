@@ -48,7 +48,7 @@ describe('the two ways a village comes to exist', () => {
 
       expect(after.living('Ashford').map((p) => p.id)).toEqual(there.living('Ashford').map((p) => p.id));
       expect(after.worksOf('Ashford')).toEqual(there.worksOf('Ashford'));
-      expect(after.hallOf('Ashford')).toBe(there.hallOf('Ashford'));
+      expect(after.hallOf('Ashford')).toEqual(there.hallOf('Ashford'));
       expect(after.herdOf('Ashford')).toBe(there.herdOf('Ashford'));
     });
 

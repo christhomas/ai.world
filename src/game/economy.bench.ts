@@ -366,7 +366,7 @@ function stood(register: Register, village: string, day: number): Standing {
     day,
     herd: register.herdOf(village),
     food: register.larderOf(village),
-    hall: register.hallOf(village),
+    hall: register.hallOf(village)?.purse ?? 0,
     souls: here.length,
     room: register.roomIn(village),
     working: here.filter((p) => p.trade !== '').length,
