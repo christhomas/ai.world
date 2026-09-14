@@ -1,3 +1,7 @@
+import { whichFieldClears, type FieldClearing } from '../world/fieldbuilds';
+import { clearedFieldTiles } from '../world/fields';
+import type { Settlement } from '../world/settlement';
+import type { TerrainSampler } from '../world/terrain';
 import { RAISING_TAKES, beganOn, isARoof } from '../world/roofs';
 import { civicFor, whereItStands } from '../world/civics';
 import { clearedFieldTiles, type FieldTile } from '../world/fields';
@@ -156,7 +160,17 @@ export function raisedRoofs(
 export function roofWatch(
   villagesNow: () => readonly Village[],
   worksOf: (village: string) => readonly string[],
+  /**
+   * Told, once a day, which tiles have been cleared into fields.
+   *
+   * The same book answers both questions — `works` is where a raised roof and a cleared acre are
+   * both written down — and both are wanted at the same moment and at the same rate: once a day,
+   * rather than sixty times a second. Keeping it here rather than wrapping this function at the
+   * boot file means the day is decided in one place, and `main.ts` goes on asking for the roofs.
+   */
+  fieldsCleared: (works: readonly string[]) => void = () => {},
 ): (day: number) => readonly Raised[] {
+  let surveyed = Number.NaN;
   let asked = Number.NaN;
   let names: string[] = [];
   let books: readonly (readonly string[])[] = [];
@@ -165,6 +179,10 @@ export function roofWatch(
   return (day) => {
     const villages = villagesNow();
     const today = Math.floor(day);
+    if (today !== surveyed) {
+      surveyed = today;
+      fieldsCleared(villages.flatMap((village) => worksOf(village.name)));
+    }
     let changed = today !== asked || villages.length !== names.length;
     for (let at = 0; at < villages.length; at++) {
       const book = worksOf(villages[at].name);
@@ -217,4 +235,35 @@ function latestHallWork(works: readonly string[]): string | null {
 function beforeTheColon(work: string): string {
   const at = work.indexOf(':');
   return at < 0 ? work : work.slice(0, at);
+}
+
+/**
+ * What the villages have raised and what they have cleared, as one thing to ask.
+ *
+ * Both are written in the same book — `works` holds a raised roof and a cleared acre alike — and
+ * both are wanted at the same moment and at the same rate: once a day rather than sixty times a
+ * second. So the register is told who may clear an acre this morning, the ground is told which
+ * trees the cleared acres took, and the caller gets the roofs, from one call.
+ *
+ * It is here rather than at the boot file because `main.ts` is assembly and nothing else: a
+ * feature that needs six lines of it has put its wiring in the wrong place, and the module that
+ * already owns "what has this village built, and when did the day turn" is this one.
+ */
+export function whatTheVillagesRaised(
+  register: {
+    worksOf: (village: string) => readonly string[];
+    fieldsAreSurveyedBy: (
+      survey: (village: string, settlement: Settlement) => FieldClearing | null,
+    ) => void;
+  },
+  villagesNow: () => readonly Village[],
+  sampler: TerrainSampler,
+  ground: { clearFields: (tiles: Iterable<{ x: number; z: number }>) => void },
+): (day: number) => readonly Raised[] {
+  register.fieldsAreSurveyedBy((name, settlement) => {
+    const village = villagesNow().find((at) => at.name === name);
+    return village ? whichFieldClears(village, settlement, sampler) : null;
+  });
+  return roofWatch(villagesNow, (village) => register.worksOf(village),
+    (works) => ground.clearFields(clearedFieldTiles(works)));
 }

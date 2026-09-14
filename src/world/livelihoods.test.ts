@@ -123,6 +123,39 @@ describe('what the village paid for its dinner', () => {
     expect(paid.get(ownedBy(people[2]))!).toBeGreaterThan(paid.get(ownedBy(people[1]))!);
   });
 
+  /*
+   * A deed outlives a family, and a day is long enough for the owner to be buried in.
+   *
+   * The fields are counted in the morning and dinner is bought in the evening, so a crop can be
+   * standing in the name of somebody who is under a stone by the time the money moves. `pay` calls
+   * money addressed to a name the village does not hold `unplaced` and says it *"should never
+   * happen at all"* — and the hundred-day bench reads it exactly that way, as purses that moved
+   * less than the roll said they would.
+   */
+  it('never addresses dinner money to somebody who is not at the table', () => {
+    const people = [person('farmer'), person('soldier')];
+    const buried = ownerFromSave('a-farm-whose-family-is-gone');
+    const paid = paidForFood(people, 10, 0, false, 0, new Map([[buried, 4]]));
+    expect(paid.has(buried), 'a share in a dead name is money sent nowhere').toBe(false);
+    expect(total(paid), 'and the pool is still handed out to the coin').toBeCloseTo(10, 10);
+    for (const owner of paid.keys()) {
+      expect(people.some((one) => ownedBy(one) === owner)).toBe(true);
+    }
+  });
+
+  /*
+   * `broughtIn` is the one expression of what a farmer grows, and says so: *"a second expression of
+   * 'what a farmer grows' living in `livelihoods.ts` would be a farmer who is fed by one number and
+   * paid by another"*. A caller that has counted the fields hands them over; one that has not must
+   * get the same number the larder got.
+   */
+  it('feeds and pays a farmer by the same number when nobody counted the fields', () => {
+    const people = [person('farmer'), person('soldier')];
+    const fed = whoFed(people);
+    expect(fed.get(ownedBy(people[0]))).toBeCloseTo(broughtIn(people[0]), 10);
+    expect(fed.get(ownedBy(people[0]))!).toBeGreaterThan(fed.get(ownedBy(people[1]))!);
+  });
+
   it('pays the farmers for the meat as well as for the field', () => {
     const people = [person('farmer'), person('soldier')];
     const without = paidForFood(people, 10)?.get(ownedBy(people[0]))!;

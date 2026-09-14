@@ -1,7 +1,7 @@
 import { WORLD } from '../core/config';
 import { TREES, type PropKind } from './biomes';
 import { homesOf } from './homes';
-import type { Holding } from './holdings';
+import { ownedBy, type Holding, type Owner, type Standing } from './holdings';
 import type { Person } from './people';
 import type { ChunkData, TerrainSampler } from './terrain';
 import type { Structure, Village } from './structures';
@@ -136,4 +136,53 @@ export function withoutClearedTrees<T extends { kind: PropKind; x: number; z: nu
     if (!cleared.has(tile) || !TREES.includes(prop.kind)) kept.push(prop);
   }
   return kept;
+}
+
+/**
+ * What each farm put on the table today, by whoever is to be paid for it.
+ *
+ * A farm's crop used to be a property of the *trade*: `broughtIn` gave every farmer the same
+ * number whether he stood in a hedged acre or a bare one. A cleared field is an improvement to a
+ * holding, so the crop is a property of the *holding* — which means it has to be counted per farm
+ * and handed to somebody, and that is what this is.
+ *
+ * ## Addressed to a purse the village actually holds
+ *
+ * A farm outlives the family that raised it. `mannedFarms` pairs a field with whoever is standing
+ * in it, and the deed on the gate may still name somebody who is under a stone — so an owner read
+ * straight off the holding is sometimes a name the village has never heard of, and `pay` reports
+ * money sent to one as `unplaced`: *"the one that should never happen at all"*, because a coin
+ * that arrives nowhere is exactly what the books cannot see. The hundred-day bench caught it as
+ * four village-days where the purses moved less than the roll said they would.
+ *
+ * So the deed is honoured where there is somebody to honour it to, and otherwise the crop is the
+ * worker's — which is the truthful answer as well as the payable one: they stood in the field.
+ *
+ * `meals` is the same total the larder takes, so the village is fed by the number it pays for. See
+ * `whoFed`, which is the other half of that agreement.
+ */
+export function fieldCrop(
+  people: readonly Person[], working: readonly Person[], farmers: readonly Person[],
+  farms: readonly Standing[] | null, works: readonly string[],
+  perFarmer: number,
+): { fields: Map<Owner, number>; meals: number } {
+  const fields = new Map<Owner, number>();
+  let meals = 0;
+  const add = (owner: Owner, much: number): void => {
+    fields.set(owner, (fields.get(owner) ?? 0) + much);
+    meals += much;
+  };
+  const here = new Set(people.map(ownedBy));
+  if (farms) {
+    const byId = new Map(working.map((person) => [person.id, person]));
+    for (const farm of farms) {
+      const worker = byId.get(farm.worker ?? '');
+      if (!worker) continue;
+      const owner = farm.owner ?? ownedBy(worker);
+      add(here.has(owner) ? owner : ownedBy(worker), perFarmer + foodAt(works, farm.id ?? ''));
+    }
+  } else {
+    for (const farmer of farmers) add(ownedBy(farmer), perFarmer);
+  }
+  return { fields, meals };
 }
