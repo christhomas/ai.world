@@ -57,7 +57,7 @@ export class PlayerList {
         const away = Math.round(Math.hypot(p.x - input.x, p.z - input.z));
         const mark = input.party.has(p.id) ? '🧭 ' : '';
         const riding = p.riding === 'horse' ? ' · on horseback' : p.riding === 'boat' ? ' · under sail' : '';
-        return `<li>${mark}<b>${p.name}</b> — ${relativeTo(p.place, input.place)}, ${away} tiles${riding}</li>`;
+        return `<li class="list-row">${mark}<b>${p.name}</b> — ${relativeTo(p.place, input.place)}, ${away} tiles${riding}</li>`;
       });
     this.el.innerHTML = `
       <h2>Travellers</h2>

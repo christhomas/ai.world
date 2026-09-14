@@ -84,12 +84,12 @@
     <span class="action-card-head">In reach</span>
     <span class="action-card-row"><strong id="actionVerb"></strong><kbd><span class="on-keys">Enter</span><span class="on-touch">Tap</span></kbd></span>
   </button>
-  <div id="journal"></div>
-  <div id="players"></div>
+  <div id="journal" class="list-scroll"></div>
+  <div id="players" class="list-scroll"></div>
   <!-- Everybody in the world, read live off the register: see `src/ui/roster.ts`. -->
   <div id="roster"></div>
   <div id="duelbar"></div>
-  <div id="rucksack"></div>
+  <div id="rucksack" class="list-scroll"></div>
   <div id="worldmap">
     <div class="wm-bar">
       <div id="worldmapTitle">Map</div>
@@ -140,7 +140,7 @@
     untouched: `hud.ts` and `main.ts` bind every one of them by id, so the arrangement is free to
     change and the wiring never has to.
   -->
-  <div id="optionsPanel">
+  <div id="optionsPanel" class="list-scroll">
     <div class="opt-head">
       <h3>Options</h3>
       <span class="opt-esc">Esc or O to close</span>
@@ -148,7 +148,7 @@
 
     <section class="opt-section">
       <div class="rail-head"><span>Picture</span></div>
-      <div class="opt-row">
+      <div class="opt-row list-row">
         <label for="qualitySelect">Graphics</label>
         <select id="qualitySelect">
           <option value="high">High — everything, full resolution</option>
@@ -157,17 +157,17 @@
         </select>
       </div>
       <p class="opt-note" id="gpuName">-</p>
-      <div class="opt-row">
+      <div class="opt-row list-row">
         <label for="seeThroughToggle">See through</label>
         <input type="checkbox" id="seeThroughToggle" />
         <span class="opt-hint">Cut a hole in whatever stands between you and the camera</span>
       </div>
-      <div class="opt-row">
+      <div class="opt-row list-row">
         <label for="sunlightSlider">Sunlight</label>
         <input type="range" id="sunlightSlider" min="0" max="6" step="0.1" value="2.6" />
         <output class="value-display" id="sunlightValue">2.6</output>
       </div>
-      <div class="opt-row">
+      <div class="opt-row list-row">
         <label for="hemisphereSlider">Sky light</label>
         <input type="range" id="hemisphereSlider" min="0" max="3" step="0.05" value="1.0" />
         <output class="value-display" id="hemisphereValue">1.0</output>
@@ -176,7 +176,7 @@
 
     <section class="opt-section">
       <div class="rail-head"><span>Sound</span></div>
-      <div class="opt-row">
+      <div class="opt-row list-row">
         <label for="volumeSlider">Volume</label>
         <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.6" />
         <output class="value-display" id="volumeValue">60%</output>
@@ -185,11 +185,11 @@
 
     <section class="opt-section">
       <div class="rail-head"><span>This world</span></div>
-      <div class="opt-row opt-static">
+      <div class="opt-row list-row opt-static">
         <label>World</label>
         <span class="value-display" id="worldNameValue">unnamed</span>
       </div>
-      <div class="opt-row opt-static">
+      <div class="opt-row list-row opt-static">
         <label>Seed</label>
         <span class="value-display" id="seedValue">-</span>
       </div>

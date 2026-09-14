@@ -70,8 +70,8 @@ export class Rucksack {
     const dolls = SLOTS.map((slot) => {
       const item = s.worn(slot);
       const body = item
-        ? `<div class="r-item worn" data-slot="${slot}" title="${itemSummary(item)}"><span class="r-emoji">${item.emoji}</span><span class="r-name">${item.name}</span></div>`
-        : `<div class="r-item empty"><span class="r-emoji">${SLOT_ICONS[slot]}</span><span class="r-name">empty</span></div>`;
+        ? `<div class="r-item list-row worn" data-slot="${slot}" title="${itemSummary(item)}"><span class="r-emoji">${item.emoji}</span><span class="r-name">${item.name}</span></div>`
+        : `<div class="r-item list-row empty"><span class="r-emoji">${SLOT_ICONS[slot]}</span><span class="r-name">empty</span></div>`;
       return `<div class="r-slot"><div class="r-slot-name">${SLOT_NAMES[slot]}</div>${body}</div>`;
     }).join('');
 
@@ -82,7 +82,7 @@ export class Rucksack {
       .map(({ item, n }) => {
         const action = isEquippable(item) ? 'wear' : isConsumable(item) ? 'use' : 'look';
         const note = itemSummary(item) || item.desc;
-        return `<div class="r-item ${action}" data-item="${item.id}" title="${note}">
+        return `<div class="r-item list-row ${action}" data-item="${item.id}" title="${note}">
           <span class="r-emoji">${item.emoji}</span>
           <span class="r-name">${item.name}${n > 1 ? ` ×${n}` : ''}</span>
           <span class="r-note">${isEquippable(item) ? 'wear' : isConsumable(item) ? 'use' : `${sellPrice(item)}g`}</span>
