@@ -1,7 +1,6 @@
 import { hashString } from '../core/rng';
 import { Timber, type TimberJson } from './timber';
 import type { StablePurchase } from '../world/farmbuilds';
-
 /**
  * Having somebody build you a house.
  *
@@ -131,7 +130,6 @@ export const BUILD = {
    */
   HARBOUR_LEVEL: 2,
 } as const;
-
 /**
  * What something costs to have built, and what it needs under it.
  *
@@ -206,7 +204,6 @@ export interface Buildable {
    */
   blocks: number | null;
 }
-
 export const CATALOGUE: readonly Buildable[] = [
   {
     id: BUILDS.HOUSE, name: 'a house', price: BUILD.PRICE, days: BUILD.DAYS, on: 'land', timber: 40,
@@ -262,7 +259,6 @@ export const CATALOGUE: readonly Buildable[] = [
     done: 'The last board is down. Anything that floats can lie alongside her now.', blocks: null,
   },
 ];
-
 /**
  * What a builder will offer somebody, given what they already own in his village.
  *
@@ -306,7 +302,6 @@ export function onOffer(
     return coast.water && (!entry.moves || coast.harbour);
   });
 }
-
 /** One entry by name. Anything unknown is a house, which is what every save older than the list holds. */
 export function buildable(what: string | undefined): Buildable {
   return CATALOGUE.find((entry) => entry.id === what) ?? CATALOGUE[0];
@@ -316,7 +311,6 @@ export function buildable(what: string | undefined): Buildable {
 export function needs(what: string | undefined): Buildable['on'] {
   return buildable(what).on;
 }
-
 /** A house that has been paid for and is going up. */
 export interface Commission {
   id: string;
@@ -381,12 +375,10 @@ export interface Commission {
    */
   rot?: number;
 }
-
 /** How long this particular job takes: a fountain is two days and a house is a week. */
 export function daysFor(job: Commission): number {
   return buildable(job.what).days;
 }
-
 /** Work completed: recorded for hall jobs, calendar-derived only for legacy and adopted buildings. */
 function workDone(job: Commission, day: number): number {
   return job.worked ?? Math.max(0, day - job.began);
@@ -396,7 +388,6 @@ function workDone(job: Commission, day: number): number {
 export function progressOf(job: Commission, day: number): number {
   return Math.max(0, Math.min(1, workDone(job, day) / daysFor(job)));
 }
-
 export function isFinished(job: Commission, day: number): boolean {
   return progressOf(job, day) >= 1;
 }
