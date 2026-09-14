@@ -231,7 +231,7 @@ export class Rooms {
   worldRecordForSeed(seed: number): WorldRecord | undefined { return this.records.forSeed(seed); }
 
   /** Resolve or create the durable record presented by a named join. */
-  claimWorld(name: unknown, seed: number, kind: WorldKind, islands: Anchor[]): WorldRecord {
+  claimWorld(name: unknown, seed: number, kind: WorldKind, islands: Anchor[] | undefined): WorldRecord {
     return this.records.claim(name, seed, kind, islands);
   }
 

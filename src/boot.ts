@@ -35,7 +35,15 @@ export async function boot(): Promise<void> {
     seed = named.seed;
     world = named.kind;
     worldName = named.name;
-    slotKey = `ai.world/named/${named.name.toLocaleLowerCase('en-US')}`;
+    /*
+     * Scoped by the server as well as the name, because a name is only unique on the server that
+     * issued it. Two people can each run a world called "Ashford"; a key of the name alone hands
+     * the second one the first one's save, and the world underneath is a different country.
+     *
+     * The server's origin rather than the whole address: a link written `wss://…/` and one written
+     * `https://…/play` reach the same server and must reach the same save.
+     */
+    slotKey = `ai.world/named/${serverOf(url)}/${named.name.toLocaleLowerCase('en-US')}`;
     saved = await store.load<SessionSave>(slotKey);
     if (saved?.seed !== seed) saved = undefined;
     const localAnchors = saved?.manifest?.anchors.filter((anchor) => anchor.kind !== 'island') ?? [];
@@ -73,6 +81,26 @@ function worldFromLink(url: URL): WorldKind | null {
   const asked = url.searchParams.get('world');
   return asked ? kindOf(asked) : null;
 }
+/**
+ * Which server a link points at, as the one string that identifies it.
+ *
+ * The origin, so the same server written two ways is one answer — and lower-cased, because a host
+ * name is not case-sensitive and a save that depended on how somebody typed it would be a save
+ * they lose by typing it differently the next time.
+ */
+export function serverOf(url: URL): string {
+  const said = url.searchParams.get('server');
+  if (!said) return 'here';
+  try {
+    const at = new URL(said);
+    at.protocol = at.protocol === 'wss:' ? 'https:' : at.protocol === 'ws:' ? 'http:' : at.protocol;
+    return at.origin.toLocaleLowerCase('en-US');
+  } catch {
+    // not a URL anybody can reach, which `namedWorldFromLink` will refuse in a moment anyway
+    return said.toLocaleLowerCase('en-US');
+  }
+}
+
 /** Resolve a named invite before any country is grown. */
 export async function namedWorldFromLink(
   url: URL,
