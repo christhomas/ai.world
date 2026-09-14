@@ -31,6 +31,21 @@ const running = await startServer({
    * with a table each — see `server/durable/db.ts`.
    */
   durableDb: process.env.DURABLE_DB,
+  /*
+   * And where the builder's worker is, if there is one behind this server.
+   *
+   * A separate process on the machine with the checkout — `server/builder/index.ts` — which this
+   * server reaches over a private address and nothing else can. Without all three the two build
+   * routes are not there at all: a game server with no source host behind it should not have a
+   * door onto one.
+   */
+  builder: process.env.BUILDER_HOST && process.env.BUILDER_SECRET
+    ? {
+      host: process.env.BUILDER_HOST,
+      port: Number(process.env.BUILDER_PORT ?? 8788),
+      secret: process.env.BUILDER_SECRET,
+    }
+    : undefined,
   // believe X-Forwarded-Proto only where the deployment says something is in front of us, or the
   // `Secure` flag is decided by a header anybody can send
   trustProxy: process.env.TRUST_PROXY === '1',

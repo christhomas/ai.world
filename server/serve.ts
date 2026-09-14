@@ -9,6 +9,8 @@ import { staticFiles } from './static';
 import { addAccount, migrate as migrateAccounts, sweepSessions } from './tools/accounts';
 import { migrateDomain, openDurable } from './durable/db';
 import { MINDS_SCHEMA } from './durable/minds';
+import { lastRuns, migrateBook, writeDown } from './builder/book';
+import type { BuilderAt } from './builder/proxy';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
@@ -65,6 +67,14 @@ export interface ServerOptions {
   durableDb?: string | null;
   /** Whether an `X-Forwarded-Proto` in front of this server can be believed. See `overHttps`. */
   trustProxy?: boolean;
+  /**
+   * Where the builder's worker is, if this deployment has one behind it.
+   *
+   * A separate process on the machine with the checkout, which this server reaches and nothing else
+   * can — see `builder/worker.ts`. Left out, the two build routes are not there at all: a game
+   * server with no source host behind it should not have a door onto one.
+   */
+  builder?: BuilderAt;
 }
 
 export interface RunningServer {
@@ -99,16 +109,31 @@ function wireFor(socket: WebSocket): Wire {
  * an async function and a route that returns a promise to a caller checking it for `true` is a
  * route that never fires. The handler owns the response from the moment it says yes.
  */
-function openTools(db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean, sim: Simulation) {
+function openTools(
+  db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean,
+  sim: Simulation, builder?: BuilderAt,
+) {
   migrateAccounts(db);
+  // the builder's own book lives in the same file, as its own domain: who asked for what, and
+  // what came of it. See `builder/book.ts`
+  if (builder) migrateBook(db);
   const { made, say } = bootstrapAccount(db, process.env, addAccount);
   if (say && !quiet) (made ? console.log : console.error)(say);
   sweepSessions(db);
   const portal = portalFor({
-    db, secret, trustProxy,
+    db, secret, trustProxy, builder,
     // The portal has already proved the session before calling this. No operator token is made,
     // copied into a page, or sent over the wire.
     survey: (req, res) => registry(sim, null, req, res),
+    // written where the durable database is, from what the answer says as it streams past
+    record: builder ? (run, id) => {
+      try { writeDown(db, id, run); } catch (why) {
+        // a record that cannot be written safely must not take the run down with it, but it is a
+        // bug in whatever built it and has to be said out loud rather than dropped
+        console.error(`a builder run was not written down: ${String(why)}`);
+      }
+    } : undefined,
+    recorded: builder ? () => lastRuns(db, 8) : undefined,
   });
   return {
     takes: (req: IncomingMessage, res: ServerResponse): boolean => {
@@ -153,7 +178,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
    * has to fail at boot where somebody is reading the log.
    */
   const tools = durable && options.toolsSecret
-    ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false, sim)
+    ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false,
+      sim, options.builder)
     : null;
   const http = createServer((req, res) => {
     if (tools && tools.takes(req, res)) return;
