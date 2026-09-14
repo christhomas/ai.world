@@ -1,0 +1,159 @@
+/*
+ * The interface has two materials, chosen by what somebody is doing rather than by where a box
+ * happens to sit. Readouts and controls are glass over the world. Anything opened to be read is
+ * opaque paper. Keeping the selectors here together makes it difficult for a new panel to inherit
+ * the other material by accident.
+ *
+ * The play surface consumes the active theme's five-token contract. The paper is deliberately its
+ * own fixed material: Stone's pale page must not become the dark glass it opened from.
+ */
+:root {
+  --play-surface: var(--surface, rgba(6, 9, 22, 0.72));
+  --play-rule: var(--rule, rgba(214, 221, 255, 0.14));
+  --play-ink: var(--ink, #eef2ff);
+
+  --paper-top: #f6efdc;
+  --paper-bottom: #e8dcc0;
+  --paper-rule: #8a6a3d;
+  --paper-rule-faint: #c9b58a;
+  --paper-ink: #2a2418;
+  --paper-ink-dim: #6a5a3a;
+  --paper-ink-faint: #8a7a5a;
+  --paper-accent: #6b3f1d;
+  --paper-surface: linear-gradient(180deg, var(--paper-top) 0%, var(--paper-bottom) 100%);
+}
+
+/* Glanceable furniture stays translucent: the world remains visible through and between it. */
+#minimap,
+#status,
+#inventory,
+#quests,
+#debug,
+#toast,
+#duelbar,
+#castbar,
+#chatLog > div,
+#chatPanel.console,
+#dialogue {
+  background: var(--play-surface);
+  color: var(--play-ink);
+}
+
+#minimap,
+#status,
+#inventory,
+#quests,
+#debug,
+#dialogue,
+#chatPanel.console {
+  border-color: var(--play-rule);
+}
+
+/* A conversation is still happening in the world. Its words do not turn into a page. */
+#dialogue .dlg-panel,
+#dialogue .dlg-emoji {
+  background: color-mix(in srgb, var(--play-surface) 76%, transparent);
+  border-color: var(--play-rule);
+}
+
+/* Open documents are opaque, square pages. There is no blur or translucent glass behind the ink. */
+#journal,
+#roster,
+#players,
+#rucksack,
+#optionsPanel,
+#worldmap,
+#kinpanel {
+  background: var(--paper-surface);
+  color: var(--paper-ink);
+  border-color: var(--paper-rule);
+  border-radius: 0;
+  backdrop-filter: none;
+}
+
+#journal h2,
+#journal h3,
+#roster h2,
+#players h2,
+#rucksack h2,
+#rucksack h3,
+#optionsPanel h3,
+#worldmapTitle,
+#kinTitle,
+#optionsPanel .value-display {
+  color: var(--paper-accent);
+}
+
+#journal h3,
+#rucksack h3,
+#optionsPanel .rail-head::after {
+  border-color: var(--paper-rule-faint);
+  background-color: var(--paper-rule-faint);
+}
+
+#optionsPanel .opt-esc,
+#optionsPanel .rail-head span,
+#optionsPanel .opt-row label,
+#optionsPanel .opt-note,
+#optionsPanel .opt-hint,
+#optionsPanel .opt-build {
+  color: var(--paper-ink-faint);
+}
+
+#optionsPanel select,
+#optionsPanel input[type="text"],
+#optionsPanel button,
+#optionsPanel button.wide,
+#optionsPanel .opt-link {
+  background: rgba(255, 255, 255, 0.36);
+  color: var(--paper-ink);
+  border-color: var(--paper-rule-faint);
+  border-radius: 0;
+}
+
+#optionsPanel select:focus,
+#optionsPanel input[type="text"]:focus,
+#optionsPanel button:hover,
+#optionsPanel button.wide:hover {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: var(--paper-rule);
+}
+
+#optionsPanel input[type="range"],
+#optionsPanel .opt-row input[type="checkbox"] {
+  accent-color: var(--paper-rule);
+}
+
+#optionsPanel .opt-foot {
+  border-color: var(--paper-rule-faint);
+}
+
+#optionsPanel .opt-leave {
+  color: var(--paper-accent);
+  border-color: var(--paper-rule);
+}
+
+/* Maps are drawings on a page: the drawing remains a canvas, while its title and key are paper. */
+#worldmap .wm-bar,
+#kinpanel .wm-bar {
+  background: var(--paper-top);
+  border-color: var(--paper-rule);
+}
+
+#worldmap .wm-legend,
+#kinpanel .wm-legend {
+  background: var(--paper-bottom);
+  border-color: var(--paper-rule-faint);
+  color: var(--paper-ink-dim);
+}
+
+#worldmap .wm-keys,
+#kinpanel .wm-keys {
+  color: var(--paper-ink-faint);
+}
+
+#kinCard {
+  background: var(--paper-top);
+  border-color: var(--paper-rule);
+  color: var(--paper-ink);
+}
