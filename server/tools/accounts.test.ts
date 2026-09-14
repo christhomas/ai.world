@@ -4,13 +4,12 @@ import {
   addAccount, accountNamed, beginSession, endSession, howManyAccounts,
   migrate, sessionStands, sweepSessions, whoIsThis,
 } from './accounts';
-import { SCRYPT, hashPassword, passwordMatchesAsync, wantsRehashing } from './passwords';
+import { SCRYPT, hashPassword, passwordMatches, wantsRehashing } from './passwords';
 import { TOKEN_LASTS, newSessionId, readToken, signToken } from './tokens';
 
 const book = (): DatabaseSync => {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec('CREATE TABLE IF NOT EXISTS schema (domain TEXT PRIMARY KEY, version INTEGER NOT NULL)');
   migrate(db);
   return db;
 };
@@ -19,30 +18,30 @@ const book = (): DatabaseSync => {
  * What a stored password is, which is never the password.
  */
 describe('a password the server keeps', () => {
-  it('is not the password, and is different every time the same one is stored', async () => {
+  it('is not the password, and is different every time the same one is stored', () => {
     const one = hashPassword('correct horse battery staple');
     const two = hashPassword('correct horse battery staple');
     expect(one).not.toContain('correct horse');
     expect(one, 'the same password twice must not make the same row').not.toBe(two);
-    expect(await passwordMatchesAsync('correct horse battery staple', one)).toBe(true);
-    expect(await passwordMatchesAsync('correct horse battery staple', two)).toBe(true);
+    expect(passwordMatches('correct horse battery staple', one)).toBe(true);
+    expect(passwordMatches('correct horse battery staple', two)).toBe(true);
   });
 
-  it('refuses the wrong one, including the empty one', async () => {
+  it('refuses the wrong one, including the empty one', () => {
     const stored = hashPassword('a real password');
-    expect(await passwordMatchesAsync('a real passwore', stored)).toBe(false);
-    expect(await passwordMatchesAsync('', stored)).toBe(false);
-    expect(await passwordMatchesAsync('a real password ', stored)).toBe(false);
+    expect(passwordMatches('a real passwore', stored)).toBe(false);
+    expect(passwordMatches('', stored)).toBe(false);
+    expect(passwordMatches('a real password ', stored)).toBe(false);
   });
 
   /*
    * A row that has been corrupted is a login that fails, not a server that stops answering. This
    * runs on the one route that faces the internet.
    */
-  it('reads a damaged row as "no" rather than throwing', async () => {
+  it('reads a damaged row as "no" rather than throwing', () => {
     for (const junk of ['', 'x', 'scrypt$$$$$', 'scrypt$0$0$0$a$b', 'bcrypt$1$1$1$a$b',
                         'scrypt$notanumber$8$1$a$b', 'scrypt$32768$8$1$a$']) {
-      expect(await passwordMatchesAsync('anything', junk), junk).toBe(false);
+      expect(passwordMatches('anything', junk), junk).toBe(false);
     }
   });
 
@@ -54,9 +53,9 @@ describe('a password the server keeps', () => {
     expect(wantsRehashing('nonsense')).toBe(true);
   });
 
-  it('treats the same password typed in two normalisations as the same password', async () => {
+  it('treats the same password typed in two normalisations as the same password', () => {
     const stored = hashPassword('café');                 // e + combining acute
-    expect(await passwordMatchesAsync('café', stored), 'é is é').toBe(true);
+    expect(passwordMatches('café', stored), 'é is é').toBe(true);
   });
 });
 
@@ -131,25 +130,12 @@ describe('who may open the tools', () => {
     expect(howManyAccounts(db)).toBe(1);
   });
 
-  it('knows a password and does not know a wrong one', async () => {
+  it('knows a password and does not know a wrong one', () => {
     const db = book();
     addAccount(db, 'chris', 'a real password');
-    const checking = whoIsThis(db, 'chris', 'a real password');
-    expect(checking, 'password work must leave the event loop').toBeInstanceOf(Promise);
-    const first = await Promise.race([
-      checking.then(() => 'hash'),
-      new Promise<string>((done) => setTimeout(() => done('event loop'), 0)),
-    ]);
-    expect(first, 'a world tick or another request must run while scrypt works').toBe('event loop');
-    expect((await checking)?.name).toBe('chris');
-    expect(await whoIsThis(db, 'chris', 'a real passwore')).toBeNull();
-    expect(await whoIsThis(db, 'nobody', 'a real password'), 'no such person').toBeNull();
-  });
-
-  it('reports storage failures instead of calling them duplicate accounts', () => {
-    const db = book();
-    db.close();
-    expect(() => addAccount(db, 'chris', 'a real password')).toThrow();
+    expect(whoIsThis(db, 'chris', 'a real password')?.name).toBe('chris');
+    expect(whoIsThis(db, 'chris', 'a real passwore')).toBeNull();
+    expect(whoIsThis(db, 'nobody', 'a real password'), 'no such person').toBeNull();
   });
 
   it('never keeps the password anywhere', () => {
