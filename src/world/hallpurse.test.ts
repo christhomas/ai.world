@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { THE_HALL } from './holdings';
+import { THE_HALL_OWNER, THE_HALL, ownerFromSave } from './holdings';
 import { pay, payAndSweep } from './purses';
 import type { Settlement } from './settlement';
 
@@ -27,13 +27,13 @@ function village(purses: number[], hall = 0): Settlement {
 describe('paying the village itself', () => {
   it('puts money in the hall when the hall is who is owed', () => {
     const here = village([10, 10], 100);
-    payAndSweep(here, new Map([[THE_HALL, 25]]));
+    payAndSweep(here, new Map([[THE_HALL_OWNER, 25]]));
     expect(here.purse).toBe(125);
   });
 
   it('takes money out of the hall when the hall is who is paying', () => {
     const here = village([10], 100);
-    payAndSweep(here, new Map([[THE_HALL, -40]]));
+    payAndSweep(here, new Map([[THE_HALL_OWNER, -40]]));
     expect(here.purse).toBe(60);
   });
 
@@ -45,14 +45,14 @@ describe('paying the village itself', () => {
   it('never drops an entry it does not recognise', () => {
     const here = village([10, 10], 100);
     const before = here.people.reduce((sum, p) => sum + p.purse, 0) + here.purse;
-    payAndSweep(here, new Map([['p0', 5], [THE_HALL, 7]]));
+    payAndSweep(here, new Map([[ownerFromSave('p0'), 5], [THE_HALL_OWNER, 7]]));
     const after = here.people.reduce((sum, p) => sum + p.purse, 0) + here.purse;
     expect(after - before, 'every coin named should have landed somewhere').toBe(12);
   });
 
   it('says what it could not place, rather than swallowing it', () => {
     const here = village([10]);
-    const { unplaced } = pay(here, new Map([['nobody-of-that-name', 9]]));
+    const { unplaced } = pay(here, new Map([[ownerFromSave('nobody-of-that-name'), 9]]));
     expect(unplaced).toBe(9);
   });
 });

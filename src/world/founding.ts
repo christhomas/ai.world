@@ -122,7 +122,7 @@ export interface Founded {
   /** Whose purse it came out of: a villager, or the hall. See `Owner`. */
   payer: Owner;
   /** And into whose, because the village raises it with its own hands. */
-  wages: Map<string, number>;
+  wages: Map<Owner, number>;
 }
 
 /**
@@ -140,12 +140,12 @@ export interface Founded {
  */
 export function whoIsPaidToRaiseIt(
   people: readonly Person[], costs: number,
-): Map<string, number> | null {
+): Map<Owner, number> | null {
   const working = people.filter((person) => person.trade !== '');
   if (working.length === 0) return null;
   const builders = working.filter((person) => canDo(person, 'can_build'));
   const crew = builders.length > 0 ? builders : working;
-  return shareOut(costs, new Map(crew.map((person) => [person.id, 1])));
+  return shareOut(costs, new Map(crew.map((person) => [ownedBy(person), 1])));
 }
 
 /**

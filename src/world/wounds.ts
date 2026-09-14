@@ -1,4 +1,5 @@
 import { FOOD } from './food';
+import { ownedBy, type Owner } from './holdings';
 import type { Person } from './people';
 
 /**
@@ -94,9 +95,9 @@ export function ableToWork(person: Person): boolean {
  * are paid by everybody every day whether or not anybody wanted anything; this is paid by the man
  * with the broken arm, to the man who set it.
  */
-export function mendThem(people: readonly Person[]): Map<string, number> {
+export function mendThem(people: readonly Person[]): Map<Owner, number> {
   const doctor = doctoredBy(people);
-  const fees = new Map<string, number>();
+  const fees = new Map<Owner, number>();
   for (const person of people) {
     const hurt = person.hurt ?? 0;
     if (hurt <= 0) continue;
@@ -105,8 +106,8 @@ export function mendThem(people: readonly Person[]): Map<string, number> {
     if (doctor && doctor.id !== person.id && hurt === laidUpFor(1, doctor)) {
       const paid = Math.min(WOUND.FEE, person.purse);
       if (paid > 0) {
-        fees.set(person.id, -paid);
-        fees.set(doctor.id, (fees.get(doctor.id) ?? 0) + paid);
+        fees.set(ownedBy(person), -paid);
+        fees.set(ownedBy(doctor), (fees.get(ownedBy(doctor)) ?? 0) + paid);
       }
     }
     person.hurt = hurt > 1 ? hurt - 1 : undefined;

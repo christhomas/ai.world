@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ownerFromSave } from './holdings';
 import type { Person } from './people';
 import { Register } from './register';
 import { WOUND, ableToWork, doctoredBy, hurtBy, laidUpFor, mendThem } from './wounds';
@@ -64,8 +65,8 @@ describe('a village with somebody laid up', () => {
     const doctor = villager('doc', 'doctor');
     const hurt = villager('a', 'farmer', { hurt: laidUpFor(1, doctor) });
     const first = mendThem([doctor, hurt]);
-    expect(first.get('doc')).toBe(WOUND.FEE);
-    expect(first.get('a')).toBe(-WOUND.FEE);
+    expect(first.get(ownerFromSave('doc'))).toBe(WOUND.FEE);
+    expect(first.get(ownerFromSave('a'))).toBe(-WOUND.FEE);
     expect(mendThem([doctor, hurt]).size, 'billed again for lying in bed').toBe(0);
   });
 
@@ -77,7 +78,7 @@ describe('a village with somebody laid up', () => {
   it('takes only what somebody has, because nobody in this world goes into debt', () => {
     const doctor = villager('doc', 'doctor');
     const pauper = villager('a', 'farmer', { hurt: laidUpFor(1, doctor), purse: 1 });
-    expect(mendThem([doctor, pauper]).get('doc')).toBe(1);
+    expect(mendThem([doctor, pauper]).get(ownerFromSave('doc'))).toBe(1);
   });
 
   it('knows whether anybody there can set a bone at all', () => {

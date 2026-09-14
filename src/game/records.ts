@@ -1,4 +1,5 @@
 import type { Burial, Register } from '../world/register';
+import { ownedBy } from '../world/holdings';
 import { spentOnLiving } from '../world/prosperity';
 import { pitchFor } from '../world/livelihoods';
 import { aDaysIncome } from '../world/expected';
@@ -208,7 +209,7 @@ export function theRoll(
       // what the day does to that purse, which is the economy stated rather than inferred. All
       // three of them, so that the row adds up on its own: what comes in, what keep costs, what
       // dinner costs
-      earns: income.get(person.id) ?? 0,
+      earns: income.get(ownedBy(person)) ?? 0,
       // the keep, and what it costs to have somewhere to sell from. Both, or the row does not add
       // up and the village holds more than its own books can account for.
       //

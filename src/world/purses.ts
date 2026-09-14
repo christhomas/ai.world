@@ -1,5 +1,5 @@
 import { PROSPER } from './prosperity';
-import { THE_HALL, isTheHall, ownerFromSave } from './holdings';
+import { THE_HALL, isTheHall, ownedBy, type Owner } from './holdings';
 import type { Settlement } from './settlement';
 
 /**
@@ -40,10 +40,10 @@ import type { Settlement } from './settlement';
  * can. See item 89.
  */
 export function pay(
-  village: Settlement, owed: ReadonlyMap<string, number>,
+  village: Settlement, owed: ReadonlyMap<Owner, number>,
 ): { over: number; short: number; unplaced: number } {
   let over = 0, short = 0, unplaced = 0;
-  const purses = new Map(village.people.map((person) => [person.id, person]));
+  const purses = new Map(village.people.map((person) => [ownedBy(person), person]));
 
   for (const [id, much] of owed) {
     if (much === 0) continue;
@@ -62,8 +62,7 @@ export function pay(
      * bench watches it; a hall that stopped being able to hold more would be a village that stopped
      * being able to save for the thing it is saving for.
      */
-    // the keys of an owed map are owners; they arrive as strings because a Map is a Map
-    if (isTheHall(ownerFromSave(id))) {
+    if (isTheHall(id)) {
       village.purse = Math.round((village.purse + much) * 100) / 100;
       continue;
     }
@@ -87,7 +86,7 @@ export function pay(
  * Every caller wants this one. `pay` is the half that touches purses, and this is the half that
  * keeps the books straight, which is a different job and worth being able to read separately.
  */
-export function payAndSweep(village: Settlement, owed: ReadonlyMap<string, number>): void {
+export function payAndSweep(village: Settlement, owed: ReadonlyMap<Owner, number>): void {
   const { over } = pay(village, owed);
   if (over > 0) village.purse = Math.round((village.purse + over) * 100) / 100;
 }

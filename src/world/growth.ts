@@ -2,7 +2,7 @@ import { WATCH_WAGE, WORKS, whatTheHallSpends, upkeepOf, whoTheHallEmploys } fro
 import {
   A_CREW_TAKES, A_DAY_OF_BUILDING, whatTheHallFounds, whoFoundsAnother, whoIsPaidToRaiseIt,
 } from './founding';
-import { THE_HALL, isTheHall, type Holding } from './holdings';
+import { THE_HALL, isTheHall, type Holding, type Owner } from './holdings';
 import { type Stable } from './stables';
 import { atLeast, rankOfRoofs, type Rank } from './rank';
 import {
@@ -128,7 +128,7 @@ export function housesStanding(laidOut: number, built: readonly string[]): numbe
 export interface Raised {
   costs: number;
   /** The village builds with its own hands, so the money goes back to the people who did it. */
-  wages: Map<string, number>;
+  wages: Map<Owner, number>;
   /** How many more souls there is room for now that it stands: the size of what went up. */
   holdsMore: number;
   /** And what size that was, which is what goes into `works`. */
@@ -224,11 +224,11 @@ export function whatTheVillageSpends(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
   larder = Infinity, holdings: readonly Holding[] = [], herd = 0, day = 0,
 ): {
-  wages: Map<string, number>; spent: number; works: string[]; holdsMore: number; watch: string;
+  wages: Map<Owner, number>; spent: number; works: string[]; holdsMore: number; watch: string;
   founded: Holding[];
 } {
   const raised = whatTheVillageBuilds(purse, built, laidOut, holds, people, larder);
-  const wages = new Map<string, number>(raised?.wages ?? []);
+  const wages = new Map<Owner, number>(raised?.wages ?? []);
   // with the morning it was begun, so a village's building work has stages like anybody else's
   const works: string[] = raised ? [workOf(raised.roof, day)] : [];
   const onTheHouse = raised?.costs ?? 0;
