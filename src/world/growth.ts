@@ -226,6 +226,8 @@ export function whatTheVillageSpends(
 ): {
   wages: Map<Owner, number>; spent: number; works: string[]; holdsMore: number; watch: string;
   founded: Holding[];
+  /** The payer and gross cost, so another purchase cannot spend the same purse twice. */
+  founding: { payer: Owner; costs: number } | null;
 } {
   const raised = whatTheVillageBuilds(purse, built, laidOut, holds, people, larder);
   const wages = new Map<Owner, number>(raised?.wages ?? []);
@@ -340,6 +342,7 @@ export function whatTheVillageSpends(
     // whoever the payroll has on the tower, which is where the watch is decided now
     watch: employed?.watch ?? '',
     founded: founding ? [founding.holding] : [],
+    founding: founding ? { payer: founding.payer, costs: founding.costs } : null,
   };
 }
 

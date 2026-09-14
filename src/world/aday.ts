@@ -14,6 +14,7 @@ import { LIFE, outOfDays, remember, stageOf, tradeTakenUp, type Person, type Sex
 import { whoIsPaidToRaiseIt } from './founding';
 import type { StablePurchase } from './farmbuilds';
 import type { FieldClearing } from './fieldbuilds';
+import { PROSPER } from './prosperity';
 
 /**
  * One day in one village, from the morning's work to the last funeral.
@@ -185,9 +186,22 @@ export function theVillageSpends(o: TheDay, name: string, village: Settlement, d
   const spending = whatTheVillageSpends(
     village.hall.purse, village.works, village.houses, village.founded, village.people, village.rank,
     village.food, village.holdings ?? [], village.herd, day);
-  // A village raises at most one private holding in a morning; do not let field work debit the
-  // same farmer after the founding decision has already reserved their purse.
-  const clearing = spending.founded.length === 0 ? (o.fieldToClear?.(name, village) ?? null) : null;
+  /*
+   * Founding a holding and clearing a field are separate families' purchases, so one must not
+   * silence the other. Where both belong to the same farmer, though, the survey saw the purse
+   * before founding reserved its cost. Judge the two gross charges together: wages earned by
+   * helping the crew are income, not permission to promise money the farmer did not have.
+   */
+  const surveyed = o.fieldToClear?.(name, village) ?? null;
+  const foundingCost = surveyed && spending.founding?.payer === surveyed.payer
+    ? spending.founding.costs : 0;
+  const payer = surveyed
+    ? village.people.find((person) => ownedBy(person) === surveyed.payer)
+    : undefined;
+  const clearing = surveyed && (foundingCost === 0
+    || (payer !== undefined
+      && payer.purse - foundingCost - surveyed.costs >= PROSPER.KEEPS_BACK))
+    ? surveyed : null;
   village.watch = spending.watch;
   // a villager founding a holding spends none of the hall's money, so what the hall spent is no
   // longer the whole test for "nothing happened here this morning"
