@@ -163,8 +163,8 @@ const finish = async () => {
       const v = window.__villages[0];
       const d = window.__doors.filter((x) => x.village === v.name)[0];
       const ox = d.x - d.bx, oz = d.z - d.bz, len = Math.hypot(ox, oz) || 1;
-      window.__teleport(d.x + 0.5 + (ox / len) * 2, d.z + 0.5 + (oz / len) * 2);
-      return { x: d.x + 0.5, z: d.z + 0.5 };
+      window.__teleport(d.x + (ox / len) * 2, d.z + (oz / len) * 2);
+      return { x: d.x, z: d.z };
     });
     await page.waitForTimeout(5000);
     await face(door.x, door.z);
