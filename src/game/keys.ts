@@ -94,6 +94,8 @@ export function bindKeys(ctx: Keys): void {
      * letter typed into a box is a letter rather than a command.
      */
     | 'unless talking'
+    /** The photo toggle: enter while free, or leave the photograph it opened. */
+    | 'free or framing'
     /** The map is open, and this is one of the things you do to a map. */
     | 'reading the map'
     /** A conversation is up, and this is how you move about one. */
@@ -109,6 +111,7 @@ export function bindKeys(ctx: Keys): void {
     const who = screen.busy();
     if (when === 'always') return true;
     if (when === 'free') return who === null;
+    if (when === 'free or framing') return who === null || who === 'framing';
     if (when === 'talking') return who === 'talking';
     if (when === 'reading the map') return who === 'reading';
     return who !== 'talking' && who !== 'typing';
@@ -140,7 +143,7 @@ export function bindKeys(ctx: Keys): void {
   bind('g', 'free', () => { if (!tryGive()) offerTrade(); });
   bind('y', 'free', hireMenu);
 
-  bind('p', 'free', () => {
+  bind('p', 'free or framing', () => {
     const on = screen.togglePhoto();
     player.mode = on ? 'free' : 'follow';
     if (!on) screen.say('Photo mode off');
@@ -206,7 +209,7 @@ export function bindKeys(ctx: Keys): void {
     if (!online.connected) { screen.say('Join a world online to see who else is about.'); return; }
     screen.toggleCompany();
   });
-  bind('8', 'free', () => {
+  bind('8', 'free or framing', () => {
     const on = screen.togglePhoto();
     player.mode = on ? 'free' : 'follow';
     if (!on) screen.say('Photo mode off');

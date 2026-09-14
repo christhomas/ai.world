@@ -38,10 +38,12 @@ const KEYS = [
 ];
 
 /** A keyboard nobody is holding, and a record of what each key turned out to do. */
-function aKeyboard(busy: ReturnType<Screen['busy']>) {
+function aKeyboard(initialBusy: ReturnType<Screen['busy']>) {
   const handlers = new Map<string, Array<() => void>>();
   const did: string[] = [];
+  let busy = initialBusy;
   const note = (what: string) => () => { did.push(what); };
+  const player = { mode: 'follow', x: 0, z: 0, jump: () => { did.push('jump'); return true; } };
   const input = {
     onKey(key: string, handler: () => void): void {
       const at = handlers.get(key) ?? [];
@@ -55,7 +57,11 @@ function aKeyboard(busy: ReturnType<Screen['busy']>) {
     say: note('say'),
     toggleJournal: note('journal'), toggleRucksack: note('rucksack'), toggleRoster: note('roster'),
     toggleOptions: note('options'), toggleMap: note('map'), toggleCompany: note('company'),
-    togglePhoto: () => { did.push('photo'); return true; },
+    togglePhoto: () => {
+      did.push('photo');
+      busy = busy === 'framing' ? null : 'framing';
+      return busy === 'framing';
+    },
     toggleSeeThrough: () => { did.push('see through'); return true; },
     toggleConsole: note('console'), openChat: note('chat'),
     closeEverything: note('close everything'),
@@ -68,7 +74,7 @@ function aKeyboard(busy: ReturnType<Screen['busy']>) {
     seed: 1, input, screen,
     rig: { renderer: { render: () => {} }, scene: {}, resize: () => {} },
     iso: { camera: {}, resize: () => {} },
-    player: { mode: 'follow', x: 0, z: 0, jump: () => { did.push('jump'); return true; } },
+    player,
     places: {}, online: { connected: true, ping: note('ping') },
     sound: { blip: () => {}, chime: () => {} },
     attack: note('attack'), loose: note('loose'), conjure: note('conjure'),
@@ -81,7 +87,7 @@ function aKeyboard(busy: ReturnType<Screen['busy']>) {
 
   bindKeys(ctx);
   return {
-    did,
+    did, player,
     press(key: string): void { for (const handler of handlers.get(key) ?? []) handler(); },
     pressEverything(): void { for (const key of KEYS) this.press(key); },
   };
@@ -93,6 +99,7 @@ describe('a key pressed while somebody else has the keyboard', () => {
     const board = aKeyboard('typing');
     board.pressEverything();
     expect(board.did).toEqual([]);
+    expect(board.player.mode).toBe('follow');
   });
 
   it('leaves a conversation to the conversation, except for moving about it', () => {
@@ -110,11 +117,23 @@ describe('a key pressed while somebody else has the keyboard', () => {
     }
   });
 
+  it('uses either photo key to enter and leave photo mode', () => {
+    for (const key of ['p', '8']) {
+      const board = aKeyboard(null);
+      board.press(key);
+      expect(board.player.mode, `${key} did not enter photo mode`).toBe('free');
+      board.press(key);
+      expect(board.player.mode, `${key} did not leave photo mode`).toBe('follow');
+      expect(board.did).toEqual(['photo', 'photo', 'say']);
+    }
+  });
+
   it('does what it says when nobody else has it', () => {
     const board = aKeyboard(null);
     board.press('x');
     board.press('i');
     board.press('f');
     expect(board.did).toEqual(['attack', 'rucksack']);
+    expect(board.player.mode).toBe('free');
   });
 });
