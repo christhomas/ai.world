@@ -1469,7 +1469,7 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
 }
   #hearts { font-size: 13px; letter-spacing: 0; }
   .hud-hp { font-size: 10px; }
-  #inventory { top: 52px; left: 8px; min-width: 0; padding: 5px 8px; font-size: 11px; }
+  #inventory { display: none; }
   /* The errand tracker is the one panel a phone can do without: the compass strip above already
      names the errand with its bearing and distance, and the journal is one thumb away. */
   #quests.has-errands { display: none; }
@@ -1542,20 +1542,47 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #optionsPanel h3 { margin-bottom: 10px; }
   #worldmap .wm-bar { padding: 8px 12px; gap: 10px; }
   #worldmap .wm-legend { gap: 8px; padding: 6px 12px; font-size: 10px; }
-  /* A landscape phone is 342 tall, and the panel buttons hung 186px down its right-hand side —
-     which is the middle of the picture, over the very ground the player is walking on, wrapped
-     into two rows because eight of them do not fit across two thirds of the glass. The strip under
-     the compass is the one band of screen nothing else wants: the pack panel ends to the left of
-     it, the corner map begins to the right, and the thumbs are both at the bottom.
-
-     The rail is given the same left and right edges as the place name and the compass above it and
-     told to centre itself between them, so the three of them share a middle without anyone having
-     worked out where that middle is — and so the rail shrinks back to one button when a panel is
-     open and only the close key is left in it. */
+  /*
+     * The top middle is a reading band, not a button tray. The left edge owns the book tabs:
+     * keeping the controls there leaves the place name and bearings visible at a glance, and makes
+     * the right-hand clock a clock rather than one endpoint of a row of buttons. The pack already
+     * owns the carried summary, so the old always-open inventory slab leaves this screen entirely.
+     */
   #touchPanels {
-    top: 68px; left: 112px; right: 132px; width: fit-content; margin-inline: auto;
+    top: 72px; left: 0; right: auto; width: var(--band-tabs); margin: 0;
+    flex-direction: column;
   }
-  #touchPanels .touch-btn { width: 44px; height: 44px; font-size: 19px; }
+  #touchPanels .touch-btn { width: var(--band-tabs); height: var(--band-tabs); font-size: 19px; }
+  #touchPanels .touch-btn + .touch-btn {
+    border-left: none;
+    border-top: var(--ui-scale) solid color-mix(in srgb, var(--rule) 10%, transparent);
+  }
+  /*
+   * And on a phone that is short as well as wide, the rail turns a corner rather than running off
+   * the bottom of the screen.
+   *
+   * Measured on a 568×320 landscape phone: the reading block ends at 79, the rail starts at 72 and
+   * is 265 tall, so it finished at 337 in a 320-high window and the last two controls could not be
+   * touched at all. Nothing said so — they were drawn, they were simply past the edge.
+   *
+   * Wrapping rather than shrinking, because the one thing a control on glass may not lose is its
+   * size: seven buttons at 34 apiece would have fitted and none of them would have been a
+   * comfortable target. A landscape phone is the one shape with width to spare, so the column
+   * becomes two columns and the buttons stay exactly as big as they were. `flex-wrap` on a column
+   * fills the first one down and then starts the next, which is the shape wanted with no
+   * arithmetic anywhere.
+   *
+   * The ceiling is what makes it wrap at all: without a height to run out of, a column flows past
+   * the bottom of the window for ever.
+   */
+  @media (max-height: 400px) {
+    #touchPanels {
+      flex-wrap: wrap;
+      max-height: calc(100dvh - 72px - var(--safe-bottom, 0px));
+      width: auto;
+      align-content: flex-start;
+    }
+  }
   /* the rail keeps its job on a narrow window, it only gets narrower */
   #titleRail { flex-basis: 232px; padding: 22px 20px 18px; gap: 20px; }
   #title h1 { font-size: 22px; letter-spacing: 4px; padding-left: 16px; }
@@ -1622,15 +1649,17 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #minimap { top: var(--safe-top); right: var(--safe-right); }
   /* under the rail rather than behind it: the rail is 48 tall and the name wants air under it */
   #areaName { top: calc(var(--safe-top) + 52px); }
-  #compass { top: calc(var(--safe-top) + 32px); }
-  #touchPanels { top: 0; }
-  /* the compass sits under the rail rather than behind it, now that the rail is on the edge */
+  /* The tab gutter begins below the top-left readings, never through the name and bearings. */
+  #touchPanels {
+    top: calc(var(--safe-top) + 72px); left: var(--safe-left); right: auto; margin: 0;
+  }
   #compass { top: calc(var(--safe-top) + 96px); }
-  /* the news runs off the left edge as bands, so the rules down their left-hand side stack into
-     the edge of the screen rather than into a margin nobody can see */
-  #chatPanel { left: 0; padding-left: var(--safe-left); }
-  #toast, #duelbar { left: var(--safe-left); }
-  /* under the pack panel, which ends at 108, and clear of the button rail's underside at 112 */
+  /* News is a left-hand band, but the tab spine owns the physical edge. */
+  #chatPanel {
+    left: calc(var(--safe-left) + var(--band-tabs)); padding-left: 0;
+    width: min(calc(50vw - var(--band-tabs)), 360px);
+  }
+  #toast, #duelbar { left: calc(var(--safe-left) + var(--band-tabs)); }
   #duelbar { top: calc(var(--safe-top) + 116px); }
   #castbar { bottom: var(--safe-bottom); }
   /* Two lines, not three. On a window 342 tall the three-line log ran up into the band the
