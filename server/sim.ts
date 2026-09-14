@@ -16,6 +16,9 @@ import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
+import type { DatabaseSync } from 'node:sqlite';
+import type { Person } from '../src/world/people';
+import { HeldMinds, keepMinds, mindsOf } from './durable/minds';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
 import { countryStamp, growPatch, growWorld } from '../src/world/growworld';
@@ -59,6 +62,14 @@ export interface SimOptions {
   ground?: boolean;
   /** How many chunks either side of a player the simulation keeps. */
   reach?: number;
+  /**
+   * Where to keep the half of a villager that no seed implies: their memories and their opinions.
+   *
+   * Left out, they last as long as the process — which is how it was, and which meant every restart
+   * wiped every villager's opinion of every player with nothing anywhere saying so. See
+   * `durable/minds.ts`; `serve.ts` hands this the same file the tools portal uses.
+   */
+  minds?: DatabaseSync;
 }
 
 /** One player's connection, from the simulation's side. */
@@ -136,7 +147,17 @@ export class Simulation {
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
   /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
-  private readonly folk = new Map<number, { catchUp: () => void }>();
+  private readonly folk = new Map<number, { catchUp: () => void; register: { living(village: string): readonly Person[]; settled(): readonly string[] } }>();
+  /** Where the non-derived half of a villager is kept between one visit and the next. */
+  private readonly minds: DatabaseSync | null;
+  /**
+   * What was read back off the disk, waiting for the villagers it belongs to.
+   *
+   * A village is lived when somebody walks into it, so the register's roll starts empty and fills
+   * as the world is explored. See `HeldMinds`: each villager is given theirs once, the first time
+   * they exist, and never again.
+   */
+  private readonly held = new Map<number, HeldMinds>();
   /** The fingerprint of each of those countries, so a joining page can check it grew the same one. */
   private readonly stamps = new Map<number, string>();
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
@@ -166,6 +187,7 @@ export class Simulation {
   private clockTicker: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: SimOptions = {}) {
+    this.minds = options.minds ?? null;
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
@@ -260,6 +282,24 @@ export class Simulation {
         });
       } else if (delta.kind === 'voted') folk.register.apply(delta);
     }
+    /*
+     * And what the people of this world hold, which the seed cannot grow back.
+     *
+     * Here, and not a line earlier or later: the register has just been built and caught up with
+     * the told facts, and nobody has been admitted yet. Earlier there would be no people to put it
+     * into; later the first player through the door meets a village that has forgotten them.
+     */
+    if (this.minds) {
+      const { minds, unreadable } = mindsOf(this.minds, seed);
+      this.held.set(seed, new HeldMinds(minds));
+      if (unreadable.length > 0) {
+        // said out loud rather than swallowed: a villager who has forgotten you is a thing somebody
+        // should be told about, and a silent loss is the whole complaint behind 129 and 135
+        console.error(`world ${seed}: ${unreadable.length} villagers' memories would not read back`
+          + ` and were left behind — ${unreadable.slice(0, 5).join(', ')}`);
+      }
+      if (minds.size > 0) console.log(`world ${seed}: ${minds.size} villagers remember somebody`);
+    }
     alive.syncBuildings();
     // C2's coarse tier, joined up. A herd belongs to the province its home is in and never to the
     // one it is standing in (`provinceOfHome`, which is C3's whole rule); a province knows how long
@@ -343,6 +383,26 @@ export class Simulation {
     this.ticker = null;
     this.clockTicker = null;
     this.rooms.saveAll();
+    this.keepTheMinds();
+  }
+
+  /**
+   * Write down what every villager of every open world holds.
+   *
+   * Alongside `saveAll`, and for the same reason it exists: the world's own JSON and this are two
+   * halves of one save, and a restart between them is a world whose told facts and whose
+   * memories disagree about which day it is.
+   */
+  keepTheMinds(): void {
+    if (!this.minds) return;
+    for (const [seed, folk] of this.folk) {
+      try {
+        keepMinds(this.minds, seed, everybodyIn(folk.register));
+      } catch (why) {
+        // a save that throws must not take the shutdown with it: the world's JSON is already down
+        console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
+      }
+    }
   }
 
   /**
@@ -409,6 +469,7 @@ export class Simulation {
         this.rooms.close(seed);
         this.ground.delete(seed);
         this.folk.delete(seed);
+        this.held.delete(seed);
         this.stamps.delete(seed);
         this.wildlife.delete(seed);
         this.rooms.forgetGround(seed);
@@ -421,6 +482,14 @@ export class Simulation {
       // in one of their streets. Costs one set lookup per patch held in a world nobody is
       // exploring, which is every tick of a road world for ever. See `server/people.ts`.
       this.folk.get(seed)?.catchUp();
+      /*
+       * And whoever has just been settled gets what was kept for them, before anybody can talk to
+       * them. A village is lived when somebody walks into it, so this is the moment its people
+       * first exist — see `HeldMinds`, which gives each of them theirs exactly once.
+       */
+      const waiting = this.held.get(seed);
+      const folk = this.folk.get(seed);
+      if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
       // The book catches up before anybody walks a villager anywhere. A day turning over buries the
       // old, fills the gaps, grows the children up and pays everybody for a day's work, and the
       // street is brought back into line with it on the next step — so the order is the register
@@ -834,3 +903,14 @@ export class Simulation {
 }
 
 export { DAY_LENGTH };
+
+/**
+ * Everybody a register is holding, across every village it has settled.
+ *
+ * The register answers per village because that is how a village is lived; the durable half wants
+ * the world. One place that turns the first into the second, so the save and the restore cannot
+ * come to different answers about who is in this world.
+ */
+function everybodyIn(register: { living(village: string): readonly Person[]; settled(): readonly string[] }): Person[] {
+  return register.settled().flatMap((village) => [...register.living(village)]);
+}

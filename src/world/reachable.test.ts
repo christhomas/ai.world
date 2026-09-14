@@ -78,7 +78,7 @@ function staleExplanations(source: ReadonlyMap<string, string>, explanations: Re
  *
  * Lower it when you triage. Never raise it.
  */
-const ALREADY_LIKE_THIS = 41;
+const ALREADY_LIKE_THIS = 40;
 const ALREADY_UNEXPLAINED = 0;
 
 /**
