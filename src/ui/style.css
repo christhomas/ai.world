@@ -332,8 +332,23 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
   font-size: calc(12 * var(--ui-scale)); font-family: inherit;
 }
 #optionsPanel select { grid-column: 2 / span 2; }
+/*
+ * Where the keyboard is, which this used to remove and not replace.
+ *
+ * It set `outline: none` and then set the border to the colour it already was, so tabbing through
+ * the options moved a highlight nobody could see. The browser's own outline is dropped on purpose —
+ * it is a rounded ring on a world with no round corners in it — so something has to take its place,
+ * and an accent border with an accent ring outside it is visible on all four themes without moving
+ * anything by a pixel. `box-shadow` rather than `outline` because a shadow takes no space.
+ */
 #optionsPanel select:focus,
-#optionsPanel input[type="text"]:focus { outline: none; border-color: var(--rule); }
+#optionsPanel input[type="text"]:focus,
+#optionsPanel button:focus-visible,
+.tswitch:focus-visible .tswitch-track {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 calc(2 * var(--ui-scale)) color-mix(in srgb, var(--accent) 45%, transparent);
+}
 
 /* the two server fields, full width and stacked: an address and a name are typed into, not set */
 #optionsPanel .opt-fields {
@@ -704,12 +719,22 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   flex: 0 0 auto; width: calc(38 * var(--ui-scale)); height: calc(20 * var(--ui-scale)); margin-top: calc(2 * var(--ui-scale));
   background: var(--surface); border: var(--ui-scale) solid var(--rule); position: relative; transition: background 0.12s;
 }
+/*
+ * The knob, which was the same colour as the track it slides in.
+ *
+ * Off it was surface on surface and on it was accent on accent, so the one moving part of the
+ * control was invisible in both of its states and the only thing saying which way it was set was
+ * the track's own fill. A knob you cannot see is a switch you have to read the label of.
+ *
+ * So the knob takes the token the track does not: ink on the dark track, surface on the lit one.
+ * Both are theme tokens, both are what the track is deliberately not, and neither moves anything.
+ */
 .tswitch-track::after {
   content: ''; position: absolute; top: calc(3 * var(--ui-scale)); left: calc(3 * var(--ui-scale)); width: calc(12 * var(--ui-scale)); height: calc(12 * var(--ui-scale));
-  background: var(--surface); transition: left 0.12s, background 0.12s;
+  background: var(--ink); transition: left 0.12s, background 0.12s;
 }
 .tswitch[aria-checked="true"] .tswitch-track { background: var(--accent); border-color: var(--rule); }
-.tswitch[aria-checked="true"] .tswitch-track::after { left: calc(21 * var(--ui-scale)); background: var(--accent); }
+.tswitch[aria-checked="true"] .tswitch-track::after { left: calc(21 * var(--ui-scale)); background: var(--surface); }
 .tswitch-label { color: var(--ink); font-size: calc(13 * var(--ui-scale)); }
 .tswitch-note { color: var(--accent); font-size: calc(11 * var(--ui-scale)); display: block; margin-top: calc(2 * var(--ui-scale)); line-height: 1.4; }
 

@@ -91,6 +91,50 @@
   background-color: var(--paper-rule-faint);
 }
 
+/*
+ * The words on a page, which is the half a panel's own background does not settle.
+ *
+ * `#journal { color: var(--paper-ink) }` above is one id, and `#journal .j-line { color: var(--accent) }`
+ * in `style.css` is one id and a class — so the glass colour wins, in silence, and a page of cream
+ * paper is written on in the colour of a dark panel. Seventeen rules were doing this: every line of
+ * the journal, the roster, the player list and the pack, and the lineage note.
+ *
+ * Three weights rather than one, because the glass side had three: what you read, what is said
+ * quietly beside it, and the hint at the bottom nobody is meant to look at twice.
+ */
+#journal .j-line,
+#players .j-line,
+#roster .j-line,
+#rucksack .r-stats,
+#rucksack .r-slot-name {
+  color: var(--paper-ink);
+}
+
+#journal .j-empty,
+#players .j-empty,
+#rucksack .r-empty,
+#rucksack .r-note,
+#rucksack .r-item.empty,
+#kinCard .kin-note {
+  color: var(--paper-ink-dim);
+}
+
+#journal .j-hint,
+#players .j-hint,
+#roster .j-hint,
+#rucksack .r-hint {
+  color: var(--paper-ink-faint);
+}
+
+/*
+ * And the one thing on a page that is meant to be shouted: a warning that the machine is drawing
+ * this world in software. The paper accent is what a page shouts in.
+ */
+#optionsPanel #gpuName.software,
+#optionsPanel .opt-note.software {
+  color: var(--paper-accent);
+}
+
 #optionsPanel .opt-esc,
 #optionsPanel .rail-head span,
 #optionsPanel .opt-row label,
