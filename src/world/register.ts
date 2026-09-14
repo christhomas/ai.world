@@ -128,13 +128,31 @@ export class Register {
     }
   }
 
-  /** Ask one village to commission at most one rung for the next morning. */
-  commissionStable(village: string, yard: StableYard, day: number): StablePurchase | null {
+  /**
+   * Ask one village to commission at most one rung, for the first morning not yet lived.
+   *
+   * The day is worked out here rather than taken, and that is the fix for a real fault. A builder's
+   * morning runs beside the register: `tidings.ts` lives each missed day — `builderDay(day)` then
+   * `advance(day)` — and then, when no day was missed at all, calls `builderDay(today)` once more so
+   * that a commission placed after the register's own work still gets a morning.
+   *
+   * That last call used to hand `state.day` in, and `advance` lives every day *after* the one it is
+   * standing on. So a purchase dated today, on a register already standing on today, was never
+   * lived: no charge, no wage, no wider paddock. It then appeared out of nowhere on the next
+   * reopening, when the founding was replayed and that morning came round again — charging a farmer
+   * for a stable commissioned in a session that had ended.
+   *
+   * `today + 1` is the same day in both paths. Inside the missed-day loop the register is standing
+   * on the day before the one being lived, so it is that day; after it, it is tomorrow. One
+   * expression, lived exactly once, and keyed by village and morning so a replay cannot pay twice.
+   */
+  commissionStable(village: string, yard: StableYard): StablePurchase | null {
     const settlement = this.villages.get(village);
     if (!settlement) return null;
-    const key = this.stableKey(village, day);
+    const on = this.day + 1;
+    const key = this.stableKey(village, on);
     if (this.stablePurchases.has(key)) return null;
-    const purchase = commissionAStable(village, settlement, yard, day);
+    const purchase = commissionAStable(village, settlement, yard, on);
     if (purchase) this.stablePurchases.set(key, purchase);
     return purchase;
   }
