@@ -81,6 +81,17 @@ export function raisedRoofs(
   for (const village of villages) {
     const works = worksOf(village.name);
     const raised = works.filter(isARoof);
+    const hallWork = latestHallWork(works);
+    if (hallWork && village.hall) {
+      const building = village.hall.building;
+      out.push({
+        id: `${village.name}-hall`,
+        x: building.tx + 0.5, z: building.tz + 0.5, rot: building.rot,
+        what: `civic-townhall-${village.biome}`,
+        stage: today === undefined ? 'done' : raisedStage(hallWork, today),
+        storeys: 1,
+      });
+    }
     /*
      * And the things a village bought that are not roofs.
      *
@@ -159,6 +170,15 @@ export function roofWatch(
     }
     return built;
   };
+}
+
+/** The latest declaration work on this hall; a city vote rebuilds the same body rather than cloning it. */
+function latestHallWork(works: readonly string[]): string | null {
+  for (let at = works.length - 1; at >= 0; at--) {
+    const id = works[at].split('@')[0];
+    if (id === 'townhall' || id === 'cityhall') return works[at];
+  }
+  return null;
 }
 
 /**

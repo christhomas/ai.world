@@ -4,7 +4,7 @@ import {
 } from './founding';
 import { THE_HALL, isTheHall, type Holding, type Owner } from './holdings';
 import { type Stable } from './stables';
-import { atLeast, rankOfRoofs, type Rank } from './rank';
+import { atLeast, promotionFor, type Rank } from './rank';
 import {
   STANDARD, biggestRoofAmong, familiesWantingRoom, isARoof, oneSizeUp, workOf, type Roof,
 } from './roofs';
@@ -222,7 +222,7 @@ export function whatTheVillageBuilds(
  */
 export function whatTheVillageSpends(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
-  larder = Infinity, holdings: readonly Holding[] = [], herd = 0, day = 0,
+  rank: Rank, larder = Infinity, holdings: readonly Holding[] = [], herd = 0, day = 0,
 ): {
   wages: Map<Owner, number>; spent: number; works: string[]; holdsMore: number; watch: string;
   founded: Holding[];
@@ -291,9 +291,12 @@ export function whatTheVillageSpends(
    * payroll takes the watch before this now, so the reserve has already happened and the rule can
    * simply say what it means.
    */
-  const left = raised ? 0 : purse - upkeep - kept;
-  // what the village has grown into decides what its hall may buy at all: see `rank.ts`
-  const hall = whatTheHallSpends(Math.round(left * 100) / 100, built, people, rankOfVillage(laidOut, built));
+  // Once enough roofs stand for the next declaration, the vote comes before the ordinary wish
+  // list. Keeping its price back makes "the treasury builds the hall" reachable rather than a
+  // button waiting for the shopping loop to happen not to spend this morning.
+  const forTheVote = promotionFor(rank, housesStanding(laidOut, built))?.costs ?? 0;
+  const left = raised ? 0 : purse - upkeep - kept - forTheVote;
+  const hall = whatTheHallSpends(Math.round(Math.max(0, left) * 100) / 100, built, people, rank);
   for (const [id, much] of hall.wages) {
     wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
   }
@@ -313,8 +316,8 @@ export function whatTheVillageSpends(
    * farmer both raised a shed before noon is a village nobody watched change.
    */
   const name = people[0]?.village ?? '';
-  const over = Math.round((purse - onTheHouse - upkeep - kept - hall.spent) * 100) / 100;
-  const saving = whatItIsSavingFor(built, rankOfVillage(laidOut, built));
+  const over = Math.round((purse - onTheHouse - upkeep - kept - hall.spent - forTheVote) * 100) / 100;
+  const saving = whatItIsSavingFor(built, rank);
   const founding = name === '' ? null
     : whatTheHallFounds(name, over, saving, people, holdings, built, herd, day)
       ?? whoFoundsAnother(name, people, holdings, built, day);
@@ -356,16 +359,6 @@ export function whatItIsSavingFor(built: readonly string[], rank: Rank): number 
   return next?.costs ?? 0;
 }
 
-/**
- * What a village has grown into, counted off what is standing in it.
- *
- * Here rather than in `rank.ts` because counting a village's roofs is this file's job and what the
- * count *means* is that one's — and the two must not ask each other, which is what a module cycle
- * is. See the note on `untilTheNextRank`.
- */
-export function rankOfVillage(laidOut: number, built: readonly string[]): Rank {
-  return rankOfRoofs(housesStanding(laidOut, built));
-}
 
 /**
  * What a stall is worth against a person's room: a third of it.

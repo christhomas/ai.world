@@ -187,30 +187,29 @@ describe('the water a ferry crosses', () => {
 });
 
 /**
- * The town hall and the watch house, which is where a village keeps what it knows about itself.
+ * The future town hall site and the seeded watch house.
  *
- * Both are new kinds of building rather than a cottage with a sign on it, because both are meant
- * to be walked to on purpose: a player who wants the roll has to find the hall, and finding it is
- * only possible if it looks like a hall from across the square. So what is checked here is the
- * three things that make that true — that only a place big enough to want one has one, that it
- * stands on the square with its door onto the cobbles, and that there is a way in.
+ * A hall site must exist before the vote so every client agrees where construction begins, but the
+ * building and its doorway must not exist until the village pays for them. The watch house remains a
+ * seeded civic building. Both sites still belong on the square and face the cobbles.
  */
 describe('the buildings a village raises for itself', () => {
   const worlds = [1, 2, 3, 4, 5, 6].map((seed) => new TerrainSampler(generateRoadGraph(seed)).structures);
   const everywhere = worlds.flatMap((w) => w.villages);
 
-  it('gives one to the towns and none to the hamlets', () => {
-    const withHall = everywhere.filter((v) => v.hall);
-    expect(withHall.length, 'no village in six worlds keeps a roll').toBeGreaterThan(5);
-    expect(withHall.length, 'every village keeps one, which is not a decision').toBeLessThan(everywhere.length);
-    for (const v of withHall) {
-      expect(v.houses.length, `${v.name} raised a hall over ${v.houses.length} houses`).toBeGreaterThanOrEqual(8);
+  it('reserves every reachable hall site but seeds no hall building before a vote', () => {
+    const canBecomeATown = everywhere.filter((v) => v.houses.length + v.spare.length >= 16);
+    expect(canBecomeATown.filter((v) => v.hall).length, 'a future town with nowhere to put its hall')
+      .toBe(canBecomeATown.length);
+    for (const world of worlds) {
+      expect(world.all.filter((structure) => structure.kind === StructureKind.TownHall),
+        'a town hall stood before anybody voted for it').toEqual([]);
+      expect(world.doors.filter((door) => door.kind === 'townhall'),
+        'an unbuilt hall had a working doorway').toEqual([]);
     }
-    // and most of a world is smaller than that, so the rule is doing work rather than being
-    // technically true of a set nothing falls outside
     const small = everywhere.filter((v) => v.houses.length < 8);
     expect(small.length, 'six worlds of nothing but towns').toBeGreaterThan(20);
-    expect(small.filter((v) => v.hall || v.watchHouse), 'a hamlet with a civic building').toEqual([]);
+    expect(small.filter((v) => v.watchHouse), 'a hamlet with a watch house').toEqual([]);
   });
 
   it('never keeps a charge sheet without a cell to fill it from', () => {
@@ -239,16 +238,15 @@ describe('the buildings a village raises for itself', () => {
     }
   });
 
-  it('puts a doorway in each of them, so the book inside can be reached', () => {
+  it('puts a doorway in every seeded watch house, but none in a reserved hall', () => {
     for (const w of worlds) {
       const doors = new Map(w.doors.map((d) => [`${d.bx},${d.bz}`, d]));
       for (const v of w.villages) {
-        for (const [civic, kind] of [[v.hall, 'townhall'], [v.watchHouse, 'watchhouse']] as const) {
-          if (!civic) continue;
-          const door = doors.get(`${civic.building.tx},${civic.building.tz}`);
-          expect(door?.kind, `${v.name}: a ${kind} you cannot walk into`).toBe(kind);
-          expect(door?.village, 'a door that does not know whose village it stands in').toBe(v.name);
-        }
+        if (!v.watchHouse) continue;
+        const civic = v.watchHouse;
+        const door = doors.get(`${civic.building.tx},${civic.building.tz}`);
+        expect(door?.kind, `${v.name}: a watchhouse you cannot walk into`).toBe('watchhouse');
+        expect(door?.village, 'a door that does not know whose village it stands in').toBe(v.name);
       }
     }
   });

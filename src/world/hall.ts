@@ -6,6 +6,7 @@ import { surnameOf, type Person } from './people';
 import type { Hall } from './settlement';
 import type { Structure } from './structures';
 import { atLeast, type Rank } from './rank';
+import type { Ballot } from './votes';
 
 /**
  * The village's own money: what the hall takes, and what makes it different from a purse.
@@ -444,9 +445,10 @@ export function mayorOf(people: readonly Person[]): Person | null {
  * public address without inheriting the treasury.
  */
 export function bodyOfTheHall(
-  hall: Hall | null, houses: readonly Structure[], people: readonly Person[],
+  hall: Hall | null, houses: readonly Structure[], people: readonly Person[], votedBody?: Structure | null,
 ): Structure | null {
-  if (!hall || hall.body !== 'mayor-house') return null;
+  if (!hall) return null;
+  if (hall.body === 'town-hall') return votedBody ?? null;
   const mayor = mayorOf(people);
   if (!mayor) return null;
   const family = surnameOf(mayor);
@@ -475,6 +477,7 @@ export function whatTheHallKnows(
     mayorOf: (village: string) => Person | null;
     watchOf: (village: string) => string;
     worksOf: (village: string) => readonly string[];
+    ballotOf: (village: string) => Ballot | null;
     rankOf: (village: string) => Rank;
     livedIn: (village: string) => number;
   },
@@ -487,14 +490,15 @@ export function whatTheHallKnows(
   savingFor: string | null;
 } {
   const raised = book.worksOf(village);
+  const ballot = book.ballotOf(village);
   const next = nextWork(Infinity, raised, book.rankOf(village));
   return {
     holds: book.hallOf(village)?.purse ?? 0,
     mayor: book.mayorOf(village)?.id ?? '',
     watch: book.watchOf(village),
     raised,
-    // what it is putting money by for, whether or not it can reach it yet — which is the question
-    // somebody asking a hall means, rather than "what could you buy this morning"
-    savingFor: book.livedIn(village) === 0 ? null : next?.id ?? null,
+    // A permitted declaration comes before the ordinary wish list: the economy keeps its price
+    // back, so the clerk has to say what those coins are really waiting for.
+    savingFor: book.livedIn(village) === 0 ? null : ballot?.work ?? next?.id ?? null,
   };
 }

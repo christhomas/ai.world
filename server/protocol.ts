@@ -66,6 +66,7 @@ export interface Clock {
  * - `reap`    that tile lifted again
  * - `found`   a place somebody named, so everyone's map agrees
  * - `died`    a villager killed by something, which no client could have worked out on its own
+ * - `voted`  a village declaring itself a town or city on a recorded day
  */
 export type WorldDelta =
   | { kind: 'chest'; id: string }
@@ -74,6 +75,8 @@ export type WorldDelta =
   | { kind: 'reap'; tile: string }
   | { kind: 'found'; name: string }
   | { kind: 'died'; who: string; village: string; day: number }
+  /** A place declared itself a town or city; the day fixes its cost and building stage on replay. */
+  | { kind: 'voted'; village: string; rank: 'town' | 'city'; day: number }
   /**
    * Something living in a mine has been killed, and how many.
    *
@@ -913,6 +916,8 @@ export function deltaKey(delta: WorldDelta): string {
     case 'reap': return `sow:${delta.tile}`;   // reaping clears the sowing it replaces
     case 'found': return `found:${delta.name}`;
     case 'died': return `died:${delta.who}`;
+    // both declarations survive: a later city vote must not replace the morning this became a town
+    case 'voted': return `voted:${delta.village}:${delta.rank}`;
     // one entry per mine, and the newest wins: both of these carry a whole state rather than a
     // change to one, so replacing is exactly right and adding would double-count
     case 'cleared': return `cleared:${delta.mine}`;
@@ -983,6 +988,11 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const day = Number(delta.day);
       if (!Number.isFinite(day)) return null;
       return { kind: 'died', who: id(delta.who), village: id(delta.village), day: Math.max(1, Math.floor(day)) };
+    }
+    case 'voted': {
+      const day = Number(delta.day);
+      if (!Number.isFinite(day) || (delta.rank !== 'town' && delta.rank !== 'city')) return null;
+      return { kind: 'voted', village: id(delta.village), rank: delta.rank, day: Math.max(1, Math.floor(day)) };
     }
     case 'sow': {
       const day = Number(delta.day);

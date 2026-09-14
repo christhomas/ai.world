@@ -454,6 +454,10 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         // the village loses them, and the people who knew them are left holding the memory
         register.apply({ kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence' });
         break;
+      case 'voted':
+        // rank is a told fact: late arrivals re-live the cost and the hall from its recorded morning
+        register.apply(delta);
+        break;
     }
     state.version++;
     if (!catchingUp) persist();

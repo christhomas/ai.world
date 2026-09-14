@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { Biome } from '../world/biomes';
+import { Biome, PropKind } from '../world/biomes';
 import { StructureKind, type Structure, type Village } from '../world/structures';
+import { propOf } from '../render/site';
 import { raisedRoofs, raisedStage, roofWatch } from './villageroofs';
 
 function plot(tx: number, tz: number, biome: Biome = Biome.Plains): Structure {
   return { kind: StructureKind.House, tx, tz, hw: 1, hd: 1, level: 0, rot: 0, biome, path: [] };
 }
 
-function village(name: string, spare: Structure[]): Village {
+function village(name: string, spare: Structure[], biome: Biome = Biome.Plains): Village {
+  const hall = plot(2, 3, biome);
+  hall.kind = StructureKind.TownHall;
   return {
-    name, x: 0, z: 0, radius: 12, level: 0, biome: Biome.Plains,
+    name, x: 0, z: 0, radius: 12, level: 0, biome,
     houses: [], spare, shops: [], pub: null, station: null, stable: null,
-    church: null, churchDoor: null, hall: null, watchHouse: null, board: null, stalls: [],
+    church: null, churchDoor: null, hall: { building: hall, door: [2, 1] }, watchHouse: null, board: null, stalls: [],
   } as unknown as Village;
 }
 
@@ -46,6 +49,13 @@ describe('the houses a village raised for itself', () => {
     const towns = [village('Ashby', [plot(4, 9)]), village('Fell', [plot(4, 9)])];
     const drawn = raisedRoofs(towns, () => ['house:cottage']);
     expect(new Set(drawn.map((r) => r.id)).size).toBe(2);
+  });
+
+  it('draws a voted hall on its reserved site in the country model while work advances', () => {
+    const town = village('Fell', [], Biome.Snow);
+    const [hall] = raisedRoofs([town], () => ['townhall@100'], 102);
+    expect(hall).toMatchObject({ id: 'Fell-hall', x: 2.5, z: 3.5, stage: 'begun', what: `civic-townhall-${Biome.Snow}` });
+    expect(propOf({ ...hall, stage: 'done' })).toBe(PropKind.TownHallSnow);
   });
 });
 

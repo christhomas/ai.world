@@ -5,8 +5,9 @@ import { fillTheGaps } from './births';
 import { directoryOf } from './vacancies';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
-import { rankOfVillage, whatTheVillageSpends } from './growth';
-import type { Rank } from './rank';
+import { whatTheVillageSpends } from './growth';
+import { type Rank, type TownVote } from './rank';
+import { ballotFor, enactVote, finishVotedHall, foundingRank, recogniseVillage, type Ballot } from './votes';
 import { doctoredBy, laidUpFor, mendThem } from './wounds';
 import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
@@ -20,7 +21,6 @@ import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, pare
 import { compactAll, type Opinion } from './memory';
 import { recallFor, toldOf, whoKnows } from './remembering';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
-
 /**
  * The living population of the world's villages: who is here today, and who has been born or died
  * since yesterday.
@@ -61,6 +61,8 @@ export class Register {
    * right, rather than being bolted on to today and quietly disagreeing with everyone else.
    */
   private readonly killed = new Map<string, number>();
+  /** Votes survive re-living, one told fact for each declaration in each place. */
+  private readonly votes = new Map<string, TownVote>();
   /** The days a shrine raised somebody, by village — the copy that survives a re-living. */
   private readonly magicked = new Map<string, number[]>();
   /** The last whole day the register has caught up to. */
@@ -164,7 +166,7 @@ export class Register {
        * the right diagnosis written beside it: the field describes the value it takes after the
        * first roof goes up rather than the one it starts with. It was the founding that was wrong.
        */
-      people, founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [],
+      people, rank: foundingRank(houses), founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [],
       hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: 0 },
       // a harbour it already has counts as a thing it has raised: `holdings.ts` will not put a boat
       // anywhere there is nothing to tie one up at, and a seeded jetty is a jetty
@@ -178,7 +180,10 @@ export class Register {
       herd: farmers * LIVELIHOOD.FIRST_HERD,
     };
     this.villages.set(village, settlement);
-    for (let day = FOUNDED_ON + 1; day <= this.day; day++) liveADay(this.theDay, village, settlement, day);
+    for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
+      liveADay(this.theDay, village, settlement, day);
+      this.applyVotesOn(village, settlement, day);
+    }
     return settlement.people;
   }
 
@@ -394,7 +399,10 @@ export class Register {
 
     while (this.day < end) {
       this.day++;
-      for (const [name, village] of this.villages) changes.push(...liveADay(this.theDay, name, village, this.day));
+      for (const [name, village] of this.villages) {
+        changes.push(...liveADay(this.theDay, name, village, this.day));
+        this.applyVotesOn(name, village, this.day);
+      }
       changes.push(...this.peopleWalkIn(this.day));
     }
     return changes;
@@ -450,11 +458,37 @@ export class Register {
   /** Who speaks for this village: the longest-settled trade-holder. See `mayorOf`. */
   mayorOf = (v: string): Person | null => mayorOf(this.villages.get(v)?.people ?? []);
 
-  /** What this place has grown into, counted off what is standing rather than declared. See `rank.ts`. */
-  rankOf(village: string): Rank {
+  /** What this place has declared itself to be. Roofs permit town and city; only a vote grants them. */
+  rankOf(village: string): Rank { return this.villages.get(village)?.rank ?? 'hamlet'; }
+
+  /** The next motion that can be called here, and the residents entitled to cast it. */
+  ballotOf(village: string): Ballot | null {
     const here = this.villages.get(village);
-    return here ? rankOfVillage(here.houses, here.works) : 'hamlet';
+    return here ? ballotFor(here) : null;
   }
+
+  /** Call the local vote. The caller supplies the player's aye by choosing it in the hall. */
+  vote(village: string, day = this.day): TownVote | null {
+    const here = this.villages.get(village);
+    const ballot = here ? ballotFor(here) : null;
+    if (!here || !ballot?.ready) return null;
+    const voted: TownVote = { kind: 'voted', village, rank: ballot.rank, day: Math.floor(day) };
+    if (!enactVote(here, voted)) return null;
+    this.votes.set(this.voteKey(voted), voted);
+    return voted;
+  }
+
+  /** Apply votes after the ordinary work of their morning, then move into a finished hall. */
+  private applyVotesOn(village: string, here: Settlement, day: number): void {
+    recogniseVillage(here);
+    const votes = [...this.votes.values()]
+      .filter((vote) => vote.village === village && vote.day === day)
+      .sort((a, b) => a.rank === b.rank ? 0 : a.rank === 'town' ? -1 : 1);
+    for (const vote of votes) enactVote(here, vote);
+    finishVotedHall(here, day);
+  }
+
+  private voteKey(vote: TownVote): string { return `${vote.village}:${vote.rank}`; }
 
   /** Who is standing on this village's tower today, or nobody. See `whoStandsWatch`. */
   watchOf(village: string): string { return this.villages.get(village)?.watch ?? ''; }
@@ -495,12 +529,15 @@ export class Register {
     return this.remove(person, Math.floor(day), 'violence');
   }
 
-  /**
-   * A death that happened on somebody else's screen. If it happened today it simply happens; if it
-   * happened before we got here, the village is lived again from its founding with the death in
-   * its right place, so this client ends up holding the village everybody else is holding.
-   */
-  apply(change: Change): void {
+  /** Apply a told death or vote, re-living its village when the fact arrived after its day. */
+  apply(change: Change | TownVote): void {
+    if (change.kind === 'voted') {
+      const key = this.voteKey(change);
+      if (this.votes.has(key)) return;
+      this.votes.set(key, { ...change, day: Math.floor(change.day) });
+      if (this.villages.has(change.village)) this.relive(change.village);
+      return;
+    }
     if (change.kind !== 'died') return;
     if (this.killed.has(change.id)) return;                  // already accounted for
     this.killed.set(change.id, change.day);

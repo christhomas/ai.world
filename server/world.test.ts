@@ -159,6 +159,11 @@ describe('deltas off the wire', () => {
     expect((cleanDelta({ kind: 'chest', id: 'a'.repeat(300) }) as { id: string }).id.length).toBe(80);
     expect(cleanDelta({ kind: 'sow', tile: '1,1', crop: 'wheat', day: -5 })).toEqual({ kind: 'sow', tile: '1,1', crop: 'wheat', day: 1 });
     expect(cleanDelta({ kind: 'sow', tile: '1,1', crop: 'wheat', day: Number.NaN })).toBeNull();
+    expect(cleanDelta({ kind: 'voted', village: 'Ashford', rank: 'town', day: 23.8 }))
+      .toEqual({ kind: 'voted', village: 'Ashford', rank: 'town', day: 23 });
+    expect(cleanDelta({ kind: 'voted', village: 'Ashford', rank: 'empire' as never, day: 23 })).toBeNull();
+    expect(deltaKey({ kind: 'voted', village: 'Ashford', rank: 'town', day: 23 })).toBe('voted:Ashford:town');
+    expect(deltaKey({ kind: 'voted', village: 'Ashford', rank: 'city', day: 80 })).toBe('voted:Ashford:city');
     expect(cleanDelta({ kind: 'nonsense' } as never)).toBeNull();
   });
 
