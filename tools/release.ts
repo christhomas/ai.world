@@ -39,6 +39,37 @@ import { pathToFileURL } from 'node:url';
 const run = (cmd: string, args: string[]): string =>
   execFileSync(cmd, args, { encoding: 'utf8' }).trim();
 
+/**
+ * The same, for a command whose exit code is an answer rather than a failure.
+ *
+ * `gh pr checks` exits non-zero while anything is pending or red, which is exactly the state it is
+ * being asked about. What it printed is the answer either way; an empty output is only accepted
+ * when the command itself succeeded, so authentication and network failures stay actionable.
+ */
+const ask = (cmd: string, args: string[], timeout?: number): string => {
+  try {
+    return execFileSync(cmd, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(timeout === undefined ? {} : { timeout }),
+    }).trim();
+  } catch (wrong) {
+    const failure = wrong as {
+      stdout?: Buffer | string;
+      stderr?: Buffer | string;
+      status?: number | null;
+      signal?: string | null;
+    };
+    const stdout = String(failure.stdout ?? '').trim();
+    if (stdout) return stdout;
+    if (failure.signal === 'SIGTERM' && failure.status == null) {
+      throw new Error('gh pr checks did not return before the release deadline');
+    }
+    const stderr = String(failure.stderr ?? '').trim();
+    throw new Error(stderr || `gh ${args.join(' ')} failed without output`);
+  }
+};
+
 const say = (line: string): void => console.log(line);
 
 /** What the next version is: given outright, or a step from the one in the chart. */
@@ -181,17 +212,65 @@ function notesFor(version: string, body: string): string {
 }
 
 /** Wait for every check to finish, for the case where nothing will merge it for us. */
+/**
+ * A check that has finished and is not a complaint. A job a workflow decided to skip is not a red
+ * commit, and neither is one that reports nothing either way.
+ */
+const IN = new Set(['SUCCESS', 'SKIPPED', 'NEUTRAL']);
+
+/** A check that has finished and is a complaint, in every spelling GitHub has for one. */
+const RED = new Set(['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE']);
+
+/**
+ * Whether a release may go out yet, read off what the checks say.
+ *
+ * An empty list is `waiting` rather than `passed`, and that is the case worth stating: a pull
+ * request seconds old has no checks on it at all, and "none has failed and all are in" is true of
+ * nothing — so reading it as passed would tag a commit before a single job had started.
+ *
+ * Red is decided the moment one check is red, without waiting for the rest. The playtest takes two
+ * minutes and the suite nine, and waiting the slow one out to be told what the fast one already
+ * said is the release standing about for no reason.
+ */
+export function howTheChecksStand(
+  checks: ReadonlyArray<{ name: string; state: string }>,
+): 'passed' | 'failed' | 'waiting' {
+  if (checks.some((check) => RED.has(check.state))) return 'failed';
+  if (checks.length === 0) return 'waiting';
+  return checks.every((check) => IN.has(check.state)) ? 'passed' : 'waiting';
+}
+
 function waitForTheChecks(branch: string): void {
   const until = Date.now() + WAIT_FOR_CI;
-  while (Date.now() < until) {
-    try {
-      run('gh', ['pr', 'checks', branch, '--watch', '--fail-fast']);
-      return;
-    } catch {
-      throw new Error('a check failed — the release is not going out on a red commit');
+  for (;;) {
+    /*
+     * Asked rather than watched, and the difference is the whole of item 126.
+     *
+     * `gh pr checks --watch` blocks until the checks finish, so the deadline around it was
+     * evaluated once, before anything had happened, and never again: a stuck runner meant a release
+     * that waited for ever with no message. Polling on the same rhythm as the merge wait below
+     * makes one loop shape cover both, and makes the twenty minutes mean twenty minutes.
+     *
+     * `gh pr checks` exits non-zero while anything is pending or red — which is the state this is
+     * *asking about* — so its complaint is not an error here; what matters is what it printed.
+     * Each poll is bounded by the time left before the release deadline, so a hung CLI cannot bypass
+     * the deadline either.
+     */
+    const remaining = until - Date.now();
+    if (remaining <= 0) {
+      throw new Error('the checks have not finished in time. Nothing is broken and nothing is tagged:'
+        + ` look at what is holding them up, then run the same release again.`);
     }
+    const said = ask('gh', ['pr', 'checks', branch, '--json', 'name,state'], remaining);
+    const stand = howTheChecksStand(said ? JSON.parse(said) as Array<{ name: string; state: string }> : []);
+    if (stand === 'passed') return;
+    if (stand === 'failed') throw new Error('a check failed — the release is not going out on a red commit');
+    if (Date.now() >= until) {
+      throw new Error('the checks have not finished in time. Nothing is broken and nothing is tagged:'
+        + ` look at what is holding them up, then run the same release again.`);
+    }
+    execFileSync('sleep', [String(Math.min(15, (until - Date.now()) / 1000))]);
   }
-  throw new Error('the checks have not finished in time');
 }
 
 /**
