@@ -27,25 +27,41 @@ describe('a village yard', () => {
      * would hide the distinction this whole thing is for behind a wait.
      */
     const timber = new Timber();
-    timber.felled(ASHFORD, 1);
+    timber.felledThrough(ASHFORD, 1, 1);
     expect(timber.at(ASHFORD)).toBe(TIMBER.A_DAY * (TIMBER.STANDING + 1));
 
     const rock = new Timber();
-    rock.felled('Stonedale', 0);
+    rock.felledThrough('Stonedale', 0, 1);
     expect(rock.at('Stonedale'), 'a village with nobody to cut found timber anyway').toBe(0);
   });
 
   it('goes on filling a day at a time, and stops when there is nowhere to stack it', () => {
     const timber = new Timber();
-    timber.felled(ASHFORD, 2);
+    timber.felledThrough(ASHFORD, 2, 1);
     const opened = timber.at(ASHFORD);
-    timber.felled(ASHFORD, 2);
+    timber.felledThrough(ASHFORD, 2, 2);
     expect(timber.at(ASHFORD), 'a second day cut nothing').toBe(opened + 2 * TIMBER.A_DAY);
 
     // and a quiet century does not leave every village able to build anything instantly, which
     // would be the limit going away again by arithmetic
-    for (let day = 0; day < 500; day++) timber.felled(ASHFORD, 2);
+    for (let day = 3; day < 503; day++) timber.felledThrough(ASHFORD, 2, day);
     expect(timber.at(ASHFORD)).toBe(TIMBER.HOLDS);
+  });
+
+  it('accounts each elapsed day once, including across a reload', () => {
+    const timber = new Timber();
+    timber.felledThrough(ASHFORD, 1, 12);
+    expect(timber.at(ASHFORD)).toBe(TIMBER.A_DAY * (TIMBER.STANDING + 1));
+    timber.felledThrough(ASHFORD, 1, 12);
+    expect(timber.at(ASHFORD), 'the same day was landed twice').toBe(TIMBER.A_DAY * (TIMBER.STANDING + 1));
+    timber.felledThrough(ASHFORD, 1, 15);
+    expect(timber.at(ASHFORD), 'the two missed days were not landed').toBe(TIMBER.A_DAY * (TIMBER.STANDING + 4));
+
+    const reloaded = Timber.from(timber.toJSON());
+    reloaded.felledThrough(ASHFORD, 1, 15);
+    expect(reloaded.at(ASHFORD), 'reopening re-landed the saved day').toBe(TIMBER.A_DAY * (TIMBER.STANDING + 4));
+    reloaded.felledThrough(ASHFORD, 1, 17);
+    expect(reloaded.at(ASHFORD)).toBe(TIMBER.A_DAY * (TIMBER.STANDING + 6));
   });
 
   it('takes all of what a job wants or none of it', () => {
@@ -74,7 +90,7 @@ describe('a village yard', () => {
      * a pack full of timber can be the supply — out of an act the game already had.
      */
     const timber = new Timber();
-    timber.felled('Stonedale', 0);
+    timber.felledThrough('Stonedale', 0, 1);
     expect(timber.at('Stonedale')).toBe(0);
     for (let log = 0; log < house.timber; log++) timber.land('Stonedale', 1);
     expect(timber.draw('Stonedale', house.timber), 'wood carried in would not build a house').toBe(true);
@@ -138,11 +154,11 @@ describe('what a building costs in wood', () => {
      * somebody, somewhere with trees.
      */
     const houses = new Houses();
-    for (let day = 0; day < 100; day++) houses.yard.felled('Stonedale', 0);
+    for (let day = 1; day <= 100; day++) houses.yard.felledThrough('Stonedale', 0, day);
     expect(houses.yard.shortBy('Stonedale', house.timber), 'a hundred days made timber out of nothing')
       .toBe(house.timber);
     // and the same hundred days in a village with one man cutting builds several
-    for (let day = 0; day < 100; day++) houses.yard.felled(ASHFORD, 1);
+    for (let day = 1; day <= 100; day++) houses.yard.felledThrough(ASHFORD, 1, day);
     expect(houses.yard.draw(ASHFORD, house.timber)).toBe(true);
     expect(deposit(house.price), 'a deposit is still money, and money is not the limit here')
       .toBeGreaterThan(0);
@@ -173,7 +189,7 @@ describe('the wood a player brought in', () => {
     // the wright builds a cart for whoever brought the wood, and a woodcutter did not bring it — he
     // lives here. Counting felling would hand every player a free cart for standing still
     const yard = new Timber();
-    yard.felled(ASHFORD, 3);
+    yard.felledThrough(ASHFORD, 3, 1);
     expect(yard.at(ASHFORD)).toBeGreaterThan(0);
     expect(yard.sold(ASHFORD)).toBe(0);
   });
