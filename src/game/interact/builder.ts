@@ -2,7 +2,7 @@ import {
   BUILD, BUILDS, buildable, builderIn, deposit, isFinished,
   Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
 } from '../building';
-import { workHallJobsThrough } from '../halljobs';
+import { workTheHallJobs } from '../halljobs';
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
 import { jettiesIn, type Mooring } from '../jetties';
 import { moorageFor } from '../sailing';
@@ -664,7 +664,7 @@ export function builderInteractions(ctx: Surroundings) {
    * everybody will have said so in the pub by now. So it goes on the grudge the village already
    * keeps, which sours its prices and eventually its welcome, and which fades once you have paid.
    */
-  const builderDay = (busy: ReadonlyMap<string, readonly Post[]> = new Map()): void => {
+  const builderDay = (day: number, busy: ReadonlyMap<string, readonly Post[]> = new Map()): void => {
     /*
      * What the woodcutters cut, which is the other half of a builder's morning.
      *
@@ -676,14 +676,14 @@ export function builderInteractions(ctx: Surroundings) {
     for (const village of register.settled()) {
       houses.yard.felled(village, woodcuttersFor(register.living(village)));
     }
-    const worked = workHallJobsThrough(
-      houses, state.day, (village) => register.living(village), [...busy.values()].flat(),
+    const worked = workTheHallJobs(
+      houses, day, (village) => register.living(village), [...busy.values()].flat(),
     );
-    const bills = houses.charge(state.day);
+    const bills = houses.charge(day);
     if (worked.length === 0 && bills.length === 0) return;
     for (const bill of bills) {
-      const before = grudges.regard(bill.village, state.day);
-      const after = regardOf(grudges.slighted(bill.village, state.day, bill.weight));
+      const before = grudges.regard(bill.village, day);
+      const after = regardOf(grudges.slighted(bill.village, day, bill.weight));
       if (after !== before && after !== 'fine' && said.get(bill.village) !== after) {
         said.set(bill.village, after);
         hud.flash(after === 'unwelcome'

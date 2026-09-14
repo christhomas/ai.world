@@ -3,7 +3,7 @@ import {
   BUILD, CATALOGUE, Houses, buildable, builderIn, daysFor, deposit, isFinished, onOffer, owed,
   progressOf, saidOfJob, stageAt, stillOnItsSite, storeysOf, type Commission, BUILDS,
 } from './building';
-import { workHallJobsThrough, workTheHallJobs } from './halljobs';
+import { workTheHallJobs } from './halljobs';
 // the four "may it go here" rules came out of `building.ts` when a jetty joined the catalogue and
 // that file ran out of room; they are the same functions and these are the same tests of them
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from './siting';
@@ -161,20 +161,6 @@ describe('a commission that outlives the session', () => {
     expect(builders[0].purse).toBe(PROSPER.MOST);
     expect(builders[1].purse).toBe(nextPurse + POST.BUILDER);
     expect(houses.entries()[0]).toMatchObject({ worked: 1, fund: deposit() - POST.BUILDER });
-  });
-
-  it('buys every elapsed morning when the clock jumps ahead', () => {
-    const register = new Register(7);
-    register.settle('Ashford', 10, ['builder']);
-    const houses = new Houses();
-    houses.takeOn('Ashford', BUILD.PRICE, deposit());
-    houses.place(20, 20, 1);
-    const before = register.living('Ashford').reduce((sum, person) => sum + person.purse, 0);
-
-    expect(workHallJobsThrough(houses, 7, () => register.living('Ashford'))).toHaveLength(6);
-    expect(isFinished(houses.entries()[0], 7)).toBe(true);
-    expect(register.living('Ashford').reduce((sum, person) => sum + person.purse, 0))
-      .toBe(before + POST.BUILDER * 6);
   });
 
   it('does not post somebody already working another job that morning', () => {

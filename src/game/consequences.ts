@@ -93,7 +93,6 @@ export function createConsequences(ctx: Consequence) {
       state.standing = standing.value;
       const held = jail.take(structures.villages, by.x, by.z, 'you', hours, clockAt(state), state.day, state.inventory.gold);
       windOn(state, hours);
-      register.advance(state.day);            // the village grew older while you were not watching
       // your own hours are served the moment the clock jumps, so the cell is empty behind you
       // the fine goes to the village that held you: it is their constable, their cell and their
       // afternoon, and a fine that left the world was a village policing you for nothing

@@ -45,18 +45,3 @@ export function workTheHallJobs(
   }
   return worked;
 }
-
-/** Catch commissions up across elapsed mornings, reserving today's workers already on other posts. */
-export function workHallJobsThrough(
-  books: Houses, through: number, living: (village: string) => readonly Person[],
-  already: readonly Post[] = [],
-): HallJobDay[] {
-  const today = Math.floor(through);
-  const unfinished = books.entries().filter((job) => job.worked !== undefined && !isFinished(job, today));
-  const first = Math.min(today, ...unfinished.map((job) => (job.workedOn ?? today - 1) + 1));
-  const worked: HallJobDay[] = [];
-  for (let day = first; day <= today; day++) {
-    worked.push(...workTheHallJobs(books, day, living, day === today ? already : []));
-  }
-  return worked;
-}

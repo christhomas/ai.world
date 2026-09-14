@@ -165,7 +165,6 @@ export function createMeeting(ctx: Meeting) {
           // the hours are real: the world moves on while you sit in the corridor
           state.time += DOCTOR.WAITING / 24;
           while (state.time >= 1) { state.time -= 1; state.day++; }
-          register.advance(state.day);
         }
         persist();
         sound.chime();
