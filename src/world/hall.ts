@@ -453,8 +453,7 @@ export function bodyOfTheHall(
 /**
  * Everything a village hall could tell you, if you walk up to the building that is its current body.
  * The body begins at the mayor's house and may move after a vote; the answers remain the hall's.
- *
- * All four answers are already derived and already correct; they are simply in four places, and a
+ * The answers are already derived and already correct; they are simply in several places, and a
  * conversation that wanted to say *"what is this village up to"* would have to know which to ask.
  * So they arrive together, in one shape, and the words that wrap them are the game's business
  * rather than this file's — the same division `directoryOf` draws for who works what.
@@ -475,6 +474,9 @@ export function whatTheHallKnows(
     ballotOf: (village: string) => Ballot | null;
     rankOf: (village: string) => Rank;
     livedIn: (village: string) => number;
+    directoryOf: (village: string) => {
+      holding: Map<string, string[]>; nobodyDoing: string[];
+    };
   },
   village: string,
 ): {
@@ -483,6 +485,7 @@ export function whatTheHallKnows(
   watch: string;
   raised: readonly string[];
   savingFor: string | null;
+  directory: { holding: Map<string, string[]>; nobodyDoing: string[] };
 } {
   const raised = book.worksOf(village);
   const ballot = book.ballotOf(village);
@@ -495,5 +498,6 @@ export function whatTheHallKnows(
     // A permitted declaration comes before the ordinary wish list: the economy keeps its price
     // back, so the clerk has to say what those coins are really waiting for.
     savingFor: book.livedIn(village) === 0 ? null : ballot?.work ?? next?.id ?? null,
+    directory: book.directoryOf(village),
   };
 }

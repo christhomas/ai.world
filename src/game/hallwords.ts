@@ -1,3 +1,4 @@
+import { tradeNamed } from '../entities/trades';
 import { WORKS } from '../world/hall';
 import { PROMOTIONS } from '../world/rank';
 
@@ -6,7 +7,7 @@ import type { Person } from '../world/people';
 /**
  * What a hall says when you ask it something.
  *
- * `whatTheHallKnows` gathers the four facts and deliberately leaves the words alone — *"the words
+ * `whatTheHallKnows` gathers the facts and deliberately leaves the words alone — *"the words
  * that wrap them are the game's business rather than this file's"*. This is that business, and it
  * is a separate file for the same reason: what a treasury *is* and how a building talks about it
  * are different subjects, and the second one changes far more often.
@@ -24,13 +25,17 @@ import type { Person } from '../world/people';
  * place to be kept, and a vote needs a hall that exists to be voted for.
  */
 
-/** What a hall is asked, which is the same four things a person would ask standing in front of it. */
+/** What a hall is asked, which is what a person would ask standing in front of it. */
 export interface Asked {
   holds: number;
   mayor: string;
   watch: string;
   raised: readonly string[];
   savingFor: string | null;
+  directory: {
+    holding: ReadonlyMap<string, readonly string[]>;
+    nobodyDoing: readonly string[];
+  };
 }
 
 /** Somebody by name, or a plain admission that the books do not say. */
@@ -97,7 +102,25 @@ export function saidOfWhatStands(raised: readonly string[]): string {
   return `Standing, and paid for: ${civic.join(', ')}.`;
 }
 
-/** The four answers a hall gives, in the order somebody standing in front of it would ask them. */
+/** Who holds each trade, followed by the work for which the village has nobody. */
+function saidOfTheDirectory(asked: Asked, who: (id: string) => Person | null): string[] {
+  const working: string[] = [];
+  for (const [trade, ids] of asked.directory.holding) {
+    const names = ids.map((id) => named(id, who)).filter((name) => name !== '');
+    if (names.length === 0) continue;
+    working.push((tradeNamed(trade)?.label ?? trade) + ' — ' + names.join(', '));
+  }
+  const directory = working.length === 0
+    ? 'The directory has no working names written in it.'
+    : 'The directory reads: ' + working.join('; ') + '.';
+  const vacant = asked.directory.nobodyDoing.map((trade) => tradeNamed(trade)?.label ?? trade);
+  const vacancies = vacant.length === 0
+    ? 'There are no vacancies on the village roll.'
+    : 'Vacancies: ' + vacant.join(', ') + '. The hall is waiting for somebody to take the work.';
+  return [directory, vacancies];
+}
+
+/** The hall's answers, in the order somebody standing in front of it would ask them. */
 export function whatTheHallSays(asked: Asked, who: (id: string) => Person | null): string[] {
   return [
     saidOfTheTreasury(asked.holds),
@@ -105,5 +128,6 @@ export function whatTheHallSays(asked: Asked, who: (id: string) => Person | null
     saidOfTheWatch(asked.watch, asked.raised, who),
     saidOfTheSaving(asked.savingFor, asked.holds),
     saidOfWhatStands(asked.raised),
+    ...saidOfTheDirectory(asked, who),
   ];
 }
