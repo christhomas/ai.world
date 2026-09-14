@@ -1,5 +1,4 @@
 import { GameLoop } from './core/loop';
-
 import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from './render/autoquality';
