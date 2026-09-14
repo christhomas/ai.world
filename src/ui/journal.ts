@@ -58,7 +58,7 @@ export class Journal {
       const what = q.kind === 'visit' ? `find the ${q.target}` : `bring ${q.count}× ${ITEMS[q.target]?.name ?? q.target}`;
       const village = d.villages.find((v) => v.name === q.village);
       const where = village ? ` — ${q.village}, ${dist(village.x, village.z)} tiles ${bearing(village.x, village.z)}` : '';
-      return `<li>${done ? '✅' : '📜'} ${what}${where}</li>`;
+      return `<li class="list-row">${done ? '✅' : '📜'} ${what}${where}</li>`;
     });
 
     const found = [
@@ -71,18 +71,18 @@ export class Journal {
         icon: s.id.startsWith('cave') ? '🕳️' : s.id.startsWith('castle') ? '🏰' : '🚢',
       })),
     ].sort((a, b) => Math.hypot(a.x - d.playerX, a.z - d.playerZ) - Math.hypot(b.x - d.playerX, b.z - d.playerZ))
-      .map((p) => `<li>${p.icon} ${p.name} — ${dist(p.x, p.z)} tiles ${bearing(p.x, p.z)}</li>`);
+      .map((p) => `<li class="list-row">${p.icon} ${p.name} — ${dist(p.x, p.z)} tiles ${bearing(p.x, p.z)}</li>`);
 
     const boats = d.ferries.map((line) => {
       const st = ferryStateAt(line, d.seconds);
       const where = st.docked === 'from' ? line.fromName : st.docked === 'to' ? line.toName : 'at sea';
-      return `<li>⛵ ${line.fromName} ↔ ${line.toName} — ${where}, next arrival ${formatCountdown(Math.min(st.arrivesIn.from, st.arrivesIn.to))}</li>`;
+      return `<li class="list-row">⛵ ${line.fromName} ↔ ${line.toName} — ${where}, next arrival ${formatCountdown(Math.min(st.arrivesIn.from, st.arrivesIn.to))}</li>`;
     });
 
     const wornList = SLOTS.map((slot) => state.worn(slot)).filter((i) => i !== null)
-      .map((i) => `<li>${i!.emoji} ${i!.name} — ${itemSummary(i!) || i!.desc}</li>`);
+      .map((i) => `<li class="list-row">${i!.emoji} ${i!.name} — ${itemSummary(i!) || i!.desc}</li>`);
     const carried = [...state.inventory.items.entries()]
-      .map(([id, n]) => { const item = ITEMS[id]; return item ? `<li>${item.emoji} ${item.name}${n > 1 ? ` ×${n}` : ''} — ${itemSummary(item) || item.desc}</li>` : ''; })
+      .map(([id, n]) => { const item = ITEMS[id]; return item ? `<li class="list-row">${item.emoji} ${item.name}${n > 1 ? ` ×${n}` : ''} — ${itemSummary(item) || item.desc}</li>` : ''; })
       .filter(Boolean);
 
     const done = d.quests.filter((q) => state.quests.get(q.id) === 'done').length;

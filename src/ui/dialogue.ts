@@ -116,7 +116,7 @@ export class DialogueBox {
       </div>
       <div class="dlg-panel">
         <div class="dlg-text"></div>
-        <div class="dlg-choices"></div>
+        <div class="dlg-choices list-scroll"></div>
         <div class="dlg-hint">▼</div>
       </div>
       <div class="dlg-side dlg-me">
@@ -282,7 +282,7 @@ export class DialogueBox {
     if (showChoices) {
       const items = this.node.choices!.map((c, i) => {
         const note = c.note ? `<span class="dlg-note">${c.note}</span>` : '';
-        return `<div class="dlg-choice${i === this.choice ? ' sel' : ''}" data-choice="${i}">${i === this.choice ? '▶ ' : '  '}${c.label}${note}</div>`;
+        return `<div class="dlg-choice list-row${i === this.choice ? ' sel' : ''}" data-choice="${i}">${i === this.choice ? '▶ ' : '  '}${c.label}${note}</div>`;
       });
       this.choicesEl.innerHTML = items.join('');
       // and keep the highlighted row on screen: the shelf scrolls now, so moving down a long list

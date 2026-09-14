@@ -26,6 +26,13 @@ const band = (name: string): string => {
   return found![1].trim();
 };
 
+const declarations = (selector: string): string => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found = CSS.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, 's'));
+  expect(found, `there is no ${selector} rule`).not.toBeNull();
+  return found![1];
+};
+
 describe('the bands that own the edges', () => {
   it('names one for each edge the handoff reserves', () => {
     for (const edge of ['tabs', 'left', 'action', 'book', 'thumb']) {
@@ -54,6 +61,33 @@ describe('the bands that own the edges', () => {
     // cleared the tabs would sit where no thumb reaches, which is worse than an overlap nobody
     // can trigger
     expect(band('thumb')).toContain('124');
+  });
+});
+
+describe('the row shared by every decision list', () => {
+  it('is exactly 44 HUD units and cannot be squeezed shorter in a flex list', () => {
+    const size = CSS.match(/--list-row:\s*([^;]+);/)?.[1].trim();
+    expect(size, 'there is no shared list row size').toBe('calc(44 * var(--ui-scale))');
+    expect(declarations('.list-row')).toContain('height: var(--list-row)');
+    expect(declarations('.list-row')).toContain('flex: 0 0 var(--list-row)');
+  });
+
+  it('keeps list-specific rules from sizing their own rows', () => {
+    const verticalSize = /(?:^|;)\s*(?:block-size|height|min-height|max-height|padding|padding-block|padding-top|padding-bottom|flex|flex-basis)\s*:/;
+    const rows = [
+      '#dialogue .dlg-choice', '#journal li', '#players li', '.ro-table td',
+      '#rucksack .r-item', '#optionsPanel .opt-row',
+    ];
+    for (const selector of rows) {
+      expect(declarations(selector), `${selector} sizes itself instead of using .list-row`).not.toMatch(verticalSize);
+    }
+  });
+
+  it('keeps one scrolling rule and reserves room beside every row for its scrollbar', () => {
+    const scroll = declarations('.list-scroll');
+    expect(scroll).toContain('overflow-y: auto');
+    expect(scroll).toContain('min-height: 0');
+    expect(scroll).toContain('scrollbar-gutter: stable');
   });
 });
 

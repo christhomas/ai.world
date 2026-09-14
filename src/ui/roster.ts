@@ -119,7 +119,7 @@ export class Roster {
       ${unvisited(this.countVillages?.() ?? villages.size, villages.size)}
       <div class="ro-sort">Sort: ${(['village', 'name', 'age', 'purse', 'hunger'] as By[])
         .map((by) => `<button data-by="${by}" class="${by === this.by ? 'on' : ''}">${by}</button>`).join('')}</div>
-      <div class="ro-scroll"><table class="ro-table">
+      <div class="ro-scroll list-scroll"><table class="ro-table">
         <thead><tr><th>Name</th><th>Village</th><th>Trade</th><th>Age</th><th>Gold</th><th>Fed</th><th>Doing</th><th>Family</th></tr></thead>
         <tbody>${folk.map((p) => row(p, day, doing.get(p.id) ?? '')).join('')}</tbody>
       </table></div>
@@ -165,7 +165,7 @@ function row(p: Person, day: number, doing: string): string {
   const parents = p.mother || p.father ? `${firstOf(p.mother)} & ${firstOf(p.father)}` : '—';
   const fed = p.hungry === 0 ? '<span class="ro-fed">fed</span>'
     : `<span class="ro-hungry">${p.hungry}d</span>`;
-  return `<tr>
+  return `<tr class="list-row">
     <td>${p.name}</td>
     <td>${p.village}</td>
     <td>${p.trade || (stage === 'adult' ? '—' : stage)}</td>
