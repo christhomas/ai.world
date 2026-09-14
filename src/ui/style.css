@@ -634,6 +634,19 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   line-height: 1.7; color: var(--ink-far);
 }
 #titleRail .rail-block { display: flex; flex-direction: column; gap: calc(16 * var(--ui-scale)); }
+.title-world-fields { display: flex; flex-direction: column; gap: calc(8 * var(--ui-scale)); }
+.title-world-fields label, .title-world-fields summary {
+  color: var(--ink-dim); font-size: calc(12 * var(--ui-scale)); letter-spacing: var(--ui-scale);
+}
+.title-world-fields input {
+  width: 100%; box-sizing: border-box; background: #10162e; border: var(--ui-scale) solid var(--hair);
+  color: var(--ui-ink); padding: calc(9 * var(--ui-scale)) calc(10 * var(--ui-scale)); font: inherit;
+}
+.title-world-fields input:focus { border-color: var(--gold); outline: none; }
+.title-world-fields details { display: flex; flex-direction: column; }
+.title-world-fields summary { cursor: pointer; color: var(--ink-faint); }
+.title-world-fields details input { margin-top: calc(8 * var(--ui-scale)); }
+#titleWorldError { min-height: calc(14 * var(--ui-scale)); color: #ef8890; font-size: calc(11 * var(--ui-scale)); }
 /*
  * The build, at the very bottom of the rail.
  *

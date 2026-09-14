@@ -9,7 +9,17 @@ import type { Anchor } from '../src/world/manifest';
 import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
 
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 20;
+
+/** A durable, sayable handle for everything that makes one generated country. */
+export interface WorldRecord {
+  /** The spelling chosen by the first person through the door. */
+  name: string;
+  seed: number;
+  kind: WorldKind;
+  /** The island part of the manifest. Other anchors are local places, not country geometry. */
+  manifest: Anchor[];
+}
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -352,7 +362,7 @@ export type ClientMessage =
    * own guess. Told where somebody is at the moment they join, the world grows their first view
    * while it is still saying hello and the asking is answered out of memory.
    */
-  | { type: 'join'; seed: number; name: string; version: number; day: number; time: number; world: WorldKind; islands?: Anchor[]; x?: number; z?: number }
+  | { type: 'join'; worldName?: string; seed: number; name: string; version: number; day: number; time: number; world: WorldKind; islands?: Anchor[]; x?: number; z?: number }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
@@ -638,7 +648,7 @@ export type ServerMessage =
    * client is already drawing, so it has a name to put on the message.
    */
   | { type: 'arrested'; id: number }
-  | { type: 'welcome'; id: string; seed: number; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
+  | { type: 'welcome'; id: string; seed: number; world?: WorldRecord; players: Presence[]; clock: Clock; deltas: WorldDelta[] }
   /**
    * The country you joined is grown, and this is its fingerprint.
    *
@@ -815,6 +825,8 @@ export function cleanLetter(letter: Letter): Letter | null {
 export const LIMITS = {
   /** Hired men one side may bring to a fight. Must match HIRE.MOST in src/game/hire.ts. */
   SWORDS: 2,
+  /** A world's sayable name. */
+  WORLD_NAME: 48,
   /** A line of chat. */
   CHAT: 160,
   /** A player's name. */
@@ -867,6 +879,21 @@ export function cleanChat(text: string): string {
 export function cleanName(name: string): string {
   const cleaned = name.replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, LIMITS.NAME);
   return cleaned.length > 0 ? cleaned : 'Traveller';
+}
+/**
+ * A world name as it is shown. Invalid names are refused rather than turned into another name:
+ * silently removing a character could put somebody through a different world's door.
+ */
+export function cleanWorldName(value: unknown): string | null {
+  const name = String(value ?? '').normalize('NFKC').trim();
+  if (!name || [...name].length > LIMITS.WORLD_NAME) return null;
+  if (/[^\p{L}\p{N} _-]/u.test(name) || /\s{2,}/u.test(name)) return null;
+  return name;
+}
+
+/** Case and surrounding whitespace cannot create two names that sound the same. */
+export function worldKey(value: unknown): string | null {
+  return cleanWorldName(value)?.toLocaleLowerCase('en-US') ?? null;
 }
 
 /** One line per delta, so a log can be read and a duplicate spotted. */
