@@ -148,6 +148,49 @@ export interface Probed {
   sentOut: () => readonly Entity[];
 }
 
+/**
+ * Which villages a probe should try, in the order it should try them.
+ *
+ * `__enterShop` walked them in whatever order the world happens to hold them and took the first
+ * with a counter of the right sort, so a headless walk always landed in the same shop wherever the
+ * hero was standing (item 106). That makes a whole class of walk unprovable: a fur is worth more
+ * in a country that has none of it, and a probe that cannot leave the first village can never
+ * watch a price change with the country.
+ *
+ * Nearest first, because every other probe in this file answers about where the hero *is* and this
+ * was the one that did not. Still all of them, so a hero standing by a village with no such counter
+ * finds the next one along rather than nothing.
+ *
+ * A name overrides the distance entirely, and finds nothing when it matches nowhere — a walk that
+ * asked for the desert and was quietly given the nearest village would take its reading in the
+ * wrong country, which is worse than being told the place was not found.
+ */
+export function whichShopsToTry<T extends { name: string; x: number; z: number }>(
+  villages: readonly T[], hero: { x: number; z: number }, named: string | undefined,
+): T[] {
+  if (named !== undefined) {
+    const wanted = named.toLowerCase();
+    return villages.filter((village) => village.name.toLowerCase().includes(wanted));
+  }
+  return [...villages].sort((one, two) =>
+    Math.hypot(one.x - hero.x, one.z - hero.z) - Math.hypot(two.x - hero.x, two.z - hero.z));
+}
+
+/**
+ * Leave the building a shop probe is in, and report where the hero is afterward.
+ *
+ * The callback boundary keeps this rule testable without standing up the browser's full probe
+ * context. No building means no action and no place name; an interior is closed before the new
+ * place is read.
+ */
+export function leaveShop(
+  indoors: Places['indoors'], leaveBuilding: () => void, placeName: () => string,
+): string | null {
+  if (!indoors) return null;
+  leaveBuilding();
+  return placeName();
+}
+
 export function installProbes(ctx: Probed): void {
   const {
     seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
@@ -592,12 +635,8 @@ export function installProbes(ctx: Probed): void {
    * assume. Unnamed behaves exactly as before, which keeps every walk already written running.
    */
   (debug as { __enterShop?: (type?: string, village?: string) => string | null })
-    .__enterShop = (type = 'store', village?: string) => {
-    const wanted = village?.toLowerCase();
-    const looking = wanted === undefined
-      ? structures.villages
-      : structures.villages.filter((v) => v.name.toLowerCase().includes(wanted));
-    for (const village of looking) {
+    .__enterShop = (type = 'store', named?: string) => {
+    for (const village of whichShopsToTry(structures.villages, player, named)) {
       const shop = village.shops.find((s) => s.type === type);
       if (!shop) continue;
       const door = structures.doors.find((d) => d.bx === shop.house.tx && d.bz === shop.house.tz);
@@ -607,5 +646,16 @@ export function installProbes(ctx: Probed): void {
     }
     return null;
   };
+  /**
+   * And out again, which nothing could do.
+   *
+   * `__enterShop` walks the hero through a door and the only ways back out were walking into it
+   * again or the game shutting the world down — `__climbOut` is the dungeon's and refuses, and a
+   * teleport out is refused on purpose ("climb out first"). So a probe could visit one counter per
+   * page load, which is the other half of why the walk in item 106 could not be written: reading
+   * two quotes in two countries needs a second shop and there was no way to reach one.
+   */
+  (debug as { __leaveShop?: () => string | null }).__leaveShop = () =>
+    leaveShop(places.indoors, () => places.leaveBuilding(), placeName);
   debug.__standAtCounter = () => { commandWorld.standAtCounter(); };
 }
