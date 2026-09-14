@@ -172,11 +172,11 @@ export const FOOD = {
  * than a wage-earner. Counting only the working adults leaves a village of two dozen growing
  * sixteen dinners a night, and it dies of arithmetic within the season.
  */
-export function broughtIn(person: Person, shore = false): number {
+export function broughtIn(person: Person, shore = false, field: number = FOOD.PER_FARMER): number {
   // the rocks first, because they are the one thing here that everybody gets and nobody works at:
   // a child with a bucket at low water brings back what a soldier would
   const gathered = FOOD.PER_HEAD + (shore ? FOOD.PER_SHORE : 0);
-  if (person.trade === 'farmer') return gathered + FOOD.PER_FARMER;
+  if (person.trade === 'farmer') return gathered + field;
   if (person.trade === 'hunter') return gathered + FOOD.PER_HUNTER;
   return gathered;
 }

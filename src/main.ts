@@ -54,6 +54,8 @@ import { EntityManager } from './entities/manager';
 import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
+import { whichFieldClears } from './world/fieldbuilds';
+import { clearedFieldTiles } from './world/fields';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
 import { Director } from './game/director';
@@ -165,7 +167,12 @@ export function startGame(
   const roster = new Roster();          // everybody in the world, read live off the register
   const entityRenderer = new EntityRenderer(rig.scene);
   // who lives in the villages, and where they stand: a resettler has to walk there. `movingon.ts`
-  const register = new Register(seed); register.theyStandAt(structures.villages);
+  const register = new Register(seed);
+  register.theyStandAt(structures.villages);
+  register.fieldsAreSurveyedBy((name, settlement) => {
+    const village = structures.villages.find((at) => at.name === name);
+    return village ? whichFieldClears(village, settlement, sampler) : null;
+  });
   const entities = new EntityManager(
     entityRenderer, chunks, chunks, seed, structures.villages,
     // What a villager is paid for what they sell — the same share of the shop price the player
@@ -239,7 +246,17 @@ export function startGame(
   const cropField = new CropField(rig.scene, props, daycycle.glowMaterial);
   const buildingSite = new BuildingSite(rig.scene, props, daycycle.glowMaterial);
   // and on the same sites, the houses the villages built themselves: `game/villageroofs.ts`
-  const villageRoofs = roofWatch(() => structures.villages, (v) => register.worksOf(v));
+  const roofsToday = roofWatch(() => structures.villages, (v) => register.worksOf(v));
+  let fieldsDay = -1;
+  const villageRoofs = (day: number): ReturnType<typeof roofsToday> => {
+    const today = Math.floor(day);
+    if (today !== fieldsDay) {
+      fieldsDay = today;
+      const works = structures.villages.flatMap((village) => register.worksOf(village.name));
+      chunks.clearFields(clearedFieldTiles(works));
+    }
+    return roofsToday(day);
+  };
 
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {

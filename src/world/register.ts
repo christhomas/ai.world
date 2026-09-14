@@ -22,6 +22,7 @@ import { compactAll, type Opinion } from './memory';
 import { recallFor, toldOf, whoKnows } from './remembering';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
 import { commissionAStable, type StablePurchase, type StableYard } from './farmbuilds';
+import type { FieldClearing } from './fieldbuilds';
 /**
  * The living population of the world's villages: who is here today, and who has been born or died
  * since yesterday.
@@ -67,6 +68,8 @@ export class Register {
   /** Farmer stable commissions, told from the kept timber yard and replayed on their morning. */
   private readonly stablePurchases = new Map<string, StablePurchase>();
   /** The last whole day the register has caught up to. */
+  /** Physical ground is supplied by the country; the register only records its deterministic answer. */
+  private fieldSurvey: ((village: string, settlement: Settlement) => FieldClearing | null) | null = null;
   private day: number;
 
   constructor(private readonly seed: number, day = FOUNDED_ON) {
@@ -94,6 +97,7 @@ export class Register {
       waged: (id, much) => { this.earned.set(id, much); },
       stableBought: (village, on) => this.stablePurchases.get(this.stableKey(village, on)) ?? null,
       takeOff: (person, on, cause) => this.remove(person, on, cause),
+      fieldToClear: (village, settlement) => this.fieldSurvey?.(village, settlement) ?? null,
     };
   }
   private stableKey(village: string, day: number): string { return `${village}:${Math.floor(day)}`; }
@@ -444,6 +448,13 @@ export class Register {
   /** Where the villages are, as the world lays them out. Called once the country is grown. */
   theyStandAt(where: Iterable<{ name: string; x: number; z: number }>): void {
     for (const village of where) this.standing.set(village.name, { x: village.x, z: village.z });
+  }
+
+  /** Give each replay the same physical answer about which nearby tree a farm can clear. */
+  fieldsAreSurveyedBy(
+    survey: (village: string, settlement: Settlement) => FieldClearing | null,
+  ): void {
+    this.fieldSurvey = survey;
   }
 
   /** Somebody walks over the hill and takes on an empty village, one a day. See `movingon.ts`. */

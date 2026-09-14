@@ -18,6 +18,7 @@ import type { TerrainSampler } from './terrain';
 import { chunkKey } from './spatial';
 import { PropBatch, disposeInstances, meshFromData, type PropInstance } from '../render/instancing';
 import type { SeasonTintMaterials } from '../render/seasontint';
+import { withoutClearedTrees } from './fields';
 
 interface LoadedChunk {
   cx: number;
@@ -32,7 +33,8 @@ interface LoadedChunk {
    * guess.
    */
   grown: boolean;
-  /** What is standing on it, as boxes taken off the props' own geometry. */
+  /** Original generated props, retained so a newly bought clearing can update a loaded chunk. */
+  props: PropInstance[];
 }
 
 /**
@@ -75,6 +77,7 @@ const WAIT_FOR_A_NEW_COUNTRY = 10_000;
 
 export class ChunkManager implements TileWorld, ChunkSource {
   private readonly loaded = new Map<string, LoadedChunk>();
+  private clearedFields = new Set<string>();
   /** Ground the world has sent, waiting for a worker to draw it. */
   private readonly sent = new Map<string, ArrayBuffer>();
   /**
@@ -227,6 +230,19 @@ export class ChunkManager implements TileWorld, ChunkSource {
   /** The rock under this patch, for a country whose mountains change as you cross it. */
   standOn(ranges: Ranges | null): void {
     this.ranges = ranges;
+  }
+
+  /** Apply the replayed field ledger to props already drawn and to every chunk drawn later. */
+  clearFields(tiles: Iterable<{ x: number; z: number }>): void {
+    const next = new Set<string>();
+    for (const tile of tiles) next.add(`${Math.floor(tile.x)},${Math.floor(tile.z)}`);
+    if (next.size === this.clearedFields.size && [...next].every((tile) => this.clearedFields.has(tile))) return;
+    this.clearedFields = next;
+    for (const [key, chunk] of this.loaded) {
+      const visible = withoutClearedTrees(chunk.props, next);
+      this.solids.put(key, boxesFrom(visible, this.stops));
+      this.propBatch.set(key, visible);
+    }
   }
 
   update(x: number, z: number): void {
@@ -441,7 +457,9 @@ export class ChunkManager implements TileWorld, ChunkSource {
     if (msg.grown && this.sent.has(k)) this.queue.push({ cx: msg.cx, cz: msg.cz, since: 0 });
 
     if (msg.empty) {
-      this.loaded.set(k, { cx: msg.cx, cz: msg.cz, group: null, tiles: null, grown: msg.grown === true });
+      this.loaded.set(k, {
+        cx: msg.cx, cz: msg.cz, group: null, tiles: null, props: [], grown: msg.grown === true,
+      });
     } else {
       const group = new THREE.Group();
       const land = meshFromData(msg.mesh, this.terrainMaterial);
@@ -454,9 +472,11 @@ export class ChunkManager implements TileWorld, ChunkSource {
         water.renderOrder = 2;
         group.add(water);
       }
-      // the same boxes the server builds, from the same footprints and the same prop stream
-      this.solids.put(k, boxesFrom(readPropStream(msg.props), this.stops));
-      this.propBatch.set(k, readPropStream(msg.props));
+      // The generated stream remains intact; the ledger is an overlay shared with the server.
+      const props = [...readPropStream(msg.props)];
+      const visible = withoutClearedTrees(props, this.clearedFields);
+      this.solids.put(k, boxesFrom(visible, this.stops));
+      this.propBatch.set(k, visible);
       this.scene.add(group);
       // the ground of a chunk never moves once it is down, so the frame need not walk it every
       // frame asking whether it has: a hundred chunks of that is a hundred chunks of nothing
@@ -465,6 +485,7 @@ export class ChunkManager implements TileWorld, ChunkSource {
       group.matrixWorldAutoUpdate = false;
       this.loaded.set(k, {
         cx: msg.cx, cz: msg.cz, group, grown: msg.grown === true,
+        props,
         tiles: { cx: msg.cx, cz: msg.cz, types: msg.types, heights: msg.heights, waters: msg.waters, biomes: msg.biomes },
       });
       this.stats.drawn++;
