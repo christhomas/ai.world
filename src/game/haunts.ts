@@ -111,18 +111,6 @@ export function hauntsOf(seed: number, structures: Structures): Haunt[] {
   return kept;
 }
 
-/** The kept place whose ground this point is on, or null for the whole rest of the country. */
-export function hauntNear(haunts: readonly Haunt[], x: number, z: number): Haunt | null {
-  let best: Haunt | null = null;
-  let nearest: number = HAUNT.GROUND;
-  for (const haunt of haunts) {
-    const away = Math.hypot(haunt.x - x, haunt.z - z);
-    if (away > nearest) continue;
-    nearest = away;
-    best = haunt;
-  }
-  return best;
-}
 
 /** Is what keeps this place out at this hour? A wight is not; everything else always is. */
 export function abroad(haunt: Haunt, time: number): boolean {
