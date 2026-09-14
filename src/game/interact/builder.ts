@@ -2,7 +2,7 @@ import {
   BUILD, BUILDS, buildable, builderIn, deposit, isFinished,
   Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
 } from '../building';
-import { workTheHallJobs } from '../halljobs';
+import { buildingStarted, workTheHallJobs } from '../halljobs';
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
 import { jettiesIn, type Mooring } from '../jetties';
 import { moorageFor } from '../sailing';
@@ -154,7 +154,7 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
   const due = mine.filter((job) => owed(job, day) > 0);
   const going = mine.filter((job) => !isFinished(job, day));
 
-  if (!held && !going.length && !due.length) {
+  if (!held && !due.length) {
     /*
      * What this man will put up for you.
      *
@@ -186,7 +186,7 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
       }),
     });
 
-    /** Taking him on for one particular thing: the deposit leaves, and he waits to be told where. */
+    /** Take one order now, or put it on the books until its timber arrives. */
     function order(entry: Buildable): DialogueNode {
       const down = deposit(entry.price);
       if (state.inventory.gold < down) {
@@ -200,30 +200,37 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
        * yard gives is the honest one — wait for the woodcutters, or go and cut it yourself and sell it
        * over the trestle here, which puts it on the same stack.
        */
-      const short = houses.yard.shortBy(village.name, entry.timber);
-      if (short > 0) {
+      const accept = (waiting: boolean): DialogueNode => {
+        if (!waiting) houses.yard.draw(village.name, entry.timber);
+        holds(state.inventory).take(down);
+        houses.takeOn(village.name, entry.price, down, entry.id, waiting);
+        state.version++;
+        sound.select();
+        persist();
         return {
           speaker: name, emoji: '🔨',
           pages: [
-            `${entry.name[0].toUpperCase()}${entry.name.slice(1)} wants ${entry.timber} good lengths and the yard has ${houses.yard.at(village.name)}.`,
-            woodcuttersFor(ctx.register.living(village.name)) > 0
-              ? `Give the woodcutters a few days. ${short} short, and they cut six a day between them.`
-              : 'Nobody here cuts. Bring it in yourself and put it on a stall, and it goes on the same stack.',
+            waiting
+              ? `${down} gold puts you on the backlog. Work starts when the yard can cover yours.`
+              : `${down} gold, and I will not ask for the rest until it is standing. ${entry.price - down} more on the day it is done.`,
+            whereToStand(entry),
           ],
         };
-      }
-      houses.yard.draw(village.name, entry.timber);
-      // The deposit stays on the commission's hall account and buys one worker at a time.
-      holds(state.inventory).take(down);
-      houses.takeOn(village.name, entry.price, down, entry.id);
-      state.version++;
-      sound.select();
-      persist();
+      };
+      const short = houses.yard.shortBy(village.name, entry.timber);
+      if (short <= 0) return accept(false);
+      const cutters = woodcuttersFor(ctx.register.living(village.name));
       return {
         speaker: name, emoji: '🔨',
         pages: [
-          `${down} gold, and I will not ask for the rest until it is standing. ${entry.price - down} more on the day it is done.`,
-          whereToStand(entry),
+          `${entry.name[0].toUpperCase()}${entry.name.slice(1)} wants ${entry.timber} good lengths and the yard has ${houses.yard.at(village.name)}.`,
+          cutters > 0
+            ? `${short} short, and the woodcutters bring ${cutters * 6} a day. Join the backlog?`
+            : `${short} short and nobody here cuts. Join the backlog and bring it in yourself?`,
+        ],
+        choices: [
+          { label: 'Join the backlog', next: () => accept(true) },
+          { label: 'No, keep my money', next: () => null },
         ],
       };
     }
@@ -388,13 +395,8 @@ export function builderInteractions(ctx: Surroundings) {
      * that put a hull on somebody else's beach would put it there for ever: they never settle up
      * for her, so on their screen she would never be launched and the yard would never clear.
      */
-    if (!wants.moves) {
-      ctx.told({
-        kind: 'built', id: job.id, village: job.village,
-        x: job.x, z: job.z, rot: job.rot ?? 0, day: Math.floor(job.began),
-        what: job.what, to: job.to,
-      });
-    }
+    const started = buildingStarted(job);
+    if (started) ctx.told(started);
     state.version++;
     sound.chime();
     hud.flash(wants.moves ? `A keel on the blocks. ${wants.days} days.`
@@ -673,6 +675,10 @@ export function builderInteractions(ctx: Surroundings) {
       const stable = register.commissionStable(village, houses.yard, state.day);
       if (stable) houses.rememberStablePurchase(stable);
       if (stable || houses.yard.at(village) !== before) yardChanged = true;
+      for (const job of houses.startBacklog(village, state.day)) {
+        const started = buildingStarted(job);
+        if (started) ctx.told(started);
+      }
     }
     const worked = workTheHallJobs(
       houses, day, (village) => register.living(village), [...busy.values()].flat(),
