@@ -89,6 +89,12 @@ describe('the row shared by every decision list', () => {
     expect(scroll).toContain('min-height: 0');
     expect(scroll).toContain('scrollbar-gutter: stable');
   });
+
+  it('gives a switch explanation the wide column instead of the narrow value gutter', () => {
+    const switched = declarations('#optionsPanel .opt-row:has(input[type="checkbox"])');
+    expect(switched).toContain('calc(20 * var(--ui-scale)) 1fr');
+    expect(declarations('#optionsPanel .opt-hint')).toContain('grid-column: 3');
+  });
 });
 
 describe('the two rules the bugs were in', () => {

@@ -58,3 +58,29 @@ export function wearTheme(theme: Theme, root: HTMLElement = document.documentEle
   root.setAttribute('data-theme', theme);
   try { localStorage.setItem(KEY, theme); } catch { /* nothing to do */ }
 }
+
+/**
+ * Put the themes this build actually has into its picker, and make the picker the one way to wear
+ * one. The caller does this during boot, before the title screen is shown, so a remembered choice
+ * dresses the first frame rather than arriving only after a world has been opened.
+ */
+export function installThemePicker(
+  picker: HTMLSelectElement,
+  note: HTMLElement,
+  root: HTMLElement = document.documentElement,
+): void {
+  const choose = (theme: Theme): void => {
+    picker.value = theme;
+    note.textContent = THEMES.find(({ id }) => id === theme)!.note;
+    wearTheme(theme, root);
+  };
+  const options = THEMES.map(({ id, name }) => {
+    const option = picker.ownerDocument.createElement('option');
+    option.value = id;
+    option.textContent = name;
+    return option;
+  });
+  picker.replaceChildren(...options);
+  choose(themeChosen());
+  picker.addEventListener('change', () => choose(known(picker.value) ?? DEFAULT_THEME));
+}

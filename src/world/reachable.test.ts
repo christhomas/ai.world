@@ -106,8 +106,6 @@ const EXPLAINED = new Map<string, string>([
   ['src/game/stables.ts: bestOver', 'wire-or-delete decision tracked by issue #88'],
   ['src/game/whales.ts: landingOf', 'wire-or-delete decision tracked by issue #88'],
   ['src/render/footprint.ts: measureFootprint', 'wire-or-delete decision tracked by issue #88'],
-  ['src/ui/themes.ts: themeChosen', 'theme application caller is pending in issue #73'],
-  ['src/ui/themes.ts: wearTheme', 'theme application caller is pending in issue #73'],
   ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
   ['src/world/character.ts: characterAt', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
