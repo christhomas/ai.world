@@ -218,6 +218,8 @@ export const TRADERS: readonly string[] = ['seller', 'innkeeper', 'doctor'];
  */
 const FED_BY_NEIGHBOURS: readonly string[] = ['farmer', 'hunter'];
 
+/** Trades whose living is a contract with the village rather than income from beyond it. */
+const PAID_BY_THE_HALL: readonly string[] = ['constable'];
 /**
  * What one person earns on one ordinary day, from beyond the village.
  *
@@ -229,13 +231,14 @@ const FED_BY_NEIGHBOURS: readonly string[] = ['farmer', 'hunter'];
  *
  * So a miner's seam, a sailor's catch, a soldier's pay off the road and an explorer's finds are
  * here; a traveller's money at the inn, the surgery and the market stall is here, at the higher
- * rate, because a trader's customers are both the village and everybody passing through it; and a
- * farmer and a hunter are not here at all, because every coin they see comes from a neighbour.
+ * rate, because a trader's customers are both the village and everybody passing through it. A
+ * farmer and hunter are paid by neighbours, while a constable is paid by the hall; none of those
+ * payments arrives from outside.
  */
 export function earnedInADay(person: Person, pressure: number): number {
   if (pressure > PROSPER.UNTROUBLED) return 0;
   if (!person.trade) return 0;                       // children and the very old keep no purse
-  if (FED_BY_NEIGHBOURS.includes(person.trade)) return 0;
+  if (FED_BY_NEIGHBOURS.includes(person.trade) || PAID_BY_THE_HALL.includes(person.trade)) return 0;
   return TRADERS.includes(person.trade) ? PROSPER.TRADED : PROSPER.A_DAY;
 }
 

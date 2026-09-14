@@ -144,7 +144,7 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day:
    */
   payAndSweep(village, new Map([[THE_HALL_OWNER, tax.raised + trading.toTheHall]]));
   for (const person of village.people) o.taxed(person.id, -(tax.owed.get(ownedBy(person)) ?? 0));
-  theVillageSpends(o, village, day);
+
   return trading;
 }
 
@@ -276,12 +276,22 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
   const changes = [
     ...buryTheOld(o, village, day),
     ...dinner(o, village, day, work),
+  ];
+  /*
+   * Hall wages settle after dinner. The morning's trading books are written before anybody is
+   * paid by the hall; letting that later wage decide who could buy dinner makes another person's
+   * food income differ from the book by exactly one meal. Funerals also happen first, so a contract
+   * is paid to whoever is alive to fill it rather than into an estate moments before burial.
+   * Buildings still stand before births are considered, so a roof raised today makes room today.
+   */
+  theVillageSpends(o, village, day);
+  changes.push(
     ...fillTheGaps(o, name, village, day, pressure),
     ...growUp(o, name, village, day),
     ...takeTheKilled(o, village, day),
     ...mendThePeople(village),
-    ...raiseWhoIsDue(name, village, day, streamFor(o.seed, `${name}:shrine`, day)),
-  ];
+    ...raiseWhoIsDue(name, village, day, streamFor(o.seed, name + ':shrine', day)),
+  );
   // and who holds what, re-hung after the funerals and the growing-up so that the day's dead and
   // the day's new adults are both settled before a farm changes hands. See `holdings.ts`
   village.holdings = whatTheVillageHolds(name, village, day);

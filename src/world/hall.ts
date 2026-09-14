@@ -187,23 +187,34 @@ export function upkeepOf(built: readonly string[]): number {
  *   has built everything is not finished, it is staffed — and one that falls on hard times stops
  *   renewing, which is a thing you can see from the road when the tower is empty.
  */
-export const POSTS: ReadonlyArray<{
-  /** The building whose work this is: a village has to have raised something to need the job. */
-  of: string;
+type HallPost = {
   job: string;
   wage: number;
   /** One post, and another for every this-many souls: how a village's work grows with the village. */
   per: number;
-}> = [
+} & (
+  | { /** The building whose work this is. */ of: string; held?: never }
+  | { /** The trade whose holder fills this post. */ held: string; of?: never }
+);
+
+export const POSTS: readonly HallPost[] = [
   /*
    * The watch, which is a rota and not a man.
    *
    * One per twenty souls, because what a watch covers is the place rather than the tower: a hamlet
    * needs somebody up there at night and a town of ninety needs somebody up there all night, which
-   * is three people taking turns. `whoStandsWatch` named exactly one and that is what it stays for
-   * — the man on the tower *now*, for whoever is asking who to talk to — while this is the payroll.
+   * is three people taking turns. whoStandsWatch named exactly one and that is what it stays for
+   * — the man on the tower now, for whoever is asking who to talk to — while this is the payroll.
+   * It remains first because house construction reserves this wage before spending: a new contract
+   * must not turn an already-manned tower into an empty one.
    */
   { of: 'watchtower', job: 'watchman', wage: WATCH_WAGE, per: 20 },
+  /*
+   * Unlike a watchman, a constable already holds the work as a trade. The station comes from the
+   * seed rather than the hall's building ledger, so this post hangs off the trade itself. Its wage
+   * matches the outside income it replaces: the change is who pays, not how rich the constable is.
+   */
+  { held: 'constable', job: 'constable', wage: PROSPER.A_DAY, per: 20 },
   /* Somebody has to draw the water, sweep the yard and mend the rope. One is enough for anywhere. */
   { of: 'well', job: 'water carrier', wage: 6, per: 60 },
   /* A bath house is fires, water and a floor to mop, and it is open every day it is not frozen. */
@@ -214,52 +225,32 @@ export const POSTS: ReadonlyArray<{
   { of: 'aqueduct', job: 'water warden', wage: 10, per: 40 },
 ];
 
-/** How many of a post a village of this size keeps: one, and another for every `per` souls over. */
-export function postsFor(post: typeof POSTS[number], souls: number): number {
+/** How many of a post a village of this size keeps: one, and another for every per souls over. */
+export function postsFor(post: HallPost, souls: number): number {
   return Math.max(1, Math.ceil(souls / post.per));
 }
 
-/** What this village's payroll comes to today, before it is discovered who can be paid. */
-export function payrollOf(built: readonly string[], souls: number): number {
-  let owed = 0;
-  for (const post of POSTS) {
-    if (!built.includes(post.of)) continue;
-    owed += postsFor(post, souls) * post.wage;
-  }
-  return Math.round(owed * 100) / 100;
+function postIsHeld(post: HallPost, built: readonly string[], people: readonly Person[]): boolean {
+  return post.of === undefined
+    ? people.some((person) => person.trade === post.held)
+    : built.includes(post.of);
 }
+
 
 /**
  * Who the hall has on its payroll this morning, and what it costs.
  *
- * Staffed from whoever holds no trade, which is the same group `whoStandsWatch` draws from and
- * deliberately: a village does not take its smith off the forge to watch a road. Where there are
- * not enough of those to fill the posts, the rest go unfilled — a village of tradesmen has nobody
- * spare, which is a real thing about a place rather than a shortfall to paper over.
+ * A post attached to a trade is filled only by somebody who holds it. A post attached to a work
+ * prefers whoever holds no trade, then the youngest trade-holder when everybody already has work.
+ * Nobody fills two posts on the same day.
  *
- * Oldest first, because the ones least able to go and find something else are the ones a village
- * puts on its own books, and because an order settled by the register would differ between two
- * machines reading the same village.
- *
- * And it pays what it can. A hall short of money fills the posts it can afford in the order they
- * are listed — the watch before the bath house, which is the same "safety before comfort" the
- * buying list is ordered by — and the rest of the jobs simply are not done that day.
+ * And the hall pays only what it can. Posts are considered in listed order, so the watch and law
+ * come before amenities; once the treasury cannot meet the next wage, the remaining posts go
+ * unfilled for the day.
  */
 export function whoTheHallEmploys(
   purse: number, built: readonly string[], people: readonly Person[],
 ): { paid: Map<Owner, number>; costs: number; jobs: number; watch: string } | null {
-  /*
-   * Who the village puts on its own books, in the order it would.
-   *
-   * Whoever holds no trade first, oldest of them first — a village does not take its smith off the
-   * forge to watch a road, and the ones least able to go and find something else are the ones it
-   * keeps. But that is a preference and not a rule: a village where everybody holds a trade still
-   * wants a watch, and it falls to the youngest, which is the same answer `whoStandsWatch` has
-   * always given and for the same reason anybody would.
-   *
-   * The ordering is settled on the id where two people match, because an order left to the roll
-   * would differ between two machines reading the same village.
-   */
   const spare = [
     ...people.filter((person) => person.trade === '')
       .sort((a, b) => a.born - b.born || (a.id < b.id ? -1 : 1)),
@@ -269,21 +260,25 @@ export function whoTheHallEmploys(
   if (spare.length === 0) return null;
 
   const paid = new Map<Owner, number>();
+  const assigned = new Set<string>();
   let costs = 0;
-  let at = 0;
-  // who is actually on the tower, which used to be asked separately and answered by a different
-  // rule. It is the first watchman the payroll reaches, so the man who is paid and the man anybody
-  // walking up would find are the same man by construction rather than by agreement
   let watch = '';
   for (const post of POSTS) {
-    if (!built.includes(post.of)) continue;
-    for (let n = 0; n < postsFor(post, people.length); n++) {
-      if (at >= spare.length) break;
+    if (!postIsHeld(post, built, people)) continue;
+    const candidates = post.held === undefined
+      ? spare
+      : people.filter((person) => person.trade === post.held)
+        .sort((a, b) => a.born - b.born || (a.id < b.id ? -1 : 1));
+    let filled = 0;
+    for (const person of candidates) {
+      if (filled >= postsFor(post, people.length)) break;
+      if (assigned.has(person.id)) continue;
       if (costs + post.wage > purse) return finish(paid, costs, watch);
-      paid.set(ownedBy(spare[at]), Math.round(((paid.get(ownedBy(spare[at])) ?? 0) + post.wage) * 100) / 100);
+      paid.set(ownedBy(person), post.wage);
+      assigned.add(person.id);
       costs = Math.round((costs + post.wage) * 100) / 100;
-      if (post.of === 'watchtower' && watch === '') watch = spare[at].id;
-      at++;
+      filled++;
+      if (post.of === 'watchtower' && watch === '') watch = person.id;
     }
   }
   return finish(paid, costs, watch);
