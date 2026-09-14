@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { whatShipped } from './release';
+import { whatEachSaid, whatShipped } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -134,5 +134,58 @@ describe('what a release writes down about itself', () => {
       expect(full, `${tag} is in the README and not in the changelog`).not.toBeNull();
       expect(said.trim()).toBe(full![1].trim());
     }
+  });
+});
+
+/**
+ * What the README's front page says a release was.
+ *
+ * The README carries the ten most recent entries and the changelog carries all of them, which is
+ * two records of one fact — the fault this project finds most often — so the ten are *rebuilt* from
+ * the changelog every release rather than maintained beside it. That was the right shape and it
+ * quietly stopped working: every entry on the front page read "No note was written for this one",
+ * including the ones plainly written with notes, and it had been that way for eleven releases.
+ *
+ * The cause is one character. The entry was matched with `([\s\S]*?)(?=\n## v|$)` under the `m`
+ * flag, where `$` is the end of a *line* rather than the end of the text — so the lazy body gave up
+ * at the first line ending it met, which is the blank line under the heading, and every entry came
+ * back empty.
+ *
+ * It passed unnoticed because the release runs the suite *before* it writes these files, so the
+ * thing it breaks is never the thing it checked. The test below reads a changelog rather than the
+ * repository's, so it is about the rule instead of about today's release.
+ */
+describe('what the README says a release was', () => {
+  const log = [
+    '# Changelog', '', 'Some words about the file itself.', '',
+    '## v0.3.0 — 2026-09-13', '', 'A villager gets round the back of his own house', '',
+    '- Exhaust one side of an obstacle before trying the other (#83)', '',
+    '## v0.2.0 — 2026-09-12', '', 'The shrine takes its fee by name', '',
+    '## v0.1.0 — 2026-09-01', '', 'The first one', '',
+  ].join('\n');
+
+  it('is the line that release opens with, not an apology for not finding one', () => {
+    expect(whatEachSaid(log).map((e) => e.said)).toEqual([
+      'A villager gets round the back of his own house',
+      'The shrine takes its fee by name',
+      'The first one',
+    ]);
+  });
+
+  it('keeps the tag and the day beside it', () => {
+    expect(whatEachSaid(log)[0]).toEqual({
+      tag: 'v0.3.0', when: '2026-09-13', said: 'A villager gets round the back of his own house',
+    });
+  });
+
+  it('reads the last entry in the file, which is the one a line-ending rule loses', () => {
+    // the oldest release sits at the end of the text with nothing after it, and it is the case
+    // that tells an end-of-text rule from an end-of-line one
+    expect(whatEachSaid(log).at(-1)?.tag).toBe('v0.1.0');
+  });
+
+  it('keeps an actually empty note for the README fallback', () => {
+    const bare = ['# Changelog', '', '## v0.4.0 — 2026-09-14', '', ''].join('\n');
+    expect(whatEachSaid(bare)[0]?.said).toBe('');
   });
 });
