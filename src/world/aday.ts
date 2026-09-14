@@ -185,7 +185,9 @@ export function theVillageSpends(o: TheDay, name: string, village: Settlement, d
   const spending = whatTheVillageSpends(
     village.hall.purse, village.works, village.houses, village.founded, village.people, village.rank,
     village.food, village.holdings ?? [], village.herd, day);
-  const clearing = o.fieldToClear?.(name, village) ?? null;
+  // A village raises at most one private holding in a morning; do not let field work debit the
+  // same farmer after the founding decision has already reserved their purse.
+  const clearing = spending.founded.length === 0 ? (o.fieldToClear?.(name, village) ?? null) : null;
   village.watch = spending.watch;
   // a villager founding a holding spends none of the hall's money, so what the hall spent is no
   // longer the whole test for "nothing happened here this morning"
