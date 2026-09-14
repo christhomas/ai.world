@@ -675,7 +675,7 @@ export function builderInteractions(ctx: Surroundings) {
       const stable = register.commissionStable(village, houses.yard, state.day);
       if (stable) houses.rememberStablePurchase(stable);
       if (stable || houses.yard.at(village) !== before) yardChanged = true;
-      for (const job of houses.startBacklog(village, state.day)) {
+      for (const job of houses.startBacklog(village, day)) {
         const started = buildingStarted(job);
         if (started) ctx.told(started);
       }
