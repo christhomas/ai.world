@@ -244,12 +244,6 @@ export const SKYWARD = {
   HEAVY: { wood: 4, cart: 40, silverore: 4, nugget: 3, bearpelt: 3, plate: 4, mail: 3, ironshield: 2, axe: 2 } as Record<string, number>,
 } as const;
 
-/** What a pack weighs to an eagle. Everything counts one; the haulage counts what it says. */
-export function packWeight(items: Iterable<readonly [string, number]>): number {
-  let total = 0;
-  for (const [id, n] of items) total += (SKYWARD.HEAVY[id] ?? 1) * n;
-  return total;
-}
 
 /** The thing in the pack the bird objects to most, or null when it will lift the lot. */
 export function tooHeavy(items: Iterable<readonly [string, number]>): { weight: number; worst: string } | null {

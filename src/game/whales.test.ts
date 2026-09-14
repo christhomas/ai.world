@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateRoadGraph } from '../world/graph';
 import { TerrainSampler } from '../world/terrain';
-import { HOUR_SECONDS, WHALE, displayAt, hourAt, landingOf, podsIn, podsWithin, whaleAt } from './whales';
+import { HOUR_SECONDS, WHALE, displayAt, hourAt, podsIn, podsWithin, whaleAt } from './whales';
 
 /** A square of country, of the size the whole of a bounded world used to be. */
 const square = (r: number) => ({ x0: -r, z0: -r, x1: r, z1: r });
@@ -131,10 +131,4 @@ describe('when whales breach', () => {
     expect(whaleAt(pod, 1, during(WHALE.PERIOD / 3 + 0.2)).airborne).toBe(true);
   });
 
-  it('names the spot where one comes down, and nothing while it is still up', () => {
-    expect(landingOf(pod, 0, during(WHALE.ARC / 2))).toBeNull();
-    const splash = landingOf(pod, 0, during(WHALE.ARC * 0.95));
-    expect(splash).not.toBeNull();
-    expect(Number.isFinite(splash!.x)).toBe(true);
-  });
 });

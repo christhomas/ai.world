@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PROVINCE, provinceOf } from './provinces';
-import { TEMPER, characterAt, characterOf, dangerAt } from './character';
+import { TEMPER, characterOf, dangerAt } from './character';
 import { SPAWN } from '../entities/spawning';
 import { TEMPER as OUT_AFTER_DARK } from '../entities/wilds';
 
@@ -12,9 +12,8 @@ import { TEMPER as OUT_AFTER_DARK } from '../entities/wilds';
  * players standing in it can agree about and a player who leaves and comes back finds unchanged.
  */
 describe('what a province is like', () => {
-  it('is the same answer however it is asked, and on every machine', () => {
+  it('is the same answer on every machine', () => {
     const id = provinceOf(700, -300);
-    expect(characterOf(99, id)).toEqual(characterAt(99, 700, -300));
     expect(characterOf(99, id)).toEqual(characterOf(99, id));
   });
 

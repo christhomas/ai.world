@@ -15,10 +15,6 @@ export function seasonOf(day: number): Season {
   return (Math.floor((day - 1) / SEASON_LENGTH) % 4) as Season;
 }
 
-/** How far through the current season we are, 0..1. */
-export function seasonProgress(day: number, time: number): number {
-  return (((day - 1) % SEASON_LENGTH) + time) / SEASON_LENGTH;
-}
 
 export interface SeasonTint {
   /** Multiplied into terrain and prop colours. */

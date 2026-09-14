@@ -3,8 +3,8 @@ import { generateRoadGraph } from '../world/graph';
 import { TerrainSampler } from '../world/terrain';
 import type { Structures } from '../world/structures';
 import {
-  ROAM, Roaming, bandAt, bandFor, bandsNear, bandsOver, breaksAt, distanceTo,
-  groundsOf, outOfSight, planBands, regionOf, stopsOf, warningFor,
+  ROAM, Roaming, bandAt, bandFor, bandsNear, breaksAt, distanceTo,
+  groundsOf, outOfSight, stopsOf, warningFor,
   type Band, wayTo, nameFor, DRAGON_COUNTRY,
 } from './roaming';
 // what a band does to the village it stands over lives beside where it stands: see `leaning.ts`
@@ -19,6 +19,9 @@ const world = (seed: number): Structures => {
   worlds.set(seed, grown);
   return grown;
 };
+
+/** The runtime's opening roster, used rather than an export built only for this suite. */
+const rosterOf = (seed: number, structures: Structures): Band[] => new Roaming(seed, structures).roster();
 
 /** Somewhere no band will ever be, for the half of every comparison that should feel nothing. */
 const nowhere = { name: 'Nowhere', x: 1e5, z: 1e5 };
@@ -57,14 +60,14 @@ const badDayOver = (band: Band, place: { name: string; x: number; z: number }): 
 
 describe('where a band is', () => {
   it('is the same place for everybody who asks, and a different place tomorrow', () => {
-    const bands = planBands(1, world(1));
+    const bands = rosterOf(1, world(1));
     // no count to check against any more: a country has as many bands as it has ground worth
     // holding, so what is asked is that it is neither a wilderness nor a war
     expect(bands.length, 'a country nothing walks in').toBeGreaterThan(8);
     expect(bands.length, 'a country that is all war bands').toBeLessThan(stopsOf(world(1)).length);
     // the same world, planned again, has the same bands walking the same roads
-    expect(planBands(1, world(1))).toEqual(bands);
-    expect(planBands(2, world(1)).map((b) => b.circuit[0].name)).not.toEqual(bands.map((b) => b.circuit[0].name));
+    expect(rosterOf(1, world(1))).toEqual(bands);
+    expect(rosterOf(2, world(1)).map((b) => b.circuit[0].name)).not.toEqual(bands.map((b) => b.circuit[0].name));
 
     for (const band of bands) {
       expect(bandAt(band, 9)).toEqual(bandAt(band, 9));
@@ -77,7 +80,7 @@ describe('where a band is', () => {
 
   it('is somewhere else entirely by next week', () => {
     for (const seed of [1, 5]) {
-      const bands = planBands(seed, world(seed));
+      const bands = rosterOf(seed, world(seed));
       const away = bands.map((b) => strayed(b, 1, 7));
       // every one of them has left the ground it was pressing, so a village cleared last week
       // tells you nothing about the village this week
@@ -88,7 +91,7 @@ describe('where a band is', () => {
   });
 
   it('stands over the places on its round rather than merely passing them', () => {
-    const band = planBands(1, world(1))[0];
+    const band = rosterOf(1, world(1))[0];
     let camped = 0;
     for (let day = 1; day <= 60; day++) {
       const now = bandAt(band, day);
@@ -103,7 +106,7 @@ describe('where a band is', () => {
   });
 
   it('offers only the bands somebody could actually walk into', () => {
-    const bands = planBands(3, world(3));
+    const bands = rosterOf(3, world(3));
     const here = bandAt(bands[0], 12);
     expect(bandsNear(bands, here.x, here.z, 12, 1)).toEqual([bands[0]]);
     expect(bandsNear(bands, 1e5, 1e5, 12)).toEqual([]);
@@ -121,7 +124,7 @@ describe('where a band is', () => {
 });
 
 describe('what a band does to a village', () => {
-  const band = planBands(1, world(1))[0];
+  const band = rosterOf(1, world(1))[0];
   const home = band.circuit[0];
 
   it('leans on what it is standing over and on nothing over the horizon', () => {
@@ -137,7 +140,7 @@ describe('what a band does to a village', () => {
   });
 
   it('costs a village people, and costs a village nothing ever reaches none', () => {
-    const bands = planBands(1, world(1));
+    const bands = rosterOf(1, world(1));
     const over = (place: { name: string; x: number; z: number }) => {
       let taken = 0, worstDay = 0, worstNight = 1;
       for (let day = 1; day <= 60; day++) {
@@ -191,7 +194,7 @@ describe('what a band does to a village', () => {
 });
 
 describe('the ebb', () => {
-  const bands = planBands(1, world(1));
+  const bands = rosterOf(1, world(1));
 
   it('has quiet spells and bad ones rather than one long slide', () => {
     for (const band of bands.slice(0, 8)) {
@@ -263,7 +266,7 @@ describe('dealing with one', () => {
 
   it('lets a pack scatter and makes a lone thing be killed outright', () => {
     const sizes = new Set<number>();
-    for (const band of planBands(1, structures)) {
+    for (const band of rosterOf(1, structures)) {
       sizes.add(band.size);
       expect(breaksAt(band)).toBeLessThan(band.size);
       // one or two of something have nobody to run with; a real pack always leaves survivors
@@ -353,7 +356,7 @@ describe('dealing with one', () => {
   });
 
   it('has a word for anybody who walks into one', () => {
-    for (const band of planBands(1, structures)) {
+    for (const band of rosterOf(1, structures)) {
       expect(warningFor(band)).toContain(band.circuit[0].name);
     }
   });
@@ -363,9 +366,9 @@ describe('one person can hold a region, and not a world', () => {
   it('puts a handful of bands over a neighbourhood and a world of them over a world', () => {
     for (const seed of [1, 2, 5, 12]) {
       const structures = world(seed);
-      const bands = planBands(seed, structures);
+      const bands = rosterOf(seed, structures);
       const villages = structures.villages;
-      const region = regionOf(villages, villages[0].x, villages[0].z);
+      const region = villages.filter((village) => Math.hypot(village.x - villages[0].x, village.z - villages[0].z) <= ROAM.REGION);
       expect(region.length).toBeGreaterThan(0);
       expect(region.length).toBeLessThan(villages.length);
 
@@ -376,8 +379,11 @@ describe('one person can hold a region, and not a world', () => {
         const here = new Set<string>();
         const anywhere = new Set<string>();
         for (let day = start; day < start + ROAM.BROKEN_FOR; day++) {
-          for (const b of bandsOver(bands, region, day)) here.add(b.id);
-          for (const b of bandsOver(bands, villages, day)) anywhere.add(b.id);
+          for (const band of bands) {
+            const at = bandAt(band, day);
+            if (region.some((place) => Math.hypot(place.x - at.x, place.z - at.z) < ROAM.PRESS_WITHIN)) here.add(band.id);
+            if (villages.some((place) => Math.hypot(place.x - at.x, place.z - at.z) < ROAM.PRESS_WITHIN)) anywhere.add(band.id);
+          }
         }
         mostHere = Math.max(mostHere, here.size);
         mostAnywhere = Math.max(mostAnywhere, anywhere.size);
@@ -411,12 +417,17 @@ describe('one person can hold a region, and not a world', () => {
 
   const forEveryVillage = (seed: number): void => {
     const structures = world(seed);
-    const bands = planBands(seed, structures);
+    const bands = rosterOf(seed, structures);
     // every village is worked by something over a season: a place nothing ever comes to is a
     // place nobody has any reason to defend
     for (const village of structures.villages) {
       let seen = 0;
-      for (let day = 1; day <= 90; day++) seen += bandsOver(bands, [village], day).length;
+      for (let day = 1; day <= 90; day++) {
+        for (const band of bands) {
+          const at = bandAt(band, day);
+          if (Math.hypot(village.x - at.x, village.z - at.z) < ROAM.PRESS_WITHIN) seen++;
+        }
+      }
       expect(seen, `${village.name} in seed ${seed} is never worked by anything`).toBeGreaterThan(0);
     }
   };
@@ -461,7 +472,7 @@ describe('bands named after their ground', () => {
   const stops = stopsOf(structures);
 
   it('names every band after the place it works out of', () => {
-    for (const band of planBands(1, structures)) {
+    for (const band of rosterOf(1, structures)) {
       expect(band.id).toBe(`band:${band.circuit[0].name}`);
     }
   });

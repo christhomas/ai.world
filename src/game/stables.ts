@@ -98,10 +98,6 @@ export function paceOf(breed: Breed | null, going: Going): number {
   return breed ? breed.pace[going] : STABLE.ON_FOOT;
 }
 
-/** The breed a stablehand would point at for this going, which is what makes the choice a choice. */
-export function bestOver(going: Going): Breed {
-  return Object.values(BREEDS).reduce((best, breed) => (breed.pace[going] > best.pace[going] ? breed : best));
-}
 
 /**
  * The breed a save is talking about. A save written when there was only one animal in the world

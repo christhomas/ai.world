@@ -263,11 +263,3 @@ export function whaleAt(pod: Pod, index: number, seconds: number): WhaleState {
     through,
   };
 }
-
-/** Where a whale comes down, for anything that might be underneath it. */
-export function landingOf(pod: Pod, index: number, seconds: number): { x: number; z: number } | null {
-  const now = whaleAt(pod, index, seconds);
-  if (now.through < 0) return null;
-  // the frame it re-enters the water: near the end of the arc, and falling
-  return now.through > WHALE.SPLASHDOWN ? { x: now.x, z: now.z } : null;
-}
