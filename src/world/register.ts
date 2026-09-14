@@ -2,7 +2,7 @@ import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './ad
 import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
-import { directoryOf , type Sworn } from './vacancies';
+import { directoryOf, takeTheOath, type Sworn } from './vacancies';
 import type { SwornIn } from '../../server/protocol';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
@@ -515,18 +515,12 @@ export class Register {
   /**
    * A traveller takes work this village has nobody for. Item 24a's other half.
    *
-   * The directory says what a village lacks; this is somebody answering it. Refused unless the
-   * trade is vacant *here and now* — work the ground supports, that no villager holds and no other
-   * traveller has already sworn to — because a vacancy that could be taken twice is not a vacancy,
-   * it is an announcement.
+   * Refused unless the trade is vacant *here and now* — work the ground supports, that no villager
+   * holds and no other traveller has sworn to — because a vacancy that could be taken twice is not
+   * a vacancy, it is an announcement. Deliberately not a wage, which is item 24a's own rule: what
+   * the oath buys is that the mayor stops looking. See `tradeTakenUp`.
    *
-   * Deliberately not a wage. Item 24a: *"nothing leaves the treasury, nobody is paid to take a
-   * job"*, which is what keeps the hall's money free for building. What the oath buys is the thing
-   * a job market is made of — the mayor stops looking, and the next adult to come of age is raised
-   * into whatever the village is short of next. See `tradeTakenUp`.
-   *
-   * Like `raiseAtShrine`, whoever calls this owns the conversation: a register has never known what
-   * was said or who was standing there.
+   * Hands back the told fact rather than applying it quietly, so the one path is `apply`.
    */
   swearIn(village: string, trade: string, who: string, day = this.day): SwornIn | null {
     if (!this.villages.get(village) || who === '') return null;
@@ -535,10 +529,10 @@ export class Register {
     return this.apply(told) ? told : null;
   }
 
-  /** Every oath this register holds, for a save to write down. See `apply`. */
+  /** Every oath this register holds, as told facts, for a save to write down. See `apply`. */
   oaths(): SwornIn[] {
-    return [...this.swornIn].flatMap(([village, held]) =>
-      held.map((one) => ({ kind: 'sworn' as const, village, trade: one.trade, who: one.who, day: one.day })));
+    return [...this.swornIn].flatMap(([village, held]) => held.map((one) =>
+      ({ kind: 'sworn' as const, village, trade: one.trade, who: one.who, day: one.day })));
   }
 
   /**
@@ -645,13 +639,23 @@ export class Register {
      * twice — from the wire and from a save, which is the ordinary case — writes it once.
      */
     if (change.kind === 'sworn') {
-      const on = Math.floor(change.day);
-      if (!Number.isFinite(on) || on > this.day) return false;
+      if (Math.floor(change.day) > this.day) return false;
       const held = this.swornIn.get(change.village) ?? [];
-      if (held.some((one) => one.trade === change.trade && one.day === on)) return false;
-      const oath: Sworn = { trade: change.trade, who: change.who, day: on };
+      const oath = takeTheOath(held, change.trade, change.who, change.day);
+      if (!oath) return false;
       this.swornIn.set(change.village, [...held, oath]);
-      this.villages.get(change.village)?.sworn.push(oath);
+      const here = this.villages.get(change.village);
+      if (!here) return true;              // nobody has settled it; kept for the morning they do
+      /*
+       * An oath that arrives late re-lives the village, the way a vote and a killing do.
+       *
+       * A sworn trade changes what the next child is raised into, so one learned after the mornings
+       * it should have covered leaves a village full of people in jobs the oath would have stopped
+       * — and the client that heard it on time and the client that heard it late end up holding two
+       * different villages, which is the whole thing the replay exists to prevent.
+       */
+      if (oath.day === this.day) { here.sworn.push(oath); return true; }
+      this.relive(change.village);
       return true;
     }
     if (change.kind === 'voted') {

@@ -454,6 +454,15 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         // the village loses them, and the people who knew them are left holding the memory
         register.apply({ kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence' });
         break;
+      /*
+       * Somebody has taken work a village had nobody for. Applied on every page rather than only on
+       * the one that asked, or the hall's directory would say different things in two windows.
+       */
+      case 'sworn':
+        if (register.apply(delta) && !catchingUp) {
+          hud.flash(`${delta.who} takes up ${delta.trade} work in ${delta.village}.`);
+        }
+        break;
       case 'voted':
         // The world sends an accepted vote back to its caller too, so nobody spends the treasury
         // optimistically and then disagrees with the authority.
