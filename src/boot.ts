@@ -1,4 +1,5 @@
 import { IndexedDbStore, kindOf } from './save/store';
+import { serverOf } from './game/joining';
 import type { SessionSave, WorldKind } from './save/store';
 import type { WorldRecord } from '../server/protocol';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
@@ -81,26 +82,6 @@ function worldFromLink(url: URL): WorldKind | null {
   const asked = url.searchParams.get('world');
   return asked ? kindOf(asked) : null;
 }
-/**
- * Which server a link points at, as the one string that identifies it.
- *
- * The origin, so the same server written two ways is one answer — and lower-cased, because a host
- * name is not case-sensitive and a save that depended on how somebody typed it would be a save
- * they lose by typing it differently the next time.
- */
-export function serverOf(url: URL): string {
-  const said = url.searchParams.get('server');
-  if (!said) return 'here';
-  try {
-    const at = new URL(said);
-    at.protocol = at.protocol === 'wss:' ? 'https:' : at.protocol === 'ws:' ? 'http:' : at.protocol;
-    return at.origin.toLocaleLowerCase('en-US');
-  } catch {
-    // not a URL anybody can reach, which `namedWorldFromLink` will refuse in a moment anyway
-    return said.toLocaleLowerCase('en-US');
-  }
-}
-
 /** Resolve a named invite before any country is grown. */
 export async function namedWorldFromLink(
   url: URL,

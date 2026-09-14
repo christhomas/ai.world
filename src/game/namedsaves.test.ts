@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { serverOf } from '../boot';
-import { claimed } from './joining';
+import { claimed, serverOf } from './joining';
+
 
 /**
  * A name is only unique on the server that issued it.
