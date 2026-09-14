@@ -195,6 +195,17 @@ const README = 'README.md';
 const IN_THE_README = 10;
 
 /**
+ * Every file a release writes, which is the same list twice over.
+ *
+ * It is what gets committed, and it is what gets put back when the release stops after writing.
+ * Those had been two lists written out separately, which is how a fifth file added to `WRITTEN`
+ * would have been left dirty on `main` by a failed release.
+ */
+export const FILES_A_RELEASE_WRITES: readonly string[] = [
+  ...new Set(WRITTEN.map((one) => one.file)), CHANGELOG, README,
+];
+
+/**
  * What GitHub's release page says, taken from the changelog rather than written twice.
  *
  * `github-guard` ships the extractor that its own hook enforces — `git-changelog.sh notes vX.Y.Z`
@@ -365,6 +376,39 @@ function writeTheChangelog(version: string, body: string, since: string | null):
  */
 
 /**
+ * Run the checks that read what this release just wrote, now that it is written.
+ *
+ * The suite above runs on the tree as it was. Everything after it — the chart, the pin, the
+ * package, the changelog entry and the README's ten — is written afterwards, so **the thing the
+ * release breaks is never the thing it checked.**
+ *
+ * That is not a hypothetical. `$` under the `m` flag is the end of a *line*, so a changelog entry's
+ * body matched empty and every one of the README's ten read *"No note was written for this one"* —
+ * for eleven releases, including ones plainly written with notes. Nothing caught it, and when
+ * something finally did it was a good accident: the release had started going out through a pull
+ * request, and the pull request's own checks happen to run after the write.
+ *
+ * `tools/release.test.ts` is the suite that knows what a changelog entry should look like, it reads
+ * both files, and it takes under a second. There is no reason it should not be asked twice.
+ *
+ * **And the tree is put back if it refuses.** A release that stops here has already written five
+ * files on `main`, and leaving them is the same fault in a different coat — a tool that leaves the
+ * tree in a state its own gate never saw. See #81, which is this shape in CI.
+ */
+function readWhatWasWritten(): void {
+  say('reading back what was just written, because the suite above ran before it existed');
+  try {
+    execFileSync('pnpm', ['vitest', 'run', 'tools/release.test.ts'], { stdio: 'inherit' });
+  } catch {
+    run('git', ['checkout', '--', ...FILES_A_RELEASE_WRITES]);
+    throw new Error(
+      'the release wrote its files and its own checks then refused them. The tree is put back as it '
+      + `was; nothing was committed, pushed or tagged. The files it wrote were: ${FILES_A_RELEASE_WRITES.join(', ')}.`,
+    );
+  }
+}
+
+/**
  * And the README's ten, which are rewritten rather than appended to.
  *
  * Rebuilt from the changelog every time, so the two cannot disagree about what a version said — the
@@ -429,6 +473,7 @@ function main(): void {
   writeTheChangelog(version, body, since);
   writeTheReadme();
   say(`${CHANGELOG} and the README's ten now say what ${version} was`);
+  readWhatWasWritten();
   /*
    * And out through a pull request, because `main` is protected and should be.
    *
@@ -445,8 +490,7 @@ function main(): void {
    */
   const branch = `release/v${version}`;
   run('git', ['switch', '-c', branch]);
-  run('git', ['add', 'chart/Chart.yaml', 'deploy/flux/helmrelease.yaml', 'package.json',
-              CHANGELOG, README]);
+  run('git', ['add', ...FILES_A_RELEASE_WRITES]);
   run('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', `Release ${version}\n\n${body}`]);
   run('git', ['push', '-u', 'origin', branch]);
   run('gh', ['pr', 'create', '--base', 'main', '--head', branch,
