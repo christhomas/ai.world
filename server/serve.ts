@@ -6,6 +6,8 @@ import { FileVault } from './filevault';
 import { Simulation } from './sim';
 import { Rooms, type Wire } from './rooms';
 import { staticFiles } from './static';
+import { addAccount, openAccounts, sweepSessions } from './tools/accounts';
+import { bootstrapAccount, portalFor, whatIsAsked } from './tools/portal';
 
 /**
  * The plumbing: a socket per player, a room per world seed, and two clocks — one that sends
@@ -44,6 +46,17 @@ export interface ServerOptions {
    * can only look is a thing that can be given to something you trust less.
    */
   watchToken?: string;
+  /**
+   * Where the tools portal keeps its accounts and sessions, and the key it signs with.
+   *
+   * Given neither, the portal is not registered at all — the same rule `/operate` runs on, and for
+   * the same reason: on a box reachable from the internet, a door that is not there beats a door
+   * that is locked. `index.ts` reads both from the environment.
+   */
+  toolsDb?: string;
+  toolsSecret?: string;
+  /** Whether an `X-Forwarded-Proto` in front of this server can be believed. See `overHttps`. */
+  trustProxy?: boolean;
 }
 
 export interface RunningServer {
@@ -70,6 +83,33 @@ function wireFor(socket: WebSocket): Wire {
   };
 }
 
+/**
+ * Open the portal's database, make its first account if the deployment said to, and hand back
+ * something the router can offer a request to.
+ *
+ * `takes` answers synchronously and the work happens after, because `createServer`'s handler is not
+ * an async function and a route that returns a promise to a caller checking it for `true` is a
+ * route that never fires. The handler owns the response from the moment it says yes.
+ */
+function openTools(file: string, secret: string, trustProxy: boolean, quiet: boolean) {
+  const db = openAccounts(file);
+  const { made, say } = bootstrapAccount(db, process.env, addAccount);
+  if (say && !quiet) (made ? console.log : console.error)(say);
+  sweepSessions(db);
+  const portal = portalFor({ db, secret, trustProxy });
+  return {
+    db,
+    takes: (req: IncomingMessage, res: ServerResponse): boolean => {
+      if (whatIsAsked(req.method, req.url).want === 'nothing') return false;
+      void portal(req, res).catch(() => {
+        if (!res.headersSent) res.writeHead(500, { 'content-type': 'text/plain' });
+        res.end('the tools portal could not answer that');
+      });
+      return true;
+    },
+  };
+}
+
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const dataDir = options.dataDir ?? 'server/data';
   // The simulation is the game. This is the thing that gives it sockets, files and an address; a
@@ -81,7 +121,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const rooms = sim.rooms;
 
   const pages = options.staticDir ? staticFiles(options.staticDir) : null;
+  /*
+   * The tools portal, if this deployment has been given somewhere to keep accounts and something to
+   * sign with. Opened before the first request rather than on one, because a bootstrap that fails
+   * has to fail at boot where somebody is reading the log.
+   */
+  const tools = options.toolsDb && options.toolsSecret
+    ? openTools(options.toolsDb, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false)
+    : null;
   const http = createServer((req, res) => {
+    if (tools && tools.takes(req, res)) return;
     if ((options.operatorToken || options.watchToken) && req.url === '/operate') {
       operate(rooms, options, req, res);
       return;
@@ -135,6 +184,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       for (const socket of sockets.clients) socket.terminate();
       await new Promise<void>((done) => sockets.close(() => done()));
       await new Promise<void>((done) => http.close(() => done()));
+      // and the portal's file handle, or a test that opens twenty servers holds twenty databases
+      tools?.db.close();
     },
   };
 }

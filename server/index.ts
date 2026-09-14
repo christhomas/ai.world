@@ -2,8 +2,8 @@ import { startServer } from './serve';
 
 /**
  * Running the world server from a terminal: `chore world`, `pnpm server`, or node directly.
- * PORT, DATA_DIR, STATIC_DIR, OPERATOR_TOKEN and OPERATOR_WATCH_TOKEN are the only knobs; the
- * rest lives in serve.ts.
+ * PORT, DATA_DIR, STATIC_DIR, OPERATOR_TOKEN and OPERATOR_WATCH_TOKEN are the knobs the world
+ * itself has; TOOLS_SECRET and the two TOOLS_ADMIN_* open the tools portal. The rest is serve.ts.
  */
 const running = await startServer({
   port: Number(process.env.PORT ?? 8787),
@@ -15,6 +15,20 @@ const running = await startServer({
   operatorToken: process.env.OPERATOR_TOKEN,
   // and a second one that may only ask a world questions, for anything watching rather than running
   watchToken: process.env.OPERATOR_WATCH_TOKEN,
+  /*
+   * The tools portal: a login in front of the Character Builder and the Domesday Book, so nobody
+   * has to paste an operator token into a page again.
+   *
+   * Set TOOLS_SECRET and it exists; leave it and `/tools` is not a route at all, which is the same
+   * rule `/operate` runs on. The database goes beside the worlds on the same durable volume, and
+   * the first account is made from TOOLS_ADMIN_USER and TOOLS_ADMIN_PASSWORD — without both, the
+   * portal starts shut and says so, because a default password is a known password.
+   */
+  toolsSecret: process.env.TOOLS_SECRET,
+  toolsDb: process.env.TOOLS_DB ?? `${process.env.DATA_DIR ?? 'server/data'}/tools.sqlite`,
+  // believe X-Forwarded-Proto only where the deployment says something is in front of us, or the
+  // `Secure` flag is decided by a header anybody can send
+  trustProxy: process.env.TRUST_PROXY === '1',
 });
 
 const shutDown = (): void => {
