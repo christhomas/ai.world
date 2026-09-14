@@ -42,6 +42,11 @@ describe('what the hall knows', () => {
     expect(known.raised).toEqual(book.worksOf('Ashford'));
   });
 
+  it('keeps the directory and its vacancies with the rest of the hall answers', () => {
+    const book = settled();
+    expect(whatTheHallKnows(book, 'Ashford').directory).toEqual(book.directoryOf('Ashford'));
+  });
+
   it('has an identity, begins in the mayor family home, and outlives its keeper', () => {
     const book = settled();
     const people = book.living('Ashford');
@@ -80,6 +85,9 @@ describe('what the hall knows', () => {
    */
   it('knows nothing at all about a village that does not exist', () => {
     const known = whatTheHallKnows(new Register(7, 1), 'Nowhere');
-    expect(known).toMatchObject({ holds: 0, mayor: '', watch: '', raised: [], savingFor: null });
+    expect(known).toMatchObject({
+      holds: 0, mayor: '', watch: '', raised: [], savingFor: null,
+      directory: { holding: new Map(), nobodyDoing: [] },
+    });
   });
 });

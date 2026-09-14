@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import {
   saidOfTheMayor, saidOfTheSaving, saidOfTheTreasury, saidOfTheWatch, saidOfWhatStands,
   whatTheHallSays,
@@ -14,7 +13,7 @@ import type { Person } from '../world/people';
  * correct; a conversation is a thing you *ask*, so it can say **nobody has told me** — which is the
  * honest answer surprisingly often, and one a panel has no way to give.
  *
- * `whatTheHallKnows` has gathered the four facts since the 13th and nothing ever asked it. The hall
+ * `whatTheHallKnows` has gathered its facts since the 13th and nothing ever asked it. The hall
  * building has stood in every large village since before that and nothing in `src/game` read it.
  * Four issues were waiting on a hall that could be talked to.
  */
@@ -65,16 +64,23 @@ describe('what a hall says when you ask it', () => {
 
   it('answers in the order somebody standing in front of it would ask', () => {
     const said = whatTheHallSays(
-      { holds: 900, mayor: 'p1', watch: '', raised: ['well:20'], savingFor: 'storey' },
+      {
+        holds: 900, mayor: 'p1', watch: '', raised: ['well:20'], savingFor: 'storey',
+        directory: { holding: new Map([['farmer', ['p1']]]), nobodyDoing: ['builder'] },
+      },
       somebody('Ada Vos'),
     );
-    expect(said).toHaveLength(5);
-    for (const line of said) expect(line.length).toBeGreaterThan(20);
+    expect(said).toHaveLength(7);
+    expect(said.join(' ')).toContain('Farmer — Ada Vos');
+    expect(said.join(' ')).toContain('Vacancies: Builder');
   });
 
-  it('is actually asked by somebody standing at the hall', () => {
-    // the fault this codebase keeps finding: the building has stood in every large village and
-    // nothing in `src/game` has ever read `village.hall`
-    expect(readFileSync('src/game/interact/village.ts', 'utf8')).toContain('whatTheHallSays(');
+  it('says when every supported trade has somebody rather than showing a blank vacancy list', () => {
+    const said = whatTheHallSays({
+      holds: 0, mayor: '', watch: '', raised: [], savingFor: null,
+      directory: { holding: new Map([['doctor', ['p1']]]), nobodyDoing: [] },
+    }, somebody('Maren Vos'));
+    expect(said).toContain('There are no vacancies on the village roll.');
   });
+
 });

@@ -3242,8 +3242,7 @@ in the order they would sensibly be built, which is not the order they arrived i
 
 Talked through at length on the morning of the 12th. Numbered so a decision can be given as "29:
 yes" rather than re-argued. Numbers are never reused, here or in chat.
-
-- [~] **24a. The mayor enrols the trades.** *The enrolment is built* — `world/vacancies.ts`,
+- [x] **24a. The mayor enrols the trades.** *The enrolment and hall directory are built* — `world/vacancies.ts`,
       `shortOf(trades, held)`, called first by `tradeTakenUp`. What a village is short of is decided
       without a list of important jobs: `TRADES` already says how common each trade should be
       against the others, so a village's establishment is that weighting applied to however many
@@ -3252,8 +3251,8 @@ yes" rather than re-argued. Numbers are never reused, here or in chat.
       whole: in a village of nine working people it fills the fields and the market and leaves the
       doctor, the innkeeper and the climber to families and to the tenth who strike out. Villages
       now hold five to ten of the trades their ground supports at day 450, against two to four
-      before it. Still to do: the hall as a **directory** — where the doctor is, where the builder
-      drinks — and vacancies as something a player can read and answer.
+      before it. Every hall conversation now reads the live register as a **directory** — who holds
+      each trade — followed by the vacancies somebody can answer.
 
       The original note follows. Today a grown child takes `village.trades[random]` —
       `register.ts:638`, a coin toss. Instead the mayor looks at what the village is missing and
