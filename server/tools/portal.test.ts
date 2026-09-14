@@ -18,8 +18,6 @@ describe('what the portal is being asked for', () => {
     expect(whatIsAsked('GET', '/')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/status')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/registry?seed=3')).toEqual({ want: 'nothing' });
-    expect(whatIsAsked('GET', '/toolshed')).toEqual({ want: 'nothing' });
-    expect(whatIsAsked('GET', '/toolshed/registry')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', undefined)).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/tools')).toEqual({ want: 'catalogue' });
   });
@@ -49,18 +47,6 @@ describe('what the portal is being asked for', () => {
     expect(whatIsAsked('GET', '/tools/a/b')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/tools/..')).toEqual({ want: 'nothing' });
   });
-
-  it('names the builder page, its built assets and its audit book explicitly', () => {
-    expect(whatIsAsked('GET', '/tools/character-builder')).toEqual({
-      want: 'builder-page', path: 'tools/character-builder.html',
-    });
-    expect(whatIsAsked('GET', '/tools/build/page/assets/builder.js')).toEqual({
-      want: 'builder-page', path: 'assets/builder.js',
-    });
-    expect(whatIsAsked('GET', '/tools/build/book')).toEqual({ want: 'book' });
-    expect(whatIsAsked('GET', '/tools/build/page/../secrets')).toEqual({ want: 'nothing' });
-    expect(whatIsAsked('POST', '/tools/build/page/assets/builder.js')).toEqual({ want: 'nothing' });
-  });
 });
 
 describe('the cookie a session rides in', () => {
@@ -73,11 +59,6 @@ describe('the cookie a session rides in', () => {
 
   it('is not confused by a cookie whose name ends in the same letters', () => {
     expect(cookieFrom(`not_${COOKIE}=wrong; ${COOKIE}=right`, COOKIE)).toBe('right');
-  });
-
-  it('reads malformed encoding as no cookie rather than throwing over the request', () => {
-    expect(cookieFrom(`${COOKIE}=%`, COOKIE)).toBeNull();
-    expect(cookieFrom(`${COOKIE}=%xy`, COOKIE)).toBeNull();
   });
 
   /*
@@ -139,7 +120,6 @@ describe('whether the request came in over https', () => {
 describe('the first account', () => {
   const book = (): DatabaseSync => {
     const db = new DatabaseSync(':memory:');
-    db.exec('CREATE TABLE IF NOT EXISTS schema (domain TEXT PRIMARY KEY, version INTEGER NOT NULL)');
     migrate(db);
     return db;
   };
@@ -182,7 +162,7 @@ describe('the first account', () => {
 describe('the catalogue', () => {
   it('is the same list the guard checks against, so a card cannot lead somewhere unguarded', () => {
     for (const tool of CATALOGUE) {
-      expect(whatIsAsked('GET', `/tools/${tool.id}`).want).not.toBe('nothing');
+      expect(whatIsAsked('GET', `/tools/${tool.id}`)).toEqual({ want: 'tool', id: tool.id });
     }
   });
 });

@@ -1,10 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { beginSession, endSession, howManyAccounts, sessionStands, whoIsThis } from './accounts';
-import { askTheWorker, bodyOf, type BuilderAt } from '../builder/proxy';
-import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
-import registryPage from '../../tools/registry.html?raw';
 
 /**
  * A door in front of the tools, so nobody has to paste an operator token into a page again.
@@ -31,14 +28,7 @@ export type Asked =
   | { want: 'login' }
   | { want: 'logout' }
   | { want: 'catalogue' }
-  | { want: 'registry-data' }
   | { want: 'tool'; id: string }
-  /** The builder asking the worker to do something, or following what it is doing. */
-  | { want: 'build' }
-  | { want: 'follow' }
-  /** The full page and only the files emitted beside it by the worker's Vite build. */
-  | { want: 'builder-page'; path: string }
-  | { want: 'book' }
   | { want: 'nothing' };
 
 /** The tools a signed-in person may open. Named here so the catalogue and the guard cannot differ. */
@@ -56,38 +46,11 @@ export const CATALOGUE: readonly { id: string; name: string; blurb: string }[] =
  * lookup and a path traversal that gets as far as the lookup has already won half its argument.
  */
 export function whatIsAsked(method: string | undefined, url: string | undefined): Asked {
-  if (!url) return { want: 'nothing' };
-  const asked = url.split('?')[0];
-  if (asked !== '/tools' && !asked.startsWith('/tools/')) return { want: 'nothing' };
-  const path = asked.replace(/\/+$/, '') || '/tools';
+  if (!url || !url.startsWith('/tools')) return { want: 'nothing' };
+  const path = url.split('?')[0].replace(/\/+$/, '') || '/tools';
   if (path === '/tools') return { want: 'catalogue' };
   if (path === '/tools/login') return { want: method === 'POST' ? 'login' : 'login-form' };
   if (path === '/tools/logout') return method === 'POST' ? { want: 'logout' } : { want: 'nothing' };
-  if (path === '/tools/registry/data') return { want: 'registry-data' };
-  /*
-   * The two the builder needs, named rather than inferred.
-   *
-   * A POST asks and a GET follows, and neither is reachable except through the guard below — which
-   * is the whole of #103's *"prompt submission requires a valid admin JWT"*. They are spelled out
-   * here rather than being another tool id, because a tool id opens a page and these two speak to
-   * a process on another machine: the difference is worth being able to see in one place.
-   */
-  if (path === '/tools/build/ask') return method === 'POST' ? { want: 'build' } : { want: 'nothing' };
-  if (path === '/tools/build/follow') return method === 'GET' ? { want: 'follow' } : { want: 'nothing' };
-  if (path === '/tools/build/book') return method === 'GET' ? { want: 'book' } : { want: 'nothing' };
-  if (path === '/tools/character-builder') {
-    return method === 'GET'
-      ? { want: 'builder-page', path: 'tools/character-builder.html' }
-      : { want: 'nothing' };
-  }
-  const pagePath = '/tools/build/page/';
-  if (path.startsWith(pagePath)) {
-    if (method !== 'GET') return { want: 'nothing' };
-    let file: string;
-    try { file = decodeURIComponent(path.slice(pagePath.length)); } catch { return { want: 'nothing' }; }
-    if (!file || file.split('/').some((part) => part === '..')) return { want: 'nothing' };
-    return { want: 'builder-page', path: file };
-  }
   const id = path.slice('/tools/'.length);
   if (id === '' || id.includes('/') || id.includes('..')) return { want: 'nothing' };
   return { want: 'tool', id };
@@ -100,7 +63,7 @@ export function cookieFrom(header: string | undefined, name: string): string | n
     const at = part.indexOf('=');
     if (at < 0) continue;
     if (part.slice(0, at).trim() !== name) continue;
-    try { return decodeURIComponent(part.slice(at + 1).trim()); } catch { return null; }
+    return decodeURIComponent(part.slice(at + 1).trim());
   }
   return null;
 }
@@ -165,34 +128,7 @@ export interface PortalOptions {
   secret: string;
   /** Whether an `X-Forwarded-Proto` header in front of this server can be believed. */
   trustProxy?: boolean;
-  /** The read-only Domesday answer, reached only after this portal has established a session. */
-  survey?: (req: IncomingMessage, res: ServerResponse) => void;
-  /**
-   * Where the builder's worker is, if this deployment has one.
-   *
-   * Left out, the Character Builder card says it is not wired up and the two build routes are not
-   * there at all — the rule `/operate` and the portal itself already run on. A game server with no
-   * source host behind it should not have a door onto one.
-   */
-  builder?: BuilderAt;
-  /** Where a finished run is written down. See `builder/book.ts`. */
-  record?: (run: Recorded, id: string) => void;
-  /**
-   * And what is in the book, for the page to show.
-   *
-   * A record nobody can read is a record nobody checks, which is most of the value of keeping one.
-   * The builder's page shows the last few runs under the box you type in, so the person asking can
-   * see what has been asked before them and what it changed.
-   */
-  recorded?: () => readonly Recorded[];
 }
-
-const registryThroughPortal = registryPage
-  .replace('  <input id="where" placeholder="http://localhost:8080" value="">\n', '')
-  .replace('  <input id="token" type="password" placeholder="operator or watch token">\n', '');
-
-const LOGIN_WINDOW = 60_000;
-const LOGIN_ATTEMPTS = 5;
 
 const html = (res: ServerResponse, code: number, body: string, headers: Record<string, string> = {}): void => {
   res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...headers });
@@ -246,29 +182,6 @@ async function formBody(req: IncomingMessage, most = 4096): Promise<URLSearchPar
 export function portalFor(options: PortalOptions) {
   const { db, secret } = options;
   const secureFor = (req: IncomingMessage): boolean => overHttps(req, options.trustProxy ?? false);
-  const attempts = new Map<string, { since: number; count: number }>();
-  const requester = (req: IncomingMessage): string => {
-    if (options.trustProxy) {
-      const forwarded = req.headers['x-forwarded-for'];
-      const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
-      if (first) return first;
-    }
-    return req.socket.remoteAddress ?? 'unknown';
-  };
-  const mayTry = (req: IncomingMessage, now = Date.now()): { allowed: boolean; key: string } => {
-    const key = requester(req);
-    const previous = attempts.get(key);
-    if (!previous && attempts.size >= 1_000) {
-      for (const [address, entry] of attempts) {
-        if (now - entry.since >= LOGIN_WINDOW) attempts.delete(address);
-      }
-      if (attempts.size >= 1_000) attempts.delete(attempts.keys().next().value as string);
-    }
-    const entry = !previous || now - previous.since >= LOGIN_WINDOW
-      ? { since: now, count: 1 } : { ...previous, count: previous.count + 1 };
-    attempts.set(key, entry);
-    return { allowed: entry.count <= LOGIN_ATTEMPTS, key };
-  };
 
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const asked = whatIsAsked(req.method, req.url);
@@ -282,21 +195,15 @@ export function portalFor(options: PortalOptions) {
     }
 
     if (asked.want === 'login') {
-      const tried = mayTry(req);
-      if (!tried.allowed) {
-        html(res, 429, loginPage('Too many attempts. Wait a minute and try again.'), { 'retry-after': '60' });
-        return true;
-      }
       const form = await formBody(req);
       const name = form?.get('name') ?? '';
       const password = form?.get('password') ?? '';
-      const account = name && password ? await whoIsThis(db, name, password) : null;
+      const account = name && password ? whoIsThis(db, name, password) : null;
       if (!account) {
         // one sentence for both, because "no such user" tells somebody which names to keep trying
         html(res, 401, loginPage('That name and password do not go together.'));
         return true;
       }
-      attempts.delete(tried.key);
       const session = beginSession(db, account.id);
       const token = signToken({ sub: account.id, jti: session.id }, secret);
       res.writeHead(303, { location: '/tools/', 'set-cookie': cookieFor(token, { secure: secureFor(req) }) });
@@ -320,78 +227,14 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
-    if (asked.want === 'builder-page' || asked.want === 'book') {
-      if (!options.builder) {
-        html(res, asked.want === 'builder-page' && asked.path === 'tools/character-builder.html' ? 200 : 503,
-          page('No builder here', '<h1>There is no builder behind this server.</h1>'
-          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
-        return true;
-      }
-      if (asked.want === 'book') {
-        res.writeHead(200, {
-          'content-type': 'application/json; charset=utf-8',
-          'cache-control': 'no-store',
-          'x-content-type-options': 'nosniff',
-        });
-        res.end(JSON.stringify(options.recorded?.() ?? []));
-        return true;
-      }
-      askTheWorker(options.builder, who, `/page/${asked.path}`, null, res, 'GET');
-      return true;
-    }
-
-    /*
-     * Both of these are past the guard above, so `who` is an account the portal has just verified.
-     * That account id is what goes to the worker, for its book; the session token stays here.
-     */
-    if (asked.want === 'build' || asked.want === 'follow') {
-      if (!options.builder) {
-        html(res, 503, page('No builder here', '<h1>There is no builder behind this server.</h1>'
-          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
-        return true;
-      }
-      if (asked.want === 'follow') {
-        const from = new URL(req.url ?? '/', 'http://portal').searchParams;
-        const run = from.get('run');
-        askTheWorker(options.builder, who, `/follow?from=${Number(from.get('from') ?? 0) || 0}`
-          + (run ? `&run=${encodeURIComponent(run)}` : ''), null, res, 'GET');
-        return true;
-      }
-      const body = await bodyOf(req);
-      if (body === null) { html(res, 413, page('Too much', '<h1>That was too long to send.</h1>')); return true; }
-      /*
-       * Written down as the answer goes past. The worker is on another machine and the book is
-       * here, so the record is built from what this end already knows — who, when, how long the
-       * prompt was — and what the stream says as it streams: the files the tools touched, and
-       * whether it ended well. The prompt's own text is never kept; see `Recorded`.
-       */
-      const wants = whatWasAsked(JSON.parse(body) as unknown);
-      const started = Date.now();
-      const id = `${started.toString(36)}-${who.slice(0, 8)}`;
-      askTheWorker(options.builder, who, '/ask', body, res, 'POST', (told) => {
-        if (told.k !== 'end') return;
-        options.record?.({
-          who, when: started, about: typeof wants === 'string' ? '' : wants.about,
-          length: typeof wants === 'string' ? 0 : wants.prompt.length,
-          changed: told.changed, ok: told.ok, note: told.note,
-        }, id);
-      });
-      return true;
-    }
-
     if (asked.want === 'catalogue') { html(res, 200, cataloguePage()); return true; }
-
-    if (asked.want === 'registry-data') {
-      if (options.survey) options.survey(req, res);
-      else html(res, 404, page('Not a tool', '<h1>The Domesday Book is not available.</h1>'));
-      return true;
-    }
 
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
-    if (tool.id === 'registry' && options.survey) { html(res, 200, registryThroughPortal); return true; }
+    // #103 puts the Character Builder's worker behind this; until then a tool is a named door that
+    // is open to the right people and honest about having nothing behind it yet
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
-      + `<a class="card" href="/tools/">Back</a>`));
+      + `<p class="why">Not wired up yet — see issue #103.</p><a class="card" href="/tools/">Back</a>`));
     return true;
   };
 }

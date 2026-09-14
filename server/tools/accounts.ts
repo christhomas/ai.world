@@ -1,6 +1,5 @@
-import type { DatabaseSync } from 'node:sqlite';
-import { migrateDomain, openDurable } from '../durable/db';
-import { hashPassword, hashPasswordAsync, passwordMatchesAsync, wantsRehashing } from './passwords';
+import { DatabaseSync } from 'node:sqlite';
+import { hashPassword, passwordMatches, wantsRehashing } from './passwords';
 import { newSessionId, TOKEN_LASTS } from './tokens';
 
 /**
@@ -13,15 +12,17 @@ import { newSessionId, TOKEN_LASTS } from './tokens';
  *
  * ## Kept apart from the world on purpose
  *
- * The world's state stays where it is, in JSON under `DATA_DIR`: a seed grows the country and the
- * people, and a short log of told facts replays the rest. Authentication is not a reason to migrate
- * a working persistence format.
+ * The world's state stays where it is, in JSON under `DATA_DIR`. Authentication is not a reason to
+ * migrate a working persistence format, and #102 says so in as many words — that sentence is a
+ * scope boundary rather than an architectural claim. Both live on the same disk; only this one is
+ * in a database. When the villager register moves here too (#104) it comes as its own tables with
+ * its own module, because domains are separated by schema and ownership rather than by pretending
+ * they need different infrastructure.
  *
- * It shares a *file* with the register's durable half (`durable/minds.ts`) and shares nothing else.
- * That is the right way round: they share a volume, a backup, a WAL and a crash, and pretending
- * they have different infrastructure would mean two of each. Ownership is what stays separate —
- * this module declares these tables, that one declares those, and neither reads the other's. See
- * `durable/db.ts` for why the schema version is a row rather than `user_version`.
+ * ## The schema has a version and migrations are explicit
+ *
+ * `user_version` is SQLite's own integer for this and costs nothing. A database that opens itself
+ * and guesses is a database that will one day guess wrong on somebody's only copy.
  */
 
 /** One person who may open the tools. */
@@ -59,16 +60,39 @@ const SCHEMA: readonly string[] = [
    CREATE INDEX session_by_expiry ON session(expires);`,
 ];
 
-/** Open the durable database and bring this domain's tables up to date. */
+/**
+ * Open the tools database, bringing it up to today's schema.
+ *
+ * The three settings are not decoration. **WAL** so a reader is never blocked by the writer and a
+ * kill mid-write leaves a recoverable file rather than a truncated one; **foreign keys** so a
+ * deleted account cannot leave its sessions behind, which is a logout that did not happen;
+ * **busy_timeout** so two requests arriving together wait for each other instead of one of them
+ * failing outright.
+ */
 export function openAccounts(file: string): DatabaseSync {
-  const db = openDurable(file);
+  const db = new DatabaseSync(file);
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec('PRAGMA busy_timeout = 5000');
   migrate(db);
   return db;
 }
 
-/** Run whatever of this domain's schema the file has not had yet. See `migrateDomain`. */
+/** Run whatever of the schema this file has not had yet, each step in its own transaction. */
 export function migrate(db: DatabaseSync): number {
-  return migrateDomain(db, 'tools', SCHEMA);
+  const at = Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version);
+  for (let step = at; step < SCHEMA.length; step++) {
+    db.exec('BEGIN');
+    try {
+      db.exec(SCHEMA[step]);
+      db.exec(`PRAGMA user_version = ${step + 1}`);
+      db.exec('COMMIT');
+    } catch (why) {
+      db.exec('ROLLBACK');
+      throw why;
+    }
+  }
+  return SCHEMA.length;
 }
 
 /** Add somebody who may open the tools. Refuses a second account of the same name. */
@@ -80,11 +104,7 @@ export function addAccount(
   try {
     db.prepare('INSERT INTO account (id, name, secret, made) VALUES (?, ?, ?, ?)')
       .run(id, name, secret, now);
-  } catch (why) {
-    const sqlite = why as { errcode?: number; message?: string };
-    if (sqlite.errcode === 2067 && sqlite.message?.includes('account.name')) return null;
-    throw why;
-  }
+  } catch { return null; }                       // UNIQUE: somebody of that name is already here
   return { id, name, secret, made: now };
 }
 
@@ -109,12 +129,12 @@ export function howManyAccounts(db: DatabaseSync): number {
  * A hash made at a weaker cost than today's is re-made here, which is the only moment the password
  * is in hand to do it with.
  */
-export async function whoIsThis(db: DatabaseSync, name: string, password: string): Promise<Account | null> {
+export function whoIsThis(db: DatabaseSync, name: string, password: string): Account | null {
   const account = accountNamed(db, name);
   const stored = account?.secret ?? NOBODY;
-  if (!await passwordMatchesAsync(password, stored) || !account) return null;
+  if (!passwordMatches(password, stored) || !account) return null;
   if (wantsRehashing(stored)) {
-    const remade = await hashPasswordAsync(password);
+    const remade = hashPassword(password);
     db.prepare('UPDATE account SET secret = ? WHERE id = ?').run(remade, account.id);
     return { ...account, secret: remade };
   }

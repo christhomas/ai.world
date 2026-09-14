@@ -1,4 +1,4 @@
-import { randomBytes, scrypt, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 /**
  * What a stored password is, which is never the password.
@@ -10,9 +10,8 @@ import { randomBytes, scrypt, scryptSync, timingSafeEqual } from 'node:crypto';
  * A cost baked into the verifier instead is a cost nobody can ever change without locking everybody
  * out.
  *
- * Account creation uses the synchronous form because it happens at bootstrap or from an operator
- * command. Login verification uses the asynchronous form below: the work must remain expensive to
- * an attacker without stopping world ticks and every unrelated HTTP request while it runs.
+ * Deliberately `scryptSync`. Logging in is rare, the work is the point, and an async hash here
+ * would buy concurrency in the one place where being slow is the feature.
  */
 
 /**
@@ -35,27 +34,18 @@ export function hashPassword(password: string, salt = randomBytes(SCRYPT.saltLen
   return ['scrypt', N, r, p, salt.toString('base64url'), key.toString('base64url')].join('$');
 }
 
-const derive = (
-  password: string, salt: Buffer, length: number, cost: { N: number; r: number; p: number },
-): Promise<Buffer> => new Promise((resolve, reject) => {
-  scrypt(password.normalize('NFKC'), salt, length, { ...cost, maxmem: maxmemFor(cost.N, cost.r) },
-    (why, key) => why ? reject(why) : resolve(key));
-});
-
-/** The asynchronous form used by request handlers, so one password cannot stop every world tick. */
-export async function hashPasswordAsync(
-  password: string, salt = randomBytes(SCRYPT.saltLength),
-): Promise<string> {
-  const { N, r, p, keyLength } = SCRYPT;
-  const key = await derive(password, salt, keyLength, { N, r, p });
-  return ['scrypt', N, r, p, salt.toString('base64url'), key.toString('base64url')].join('$');
-}
-
 /**
- * Whether this password made that hash, verified on libuv's crypto pool rather than the event loop.
- * Malformed stored values are `false`, and the derived keys are compared in constant time.
+ * Whether this password made that hash.
+ *
+ * Reads the cost out of the stored string rather than assuming today's, and compares in constant
+ * time — a comparison that returns early on the first wrong byte tells anybody watching the clock
+ * how much of their guess was right.
+ *
+ * Every malformed stored value is `false` rather than a throw. A row that has been corrupted is a
+ * login that fails, not a server that stops answering, and the difference matters on the route that
+ * faces the internet.
  */
-export async function passwordMatchesAsync(password: string, stored: string): Promise<boolean> {
+export function passwordMatches(password: string, stored: string): boolean {
   const parts = stored.split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
   const [, N, r, p, salt, key] = parts;
@@ -65,10 +55,12 @@ export async function passwordMatchesAsync(password: string, stored: string): Pr
   let want: Buffer;
   try { want = Buffer.from(key, 'base64url'); } catch { return false; }
   if (want.length === 0) return false;
+  let got: Buffer;
   try {
-    const got = await derive(password, Buffer.from(salt, 'base64url'), want.length, cost);
-    return got.length === want.length && timingSafeEqual(got, want);
+    got = scryptSync(password.normalize('NFKC'), Buffer.from(salt, 'base64url'), want.length,
+      { ...cost, maxmem: maxmemFor(cost.N, cost.r) });
   } catch { return false; }
+  return got.length === want.length && timingSafeEqual(got, want);
 }
 
 /** Whether a stored hash was made at a weaker cost than today's, and should be re-made on login. */
