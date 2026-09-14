@@ -3,7 +3,7 @@ import { POST, crewsToday } from '../world/postings';
 import { stageOf, type Person } from '../world/people';
 import { purseOf } from '../world/deeds';
 import { PROSPER } from '../world/prosperity';
-import { isFinished, type Commission, type Houses } from './building';
+import { buildable, isFinished, type Commission, type Houses } from './building';
 
 /** One paid morning recorded against one durable commission. */
 export interface HallJobDay {
@@ -12,6 +12,15 @@ export interface HallJobDay {
   wage: number;
 }
 
+
+/** Multiplayer change emitted only once a queued site actually starts. */
+export function buildingStarted(job: Commission) {
+  if (job.began === undefined || buildable(job.what).moves) return null;
+  return {
+    kind: 'built', id: job.id, village: job.village, x: job.x, z: job.z,
+    rot: job.rot ?? 0, day: Math.floor(job.began), what: job.what, to: job.to,
+  } as const;
+}
 /**
  * Buy one morning on every funded commission, choosing the hands afresh from who is alive today.
  * The commission owns the post; the person owns only this morning's wage.
@@ -21,7 +30,7 @@ export function workTheHallJobs(
 ): HallJobDay[] {
   const waiting = new Map<string, Commission[]>();
   for (const job of books.entries()) {
-    if (job.worked === undefined || job.workedOn === Math.floor(day) || isFinished(job, day)) continue;
+    if (job.waiting !== undefined || job.worked === undefined || job.workedOn === Math.floor(day) || isFinished(job, day)) continue;
     if ((job.fund ?? 0) < POST.BUILDER) continue;
     const jobs = waiting.get(job.village) ?? [];
     jobs.push(job);

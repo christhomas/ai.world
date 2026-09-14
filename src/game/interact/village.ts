@@ -19,6 +19,7 @@ import { levelFor } from '../prowess';
 import { hashString } from '../../core/rng';
 import { errandDone, pubTalk } from '../pub';
 import { builderChoices } from './builder';
+import { buildingStarted } from '../halljobs';
 import type { DialogueChoice, DialogueNode } from '../../ui/dialogue';
 import type { Surroundings } from './context';
 import { stableAt } from '../stables';
@@ -355,7 +356,19 @@ export function villageInteractions(ctx: Surroundings) {
             // and wood put out here is wood that has reached this village: it goes on the same
             // stack the woodcutters cut onto, so a player can be the supply for a place that has none,
             // and the village remembers who supplied it — see `Timber.brought`
-            if (id === WOOD_ITEM) ctx.houses.yard.brought(stall.village, 1);
+            if (id === WOOD_ITEM) {
+              ctx.houses.yard.brought(stall.village, 1);
+              const started = ctx.houses.startBacklog(stall.village, state.day);
+              for (const job of started) {
+                const built = buildingStarted(job);
+                if (built) told(built);
+              }
+              if (started.length > 0) {
+                persist();
+                hud.flash('The yard has enough timber. Your backlog job starts today.');
+                return null;
+              }
+            }
             hud.flash(`${ITEMS[id].name} is on the stall at ${askingPrice(id)} gold.`);
             return null;
           },

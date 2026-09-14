@@ -161,6 +161,27 @@ describe('a commission that outlives the session', () => {
     expect(builders[1].purse).toBe(nextPurse + POST.BUILDER);
     expect(houses.entries()[0]).toMatchObject({ worked: 1, fund: deposit() - POST.BUILDER });
   });
+
+  it('keeps unpaid backlog sites in FIFO order until their timber arrives', () => {
+    const register = new Register(7);
+    register.settle('Ashford', 10, ['builder']);
+    const houses = new Houses();
+    houses.takeOn('Ashford', BUILD.PRICE, deposit(), BUILDS.HOUSE, true);
+    const first = houses.place(20, 20, 1)!;
+    houses.takeOn('Ashford', BUILD.PRICE, deposit(), BUILDS.HOUSE, true);
+    const second = houses.place(30, 20, 1)!;
+    const saved = reload(houses);
+    const purse = register.living('Ashford').reduce((sum, person) => sum + person.purse, 0);
+
+    expect(saved.entries().map((entry) => stageAt(entry, 3))).toEqual(['backlog', 'backlog']);
+    expect(workTheHallJobs(saved, 3, () => register.living('Ashford'))).toEqual([]);
+    expect(register.living('Ashford').reduce((sum, person) => sum + person.purse, 0)).toBe(purse);
+    saved.yard.land('Ashford', buildable(BUILDS.HOUSE).timber);
+    expect(saved.startBacklog('Ashford', 3).map((entry) => entry.id)).toEqual([first.id]);
+    expect(saved.entries()[0].began).toBe(3);
+    expect(saved.entries()[1]).toMatchObject({ id: second.id, waiting: 1 });
+    expect(workTheHallJobs(saved, 3, () => register.living('Ashford'))).toHaveLength(1);
+  });
   it('remembers a builder taken on before there is anywhere to put the house', () => {
     const h = new Houses();
     h.takeOn('Ashford', BUILD.PRICE, deposit());

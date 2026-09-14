@@ -319,30 +319,18 @@ export function needs(what: string | undefined): Buildable['on'] {
 /** A house that has been paid for and is going up. */
 export interface Commission {
   id: string;
-  /**
-   * What was ordered.
-   *
-   * Every commission in every save before this one was a house, and there was no field because
-   * there was no choice. Building is a verb that takes an object — a house, a second storey, a bath
-   * house, a paddock — so the commission has to carry which, even while the list is one long.
-   * Missing means a house, which is what every old save holds.
-   */
+  /** Ordered kind; missing means a house for old saves. */
   what?: string;
-  /**
-   * The building this one was added to, when it is an addition rather than a building of its own.
-   *
-   * A storey, a pool and a fountain are all things you have done to a house you already own, so
-   * each carries the id of the house it belongs to. Absent on a house, which belongs to a piece of
-   * ground and to nothing else.
-   */
+  /** Parent building for additions such as a storey or pool. */
   to?: string;
-  /** Where it is being built. */
   x: number;
   z: number;
   /** The village whose builder took the job, which is whose purse the money goes into. */
   village: string;
-  /** The day work started. */
-  began: number;
+  /** The day work started. Absent while the marked site waits in the backlog. */
+  began?: number;
+  /** The day this marked site joined the backlog. */
+  waiting?: number;
   /** What has been handed over so far, and what the whole job costs. */
   paid: number;
   price: number;
@@ -388,7 +376,7 @@ export function daysFor(job: Commission): number {
 
 /** Work completed: recorded for hall jobs, calendar-derived only for legacy and adopted buildings. */
 function workDone(job: Commission, day: number): number {
-  return job.worked ?? Math.max(0, day - job.began);
+  return job.worked ?? Math.max(0, day - (job.began ?? day));
 }
 
 /** How far along a build is, from nought the day it is commissioned to one when it is finished. */
@@ -409,13 +397,14 @@ export function isFinished(job: Commission, day: number): boolean {
  * which is the question every kind of job can answer — and what each kind actually shows at each
  * of them is `render/site.ts`'s business and no longer a word buried in a type.
  */
-export type Stage = 'marked' | 'begun' | 'nearly' | 'done';
+export type Stage = 'backlog' | 'marked' | 'begun' | 'nearly' | 'done';
 
 /**
  * What a passer-by would see. Four stages rather than a smooth grow, because a building site is a
  * sequence of recognisable states and a house that inflates is a worse lie than one that jumps.
  */
 export function stageAt(job: Commission, day: number): Stage {
+  if (job.waiting !== undefined) return 'backlog';
   const done = progressOf(job, day);
   if (done >= 1) return 'done';
   if (done >= BUILD.NEARLY_AT) return 'nearly';
@@ -461,6 +450,7 @@ export function stillOnItsSite(job: Commission): boolean {
 
 /** What the builder says about a job in progress. */
 export function saidOfJob(job: Commission, day: number): string {
+  if (job.waiting !== undefined) return 'Yours is on the backlog, waiting for timber.';
   const left = Math.max(0, daysFor(job) - workDone(job, day));
   const what = buildable(job.what).name;
   if (left <= 0) return `Your ${what.replace(/^an? /, '')} is finished. There is the matter of the rest of the money.`;
@@ -496,6 +486,8 @@ export interface Hired {
   paid: number;
   /** What he was told to build. Missing means a house, which is what every old save holds. */
   what?: string;
+  /** True when the customer accepted a timber wait before paying. */
+  waiting?: boolean;
 }
 
 export interface HouseJson {
@@ -543,8 +535,8 @@ export class Houses {
   entries(): readonly Commission[] { return this.jobs; }
 
   /** Take a builder on. The deposit has already left the purse by the time this is called. */
-  takeOn(village: string, price: number, paid: number, what: string = BUILDS.HOUSE): void {
-    this.taken = { village, price, paid, what };
+  takeOn(village: string, price: number, paid: number, what: string = BUILDS.HOUSE, waiting = false): void {
+    this.taken = { village, price, paid, what, ...(waiting ? { waiting: true } : {}) };
   }
 
   /**
@@ -555,20 +547,12 @@ export class Houses {
     const held = this.taken;
     if (!held) return null;
     this.taken = null;
-    /*
-     * What he was told to build, carried onto the plot.
-     *
-     * It was dropped here for a version: `Commission.what` existed, `takeOn` recorded it, and the
-     * one step between the table and the site threw it away and wrote `house:` into the id. A field
-     * nothing reads is a field that is not there, whatever the type says.
-     *
-     * The id names it too, because an id is what a delta log keys a building by — and two different
-     * things ordered on the same tile would otherwise be one building that changed its mind.
-     */
+    // The kind belongs in both the commission and its delta-log identity.
     const what = held.what ?? BUILDS.HOUSE;
     const job: Commission = {
       id: `${what}:${held.village}:${Math.floor(x)},${Math.floor(z)}`,
-      what, x, z, village: held.village, began: day, paid: held.paid, price: held.price, rot,
+      what, x, z, village: held.village, paid: held.paid, price: held.price, rot,
+      ...(held.waiting ? { waiting: Math.floor(day) } : { began: day }),
       worked: 0, workedOn: Math.floor(day), fund: held.paid,
       // what it was added to, when it is an addition. A storey shares its tile with the house it
       // is on, so the id would collide without the kind in it — which is exactly why the kind is
@@ -577,6 +561,20 @@ export class Houses {
     };
     this.jobs.push(job);
     return job;
+  }
+
+  /** Start queued sites in written order while this village's yard can cover them. */
+  startBacklog(village: string, day: number): Commission[] {
+    const started: Commission[] = [];
+    for (const job of this.jobs) {
+      if (job.village !== village || job.waiting === undefined) continue;
+      if (!this.yard.draw(village, buildable(job.what).timber)) break;
+      job.began = Math.floor(day);
+      job.workedOn = Math.floor(day) - 1;
+      delete job.waiting;
+      started.push(job);
+    }
+    return started;
   }
 
   /**
@@ -676,7 +674,7 @@ export class Houses {
     const bills: Array<{ village: string; weight: number }> = [];
     for (const job of this.jobs) {
       if (owed(job, day) <= 0) continue;
-      const from = job.charged ?? job.finished ?? job.began + daysFor(job);
+      const from = job.charged ?? job.finished ?? (job.began ?? day) + daysFor(job);
       job.charged = Math.floor(day);
       const days = Math.floor(day) - Math.floor(from);
       if (days <= 0) continue;
