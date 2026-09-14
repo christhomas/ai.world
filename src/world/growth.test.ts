@@ -191,7 +191,7 @@ describe('what size a village builds', () => {
 
   it('writes the size down, so a village re-lived comes out the same size it was', () => {
     const raised = whatTheVillageBuilds(1e9, [], full.laidOut, full.holds, townsfolk, STOCKED)!;
-    const spending = whatTheVillageSpends(1e9, [], full.laidOut, full.holds, townsfolk, STOCKED);
+    const spending = whatTheVillageSpends(1e9, [], full.laidOut, full.holds, townsfolk, 'village', STOCKED);
     // the size that went up, which is what this is about — the entry also carries the morning it
     // was begun now, and that is `roofs.test.ts`'s business rather than this one's
     expect(spending.works.map(roofOfWork)).toEqual([raised.roof]);
@@ -205,7 +205,7 @@ describe('everything a village spends on one morning', () => {
     // rich enough for a well twice over, and it builds a house instead: a village houses its people
     // before it pleases them, and one building a morning is the hall's own rule kept
     const rich = WORKS[0].costs * 2;
-    const spending = whatTheVillageSpends(rich, ['watchtower'], full.laidOut, full.holds, townsfolk, STOCKED);
+    const spending = whatTheVillageSpends(rich, ['watchtower'], full.laidOut, full.holds, townsfolk, 'village', STOCKED);
     expect(spending.works.every(isARoof)).toBe(true);
     expect(spending.works.length).toBe(1);
     expect(spending.holdsMore).toBeGreaterThan(0);
@@ -216,13 +216,13 @@ describe('everything a village spends on one morning', () => {
   it('goes back to buying what the hall wants the moment there is nowhere left to build', () => {
     const built = Array.from({ length: roomFor(full.laidOut) - full.laidOut }, () => workOf(STANDARD));
     const packed = crowd(holdsFor(full.laidOut, built));
-    const spending = whatTheVillageSpends(WORKS[0].costs, built, full.laidOut, packed.length, packed, STOCKED);
+    const spending = whatTheVillageSpends(WORKS[0].costs, built, full.laidOut, packed.length, packed, 'village', STOCKED);
     expect(spending.works).toEqual([WORKS[0].id]);
     expect(spending.holdsMore).toBe(0);
   });
 
   it('changes nothing at all on a morning a village can afford nothing', () => {
-    const spending = whatTheVillageSpends(0, [], full.laidOut, full.holds, townsfolk, STOCKED);
+    const spending = whatTheVillageSpends(0, [], full.laidOut, full.holds, townsfolk, 'village', STOCKED);
     expect(spending.spent).toBe(0);
     expect(spending.works).toEqual([]);
     expect(spending.holdsMore).toBe(0);
@@ -253,7 +253,7 @@ describe('a village left alone with a tax take', () => {
     for (let morning = 0; morning < mornings; morning++) {
       purse += aDay * people;                    // more people is more earners is more tax
       const spending = whatTheVillageSpends(
-        purse, built, laidOut, holds, living(laidOut, built, people), STOCKED);
+        purse, built, laidOut, holds, living(laidOut, built, people), 'village', STOCKED);
       purse = Math.round((purse - spending.spent) * 100) / 100;
       built.push(...spending.works);
       holds += spending.holdsMore;

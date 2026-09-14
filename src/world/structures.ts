@@ -156,7 +156,7 @@ export interface Village {
   church: Structure | null;
   /** Tile in front of the church door where the congregation gathers. */
   churchDoor: [number, number] | null;
-  /** The town hall, in the villages with enough souls on the roll to be worth writing one. */
+  /** The reserved site where this village can raise its hall after a vote. */
   hall: Civic | null;
   /** And the watch house, in the ones with enough trouble to keep a sheet of it. */
   watchHouse: Civic | null;
@@ -515,15 +515,13 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     const pub = assignPub(houses, biome);
     const station = assignStation(houses, biome);
     /*
-     * The two civic buildings, once the village has been counted: whether a place writes anything
-     * down about itself is a fact about how many people are in it, and that is not known until the
-     * houses are standing. They set off a third of the way round the square from the chapel, one
-     * each way, so the square ends up with a face to three of its sides rather than three
-     * buildings shouldering each other on one.
+     * Reserve the hall's eventual body while the square is laid out, but do not leave it standing.
+     * The prepared site remains in `all` so its ground and path are stamped and later buildings
+     * cannot overlap it; its kind draws no prop and blocks nobody before the vote is finished.
      */
     const side = squareSide(squareR, level, biome);
     const big = houses.length >= SQUARE.CIVIC_HOUSES;
-    const hall = big ? placeCivic(side, StructureKind.TownHall, roadNormal + Math.PI * 2 / 3, 1) : null;
+    const hall = placeCivic(side, StructureKind.TownHall, roadNormal + Math.PI * 2 / 3, 1);
     // and no watch house without a cell to fill its sheet from, which is what the station is
     const watchHouse = big && station ? placeCivic(side, StructureKind.WatchHouse, roadNormal - Math.PI * 2 / 3, -1) : null;
     // last, so that the paddock has to fit round everything else rather than the other way about
@@ -534,6 +532,8 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
       { seed: graph.seed, spread, roadWidth: probe.roadWidth, biome, at: n, most: maxHouses,
         along: { ux: probe.ux, uz: probe.uz }, across: { nx, nz } },
       { land: (x, z) => sampler.landProbe(x, z), fits: footprintOk });
+    const plannedHall = hall ? all.indexOf(hall.building) : -1;
+    if (plannedHall >= 0) all[plannedHall] = { ...hall!.building, kind: StructureKind.BuildingSite };
     plazaR = 0;
     return {
       name: villageName(), x: n.x, z: n.z, radius: spread + VILLAGE_MARGIN, level, biome, houses, spare, shops, pub,
@@ -649,9 +649,9 @@ export function generateStructures(sampler: TerrainSampler, settling?: Settling)
     if (v.church && v.churchDoor) {
       doors.push({ x: v.churchDoor[0] + 0.5, z: v.churchDoor[1] + 0.5, kind: 'church', village: v.name, bx: v.church.tx, bz: v.church.tz });
     }
-    for (const [civic, kind] of [[v.hall, 'townhall'], [v.watchHouse, 'watchhouse']] as const) {
-      if (!civic) continue;
-      doors.push({ x: civic.door[0] + 0.5, z: civic.door[1] + 0.5, kind, village: v.name, bx: civic.building.tx, bz: civic.building.tz });
+    if (v.watchHouse) {
+      const civic = v.watchHouse;
+      doors.push({ x: civic.door[0] + 0.5, z: civic.door[1] + 0.5, kind: 'watchhouse', village: v.name, bx: civic.building.tx, bz: civic.building.tz });
     }
   }
 

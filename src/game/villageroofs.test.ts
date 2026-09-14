@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { Biome } from '../world/biomes';
+import { Biome, PropKind } from '../world/biomes';
 import { StructureKind, type Structure, type Village } from '../world/structures';
+import { propOf } from '../render/site';
 import { raisedRoofs, raisedStage, roofWatch } from './villageroofs';
 
 function plot(tx: number, tz: number, biome: Biome = Biome.Plains): Structure {
   return { kind: StructureKind.House, tx, tz, hw: 1, hd: 1, level: 0, rot: 0, biome, path: [] };
 }
 
-function village(name: string, spare: Structure[]): Village {
+function village(name: string, spare: Structure[], biome: Biome = Biome.Plains): Village {
+  const hall = plot(2, 3, biome);
+  hall.kind = StructureKind.TownHall;
   return {
-    name, x: 0, z: 0, radius: 12, level: 0, biome: Biome.Plains,
+    name, x: 0, z: 0, radius: 12, level: 0, biome,
     houses: [], spare, shops: [], pub: null, station: null, stable: null,
-    church: null, churchDoor: null, hall: null, watchHouse: null, board: null, stalls: [],
+    church: null, churchDoor: null, hall: { building: hall, door: [2, 1] }, watchHouse: null, board: null, stalls: [],
   } as unknown as Village;
 }
 
@@ -47,16 +50,22 @@ describe('the houses a village raised for itself', () => {
     const drawn = raisedRoofs(towns, () => ['house:cottage']);
     expect(new Set(drawn.map((r) => r.id)).size).toBe(2);
   });
+
+  it('draws a voted hall on its reserved site in the country model while work advances', () => {
+    const town = village('Fell', [], Biome.Snow);
+    const [hall] = raisedRoofs([town], () => ['townhall@100'], 102);
+    expect(hall).toMatchObject({ id: 'Fell-hall', x: 2.5, z: 3.5, stage: 'begun', what: `civic-townhall-${Biome.Snow}` });
+    expect(propOf({ ...hall, stage: 'done' })).toBe(PropKind.TownHallSnow);
+  });
 });
 
 describe('asking about them once a day rather than sixty times a second', () => {
-  it('works the answer out again when the day turns', () => {
+  it('sees work appended by a vote before the day turns', () => {
     let works = ['house:a'];
     const watch = roofWatch(() => [village('Ashby', [plot(4, 9), plot(7, 9)])], () => works);
     expect(watch(3.1)).toHaveLength(1);
-    works = ['house:a', 'house:b'];
-    expect(watch(3.9)).toHaveLength(1);      // still the same day, so still the same answer
-    expect(watch(4.0)).toHaveLength(2);
+    works = ['house:a', 'townhall@3'];
+    expect(watch(3.9).map((site) => site.id)).toContain('Ashby-hall');
   });
 
   it('and again when a patch arrives with a village on it, which does not wait for morning', () => {

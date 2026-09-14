@@ -140,6 +140,16 @@ for (let biome = Biome.Plains; biome <= Biome.Snow; biome++) {
   };
 }
 
+// A voted hall uses the country's own hall model, while the three building stages stay legible.
+for (let biome = Biome.Plains; biome <= Biome.Snow; biome++) {
+  LOOKS[`civic-townhall-${biome}`] = {
+    marked: PropKind.HousePegs,
+    begun: PropKind.HouseFrame,
+    nearly: PropKind.HouseRoof,
+    done: (PropKind.TownHallPlains + biome) as PropKind,
+  };
+}
+
 /*
  * And the things a village bought out of its treasury that are not houses.
  *

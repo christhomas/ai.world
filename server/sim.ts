@@ -250,19 +250,16 @@ export class Simulation {
     // and the book goes to the world, which is the one thing that knows when a place has stopped
     // being anybody's business — the moment ten slights are worth settling into one opinion
     room?.world.keepsTheRegister(folk.register);
-    // Everybody this world has already buried, before anybody is put in a street.
-    //
-    // A death is the one fact about a village that cannot be worked out, so it has always been kept
-    // in the world's log; the book is new here and has to be caught up with it, or a world reopened
-    // after a hard winter stands its dead back up at the well. Applied rather than buried, because
-    // these are deaths on days already gone and the register knows how to live a village again with
-    // one in its right place.
+    // Catch the authoritative register up with both kinds of village fact before anybody is put in
+    // a street: deaths and declarations are replayed on their recorded mornings.
     for (const delta of room?.world.log ?? []) {
-      if (delta.kind !== 'died') continue;
-      folk.register.apply({
-        kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
-      });
+      if (delta.kind === 'died') {
+        folk.register.apply({
+          kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
+        });
+      } else if (delta.kind === 'voted') folk.register.apply(delta);
     }
+    alive.syncBuildings();
     // C2's coarse tier, joined up. A herd belongs to the province its home is in and never to the
     // one it is standing in (`provinceOfHome`, which is C3's whole rule); a province knows how long
     // it was nobody's business because it was stamped on the way out and read back on the way in
@@ -427,7 +424,10 @@ export class Simulation {
       // old, fills the gaps, grows the children up and pays everybody for a day's work, and the
       // street is brought back into line with it on the next step — so the order is the register
       // first and the people second, exactly as it is on a client.
-      const turned = this.wildlife.get(seed)?.register?.advance(room.world.clock.day);
+      const wildlife = this.wildlife.get(seed);
+      const beforeDay = wildlife?.register?.today;
+      const turned = wildlife?.register?.advance(room.world.clock.day);
+      if (wildlife?.register?.today !== beforeDay) wildlife?.syncBuildings();
       // and what the day turned up goes into the world's chronicle, which is the only thing in the
       // game that keeps what *changed* rather than what is true. See `chronicle.ts`
       if (turned?.length) this.chronicleOf(seed).record(turned);

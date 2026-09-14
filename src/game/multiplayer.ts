@@ -454,6 +454,14 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         // the village loses them, and the people who knew them are left holding the memory
         register.apply({ kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence' });
         break;
+      case 'voted':
+        // The world sends an accepted vote back to its caller too, so nobody spends the treasury
+        // optimistically and then disagrees with the authority.
+        if (register.apply(delta) && !catchingUp) {
+          sound.chime();
+          hud.flash(`${delta.village} voted to become a ${delta.rank}. Work begins on the hall.`);
+        }
+        break;
     }
     state.version++;
     if (!catchingUp) persist();

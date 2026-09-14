@@ -1,4 +1,4 @@
-SANITY BENCH — PASS — 2026-09-14T03:20:06.833Z
+SANITY BENCH — PASS — 2026-09-14T04:23:40.937Z
 
   6 villages on 3 seeds, 450 days each — five or six generations, which is
   long enough for drift to show. Nothing here is added up: the audit in economy-report.txt does that,
@@ -56,19 +56,19 @@ SANITY BENCH — PASS — 2026-09-14T03:20:06.833Z
                     no village ran a herd its paddocks could not hold for more than 35 days
   PASS          18  villages with somebody for every building standing in them
                     Ashford (seed 1): 16 buildings, 64 people
-                    Oakcross (seed 1): 23 buildings, 92 people
+                    Oakcross (seed 1): 22 buildings, 92 people
                     Thornby (seed 1): 16 buildings, 60 people
                     Blackmarsh (seed 1): 16 buildings, 70 people
                     Fernreach (seed 1): 16 buildings, 60 people
                     Saltcombe (seed 1): 14 buildings, 52 people
                     Ashford (seed 7): 16 buildings, 60 people
-                    Oakcross (seed 7): 23 buildings, 92 people
+                    Oakcross (seed 7): 21 buildings, 92 people
                     Thornby (seed 7): 16 buildings, 62 people
                     Blackmarsh (seed 7): 16 buildings, 60 people
                     Fernreach (seed 7): 16 buildings, 62 people
                     Saltcombe (seed 7): 14 buildings, 52 people
                     Ashford (seed 1234): 16 buildings, 60 people
-                    Oakcross (seed 1234): 23 buildings, 90 people
+                    Oakcross (seed 1234): 22 buildings, 90 people
                     Thornby (seed 1234): 16 buildings, 66 people
                     Blackmarsh (seed 1234): 13 buildings, 68 people
                     Fernreach (seed 1234): 16 buildings, 64 people
@@ -77,10 +77,10 @@ SANITY BENCH — PASS — 2026-09-14T03:20:06.833Z
                     nothing anywhere banked a year of dinners
   NOTE           0  villages where one purse holds more than 50% of everything in the place
                     nobody anywhere is that far ahead of their neighbours
-  NOTE      305233  gold sitting in halls nobody can spend from — 45% of every coin in the world
-                    seed 1: 109227.97 in the halls against 128796.2 in the purses — 46% of it banked
-                    seed 7: 91165.05 in the halls against 123087.65 in the purses — 43% of it banked
-                    seed 1234: 104839.92 in the halls against 119650.16 in the purses — 47% of it banked
+  NOTE      323437  gold sitting in halls nobody can spend from — 47% of every coin in the world
+                    seed 1: 111881.52 in the halls against 126360.97 in the purses — 47% of it banked
+                    seed 7: 105503.39 in the halls against 112564.6 in the purses — 48% of it banked
+                    seed 1234: 106052.4 in the halls against 118586.55 in the purses — 47% of it banked
                     A hall is the one place a coin goes and does not come back: a purse buys dinner and is inherited,
                     and a treasury is spent on nothing at all until somebody votes to build something. Anything over
                     34% says the spending half is overdue rather than that the tax is wrong.

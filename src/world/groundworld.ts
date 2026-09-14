@@ -12,6 +12,7 @@ import { tilesOf } from './tiles';
 import { Solids, boxesOf, type Body } from './solids';
 import type { Parcel } from './chunkparcel';
 import type { Footprints } from './footprints';
+import { Standing } from './standing';
 
 /**
  * The ground, for something that walks on it but never draws it.
@@ -117,6 +118,8 @@ export class GroundWorld implements TileWorld, ChunkSource {
    * from the same props, generated the same way, so the two worlds agree about where a wall is.
    */
   private readonly solids = new Solids();
+  /** Buildings completed after the terrain was generated. */
+  private readonly built = new Standing();
   /**
    * The country grown so it can be handed over, whether or not anything is walking on it.
    *
@@ -351,7 +354,13 @@ export class GroundWorld implements TileWorld, ChunkSource {
     return type === TileType.Seabed ? WORLD.WATER_Y : null;
   }
 
+  /** Replace buildings completed after the terrain was generated. */
+  standsOn(tiles: Iterable<{ x: number; z: number }>): void {
+    this.built.replace(tiles);
+  }
+
   blocked(x: number, z: number, body?: Body): boolean {
+    if (this.built.at(x, z)) return true;
     const hit = this.tileAt(x, z);
     if (!hit) return true;                            // ground that has not been made is not ground
     // and then whatever stands on it, against the box it is actually drawn at

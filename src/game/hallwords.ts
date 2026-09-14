@@ -1,4 +1,5 @@
 import { WORKS } from '../world/hall';
+import { PROMOTIONS } from '../world/rank';
 
 import type { Person } from '../world/people';
 
@@ -76,7 +77,9 @@ export function saidOfTheWatch(watch: string, built: readonly string[], who: (id
 /** What it is putting money by for, whether or not it can reach it yet. */
 export function saidOfTheSaving(savingFor: string | null, holds: number): string {
   if (savingFor === null) return 'It is saving for nothing. There is nothing left it wants.';
-  const work = WORKS.find((w) => w.id === savingFor);
+  const ordinary = WORKS.find((work) => work.id === savingFor);
+  const promotion = PROMOTIONS.find((vote) => vote.work === savingFor);
+  const work = ordinary ?? promotion;
   if (!work) return 'It is saving for something nobody has written down, which is somebody\'s mistake.';
   const short = Math.max(0, Math.ceil(work.costs - holds));
   const near = short === 0 ? 'and it has enough' : `and it is ${short} short`;
@@ -86,10 +89,12 @@ export function saidOfTheSaving(savingFor: string | null, holds: number): string
 /** What it has built, oldest first, or an honest nothing. */
 export function saidOfWhatStands(raised: readonly string[]): string {
   const civic = raised
-    .map((work) => WORKS.find((w) => w.id === work.split(':')[0]))
-    .filter((w): w is (typeof WORKS)[number] => w !== undefined);
+    .map((entry) => entry.split(/[:@]/)[0])
+    .map((id) => WORKS.find((work) => work.id === id)?.id
+      ?? PROMOTIONS.find((promotion) => promotion.work === id)?.work)
+    .filter((id): id is string => id !== undefined);
   if (civic.length === 0) return 'Nothing yet. Every coin that has come in has gone back out on wages.';
-  return `Standing, and paid for: ${civic.map((w) => w.id).join(', ')}.`;
+  return `Standing, and paid for: ${civic.join(', ')}.`;
 }
 
 /** The four answers a hall gives, in the order somebody standing in front of it would ask them. */

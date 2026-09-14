@@ -42,7 +42,7 @@ const BOARD_RANGE = 120;
 const STANDING_ROOM = 4;
 
 export function villageInteractions(ctx: Surroundings) {
-  const { player, state, structures, around, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, questLine, quests, handover, discovered, seed } = ctx;
+  const { player, state, structures, around, places, dialogue, hud, sound, market, online, mount, entities, entityRenderer, chunks, register, persist, told, questLine, quests, handover, discovered, seed } = ctx;
   /**
    * The villages whose ground the hero could be on, which is what every door here belongs to.
    *
@@ -249,22 +249,34 @@ export function villageInteractions(ctx: Surroundings) {
   const tryHall = (): boolean => {
     for (const village of villagesHere()) {
       const hall = register.hallOf(village.name);
-      const body = bodyOfTheHall(hall, village.houses, register.living(village.name));
+      const body = bodyOfTheHall(hall, village.houses, register.living(village.name), village.hall?.building);
       if (!body) continue;
       const door = doorTile(body);
       if (Math.hypot(door[0] - player.x, door[1] - player.z) > 2.2) continue;
       const asked = whatTheHallKnows(register, village.name);
+      const ballot = village.hall ? register.ballotOf(village.name) : null;
+      const choices: DialogueChoice[] = [{ label: 'That is all', next: () => null }];
+      if (ballot?.ready) choices.unshift({
+        label: `Vote aye — become a ${ballot.rank} (${ballot.costs}g)`,
+        next: () => {
+          // A vote spends a shared treasury and changes a shared rank. Ask the world that owns both;
+          // its accepted `voted` delta comes back to this player as well as everybody else.
+          online.vote(village.name);
+          return {
+            speaker: `The hall of ${village.name}`, emoji: '🏛️',
+            pages: [`Your aye is put with the ${ballot.voters.length} resident electors. The world will record the motion before ${ballot.costs} gold leaves the treasury.`],
+            choices: [{ label: 'Let it be recorded', next: () => null }],
+          };
+        },
+      });
       dialogue.start({
-        speaker: `The hall of ${village.name}`,
-        emoji: '🏛️',
-        pages: whatTheHallSays(asked, (id) => register.find(id) ?? null),
-        choices: [{ label: 'That is all', next: () => null }],
+        speaker: `The hall of ${village.name}`, emoji: '🏛️',
+        pages: whatTheHallSays(asked, (id) => register.find(id) ?? null), choices,
       });
       return true;
     }
     return false;
   };
-
   const tryBoard = (): boolean => {
     for (const village of villagesHere()) {
       if (!village.board) continue;

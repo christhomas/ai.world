@@ -1,17 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { SQUARE } from './civic';
 import { WORKS, nextWork } from './hall';
-import { rankOfVillage } from './growth';
-import { RANKS, atLeast, rankOfRoofs, untilTheNextRank } from './rank';
+import { housesStanding } from './growth';
+import { RANKS, atLeast, promotionFor, rankOfRoofs } from './rank';
 import { Register } from './register';
 
 /**
- * What a place is, counted rather than declared.
+ * Roofs permit a title; a vote declares the higher ones.
  *
- * This falls out of the growth loop for nothing, which is the argument for having it: if the roofs
- * a place has are what cap its population, the roofs are also what the place *is*. Nothing anywhere
- * says "this seed puts a city here" — a valley grows into a town because its people built the
- * houses, and the player sees it without being told.
+ * The count stays in this small module because both growth and the ballot need the same thresholds.
+ * A hamlet becomes a village by growth alone, while town and city remain facts the register was told.
  */
 
 describe('what a place is called', () => {
@@ -40,19 +38,30 @@ describe('what a place is called', () => {
 
   it('counts what was laid out and what has been raised since, together', () => {
     const built = Array.from({ length: SQUARE.CIVIC_HOUSES }, () => 'house:house');
-    expect(rankOfVillage(SQUARE.CIVIC_HOUSES, [])).toBe('village');
-    expect(rankOfVillage(SQUARE.CIVIC_HOUSES, built)).toBe('town');
+    expect(rankOfRoofs(housesStanding(SQUARE.CIVIC_HOUSES, []))).toBe('village');
+    expect(rankOfRoofs(housesStanding(SQUARE.CIVIC_HOUSES, built))).toBe('town');
   });
 
-  it('says how many more roofs before it is called something else', () => {
-    expect(untilTheNextRank(SQUARE.CIVIC_HOUSES)).toBe(SQUARE.CIVIC_HOUSES);
-    expect(untilTheNextRank(SQUARE.CIVIC_HOUSES * 4), 'a city has nowhere further to go').toBeNull();
-  });
 
   it('compares ranks by their place on the ladder, not by their names', () => {
     expect(atLeast('town', 'village')).toBe(true);
     expect(atLeast('village', 'town')).toBe(false);
     expect(atLeast('city', 'city')).toBe(true);
+  });
+
+  it('makes the later city declaration dearer than the town vote', () => {
+    expect(promotionFor('village', SQUARE.CIVIC_HOUSES * 2)).toMatchObject({ rank: 'town', costs: 5000 });
+    expect(promotionFor('town', SQUARE.CIVIC_HOUSES * 4)).toMatchObject({ rank: 'city', costs: 15000 });
+  });
+
+  it('still recognises a hamlet as a village when its eighth roof is finished', () => {
+    const register = new Register(17, 30);
+    register.settle('Testing', 7, ['farmer', 'seller', 'hunter', 'soldier']);
+    expect(register.rankOf('Testing')).toBe('hamlet');
+
+    register.advance(900);
+    expect(rankOfRoofs(housesStanding(7, register.worksOf('Testing')))).not.toBe('hamlet');
+    expect(register.rankOf('Testing')).toBe('village');
   });
 });
 
@@ -81,12 +90,19 @@ describe('what a rank is allowed to do', () => {
   });
 });
 
-describe('a village that has been growing for a year', () => {
-  it('is called something bigger than it was founded as', () => {
+describe('a village that has grown large enough to declare itself', () => {
+  it('stays a village until the player joins its vote', () => {
     const register = new Register(17, 30);
     register.settle('Testing', 9, ['farmer', 'seller', 'hunter', 'soldier']);
-    const wasFounded = register.rankOf('Testing');
     register.advance(900);
-    expect(register.rankOf('Testing'), `it was a ${wasFounded} and stayed one`).not.toBe(wasFounded);
+    expect(rankOfRoofs(housesStanding(9, register.worksOf('Testing')))).toBe('town');
+    expect(register.rankOf('Testing')).toBe('village');
+
+    const ballot = register.ballotOf('Testing');
+    expect(ballot).toMatchObject({ rank: 'town', costs: 5000, ready: true });
+    const vote = register.vote('Testing', 900);
+    expect(vote).toEqual({ kind: 'voted', village: 'Testing', rank: 'town', day: 900 });
+    expect(register.rankOf('Testing')).toBe('town');
+    expect(register.worksOf('Testing')).toContain('townhall@900');
   });
 });

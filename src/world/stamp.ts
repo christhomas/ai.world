@@ -46,7 +46,8 @@ export function stampPlaza(chunk: ChunkData, ox: number, oz: number, s: Structur
 export function stampFootprint(chunk: ChunkData, ox: number, oz: number, s: Structure): void {
   const h = s.level * WORLD.STEP;
   const building = s.kind === StructureKind.House || s.kind === StructureKind.Church
-    || s.kind === StructureKind.TownHall || s.kind === StructureKind.WatchHouse;
+    || s.kind === StructureKind.TownHall || s.kind === StructureKind.WatchHouse
+    || s.kind === StructureKind.BuildingSite;
   for (let dz = -s.hd - 1; dz <= s.hd + 1; dz++) {
     for (let dx = -s.hw - 1; dx <= s.hw + 1; dx++) {
       const idx = localIndex(chunk, ox, oz, s.tx + dx, s.tz + dz);
@@ -271,6 +272,7 @@ export function structureProp(s: Structure, storeys = 1): PropKind {
         : (PropKind.HousePlains + s.biome) as PropKind;
     case StructureKind.Church: return (PropKind.ChurchPlains + s.biome) as PropKind;
     case StructureKind.TownHall: return (PropKind.TownHallPlains + s.biome) as PropKind;
+    case StructureKind.BuildingSite: return PropKind.None;
     case StructureKind.WatchHouse: return (PropKind.WatchHousePlains + s.biome) as PropKind;
     case StructureKind.Well: return PropKind.Well;
     case StructureKind.Shrine: return PropKind.Shrine;
@@ -310,6 +312,10 @@ export function stampStructure(
   switch (s.kind) {
     case StructureKind.Plaza: stampPlaza(chunk, ox, oz, s); break;
     case StructureKind.Paddock: stampYard(chunk, ox, oz, s); break;
+    case StructureKind.BuildingSite:
+      stampFootprint(chunk, ox, oz, s);
+      stampPath(chunk, ox, oz, s);
+      break;
     case StructureKind.CastleWard: stampWard(chunk, ox, oz, s); break;
     case StructureKind.Sign:
     case StructureKind.Stall:

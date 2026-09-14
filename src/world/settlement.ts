@@ -1,5 +1,6 @@
 import type { Holding, Owner } from './holdings';
 import type { Person } from './people';
+import type { Rank } from './rank';
 
 /**
  * What a village *is*, as against what a village does.
@@ -74,8 +75,8 @@ export const STONES_KEPT = 60;
 export interface Hall {
   /** The same identity used by holdings and payroll entries. */
   readonly id: Owner;
-  /** A hamlet keeps its books in the mayor's house until a vote gives the hall its own building. */
-  body: 'mayor-house';
+  /** A place keeps its books under the mayor's roof until its voted hall has finished building. */
+  body: 'mayor-house' | 'town-hall';
   /** The village treasury, separate from every mayor and therefore never inherited. */
   purse: number;
 }
@@ -83,6 +84,8 @@ export interface Hall {
 /** A village the register has been told about, so it knows how big to keep it. */
 export interface Settlement {
   people: Person[];
+  /** What this place has declared itself to be; town and city never follow from roofs alone. */
+  rank: Rank;
   /**
    * The days somebody was raised at a shrine and sent here.
    *

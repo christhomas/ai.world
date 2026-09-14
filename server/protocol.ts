@@ -9,7 +9,7 @@ import type { Anchor } from '../src/world/manifest';
 import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
 
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 /**
  * Real seconds in one day of the world. An hour of it is therefore five minutes, which is the
@@ -66,6 +66,7 @@ export interface Clock {
  * - `reap`    that tile lifted again
  * - `found`   a place somebody named, so everyone's map agrees
  * - `died`    a villager killed by something, which no client could have worked out on its own
+ * - `voted`  a village declaring itself a town or city on a recorded day
  */
 export type WorldDelta =
   | { kind: 'chest'; id: string }
@@ -74,6 +75,8 @@ export type WorldDelta =
   | { kind: 'reap'; tile: string }
   | { kind: 'found'; name: string }
   | { kind: 'died'; who: string; village: string; day: number }
+  /** A place declared itself a town or city; the day fixes its cost and building stage on replay. */
+  | { kind: 'voted'; village: string; rank: 'town' | 'city'; day: number }
   /**
    * Something living in a mine has been killed, and how many.
    *
@@ -387,6 +390,8 @@ export type ClientMessage =
   | { type: 'trade-accept'; from: string }
   | { type: 'trade-decline'; from: string }
   | { type: 'delta'; delta: WorldDelta }
+  /** Ask the world to call the next civic vote in the named village. */
+  | { type: 'vote'; village: string }
   /**
    * A blow landed on a creature the world owns.
    *
@@ -898,7 +903,7 @@ export function deltaAt(delta: WorldDelta): { x: number; z: number } | null {
  * opening hand something over, and sowing spends a seed to claim a tile. When every way a page can
  * sow is a hero standing in a field (the debug console can sow across the map), it joins them.
  */
-const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap']);
+const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap', 'voted']);
 
 /** Whether a client may report this change itself, or must ask the world for it instead. */
 export function mayReport(delta: WorldDelta): boolean {
@@ -913,6 +918,8 @@ export function deltaKey(delta: WorldDelta): string {
     case 'reap': return `sow:${delta.tile}`;   // reaping clears the sowing it replaces
     case 'found': return `found:${delta.name}`;
     case 'died': return `died:${delta.who}`;
+    // both declarations survive: a later city vote must not replace the morning this became a town
+    case 'voted': return `voted:${delta.village}:${delta.rank}`;
     // one entry per mine, and the newest wins: both of these carry a whole state rather than a
     // change to one, so replacing is exactly right and adding would double-count
     case 'cleared': return `cleared:${delta.mine}`;
@@ -983,6 +990,11 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const day = Number(delta.day);
       if (!Number.isFinite(day)) return null;
       return { kind: 'died', who: id(delta.who), village: id(delta.village), day: Math.max(1, Math.floor(day)) };
+    }
+    case 'voted': {
+      const day = Number(delta.day);
+      if (!Number.isFinite(day) || (delta.rank !== 'town' && delta.rank !== 'city')) return null;
+      return { kind: 'voted', village: id(delta.village), rank: delta.rank, day: Math.max(1, Math.floor(day)) };
     }
     case 'sow': {
       const day = Number(delta.day);
