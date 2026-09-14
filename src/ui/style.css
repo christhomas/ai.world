@@ -1,71 +1,41 @@
 /* ------------------------------------------------------------------------
    Themes: five tokens, one layout
 
-   A theme may change **only five things** — surface, rule, ink, accent,
-   action — plus the pair of faces it is set in. Position, size, spacing and
-   every hit target are identical across all four, which is not a stylistic
-   preference but the property that makes a theme cheap: *a new theme cannot
-   break a screen and needs no re-test.* The moment a theme is allowed to move
-   something, every theme becomes a layout and four themes become four
-   interfaces to check.
-
-   Written as tokens rather than as four stylesheets for the same reason, and
-   because the phone build reads the same five: whatever draws this interface
-   next — a browser, or Flutter over a GL surface — is reading one table.
-
-   Stone is the default because it is the one that reads over a sunlit field
-   *and* a cave floor, which is the whole problem this game's HUD has.
+   A theme may change only five things — surface, rule, ink, accent and face.
+   Position, size, spacing and every hit target stay identical across Stone,
+   Vellum, Steel and Hairline. A theme changes the material, never the design.
    ------------------------------------------------------------------------ */
 :root,
 :root[data-theme='stone'] {
-  --theme-surface: rgba(6, 9, 22, 0.72);
-  --theme-rule: rgba(214, 221, 255, 0.14);
-  --theme-ink: #eef2ff;
-  --theme-dim: #7f8bb3;
-  --theme-accent: #ffd76a;
-  --theme-action: rgba(150, 140, 255, 0.62);
-  --theme-page: #f6efdc;                       /* the book's paper, which is not the glass */
-  --theme-display: 'Space Grotesk', system-ui, sans-serif;
-  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+  --surface: rgba(6, 9, 22, 0.72);
+  --rule: rgba(214, 221, 255, 0.14);
+  --ink: #eef2ff;
+  --accent: #ffd76a;
+  --face: 'Space Grotesk', system-ui, sans-serif;
 }
 
-/* Paper, for somebody reading in daylight rather than playing in a cave. */
 :root[data-theme='vellum'] {
-  --theme-surface: #f6efdc;
-  --theme-rule: #8a6a3d;
-  --theme-ink: #2a2418;
-  --theme-dim: #8a7a5a;
-  --theme-accent: #8a6a3d;
-  --theme-action: #8a2a14;
-  --theme-page: #f6efdc;
-  --theme-display: 'EB Garamond', Georgia, serif;
-  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+  --surface: #f6efdc;
+  --rule: #8a6a3d;
+  --ink: #2a2418;
+  --accent: #8a2a14;
+  --face: 'EB Garamond', Georgia, serif;
 }
 
-/* Cold and instrumental: the readings first, the country second. */
 :root[data-theme='steel'] {
-  --theme-surface: #1b2230;
-  --theme-rule: #4d5a6d;
-  --theme-ink: #e8eef7;
-  --theme-dim: #8a97a8;
-  --theme-accent: #2f6fd0;
-  --theme-action: #c2352a;
-  --theme-page: #151b26;
-  --theme-display: 'Barlow Condensed', system-ui, sans-serif;
-  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+  --surface: #1b2230;
+  --rule: #4d5a6d;
+  --ink: #e8eef7;
+  --accent: #2f6fd0;
+  --face: 'Barlow Condensed', system-ui, sans-serif;
 }
 
-/* Almost nothing: a hairline and white ink, for somebody who wants the picture. */
 :root[data-theme='hairline'] {
-  --theme-surface: rgba(4, 6, 10, 0.66);
-  --theme-rule: rgba(255, 255, 255, 0.5);
-  --theme-ink: #ffffff;
-  --theme-dim: rgba(255, 255, 255, 0.7);
-  --theme-accent: #ffffff;
-  --theme-action: #ffffff;
-  --theme-page: #f7f6f2;
-  --theme-display: 'IBM Plex Mono', ui-monospace, monospace;
-  --theme-number: 'IBM Plex Mono', ui-monospace, monospace;
+  --surface: rgba(4, 6, 10, 0.66);
+  --rule: rgba(255, 255, 255, 0.5);
+  --ink: #ffffff;
+  --accent: #ffffff;
+  --face: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -101,13 +71,9 @@
    * eight things that happened to be added on eight different days. Dark enough in the middle to
    * read a pale glyph on over a sunlit field, pale enough at the rim to find over a cave floor.
    */
-  --ui-glass: var(--theme-surface);
-  --ui-glass-lit: var(--theme-action);         /* the same control, with a thumb on it */
-  --ui-rim: var(--theme-rule);
-  --ui-ink: var(--theme-ink);
   /* lifts the glass off whatever it is lying on. In HUD units like everything else: a two-pixel
      shadow under a button that has grown to 144px is a shadow nobody can see. */
-  --ui-lift: 0 calc(2 * var(--ui-scale)) calc(10 * var(--ui-scale)) rgba(0, 0, 0, 0.45);
+  --ui-lift: 0 calc(2 * var(--ui-scale)) calc(10 * var(--ui-scale)) color-mix(in srgb, var(--surface) 45%, transparent);
 
   /*
    * One HUD pixel.
@@ -143,7 +109,7 @@
    */
   --ui-scale: clamp(1px, min(100vh / 720, 100vw / 1080), 3px);
 }
-body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monospace; }
+body { background: var(--surface); overflow: hidden; font-family: var(--face); }
 #gameContainer { width: 100vw; height: 100vh; }
 #gameContainer canvas { display: block; }
 /* No box of its own until a window is wide enough to want one — see "One column down the right".
@@ -159,20 +125,20 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
  */
 #areaName {
   position: fixed; top: calc(26 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
-  padding: 0 0 calc(9 * var(--ui-scale)); color: #fff; white-space: nowrap; z-index: 100;
+  padding: 0 0 calc(9 * var(--ui-scale)); color: var(--ink); white-space: nowrap; z-index: 100;
   font-size: calc(27 * var(--ui-scale)); letter-spacing: calc(11 * var(--ui-scale));
   text-align: center; text-indent: calc(11 * var(--ui-scale));   /* the last letter's tracking back */
-  text-shadow: 0 calc(2 * var(--ui-scale)) 0 rgba(0,0,0,0.55), 0 0 calc(22 * var(--ui-scale)) rgba(0,0,0,0.5);
+  text-shadow: 0 calc(2 * var(--ui-scale)) 0 color-mix(in srgb, var(--surface) 55%, transparent), 0 0 calc(22 * var(--ui-scale)) color-mix(in srgb, var(--surface) 50%, transparent);
 }
 #areaName::after {
   content: ''; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
   width: calc(190 * var(--ui-scale)); height: calc(2 * var(--ui-scale));
-  background: var(--gold); box-shadow: 0 var(--ui-scale) 0 rgba(0,0,0,0.5);
+  background: var(--accent); box-shadow: 0 var(--ui-scale) 0 color-mix(in srgb, var(--surface) 50%, transparent);
 }
 #minimap {
   position: fixed; top: 0; right: 0; z-index: 100;
-  background: var(--stone);
-  border-left: var(--ui-scale) solid var(--hair); border-bottom: var(--ui-scale) solid var(--hair);
+  background: var(--surface);
+  border-left: var(--ui-scale) solid var(--rule); border-bottom: var(--ui-scale) solid var(--rule);
 }
 /* The size has to be said here even though the canvas has a width of its own, because `minimap.ts`
    now sets that width from however large this box turns out to be. Left to the element's own
@@ -185,12 +151,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 #clockPanel {
   display: flex; align-items: baseline; gap: calc(6 * var(--ui-scale));
   padding: calc(7 * var(--ui-scale)) calc(10 * var(--ui-scale)) calc(6 * var(--ui-scale));
-  color: #cfd6ff; font-size: calc(11 * var(--ui-scale)); white-space: nowrap;
+  color: var(--ink); font-size: calc(11 * var(--ui-scale)); white-space: nowrap;
 }
 #clockIcon { font-size: calc(15 * var(--ui-scale)); }
 #clockWeather { font-size: calc(13 * var(--ui-scale)); }
 #clockTime {
-  font-size: calc(17 * var(--ui-scale)); font-weight: bold; color: #ffd76a;
+  font-size: calc(17 * var(--ui-scale)); font-weight: bold; color: var(--accent);
   letter-spacing: var(--ui-scale);
 }
 /*
@@ -204,14 +170,14 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   width: 100%;
   margin-top: calc(6 * var(--ui-scale));
   font-size: calc(11 * var(--ui-scale));
-  color: #cfd6ff;
-  background: rgba(10, 14, 26, 0.75);
-  border: 1px solid rgba(120, 140, 200, 0.35);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rule) 35%, transparent);
   border-radius: calc(4 * var(--ui-scale));
   padding: calc(5 * var(--ui-scale)) calc(7 * var(--ui-scale));
 }
 
-#clockDate { margin-left: auto; color: #8f9dc9; }
+#clockDate { margin-left: auto; color: var(--accent); }
 /*
  * The world has gone and the game is knocking on its door again.
  *
@@ -227,12 +193,12 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   font-size: calc(13 * var(--ui-scale));
   padding: calc(2 * var(--ui-scale)) calc(4 * var(--ui-scale));
   border-radius: calc(4 * var(--ui-scale));
-  background: rgba(255, 90, 70, 0.22);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
   animation: netflash 1.4s ease-in-out infinite;
 }
 #netlink::after {
   content: ''; position: absolute; left: 10%; right: 10%; top: 48%;
-  border-top: calc(2 * var(--ui-scale)) solid #ff6a5a;
+  border-top: calc(2 * var(--ui-scale)) solid var(--rule);
   transform: rotate(-28deg);
 }
 @keyframes netflash {
@@ -241,24 +207,24 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 }
 #clockBar {
   position: relative; height: calc(4 * var(--ui-scale));
-  border-top: var(--ui-scale) solid var(--hair-faint);
-  background: #2a3560;   /* the phase gradient is painted from src/ui/clock.ts */
+  border-top: var(--ui-scale) solid color-mix(in srgb, var(--rule) 70%, transparent);
+  background: var(--accent);   /* the phase gradient is painted from src/ui/clock.ts */
 }
 #clockMarker {
   position: absolute; top: calc(-3 * var(--ui-scale)); width: calc(2 * var(--ui-scale));
   height: calc(10 * var(--ui-scale)); margin-left: calc(-1 * var(--ui-scale));
-  background: #ffffff; box-shadow: 0 0 calc(4 * var(--ui-scale)) rgba(0,0,0,0.8);
+  background: var(--accent); box-shadow: 0 0 calc(4 * var(--ui-scale)) color-mix(in srgb, var(--surface) 80%, transparent);
 }
-#loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #a29bfe; font-size: calc(24 * var(--ui-scale)); z-index: 2000; }
+#loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--accent); font-size: calc(24 * var(--ui-scale)); z-index: 2000; }
 #debug {
   position: fixed; bottom: calc(20 * var(--ui-scale)); right: calc(20 * var(--ui-scale));
-  color: #8f8fb0; font-size: calc(11 * var(--ui-scale));
-  background: var(--stone); padding: calc(6 * var(--ui-scale)) calc(10 * var(--ui-scale));
+  color: color-mix(in srgb, var(--ink) 78%, transparent); font-size: calc(11 * var(--ui-scale));
+  background: var(--surface); padding: calc(6 * var(--ui-scale)) calc(10 * var(--ui-scale));
   z-index: 100; white-space: pre;
 }
 /* the build, above the numbers and quieter than them: it is the thing you read once when something
    is wrong, and the numbers are the thing you watch */
-#debugBuild { display: block; color: var(--ink-faint); }
+#debugBuild { display: block; color: color-mix(in srgb, var(--ink) 48%, transparent); }
 /*
  * Options: five kinds of control, laid out as five kinds of control.
  *
@@ -289,22 +255,22 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   /*
    * Opaque, and the game behind it blurred.
    *
-   * `--stone-deep` is the slab every panel in this game is cut from and it is right for a readout
+   * The themed surface is the slab every panel in this game is cut from and it is right for a readout
    * you glance at over the world. This is not that: it is a page of settings with two text fields
    * on it, and at 0.88 a cottage roof shows through the middle of a server address. The blur is
    * what keeps it feeling like it is over the world rather than instead of it.
    */
-  background: rgba(6, 9, 22, 0.97);
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
   backdrop-filter: blur(calc(3 * var(--ui-scale)));
-  border: var(--ui-scale) solid var(--hair);
+  border: var(--ui-scale) solid var(--rule);
   border-radius: calc(3 * var(--ui-scale));
   /* wide enough that a server address is not scrolled in a box a third of its length */
   width: min(calc(100vw - 32 * var(--ui-scale)), calc(430 * var(--ui-scale)));
   max-height: calc(100vh - 48 * var(--ui-scale));
   overflow-y: auto;
   padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale)) calc(16 * var(--ui-scale));
-  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
-  color: var(--ui-ink); z-index: 1500;
+  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) color-mix(in srgb, var(--surface) 60%, transparent);
+  color: var(--ink); z-index: 1500;
 }
 #optionsPanel.show { display: block; animation: popIn 0.3s ease-out; }
 
@@ -314,16 +280,16 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   display: flex; align-items: baseline; justify-content: space-between;
   gap: calc(12 * var(--ui-scale)); margin-bottom: calc(4 * var(--ui-scale));
 }
-#optionsPanel h3 { color: #a29bfe; margin: 0; font-size: calc(17 * var(--ui-scale)); }
-#optionsPanel .opt-esc { color: var(--ink-faint); font-size: calc(11 * var(--ui-scale)); }
+#optionsPanel h3 { color: var(--accent); margin: 0; font-size: calc(17 * var(--ui-scale)); }
+#optionsPanel .opt-esc { color: color-mix(in srgb, var(--ink) 48%, transparent); font-size: calc(11 * var(--ui-scale)); }
 
 #optionsPanel .opt-section { margin-top: calc(18 * var(--ui-scale)); }
 #optionsPanel .rail-head { display: flex; align-items: center; gap: calc(12 * var(--ui-scale)); }
 #optionsPanel .rail-head span {
   font-size: calc(10 * var(--ui-scale)); letter-spacing: calc(2.5 * var(--ui-scale));
-  color: var(--ink-far); text-transform: uppercase; white-space: nowrap;
+  color: color-mix(in srgb, var(--ink) 68%, transparent); text-transform: uppercase; white-space: nowrap;
 }
-#optionsPanel .rail-head::after { content: ''; flex: 1; height: var(--ui-scale); background: var(--hair); }
+#optionsPanel .rail-head::after { content: ''; flex: 1; height: var(--ui-scale); background: var(--rule); }
 
 /*
  * One labelled control: name on the left, the thing itself in the middle, its reading on the right.
@@ -337,31 +303,31 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   align-items: center; gap: calc(12 * var(--ui-scale));
   margin-top: calc(10 * var(--ui-scale));
 }
-#optionsPanel .opt-row label { color: var(--ink-dim); font-size: calc(13 * var(--ui-scale)); }
+#optionsPanel .opt-row label { color: color-mix(in srgb, var(--ink) 82%, transparent); font-size: calc(13 * var(--ui-scale)); }
 /* a control with nothing to set — the seed — leaves the middle column empty rather than stretching
    its value across it, so the number stays in the gutter every other number is in */
 #optionsPanel .opt-static .value-display { grid-column: 3; }
 #optionsPanel .value-display {
-  text-align: right; color: var(--gold); font-size: calc(13 * var(--ui-scale));
+  text-align: right; color: var(--accent); font-size: calc(13 * var(--ui-scale));
   font-variant-numeric: tabular-nums;
 }
 
 #optionsPanel input[type="range"] {
-  width: 100%; cursor: pointer; accent-color: #a29bfe;
+  width: 100%; cursor: pointer; accent-color: var(--accent);
   /* the browser default is taller than the row it sits in and pushes the label off centre */
   height: calc(18 * var(--ui-scale));
 }
 #optionsPanel select,
 #optionsPanel input[type="text"] {
   width: 100%; box-sizing: border-box;
-  background: rgba(6, 9, 22, 0.9); color: var(--ui-ink);
-  border: var(--ui-scale) solid var(--hair); border-radius: calc(2 * var(--ui-scale));
+  background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--ink);
+  border: var(--ui-scale) solid var(--rule); border-radius: calc(2 * var(--ui-scale));
   padding: calc(6 * var(--ui-scale)) calc(8 * var(--ui-scale));
   font-size: calc(12 * var(--ui-scale)); font-family: inherit;
 }
 #optionsPanel select { grid-column: 2 / span 2; }
 #optionsPanel select:focus,
-#optionsPanel input[type="text"]:focus { outline: none; border-color: #a29bfe; }
+#optionsPanel input[type="text"]:focus { outline: none; border-color: var(--rule); }
 
 /* the two server fields, full width and stacked: an address and a name are typed into, not set */
 #optionsPanel .opt-fields {
@@ -375,62 +341,62 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 
 /* a line the panel says rather than a value it holds: the graphics chip, whether you are online */
 #optionsPanel .opt-note {
-  margin: calc(6 * var(--ui-scale)) 0 0; color: var(--ink-far);
+  margin: calc(6 * var(--ui-scale)) 0 0; color: color-mix(in srgb, var(--ink) 68%, transparent);
   font-size: calc(11 * var(--ui-scale)); line-height: 1.4;
 }
-#optionsPanel .opt-note.software { color: #ffb36a; }
+#optionsPanel .opt-note.software { color: var(--accent); }
 
 /* what a switch is for, said beside it rather than under the whole section */
 #optionsPanel .opt-hint {
   flex: 1 1 100%; margin-top: calc(2 * var(--ui-scale));
-  color: var(--ink-far); font-size: calc(11 * var(--ui-scale)); line-height: 1.4;
+  color: color-mix(in srgb, var(--ink) 68%, transparent); font-size: calc(11 * var(--ui-scale)); line-height: 1.4;
 }
 #optionsPanel .opt-row input[type="checkbox"] {
-  width: calc(16 * var(--ui-scale)); height: calc(16 * var(--ui-scale)); accent-color: var(--gold);
+  width: calc(16 * var(--ui-scale)); height: calc(16 * var(--ui-scale)); accent-color: var(--accent);
 }
 
 #optionsPanel .opt-foot {
   display: flex; gap: calc(8 * var(--ui-scale));
   margin-top: calc(18 * var(--ui-scale)); padding-top: calc(14 * var(--ui-scale));
-  border-top: var(--ui-scale) solid var(--hair-faint);
+  border-top: var(--ui-scale) solid color-mix(in srgb, var(--rule) 70%, transparent);
 }
 #optionsPanel .opt-foot button { flex: 1; }
 /* leaving the world is the one thing in here you cannot undo by moving a slider back */
-#optionsPanel .opt-leave { color: var(--gold); border-color: rgba(255, 215, 106, 0.35); }
+#optionsPanel .opt-leave { color: var(--accent); border-color: color-mix(in srgb, var(--rule) 35%, transparent); }
 #optionsPanel .opt-build {
   margin: calc(12 * var(--ui-scale)) 0 0; text-align: center;
-  color: var(--ink-faint); font-size: calc(10 * var(--ui-scale));
+  color: color-mix(in srgb, var(--ink) 48%, transparent); font-size: calc(10 * var(--ui-scale));
 }
 
 #optionsPanel button {
-  background: rgba(162, 155, 254, 0.12); color: var(--ui-ink);
-  border: var(--ui-scale) solid var(--hair); border-radius: calc(2 * var(--ui-scale));
+  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink);
+  border: var(--ui-scale) solid var(--rule); border-radius: calc(2 * var(--ui-scale));
   padding: calc(8 * var(--ui-scale)) calc(10 * var(--ui-scale));
   font-size: calc(12 * var(--ui-scale)); font-family: inherit; cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-#optionsPanel button:hover { background: rgba(162, 155, 254, 0.22); border-color: #a29bfe; }
-#optionsPanel button:active { background: rgba(162, 155, 254, 0.3); }
+#optionsPanel button:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--rule); }
+#optionsPanel button:active { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 
 #toast {
   position: fixed; top: calc(70 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
-  background: var(--stone-deep); border-left: calc(3 * var(--ui-scale)) solid var(--gold);
+  background: var(--surface); border-left: calc(3 * var(--ui-scale)) solid var(--accent);
   /* over the message log rather than under it: this is the one thing on screen that has just
      happened, and the log is where it will still be in a minute */
   padding: calc(8 * var(--ui-scale)) calc(24 * var(--ui-scale));
-  color: var(--gold); font-size: calc(15 * var(--ui-scale)); z-index: 400;
+  color: var(--accent); font-size: calc(15 * var(--ui-scale)); z-index: 400;
   opacity: 0; transition: opacity 0.4s; pointer-events: none; white-space: nowrap;
   box-shadow: var(--ui-lift);
 }
 #toast.show { opacity: 1; }
 
 #breath {
-  color: #8fd2ff; font-size: calc(13 * var(--ui-scale)); letter-spacing: var(--ui-scale);
+  color: var(--accent); font-size: calc(13 * var(--ui-scale)); letter-spacing: var(--ui-scale);
   margin-top: calc(2 * var(--ui-scale)); min-height: calc(15 * var(--ui-scale));
 }
-#breath .warded { color: #ffd76a; }
-#breath .arm { color: #cfe6a0; }
-#breath .winded { color: #ff9d7a; }
+#breath .warded { color: var(--accent); }
+#breath .arm { color: var(--accent); }
+#breath .winded { color: var(--accent); }
 /*
  * The readouts used to be three boxes, each with a ring round it in a different colour — red for
  * the hearts, yellow for the purse, purple for the map. Three rings in three colours is what
@@ -439,13 +405,13 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
  */
 #status {
   position: fixed; top: 0; left: 0; z-index: 100;
-  background: var(--stone);
-  border-right: var(--ui-scale) solid var(--hair);
+  background: var(--surface);
+  border-right: var(--ui-scale) solid var(--rule);
   padding: calc(10 * var(--ui-scale)) calc(16 * var(--ui-scale)) calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
-  color: #fff; min-width: calc(160 * var(--ui-scale));
+  color: var(--ink); min-width: calc(160 * var(--ui-scale));
 }
 #hearts {
-  color: #ff5c5c; font-size: calc(18 * var(--ui-scale)); letter-spacing: var(--ui-scale);
+  color: var(--accent); font-size: calc(18 * var(--ui-scale)); letter-spacing: var(--ui-scale);
   line-height: 1.2;
 }
 
@@ -456,36 +422,36 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
  * with the page, and nothing here needs a canvas. The bar carries the shape and the number carries
  * the precision — see `hud.ts` for why the hearts could not do the second half.
  */
-.hud-bar { color: #7fd18c; letter-spacing: -1px; }
+.hud-bar { color: var(--accent); letter-spacing: -1px; }
 /* breath and the sword arm are the same bar, in the colour of whatever row they are on */
 .hud-bar.breath { color: inherit; }
-.hud-bar.hud-hurt { color: #e4746a; }
-.hud-hp { color: #cfd6ff; font-size: 11px; }
+.hud-bar.hud-hurt { color: var(--accent); }
+.hud-hp { color: var(--ink); font-size: 11px; }
 #hurt {
   position: fixed; inset: 0; pointer-events: none; z-index: 1100;
-  background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(200,0,0,0.55) 100%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 10%, transparent) 45%, color-mix(in srgb, var(--surface) 55%, transparent) 100%);
   opacity: 0; transition: opacity 0.15s;
 }
 #hurt.show { opacity: 1; }
 #inventory {
   position: fixed; top: calc(64 * var(--ui-scale)); left: 0; z-index: 100;
-  background: var(--stone);
-  border-right: var(--ui-scale) solid var(--hair); border-top: var(--ui-scale) solid var(--hair-faint);
-  border-bottom: var(--ui-scale) solid var(--hair);
+  background: var(--surface);
+  border-right: var(--ui-scale) solid var(--rule); border-top: var(--ui-scale) solid color-mix(in srgb, var(--rule) 70%, transparent);
+  border-bottom: var(--ui-scale) solid var(--rule);
   padding: calc(8 * var(--ui-scale)) calc(16 * var(--ui-scale)) calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
-  color: #fff; font-size: calc(13 * var(--ui-scale));
+  color: var(--ink); font-size: calc(13 * var(--ui-scale));
   min-width: calc(160 * var(--ui-scale));
 }
 #inventory div { line-height: 1.5; }
 #inventory div.usable { cursor: pointer; }
-#inventory div.usable:hover { color: #f1c40f; }
+#inventory div.usable:hover { color: var(--accent); }
 #dialogue {
   display: none; position: fixed; left: 50%; bottom: calc(20 * var(--ui-scale));
   transform: translateX(-50%);
   width: min(calc(1100 * var(--ui-scale)), 96vw); z-index: 1200;
-  background: linear-gradient(180deg, #1c2a6b 0%, #0d1540 100%);
-  border: var(--ui-scale) solid var(--hair);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.7); color: #fff; font-size: calc(17 * var(--ui-scale));
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface) 100%);
+  border: var(--ui-scale) solid var(--rule);
+  box-shadow: 0 10px 40px color-mix(in srgb, var(--surface) 70%, transparent); color: var(--ink); font-size: calc(17 * var(--ui-scale));
   padding: calc(14 * var(--ui-scale)) calc(16 * var(--ui-scale));
   gap: calc(14 * var(--ui-scale)); align-items: stretch;
   /* The box is anchored to the bottom of the screen, so anything it cannot fit grows off the top
@@ -506,17 +472,17 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
      the same 132x154 box that was already a round multiple of it */
   width: calc(132 * var(--ui-scale)); height: calc(154 * var(--ui-scale));
   image-rendering: pixelated; image-rendering: crisp-edges;
-  background: linear-gradient(180deg, #46538f 0%, #232d63 100%);
-  border: calc(2 * var(--ui-scale)) solid #8fa0ff; }
+  background: linear-gradient(180deg, var(--accent) 0%, var(--surface) 100%);
+  border: calc(2 * var(--ui-scale)) solid var(--rule); }
 #dialogue .dlg-emoji {
   width: calc(132 * var(--ui-scale)); height: calc(154 * var(--ui-scale));
   font-size: calc(72 * var(--ui-scale)); line-height: calc(154 * var(--ui-scale));
   text-align: center;
-  background: rgba(255,255,255,0.08); border: calc(2 * var(--ui-scale)) solid #8fa0ff;
+  background: color-mix(in srgb, var(--accent) 10%, transparent); border: calc(2 * var(--ui-scale)) solid var(--rule);
 }
 #dialogue .dlg-name {
-  color: #ffd76a; font-weight: bold; font-size: calc(15 * var(--ui-scale)); text-align: center;
-  line-height: 1.2; text-shadow: 0 1px 0 #000;
+  color: var(--accent); font-weight: bold; font-size: calc(15 * var(--ui-scale)); text-align: center;
+  line-height: 1.2; text-shadow: 0 1px 0 var(--surface);
 }
 /* the hero faces back across the panel, and steps back while somebody else is talking */
 #dialogue .dlg-me .dlg-face { transform: scaleX(-1); }
@@ -529,7 +495,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
   /* a column, so the words keep their height and the list below them takes what is left */
   flex: 1; position: relative; min-height: calc(154 * var(--ui-scale));
   display: flex; flex-direction: column; min-width: 0;
-  background: rgba(0,0,0,0.22); border: calc(2 * var(--ui-scale)) solid rgba(143,160,255,0.45);
+  background: color-mix(in srgb, var(--surface) 22%, transparent); border: calc(2 * var(--ui-scale)) solid color-mix(in srgb, var(--rule) 45%, transparent);
   padding: calc(12 * var(--ui-scale)) calc(14 * var(--ui-scale));
 }
 #dialogue .dlg-text { line-height: 1.55; min-height: calc(52 * var(--ui-scale)); white-space: pre-wrap; flex: 0 0 auto; }
@@ -537,41 +503,41 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
    moves, so arrowing down a long list walks the list rather than running off the end of it */
 #dialogue .dlg-choices {
   margin-top: calc(10 * var(--ui-scale)); overflow-y: auto; min-height: 0; flex: 1 1 auto;
-  scrollbar-width: thin; scrollbar-color: rgba(143,160,255,0.5) transparent;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 50%, transparent) transparent;
 }
 #dialogue .dlg-choice {
   padding: calc(3 * var(--ui-scale)) calc(6 * var(--ui-scale));
-  cursor: pointer; white-space: pre; color: #cfd6ff;
+  cursor: pointer; white-space: pre; color: var(--ink);
 }
-#dialogue .dlg-choice.sel { color: #fff; background: rgba(255,255,255,0.12); }
+#dialogue .dlg-choice.sel { color: var(--ink); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 /* what the row gets you, under the row. Indented past the ▶ so the labels still line up, and it
    wraps where a label may not — a shop note runs to nine words and a phone is 96vw wide. */
 #dialogue .dlg-note {
   display: block; margin-left: calc(14 * var(--ui-scale));
-  font-size: calc(14 * var(--ui-scale)); color: #97a3d8; white-space: pre-wrap;
+  font-size: calc(14 * var(--ui-scale)); color: var(--accent); white-space: pre-wrap;
 }
-#dialogue .dlg-choice.sel .dlg-note { color: #c2cbf2; }
+#dialogue .dlg-choice.sel .dlg-note { color: var(--ink); }
 #dialogue .dlg-hint {
   position: absolute; right: calc(10 * var(--ui-scale)); bottom: calc(6 * var(--ui-scale));
-  color: #ffd76a; animation: bob 0.8s infinite alternate;
+  color: var(--accent); animation: bob 0.8s infinite alternate;
 }
 @keyframes bob { from { transform: translateY(0); } to { transform: translateY(4px); } }
 #quests {
   display: none; position: fixed; top: calc(84 * var(--ui-scale)); left: calc(200 * var(--ui-scale));
   max-width: calc(280 * var(--ui-scale));
-  background: var(--stone); border-left: calc(3 * var(--ui-scale)) solid #8fa0ff;
+  background: var(--surface); border-left: calc(3 * var(--ui-scale)) solid var(--rule);
   padding: calc(8 * var(--ui-scale)) calc(12 * var(--ui-scale));
-  color: #fff; font-size: calc(12 * var(--ui-scale)); z-index: 100;
+  color: var(--ink); font-size: calc(12 * var(--ui-scale)); z-index: 100;
 }
 /* shown when `hud.ts` finds an errand to show, so the screens that do not want it can say so
    in the stylesheet like everything else */
 #quests.has-errands { display: block; }
-#quests .title { color: #8fa0ff; font-weight: bold; margin-bottom: calc(4 * var(--ui-scale)); }
+#quests .title { color: var(--accent); font-weight: bold; margin-bottom: calc(4 * var(--ui-scale)); }
 #quests div { line-height: 1.5; }
 #optionsPanel button.wide {
-  width: 100%; padding: calc(8 * var(--ui-scale)); background: #2d2d44; color: #fff; border: calc(2 * var(--ui-scale)) solid #6c5ce7; cursor: pointer; font-family: inherit;
+  width: 100%; padding: calc(8 * var(--ui-scale)); background: var(--surface); color: var(--ink); border: calc(2 * var(--ui-scale)) solid var(--rule); cursor: pointer; font-family: inherit;
 }
-#optionsPanel button.wide:hover { background: #3d3d5c; }
+#optionsPanel button.wide:hover { background: var(--accent); }
 /*
  * CUT STONE — the one visual language, decided here and used everywhere below.
  *
@@ -591,21 +557,11 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
  * round it. Emphasis is a solid bar on ONE side — the left, where reading starts — never a border.
  * The gold is used once per panel at most: it is what the eye is meant to find.
  */
-:root {
-  /* the slab every panel is cut from, and the hairline on the edges that face the game */
-  --stone: rgba(6, 9, 22, 0.72);
-  --stone-deep: rgba(6, 9, 22, 0.88);
-  --hair: rgba(214, 221, 255, 0.14);
-  --hair-faint: rgba(214, 221, 255, 0.10);
-  --gold: #ffd76a;
-  --ink-dim: #9aa5cc;
-  --ink-far: #7f8bb3;
-  --ink-faint: #5d688c;
-}
+
 
 #title {
   display: none; position: fixed; inset: 0; z-index: 3000;
-  background: #0a1030; color: var(--ui-ink);
+  background: var(--surface); color: var(--ink);
 }
 #title.show { display: flex; }
 /* the land behind it, painted by titlesky.ts */
@@ -614,7 +570,7 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
 /* ── the rail: who you are, and what a new world is made of ─────────────────── */
 #titleRail {
   position: relative; flex: 0 0 calc(384 * var(--ui-scale));
-  background: var(--stone-deep); border-right: var(--ui-scale) solid var(--hair);
+  background: var(--surface); border-right: var(--ui-scale) solid var(--rule);
   padding: calc(56 * var(--ui-scale)) calc(40 * var(--ui-scale)) calc(36 * var(--ui-scale));
   display: flex; flex-direction: column; gap: calc(40 * var(--ui-scale));
 }
@@ -623,15 +579,15 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
    which is clip-art rather than type, and it is the first thing anybody sees. */
 #title h1 {
   font-size: calc(34 * var(--ui-scale)); font-weight: bold; letter-spacing: calc(7 * var(--ui-scale));
-  color: var(--gold); position: relative; padding-left: calc(22 * var(--ui-scale));
+  color: var(--accent); position: relative; padding-left: calc(22 * var(--ui-scale));
 }
 #title h1::before {
   content: ''; position: absolute; left: 0; top: calc(4 * var(--ui-scale));
-  width: calc(10 * var(--ui-scale)); height: calc(28 * var(--ui-scale)); background: var(--gold);
+  width: calc(10 * var(--ui-scale)); height: calc(28 * var(--ui-scale)); background: var(--accent);
 }
 #title .tagline {
   margin-left: calc(22 * var(--ui-scale)); font-size: calc(13 * var(--ui-scale));
-  line-height: 1.7; color: var(--ink-far);
+  line-height: 1.7; color: color-mix(in srgb, var(--ink) 68%, transparent);
 }
 #titleRail .rail-block { display: flex; flex-direction: column; gap: calc(16 * var(--ui-scale)); }
 /*
@@ -644,11 +600,11 @@ body { background: #1a1a2e; overflow: hidden; font-family: 'Courier New', monosp
  */
 #titleRail .build {
   margin-top: calc(10 * var(--ui-scale)); font-size: calc(11 * var(--ui-scale));
-  color: var(--ink-dim); letter-spacing: var(--ui-scale); line-height: 1.6;
+  color: color-mix(in srgb, var(--ink) 82%, transparent); letter-spacing: var(--ui-scale); line-height: 1.6;
 }
 #titleRail .rail-foot {
-  margin-top: auto; padding-top: calc(10 * var(--ui-scale)); border-top: var(--ui-scale) solid var(--hair);
-  font-size: calc(11 * var(--ui-scale)); line-height: 2; color: var(--ink-faint); letter-spacing: var(--ui-scale);
+  margin-top: auto; padding-top: calc(10 * var(--ui-scale)); border-top: var(--ui-scale) solid var(--rule);
+  font-size: calc(11 * var(--ui-scale)); line-height: 2; color: color-mix(in srgb, var(--ink) 48%, transparent); letter-spacing: var(--ui-scale);
 }
 /* the keys are no use to a thumb, so a phone is told the one thing it needs instead */
 #titleRail .rail-foot .on-keys, #titleRail .rail-foot .on-touch { display: none; }
@@ -660,19 +616,20 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 #title .rail-head { display: flex; align-items: center; gap: calc(14 * var(--ui-scale)); }
 #title .rail-head span {
   font-size: calc(11 * var(--ui-scale)); letter-spacing: calc(3 * var(--ui-scale));
-  color: var(--ink-far); text-transform: uppercase; white-space: nowrap;
+  color: color-mix(in srgb, var(--ink) 68%, transparent); text-transform: uppercase; white-space: nowrap;
 }
-#title .rail-head::after { content: ''; flex: 1; height: var(--ui-scale); background: var(--hair); }
+#title .rail-head::after { content: ''; flex: 1; height: var(--ui-scale); background: var(--rule); }
 
 /* ── the slots: bands, not boxes ────────────────────────────────────────────── */
 #titleMain {
   position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center;
   padding: 0 calc(72 * var(--ui-scale)) 0 calc(56 * var(--ui-scale)); min-width: 0;
+  background: var(--surface);
 }
 #titleMain > .rail-head { margin-bottom: calc(26 * var(--ui-scale)); }
 #slots { display: flex; flex-direction: column; }
 /* one pixel between bands, which is the whole of the separation they need */
-#slots .slot + .slot { border-top: var(--ui-scale) solid var(--hair-faint); }
+#slots .slot + .slot { border-top: var(--ui-scale) solid color-mix(in srgb, var(--rule) 70%, transparent); }
 #slots .slot { display: flex; align-items: stretch; }
 #slots .band {
   flex: 1; display: flex; align-items: center; gap: calc(26 * var(--ui-scale));
@@ -682,87 +639,87 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   transition: background 0.12s, border-color 0.12s;
 }
 #slots .band:hover, #slots .band:focus-visible {
-  background: rgba(9, 13, 30, 0.72); border-left-color: var(--gold); outline: none;
+  background: color-mix(in srgb, var(--surface) 72%, transparent); border-left-color: var(--accent); outline: none;
 }
 #slots .slot-no {
   font-size: calc(40 * var(--ui-scale)); font-weight: bold; line-height: 1;
-  width: calc(34 * var(--ui-scale)); flex: 0 0 auto; color: #3d4670;
+  width: calc(34 * var(--ui-scale)); flex: 0 0 auto; color: var(--accent);
 }
-#slots .band:hover .slot-no, #slots .band:focus-visible .slot-no { color: var(--gold); }
+#slots .band:hover .slot-no, #slots .band:focus-visible .slot-no { color: var(--accent); }
 #slots .slot-of { flex: 1; display: flex; flex-direction: column; gap: calc(8 * var(--ui-scale)); min-width: 0; }
 #slots .slot-day { font-size: calc(20 * var(--ui-scale)); letter-spacing: var(--ui-scale); }
 #slots .slot-world {
-  color: var(--ink-far); font-size: calc(13 * var(--ui-scale));
+  color: color-mix(in srgb, var(--ink) 68%, transparent); font-size: calc(13 * var(--ui-scale));
   letter-spacing: calc(2 * var(--ui-scale)); margin-left: calc(10 * var(--ui-scale)); text-transform: uppercase;
 }
 #slots .slot-facts {
   display: flex; gap: calc(22 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale));
-  color: var(--ink-dim); letter-spacing: var(--ui-scale); flex-wrap: wrap;
+  color: color-mix(in srgb, var(--ink) 82%, transparent); letter-spacing: var(--ui-scale); flex-wrap: wrap;
 }
-#slots .slot-seed { color: var(--ink-faint); }
+#slots .slot-seed { color: color-mix(in srgb, var(--ink) 48%, transparent); }
 #slots .slot-go {
   flex: 0 0 auto; font-size: calc(13 * var(--ui-scale)); letter-spacing: calc(3 * var(--ui-scale));
-  color: var(--ink-far); text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 68%, transparent); text-transform: uppercase;
 }
-#slots .band:hover .slot-go, #slots .band:focus-visible .slot-go { color: var(--gold); }
-#slots .slot.empty .slot-go { color: #7fd6a0; }
-#slots .slot.empty .slot-of { font-size: calc(15 * var(--ui-scale)); letter-spacing: calc(2 * var(--ui-scale)); color: var(--ink-faint); }
+#slots .band:hover .slot-go, #slots .band:focus-visible .slot-go { color: var(--accent); }
+#slots .slot.empty .slot-go { color: var(--accent); }
+#slots .slot.empty .slot-of { font-size: calc(15 * var(--ui-scale)); letter-spacing: calc(2 * var(--ui-scale)); color: color-mix(in srgb, var(--ink) 48%, transparent); }
 /* throwing a world away is a small mark at the end of its own row, not a red button beside Play */
 #slots .slot-del {
   flex: 0 0 auto; width: calc(46 * var(--ui-scale)); background: none; border: none;
-  border-left: var(--ui-scale) solid var(--hair-faint); color: #4d5680; font: inherit;
+  border-left: var(--ui-scale) solid color-mix(in srgb, var(--rule) 70%, transparent); color: var(--accent); font: inherit;
   font-size: calc(15 * var(--ui-scale)); cursor: pointer; transition: color 0.12s, background 0.12s;
 }
-#slots .slot-del:hover { color: #e8626e; background: rgba(122, 42, 42, 0.28); }
+#slots .slot-del:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 28%, transparent); }
 #title .hint {
   margin-top: calc(30 * var(--ui-scale)); font-size: calc(11 * var(--ui-scale));
-  letter-spacing: calc(2 * var(--ui-scale)); color: #4d5680; text-transform: uppercase;
+  letter-spacing: calc(2 * var(--ui-scale)); color: var(--accent); text-transform: uppercase;
 }
 
 .tswitch { display: flex; gap: calc(10 * var(--ui-scale)); align-items: flex-start; cursor: pointer; }
-.tswitch:hover .tswitch-track { border-color: #6c5ce7; }
+.tswitch:hover .tswitch-track { border-color: var(--rule); }
 /* The track and its knob: on slides right and lights up, which is the whole of the affordance.
    Square, like everything else — a pill with a round knob in it is the one shape on screen that
    could not be cut out of this world's ground. */
 .tswitch-track {
   flex: 0 0 auto; width: calc(38 * var(--ui-scale)); height: calc(20 * var(--ui-scale)); margin-top: calc(2 * var(--ui-scale));
-  background: #232845; border: var(--ui-scale) solid #2b3157; position: relative; transition: background 0.12s;
+  background: var(--surface); border: var(--ui-scale) solid var(--rule); position: relative; transition: background 0.12s;
 }
 .tswitch-track::after {
   content: ''; position: absolute; top: calc(3 * var(--ui-scale)); left: calc(3 * var(--ui-scale)); width: calc(12 * var(--ui-scale)); height: calc(12 * var(--ui-scale));
-  background: #7f8bb3; transition: left 0.12s, background 0.12s;
+  background: var(--surface); transition: left 0.12s, background 0.12s;
 }
-.tswitch[aria-checked="true"] .tswitch-track { background: #35406e; border-color: #6c5ce7; }
-.tswitch[aria-checked="true"] .tswitch-track::after { left: calc(21 * var(--ui-scale)); background: var(--gold); }
-.tswitch-label { color: #cfd6ff; font-size: calc(13 * var(--ui-scale)); }
-.tswitch-note { color: #7f8bb3; font-size: calc(11 * var(--ui-scale)); display: block; margin-top: calc(2 * var(--ui-scale)); line-height: 1.4; }
+.tswitch[aria-checked="true"] .tswitch-track { background: var(--accent); border-color: var(--rule); }
+.tswitch[aria-checked="true"] .tswitch-track::after { left: calc(21 * var(--ui-scale)); background: var(--accent); }
+.tswitch-label { color: var(--ink); font-size: calc(13 * var(--ui-scale)); }
+.tswitch-note { color: var(--accent); font-size: calc(11 * var(--ui-scale)); display: block; margin-top: calc(2 * var(--ui-scale)); line-height: 1.4; }
 
 #journal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(620 * var(--ui-scale)), 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
-  background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418;
-  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
-  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--surface) 100%); color: var(--accent);
+  border: calc(3 * var(--ui-scale)) solid var(--rule); padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
+  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) color-mix(in srgb, var(--surface) 60%, transparent);
 }
 #journal.show { display: block; animation: popIn 0.2s ease-out; }
-#journal h2 { color: #6b3f1d; margin-bottom: calc(8 * var(--ui-scale)); }
-#journal h3 { color: #6b3f1d; margin: calc(14 * var(--ui-scale)) 0 calc(4 * var(--ui-scale)); font-size: calc(14 * var(--ui-scale)); border-bottom: var(--ui-scale) solid #c9b58a; }
+#journal h2 { color: var(--accent); margin-bottom: calc(8 * var(--ui-scale)); }
+#journal h3 { color: var(--accent); margin: calc(14 * var(--ui-scale)) 0 calc(4 * var(--ui-scale)); font-size: calc(14 * var(--ui-scale)); border-bottom: var(--ui-scale) solid var(--rule); }
 #journal ul { list-style: none; }
 #journal li { padding: calc(2 * var(--ui-scale)) 0; font-size: calc(13 * var(--ui-scale)); line-height: 1.5; }
-#journal .j-line { font-size: calc(13 * var(--ui-scale)); color: #4a3a24; }
-#journal .j-empty { font-size: calc(13 * var(--ui-scale)); color: #7a6a4a; font-style: italic; }
-#journal .j-hint { text-align: center; color: #8a7a5a; font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
+#journal .j-line { font-size: calc(13 * var(--ui-scale)); color: var(--accent); }
+#journal .j-empty { font-size: calc(13 * var(--ui-scale)); color: var(--accent); font-style: italic; }
+#journal .j-hint { text-align: center; color: var(--accent); font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
 #optionsPanel select {
   width: 100%; padding: calc(5 * var(--ui-scale)) calc(6 * var(--ui-scale)); font: inherit; font-size: calc(12 * var(--ui-scale));
-  color: #e8e2d0; background: #2a2418; border: var(--ui-scale) solid #6b5a3d; }
+  color: var(--ink); background: var(--surface); border: var(--ui-scale) solid var(--rule); }
 #optionsPanel #gpuName { font-size: calc(11 * var(--ui-scale)); opacity: 0.75; }
-#optionsPanel #gpuName.software { color: #ffb35c; opacity: 1; }
+#optionsPanel #gpuName.software { color: var(--accent); opacity: 1; }
 #duelbar {
   display: none; position: fixed; left: 50%; top: calc(96 * var(--ui-scale));
   transform: translateX(-50%);
-  background: rgba(24, 8, 12, 0.86); border-left: calc(3 * var(--ui-scale)) solid #d95d5d;
+  background: color-mix(in srgb, var(--surface) 86%, transparent); border-left: calc(3 * var(--ui-scale)) solid var(--rule);
   padding: calc(6 * var(--ui-scale)) calc(18 * var(--ui-scale));
-  color: #ffd9d9; font-size: calc(14 * var(--ui-scale)); z-index: 1200; white-space: nowrap;
+  color: var(--ink); font-size: calc(14 * var(--ui-scale)); z-index: 1200; white-space: nowrap;
 }
 #duelbar.show { display: block; }
 /*
@@ -774,90 +731,90 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 #roster {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(760 * var(--ui-scale)), 94vw); max-height: 84vh; z-index: 1400;
-  background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418;
-  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(16 * var(--ui-scale)) calc(20 * var(--ui-scale));
-  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--surface) 100%); color: var(--accent);
+  border: calc(3 * var(--ui-scale)) solid var(--rule); padding: calc(16 * var(--ui-scale)) calc(20 * var(--ui-scale));
+  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) color-mix(in srgb, var(--surface) 60%, transparent);
 }
 #roster.show { display: block; animation: popIn 0.2s ease-out; }
-#roster h2 { color: #6b3f1d; margin-bottom: calc(6 * var(--ui-scale)); }
-#roster .j-line { font-size: calc(13 * var(--ui-scale)); color: #4a3a24; }
-#roster .j-hint { text-align: center; color: #8a7a5a; font-size: calc(11 * var(--ui-scale)); margin-top: calc(10 * var(--ui-scale)); }
+#roster h2 { color: var(--accent); margin-bottom: calc(6 * var(--ui-scale)); }
+#roster .j-line { font-size: calc(13 * var(--ui-scale)); color: var(--accent); }
+#roster .j-hint { text-align: center; color: var(--accent); font-size: calc(11 * var(--ui-scale)); margin-top: calc(10 * var(--ui-scale)); }
 .ro-scroll { max-height: 60vh; overflow-y: auto; margin-top: calc(8 * var(--ui-scale)); }
 .ro-table { width: 100%; border-collapse: collapse; font-size: calc(12 * var(--ui-scale)); }
 .ro-table th {
-  text-align: left; position: sticky; top: 0; background: #efe4c8; color: #6b3f1d;
-  padding: calc(4 * var(--ui-scale)) calc(6 * var(--ui-scale)); border-bottom: 1px solid #b9a274;
+  text-align: left; position: sticky; top: 0; background: var(--surface); color: var(--accent);
+  padding: calc(4 * var(--ui-scale)) calc(6 * var(--ui-scale)); border-bottom: 1px solid var(--rule);
 }
-.ro-table td { padding: calc(3 * var(--ui-scale)) calc(6 * var(--ui-scale)); border-bottom: 1px solid rgba(138, 106, 61, 0.18); }
-.ro-table tr:hover td { background: rgba(138, 106, 61, 0.12); }
-.ro-family { color: #6a5a3a; }
-.ro-doing { color: #7fd18c; }
-.ro-fed { color: #3d6b34; }
-.ro-hungry { color: #a33a22; font-weight: bold; }
-.ro-sort { margin-top: calc(8 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale)); color: #6a5a3a; }
+.ro-table td { padding: calc(3 * var(--ui-scale)) calc(6 * var(--ui-scale)); border-bottom: 1px solid color-mix(in srgb, var(--rule) 18%, transparent); }
+.ro-table tr:hover td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ro-family { color: var(--accent); }
+.ro-doing { color: var(--accent); }
+.ro-fed { color: var(--accent); }
+.ro-hungry { color: var(--accent); font-weight: bold; }
+.ro-sort { margin-top: calc(8 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale)); color: var(--accent); }
 .ro-sort button {
-  background: #efe4c8; color: #4a3a24; border: 1px solid #b9a274; cursor: pointer;
+  background: var(--surface); color: var(--accent); border: 1px solid var(--rule); cursor: pointer;
   border-radius: calc(3 * var(--ui-scale)); margin-left: calc(4 * var(--ui-scale));
   padding: calc(2 * var(--ui-scale)) calc(8 * var(--ui-scale)); font-size: calc(11 * var(--ui-scale));
 }
-.ro-sort button.on { background: #8a6a3d; color: #f6efdc; }
+.ro-sort button.on { background: var(--accent); color: var(--ink); }
 
 #players {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(480 * var(--ui-scale)), 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
-  background: linear-gradient(180deg, #f6efdc 0%, #e8dcc0 100%); color: #2a2418;
-  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
-  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--surface) 100%); color: var(--accent);
+  border: calc(3 * var(--ui-scale)) solid var(--rule); padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
+  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) color-mix(in srgb, var(--surface) 60%, transparent);
 }
 #players.show { display: block; animation: popIn 0.2s ease-out; }
-#players h2 { color: #6b3f1d; margin-bottom: calc(8 * var(--ui-scale)); }
+#players h2 { color: var(--accent); margin-bottom: calc(8 * var(--ui-scale)); }
 #players ul { list-style: none; margin-top: calc(8 * var(--ui-scale)); }
 #players li { padding: calc(2 * var(--ui-scale)) 0; font-size: calc(13 * var(--ui-scale)); line-height: 1.5; }
-#players .j-line { font-size: calc(13 * var(--ui-scale)); color: #4a3a24; }
-#players .j-empty { font-size: calc(13 * var(--ui-scale)); color: #7a6a4a; font-style: italic; }
-#players .j-hint { text-align: center; color: #8a7a5a; font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
+#players .j-line { font-size: calc(13 * var(--ui-scale)); color: var(--accent); }
+#players .j-empty { font-size: calc(13 * var(--ui-scale)); color: var(--accent); font-style: italic; }
+#players .j-hint { text-align: center; color: var(--accent); font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
 #castbar {
   display: none; position: fixed; left: 50%; bottom: calc(120 * var(--ui-scale));
   transform: translateX(-50%);
-  background: var(--stone-deep); border-left: calc(3 * var(--ui-scale)) solid #6fd3ff;
+  background: var(--surface); border-left: calc(3 * var(--ui-scale)) solid var(--rule);
   padding: calc(8 * var(--ui-scale)) calc(20 * var(--ui-scale));
-  color: #cfefff; font-size: calc(14 * var(--ui-scale)); z-index: 1000; white-space: nowrap;
+  color: var(--ink); font-size: calc(14 * var(--ui-scale)); z-index: 1000; white-space: nowrap;
 }
 #castbar.show { display: block; }
-#castbar.bite { border-left-color: #f1c40f; color: #ffe38a; animation: bob 0.25s infinite alternate; }
+#castbar.bite { border-left-color: var(--rule); color: var(--accent); animation: bob 0.25s infinite alternate; }
 #journal ul.j-key { display: flex; flex-wrap: wrap; gap: calc(10 * var(--ui-scale)); }
 #journal ul.j-key li { display: flex; align-items: center; gap: calc(5 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale)); }
-#journal .sw { width: calc(10 * var(--ui-scale)); height: calc(10 * var(--ui-scale)); border: var(--ui-scale) solid #6b3f1d; display: inline-block; }
+#journal .sw { width: calc(10 * var(--ui-scale)); height: calc(10 * var(--ui-scale)); border: var(--ui-scale) solid var(--rule); display: inline-block; }
 #rucksack {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(760 * var(--ui-scale)), 94vw); max-height: 84vh; overflow-y: auto; z-index: 1400;
-  background: linear-gradient(180deg, #f6efdc 0%, #e6d9ba 100%); color: #2a2418;
-  border: calc(3 * var(--ui-scale)) solid #8a6a3d; padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
-  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) rgba(0,0,0,0.6);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--surface) 100%); color: var(--accent);
+  border: calc(3 * var(--ui-scale)) solid var(--rule); padding: calc(18 * var(--ui-scale)) calc(22 * var(--ui-scale));
+  box-shadow: 0 calc(10 * var(--ui-scale)) calc(40 * var(--ui-scale)) color-mix(in srgb, var(--surface) 60%, transparent);
 }
 #rucksack.show { display: block; animation: popIn 0.2s ease-out; }
-#rucksack h2 { color: #6b3f1d; margin-bottom: calc(6 * var(--ui-scale)); }
-#rucksack h3 { color: #6b3f1d; font-size: calc(13 * var(--ui-scale)); margin-bottom: calc(6 * var(--ui-scale)); border-bottom: var(--ui-scale) solid #c9b58a; }
-#rucksack .r-stats { font-size: calc(13 * var(--ui-scale)); color: #4a3a24; margin-bottom: calc(12 * var(--ui-scale)); }
+#rucksack h2 { color: var(--accent); margin-bottom: calc(6 * var(--ui-scale)); }
+#rucksack h3 { color: var(--accent); font-size: calc(13 * var(--ui-scale)); margin-bottom: calc(6 * var(--ui-scale)); border-bottom: var(--ui-scale) solid var(--rule); }
+#rucksack .r-stats { font-size: calc(13 * var(--ui-scale)); color: var(--accent); margin-bottom: calc(12 * var(--ui-scale)); }
 #rucksack .r-columns { display: flex; gap: calc(18 * var(--ui-scale)); align-items: flex-start; }
 #rucksack .r-worn { flex: 0 0 calc(220 * var(--ui-scale)); }
 #rucksack .r-bag { flex: 1; min-width: 0; }
 #rucksack .r-slot { margin-bottom: calc(6 * var(--ui-scale)); }
-#rucksack .r-slot-name { font-size: calc(10 * var(--ui-scale)); text-transform: uppercase; letter-spacing: var(--ui-scale); color: #8a7a5a; }
+#rucksack .r-slot-name { font-size: calc(10 * var(--ui-scale)); text-transform: uppercase; letter-spacing: var(--ui-scale); color: var(--accent); }
 #rucksack .r-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(200 * var(--ui-scale)), 1fr)); gap: calc(6 * var(--ui-scale)); }
 #rucksack .r-item {
-  display: flex; align-items: center; gap: calc(8 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale)); background: rgba(255,255,255,0.5); border: var(--ui-scale) solid #c9b58a; font-size: calc(13 * var(--ui-scale));
+  display: flex; align-items: center; gap: calc(8 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale)); background: color-mix(in srgb, var(--accent) 50%, transparent); border: var(--ui-scale) solid var(--rule); font-size: calc(13 * var(--ui-scale));
 }
-#rucksack .r-item.worn { background: #ffe9b8; border-color: #8a6a3d; cursor: pointer; }
-#rucksack .r-item.empty { color: #9a8a6a; font-style: italic; }
+#rucksack .r-item.worn { background: var(--surface); border-color: var(--rule); cursor: pointer; }
+#rucksack .r-item.empty { color: var(--accent); font-style: italic; }
 #rucksack .r-item.wear, #rucksack .r-item.use, #rucksack .r-item.look { cursor: pointer; }
-#rucksack .r-item.wear:hover, #rucksack .r-item.use:hover, #rucksack .r-item.look:hover, #rucksack .r-item.worn:hover { background: #fff6dd; }
+#rucksack .r-item.wear:hover, #rucksack .r-item.use:hover, #rucksack .r-item.look:hover, #rucksack .r-item.worn:hover { background: var(--surface); }
 #rucksack .r-emoji { font-size: calc(18 * var(--ui-scale)); }
 #rucksack .r-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#rucksack .r-note { font-size: calc(11 * var(--ui-scale)); color: #8a7a5a; }
-#rucksack .r-empty { font-size: calc(13 * var(--ui-scale)); color: #7a6a4a; font-style: italic; }
-#rucksack .r-hint { text-align: center; color: #8a7a5a; font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
-#inventory .hud-stats { color: #cfd6ff; font-size: 11px; }
+#rucksack .r-note { font-size: calc(11 * var(--ui-scale)); color: var(--accent); }
+#rucksack .r-empty { font-size: calc(13 * var(--ui-scale)); color: var(--accent); font-style: italic; }
+#rucksack .r-hint { text-align: center; color: var(--accent); font-size: calc(11 * var(--ui-scale)); margin-top: calc(14 * var(--ui-scale)); }
+#inventory .hud-stats { color: var(--ink); font-size: 11px; }
 #inventory { cursor: pointer; }
 /*
  * A village's descent, drawn.
@@ -870,19 +827,19 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
  */
 #kinpanel {
   display: none; position: fixed; inset: 0; z-index: 1600;
-  background: #14161c; color: #e8e2d0; flex-direction: column;
+  background: var(--surface); color: var(--ink); flex-direction: column;
 }
 #kinpanel.show { display: flex; }
 #kinpanel .wm-bar {
   display: flex; align-items: baseline; gap: calc(16 * var(--ui-scale)); padding: calc(10 * var(--ui-scale)) calc(18 * var(--ui-scale));
-  background: linear-gradient(180deg, #2c2a24 0%, #1a1a20 100%); border-bottom: calc(2 * var(--ui-scale)) solid #8a7a4a;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface) 100%); border-bottom: calc(2 * var(--ui-scale)) solid var(--rule);
 }
-#kinTitle { color: #f1c40f; font-weight: bold; font-size: calc(16 * var(--ui-scale)); }
-#kinpanel .wm-keys { color: #9aa0ad; font-size: calc(11 * var(--ui-scale)); }
+#kinTitle { color: var(--accent); font-weight: bold; font-size: calc(16 * var(--ui-scale)); }
+#kinpanel .wm-keys { color: color-mix(in srgb, var(--ink) 78%, transparent); font-size: calc(11 * var(--ui-scale)); }
 #kinCanvas { flex: 1; min-height: 0; width: 100%; display: block; cursor: grab; touch-action: none; }
 #kinpanel .wm-legend {
   display: flex; flex-wrap: wrap; gap: calc(14 * var(--ui-scale)); padding: calc(8 * var(--ui-scale)) calc(18 * var(--ui-scale));
-  background: #1a1a20; border-top: calc(2 * var(--ui-scale)) solid #4a4438; font-size: calc(11 * var(--ui-scale)); color: #cfc9b8;
+  background: var(--surface); border-top: calc(2 * var(--ui-scale)) solid var(--rule); font-size: calc(11 * var(--ui-scale)); color: var(--ink);
 }
 #kinpanel .wm-legend span { display: flex; align-items: center; gap: calc(5 * var(--ui-scale)); }
 #kinpanel .wm-legend i { width: calc(10 * var(--ui-scale)); height: calc(10 * var(--ui-scale)); border-radius: calc(2 * var(--ui-scale)); display: inline-block; }
@@ -891,27 +848,27 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 #kinCard {
   display: none; position: absolute; right: calc(18 * var(--ui-scale)); top: calc(72 * var(--ui-scale));
   max-width: calc(260 * var(--ui-scale)); padding: calc(12 * var(--ui-scale)) calc(14 * var(--ui-scale));
-  background: rgba(26,26,32,0.94); border: calc(2 * var(--ui-scale)) solid #8a7a4a; border-radius: calc(4 * var(--ui-scale));
-  font-size: calc(12 * var(--ui-scale)); line-height: 1.55; color: #f2ecd8;
+  background: color-mix(in srgb, var(--surface) 94%, transparent); border: calc(2 * var(--ui-scale)) solid var(--rule); border-radius: calc(4 * var(--ui-scale));
+  font-size: calc(12 * var(--ui-scale)); line-height: 1.55; color: var(--ink);
 }
 #kinCard.show { display: block; }
-#kinCard .kin-note { color: #b8b2a0; }
+#kinCard .kin-note { color: color-mix(in srgb, var(--ink) 78%, transparent); }
 
 #worldmap {
   display: none; position: fixed; inset: 0; z-index: 1600;
-  background: #060a16; color: #e8eeff; flex-direction: column;
+  background: var(--surface); color: var(--ink); flex-direction: column;
 }
 #worldmap.show { display: flex; }
 #worldmap .wm-bar {
   display: flex; align-items: baseline; gap: calc(16 * var(--ui-scale)); padding: calc(10 * var(--ui-scale)) calc(18 * var(--ui-scale));
-  background: linear-gradient(180deg, #16224e 0%, #0b1230 100%); border-bottom: calc(2 * var(--ui-scale)) solid #6c5ce7;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface) 100%); border-bottom: calc(2 * var(--ui-scale)) solid var(--rule);
 }
-#worldmapTitle { color: #ffd76a; font-weight: bold; font-size: calc(16 * var(--ui-scale)); }
-#worldmap .wm-keys { color: #8f9dc9; font-size: calc(11 * var(--ui-scale)); }
+#worldmapTitle { color: var(--accent); font-weight: bold; font-size: calc(16 * var(--ui-scale)); }
+#worldmap .wm-keys { color: var(--accent); font-size: calc(11 * var(--ui-scale)); }
 #worldmapCanvas { flex: 1; min-height: 0; width: 100%; display: block; cursor: grab; touch-action: none; }
 #worldmap .wm-legend {
   display: flex; flex-wrap: wrap; gap: calc(14 * var(--ui-scale)); padding: calc(8 * var(--ui-scale)) calc(18 * var(--ui-scale));
-  background: #0b1230; border-top: calc(2 * var(--ui-scale)) solid #2a3aa0; font-size: calc(11 * var(--ui-scale)); color: #cfd6ff;
+  background: var(--surface); border-top: calc(2 * var(--ui-scale)) solid var(--rule); font-size: calc(11 * var(--ui-scale)); color: var(--ink);
 }
 #worldmap .wm-legend span { display: flex; align-items: center; gap: calc(5 * var(--ui-scale)); }
 /* a dot in a key is a dot: it stands for a mark on the map, not for a panel */
@@ -922,15 +879,15 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   display: none; position: fixed; top: calc(74 * var(--ui-scale)); left: 50%;
   transform: translateX(-50%);
   gap: calc(16 * var(--ui-scale)); padding: 0;
-  color: #dfe5ff; font-size: calc(11 * var(--ui-scale)); letter-spacing: calc(3 * var(--ui-scale));
+  color: var(--ink); font-size: calc(11 * var(--ui-scale)); letter-spacing: calc(3 * var(--ui-scale));
   z-index: 100; white-space: nowrap; text-transform: uppercase;
-  text-shadow: 0 var(--ui-scale) 0 rgba(0,0,0,0.7), 0 0 calc(10 * var(--ui-scale)) rgba(0,0,0,0.6);
+  text-shadow: 0 var(--ui-scale) 0 color-mix(in srgb, var(--surface) 70%, transparent), 0 0 calc(10 * var(--ui-scale)) color-mix(in srgb, var(--surface) 60%, transparent);
 }
-#compass .c-primary { color: #7fe0a0; font-weight: bold; }
+#compass .c-primary { color: var(--accent); font-weight: bold; }
 .photo-hidden { display: none !important; }
 #photoHint {
   display: none; position: fixed; bottom: calc(18 * var(--ui-scale)); left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.55); color: #cfd6ff; font-size: calc(12 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(16 * var(--ui-scale)); z-index: 200; pointer-events: none;
+  background: color-mix(in srgb, var(--surface) 55%, transparent); color: var(--ink); font-size: calc(12 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(16 * var(--ui-scale)); z-index: 200; pointer-events: none;
 }
 #photoHint.show { display: block; }
 #chatPanel {
@@ -950,9 +907,9 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
      console that came up as part of the column would be a console the width of the column */
   position: fixed;
   left: 0; right: 0; bottom: 0; width: auto;
-  background: rgba(6, 8, 16, 0.9); border-top: calc(2 * var(--ui-scale)) solid #6c5ce7;
+  background: color-mix(in srgb, var(--surface) 90%, transparent); border-top: calc(2 * var(--ui-scale)) solid var(--rule);
   padding: calc(10 * var(--ui-scale)) calc(16 * var(--ui-scale)) calc(12 * var(--ui-scale));
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 -8px 24px color-mix(in srgb, var(--surface) 45%, transparent);
   animation: consoleUp 130ms ease-out;
 }
 #chatPanel.console #chatLog {
@@ -999,17 +956,17 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   max-width: 100%;
   padding: calc(3 * var(--ui-scale)) calc(10 * var(--ui-scale))
            calc(3 * var(--ui-scale)) calc(8 * var(--ui-scale));
-  border-left: calc(3 * var(--ui-scale)) solid rgba(214, 221, 255, 0.28);
-  background: var(--stone); color: #eef1ff;
+  border-left: calc(3 * var(--ui-scale)) solid color-mix(in srgb, var(--rule) 28%, transparent);
+  background: var(--surface); color: var(--ink);
   /* the words are read over whatever the world happens to be, and a spring field is very bright */
-  text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) rgba(0, 0, 0, 0.9);
+  text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) color-mix(in srgb, var(--surface) 90%, transparent);
   transition: opacity 260ms ease;
 }
 /* The world talking about itself, as against somebody in it talking. It is the half of the log
    that matters — wolves, nightfall, a death in a village three days away — so it is the half that
    is lit. It used to be the dimmest thing on the screen. */
 #chatLog > div.sys {
-  border-left-color: #ffc94d; background: rgba(26, 17, 3, 0.76); color: #ffe3aa;
+  border-left-color: var(--rule); background: color-mix(in srgb, var(--surface) 76%, transparent); color: var(--accent);
 }
 /* Old news steps back rather than leaving. Only the line that has just arrived is at full
    strength; two more behind it are still readable, and everything older is a reminder that there
@@ -1029,18 +986,18 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   display: none; width: 100%; margin-top: calc(5 * var(--ui-scale));
   padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale));
   font-family: inherit; font-size: calc(12 * var(--ui-scale));
-  background: rgba(0,0,0,0.8); color: #fff; border: var(--ui-scale) solid #6c5ce7;
+  background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--ink); border: var(--ui-scale) solid var(--rule);
 }
 #chatInput.show { display: block; }
 #nameplates { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
 .nameplate {
   position: absolute; transform: translate(-50%, -100%);
-  background: rgba(0,0,0,0.55); color: #cfe6ff; font-size: calc(11 * var(--ui-scale));
+  background: color-mix(in srgb, var(--surface) 55%, transparent); color: var(--ink); font-size: calc(11 * var(--ui-scale));
   padding: var(--ui-scale) calc(6 * var(--ui-scale)); white-space: nowrap;
 }
 #optionsPanel input[type="text"] {
   width: 100%; margin-bottom: calc(6 * var(--ui-scale)); padding: calc(5 * var(--ui-scale)) calc(8 * var(--ui-scale)); font-family: inherit; font-size: calc(12 * var(--ui-scale));
-  background: #14142a; color: #fff; border: var(--ui-scale) solid #6c5ce7; }
+  background: var(--surface); color: var(--ink); border: var(--ui-scale) solid var(--rule); }
 
 /* ------------------------------------------------------------------------
    Played with thumbs
@@ -1131,16 +1088,16 @@ body.touch #touch {
   pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent;
   font-family: inherit; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  color: var(--ui-ink); background: var(--ui-glass);
-  border: var(--ui-scale) solid var(--ui-rim); box-shadow: var(--ui-lift);
-  text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) rgba(0, 0, 0, 0.75);   /* drawn over the world, not over a page */
+  color: var(--ink); background: var(--surface);
+  border: var(--ui-scale) solid var(--rule); box-shadow: var(--ui-lift);
+  text-shadow: 0 var(--ui-scale) calc(2 * var(--ui-scale)) color-mix(in srgb, var(--surface) 75%, transparent);   /* drawn over the world, not over a page */
   transition: background 90ms linear, border-color 90ms linear;
 }
 /* Lit rather than shrunk: three of these are placed with a transform, and a press that scaled them
    would have to undo an arc first. */
 #touch button:active {
-  background: var(--ui-glass-lit); border-color: rgba(255, 255, 255, 0.72);
-  box-shadow: var(--ui-lift), 0 0 0 calc(2 * var(--ui-scale)) rgba(255, 255, 255, 0.18);
+  background: var(--accent); border-color: color-mix(in srgb, var(--rule) 72%, transparent);
+  box-shadow: var(--ui-lift), 0 0 0 calc(2 * var(--ui-scale)) color-mix(in srgb, var(--surface) 18%, transparent);
 }
 
 /* The stick is drawn where the thumb lands rather than where a designer guessed it would. */
@@ -1153,17 +1110,17 @@ body.touch #touch {
 #touchStick .stick-base {
   display: none; position: fixed; border-radius: 50%;
   width: calc(132 * var(--ui-scale)); height: calc(132 * var(--ui-scale));
-  margin: calc(-66 * var(--ui-scale)) 0 0 calc(-66 * var(--ui-scale)); border: var(--ui-scale) solid var(--ui-rim);
+  margin: calc(-66 * var(--ui-scale)) 0 0 calc(-66 * var(--ui-scale)); border: var(--ui-scale) solid var(--rule);
   /* faded at the rim, so the ring reads as a well the nub sits in rather than as a lid over the
      ground the player is about to walk across */
-  background: radial-gradient(circle, rgba(10, 13, 28, 0.5) 45%, rgba(10, 13, 28, 0.1) 100%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--surface) 50%, transparent) 45%, color-mix(in srgb, var(--surface) 10%, transparent) 100%);
   pointer-events: none;
 }
 #touchStick .stick-base.show { display: block; }
 #touchStick .stick-nub {
   position: absolute; left: 50%; top: 50%; border-radius: 50%;
   width: calc(56 * var(--ui-scale)); height: calc(56 * var(--ui-scale));
-  background: rgba(214, 221, 255, 0.5); border: var(--ui-scale) solid rgba(255, 255, 255, 0.75);
+  background: color-mix(in srgb, var(--rule) 50%, transparent); border: var(--ui-scale) solid color-mix(in srgb, var(--rule) 75%, transparent);
   box-shadow: var(--ui-lift); transform: translate(-50%, -50%);
 }
 
@@ -1194,13 +1151,13 @@ body.touch #touch {
    */
   position: absolute; top: 0; left: 0; right: 0; width: fit-content; margin-inline: auto;
   display: flex; align-items: center; pointer-events: auto;
-  background: rgba(6, 9, 22, 0.72);
-  border: var(--ui-scale) solid rgba(214, 221, 255, 0.14);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: var(--ui-scale) solid color-mix(in srgb, var(--rule) 14%, transparent);
   border-top: none;
 }
 /* hairlines between the squares: one slab divided, rather than a row of separate buttons */
 #touchPanels .touch-btn + .touch-btn {
-  border-left: var(--ui-scale) solid rgba(214, 221, 255, 0.10);
+  border-left: var(--ui-scale) solid color-mix(in srgb, var(--rule) 10%, transparent);
 }
 /* on the rail, so no rim of their own: a border inside a border is what the old set looked like */
 #touch .touch-btn {
@@ -1266,14 +1223,14 @@ body.touch #touch {
   width: min(94vw, calc(520 * var(--ui-scale))); grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: calc(6 * var(--ui-scale));
   max-height: calc(100dvh - 24 * var(--ui-scale)); overflow-y: auto; pointer-events: auto;
-  background: rgba(8, 11, 24, 0.95); border: var(--ui-scale) solid var(--ui-rim); padding: calc(8 * var(--ui-scale));
+  background: color-mix(in srgb, var(--surface) 95%, transparent); border: var(--ui-scale) solid var(--rule); padding: calc(8 * var(--ui-scale));
   box-shadow: var(--ui-lift);
 }
 #touchMore.show { display: grid; }
 /* a row, not a disc: it is as wide as its own words and it carries them beside the glyph */
 #touch .touch-more-btn {
   min-height: var(--touch-target); padding: 0 calc(12 * var(--ui-scale)); gap: calc(10 * var(--ui-scale));
-  justify-content: flex-start; font-size: calc(13 * var(--ui-scale)); white-space: nowrap; background: rgba(255, 255, 255, 0.05);
+  justify-content: flex-start; font-size: calc(13 * var(--ui-scale)); white-space: nowrap; background: color-mix(in srgb, var(--accent) 10%, transparent);
   border-color: transparent; box-shadow: none;
 }
 .touch-more-btn .touch-glyph { font-size: calc(20 * var(--ui-scale)); }
@@ -1398,8 +1355,8 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
   #debug { display: none; }
   /* The three columns a hand-sized screen has room for: hearts and pack down the left, the
      corner map down the right, and everything the world says about itself between them. */
-  #breath { color: #8fd2ff; font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
-#breath .warded { color: #ffd76a; }
+  #breath { color: var(--accent); font-size: 13px; letter-spacing: 1px; margin-top: 2px; min-height: 15px; }
+#breath .warded { color: var(--accent); }
 /*
  * Ninety-six was the width of a ten-block meter. There are twenty blocks in one now — health,
  * breath and the sword arm all share the same bar — and the cap stayed where it was, so the meter
@@ -1616,8 +1573,8 @@ body.touch #dialogue .dlg-choice { min-height: 44px; display: flex; align-items:
 #turnPhone {
   display: none; position: fixed; inset: 0; z-index: 9000;
   align-items: center; justify-content: center;
-  background: #0d1420; color: #e8eef7; padding: calc(24 * var(--ui-scale));
-  font-family: var(--ui-font, system-ui, sans-serif); text-align: center;
+  background: var(--surface); color: var(--ink); padding: calc(24 * var(--ui-scale));
+  font-family: var(--face); text-align: center;
 }
 #turnPhone .turn-card { max-width: calc(320 * var(--ui-scale)); }
 #turnPhone .turn-icon {
