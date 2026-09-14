@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TRADES } from '../entities/trades';
 import { FOOD } from './food';
-import { PROSPER, TRADERS, earnedInADay, feeFor, luxuryFor, saidOfWealth, spentOnLiving, storeysFor } from './prosperity';
+import { PROSPER, TRADERS, earnedInADay, feeFor, luxuryFor, spentOnLiving, storeysFor } from './prosperity';
 import type { Person } from './people';
 
 const person = (trade: string): Person => ({
@@ -57,11 +57,6 @@ describe('what a village is worth', () => {
   it('charges a visitor for the luxury and nothing for a village without one', () => {
     expect(feeFor('none')).toBe(0);
     expect(feeFor('sauna')).toBeGreaterThan(0);
-  });
-
-  it('describes a village rather than quoting a number at anybody', () => {
-    expect(saidOfWealth(0, 10)).toContain('poor');
-    expect(saidOfWealth(PROSPER.STOREY * 20, 10)).toContain('very well');
   });
 
   it('takes a real stretch of quiet days to build anything', () => {

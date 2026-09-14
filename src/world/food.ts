@@ -270,11 +270,3 @@ export function eat(people: readonly Person[], store: number): Meal {
   }
   return meal;
 }
-
-/** How a village's larder reads out loud. Silence when there is enough, which is most of the time. */
-export function saidOfFood(store: number, people: readonly Person[]): string {
-  const days = people.length > 0 ? store / people.length : 0;
-  if (days < 1) return 'There is nothing in the store. People are going without.';
-  if (days < 3) return 'The store is nearly out. They are counting the days.';
-  return '';
-}

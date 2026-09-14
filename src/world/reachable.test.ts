@@ -78,7 +78,7 @@ function staleExplanations(source: ReadonlyMap<string, string>, explanations: Re
  *
  * Lower it when you triage. Never raise it.
  */
-const ALREADY_LIKE_THIS = 27;
+const ALREADY_LIKE_THIS = 21;
 const ALREADY_UNEXPLAINED = 0;
 
 /**
@@ -87,31 +87,25 @@ const ALREADY_UNEXPLAINED = 0;
  */
 const EXPLAINED = new Map<string, string>([
   ['src/dungeon/castlerooms.ts: HANGS_ON_WALLS', 'castle.test checks that file-driven hangings occupy walls'],
-  ['src/entities/behaviours.ts: tradeTree', 'wire-or-delete decision tracked by issue #88'],
   ['src/entities/monsters.ts: MONSTER_KINDS', 'monster tests inspect the curated monster kinds'],
   ['src/entities/motion.ts: FLINCH_LASTS', 'motion tests use the exported duration as their timing boundary'],
-  ['src/entities/shapes.ts: partPoints', 'wire-or-delete decision tracked by issue #88'],
+  ['src/entities/shapes.ts: partPoints', 'sites tests measure a prop\'s corners with it: the one door onto placedPieces'],
   ['src/entities/spawns.ts: DUNGEON_MONSTERS', 'danger tests exercise every shallow-dungeon spawn kind'],
   ['src/entities/villain.ts: VILLAIN_KINDS', 'villain tests inspect the curated villain kinds'],
   ['src/game/brewing.ts: RECIPE', 'brewing tests verify the recipe table consumers must satisfy'],
   ['src/game/predicted.ts: claimsFor', 'prediction tests guard claim ownership across replay'],
   ['src/game/predicted.ts: inTheHand', 'prediction tests guard held-item state across replay'],
-  ['src/render/footprint.ts: measureFootprint', 'wire-or-delete decision tracked by issue #88'],
+  ['src/render/footprint.ts: measureFootprint', 'footprint tests hold the built mesh against the catalogue box with it'],
   ['src/ui/themes.ts: themeChosen', 'theme application caller is pending in issue #73'],
   ['src/ui/themes.ts: wearTheme', 'theme application caller is pending in issue #73'],
   ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
   ['src/world/farmbuilds.ts: whichFarmerBuilds', 'reserved for the timber-yard handoff tracked by issue #36'],
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
-  ['src/world/food.ts: saidOfFood', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/growworld.ts: patchStamp', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/holdings.ts: heldBy', 'directory ownership lookup is pending in issue #49'],
   ['src/world/holdings.ts: nameOfHolding', 'directory holding names are pending in issue #49'],
-  ['src/world/memory.ts: opinionOf', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/memory.ts: regardFor', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/postings.ts: couldStand', 'builder reassignment caller is pending in issue #33'],
   ['src/world/postings.ts: wagesOwed', 'hall payroll caller is pending in issue #26'],
-  ['src/world/prosperity.ts: saidOfWealth', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
   ['src/world/vocabulary.ts: HOLDINGS', 'vocabulary tests verify every holding has words'],
 ]);

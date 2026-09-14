@@ -290,21 +290,3 @@ export function luxuryFor(villageTotal: number, seed: number): Luxury {
 export function feeFor(luxury: Luxury): number {
   return luxury === 'none' ? 0 : 12;
 }
-
-/**
- * How well off a village is, in words, which is the only form of it anybody is shown.
- *
- * Said in fractions of `STOREY` rather than in coins of its own, so the words and the roofline
- * cannot drift apart: "there is money here" lands just under the height a village's houses grow
- * at, and a player who hears it and then sees a low village is being told the place is close.
- * On the bench's numbers that puts the four sayings at under 14, 14 to 28, 28 to 56 and above,
- * against villages that run between 12 and 65 a head — so the top one is genuinely rare and the
- * bottom one means a village that has been raided or has just buried half of itself.
- */
-export function saidOfWealth(total: number, people: number): string {
-  const each = people > 0 ? total / people : 0;
-  if (each >= PROSPER.STOREY * 1.6) return 'It is doing very well for itself.';
-  if (each >= PROSPER.STOREY * 0.8) return 'There is money here.';
-  if (each >= PROSPER.STOREY * 0.4) return 'It gets by.';
-  return 'It is a poor place.';
-}

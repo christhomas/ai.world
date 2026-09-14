@@ -4,7 +4,16 @@ import { mulberry32 } from '../core/rng';
 import { KINDS } from './animals';
 import { Entity, Herd, type TileWorld } from './entity';
 import { CREATURE_VERBS, type Mind } from './verbs';
-import { tradeTree } from './behaviours';
+import { allTrees } from './behaviours';
+
+/*
+ * The tree a trade runs, read off the table the game ships.
+ *
+ * `tradeTree` was an exported one-line lookup that only tests ever called, and item 134's answer to
+ * that is to delete it. The table itself is reachable — `allTrees` is what the compiler check uses
+ * — so the lookup lives here, in the only place that wanted it.
+ */
+const treeOf = (name: string) => allTrees()[name] ?? null;
 
 /**
  * A man in somebody's pay, doing what he was told.
@@ -44,7 +53,7 @@ function soldier(x: number, z: number, what = '', at?: { x: number; z: number })
 
 /** One tick of the whole `hired` tree, with the hero standing where you say and nothing else about. */
 function aTick(self: Entity, over: Partial<Mind> = {}, dt = 0.5): void {
-  const tree = tradeTree('hired');
+  const tree = treeOf('hired');
   expect(tree, 'nobody knows how to be a hired man').not.toBeNull();
   const world: Mind = {
     self, ground: green, playerX: 40, playerZ: 0, playerAfloat: false, playerArmed: false,

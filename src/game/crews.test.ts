@@ -5,7 +5,7 @@ import { mulberry32 } from '../core/rng';
 import { DTile, generateDungeon, type DungeonMap } from '../dungeon/generate';
 import { DungeonWorld } from '../dungeon/world';
 import { KINDS } from '../entities/animals';
-import { treeFor, tradeTree } from '../entities/behaviours';
+import { allTrees, treeFor } from '../entities/behaviours';
 import { Entity, Herd, canStand, updateEntity } from '../entities/entity';
 import { EntityManager } from '../entities/manager';
 import { Roster } from '../entities/roster';
@@ -13,6 +13,15 @@ import { CREATURE_VERBS, rollSeconds } from '../entities/verbs';
 import { Register } from '../world/register';
 import { CREW, facesIn, putTheCrewToWork, type Workings } from './crews';
 import { Mines, mineIdOf, type Working } from './mines';
+
+/*
+ * The tree a trade runs, read off the table the game ships.
+ *
+ * `tradeTree` was an exported one-line lookup that only tests ever called, and item 134's answer to
+ * that is to delete it. The table itself is reachable — `allTrees` is what the compiler check uses
+ * — so the lookup lives here, in the only place that wanted it.
+ */
+const treeOf = (name: string) => allTrees()[name] ?? null;
 
 /**
  * A mine you can walk into and watch being worked.
@@ -258,9 +267,9 @@ describe('the crew, put into a real hole in the ground', () => {
 describe('a shift at the face', () => {
   it('is a day the game knows how to run, without anybody wiring it up', () => {
     // what `treeFor` does with the entity as it is built, which is the only wiring that matters
-    expect(tradeTree('facework'), 'nobody knows how to work a rock face').not.toBeNull();
+    expect(treeOf('facework'), 'nobody knows how to work a rock face').not.toBeNull();
     expect(treeFor({ trade: 'facework', kind: { id: 'villager', behaviour: 'wander' } }))
-      .toBe(tradeTree('facework'));
+      .toBe(treeOf('facework'));
     /*
      * And a miner standing in a village street is not at a rock face.
      *
@@ -270,9 +279,9 @@ describe('a shift at the face', () => {
      * of his own now — up to the high ground at first light, home at dusk — so the guard is that
      * the two days are different, which is what it was always about.
      */
-    expect(tradeTree('miner'), 'a miner has no day above ground').not.toBeNull();
-    expect(tradeTree('miner'), 'a village miner has quietly been given a pick and a rock face')
-      .not.toBe(tradeTree('facework'));
+    expect(treeOf('miner'), 'a miner has no day above ground').not.toBeNull();
+    expect(treeOf('miner'), 'a village miner has quietly been given a pick and a rock face')
+      .not.toBe(treeOf('facework'));
     /*
      * And the body he is drawn as must not decide his day.
      *
@@ -283,7 +292,7 @@ describe('a shift at the face', () => {
      * reversed, every man underground would set off looking for a hill.
      */
     expect(treeFor({ trade: 'facework', kind: { id: 'miner', behaviour: 'wander' } }))
-      .toBe(tradeTree('facework'));
+      .toBe(treeOf('facework'));
   });
 
   it('swings, over and over, and stays where it was put', () => {

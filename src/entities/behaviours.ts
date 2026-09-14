@@ -100,11 +100,6 @@ export function specNamed(name: string): Spec | null {
   return SPECS[name] ?? null;
 }
 
-/** The tree for one named trade, for anything that wants to ask directly. */
-export function tradeTree(name: string): Node<Mind> | null {
-  return TREES[name] ?? null;
-}
-
 /** Every tree the game ships, for the test that checks they all compile. */
 export function allTrees(): Record<string, Node<Mind>> {
   return TREES;

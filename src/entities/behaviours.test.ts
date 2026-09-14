@@ -4,8 +4,17 @@ import villagers from '../../behaviours/villagers.json';
 import { Memory } from '../core/behaviour';
 import { BehaviourError, compile, compileAll, type BehaviourFile, type Spec } from '../core/behaviourFile';
 import { CREATURE_VERBS, rollSeconds, type Mind } from './verbs';
-import { allTrees, tradeTree, treeFor } from './behaviours';
+import { allTrees, treeFor } from './behaviours';
 import { TRADES } from './trades';
+
+/*
+ * The tree a trade runs, read off the table the game ships.
+ *
+ * `tradeTree` was an exported one-line lookup that only tests ever called, and item 134's answer to
+ * that is to delete it. The table itself is reachable — `allTrees` is what the compiler check uses
+ * — so the lookup lives here, in the only place that wanted it.
+ */
+const treeOf = (name: string) => allTrees()[name] ?? null;
 
 /**
  * The files are data, so nothing stops somebody writing nonsense in one. What stops it reaching a
@@ -30,7 +39,7 @@ describe('the behaviour files', () => {
     // a list is a list that falls out of step: a trade added to `TRADES` with no day written for it
     // is a villager who potters about the square, which is what a woodcutter did the night he arrived
     for (const trade of TRADES) {
-      expect(tradeTree(trade.id), `nobody knows how to be a ${trade.label}`).not.toBeNull();
+      expect(treeOf(trade.id), `nobody knows how to be a ${trade.label}`).not.toBeNull();
     }
   });
 
@@ -69,10 +78,10 @@ describe('the behaviour files', () => {
 
   it('let a trade outrank a species: a hunter is a hunter before they are a villager', () => {
     const villager = { kind: { behaviour: 'wander' as const } };
-    expect(treeFor(villager)).toBe(tradeTree('wanderer'));
-    expect(treeFor({ ...villager, trade: 'hunter' })).toBe(tradeTree('hunter'));
+    expect(treeFor(villager)).toBe(treeOf('wanderer'));
+    expect(treeFor({ ...villager, trade: 'hunter' })).toBe(treeOf('hunter'));
     // and a trade nobody has written a day for falls back to the species
-    expect(treeFor({ ...villager, trade: 'astronaut' })).toBe(tradeTree('wanderer'));
+    expect(treeFor({ ...villager, trade: 'astronaut' })).toBe(treeOf('wanderer'));
   });
 
   it('carry their notes, so a reader is told why rather than only what', () => {
