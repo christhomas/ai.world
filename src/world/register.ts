@@ -21,17 +21,16 @@ import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, pare
 import { compactAll, type Opinion } from './memory';
 import { recallFor, toldOf, whoKnows } from './remembering';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
+import { commissionAStable, type StablePurchase, type StableYard } from './farmbuilds';
 /**
  * The living population of the world's villages: who is here today, and who has been born or died
  * since yesterday.
  *
- * Almost none of this needs sending between players. The founding families come from the seed, and
- * everything that happens afterwards — a life running out, a village replacing the people it has
- * lost — follows from the register's own state and the day. Two players who have replayed the same
- * changes hold the same village, in the same way that two players grow the same hills.
- *
- * The exception is a death nobody could have predicted: a wolf, a bandit, a player. Those arrive
- * as `bury`, and travel on the world's log of changes like anything else a player did.
+ * Most of this needs no sending between players. The founding families come from the seed, and
+ * ordinary births and natural deaths follow from the register's own state and the day. Two sorts
+ * of fact do have to be replayed: an unpredictable burial, and a stable commission that consumed
+ * timber from the player's persisted yard. Those arrive as dated events and are lived through in
+ * the same order whenever this book is reopened.
  */
 const FOUNDED_ON = 1;
 
@@ -65,6 +64,8 @@ export class Register {
   private readonly votes = new Map<string, TownVote>();
   /** The days a shrine raised somebody, by village — the copy that survives a re-living. */
   private readonly magicked = new Map<string, number[]>();
+  /** Farmer stable commissions, told from the kept timber yard and replayed on their morning. */
+  private readonly stablePurchases = new Map<string, StablePurchase>();
   /** The last whole day the register has caught up to. */
   private day: number;
 
@@ -73,12 +74,10 @@ export class Register {
     /*
      * What a day in one village is allowed to know about the rest of the world: see `aday.ts`.
      *
-     * Six things, built once and handed down, and the shortness of the list is the point of the
-     * cut. A day needs a settlement to change, a handful of numbers and somewhere to write down
-     * what the hall took and what it paid; it never asks who is alive in the next valley. The
-     * moment a seventh entry is wanted, the day has started asking a question that belongs to the
-     * book rather than to a Tuesday in one place, and that is worth noticing rather than quietly
-     * answering.
+     * A small boundary, built once and handed down. A day needs a settlement to change, a handful
+     * of numbers and somewhere to write down what the hall took and paid; it never asks who is
+     * alive in the next valley. Every new entry must remain a dated fact about this one place,
+     * rather than quietly letting a Tuesday reach into the whole book.
      *
      * `today` is a getter rather than a copy, and that is load-bearing: a village re-lived from
      * its founding lives day two while the register stands on day four hundred, and what a village
@@ -93,8 +92,28 @@ export class Register {
       killedOn: (id) => this.killed.get(id),
       taxed: (id, much) => { this.paid.set(id, much); },
       waged: (id, much) => { this.earned.set(id, much); },
+      stableBought: (village, on) => this.stablePurchases.get(this.stableKey(village, on)) ?? null,
       takeOff: (person, on, cause) => this.remove(person, on, cause),
     };
+  }
+  private stableKey(village: string, day: number): string { return `${village}:${Math.floor(day)}`; }
+
+  /** Restore purchases before catching the register up, so works and payments replay in order. */
+  rememberStablePurchases(purchases: readonly StablePurchase[]): void {
+    for (const purchase of purchases) {
+      this.stablePurchases.set(this.stableKey(purchase.village, purchase.day), { ...purchase });
+    }
+  }
+
+  /** Ask one village to commission at most one rung for the next morning. */
+  commissionStable(village: string, yard: StableYard, day: number): StablePurchase | null {
+    const settlement = this.villages.get(village);
+    if (!settlement) return null;
+    const key = this.stableKey(village, day);
+    if (this.stablePurchases.has(key)) return null;
+    const purchase = commissionAStable(village, settlement, yard, day);
+    if (purchase) this.stablePurchases.set(key, purchase);
+    return purchase;
   }
 
   /**

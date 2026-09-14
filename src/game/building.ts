@@ -1,6 +1,6 @@
 import { hashString } from '../core/rng';
 import { Timber, type TimberJson } from './timber';
-
+import type { StablePurchase } from '../world/farmbuilds';
 /**
  * Having somebody build you a house.
  *
@@ -130,7 +130,6 @@ export const BUILD = {
    */
   HARBOUR_LEVEL: 2,
 } as const;
-
 /**
  * What something costs to have built, and what it needs under it.
  *
@@ -205,7 +204,6 @@ export interface Buildable {
    */
   blocks: number | null;
 }
-
 export const CATALOGUE: readonly Buildable[] = [
   {
     id: BUILDS.HOUSE, name: 'a house', price: BUILD.PRICE, days: BUILD.DAYS, on: 'land', timber: 40,
@@ -261,7 +259,6 @@ export const CATALOGUE: readonly Buildable[] = [
     done: 'The last board is down. Anything that floats can lie alongside her now.', blocks: null,
   },
 ];
-
 /**
  * What a builder will offer somebody, given what they already own in his village.
  *
@@ -305,7 +302,6 @@ export function onOffer(
     return coast.water && (!entry.moves || coast.harbour);
   });
 }
-
 /** One entry by name. Anything unknown is a house, which is what every save older than the list holds. */
 export function buildable(what: string | undefined): Buildable {
   return CATALOGUE.find((entry) => entry.id === what) ?? CATALOGUE[0];
@@ -315,7 +311,6 @@ export function buildable(what: string | undefined): Buildable {
 export function needs(what: string | undefined): Buildable['on'] {
   return buildable(what).on;
 }
-
 /** A house that has been paid for and is going up. */
 export interface Commission {
   id: string;
@@ -380,12 +375,10 @@ export interface Commission {
    */
   rot?: number;
 }
-
 /** How long this particular job takes: a fountain is two days and a house is a week. */
 export function daysFor(job: Commission): number {
   return buildable(job.what).days;
 }
-
 /** Work completed: recorded for hall jobs, calendar-derived only for legacy and adopted buildings. */
 function workDone(job: Commission, day: number): number {
   return job.worked ?? Math.max(0, day - job.began);
@@ -395,7 +388,6 @@ function workDone(job: Commission, day: number): number {
 export function progressOf(job: Commission, day: number): number {
   return Math.max(0, Math.min(1, workDone(job, day) / daysFor(job)));
 }
-
 export function isFinished(job: Commission, day: number): boolean {
   return progressOf(job, day) >= 1;
 }
@@ -503,6 +495,8 @@ export interface HouseJson {
   jobs?: Commission[];
   /** What each village's timber yard holds. See `timber.ts` for why it rides with the commissions. */
   yard?: TimberJson;
+  /** Stable commissions paid from that yard, replayed into the village register on reopening. */
+  stables?: StablePurchase[];
 }
 /**
  * Every commission on the halls' books, and the order waiting to be given a site.
@@ -515,6 +509,7 @@ export interface HouseJson {
 export class Houses {
   private taken: Hired | null = null;
   private readonly jobs: Commission[] = [];
+  private readonly stables: StablePurchase[] = [];
   /**
    * The timber each village has by it, which is the one price in this game that is not money.
    *
@@ -529,6 +524,7 @@ export class Houses {
   constructor(json?: HouseJson) {
     this.taken = json?.hired ?? null;
     this.yard = Timber.from(json?.yard);
+    for (const purchase of json?.stables ?? []) this.stables.push({ ...purchase });
     for (const job of json?.jobs ?? []) this.jobs.push({ ...job, store: job.store ? { gold: job.store.gold, items: { ...job.store.items } } : undefined });
   }
 
@@ -541,6 +537,13 @@ export class Houses {
 
   /** Every commission, for drawing and for the pub to count the days down over. */
   entries(): readonly Commission[] { return this.jobs; }
+  /** Stable commissions in the same builder's book as the yard that supplied them. */
+  stablePurchases(): readonly StablePurchase[] { return this.stables; }
+
+  rememberStablePurchase(purchase: StablePurchase): void {
+    if (this.stables.some((known) => known.village === purchase.village && known.day === purchase.day)) return;
+    this.stables.push({ ...purchase });
+  }
 
   /** Take a builder on. The deposit has already left the purse by the time this is called. */
   takeOn(village: string, price: number, paid: number, what: string = BUILDS.HOUSE): void {
@@ -691,6 +694,6 @@ export class Houses {
   }
 
   toJSON(): HouseJson {
-    return { hired: this.taken, jobs: this.jobs, yard: this.yard.toJSON() };
+    return { hired: this.taken, jobs: this.jobs, yard: this.yard.toJSON(), stables: this.stables };
   }
 }

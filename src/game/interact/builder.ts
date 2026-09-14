@@ -17,7 +17,6 @@ import { footprintLevel } from '../../world/footprint';
 import type { Structure, Village } from '../../world/structures';
 import { regardOf } from '../grudge';
 import type { DialogueChoice, DialogueNode, Surroundings } from './context';
-
 /**
  * Commissioning a house, and what a finished one is for.
  *
@@ -109,7 +108,6 @@ function toTheJetty(jetties: ReadonlyArray<Mooring>, x: number, z: number): numb
   }
   return nearest;
 }
-
 /**
  * Where to go and stand to say where it goes, in the builder's own words.
  *
@@ -138,8 +136,6 @@ function whereToStand(wants: Buildable, again = false): string {
     ? 'Go and stand where you want it and press Enter. I am not choosing it for you — you are the one who has to live in it.'
     : 'Walk out to wherever you want it and press Enter on the spot. Flat ground, off the road, and not on top of anybody.';
 }
-
-
 /**
  * The builder's own menu: taking him on, hearing how yours is coming along, and settling up.
  *
@@ -287,7 +283,6 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
   }
   return choices;
 }
-
 /**
  * She comes off the stocks, and the yard she was built in goes back to being a beach.
  *
@@ -307,14 +302,12 @@ function launchHer(ctx: Surroundings, job: Commission, day: number): void {
   ctx.houses.launch(job, day);
   ctx.sailing.buy(lies.x, lies.z, lies.yaw);
 }
-
 /** Choosing the plot, and what a finished house is for. */
 export function builderInteractions(ctx: Surroundings) {
   const {
     player, state, structures, sampler, chunks, houses, grudges, register, dialogue, hud, sound,
     persist, seed,
   } = ctx;
-
   /** The world day with its fraction, which is what a thing being built actually measures. */
   const today = (): number => buildingDay(ctx);
 
@@ -673,14 +666,22 @@ export function builderInteractions(ctx: Surroundings) {
      * exactly when he would look at what came into the yard. A village with no woodcutter in it lands
      * nothing, for ever, and that is the limit the whole material exists to be.
      */
+    let yardChanged = false;
     for (const village of register.settled()) {
+      const before = houses.yard.at(village);
       houses.yard.felled(village, woodcuttersFor(register.living(village)));
+      const stable = register.commissionStable(village, houses.yard, state.day);
+      if (stable) houses.rememberStablePurchase(stable);
+      if (stable || houses.yard.at(village) !== before) yardChanged = true;
     }
     const worked = workTheHallJobs(
       houses, day, (village) => register.living(village), [...busy.values()].flat(),
     );
     const bills = houses.charge(day);
-    if (worked.length === 0 && bills.length === 0) return;
+    if (worked.length === 0 && bills.length === 0) {
+      if (yardChanged) persist();
+      return;
+    }
     for (const bill of bills) {
       const before = grudges.regard(bill.village, day);
       const after = regardOf(grudges.slighted(bill.village, day, bill.weight));

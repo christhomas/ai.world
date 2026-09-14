@@ -17,11 +17,10 @@
  *    where farms are bigger is a world where every size of stable is bigger and no two numbers mean
  *    the same thing. `ROOFS` builds its ladder off `LIFE.CHILDREN`; this builds its off
  *    `BEASTS_PER_FARM`, which is the byre every farm in the country already has.
- *  - **The size is written into `Settlement.works`**, which is the ledger of everything a village
- *    has ever paid for and is already replayed from the founding on every machine. That is what
- *    makes a stable survive a village being re-lived, and it is why this needs no new field on a
- *    holding and no new thing for the register to store. `roofOfWork` and `stableOfWork` are the
- *    same trick.
+ *  - **The size is written into `Settlement.works`**, the ledger of everything a village has built.
+ *    Its dated commission is replayed from the builder's kept book, so the same work is restored
+ *    whenever a register is lived again. That avoids a second capacity field on each holding;
+ *    `roofOfWork` and `stableOfWork` remain the same trick.
  *  - **One rung at a time.** `oneSizeUp` is `roofs.ts`'s word and its argument is the one that
  *    matters here too: a list you may skip about in is not a ladder, so a farm that wanted a barn
  *    and could afford a stable builds the stable and gets the barn later. A skyline is a history.

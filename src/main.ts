@@ -252,6 +252,8 @@ export function startGame(
     at: () => ({ x: player.x, z: player.z }),
     sky: () => skies.save(),
   });
+  register.rememberStablePurchases(houses.stablePurchases());
+  register.advance(state.day);                // a world reopened after a week finds a village changed
   /** Everything Old Nettle's cycle needs to reach into, gathered when it is asked for rather than held. */
   const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name, recall });
   // which hole each village works, what it believes about it, and whether the hero is down one

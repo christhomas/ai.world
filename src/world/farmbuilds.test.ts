@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { BYRE, STABLES, beastsAt, oneSizeUp, workOf } from './stables';
 import { costOfAStable, timberForAStable } from './growth';
 import { whichFarmerBuilds } from './farmbuilds';
@@ -7,17 +6,16 @@ import { whichFarmerBuilds } from './farmbuilds';
 /**
  * A farmer pays a builder for a bigger stable.
  *
- * The ladder has been here since the 13th — byre, stable, barn, steading — and so have the prices:
- * `costOfAStable` and `timberForAStable`, exported, with seven assertions about them in
- * `stables.test.ts`, and called by nothing outside that file. So the rungs existed, the bills
- * existed, and no farmer in any world could climb one. The eighth feature found this way.
+ * The ladder and its prices are old, and these examples keep the spending rule separate from its
+ * daily committing edge: who qualifies, which rung they get, and what remains in their purse are
+ * questions that should not need a whole village to answer.
  *
  * The decision is here rather than in the day for the same reason the hall's is in `growth.ts`: what
  * a farmer will and will not spend on is a rule, and a rule is a thing you can put a number into.
  */
 describe('which farmer builds a bigger stable', () => {
   const A_FARM = 'Ashford-farm-1';
-  const flush = { purse: 5000, keep: 0 };
+  const flush = { purse: 5000 };
 
   const asking = (over: Partial<Parameters<typeof whichFarmerBuilds>[0]> = {}) => whichFarmerBuilds({
     farms: [{ holding: A_FARM, worker: 'p1' }],
@@ -89,22 +87,4 @@ describe('which farmer builds a bigger stable', () => {
     expect(beastsAt([workOf(bigger, 'roomy')], chosen.holding)).toBe(BYRE.beasts);
   });
 
-  it('is not asked by the day yet, and #36 is the reason', () => {
-    /*
-     * The seam is deliberately open, which is the one case where writing a rule nothing calls is
-     * the right answer rather than the fault this suite keeps finding.
-     *
-     * A stable is priced in timber so that a village on a bare rock cannot double its herd by being
-     * wealthy — and the day cannot see the yard. `TheDay` is six entries and timber is not among
-     * them, because `Timber` is *kept* rather than derived: it includes what a player chose to sell
-     * the village, and the register replays every village from its founding on every machine. Hand
-     * the replay a number that depends on one player and two machines disagree about a village
-     * neither is standing in.
-     *
-     * #36 is the argument about which way out to take, and it is a person's to settle. Until then
-     * this asserts the seam is open ON PURPOSE, so that nobody reads the missing call as the
-     * oversight it would otherwise look exactly like.
-     */
-    expect(readFileSync('src/world/aday.ts', 'utf8')).not.toContain('whichFarmerBuilds(');
-  });
 });
