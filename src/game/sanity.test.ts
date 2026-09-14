@@ -6,8 +6,9 @@ import { ROOFS, STANDARD } from '../world/roofs';
 import { growWorld } from '../world/growworld';
 import { Register } from '../world/register';
 import { TerrainSampler } from '../world/terrain';
-import { FIELD, fieldOfWork, fieldRoomFor } from '../world/fields';
-import { whichFieldClears } from '../world/fieldbuilds';
+import { FIELD, fieldOfWork, fieldRoomFor, type FieldWork } from '../world/fields';
+import { FIELD_CLEARING_COST, whichFieldClears } from '../world/fieldbuilds';
+import { isTheHall } from '../world/holdings';
 import { tradesFor } from '../entities/trades';
 import { PROSPER } from '../world/prosperity';
 import { LEFT_ALONE, SEEDS, VILLAGES, eachHead, liveForward, type Run, type Standing } from './economy.bench';
@@ -448,6 +449,41 @@ describe('what a village still does for a living', () => {
 
 // --- is there anything in the fields and the store ---------------------------------------------
 
+interface FieldBound {
+  holding: string;
+  capacity: number;
+  /** A hall-owned farm cannot buy its own clearing under the rule this bench is measuring. */
+  terminal: boolean;
+}
+
+/** Quiet mornings are not evidence; every farm must be full or permanently unable to buy fields. */
+const fieldCapacityReached = (
+  _unchanged: number, fields: readonly FieldWork[], bounds: readonly FieldBound[],
+): boolean => bounds.length > 0 && bounds.every((bound) => bound.terminal
+  || new Set(plantedAt(fields, bound.holding)).size >= bound.capacity);
+
+/** Keep every ledger line here; collapsing coordinates would hide a repeated claim. */
+const plantedAt = (fields: readonly FieldWork[], holding: string): string[] =>
+  fields.filter((field) => field.holding === holding)
+    .map((field) => `${field.x},${field.z}`);
+
+describe('the field-capacity bench itself', () => {
+  it('does not call four quiet mornings proof that an under-capacity farm is done', () => {
+    const bounds: FieldBound[] = [{ holding: 'farm-1', capacity: 1, terminal: false }];
+    expect(bounds[0].capacity).toBeGreaterThan(0);
+    expect(fieldCapacityReached(FIELD.MOST, [], bounds)).toBe(false);
+  });
+
+  it('keeps repeated entries visible long enough to reject them', () => {
+    const repeated: FieldWork[] = [
+      { holding: 'farm-1', x: 2, z: 3 },
+      { holding: 'farm-1', x: 2, z: 3 },
+    ];
+    expect(new Set(repeated.map((field) => `${field.x},${field.z}`)).size).toBe(1);
+    expect(plantedAt(repeated, 'farm-1')).toHaveLength(2);
+  });
+});
+
 describe('what the land is carrying', () => {
   it('keeps no more fields than the land it has could carry', () => {
     /*
@@ -457,10 +493,11 @@ describe('what the land is carrying', () => {
      * there is finally a physical fact for this bench to hold them to.
      *
      * The ordinary bench villages have no map on purpose. For this one question, three real road
-     * worlds are grown and one established village in each is put under load for the full run. Its
-     * farmers start rich so the check cannot pass merely because nobody could afford an acre. The
-     * ceiling is the smaller of the local trees the farm can reach and `FIELD.MOST`; sharing one
-     * tree between two holdings is over the land's capacity too.
+     * worlds are grown and one established village in each is put under load until every farm has
+     * reached four acres or has no unclaimed local tree left. Its farmers are kept able to afford
+     * an acre so the check cannot pass merely because a purse paused. The ceiling is the smaller
+     * of the local trees the farm can reach and `FIELD.MOST`; sharing one tree between two holdings
+     * is over the land's capacity too.
      */
     const over: string[] = [];
     const detail: string[] = [];
@@ -472,16 +509,52 @@ describe('what the land is carrying', () => {
       const village = sampler.structures.villages.find((place) => place.houses.length >= 6)!;
       const register = new Register(seed);
       const people = register.settle(village.name, village.houses.length, ['farmer', 'builder', 'seller']);
+      // Keep this a capacity fixture rather than a growth fixture. Otherwise children who come of
+      // age as farmers found new farms while the bench is trying to finish measuring the old ones.
+      for (const person of people) if (person.trade === '') person.trade = 'seller';
       register.fieldsAreSurveyedBy((name, settlement) =>
         name === village.name ? whichFieldClears(village, settlement, sampler) : null);
-      for (const person of people) person.purse = 1_000;
+      // Twenty covers dinner and upkeep between this top-up and the spending decision. It remains
+      // far below the 486-plus-reserve a farmer needs to found another holding.
+      const clearingPurse = PROSPER.KEEPS_BACK + FIELD_CLEARING_COST + 20;
+      for (const person of people) person.purse = clearingPurse;
       let unchanged = 0;
       let previous = 0;
-      while (register.today < DAYS && (register.today < 20 || unchanged < FIELD.MOST)) {
+      let saturated = false;
+      const currentFields = (): FieldWork[] => register.worksOf(village.name).map(fieldOfWork)
+        .filter((field): field is FieldWork => field !== null);
+      const currentBounds = (): FieldBound[] => {
+        const settlement = register.madeOf(village.name);
+        const fields = currentFields();
+        const occupied = new Set(fields.map((field) => `${field.x},${field.z}`));
+        return (settlement.holdings ?? [])
+          .filter((holding) => holding.kind === 'farm')
+          .map((holding) => {
+            const planted = new Set(plantedAt(fields, holding.id));
+            const available = fieldRoomFor(sampler, village, holding, register.living(village.name))
+              .filter((tile) => planted.has(`${tile.x},${tile.z}`)
+                || !occupied.has(`${tile.x},${tile.z}`));
+            return {
+              holding: holding.id,
+              capacity: Math.min(FIELD.MOST, available.length),
+              terminal: isTheHall(holding.owner),
+            };
+          });
+      };
+      while (register.today < DAYS && !saturated) {
+        // Keep the question about fields. Nobody becomes too poor to clear one, while neither a
+        // private purse nor the treasury can found another farm and move the finish line.
+        for (const person of register.living(village.name)) person.purse = clearingPurse;
+        register.hallOf(village.name)!.purse = 0;
         register.advance(register.today + 1);
         const current = register.worksOf(village.name).filter((work) => fieldOfWork(work) !== null).length;
         unchanged = current === previous ? unchanged + 1 : 0;
         previous = current;
+        // Four quiet mornings prompt the expensive proof; they are never the proof themselves.
+        if (register.today >= 20 && unchanged >= FIELD.MOST) {
+          saturated = fieldCapacityReached(unchanged, currentFields(), currentBounds());
+          unchanged = 0;
+        }
       }
 
       const works = register.worksOf(village.name);
@@ -496,15 +569,19 @@ describe('what the land is carrying', () => {
         checked++;
         const room = new Set(fieldRoomFor(sampler, village, holding, register.living(village.name))
           .map((tile) => `${tile.x},${tile.z}`));
-        const planted = new Set(fields.filter((field) => field.holding === holding.id)
-          .map((field) => `${field.x},${field.z}`));
+        const planted = plantedAt(fields, holding.id);
+        const distinct = new Set(planted);
         const capacity = Math.min(FIELD.MOST, room.size);
         roomHere += capacity;
-        cleared += planted.size;
-        if (planted.size > capacity) {
-          over.push(`${village.name} (seed ${seed}), ${holding.id}: ${planted.size} acres where ${capacity} fit`);
+        cleared += distinct.size;
+        if (distinct.size !== planted.length) {
+          const repeated = [...new Set(planted.filter((tile, at) => planted.indexOf(tile) !== at))];
+          over.push(`${village.name} (seed ${seed}), ${holding.id}: repeated ${repeated.join(', ')}`);
         }
-        for (const tile of planted) {
+        if (distinct.size > capacity) {
+          over.push(`${village.name} (seed ${seed}), ${holding.id}: ${distinct.size} acres where ${capacity} fit`);
+        }
+        for (const tile of distinct) {
           if (!room.has(tile)) {
             over.push(`${village.name} (seed ${seed}), ${holding.id}: ${tile} was not ground this farm could clear`);
           }
@@ -513,6 +590,13 @@ describe('what the land is carrying', () => {
             over.push(`${village.name} (seed ${seed}): ${tile} was counted for both ${claimedBy} and ${holding.id}`);
           }
           occupied.set(tile, holding.id);
+        }
+      }
+      const bounds = currentBounds();
+      if (!fieldCapacityReached(0, fields, bounds)) {
+        for (const bound of bounds.filter((one) => !one.terminal
+          && new Set(plantedAt(fields, one.holding)).size < one.capacity)) {
+          over.push(`${village.name} (seed ${seed}), ${bound.holding}: did not reach its ${bound.capacity}-acre capacity`);
         }
       }
       detail.push(`${village.name} (seed ${seed}): ${fields.length} cleared acres against ${roomHere} the farms could carry`);
