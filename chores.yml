@@ -253,6 +253,18 @@ tasks:
     cmds:
       - 'pnpm vitest run src/world/reachable.test.ts; kept=$?; cat {{.REPORT}} || true; exit $kept'
 
+  # Two counters in two countries, walked in a real browser. The unit tests hold the selection, the
+  # way out and the pricing rule apart; this is the one thing that can see them working together —
+  # and the one thing that can see a counter priced at the room the hero is standing in rather than
+  # at the door it stands behind, because a room's coordinates are local and look correct to every
+  # test that does not walk through a door. See `tools/shopwalk.cjs`.
+  shopwalk:
+    desc: Enter a named shop and the nearest one, leave again, and price the same pelt in two countries
+    vars:
+      REPORT: shopwalk-report.txt
+    cmds:
+      - 'node tools/shopwalk.cjs; walked=$?; cat {{.REPORT}} || true; exit $walked'
+
   fallbacks:
     desc: Which fallback expressions or exported parameter defaults are taken every single time
     vars:
