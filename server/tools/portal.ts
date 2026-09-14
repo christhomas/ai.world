@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { beginSession, endSession, howManyAccounts, sessionStands, whoIsThis } from './accounts';
+import { askTheWorker, bodyOf, type BuilderAt } from '../builder/proxy';
+import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
 
 /**
@@ -29,6 +31,9 @@ export type Asked =
   | { want: 'logout' }
   | { want: 'catalogue' }
   | { want: 'tool'; id: string }
+  /** The builder asking the worker to do something, or following what it is doing. */
+  | { want: 'build' }
+  | { want: 'follow' }
   | { want: 'nothing' };
 
 /** The tools a signed-in person may open. Named here so the catalogue and the guard cannot differ. */
@@ -51,6 +56,16 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
   if (path === '/tools') return { want: 'catalogue' };
   if (path === '/tools/login') return { want: method === 'POST' ? 'login' : 'login-form' };
   if (path === '/tools/logout') return method === 'POST' ? { want: 'logout' } : { want: 'nothing' };
+  /*
+   * The two the builder needs, named rather than inferred.
+   *
+   * A POST asks and a GET follows, and neither is reachable except through the guard below — which
+   * is the whole of #103's *"prompt submission requires a valid admin JWT"*. They are spelled out
+   * here rather than being another tool id, because a tool id opens a page and these two speak to
+   * a process on another machine: the difference is worth being able to see in one place.
+   */
+  if (path === '/tools/build/ask') return method === 'POST' ? { want: 'build' } : { want: 'nothing' };
+  if (path === '/tools/build/follow') return method === 'GET' ? { want: 'follow' } : { want: 'nothing' };
   const id = path.slice('/tools/'.length);
   if (id === '' || id.includes('/') || id.includes('..')) return { want: 'nothing' };
   return { want: 'tool', id };
@@ -128,6 +143,24 @@ export interface PortalOptions {
   secret: string;
   /** Whether an `X-Forwarded-Proto` header in front of this server can be believed. */
   trustProxy?: boolean;
+  /**
+   * Where the builder's worker is, if this deployment has one.
+   *
+   * Left out, the Character Builder card says it is not wired up and the two build routes are not
+   * there at all — the rule `/operate` and the portal itself already run on. A game server with no
+   * source host behind it should not have a door onto one.
+   */
+  builder?: BuilderAt;
+  /** Where a finished run is written down. See `builder/book.ts`. */
+  record?: (run: Recorded, id: string) => void;
+  /**
+   * And what is in the book, for the page to show.
+   *
+   * A record nobody can read is a record nobody checks, which is most of the value of keeping one.
+   * The builder's page shows the last few runs under the box you type in, so the person asking can
+   * see what has been asked before them and what it changed.
+   */
+  recorded?: () => readonly Recorded[];
 }
 
 const html = (res: ServerResponse, code: number, body: string, headers: Record<string, string> = {}): void => {
@@ -146,6 +179,61 @@ const page = (title: string, body: string): string =>
   + `.card{display:block;padding:1rem;margin:.6rem 0;border:1px solid #39405a;border-radius:.5rem}`
   + `.card:hover{border-color:#5b76ff}.blurb{opacity:.65;font-size:.9rem}.why{color:#ffb4a2;font-size:.9rem;margin-top:.8rem}`
   + `</style><main>${body}</main>`;
+
+/**
+ * What the builder's page does, which is ask and then follow.
+ *
+ * Written out rather than bundled because it is fifteen lines and this server has no build step —
+ * and because a page that streams is the whole point: a run takes minutes and is meant to be
+ * watched. `from` is the page's own count, so a reload asks again from the top.
+ */
+const BUILDER_SCRIPT = `
+const said = document.getElementById('said');
+const ask = document.getElementById('ask');
+document.getElementById('go').onclick = async () => {
+  said.textContent = '';
+  const res = await fetch('/tools/build/ask', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ prompt: ask.value, about: document.title }),
+  });
+  if (!res.ok && res.headers.get('content-type')?.includes('text/html')) {
+    said.textContent = 'The builder would not take that.';
+    return;
+  }
+  const reader = res.body.getReader();
+  const decode = new TextDecoder();
+  let rest = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    rest += decode.decode(value, { stream: true });
+    const lines = rest.split('\\n');
+    rest = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let told; try { told = JSON.parse(line); } catch { continue; }
+      if (told.k === 'say') said.textContent += told.text;
+      if (told.k === 'tool') said.textContent += '\\n· ' + told.name + ' ' + told.on + '\\n';
+      if (told.k === 'end') said.textContent += '\\n— ' + (told.ok ? 'done' : 'failed') + ', ' + told.note;
+    }
+  }
+};
+`;
+
+/**
+ * The last few runs, as somebody standing at the builder would want them.
+ *
+ * Who, when, what it was about and what it changed — and never the prompt, which is the one field
+ * that can contain anything at all. See `Recorded`, where that decision is written down.
+ */
+function saidOfTheBook(runs: readonly Recorded[]): string {
+  if (runs.length === 0) return '';
+  const when = (at: number): string => new Date(at).toISOString().replace('T', ' ').slice(0, 16);
+  return `<h1 style="font-size:1rem;margin-top:2rem;opacity:.7">What has been asked</h1>`
+    + runs.map((run) => `<div class="card"><strong>${run.ok ? '✓' : '✕'} ${when(run.when)}</strong>`
+      + `<div class="blurb">${run.who} · ${run.about || 'nothing named'} · ${run.length} characters`
+      + `${run.changed.length ? ` · ${run.changed.join(', ')}` : ''}</div></div>`).join('');
+}
 
 const loginPage = (why?: string): string => page('Sign in — ai.world tools', `
   <h1>ai.world tools</h1>
@@ -227,14 +315,69 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
+    /*
+     * Both of these are past the guard above, so `who` is an account the portal has just verified.
+     * That account id is what goes to the worker, for its book; the session token stays here.
+     */
+    if (asked.want === 'build' || asked.want === 'follow') {
+      if (!options.builder) {
+        html(res, 503, page('No builder here', '<h1>There is no builder behind this server.</h1>'
+          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
+        return true;
+      }
+      if (asked.want === 'follow') {
+        const from = new URL(req.url ?? '/', 'http://portal').searchParams;
+        const run = from.get('run');
+        askTheWorker(options.builder, who, `/follow?from=${Number(from.get('from') ?? 0) || 0}`
+          + (run ? `&run=${encodeURIComponent(run)}` : ''), null, res, 'GET');
+        return true;
+      }
+      const body = await bodyOf(req);
+      if (body === null) { html(res, 413, page('Too much', '<h1>That was too long to send.</h1>')); return true; }
+      /*
+       * Written down as the answer goes past. The worker is on another machine and the book is
+       * here, so the record is built from what this end already knows — who, when, how long the
+       * prompt was — and what the stream says as it streams: the files the tools touched, and
+       * whether it ended well. The prompt's own text is never kept; see `Recorded`.
+       */
+      const wants = whatWasAsked(JSON.parse(body) as unknown);
+      const started = Date.now();
+      const changed = new Set<string>();
+      const id = `${started.toString(36)}-${who.slice(0, 8)}`;
+      askTheWorker(options.builder, who, '/ask', body, res, 'POST', (told) => {
+        if (told.k === 'tool' && told.on) changed.add(told.on);
+        if (told.k !== 'end') return;
+        options.record?.({
+          who, when: started, about: typeof wants === 'string' ? '' : wants.about,
+          length: typeof wants === 'string' ? 0 : wants.prompt.length,
+          changed: [...changed], ok: told.ok, note: told.note,
+        }, id);
+      });
+      return true;
+    }
+
     if (asked.want === 'catalogue') { html(res, 200, cataloguePage()); return true; }
 
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
-    // #103 puts the Character Builder's worker behind this; until then a tool is a named door that
-    // is open to the right people and honest about having nothing behind it yet
+    /*
+     * The Character Builder's page is the builder's own, served by whoever has the checkout: it
+     * shows every creature and prop from the same revision the worker is working in, which is the
+     * point of it. This end owns the door and the two routes behind it; a tool with nothing behind
+     * it yet says so rather than pretending.
+     */
+    const behind = tool.id === 'character-builder' ? options.builder : null;
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
-      + `<p class="why">Not wired up yet — see issue #103.</p><a class="card" href="/tools/">Back</a>`));
+      + (behind
+        ? `<p class="blurb">Ask it something and watch it happen. Your account is what it is recorded against.</p>`
+          + `<label for="ask">What should change?</label>`
+          + `<textarea id="ask" rows="4" style="width:100%;padding:.6rem;border-radius:.4rem;border:1px solid #39405a;background:#1b1e27;color:inherit;font:inherit"></textarea>`
+          + `<button id="go" type="button">Ask the builder</button>`
+          + `<pre id="said" style="white-space:pre-wrap;margin-top:1rem"></pre>`
+          + `<script>${BUILDER_SCRIPT}</script>`
+          + saidOfTheBook(options.recorded?.() ?? [])
+        : `<p class="why">Nothing behind this one yet — no worker is configured. See issue #103.</p>`)
+      + `<a class="card" href="/tools/">Back</a>`));
     return true;
   };
 }
