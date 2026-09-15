@@ -2,9 +2,9 @@ import {
   BUILD, BUILDS, buildable, builderIn, deposit, isFinished,
   Houses, onOffer, owed, saidOfJob, storeysOf, type Buildable, type Commission,
 } from '../building';
-import { workTheHallJobs } from '../halljobs';
+import { buildingStarted, workTheHallJobs } from '../halljobs';
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
-import { jettiesIn, type Mooring } from '../jetties';
+import { jettiesIn } from '../jetties';
 import { moorageFor } from '../sailing';
 import { give, holds } from '../../world/deeds';
 import type { Post } from '../../world/postings';
@@ -17,6 +17,7 @@ import { footprintLevel } from '../../world/footprint';
 import type { Structure, Village } from '../../world/structures';
 import { regardOf } from '../grudge';
 import type { DialogueChoice, DialogueNode, Surroundings } from './context';
+import { toTheJetty, toTheWater } from './buildercoast';
 /**
  * Commissioning a house, and what a finished one is for.
  *
@@ -50,14 +51,6 @@ const BOX = { speaker: 'Strongbox', emoji: '🧰' } as const;
 const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.time;
 
 /**
- * How far the nearest jetty is from a point, in tiles, or Infinity where the country has none.
- *
- * Module level because two quite different places need the same number and they have to agree. The
- * pub asks it of the village, to decide whether this man offers boats at all; the shore asks it of
- * the plot the player is standing on, to decide whether a keel may be laid there. One measure, one
- * distance in `BUILD.PIER_WITHIN`, and so no village that offers a boat has nowhere to build one.
- */
-/**
  * How many of a village's people fell timber for a living.
  *
  * A function rather than a filter written out twice, because two quite different places ask it and
@@ -69,45 +62,6 @@ function woodcuttersFor(people: readonly { trade: string }[]): number {
   return people.filter((person) => person.trade === 'woodcutter').length;
 }
 
-/**
- * Where the nearest open water is, as a bearing and a distance, or nothing within `reach`.
- *
- * Rings outward rather than scanning a square, so what comes back is the *nearest* wet tile rather
- * than whichever one happened to be looked at first, and it stops the moment it finds one. Water is
- * the same question a boat asks: ground with nothing to stand on.
- *
- * The bearing is the half that matters as much as the distance, and it is why this hands back a
- * point rather than a number. A jetty runs out the way the sea is, not the way the player happened
- * to be facing when they pressed Enter — a man standing on a beach looking inland still wants his
- * jetty over the water — and a hull on the stocks points the way she will go in.
- *
- * `step` is how coarsely to look. One tile for a plot, where the true distance is the answer and
- * the reach is eight; four for a village, where the question is only whether this place has a coast
- * at all and ringing ninety tiles a tile at a time would be thirty thousand samples on a key press.
- */
-function toTheWater(
-  heightAt: (x: number, z: number) => number | null,
-  x: number, z: number, reach: number, step = 1,
-): { away: number; bearing: number } | null {
-  for (let r = step; r <= reach; r += step) {
-    const around = Math.max(8, Math.round(r * 8 / step));
-    for (let a = 0; a < around; a++) {
-      const angle = (a / around) * Math.PI * 2;
-      const wx = x + Math.cos(angle) * r, wz = z + Math.sin(angle) * r;
-      // the bearing is in the game's own convention, where yaw 0 is +x and turning is towards -z
-      if (heightAt(wx, wz) === null) return { away: r, bearing: Math.atan2(-(wz - z), wx - x) };
-    }
-  }
-  return null;
-}
-
-function toTheJetty(jetties: ReadonlyArray<Mooring>, x: number, z: number): number {
-  let nearest = Infinity;
-  for (const jetty of jetties) {
-    nearest = Math.min(nearest, Math.hypot(jetty.dockX + 0.5 - x, jetty.dockZ + 0.5 - z));
-  }
-  return nearest;
-}
 /**
  * Where to go and stand to say where it goes, in the builder's own words.
  *
@@ -154,7 +108,7 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
   const due = mine.filter((job) => owed(job, day) > 0);
   const going = mine.filter((job) => !isFinished(job, day));
 
-  if (!held && !going.length && !due.length) {
+  if (!held && !due.length) {
     /*
      * What this man will put up for you.
      *
@@ -186,7 +140,7 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
       }),
     });
 
-    /** Taking him on for one particular thing: the deposit leaves, and he waits to be told where. */
+    /** Take one order now, or put it on the books until its timber arrives. */
     function order(entry: Buildable): DialogueNode {
       const down = deposit(entry.price);
       if (state.inventory.gold < down) {
@@ -200,30 +154,37 @@ export function builderChoices(ctx: Surroundings, village: Village): DialogueCho
        * yard gives is the honest one — wait for the woodcutters, or go and cut it yourself and sell it
        * over the trestle here, which puts it on the same stack.
        */
-      const short = houses.yard.shortBy(village.name, entry.timber);
-      if (short > 0) {
+      const accept = (waiting: boolean): DialogueNode => {
+        if (!waiting) houses.yard.draw(village.name, entry.timber);
+        holds(state.inventory).take(down);
+        houses.takeOn(village.name, entry.price, down, entry.id, waiting);
+        state.version++;
+        sound.select();
+        persist();
         return {
           speaker: name, emoji: '🔨',
           pages: [
-            `${entry.name[0].toUpperCase()}${entry.name.slice(1)} wants ${entry.timber} good lengths and the yard has ${houses.yard.at(village.name)}.`,
-            woodcuttersFor(ctx.register.living(village.name)) > 0
-              ? `Give the woodcutters a few days. ${short} short, and they cut six a day between them.`
-              : 'Nobody here cuts. Bring it in yourself and put it on a stall, and it goes on the same stack.',
+            waiting
+              ? `${down} gold puts you on the backlog. Work starts when the yard can cover yours.`
+              : `${down} gold, and I will not ask for the rest until it is standing. ${entry.price - down} more on the day it is done.`,
+            whereToStand(entry),
           ],
         };
-      }
-      houses.yard.draw(village.name, entry.timber);
-      // The deposit stays on the commission's hall account and buys one worker at a time.
-      holds(state.inventory).take(down);
-      houses.takeOn(village.name, entry.price, down, entry.id);
-      state.version++;
-      sound.select();
-      persist();
+      };
+      const short = houses.yard.shortBy(village.name, entry.timber);
+      if (short <= 0) return accept(false);
+      const cutters = woodcuttersFor(ctx.register.living(village.name));
       return {
         speaker: name, emoji: '🔨',
         pages: [
-          `${down} gold, and I will not ask for the rest until it is standing. ${entry.price - down} more on the day it is done.`,
-          whereToStand(entry),
+          `${entry.name[0].toUpperCase()}${entry.name.slice(1)} wants ${entry.timber} good lengths and the yard has ${houses.yard.at(village.name)}.`,
+          cutters > 0
+            ? `${short} short, and the woodcutters bring ${cutters * 6} a day. Join the backlog?`
+            : `${short} short and nobody here cuts. Join the backlog and bring it in yourself?`,
+        ],
+        choices: [
+          { label: 'Join the backlog', next: () => accept(true) },
+          { label: 'No, keep my money', next: () => null },
         ],
       };
     }
@@ -388,13 +349,8 @@ export function builderInteractions(ctx: Surroundings) {
      * that put a hull on somebody else's beach would put it there for ever: they never settle up
      * for her, so on their screen she would never be launched and the yard would never clear.
      */
-    if (!wants.moves) {
-      ctx.told({
-        kind: 'built', id: job.id, village: job.village,
-        x: job.x, z: job.z, rot: job.rot ?? 0, day: Math.floor(job.began),
-        what: job.what, to: job.to,
-      });
-    }
+    const started = buildingStarted(job);
+    if (started) ctx.told(started);
     state.version++;
     sound.chime();
     hud.flash(wants.moves ? `A keel on the blocks. ${wants.days} days.`
@@ -673,6 +629,10 @@ export function builderInteractions(ctx: Surroundings) {
       const stable = register.commissionStable(village, houses.yard, state.day);
       if (stable) houses.rememberStablePurchase(stable);
       if (stable || houses.yard.at(village) !== before) yardChanged = true;
+      for (const job of houses.startBacklog(village, day)) {
+        const started = buildingStarted(job);
+        if (started) ctx.told(started);
+      }
     }
     const worked = workTheHallJobs(
       houses, day, (village) => register.living(village), [...busy.values()].flat(),

@@ -25,6 +25,25 @@ const worker = (id: string): Person => ({ id, trade: 'farmer' } as Person);
 const idle = (id: string): Person => ({ id, trade: '' } as Person);
 const constable = (id: string, born = 0): Person => ({ id, trade: 'constable', born } as Person);
 
+describe('the roads on the hall books', () => {
+  it('puts out a modest road crew before it has bought an amenity', () => {
+    const people = Array.from({ length: 41 }, (_, n) => idle('idle-' + n));
+    expect(people).toHaveLength(41);
+
+    const employed = whoTheHallEmploys(63, [], people);
+    expect(employed?.jobs).toBe(21);
+    expect(paid(employed!.paid)).toBe(63);
+  });
+
+  it('does not spend the capital the village is saving', () => {
+    const people = Array.from({ length: 2 }, (_, n) => idle('idle-' + n));
+    expect(people).toHaveLength(2);
+
+    expect(whoTheHallEmploys(62, [], people, 60)).toBeNull();
+    expect(whoTheHallEmploys(63, [], people, 60)?.costs).toBe(3);
+  });
+});
+
 describe('the constable on the hall books', () => {
   it('pays only constables, with more posts as the village grows', () => {
     const law = [constable('law-1'), constable('law-2'), constable('law-3')];

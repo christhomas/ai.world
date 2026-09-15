@@ -178,11 +178,8 @@ export function whatTheVillageBuilds(
   purse: number, built: readonly string[], laidOut: number, holds: number, people: readonly Person[],
   larder = Infinity,
 ): Raised | null {
-  if (people.length < holds) return null;
-  const wanting = familiesWantingRoom(people, laidOut, built, larder);
-  if (wanting.length === 0) return null;
-  if (housesStanding(laidOut, built) >= roomFor(laidOut)) return null;
-  const roof = oneSizeUp(biggestRoofAmong(wanting) ?? STANDARD);
+  const roof = roofTheVillageWouldBuild(built, laidOut, holds, people, larder);
+  if (!roof) return null;
   const costs = costOfARoof(roof);
   if (purse < costs + WATCH_WAGE) return null;
   const wages = whoIsPaidToRaiseIt(people, costs);
@@ -196,6 +193,16 @@ export function whatTheVillageBuilds(
     holdsMore: roof.holds,
     roof,
   };
+}
+
+/** The next needed roof, before asking whether this morning's purse can afford it. */
+function roofTheVillageWouldBuild(
+  built: readonly string[], laidOut: number, holds: number, people: readonly Person[], larder: number,
+): Roof | null {
+  if (people.length < holds) return null;
+  const wanting = familiesWantingRoom(people, laidOut, built, larder);
+  if (wanting.length === 0 || housesStanding(laidOut, built) >= roomFor(laidOut)) return null;
+  return oneSizeUp(biggestRoofAmong(wanting) ?? STANDARD);
 }
 
 /**
@@ -266,7 +273,21 @@ export function whatTheVillageSpends(
    * was taxed from. The hall itself is the party to it rather than anybody in the village, which is
    * what makes these the only wages in this world that are not one man paying another.
    */
-  const employed = whoTheHallEmploys(Math.max(0, purse - onTheHouse - upkeep), built, people);
+  // Ordinary road work is bought only out of what is spare beyond the next capital need. Required
+  // posts still come first inside `whoTheHallEmploys`; this reserve applies only to village-wide
+  // work that can wait. Without it a poor hamlet paid away every morning's saving and never raised
+  // its first roof or well.
+  const forTheVote = promotionFor(rank, housesStanding(laidOut, built))?.costs ?? 0;
+  const roofWanted = raised ? null : roofTheVillageWouldBuild(built, laidOut, holds, people, larder);
+  // `whatTheVillageBuilds` also keeps a watchman's day beyond the roof price. The reserve must
+  // describe the same threshold or road work can spend the last six gold every time a poor village
+  // comes close, leaving it permanently six short of building.
+  const capital = roofWanted
+    ? costOfARoof(roofWanted) + WATCH_WAGE
+    : (forTheVote || whatItIsSavingFor(built, rank));
+  const employed = whoTheHallEmploys(
+    Math.max(0, purse - onTheHouse - upkeep), built, people, capital,
+  );
   if (employed) for (const [id, much] of employed.paid) {
     wages.set(id, Math.round(((wages.get(id) ?? 0) + much) * 100) / 100);
   }
@@ -296,7 +317,6 @@ export function whatTheVillageSpends(
   // Once enough roofs stand for the next declaration, the vote comes before the ordinary wish
   // list. Keeping its price back makes "the treasury builds the hall" reachable rather than a
   // button waiting for the shopping loop to happen not to spend this morning.
-  const forTheVote = promotionFor(rank, housesStanding(laidOut, built))?.costs ?? 0;
   const left = raised ? 0 : purse - upkeep - kept - forTheVote;
   const hall = whatTheHallSpends(Math.round(Math.max(0, left) * 100) / 100, built, people, rank);
   for (const [id, much] of hall.wages) {

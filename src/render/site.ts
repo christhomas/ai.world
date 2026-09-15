@@ -30,7 +30,7 @@ export interface Site {
   z: number;
   /** Which way the front of it looks, in radians. */
   rot?: number;
-  stage: 'marked' | 'begun' | 'nearly' | 'done';
+  stage: 'backlog' | 'marked' | 'begun' | 'nearly' | 'done';
   /** What is being built. Absent means a house, which is what every plot was before there was a list. */
   what?: string;
   /** How many floors a finished house is standing at: two once a storey has been added to it. */
@@ -171,7 +171,7 @@ for (const civic of CIVICS) {
 /** What to draw on one plot today, or nothing. */
 export function propOf(site: Site): PropKind | null {
   const looks = LOOKS[site.what ?? 'house'] ?? LOOKS.house;
-  const kind = looks[site.stage];
+  const kind = looks[site.stage === 'backlog' ? 'marked' : site.stage];
   if (kind === undefined) return null;
   // the one case where a finished building is drawn as something else: a house that has had a
   // storey put on it is the same commission, on the same plot, a floor taller
