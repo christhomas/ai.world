@@ -27,55 +27,24 @@ import type { ManifestJson } from '../world/manifest';
 import type { NemesisSave } from '../game/nemesis';
 import type { RoamingJson } from '../game/roaming';
 
-/**
- * Which of the two worlds a save is set in.
- *
- * `mesh` grows the polygon world — regions glued out of hexes, with mountains, cliffs and the
- * eyries that hang off them. `road` is the older road tree, which is flatter: it cannot place a
- * massif at all, because a massif needs thirty tiles of room from the coast and the road world's
- * land is never wider than twenty-two.
- *
- * It belonged on the save because it used to decide the entire terrain: the same seed grew two
- * completely different countries, so a world reopened as the other kind put the ground somewhere
- * else underneath a house, a planted field, and every anchor the manifest was holding.
- *
- * There is one kind now. The polygon world — `?world=mesh`, "with mountains" on the title screen —
- * is gone: its country was a worse country, and keeping two generators meant every field, every
- * road and every mountain in this game had to be written twice and agree. What the road tree does
- * with elevation is better than what the polygon world did with geometry, so the polygon world was
- * the one to lose.
- *
- * The field stays, and so does the type, for two reasons. A save written by an older build names a
- * world it thinks it is in, and that has to be read and quietly answered with the one that exists
- * — `kindOf` is where that happens. And a world kind is exactly the shape of thing this game will
- * want again.
- */
-export type WorldKind = 'road' | 'endless';
+/** The only country this build can grow. */
+export type WorldKind = 'endless';
 
 /**
- * The world a save is asking for, as this build can actually grow it.
- *
- * Anything that is not a kind we have is the kind we have. A player whose save says `mesh` opens a
- * road world of the same seed rather than a blank screen: the ground under their house is different
- * and there is nothing to be done about that, and a game that opens is better than one that will
- * not.
- *
- * `endless` is the second kind, and it is here before the game can play one on purpose. A save has
- * to be able to *say* which country it is in from the first day an endless world exists at all,
- * because the alternative is a save written as an endless world, read back as a road world, and a
- * house, a sown field and every anchor in the manifest standing somewhere that is now open sea.
- * That is a mistake that cannot be undone afterwards — there is nothing in the save that says which
- * of the two it meant.
+ * Resolve the obsolete discriminator at the persistence boundary. Old `road` and `mesh` saves must
+ * still open, but their seed is now interpreted by the endless generator because no bounded
+ * generator remains in the running game.
  */
 export function kindOf(asked: string | undefined | null): WorldKind {
-  return asked === 'endless' ? 'endless' : 'road';
+  void asked;
+  return 'endless';
 }
 
 export interface SessionSave {
   seed: number;
   /** Durable server/world-worker key. Absent on saves made before named worlds existed. */
   worldName?: string;
-  /** Which world this is. Absent on saves made before the choice existed, which were all road. */
+  /** Obsolete discriminator retained only so older persisted saves can be read and migrated. */
   world?: WorldKind;
   cam: { x: number; z: number; rot: number; zoom: number };
   player?: { x: number; z: number };
@@ -104,4 +73,3 @@ export interface SessionSave {
   discovered?: string[];
   inventory?: { gold: number; items: Record<string, number> };
 }
-

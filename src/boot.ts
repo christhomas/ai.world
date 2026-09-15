@@ -1,6 +1,5 @@
-import { IndexedDbStore, kindOf } from './save/store';
-import { serverOf } from './game/joining';
-import type { SessionSave, WorldKind } from './save/store';
+import { IndexedDbStore } from './save/store';
+import type { SessionSave } from './save/store';
 import type { WorldRecord } from '../server/protocol';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
@@ -34,28 +33,19 @@ export async function boot(): Promise<void> {
   const urlSeed = url.searchParams.get('seed');
   const named = await namedWorldFromLink(url);
 
-  let slotKey: string, saved: SessionSave | undefined, seed: number, world: WorldKind;
+  let slotKey: string, saved: SessionSave | undefined, seed: number;
   let worldName: string | undefined;
   if (named) {
     seed = named.seed;
-    world = named.kind;
     worldName = named.name;
-    /*
-     * Scoped by the server as well as the name, because a name is only unique on the server that
-     * issued it. Two people can each run a world called "Ashford"; a key of the name alone hands
-     * the second one the first one's save, and the world underneath is a different country.
-     *
-     * The server's origin rather than the whole address: a link written `wss://…/` and one written
-     * `https://…/play` reach the same server and must reach the same save.
-     */
-    slotKey = `ai.world/named/${serverOf(url)}/${named.name.toLocaleLowerCase('en-US')}`;
+    slotKey = `ai.world/named/${named.name.toLocaleLowerCase('en-US')}`;
     saved = await store.load<SessionSave>(slotKey);
     if (saved?.seed !== seed) saved = undefined;
     const localAnchors = saved?.manifest?.anchors.filter((anchor) => anchor.kind !== 'island') ?? [];
     saved = {
       ...(saved ?? { seed, cam: { x: 0, z: 0, rot: 0, zoom: 1 } }),
-      seed, world, worldName,
-      manifest: { rootSeed: seed, anchors: [...named.manifest, ...localAnchors] },
+      seed, worldName,
+      manifest: { rootSeed: seed, anchors: localAnchors },
     };
   } else if (urlSeed !== null && /^\d+$/.test(urlSeed)) {
     // Old seed links and saves remain valid: a name is an added handle, not a new generator.
@@ -63,29 +53,17 @@ export async function boot(): Promise<void> {
     slotKey = LEGACY_KEY;
     saved = await store.load<SessionSave>(LEGACY_KEY);
     if (saved?.seed !== seed) saved = undefined;
-    world = worldFromLink(url) ?? saved?.world ?? 'road';
     worldName = saved?.worldName;
   } else {
     $('loading').style.display = 'none';
     const choice = await showTitle(store);
-    slotKey = choice.key; saved = choice.save; seed = choice.seed; world = choice.world;
+    slotKey = choice.key; saved = choice.save; seed = choice.seed;
     worldName = choice.worldName;
     $('loading').style.display = 'block';
   }
-  startGame(store, slotKey, saved, seed, worldName, url, world);
+  startGame(store, slotKey, saved, seed, worldName, url);
 }
 
-/**
- * `?world=endless` or `?world=road` on a link, for growing a scratch world of a given kind.
- *
- * A link can ask, and a save cannot be overruled by one: `boot` takes the link's answer only when
- * there is no save to contradict it. That is what stops a shared link opening somebody's own world
- * as the wrong country and moving the ground out from under everything they have built.
- */
-function worldFromLink(url: URL): WorldKind | null {
-  const asked = url.searchParams.get('world');
-  return asked ? kindOf(asked) : null;
-}
 /** Resolve a named invite before any country is grown. */
 export async function namedWorldFromLink(
   url: URL,

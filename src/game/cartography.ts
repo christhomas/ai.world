@@ -38,7 +38,7 @@ import { PROVINCE } from '../world/provinces';
  * **And in a map of the whole country.** This one cannot be reckoned by the province, and it is
  * worth saying why rather than quietly picking a big number. There is no count of provinces to
  * multiply by: the world has no edge, and a price that read one would be exactly the bug
- * `EDGE_OF_THE_WORLD` warns about — a figure that is true of a world with a middle and means
+ * The retired whole-country radius warned about this — a figure true of a world with a middle means
  * nothing in a world grown a patch at a time. Any finite figure is a bargain to somebody who walks
  * far enough. So it is priced at the most work anybody could ever have put into one: a whole
  * working life of the same walking, from the day a person is grown to the shortest life anybody

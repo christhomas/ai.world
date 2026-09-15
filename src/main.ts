@@ -45,7 +45,7 @@ import { WorldMap } from './ui/worldmap';
 import { DialogueBox } from './ui/dialogue';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
-import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from './save/store';
+import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
 import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
@@ -92,12 +92,6 @@ import { createAuthority } from './game/authority';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
   worldName: string | undefined, url: URL,
-  /**
-   * Which world to grow. It comes from the save whenever there is one, because the same seed grows
-   * two completely different countries and reopening a world as the other kind would put the ground
-   * somewhere else under a house, a planted field and every anchor the manifest holds.
-   */
-  world: WorldKind,
 ): void {
   /**
    * Whether the player has ever picked a quality themselves — asked before anything else, because
@@ -118,12 +112,12 @@ export function startGame(
   // the ground this game is played on, and everything standing on it that was settled before
   // anybody arrived: the roads, the terrain, the mountains, the crags and the clouds
   const {
-    graph, islands, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
+    graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
     eyries, skyIsles, skyRenderer, endless, grower, mountains,
-  } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  } = growCountry({ seed, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
-    chunks, sampler, seed, world, want: (wanted) => online.wantChunks(wanted),
+    chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),
   });
   /*
    * The hole in front of the hero, off unless he has asked for it.
@@ -250,7 +244,7 @@ export function startGame(
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines,
     plots, houses, sailing, mount, persist,
   } = openTheSave({
-    store, slotKey, seed, worldName, world, saved, structures, manifest,
+    store, slotKey, seed, worldName, saved, structures, manifest,
     rng: lineRng,
     cam: () => ({ x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom }),
     at: () => ({ x: player.x, z: player.z }),
@@ -400,17 +394,17 @@ export function startGame(
      * The second is the only check there is on everything that still does not travel. Chunks come
      * down the wire, so the two halves cannot disagree about the height of a tile; the villages,
      * the doors, the eyries and who lives where are worked out on each side from its own copy of
-     * the country. `growWorld` is what makes those the same country and this is what proves it, at
+     * the country. The shared patch generator makes those the same country and this proves it, at
      * the one moment it can be proved for the price of eight characters. A page that hears a
      * different answer is a page whose people come from one world and whose houses come from
      * another, which is a thing this game has actually shipped — so it is said out loud rather
      * than left to be discovered as a hero standing in a named village in an empty field.
      */
     onCountryComing: () => chunks.aWorldIsGrowingIt(),
-    onCountryGrown: (stamp, theirKind) => {
+    onCountryGrown: (stamp) => {
       chunks.theCountryIsGrown();
       // the sentence lives beside the thing that stamps a country: see `whyCountriesDiffer`
-      const said = whyCountriesDiffer(countryStamp(graph), stamp, world, theirKind);
+      const said = whyCountriesDiffer(countryStamp(graph), stamp);
       if (!said) return;
       console.error(said);
       hud.flash('This world does not match the one you joined.');
@@ -543,7 +537,7 @@ export function startGame(
 
   // whose world this is: the one in the next thread until somebody asks for another
   joinAWorld({
-    seed, worldName, world, islands, where: () => ({ x: player.x, z: player.z }), state, online, url,
+    seed, worldName, where: () => ({ x: player.x, z: player.z }), state, online, url,
     forgetOthers: () => others.clear(),
     showChat: () => chat.show(),
     hideChat: () => chat.hide(),
@@ -652,7 +646,7 @@ export function startGame(
     const drawLineage = (village: string): void => kinPanel.show(...lineageDrawing(register, village, state.day));
     whereLineageIsDrawn(drawLineage);
     installProbes({ endless, grower,
-      seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
+      seed, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
       online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, mines, jail,
       roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
       commandWorld, placeName, walking, wildlife, bites, doorsteps, streamTally, mount, drawLineage, wing: air,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
-import { generateRoadGraph } from './graph';
-import { generateWebGraph } from './roadweb';
+import { generateRoadGraph } from './graph.test.fixture';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { TerrainSampler, TileType } from './terrain';
 import { StructureKind } from './structures';
 

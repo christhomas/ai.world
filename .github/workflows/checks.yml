@@ -266,21 +266,16 @@ jobs:
       # person runs, which is the whole point — a pipeline nobody can reproduce is a pipeline whose
       # failures get argued about instead of fixed.
       #
-      # DRIFT is looser here than the 0.35 a desk holds, and the reason is worth stating rather than
-      # hiding: the drawn body is carried forward by the page between snapshots, so the gap when the
-      # next one lands is partly a count of the frames the page got. A software rasteriser on two
-      # shared cores gets few. The same build on one laptop read 0.11 idle, 0.46 with the cores busy
-      # and 0.62 with them fought over — a measurement of the machine, not of the game.
-      #
-      # 1.5 rather than some number chosen to be green, because 1.5 means something: a swing reaches
-      # two tiles, so a creature drawn further than that from where the world has it is one a blow
-      # cannot land on however it looks, and this stays under that. It is a ceiling, not a target.
-      # Every run prints what it actually got into the summary and the artefact, so once a few runs
-      # have shown what this hardware really does, the line can be pulled in from evidence. Leaving
-      # it at 0.35 and re-running until it went green would be worse than not running it at all.
+      # The same 0.35 tiles a desk holds. This used to be 1.5 in CI because a software rasteriser on
+      # two shared cores can process several creature messages before it draws another frame, and
+      # every one inherited the same growing interpolation debt. #190 puts a source-side boundary
+      # on that debt: ordinary movement still eases, while a disagreement larger than a visible
+      # body is accepted as a correction rather than carried through later snapshots. The unit case
+      # queues a full second of server ticks with no frame between them and holds their measured mean
+      # to this number; the browser job is the other half, proving the real renderer agrees.
       - name: Play the game
         env:
-          DRIFT: '1.5'
+          DRIFT: '0.35'
         run: chore playtest
 
       - name: Show the report

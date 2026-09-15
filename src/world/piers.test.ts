@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { CLIFF_ABOVE } from './piers';
-import { growWorld } from './growworld';
+import { roadTreeWorld } from './graph.test.fixture';
 import { TerrainSampler, TileType } from './terrain';
 
 /**
@@ -20,7 +20,7 @@ import { TerrainSampler, TileType } from './terrain';
  */
 describe('every plank of every pier', () => {
   it('is drawn where it is walked on, and stands above the water', () => {
-    const sampler = new TerrainSampler(growWorld(1, 'road'));
+    const sampler = new TerrainSampler(roadTreeWorld(1));
     const piers = sampler.structures.piers;
     expect(piers.length, 'a world with no ferries in it proves nothing').toBeGreaterThan(0);
 
@@ -60,7 +60,7 @@ describe('every plank of every pier', () => {
  */
 describe('the walk out to the end of a jetty', () => {
   it('steps down to where a boat ties up, and is walkable both ways', () => {
-    const sampler = new TerrainSampler(growWorld(1, 'road'));
+    const sampler = new TerrainSampler(roadTreeWorld(1));
     const deckAt = (x: number, z: number): number | null => {
       const cx = Math.floor(x / WORLD.CHUNK_SIZE), cz = Math.floor(z / WORLD.CHUNK_SIZE);
       const chunk = sampler.generateChunk(cx, cz);
@@ -96,7 +96,7 @@ describe('the walk out to the end of a jetty', () => {
      * A quay stands clear and you step down into a boat — which is what a jetty is, and leaves the
      * drop aboard within one terrace, the most a hero can climb back up.
      */
-    const sampler = new TerrainSampler(growWorld(1, 'road'));
+    const sampler = new TerrainSampler(roadTreeWorld(1));
     const ends = sampler.structures.piers
       .filter((p) => p.level * WORLD.STEP <= WORLD.WATER_Y + WORLD.PIER_FREEBOARD + p.tiles.length * WORLD.STEP)
       .map((p) => {
@@ -137,7 +137,7 @@ describe('the walk out to the end of a jetty', () => {
 describe('where a ferry may land', () => {
   it('never lays a jetty off a cliff, in any world', () => {
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
-      for (const pier of new TerrainSampler(growWorld(seed, 'road')).structures.piers) {
+      for (const pier of new TerrainSampler(roadTreeWorld(seed)).structures.piers) {
         expect(pier.level, `seed ${seed} put a jetty on a cliff ${pier.level} terraces up`)
           .toBeLessThanOrEqual(CLIFF_ABOVE);
       }
@@ -149,7 +149,7 @@ describe('where a ferry may land', () => {
     // too far. A world with no crossings at all would be a quiet, total loss of a feature
     let lines = 0;
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
-      lines += new TerrainSampler(growWorld(seed, 'road')).structures.piers.length / 2;
+      lines += new TerrainSampler(roadTreeWorld(seed)).structures.piers.length / 2;
     }
     expect(lines, 'refusing cliffs has cost every ferry in every world').toBeGreaterThan(8);
   });
@@ -161,7 +161,7 @@ describe('where a ferry may land', () => {
      * ceiling now, and the average is a bank rather than a cliff.
      */
     const levels = [1, 2, 3, 4, 5, 6, 7, 8]
-      .flatMap((seed) => new TerrainSampler(growWorld(seed, 'road')).structures.piers.map((p) => p.level));
+      .flatMap((seed) => new TerrainSampler(roadTreeWorld(seed)).structures.piers.map((p) => p.level));
     const mean = levels.reduce((sum, l) => sum + l, 0) / levels.length;
     expect(mean, 'the average landing is a climb').toBeLessThan(5);
   });

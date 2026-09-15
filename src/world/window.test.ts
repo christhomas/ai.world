@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
-import { generateWebGraph } from './roadweb';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { TerrainSampler, type ChunkData } from './terrain';
 import type { Within } from './window';
 

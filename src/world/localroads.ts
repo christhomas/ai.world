@@ -8,7 +8,7 @@ import type { Site } from './scattercells';
  *
  * The web this world runs on is built from the mesh: a border between two dry faces is a road, a
  * corner where roads meet is a crossroads, and towns are chosen from the crossroads. All of that is
- * local in spirit and none of it was in practice. `generateWebGraph` walks the whole mesh, numbers
+ * local in spirit and none of it was in practice. The former whole-country generator walked every
  * every corner in one fixed order, and then builds a tree out of the network from the hub outwards —
  * so a town's rank, its size and even whether it exists depend on a traversal of the entire country.
  * There is no way to ask what stands a hundred miles east without building everything in between.

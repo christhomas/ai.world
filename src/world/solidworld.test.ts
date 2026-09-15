@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateWebGraph } from './roadweb';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { TerrainSampler } from './terrain';
 import { GroundWorld } from './groundworld';
 import { boxesFrom } from './solids';

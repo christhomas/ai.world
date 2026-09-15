@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { attachIslands, generateRoadGraph, planIslands, sectorMix } from './graph';
+import { attachIslands, generateRoadGraph, planIslands } from './graph.test.fixture';
+import { sectorMix } from './graph';
 import { Manifest } from './manifest';
 import { Simplex2D } from './noise';
 import { TerrainSampler } from './terrain';

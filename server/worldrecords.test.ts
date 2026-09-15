@@ -24,7 +24,7 @@ class Visitor {
 
   join(worldName: string, seed: number): void {
     const message: ClientMessage = {
-      type: 'join', worldName, seed, world: 'road', name: 'Rowan',
+      type: 'join', worldName, seed, name: 'Rowan',
       version: PROTOCOL_VERSION, day: 1, time: 0.3,
     };
     this.connection.receive(JSON.stringify(message));
@@ -35,19 +35,19 @@ describe('named world records', () => {
   it('case-folds and trims one durable record without changing its chosen spelling', () => {
     const vault = new Forgetful();
     const records = new WorldRecords('worlds', vault);
-    const made = records.claim('  Chris  ', 77, 'road', []);
+    const made = records.claim('  Chris  ', 77);
 
-    expect(made).toMatchObject({ name: 'Chris', seed: 77, kind: 'road' });
+    expect(made).toEqual({ name: 'Chris', seed: 77 });
     expect(records.find('CHRIS')).toEqual(made);
     expect(new WorldRecords('worlds', vault).find(' chris ')).toEqual(made);
   });
 
   it('refuses an existing name presented as a different country', () => {
     const records = new WorldRecords('worlds', new Forgetful());
-    records.claim('Chris', 77, 'road', []);
+    records.claim('Chris', 77);
 
-    expect(() => records.claim('chris', 78, 'road', [])).toThrow(WorldRecordConflict);
-    expect(() => records.claim('Other', 77, 'road', [])).toThrow('already named “Chris”');
+    expect(() => records.claim('chris', 78)).toThrow(WorldRecordConflict);
+    expect(() => records.claim('Other', 77)).toThrow('already named “Chris”');
   });
 
   it('keeps pre-name seed files as the state of a world when it gains a name', () => {
@@ -56,8 +56,8 @@ describe('named world records', () => {
       seed: 77, clock: { day: 9, time: 0.5 }, deltas: [{ kind: 'chest', id: 'old-vault' }],
     }));
     const rooms = new Rooms('worlds', vault);
-    const record = rooms.claimWorld('Chris', 77, 'road', []);
-    const room = rooms.open(77, { day: 1, time: 0.3 }, record.kind, record.manifest, record);
+    const record = rooms.claimWorld('Chris', 77);
+    const room = rooms.open(77, { day: 1, time: 0.3 }, record);
 
     expect(room.world.clock.day).toBe(9);
     expect(room.world.log).toContainEqual({ kind: 'chest', id: 'old-vault' });
@@ -73,7 +73,7 @@ describe('named world records', () => {
     expect(first.heard.some((message) => message.type === 'joined')).toBe(true);
     expect(second.heard.find((message) => message.type === 'welcome')).toMatchObject({
       seed: 77,
-      world: { name: 'Chris', seed: 77, kind: 'road', manifest: [] },
+      world: { name: 'Chris', seed: 77 },
     });
 
     const collision = new Visitor(sim);

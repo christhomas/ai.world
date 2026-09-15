@@ -233,59 +233,9 @@ export function highlandAt(
  * where two branches that climbed at different times meet. Double it and the snow lands shrink,
  * because the climb eats the country it was meant to lift.
  */
-const POST = 80;
-
-/**
- * How high the country stands for being the kind of country it is, smoothed.
- *
- * An object rather than a function because it remembers. Every crossroads in a world asks it, and
- * the same few hundred posts answer all of them: a post costs nine questions of the map and is then
- * free for the life of the world.
+/*
+ * `Uplands` used to live here, averaging this file's own `standsAt` opinion into a smoothed climb.
+ * The bounded country it smoothed for retired with #192; what is left of it is a test-owned
+ * invariant, so the class moved to `graph.test.fixture.ts`, the one place that still asks it.
  */
-export class Uplands {
-  private readonly posts = new Map<number, number>();
-
-  /**
-   * @param standsAt how high the country at a point stands, in terraces — the map's own opinion,
-   *   asked at a post and nowhere else, so it is free to be as sharp-edged as it likes.
-   */
-  constructor(private readonly standsAt: (x: number, z: number) => number) {}
-
-  /**
-   * One post, averaged over itself and its eight neighbours.
-   *
-   * The averaging is what makes the climb long. Easing between bare posts gives a ramp one post
-   * wide with a crease along the top and the bottom of it; averaging first spreads the same rise
-   * over three posts and leaves no crease anywhere, because every post near a border is already
-   * part of the way up.
-   */
-  private post(ix: number, iz: number): number {
-    // one number per post, and no world is thirty thousand posts across
-    const key = (ix + 0x8000) * 0x10000 + (iz + 0x8000);
-    const known = this.posts.get(key);
-    if (known !== undefined) return known;
-    let sum = 0;
-    for (let dz = -1; dz <= 1; dz++) {
-      for (let dx = -1; dx <= 1; dx++) sum += this.standsAt((ix + dx) * POST, (iz + dz) * POST);
-    }
-    const mean = sum / 9;
-    this.posts.set(key, mean);
-    return mean;
-  }
-
-  /** How high the country stands here, in terraces. */
-  at(x: number, z: number): number {
-    const fx = x / POST, fz = z / POST;
-    const ix = Math.floor(fx), iz = Math.floor(fz);
-    const tx = fx - ix, tz = fz - iz;
-    // eased rather than blended straight: a straight blend leaves a crease along every post line,
-    // and a crease running dead straight for a mile is the one thing noise cannot hide
-    const ex = tx * tx * (3 - 2 * tx), ez = tz * tz * (3 - 2 * tz);
-    const near = this.post(ix, iz), nearOn = this.post(ix + 1, iz);
-    const far = this.post(ix, iz + 1), farOn = this.post(ix + 1, iz + 1);
-    const north = near + (nearOn - near) * ex;
-    const south = far + (farOn - far) * ex;
-    return north + (south - north) * ez;
-  }
-}
 
