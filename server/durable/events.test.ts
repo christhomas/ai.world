@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KEEPS, type Entry } from '../chronicle';
 import { Simulation } from '../sim';
+import { startServer } from '../serve';
 import { openDurable, migrateDomain, versionOf } from './db';
 import { EVENTS_SCHEMA, eventsOf, keepEvents } from './events';
 
@@ -60,16 +61,17 @@ describe('the durable parish chronicle', () => {
     const db = database();
     keepEvents(db, 3, [died(1), died(3)]);
     db.prepare('INSERT INTO chronicle_event (world, n, happened, entry) VALUES (?, ?, ?, ?)')
-      .run(3, 2, 102, '{not json');
+      .run(3, 9, 109, '{not json');
     const restored = eventsOf(db, 3);
     expect(restored.entries.map((entry) => entry.n)).toEqual([1, 3]);
-    expect(restored.unreadable).toEqual([2]);
+    expect(restored.unreadable).toEqual([9]);
+    expect(restored.latest, 'a corrupt row must not make the cursor run backwards').toBe(9);
     expect(db.prepare('SELECT count(*) AS n FROM chronicle_event WHERE world = ?').get(3))
       .toMatchObject({ n: 3 });
     db.close();
   });
 
-  it('survives a server simulation restart and continues its cursor', () => {
+  it('is served again after a real server restart on the same database', async () => {
     const db = database();
     const first = new Simulation({ chronicles: db });
     first.chronicleOf(12).record([
@@ -77,14 +79,17 @@ describe('the durable parish chronicle', () => {
     ], 101);
     db.close();
 
-    const reopened = openDurable(join(dir, 'ai-world.sqlite'));
-    migrateDomain(reopened, 'chronicle', EVENTS_SCHEMA);
-    const second = new Simulation({ chronicles: reopened });
-    expect(second.chronicleOf(12).since(0).map((entry) => entry.kind)).toEqual(['lost']);
-    const next = second.chronicleOf(12).record([
-      { kind: 'resettled', id: 'b', name: 'Greta', village: 'Thornby', from: 'Ashford', day: 40 },
-    ], 102);
-    expect(next[0].n).toBe(2);
-    reopened.close();
+    const server = await startServer({
+      port: 0, quiet: true, dataDir: join(dir, 'worlds'),
+      durableDb: join(dir, 'ai-world.sqlite'), operatorToken: 'the watcher',
+    });
+    const response = await fetch(`http://127.0.0.1:${server.port}/registry?seed=12`, {
+      headers: { 'x-operator-token': 'the watcher' },
+    });
+    const book = await response.json() as { happened: Entry[]; latest: number };
+    expect(response.status).toBe(200);
+    expect(book.happened.map((entry) => entry.kind)).toEqual(['lost']);
+    expect(book.latest).toBe(1);
+    await server.close();
   });
 });
