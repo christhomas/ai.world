@@ -484,6 +484,20 @@ export function installProbes(ctx: Probed): void {
     mount.mount(player);
     return { riding: mount.riding, breed: mount.breed.id, name: mount.name };
   };
+  /**
+   * Where the rider and the body carrying them actually are.
+   *
+   * A mounted collision check cannot infer the horse from the rider alone: it needs to prove that
+   * the longer body stopped with him and did not cross the wall while its rider stayed outside.
+   */
+  (debug as { __mount?: () => unknown }).__mount = () => {
+    const horse = mount.entity;
+    return {
+      hero: { x: player.x, z: player.z },
+      horse: horse ? { x: horse.x, z: horse.z } : null,
+      under: horse ? Math.hypot(player.x - horse.x, player.z - horse.z) : null,
+    };
+  };
   (debug as { __mines?: () => unknown }).__mines = () =>
     minesWorked().map((w) => ({
       inAMine: fightingInAMine(),

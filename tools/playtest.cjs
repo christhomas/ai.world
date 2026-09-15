@@ -161,7 +161,10 @@ const finish = async () => {
     const door = await page.evaluate(() => {
       const v = window.__villages[0];
       const d = window.__doors.filter((x) => x.village === v.name)[0];
-      const ox = d.x - d.bx, oz = d.z - d.bz, len = Math.hypot(ox, oz) || 1;
+      // `bx`/`bz` name the building tile, while every doorway coordinate names a tile centre.
+      // Measure both ends from their centres or the nominally outward line acquires a diagonal
+      // half-tile component and can miss the narrow leaf on a busy frame.
+      const ox = d.x - (d.bx + 0.5), oz = d.z - (d.bz + 0.5), len = Math.hypot(ox, oz) || 1;
       window.__teleport(d.x + (ox / len) * 2, d.z + (oz / len) * 2);
       return { x: d.x, z: d.z };
     });
@@ -194,7 +197,20 @@ const finish = async () => {
 
   // --- walking into things ---
   const house = await page.evaluate(() => { const v = window.__villages[0]; const h = v.houses[0]; return { x: h.tx + 0.5, z: h.tz + 0.5, rot: h.rot }; });
-  await go(house.x - Math.cos(house.rot) * 4, house.z - Math.sin(house.rot) * 4);
+  /*
+   * One approach, used twice.
+   *
+   * The mounted run used to begin six tiles out while its control on foot began four tiles out.
+   * That is not the same approach through a generated village: on seed 3 the extra two tiles held
+   * other scenery, so Dusty stopped 4.53 tiles from the house and the check blamed its wall. The
+   * wall had never held him there; the test had ridden him into something else.
+   *
+   * Keep the start as a value rather than repeating the arithmetic so neither half can quietly
+   * choose a different path again. Four tiles leaves a horse wholly clear of a cottage before the
+   * walk starts, and is the point the on-foot control has already proved usable.
+   */
+  const approach = { x: house.x - Math.cos(house.rot) * 4, z: house.z - Math.sin(house.rot) * 4 };
+  await go(approach.x, approach.z);
   await face(house.x, house.z);
   await walk('w', 5000);
   const off = Math.hypot((await at()).x - house.x, (await at()).z - house.z);
@@ -257,24 +273,40 @@ const finish = async () => {
    * The mounted case, which is the one that made stepping over things visible in the first place
    * and which this script has never once played.
    *
-   * A horse does not carry the hero, it multiplies his pace — so what changes is the length of a
-   * step, and a step longer than the thing it is walking into is exactly how a wall gets stepped
-   * over. The collision bench walks the arithmetic at a courser's pace already; this is the played
-   * half, at whatever frame rate this machine actually manages, which is where the sweep is
-   * genuinely under load.
+   * A horse multiplies the hero's pace and carries its own longer collision body — so both the
+   * length of the step and the body meeting the wall change. The collision bench walks that
+   * arithmetic at a courser's pace already; this is the played half, at whatever frame rate this
+   * machine actually manages, which is where the sweep is genuinely under load.
    *
    * `__ride` exists because mounting is only reachable through a stable's dialogue: a person does
    * that in ten seconds and a script cannot do it at all.
    */
+  await go(approach.x, approach.z);
+  /*
+   * Mount after `go`: the probe uses the game's teleport command, and teleporting correctly lets
+   * go of a horse rather than carrying it across the country. Mounting first made this test walk
+   * the wall on foot while an abandoned horse stood at the previous check, 8.79 tiles away.
+   */
   const rode = await page.evaluate(() => window.__ride(true));
-  say('the hero can get on a horse', rode && rode.riding === true, JSON.stringify(rode));
-  await go(house.x - Math.cos(house.rot) * 6, house.z - Math.sin(house.rot) * 6);
+  await page.waitForTimeout(150);
+  const carried = await page.evaluate(() => window.__mount());
+  const under = carried?.under;
+  say('the hero can get on a horse', rode && rode.riding === true && carried.horse !== null && typeof under === 'number' && under < 0.1,
+    `${JSON.stringify(rode)}, horse ${typeof under === 'number' ? under.toFixed(2) : 'not'} tiles under rider`);
   await face(house.x, house.z);
   await walk('w', 5000);
   const rider = await at();
+  const horse = await page.evaluate(() => window.__mount());
   const galloped = Math.hypot(rider.x - house.x, rider.z - house.z);
-  say('a house stops a horse at its wall too', galloped > 1.1 && galloped < 3,
-    `closest ${galloped.toFixed(2)} tiles from its middle, riding`);
+  const outside = await page.evaluate(() => {
+    const mount = window.__mount();
+    return {
+      rider: !window.__solid(mount.hero.x, mount.hero.z),
+      horse: mount.horse !== null && !window.__solid(mount.horse.x, mount.horse.z),
+    };
+  });
+  say('a house stops a horse at its wall too', galloped > 1.1 && galloped < 3 && outside.rider && outside.horse,
+    `closest ${galloped.toFixed(2)} tiles from its middle, riding; rider outside ${outside.rider}, horse outside ${outside.horse}, separation ${horse.under}`);
   await page.evaluate(() => window.__ride(false));
 
   // --- a fight ---
