@@ -108,7 +108,8 @@ const WORTH_ONE = 0.5;
  */
 export function directoryOf(
   trades: readonly string[], people: readonly { id: string; trade: string }[],
-): { holding: Map<string, string[]>; nobodyDoing: string[] } {
+  sworn: readonly Sworn[] = [],
+): { holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[] } {
   const supported = new Set(trades);
   const holding = new Map<string, string[]>();
   for (const person of people) {
@@ -117,5 +118,63 @@ export function directoryOf(
     const already = holding.get(person.trade);
     if (already) already.push(person.id); else holding.set(person.trade, [person.id]);
   }
-  return { holding, nobodyDoing: trades.filter((trade) => !holding.has(trade)) };
+  /*
+   * A traveller who swore to work this ground is bounded by it exactly as a villager is: a village
+   * with no shore has no fisherman whoever offers, and an oath to a trade the ground never
+   * supported is an oath about somewhere else.
+   *
+   * And an oath lapses when the village comes to have its own.
+   *
+   * A village is re-founded from its seed whenever somebody walks over the hill and takes on an
+   * emptied one, and that founding rolls every trade afresh — so a place can end up with a smith of
+   * its own months after a traveller swore to be one. Taking the sworn trades out of that roll would
+   * mean an oath re-rolled the whole population, which is a far stranger thing than the one it
+   * fixes: a traveller taking a job must not change who lives there.
+   *
+   * So the villager wins and the oath is spent. It is also the truthful reading — the post the
+   * traveller took is not vacant any more, and a village with its own smith is not short of one.
+   * What the oath still buys is the thing item 24a asks for: while it stands, nobody is *raised*
+   * into that work. See `tradeTakenUp`.
+   */
+  const took = sworn.filter((one) => supported.has(one.trade) && !holding.has(one.trade));
+  const taken = new Set(took.map((one) => one.trade));
+  return {
+    holding,
+    nobodyDoing: trades.filter((trade) => !holding.has(trade) && !taken.has(trade)),
+    sworn: took,
+  };
+}
+
+/**
+ * A traveller who has taken a village's vacant work, by trade and by the name they gave.
+ *
+ * Not a villager: the register is who lives here, and somebody who walks in off the road does not.
+ * Kept by name rather than by id for that reason — there is no `Person` to point at, and the hall's
+ * book is written in the name whoever stood in front of it gave.
+ */
+export interface Sworn {
+  trade: string;
+  who: string;
+  /** The world day the oath was taken, which is the only thing that dates it. */
+  day: number;
+}
+
+/**
+ * Take an oath into the book a village keeps, or say it was already there.
+ *
+ * The bookkeeping half of `Register.apply`'s `sworn` case, out here because it is about vacancies
+ * rather than about registers and because `register.ts` is at the size the architecture test
+ * allows. What it does not do is decide *when* — whether a late oath re-lives the village is the
+ * register's business, since only the register knows which day it is standing on.
+ *
+ * Keyed by trade and day: the same telling arriving twice, which is the ordinary case once an oath
+ * travels on the wire and in a save, writes one oath.
+ */
+export function takeTheOath(
+  held: readonly Sworn[], trade: string, who: string, day: number,
+): Sworn | null {
+  const on = Math.floor(day);
+  if (!Number.isFinite(on)) return null;
+  if (held.some((one) => one.trade === trade && one.day === on)) return null;
+  return { trade, who, day: on };
 }

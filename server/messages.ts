@@ -55,6 +55,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
     case 'vote':
       civicVote(rooms, me, room, message);
       return;
+    case 'swear':
+      takeTheWork(rooms, me, room, message);
+      return;
     case 'sow':
       seedSown({
         sown: room.world.sownAt(String(message.tile).slice(0, LIMITS.THING_ID)),
@@ -499,6 +502,30 @@ function aboutAVillager(rooms: Rooms, me: Client, room: Room, message: ClientMes
   const said = cleanRecall(message);
   if (!said) return;
   world.register?.recall(said.who, said.what, said.about, room.world.clock.day);
+}
+
+/**
+ * Somebody takes work a village has nobody for, decided by the world rather than reported to it.
+ *
+ * The same shape as a vote and for the same reason: the register the oath has to be true of is the
+ * server's, and whether a trade is vacant is a fact about that register rather than about the page
+ * that asked. A client that reported this would be writing into somebody else's village.
+ *
+ * The name written down is the player's own, taken from the roster rather than from the message —
+ * a page may not choose what it is called in another village's book.
+ */
+function takeTheWork(
+  rooms: Rooms, me: Client, room: Room, message: Extract<ClientMessage, { type: 'swear' }>,
+): void {
+  if (me.standingIn !== 'surface') return;
+  const world = rooms.worldOf(me.seed, 'surface');
+  const village = String(message.village).slice(0, LIMITS.THING_ID);
+  const trade = String(message.trade).slice(0, LIMITS.THING_ID);
+  const oath = world?.register?.swearIn(village, trade, me.presence.name, room.world.clock.day);
+  if (!oath) return;
+  room.world.apply(oath);
+  // the caller did not apply this optimistically, so the accepted fact goes back to everybody
+  rooms.broadcast(me.seed, { type: 'delta', delta: oath, from: me.presence.id });
 }
 
 /** Call a civic vote from the hall the authoritative hero is actually standing beside. */

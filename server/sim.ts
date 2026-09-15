@@ -281,7 +281,7 @@ export class Simulation {
         folk.register.apply({
           kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
         });
-      } else if (delta.kind === 'voted') folk.register.apply(delta);
+      } else if (delta.kind === 'voted' || delta.kind === 'sworn') folk.register.apply(delta);
     }
     /*
      * And what the people of this world hold, which the seed cannot grow back.

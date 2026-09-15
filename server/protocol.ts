@@ -78,6 +78,26 @@ export interface Clock {
  * - `died`    a villager killed by something, which no client could have worked out on its own
  * - `voted`  a village declaring itself a town or city on a recorded day
  */
+/**
+ * Somebody walked in off the road and took work a village had nobody for.
+ *
+ * Travels for the reason a vote travels: nothing about a seed predicts it. A village re-lived from
+ * its founding arrives at the same people doing the same jobs every time, and an oath is one of the
+ * handful of things true of a village and derivable from nothing — so it is told, dated, and
+ * replayed, exactly like a declaration or a killing.
+ *
+ * `who` is the name the traveller gave rather than an id, because a traveller is not on the
+ * register: there is no `Person` to point at, which is the whole reason the hall keeps its book in
+ * the name it was given.
+ */
+export interface SwornIn {
+  kind: 'sworn';
+  village: string;
+  trade: string;
+  who: string;
+  day: number;
+}
+
 export type WorldDelta =
   | { kind: 'chest'; id: string }
   | { kind: 'key'; id: string }
@@ -87,6 +107,19 @@ export type WorldDelta =
   | { kind: 'died'; who: string; village: string; day: number }
   /** A place declared itself a town or city; the day fixes its cost and building stage on replay. */
   | { kind: 'voted'; village: string; rank: 'town' | 'city'; day: number }
+  /**
+   * Somebody walked in off the road and took work a village had nobody for.
+   *
+   * Travels for the reason a vote travels: nothing about a seed predicts it. A village re-lived
+   * from its founding arrives at the same people doing the same jobs every time, and an oath is
+   * one of the handful of things that is true of a village and derivable from nothing — so it is
+   * told, dated, and replayed, exactly like a declaration or a killing.
+   *
+   * `who` is the name the traveller gave rather than an id, because a traveller is not on the
+   * register: there is no `Person` to point at, which is the whole reason the hall keeps its book
+   * in the name it was given.
+   */
+  | SwornIn
   /**
    * Something living in a mine has been killed, and how many.
    *
@@ -402,6 +435,14 @@ export type ClientMessage =
   | { type: 'delta'; delta: WorldDelta }
   /** Ask the world to call the next civic vote in the named village. */
   | { type: 'vote'; village: string }
+  /**
+   * Take work a village has nobody for.
+   *
+   * Asked rather than reported, exactly as a vote is, and for the same reason: `sworn` is announced
+   * by the world, so a client that simply told everyone would be a client writing its own facts
+   * into somebody else's village. The trade is named and the world decides whether it is vacant.
+   */
+  | { type: 'swear'; village: string; trade: string }
   /**
    * A blow landed on a creature the world owns.
    *
@@ -930,7 +971,7 @@ export function deltaAt(delta: WorldDelta): { x: number; z: number } | null {
  * opening hand something over, and sowing spends a seed to claim a tile. When every way a page can
  * sow is a hero standing in a field (the debug console can sow across the map), it joins them.
  */
-const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap', 'voted']);
+const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap', 'voted', 'sworn']);
 
 /** Whether a client may report this change itself, or must ask the world for it instead. */
 export function mayReport(delta: WorldDelta): boolean {
@@ -947,6 +988,9 @@ export function deltaKey(delta: WorldDelta): string {
     case 'died': return `died:${delta.who}`;
     // both declarations survive: a later city vote must not replace the morning this became a town
     case 'voted': return `voted:${delta.village}:${delta.rank}`;
+    // one entry per trade in a village, so two travellers cannot both hold the same post and a
+    // second oath for the same work replaces rather than doubles
+    case 'sworn': return `sworn:${delta.village}:${delta.trade}`;
     // one entry per mine, and the newest wins: both of these carry a whole state rather than a
     // change to one, so replacing is exactly right and adding would double-count
     case 'cleared': return `cleared:${delta.mine}`;
@@ -1022,6 +1066,21 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const day = Number(delta.day);
       if (!Number.isFinite(day) || (delta.rank !== 'town' && delta.rank !== 'city')) return null;
       return { kind: 'voted', village: id(delta.village), rank: delta.rank, day: Math.max(1, Math.floor(day)) };
+    }
+    /*
+     * An oath off the wire. Without this case it was read as a delta nobody had heard of and
+     * dropped — the shape existed, travelled, and stopped at the door.
+     *
+     * `who` is a player's name rather than an id, so it is cleaned as a name: a traveller is not on
+     * the register and there is no id to check them against.
+     */
+    case 'sworn': {
+      const day = Number(delta.day);
+      if (!Number.isFinite(day)) return null;
+      return {
+        kind: 'sworn', village: id(delta.village), trade: id(delta.trade), who: cleanName(String(delta.who ?? '')),
+        day: Math.max(1, Math.floor(day)),
+      };
     }
     case 'sow': {
       const day = Number(delta.day);

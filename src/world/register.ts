@@ -2,7 +2,8 @@ import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './ad
 import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
-import { directoryOf } from './vacancies';
+import { directoryOf, takeTheOath, type Sworn } from './vacancies';
+import type { SwornIn } from '../../server/protocol';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
@@ -77,8 +78,10 @@ export class Register {
    * it, and a family keeping its own house across a burial is one of those. The first deeds are
    * written in exactly the order the positional rule would have housed everybody, so nothing moves
    * on the morning this starts being kept — see `deedsAfter`.
-   */
+  */
   private readonly deeded = new Map<string, Deed[]>();
+  /** Told oaths survive re-living because a seed cannot predict who walked in. */
+  private readonly swornIn = new Map<string, Sworn[]>();
   /** The last whole day the register has caught up to. */
   /** Physical ground is supplied by the country; the register only records its deterministic answer. */
   private fieldSurvey: ((village: string, settlement: Settlement) => FieldClearing | null) | null = null;
@@ -175,36 +178,13 @@ export class Register {
     const known = this.villages.get(village);
     if (known) return known.people;
 
-    /**
-     * A village with a mine has somebody down it — exactly one somebody, and the rest of the
-     * village is founded as though the mine were not there.
-     *
-     * Putting `miner` into the weighted list instead was the obvious move and it was wrong: adding
-     * an option reshuffles every draw, so mining villages came out with systematically fewer of
-     * everything else. Ashford lost its only farmer to it and Fernreach ended up with five miners
-     * out of twelve adults, which is not a village with a mine, it is a mine with a village.
-     */
+    // Add exactly one miner without perturbing the weighted founding rolls for every other trade.
     const mining = this.worksAMine.has(village);
     const people = foundVillage(this.seed, village, houses, trades, mining ? ['miner'] : []);
     // a village is founded with a few days in the cellar, not starving on its first morning
     const farmers = people.filter((p) => p.trade === 'farmer').length;
     const settlement: Settlement = {
-      /*
-       * The ceiling is what the roofs hold, which is what the field has always said it means.
-       *
-       * It was the number of people the founding happened to generate, and the two are not the same
-       * number: a village laid out with five houses holds twenty and is founded with twelve in it.
-       * The gap froze villages solid. Births aim at `founded`, so they stopped at twelve; and
-       * whether anybody *wants* a roof is asked of the family under it, which had sixteen beds and
-       * twelve people in them — so nothing was ever wanted, no roof was ever raised, and the
-       * ceiling never moved. Saltcombe on seed 7 stood at twelve souls for four hundred and fifty
-       * days with five thousand gold in its hall, and Oakcross on seed 1234 did the same.
-       *
-       * The sanity bench had been reporting the gap as a NOTE since the day it could see it —
-       * *"every village is founded holding fewer people than its own houses have beds for"* — with
-       * the right diagnosis written beside it: the field describes the value it takes after the
-       * first roof goes up rather than the one it starts with. It was the founding that was wrong.
-       */
+      // Capacity is what the roofs hold, not the smaller population the founding roll produced.
       people, rank: foundingRank(houses), founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [],
       hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: 0 },
       // a harbour it already has counts as a thing it has raised: `holdings.ts` will not put a boat
@@ -215,6 +195,9 @@ export class Register {
       // and no magic has been done here. A raising is remembered across a re-living; see `shrine.ts`
       raised: this.magicked.get(village) ?? [],
       deeds: [...(this.deeded.get(village) ?? [])],
+      // nor has anybody walked in off the road and taken work here. An oath survives a re-founding
+      // the way a raising does, and the day reads this copy; see `swearIn`
+      sworn: [...(this.swornIn.get(village) ?? [])],
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -496,9 +479,23 @@ export class Register {
    * lists it needs. Item 24a's directory, and the thing a vacancy has to be readable from before a
    * player can answer one.
    */
-  directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[] } {
+  directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[] } {
     const here = this.villages.get(village);
-    return directoryOf(here?.trades ?? [], here?.people ?? []);
+    return directoryOf(here?.trades ?? [], here?.people ?? [], this.swornIn.get(village) ?? []);
+  }
+
+  /** Take currently vacant work; return the told fact so `apply` remains the single write path. */
+  swearIn(village: string, trade: string, who: string, day = this.day): SwornIn | null {
+    if (!this.villages.get(village) || who === '') return null;
+    if (!this.directoryOf(village).nobodyDoing.includes(trade)) return null;
+    const told: SwornIn = { kind: 'sworn', village, trade, who, day: Math.floor(day) };
+    return this.apply(told) ? told : null;
+  }
+
+  /** Every oath this register holds, as told facts, for a save to write down. See `apply`. */
+  oaths(): SwornIn[] {
+    return [...this.swornIn].flatMap(([village, held]) => held.map((one) =>
+      ({ kind: 'sworn' as const, village, trade: one.trade, who: one.who, day: one.day })));
   }
 
   /**
@@ -599,7 +596,21 @@ export class Register {
   }
 
   /** Apply a told death or vote, preserving facts that cannot be reconstructed by re-living. */
-  apply(change: Change | TownVote): boolean {
+  apply(change: Change | TownVote | SwornIn): boolean {
+    // Oaths are dated and keyed so the ordinary wire-plus-save duplicate writes only once.
+    if (change.kind === 'sworn') {
+      if (Math.floor(change.day) > this.day) return false;
+      const held = this.swornIn.get(change.village) ?? [];
+      const oath = takeTheOath(held, change.trade, change.who, change.day);
+      if (!oath) return false;
+      this.swornIn.set(change.village, [...held, oath]);
+      const here = this.villages.get(change.village);
+      if (!here) return true;              // nobody has settled it; kept for the morning they do
+      // A late oath changes later apprenticeships, so replay rather than patching today's village.
+      if (oath.day === this.day) { here.sworn.push(oath); return true; }
+      this.relive(change.village);
+      return true;
+    }
     if (change.kind === 'voted') {
       const voted = { ...change, day: Math.floor(change.day) };
       const key = this.voteKey(voted);

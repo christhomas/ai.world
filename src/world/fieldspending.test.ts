@@ -20,7 +20,7 @@ const farm = (id: string, owner: string): Holding => ({
 });
 
 const villageOf = (people: Person[], holdings: Holding[]): Settlement => ({
-  people, holdings, rank: 'village', raised: [], deeds: [], watch: '',
+  people, holdings, rank: 'village', raised: [], sworn: [], deeds: [], watch: '',
   hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: 0 },
   food: 1_000, herd: 0, founded: 8, houses: 4, trades: [], buried: [], works: [],
 });

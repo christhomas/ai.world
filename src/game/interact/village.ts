@@ -2,6 +2,7 @@ import { ITEMS, WOOD_ITEM } from '../items';
 import { familyOfDoor, saidOfAFreeHouse, whatABedCosts } from '../../world/homes';
 import { bodyOfTheHall, whatTheHallKnows } from '../../world/hall';
 import { whatTheHallSays } from '../hallwords';
+import { tradeNamed } from '../../entities/trades';
 import { askingPrice, lotLine, type Pitch } from '../market';
 import { tradableItems } from '../online';
 import { STALL_DAYS, STALL_RENT, type Stall } from '../../../server/protocol';
@@ -262,6 +263,52 @@ export function villageInteractions(ctx: Surroundings) {
       const asked = whatTheHallKnows(register, village.name);
       const ballot = village.hall ? register.ballotOf(village.name) : null;
       const choices: DialogueChoice[] = [{ label: 'That is all', next: () => null }];
+      /*
+       * Item 24a's other half: a vacancy is something a player can read *and answer*.
+       *
+       * One choice for each trade this ground supports that nobody here is doing. It costs nothing
+       * and pays nothing — 24a is explicit that enrolment is not a wage, which is what keeps the
+       * hall's money free for building — so what the oath buys is that the village stops looking:
+       * the next child to come of age is raised into whatever it is short of next, and the
+       * directory names whoever took this.
+       *
+       * Written into the register rather than sent over the wire, which is the shrine's rule: a
+       * traveller's oath is a thing the book is told, and it survives the village being re-lived
+       * from its seed the way a raising and a killing do.
+       */
+      for (const trade of asked.directory.nobodyDoing) {
+        const label = tradeNamed(trade)?.label ?? trade;
+        choices.unshift({
+          label: `Take the work: ${label}`,
+          next: () => {
+            /*
+             * Asked of the world, and not written down here first.
+             *
+             * `sworn` is announced by the world rather than reported to it — the same rule the
+             * civic vote runs on, and for the same reason: whether a trade is vacant is a fact
+             * about the register the world owns. Writing it locally and telling nobody would leave
+             * the hall's directory reading differently in two windows and lose it on a restart;
+             * writing it locally *and* sending it would date the same oath twice, once by this
+             * page's clock and once by the world's.
+             *
+             * So this asks, and the accepted oath arrives as a delta like everything else — which
+             * is also true playing alone, where the world is the simulation in the next thread.
+             */
+            online.swear(village.name, trade);
+            sound.select();
+            return {
+              speaker: `The hall of ${village.name}`, emoji: '🏛️',
+              pages: [
+                `You offer to take up ${label.toLowerCase()} work. The clerk writes your name in the`
+                + ` roll — there is no wage in it, the chest is for building, and no village raises a`
+                + ` child into work somebody is already doing, so that is one thing this place has`
+                + ` stopped needing.`,
+              ],
+              choices: [{ label: 'Good', next: () => null }],
+            };
+          },
+        });
+      }
       if (ballot?.ready) choices.unshift({
         label: `Vote aye — become a ${ballot.rank} (${ballot.costs}g)`,
         next: () => {
