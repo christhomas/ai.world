@@ -39,7 +39,7 @@ class Player {
     const socket = new WebSocket(`ws://localhost:${port}`);
     await new Promise((open, fail) => { socket.on('open', open); socket.on('error', fail); });
     const player = new Player(socket);
-    player.send({ type: 'join', world: 'road', seed, name, version: PROTOCOL_VERSION, day: 1, time: 0.3 });
+    player.send({ type: 'join', seed, name, version: PROTOCOL_VERSION, day: 1, time: 0.3 });
     return player;
   }
 

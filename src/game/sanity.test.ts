@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FOOD, cellarCap } from '../world/food';
 import { GROWTH } from '../world/growth';
 import { ROOFS, STANDARD } from '../world/roofs';
-import { growWorld } from '../world/growworld';
+import { generateRoadGraph } from '../world/graph.test.fixture';
 import { Register } from '../world/register';
 import { TerrainSampler } from '../world/terrain';
 import { FIELD, fieldOfWork, fieldRoomFor, type FieldWork } from '../world/fields';
@@ -505,7 +505,7 @@ describe('what the land is carrying', () => {
     let cleared = 0;
 
     for (const seed of SEEDS) {
-      const sampler = new TerrainSampler(growWorld(seed, 'road'));
+      const sampler = new TerrainSampler(generateRoadGraph(seed));
       const village = sampler.structures.villages.find((place) => place.houses.length >= 6)!;
       const register = new Register(seed);
       const people = register.settle(village.name, village.houses.length, ['farmer', 'builder', 'seller']);

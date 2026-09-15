@@ -366,29 +366,14 @@ export type EntityRole = 'none' | 'villager' | 'congregation' | 'shopkeeper' | '
 
 export type ClientMessage =
   /**
-   * `world` is which country this seed grows, and it is not decoration: the same seed grows two
-   * completely different lands, and the server used to build one of them for everybody. A player
-   * whose save said 'road' was walked about on the polygon world — houses in different places,
-   * walls where the ground was clear — and since the server owns where a hero is standing, it
-   * dragged him through the walls his own game had stopped him at. He was a ghost in his own
-   * village. So the client says which world it is in, and the server grows that one.
-   *
-   * `islands` and `x`/`z` are the rest of that same sentence, added later and for the same reason.
-   *
-   * A country is a function of three things — the seed, the kind, and where the islands hang — and
-   * two of them travelled while the third did not. Where the islands hang is planned from the seed
-   * for any world made today, so the two halves agreed; a world saved before that code existed has
-   * them written into its own manifest, and there the two halves would quietly grow two different
-   * countries again. Now everything the generator is given comes up the wire, so `growWorld` cannot
-   * be handed different arguments on the two sides. A join that leaves them out gets the seed's own
-   * answer, which is what every world made by this code has.
-   *
-   * `x` and `z` are where the hero is standing, and they are here so that the world can have that
+   * `x` and `z` are where the hero is standing, so the world can have that
    * country grown before it is asked for it. A page waits a fifth of a second for the world and then
    * draws the ground itself; a world that starts growing when the first chunk is asked for takes
    * two-thirds of a second to answer, so every new country used to begin with a view of the page's
    * own guess. Told where somebody is at the moment they join, the world grows their first view
-   * while it is still saying hello and the asking is answered out of memory.
+   * while it is still saying hello and the asking is answered out of memory. `worldName` is the
+   * durable handle whose seed the server has already recorded; no terrain discriminator travels
+   * because the endless country is the only country the running game can grow.
    */
   | { type: 'join'; worldName?: string; seed: number; name: string; version: number; day: number; time: number; x?: number; z?: number }
   /**

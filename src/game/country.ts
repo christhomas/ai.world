@@ -56,7 +56,7 @@ export function growCountry(ctx: Growing) {
    * The manifest has the last word, and that is the reason they are worked out here and handed in:
    * a world saved before the islands were planned from the seed may have them somewhere else, and
    * moving them would move the ground out from under a house that was built on one. They go up the
-   * wire with the join for the same reason — see `growWorld`.
+   * wire with the join for the same reason — see `growPatch`.
    */
   /*
    * A country with no edge, when that is the kind of world this is.

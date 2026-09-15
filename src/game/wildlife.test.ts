@@ -33,6 +33,12 @@ const world = (): Wildlife => {
   return new Wildlife(renderer, manager, null);
 };
 
+const worldAndCrowd = (): { wildlife: Wildlife; manager: EntityManager } => {
+  const renderer = new EntityRenderer(new THREE.Scene());
+  const manager = new EntityManager(renderer, flat, { getTiles: () => null }, 1);
+  return { wildlife: new Wildlife(renderer, manager, null), manager };
+};
+
 afterEach(() => { vi.useRealTimers(); });
 
 describe('the creature a drift measurement should stand beside', () => {
@@ -86,6 +92,22 @@ describe('the creature a drift measurement should stand beside', () => {
     const drift = wildlife.drift();
     expect(drift.wrongClose.of).toBeGreaterThan(0);
     expect(drift.wrongClose.worstIs).toBe('cow');
+  });
+});
+
+describe('the world correcting a predicted fight', () => {
+  it('stands a creature back up when the authoritative snapshot says it survived', () => {
+    const { wildlife, manager } = worldAndCrowd();
+    wildlife.apply([snap(7, 'cow', 2, 0)], []);
+    const cow = manager.within(0, 0, 10).find((e) => e.worldId === 7)!;
+
+    // The page predicted a killing blow. The real world rejected it and next reports the cow alive.
+    cow.hp = 0;
+    cow.dead = true;
+    cow.dying = 1.2;
+    wildlife.apply([snap(7, 'cow', 2, 0)], []);
+
+    expect(cow).toMatchObject({ hp: 10, dead: false, dying: 0 });
   });
 });
 

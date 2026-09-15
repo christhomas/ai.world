@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { FERRY, fareFor, ferryStateAt, makeFerryLines, type FerryLine } from './ferry';
 import { TerrainSampler } from '../world/terrain';
 import { generateRoadGraph } from '../world/graph.test.fixture';
-import { BOAT } from './sailing';
+import { BOAT, Sailing } from './sailing';
+import { travelInteractions } from './interact/travel';
 
 /**
  * A ferry that charges nothing is not a ferry.
@@ -92,5 +93,36 @@ describe('a pier that has a ferry and a boat for sale', () => {
       expect(served.size, `seed ${seed}: a pier with no crossing, which is what the boatwright wanted`)
         .toBe(piers.length);
     }
+  });
+
+  it('lets an owned boat cast off without taking the ferry away elsewhere', () => {
+    const crossing = {
+      ...line(120), travel: 20, dwell: FERRY.DWELL, period: FERRY.MIN_PERIOD,
+    } as FerryLine;
+    const player = { x: 1.5, z: 0.5 };
+    const sailing = new Sailing();
+    sailing.buy(player.x, player.z, 0);
+    let conversations = 0;
+    const travel = travelInteractions({
+      player, sailing, state: { day: 1, time: 0 },
+      structures: { piers: [crossing.fromPier] }, ferries: [{ line: crossing }],
+      dialogue: { start: () => { conversations++; } },
+      hud: { flash: () => {} }, sound: { chime: () => {} },
+    } as never);
+
+    expect(travel.tryFerry(), 'the ferry swallowed Enter beside the owned hull').toBe(false);
+    expect(travel.tryBoat(), 'the owned hull did not answer Enter').toBe(true);
+    expect(sailing.sailing).toBe(true);
+    expect(conversations).toBe(0);
+
+    const otherBoat = new Sailing();
+    otherBoat.buy(80, 80, 0);
+    const ferry = travelInteractions({
+      player: { x: 0.5, z: 0.5 }, sailing: otherBoat, state: { day: 1, time: 0 },
+      structures: { piers: [crossing.fromPier] }, ferries: [{ line: crossing }],
+      dialogue: { start: () => { conversations++; } },
+    } as never);
+    expect(ferry.tryFerry(), 'an owned boat elsewhere hid this ferry').toBe(true);
+    expect(conversations).toBe(1);
   });
 });
