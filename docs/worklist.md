@@ -5221,7 +5221,7 @@ than by remembering — and the first thing found was that the gap is not where 
       owes more than he has has simply not paid it, which is reported and not made good. What it
       uncovered is **82**.
 
-- [~] **82. Money is created by the mines and banked by the halls, and nothing takes it back out.**
+- [x] **82. Money is created by the mines and banked by the halls, and nothing takes it back out.**
       *Uncovered by fixing 80, on the 13th.* Two hundred thousand gold that used to vanish at the
       purse ceiling now sits in village treasuries instead. Over 450 days on three seeds the banked
       share went from **17% of every coin in the world to 57%**, and the sanity bench's own note on
@@ -5254,6 +5254,15 @@ than by remembering — and the first thing found was that the gap is not where 
 
       **What is left** is more kinds of work put out to contract, because the posts only exist for
       buildings a village has. **90** is the next one and the best one.
+
+      **Done on the 15th.** The missing standing contract is the ground every village already has:
+      keeping its roads, verges and ditches. Even before it has an amenity, the hall buys one
+      three-gold road day per two souls, so the outflow grows with the same population that grows
+      the tax. Capital for the next roof, work or vote remains reserved. The wage is subsistence
+      rather than a skilled trade's living, and every coin lands in a villager's purse.
+      On the builder-backlog branch the 450-day bench fell from **43%** banked overall (45%, 42%,
+      40% by seed) to **33%** (33%, 34%, 31%), under its 34% threshold, with all other bounds still
+      passing.
 
 ## Found while standing things on the mountains — September 13th
 
