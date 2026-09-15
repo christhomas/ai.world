@@ -1,4 +1,3 @@
-import { EDGE_OF_THE_WORLD } from './graph';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
@@ -328,7 +327,7 @@ function blend(a: number, b: number, c: number, d: number, ex: number, ez: numbe
  * welded into faces, which faces are dry, which of the dry ones stand up as mountains, and which
  * hollows hold a lake.
  */
-export function generateMesh(seed: number, radius = EDGE_OF_THE_WORLD): WorldMesh {
+export function generateMesh(seed: number, radius = 480): WorldMesh {
   const grain = new Simplex2D(derive(seed, SALT.MESH ^ 0x9a17));
   const shape = new Simplex2D(derive(seed, SALT.MESH));
 

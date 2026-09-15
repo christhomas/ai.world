@@ -695,24 +695,6 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   letter-spacing: calc(2 * var(--ui-scale)); color: var(--accent); text-transform: uppercase;
 }
 
-.tswitch { display: flex; gap: calc(10 * var(--ui-scale)); align-items: flex-start; cursor: pointer; }
-.tswitch:hover .tswitch-track { border-color: var(--rule); }
-/* The track and its knob: on slides right and lights up, which is the whole of the affordance.
-   Square, like everything else — a pill with a round knob in it is the one shape on screen that
-   could not be cut out of this world's ground. */
-.tswitch-track {
-  flex: 0 0 auto; width: calc(38 * var(--ui-scale)); height: calc(20 * var(--ui-scale)); margin-top: calc(2 * var(--ui-scale));
-  background: var(--surface); border: var(--ui-scale) solid var(--rule); position: relative; transition: background 0.12s;
-}
-.tswitch-track::after {
-  content: ''; position: absolute; top: calc(3 * var(--ui-scale)); left: calc(3 * var(--ui-scale)); width: calc(12 * var(--ui-scale)); height: calc(12 * var(--ui-scale));
-  background: var(--surface); transition: left 0.12s, background 0.12s;
-}
-.tswitch[aria-checked="true"] .tswitch-track { background: var(--accent); border-color: var(--rule); }
-.tswitch[aria-checked="true"] .tswitch-track::after { left: calc(21 * var(--ui-scale)); background: var(--accent); }
-.tswitch-label { color: var(--ink); font-size: calc(13 * var(--ui-scale)); }
-.tswitch-note { color: var(--accent); font-size: calc(11 * var(--ui-scale)); display: block; margin-top: calc(2 * var(--ui-scale)); line-height: 1.4; }
-
 #journal {
   display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(calc(620 * var(--ui-scale)), 92vw); max-height: 82vh; overflow-y: auto; z-index: 1400;
@@ -1585,8 +1567,6 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #slots .slot-facts { gap: 12px; font-size: 10px; }
   #slots .slot-seed { display: none; }         /* the number is for a bug report, not for a phone */
   #slots .slot-world { font-size: 10px; margin-left: 8px; }
-  .tswitch-note { display: none; }             /* the switch's own label is enough at this size */
-
   /* -------------------------------------------------------------------------
      The glass ends where the phone ends.
 

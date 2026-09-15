@@ -6,8 +6,6 @@ import type { Crowd } from '../src/entities/entity';
 import type { TileWorld } from '../src/world/tiles';
 import type { PartyMember, Presence, ServerMessage, TradeOffer, WorldRecord } from './protocol';
 import { worldKey } from './protocol';
-import type { WorldKind } from '../src/save/store';
-import type { Anchor } from '../src/world/manifest';
 import { Forgetful, type Vault } from './vault';
 import { SharedWorld, worldPath } from './world';
 import { WorldRecords } from './worldrecords';
@@ -176,25 +174,6 @@ export interface Room {
   name?: string;
   clients: Set<Client>;
   world: SharedWorld;
-  /**
-   * Which country this seed grew.
-   *
-   * A seed is not a world on its own: the same number grows a road world or a polygon one, and
-   * they share nothing — a village in one is open ground in the other. The first player through
-   * the door says which, and everybody after that has to be in the same one or they are not in
-   * the same place at all.
-   */
-  kind: WorldKind;
-  /**
-   * Where this world's islands hang, as the first player through the door has them.
-   *
-   * The other half of the same rule as `kind`, and here for the same reason: a country is settled
-   * by the seed, the kind and these, and anything not settled by all three is two countries wearing
-   * one number. They are the client's to say because the client may be playing a world saved before
-   * the islands were planned from the seed — its manifest is the only record of where they went,
-   * and moving them would move the ground out from under a house somebody built on one.
-   */
-  islands: Anchor[] | undefined;
 }
 
 export class Rooms {
@@ -231,19 +210,19 @@ export class Rooms {
   worldRecordForSeed(seed: number): WorldRecord | undefined { return this.records.forSeed(seed); }
 
   /** Resolve or create the durable record presented by a named join. */
-  claimWorld(name: unknown, seed: number, kind: WorldKind, islands: Anchor[]): WorldRecord {
-    return this.records.claim(name, seed, kind, islands);
+  claimWorld(name: unknown, seed: number): WorldRecord {
+    return this.records.claim(name, seed);
   }
 
   /** The room for a world, read back from its old seed file the first time anybody asks for it. */
-  open(seed: number, start: { day: number; time: number }, kind: WorldKind, islands?: Anchor[], named?: WorldRecord): Room {
+  open(seed: number, start: { day: number; time: number }, named?: WorldRecord): Room {
     const root = seed >>> 0;
     const already = this.bySeed.get(root);
     const key = already ?? (named ? worldKey(named.name)! : `#${root}`);
     let room = this.rooms.get(key);
     if (!room) {
       const world = new SharedWorld(root, worldPath(this.dataDir, root), { ...start }, this.dataDir, this.vault);
-      room = { clients: new Set(), name: named?.name, kind, islands, world };
+      room = { clients: new Set(), name: named?.name, world };
       this.rooms.set(key, room);
       this.bySeed.set(root, key);
     }

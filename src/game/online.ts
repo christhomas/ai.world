@@ -9,8 +9,6 @@ import {
 // through here because half the game asks this file for it.
 import { heard, type OnlineEvents } from './heard';
 export type { OnlineEvents } from './heard';
-import type { WorldKind } from '../save/store';
-import type { Anchor } from '../world/manifest';
 import type { GameState } from './state';
 import type { Memory } from '../world/people';
 import { ITEMS } from './items';
@@ -66,8 +64,6 @@ const GRACE = 2;
 export interface CountryHere {
   /** Where the hero is standing, so the world can have that ground ready before it is asked. */
   at?: { x: number; z: number };
-  /** Where this world's islands hang, which the seed alone does not settle for an older save. */
-  islands?: readonly Anchor[];
 }
 
 
@@ -100,7 +96,7 @@ export class Online {
   private sinceHeard = 0;
   private url = '';
   /** What was joined last, so a world that goes quiet can be rejoined rather than merely mourned. */
-  private joined: { seed: number; clock: Clock; world: WorldKind; country: CountryHere; worldName?: string } | null = null;
+  private joined: { seed: number; clock: Clock; country: CountryHere; worldName?: string } | null = null;
   /** Other people in this world, by id. */
   readonly players = new Map<string, Presence>();
   id = '';
@@ -171,7 +167,7 @@ export class Online {
    * world's player was walked about on a land he could not see — see the note on `join` in
    * `server/protocol.ts`.
    */
-  connect(url: string, seed: number, name: string, clock: Clock, world: WorldKind, country: CountryHere = {}, worldName?: string): void {
+  connect(url: string, seed: number, name: string, clock: Clock, country: CountryHere = {}, worldName?: string): void {
     this.drop();
     this.wanted = true;
     this.retryIn = 0;
@@ -181,13 +177,11 @@ export class Online {
     this.name = cleanName(name);
     this.status = 'connecting';
     this.sinceHeard = 0;
-    this.joined = { seed, clock, world, country, worldName };
+    this.joined = { seed, clock, country, worldName };
 
     const events: LinkEvents = {
       onOpen: () => this.send({
-        type: 'join', worldName, seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time, world,
-        // the rest of what a country is made of, so the world grows this one and not its own idea
-        islands: country.islands ? [...country.islands] : undefined,
+        type: 'join', worldName, seed, name: this.name, version: PROTOCOL_VERSION, day: clock.day, time: clock.time,
         x: country.at?.x, z: country.at?.z,
       }),
       onMessage: (parcel) => {
@@ -341,7 +335,7 @@ export class Online {
       this.retryIn -= dt;
       if (this.retryIn > 0) return;
       const again = this.joined;
-      this.connect(this.url, again.seed, this.name, again.clock, again.world, again.country, again.worldName);
+      this.connect(this.url, again.seed, this.name, again.clock, again.country, again.worldName);
       return;
     }
     // A world that has stopped talking has gone, whatever the socket says about itself. Noticed
@@ -374,7 +368,7 @@ export class Online {
       ? 'The world in this tab stopped answering. Starting it again.'
       : 'The world went quiet. Trying it again.');
     this.drop();
-    if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock, rejoin.world, rejoin.country, rejoin.worldName);
+    if (rejoin) this.connect(this.url, rejoin.seed, this.name, rejoin.clock, rejoin.country, rejoin.worldName);
     else this.wanted = false;
   }
 

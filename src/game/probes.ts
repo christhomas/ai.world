@@ -19,7 +19,6 @@ import type { Mount } from './mount';
 import { StructureKind } from '../world/structures';
 import type { Jail } from './jail';
 import type { TerrainSampler } from '../world/terrain';
-import type { WorldKind } from '../save/store';
 import type { Wildlife } from './wildlife';
 import type { CommandBus } from '../core/commandbus';
 import type { IsoCamera } from '../render/camera';
@@ -63,7 +62,6 @@ import { whaleAt, type Pod } from './whales';
  */
 export interface Probed {
   seed: number;
-  world: WorldKind;
   state: GameState;
   player: Player;
   rig: SceneRig;
@@ -74,7 +72,7 @@ export interface Probed {
   entities: EntityManager;
   register: Register;
   places: Places;
-  /** The endless country and whoever is growing it, when this is one. Null for a bounded world. */
+  /** The endless country and whoever is growing it. */
   endless?: { patch: string; store: { holding: () => string[] } } | null;
   grower?: { waiting: string[]; grown: number; lastTook: number } | null;
   online: Online;
@@ -193,7 +191,7 @@ export function leaveShop(
 
 export function installProbes(ctx: Probed): void {
   const {
-    seed, world, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
+    seed, state, player, rig, iso, sampler, structures, chunks, entities, register, places,
     online, market, warband, remains, plots, houses, sailing, skies, skyIsles, eyries, pods, mines,
     roaming, nemesis, director, claimed, minesWorked, fightingInAMine, questList, talkCtx, commands,
     commandWorld, callOut, placeName, carcasses, markers, walking, wildlife, bites, doorsteps, streamTally, wing, leaveOne,
@@ -277,7 +275,7 @@ export function installProbes(ctx: Probed): void {
    */
   // read rather than called, because half of these are functions and half are not, and the one you
   // reach for while something is badly wrong should not also ask you to remember which
-  Object.defineProperty(debug, '__world', { configurable: true, get: () => ({ seed, world, online: online.status }) });
+  Object.defineProperty(debug, '__world', { configurable: true, get: () => ({ seed, world: 'endless', online: online.status }) });
   /*
    * How far the drawn world is behind the real one.
    *
@@ -511,10 +509,8 @@ export function installProbes(ctx: Probed): void {
   if (import.meta.hot) {
     import.meta.hot.on('ai-world:command', ({ line }: { line: string }) => {
       const result = commands.run(line, 'dev');
-      // which world answered. A command goes to every tab the dev server is serving, and two
-      // tabs are the ordinary case — one road world, one polygon world, both obediently
-      // teleporting to the same coordinates, one of which is the middle of the sea.
-      import.meta.hot?.send('ai-world:command-result', { line, result, seed, world });
+      // which seed answered. A command goes to every tab the dev server is serving.
+      import.meta.hot?.send('ai-world:command-result', { line, result, seed, world: 'endless' });
       if (!result.ok) console.warn(`command: ${line} — ${result.error}`);
     });
   }

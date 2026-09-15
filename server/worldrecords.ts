@@ -1,6 +1,4 @@
-import type { WorldKind } from '../src/save/store';
-import type { Anchor } from '../src/world/manifest';
-import { cleanIslands, cleanWorldName, worldKey, type WorldRecord } from './protocol';
+import { cleanWorldName, worldKey, type WorldRecord } from './protocol';
 import type { Vault } from './vault';
 
 /** Why a name could not be attached to the country a client presented. */
@@ -48,16 +46,15 @@ export class WorldRecords {
    * authoritative: a client presenting different facts is refused, never silently moved into the
    * country somebody else named.
    */
-  claim(name: unknown, seed: number, kind: WorldKind, manifest: Anchor[]): WorldRecord {
+  claim(name: unknown, seed: number): WorldRecord {
     const shown = cleanWorldName(name);
     const key = worldKey(name);
     if (!shown || !key) throw new WorldRecordConflict('World names use letters, numbers, spaces, _ or -, and must be 48 characters or fewer.');
 
     const root = seed >>> 0;
-    const islands = cleanIslands(manifest);
     const existing = this.records.get(key);
     if (existing) {
-      if (existing.seed !== root || existing.kind !== kind || !sameManifest(existing.manifest, islands)) {
+      if (existing.seed !== root) {
         throw new WorldRecordConflict(`“${shown}” already names a different world.`);
       }
       return copy(existing);
@@ -69,7 +66,7 @@ export class WorldRecords {
       throw new WorldRecordConflict(`Seed ${root} is already named “${other.name}”.`);
     }
 
-    const record: WorldRecord = { name: shown, seed: root, kind, manifest: islands };
+    const record: WorldRecord = { name: shown, seed: root };
     this.records.set(key, record);
     this.seeds.set(root, key);
     this.save();
@@ -82,20 +79,14 @@ export class WorldRecords {
 
   private restore(value: unknown): void {
     if (!value || typeof value !== 'object') return;
-    const raw = value as Partial<WorldRecord>;
+    const raw = value as { name?: unknown; seed?: unknown; kind?: unknown; manifest?: unknown };
     const name = cleanWorldName(raw.name);
     const key = worldKey(raw.name);
     const seed = Number(raw.seed);
-    const kind: WorldKind | null = raw.kind === 'road' || raw.kind === 'endless' ? raw.kind : null;
-    if (!name || !key || !Number.isFinite(seed) || !kind || this.records.has(key)) return;
+    if (!name || !key || !Number.isFinite(seed) || this.records.has(key)) return;
     const root = seed >>> 0;
     if (this.seeds.has(root)) return;
-    const record: WorldRecord = {
-      name,
-      seed: root,
-      kind,
-      manifest: cleanIslands(Array.isArray(raw.manifest) ? raw.manifest : []),
-    };
+    const record: WorldRecord = { name, seed: root };
     this.records.set(key, record);
     this.seeds.set(root, key);
   }
@@ -105,10 +96,4 @@ export class WorldRecords {
   }
 }
 
-function copy(record: WorldRecord): WorldRecord {
-  return { ...record, manifest: record.manifest.map((anchor) => ({ ...anchor })) };
-}
-
-function sameManifest(a: readonly Anchor[], b: readonly Anchor[]): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
+function copy(record: WorldRecord): WorldRecord { return { ...record }; }

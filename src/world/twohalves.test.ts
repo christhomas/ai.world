@@ -8,10 +8,7 @@ import { propFootprints } from '../entities/props';
 import { BLOCKS_WALKING } from './biomes';
 import { blocking } from './footprints';
 import { GroundWorld } from './groundworld';
-import { cleanIslands } from '../../server/protocol';
-import { generateWebGraph } from './roadweb';
-import { generateRoadGraph, islandAnchors } from './graph';
-import { growWorld } from './growworld';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { Patchwork, PATCH } from './patchwork';
 import { patchedCountry } from './groundworld';
 import { Solids, boxesFrom } from './solids';
@@ -303,66 +300,14 @@ describe('the same world, grown on both sides', () => {
     expect(differ.slice(0, 6), `${differ.length} of ${asked} points across a seam disagree`).toEqual([]);
   });
 
-  it('and is handed the whole of the country at the join, not a seed to guess from', () => {
-    /*
-     * The fault itself, kept as a case rather than as a memory.
-     *
-     * A seed is not a world: the same number grows a road country or a polygon one and they share
-     * nothing. The server used to build the polygon one for everybody, so half the players were
-     * walked about a land they could not see. What stops that coming back is not this file's
-     * arithmetic — it is that everything a country is a function of travels with the join, so the
-     * one call that grows one cannot be handed different arguments on the two sides.
-     *
-     * Three things, and the join line is read out of the source so that dropping any of them is a
-     * failed build rather than a country nobody can see. The kind, because a seed grows two of
-     * them. The islands, because where they hang is planned from the seed today and written into a
-     * manifest for a world saved before that was true. And where the hero is standing, which is
-     * not part of the country at all — it is what lets the world grow that acre of it before the
-     * page asks, which is the difference between the page being sent the ground and the page
-     * drawing its own and being corrected.
-     */
+  it('hands the server the acre to grow before the page asks for it', () => {
     const protocol = readFileSync('server/protocol.ts', 'utf8');
     const join = protocol.split('\n').find((line) => line.includes("{ type: 'join';")) ?? '';
-    expect(join, 'the join no longer says which world it is in').toContain('world: WorldKind');
-    expect(join, 'the join no longer says where this world put its islands').toContain('islands?: Anchor[]');
-    expect(join, 'the join no longer says where the hero is standing').toContain('x?: number');
-    // and the one call itself, which `growworld.test.ts` holds to being the only one there is
+    expect(join).toContain('x?: number');
+    expect(join).toContain('z?: number');
     const sim = readFileSync('server/sim.ts', 'utf8');
-    expect(sim, 'the server has gone back to picking the world itself')
-      .toContain('growWorld(seed, kind, room?.islands)');
-    covered.push('PASS      1  the country travels with the join, and the world grows what it is told');
-  });
-
-  it('and grows the same road country on both sides, islands and all', () => {
-    /*
-     * The second half of the same fault, and the one this bench could not see.
-     *
-     * Choosing the right *kind* of world is not enough: the page attached the islands to its road
-     * tree and the server did not, so the same seed grew two countries and whichever filled a chunk
-     * first won. Seed 1's third village is Elderholm without them and Brambleholm with them. It was
-     * found as a hero standing in a named village in an empty field — the people from one world,
-     * the ground from the other.
-     *
-     * Every other test in this file builds the same graph on both sides, which is why none of them
-     * noticed: they compared two copies of the same half. This one grows a road world the way each
-     * side grows it and asks whether they are the same place.
-     *
-     * The way each side grows it has since become one call with the islands as an argument, and the
-     * islands travel — so what is worth testing here is the journey. The page's anchors are written
-     * out as JSON, read back, and put through the guard that every join goes through, which is
-     * exactly what happens to them between one half and the other. A guard that quietly rounded a
-     * coordinate or dropped a seed would put the two halves back in different countries by a route
-     * no amount of care in the generator could close.
-     */
-    for (const seed of [1, 3, 7]) {
-      const mine = islandAnchors(generateRoadGraph(seed), seed);
-      const asTheyArrive = cleanIslands(JSON.parse(JSON.stringify(mine)) as unknown);
-      const page = new TerrainSampler(growWorld(seed, 'road', mine));
-      const world = new TerrainSampler(growWorld(seed, 'road', asTheyArrive));
-      const names = (s: TerrainSampler): string => s.structures.villages.map((v) => `${v.name}@${v.x.toFixed(1)},${v.z.toFixed(1)}`).join(' ');
-      expect(names(world), `seed ${seed} is two different countries`).toBe(names(page));
-    }
-    covered.push('PASS      3  a road world is the same country on the page and in the world, islands included');
+    expect(sim).toContain('new Patchwork(seed, growPatch)');
+    covered.push('PASS      1  the world grows the acre named at the join');
   });
 });
 

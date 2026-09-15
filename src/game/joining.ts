@@ -1,5 +1,3 @@
-import type { WorldKind } from '../save/store';
-import type { Anchor } from '../world/manifest';
 import { $ } from '../ui/dom';
 import type { Online } from './online';
 import type { GameState } from './state';
@@ -40,17 +38,6 @@ export interface Joining {
   seed: number;
   /** The world's durable, sayable key. Old numeric saves have none until the player names them. */
   worldName?: string;
-  /** Which country this seed grew here, so the server grows the same one. */
-  world: WorldKind;
-  /**
-   * And where its islands hang, for the same reason and with a wrinkle of its own.
-   *
-   * The kind is a choice somebody made when the world was new. These are planned from the seed for
-   * any world made today, but a world saved before that code existed keeps its own in its manifest
-   * — so the seed is not enough to say where they are, and a server left to work it out would grow
-   * a different country for such a save. See `growWorld`.
-   */
-  islands: readonly Anchor[];
   /**
    * Where the hero is standing at the moment of joining.
    *
@@ -97,9 +84,9 @@ export function inviteTo(here: string, seed: number, address: string, worldName?
 }
 
 export function joinAWorld(ctx: Joining): void {
-  const { seed, worldName, world, islands, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
-  /** The rest of what a world has to be told at the door: which country, and which acre of it. */
-  const here = () => ({ at: where(), islands });
+  const { seed, worldName, where, state, online, url, forgetOthers, showChat, hideChat, flash } = ctx;
+  /** The acre that must exist before the world puts the hero down. */
+  const here = () => ({ at: where() });
 
   const serverInput = $('serverInput') as HTMLInputElement;
   const nameInput = $('nameInput') as HTMLInputElement;
@@ -118,12 +105,12 @@ export function joinAWorld(ctx: Joining): void {
    */
   const playAlone = (): void => {
     if (online.connected || online.status === 'connecting') return;
-    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
+    online.connect('', seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
   };
   // An invite already says whose server this is. Following it is the join; it must not quietly put
   // the guest into a private worker with the right-looking world underneath them.
   if (url.searchParams.has('server')) {
-    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
+    online.connect(serverInput.value.trim(), seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
     showChat();
   } else {
     playAlone();
@@ -146,7 +133,7 @@ export function joinAWorld(ctx: Joining): void {
     const address = serverInput.value.trim();
     localStorage.setItem('ai.world/name', nameInput.value);
     localStorage.setItem('ai.world/server', address);
-    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
+    online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
     showChat();
   });
 
@@ -167,7 +154,7 @@ export function joinAWorld(ctx: Joining): void {
     // Publishing a name also claims it on the named server. Otherwise the link could be copied
     // before the world record it asks the server to resolve existed.
     if (worldName && address && !online.away) {
-      online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
+      online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, here(), worldName);
       showChat();
     }
     const href = inviteTo(window.location.href, seed, address, worldName);

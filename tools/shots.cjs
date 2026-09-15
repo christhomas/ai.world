@@ -517,7 +517,7 @@ process.on('exit', stopWorld);
  */
 async function playerJoins(browser, seed, villages = 3) {
   const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
-  await page.goto(`${origin}/?world=road&seed=${seed}&server=ws://localhost:${WORLD_PORT}`, { waitUntil: 'load' });
+  await page.goto(`${origin}/?seed=${seed}&server=ws://localhost:${WORLD_PORT}`, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: 60000 });
   await page.waitForTimeout(LOADING);
   // the address is in the box already — `?server=` fills it — and pressing connect is what leaves

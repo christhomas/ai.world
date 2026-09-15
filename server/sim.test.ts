@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
-import type { WorldKind } from '../src/save/store';
-import type { Anchor } from '../src/world/manifest';
 import { WAIT_FOR_THE_WORLD, unpackChunk } from '../src/world/chunkparcel';
 import { CHUNKS_AT_ONCE, Simulation, VIEW } from './sim';
-import { generateRoadGraph, islandAnchors } from '../src/world/graph';
 import { IN_SIGHT } from './wildlife';
 import { Forgetful } from './vault';
 import { DAY_LENGTH } from './protocol';
@@ -51,8 +48,8 @@ class Pretend {
     this.attached = sim.attach(this.wire);
   }
 
-  join(seed: number, name: string, version = PROTOCOL_VERSION, world: WorldKind = 'road'): this {
-    this.say({ type: 'join', world, seed, name, version, day: 2, time: 0.4 });
+  join(seed: number, name: string, version = PROTOCOL_VERSION): this {
+    this.say({ type: 'join', seed, name, version, day: 2, time: 0.4 });
     return this;
   }
 
@@ -65,8 +62,8 @@ class Pretend {
    * it is gets that country grown *now* — which costs the world two-thirds of a second, so no test
    * pays for it by accident.
    */
-  joinAt(seed: number, name: string, x: number, z: number, world: WorldKind = 'road'): this {
-    this.say({ type: 'join', world, seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4, x, z });
+  joinAt(seed: number, name: string, x: number, z: number): this {
+    this.say({ type: 'join', seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4, x, z });
     return this;
   }
 
@@ -102,43 +99,6 @@ describe('the simulation, hosted by nothing at all', () => {
     const old = new Pretend(sim).join(7, 'Rowan', PROTOCOL_VERSION - 1);
     expect(old.of('error')).toHaveLength(1);
     expect(old.of('welcome')).toHaveLength(0);
-  });
-
-  it('turns away somebody whose islands are somewhere else', () => {
-    /*
-     * The quiet half of "a seed is not a world".
-     *
-     * The loud half is the kind: a road country and a polygon one out of the same number, and a
-     * player joined into the wrong one is walked about a land he cannot see. This is the same fault
-     * a size smaller. Where a world's islands hang is planned from the seed today, but a world
-     * saved before that code existed keeps its own in its manifest — so two players of one seed can
-     * be carrying two different countries, with the same houses standing in different fields and the
-     * same names on different ground.
-     *
-     * There is no picking one. Whichever is not picked is the player being walked about a country
-     * he cannot see, which is the whole fault this seam exists to end. So it is a closed door with
-     * a reason on it, the same as the kind.
-     */
-    const sim = new Simulation({ vault: new Forgetful() });
-    const seed = 5;
-    const own = islandAnchors(generateRoadGraph(seed), seed);
-    const moved = own.map((a, i) => (i === 0 ? { ...a, x: a.x + 40 } : a));
-    expect(own.length, 'this seed has no islands to disagree about').toBeGreaterThan(0);
-
-    const rowan = new Pretend(sim);
-    rowan.say({ type: 'join', world: 'road', seed, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, islands: own });
-    expect(rowan.of('welcome'), 'the first one through the door was refused').toHaveLength(1);
-
-    const wren = new Pretend(sim);
-    wren.say({ type: 'join', world: 'road', seed, name: 'Wren', version: PROTOCOL_VERSION, day: 2, time: 0.4, islands: moved });
-    expect(wren.of('welcome'), 'two players were let into one world with different islands').toHaveLength(0);
-    expect(wren.of('error')[0].reason).toContain('islands');
-    expect(wren.open, 'and the door was left open behind them').toBe(false);
-
-    // and somebody carrying the same country as the first is let in, which is everybody
-    const third = new Pretend(sim);
-    third.say({ type: 'join', world: 'road', seed, name: 'Ash', version: PROTOCOL_VERSION, day: 2, time: 0.4, islands: own });
-    expect(third.of('welcome'), 'the same country was turned away from itself').toHaveLength(1);
   });
 
   it('puts two players in one world and lets them hear each other', () => {
@@ -330,17 +290,17 @@ describe('the simulation holding the ground itself', () => {
     rowan.say({ type: 'steer', seq: 1, dx: 1, dz: 0, pace: 1, ms: 200 });
 
     // a teleport, a staircase, a gangplank: the one kind of move a walk cannot account for
-    rowan.say({ type: 'stood', x: FAR_CLEAR.x, z: FAR_CLEAR.z, why: 'teleport' });
+    rowan.say({ type: 'stood', x: CLEAR_RUN.x, z: CLEAR_RUN.z, why: 'teleport' });
     const put = rowan.of('youAre').at(-1)!;
-    expect(put.x).toBe(FAR_CLEAR.x);
-    expect(put.z).toBe(FAR_CLEAR.z);
+    expect(put.x).toBe(CLEAR_RUN.x);
+    expect(put.z).toBe(CLEAR_RUN.z);
 
     // and he walks on from there rather than from where he was
     sim.tick(Date.now() + 200);
-    rowan.say({ type: 'steer', seq: 2, dx: 0, dz: 1, pace: 1, ms: 200 });
+    rowan.say({ type: 'steer', seq: 2, dx: 1, dz: 0, pace: 1, ms: 200 });
     const after = rowan.of('youAre').at(-1)!;
-    expect(after.x).toBeCloseTo(FAR_CLEAR.x, 5);
-    expect(after.z).toBeGreaterThan(FAR_CLEAR.z);
+    expect(after.x).toBeGreaterThan(CLEAR_RUN.x);
+    expect(after.z).toBeCloseTo(CLEAR_RUN.z, 5);
   });
 
   it('keeps the hero at the door while he is somewhere it does not own', () => {
@@ -399,8 +359,18 @@ describe('the simulation holding the ground itself', () => {
     // out on open water, aboard: where a boat is moored is the client's word, and the only one
     rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'boat', gear: [] });
     sim.tick(Date.now() + 100);
-    rowan.say({ type: 'stood', x: -300, z: 40, why: 'ride' });
-    rowan.say({ type: 'move', x: -300, z: 40, yaw: 0, walk: 0, place: 'surface', riding: 'boat', gear: [] });
+    const ground = sim.groundOf(3)!;
+    let water: { x: number; z: number } | null = null;
+    for (let z = -40; z <= 40 && !water; z++) {
+      for (let x = -40; x <= 37; x++) {
+        if (ground.waterAt(x, z) !== null && ground.waterAt(x + 3, z) !== null) {
+          water = { x, z };
+          break;
+        }
+      }
+    }
+    expect(water, 'the fixture has no three-tile run of water to sail').not.toBeNull();
+    rowan.say({ type: 'move', x: water!.x, z: water!.z, yaw: 0, walk: 0, place: 'surface', riding: 'boat', gear: [] });
     sim.tick(Date.now() + 200);
 
     // a second of sailing west, which the world works out for itself
@@ -409,7 +379,7 @@ describe('the simulation holding the ground itself', () => {
     }
     const sailed = rowan.of('youAre').at(-1)!;
     expect(sailed.seq).toBe(10);
-    expect(sailed.x, 'the bow was pointing east, so east it went').toBeGreaterThan(-300);
+    expect(sailed.x, 'the bow was pointing east, so east it went').toBeGreaterThan(water!.x);
 
     // and stepping off a boat happens beside the boat, not half a county away
     rowan.say({ type: 'stood', x: 200, z: 200, why: 'ride' });
@@ -563,13 +533,18 @@ describe('telling players what is alive near them', () => {
     tickFor(sim, 600, from);
     const first = rowan.of('creatures').at(-1)!;
     expect(first.near.length).toBeGreaterThan(0);
+    const beforeLeaving = rowan.of('creatures').length;
 
     // a long walk: everything they could see is behind them now
+    rowan.say({ type: 'stood', x: 4_000, z: 4_000, why: 'teleport' });
     walkAbout(rowan, 4_000, 4_000);
     tickFor(sim, 600, from + 1_000);
-    const after = rowan.of('creatures').at(-1)!;
-    expect(after.gone.length, 'the country they left is taken off their screen').toBeGreaterThan(0);
-    expect(after.near, 'and there is nothing where they went, which is unloaded ground').toEqual([]);
+    const updates = rowan.of('creatures').slice(beforeLeaving);
+    const after = updates.at(-1)!;
+    expect(updates.flatMap((message) => message.gone).length,
+      'the country they left is taken off their screen').toBeGreaterThan(0);
+    expect(after.near.every((creature) => Math.hypot(creature.x, creature.z) > 3_000),
+      'the new country was confused with the one left behind').toBe(true);
   });
 
   it('tells two players in one field about the same creatures', () => {
@@ -929,31 +904,6 @@ describe('a world with several people in it', () => {
  * was a ghost in his own village, bitten by wolves that were not there, swinging at animals that
  * were somewhere else.
  */
-describe('the country the server grows', () => {
-  /*
-   * There is one kind of world now, so what is left of this is the islands.
-   *
-   * The fault it guards against is unchanged and is the worst one this seam has: two players in a
-   * seed, in countries that differ, each walking about on ground the other cannot see. It used to
-   * be reachable by picking a different world on the title screen; the only way left is a set of
-   * islands hanging somewhere else, which an older save genuinely can have.
-   */
-  it('will not let two players into one seed with their islands in different places', () => {
-    const sim = new Simulation({ vault: new Forgetful(), ground: true });
-    new Pretend(sim).join(3, 'Rowan');
-    const elsewhere: Anchor = {
-      id: 'island:9', kind: 'island', x: 900, z: -400, seed: 12, parent: null, version: 1,
-    };
-    const wrong = new Pretend(sim);
-    wrong.say({
-      type: 'join', seed: 3, name: 'Wren', version: PROTOCOL_VERSION, day: 1, time: 0.3,
-      world: 'road', islands: [elsewhere],
-    });
-    expect(wrong.of('error').map((e) => e.reason), 'let into a world that is not the one they are in').toHaveLength(1);
-    expect(wrong.open, 'left connected to a world they cannot be in').toBe(false);
-  });
-});
-
 /*
  * Waking up somewhere, which the world has to be told about or it drags you back.
  *
@@ -1142,7 +1092,7 @@ describe('a page asking the world for country', () => {
     // and it said so, which is the page's cue to stop drawing ground it is about to be sent
     const [country] = rowan.of('country');
     expect(country, 'the world never told the page its country was grown').toBeTruthy();
-    expect(country.stamp, 'the world grew a country and could not say which one').not.toBe('');
+    expect(country.stamp, 'an endless country incorrectly claimed a whole-country fingerprint').toBe('');
   });
 
   it('and answers the whole of it inside the time a page will wait', () => {

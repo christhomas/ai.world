@@ -27,7 +27,7 @@
  * Everything it needs is an environment variable with a sensible default, so nothing here is
  * pinned to one machine:
  *
- *   PORT=5173  WORLD=road  SEED=3     the address, assembled
+ *   PORT=5173  SEED=3                 the address, assembled
  *   ADDRESS=...                       or the whole address at once, if you want a different shape
  *   CHANNEL=chrome                    which browser; empty means playwright's own chromium
  *   DRIFT=0.35                        how far a creature may be drawn from where the world has it
@@ -47,9 +47,8 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 
 const PORT = process.env.PORT || '5173';
-const WORLD = process.env.WORLD || 'road';
 const SEED = process.env.SEED || '3';
-const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?world=${WORLD}&seed=${SEED}`;
+const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?seed=${SEED}`;
 // Empty means playwright's own chromium. The default is the real Chrome because that is the one a
 // borrowed playwright can always reach: its bundled chromium is a numbered download that matches
 // the borrowed version and is usually not the one that checkout happens to have on disk.
@@ -191,7 +190,7 @@ const finish = async () => {
   }, id);
 
   const w = await page.evaluate(() => window.__world);
-  say('the world is the one the link asked for', w.world === 'road' && w.online === 'online', JSON.stringify(w));
+  say('the running world is the endless country', w.world === 'endless' && w.online === 'online', JSON.stringify(w));
 
   // --- walking into things ---
   const house = await page.evaluate(() => { const v = window.__villages[0]; const h = v.houses[0]; return { x: h.tx + 0.5, z: h.tz + 0.5, rot: h.rot }; });

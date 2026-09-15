@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GroundWorld } from '../src/world/groundworld';
 import { TerrainSampler } from '../src/world/terrain';
-import { generateWebGraph } from '../src/world/roadweb';
+import { generateWebGraph } from '../src/world/roadweb.test.fixture';
 import { propFootprints } from '../src/entities/props';
 import { Register } from '../src/world/register';
 import { Wildlife } from './wildlife';
