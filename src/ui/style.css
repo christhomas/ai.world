@@ -1703,10 +1703,13 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #compass { top: calc(var(--safe-top) + 96px); }
   /* News is a left-hand band, but the tab spine owns the physical edge. */
   #chatPanel {
-    left: calc(var(--safe-left) + var(--band-tabs)); padding-left: 0;
-    width: min(calc(50vw - var(--band-tabs)), 360px);
+    /* The named band is the button; the rail has a hairline on either side of it. */
+    left: calc(var(--safe-left) + var(--band-tabs) + 2 * var(--ui-scale)); padding-left: 0;
+    width: min(calc(50vw - var(--band-tabs) - 2 * var(--ui-scale)), 360px);
   }
-  #toast, #duelbar { left: calc(var(--safe-left) + var(--band-tabs)); }
+  #toast, #duelbar {
+    left: calc(var(--safe-left) + var(--band-tabs) + 2 * var(--ui-scale));
+  }
   #duelbar { top: calc(var(--safe-top) + 116px); }
   #castbar { bottom: var(--safe-bottom); }
   /* Two lines, not three. On a window 342 tall the three-line log ran up into the band the

@@ -133,6 +133,17 @@ describe('the two rules the bugs were in', () => {
     expect(rule, 'the status slab is capped at a fixed width again').not.toMatch(/max-width:\s*\d+px/);
   });
 
+  it('starts phone news beyond the bordered tab spine', () => {
+    /*
+     * `--band-tabs` is the buttons' width. The rail adds a border on both sides, so beginning the
+     * news at the bare band puts its first pixel under the controls. This was measured in a
+     * 667×375 touch browser: the buttons ended at x=45 and the chat began at x=44.
+     */
+    expect(CSS).toContain(
+      'left: calc(var(--safe-left) + var(--band-tabs) + 2 * var(--ui-scale))',
+    );
+  });
+
   it('adds the safe-area insets outside the bands rather than folding them in', () => {
     // a gap kept for taste is waste; a gap kept for an obstruction is a gap. Folding the notch into
     // a band would make every phone's layout a different layout
