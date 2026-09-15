@@ -125,6 +125,25 @@ open the PR against it:
 Say in the body which PR it is stacked on. Most of a day's work can be stacked three or four deep;
 "the parent has not merged" is not a reason to stop.
 
+### After the parent merges
+
+The stack is a development relationship, not the final integration base. When a parent PR lands in
+`main`, move every child that was based on it onto the new `main` before merging the child:
+
+1. Change the child PR's base branch to `main`.
+2. Rebase the child branch onto the latest `main`.
+3. Resolve conflicts and push the rebased branch.
+4. Wait for the normal `pull_request` checks on the new head.
+5. Merge the child only after all required checks are green.
+
+Do this oldest-first when several children are waiting. After each merge, repeat the process for the
+next dependent branch. Do not leave a child pointed at a branch that has already merged: it can remain
+permanently behind or conflicted, and a stacked-branch update can leave the current head without the
+required checks.
+
+The checks workflow also runs on branch pushes so a rebase or update triggers CI automatically. A
+manual workflow dispatch is a recovery measure for a missed run, not the normal merge process.
+
 ## Review follow-ups
 
 The repository's reviewers defer findings into new issues saying **"do not modify PR #N for these"**.
