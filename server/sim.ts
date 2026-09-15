@@ -19,6 +19,7 @@ import { peopleOf } from './people';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Person } from '../src/world/people';
 import { HeldMinds, forgetMind, keepMinds, mindsOf } from './durable/minds';
+import { eventsOf, keepEvents } from './durable/events';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
 import { countryStamp, growPatch, growWorld } from '../src/world/growworld';
@@ -70,6 +71,8 @@ export interface SimOptions {
    * `durable/minds.ts`; `serve.ts` hands this the same file the tools portal uses.
    */
   minds?: DatabaseSync;
+  /** The bounded parish Chronicle, in the same durable file under its own schema. */
+  chronicles?: DatabaseSync;
 }
 
 /** One player's connection, from the simulation's side. */
@@ -150,6 +153,8 @@ export class Simulation {
   private readonly folk = new Map<number, { catchUp: () => void; register: { living(village: string): readonly Person[]; settled(): readonly string[] } }>();
   /** Where the non-derived half of a villager is kept between one visit and the next. */
   private readonly minds: DatabaseSync | null;
+  /** Meaningful register changes kept across a process restart. */
+  private readonly chronicleDb: DatabaseSync | null;
   /**
    * What was read back off the disk, waiting for the villagers it belongs to.
    *
@@ -188,6 +193,7 @@ export class Simulation {
 
   constructor(options: SimOptions = {}) {
     this.minds = options.minds ?? null;
+    this.chronicleDb = options.chronicles ?? null;
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
@@ -350,15 +356,23 @@ export class Simulation {
   /**
    * The last while of one world's history: births, deaths, villages emptied and resettled.
    *
-   * Made on being asked and kept for as long as the simulation is. A world nobody has looked at
-   * still has one, because the thing that fills it is the day turning over rather than anybody
-   * reading it — a chronicle that only recorded while somebody was watching would be a chronicle
-   * that is empty exactly when it is opened.
+   * Made on being asked and hydrated first where this server has a durable book. A world nobody has
+   * looked at still has one, because the thing that fills it is the day turning over rather than
+   * anybody reading it — a chronicle that only recorded while somebody was watching would be a
+   * chronicle that is empty exactly when it is opened.
    */
   chronicleOf(seed: number): Chronicle {
     const had = this.chronicles.get(seed);
     if (had) return had;
-    const fresh = new Chronicle();
+    const restored = this.chronicleDb
+      ? eventsOf(this.chronicleDb, seed)
+      : { entries: [], unreadable: [], latest: 0 };
+    if (restored.unreadable.length > 0) {
+      console.error(`world ${seed}: chronicle rows ${restored.unreadable.join(', ')} could not be read`);
+    }
+    const fresh = new Chronicle(restored.entries, this.chronicleDb
+      ? (entries) => { keepEvents(this.chronicleDb!, seed, entries); }
+      : undefined, restored.latest + 1);
     this.chronicles.set(seed, fresh);
     return fresh;
   }
