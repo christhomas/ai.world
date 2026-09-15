@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { EXCUSED, isCheckable } from '../../tools/excused';
 
 /**
  * Work that exists and nothing ever reaches.
@@ -63,6 +64,28 @@ function staleExplanations(source: ReadonlyMap<string, string>, explanations: Re
   }
   return [...explanations.keys()].filter((one) => !offered.has(one));
 }
+
+/**
+ * Excuses for work the program now reaches, which are the other half of the same bookkeeping.
+ *
+ * `staleExplanations` catches the deletion: an excuse whose export is gone. This catches the
+ * success — an excuse whose export somebody has since *wired*. Both leave a line in this list
+ * saying something untrue, and the second is worse than the first, because the first is somebody
+ * tidying up and the second is somebody having finished the job the excuse was promising.
+ *
+ * It is not a theoretical shape. #119 landed four themes with nothing applying any of them, and
+ * both `themeChosen` and `wearTheme` were excused against an issue for the missing picker. #188
+ * built the picker and wired both — and the excuses stayed, one of them still naming #177, the
+ * very issue the picker closed. `chore excuses` fails on an excuse whose issue has closed, so the
+ * leftover would have turned finishing the work into a red build. See #177.
+ */
+function excusesNowReached(
+  orphans: readonly string[], source: ReadonlyMap<string, string>, explanations: ReadonlyMap<string, string>,
+): string[] {
+  const unreached = new Set(orphans);
+  const gone = new Set(staleExplanations(source, explanations));
+  return [...explanations.keys()].filter((one) => !unreached.has(one) && !gone.has(one));
+}
 /**
  * What was already like this when the bench was written, and the reason it is a number.
  *
@@ -78,34 +101,22 @@ function staleExplanations(source: ReadonlyMap<string, string>, explanations: Re
  *
  * Lower it when you triage. Never raise it.
  */
-const ALREADY_LIKE_THIS = 21;
+const ALREADY_LIKE_THIS = 14;
 const ALREADY_UNEXPLAINED = 0;
 
-/**
- * Reviewed exceptions. Every reason names the consumer that owns the export or the issue blocking
- * its caller. Entries whose declaration disappears fail the bench instead of becoming suppressions.
+/*
+ * Where the reviewed exceptions live, and why they are not written down here.
+ *
+ * `tools/excused.ts` holds them, and the reason is the bench's own rule: it decides "reached" by
+ * looking for a name anywhere under `src` and `server` outside its own file. Every excuse contains
+ * the name it excuses, so a list of them under `src` makes all of them look reached and the bench
+ * reports almost nothing. It did, for about a minute, which is why #137 moved the list out.
+ *
+ * The list went back into this file when #134 landed — that branch was cut before #137 and the
+ * squash took its whole copy of this file, import and all. Nothing failed, because a second list
+ * that nobody updates simply agrees with itself: `chore excuses` went on watching `tools/excused.ts`
+ * while the bench read a copy that had drifted twenty entries away from it. See #177.
  */
-const EXPLAINED = new Map<string, string>([
-  ['src/dungeon/castlerooms.ts: HANGS_ON_WALLS', 'castle.test checks that file-driven hangings occupy walls'],
-  ['src/entities/monsters.ts: MONSTER_KINDS', 'monster tests inspect the curated monster kinds'],
-  ['src/entities/motion.ts: FLINCH_LASTS', 'motion tests use the exported duration as their timing boundary'],
-  ['src/entities/shapes.ts: partPoints', 'sites tests measure a prop\'s corners with it: the one door onto placedPieces'],
-  ['src/entities/spawns.ts: DUNGEON_MONSTERS', 'danger tests exercise every shallow-dungeon spawn kind'],
-  ['src/entities/villain.ts: VILLAIN_KINDS', 'villain tests inspect the curated villain kinds'],
-  ['src/game/brewing.ts: RECIPE', 'brewing tests verify the recipe table consumers must satisfy'],
-  ['src/game/predicted.ts: claimsFor', 'prediction tests guard claim ownership across replay'],
-  ['src/game/predicted.ts: inTheHand', 'prediction tests guard held-item state across replay'],
-  ['src/render/footprint.ts: measureFootprint', 'footprint tests hold the built mesh against the catalogue box with it'],
-  ['src/ui/themes.ts: themeChosen', 'theme application caller is pending in issue #73'],
-  ['src/ui/themes.ts: wearTheme', 'theme application caller is pending in issue #73'],
-  ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
-  ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
-  ['src/world/farmbuilds.ts: whichFarmerBuilds', 'farmbuilds.test exercises it directly; commissionAStable in the same file is the committing edge that register.ts and the builder call'],
-  ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
-  ['src/world/postings.ts: couldStand', 'builder reassignment caller is pending in issue #33'],
-  ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
-  ['src/world/vocabulary.ts: HOLDINGS', 'vocabulary tests verify every holding has words'],
-]);
 /*
  * It said 198 on its first run and 43 on its second, and the difference was all instrument.
  *
@@ -155,9 +166,10 @@ describe('work that nothing reaches', () => {
       }
     }
     orphans.sort();
-    const stale = staleExplanations(source, EXPLAINED);
-    const unexplained = orphans.filter((one) => !EXPLAINED.has(one));
-    const explained = orphans.filter((one) => EXPLAINED.has(one));
+    const stale = staleExplanations(source, EXCUSED);
+    const wired = excusesNowReached(orphans, source, EXCUSED);
+    const unexplained = orphans.filter((one) => !EXCUSED.has(one));
+    const explained = orphans.filter((one) => EXCUSED.has(one));
     writeFileSync(REPORT, [
       `UNREACHED — ${orphans.length} exported names reached only by their own tests`,
       `UNEXPLAINED — ${unexplained.length} have no recorded reason`,
@@ -170,7 +182,7 @@ describe('work that nothing reaches', () => {
       '',
       'EXPLAINED',
       ...(explained.length
-        ? explained.map((one) => `  ${one} — ${EXPLAINED.get(one)}`)
+        ? explained.map((one) => `  ${one} — ${EXCUSED.get(one)}`)
         : ['  (none)']),
       '',
       `  Written by src/world/reachable.test.ts to ${REPORT}. Run it again with: chore reachable`,
@@ -178,6 +190,11 @@ describe('work that nothing reaches', () => {
     ].join('\n'));
 
     expect(stale, 'explanations for removed exports must be removed').toEqual([]);
+    expect(wired, 'an excuse for work the program now reaches must be removed, not left behind').toEqual([]);
+    // an excuse that names neither a test nor an issue is an opinion, and this list must not fill
+    // up with those. `tools/excused.ts` says what counts as naming one.
+    expect([...EXCUSED].filter(([, why]) => !isCheckable(why)).map(([name]) => name),
+      'every excuse must name the test that owns the export or the issue blocking its caller').toEqual([]);
     // Two ratchets: no new orphan at all, and no new orphan without an explicit reason.
     expect(orphans.length, `work fell out of the program — see ${REPORT}`)
       .toBeLessThanOrEqual(ALREADY_LIKE_THIS);
@@ -195,5 +212,19 @@ describe('work that nothing reaches', () => {
     expect(staleExplanations(source, explanations)).toEqual([]);
     source.set('src/a.ts', 'const RECIPE = 1;');
     expect(staleExplanations(source, explanations)).toEqual(['src/a.ts: RECIPE']);
+  });
+
+  it('retires an excuse when the export it excuses is finally wired', () => {
+    const source = new Map([['src/a.ts', 'export const RECIPE = 1;']]);
+    const explanations = new Map([['src/a.ts: RECIPE', 'test-owned invariant']]);
+
+    // still unreached: the excuse is doing its job and stays
+    expect(excusesNowReached(['src/a.ts: RECIPE'], source, explanations)).toEqual([]);
+    // somebody wired it, so it drops off the orphan list — and the excuse must go with it
+    expect(excusesNowReached([], source, explanations)).toEqual(['src/a.ts: RECIPE']);
+    // and a deletion is the *other* complaint: `staleExplanations` owns that one, and saying it
+    // twice would report one line as two faults with two different fixes
+    source.set('src/a.ts', 'const RECIPE = 1;');
+    expect(excusesNowReached([], source, explanations)).toEqual([]);
   });
 });
