@@ -8,13 +8,14 @@ import { dirname } from 'node:path';
  * The world is still JSON and stays JSON: a seed grows the country, the villages and the people,
  * and a short log of told facts replays the rest. What cannot be replayed is what a villager thinks
  * of *you* — `remembering.ts` calls it "the one thing about a villager that is not derived" —
- * and, since the portal, who is allowed to open the tools.
+ * and, since the portal, who is allowed to open the tools. The parish Chronicle is the third:
+ * meaningful population changes that remain worth showing after the process restarts.
  *
- * Those two are kept in one file with separate tables rather than in two files, which is what #104
+ * Those domains are kept in one file with separate tables rather than separate files, which is what #104
  * asks for and is the right way round: they share a durable volume, a backup, a WAL and a crash,
  * and pretending they have different infrastructure would mean two of each. What they do not share
- * is ownership — `minds.ts` and `tools/accounts.ts` each declare their own schema and neither reads
- * the other's tables.
+ * is ownership — `minds.ts`, `events.ts`, and `tools/accounts.ts` each declare their own schema and
+ * none reads another domain's tables.
  *
  * ## Why not `user_version`
  *
