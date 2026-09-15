@@ -12,7 +12,22 @@
  */
 
 /**
- * The paths in `git status --porcelain -z`, whole.
+ * One dirty file, and *how* it is dirty.
+ *
+ * The status is carried rather than thrown away because a caller that only has the path can answer
+ * "is this file dirty" and nothing else — and at least one caller needs more than that. `chore
+ * tree` excuses `sanity-report.txt` on the grounds that a bench rewrites it every run, which is
+ * true of an unstaged worktree modification and of nothing else somebody might do to that file.
+ * See `worthStopping` in `sharedtree.ts`.
+ */
+export interface Dirty {
+  /** The two porcelain columns, index then worktree: `' M'`, `'M '`, `'MM'`, `'??'`, `'R '`. */
+  status: string;
+  path: string;
+}
+
+/**
+ * What `git status --porcelain -z` says is dirty, whole paths and their statuses.
  *
  * NUL-delimited rather than by line, because git quotes a path with a space in it when it writes
  * lines and does not when it writes records — so the line form has to be un-quoted, and getting
@@ -20,21 +35,23 @@
  * no ambiguity.
  *
  * A record is two status columns, a space, then the path. A rename carries a second record holding
- * where the file came from, and both ends of it have to go back, so both are returned.
+ * where the file came from, and both ends of it have to go back, so both are returned — the far end
+ * under the rename's own status, since the porcelain gives it none and a caller asking how it is
+ * dirty would otherwise be told nothing.
  */
-export function whatIsDirty(porcelain: string): string[] {
+export function whatIsDirty(porcelain: string): Dirty[] {
   const records = porcelain.split('\0').filter((r) => r.length > 0);
-  const paths: string[] = [];
+  const dirty: Dirty[] = [];
   for (let at = 0; at < records.length; at++) {
     const status = records[at].slice(0, 2);
-    paths.push(records[at].slice(3));
+    dirty.push({ status, path: records[at].slice(3) });
     // a rename or a copy says where it came from in the record after it, with no status of its own
     if (status.includes('R') || status.includes('C')) {
       at++;
-      if (at < records.length) paths.push(records[at]);
+      if (at < records.length) dirty.push({ status, path: records[at] });
     }
   }
-  return paths;
+  return dirty;
 }
 
 /** What a signal handler is allowed to do, and when. */

@@ -262,7 +262,10 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
  * file into one that does not exist.
  */
 function dirtyNow(): string[] {
-  return whatIsDirty(execFileSync('git', ['status', '--porcelain', '-z', 'src', 'server'], { encoding: 'utf8' }));
+  // the sweep wants the paths and nothing else: it puts every one of them back with `git checkout`,
+  // which does not care how the file came to be dirty
+  return whatIsDirty(execFileSync('git', ['status', '--porcelain', '-z', 'src', 'server'], { encoding: 'utf8' }))
+    .map((what) => what.path);
 }
 
 function main(): void {

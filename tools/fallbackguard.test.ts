@@ -13,17 +13,29 @@ import { theTidyUp, whatIsDirty } from './fallbackguard';
 
 describe('what git says is dirty', () => {
   it('keeps a path with a space in it whole', () => {
-    expect(whatIsDirty(' M src/world/a file.ts\0M  server/b.ts\0')).toEqual(['src/world/a file.ts', 'server/b.ts']);
+    expect(whatIsDirty(' M src/world/a file.ts\0M  server/b.ts\0')).toEqual([
+      { status: ' M', path: 'src/world/a file.ts' },
+      { status: 'M ', path: 'server/b.ts' },
+    ]);
   });
 
   it('reads the path past a status column of either width', () => {
     // ' M' and 'MM' and '??' are all two columns and a space; a fixed offset ate the first letter
     // of some paths and not others, which is how a real path became an unreadable one
-    expect(whatIsDirty('?? src/new.ts\0MM src/both.ts\0')).toEqual(['src/new.ts', 'src/both.ts']);
+    expect(whatIsDirty('?? src/new.ts\0MM src/both.ts\0')).toEqual([
+      { status: '??', path: 'src/new.ts' },
+      { status: 'MM', path: 'src/both.ts' },
+    ]);
   });
 
   it('takes both ends of a rename, because both of them have to go back', () => {
-    expect(whatIsDirty('R  src/to.ts\0src/from.ts\0')).toEqual(['src/to.ts', 'src/from.ts']);
+    // and the far end carries the rename's own status rather than an empty one: it has no record of
+    // its own in the porcelain, and a caller asking "how is this dirty" about it would otherwise be
+    // told nothing at all
+    expect(whatIsDirty('R  src/to.ts\0src/from.ts\0')).toEqual([
+      { status: 'R ', path: 'src/to.ts' },
+      { status: 'R ', path: 'src/from.ts' },
+    ]);
   });
 
   it('is nothing at all for a clean tree', () => {
