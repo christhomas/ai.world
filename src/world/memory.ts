@@ -172,18 +172,6 @@ export function regardOn(opinion: Opinion, day: number): number {
   return opinion.regard < 0 ? -left : left;
 }
 
-/** What a villager thinks of one name today. Nought for anybody he has no view about. */
-export function regardFor(person: Person, who: string, day: number): number {
-  const view = opinionsOf(person).find((o) => o.who === who);
-  return view ? regardOn(view, day) : 0;
-}
-
-/** What a villager holds about one name today, faded, or nothing at all. */
-export function opinionOf(person: Person, who: string, day: number): Opinion | null {
-  const view = opinionsOf(person).find((o) => o.who === who);
-  return view ? { ...view, regard: regardOn(view, day), day } : null;
-}
-
 /**
  * Fold something that happened into what this villager thinks of whoever it happened to.
  *

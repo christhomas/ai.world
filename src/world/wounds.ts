@@ -1,4 +1,3 @@
-import { FOOD } from './food';
 import { ownedBy, type Owner } from './holdings';
 import type { Person } from './people';
 
@@ -113,10 +112,4 @@ export function mendThem(people: readonly Person[]): Map<Owner, number> {
     person.hurt = hurt > 1 ? hurt - 1 : undefined;
   }
   return fees;
-}
-
-/** How badly a creature of this much bite hurts somebody, nought to one. */
-export function hurtBy(damage: number): number {
-  // measured against what a hero can take, which is the only scale of harm this game has
-  return Math.max(0, Math.min(1, damage / FOOD.HEARTS));
 }

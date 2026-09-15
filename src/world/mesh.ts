@@ -437,8 +437,3 @@ export function generateMesh(seed: number, radius = EDGE_OF_THE_WORLD): WorldMes
 
   return mesh;
 }
-
-/** Every face reachable from `start` over faces of the same kind: one territory, however shaped. */
-export function territoryOf(mesh: WorldMesh, start: MeshFace): MeshFace[] {
-  return mesh.regions[start.region].faces.map((f) => mesh.faces[f]);
-}

@@ -81,13 +81,6 @@ export function levelFor(practice: number): number {
   return level;
 }
 
-/** How far through the current level, nought to one, for anything that wants to draw a bar. */
-export function towardsNext(practice: number): number {
-  const level = levelFor(practice);
-  if (level >= PROWESS.MOST) return 1;
-  const from = costOf(level), to = costOf(level + 1);
-  return Math.max(0, Math.min(1, (practice - from) / Math.max(1, to - from)));
-}
 
 /** What the player is told they have become. Silence at nought: nobody starts as anything. */
 export function saidOf(level: number): string {

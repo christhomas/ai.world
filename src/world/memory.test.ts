@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { MIND, compact, opinionOf, regardFor } from './memory';
+import { MIND, compact, regardOn } from './memory';
 import { LIFE, foundVillage, remember, type Person } from './people';
 import { Register } from './register';
+
+/*
+ * What a villager holds about one name today, read off the villager.
+ *
+ * `opinionOf` and `regardFor` were exported one-line conveniences over the person's own list and
+ * `regardOn`, and nothing in the game ever asked either of them — item 134's answer to that is to
+ * delete them. What they were asking is still worth asking, so it is asked here, of the two things
+ * that are actually reached: the opinions on the person, and the fading rule.
+ */
+const viewOf = (person: Person, who: string, day: number) => {
+  const view = (person.opinions ?? []).find((o) => o.who === who);
+  return view ? { ...view, regard: regardOn(view, day), day } : null;
+};
+const regardOf = (person: Person, who: string, day: number) => viewOf(person, who, day)?.regard ?? 0;
 
 const TRADES = ['farmer', 'hunter', 'seller'];
 
@@ -54,13 +68,13 @@ describe('what a villager keeps', () => {
     const once = villager();
     remember(once, { what: 'feared', who: 'Blackrock', day: 10 });
 
-    const view = opinionOf(bitten, 'Blackrock', 10);
+    const view = viewOf(bitten, 'Blackrock', 10);
     expect(view, 'ten bad days down the same mine and he thinks nothing of the place').not.toBeNull();
     expect(view?.times, 'one opinion still has to be able to say how many things went into it').toBe(10);
-    expect(regardFor(bitten, 'Blackrock', 10), 'and it has to be a cold one, not a filed one')
+    expect(regardOf(bitten, 'Blackrock', 10), 'and it has to be a cold one, not a filed one')
       .toBeLessThan(-MIND.FAINTEST);
-    expect(regardFor(bitten, 'Blackrock', 10), 'ten of a thing must not feel the same as one of it')
-      .toBeLessThan(regardFor(once, 'Blackrock', 10));
+    expect(regardOf(bitten, 'Blackrock', 10), 'ten of a thing must not feel the same as one of it')
+      .toBeLessThan(regardOf(once, 'Blackrock', 10));
   });
 
   it('does not lose the first thing when the third happens, which is what the old list did', () => {
@@ -71,7 +85,7 @@ describe('what a villager keeps', () => {
 
     expect(person.memories.some((m) => m.who === 'the traveller'), 'two deep, so the gift is off the end of the list')
       .toBe(false);
-    expect(regardFor(person, 'the traveller', 1), 'and off the end of the list is not the same as never having happened')
+    expect(regardOf(person, 'the traveller', 1), 'and off the end of the list is not the same as never having happened')
       .toBeGreaterThan(0);
   });
 
@@ -81,7 +95,7 @@ describe('what a villager keeps', () => {
     remember(person, { what: 'saved', who: 'the traveller', day: 3 });
     for (let day = 6; day <= 10; day++) remember(person, { what: 'given', who: 'the traveller', day });
 
-    const view = opinionOf(person, 'the traveller', 10);
+    const view = viewOf(person, 'the traveller', 10);
     expect(view?.keenest?.what, 'eleven things happened and the one he would tell you about is the rescue')
       .toBe('saved');
     expect(view?.keenest?.day, 'kept whole, so he still has the day of it').toBe(3);
@@ -91,12 +105,12 @@ describe('what a villager keeps', () => {
   it('goes cold on its own, so nothing is held for ever by nobody being near it', () => {
     const person = villager();
     remember(person, { what: 'saved', who: 'the hero', day: 1 });
-    const atOnce = regardFor(person, 'the hero', 1);
+    const atOnce = regardOf(person, 'the hero', 1);
 
     expect(atOnce, 'somebody pulled him out from under an animal').toBeGreaterThan(0);
-    expect(regardFor(person, 'the hero', 30)).toBeLessThan(atOnce);
+    expect(regardOf(person, 'the hero', 30)).toBeLessThan(atOnce);
     const spent = 1 + Math.ceil(atOnce / MIND.FADES_A_DAY);
-    expect(regardFor(person, 'the hero', spent), 'and a season of not being seen spends it').toBe(0);
+    expect(regardOf(person, 'the hero', spent), 'and a season of not being seen spends it').toBe(0);
   });
 
   it('gets over a bad mine and does not get over a neighbour', () => {
@@ -119,7 +133,7 @@ describe('what a villager keeps', () => {
     compact(person, 20 + MIND.STILL_NEWS + 1);
     expect(person.memories, 'and past that it is worth only what it has already put into an opinion')
       .toEqual([]);
-    expect(opinionOf(person, 'Greta Vos', 100), 'which is that he lost her').not.toBeNull();
+    expect(viewOf(person, 'Greta Vos', 100), 'which is that he lost her').not.toBeNull();
   });
 
   it('writes a village down at a size that does not grow with how much happens in it', () => {

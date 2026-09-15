@@ -13,7 +13,7 @@ import { samplerIn } from './endless';
 import { Simplex2D } from './noise';
 import { countryOf, faceAt } from './localmesh';
 import {
-  KEEP_READY, PROVINCE, PROVINCE_REACH, adjoins, provinceAt, provinceCorner, provinceOf,
+  KEEP_READY, PROVINCE, PROVINCE_REACH, provinceAt, provinceCorner, provinceOf,
   provinceOfHome, provincePath, provincesNear,
 } from './provinces';
 
@@ -267,8 +267,6 @@ describe('an agent belongs to one province', () => {
       for (const e of herd.members) {
         const far = Math.hypot(e.x - herd.homeX, e.z - herd.homeZ);
         if (far > PROVINCE_REACH) strays.push(`${kindId} is ${far.toFixed(1)} tiles from home`);
-        const now = provinceOf(e.x, e.z);
-        if (!adjoins(home, now)) strays.push(`${kindId} is in ${now}, which does not touch ${home}`);
       }
       expect(provinceOfHome(herd), `${kindId} changed province over a week alone`).toBe(home);
     }
@@ -324,11 +322,4 @@ describe('an agent belongs to one province', () => {
     }
   });
 
-  it('knows which provinces touch, negative country included', () => {
-    expect(adjoins('0:0', '0:0'), 'a province does not touch itself').toBe(true);
-    expect(adjoins('0:0', '1:1'), 'a corner is a touch').toBe(true);
-    expect(adjoins('0:0', '-1:0')).toBe(true);
-    expect(adjoins('0:0', '2:0'), 'two squares with one between them').toBe(false);
-    expect(adjoins('-1:-1', '1:1')).toBe(false);
-  });
 });

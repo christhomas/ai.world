@@ -393,11 +393,6 @@ export function bandFor(seed: number, stops: readonly Stop[], home: Stop, era: n
   };
 }
 
-/** Every band a country starts with, before anybody has done anything about any of them. */
-export function planBands(seed: number, structures: Structures): Band[] {
-  const stops = stopsOf(structures);
-  return groundsOf(seed, stops).map((home) => bandFor(seed, stops, home, 0));
-}
 
 /**
  * Where a band is on a given day. Pure in the band and the day, which is the whole trick: nobody
@@ -418,18 +413,6 @@ export function bandAt(band: Band, day: number): Where {
   };
 }
 
-/** The bands standing over any of these places today, whatever sort of mood they happen to be in. */
-export function bandsOver(bands: readonly Band[], places: readonly Steading[], day: number): Band[] {
-  return bands.filter((band) => {
-    const now = bandAt(band, day);
-    return places.some((p) => Math.hypot(p.x - now.x, p.z - now.z) < ROAM.PRESS_WITHIN);
-  });
-}
-
-/** The places near enough to one spot that one person could be expected to keep an eye on them. */
-export function regionOf<T extends Steading>(places: readonly T[], x: number, z: number): T[] {
-  return places.filter((p) => Math.hypot(p.x - x, p.z - z) <= ROAM.REGION);
-}
 
 /** The bands close enough to somebody to be worth standing up in the world, nearest first. */
 export function bandsNear(bands: readonly Band[], x: number, z: number, day: number, within: number = ROAM.SIGHT): Band[] {

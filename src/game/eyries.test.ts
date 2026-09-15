@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EYRIE, SKYWARD, cragName, eyrieAt, packWeight, planEyries, tooDear, tooHeavy } from './eyries';
+import { EYRIE, SKYWARD, cragName, eyrieAt, planEyries, tooDear, tooHeavy } from './eyries';
 import type { Massif } from '../world/mountains';
 
 const range = (x: number, z: number, radius: number): Massif => ({ x, z, radius, height: 80, hollow: 0 });
@@ -83,10 +83,6 @@ describe('being spoken to by a bird', () => {
  * because it costs nothing and is answered for by the island itself: see `game/skies.ts`.
  */
 describe('the flight into the clouds', () => {
-  it('weighs a pack by what is in it, and a loaf is a loaf', () => {
-    expect(packWeight([['apple', 3], ['sword', 1]])).toBe(4);
-    expect(packWeight([['wood', 2]])).toBe(SKYWARD.HEAVY.wood * 2);
-  });
 
   it('carries an ordinary traveller without comment', () => {
     expect(tooHeavy([['apple', 4], ['bread', 2], ['sword', 1], ['rope', 1], ['potion', 3]])).toBeNull();

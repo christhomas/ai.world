@@ -2,10 +2,22 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { generateRoadGraph, islandAnchors } from './graph';
-import { countryStamp, growPatch, growWorld, patchStamp, whyCountriesDiffer } from './growworld';
+import { countryStamp, growPatch, growWorld, whyCountriesDiffer } from './growworld';
 import { PATCH, boundsOf } from './patchwork';
 import { partsOf, rebuildPatch } from './endless';
 import { TerrainSampler } from './terrain';
+
+/*
+ * One square of country, named and fingerprinted.
+ *
+ * `patchStamp` hashed exactly this string and nothing in the game ever called it — item 134's
+ * answer to that is to delete it. The hash was never what these assertions are about: what they
+ * hold is that the same square grown twice reads the same and two different squares do not, and
+ * that survives the hash being taken off the front of it. `countryStamp` is the half that is
+ * actually reached, and the name is folded in here for the reason the third case gives.
+ */
+const stampOf = (patch: string, graph: Parameters<typeof countryStamp>[0]): string =>
+  `${patch}|${countryStamp(graph)}`;
 
 /**
  * The generator has one caller, and this is what says so.
@@ -125,23 +137,23 @@ describe('the fingerprint of one square of endless country', () => {
   const within = boundsOf(square);
 
   it('is the same square however many times it is grown', () => {
-    expect(patchStamp(square, growPatch(11, within).graph))
-      .toBe(patchStamp(square, growPatch(11, within).graph));
+    expect(stampOf(square, growPatch(11, within).graph))
+      .toBe(stampOf(square, growPatch(11, within).graph));
   });
 
   it('is a different square of the same country, and the same square of another', () => {
     const next = '1,0';
-    expect(patchStamp(next, growPatch(11, boundsOf(next)).graph))
-      .not.toBe(patchStamp(square, growPatch(11, within).graph));
-    expect(patchStamp(square, growPatch(12, within).graph))
-      .not.toBe(patchStamp(square, growPatch(11, within).graph));
+    expect(stampOf(next, growPatch(11, boundsOf(next)).graph))
+      .not.toBe(stampOf(square, growPatch(11, within).graph));
+    expect(stampOf(square, growPatch(12, within).graph))
+      .not.toBe(stampOf(square, growPatch(11, within).graph));
   });
 
   it('does not read as agreement when the two halves are talking about different squares', () => {
     // the name is folded in for exactly this: two stamps that match are two halves standing on one
     // piece of ground, and never two halves that happened to hash alike about different ones
     const graph = growPatch(11, within).graph;
-    expect(patchStamp('0,0', graph)).not.toBe(patchStamp('7,-3', graph));
+    expect(stampOf('0,0', graph)).not.toBe(stampOf('7,-3', graph));
   });
 
   it('says a patch rebuilt from its parts is the same country it was grown as', () => {
@@ -154,7 +166,7 @@ describe('the fingerprint of one square of endless country', () => {
      */
     const grown = growPatch(4242, within);
     const rebuilt = rebuildPatch(4242, within, partsOf(grown));
-    expect(patchStamp(square, rebuilt.graph)).toBe(patchStamp(square, grown.graph));
+    expect(stampOf(square, rebuilt.graph)).toBe(stampOf(square, grown.graph));
   });
 });
 

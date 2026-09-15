@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOOD, cellarCap, eat, grownInADay, saidOfFood, heartsLeft, lookingForFood } from './food';
+import { FOOD, cellarCap, eat, grownInADay, heartsLeft, lookingForFood } from './food';
 import type { Person } from './people';
 
 const soul = (trade: string, purse = 50): Person => ({
@@ -110,9 +110,4 @@ describe('what a village grows', () => {
     expect(cellarCap(village(4, 12))).toBeLessThan(16 * FOOD.KEEPS_DAYS + 1);
   });
 
-  it('says something only when the store is running out', () => {
-    const folk = village(2, 6);
-    expect(saidOfFood(100, folk)).toBe('');
-    expect(saidOfFood(0, folk)).toContain('nothing');
-  });
 });

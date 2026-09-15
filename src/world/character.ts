@@ -58,10 +58,6 @@ export const TEMPER = {
   WORST: 0.95,
 } as const;
 
-/** The character of the province a point is in. */
-export function characterAt(rootSeed: number, x: number, z: number): Character {
-  return characterOf(rootSeed, provinceOf(x, z));
-}
 
 /** The character of a named province, which is the same answer asked the other way round. */
 export function characterOf(rootSeed: number, id: ProvinceId): Character {

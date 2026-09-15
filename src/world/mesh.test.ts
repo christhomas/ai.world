@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FaceKind, MESH, faceAt, generateMesh, isLand, territoryOf } from './mesh';
+import { FaceKind, MESH, faceAt, generateMesh, isLand } from './mesh';
 
 /**
  * The mesh replaces "land is anywhere near a road" with "land is inside a land face". The tests
@@ -171,7 +171,7 @@ describe('the country it makes', () => {
   it('merges neighbouring faces into one landmass rather than leaving islands', () => {
     const start = mesh.faces.find((f) => f.kind === FaceKind.Land)!;
     const land = mesh.faces.filter((f) => f.kind === FaceKind.Land);
-    expect(territoryOf(mesh, start).length).toBeGreaterThan(land.length * 0.2);
+    expect(mesh.regions[start.region].faces.length).toBeGreaterThan(land.length * 0.2);
   });
 
   it('throws off islands: dry ground with open water all the way round it', () => {
