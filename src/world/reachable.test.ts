@@ -102,10 +102,7 @@ const EXPLAINED = new Map<string, string>([
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
   ['src/world/farmbuilds.ts: whichFarmerBuilds', 'reserved for the timber-yard handoff tracked by issue #36'],
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
-  ['src/world/holdings.ts: heldBy', 'directory ownership lookup is pending in issue #49'],
-  ['src/world/holdings.ts: nameOfHolding', 'directory holding names are pending in issue #49'],
   ['src/world/postings.ts: couldStand', 'builder reassignment caller is pending in issue #33'],
-  ['src/world/postings.ts: wagesOwed', 'hall payroll caller is pending in issue #26'],
   ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
   ['src/world/vocabulary.ts: HOLDINGS', 'vocabulary tests verify every holding has words'],
 ]);
