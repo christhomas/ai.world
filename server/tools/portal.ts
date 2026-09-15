@@ -367,15 +367,13 @@ export function portalFor(options: PortalOptions) {
        */
       const wants = whatWasAsked(JSON.parse(body) as unknown);
       const started = Date.now();
-      const changed = new Set<string>();
       const id = `${started.toString(36)}-${who.slice(0, 8)}`;
       askTheWorker(options.builder, who, '/ask', body, res, 'POST', (told) => {
-        if (told.k === 'tool' && told.on) changed.add(told.on);
         if (told.k !== 'end') return;
         options.record?.({
           who, when: started, about: typeof wants === 'string' ? '' : wants.about,
           length: typeof wants === 'string' ? 0 : wants.prompt.length,
-          changed: [...changed], ok: told.ok, note: told.note,
+          changed: told.changed, ok: told.ok, note: told.note,
         }, id);
       });
       return true;

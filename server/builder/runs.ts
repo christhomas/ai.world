@@ -16,7 +16,7 @@ import type { ServerResponse } from 'node:http';
 export type Told =
   | { k: 'say'; text: string }
   | { k: 'tool'; name: string; on: string }
-  | { k: 'end'; ok: boolean; note: string };
+  | { k: 'end'; ok: boolean; note: string; changed: string[] };
 
 /** A run, as the thing holding it sees it. */
 export interface Run {
@@ -72,10 +72,10 @@ export class Runs {
    * Twice is the ordinary case rather than the exception — a process that fails emits an error and
    * then closes — and an end told twice is a page that thinks two runs happened.
    */
-  finish(run: Run, ok: boolean, note: string): void {
+  finish(run: Run, ok: boolean, note: string, changed: string[]): void {
     if (run.done) return;
     run.done = true;
-    this.tell(run, { k: 'end', ok, note });
+    this.tell(run, { k: 'end', ok, note, changed });
     for (const res of run.following) res.end();
     run.following.clear();
   }

@@ -187,11 +187,12 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
             finalNote = `the edit finished but its page did not build: ${why instanceof Error ? why.message : String(why)}`;
           }
         }
-        runs.finish(run, finished, finalNote);
+        const changed = changedIn(worktree);
+        runs.finish(run, finished, finalNote, changed);
         tree.release();
         options.onFinished?.(id, {
           who, when: started, about: asked.about, length: asked.prompt.length,
-          changed: changedIn(worktree), ok: finished, note: finalNote,
+          changed, ok: finished, note: finalNote,
         });
       })();
     };

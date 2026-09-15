@@ -204,8 +204,8 @@ describe('a run somebody is following', () => {
     const run = runs.begin('r1', 'chris', 'wolf');
     const watching = reader();
     runs.follow(run, watching.res, 0);
-    runs.finish(run, false, 'broke');
-    runs.finish(run, true, 'no it did not');
+    runs.finish(run, false, 'broke', []);
+    runs.finish(run, true, 'no it did not', []);
     expect(watching.written.filter((line) => line.includes('"k":"end"'))).toHaveLength(1);
     expect(watching.written.join('')).toContain('broke');
   });
@@ -213,7 +213,7 @@ describe('a run somebody is following', () => {
   it('closes a follower straight away when the run is already over', () => {
     const runs = new Runs();
     const run = runs.begin('r1', 'chris', 'wolf');
-    runs.finish(run, true, 'done');
+    runs.finish(run, true, 'done', []);
     const after = reader();
     runs.follow(run, after.res, 0);
     expect(after.ended).toBe(true);
@@ -222,7 +222,7 @@ describe('a run somebody is following', () => {
 
   it('still has the last run for a page reloaded after the end', () => {
     const runs = new Runs();
-    runs.finish(runs.begin('r1', 'chris', 'wolf'), true, 'done');
+    runs.finish(runs.begin('r1', 'chris', 'wolf'), true, 'done', []);
     runs.begin('r2', 'chris', 'bear');
     expect(runs.find('r1'), 'the one before last is still readable').not.toBeNull();
     expect(runs.latest?.id).toBe('r2');
