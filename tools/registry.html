@@ -105,7 +105,8 @@
  */
 const $ = (id) => document.getElementById(id);
 const seen = new URLSearchParams(location.search);
-$('where').value = seen.get('at') ?? location.origin.replace(/\/$/, '');
+const throughPortal = location.pathname.replace(/\/+$/, '') === '/tools/registry';
+if ($('where')) $('where').value = seen.get('at') ?? location.origin.replace(/\/$/, '');
 $('seed').value = seen.get('seed') ?? '';
 
 /** A bar and a number, the same way the game's own HUD draws health. */
@@ -186,10 +187,11 @@ function draw(book) {
 }
 
 async function ask() {
-  const at = $('where').value.replace(/\/$/, '');
+  const at = $('where')?.value.replace(/\/$/, '') ?? '';
   const seed = $('seed').value.trim();
-  const token = $('token').value.trim();
-  const url = `${at}/registry${seed ? `?seed=${encodeURIComponent(seed)}` : ''}`;
+  const token = $('token')?.value.trim() ?? '';
+  const root = throughPortal ? '/tools/registry/data' : `${at}/registry`;
+  const url = `${root}${seed ? `?seed=${encodeURIComponent(seed)}` : ''}`;
   const keep = new URLSearchParams({ at, ...(seed ? { seed } : {}) });
   history.replaceState(null, '', `?${keep}`);
   try {
@@ -216,7 +218,7 @@ async function ask() {
 
 $('ask').addEventListener('click', ask);
 for (const id of ['where', 'token', 'seed']) {
-  $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); });
+  $(id)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); });
 }
 
 /*
@@ -230,7 +232,7 @@ $('live').addEventListener('change', (e) => {
   clearInterval(timer);
   if (e.target.checked) { ask(); timer = setInterval(ask, 2000); }
 });
-if (seen.get('at')) ask();
+if (throughPortal || seen.get('at')) ask();
 </script>
 </body>
 </html>

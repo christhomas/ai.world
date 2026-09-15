@@ -18,7 +18,7 @@ import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Person } from '../src/world/people';
-import { HeldMinds, keepMinds, mindsOf } from './durable/minds';
+import { HeldMinds, forgetMind, keepMinds, mindsOf } from './durable/minds';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
 import { countryStamp, growPatch, growWorld } from '../src/world/growworld';
@@ -267,6 +267,7 @@ export class Simulation {
     const folk = peopleOf(seed, country, Math.floor(room?.world.clock.day ?? 1), {
       onFallen: (who, id) => this.buried(seed, who, id),
       onArrest: (by, whom) => this.tellOfArrest(seed, by, whom),
+      onDeparted: (change) => this.forgetTheMind(seed, change.id),
     });
     this.folk.set(seed, folk);
     const alive = new Wildlife(seed, grown, grown, folk);
@@ -291,7 +292,11 @@ export class Simulation {
      */
     if (this.minds) {
       const { minds, unreadable } = mindsOf(this.minds, seed);
-      this.held.set(seed, new HeldMinds(minds));
+      const waiting = new HeldMinds(minds);
+      // A replay can already have settled villages. Restore those people before welcome() admits a
+      // client; the held copy remains for villages that are grown lazily later.
+      waiting.giveTo(everybodyIn(folk.register));
+      this.held.set(seed, waiting);
       if (unreadable.length > 0) {
         // said out loud rather than swallowed: a villager who has forgotten you is a thing somebody
         // should be told about, and a silent loss is the whole complaint behind 129 and 135
@@ -467,6 +472,14 @@ export class Simulation {
         // stretch of absence that started before anybody had actually gone.
         room.world.keepNear([]);
         this.rooms.close(seed);
+        const folk = this.folk.get(seed);
+        if (this.minds && folk) {
+          try {
+            keepMinds(this.minds, seed, everybodyIn(folk.register));
+          } catch (why) {
+            console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
+          }
+        }
         this.ground.delete(seed);
         this.folk.delete(seed);
         this.held.delete(seed);
@@ -611,6 +624,15 @@ export class Simulation {
     room.world.apply(delta);
     this.rooms.broadcast(seed, { type: 'delta', delta, from: '' });
     this.rooms.broadcast(seed, { type: 'killed', place: 'surface', id, by: '' });
+  }
+
+  /** Remove only a recorded departure; rows for people whose village is not settled stay held. */
+  private forgetTheMind(seed: number, id: string): void {
+    if (!this.minds) return;
+    try { forgetMind(this.minds, seed, id); }
+    catch (why) {
+      console.error(`world ${seed}: could not forget departed villager ${id} — ${String(why)}`);
+    }
   }
 
   /**

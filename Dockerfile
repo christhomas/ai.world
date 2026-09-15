@@ -58,6 +58,7 @@ COPY src ./src
 COPY animations ./animations
 COPY behaviours ./behaviours
 COPY properties ./properties
+COPY tools ./tools
 # the bodies, which the server needs for the same reason the properties: it spawns the creatures,
 # and the box each one blocks is measured off the parts it is drawn with rather than written down
 COPY models ./models
@@ -72,7 +73,6 @@ COPY vite.config.ts index.html ./
 # plugin is `apply: 'serve'` — but the config is bundled before it is read, and a bundler resolves
 # an import whether or not it will ever be called. Without this the page build fails with "module
 # not found" and says nothing about which module or why.
-COPY tools ./tools
 COPY art ./art
 RUN mkdir -p /page && if [ "${WITH_PAGE}" = "true" ]; then \
       BASE=/ pnpm exec vite build --sourcemap "${PAGE_SOURCEMAPS}" --outDir /page --emptyOutDir; \

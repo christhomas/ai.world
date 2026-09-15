@@ -9,6 +9,7 @@ import type { TerrainSampler } from '../src/world/terrain';
 import type { Village } from '../src/world/structures';
 import type { Entity } from '../src/entities/entity';
 import type { Folk, Standing } from './wildlife';
+import type { Change } from '../src/world/settlement';
 
 /**
  * Who lives in a world the server is holding, and everything a village needs in order to be a
@@ -51,10 +52,12 @@ export function peopleOf(
     onFallen: (who: Entity, id: number) => void;
     /** A constable has taken one of the players in. */
     onArrest: (by: number, whom: Standing) => void;
+    /** A recorded death has removed one person from the living register. */
+    onDeparted?: (change: Change) => void;
   },
 ): Folk & { catchUp: () => void } {
   const country: Country = 'forChunk' in ground ? ground : oneCountry(ground);
-  const register = new Register(seed, day);
+  const register = new Register(seed, day, told.onDeparted);
 
   /*
    * Everything the world has walked into so far, and what it is made of.
