@@ -116,6 +116,25 @@
   height: var(--list-row); flex: 0 0 var(--list-row);
   border-bottom: var(--ui-scale) solid var(--rule); border-radius: 0;
 }
+/*
+ * A row that carries something which wraps is as tall as what it carries.
+ *
+ * The shared geometry is a *floor*, not a ceiling, and it was being read as both. A dialogue choice
+ * with a note under it — "a shop note runs to nine words and a phone is 96vw wide", as the note's
+ * own comment says — is content that wraps inside a row fixed at forty-four, so on a narrow screen
+ * it drew over the choice beneath it. The same is true of an options row whose control is a
+ * touch-sized one: the control is deliberately taller than the row it sits in.
+ *
+ * `min-height` and an auto basis, so every plain row is exactly the height it always was and only
+ * the ones actually carrying more take more. `:has()` is what makes that a fact about the row's
+ * content rather than a class somebody has to remember to add in two files.
+ */
+.list-row:has(.dlg-note),
+.list-row:has(.opt-hint),
+body.touch .list-row:has(select),
+body.touch .list-row:has(input[type="range"]) {
+  height: auto; min-height: var(--list-row); flex: 0 0 auto;
+}
 .list-scroll { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 body { background: var(--surface); overflow: hidden; font-family: var(--face); }
 #gameContainer { width: 100vw; height: 100vh; }
