@@ -72,6 +72,26 @@ export interface Joining {
 }
 
 /**
+ * Which server a link points at, as the one string that identifies it.
+ *
+ * The origin, so the same server written two ways is one answer — and lower-cased, because a host
+ * name is not case-sensitive and a save that depended on how somebody typed it would be a save
+ * they lose by typing it differently the next time.
+ */
+export function serverOf(url: URL): string {
+  const said = url.searchParams.get('server');
+  if (!said) return 'here';
+  try {
+    const at = new URL(said);
+    at.protocol = at.protocol === 'wss:' ? 'https:' : at.protocol === 'ws:' ? 'http:' : at.protocol;
+    return at.origin.toLocaleLowerCase('en-US');
+  } catch {
+    // not a URL anybody can reach, which `namedWorldFromLink` will refuse in a moment anyway
+    return said.toLocaleLowerCase('en-US');
+  }
+}
+
+/**
  * The link that puts somebody else in this world, on this server.
  *
  * A pure function of the four things it is made of, so it can be checked without a browser: where
@@ -162,13 +182,31 @@ export function joinAWorld(ctx: Joining): void {
   linkBox.addEventListener('focus', () => linkBox.select());
   linkBox.addEventListener('click', () => linkBox.select());
 
-  $('inviteButton').addEventListener('click', () => {
+  $('inviteButton').addEventListener('click', () => { void invite(); });
+
+  async function invite(): Promise<void> {
     const address = serverInput.value.trim();
-    // Publishing a name also claims it on the named server. Otherwise the link could be copied
-    // before the world record it asks the server to resolve existed.
+    /*
+     * Publishing a name also claims it on the named server, and the claim is a round trip.
+     *
+     * The link used to be shown and copied in the same breath as the connect that claims the name,
+     * so a recipient quick enough — or on a fast enough network — followed it before the server had
+     * the record, asked `/world` for a name that did not exist yet, and was told the world was not
+     * there. The sender saw nothing wrong at all.
+     *
+     * So the link waits for the claim. `online.connected` is set when the server admits us, which
+     * is after `claimWorld` has either written the record or refused; and the wait is bounded,
+     * because a server that never answers must not leave somebody looking at a button that does
+     * nothing.
+     */
     if (worldName && address && !online.away) {
       online.connect(address, seed, nameInput.value || 'Traveller', { day: state.day, time: state.time }, world, here(), worldName);
       showChat();
+      flash(`Claiming “${worldName}” on that server…`);
+      if (!await claimed(() => online.away)) {
+        flash('That server did not answer, so the name is not claimed yet — the link is not ready.');
+        return;
+      }
     }
     const href = inviteTo(window.location.href, seed, address, worldName);
     /*
@@ -185,8 +223,31 @@ export function joinAWorld(ctx: Joining): void {
     // a page served over https cannot open a plain ws:// socket, so an invite carrying one is a
     // dead link for everybody who follows it from the published site
     const blocked = window.location.protocol === 'https:' && href.includes('server=ws%3A%2F%2F');
-    void navigator.clipboard.writeText(href)
+    await navigator.clipboard.writeText(href)
       .then(() => flash(blocked ? 'Link copied, but a ws:// address will not open from an https page — use wss://' : 'Invite link copied'))
       .catch(() => { linkBox.select(); flash('Here is the link — copy it from the box'); });
-  });
+  }
+}
+
+/**
+ * Wait until the name has been claimed, or give up saying so.
+ *
+ * Bounded on purpose, and short: this runs while somebody is looking at a button they have just
+ * pressed. A server that is slow is indistinguishable from one that is not there, and the honest
+ * thing to tell somebody after a few seconds is that it did not answer — not to hand them a link
+ * whose name may never have been written.
+ *
+ * Handed its clock rather than reaching for one, so the wait can be tested without spending it.
+ */
+export async function claimed(
+  yet: () => boolean,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((go) => setTimeout(go, ms)),
+  within = 8000,
+  step = 100,
+): Promise<boolean> {
+  for (let spent = 0; spent < within; spent += step) {
+    if (yet()) return true;
+    await wait(step);
+  }
+  return yet();
 }
