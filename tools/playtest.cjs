@@ -278,9 +278,18 @@ const finish = async () => {
    * `__ride` exists because mounting is only reachable through a stable's dialogue: a person does
    * that in ten seconds and a script cannot do it at all.
    */
-  const rode = await page.evaluate(() => window.__ride(true));
-  say('the hero can get on a horse', rode && rode.riding === true, JSON.stringify(rode));
   await go(approach.x, approach.z);
+  /*
+   * Mount after `go`: the probe uses the game's teleport command, and teleporting correctly lets
+   * go of a horse rather than carrying it across the country. Mounting first made this test walk
+   * the wall on foot while an abandoned horse stood at the previous check, 8.79 tiles away.
+   */
+  const rode = await page.evaluate(() => window.__ride(true));
+  await page.waitForTimeout(150);
+  const carried = await page.evaluate(() => window.__mount());
+  const under = carried?.under;
+  say('the hero can get on a horse', rode && rode.riding === true && carried.horse !== null && typeof under === 'number' && under < 0.1,
+    `${JSON.stringify(rode)}, horse ${typeof under === 'number' ? under.toFixed(2) : 'not'} tiles under rider`);
   await face(house.x, house.z);
   await walk('w', 5000);
   const rider = await at();
