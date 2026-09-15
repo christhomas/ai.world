@@ -17,10 +17,10 @@ describe('the label on the contextual action card', () => {
   it('names boarding at a dock and the timetable/boat dialogue at an empty pier', () => {
     const player = { x: .5, z: .5 };
     const state = { day: 1, time: 0 };
-    let opened: { speaker: string; choices?: Array<{ label: string }> } | null = null;
+    const opened: { page: { speaker: string; choices?: Array<{ label: string }> } | null } = { page: null };
     const travel = travelInteractions({
       player, state, sailing: new Sailing(), ferries: [{ line: crossing }],
-      dialogue: { start: (page: typeof opened) => { opened = page; } },
+      dialogue: { start: (page: typeof opened.page) => { opened.page = page; } },
     } as never);
 
     expect(travel.tryFerry(true)).toBe(true);
@@ -30,8 +30,8 @@ describe('the label on the contextual action card', () => {
     expect(travel.tryFerry(true)).toBe(true);
     expect(travel.ferryLabel()).toBe('Check ferry times or buy a boat');
     expect(travel.tryFerry()).toBe(true);
-    expect(opened?.speaker).toBe('Timetable');
-    expect(opened?.choices?.map((choice) => choice.label)).toContain('Ask after a boat of your own');
+    expect(opened.page?.speaker).toBe('Timetable');
+    expect(opened.page?.choices?.map((choice) => choice.label)).toContain('Ask after a boat of your own');
   });
 
   it('lets an owned hull claim both the preview and the press beside a ferry pier', () => {
