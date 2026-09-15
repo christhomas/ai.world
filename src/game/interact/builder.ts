@@ -626,7 +626,7 @@ export function builderInteractions(ctx: Surroundings) {
     for (const village of register.settled()) {
       const before = houses.yard.at(village);
       houses.yard.felledThrough(village, woodcuttersFor(register.living(village)), day);
-      const stable = register.commissionStable(village, houses.yard, state.day);
+      const stable = register.commissionStable(village, houses.yard);
       if (stable) houses.rememberStablePurchase(stable);
       if (stable || houses.yard.at(village) !== before) yardChanged = true;
       for (const job of houses.startBacklog(village, day)) {
