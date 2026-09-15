@@ -4,6 +4,9 @@ A deployment is a commit somebody can point at. That is the whole idea, and ever
 from it: if the version, the tag, the chart and the image do not all name the same moment, the
 history stops being something you can go back to.
 
+This is the step that follows `docs/pull-request.md`: a release turns a batch of PRs just landed on
+`main` into a deployed version, and its changelog is generated from exactly those merged PRs.
+
 ```
 chore release 0.3.0 "mountains you can walk round, and the world's own creatures"
 chore release minor "..."      # or major, or patch
