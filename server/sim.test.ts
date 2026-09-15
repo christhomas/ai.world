@@ -295,8 +295,8 @@ describe('the simulation holding the ground itself', () => {
     expect(mindsOf(db, 3).minds.has(person.id), 'nothing has asked for a save yet').toBe(false);
 
     rowan.leave();
-    sim.tick(Date.now() + 100);
-    expect(mindsOf(db, 3).minds.get(person.id)?.memories[0]?.who).toBe('Rowan');
+    expect(mindsOf(db, 3).minds.get(person.id)?.memories[0]?.who,
+      'the orderly leave closes the room immediately, so the save must precede it').toBe('Rowan');
   });
 
   it('deletes a durable mind when a recorded death removes its owner', () => {
