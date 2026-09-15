@@ -618,6 +618,16 @@ describe('telling players what is alive near them', () => {
     const after = updates.at(-1)!;
     expect(updates.flatMap((message) => message.gone).length,
       'the country they left is taken off their screen').toBeGreaterThan(0);
+    /*
+     * Somebody has to be there for the distances to be about anything.
+     *
+     * `every` is `true` of an empty array, so the claim below — that nothing on their screen is
+     * still back where they came from — is satisfied by a screen with nothing on it at all. That
+     * is the failure this test would be most likely to see: a teleport four thousand tiles out
+     * that lands somewhere the world has not grown any creatures into. The vacuous pass reads
+     * exactly like a correct one.
+     */
+    expect(after.near.length, 'the new country introduced no nearby creatures').toBeGreaterThan(0);
     expect(after.near.every((creature) => Math.hypot(creature.x, creature.z) > 3_000),
       'the new country was confused with the one left behind').toBe(true);
   });
