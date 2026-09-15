@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { whatIsDirty } from './fallbackguard';
+import { whatIsDirty, type Dirty } from './fallbackguard';
 
 /**
  * Whether it is safe to start work in this checkout.
@@ -40,9 +40,26 @@ import { whatIsDirty } from './fallbackguard';
  */
 export const WRITTEN_BY_A_BENCH: readonly string[] = ['sanity-report.txt'];
 
+/**
+ * How a bench leaves its own report, and the only way one of those files is excused.
+ *
+ * `chore sanity` runs, writes its reading over the tracked copy, and stops. That is an unstaged
+ * worktree modification and nothing else: the index is untouched, the file is still there, and it
+ * is still where it was. Every other porcelain status that file can carry is somebody having
+ * decided something about it — staged for a commit, deleted, moved — and those are exactly the
+ * afternoons this guard exists to refuse to walk over.
+ *
+ * The exception was a path-only filter to begin with, so it waved all of those through; a rename
+ * was caught only by the coincidence that it dirties a second path which is not on the list. See
+ * #219.
+ */
+const A_BENCHS_OWN_SCRIBBLE = ' M';
+
 /** What of the uncommitted work is somebody's, as opposed to a bench's own output. */
-export function worthStopping(dirty: readonly string[]): string[] {
-  return dirty.filter((path) => !WRITTEN_BY_A_BENCH.includes(path));
+export function worthStopping(dirty: readonly Dirty[]): string[] {
+  return dirty
+    .filter((what) => !(WRITTEN_BY_A_BENCH.includes(what.path) && what.status === A_BENCHS_OWN_SCRIBBLE))
+    .map((what) => what.path);
 }
 
 /** What is in the tree that nobody has committed, and who else might be holding it. */
