@@ -309,7 +309,8 @@ describe('the builder behind the portal', () => {
 
     const book = await (await fetch(at('/tools/build/book'), { headers: { cookie } })).text();
     expect(book, 'the book is available to the full builder page').toContain('wolf');
-    expect(book, 'the file the run touched').toContain('src/entities/animals.ts');
+    expect(book, 'the file Git says the run actually changed').toContain('changed.txt');
+    expect(book, 'not a file a tool merely claimed to touch').not.toContain('src/entities/animals.ts');
     expect(book, 'and never the prompt itself').not.toContain('make the wolf bigger');
   }, PATIENCE);
 
