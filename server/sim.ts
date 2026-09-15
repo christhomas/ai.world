@@ -828,9 +828,7 @@ export class Simulation {
       : undefined;
     if (message.worldName !== undefined) {
       try {
-        // `requestedIslands` and not `?? []`: a join that said nothing about its islands must not
-        // freeze the name with an empty manifest. See `claim`
-        record = this.rooms.claimWorld(message.worldName, requestedSeed, requestedKind, requestedIslands);
+        record = this.rooms.claimWorld(message.worldName, requestedSeed, requestedKind, requestedIslands ?? []);
       } catch (error) {
         const reason = error instanceof WorldRecordConflict ? error.message : 'That world name could not be opened.';
         wire.send(JSON.stringify({ type: 'error', reason } satisfies ServerMessage));
