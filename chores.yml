@@ -268,6 +268,14 @@ tasks:
     desc: Excuses for unreached exports that have outlived the issue they name — asks GitHub, so it needs a token
     cmds:
       - 'pnpm tsx tools/staleexcuses.ts'
+  # The first thing a session should run in a checkout it did not just make. Several agent sessions
+  # were run against one tree at once and the result was not a merge conflict — it was two
+  # afternoons, including two implementations of the same function in the same file with different
+  # rules, neither of which knew about the other. See item 137 and `tools/sharedtree.ts`.
+  tree:
+    desc: Whether it is safe to start work in this checkout, or somebody else's uncommitted work is in it
+    cmds:
+      - 'pnpm tsx tools/sharedtree.ts'
 
   fallbacks:
     desc: Which fallback expressions or exported parameter defaults are taken every single time

@@ -1,0 +1,119 @@
+import { describe, expect, it } from 'vitest';
+import { nameFor, otherCheckouts, theWorktreeToTake, verdictOn, worthStopping } from './sharedtree';
+
+/**
+ * Whether it is safe to start work in this checkout.
+ *
+ * Item 137: several sessions wrote to one working tree at once and the result was not a merge
+ * conflict but two afternoons — including two implementations of the same function, in the same
+ * file, with different rules, neither of which knew about the other. The answer the item prefers is
+ * the cheap one: a session that finds the tree dirty on entry stops.
+ */
+describe('what to do on walking into a checkout', () => {
+  it('carries on where nothing is uncommitted', () => {
+    expect(verdictOn({ dirty: [], elsewhere: [] }).stop).toBe(false);
+  });
+
+  /*
+   * Other checkouts are not a reason to stop. A worktree each is the *answer*, so a repository with
+   * six of them is a repository doing the right thing — it would be perverse to refuse over it.
+   */
+  it('carries on where other checkouts exist but this one is clean', () => {
+    const said = verdictOn({ dirty: [], elsewhere: ['/tmp/a', '/tmp/b'] });
+    expect(said.stop).toBe(false);
+    expect(said.say.join(' ')).toContain('2 other worktrees');
+  });
+
+  it('stops on a dirty tree, and names what it found', () => {
+    const said = verdictOn({ dirty: ['src/game/timber.ts', 'tools/release.ts'], elsewhere: [] });
+    expect(said.stop).toBe(true);
+    expect(said.say.join('\n')).toContain('src/game/timber.ts');
+    expect(said.say.join('\n')).toContain('tools/release.ts');
+  });
+
+  /*
+   * Dirty is the whole of the test. Knowing whether another session is *attached* is a guess about
+   * intent; uncommitted work belonging to nobody named is a fact, and it is the fact that gets
+   * thrown away by the next reset.
+   */
+  it('stops on a dirty tree even when it is the only checkout there is', () => {
+    expect(verdictOn({ dirty: ['docs/worklist.md'], elsewhere: [] }).stop).toBe(true);
+  });
+
+  it('says how to get a checkout of your own rather than only saying no', () => {
+    const said = verdictOn({ dirty: ['a.ts'], elsewhere: [] }).say.join('\n');
+    expect(said).toContain('git worktree add');
+  });
+});
+
+describe('the checkout to take instead', () => {
+  it('is named after the work', () => {
+    expect(theWorktreeToTake('deeds')).toBe('git worktree add ../ai.world-deeds -b deeds origin/main');
+  });
+
+  /*
+   * The name ends up in a path one directory up, so a dot is the one character worth refusing that
+   * a branch name would otherwise allow: `..` is the thing that stops meaning what it looks like.
+   */
+  it('will not be talked into a path out of a name', () => {
+    expect(nameFor('../../etc/passwd')).toBe('etc-passwd');
+    expect(theWorktreeToTake('../../etc/passwd')).toBe(
+      'git worktree add ../ai.world-etc-passwd -b etc-passwd origin/main');
+  });
+
+  it('makes one word out of several', () => {
+    expect(theWorktreeToTake('a name with spaces')).toBe(
+      'git worktree add ../ai.world-a-name-with-spaces -b a-name-with-spaces origin/main');
+  });
+
+  it('has something to call a session that gave no name worth having', () => {
+    expect(nameFor('!!!')).toBe('session');
+    expect(theWorktreeToTake('!!!')).toContain('ai.world-session');
+  });
+});
+
+describe('the other checkouts of this repository', () => {
+  const listed = [
+    'worktree /Volumes/x/ai.world',
+    'HEAD abc',
+    'branch refs/heads/main',
+    '',
+    'worktree /tmp/ai.world-deeds',
+    'HEAD def',
+    'branch refs/heads/deeds',
+    '',
+  ].join('\n');
+
+  it('are every one but the one being asked about', () => {
+    expect(otherCheckouts(listed, '/Volumes/x/ai.world')).toEqual(['/tmp/ai.world-deeds']);
+  });
+
+  it('are all of them when asked from somewhere else entirely', () => {
+    expect(otherCheckouts(listed, '/nowhere')).toHaveLength(2);
+  });
+
+  it('are none when this is the only one', () => {
+    expect(otherCheckouts('worktree /only\nHEAD abc\n', '/only')).toEqual([]);
+  });
+});
+
+/**
+ * And what is not worth stopping over.
+ *
+ * A guard that fires on the report the bench you just ran wrote is a guard somebody turns off in a
+ * week — the same failure #81 and #98 both name, from the other end.
+ */
+describe('what of the dirt is somebody\'s work', () => {
+  it('is not the report a bench rewrites every run', () => {
+    expect(worthStopping(['sanity-report.txt'])).toEqual([]);
+  });
+
+  it('is everything else, including a file beside it', () => {
+    expect(worthStopping(['sanity-report.txt', 'src/world/homes.ts']))
+      .toEqual(['src/world/homes.ts']);
+  });
+
+  it('leaves a source file with a report-ish name alone', () => {
+    expect(worthStopping(['tools/sanity-report.txt'])).toEqual(['tools/sanity-report.txt']);
+  });
+});
