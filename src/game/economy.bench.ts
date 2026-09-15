@@ -322,7 +322,7 @@ export function liveForward(seed: number, days = DAYS): Run {
     for (const regime of VILLAGES) {
       const people = register.living(regime.village);
       timber.felledThrough(regime.village, people.filter((person) => person.trade === 'woodcutter').length, day);
-      register.commissionStable(regime.village, timber, day);
+      register.commissionStable(regime.village, timber);
     }
     const walked = register.advance(day);
 
