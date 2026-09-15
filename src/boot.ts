@@ -1,4 +1,5 @@
 import { IndexedDbStore } from './save/store';
+import { serverOf } from './game/joining';
 import type { SessionSave } from './save/store';
 import type { WorldRecord } from '../server/protocol';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
@@ -38,7 +39,15 @@ export async function boot(): Promise<void> {
   if (named) {
     seed = named.seed;
     worldName = named.name;
-    slotKey = `ai.world/named/${named.name.toLocaleLowerCase('en-US')}`;
+    /*
+     * Scoped by the server as well as the name, because a name is only unique on the server that
+     * issued it. Two people can each run a world called "Ashford"; a key of the name alone hands
+     * the second one the first one's save, and the world underneath is a different country.
+     *
+     * The server's origin rather than the whole address: a link written `wss://…/` and one written
+     * `https://…/play` reach the same server and must reach the same save.
+     */
+    slotKey = `ai.world/named/${serverOf(url)}/${named.name.toLocaleLowerCase('en-US')}`;
     saved = await store.load<SessionSave>(slotKey);
     if (saved?.seed !== seed) saved = undefined;
     const localAnchors = saved?.manifest?.anchors.filter((anchor) => anchor.kind !== 'island') ?? [];

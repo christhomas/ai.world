@@ -237,6 +237,7 @@ export class Simulation {
     const folk = peopleOf(seed, country, Math.floor(room?.world.clock.day ?? 1), {
       onFallen: (who, id) => this.buried(seed, who, id),
       onArrest: (by, whom) => this.tellOfArrest(seed, by, whom),
+      onDeparted: (change) => this.forgetTheMind(seed, change.id),
     });
     this.folk.set(seed, folk);
     const alive = new Wildlife(seed, grown, grown, folk);
@@ -251,6 +252,28 @@ export class Simulation {
           kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
         });
       } else if (delta.kind === 'voted' || delta.kind === 'sworn') folk.register.apply(delta);
+    }
+    /*
+     * And what the people of this world hold, which the seed cannot grow back.
+     *
+     * Here, and not a line earlier or later: the register has just been built and caught up with
+     * the told facts, and nobody has been admitted yet. Earlier there would be no people to put it
+     * into; later the first player through the door meets a village that has forgotten them.
+     */
+    if (this.minds) {
+      const { minds, unreadable } = mindsOf(this.minds, seed);
+      const waiting = new HeldMinds(minds);
+      // A replay can already have settled villages. Restore those people before welcome() admits a
+      // client; the held copy remains for villages that are grown lazily later.
+      waiting.giveTo(everybodyIn(folk.register));
+      this.held.set(seed, waiting);
+      if (unreadable.length > 0) {
+        // said out loud rather than swallowed: a villager who has forgotten you is a thing somebody
+        // should be told about, and a silent loss is the whole complaint behind 129 and 135
+        console.error(`world ${seed}: ${unreadable.length} villagers' memories would not read back`
+          + ` and were left behind — ${unreadable.slice(0, 5).join(', ')}`);
+      }
+      if (minds.size > 0) console.log(`world ${seed}: ${minds.size} villagers remember somebody`);
     }
     alive.syncBuildings();
     // C2's coarse tier, joined up. A herd belongs to the province its home is in and never to the
@@ -343,6 +366,30 @@ export class Simulation {
     this.ticker = null;
     this.clockTicker = null;
     this.rooms.saveAll();
+    this.keepTheMinds();
+  }
+
+  /**
+   * Write down what every villager of every open world holds.
+   *
+   * Alongside `saveAll`, and for the same reason it exists: the world's own JSON and this are two
+   * halves of one save, and a restart between them is a world whose told facts and whose
+   * memories disagree about which day it is.
+   */
+  keepTheMinds(): void {
+    if (!this.minds) return;
+    for (const [seed] of this.folk) this.keepMindsOf(seed);
+  }
+
+  /** Save one live register, shared by shutdown, timeout teardown, and an orderly final leave. */
+  private keepMindsOf(seed: number): void {
+    const folk = this.folk.get(seed);
+    if (!this.minds || !folk) return;
+    try { keepMinds(this.minds, seed, everybodyIn(folk.register)); }
+    catch (why) {
+      // a save that throws must not prevent the room and its sockets from being closed
+      console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
+    }
   }
 
   /**
@@ -381,6 +428,7 @@ export class Simulation {
       },
       leave: () => {
         if (!client) return;
+        if (this.rooms.get(client.seed)?.clients.size === 1) this.keepMindsOf(client.seed);
         this.rooms.leave(client);
         client = null;
       },
@@ -407,8 +455,11 @@ export class Simulation {
         // stretch of absence that started before anybody had actually gone.
         room.world.keepNear([]);
         this.rooms.close(seed);
+        this.keepMindsOf(seed);
         this.ground.delete(seed);
         this.folk.delete(seed);
+        this.held.delete(seed);
+        this.stamps.delete(seed);
         this.wildlife.delete(seed);
         this.rooms.forgetGround(seed);
         continue;
@@ -420,6 +471,14 @@ export class Simulation {
       // in one of their streets. Costs one set lookup per patch held in a world nobody is
       // exploring, which is every tick of a road world for ever. See `server/people.ts`.
       this.folk.get(seed)?.catchUp();
+      /*
+       * And whoever has just been settled gets what was kept for them, before anybody can talk to
+       * them. A village is lived when somebody walks into it, so this is the moment its people
+       * first exist — see `HeldMinds`, which gives each of them theirs exactly once.
+       */
+      const waiting = this.held.get(seed);
+      const folk = this.folk.get(seed);
+      if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
       // The book catches up before anybody walks a villager anywhere. A day turning over buries the
       // old, fills the gaps, grows the children up and pays everybody for a day's work, and the
       // street is brought back into line with it on the next step — so the order is the register
@@ -466,7 +525,12 @@ export class Simulation {
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {
-          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow);
+          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow, () => {
+            // `alive.step` is what first puts a village's residents on its register. Restore them
+            // before `tellAboutCreatures` introduces the people to a client, which is the first
+            // moment that client can know an id well enough to change its mind.
+            if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
+          });
         }
       }
       this.stepFloors(seed, room, seconds, tellNow);
@@ -494,6 +558,7 @@ export class Simulation {
    */
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
+    beforeTell?: () => void,
   ): void {
     // Each of them as much of a player as the creatures need: where, what they are wearing, and how
     // badly the law wants them. The object is the client's own and is refreshed rather than remade,
@@ -512,6 +577,7 @@ export class Simulation {
       const bitten = who.find((c) => c.standing === bite.who);
       if (bitten) this.rooms.send(bitten, { type: 'bitten', place, id: bite.id, damage: bite.damage });
     }
+    beforeTell?.();
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
     if (tell) this.tellAboutCreatures(alive, place, who, null);
@@ -541,6 +607,15 @@ export class Simulation {
     room.world.apply(delta);
     this.rooms.broadcast(seed, { type: 'delta', delta, from: '' });
     this.rooms.broadcast(seed, { type: 'killed', place: 'surface', id, by: '' });
+  }
+
+  /** Remove only a recorded departure; rows for people whose village is not settled stay held. */
+  private forgetTheMind(seed: number, id: string): void {
+    if (!this.minds) return;
+    try { forgetMind(this.minds, seed, id); }
+    catch (why) {
+      console.error(`world ${seed}: could not forget departed villager ${id} — ${String(why)}`);
+    }
   }
 
   /**
@@ -795,3 +870,14 @@ export class Simulation {
 }
 
 export { DAY_LENGTH };
+
+/**
+ * Everybody a register is holding, across every village it has settled.
+ *
+ * The register answers per village because that is how a village is lived; the durable half wants
+ * the world. One place that turns the first into the second, so the save and the restore cannot
+ * come to different answers about who is in this world.
+ */
+function everybodyIn(register: { living(village: string): readonly Person[]; settled(): readonly string[] }): Person[] {
+  return register.settled().flatMap((village) => [...register.living(village)]);
+}

@@ -26,8 +26,8 @@ import type { Within } from './window';
  * walk heroes across it.
  *
  * That is three callers of the same generator, which is exactly the shape that has twice put a
- * player in a country nobody else could see. So it goes through here for the same reason
- * `growWorld` does: every argument a patch is a function of is an argument to this, there is no
+ * player in a country nobody else could see. Every argument a patch is a function of is therefore
+ * an argument to this; there is no
  * second expression anywhere that could say it differently, and `growworld.test.ts` fails the build
  * if one appears.
  *
@@ -48,7 +48,7 @@ export function growPatch(seed: number, within: Within): TerrainSampler {
  * side from its own graph, and they are right only for as long as the two graphs are the same
  * graph.
  *
- * `growWorld` above is what makes them the same. This is what proves it, at the one moment it can
+ * `growPatch` above is what makes them the same. This is what proves it, at the one moment it can
  * be proved cheaply: the world sends its own fingerprint when a player joins and the page compares
  * it with its own. Equal means the two halves are demonstrably in one country rather than
  * presumably in one. Different means something the game could otherwise only find out as a hero
