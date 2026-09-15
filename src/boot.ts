@@ -5,6 +5,7 @@ import type { WorldRecord } from '../server/protocol';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
 import { startGame } from './main';
+import { installThemePicker } from './ui/themes';
 
 /**
  * Getting from an opened page to a world, which is a different job from playing one.
@@ -22,6 +23,9 @@ const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElemen
 
 /** Which way the phone is held, then a world, then the game. */
 export async function boot(): Promise<void> {
+  // A remembered interface belongs to the whole visit, including the title screen. Install the
+  // picker before drawing either way into a world so the first frame already wears that choice.
+  installThemePicker($('themeSelect') as HTMLSelectElement, $('themeNote'));
   // A phone is held sideways to play this, and it says so before anything else is drawn: the
   // title screen is as landscape as the game behind it.
   keepSideways(thisBrowser($('turnPhone')), whenTurned);

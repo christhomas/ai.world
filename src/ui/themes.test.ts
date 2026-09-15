@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THEME, THEMES, themeChosen, wearTheme } from './themes';
+import { DEFAULT_THEME, THEMES, installThemePicker, themeChosen, wearTheme } from './themes';
 
 /**
  * Four themes over one unchanged layout.
@@ -44,6 +44,50 @@ describe('what a theme is allowed to change', () => {
     // a theme name left in storage by a build that offered one this one does not is a person whose
     // interface should still open
     expect(themeChosen()).toBe(DEFAULT_THEME);
+  });
+
+  it('offers every theme, wears the remembered one at boot, and remembers a later choice', () => {
+    const remembered = new Map<string, string>([['ai.world/theme', 'steel']]);
+    const before = globalThis.localStorage;
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => remembered.get(key) ?? null,
+        setItem: (key: string, value: string) => { remembered.set(key, value); },
+      },
+    });
+
+    const options: Array<{ value: string; textContent: string }> = [];
+    let changed = (): void => {};
+    const picker = {
+      value: '',
+      ownerDocument: { createElement: () => ({ value: '', textContent: '' }) },
+      replaceChildren: (...offered: Array<{ value: string; textContent: string }>) => {
+        options.push(...offered);
+      },
+      addEventListener: (_event: string, listener: () => void) => { changed = listener; },
+    } as unknown as HTMLSelectElement;
+    const note = { textContent: '' } as HTMLElement;
+    const worn: Record<string, string> = {};
+    const root = {
+      setAttribute: (key: string, value: string) => { worn[key] = value; },
+    } as unknown as HTMLElement;
+
+    try {
+      installThemePicker(picker, note, root);
+      expect(options).toEqual(THEMES.map(({ id, name }) => ({ value: id, textContent: name })));
+      expect(picker.value).toBe('steel');
+      expect(note.textContent).toBe(THEMES.find(({ id }) => id === 'steel')!.note);
+      expect(worn['data-theme']).toBe('steel');
+
+      picker.value = 'vellum';
+      changed();
+      expect(note.textContent).toBe(THEMES.find(({ id }) => id === 'vellum')!.note);
+      expect(worn['data-theme']).toBe('vellum');
+      expect(remembered.get('ai.world/theme')).toBe('vellum');
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: before });
+    }
   });
 });
 

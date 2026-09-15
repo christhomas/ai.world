@@ -309,6 +309,9 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
   display: grid; grid-template-columns: calc(84 * var(--ui-scale)) 1fr calc(46 * var(--ui-scale));
   align-items: center; gap: calc(12 * var(--ui-scale));
 }
+#optionsPanel .opt-row:has(input[type="checkbox"]) {
+  grid-template-columns: calc(84 * var(--ui-scale)) calc(20 * var(--ui-scale)) 1fr;
+}
 #optionsPanel .opt-row label { color: color-mix(in srgb, var(--ink) 82%, transparent); font-size: calc(13 * var(--ui-scale)); }
 /* a control with nothing to set — the seed — leaves the middle column empty rather than stretching
    its value across it, so the number stays in the gutter every other number is in */
@@ -369,7 +372,7 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
 
 /* what a switch is for, said beside it rather than under the whole section */
 #optionsPanel .opt-hint {
-  flex: 1 1 100%; margin-top: calc(2 * var(--ui-scale));
+  grid-column: 3; margin-top: calc(2 * var(--ui-scale));
   color: color-mix(in srgb, var(--ink) 68%, transparent); font-size: calc(11 * var(--ui-scale)); line-height: 1.4;
 }
 #optionsPanel .opt-row input[type="checkbox"] {
