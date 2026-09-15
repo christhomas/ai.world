@@ -14,11 +14,25 @@ chore release minor "..."      # or major, or patch
 1. **Refuses to start** on a dirty tree or off `main`. A release names a commit; there has to be one.
 2. **Runs the tests.** A release is the wrong place to find out.
 3. **Moves all three version numbers together** — the chart's `version`, its `appVersion`, and the
-   pin in `deploy/flux/helmrelease.yaml`. `server/chart.test.ts` fails the build if they ever drift,
-   because two of the three agreeing is the failure that reaches a cluster.
-4. **Commits and tags.** The tag is what a rollback goes back to.
-5. **Pushes both**, then **publishes the GitHub release**, which is what builds and pushes
+   pin in `deploy/flux/helmrelease.yaml` — and `package.json`'s, which the title screen and console
+   read. `server/chart.test.ts` fails the build if the chart, appVersion and pin ever drift, because
+   two of the three agreeing is the failure that reaches a cluster.
+4. **Writes the changelog and the README's ten**, before anything is committed: `github-guard`'s
+   changelog hook reads the *tagged commit's* files and refuses a tag whose release nobody
+   documented, so this has to happen first or the tag can never go out.
+5. **Commits on a release branch (`release/v<version>`), opens a pull request against `main`, and
+   squashes it in** — `main` is protected (a pull request for every change, admins included, linear
+   history), so a release goes out through the same guard as anything else. The branch needs no
+   approving reviews and no status checks, so this is still one command; what changed is that every
+   release now leaves a reviewable pull request behind it instead of an unexplained commit. It tries
+   `gh pr merge --auto` first and falls back to polling the checks and merging by hand if the
+   repository does not have auto-merge turned on.
+6. **Tags what `main` actually became** — after the squash merges, it resets to `origin/main` and
+   tags that, because the local pre-squash commit is not the commit that shipped.
+7. **Pushes the tag**, then **publishes the GitHub release**, which is what builds and pushes
    `ghcr.io/christhomas/ai-world:<version>` for amd64 and arm64.
+8. **Stamps every issue closed since the last release** with a comment naming the version — the
+   only step allowed to fail without failing the release, since by then the release is already out.
 
 Flux on the cluster is watching `main`. It reads the chart from the same commit, sees the new
 version, and installs it — so publishing the release is the deploy, and nothing else has to happen.
