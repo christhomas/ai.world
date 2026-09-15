@@ -151,4 +151,38 @@ describe('a drawn creature falling behind its snapshots', () => {
       'the exceptional correction vanished from the diagnostic instead of remaining explainable').toBeGreaterThan(0.5);
     expect(drift.worst, 'the recorded outlier survived as a sustained gap on screen').toBe(0);
   });
+
+  /*
+   * And the frame *after* the hard correction, which is where the old drawing came back.
+   *
+   * Accepting an exceptional correction at once fixes the pixel and leaves the reasoning behind it
+   * in place: the entry the correction replaced is still the one `told` measures a velocity
+   * against, so the very size of the disagreement — a teleport, a collision, a creature put back
+   * where the world has it — is read as speed. `update` then carries the body that way for up to
+   * `CARRY_AHEAD` of a second, past the authoritative position it was corrected to a moment
+   * earlier, and the next snapshot measures the new gap and corrects it again.
+   *
+   * The test above could not see it because it never called `update` after the correction. This
+   * one does, and it lets time pass first, because `update` carries a body forward by `now -
+   * held.at` and nought seconds of anything is nought.
+   */
+  it('does not walk a corrected creature back off its authoritative position', () => {
+    vi.useFakeTimers();
+    const wildlife = world();
+    wildlife.apply([snap(1, 'woman', 0, 0)], []);
+    const woman = wildlife.find(1)!;
+
+    // a correction far larger than MAX_EASED_GAP: the world has her a whole tile from the drawing
+    vi.advanceTimersByTime(100);
+    wildlife.apply([snap(1, 'woman', 1, 0)], [], { x: 0, z: 0 });
+    expect(woman.x, 'the precondition is a hard correction, and this was not one').toBe(1);
+
+    // a third of a second of frames, with no new word from the world
+    vi.advanceTimersByTime(100);
+    for (let frame = 0; frame < 20; frame++) wildlife.update(1 / 60);
+
+    expect(woman.x, 'the correction was undone by a velocity derived from the correction itself').toBe(1);
+    expect(wildlife.drift(false).worst,
+      'the drawing walked away from where the world says she is').toBe(0);
+  });
 });
