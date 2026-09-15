@@ -418,7 +418,7 @@ export type ClientMessage =
    * `one` is a shot rather than a swing: one creature, the first an arrow would reach, and height
    * counts towards the distance.
    */
-  | { type: 'swing'; place: string; damage: number; reach: number; arc: number; one: boolean }
+  | { type: 'swing'; place: string; damage: number; reach: number; arc: number; one: boolean; yaw?: number }
   /**
    * The hero has been *put* somewhere rather than having walked there, and why.
    *

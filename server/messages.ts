@@ -324,8 +324,15 @@ function thrown(rooms: Rooms, me: Client, message: Extract<ClientMessage, { type
    */
   const from = place === 'surface' ? (me.hero ?? me.presence) : me.presence;
   if (!from) return;
+  // Direction belongs to this blow, not to the last presence frame that happened to arrive first.
+  // The position remains the world's, but using a tenth-of-a-second-old turn is enough to miss a
+  // cow that the attacking page has already shown being hit. Old clients omit it and keep the
+  // previous behaviour until they upgrade.
+  const sentYaw = Number(message.yaw);
+  const yaw = Number.isFinite(sentYaw) ? sentYaw : me.presence.yaw;
+  if (Number.isFinite(sentYaw)) me.presence.yaw = yaw;
   const killed = world.swung({
-    x: from.x, z: from.z, y: 'y' in from ? from.y : 0, yaw: me.presence.yaw,
+    x: from.x, z: from.z, y: 'y' in from ? from.y : 0, yaw,
     reach: Number(message.reach) || 0,
     arc: Number(message.arc) || 0,
     damage: Number(message.damage) || 1,
