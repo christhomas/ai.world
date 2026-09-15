@@ -102,6 +102,7 @@ const EXPLAINED = new Map<string, string>([
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
   ['src/world/farmbuilds.ts: whichFarmerBuilds', 'farmbuilds.test exercises it directly; commissionAStable in the same file is the committing edge that register.ts and the builder call'],
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
+  ['src/world/polygons.ts: indexFaces', 'polygons tests check it directly; roadweb.test.fixture builds the FaceIndex the retired bounded mesh needs'],
   ['src/world/postings.ts: couldStand', 'builder reassignment caller is pending in issue #33'],
   ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
   ['src/world/vocabulary.ts: HOLDINGS', 'vocabulary tests verify every holding has words'],
