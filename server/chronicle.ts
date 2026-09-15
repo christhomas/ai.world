@@ -17,10 +17,9 @@ import type { Change } from '../src/world/register';
  * actually wants is the last while — who has died since I looked, which village is emptying, is
  * anybody being born — and that is a fixed number of entries.
  *
- * So it is a ring of the most recent `KEEPS`, in memory, lost when the server stops. That is the
- * honest shape for it: this is a window onto a running world and not a record of one. A world's
- * *durable* memory of its dead is the register's own `Burial` list and the world log, both of which
- * are bounded on purpose and neither of which is this.
+ * So it is a ring of the most recent `KEEPS`, still a window rather than an unbounded history.
+ * A server may give it an equally bounded durable copy; a browser or test may leave that out. The
+ * register's own `Burial` list and world log remain separate records with separate purposes.
  *
  * ## What it deliberately does not do
  *
@@ -53,9 +52,23 @@ export class Chronicle {
   private readonly entries: Entry[] = [];
   private next = 1;
 
+  constructor(
+    initial: readonly Entry[] = [],
+    private readonly persist?: (entries: readonly Entry[]) => void,
+    next?: number,
+  ) {
+    const ordered = [...initial].sort((a, b) => a.n - b.n).slice(-KEEPS);
+    this.entries.push(...ordered);
+    this.next = Math.max((ordered.at(-1)?.n ?? 0) + 1, next ?? 1);
+  }
+
   /** Write down everything a day turned up. Returns what was kept, for anybody who wants it now. */
   record(changes: readonly Change[], at = Date.now()): Entry[] {
-    const kept = changes.map((change) => ({ ...change, at, n: this.next++ }));
+    const kept = changes.map((change, offset) => ({ ...change, at, n: this.next + offset }));
+    // Commit before publishing. If the disk refuses this turn, the HTTP window must not claim it
+    // happened durably and then continue its cursor as though nothing went wrong.
+    this.persist?.(kept);
+    this.next += kept.length;
     this.entries.push(...kept);
     // trimmed from the front, because the oldest is the first thing nobody wants
     if (this.entries.length > KEEPS) this.entries.splice(0, this.entries.length - KEEPS);
