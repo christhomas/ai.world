@@ -222,3 +222,90 @@ describe('the wood a player brought in', () => {
     expect(yard.sold(ASHFORD), 'he sold the lot regardless').toBe(TIMBER.HOLDS + 20);
   });
 });
+
+/**
+ * Two ways a day's felling can be credited to the wrong day.
+ */
+describe('which morning a day of felling belongs to', () => {
+  /*
+   * The scheduler hands `builderDay` each missed morning in turn. Passing it the *last* of them
+   * credited the whole interval at once — at whatever the village's staffing was on the first
+   * morning, which is the one thing about the interval that is certainly wrong: a village that
+   * buried its last woodcutter halfway through was paid for the whole fortnight.
+   */
+  it('is the morning being lived, and not the last one', () => {
+    /*
+     * The scheduler's own loop: each missed morning in turn. What the fault did was pass the final
+     * day on every one of them, so the first call accounted the whole interval up to today and
+     * every call after it was a same-day no-op — ten mornings away earning one morning's timber.
+     */
+    const eachMorning = new Timber();
+    for (let day = 1; day <= 10; day++) eachMorning.felledThrough(ASHFORD, 2, day);
+
+    const alwaysToday = new Timber();
+    for (let day = 1; day <= 10; day++) alwaysToday.felledThrough(ASHFORD, 2, 10);
+
+    expect(eachMorning.at(ASHFORD), 'ten mornings of cutting, one morning of credit')
+      .toBeGreaterThan(alwaysToday.at(ASHFORD));
+    expect(eachMorning.at(ASHFORD)).toBe(2 * TIMBER.A_DAY * (TIMBER.STANDING + 10));
+  });
+
+  /*
+   * And the staffing that goes with each morning, which is the other half of passing the right day:
+   * a village that buried its last woodcutter halfway through must not be paid for the fortnight.
+   */
+  it('takes each morning at the staffing that morning had', () => {
+    const lostThem = new Timber();
+    for (let day = 1; day <= 10; day++) lostThem.felledThrough(ASHFORD, day <= 5 ? 2 : 0, day);
+
+    const keptThem = new Timber();
+    for (let day = 1; day <= 10; day++) keptThem.felledThrough(ASHFORD, 2, day);
+
+    expect(lostThem.at(ASHFORD), 'five days with nobody cutting are five days of nothing')
+      .toBeLessThan(keptThem.at(ASHFORD));
+  });
+
+  it('still lands the same total when nothing about the village changed', () => {
+    const daily = new Timber();
+    for (let day = 1; day <= 10; day++) daily.felledThrough(ASHFORD, 2, day);
+    const once = new Timber();
+    once.felledThrough(ASHFORD, 2, 1);
+    once.felledThrough(ASHFORD, 2, 10);
+    expect(daily.at(ASHFORD)).toBe(once.at(ASHFORD));
+  });
+
+  /*
+   * And a yard saved before the day was kept. Without a baseline the first morning back fell
+   * through to `today - 1` and credited one day however long the game had been shut.
+   */
+  it('takes the day of the save it came out of, for a yard that carries none', () => {
+    const old = { Ashford: 40 };                     // the bare shape, from before `felled` existed
+    const away = new Timber(old, 100);
+    away.felledThrough(ASHFORD, 1, 110);
+    const guessed = new Timber(old);
+    guessed.felledThrough(ASHFORD, 1, 110);
+    expect(away.at(ASHFORD), 'ten days away is ten days of cutting').toBeGreaterThan(guessed.at(ASHFORD));
+    expect(away.at(ASHFORD)).toBe(40 + 10 * TIMBER.A_DAY);
+  });
+
+  it('believes a save that does carry its days over the baseline', () => {
+    const kept = { yards: { Ashford: 40 }, brought: {}, felled: { Ashford: 108 } };
+    const yard = new Timber(kept, 100);
+    yard.felledThrough(ASHFORD, 1, 110);
+    expect(yard.at(ASHFORD), 'two days since it was last cut, not ten').toBe(40 + 2 * TIMBER.A_DAY);
+  });
+
+  it('opens a yard it has never seen with its standing week, baseline or not', () => {
+    const fresh = new Timber(undefined, 100);
+    fresh.felledThrough(ASHFORD, 1, 101);
+    expect(fresh.at(ASHFORD)).toBe(TIMBER.A_DAY * (TIMBER.STANDING + 1));
+  });
+
+  it('is still not paid twice for one morning', () => {
+    const yard = new Timber({ Ashford: 40 }, 100);
+    yard.felledThrough(ASHFORD, 1, 110);
+    const once = yard.at(ASHFORD);
+    yard.felledThrough(ASHFORD, 1, 110);
+    expect(yard.at(ASHFORD)).toBe(once);
+  });
+});

@@ -99,7 +99,7 @@ export function openTheSave(ctx: Keeping) {
   const mines = Mines.from(seed, saved?.state?.mines, state.day);
   const plots = new Plots(saved?.state?.plots);
   /** The builder you are holding, and every house you have had put up. */
-  const houses = Houses.from(saved?.state?.houses);
+  const houses = Houses.from(saved?.state?.houses, state.day);
   const sailing = Sailing.from(saved?.state?.boat ?? null);
   const mount = Mount.from(saved?.state?.horse ?? null, rng);
 
