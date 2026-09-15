@@ -224,7 +224,7 @@ export function shareOut(pool: number, shares: ReadonlyMap<Owner, number>): Map<
  */
 export function whoFed(
   people: readonly Person[], fromHerd = 0, shore = false, fromBoats = 0,
-  fromFields: ReadonlyMap<Owner, number> = new Map(),
+  fromFields: ReadonlyMap<Owner, number> | null = null,
 ): Map<Owner, number> {
   const shares = new Map<Owner, number>();
   const farmers = people.filter((p) => p.trade === 'farmer');
@@ -232,10 +232,39 @@ export function whoFed(
   for (const person of people) {
     if (!person.trade) continue;
     const meat = person.trade === 'farmer' && farmers.length > 0 ? fromHerd / farmers.length : 0;
+    // the catch is the fishermen's, shared between them, for the reason the meat is the farmers':
+    // it came off their boats. The shellfish is nobody's in particular and is already in `broughtIn`
     const fish = person.trade === 'fisherman' && crews.length > 0 ? fromBoats / crews.length : 0;
-    shares.set(ownedBy(person), broughtIn(person, shore) + meat + fish);
+    /*
+     * `null` and an empty map are different answers, and the difference is the whole of why this
+     * argument is nullable.
+     *
+     * `broughtIn` is the one expression of what a farmer grows, and its own comment says why: *"a
+     * second expression of 'what a farmer grows' living in `livelihoods.ts` would be a farmer who
+     * is fed by one number and paid by another"*. A caller that has counted the fields takes the
+     * farm's share out of `broughtIn` and adds the measured crop below, so the two agree. A caller
+     * that has not counted them — every caller outside `aDaysTrade` — must get the same number the
+     * larder got, which is `broughtIn`'s own default. An empty map from a village that has fields
+     * means nobody's field yielded; `null` means nobody asked.
+     */
+    const grew = fromFields ? broughtIn(person, shore, 0) : broughtIn(person, shore);
+    shares.set(ownedBy(person), grew + meat + fish);
   }
-  for (const [owner, crop] of fromFields) shares.set(owner, (shares.get(owner) ?? 0) + crop);
+  /*
+   * And a share must name one of the people being paid, which is not the same list the fields were
+   * counted against: the crop is worked out in the morning and dinner is bought in the evening, and
+   * somebody can be buried in between. A share left standing in a dead man's name is money sent
+   * nowhere — `pay` calls it `unplaced` and says it *"should never happen at all"*.
+   *
+   * Dropped rather than redirected, because `shareOut` hands out a pool in proportion: one share
+   * fewer is the same money divided among the people who are still at the table, which is what
+   * actually happens to a dead man's dinner.
+   */
+  const here = new Set(people.map(ownedBy));
+  for (const [owner, crop] of fromFields ?? []) {
+    if (!here.has(owner)) continue;
+    shares.set(owner, (shares.get(owner) ?? 0) + crop);
+  }
   return shares;
 }
 
@@ -248,7 +277,7 @@ export function whoFed(
  */
 export function paidForFood(
   people: readonly Person[], spent: number, fromHerd = 0, shore = false, fromBoats = 0,
-  fromFields: ReadonlyMap<Owner, number> = new Map(),
+  fromFields: ReadonlyMap<Owner, number> | null = null,
 ): Map<Owner, number> {
   return shareOut(spent, whoFed(people, fromHerd, shore, fromBoats, fromFields));
 }
@@ -278,8 +307,14 @@ export interface Trading {
   herd: number;
   /** Meals into the larder: the gardens, the fields, the woods and the butcher. */
   grown: number;
-  /** The field crop by owner, so dinner money follows the farm rather than merely the trade. */
-  fields?: ReadonlyMap<Owner, number>;
+  /**
+   * The field crop by owner, so dinner money follows the farm rather than merely the trade.
+   *
+   * Not optional, and that is load-bearing. A day that has counted the fields must say so even when
+   * the answer is that none of them yielded, because the alternative reading of an absent map is
+   * *"nobody counted"* — and the two want different arithmetic out of `whoFed`. See the note there.
+   */
+  fields: ReadonlyMap<Owner, number>;
   /**
    * How much of that came off the herd.
    *
@@ -363,7 +398,9 @@ export function aDaysTrade(
    */
   if (pressure > PROSPER.UNTROUBLED) {
     keep();
-    return { herd, grown: 0, meat: 0, fish: 0, shore: coast.shore, toTheHall: 0, paid };
+    // an empty map rather than none: the fields *were* counted and a raided village grew nothing,
+    // which is the number the larder took and so the number the dinner money has to agree with
+    return { herd, grown: 0, fields: new Map(), meat: 0, fish: 0, shore: coast.shore, toTheHall: 0, paid };
   }
 
   // a man who is laid up does not work, and his trade earns the village nothing while he is: see
