@@ -88,3 +88,45 @@ describe('the creature a drift measurement should stand beside', () => {
     expect(drift.wrongClose.worstIs).toBe('cow');
   });
 });
+
+describe('a drawn creature falling behind its snapshots', () => {
+  it('does not carry a body-width error through a queue of messages between frames', () => {
+    vi.useFakeTimers();
+    const wildlife = world();
+    wildlife.apply([snap(1, 'woman', 0, 0)], []);
+
+    // Ten server ticks arrive while a software-rendered frame is starved. This is the browser
+    // failure from #190: the message handlers run, but there is no animation frame between them in
+    // which the old body can pay off an ever-growing interpolation debt.
+    for (let tick = 1; tick <= 10; tick++) {
+      vi.advanceTimersByTime(100);
+      wildlife.apply([snap(1, 'woman', tick / 10, 0)], [], { x: 0, z: 0 });
+    }
+
+    const drift = wildlife.drift();
+    expect(drift.wrongClose.of, 'the queue was empty, so its average proved nothing').toBe(10);
+    expect(drift.wrongClose.mean, 'queued corrections left the drawing a sustained body-width behind').toBeLessThanOrEqual(0.35);
+  });
+
+  it('eases an ordinary correction and accepts an exceptional one at once', () => {
+    vi.useFakeTimers();
+    const wildlife = world();
+    wildlife.apply([snap(1, 'woman', 0, 0)], []);
+    const woman = wildlife.find(1)!;
+
+    vi.advanceTimersByTime(100);
+    wildlife.apply([snap(1, 'woman', 0.1, 0)], [], { x: 0, z: 0 });
+    expect(woman.x, 'ordinary movement snapped instead of being interpolated').toBe(0);
+    wildlife.update(1 / 60);
+    expect(woman.x).toBeGreaterThan(0);
+    expect(woman.x).toBeLessThan(0.1);
+
+    vi.advanceTimersByTime(100);
+    wildlife.apply([snap(1, 'woman', 1, 0)], [], { x: 0, z: 0 });
+    expect(woman.x, 'a body-width correction was left on screen as a long easing tail').toBe(1);
+    const drift = wildlife.drift();
+    expect(drift.wrongClose.worst,
+      'the exceptional correction vanished from the diagnostic instead of remaining explainable').toBeGreaterThan(0.5);
+    expect(drift.worst, 'the recorded outlier survived as a sustained gap on screen').toBe(0);
+  });
+});
