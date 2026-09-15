@@ -133,7 +133,19 @@ describe('the same village at one in the morning', () => {
       }
       return out;
     };
-    const atNoon = folk();
+    /*
+     * Outdoors at noon, and only outdoors.
+     *
+     * `folk()` is everybody the village holds, and some of them are already inside at midday — a
+     * landlord behind his own bar, somebody sleeping off a night shift. Counting those into the
+     * daytime baseline makes the assertion at the end satisfiable without anybody going anywhere:
+     * the comparison is `outdoors at 1am < baseline`, so a baseline padded with people who were
+     * never outside in the first place passes on a village where nobody moved at all.
+     *
+     * What this test is about is the walk home. So the baseline is the people who have a walk home
+     * to make.
+     */
+    const atNoon = folk().filter((person) => !person.indoors);
     expect(atNoon.length, 'no villagers were out at noon').toBeGreaterThan(0);
 
     // the small hours, and then long enough for the walk home: a village is a minute across
