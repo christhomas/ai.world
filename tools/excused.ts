@@ -59,7 +59,7 @@ export const EXCUSED = new Map<string, string>([
   ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
   ['src/world/character.ts: characterAt', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
-  ['src/world/farmbuilds.ts: whichFarmerBuilds', 'reserved for the timber-yard handoff tracked by issue #36'],
+  ['src/world/farmbuilds.ts: whichFarmerBuilds', 'farmbuilds.test exercises it directly; commissionAStable in the same file is the committing edge that register.ts and the builder call'],
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
   ['src/world/food.ts: saidOfFood', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/growworld.ts: patchStamp', 'wire-or-delete decision tracked by issue #88'],
