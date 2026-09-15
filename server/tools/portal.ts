@@ -34,6 +34,9 @@ export type Asked =
   /** The builder asking the worker to do something, or following what it is doing. */
   | { want: 'build' }
   | { want: 'follow' }
+  /** The full page and only the files emitted beside it by the worker's Vite build. */
+  | { want: 'builder-page'; path: string }
+  | { want: 'book' }
   | { want: 'nothing' };
 
 /** The tools a signed-in person may open. Named here so the catalogue and the guard cannot differ. */
@@ -66,6 +69,20 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
    */
   if (path === '/tools/build/ask') return method === 'POST' ? { want: 'build' } : { want: 'nothing' };
   if (path === '/tools/build/follow') return method === 'GET' ? { want: 'follow' } : { want: 'nothing' };
+  if (path === '/tools/build/book') return method === 'GET' ? { want: 'book' } : { want: 'nothing' };
+  if (path === '/tools/character-builder') {
+    return method === 'GET'
+      ? { want: 'builder-page', path: 'tools/character-builder.html' }
+      : { want: 'nothing' };
+  }
+  const pagePath = '/tools/build/page/';
+  if (path.startsWith(pagePath)) {
+    if (method !== 'GET') return { want: 'nothing' };
+    let file: string;
+    try { file = decodeURIComponent(path.slice(pagePath.length)); } catch { return { want: 'nothing' }; }
+    if (!file || file.split('/').some((part) => part === '..')) return { want: 'nothing' };
+    return { want: 'builder-page', path: file };
+  }
   const id = path.slice('/tools/'.length);
   if (id === '' || id.includes('/') || id.includes('..')) return { want: 'nothing' };
   return { want: 'tool', id };
@@ -180,61 +197,6 @@ const page = (title: string, body: string): string =>
   + `.card:hover{border-color:#5b76ff}.blurb{opacity:.65;font-size:.9rem}.why{color:#ffb4a2;font-size:.9rem;margin-top:.8rem}`
   + `</style><main>${body}</main>`;
 
-/**
- * What the builder's page does, which is ask and then follow.
- *
- * Written out rather than bundled because it is fifteen lines and this server has no build step —
- * and because a page that streams is the whole point: a run takes minutes and is meant to be
- * watched. `from` is the page's own count, so a reload asks again from the top.
- */
-const BUILDER_SCRIPT = `
-const said = document.getElementById('said');
-const ask = document.getElementById('ask');
-document.getElementById('go').onclick = async () => {
-  said.textContent = '';
-  const res = await fetch('/tools/build/ask', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ prompt: ask.value, about: document.title }),
-  });
-  if (!res.ok && res.headers.get('content-type')?.includes('text/html')) {
-    said.textContent = 'The builder would not take that.';
-    return;
-  }
-  const reader = res.body.getReader();
-  const decode = new TextDecoder();
-  let rest = '';
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    rest += decode.decode(value, { stream: true });
-    const lines = rest.split('\\n');
-    rest = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      let told; try { told = JSON.parse(line); } catch { continue; }
-      if (told.k === 'say') said.textContent += told.text;
-      if (told.k === 'tool') said.textContent += '\\n· ' + told.name + ' ' + told.on + '\\n';
-      if (told.k === 'end') said.textContent += '\\n— ' + (told.ok ? 'done' : 'failed') + ', ' + told.note;
-    }
-  }
-};
-`;
-
-/**
- * The last few runs, as somebody standing at the builder would want them.
- *
- * Who, when, what it was about and what it changed — and never the prompt, which is the one field
- * that can contain anything at all. See `Recorded`, where that decision is written down.
- */
-function saidOfTheBook(runs: readonly Recorded[]): string {
-  if (runs.length === 0) return '';
-  const when = (at: number): string => new Date(at).toISOString().replace('T', ' ').slice(0, 16);
-  return `<h1 style="font-size:1rem;margin-top:2rem;opacity:.7">What has been asked</h1>`
-    + runs.map((run) => `<div class="card"><strong>${run.ok ? '✓' : '✕'} ${when(run.when)}</strong>`
-      + `<div class="blurb">${run.who} · ${run.about || 'nothing named'} · ${run.length} characters`
-      + `${run.changed.length ? ` · ${run.changed.join(', ')}` : ''}</div></div>`).join('');
-}
-
 const loginPage = (why?: string): string => page('Sign in — ai.world tools', `
   <h1>ai.world tools</h1>
   <form method="post" action="/tools/login">
@@ -315,6 +277,26 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
+    if (asked.want === 'builder-page' || asked.want === 'book') {
+      if (!options.builder) {
+        html(res, asked.want === 'builder-page' && asked.path === 'tools/character-builder.html' ? 200 : 503,
+          page('No builder here', '<h1>There is no builder behind this server.</h1>'
+          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
+        return true;
+      }
+      if (asked.want === 'book') {
+        res.writeHead(200, {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+        });
+        res.end(JSON.stringify(options.recorded?.() ?? []));
+        return true;
+      }
+      askTheWorker(options.builder, who, `/page/${asked.path}`, null, res, 'GET');
+      return true;
+    }
+
     /*
      * Both of these are past the guard above, so `who` is an account the portal has just verified.
      * That account id is what goes to the worker, for its book; the session token stays here.
@@ -360,23 +342,7 @@ export function portalFor(options: PortalOptions) {
 
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
-    /*
-     * The Character Builder's page is the builder's own, served by whoever has the checkout: it
-     * shows every creature and prop from the same revision the worker is working in, which is the
-     * point of it. This end owns the door and the two routes behind it; a tool with nothing behind
-     * it yet says so rather than pretending.
-     */
-    const behind = tool.id === 'character-builder' ? options.builder : null;
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
-      + (behind
-        ? `<p class="blurb">Ask it something and watch it happen. Your account is what it is recorded against.</p>`
-          + `<label for="ask">What should change?</label>`
-          + `<textarea id="ask" rows="4" style="width:100%;padding:.6rem;border-radius:.4rem;border:1px solid #39405a;background:#1b1e27;color:inherit;font:inherit"></textarea>`
-          + `<button id="go" type="button">Ask the builder</button>`
-          + `<pre id="said" style="white-space:pre-wrap;margin-top:1rem"></pre>`
-          + `<script>${BUILDER_SCRIPT}</script>`
-          + saidOfTheBook(options.recorded?.() ?? [])
-        : `<p class="why">Nothing behind this one yet — no worker is configured. See issue #103.</p>`)
       + `<a class="card" href="/tools/">Back</a>`));
     return true;
   };

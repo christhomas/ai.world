@@ -1,7 +1,11 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { GIVE_UP, OneAtATime, whatWasAsked, type Asked, type Recorded } from './asked';
+import { buildBuilderPage, serveBuilderPage } from './page';
 import { Runs, type Told } from './runs';
 
 /**
@@ -52,6 +56,8 @@ export interface WorkerOptions {
   quiet?: boolean;
   /** For tests: run this instead of `claude`, so the worker can be driven without one. */
   command?: { run: string; args: (prompt: string) => string[] };
+  /** For tests: make a tiny fixture instead of asking Vite to build a temporary repository. */
+  buildPage?: (worktree: string, out: string) => Promise<void>;
 }
 
 /** What changed in the worktree, as git sees it. The answer the audit actually wants. */
@@ -140,6 +146,26 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
   const { worktree, secret } = options;
   const runs = new Runs();
   const tree = new OneAtATime();
+  const pageStore = mkdtempSync(join(tmpdir(), 'ai-world-builder-page-'));
+  const pageRoots: string[] = [];
+
+  const refreshPage = async (): Promise<void> => {
+    const next = mkdtempSync(join(pageStore, 'revision-'));
+    try {
+      await (options.buildPage ?? buildBuilderPage)(worktree, next);
+      pageRoots.unshift(next);
+    } catch (why) {
+      rmSync(next, { recursive: true, force: true });
+      throw why;
+    }
+  };
+
+  // Refuse to advertise a worker whose page cannot be made from its checkout. A 200 placeholder
+  // here would hide the exact deployment fault this issue exists to make visible.
+  try { await refreshPage(); } catch (why) {
+    rmSync(pageStore, { recursive: true, force: true });
+    throw why;
+  }
 
   const begin = (who: string, asked: Asked, res: ServerResponse): void => {
     const id = nameFor(Date.now());
@@ -148,14 +174,26 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
     res.setHeader('x-builder-run', id);
     runs.follow(run, res, 0);
 
+    let settling = false;
     const done = (ok: boolean, note: string): void => {
-      if (run.done) return;
-      runs.finish(run, ok, note);
-      tree.release();
-      options.onFinished?.(id, {
-        who, when: started, about: asked.about, length: asked.prompt.length,
-        changed: changedIn(worktree), ok, note,
-      });
+      if (run.done || settling) return;
+      settling = true;
+      void (async () => {
+        let finished = ok;
+        let finalNote = note;
+        if (finished) {
+          try { await refreshPage(); } catch (why) {
+            finished = false;
+            finalNote = `the edit finished but its page did not build: ${why instanceof Error ? why.message : String(why)}`;
+          }
+        }
+        runs.finish(run, finished, finalNote);
+        tree.release();
+        options.onFinished?.(id, {
+          who, when: started, about: asked.about, length: asked.prompt.length,
+          changed: changedIn(worktree), ok: finished, note: finalNote,
+        });
+      })();
     };
 
     /*
@@ -232,6 +270,13 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
       }
       const url = (req.url ?? '').split('?')[0].replace(/\/+$/, '') || '/';
 
+      if (req.method === 'GET' && url.startsWith('/page/')) {
+        if (await serveBuilderPage(pageRoots, url.slice('/page/'.length), res)) return;
+        res.writeHead(404, { 'content-type': 'text/plain' });
+        res.end('there is no such file in the built builder page');
+        return;
+      }
+
       if (req.method === 'GET' && url === '/follow') {
         const from = Number(new URL(req.url ?? '/', 'http://worker').searchParams.get('from') ?? '0');
         const id = new URL(req.url ?? '/', 'http://worker').searchParams.get('run');
@@ -241,7 +286,7 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
 
       if (req.method !== 'POST' || url !== '/ask') {
         res.writeHead(404, { 'content-type': 'text/plain' });
-        res.end('the builder worker answers POST /ask and GET /follow');
+        res.end('the builder worker answers POST /ask, GET /follow, and its built page');
         return;
       }
 
@@ -276,7 +321,13 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
   if (!options.quiet) {
     console.log(`builder worker on ${options.host ?? '127.0.0.1'}:${port}, working in ${worktree}`);
   }
-  return { port, close: () => closed(http) };
+  return {
+    port,
+    close: async () => {
+      await closed(http);
+      rmSync(pageStore, { recursive: true, force: true });
+    },
+  };
 }
 
 const closed = (http: Server): Promise<void> => new Promise((done) => http.close(() => done()));
