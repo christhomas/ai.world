@@ -79,6 +79,10 @@ final class CreatureRig {
       box(<double>[.32,.12,.32], <double>[0,1.48,0], hair, joint: RigJoint.head, pivot: headPivot, tint: _integer(o['hairTint'])),
       box(<double>[.08,.075,.32], <double>[.13,1.435,0], hair, joint: RigJoint.head, pivot: headPivot, tint: _integer(o['hairTint'])),
       box(<double>[.09,.26,.31], <double>[-.135,1.37,0], hair, joint: RigJoint.head, pivot: headPivot, tint: _integer(o['hairTint'])),
+      box(<double>[.04,.075,.062], <double>[.145,1.38,.072], 0xf2efe6, joint: RigJoint.head, pivot: headPivot),
+      box(<double>[.04,.075,.062], <double>[.145,1.38,-.072], 0xf2efe6, joint: RigJoint.head, pivot: headPivot),
+      box(<double>[.05,.05,.034], <double>[.155,1.374,.072], 0x2a2230, joint: RigJoint.head, pivot: headPivot),
+      box(<double>[.05,.05,.034], <double>[.155,1.374,-.072], 0x2a2230, joint: RigJoint.head, pivot: headPivot),
       box(<double>[.27*build,.54,.36*build], <double>[0,.89,0], 0xffffff, tint: _integer(o['shirtTint'])),
       box(<double>[.29*build,.11,.46*build], <double>[0,1.11,0], 0xffffff, tint: _integer(o['shirtTint'])),
       box(<double>[.1,.42,.1*arm], <double>[0,.93,hang], skin, joint: RigJoint.armL, pivot: <double>[0,1.14,hang], tint: _integer(o['armTint'])),
@@ -143,8 +147,15 @@ final class CreatureRig {
       _ => <double>[(value[shape] as num).toDouble()],
     };
     final at = _numbers(value['at'], 3, '$where.at');
+    final joint = _joint(value['anim']);
+    final pivot = value['pivot'] == null
+        ? switch (joint) {
+            RigJoint.legL || RigJoint.legR => <double>[at[0], at[1] + (shape == 'ico' ? size[0] : size[1] / 2), at[2]],
+            _ => at,
+          }
+        : _numbers(value['pivot'],3,'$where.pivot');
     return _Part(shape, size, at, _tint(_hex(value['color']), _integer(value['tint']), palette),
-        _joint(value['anim']), value['pivot'] == null ? at : _numbers(value['pivot'],3,'$where.pivot'),
+        joint, pivot,
         value['rot'] == null ? const <double>[0,0,0] : (value['rot'] as List).map(_angle).toList());
   }
 
