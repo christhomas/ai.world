@@ -15,6 +15,10 @@ import { Manifest } from '../src/world/manifest';
 import { generateDungeon } from '../src/dungeon/generate';
 import { BIG_CHEST_PRIZES, whatAChestHolds } from '../src/world/chests';
 import { CROPS } from '../src/game/farming';
+import { DatabaseSync } from 'node:sqlite';
+import { migrateDomain } from './durable/db';
+import { MINDS_SCHEMA, keepMinds, mindsOf } from './durable/minds';
+import type { Person } from '../src/world/people';
 
 /**
  * The simulation on its own, with no sockets and no files anywhere near it.
@@ -238,6 +242,77 @@ const CLEAR_RUN = { x: 0.5, z: -13.5 };
 const FAR_CLEAR = { x: 340.5, z: -139.5 };
 
 describe('the simulation holding the ground itself', () => {
+
+  const mindBook = (): DatabaseSync => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('CREATE TABLE IF NOT EXISTS schema (domain TEXT PRIMARY KEY, version INTEGER NOT NULL)');
+    migrateDomain(db, 'register', MINDS_SCHEMA);
+    return db;
+  };
+
+  const meetAVillager = (sim: Simulation, player: Pretend): Person => {
+    const square = sim.groundOf(3)!.villages[0];
+    expect(square, 'seed 3 must put a village in the first grown country').toBeDefined();
+    player.say({
+      type: 'move', x: square.x, z: square.z, yaw: 0, walk: 0,
+      place: 'surface', riding: 'foot', gear: [],
+    });
+    const from = Date.now();
+    for (let at = 100; at <= 2_000; at += 100) sim.tick(from + at);
+    const introduced = player.of('creatures').flatMap((message) => message.near)
+      .find((creature) => creature.who?.person);
+    expect(introduced, 'the village must introduce a resident for this test to measure a mind').toBeDefined();
+    const person = sim.livesIn(3)!.register!.find(introduced!.who!.person);
+    expect(person, 'the introduced resident must be on the live register').toBeDefined();
+    return person!;
+  };
+
+  it('restores already-settled minds before the joining client can act', () => {
+    const db = mindBook();
+    const first = new Simulation({ vault: new Forgetful(), ground: true });
+    const earlier = new Pretend(first).join(3, 'Earlier');
+    const person = meetAVillager(first, earlier);
+    keepMinds(db, 3, [{ ...person, memories: [{ what: 'given', who: 'Earlier', day: 2 }] }]);
+
+    const restored = new Simulation({ vault: new Forgetful(), ground: true, minds: db });
+    const later = new Pretend(restored).join(3, 'Later');
+    const remembered = meetAVillager(restored, later);
+    expect(remembered.id, 'the same seed must first introduce the same villager').toBe(person.id);
+    const introduced = later.of('creatures').flatMap((message) => message.near)
+      .find((creature) => creature.who?.person === person.id);
+    expect(introduced!.who!.mind.memories[0]?.who,
+      'the persisted mind must be present the first time the client can learn the id').toBe('Earlier');
+  });
+
+  it('writes current minds before final-client teardown forgets the live register', () => {
+    const db = mindBook();
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, minds: db, timeout: 10 * 60_000 });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const person = meetAVillager(sim, rowan);
+    rowan.say({ type: 'recall', who: person.id, what: 'given', about: 'Rowan' });
+    expect(sim.livesIn(3)!.register!.find(person.id)?.memories[0]?.who,
+      'the client action must reach the live register before teardown').toBe('Rowan');
+    expect(mindsOf(db, 3).minds.has(person.id), 'nothing has asked for a save yet').toBe(false);
+
+    rowan.leave();
+    expect(mindsOf(db, 3).minds.get(person.id)?.memories[0]?.who,
+      'the orderly leave closes the room immediately, so the save must precede it').toBe('Rowan');
+  });
+
+  it('deletes a durable mind when a recorded death removes its owner', () => {
+    const db = mindBook();
+    const sim = new Simulation({ vault: new Forgetful(), ground: true, minds: db });
+    const rowan = new Pretend(sim).join(3, 'Rowan');
+    const person = meetAVillager(sim, rowan);
+    rowan.say({ type: 'recall', who: person.id, what: 'given', about: 'Rowan' });
+    sim.keepTheMinds();
+    expect(mindsOf(db, 3).minds.has(person.id), 'the row must exist before deletion is meaningful').toBe(true);
+
+    rowan.say({ type: 'delta', delta: { kind: 'died', who: person.id, village: person.village, day: 2 } });
+    expect(sim.livesIn(3)!.register!.find(person.id)).toBeUndefined();
+    expect(mindsOf(db, 3).minds.has(person.id)).toBe(false);
+  });
+
   it('grows a world when somebody stands in it, and only where they are standing', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 2, timeout: 10 * 60_000 });
     expect(sim.groundOf(3)!.held, 'nothing until somebody is there').toBe(0);

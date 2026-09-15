@@ -174,6 +174,16 @@ describe('the village register', () => {
     }
   });
 
+  it('reports an actual departure exactly where the living roll removes it', () => {
+    const departed: string[] = [];
+    const register = new Register(11, 1, (change) => departed.push(change.id));
+    const [victim] = settle(register);
+    expect(victim, 'the village must contain somebody for this to measure a removal').toBeDefined();
+
+    register.bury(victim.id, 5);
+    expect(departed).toEqual([victim.id]);
+  });
+
   it('never leaves anybody knowing somebody who is not there', () => {
     const register = new Register(12);
     settle(register);
