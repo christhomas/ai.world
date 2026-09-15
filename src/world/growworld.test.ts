@@ -45,7 +45,17 @@ function sources(dir: string): string[] {
 
 describe('the one place a world is grown', () => {
   it('has no bounded generator left in the running game or server', () => {
-    const bounded = /\b(EDGE_OF_THE_WORLD|generateWebGraph|roadTreeWorld|planIslands)\b/;
+    /*
+     * Every retired name, including the one the guard was written without.
+     *
+     * `generateRoadGraph` grew the bounded world and now lives in `graph.test.fixture.ts`, where
+     * the suite still uses it to hold decades of assertions about a country with a middle. That is
+     * why it was not in this list: nothing runtime mentions it, so nothing was wrong today. But
+     * "nothing is wrong today" is what the other four names were true of as well, and this guard's
+     * whole job is the day somebody imports one back. A retired generator left out of the pattern
+     * is a retired generator with no guard on it.
+     */
+    const bounded = /\b(EDGE_OF_THE_WORLD|generateRoadGraph|generateWebGraph|roadTreeWorld|planIslands)\b/;
     const readers = ['src', 'server']
       .flatMap((dir) => sources(dir))
       .filter((path) => bounded.test(readFileSync(path, 'utf8')));
