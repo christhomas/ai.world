@@ -161,12 +161,14 @@ const finish = async () => {
     const door = await page.evaluate(() => {
       const v = window.__villages[0];
       const d = window.__doors.filter((x) => x.village === v.name)[0];
-      // `bx`/`bz` name the building tile, while every doorway coordinate names a tile centre.
-      // Measure both ends from their centres or the nominally outward line acquires a diagonal
-      // half-tile component and can miss the narrow leaf on a busy frame.
-      const ox = d.x - (d.bx + 0.5), oz = d.z - (d.bz + 0.5), len = Math.hypot(ox, oz) || 1;
-      window.__teleport(d.x + (ox / len) * 2, d.z + (oz / len) * 2);
-      return { x: d.x, z: d.z };
+      /*
+       * The doorway record is already the clear outside tile generated for somebody to stand on
+       * and knock. Starting another two tiles through a live village added traffic and scenery to
+       * a check whose subject is the leaf, not the street leading to it. Stand on the doorstep and
+       * face the centre of the building: that line is square through whichever wall owns the door.
+       */
+      window.__teleport(d.x, d.z);
+      return { x: d.bx + 0.5, z: d.bz + 0.5 };
     });
     await page.waitForTimeout(5000);
     await face(door.x, door.z);
