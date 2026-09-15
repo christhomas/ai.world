@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { howTheChecksStand, whatEachSaid, whatShipped } from './release';
+import { FILES_A_RELEASE_WRITES, howTheChecksStand, whatEachSaid, whatShipped } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -236,5 +236,59 @@ describe('what the README says a release was', () => {
   it('keeps an actually empty note for the README fallback', () => {
     const bare = ['# Changelog', '', '## v0.4.0 — 2026-09-14', '', ''].join('\n');
     expect(whatEachSaid(bare)[0]?.said).toBe('');
+  });
+});
+
+/**
+ * And the order the release does things in, which is the whole of item 135.
+ *
+ * A release runs the suite, *then* writes the chart, the pin, the package, the changelog entry and
+ * the README's ten. So the thing it breaks is never the thing it checked. Every entry on the
+ * README's front page read "No note was written for this one" for eleven releases, including ones
+ * plainly written with notes, and nothing caught it — until the release started going out through a
+ * pull request whose own checks happen to run after the write, which is a good accident rather than
+ * a design.
+ *
+ * Read off the source rather than by running a release, because a release is not a thing a test can
+ * have: it pushes branches and cuts tags. What can be held is the order, and the order is the bug.
+ */
+describe('a release checks what it wrote', () => {
+  const here = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const source = readFileSync(join(here, 'tools/release.ts'), 'utf8');
+  const at = (needle: string): number => {
+    const found = source.indexOf(needle);
+    if (found < 0) throw new Error(`tools/release.ts no longer contains ${needle}`);
+    return found;
+  };
+
+  it('reads the files back after writing them and before pushing anything', () => {
+    const wrote = at('writeTheReadme();');
+    const read = at('readWhatWasWritten();');
+    const pushed = at("'push', '-u', 'origin'");
+    expect(read, 'the read-back happens before the files exist').toBeGreaterThan(wrote);
+    expect(pushed, 'the branch is pushed before anything has read the files').toBeGreaterThan(read);
+  });
+
+  it('reads them back with the suite that knows what a changelog entry looks like', () => {
+    expect(source.slice(at('function readWhatWasWritten'), at('function main')))
+      .toContain("'tools/release.test.ts'");
+  });
+
+  /*
+   * The other half, and the one that is easy to leave out: a release that stops after writing has
+   * already changed five tracked files on main. Leaving them is the same fault in another coat.
+   */
+  it('puts the tree back when the read-back refuses, from the list it committed from', () => {
+    const body = source.slice(at('function readWhatWasWritten'), at('function main'));
+    expect(body).toContain("'checkout', '--', ...FILES_A_RELEASE_WRITES");
+    expect(source).toContain("run('git', ['add', ...FILES_A_RELEASE_WRITES]);");
+  });
+
+  it('writes, commits and restores one list rather than three', () => {
+    expect(FILES_A_RELEASE_WRITES).toContain('CHANGELOG.md');
+    expect(FILES_A_RELEASE_WRITES).toContain('README.md');
+    expect(FILES_A_RELEASE_WRITES).toContain('chart/Chart.yaml');
+    expect(new Set(FILES_A_RELEASE_WRITES).size, 'one entry per file, however many lines it rewrites')
+      .toBe(FILES_A_RELEASE_WRITES.length);
   });
 });
