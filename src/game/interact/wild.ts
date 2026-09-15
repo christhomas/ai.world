@@ -90,10 +90,11 @@ export function wildInteractions(ctx: Surroundings) {
     return null;
   };
 
+  let shrineVerb = 'Enter the shrine';
   const tryShrine = (preview = false): boolean => {
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.Shrine || Math.hypot(poi.x - player.x, poi.z - player.z) > 3) continue;
-      if (preview) return true;
+      if (preview) { shrineVerb = `Enter ${poi.name}`; return true; }
       const valley = valleyOf(poi);
       dialogue.start({ speaker: poi.name, emoji: '⛩️', pages: [
         'Worn steps lead down beneath the stones.',
@@ -117,7 +118,7 @@ export function wildInteractions(ctx: Surroundings) {
     // close down there, so it is a place you are inside rather than one you look down at.
     for (const poi of structures.pois) {
       if (poi.kind !== StructureKind.GiantTree || Math.hypot(poi.x - player.x, poi.z - player.z) > 3.2) continue;
-      if (preview) return true;
+      if (preview) { shrineVerb = `Enter ${poi.name}`; return true; }
       discover(poi.name);
       dialogue.start({ speaker: poi.name, emoji: '🌳', pages: [
         'The branches come down to the ground on every side, and there is a gap where the roots lift. It is dark in there and it does not smell of earth.',
@@ -129,7 +130,7 @@ export function wildInteractions(ctx: Surroundings) {
     }
     for (const cave of structures.caves) {
       if (Math.hypot(cave.x - player.x, cave.z - player.z) > 3.2) continue;
-      if (preview) return true;
+      if (preview) { shrineVerb = `Enter ${cave.name}`; return true; }
       discover(cave.name);
       dialogue.start({ speaker: cave.name, emoji: '🕳️', pages: ['A cold draught comes out of the dark. Go in?'], choices: [
         { label: 'Go in', next: () => { places.enterDungeon(cave, 'cave', mineIdOf(cave)); return null; } },
@@ -148,6 +149,7 @@ export function wildInteractions(ctx: Surroundings) {
      */
     return false;
   };
+  const shrineLabel = (): string => shrineVerb;
 
   /**
    * A pack lying in the grass where somebody was killed. Going through it is a small, grubby
@@ -447,5 +449,5 @@ export function wildInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryShrine, tryWreck, tryCampfire, tryFish, tryDig, tryFarm, tryRemains };
+  return { tryShrine, shrineLabel, tryWreck, tryCampfire, tryFish, tryDig, tryFarm, tryRemains };
 }

@@ -78,13 +78,14 @@ export function travelInteractions(ctx: Surroundings) {
     ],
   });
 
+  let ferryVerb = 'Take the ferry';
   const tryFerry = (preview = false): boolean => {
     /*
      * A hull of your own lies one tile beyond the same pier. It has to win here: every point close
      * enough to board it is also inside the pier's ferry range, so letting the ferry answer first
      * makes a bought boat impossible to cast off. Away from that hull the ferry still owns the pier.
      */
-    if (!preview && sailing.near(player.x, player.z)) return false;
+    if (sailing.near(player.x, player.z)) return false;
     const now = worldSeconds(state.day, state.time);
     for (const { line } of ferries) {
       const st = ferryStateAt(line, now);
@@ -92,7 +93,7 @@ export function travelInteractions(ctx: Surroundings) {
       const nearFrom = Math.hypot(line.fromPier.dockX + 0.5 - player.x, line.fromPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
       const nearTo = Math.hypot(line.toPier.dockX + 0.5 - player.x, line.toPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
       if (st.docked && nearBoat) {
-        if (preview) return true;
+        if (preview) { ferryVerb = 'Board the ferry'; return true; }
         const dest = st.docked === 'from' ? 'to' : 'from';
         const destName = dest === 'to' ? line.toName : line.fromName;
         const fare = fareFor(line);
@@ -130,7 +131,10 @@ export function travelInteractions(ctx: Surroundings) {
         return true;
       }
       if (nearFrom || nearTo) {
-        if (preview) return true;
+        if (preview) {
+          ferryVerb = sailing.bought ? 'Check the ferry timetable' : 'Check ferry times or buy a boat';
+          return true;
+        }
         /*
          * A board on an empty pier, and the one place a boat is for sale.
          *
@@ -165,18 +169,8 @@ export function travelInteractions(ctx: Surroundings) {
     return false;
   };
 
-  const ferryLabel = (): string => {
-    const now = worldSeconds(state.day, state.time);
-    for (const { line } of ferries) {
-      const st = ferryStateAt(line, now);
-      const nearBoat = Math.hypot(st.x - player.x, st.z - player.z) < FERRY.BOARD_RANGE;
-      const nearFrom = Math.hypot(line.fromPier.dockX + 0.5 - player.x, line.fromPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
-      const nearTo = Math.hypot(line.toPier.dockX + 0.5 - player.x, line.toPier.dockZ + 0.5 - player.z) < FERRY.BOARD_RANGE + 1;
-      if (st.docked && nearBoat) return 'Board the ferry';
-      if (nearFrom || nearTo) return 'Wait for the ferry';
-    }
-    return 'Take the ferry';
-  };
+  // Set by the successful preview above, so naming the card does not scan every ferry a second time.
+  const ferryLabel = (): string => ferryVerb;
 
   /** Enter at a pier or beside your own boat: buy one, cast off, or step ashore. */
   const tryBoat = (preview = false): boolean => {
