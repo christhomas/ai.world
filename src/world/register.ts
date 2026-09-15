@@ -24,7 +24,8 @@ import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, pare
 import { compactAll, type Opinion } from './memory';
 import { recallFor, toldOf, whoKnows } from './remembering';
 import { FORTUNE, canRecover, fortuneOf, grownFolk, type Fortune } from './fortunes';
-import { commissionAStable, type StablePurchase, type StableYard } from './farmbuilds';
+import type { StablePurchase, StableYard } from './farmbuilds';
+import { StableBook } from './stablebook';
 import type { FieldClearing } from './fieldbuilds';
 /**
  * The living population of the world's villages: who is here today, and who has been born or died
@@ -69,7 +70,7 @@ export class Register {
   /** The days a shrine raised somebody, by village — the copy that survives a re-living. */
   private readonly magicked = new Map<string, number[]>();
   /** Farmer stable commissions, told from the kept timber yard and replayed on their morning. */
-  private readonly stablePurchases = new Map<string, StablePurchase>();
+  private readonly stables = new StableBook();
   /**
    * Which household holds which roof, by village. Item 111.
    *
@@ -114,29 +115,26 @@ export class Register {
       killedOn: (id) => this.killed.get(id),
       taxed: (id, much) => { this.paid.set(id, much); },
       waged: (id, much) => { this.earned.set(id, much); },
-      stableBought: (village, on) => this.stablePurchases.get(this.stableKey(village, on)) ?? null,
+      stableBought: (village, on) => this.stables.on(village, on),
       takeOff: (person, on, cause) => this.remove(person, on, cause),
       fieldToClear: (village, settlement) => this.fieldSurvey?.(village, settlement) ?? null,
     };
   }
-  private stableKey(village: string, day: number): string { return `${village}:${Math.floor(day)}`; }
 
   /** Restore purchases before catching the register up, so works and payments replay in order. */
   rememberStablePurchases(purchases: readonly StablePurchase[]): void {
-    for (const purchase of purchases) {
-      this.stablePurchases.set(this.stableKey(purchase.village, purchase.day), { ...purchase });
-    }
+    this.stables.remember(purchases);
   }
 
-  /** Ask one village to commission at most one rung for the next morning. */
-  commissionStable(village: string, yard: StableYard, day: number): StablePurchase | null {
-    const settlement = this.villages.get(village);
-    if (!settlement) return null;
-    const key = this.stableKey(village, day);
-    if (this.stablePurchases.has(key)) return null;
-    const purchase = commissionAStable(village, settlement, yard, day);
-    if (purchase) this.stablePurchases.set(key, purchase);
-    return purchase;
+  /**
+   * Ask one village to commission at most one rung, for the first morning not yet lived.
+   *
+   * `day + 1` rather than today, because `advance` lives every day *after* the one it is standing
+   * on — so a purchase dated today is one no advance will ever reach. `stablebook.ts` has the whole
+   * of why, and the fault it was found by.
+   */
+  commissionStable(village: string, yard: StableYard): StablePurchase | null {
+    return this.stables.commission(village, this.villages.get(village), this.day + 1, yard);
   }
 
   /**
