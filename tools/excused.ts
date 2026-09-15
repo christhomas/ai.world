@@ -24,53 +24,38 @@
  *   as a tool rather than a unit test because it needs the network, and the suite must not.
  *
  * The bench also refuses an excuse for an export that no longer exists, so a deletion cannot leave
- * a suppression behind.
+ * a suppression behind — and, since #177, one for an export the program has since *reached*, so
+ * finishing the work an excuse was waiting on cannot leave the excuse behind either.
  *
  * ## Why it lives in `tools` rather than beside the bench
  *
  * The bench decides "reached" by looking for the name anywhere under `src` and `server` outside its
  * own file. Every excuse in this list *contains* the name it excuses, so a copy of this list under
- * `src` would make all thirty-seven of them look reached and the bench would report two. It did,
- * for about a minute. The list has to sit outside the ground the bench walks.
+ * `src` would make all of them look reached and the bench would report two. It did, for about a
+ * minute. The list has to sit outside the ground the bench walks.
+ *
+ * There is a second reason, learned the expensive way. #134 landed a branch cut before the list
+ * moved out here, and its squash restored the bench's own inline copy — so for a day there were two
+ * lists, the bench read one and `chore excuses` watched the other, and nothing failed because a
+ * list nobody updates agrees with itself perfectly. The nineteen exports #134 deleted stayed
+ * excused here, and two themes wired by #188 stayed excused against the issue that wiring closed.
+ * **This is the list. The bench imports it.**
  */
 export const EXCUSED = new Map<string, string>([
   ['src/dungeon/castlerooms.ts: HANGS_ON_WALLS', 'castle.test checks that file-driven hangings occupy walls'],
-  ['src/entities/behaviours.ts: tradeTree', 'wire-or-delete decision tracked by issue #88'],
   ['src/entities/monsters.ts: MONSTER_KINDS', 'monster tests inspect the curated monster kinds'],
   ['src/entities/motion.ts: FLINCH_LASTS', 'motion tests use the exported duration as their timing boundary'],
-  ['src/entities/shapes.ts: partPoints', 'wire-or-delete decision tracked by issue #88'],
+  ['src/entities/shapes.ts: partPoints', 'sites tests measure a prop\'s corners with it: the one door onto placedPieces'],
   ['src/entities/spawns.ts: DUNGEON_MONSTERS', 'danger tests exercise every shallow-dungeon spawn kind'],
   ['src/entities/villain.ts: VILLAIN_KINDS', 'villain tests inspect the curated villain kinds'],
   ['src/game/brewing.ts: RECIPE', 'brewing tests verify the recipe table consumers must satisfy'],
-  ['src/game/eyries.ts: packWeight', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/gun.ts: markUnder', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/predicted.ts: claimsFor', 'prediction tests guard claim ownership across replay'],
   ['src/game/predicted.ts: inTheHand', 'prediction tests guard held-item state across replay'],
-  ['src/game/prowess.ts: towardsNext', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/roaming.ts: bandsOver', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/roaming.ts: planBands', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/roaming.ts: regionOf', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/seasons.ts: seasonProgress', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/stables.ts: bestOver', 'wire-or-delete decision tracked by issue #88'],
-  ['src/game/whales.ts: landingOf', 'wire-or-delete decision tracked by issue #88'],
-  ['src/render/footprint.ts: measureFootprint', 'wire-or-delete decision tracked by issue #88'],
-  ['src/ui/themes.ts: themeChosen', 'nothing applies a theme yet; the picker is issue #177'],
-  ['src/ui/themes.ts: wearTheme', 'nothing applies a theme yet; the picker is issue #177'],
+  ['src/render/footprint.ts: measureFootprint', 'footprint tests hold the built mesh against the catalogue box with it'],
   ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
-  ['src/world/character.ts: characterAt', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
-  ['src/world/farmbuilds.ts: whichFarmerBuilds', 'farmbuilds.test exercises it directly; commissionAStable in the same file is the committing edge that register.ts and the builder call'],
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
-  ['src/world/food.ts: saidOfFood', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/growworld.ts: patchStamp', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/memory.ts: opinionOf', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/memory.ts: regardFor', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/mesh.ts: territoryOf', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/prosperity.ts: saidOfWealth', 'wire-or-delete decision tracked by issue #88'],
-  ['src/world/provinces.ts: adjoins', 'wire-or-delete decision tracked by issue #88'],
   ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
   ['src/world/vocabulary.ts: HOLDINGS', 'vocabulary tests verify every holding has words'],
-  ['src/world/wounds.ts: hurtBy', 'wire-or-delete decision tracked by issue #88'],
 ]);
 
 /** The issue an excuse defers to, or nothing where it names a test instead. */
