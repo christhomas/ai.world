@@ -400,13 +400,17 @@ export class Simulation {
    */
   keepTheMinds(): void {
     if (!this.minds) return;
-    for (const [seed, folk] of this.folk) {
-      try {
-        keepMinds(this.minds, seed, everybodyIn(folk.register));
-      } catch (why) {
-        // a save that throws must not take the shutdown with it: the world's JSON is already down
-        console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
-      }
+    for (const [seed] of this.folk) this.keepMindsOf(seed);
+  }
+
+  /** Save one live register, shared by shutdown, timeout teardown, and an orderly final leave. */
+  private keepMindsOf(seed: number): void {
+    const folk = this.folk.get(seed);
+    if (!this.minds || !folk) return;
+    try { keepMinds(this.minds, seed, everybodyIn(folk.register)); }
+    catch (why) {
+      // a save that throws must not prevent the room and its sockets from being closed
+      console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
     }
   }
 
@@ -446,6 +450,7 @@ export class Simulation {
       },
       leave: () => {
         if (!client) return;
+        if (this.rooms.get(client.seed)?.clients.size === 1) this.keepMindsOf(client.seed);
         this.rooms.leave(client);
         client = null;
       },
@@ -472,14 +477,7 @@ export class Simulation {
         // stretch of absence that started before anybody had actually gone.
         room.world.keepNear([]);
         this.rooms.close(seed);
-        const folk = this.folk.get(seed);
-        if (this.minds && folk) {
-          try {
-            keepMinds(this.minds, seed, everybodyIn(folk.register));
-          } catch (why) {
-            console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
-          }
-        }
+        this.keepMindsOf(seed);
         this.ground.delete(seed);
         this.folk.delete(seed);
         this.held.delete(seed);
