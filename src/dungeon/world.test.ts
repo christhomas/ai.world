@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { buildChunkMesh, type WallCut } from '../world/mesher';
-import { generateWebGraph } from '../world/roadweb';
+import { generateWebGraph } from '../world/roadweb.test.fixture';
 import { TerrainSampler } from '../world/terrain';
 import { CASTLE, generateCastle } from './castle';
 import { generateDungeon, type DungeonStyle } from './generate';

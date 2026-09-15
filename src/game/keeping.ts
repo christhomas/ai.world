@@ -1,5 +1,5 @@
 import type { Manifest } from '../world/manifest';
-import type { SaveStore, SessionSave, WorldKind } from '../save/store';
+import type { SaveStore, SessionSave } from '../save/store';
 import { Houses } from './building';
 import { Plots } from './farming';
 import { Gifts } from './gifts';
@@ -35,7 +35,6 @@ export interface Keeping {
   slotKey: string;
   seed: number;
   worldName?: string;
-  world: WorldKind;
   saved: SessionSave | undefined;
   structures: Structures;
   /** The anchors: where each named place is, and what shape it grew. */
@@ -51,7 +50,7 @@ export interface Keeping {
 }
 
 export function openTheSave(ctx: Keeping) {
-  const { store, slotKey, seed, worldName, world, saved, structures, manifest, rng, cam, at, sky } = ctx;
+  const { store, slotKey, seed, worldName, saved, structures, manifest, rng, cam, at, sky } = ctx;
 
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
   /**
@@ -107,7 +106,6 @@ export function openTheSave(ctx: Keeping) {
     void store.save<SessionSave>(slotKey, {
       seed,
       worldName,
-      world,
       cam: cam(),
       player: at(),
       state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save() },

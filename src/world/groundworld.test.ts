@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
-import { generateWebGraph } from './roadweb';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { propFootprints } from '../entities/props';
 import { GroundWorld, patchedCountry } from './groundworld';
 import { PATCH, Patchwork } from './patchwork';

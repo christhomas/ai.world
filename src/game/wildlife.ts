@@ -78,6 +78,16 @@ export interface Drift {
 const CATCH_UP = 9;
 
 /**
+ * The largest positional correction worth easing, in tiles.
+ *
+ * Half a tile is visible but still larger than the ordinary gap between snapshots in a run. Past
+ * it the screen and the world disagree by about a whole animal: carrying that debt through later
+ * snapshots makes every subsequent position a lie. A large correction is therefore a fact, like a
+ * collision or teleport, and is accepted immediately; the small, frequent movements remain eased.
+ */
+const MAX_EASED_GAP = 0.5;
+
+/**
  * How far ahead of the last snapshot a creature may be carried, in seconds.
  *
  * Long enough to cover the gap between snapshots, which is what the lag actually is, and no longer:
@@ -238,6 +248,9 @@ export class Wildlife {
           this.wrongClose.total += out;
           if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
         }
+        // An easing tail is for arithmetic-sized disagreement. Once it is a whole visible body,
+        // preserving the old drawing only lets the next message measure and inherit the same lie.
+        if (out > MAX_EASED_GAP) { body.x = snap.x; body.z = snap.z; }
       }
       body.state = snap.state;
       body.walk = snap.walk;

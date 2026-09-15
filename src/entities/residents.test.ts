@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from '../world/register';
-import { generateWebGraph } from '../world/roadweb';
+import { generateWebGraph } from '../world/roadweb.test.fixture';
 import { TerrainSampler } from '../world/terrain';
 import { GroundWorld } from '../world/groundworld';
 import { EntityManager } from './manager';

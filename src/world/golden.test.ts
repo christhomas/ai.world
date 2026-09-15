@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateRoadGraph } from './graph';
+import { generateRoadGraph } from './graph.test.fixture';
 import { TerrainSampler } from './terrain';
 import { buildChunkMesh } from './mesher';
 import { generateQuests } from '../game/quests';

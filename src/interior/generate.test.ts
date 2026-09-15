@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PropKind } from '../world/biomes';
 import { ITile, blocksAt, generateInterior, interiorSeed, interiorTitle } from './generate';
 import { InteriorWorld } from './world';
-import { generateWebGraph } from '../world/roadweb';
+import { generateWebGraph } from '../world/roadweb.test.fixture';
 import { TerrainSampler } from '../world/terrain';
 import { propFootprints } from '../entities/props';
 

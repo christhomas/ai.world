@@ -1,13 +1,13 @@
 import { handle } from './messages';
 import {
-  LIMITS, PROTOCOL_VERSION, cleanIslands, cleanName, islandsSaidPlainly,
+  LIMITS, PROTOCOL_VERSION, cleanName,
   type ClientMessage, type CreatureSnap, type ServerMessage, type WorldDelta,
 } from './protocol';
 import { Rooms, type Client, type Room, type Wire } from './rooms';
 import { WorldRecordConflict } from './worldrecords';
 import type { Vault } from './vault';
 import { CLOCK_INTERVAL, DAY_LENGTH } from './world';
-import { GroundWorld, oneCountry, patchedCountry } from '../src/world/groundworld';
+import { GroundWorld, patchedCountry } from '../src/world/groundworld';
 import { Patchwork } from '../src/world/patchwork';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
@@ -16,19 +16,14 @@ import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
 import { peopleOf } from './people';
-import type { DatabaseSync } from 'node:sqlite';
-import type { Person } from '../src/world/people';
-import { HeldMinds, forgetMind, keepMinds, mindsOf } from './durable/minds';
 import { domesdayOf, type Domesday } from './domesday';
 import { Chronicle } from './chronicle';
-import { countryStamp, growPatch, growWorld } from '../src/world/growworld';
+import { growPatch } from '../src/world/growworld';
 import { WORLD } from '../src/core/config';
-import type { WorldKind } from '../src/save/store';
 import { generateDungeon, asDungeonStyle } from '../src/dungeon/generate';
 import { lidLifted } from './chests';
 import { DungeonWorld } from '../src/dungeon/world';
 import { Manifest } from '../src/world/manifest';
-import { TerrainSampler } from '../src/world/terrain';
 import { provinceOfHome } from '../src/world/provinces';
 
 /**
@@ -62,14 +57,6 @@ export interface SimOptions {
   ground?: boolean;
   /** How many chunks either side of a player the simulation keeps. */
   reach?: number;
-  /**
-   * Where to keep the half of a villager that no seed implies: their memories and their opinions.
-   *
-   * Left out, they last as long as the process — which is how it was, and which meant every restart
-   * wiped every villager's opinion of every player with nothing anywhere saying so. See
-   * `durable/minds.ts`; `serve.ts` hands this the same file the tools portal uses.
-   */
-  minds?: DatabaseSync;
 }
 
 /** One player's connection, from the simulation's side. */
@@ -147,19 +134,8 @@ export class Simulation {
   /** The ground of each world, for the worlds anybody is standing in. */
   private readonly ground = new Map<number, GroundWorld>();
   /** Who lives in each world, kept so the endless ones can be told about country as it arrives. */
-  private readonly folk = new Map<number, { catchUp: () => void; register: { living(village: string): readonly Person[]; settled(): readonly string[] } }>();
-  /** Where the non-derived half of a villager is kept between one visit and the next. */
-  private readonly minds: DatabaseSync | null;
-  /**
-   * What was read back off the disk, waiting for the villagers it belongs to.
-   *
-   * A village is lived when somebody walks into it, so the register's roll starts empty and fills
-   * as the world is explored. See `HeldMinds`: each villager is given theirs once, the first time
-   * they exist, and never again.
-   */
-  private readonly held = new Map<number, HeldMinds>();
+  private readonly folk = new Map<number, { catchUp: () => void }>();
   /** The fingerprint of each of those countries, so a joining page can check it grew the same one. */
-  private readonly stamps = new Map<number, string>();
   /** And what lives on it: the herds, the villagers, the things that hunt at night. */
   private readonly wildlife = new Map<number, Wildlife>();
   /** What has happened lately in each world, for anybody watching one. See `chronicle.ts`. */
@@ -187,7 +163,6 @@ export class Simulation {
   private clockTicker: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: SimOptions = {}) {
-    this.minds = options.minds ?? null;
     this.rooms = new Rooms(options.dataDir ?? '', options.vault);
     this.timeout = options.timeout ?? TIMEOUT;
     this.growGround = options.ground ?? false;
@@ -209,46 +184,13 @@ export class Simulation {
     if (!this.growGround) return null;
     const held = this.ground.get(seed);
     if (held) return held;
-    /*
-     * The same country the players of this room are in.
-     *
-     * A seed grows two completely different lands and this used to grow one of them for everybody:
-     * whatever a player's save said, the server built the polygon world and walked their hero
-     * about on it. In a road world that meant the server had open ground where the player could
-     * see a house — and since the server owns where a hero is standing, it corrected him straight
-     * through the wall his own game had stopped him at. A ghost in his own village, and every
-     * other symptom of two worlds at once: wolves biting from nowhere, blows landing on nothing,
-     * walls in the middle of a field.
-     */
     const room = this.rooms.get(seed);
-    const kind: WorldKind = room?.kind ?? 'road';
-    // Through the one call there is, with the islands the page says its world has. Growing a
-    // road-tree world without them here and with them there gave the same seed two different
-    // countries, and whichever filled a chunk first won; growing it with a *different* set of them
-    // would do it again, which is why they travel with the join. `growworld.ts` says the rest.
     /*
-     * Two countries, one door, and the difference is what the world is *made of* rather than how it
-     * is reached.
-     *
-     * A road world exists all at once: one graph, one sampler, and `oneCountry` over the whole of
-     * it. An endless one has no such moment — what exists is whatever somebody has walked into, a
-     * 512-tile square at a time — so it is a `Patchwork` and `patchedCountry` over that. Both come
-     * out as a `Country`, which is the interface `GroundWorld` has stood on since the 12th, so
-     * everything below this line is the same code for both.
-     *
-     * The stamp is the part that could not simply be the same. A bounded world's fingerprint is a
-     * fingerprint of the whole country, and there is no whole country here to take one of; an
-     * endless world is checked a patch at a time by `twohalves.test.ts` instead, which is the
-     * honest version of the same question and the better one — it asks *"are we on the same
-     * ground"* wherever somebody is standing rather than *"are we in the same world"* once.
+     * There is no whole country to grow or fingerprint. `Patchwork` retains the squares somebody
+     * has approached, and the page/server agreement is checked a patch at a time.
      */
-    const endless = kind === 'endless';
-    const patches = endless ? new Patchwork(seed, growPatch) : null;
-    const graph = endless ? null : growWorld(seed, kind, room?.islands);
-    const country = patches ? patchedCountry(patches) : oneCountry(new TerrainSampler(graph!));
-    // and the fingerprint of it, so a joining page can be told which country it is standing in
-    // rather than assuming its own answer was the same one
-    if (graph) this.stamps.set(seed, countryStamp(graph));
+    const patches = new Patchwork(seed, growPatch);
+    const country = patchedCountry(patches);
     const grown = new GroundWorld(country, blocking(propFootprints(), BLOCKS_WALKING));
     this.ground.set(seed, grown);
     /*
@@ -259,7 +201,7 @@ export class Simulation {
      * where a fresh endless world puts somebody, it costs about half a second, and every other
      * square arrives as it is walked into — which is what `catchUp` below is for.
      */
-    if (patches) patches.at(0, 0);
+    patches.at(0, 0);
     // The people too, now. They were held back for a long time on the argument that a village is the
     // seed and the register and every client already agrees about it — which was true until a
     // villager was given something of his own to remember, and then it was two men of the same name
@@ -267,7 +209,6 @@ export class Simulation {
     const folk = peopleOf(seed, country, Math.floor(room?.world.clock.day ?? 1), {
       onFallen: (who, id) => this.buried(seed, who, id),
       onArrest: (by, whom) => this.tellOfArrest(seed, by, whom),
-      onDeparted: (change) => this.forgetTheMind(seed, change.id),
     });
     this.folk.set(seed, folk);
     const alive = new Wildlife(seed, grown, grown, folk);
@@ -282,28 +223,6 @@ export class Simulation {
           kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
         });
       } else if (delta.kind === 'voted' || delta.kind === 'sworn') folk.register.apply(delta);
-    }
-    /*
-     * And what the people of this world hold, which the seed cannot grow back.
-     *
-     * Here, and not a line earlier or later: the register has just been built and caught up with
-     * the told facts, and nobody has been admitted yet. Earlier there would be no people to put it
-     * into; later the first player through the door meets a village that has forgotten them.
-     */
-    if (this.minds) {
-      const { minds, unreadable } = mindsOf(this.minds, seed);
-      const waiting = new HeldMinds(minds);
-      // A replay can already have settled villages. Restore those people before welcome() admits a
-      // client; the held copy remains for villages that are grown lazily later.
-      waiting.giveTo(everybodyIn(folk.register));
-      this.held.set(seed, waiting);
-      if (unreadable.length > 0) {
-        // said out loud rather than swallowed: a villager who has forgotten you is a thing somebody
-        // should be told about, and a silent loss is the whole complaint behind 129 and 135
-        console.error(`world ${seed}: ${unreadable.length} villagers' memories would not read back`
-          + ` and were left behind — ${unreadable.slice(0, 5).join(', ')}`);
-      }
-      if (minds.size > 0) console.log(`world ${seed}: ${minds.size} villagers remember somebody`);
     }
     alive.syncBuildings();
     // C2's coarse tier, joined up. A herd belongs to the province its home is in and never to the
@@ -388,30 +307,6 @@ export class Simulation {
     this.ticker = null;
     this.clockTicker = null;
     this.rooms.saveAll();
-    this.keepTheMinds();
-  }
-
-  /**
-   * Write down what every villager of every open world holds.
-   *
-   * Alongside `saveAll`, and for the same reason it exists: the world's own JSON and this are two
-   * halves of one save, and a restart between them is a world whose told facts and whose
-   * memories disagree about which day it is.
-   */
-  keepTheMinds(): void {
-    if (!this.minds) return;
-    for (const [seed] of this.folk) this.keepMindsOf(seed);
-  }
-
-  /** Save one live register, shared by shutdown, timeout teardown, and an orderly final leave. */
-  private keepMindsOf(seed: number): void {
-    const folk = this.folk.get(seed);
-    if (!this.minds || !folk) return;
-    try { keepMinds(this.minds, seed, everybodyIn(folk.register)); }
-    catch (why) {
-      // a save that throws must not prevent the room and its sockets from being closed
-      console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
-    }
   }
 
   /**
@@ -450,7 +345,6 @@ export class Simulation {
       },
       leave: () => {
         if (!client) return;
-        if (this.rooms.get(client.seed)?.clients.size === 1) this.keepMindsOf(client.seed);
         this.rooms.leave(client);
         client = null;
       },
@@ -477,11 +371,8 @@ export class Simulation {
         // stretch of absence that started before anybody had actually gone.
         room.world.keepNear([]);
         this.rooms.close(seed);
-        this.keepMindsOf(seed);
         this.ground.delete(seed);
         this.folk.delete(seed);
-        this.held.delete(seed);
-        this.stamps.delete(seed);
         this.wildlife.delete(seed);
         this.rooms.forgetGround(seed);
         continue;
@@ -493,14 +384,6 @@ export class Simulation {
       // in one of their streets. Costs one set lookup per patch held in a world nobody is
       // exploring, which is every tick of a road world for ever. See `server/people.ts`.
       this.folk.get(seed)?.catchUp();
-      /*
-       * And whoever has just been settled gets what was kept for them, before anybody can talk to
-       * them. A village is lived when somebody walks into it, so this is the moment its people
-       * first exist — see `HeldMinds`, which gives each of them theirs exactly once.
-       */
-      const waiting = this.held.get(seed);
-      const folk = this.folk.get(seed);
-      if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
       // The book catches up before anybody walks a villager anywhere. A day turning over buries the
       // old, fills the gaps, grows the children up and pays everybody for a day's work, and the
       // street is brought back into line with it on the next step — so the order is the register
@@ -547,12 +430,7 @@ export class Simulation {
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {
-          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow, () => {
-            // `alive.step` is what first puts a village's residents on its register. Restore them
-            // before `tellAboutCreatures` introduces the people to a client, which is the first
-            // moment that client can know an id well enough to change its mind.
-            if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
-          });
+          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow);
         }
       }
       this.stepFloors(seed, room, seconds, tellNow);
@@ -580,7 +458,6 @@ export class Simulation {
    */
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
-    beforeTell?: () => void,
   ): void {
     // Each of them as much of a player as the creatures need: where, what they are wearing, and how
     // badly the law wants them. The object is the client's own and is refreshed rather than remade,
@@ -599,7 +476,6 @@ export class Simulation {
       const bitten = who.find((c) => c.standing === bite.who);
       if (bitten) this.rooms.send(bitten, { type: 'bitten', place, id: bite.id, damage: bite.damage });
     }
-    beforeTell?.();
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
     if (tell) this.tellAboutCreatures(alive, place, who, null);
@@ -629,15 +505,6 @@ export class Simulation {
     room.world.apply(delta);
     this.rooms.broadcast(seed, { type: 'delta', delta, from: '' });
     this.rooms.broadcast(seed, { type: 'killed', place: 'surface', id, by: '' });
-  }
-
-  /** Remove only a recorded departure; rows for people whose village is not settled stay held. */
-  private forgetTheMind(seed: number, id: string): void {
-    if (!this.minds) return;
-    try { forgetMind(this.minds, seed, id); }
-    catch (why) {
-      console.error(`world ${seed}: could not forget departed villager ${id} — ${String(why)}`);
-    }
   }
 
   /**
@@ -819,18 +686,12 @@ export class Simulation {
       return null;
     }
     const requestedSeed = message.seed >>> 0;
-    const requestedKind: WorldKind = message.world === 'endless' ? 'endless' : 'road';
-    const said = cleanIslands(message.islands);
-    const requestedIslands = said.length > 0 ? said : undefined;
-
     let record = message.worldName === undefined
       ? this.rooms.worldRecordForSeed(requestedSeed)
       : undefined;
     if (message.worldName !== undefined) {
       try {
-        // `requestedIslands` and not `?? []`: a join that said nothing about its islands must not
-        // freeze the name with an empty manifest. See `claim`
-        record = this.rooms.claimWorld(message.worldName, requestedSeed, requestedKind, requestedIslands);
+        record = this.rooms.claimWorld(message.worldName, requestedSeed);
       } catch (error) {
         const reason = error instanceof WorldRecordConflict ? error.message : 'That world name could not be opened.';
         wire.send(JSON.stringify({ type: 'error', reason } satisfies ServerMessage));
@@ -842,35 +703,10 @@ export class Simulation {
     // A named record is the authority. An unnamed join still opens old seed-numbered saves exactly
     // as it did before names existed.
     const seed = record?.seed ?? requestedSeed;
-    const kind = record?.kind ?? requestedKind;
-    const islands = record ? (record.manifest.length > 0 ? record.manifest : undefined) : requestedIslands;
     const room = this.rooms.open(seed, {
       day: Math.max(1, Math.floor(message.day) || 1),
       time: Number(message.time) || 0.3,
-    }, kind, islands, record);
-    if (room.kind !== kind) {
-      wire.send(JSON.stringify({ type: 'error', reason: 'That name belongs to a different kind of world.' } satisfies ServerMessage));
-      wire.close();
-      return null;
-    }
-    // two players of the same seed in different countries are not in the same place at all, and a
-    // world nobody can agree about is worse than a door that will not open
-
-    /*
-     * And the same check on the rest of what makes a country, for exactly the same reason.
-     *
-     * The kind is the loud half of "a seed is not a world" and the islands are the quiet half. A
-     * world saved before the islands were planned from the seed carries its own in its manifest,
-     * and two players whose manifests differ are as far apart as two players in different kinds of
-     * world — the same houses in different fields, the same names on different ground. It cannot
-     * be papered over by picking one, because the one not picked would then be walked about a
-     * country he cannot see, which is the whole fault this seam exists to end.
-     */
-    if (islandsSaidPlainly(room.islands ?? []) !== islandsSaidPlainly(islands ?? [])) {
-      wire.send(JSON.stringify({ type: 'error', reason: 'That world is open with its islands somewhere else.' } satisfies ServerMessage));
-      wire.close();
-      return null;
-    }
+    }, record);
     const joining = this.rooms.admit(wire, room, seed, cleanName(message.name));
 
     this.rooms.send(joining, {
@@ -908,9 +744,8 @@ export class Simulation {
    * of being thrown away and grown again for every page that wants one. By the time a page asks,
    * the answer is packing bytes it already has.
    *
-   * The `country` that goes out afterwards is the page's cue that the waiting is over — and the
-   * fingerprint of the country the world grew, which is the only chance the two halves get to
-   * compare the villages, doors and eyries that still do not travel.
+   * The `country` that goes out afterwards is the page's cue that the waiting is over. Its stamp is
+   * empty because an endless country has no whole-country fingerprint.
    *
    * A join that does not say where it is standing gets the country but not the first view. There is
    * nowhere to grow, and guessing a place would be growing the wrong one.
@@ -919,25 +754,8 @@ export class Simulation {
     const ground = this.groundOf(client.seed);
     const x = Number(message.x), z = Number(message.z);
     if (ground && Number.isFinite(x) && Number.isFinite(z)) ground.ready(x, z, VIEW);
-    // the kind as well as the hash: two halves that grew different kinds of country cannot agree
-    // about anything, and saying which is what turns a pair of hex numbers into a diagnosis
-    this.rooms.send(client, {
-      type: 'country',
-      stamp: this.stamps.get(client.seed) ?? '',
-      kind: this.rooms.get(client.seed)?.kind ?? 'road',
-    });
+    this.rooms.send(client, { type: 'country', stamp: '' });
   }
 }
 
 export { DAY_LENGTH };
-
-/**
- * Everybody a register is holding, across every village it has settled.
- *
- * The register answers per village because that is how a village is lived; the durable half wants
- * the world. One place that turns the first into the second, so the save and the restore cannot
- * come to different answers about who is in this world.
- */
-function everybodyIn(register: { living(village: string): readonly Person[]; settled(): readonly string[] }): Person[] {
-  return register.settled().flatMap((village) => [...register.living(village)]);
-}

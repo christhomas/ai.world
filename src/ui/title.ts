@@ -14,81 +14,14 @@ export interface SlotChoice {
   key: string;
   save: SessionSave | undefined;
   seed: number;
-  /** Which world to grow. Taken from the save when continuing one, and chosen when starting one. */
-  world: WorldKind;
   /** The sayable name chosen for a new world, or kept with a continued one. */
   worldName?: string;
 }
 
-/**
- * The switches in the corner: what a new world is made of, decided before you go in.
- *
- * Written as switches rather than as a pair of buttons on every slot because there will be more
- * than one of them. A world has a handful of things worth settling in advance and none of them
- * belong on the slot itself, which is about the hero rather than the country.
- *
- * `mountains` picks the polygon world over the older road tree. It is on by default and worth
- * being plain about why: the road tree cannot place a massif at all, because a massif wants thirty
- * tiles of room from the coast and its land is never wider than twenty-two. So the flat world has
- * no cliffs in it, and no eagles nesting on them.
- */
-interface Switch {
-  id: string;
-  label: string;
-  note: string;
-  /** What it is set to when nobody has ever touched it. */
-  fallback: boolean;
-}
-
-/*
- * The machinery was kept empty for a year on the argument that a title screen which can offer a
- * choice about a world is a thing this game would want again. This is it.
- *
- * There was one switch before: "Mountains", which chose the polygon world, and it went with that
- * world — the country it grew read as a honeycomb at map scale, and the answer in the end was to
- * make the good country mountainous rather than keep the bad one for its cliffs.
- */
-export const SWITCHES: readonly Switch[] = [
-  {
-    id: 'endless',
-    label: 'Endless country',
-    /*
-     * Off by default, and that is a statement about where the endless world has got to rather than
-     * a preference. It grows a square at a time as you walk into it, so it has no edge and no map
-     * of itself — and the server still grows the bounded kind, so a shared world is the road tree
-     * whatever a page chooses. Somebody who picks this is choosing a country to walk alone in,
-     * which is worth being told rather than found out.
-     */
-    note: 'no edge, and no end. Single player for now.',
-    fallback: false,
-  },
-];
-
-/** Where a switch remembers itself between visits, so it is set once rather than every time. */
-const switchKey = (id: string) => `ai.world/new/${id}`;
-
-function switchIsOn(id: string, fallback: boolean): boolean {
-  try {
-    const saved = localStorage.getItem(switchKey(id));
-    return saved === null ? fallback : saved === '1';
-  } catch {
-    return fallback;   // private browsing: the default will do
-  }
-}
-
-function setSwitch(id: string, on: boolean): void {
-  try { localStorage.setItem(switchKey(id), on ? '1' : '0'); } catch { /* nothing to do */ }
-}
-
-/**
- * How a saved world describes itself in its slot.
- *
- * It matters again now that there are two kinds: the same seed grows a completely different country
- * as an endless one, so a slot that did not say which it was would be a slot you could not tell
- * apart from its neighbour until you were standing in it.
- */
+/** How every saved world describes itself now that there is one country. */
 export function nameOf(world: WorldKind | undefined): string {
-  return world === 'endless' ? 'endless country' : 'open country';
+  void world;
+  return 'endless country';
 }
 /** Saved names are data even if storage was edited by hand. */
 const HTML_ESCAPE: Record<string, string> = {
@@ -115,7 +48,6 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
 
   const root = $('title');
   const list = $('slots');
-  const switches = $('titleSwitches');
   const worldNameInput = $('worldNameInput') as HTMLInputElement;
   const worldSeedInput = $('worldSeedInput') as HTMLInputElement;
   const worldError = $('titleWorldError');
@@ -158,20 +90,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
           ${s ? `<button class="slot-del" data-act="delete" data-slot="${i}" title="Delete this world" aria-label="Delete slot ${i + 1}">✕</button>` : ''}
         </div>`;
       }).join('');
-      switches.innerHTML = SWITCHES.map((sw) => `
-        <div class="tswitch" role="switch" tabindex="0" data-switch="${sw.id}" aria-checked="${switchIsOn(sw.id, sw.fallback)}">
-          <div class="tswitch-track"></div>
-          <div class="tswitch-label">${sw.label}<span class="tswitch-note">${sw.note}</span></div>
-        </div>`).join('');
     };
-    /**
-     * What the switches currently add up to, read at the moment a world is actually made.
-     *
-     * At the moment rather than when the screen was drawn: somebody flips a switch and then picks a
-     * slot, and the world they get has to be the one the switch was showing when they pressed it.
-     */
-    const chosenWorld = (): WorldKind => (switchIsOn('endless', false) ? 'endless' : 'road');
-
     const pick = (i: number, act: string) => {
       const key = SLOT_KEYS[i];
       // The tap that enters a world is the one moment a browser will give a page the whole screen,
@@ -188,7 +107,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       if (act === 'continue' && saves[i]) {
         // Every part of a continued world's identity comes from its save. Older saves simply have
         // no name yet and continue by seed, which is their intact migration path.
-        finish({ key, save: saves[i], seed: saves[i]!.seed, worldName: saves[i]!.worldName, world: saves[i]!.world ?? 'road' });
+        finish({ key, save: saves[i], seed: saves[i]!.seed, worldName: saves[i]!.worldName });
         return;
       }
       const worldName = cleanWorldName(worldNameInput.value);
@@ -204,7 +123,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         return;
       }
       worldError.textContent = '';
-      finish({ key, save: undefined, seed: askedSeed ? Number(askedSeed) >>> 0 : randomSeed(), worldName, world: chosenWorld() });
+      finish({ key, save: undefined, seed: askedSeed ? Number(askedSeed) >>> 0 : randomSeed(), worldName });
     };
     list.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]');
@@ -213,24 +132,6 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
     });
     // the land behind it keeps moving while the choice is being made, and stops when it is
     const stopSky = paintTitleSky($('titleSky') as HTMLCanvasElement);
-    const flip = (el: HTMLElement) => {
-      const id = el.dataset.switch!;
-      const now = el.getAttribute('aria-checked') !== 'true';
-      setSwitch(id, now);
-      el.setAttribute('aria-checked', String(now));
-    };
-    switches.addEventListener('click', (e) => {
-      const sw = (e.target as HTMLElement).closest<HTMLElement>('.tswitch');
-      if (sw) flip(sw);
-    });
-    // a switch is a control, so it answers the keyboard as well as the mouse
-    switches.addEventListener('keydown', (e) => {
-      if (e.key !== ' ' && e.key !== 'Enter') return;
-      const sw = (e.target as HTMLElement).closest<HTMLElement>('.tswitch');
-      if (!sw) return;
-      e.preventDefault();
-      flip(sw);
-    });
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest('input')) return;
       const n = Number(e.key);

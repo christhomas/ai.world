@@ -4273,9 +4273,8 @@ Asked for outright: *"I want the endless world, this is the future of the map, w
 bounded world."* What follows is what actually stands between here and that, found by reading rather
 than by remembering — and the first thing found was that the gap is not where the code says it is.
 
-- [~] **59. The endless country becomes the country.** `EDGE_OF_THE_WORLD = 480` is the world today.
-      The endless one is built, proved and wired to nothing: `src/world/endless.ts` is imported by
-      its own tests and by nothing else in the game.
+- [x] **59. The endless country becomes the country.** The old 480-tile country was the world when
+      this work began. The endless one is now the only country grown by the game and server.
 
       **That last sentence stopped being true on the 13th and is kept for the record.** Every child
       of this item is done but one. `endless.ts` is reached by the page, by the country worker and —
@@ -4283,11 +4282,7 @@ than by remembering — and the first thing found was that the gap is not where 
       as it arrives. The title screen offers it, a save says which country it holds, its mountains
       have a size (**83**) and there are villages in the clouds over them (**85**).
 
-      What is left is **59h**, and it is deliberately a decision rather than a task: taking
-      `EDGE_OF_THE_WORLD` out deletes the world everybody is currently playing and the reference the
-      endless one is checked against. The precondition written into 59h is "the day the endless one
-      is better", and judging that is a walk rather than a test — which is also what **84** asks
-      for.
+      What was left was **59h**, deliberately held behind a decision and a shared-world walk.
 
       **The decision, taken on the 14th: the edge comes out.** Asked directly, and the answer was
       the same one this section opens with — the endless world is the future of the map and the
@@ -4295,15 +4290,12 @@ than by remembering — and the first thing found was that the gap is not where 
       and endless as an explicit single-player choice, is thrown away rather than merged; it is
       recorded here only so nobody spends an afternoon re-deciding it.
 
-      *What that does not settle is when.* This item's own sentence is "last, not first", and the
-      gate it names is a judgement rather than a test: **84** is closed, so the device walk half of
-      it is done, and the shared endless playtest half is **120** and wants a person. Until that
-      happens, removing `EDGE_OF_THE_WORLD` would delete the reference the endless world is checked
-      against before anybody has checked it in company — which is the one way this could go wrong
-      that nobody would notice for a week.
-
-      *What it is not waiting on is size.* Five files mention `EDGE_OF_THE_WORLD` and eight
-      non-test lines read it. The work is the walk, not the deletion.
+      **Done on the 15th.** The device walk was already complete, and the shared gate was repeated
+      with two isolated browser profiles. Ash and Rowan joined endless seed 7301, each saw the other
+      arrive and move to `(18,18)`, both received all 142 requested chunks from the server without
+      local fallback generation, and four ground samples agreed exactly. Neither page raised an
+      error. The old generator and polygon road web now live only as fixtures for tests whose
+      subject is their output; the game, server, title, save writer and wire have one country.
 
 - [x] **59a. What the generator still owes — nothing, as it turns out.** `samplerIn(seed, within)`
       already answers with roads, water, villages, signposts, caves, wrecks, ferries *and rock*:
@@ -4524,10 +4516,10 @@ than by remembering — and the first thing found was that the gap is not where 
       move the ground out from under every house, field and anchor in it. The kind comes back, and
       it travels with the join.
 
-- [ ] **59h. And then the edge comes out.** `EDGE_OF_THE_WORLD`, the island plan, the road tree and
-      everything that reads them. Last, not first: the bounded world is what everybody is playing
-      until the day the endless one is better, and it is also the reference the endless one is
-      checked against.
+- [x] **59h. And then the edge comes out.** The player-facing bounded generator, its island plan,
+      its title choice and the kind/anchor negotiation on the wire are gone. Old saves and named
+      records are read as the endless country; newly written saves no longer preserve a dead choice.
+      Protocol 21 makes the removed join fields explicit instead of accepting compatibility aliases.
 
 - [x] **60. Country grown off the main thread.** Built: `workers/country.worker.ts` grows a square
       and posts back its parts, `world/grower.ts` does the asking, and the page rebuilds — five

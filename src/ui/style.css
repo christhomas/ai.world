@@ -1659,8 +1659,6 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #slots .slot-facts { gap: 12px; font-size: 10px; }
   #slots .slot-seed { display: none; }         /* the number is for a bug report, not for a phone */
   #slots .slot-world { font-size: 10px; margin-left: 8px; }
-  .tswitch-note { display: none; }             /* the switch's own label is enough at this size */
-
   /* -------------------------------------------------------------------------
      The glass ends where the phone ends.
 

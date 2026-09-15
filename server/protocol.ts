@@ -4,21 +4,16 @@
  * and the short list of things players have changed about the world.
  */
 
-import type { WorldKind } from '../src/save/store';
-import type { Anchor } from '../src/world/manifest';
 import type { Memory } from '../src/world/people';
 import type { Opinion } from '../src/world/memory';
 
-export const PROTOCOL_VERSION = 20;
+export const PROTOCOL_VERSION = 21;
 
 /** A durable, sayable handle for everything that makes one generated country. */
 export interface WorldRecord {
   /** The spelling chosen by the first person through the door. */
   name: string;
   seed: number;
-  kind: WorldKind;
-  /** The island part of the manifest. Other anchors are local places, not country geometry. */
-  manifest: Anchor[];
 }
 
 /**
@@ -395,7 +390,7 @@ export type ClientMessage =
    * own guess. Told where somebody is at the moment they join, the world grows their first view
    * while it is still saying hello and the asking is answered out of memory.
    */
-  | { type: 'join'; worldName?: string; seed: number; name: string; version: number; day: number; time: number; world: WorldKind; islands?: Anchor[]; x?: number; z?: number }
+  | { type: 'join'; worldName?: string; seed: number; name: string; version: number; day: number; time: number; x?: number; z?: number }
   /**
    * `guilt` is how badly the law wants this player, from nought to one.
    *
@@ -718,7 +713,7 @@ export type ServerMessage =
    *
    * Empty on a world that grows no ground at all, which is a test harness rather than a game.
    */
-  | { type: 'country'; stamp: string; kind?: WorldKind }
+  | { type: 'country'; stamp: string }
   | { type: 'joined'; player: Presence }
   | { type: 'left'; id: string }
   | { type: 'presence'; players: Presence[] }
@@ -823,27 +818,6 @@ export function cleanStallItem(item: StallItem): StallItem | null {
  * with no usable islands grows the seed's own, which is the right country for every world this
  * code has ever made and the safe answer for anything else.
  */
-export function cleanIslands(raw: unknown): Anchor[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Anchor[] = [];
-  for (const one of raw.slice(0, LIMITS.ISLANDS)) {
-    const a = one as Partial<Anchor>;
-    const id = String(a?.id ?? '').slice(0, LIMITS.THING_ID);
-    const x = Number(a?.x), z = Number(a?.z), seed = Number(a?.seed);
-    if (!id || a?.kind !== 'island') continue;
-    if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(seed)) continue;
-    out.push({
-      id, kind: 'island', x: clamp(x, -1e6, 1e6), z: clamp(z, -1e6, 1e6), seed: seed >>> 0,
-      parent: null, version: Math.max(1, Math.floor(Number(a?.version)) || 1),
-    });
-  }
-  return out;
-}
-
-/** The name two joins have to agree on to be in the same country: the islands, said the same way. */
-export function islandsSaidPlainly(islands: readonly Anchor[]): string {
-  return islands.map((a) => `${a.id}@${Math.round(a.x)},${Math.round(a.z)}:${a.seed}`).sort().join(' ');
-}
 
 /** Guard a parcel off the wire: a real recipient, sane gold, and a handful of items at most. */
 export function cleanLetter(letter: Letter): Letter | null {
@@ -895,7 +869,6 @@ export const LIMITS = {
    * A world plans four or five and the oldest saves have no more, so this is generous by a factor
    * of six. It is a cap on work rather than on size: every anchor costs the world a road tree.
    */
-  ISLANDS: 32,
   /**
    * The most of a mine anybody may claim to have fought through.
    *
