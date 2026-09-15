@@ -625,7 +625,7 @@ export function builderInteractions(ctx: Surroundings) {
     let yardChanged = false;
     for (const village of register.settled()) {
       const before = houses.yard.at(village);
-      houses.yard.felled(village, woodcuttersFor(register.living(village)));
+      houses.yard.felledThrough(village, woodcuttersFor(register.living(village)), day);
       const stable = register.commissionStable(village, houses.yard, state.day);
       if (stable) houses.rememberStablePurchase(stable);
       if (stable || houses.yard.at(village) !== before) yardChanged = true;

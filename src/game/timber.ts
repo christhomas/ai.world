@@ -92,27 +92,45 @@ export const TIMBER = {
 export type TimberJson = Record<string, number> | {
   yards: Record<string, number>;
   brought: Record<string, number>;
+  /** Last world day each yard received its own woodcutters' felling. */
+  felled?: Record<string, number>;
 };
 
 export class Timber {
   private readonly yards = new Map<string, number>();
   /** Cumulative logs carried in and sold here, which no building ever takes back down. */
   private readonly carriedIn = new Map<string, number>();
+  /** The last day accounted for each village's own felling. */
+  private readonly felledOn = new Map<string, number>();
   /** Villages whose standing stack has already been counted, so it is counted once. */
   private readonly opened = new Set<string>();
 
-  constructor(json?: TimberJson) {
-    const stacks = json && 'yards' in json ? json.yards : (json as Record<string, number> | undefined);
+  /**
+   * @param on the world day this save was written, for a yard that predates the day being kept.
+   *
+   * A save made before `felled` existed has stock and no record of when it was last cut, and the
+   * only honest baseline is the day the save itself was on: the woodcutters had worked up to then
+   * and not past it. Without it the first morning back fell through to `today - 1` and credited a
+   * single day however long the game had been shut — a fortnight away earned an afternoon's timber.
+   *
+   * Left out, an old save reads as it did. `Mines.from` takes the day for the same reason.
+   */
+  constructor(json?: TimberJson, on?: number) {
+    const saved = json && isSavedYard(json) ? json : null;
+    const stacks = saved?.yards ?? json;
+    const baseline = Number.isFinite(on) ? Math.floor(on as number) : null;
     for (const [village, logs] of Object.entries(stacks ?? {})) {
       this.yards.set(village, logs);
       this.opened.add(village);
+      // a yard that arrived with no day of its own was last cut on the day the save was written
+      if (baseline !== null) this.felledOn.set(village, baseline);
     }
-    if (json && 'brought' in json) {
-      for (const [village, logs] of Object.entries(json.brought)) this.carriedIn.set(village, logs);
-    }
+    for (const [village, logs] of Object.entries(saved?.brought ?? {})) this.carriedIn.set(village, logs);
+    // and a save that does carry the days is believed over the baseline, which is only a fallback
+    for (const [village, day] of Object.entries(saved?.felled ?? {})) this.felledOn.set(village, day);
   }
 
-  static from(json?: TimberJson): Timber { return new Timber(json); }
+  static from(json?: TimberJson, on?: number): Timber { return new Timber(json, on); }
 
   /** Logs in this village's yard. Nothing, for a village nobody has looked at or cut for. */
   at(village: string): number {
@@ -157,18 +175,31 @@ export class Timber {
   }
 
   /**
-   * A day's felling by however many woodcutters a village has.
+   * Felling accounted through a particular world day.
    *
-   * The first day it is asked about a village it also lands whatever was already stacked there, so
-   * a place with a wood behind it is found with timber in it rather than with a week to wait. A
-   * village with no woodcutter is opened at nothing and stays at nothing, which is the limit.
+   * The regular game path uses this rather than assuming it was called once per rendered midnight:
+   * a day skipped by a clock correction or a reopened save is still a day the woodcutters worked,
+   * and the same day cannot be landed twice. The first visit keeps the existing week's standing
+   * stock, then counts the day it was first observed.
+   *
+   * **`day` is the morning being lived, not the day the game is on.** The scheduler hands
+   * `builderDay` each missed morning in turn; passing it the last of them made the first call
+   * account the whole interval and every call after it a same-day no-op, so a fortnight away
+   * earned an afternoon's timber — and earned it at whatever the village's staffing was on the
+   * morning it came back rather than on each of the mornings it was away.
    */
-  felled(village: string, woodcutters: number): void {
+  felledThrough(village: string, woodcutters: number, day: number): void {
+    const today = Math.floor(day);
+    if (!Number.isFinite(today)) return;
     if (!this.opened.has(village)) {
       this.opened.add(village);
       this.land(village, woodcutters * TIMBER.A_DAY * TIMBER.STANDING);
+      this.felledOn.set(village, today - 1);
     }
-    this.land(village, woodcutters * TIMBER.A_DAY);
+    const last = this.felledOn.get(village) ?? today - 1;
+    if (today <= last) return;
+    this.land(village, (today - last) * woodcutters * TIMBER.A_DAY);
+    this.felledOn.set(village, today);
   }
 
   /**
@@ -192,6 +223,16 @@ export class Timber {
   }
 
   toJSON(): TimberJson {
-    return { yards: Object.fromEntries(this.yards), brought: Object.fromEntries(this.carriedIn) };
+    return {
+      yards: Object.fromEntries(this.yards),
+      brought: Object.fromEntries(this.carriedIn),
+      felled: Object.fromEntries(this.felledOn),
+    };
   }
+}
+
+function isSavedYard(json: TimberJson): json is Exclude<TimberJson, Record<string, number>> {
+  return 'yards' in json
+    && typeof json.yards === 'object' && json.yards !== null
+    && 'brought' in json && typeof json.brought === 'object' && json.brought !== null;
 }

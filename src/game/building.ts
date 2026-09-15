@@ -513,14 +513,14 @@ export class Houses {
    */
   readonly yard: Timber;
 
-  constructor(json?: HouseJson) {
+  constructor(json?: HouseJson, on?: number) {
     this.taken = json?.hired ?? null;
-    this.yard = Timber.from(json?.yard);
+    this.yard = Timber.from(json?.yard, on);
     for (const purchase of json?.stables ?? []) this.stables.push({ ...purchase });
     for (const job of json?.jobs ?? []) this.jobs.push({ ...job, store: job.store ? { gold: job.store.gold, items: { ...job.store.items } } : undefined });
   }
 
-  static from(json?: HouseJson): Houses { return new Houses(json); }
+  static from(json?: HouseJson, on?: number): Houses { return new Houses(json, on); }
 
   /** The builder you are holding, waiting to be told where. */
   get hired(): Hired | null { return this.taken; }

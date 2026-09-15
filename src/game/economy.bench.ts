@@ -321,7 +321,7 @@ export function liveForward(seed: number, days = DAYS): Run {
     // The same builder morning the game runs: fell first, then let one full, prosperous farm ask.
     for (const regime of VILLAGES) {
       const people = register.living(regime.village);
-      timber.felled(regime.village, people.filter((person) => person.trade === 'woodcutter').length);
+      timber.felledThrough(regime.village, people.filter((person) => person.trade === 'woodcutter').length, day);
       register.commissionStable(regime.village, timber, day);
     }
     const walked = register.advance(day);
