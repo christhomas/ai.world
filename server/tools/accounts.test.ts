@@ -130,12 +130,25 @@ describe('who may open the tools', () => {
     expect(howManyAccounts(db)).toBe(1);
   });
 
-  it('knows a password and does not know a wrong one', () => {
+  it('knows a password and does not know a wrong one', async () => {
     const db = book();
     addAccount(db, 'chris', 'a real password');
-    expect(whoIsThis(db, 'chris', 'a real password')?.name).toBe('chris');
-    expect(whoIsThis(db, 'chris', 'a real passwore')).toBeNull();
-    expect(whoIsThis(db, 'nobody', 'a real password'), 'no such person').toBeNull();
+    const checking = whoIsThis(db, 'chris', 'a real password');
+    expect(checking, 'password work must leave the event loop').toBeInstanceOf(Promise);
+    const first = await Promise.race([
+      checking.then(() => 'hash'),
+      new Promise<string>((done) => setTimeout(() => done('event loop'), 0)),
+    ]);
+    expect(first, 'a world tick or another request must run while scrypt works').toBe('event loop');
+    expect((await checking)?.name).toBe('chris');
+    expect(await whoIsThis(db, 'chris', 'a real passwore')).toBeNull();
+    expect(await whoIsThis(db, 'nobody', 'a real password'), 'no such person').toBeNull();
+  });
+
+  it('reports storage failures instead of calling them duplicate accounts', () => {
+    const db = book();
+    db.close();
+    expect(() => addAccount(db, 'chris', 'a real password')).toThrow();
   });
 
   it('never keeps the password anywhere', () => {

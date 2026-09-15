@@ -400,17 +400,13 @@ export class Simulation {
    */
   keepTheMinds(): void {
     if (!this.minds) return;
-    for (const [seed] of this.folk) this.keepMindsOf(seed);
-  }
-
-  /** Save one live register, shared by shutdown, timeout teardown, and an orderly final leave. */
-  private keepMindsOf(seed: number): void {
-    const folk = this.folk.get(seed);
-    if (!this.minds || !folk) return;
-    try { keepMinds(this.minds, seed, everybodyIn(folk.register)); }
-    catch (why) {
-      // a save that throws must not prevent the room and its sockets from being closed
-      console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
+    for (const [seed, folk] of this.folk) {
+      try {
+        keepMinds(this.minds, seed, everybodyIn(folk.register));
+      } catch (why) {
+        // a save that throws must not take the shutdown with it: the world's JSON is already down
+        console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
+      }
     }
   }
 
@@ -450,7 +446,6 @@ export class Simulation {
       },
       leave: () => {
         if (!client) return;
-        if (this.rooms.get(client.seed)?.clients.size === 1) this.keepMindsOf(client.seed);
         this.rooms.leave(client);
         client = null;
       },
@@ -477,7 +472,14 @@ export class Simulation {
         // stretch of absence that started before anybody had actually gone.
         room.world.keepNear([]);
         this.rooms.close(seed);
-        this.keepMindsOf(seed);
+        const folk = this.folk.get(seed);
+        if (this.minds && folk) {
+          try {
+            keepMinds(this.minds, seed, everybodyIn(folk.register));
+          } catch (why) {
+            console.error(`world ${seed}: could not write down what its people hold — ${String(why)}`);
+          }
+        }
         this.ground.delete(seed);
         this.folk.delete(seed);
         this.held.delete(seed);
@@ -547,12 +549,7 @@ export class Simulation {
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {
-          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow, () => {
-            // `alive.step` is what first puts a village's residents on its register. Restore them
-            // before `tellAboutCreatures` introduces the people to a client, which is the first
-            // moment that client can know an id well enough to change its mind.
-            if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
-          });
+          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow);
         }
       }
       this.stepFloors(seed, room, seconds, tellNow);
@@ -580,7 +577,6 @@ export class Simulation {
    */
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
-    beforeTell?: () => void,
   ): void {
     // Each of them as much of a player as the creatures need: where, what they are wearing, and how
     // badly the law wants them. The object is the client's own and is refreshed rather than remade,
@@ -599,7 +595,6 @@ export class Simulation {
       const bitten = who.find((c) => c.standing === bite.who);
       if (bitten) this.rooms.send(bitten, { type: 'bitten', place, id: bite.id, damage: bite.damage });
     }
-    beforeTell?.();
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
     if (tell) this.tellAboutCreatures(alive, place, who, null);
@@ -828,9 +823,7 @@ export class Simulation {
       : undefined;
     if (message.worldName !== undefined) {
       try {
-        // `requestedIslands` and not `?? []`: a join that said nothing about its islands must not
-        // freeze the name with an empty manifest. See `claim`
-        record = this.rooms.claimWorld(message.worldName, requestedSeed, requestedKind, requestedIslands);
+        record = this.rooms.claimWorld(message.worldName, requestedSeed, requestedKind, requestedIslands ?? []);
       } catch (error) {
         const reason = error instanceof WorldRecordConflict ? error.message : 'That world name could not be opened.';
         wire.send(JSON.stringify({ type: 'error', reason } satisfies ServerMessage));

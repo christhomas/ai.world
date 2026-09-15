@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { beginSession, endSession, howManyAccounts, sessionStands, whoIsThis } from './accounts';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
+import registryPage from '../../tools/registry.html?raw';
 
 /**
  * A door in front of the tools, so nobody has to paste an operator token into a page again.
@@ -28,6 +29,7 @@ export type Asked =
   | { want: 'login' }
   | { want: 'logout' }
   | { want: 'catalogue' }
+  | { want: 'registry-data' }
   | { want: 'tool'; id: string }
   | { want: 'nothing' };
 
@@ -46,11 +48,13 @@ export const CATALOGUE: readonly { id: string; name: string; blurb: string }[] =
  * lookup and a path traversal that gets as far as the lookup has already won half its argument.
  */
 export function whatIsAsked(method: string | undefined, url: string | undefined): Asked {
-  if (!url || !url.startsWith('/tools')) return { want: 'nothing' };
+  if (!url) return { want: 'nothing' };
   const path = url.split('?')[0].replace(/\/+$/, '') || '/tools';
+  if (path !== '/tools' && !path.startsWith('/tools/')) return { want: 'nothing' };
   if (path === '/tools') return { want: 'catalogue' };
   if (path === '/tools/login') return { want: method === 'POST' ? 'login' : 'login-form' };
   if (path === '/tools/logout') return method === 'POST' ? { want: 'logout' } : { want: 'nothing' };
+  if (path === '/tools/registry/data') return { want: 'registry-data' };
   const id = path.slice('/tools/'.length);
   if (id === '' || id.includes('/') || id.includes('..')) return { want: 'nothing' };
   return { want: 'tool', id };
@@ -63,7 +67,7 @@ export function cookieFrom(header: string | undefined, name: string): string | n
     const at = part.indexOf('=');
     if (at < 0) continue;
     if (part.slice(0, at).trim() !== name) continue;
-    return decodeURIComponent(part.slice(at + 1).trim());
+    try { return decodeURIComponent(part.slice(at + 1).trim()); } catch { return null; }
   }
   return null;
 }
@@ -128,7 +132,16 @@ export interface PortalOptions {
   secret: string;
   /** Whether an `X-Forwarded-Proto` header in front of this server can be believed. */
   trustProxy?: boolean;
+  /** The read-only Domesday answer, reached only after this portal has established a session. */
+  survey?: (req: IncomingMessage, res: ServerResponse) => void;
 }
+
+const registryThroughPortal = registryPage
+  .replace('  <input id="where" placeholder="http://localhost:8080" value="">\n', '')
+  .replace('  <input id="token" type="password" placeholder="operator or watch token">\n', '');
+
+const LOGIN_WINDOW = 60_000;
+const LOGIN_ATTEMPTS = 5;
 
 const html = (res: ServerResponse, code: number, body: string, headers: Record<string, string> = {}): void => {
   res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...headers });
@@ -182,6 +195,29 @@ async function formBody(req: IncomingMessage, most = 4096): Promise<URLSearchPar
 export function portalFor(options: PortalOptions) {
   const { db, secret } = options;
   const secureFor = (req: IncomingMessage): boolean => overHttps(req, options.trustProxy ?? false);
+  const attempts = new Map<string, { since: number; count: number }>();
+  const requester = (req: IncomingMessage): string => {
+    if (options.trustProxy) {
+      const forwarded = req.headers['x-forwarded-for'];
+      const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+      if (first) return first;
+    }
+    return req.socket.remoteAddress ?? 'unknown';
+  };
+  const mayTry = (req: IncomingMessage, now = Date.now()): { allowed: boolean; key: string } => {
+    const key = requester(req);
+    const previous = attempts.get(key);
+    if (!previous && attempts.size >= 1_000) {
+      for (const [address, entry] of attempts) {
+        if (now - entry.since >= LOGIN_WINDOW) attempts.delete(address);
+      }
+      if (attempts.size >= 1_000) attempts.delete(attempts.keys().next().value as string);
+    }
+    const entry = !previous || now - previous.since >= LOGIN_WINDOW
+      ? { since: now, count: 1 } : { ...previous, count: previous.count + 1 };
+    attempts.set(key, entry);
+    return { allowed: entry.count <= LOGIN_ATTEMPTS, key };
+  };
 
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const asked = whatIsAsked(req.method, req.url);
@@ -195,15 +231,21 @@ export function portalFor(options: PortalOptions) {
     }
 
     if (asked.want === 'login') {
+      const tried = mayTry(req);
+      if (!tried.allowed) {
+        html(res, 429, loginPage('Too many attempts. Wait a minute and try again.'), { 'retry-after': '60' });
+        return true;
+      }
       const form = await formBody(req);
       const name = form?.get('name') ?? '';
       const password = form?.get('password') ?? '';
-      const account = name && password ? whoIsThis(db, name, password) : null;
+      const account = name && password ? await whoIsThis(db, name, password) : null;
       if (!account) {
         // one sentence for both, because "no such user" tells somebody which names to keep trying
         html(res, 401, loginPage('That name and password do not go together.'));
         return true;
       }
+      attempts.delete(tried.key);
       const session = beginSession(db, account.id);
       const token = signToken({ sub: account.id, jti: session.id }, secret);
       res.writeHead(303, { location: '/tools/', 'set-cookie': cookieFor(token, { secure: secureFor(req) }) });
@@ -229,8 +271,15 @@ export function portalFor(options: PortalOptions) {
 
     if (asked.want === 'catalogue') { html(res, 200, cataloguePage()); return true; }
 
+    if (asked.want === 'registry-data') {
+      if (options.survey) options.survey(req, res);
+      else html(res, 404, page('Not a tool', '<h1>The Domesday Book is not available.</h1>'));
+      return true;
+    }
+
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
+    if (tool.id === 'registry' && options.survey) { html(res, 200, registryThroughPortal); return true; }
     // #103 puts the Character Builder's worker behind this; until then a tool is a named door that
     // is open to the right people and honest about having nothing behind it yet
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
