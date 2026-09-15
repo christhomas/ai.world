@@ -549,7 +549,12 @@ export class Simulation {
         // and the creatures on it, following the players about
         const alive = this.wildlife.get(seed);
         if (alive) {
-          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow);
+          this.stepAndTell(alive, 'surface', above, seconds, room.world.clock.time, tellNow, () => {
+            // `alive.step` is what first puts a village's residents on its register. Restore them
+            // before `tellAboutCreatures` introduces the people to a client, which is the first
+            // moment that client can know an id well enough to change its mind.
+            if (waiting && folk && waiting.waiting > 0) waiting.giveTo(everybodyIn(folk.register));
+          });
         }
       }
       this.stepFloors(seed, room, seconds, tellNow);
@@ -577,6 +582,7 @@ export class Simulation {
    */
   private stepAndTell(
     alive: Wildlife, place: string, who: ReadonlyArray<Client>, dt: number, time: number, tell: boolean,
+    beforeTell?: () => void,
   ): void {
     // Each of them as much of a player as the creatures need: where, what they are wearing, and how
     // badly the law wants them. The object is the client's own and is refreshed rather than remade,
@@ -595,6 +601,7 @@ export class Simulation {
       const bitten = who.find((c) => c.standing === bite.who);
       if (bitten) this.rooms.send(bitten, { type: 'bitten', place, id: bite.id, damage: bite.damage });
     }
+    beforeTell?.();
     // everything in sight, at the rate the middle distance deserves; and what is close enough to
     // fight, every tick, because that is what the player is aiming at
     if (tell) this.tellAboutCreatures(alive, place, who, null);

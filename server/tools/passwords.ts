@@ -52,35 +52,9 @@ export async function hashPasswordAsync(
 }
 
 /**
- * Whether this password made that hash.
- *
- * Reads the cost out of the stored string rather than assuming today's, and compares in constant
- * time — a comparison that returns early on the first wrong byte tells anybody watching the clock
- * how much of their guess was right.
- *
- * Every malformed stored value is `false` rather than a throw. A row that has been corrupted is a
- * login that fails, not a server that stops answering, and the difference matters on the route that
- * faces the internet.
+ * Whether this password made that hash, verified on libuv's crypto pool rather than the event loop.
+ * Malformed stored values are `false`, and the derived keys are compared in constant time.
  */
-export function passwordMatches(password: string, stored: string): boolean {
-  const parts = stored.split('$');
-  if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
-  const [, N, r, p, salt, key] = parts;
-  const cost = { N: Number(N), r: Number(r), p: Number(p) };
-  if (!Number.isInteger(cost.N) || !Number.isInteger(cost.r) || !Number.isInteger(cost.p)) return false;
-  if (cost.N < 2 || cost.r < 1 || cost.p < 1) return false;
-  let want: Buffer;
-  try { want = Buffer.from(key, 'base64url'); } catch { return false; }
-  if (want.length === 0) return false;
-  let got: Buffer;
-  try {
-    got = scryptSync(password.normalize('NFKC'), Buffer.from(salt, 'base64url'), want.length,
-      { ...cost, maxmem: maxmemFor(cost.N, cost.r) });
-  } catch { return false; }
-  return got.length === want.length && timingSafeEqual(got, want);
-}
-
-/** Verify on libuv's crypto pool rather than holding the JavaScript event loop during scrypt. */
 export async function passwordMatchesAsync(password: string, stored: string): Promise<boolean> {
   const parts = stored.split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
