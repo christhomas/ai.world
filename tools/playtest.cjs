@@ -161,7 +161,10 @@ const finish = async () => {
     const door = await page.evaluate(() => {
       const v = window.__villages[0];
       const d = window.__doors.filter((x) => x.village === v.name)[0];
-      const ox = d.x - d.bx, oz = d.z - d.bz, len = Math.hypot(ox, oz) || 1;
+      // `bx`/`bz` name the building tile, while every doorway coordinate names a tile centre.
+      // Measure both ends from their centres or the nominally outward line acquires a diagonal
+      // half-tile component and can miss the narrow leaf on a busy frame.
+      const ox = d.x - (d.bx + 0.5), oz = d.z - (d.bz + 0.5), len = Math.hypot(ox, oz) || 1;
       window.__teleport(d.x + (ox / len) * 2, d.z + (oz / len) * 2);
       return { x: d.x, z: d.z };
     });
