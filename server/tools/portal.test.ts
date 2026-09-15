@@ -49,6 +49,18 @@ describe('what the portal is being asked for', () => {
     expect(whatIsAsked('GET', '/tools/a/b')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/tools/..')).toEqual({ want: 'nothing' });
   });
+
+  it('names the builder page, its built assets and its audit book explicitly', () => {
+    expect(whatIsAsked('GET', '/tools/character-builder')).toEqual({
+      want: 'builder-page', path: 'tools/character-builder.html',
+    });
+    expect(whatIsAsked('GET', '/tools/build/page/assets/builder.js')).toEqual({
+      want: 'builder-page', path: 'assets/builder.js',
+    });
+    expect(whatIsAsked('GET', '/tools/build/book')).toEqual({ want: 'book' });
+    expect(whatIsAsked('GET', '/tools/build/page/../secrets')).toEqual({ want: 'nothing' });
+    expect(whatIsAsked('POST', '/tools/build/page/assets/builder.js')).toEqual({ want: 'nothing' });
+  });
 });
 
 describe('the cookie a session rides in', () => {
@@ -127,6 +139,7 @@ describe('whether the request came in over https', () => {
 describe('the first account', () => {
   const book = (): DatabaseSync => {
     const db = new DatabaseSync(':memory:');
+    db.exec('CREATE TABLE IF NOT EXISTS schema (domain TEXT PRIMARY KEY, version INTEGER NOT NULL)');
     migrate(db);
     return db;
   };
@@ -169,7 +182,7 @@ describe('the first account', () => {
 describe('the catalogue', () => {
   it('is the same list the guard checks against, so a card cannot lead somewhere unguarded', () => {
     for (const tool of CATALOGUE) {
-      expect(whatIsAsked('GET', `/tools/${tool.id}`)).toEqual({ want: 'tool', id: tool.id });
+      expect(whatIsAsked('GET', `/tools/${tool.id}`).want).not.toBe('nothing');
     }
   });
 });

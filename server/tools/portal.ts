@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { beginSession, endSession, howManyAccounts, sessionStands, whoIsThis } from './accounts';
+import { askTheWorker, bodyOf, type BuilderAt } from '../builder/proxy';
+import { whatWasAsked, type Recorded } from '../builder/asked';
 import { TOKEN_LASTS, readToken, signToken } from './tokens';
 import registryPage from '../../tools/registry.html?raw';
 
@@ -31,6 +33,12 @@ export type Asked =
   | { want: 'catalogue' }
   | { want: 'registry-data' }
   | { want: 'tool'; id: string }
+  /** The builder asking the worker to do something, or following what it is doing. */
+  | { want: 'build' }
+  | { want: 'follow' }
+  /** The full page and only the files emitted beside it by the worker's Vite build. */
+  | { want: 'builder-page'; path: string }
+  | { want: 'book' }
   | { want: 'nothing' };
 
 /** The tools a signed-in person may open. Named here so the catalogue and the guard cannot differ. */
@@ -56,6 +64,30 @@ export function whatIsAsked(method: string | undefined, url: string | undefined)
   if (path === '/tools/login') return { want: method === 'POST' ? 'login' : 'login-form' };
   if (path === '/tools/logout') return method === 'POST' ? { want: 'logout' } : { want: 'nothing' };
   if (path === '/tools/registry/data') return { want: 'registry-data' };
+  /*
+   * The two the builder needs, named rather than inferred.
+   *
+   * A POST asks and a GET follows, and neither is reachable except through the guard below — which
+   * is the whole of #103's *"prompt submission requires a valid admin JWT"*. They are spelled out
+   * here rather than being another tool id, because a tool id opens a page and these two speak to
+   * a process on another machine: the difference is worth being able to see in one place.
+   */
+  if (path === '/tools/build/ask') return method === 'POST' ? { want: 'build' } : { want: 'nothing' };
+  if (path === '/tools/build/follow') return method === 'GET' ? { want: 'follow' } : { want: 'nothing' };
+  if (path === '/tools/build/book') return method === 'GET' ? { want: 'book' } : { want: 'nothing' };
+  if (path === '/tools/character-builder') {
+    return method === 'GET'
+      ? { want: 'builder-page', path: 'tools/character-builder.html' }
+      : { want: 'nothing' };
+  }
+  const pagePath = '/tools/build/page/';
+  if (path.startsWith(pagePath)) {
+    if (method !== 'GET') return { want: 'nothing' };
+    let file: string;
+    try { file = decodeURIComponent(path.slice(pagePath.length)); } catch { return { want: 'nothing' }; }
+    if (!file || file.split('/').some((part) => part === '..')) return { want: 'nothing' };
+    return { want: 'builder-page', path: file };
+  }
   const id = path.slice('/tools/'.length);
   if (id === '' || id.includes('/') || id.includes('..')) return { want: 'nothing' };
   return { want: 'tool', id };
@@ -135,6 +167,24 @@ export interface PortalOptions {
   trustProxy?: boolean;
   /** The read-only Domesday answer, reached only after this portal has established a session. */
   survey?: (req: IncomingMessage, res: ServerResponse) => void;
+  /**
+   * Where the builder's worker is, if this deployment has one.
+   *
+   * Left out, the Character Builder card says it is not wired up and the two build routes are not
+   * there at all — the rule `/operate` and the portal itself already run on. A game server with no
+   * source host behind it should not have a door onto one.
+   */
+  builder?: BuilderAt;
+  /** Where a finished run is written down. See `builder/book.ts`. */
+  record?: (run: Recorded, id: string) => void;
+  /**
+   * And what is in the book, for the page to show.
+   *
+   * A record nobody can read is a record nobody checks, which is most of the value of keeping one.
+   * The builder's page shows the last few runs under the box you type in, so the person asking can
+   * see what has been asked before them and what it changed.
+   */
+  recorded?: () => readonly Recorded[];
 }
 
 const registryThroughPortal = registryPage
@@ -270,6 +320,65 @@ export function portalFor(options: PortalOptions) {
       return true;
     }
 
+    if (asked.want === 'builder-page' || asked.want === 'book') {
+      if (!options.builder) {
+        html(res, asked.want === 'builder-page' && asked.path === 'tools/character-builder.html' ? 200 : 503,
+          page('No builder here', '<h1>There is no builder behind this server.</h1>'
+          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
+        return true;
+      }
+      if (asked.want === 'book') {
+        res.writeHead(200, {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+        });
+        res.end(JSON.stringify(options.recorded?.() ?? []));
+        return true;
+      }
+      askTheWorker(options.builder, who, `/page/${asked.path}`, null, res, 'GET');
+      return true;
+    }
+
+    /*
+     * Both of these are past the guard above, so `who` is an account the portal has just verified.
+     * That account id is what goes to the worker, for its book; the session token stays here.
+     */
+    if (asked.want === 'build' || asked.want === 'follow') {
+      if (!options.builder) {
+        html(res, 503, page('No builder here', '<h1>There is no builder behind this server.</h1>'
+          + '<p class="blurb">A worker has to be running on the machine with the checkout. See issue #103.</p>'));
+        return true;
+      }
+      if (asked.want === 'follow') {
+        const from = new URL(req.url ?? '/', 'http://portal').searchParams;
+        const run = from.get('run');
+        askTheWorker(options.builder, who, `/follow?from=${Number(from.get('from') ?? 0) || 0}`
+          + (run ? `&run=${encodeURIComponent(run)}` : ''), null, res, 'GET');
+        return true;
+      }
+      const body = await bodyOf(req);
+      if (body === null) { html(res, 413, page('Too much', '<h1>That was too long to send.</h1>')); return true; }
+      /*
+       * Written down as the answer goes past. The worker is on another machine and the book is
+       * here, so the record is built from what this end already knows — who, when, how long the
+       * prompt was — and what the stream says as it streams: the files the tools touched, and
+       * whether it ended well. The prompt's own text is never kept; see `Recorded`.
+       */
+      const wants = whatWasAsked(JSON.parse(body) as unknown);
+      const started = Date.now();
+      const id = `${started.toString(36)}-${who.slice(0, 8)}`;
+      askTheWorker(options.builder, who, '/ask', body, res, 'POST', (told) => {
+        if (told.k !== 'end') return;
+        options.record?.({
+          who, when: started, about: typeof wants === 'string' ? '' : wants.about,
+          length: typeof wants === 'string' ? 0 : wants.prompt.length,
+          changed: told.changed, ok: told.ok, note: told.note,
+        }, id);
+      });
+      return true;
+    }
+
     if (asked.want === 'catalogue') { html(res, 200, cataloguePage()); return true; }
 
     if (asked.want === 'registry-data') {
@@ -281,10 +390,8 @@ export function portalFor(options: PortalOptions) {
     const tool = CATALOGUE.find((one) => one.id === asked.id);
     if (!tool) { html(res, 404, page('Not a tool', '<h1>There is no such tool.</h1>')); return true; }
     if (tool.id === 'registry' && options.survey) { html(res, 200, registryThroughPortal); return true; }
-    // #103 puts the Character Builder's worker behind this; until then a tool is a named door that
-    // is open to the right people and honest about having nothing behind it yet
     html(res, 200, page(tool.name, `<h1>${tool.name}</h1><p class="blurb">${tool.blurb}</p>`
-      + `<p class="why">Not wired up yet — see issue #103.</p><a class="card" href="/tools/">Back</a>`));
+      + `<a class="card" href="/tools/">Back</a>`));
     return true;
   };
 }

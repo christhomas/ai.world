@@ -20,7 +20,7 @@ describe('the tools portal, served', () => {
 
   const start = async (): Promise<RunningServer> => startServer({
     port: 0, quiet: true, dataDir: join(dir, 'worlds'),
-    toolsDb: join(dir, 'tools.sqlite'), toolsSecret: secret,
+    durableDb: join(dir, 'ai-world.sqlite'), toolsSecret: secret,
   });
 
   beforeEach(async () => {
