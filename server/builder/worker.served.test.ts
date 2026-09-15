@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startWorker, changedIn, type RunningWorker } from './worker';
@@ -37,6 +37,17 @@ require('node:fs').writeFileSync('changed.txt', prompt);
 say({ type: 'result', is_error: false, duration_ms: 1200, result: 'done' });
 `;
 
+/** A build small enough for this test, but still made from the worker's actual worktree. */
+const BUILD_PAGE = async (worktree: string, out: string): Promise<void> => {
+  mkdirSync(join(out, 'tools'), { recursive: true });
+  mkdirSync(join(out, 'assets'), { recursive: true });
+  let revision = 'the first revision';
+  try { revision = readFileSync(join(worktree, 'changed.txt'), 'utf8'); } catch { /* no edit yet */ }
+  writeFileSync(join(out, 'tools', 'character-builder.html'),
+    `<!doctype html><title>worker character builder</title><p>${revision}</p><script src="/tools/build/page/assets/revision.js"></script>`);
+  writeFileSync(join(out, 'assets', 'revision.js'), `window.revision = ${JSON.stringify(revision)}`);
+};
+
 describe('the builder worker', () => {
   let dir = '', tree = '';
   let worker: RunningWorker | null = null;
@@ -47,6 +58,7 @@ describe('the builder worker', () => {
     worktree: tree, secret, port: 0, quiet: true,
     onFinished: (id, record) => { written.push({ id, record }); },
     command: { run: process.execPath, args: (prompt) => ['-e', PRETEND, prompt] },
+    buildPage: BUILD_PAGE,
   });
 
   beforeEach(async () => {
@@ -83,6 +95,26 @@ describe('the builder worker', () => {
     const res = await ask({ prompt: 'hello' }, { 'x-builder-secret': `${secret}x` });
     expect(res.status).toBe(403);
   });
+
+  it('serves only the built page, and only to somebody with the worker secret', async () => {
+    const shut = await fetch(at('/page/tools/character-builder.html'));
+    expect(shut.status, 'the page is no more public than the command route').toBe(403);
+
+    const page = await fetch(at('/page/tools/character-builder.html'), { headers: { 'x-builder-secret': secret } });
+    expect(page.status).toBe(200);
+    expect(page.headers.get('content-type')).toContain('text/html');
+    expect(await page.text(), 'this came from the worker build, not a portal placeholder').toContain('the first revision');
+
+    const source = await fetch(at('/page/../kept.txt'), { headers: { 'x-builder-secret': secret } });
+    expect(source.status, 'the worktree itself is never a static root').toBe(404);
+  });
+
+  it('rebuilds from the edited worktree before saying a successful run is done', async () => {
+    const answer = await ask({ prompt: 'the second revision' });
+    expect(await answer.text()).toContain('"k":"end"');
+    const page = await fetch(at('/page/tools/character-builder.html'), { headers: { 'x-builder-secret': secret } });
+    expect(await page.text()).toContain('the second revision');
+  }, PATIENCE);
 
   it('runs what it is asked and streams it back as it happens', async () => {
     const res = await ask({ prompt: 'make the wolf bigger', about: 'wolf' });
@@ -148,7 +180,7 @@ describe('the builder worker', () => {
     expect(await again.text(), 'the whole thing, from the top').toContain('make the wolf bigger');
   }, PATIENCE);
 
-  it('does not answer anything but the two routes it has', async () => {
+  it('does not answer anything outside its deliberate routes', async () => {
     const res = await fetch(at('/anything-else'), { headers: { 'x-builder-secret': secret } });
     expect(res.status).toBe(404);
   });
@@ -183,6 +215,7 @@ describe('the builder behind the portal', () => {
     worker = await startWorker({
       worktree: tree, secret, port: 0, quiet: true,
       command: { run: process.execPath, args: (prompt) => ['-e', PRETEND, prompt] },
+      buildPage: BUILD_PAGE,
     });
     server = await startServer({
       port: 0, quiet: true, dataDir: join(dir, 'worlds'),
@@ -237,6 +270,20 @@ describe('the builder behind the portal', () => {
     expect(await res.text()).toContain('make the wolf bigger');
   }, PATIENCE);
 
+  it('serves the worker revision and its assets only through an authenticated portal', async () => {
+    const shut = await fetch(at('/tools/character-builder'), { redirect: 'manual' });
+    expect(shut.status).toBe(303);
+    expect(shut.headers.get('location')).toBe('/tools/login');
+
+    const cookie = await signIn();
+    const page = await fetch(at('/tools/character-builder'), { headers: { cookie } });
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('the first revision');
+    const asset = await fetch(at('/tools/build/page/assets/revision.js'), { headers: { cookie } });
+    expect(asset.status).toBe(200);
+    expect(await asset.text()).toContain('the first revision');
+  });
+
   it('lets a signed-in page follow a run it has lost', async () => {
     const cookie = await signIn();
     const res = await fetch(at('/tools/build/ask'), {
@@ -260,11 +307,10 @@ describe('the builder behind the portal', () => {
       body: JSON.stringify({ prompt: 'make the wolf bigger', about: 'wolf' }),
     })).text();
 
-    const page = await (await fetch(at('/tools/character-builder'), { headers: { cookie } })).text();
-    expect(page, 'the book is shown to whoever is standing at the builder').toContain('What has been asked');
-    expect(page).toContain('wolf');
-    expect(page, 'the file the run touched').toContain('src/entities/animals.ts');
-    expect(page, 'and never the prompt itself').not.toContain('make the wolf bigger');
+    const book = await (await fetch(at('/tools/build/book'), { headers: { cookie } })).text();
+    expect(book, 'the book is available to the full builder page').toContain('wolf');
+    expect(book, 'the file the run touched').toContain('src/entities/animals.ts');
+    expect(book, 'and never the prompt itself').not.toContain('make the wolf bigger');
   }, PATIENCE);
 
   it('refuses to follow for somebody not signed in', async () => {

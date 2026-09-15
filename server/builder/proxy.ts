@@ -46,6 +46,7 @@ export function askTheWorker(
     res.writeHead(answer.statusCode ?? 502, {
       'content-type': answer.headers['content-type'] ?? 'text/plain',
       'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
       // a page opened through a proxy would otherwise sit on an empty screen until the whole
       // answer had arrived, which is exactly what this is not for
       'x-accel-buffering': 'no',

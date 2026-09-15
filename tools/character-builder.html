@@ -96,6 +96,11 @@ body{margin:0;background:var(--deep);color:var(--ink);font:13px/1.5 'Courier New
 #send[disabled]{opacity:.5;cursor:default}
 details{color:var(--dim);font-size:12px;margin-top:6px}
 details pre{white-space:pre-wrap;margin:4px 0 0;color:var(--dim)}
+#book{border-top:1px solid var(--edge);padding:7px 8px;margin:0}
+#book summary{cursor:pointer}
+#runs{max-height:130px;overflow-y:auto;margin-top:5px}
+#runs p{margin:5px 0;padding-bottom:5px;border-bottom:1px solid var(--edge);word-break:break-word}
+#runs b{color:var(--ink)}
 #needs-server{position:fixed;inset:0;z-index:99;background:var(--deep);display:flex;
   align-items:center;justify-content:center;padding:40px}
 #needs-server div{max-width:52ch;line-height:1.6}
@@ -118,11 +123,11 @@ details pre{white-space:pre-wrap;margin:4px 0 0;color:var(--dim)}
   works when the failure is the script not running.
 -->
 <div id="needs-server"><div>
-  <h1>This page needs the dev server.</h1>
+  <h1>This page needs the builder server.</h1>
   <p>It imports <code>three</code> by name and the game's own TypeScript, so it has to be served by
   Vite rather than opened from disk or through a plain static preview. Nothing here can run
   otherwise — which is why the frame is drawn and the room is empty.</p>
-  <p>Run <code>chore builder</code> and open the address it prints
+  <p>Open it through the signed-in tools portal, or run <code>chore builder</code> and open the address it prints
   (<code>http://localhost:5273/tools/character-builder.html</code>). If a server is already up on
   another port, use that port instead.</p>
 </div></div>
@@ -148,6 +153,7 @@ details pre{white-space:pre-wrap;margin:4px 0 0;color:var(--dim)}
     <button id="send">ask Claude to change this rig</button>
     <details><summary>what gets sent</summary><pre id="framing"></pre></details>
   </div>
+  <details id="book" hidden><summary>what has been asked</summary><div id="runs"></div></details>
 </section>
 
 <script type="module">
@@ -198,8 +204,18 @@ const KITS = [
   ['at work', ['pick']],   // a tool rather than equipment: it goes into the hand, not into a slot
 ];
 
-/** The header the dev-server route wants. Its value is nothing; being able to send it is the point. */
+/**
+ * The same page speaks to two deliberately different doors.
+ *
+ * In development Vite owns `/__ask`. Behind the portal the browser knows only authenticated portal
+ * routes; the worker secret is added on the other side and never appears in this module or page.
+ */
 const KNOCK = { 'x-ai-world-builder': '1' };
+const IN_PORTAL = location.pathname === '/tools/character-builder'
+  || location.pathname.startsWith('/tools/character-builder/')
+  || location.pathname.startsWith('/tools/build/page/');
+const ASK_ROUTE = IN_PORTAL ? '/tools/build/ask' : '/__ask';
+const FOLLOW_ROUTE = IN_PORTAL ? '/tools/build/follow' : '/__ask';
 
 /** The things that go in a hand without going in a slot. */
 const TOOLS = new Set(['pick', 'shovel', 'saw', 'rod', 'firerocks']);
@@ -726,6 +742,7 @@ When you are done, say in two or three sentences what you changed and what it sh
 
 const log = el('log');
 let saying = null;      // the paragraph being typed into, if one is
+let reloadWhenDone = false;
 
 function note(text, wrong = false) {
   const p = document.createElement('p');
@@ -750,6 +767,10 @@ function told(ev) {
   } else {
     note(`— ${ev.note}`, !ev.ok);
     el('send').disabled = false;
+    if (IN_PORTAL && reloadWhenDone && ev.ok) {
+      try { sessionStorage.setItem('builder:reloaded', '1'); } catch { /* a locked-down browser */ }
+      location.reload();
+    }
   }
   log.scrollTop = log.scrollHeight;
 }
@@ -787,10 +808,17 @@ el('send').onclick = async () => {
   asked.textContent = `→ ${wanted}`;
   log.append(asked);
   saying = null;
+  reloadWhenDone = true;
   try {
-    const response = await fetch('/__ask', { method: 'POST', headers: KNOCK, body: chosen.startsWith('prop:')
-        ? framingProp(Number(chosen.slice(5)))
-        : framing(KINDS[chosen]) });
+    const framed = chosen.startsWith('prop:')
+      ? framingProp(Number(chosen.slice(5)))
+      : framing(KINDS[chosen]);
+    const response = await fetch(ASK_ROUTE, IN_PORTAL
+      ? {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ prompt: framed, about: chosen }),
+        }
+      : { method: 'POST', headers: KNOCK, body: framed });
     if (!response.ok) { note(await response.text(), true); el('send').disabled = false; return; }
     await readRun(response);
   } catch (err) {
@@ -815,10 +843,33 @@ el('prompt').addEventListener('keydown', (e) => {
 (async () => {
   el('send').disabled = true;
   try {
-    const response = await fetch('/__ask', { headers: KNOCK });
+    const response = await fetch(FOLLOW_ROUTE, IN_PORTAL ? {} : { headers: KNOCK });
     if (response.ok) await readRun(response);
   } catch { /* no dev-server route: the renderer still works, the prompt does not */ }
   el('send').disabled = false;
+})();
+
+/** The durable book stays on the portal; only its safe summary is drawn by the worker's page. */
+if (IN_PORTAL) void (async () => {
+  try {
+    const response = await fetch('/tools/build/book');
+    if (!response.ok) return;
+    const entries = await response.json();
+    const book = el('book');
+    const runs = el('runs');
+    for (const run of entries) {
+      const line = document.createElement('p');
+      const title = document.createElement('b');
+      title.textContent = `${run.ok ? '✓' : '✕'} ${new Date(run.when).toISOString().replace('T', ' ').slice(0, 16)}`;
+      line.append(title, document.createElement('br'));
+      line.append(document.createTextNode(
+        `${run.who} · ${run.about || 'nothing named'} · ${run.length} characters`
+        + (run.changed.length ? ` · ${run.changed.join(', ')}` : ''),
+      ));
+      runs.append(line);
+    }
+    book.hidden = entries.length === 0;
+  } catch { /* the renderer and prompt still work if the optional book is unavailable */ }
 })();
 
 /*
