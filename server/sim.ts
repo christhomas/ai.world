@@ -445,7 +445,6 @@ export class Simulation {
         this.ground.delete(seed);
         this.folk.delete(seed);
         this.held.delete(seed);
-        this.stamps.delete(seed);
         this.wildlife.delete(seed);
         this.rooms.forgetGround(seed);
         continue;
