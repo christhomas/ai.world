@@ -19,6 +19,7 @@ import type { Quest } from '../game/quests';
 import type { Sailing } from '../game/sailing';
 import type { Places } from '../game/places';
 import type { Rucksack } from './rucksack';
+import { createActionPreview } from './action-preview';
 
 /**
  * What the game says about itself while you play: the marks on both maps, the name of where you
@@ -107,7 +108,8 @@ export function createReadouts(ctx: ReadoutContext) {
     rankOf, action,
   } = ctx;
   let areaLabel = 'The Crossroads';
-  hud.onAction = action.take;
+  const actionPreview = createActionPreview(action.at);
+  hud.onAction = () => { action.take(); actionPreview.invalidate(); };
 
   /**
    * Everything the big map shows, which is a question about the world rather than about here.
@@ -239,7 +241,9 @@ export function createReadouts(ctx: ReadoutContext) {
     clock.setWeather(weatherGlyph);
     hud.setQuests(questList, state);
     hud.setArea(area);
-    hud.setAction(action.at());
+    const place = places.indoors ? `indoors:${places.indoors.title}`
+      : places.underground ? `underground:${places.underground.poi.name}:${places.underground.floor}` : 'outdoors';
+    hud.setAction(actionPreview.at(dt, { x: player.x, z: player.z, version: state.version, place }));
     hud.tick(dt);
     rucksack.refresh();
     if (places.outdoors) compassBar.update(player.x, player.z, compassTargets());

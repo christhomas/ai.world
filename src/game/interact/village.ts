@@ -509,9 +509,10 @@ export function villageInteractions(ctx: Surroundings) {
   };
 
   /** Enter near a horse: buy a wild one, or get on and off your own. */
+  let horseVerb = 'Ride the horse';
   const tryHorse = (preview = false): boolean => {
     if (mount.riding) {
-      if (preview) return true;
+      if (preview) { horseVerb = 'Dismount'; return true; }
       mount.dismount(player, chunks);
       hud.flash(`You dismount and tie up ${mount.name}.`);
       sound.select();
@@ -519,7 +520,7 @@ export function villageInteractions(ctx: Surroundings) {
       return true;
     }
     if (mount.near(player.x, player.z)) {
-      if (preview) return true;
+      if (preview) { horseVerb = `Ride ${mount.name}`; return true; }
       mount.mount(player);
       hud.flash(`You swing up onto ${mount.name}.`);
       sound.chime();
@@ -528,7 +529,7 @@ export function villageInteractions(ctx: Surroundings) {
     // horses in the field are half wild; the one you can buy is the stablehand's
     const hand = entities.within(player.x, player.z, GAMEPLAY.TALK_RANGE).find((e) => e.role === 'stablehand');
     if (!hand) return false;
-    if (preview) return true;
+    if (preview) { horseVerb = `Talk to ${hand.name}`; return true; }
     const village = hand.herd.tag || 'the village';
     const home = structures.villages.find((v) => v.name === hand.herd.tag);
     const stable = home ? stableAt(home) : null;
@@ -570,6 +571,7 @@ export function villageInteractions(ctx: Surroundings) {
     });
     return true;
   };
+  const horseLabel = (): string => horseVerb;
 
   /** The pitch we last walked up to, so the same stall is only announced once. */
   let noticedPitch = '';
@@ -637,5 +639,5 @@ export function villageInteractions(ctx: Surroundings) {
     return true;
   };
 
-  return { tryDoor, tryLandlord, tryFreeBed, tryHall, tryBoard, tryStall, trySignpost, tryHorse, tryLuxury, noticeStall };
+  return { tryDoor, tryLandlord, tryFreeBed, tryHall, tryBoard, tryStall, trySignpost, tryHorse, horseLabel, tryLuxury, noticeStall };
 }
