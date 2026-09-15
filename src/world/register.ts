@@ -80,12 +80,7 @@ export class Register {
    * on the morning this starts being kept — see `deedsAfter`.
   */
   private readonly deeded = new Map<string, Deed[]>();
-  /** Travellers who have taken a village's vacant work, by village.
-   *
-   * Beside the killings, the votes and the raisings for the same reason as all three: a village is
-   * re-lived from its seed and must arrive at the same answer, and nothing about a seed predicts
-   * somebody walking in off the road and offering to do the work.
-   */
+  /** Told oaths survive re-living because a seed cannot predict who walked in. */
   private readonly swornIn = new Map<string, Sworn[]>();
   /** The last whole day the register has caught up to. */
   /** Physical ground is supplied by the country; the register only records its deterministic answer. */
@@ -183,36 +178,13 @@ export class Register {
     const known = this.villages.get(village);
     if (known) return known.people;
 
-    /**
-     * A village with a mine has somebody down it — exactly one somebody, and the rest of the
-     * village is founded as though the mine were not there.
-     *
-     * Putting `miner` into the weighted list instead was the obvious move and it was wrong: adding
-     * an option reshuffles every draw, so mining villages came out with systematically fewer of
-     * everything else. Ashford lost its only farmer to it and Fernreach ended up with five miners
-     * out of twelve adults, which is not a village with a mine, it is a mine with a village.
-     */
+    // Add exactly one miner without perturbing the weighted founding rolls for every other trade.
     const mining = this.worksAMine.has(village);
     const people = foundVillage(this.seed, village, houses, trades, mining ? ['miner'] : []);
     // a village is founded with a few days in the cellar, not starving on its first morning
     const farmers = people.filter((p) => p.trade === 'farmer').length;
     const settlement: Settlement = {
-      /*
-       * The ceiling is what the roofs hold, which is what the field has always said it means.
-       *
-       * It was the number of people the founding happened to generate, and the two are not the same
-       * number: a village laid out with five houses holds twenty and is founded with twelve in it.
-       * The gap froze villages solid. Births aim at `founded`, so they stopped at twelve; and
-       * whether anybody *wants* a roof is asked of the family under it, which had sixteen beds and
-       * twelve people in them — so nothing was ever wanted, no roof was ever raised, and the
-       * ceiling never moved. Saltcombe on seed 7 stood at twelve souls for four hundred and fifty
-       * days with five thousand gold in its hall, and Oakcross on seed 1234 did the same.
-       *
-       * The sanity bench had been reporting the gap as a NOTE since the day it could see it —
-       * *"every village is founded holding fewer people than its own houses have beds for"* — with
-       * the right diagnosis written beside it: the field describes the value it takes after the
-       * first roof goes up rather than the one it starts with. It was the founding that was wrong.
-       */
+      // Capacity is what the roofs hold, not the smaller population the founding roll produced.
       people, rank: foundingRank(houses), founded: holdsFor(houses, []), houses, trades, food: people.length * 3, buried: [],
       hall: { id: THE_HALL_OWNER, body: 'mayor-house', purse: 0 },
       // a harbour it already has counts as a thing it has raised: `holdings.ts` will not put a boat
@@ -512,16 +484,7 @@ export class Register {
     return directoryOf(here?.trades ?? [], here?.people ?? [], this.swornIn.get(village) ?? []);
   }
 
-  /**
-   * A traveller takes work this village has nobody for. Item 24a's other half.
-   *
-   * Refused unless the trade is vacant *here and now* — work the ground supports, that no villager
-   * holds and no other traveller has sworn to — because a vacancy that could be taken twice is not
-   * a vacancy, it is an announcement. Deliberately not a wage, which is item 24a's own rule: what
-   * the oath buys is that the mayor stops looking. See `tradeTakenUp`.
-   *
-   * Hands back the told fact rather than applying it quietly, so the one path is `apply`.
-   */
+  /** Take currently vacant work; return the told fact so `apply` remains the single write path. */
   swearIn(village: string, trade: string, who: string, day = this.day): SwornIn | null {
     if (!this.villages.get(village) || who === '') return null;
     if (!this.directoryOf(village).nobodyDoing.includes(trade)) return null;
@@ -634,10 +597,7 @@ export class Register {
 
   /** Apply a told death or vote, preserving facts that cannot be reconstructed by re-living. */
   apply(change: Change | TownVote | SwornIn): boolean {
-    /*
-     * An oath, replayed. Dated and keyed by village, trade and day so the same telling arriving
-     * twice — from the wire and from a save, which is the ordinary case — writes it once.
-     */
+    // Oaths are dated and keyed so the ordinary wire-plus-save duplicate writes only once.
     if (change.kind === 'sworn') {
       if (Math.floor(change.day) > this.day) return false;
       const held = this.swornIn.get(change.village) ?? [];
@@ -646,14 +606,7 @@ export class Register {
       this.swornIn.set(change.village, [...held, oath]);
       const here = this.villages.get(change.village);
       if (!here) return true;              // nobody has settled it; kept for the morning they do
-      /*
-       * An oath that arrives late re-lives the village, the way a vote and a killing do.
-       *
-       * A sworn trade changes what the next child is raised into, so one learned after the mornings
-       * it should have covered leaves a village full of people in jobs the oath would have stopped
-       * — and the client that heard it on time and the client that heard it late end up holding two
-       * different villages, which is the whole thing the replay exists to prevent.
-       */
+      // A late oath changes later apprenticeships, so replay rather than patching today's village.
       if (oath.day === this.day) { here.sworn.push(oath); return true; }
       this.relive(change.village);
       return true;
