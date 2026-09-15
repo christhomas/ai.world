@@ -17,6 +17,9 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.IntBuffer
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -36,9 +39,14 @@ class WorldRendererBridge(
                     val width = call.argument<Int>("width") ?: 1
                     val height = call.argument<Int>("height") ?: 1
                     val entry = textures.createSurfaceTexture()
-                    entry.surfaceTexture().setDefaultBufferSize(width, height)
-                    renderers[entry.id()] = GLWorldRenderer(entry, width, height)
-                    result.success(entry.id())
+                    try {
+                        entry.surfaceTexture().setDefaultBufferSize(width, height)
+                        renderers[entry.id()] = GLWorldRenderer(entry, width, height)
+                        result.success(entry.id())
+                    } catch (failure: Throwable) {
+                        entry.release()
+                        throw failure
+                    }
                 }
                 "resize" -> renderer(call).resize(call.argument<Int>("width")!!, call.argument<Int>("height")!!).also { result.success(null) }
                 "putMesh" -> {
@@ -105,18 +113,47 @@ private class GLWorldRenderer(
     private var zoom = 18f
     private var cutOn = 1f
     private var hero = floatArrayOf(8f, 1f, 8f)
-    private lateinit var display: android.opengl.EGLDisplay
-    private lateinit var context: android.opengl.EGLContext
-    private lateinit var eglSurface: android.opengl.EGLSurface
+    private var display = EGL14.EGL_NO_DISPLAY
+    private var context = EGL14.EGL_NO_CONTEXT
+    private var eglSurface = EGL14.EGL_NO_SURFACE
+    private val glReleased = AtomicBoolean(false)
+    private val disposed = AtomicBoolean(false)
     @Volatile private var running = true
 
     init {
         val ready = CountDownLatch(1)
-        handler.post {
-            try { initialize() } finally { ready.countDown() }
-            drawLoop()
+        val failure = AtomicReference<Throwable?>()
+        if (!handler.post {
+            try {
+                initialize()
+            } catch (cause: Throwable) {
+                try { releaseGl() } catch (cleanup: Throwable) { cause.addSuppressed(cleanup) }
+                failure.set(cause)
+            } finally {
+                ready.countDown()
+            }
+            if (failure.get() == null) {
+                drawLoop()
+                if (!running) releaseGl()
+            }
+        }) {
+            running = false
+            thread.quitSafely()
+            surface.release()
+            error("Could not start renderer thread")
         }
-        ready.await()
+        if (!ready.await(STARTUP_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            running = false
+            thread.quitSafely()
+            surface.release()
+            error("Renderer initialization timed out")
+        }
+        failure.get()?.let {
+            running = false
+            thread.quitSafely()
+            surface.release()
+            throw it
+        }
     }
 
     fun resize(width: Int, height: Int) = post {
@@ -148,7 +185,9 @@ private class GLWorldRenderer(
         )
         check(EGL14.eglChooseConfig(display, attributes, 0, configs, 0, 1, count, 0) && count[0] > 0) { "No GLES3 EGL configuration" }
         context = EGL14.eglCreateContext(display, configs[0], EGL14.EGL_NO_CONTEXT, intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE), 0)
+        check(context != EGL14.EGL_NO_CONTEXT) { "Could not create GLES3 context" }
         eglSurface = EGL14.eglCreateWindowSurface(display, configs[0], surface, intArrayOf(EGL14.EGL_NONE), 0)
+        check(eglSurface != EGL14.EGL_NO_SURFACE) { "Could not create EGL window surface" }
         check(EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)) { "Could not bind GLES surface" }
         program = link(VERTEX_SHADER, FRAGMENT_SHADER)
         shadowProgram = link(SHADOW_VERTEX_SHADER, SHADOW_FRAGMENT_SHADER)
@@ -264,38 +303,76 @@ private class GLWorldRenderer(
     }
 
     fun dispose() {
-        if (!running) return
+        if (!disposed.compareAndSet(false, true)) return
         running = false
+        handler.removeCallbacksAndMessages(null)
         val done = CountDownLatch(1)
-        handler.post {
-            gpu.values.forEach { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
-            GLES30.glDeleteProgram(program); GLES30.glDeleteProgram(shadowProgram)
-            GLES30.glDeleteTextures(1, intArrayOf(shadowTexture), 0)
-            GLES30.glDeleteFramebuffers(1, intArrayOf(shadowFrameBuffer), 0)
-            EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
-            EGL14.eglDestroySurface(display, eglSurface); EGL14.eglDestroyContext(display, context); EGL14.eglTerminate(display)
-            surface.release(); entry.release(); done.countDown()
+        val cleanupPosted = thread.isAlive && handler.post {
+            try { releaseGl() } finally { done.countDown() }
         }
-        done.await(); thread.quitSafely()
+        if (cleanupPosted) done.await(DISPOSAL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        thread.quitSafely()
+        surface.release()
+        entry.release()
+    }
+
+    private fun releaseGl() {
+        if (!glReleased.compareAndSet(false, true)) return
+        val hasDisplay = display != EGL14.EGL_NO_DISPLAY
+        val hasContext = context != EGL14.EGL_NO_CONTEXT
+        val hasSurface = eglSurface != EGL14.EGL_NO_SURFACE
+        if (hasDisplay && hasContext && hasSurface) {
+            EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)
+            gpu.values.forEach { GLES30.glDeleteBuffers(2, intArrayOf(it.vertex, it.index), 0) }
+            if (program != 0) GLES30.glDeleteProgram(program)
+            if (shadowProgram != 0) GLES30.glDeleteProgram(shadowProgram)
+            if (shadowTexture != 0) GLES30.glDeleteTextures(1, intArrayOf(shadowTexture), 0)
+            if (shadowFrameBuffer != 0) GLES30.glDeleteFramebuffers(1, intArrayOf(shadowFrameBuffer), 0)
+            EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
+        }
+        if (hasDisplay && hasSurface) EGL14.eglDestroySurface(display, eglSurface)
+        if (hasDisplay && hasContext) EGL14.eglDestroyContext(display, context)
+        if (hasDisplay) EGL14.eglTerminate(display)
+        gpu.clear()
+        program = 0; shadowProgram = 0; shadowTexture = 0; shadowFrameBuffer = 0
+        display = EGL14.EGL_NO_DISPLAY; context = EGL14.EGL_NO_CONTEXT; eglSurface = EGL14.EGL_NO_SURFACE
     }
 
     private fun link(vertexSource: String, fragmentSource: String): Int {
         fun compile(kind: Int, source: String): Int {
             val shader = GLES30.glCreateShader(kind); GLES30.glShaderSource(shader, source); GLES30.glCompileShader(shader)
             val ok = IntArray(1); GLES30.glGetShaderiv(shader, GLES30.GL_COMPILE_STATUS, ok, 0)
-            check(ok[0] != 0) { GLES30.glGetShaderInfoLog(shader) }
+            if (ok[0] == 0) {
+                val message = GLES30.glGetShaderInfoLog(shader)
+                GLES30.glDeleteShader(shader)
+                error(message)
+            }
             return shader
         }
-        val vertex = compile(GLES30.GL_VERTEX_SHADER, vertexSource)
-        val fragment = compile(GLES30.GL_FRAGMENT_SHADER, fragmentSource)
-        val linked = GLES30.glCreateProgram(); GLES30.glAttachShader(linked, vertex); GLES30.glAttachShader(linked, fragment); GLES30.glLinkProgram(linked)
-        GLES30.glDeleteShader(vertex); GLES30.glDeleteShader(fragment)
-        val ok = IntArray(1); GLES30.glGetProgramiv(linked, GLES30.GL_LINK_STATUS, ok, 0)
-        check(ok[0] != 0) { GLES30.glGetProgramInfoLog(linked) }
-        return linked
+        var vertex = 0
+        var fragment = 0
+        var linked = 0
+        var complete = false
+        try {
+            vertex = compile(GLES30.GL_VERTEX_SHADER, vertexSource)
+            fragment = compile(GLES30.GL_FRAGMENT_SHADER, fragmentSource)
+            linked = GLES30.glCreateProgram()
+            GLES30.glAttachShader(linked, vertex); GLES30.glAttachShader(linked, fragment); GLES30.glLinkProgram(linked)
+            val ok = IntArray(1); GLES30.glGetProgramiv(linked, GLES30.GL_LINK_STATUS, ok, 0)
+            check(ok[0] != 0) { GLES30.glGetProgramInfoLog(linked) }
+            complete = true
+            return linked
+        } finally {
+            if (vertex != 0) GLES30.glDeleteShader(vertex)
+            if (fragment != 0) GLES30.glDeleteShader(fragment)
+            if (!complete && linked != 0) GLES30.glDeleteProgram(linked)
+        }
     }
     private fun uniformMatrix(program: Int, name: String, matrix: FloatArray) = GLES30.glUniformMatrix4fv(GLES30.glGetUniformLocation(program, name), 1, false, matrix, 0)
 }
+
+private const val STARTUP_TIMEOUT_MS = 5_000L
+private const val DISPOSAL_TIMEOUT_MS = 250L
 
 private fun FloatArray.buffer(): FloatBuffer = ByteBuffer.allocateDirect(size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(this@buffer); position(0) }
 private fun IntArray.buffer(): IntBuffer = ByteBuffer.allocateDirect(size * 4).order(ByteOrder.nativeOrder()).asIntBuffer().apply { put(this@buffer); position(0) }

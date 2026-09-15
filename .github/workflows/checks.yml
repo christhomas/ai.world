@@ -26,6 +26,9 @@ on:
   # so a failing bench can be re-run without pushing anything
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -144,17 +147,17 @@ jobs:
       run:
         working-directory: client/flutter
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Flutter's Android template currently targets Java 17. Pinning it here prevents a runner JDK
       # upgrade from changing the Gradle toolchain under an otherwise unchanged phone client.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: 17
           cache: gradle
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: 3.47.1
           channel: stable
@@ -162,7 +165,7 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test test/renderer_smoke_test.dart
+      - run: flutter test test/renderer_smoke_test.dart test/workflow_test.dart
       - run: flutter build apk --debug
       - run: flutter build ios --simulator --debug
 
