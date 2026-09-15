@@ -62,6 +62,31 @@ jobs:
           rm -rf "$unpack"
           chore --version
 
+      # Setting the job up has no business writing into the tree the tests are about to read.
+      #
+      # The chore tarball carries a README.md of its own, and it used to be unpacked in the working
+      # directory: every run since that step existed quietly replaced this repository's README with
+      # the tool's, and nothing objected, because a clobbered file nothing asserts about is a file
+      # that is fine. It was found by a test written for an entirely different reason that happened
+      # to read the README, after eighteen red runs nobody could explain.
+      #
+      # That install is fixed. This is the class. Anything a setup step touched is either the same
+      # bug again or a generated file that should be in `.gitignore` and is not.
+      #
+      # Here and not at the end: the playthrough writes its own report, and a guard that fails on
+      # that every time is a guard somebody switches off. After the playwright borrow rather than
+      # before it, because borrowing one is setup too — `npm install --global` and `playwright
+      # install` both write outside the checkout, so this covers them at no cost.
+      - name: The checkout is as it was checked out
+        run: |
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "setting the job up changed the checkout:" >&2
+            echo "$dirty" >&2
+            git diff --stat >&2
+            exit 1
+          fi
+
       # types, then the whole suite, then the bench — the same three a commit is gated on locally
       - run: chore check
 
@@ -198,6 +223,31 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --global "playwright@${PLAYWRIGHT_VERSION}"
           playwright install --with-deps chrome
           echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+
+      # Setting the job up has no business writing into the tree the tests are about to read.
+      #
+      # The chore tarball carries a README.md of its own, and it used to be unpacked in the working
+      # directory: every run since that step existed quietly replaced this repository's README with
+      # the tool's, and nothing objected, because a clobbered file nothing asserts about is a file
+      # that is fine. It was found by a test written for an entirely different reason that happened
+      # to read the README, after eighteen red runs nobody could explain.
+      #
+      # That install is fixed. This is the class. Anything a setup step touched is either the same
+      # bug again or a generated file that should be in `.gitignore` and is not.
+      #
+      # Here and not at the end: the playthrough writes its own report, and a guard that fails on
+      # that every time is a guard somebody switches off. After the playwright borrow rather than
+      # before it, because borrowing one is setup too — `npm install --global` and `playwright
+      # install` both write outside the checkout, so this covers them at no cost.
+      - name: The checkout is as it was checked out
+        run: |
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "setting the job up changed the checkout:" >&2
+            echo "$dirty" >&2
+            git diff --stat >&2
+            exit 1
+          fi
 
       # No server to start and none to kill: `chore playtest` serves the page itself when nothing is
       # answering on the port and puts it away afterwards, win or lose. That is the same command a
