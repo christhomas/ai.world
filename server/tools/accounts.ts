@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { migrateDomain, openDurable } from '../durable/db';
-import { hashPassword, passwordMatches, wantsRehashing } from './passwords';
+import { hashPassword, hashPasswordAsync, passwordMatchesAsync, wantsRehashing } from './passwords';
 import { newSessionId, TOKEN_LASTS } from './tokens';
 
 /**
@@ -80,7 +80,11 @@ export function addAccount(
   try {
     db.prepare('INSERT INTO account (id, name, secret, made) VALUES (?, ?, ?, ?)')
       .run(id, name, secret, now);
-  } catch { return null; }                       // UNIQUE: somebody of that name is already here
+  } catch (why) {
+    const sqlite = why as { errcode?: number; message?: string };
+    if (sqlite.errcode === 2067 && sqlite.message?.includes('account.name')) return null;
+    throw why;
+  }
   return { id, name, secret, made: now };
 }
 
@@ -105,12 +109,12 @@ export function howManyAccounts(db: DatabaseSync): number {
  * A hash made at a weaker cost than today's is re-made here, which is the only moment the password
  * is in hand to do it with.
  */
-export function whoIsThis(db: DatabaseSync, name: string, password: string): Account | null {
+export async function whoIsThis(db: DatabaseSync, name: string, password: string): Promise<Account | null> {
   const account = accountNamed(db, name);
   const stored = account?.secret ?? NOBODY;
-  if (!passwordMatches(password, stored) || !account) return null;
+  if (!await passwordMatchesAsync(password, stored) || !account) return null;
   if (wantsRehashing(stored)) {
-    const remade = hashPassword(password);
+    const remade = await hashPasswordAsync(password);
     db.prepare('UPDATE account SET secret = ? WHERE id = ?').run(remade, account.id);
     return { ...account, secret: remade };
   }

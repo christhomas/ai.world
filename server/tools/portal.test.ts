@@ -18,6 +18,8 @@ describe('what the portal is being asked for', () => {
     expect(whatIsAsked('GET', '/')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/status')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/registry?seed=3')).toEqual({ want: 'nothing' });
+    expect(whatIsAsked('GET', '/toolshed')).toEqual({ want: 'nothing' });
+    expect(whatIsAsked('GET', '/toolshed/registry')).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', undefined)).toEqual({ want: 'nothing' });
     expect(whatIsAsked('GET', '/tools')).toEqual({ want: 'catalogue' });
   });
@@ -59,6 +61,11 @@ describe('the cookie a session rides in', () => {
 
   it('is not confused by a cookie whose name ends in the same letters', () => {
     expect(cookieFrom(`not_${COOKIE}=wrong; ${COOKIE}=right`, COOKIE)).toBe('right');
+  });
+
+  it('reads malformed encoding as no cookie rather than throwing over the request', () => {
+    expect(cookieFrom(`${COOKIE}=%`, COOKIE)).toBeNull();
+    expect(cookieFrom(`${COOKIE}=%xy`, COOKIE)).toBeNull();
   });
 
   /*

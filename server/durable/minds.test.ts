@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { migrateDomain, openDurable, versionOf } from './db';
 import { readFileSync } from 'node:fs';
-import { HeldMinds, MINDS_SCHEMA, holdsAnything, keepMinds, mindsOf } from './minds';
+import { HeldMinds, MINDS_SCHEMA, forgetMind, holdsAnything, keepMinds, mindsOf } from './minds';
 import type { Person } from '../../src/world/people';
 
 /**
@@ -73,6 +73,20 @@ describe('what a villager holds, written down', () => {
     keepMinds(db, 7, [villager('p1', { memories: [aMemory('b')] })]);
     expect(mindsOf(db, 3).minds.get('p1')?.memories[0].who).toBe('a');
     expect(mindsOf(db, 7).minds.get('p1')?.memories[0].who).toBe('b');
+  });
+
+  it('forgets only the departed villager, without sweeping people not yet settled', () => {
+    const db = book();
+    keepMinds(db, 3, [
+      villager('gone', { memories: [aMemory('a')] }),
+      villager('later', { memories: [aMemory('b')] }),
+    ]);
+    keepMinds(db, 7, [villager('gone', { memories: [aMemory('another world')] })]);
+
+    expect(forgetMind(db, 3, 'gone')).toBe(true);
+    expect(mindsOf(db, 3).minds.has('gone')).toBe(false);
+    expect(mindsOf(db, 3).minds.has('later'), 'unsettled rows are not swept').toBe(true);
+    expect(mindsOf(db, 7).minds.has('gone'), 'the same id in another world is untouched').toBe(true);
   });
 
   it('replaces what was there rather than adding to it', () => {

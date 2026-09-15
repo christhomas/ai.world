@@ -103,6 +103,35 @@ describe('the tools portal, served', () => {
     }
   });
 
+  it('opens the real Domesday Book and asks its backend with the session, not an operator token', async () => {
+    const cookie = cookieOut(await signIn('chris', 'a long enough password'));
+    const page = await get('/tools/registry', cookie);
+    const shown = await page.text();
+    expect(shown, 'the card must not end at a placeholder').toContain('DOMESDAY BOOK');
+    expect(shown, 'an authenticated page must not ask the operator to paste another secret')
+      .not.toContain('operator or watch token');
+
+    const answer = await get('/tools/registry/data?seed=7', cookie);
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toMatchObject({ seed: 7 });
+    const outside = await get('/tools/registry/data?seed=7');
+    expect(outside.status).toBe(303);
+    expect(outside.headers.get('location')).toBe('/tools/login');
+  });
+
+  it('turns malformed cookie encoding into an ordinary login redirect', async () => {
+    const res = await get('/tools/', `${COOKIE}=%`);
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe('/tools/login');
+  });
+
+  it('slows a run of wrong passwords at the portal itself', async () => {
+    const attempts = [];
+    for (let n = 0; n < 6; n++) attempts.push(await signIn('chris', `wrong password ${n}`));
+    expect(attempts.slice(0, 5).map((res) => res.status)).toEqual([401, 401, 401, 401, 401]);
+    expect(attempts[5].status).toBe(429);
+  });
+
   it('refuses a cookie somebody has made up', async () => {
     for (const made of ['nonsense', 'a.b.c', '']) {
       const res = await get('/tools/', `${COOKIE}=${made}`);

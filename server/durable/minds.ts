@@ -104,6 +104,12 @@ export function keepMinds(
   return { kept, forgotten };
 }
 
+/** Forget one person who has actually departed, without sweeping villages not yet settled. */
+export function forgetMind(db: DatabaseSync, world: number, villager: string): boolean {
+  const said = db.prepare('DELETE FROM mind WHERE world = ? AND villager = ?').run(world, villager);
+  return Number(said.changes) > 0;
+}
+
 /**
  * Everything this world's villagers hold, by villager id.
  *

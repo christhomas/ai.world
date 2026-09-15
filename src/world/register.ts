@@ -72,7 +72,11 @@ export class Register {
   private fieldSurvey: ((village: string, settlement: Settlement) => FieldClearing | null) | null = null;
   private day: number;
 
-  constructor(private readonly seed: number, day = FOUNDED_ON) {
+  constructor(
+    private readonly seed: number,
+    day = FOUNDED_ON,
+    private readonly onDeparted: (change: Change) => void = () => {},
+  ) {
     this.day = Math.floor(day);
     /*
      * What a day in one village is allowed to know about the rest of the world: see `aday.ts`.
@@ -254,7 +258,9 @@ export class Register {
 
   /** Somebody is off the register: `aday.ts` writes every book, this finds the village. */
   private remove(person: Person, day: number, cause: 'age' | 'violence' | 'hunger'): Change | null {
-    return takeOffTheRegister(this.villages.get(person.village), person, day, cause);
+    const departed = takeOffTheRegister(this.villages.get(person.village), person, day, cause);
+    if (departed) this.onDeparted(departed);
+    return departed;
   }
 
   /**
@@ -634,4 +640,3 @@ export class Register {
     return out;
   }
 }
-

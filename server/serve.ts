@@ -99,12 +99,17 @@ function wireFor(socket: WebSocket): Wire {
  * an async function and a route that returns a promise to a caller checking it for `true` is a
  * route that never fires. The handler owns the response from the moment it says yes.
  */
-function openTools(db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean) {
+function openTools(db: DatabaseSync, secret: string, trustProxy: boolean, quiet: boolean, sim: Simulation) {
   migrateAccounts(db);
   const { made, say } = bootstrapAccount(db, process.env, addAccount);
   if (say && !quiet) (made ? console.log : console.error)(say);
   sweepSessions(db);
-  const portal = portalFor({ db, secret, trustProxy });
+  const portal = portalFor({
+    db, secret, trustProxy,
+    // The portal has already proved the session before calling this. No operator token is made,
+    // copied into a page, or sent over the wire.
+    survey: (req, res) => registry(sim, null, req, res),
+  });
   return {
     takes: (req: IncomingMessage, res: ServerResponse): boolean => {
       if (whatIsAsked(req.method, req.url).want === 'nothing') return false;
@@ -148,7 +153,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
    * has to fail at boot where somebody is reading the log.
    */
   const tools = durable && options.toolsSecret
-    ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false)
+    ? openTools(durable, options.toolsSecret, options.trustProxy ?? false, options.quiet ?? false, sim)
     : null;
   const http = createServer((req, res) => {
     if (tools && tools.takes(req, res)) return;
@@ -257,7 +262,7 @@ function namedWorld(rooms: Rooms, req: IncomingMessage, res: ServerResponse): vo
  * them because it can change a world; nothing down this path can, so a watcher sees exactly what an
  * operator does.
  */
-function registry(sim: Simulation, options: ServerOptions, req: IncomingMessage, res: ServerResponse): void {
+function registry(sim: Simulation, options: ServerOptions | null, req: IncomingMessage, res: ServerResponse): void {
   /*
    * Readable from a page that is not this server's.
    *
@@ -270,25 +275,27 @@ function registry(sim: Simulation, options: ServerOptions, req: IncomingMessage,
    * behalf, and every answer is a read. The rule that matters is the one in the router — this path
    * cannot change a world — and not who is allowed to ask.
    */
-  const allow = {
+  const allow = options ? {
     'access-control-allow-origin': '*',
     'access-control-allow-headers': 'x-operator-token, authorization',
     'access-control-max-age': '600',
-  };
+  } : { 'cache-control': 'no-store' };
   const say = (code: number, body: unknown): void => {
     res.writeHead(code, { 'content-type': 'application/json', ...allow });
     res.end(JSON.stringify(body));
   };
-  if (req.method === 'OPTIONS') { res.writeHead(204, allow); res.end(); return; }
+  if (options && req.method === 'OPTIONS') { res.writeHead(204, allow); res.end(); return; }
   if (req.method !== 'GET') { say(405, { error: 'ask, do not tell' }); return; }
 
-  const given = String(req.headers['x-operator-token'] ?? '')
-    || String(req.headers.authorization ?? '').replace(/^Bearer /, '')
-    || new URL(req.url ?? '/', 'http://x').searchParams.get('token') || '';
-  const known = given !== ''
-    && (given === options.operatorToken || given === options.watchToken);
-  if (!known) { say(401, { error: 'no' }); return; }
-  if (!withinRate(given)) { say(429, { error: 'too many' }); return; }
+  if (options) {
+    const given = String(req.headers['x-operator-token'] ?? '')
+      || String(req.headers.authorization ?? '').replace(/^Bearer /, '')
+      || new URL(req.url ?? '/', 'http://x').searchParams.get('token') || '';
+    const known = given !== ''
+      && (given === options.operatorToken || given === options.watchToken);
+    if (!known) { say(401, { error: 'no' }); return; }
+    if (!withinRate(given)) { say(429, { error: 'too many' }); return; }
+  }
 
   const query = new URL(req.url ?? '/', 'http://x').searchParams;
   const asked = query.get('seed');
