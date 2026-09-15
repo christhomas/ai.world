@@ -105,15 +105,55 @@ describe('the other checkouts of this repository', () => {
  */
 describe('what of the dirt is somebody\'s work', () => {
   it('is not the report a bench rewrites every run', () => {
-    expect(worthStopping(['sanity-report.txt'])).toEqual([]);
+    expect(worthStopping([{ status: ' M', path: 'sanity-report.txt' }])).toEqual([]);
   });
 
   it('is everything else, including a file beside it', () => {
-    expect(worthStopping(['sanity-report.txt', 'src/world/homes.ts']))
-      .toEqual(['src/world/homes.ts']);
+    expect(worthStopping([
+      { status: ' M', path: 'sanity-report.txt' },
+      { status: ' M', path: 'src/world/homes.ts' },
+    ])).toEqual(['src/world/homes.ts']);
   });
 
   it('leaves a source file with a report-ish name alone', () => {
-    expect(worthStopping(['tools/sanity-report.txt'])).toEqual(['tools/sanity-report.txt']);
+    expect(worthStopping([{ status: ' M', path: 'tools/sanity-report.txt' }]))
+      .toEqual(['tools/sanity-report.txt']);
+  });
+
+  /*
+   * And the half the path on its own could not say.
+   *
+   * The exception is written for one thing that actually happens — `chore sanity` runs and leaves
+   * its own reading in the worktree, unstaged. Every other way that file can be dirty is somebody
+   * having decided something about it: staged for a commit, deleted, moved somewhere else. Waving
+   * those through is the guard answering a question nobody asked it.
+   */
+  it('stops for a report somebody has staged, which the bench never does', () => {
+    expect(worthStopping([{ status: 'M ', path: 'sanity-report.txt' }])).toEqual(['sanity-report.txt']);
+  });
+
+  it('stops for a report staged and then edited again', () => {
+    expect(worthStopping([{ status: 'MM', path: 'sanity-report.txt' }])).toEqual(['sanity-report.txt']);
+  });
+
+  it('stops for a report somebody has deleted, either way round', () => {
+    expect(worthStopping([{ status: ' D', path: 'sanity-report.txt' }])).toEqual(['sanity-report.txt']);
+    expect(worthStopping([{ status: 'D ', path: 'sanity-report.txt' }])).toEqual(['sanity-report.txt']);
+  });
+
+  /*
+   * A rename is caught today by accident rather than by rule: it dirties a second path, and the
+   * second path is not on the exempt list. Retire it as a coincidence — both ends of the move carry
+   * the rename's own status, and neither end is an unstaged modification.
+   */
+  it('stops for a report somebody has moved, at both ends of the move', () => {
+    expect(worthStopping([
+      { status: 'R ', path: 'docs/sanity-report.txt' },
+      { status: 'R ', path: 'sanity-report.txt' },
+    ])).toEqual(['docs/sanity-report.txt', 'sanity-report.txt']);
+  });
+
+  it('stops for a report that is untracked rather than modified', () => {
+    expect(worthStopping([{ status: '??', path: 'sanity-report.txt' }])).toEqual(['sanity-report.txt']);
   });
 });
