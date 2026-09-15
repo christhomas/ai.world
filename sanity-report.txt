@@ -1,97 +1,103 @@
-SANITY BENCH — PASS — 2026-09-14T04:23:40.937Z
+SANITY BENCH — PASS — 2026-09-15T02:01:10.697Z
 
-  6 villages on 3 seeds, 450 days each — five or six generations, which is
+  7 villages on 3 seeds, 450 days each — five or six generations, which is
   long enough for drift to show. Nothing here is added up: the audit in economy-report.txt does that,
   and passes a village that has lost every farmer it ever had. This asks the questions a person
   would ask on walking in. PASS and FAIL are faults. NOTE is for somebody to decide about.
 
-  PASS          18  villages lived from founding to day 450, and whether anybody is still in them
+  PASS          21  villages lived from founding to day 450, and whether anybody is still in them
                     every one of them still standing, and none of them emptied on the way
   PASS           9  untroubled villages inside the beds they have built, and at least 0.5× full
-                    Ashford (seed 1): founded 19, 64 in 64 beds at day 450
+                    Ashford (seed 1): founded 19, 62 in 62 beds at day 450
                     Oakcross (seed 1): founded 26, 92 in 92 beds at day 450
-                    Saltcombe (seed 1): founded 16, 52 in 52 beds at day 450
-                    Ashford (seed 7): founded 16, 60 in 60 beds at day 450
+                    Saltcombe (seed 1): founded 16, 50 in 50 beds at day 450
+                    Ashford (seed 7): founded 16, 62 in 62 beds at day 450
                     Oakcross (seed 7): founded 25, 92 in 92 beds at day 450
-                    Saltcombe (seed 7): founded 12, 52 in 52 beds at day 450
+                    Saltcombe (seed 7): founded 12, 50 in 50 beds at day 450
                     Ashford (seed 1234): founded 19, 60 in 60 beds at day 450
-                    Oakcross (seed 1234): founded 23, 90 in 90 beds at day 450
-                    Saltcombe (seed 1234): founded 16, 54 in 54 beds at day 450
+                    Oakcross (seed 1234): founded 23, 96 in 96 beds at day 450
+                    Saltcombe (seed 1234): founded 16, 50 in 50 beds at day 450
   PASS           9  untroubled villages inside the 4× room their ground and their ladder allow
-                    Ashford (seed 1): 64 beds against 96 the ground allows
+                    Ashford (seed 1): 62 beds against 96 the ground allows
                     Oakcross (seed 1): 92 beds against 144 the ground allows
-                    Saltcombe (seed 1): 52 beds against 80 the ground allows
-                    Ashford (seed 7): 60 beds against 96 the ground allows
+                    Saltcombe (seed 1): 50 beds against 80 the ground allows
+                    Ashford (seed 7): 62 beds against 96 the ground allows
                     Oakcross (seed 7): 92 beds against 144 the ground allows
-                    Saltcombe (seed 7): 52 beds against 80 the ground allows
+                    Saltcombe (seed 7): 50 beds against 80 the ground allows
                     Ashford (seed 1234): 60 beds against 96 the ground allows
-                    Oakcross (seed 1234): 90 beds against 144 the ground allows
-                    Saltcombe (seed 1234): 54 beds against 80 the ground allows
-  PASS          18  villages that gained a bed only when something was built to hold it
+                    Oakcross (seed 1234): 96 beds against 144 the ground allows
+                    Saltcombe (seed 1234): 50 beds against 80 the ground allows
+  PASS          21  villages that gained a bed only when something was built to hold it
                     no village's ceiling moved except with its buildings, on any night of the run
-  PASS          18  villages founded holding exactly what their own houses have beds for
+  PASS          21  villages founded holding exactly what their own houses have beds for
                     every village begins at its own ceiling, so none of them starts frozen
-  PASS          18  villages still holding at least half the trades their place supports, at day 450
+  PASS          21  villages still holding at least half the trades their place supports, at day 450
                     Ashford (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Oakcross (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Thornby (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Blackmarsh (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Fernreach (seed 1): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Saltcombe (seed 1): 8 of 8 — builder, constable, doctor, explorer, fisherman, innkeeper, sailor, seller
+                    Stonedale (seed 1): 10 of 10 — builder, climber, constable, doctor, explorer, farmer, innkeeper, miner, seller, soldier
                     Ashford (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Oakcross (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Thornby (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Blackmarsh (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Fernreach (seed 7): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Saltcombe (seed 7): 8 of 8 — builder, constable, doctor, explorer, fisherman, innkeeper, sailor, seller
+                    Stonedale (seed 7): 10 of 10 — builder, climber, constable, doctor, explorer, farmer, innkeeper, miner, seller, soldier
                     Ashford (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Oakcross (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Thornby (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Blackmarsh (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Fernreach (seed 1234): 12 of 12 — builder, climber, constable, doctor, explorer, farmer, hunter, innkeeper, miner, seller, soldier, woodcutter
                     Saltcombe (seed 1234): 8 of 8 — builder, constable, doctor, explorer, fisherman, innkeeper, sailor, seller
-  PASS          15  villages with fields that still have somebody farming them
+                    Stonedale (seed 1234): 10 of 10 — builder, climber, constable, doctor, explorer, farmer, innkeeper, miner, seller, soldier
+  PASS          18  villages with fields that still have somebody farming them
                     every field in the world has a farmer on it
-  PASS          18  villages whose herd stayed inside what their land could carry
+  PASS          21  villages whose herd stayed inside what their land could carry
                     no village ran a herd its paddocks could not hold for more than 35 days
-  PASS          18  villages with somebody for every building standing in them
-                    Ashford (seed 1): 16 buildings, 64 people
-                    Oakcross (seed 1): 22 buildings, 92 people
-                    Thornby (seed 1): 16 buildings, 60 people
+  PASS          21  villages with somebody for every building standing in them
+                    Ashford (seed 1): 34 buildings, 62 people
+                    Oakcross (seed 1): 45 buildings, 92 people
+                    Thornby (seed 1): 22 buildings, 62 people
                     Blackmarsh (seed 1): 16 buildings, 70 people
                     Fernreach (seed 1): 16 buildings, 60 people
-                    Saltcombe (seed 1): 14 buildings, 52 people
-                    Ashford (seed 7): 16 buildings, 60 people
-                    Oakcross (seed 7): 21 buildings, 92 people
-                    Thornby (seed 7): 16 buildings, 62 people
-                    Blackmarsh (seed 7): 16 buildings, 60 people
-                    Fernreach (seed 7): 16 buildings, 62 people
-                    Saltcombe (seed 7): 14 buildings, 52 people
+                    Saltcombe (seed 1): 14 buildings, 50 people
+                    Stonedale (seed 1): 16 buildings, 62 people
+                    Ashford (seed 7): 16 buildings, 62 people
+                    Oakcross (seed 7): 46 buildings, 92 people
+                    Thornby (seed 7): 15 buildings, 62 people
+                    Blackmarsh (seed 7): 15 buildings, 70 people
+                    Fernreach (seed 7): 34 buildings, 60 people
+                    Saltcombe (seed 7): 14 buildings, 50 people
+                    Stonedale (seed 7): 16 buildings, 60 people
                     Ashford (seed 1234): 16 buildings, 60 people
-                    Oakcross (seed 1234): 22 buildings, 90 people
-                    Thornby (seed 1234): 16 buildings, 66 people
-                    Blackmarsh (seed 1234): 13 buildings, 68 people
-                    Fernreach (seed 1234): 16 buildings, 64 people
-                    Saltcombe (seed 1234): 14 buildings, 54 people
-  PASS          18  villages that never held more meals than 12 days a head for longer than a funeral takes
+                    Oakcross (seed 1234): 42 buildings, 96 people
+                    Thornby (seed 1234): 30 buildings, 62 people
+                    Blackmarsh (seed 1234): 12 buildings, 62 people
+                    Fernreach (seed 1234): 36 buildings, 62 people
+                    Saltcombe (seed 1234): 14 buildings, 50 people
+                    Stonedale (seed 1234): 16 buildings, 62 people
+  PASS          21  villages that never held more meals than 12 days a head for longer than a funeral takes
                     nothing anywhere banked a year of dinners
   NOTE           0  villages where one purse holds more than 50% of everything in the place
                     nobody anywhere is that far ahead of their neighbours
-  NOTE      323437  gold sitting in halls nobody can spend from — 47% of every coin in the world
-                    seed 1: 111881.52 in the halls against 126360.97 in the purses — 47% of it banked
-                    seed 7: 105503.39 in the halls against 112564.6 in the purses — 48% of it banked
-                    seed 1234: 106052.4 in the halls against 118586.55 in the purses — 47% of it banked
+  PASS      249334  gold sitting in halls nobody can spend from — 33% of every coin in the world
+                    seed 1: 88091.96 in the halls against 176165.53 in the purses — 33% of it banked
+                    seed 7: 85699.13 in the halls against 163252.79 in the purses — 34% of it banked
+                    seed 1234: 75542.86 in the halls against 169846.5 in the purses — 31% of it banked
                     A hall is the one place a coin goes and does not come back: a purse buys dinner and is inherited,
                     and a treasury is spent on nothing at all until somebody votes to build something. Anything over
                     34% says the spending half is overdue rather than that the tax is wrong.
-  PASS          18  villages that held 3950 between them at some point, and 18 that stood 210 a head
+  PASS          21  villages that held 3950 between them at some point, and 21 that stood 210 a head
                     Ashford (seed 1): a bath house from day 96
-                    Oakcross (seed 1): a bath house from day 65
-                    Thornby (seed 1): a bath house from day 137
-                    Blackmarsh (seed 1): a bath house from day 212
-                    Fernreach (seed 1): a bath house from day 97
-                    Saltcombe (seed 1): a bath house from day 111
-                    Ashford (seed 7): a bath house from day 92
-                    Oakcross (seed 7): a bath house from day 66
+                    Oakcross (seed 1): a bath house from day 67
+                    Thornby (seed 1): a bath house from day 146
+                    Blackmarsh (seed 1): a bath house from day 216
+                    Fernreach (seed 1): a bath house from day 95
+                    Saltcombe (seed 1): a bath house from day 124
+                    Stonedale (seed 1): a bath house from day 105
+                    Ashford (seed 7): a bath house from day 93
 
   Written by src/game/sanity.test.ts to sanity-report.txt. Run it again with: chore sanity

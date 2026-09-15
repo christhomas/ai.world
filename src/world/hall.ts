@@ -195,6 +195,7 @@ type HallPost = {
 } & (
   | { /** The building whose work this is. */ of: string; held?: never }
   | { /** The trade whose holder fills this post. */ held: string; of?: never }
+  | { /** Work every settled village has, without first buying a building. */ village: true; of?: never; held?: never }
 );
 
 export const POSTS: readonly HallPost[] = [
@@ -223,6 +224,14 @@ export const POSTS: readonly HallPost[] = [
   { of: 'markethall', job: 'market warden', wage: 10, per: 45 },
   /* And water brought from the hills is a channel somebody walks the length of, looking for cracks. */
   { of: 'aqueduct', job: 'water warden', wage: 10, per: 40 },
+  /*
+   * Roads, verges and ditches exist before the hall has bought anything, and all grow with the
+   * distance a village covers. Three gold is an ordinary trading day, far below a builder's twelve:
+   * enough to carry somebody through a quiet season without making commissions irrelevant. One
+   * shift per two souls supplies a road crew that grows with the ground the village occupies.
+   * Last because it is the work that may wait while required posts and capital come first.
+   */
+  { village: true, job: 'road keeper', wage: 3, per: 2 },
 ];
 
 /** How many of a post a village of this size keeps: one, and another for every per souls over. */
@@ -231,6 +240,7 @@ export function postsFor(post: HallPost, souls: number): number {
 }
 
 function postIsHeld(post: HallPost, built: readonly string[], people: readonly Person[]): boolean {
+  if ('village' in post) return true;
   return post.of === undefined
     ? people.some((person) => person.trade === post.held)
     : built.includes(post.of);
@@ -249,7 +259,7 @@ function postIsHeld(post: HallPost, built: readonly string[], people: readonly P
  * unfilled for the day.
  */
 export function whoTheHallEmploys(
-  purse: number, built: readonly string[], people: readonly Person[],
+  purse: number, built: readonly string[], people: readonly Person[], villageReserve = 0,
 ): { paid: Map<Owner, number>; costs: number; jobs: number; watch: string } | null {
   const spare = [
     ...people.filter((person) => person.trade === '')
@@ -273,7 +283,8 @@ export function whoTheHallEmploys(
     for (const person of candidates) {
       if (filled >= postsFor(post, people.length)) break;
       if (assigned.has(person.id)) continue;
-      if (costs + post.wage > purse) return finish(paid, costs, watch);
+      const available = 'village' in post ? Math.max(0, purse - villageReserve) : purse;
+      if (costs + post.wage > available) return finish(paid, costs, watch);
       paid.set(ownedBy(person), post.wage);
       assigned.add(person.id);
       costs = Math.round((costs + post.wage) * 100) / 100;

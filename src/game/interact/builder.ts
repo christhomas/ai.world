@@ -4,7 +4,7 @@ import {
 } from '../building';
 import { buildingStarted, workTheHallJobs } from '../halljobs';
 import { beside, canAttachTo, canBuildAt, canBuildOnShore } from '../siting';
-import { jettiesIn, type Mooring } from '../jetties';
+import { jettiesIn } from '../jetties';
 import { moorageFor } from '../sailing';
 import { give, holds } from '../../world/deeds';
 import type { Post } from '../../world/postings';
@@ -17,6 +17,7 @@ import { footprintLevel } from '../../world/footprint';
 import type { Structure, Village } from '../../world/structures';
 import { regardOf } from '../grudge';
 import type { DialogueChoice, DialogueNode, Surroundings } from './context';
+import { toTheJetty, toTheWater } from './buildercoast';
 /**
  * Commissioning a house, and what a finished one is for.
  *
@@ -50,14 +51,6 @@ const BOX = { speaker: 'Strongbox', emoji: '🧰' } as const;
 const buildingDay = (ctx: Surroundings): number => ctx.state.day + ctx.state.time;
 
 /**
- * How far the nearest jetty is from a point, in tiles, or Infinity where the country has none.
- *
- * Module level because two quite different places need the same number and they have to agree. The
- * pub asks it of the village, to decide whether this man offers boats at all; the shore asks it of
- * the plot the player is standing on, to decide whether a keel may be laid there. One measure, one
- * distance in `BUILD.PIER_WITHIN`, and so no village that offers a boat has nowhere to build one.
- */
-/**
  * How many of a village's people fell timber for a living.
  *
  * A function rather than a filter written out twice, because two quite different places ask it and
@@ -69,45 +62,6 @@ function woodcuttersFor(people: readonly { trade: string }[]): number {
   return people.filter((person) => person.trade === 'woodcutter').length;
 }
 
-/**
- * Where the nearest open water is, as a bearing and a distance, or nothing within `reach`.
- *
- * Rings outward rather than scanning a square, so what comes back is the *nearest* wet tile rather
- * than whichever one happened to be looked at first, and it stops the moment it finds one. Water is
- * the same question a boat asks: ground with nothing to stand on.
- *
- * The bearing is the half that matters as much as the distance, and it is why this hands back a
- * point rather than a number. A jetty runs out the way the sea is, not the way the player happened
- * to be facing when they pressed Enter — a man standing on a beach looking inland still wants his
- * jetty over the water — and a hull on the stocks points the way she will go in.
- *
- * `step` is how coarsely to look. One tile for a plot, where the true distance is the answer and
- * the reach is eight; four for a village, where the question is only whether this place has a coast
- * at all and ringing ninety tiles a tile at a time would be thirty thousand samples on a key press.
- */
-function toTheWater(
-  heightAt: (x: number, z: number) => number | null,
-  x: number, z: number, reach: number, step = 1,
-): { away: number; bearing: number } | null {
-  for (let r = step; r <= reach; r += step) {
-    const around = Math.max(8, Math.round(r * 8 / step));
-    for (let a = 0; a < around; a++) {
-      const angle = (a / around) * Math.PI * 2;
-      const wx = x + Math.cos(angle) * r, wz = z + Math.sin(angle) * r;
-      // the bearing is in the game's own convention, where yaw 0 is +x and turning is towards -z
-      if (heightAt(wx, wz) === null) return { away: r, bearing: Math.atan2(-(wz - z), wx - x) };
-    }
-  }
-  return null;
-}
-
-function toTheJetty(jetties: ReadonlyArray<Mooring>, x: number, z: number): number {
-  let nearest = Infinity;
-  for (const jetty of jetties) {
-    nearest = Math.min(nearest, Math.hypot(jetty.dockX + 0.5 - x, jetty.dockZ + 0.5 - z));
-  }
-  return nearest;
-}
 /**
  * Where to go and stand to say where it goes, in the builder's own words.
  *
