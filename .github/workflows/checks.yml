@@ -21,13 +21,22 @@ name: Checks
 
 on:
   push:
-    branches: [main]
+    # A stacked PR can advance its base branch without emitting a synchronize event for
+    # the downstream PR. Running on every branch push keeps required checks attached to
+    # the commit instead of making somebody dispatch this workflow by hand.
+    branches: ['**']
   pull_request:
   # so a failing bench can be re-run without pushing anything
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A normal branch push and its pull_request event can describe the same commit. Use the
+# branch name for both event types so those two descriptions share one run.
+concurrency:
+  group: checks-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   check:
