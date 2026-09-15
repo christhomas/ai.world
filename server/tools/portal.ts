@@ -49,8 +49,9 @@ export const CATALOGUE: readonly { id: string; name: string; blurb: string }[] =
  */
 export function whatIsAsked(method: string | undefined, url: string | undefined): Asked {
   if (!url) return { want: 'nothing' };
-  const path = url.split('?')[0].replace(/\/+$/, '') || '/tools';
-  if (path !== '/tools' && !path.startsWith('/tools/')) return { want: 'nothing' };
+  const asked = url.split('?')[0];
+  if (asked !== '/tools' && !asked.startsWith('/tools/')) return { want: 'nothing' };
+  const path = asked.replace(/\/+$/, '') || '/tools';
   if (path === '/tools') return { want: 'catalogue' };
   if (path === '/tools/login') return { want: method === 'POST' ? 'login' : 'login-form' };
   if (path === '/tools/logout') return method === 'POST' ? { want: 'logout' } : { want: 'nothing' };
