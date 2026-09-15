@@ -281,20 +281,28 @@ export function villageInteractions(ctx: Surroundings) {
         choices.unshift({
           label: `Take the work: ${label}`,
           next: () => {
-            const oath = register.swearIn(village.name, trade, online.name, state.day);
-            if (!oath) return {
-              speaker: `The hall of ${village.name}`, emoji: '🏛️',
-              pages: [`Somebody has taken that work since you asked. The roll is written up again every morning.`],
-              choices: [{ label: 'Then it is taken', next: () => null }],
-            };
-            state.version++;
-            sound.chime();
-            persist();
-            hud.flash(`You are written into ${village.name}'s roll as its ${label.toLowerCase()}.`);
+            /*
+             * Asked of the world, and not written down here first.
+             *
+             * `sworn` is announced by the world rather than reported to it — the same rule the
+             * civic vote runs on, and for the same reason: whether a trade is vacant is a fact
+             * about the register the world owns. Writing it locally and telling nobody would leave
+             * the hall's directory reading differently in two windows and lose it on a restart;
+             * writing it locally *and* sending it would date the same oath twice, once by this
+             * page's clock and once by the world's.
+             *
+             * So this asks, and the accepted oath arrives as a delta like everything else — which
+             * is also true playing alone, where the world is the simulation in the next thread.
+             */
+            online.swear(village.name, trade);
+            sound.select();
             return {
               speaker: `The hall of ${village.name}`, emoji: '🏛️',
               pages: [
-                `You are written into the roll as ${village.name}'s ${label.toLowerCase()}. There is no wage in it — the chest is for building — and no village raises a child into work somebody is already doing, so that is one thing this place has stopped needing.`,
+                `You offer to take up ${label.toLowerCase()} work. The clerk writes your name in the`
+                + ` roll — there is no wage in it, the chest is for building, and no village raises a`
+                + ` child into work somebody is already doing, so that is one thing this place has`
+                + ` stopped needing.`,
               ],
               choices: [{ label: 'Good', next: () => null }],
             };

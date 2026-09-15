@@ -436,6 +436,14 @@ export type ClientMessage =
   /** Ask the world to call the next civic vote in the named village. */
   | { type: 'vote'; village: string }
   /**
+   * Take work a village has nobody for.
+   *
+   * Asked rather than reported, exactly as a vote is, and for the same reason: `sworn` is announced
+   * by the world, so a client that simply told everyone would be a client writing its own facts
+   * into somebody else's village. The trade is named and the world decides whether it is vacant.
+   */
+  | { type: 'swear'; village: string; trade: string }
+  /**
    * A blow landed on a creature the world owns.
    *
    * The client draws the swing and the flinch straight away, because a hit that waits for a round
@@ -1058,6 +1066,21 @@ export function cleanDelta(delta: WorldDelta): WorldDelta | null {
       const day = Number(delta.day);
       if (!Number.isFinite(day) || (delta.rank !== 'town' && delta.rank !== 'city')) return null;
       return { kind: 'voted', village: id(delta.village), rank: delta.rank, day: Math.max(1, Math.floor(day)) };
+    }
+    /*
+     * An oath off the wire. Without this case it was read as a delta nobody had heard of and
+     * dropped — the shape existed, travelled, and stopped at the door.
+     *
+     * `who` is a player's name rather than an id, so it is cleaned as a name: a traveller is not on
+     * the register and there is no id to check them against.
+     */
+    case 'sworn': {
+      const day = Number(delta.day);
+      if (!Number.isFinite(day)) return null;
+      return {
+        kind: 'sworn', village: id(delta.village), trade: id(delta.trade), who: cleanName(String(delta.who ?? '')),
+        day: Math.max(1, Math.floor(day)),
+      };
     }
     case 'sow': {
       const day = Number(delta.day);
