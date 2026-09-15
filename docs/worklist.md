@@ -5691,3 +5691,33 @@ than by remembering — and the first thing found was that the gap is not where 
       sessions on it is a repository doing the right thing. What it does not count is the report a
       bench rewrites every run — a guard that fires on `sanity-report.txt` after you have just run
       `chore sanity` is a guard somebody turns off in a week.)*
+
+## What a village's own house is not priced in — September 14th
+
+- [x] **100. A player's house needs timber and a village's house does not.** *(It looked like this
+      project's signature fault at the largest scale it has appeared: two representations of one
+      rule, disagreeing, each correct on its own page. A player commissioning a house is refused
+      before a coin moves unless the yard holds the lengths; a village raising one for its own
+      people pays gold and nothing else, and `whatTheVillageBuilds` has never so much as heard of a
+      yard. So a village on a bare rock builds houses for ever while the player standing next to it
+      cannot build one.*
+
+      ***They are two bargains, not one rule.** Hiring a builder is buying somebody else's work and
+      somebody else's material, and a yard with no lengths in it cannot sell you what it has not
+      got. A village housing its own is its own people spending their own days: the felling is part
+      of the raising rather than a purchase made before it, and the price in gold is what those days
+      cost. A village with no woodcutter takes longer over it in exactly the way a poor village
+      does, because the wage goes to whoever swings the axe either way.*
+
+      *This was the cheapest of the three ways out and it needed a sentence somewhere that made it
+      true rather than accidental. The sentence is in `whatTheVillageBuilds`, the builder's refusal
+      carries a note pointing at it, and `growth.test.ts` raises the same roof for the same money
+      in a village of woodcutters and a village of farmers — a rule that lives only in a comment is
+      a rule somebody deletes.*
+
+      *The other bargain did not need the expensive answer either. A farmer hiring the builder for a
+      bigger stable **is** priced in timber, and the yard reaches the replay the way a killing and a
+      raising do — told, on a dated morning, because a number depending on what one player did can
+      never be derived from a seed (item 99, `commissionAStable`). That is the same seam answered
+      the other way for the other bargain, which is what makes both answers stand up rather than one
+      of them being a compromise: whoever hires pays for the wood, and a village is not hiring.)*

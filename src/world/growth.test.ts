@@ -90,6 +90,42 @@ describe('how much room a village has', () => {
   });
 });
 
+/**
+ * And what it deliberately does not cost, which is item 100 settled.
+ *
+ * A player commissioning a house is refused before a coin moves unless the yard holds the lengths,
+ * and a village raising one for its own people pays gold and nothing else. That looked for a while
+ * like one rule disagreeing with itself across two pages — this project's signature fault — and the
+ * answer is that they are two different bargains: hiring is buying somebody else's work and
+ * somebody else's material, and a village housing its own is its own people spending their own
+ * days, with the felling part of the raising rather than a purchase made before it.
+ *
+ * Written down as a test because a rule that lives only in a comment is a rule somebody deletes.
+ */
+describe('what a village\'s own house is not priced in', () => {
+  it('raises the same roof for the same money whether or not anybody here fells trees', () => {
+    const loggers = crowd(full.holds, STANDARD.holds, 'woodcutter');
+    const nobody = crowd(full.holds, STANDARD.holds, 'farmer');
+    const withWood = whatTheVillageBuilds(full.purse, [], full.laidOut, full.holds, loggers, STOCKED);
+    const without = whatTheVillageBuilds(full.purse, [], full.laidOut, full.holds, nobody, STOCKED);
+    expect(withWood).not.toBeNull();
+    expect(without, 'a village with no woodcutter still houses its own people').not.toBeNull();
+    expect(without!.costs).toBe(withWood!.costs);
+    expect(without!.holdsMore).toBe(withWood!.holdsMore);
+  });
+
+  /*
+   * And it is not that a village is too poor to be short of wood. A village of nothing but
+   * woodcutters, with a purse a coin under the bill, still does not build — because the bill is in
+   * gold and the wood was never the question.
+   */
+  it('is still stopped by the purse, which is the only thing that does stop it', () => {
+    const loggers = crowd(full.holds, STANDARD.holds, 'woodcutter');
+    expect(whatTheVillageBuilds(full.purse - 1, [], full.laidOut, full.holds, loggers, STOCKED))
+      .toBeNull();
+  });
+});
+
 describe('when a village raises a house', () => {
   it('does it when it is full, has the ground and can pay', () => {
     const raised = whatTheVillageBuilds(full.purse, [], full.laidOut, full.holds, townsfolk, STOCKED);

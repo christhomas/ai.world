@@ -100,7 +100,7 @@ const EXPLAINED = new Map<string, string>([
   ['src/ui/themes.ts: wearTheme', 'theme application caller is pending in issue #73'],
   ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
-  ['src/world/farmbuilds.ts: whichFarmerBuilds', 'reserved for the timber-yard handoff tracked by issue #36'],
+  ['src/world/farmbuilds.ts: whichFarmerBuilds', 'the farmer stable commission caller is pending in issue #35'],
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
   ['src/world/postings.ts: couldStand', 'builder reassignment caller is pending in issue #33'],
   ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
