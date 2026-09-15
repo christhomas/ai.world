@@ -80,4 +80,20 @@ describe('the chronicle', () => {
     ]);
     expect(book.since(0).map((e) => e.kind)).toEqual(['born', 'lost', 'resettled']);
   });
+
+  it('restores a bounded book and continues after its last durable number', () => {
+    const book = new Chronicle([
+      { ...died('Hild', 4), at: 100, n: 40 },
+      { ...died('Roos', 5), at: 101, n: 41 },
+    ]);
+    expect(book.since(0).map((entry) => entry.n)).toEqual([40, 41]);
+    expect(book.record([died('Kees', 6)], 102)[0].n).toBe(42);
+  });
+
+  it('does not publish an entry whose durable transaction failed', () => {
+    const book = new Chronicle([], () => { throw new Error('disk full'); });
+    expect(() => book.record([died('Hild', 4)], 100)).toThrow('disk full');
+    expect(book.since(0), 'memory must not claim a record the database rejected').toEqual([]);
+    expect(book.latest).toBe(0);
+  });
 });
