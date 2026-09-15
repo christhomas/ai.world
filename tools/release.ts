@@ -406,6 +406,9 @@ function readWhatWasWritten(): void {
       + `was; nothing was committed, pushed or tagged. The files it wrote were: ${FILES_A_RELEASE_WRITES.join(', ')}.`,
     );
   }
+}
+
+/**
  * The commit a squashed release actually became, named by the pull request rather than guessed at.
  *
  * A release goes out through a pull request and is squashed, so the commit that exists locally is

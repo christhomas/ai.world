@@ -293,6 +293,10 @@ describe('a release checks what it wrote', () => {
     expect(FILES_A_RELEASE_WRITES).toContain('chart/Chart.yaml');
     expect(new Set(FILES_A_RELEASE_WRITES).size, 'one entry per file, however many lines it rewrites')
       .toBe(FILES_A_RELEASE_WRITES.length);
+  });
+});
+
+/**
  * Which commit a release tags.
  *
  * A release goes out through a pull request and is squashed, so the commit that exists locally is
