@@ -1,7 +1,7 @@
 import { PROSPER } from './prosperity';
 import { ownedBy, type Owner } from './holdings';
 import { LIVELIHOOD } from './livelihoods';
-import { homesOf } from './homes';
+import { homesOf, type Deed } from './homes';
 import { surnameOf, type Person } from './people';
 import type { Hall } from './settlement';
 import type { Structure } from './structures';
@@ -440,14 +440,17 @@ export function mayorOf(people: readonly Person[]): Person | null {
  * public address without inheriting the treasury.
  */
 export function bodyOfTheHall(
-  hall: Hall | null, houses: readonly Structure[], people: readonly Person[], votedBody?: Structure | null,
+  hall: Hall | null, houses: readonly Structure[], people: readonly Person[],
+  votedBody?: Structure | null, deeds: readonly Deed[] = [],
 ): Structure | null {
   if (!hall) return null;
   if (hall.body === 'town-hall') return votedBody ?? null;
   const mayor = mayorOf(people);
   if (!mayor) return null;
   const family = surnameOf(mayor);
-  return homesOf(houses, people).find((home) => home.family === family)?.house ?? null;
+  // the deeds matter here more than anywhere: the hall's address is the mayor's house, so a village
+  // that buried a household would otherwise move the hall overnight along with everybody else
+  return homesOf(houses, people, deeds).find((home) => home.family === family)?.house ?? null;
 }
 
 /**

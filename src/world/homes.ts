@@ -19,9 +19,20 @@ import type { Structure } from './structures';
  * so rather than because anybody agreed.
  *
  * It also means the answer moves as the village does, which is right. A family that dies out leaves
- * a house; a house built for a new household is the next one along. What it does *not* do is let a
- * particular family stay in a particular house across a resettling, and that is a real limitation —
- * see the work list. A deed on the register is the honest fix and it is a bigger change than this.
+ * a house; a house built for a new household is the next one along.
+ *
+ * ## And the one thing it could not do
+ *
+ * Position cannot promise a family the *same* house tomorrow. A household in front of you on the
+ * roll dies out, or somebody walks in off the road, and the pairing shifts: everybody behind them
+ * moves house overnight with nothing having happened to them. That is item 111.
+ *
+ * So there is one stored fact, and exactly one: a **deed**, which says this family holds this roof.
+ * It is kept and replayed for the same reason a violent death and a raising at a shrine are — it is
+ * not derivable once the world has a history — and it is deliberately the narrowest thing that will
+ * do. Everything else here is still arithmetic: a village with no deeds behaves exactly as it
+ * always did, `deedsAfter` re-derives the same answer from the same inputs, and the deeds only ever
+ * *hold* a pairing the positional rule would already have made.
  *
  * ## Free houses
  *
@@ -70,13 +81,71 @@ export function householdsOf(people: readonly Person[]): string[] {
  * living somewhere this does not model — with family, over a shop, in the room behind the forge —
  * which is a better answer than inventing a house that is not standing anywhere.
  */
-export function homesOf(houses: readonly Structure[], people: readonly Person[]): Home[] {
-  const families = householdsOf(people);
-  return houses.map((house, at) => ({
-    house,
-    family: families[at] ?? '',
-    free: at >= families.length,
-  }));
+export function homesOf(
+  houses: readonly Structure[], people: readonly Person[], deeds: readonly Deed[] = [],
+): Home[] {
+  const living = new Set(householdsOf(people));
+  // a deed for a family nobody in the village belongs to any more is a record, not a home
+  const held = new Map(deeds.filter((deed) => living.has(deed.family))
+    .map((deed) => [deed.house, deed.family]));
+  const housed = new Set(held.values());
+  const waiting = householdsOf(people).filter((family) => !housed.has(family));
+  let next = 0;
+  return houses.map((house, at) => {
+    const family = held.get(at) ?? (next < waiting.length ? waiting[next++] : '');
+    return { house, family, free: family === '' };
+  });
+}
+
+/**
+ * One roof, held by one household: the fact position cannot carry.
+ *
+ * By its number rather than by where it stands, and that is the whole of why this works. The houses
+ * come out of the seed in a fixed order and a new roof goes on the end, so a house's number is
+ * stable in a way nothing else here is — it was never the houses that shuffled, it was the
+ * households in front of you on the roll. It also means the register can keep this without knowing
+ * any geometry: it holds how many houses a village has, and that is all a deed needs.
+ */
+export interface Deed {
+  house: number;
+  /** The family name, because a house holds a household rather than a person. */
+  family: string;
+}
+
+/**
+ * The deeds this village holds after today, given the ones it held before.
+ *
+ * Run over the whole village rather than written at the moment somebody dies, and that is what
+ * makes it safe: it is the same answer asked twice, so a village re-lived from its founding arrives
+ * where a machine that has been watching all along is standing. Three rules, in order —
+ *
+ * - a deed whose family has nobody left here is dropped, and the roof stands empty;
+ * - a deed for a roof that is no longer standing is dropped;
+ * - a household holding no deed takes the lowest-numbered roof nobody holds, in roll order.
+ *
+ * The last rule is what writes the first deeds: a village that has never held one is deeded in
+ * exactly the order the positional rule would have housed it, so nothing moves on the morning this
+ * starts being kept. It is also what houses somebody walking in off the road — into a roof nobody
+ * holds, rather than into the house the family in front of them is still living in.
+ */
+export function deedsAfter(
+  houses: number, people: readonly Person[], deeds: readonly Deed[],
+): Deed[] {
+  const living = new Set(householdsOf(people));
+  const kept = deeds.filter((deed) => living.has(deed.family) && deed.house < houses);
+  const housed = new Set(kept.map((deed) => deed.family));
+  const taken = new Set(kept.map((deed) => deed.house));
+  let next = 0;
+  for (const family of householdsOf(people)) {
+    if (housed.has(family)) continue;
+    while (next < houses && taken.has(next)) next++;
+    // out of roofs: the households at the end of the roll live somewhere this does not model —
+    // with family, over a shop, in the room behind the forge. Better than inventing a house
+    if (next >= houses) break;
+    kept.push({ house: next, family });
+    taken.add(next);
+  }
+  return kept.sort((one, two) => one.house - two.house);
 }
 
 /** Whoever lives in the house at this position, or empty if it is free or is not a house at all. */
@@ -145,11 +214,13 @@ export function saidOfAFreeHouse(village: string): string {
  */
 export function familyOfDoor(
   villages: readonly { name: string; houses: Structure[] }[],
-  register: { living: (village: string) => readonly Person[] },
+  register: { homesOf: (village: string, houses: readonly Structure[]) => Home[] },
   door: { kind: string; village: string; bx: number; bz: number },
 ): string {
   if (door.kind !== 'house') return '';
   const village = villages.find((v) => v.name === door.village);
   if (!village) return '';
-  return familyAt(homesOf(village.houses, register.living(door.village)), door.bx, door.bz);
+  // through the register rather than pairing the two lists here, because the pairing is positional
+  // only until a deed says otherwise, and the register is what holds the deeds
+  return familyAt(register.homesOf(door.village, village.houses), door.bx, door.bz);
 }

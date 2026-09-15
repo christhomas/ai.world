@@ -1,3 +1,4 @@
+import { deedsAfter } from './homes';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps as whoIsBorn } from './births';
 import { taxedForTheHall } from './hall';
@@ -322,6 +323,14 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
    * Buildings still stand before births are considered, so a roof raised today makes room today.
    */
   theVillageSpends(o, name, village, day);
+  /*
+   * And who holds which roof, once the day's burials and arrivals are in.
+   *
+   * Asked over the whole village rather than written at the moment somebody dies, because that is
+   * what makes it the same answer twice: a village re-lived from its founding arrives where a
+   * machine that has been watching all along is standing. See `deedsAfter` — item 111.
+   */
+  village.deeds = deedsAfter(village.houses ?? [], village.people, village.deeds);
   changes.push(
     ...fillTheGaps(o, name, village, day, pressure),
     ...growUp(o, name, village, day),

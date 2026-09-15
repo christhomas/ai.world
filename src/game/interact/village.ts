@@ -252,7 +252,8 @@ export function villageInteractions(ctx: Surroundings) {
   const tryHall = (preview = false): boolean => {
     for (const village of villagesHere()) {
       const hall = register.hallOf(village.name);
-      const body = bodyOfTheHall(hall, village.houses, register.living(village.name), village.hall?.building);
+      const body = bodyOfTheHall(hall, village.houses, register.living(village.name),
+        village.hall?.building, register.deedsOf(village.name));
       if (!body) continue;
       const door = doorTile(body);
       if (Math.hypot(door[0] - player.x, door[1] - player.z) > 2.2) continue;

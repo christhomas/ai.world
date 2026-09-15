@@ -17,6 +17,8 @@ import { THE_HALL_OWNER, whatTheVillageHolds, type Holding } from './holdings';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { handOnWhatTheyHad } from './inheritance';
+import { deedsAfter, homesOf, type Deed, type Home } from './homes';
+import type { Structure } from './structures';
 import { LIFE, familyName, firstNameOf, foundVillage, givenName, outOfDays, parentsFrom, remember, sexAtBirth, stageOf, surnameOf, tradeTakenUp, type Memory, type Person, type Sex } from './people';
 import { compactAll, type Opinion } from './memory';
 import { recallFor, toldOf, whoKnows } from './remembering';
@@ -67,6 +69,16 @@ export class Register {
   private readonly magicked = new Map<string, number[]>();
   /** Farmer stable commissions, told from the kept timber yard and replayed on their morning. */
   private readonly stablePurchases = new Map<string, StablePurchase>();
+  /**
+   * Which household holds which roof, by village. Item 111.
+   *
+   * Beside the killings, the votes and the raisings, and for the same reason: a village re-lived
+   * from its seed arrives at the same answer for everything *except* what has actually happened to
+   * it, and a family keeping its own house across a burial is one of those. The first deeds are
+   * written in exactly the order the positional rule would have housed everybody, so nothing moves
+   * on the morning this starts being kept — see `deedsAfter`.
+   */
+  private readonly deeded = new Map<string, Deed[]>();
   /** The last whole day the register has caught up to. */
   /** Physical ground is supplied by the country; the register only records its deterministic answer. */
   private fieldSurvey: ((village: string, settlement: Settlement) => FieldClearing | null) | null = null;
@@ -198,6 +210,7 @@ export class Register {
       watch: '',
       // and no magic has been done here. A raising is remembered across a re-living; see `shrine.ts`
       raised: this.magicked.get(village) ?? [],
+      deeds: [...(this.deeded.get(village) ?? [])],
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -480,6 +493,24 @@ export class Register {
   directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[] } {
     const here = this.villages.get(village);
     return directoryOf(here?.trades ?? [], here?.people ?? []);
+  }
+
+  /**
+   * Who lives in which house here, deeds and all. Item 111.
+   *
+   * The one place the game should ask, rather than pairing houses against people itself: the
+   * pairing is positional until a deed says otherwise, and a caller that does its own arithmetic is
+   * a caller that puts a family back in the house they were moved out of.
+   *
+   * The roofs are handed in because the register has never held any geometry — it knows how many
+   * houses a village has, which is all a deed needs, and where the buildings actually stand is the
+   * world's business.
+   */
+  deedsOf(village: string): readonly Deed[] { return this.villages.get(village)?.deeds ?? []; }
+
+  homesOf(village: string, houses: readonly Structure[]): Home[] {
+    const here = this.villages.get(village);
+    return here ? homesOf(houses, here.people, here.deeds) : [];
   }
 
   /** What this village has had built out of its own money. */

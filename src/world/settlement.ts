@@ -1,3 +1,4 @@
+import type { Deed } from './homes';
 import type { Holding, Owner } from './holdings';
 import type { Person } from './people';
 import type { Rank } from './rank';
@@ -96,6 +97,14 @@ export interface Settlement {
    * happened raise the same person. See `shrine.ts`.
    */
   raised: number[];
+  /**
+   * Which household holds which roof. Item 111.
+   *
+   * Kept for the reason `raised` is kept, and for a narrower one: who lives where is arithmetic
+   * until the list changes underneath it, and then a family finds itself in a different house than
+   * the one it lived in yesterday with nothing having happened to either. See `deedsAfter`.
+   */
+  deeds: Deed[];
   /**
    * Who is standing on the village's watchtower today, or nobody.
    *
