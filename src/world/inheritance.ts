@@ -33,7 +33,17 @@ export function handOnWhatTheyHad(person: Person, village: Settlement, day: numb
   const name = surnameOf(person);
   const family = name ? village.people.filter((p) => surnameOf(p) === name) : [];
   const grown = family.filter((p) => stageOf(p, day) === 'adult');
-  const heir = grown[0] ?? family[0] ?? null;
+  /*
+   * The widow or widower first, then the household.
+   *
+   * This file has always said what it wanted — "an adult of their own surname first, because a
+   * household is what actually inherits" — and had to guess at it from a name. Since #242 a spouse
+   * is stated, so the guess becomes a fact and the surname stays as the fallback it always was.
+   */
+  const widowed = person.spouse
+    ? village.people.find((p) => p.name === person.spouse && p.id !== person.id) ?? null
+    : null;
+  const heir = widowed ?? grown[0] ?? family[0] ?? null;
   if (heir) {
     heir.purse += estate;
     remember(heir, { what: 'inherited', who: person.name, day });

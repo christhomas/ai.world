@@ -102,6 +102,18 @@ export function takeOffTheRegister(
   if (at < 0) return null;
 
   village.people.splice(at, 1);
+  /*
+   * And whoever they were married to is now widowed.
+   *
+   * Here because this is the one place every death in the world passes through, so a widow cannot
+   * disagree with the churchyard. Cleared rather than kept: a spouse is read to decide who a child's
+   * father is and who inherits, and a name that outlived its person would answer both wrongly.
+   * Item #242.
+   */
+  if (person.spouse) {
+    const left = village.people.find((p) => p.name === person.spouse);
+    if (left) left.spouse = '';
+  }
   const estate = handOnWhatTheyHad(person, village, day);
   // the parish register, written where every death already passes so it cannot disagree with
   // who is alive
