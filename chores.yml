@@ -409,6 +409,24 @@ tasks:
         }
         node tools/shots.cjs {{.CLI_ARGS}}
 
+  # Whether the pictures changed, which nothing in this repository could say until now. `shots`
+  # pins the world, the seed and the camera so a shot can be retaken exactly; this reads two sets
+  # and reports what moved. It is the thing that makes "the reference screenshots are unchanged" —
+  # #249's acceptance and #250's — a sentence somebody can evaluate rather than squint at.
+  compare:
+    desc: Compare docs/screenshots against another set, and say what moved
+    args:
+      - name: against
+        desc: the directory of pictures to compare against
+    cmds:
+      - |
+        node -e 'require.resolve("playwright")' 2>/dev/null || {
+          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
+          echo "  NODE_PATH=<a checkout that has playwright> chore compare -- <dir>"
+          exit 1
+        }
+        node tools/compare.cjs {{.CLI_ARGS}}
+
   build:
     desc: Typecheck and build the page into dist/
     cmds: [pnpm build]
