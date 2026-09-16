@@ -1232,6 +1232,15 @@ body.touch #touchAct .touch-do { display: none; }
    * can trigger.
    */
   --band-thumb: calc(124 * var(--ui-scale));
+  /**
+   * The bearings, centred on the bottom edge: where the errand is and what the nearest town is.
+   *
+   * Bottom-centre is the one edge band nothing else wants. The thumb has the bottom-left corner
+   * and the action card has the bottom-right, and between them is a strip of glass wide enough for
+   * one line of text and no use for anything a finger has to hit. The number is how far in from
+   * each of those it has to stay clear.
+   */
+  --band-bearings: calc(140 * var(--ui-scale));
 }
 body { touch-action: manipulation; overscroll-behavior: none; }
 #gameContainer { height: 100vh; height: 100dvh; }
@@ -1569,13 +1578,42 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #clockDate { margin-left: 0; flex-basis: 100%; }
   #clockIcon { font-size: 12px; }
   #clockTime { font-size: 13px; letter-spacing: 0; }
-  #areaName, #compass {
+  /*
+   * The place name keeps the top band and the bearings no longer share it — they are at the foot of
+   * the screen now, and their own rule below gives them the band they belong to rather than these
+   * two numbers, which are the widths of the status slab and the corner map. A panel placed against
+   * another panel is the fault the bands exist to prevent; this rule was the last one still doing
+   * it, and it got away with it for as long as both neighbours happened to stay the size they were.
+   */
+  #areaName {
     left: 112px; right: 132px; transform: none; white-space: normal; text-align: center;
     /* wide enough to read, never wider: a banner the width of a landscape phone is a wall */
     max-width: 420px; margin-inline: auto;
   }
   #areaName { top: 8px; padding: 5px 10px; font-size: 11px; }
-  #compass { top: 44px; font-size: 9px; gap: 10px; letter-spacing: 2px; justify-content: center; flex-wrap: wrap; }
+  /*
+   * The bearings move to the foot of the screen.
+   *
+   * They were pinned under the place name at the top, which is the band the handoff gives to the
+   * place name alone — and on a 390-tall screen two centred lines of type stacked on each other is
+   * the picture's own horizon covered up. Bottom-centre is the band nothing else wants: the thumb
+   * owns the bottom-left corner, the action card owns the bottom-right, and what is left between
+   * them is exactly the shape of one line of text.
+   *
+   * A slab rather than glowing type over the world, because at the foot of the screen it is read
+   * against grass, a road or a cave floor in the same minute, and a text-shadow cannot carry all
+   * three.
+   */
+  #compass {
+    top: auto; bottom: 0; left: var(--band-bearings); right: var(--band-bearings);
+    transform: none; margin-inline: auto; width: fit-content;
+    font-size: 10px; gap: 10px; letter-spacing: 2px;
+    justify-content: center; flex-wrap: nowrap; white-space: nowrap;
+    padding: 6px 14px calc(6px + var(--safe-bottom));
+    max-width: calc(100vw - 2 * var(--band-bearings));
+    background: var(--surface); border-top: 1px solid var(--rule);
+    text-shadow: none;
+  }
   /* The momentary banners join the log rather than standing in the middle of the picture.
 
      They were pinned at `top: 140px` and `top: 190px` with a hand-computed left edge, which on a
@@ -1728,19 +1766,24 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   #status {
     top: 0; left: 0;
     /* the base padding, plus whatever the notch takes: no notch and this is exactly what it was */
-    padding-top: calc(var(--safe-top) + 10px); padding-left: calc(var(--safe-left) + 12px);
+    padding-top: calc(var(--safe-top) + 7px); padding-left: calc(var(--safe-left) + 12px);
   }
-  /* under the status slab rather than over it: two meters and their numbers are taller than the
-     forty-four this assumed when there was one */
-  #inventory { top: calc(var(--safe-top) + 72px); left: 0; padding-left: calc(var(--safe-left) + 12px); }
+  /* under the status slab rather than over it: two readings and their labels, in eleven-pixel mono */
+  #inventory { top: calc(var(--safe-top) + 48px); left: 0; padding-left: calc(var(--safe-left) + 12px); }
   #minimap { top: var(--safe-top); right: var(--safe-right); }
   /* under the rail rather than behind it: the rail is 48 tall and the name wants air under it */
   #areaName { top: calc(var(--safe-top) + 52px); }
   /* The tab gutter begins below the top-left readings, never through the name and bearings. */
   #touchPanels {
-    top: calc(var(--safe-top) + 72px); left: var(--safe-left); right: auto; margin: 0;
+    /*
+     * The handoff puts the tab gutter at y 62 and the readings slab is shorter than it was: two
+     * lines of eleven-pixel mono rather than two twenty-block meters, so the gutter starts where
+     * the slab actually ends rather than where the meters used to.
+     */
+    top: calc(var(--safe-top) + 62px); left: var(--safe-left); right: auto; margin: 0;
   }
-  #compass { top: calc(var(--safe-top) + 96px); }
+  /* and the bearings keep the foot of the screen here too — see the band above */
+  #compass { top: auto; bottom: 0; }
   /* News is a left-hand band, but the tab spine owns the physical edge. */
   #chatPanel {
     /* The named band is the button; the rail has a hairline on either side of it. */

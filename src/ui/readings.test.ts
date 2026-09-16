@@ -65,6 +65,38 @@ describe('what the corner of a phone says about the hero', () => {
     expect(status).toMatch(/border-left:\s*none/);
   });
 
+  it('gives the bearings the foot of the screen, which is the band nothing else wants', () => {
+    /*
+     * They were pinned under the place name at the top, which is the band the handoff gives to the
+     * place name alone — two centred lines of type stacked on each other, covering the picture's
+     * own horizon on a screen 390 tall. The thumb owns the bottom-left corner and the action card
+     * owns the bottom-right; what is left between them is exactly the shape of one line of text.
+     */
+    const bearings = onAPhone('#compass');
+    expect(bearings).toMatch(/bottom:\s*0/);
+    expect(bearings, 'a top and a bottom is a rule that depends on source order').toMatch(/top:\s*auto/);
+    expect(bearings, 'read against grass, a road and a cave floor in the same minute').toContain('var(--surface)');
+    expect(bearings, 'one line, never two').toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('keeps the bearings clear of the two corners a thumb owns', () => {
+    // the band is the width it leaves at each end, not a guess at where the card happens to be
+    expect(CSS).toMatch(/--band-bearings:\s*calc\(\d+ \* var\(--ui-scale\)\)/);
+    expect(onAPhone('#compass')).toContain('var(--band-bearings)');
+  });
+
+  it('starts the tab gutter where the readings actually end', () => {
+    /*
+     * 62 units down, which is the handoff's number and now also the truth: the slab is two lines of
+     * eleven-pixel mono rather than two twenty-block meters, and the gutter was still starting
+     * below where the meters used to reach.
+     */
+    const at = CSS.indexOf('@media (max-height: 560px)');
+    const rail = CSS.slice(at).match(/#touchPanels\s*\{([^}]*)\}/s);
+    expect(rail, 'the short-screen rail rule has gone').not.toBeNull();
+    expect(rail![1]).toContain('62px');
+  });
+
   it('keeps the safe-area inset outside the padding rather than folding it in', () => {
     // a notch is an obstruction, not taste: see the same rule in `geometry.test.ts`
     expect(onAPhone('#status')).toContain('var(--safe-left)');
