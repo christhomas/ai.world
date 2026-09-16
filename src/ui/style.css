@@ -1656,7 +1656,7 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
      same column: the log at the bottom, the toast a line above it, the duel's score above that,
      each step read off `--log-height` rather than guessed. */
   #toast, #duelbar {
-    left: 8px; right: auto; transform: none; margin-inline: 0;
+    left: var(--band-left); right: auto; transform: none; margin-inline: 0;
     width: min(50vw, 360px); max-width: none; white-space: normal; text-align: left;
     font-size: 12px;
   }
@@ -1688,13 +1688,20 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
      window its own top was eighteen pixels off the top of the screen, so the oldest lines were
      being drawn where nobody could see them. Down the left instead, half the width, and only the
      last three lines: everything before that is still in the console, one tap away. */
-  #chatPanel { left: 8px; right: auto; width: min(50vw, 360px); }
+  /* and out of the tab spine's column: the handoff's news indent is 56, which is the spine plus a
+     gutter, and `--band-left` is that number said once */
+  #chatPanel { left: var(--band-left); right: auto; width: min(50vw, 360px); }
   :root { --log-height: 82px; }
   #chatLog { font-size: 11px; }
   #chatPanel:not(.console) #chatLog > div:nth-last-child(n+4) { display: none; }
-  /* Low, but not in the corner: the left thumb rests there, and the stick draws its ring around
-     wherever it lands. This clears the ring and still leaves the whole play area above it. */
-  :root { --log-bottom: 88px; }
+  /*
+   * Low, but not in the corner: the left thumb rests there, and the stick draws its ring around
+   * wherever it lands. Eighty-eight was a guess at how much room that wants and it was short of the
+   * band by thirty-six pixels, so the oldest line of news sat under the ring. The band is the
+   * measurement — the thumb's home is 124 up from the bottom edge and named — and a number that
+   * agrees with it by luck is a number that stops agreeing the day either moves.
+   */
+  :root { --log-bottom: calc(var(--safe-bottom) + var(--band-thumb)); }
   #journal, #players, #rucksack { width: 94vw; max-height: 78vh; padding: 14px; -webkit-overflow-scrolling: touch; }
   #rucksack .r-columns { flex-direction: column; gap: 10px; }
   #rucksack .r-worn { flex: 1 1 auto; width: 100%; }
@@ -1818,14 +1825,13 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
   }
   /* and the bearings keep the foot of the screen here too — see the band above */
   #compass { top: auto; bottom: 0; }
-  /* News is a left-hand band, but the tab spine owns the physical edge. */
+  /* News is a left-hand band, and `--band-left` is where it starts: the spine plus its gutter. */
   #chatPanel {
-    /* The named band is the button; the rail has a hairline on either side of it. */
-    left: calc(var(--safe-left) + var(--band-tabs) + 2 * var(--ui-scale)); padding-left: 0;
-    width: min(calc(50vw - var(--band-tabs) - 2 * var(--ui-scale)), 360px);
+    left: calc(var(--safe-left) + var(--band-left)); padding-left: 0;
+    width: min(calc(50vw - var(--band-left)), 360px);
   }
   #toast, #duelbar {
-    left: calc(var(--safe-left) + var(--band-tabs) + 2 * var(--ui-scale));
+    left: calc(var(--safe-left) + var(--band-left));
   }
   #duelbar { top: calc(var(--safe-top) + 116px); }
   #castbar { bottom: var(--safe-bottom); }
