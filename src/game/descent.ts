@@ -57,13 +57,22 @@ const BACK = 4;
  * Nothing at all for a founder, whose parents were never on any register, or for anybody it has
  * since forgotten. That is a right answer rather than a missing one: a founder's face is the one
  * their id has always given them, and repainting the world was never asked for.
+ *
+ * Their own village and nobody else's, which is both cheaper and more correct: two villages three
+ * valleys apart may each hold a Greta Vos, and a name is only unique where people can see each
+ * other. A parent who is dead, or who has resettled elsewhere, ends the line here — the churchyard
+ * keeps a name and a trade but no id, and a face is drawn off an id.
  */
 export function whoTheyCameFrom(
   person: Person, register: Register | undefined, day: number, back = BACK,
 ): { mother?: Descended; father?: Descended } | undefined {
   if (!register || back <= 0) return undefined;
-  const of = (id: string): Descended | undefined => {
-    const them = id !== '' ? register.find(id) : undefined;
+  const here = register.living(person.village);
+  const of = (name: string): Descended | undefined => {
+    // by name, because that is what the register holds. `Person.mother` is 'Greta Vos' and an id is
+    // 'Ashford-12-0', so the id lookup this used to do could never match and every face in the game
+    // fell back to its own seed while a green suite said descent worked
+    const them = name !== '' ? here.find((p) => p.name === name && p.id !== person.id) : undefined;
     if (!them) return undefined;
     return {
       id: them.id, trade: them.trade, stage: stageOf(them, day) === 'adult' ? 'adult' : 'child',

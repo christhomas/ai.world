@@ -194,12 +194,18 @@ const THROWBACK = 0.07;
  * look alike without being identical, a resemblance that survives generations, and — with
  * `THROWBACK` — the occasional child with a feature the line has not had.
  */
-function inherited(own: Palette, mother: Palette, father: Palette, rng: () => number): Palette {
+function inherited(
+  own: Palette, mother: Palette | undefined, father: Palette | undefined, rng: () => number,
+): Palette {
   const out = { ...own };
   for (const trait of HERITABLE) {
     if (rng() < THROWBACK) continue;                         // its own, which the line has not had
+    // the roll is spent either way, so a child with one parent has the same features from them as a
+    // child with two would have had from that side. A widow's son takes after his mother twice as
+    // often, which is the true answer rather than a missing one
+    const from = rng() < 0.5 ? mother ?? father : father ?? mother;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (out as any)[trait] = rng() < 0.5 ? mother[trait] : father[trait];
+    if (from) (out as any)[trait] = from[trait];
   }
   return out;
 }
@@ -213,10 +219,15 @@ function inherited(own: Palette, mother: Palette, father: Palette, rng: () => nu
  */
 export function paletteFor(face: Face, back = GENERATIONS): Palette {
   const own = ownPalette(face);
-  if (back <= 0 || !face.mother || !face.father) return own;
+  // one parent is enough. `births.ts` writes `father = ''` wherever the drawn father and the mother
+  // are the same person, and a living mother beside a father in the churchyard is the ordinary case
+  // for anybody grown — demanding both meant the commonest family in the world inherited nothing
+  if (back <= 0 || (!face.mother && !face.father)) return own;
   // the parents' own faces are worked out the same way, which is why a grandchild resembles a
   // grandparent rather than only a parent. Bounded, because a family tree is not promised to end
-  return inherited(own, paletteFor(face.mother, back - 1), paletteFor(face.father, back - 1),
+  return inherited(own,
+                   face.mother && paletteFor(face.mother, back - 1),
+                   face.father && paletteFor(face.father, back - 1),
                    mulberry32(face.seed ^ 0x9e3779b9));
 }
 
