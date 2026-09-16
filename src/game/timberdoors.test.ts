@@ -34,7 +34,9 @@ describe('the ways wood gets into a yard', () => {
      * does not exist. So these assert the chain rather than the parts — a counter that lands wood,
      * a page that assembles the meeting, and a game that hands it the village's books.
      */
-    expect(body('src/game/talk.ts'), 'a counter that does not land wood is a counter wood vanishes at')
+    // the counter moved out of `talk.ts` into `counter.ts` when `talk.ts` reached the length the
+    // architecture test allows; the seam is the same one, in the file the shop now lives in
+    expect(body('src/game/counter.ts'), 'a counter that does not land wood is a counter wood vanishes at')
       .toContain('ctx.yard?.(');
     expect(body('src/game/meeting.ts'), 'and a conversation that never gets the door').toContain('yard: landWood');
     expect(body('src/main.ts'), 'and a game that never hands one over').toContain('landWood: houses.yard.brought');
