@@ -35,7 +35,7 @@ import {
   WARBAND, Warband, fighterOf, reckon, sideOf, strangers, swordsOf, type Fighter,
   type Landing,
 } from './warband';
-import { Claims } from './claims';
+import { claimsFor } from './predicted';
 
 /**
  * Everything that happens because other people are in your world: the connection, the market, the
@@ -503,13 +503,14 @@ export function createMultiplayer(ctx: MultiplayerContext) {
   /**
    * Blows thrown and not yet answered for.
    *
-   * The page takes the health off the moment a man swings — `predicted.ts` settles that a swing is
-   * `hand`, and a blow that waited for a round trip is the letterbox item 73 is arguing against.
+   * The page takes the health off the moment a man swings, and it asks `predicted.ts` for the right
+   * to do so rather than helping itself: `claimsFor('swing')` is the guarded door, and it would
+   * throw if somebody ever moved a swing to the ledger's side of that list.
    * What it had no answer for is the world disagreeing: `server/messages.ts` drops a `warband-hit`
    * where the duel has already ended on its side or the blow fails `cleanSwing`, and until this
    * existed the page went on showing a hit that nothing ever counted.
    */
-  const blows = new Claims<Landing>();
+  const blows = claimsFor<Landing>('swing');
   const swingSwords = (dt: number): void => {
     if (!warband.active) return;
     sinceBite += dt;
