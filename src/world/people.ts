@@ -173,13 +173,27 @@ export function sexAtBirth(seed: number, id: string): Sex {
  * draws that stay two draws are two villages that stay the same village on two machines.
  */
 export function parentsFrom(adults: readonly Person[], rng: () => number): [Person, Person] {
-  const oneOf = (some: readonly Person[], roll: number): Person => {
-    const from = some.length > 0 ? some : adults;
-    return from[Math.floor(roll * from.length)];
-  };
+  const oneOf = (some: readonly Person[], roll: number): Person | null =>
+    (some.length > 0 ? some[Math.floor(roll * some.length)] : null);
   const women = adults.filter((p) => p.sex === 'woman');
   const men = adults.filter((p) => p.sex === 'man');
-  return [oneOf(women, rng()), oneOf(men, rng())];
+  const mother = oneOf(women, rng());
+  const father = oneOf(men, rng());
+  /*
+   * A village with nobody of one sex left in it has one parent to name, not two.
+   *
+   * This used to fall back to *any* adult, so the last three women in a valley named one of
+   * themselves as somebody's father — and the register's own guard caught it as a man written down
+   * as a mother. The fallback had been there from the beginning and was waiting for a village
+   * lopsided enough to reach it; a hard season under local prices was what finally produced one.
+   *
+   * Handing the same person back twice is not a fudge, it is the existing idiom: `births.ts` reads
+   * `father !== mother` and writes no father down when they are the same, which is exactly the
+   * truth about such a place. Both empty cannot happen — an empty village has no births to give
+   * parents to — and the non-null assertion says so rather than inventing a person to satisfy a
+   * type.
+   */
+  return [mother ?? father!, father ?? mother!];
 }
 
 /** Which part of a life somebody is in, on a given day. */
