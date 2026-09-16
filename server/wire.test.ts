@@ -1,3 +1,4 @@
+import { reportAt } from '../tools/reports';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
@@ -25,7 +26,7 @@ import { describe, expect, it } from 'vitest';
 const source = (path: string): string => readFileSync(path, 'utf8');
 
 /** Where the run leaves its account of itself. Printed by `chore wire`. */
-const REPORT = 'wire-report.txt';
+const REPORT = reportAt('wire-report.txt');
 
 /** One line of that account: a verdict, a count, and what it was about. */
 const covered: string[] = [];

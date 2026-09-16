@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { nameFor, otherCheckouts, theWorktreeToTake, verdictOn, worthStopping } from './sharedtree';
+import {
+  WRITTEN_BY_A_BENCH, nameFor, otherCheckouts, theWorktreeToTake, verdictOn, worthStopping,
+} from './sharedtree';
 
 /**
  * Whether it is safe to start work in this checkout.
@@ -102,17 +104,30 @@ describe('the other checkouts of this repository', () => {
  *
  * A guard that fires on the report the bench you just ran wrote is a guard somebody turns off in a
  * week — the same failure #81 and #98 both name, from the other end.
+ *
+ * `WRITTEN_BY_A_BENCH` is empty now and these tests say so rather than being deleted. Its one entry
+ * was `sanity-report.txt`, excused because it was tracked; every report goes to the gitignored
+ * `docs/reports/` and a report is not in `git status` at all, so there is nothing left to excuse.
+ * The rule still has to work for the next tracked file a bench rewrites — and the better answer for
+ * that file will usually be to stop tracking it.
  */
 describe('what of the dirt is somebody\'s work', () => {
-  it('is not the report a bench rewrites every run', () => {
-    expect(worthStopping([{ status: ' M', path: 'sanity-report.txt' }])).toEqual([]);
+  it('excuses whatever is on the list, which is nothing today', () => {
+    for (const path of WRITTEN_BY_A_BENCH) {
+      expect(worthStopping([{ status: ' M', path }])).toEqual([]);
+    }
   });
 
-  it('is everything else, including a file beside it', () => {
+  it('no longer has to excuse a report, because a report is not in the tree', () => {
+    expect(WRITTEN_BY_A_BENCH, 'an emptied excuse list is the fix; a re-filled one wants an argument')
+      .toEqual([]);
+  });
+
+  it('is everything else, including what used to be excused', () => {
     expect(worthStopping([
       { status: ' M', path: 'sanity-report.txt' },
       { status: ' M', path: 'src/world/homes.ts' },
-    ])).toEqual(['src/world/homes.ts']);
+    ])).toEqual(['sanity-report.txt', 'src/world/homes.ts']);
   });
 
   it('leaves a source file with a report-ish name alone', () => {

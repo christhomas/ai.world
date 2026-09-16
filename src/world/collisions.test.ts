@@ -1,3 +1,4 @@
+import { reportAt } from '../../tools/reports';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
@@ -61,7 +62,7 @@ const covered: Line[] = [];
 const report = (line: Line): void => { covered.push(line); };
 
 /** Where the run leaves its account of itself. Printed by `chore collisions`. */
-const REPORT = 'collision-report.txt';
+const REPORT = reportAt('collision-report.txt');
 
 /**
  * What each `PropKind` is called, read out of the enum that defines them.

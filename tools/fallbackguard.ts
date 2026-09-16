@@ -16,7 +16,8 @@
  *
  * The status is carried rather than thrown away because a caller that only has the path can answer
  * "is this file dirty" and nothing else — and at least one caller needs more than that. `chore
- * tree` excuses `sanity-report.txt` on the grounds that a bench rewrites it every run, which is
+ * tree` used to excuse `sanity-report.txt` on the grounds that a bench rewrites it every run — every
+ * report now goes to the gitignored `docs/reports/` and there is nothing to excuse, which is
  * true of an unstaged worktree modification and of nothing else somebody might do to that file.
  * See `worthStopping` in `sharedtree.ts`.
  */

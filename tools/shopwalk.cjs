@@ -38,7 +38,12 @@ const WORLD = process.env.WORLD || 'road';
 const SEED = process.env.SEED || '3';
 const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?world=${WORLD}&seed=${SEED}`;
 const CHANNEL = process.env.CHANNEL ?? 'chrome';
-const OUT = process.env.OUT || 'shopwalk-report.txt';
+// kept as a literal because this file is CommonJS and `src/core/reports.ts` is an ES module.
+// The one place that decides this is that file; a second spelling of it here is the cost of the
+// two module systems, and `reports.test.ts` fails if they ever disagree.
+const REPORTS_DIR = 'docs/reports';
+require('node:fs').mkdirSync(REPORTS_DIR, { recursive: true });
+const OUT = process.env.OUT || require('node:path').join(REPORTS_DIR, 'shopwalk-report.txt');
 
 const results = [];
 const errs = [];

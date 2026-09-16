@@ -214,7 +214,7 @@ tasks:
   collisions:
     desc: Walk every creature into every solid thing, and say what happened
     vars:
-      REPORT: collision-report.txt
+      REPORT: docs/reports/collision-report.txt
     cmds:
       # One command rather than two, so that the account is printed on the way past whether the
       # bench passed or failed — the run that failed is the one somebody wants to read — while the
@@ -227,7 +227,7 @@ tasks:
   wire:
     desc: Check every message between the game and the world has somebody listening
     vars:
-      REPORT: wire-report.txt
+      REPORT: docs/reports/wire-report.txt
     cmds:
       - 'pnpm vitest run server/wire.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
@@ -237,7 +237,7 @@ tasks:
   halves:
     desc: Ask both halves the same questions about the world, and fail on any different answer
     vars:
-      REPORT: halves-report.txt
+      REPORT: docs/reports/halves-report.txt
     cmds:
       - 'pnpm vitest run src/world/twohalves.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
@@ -249,7 +249,7 @@ tasks:
   reachable:
     desc: Exported work that only its own tests reach — a ratchet, so it can only ever shrink
     vars:
-      REPORT: unreached-report.txt
+      REPORT: docs/reports/unreached-report.txt
     cmds:
       - 'pnpm vitest run src/world/reachable.test.ts; kept=$?; cat {{.REPORT}} || true; exit $kept'
 
@@ -261,7 +261,7 @@ tasks:
   shopwalk:
     desc: Enter a named shop and the nearest one, leave again, and price the same pelt in two countries
     vars:
-      REPORT: shopwalk-report.txt
+      REPORT: docs/reports/shopwalk-report.txt
     cmds:
       - 'node tools/shopwalk.cjs; walked=$?; cat {{.REPORT}} || true; exit $walked'
   excuses:
@@ -293,7 +293,7 @@ tasks:
       - name: days
         desc: how many days to live, default 100. A lifetime is 60 to 90, so ask for more to see past one
     vars:
-      REPORT: economy-report.txt
+      REPORT: docs/reports/economy-report.txt
       # A default here rather than on the argument, which is what makes `chore economy` with no
       # length keep meaning exactly what it meant before this was askable at all.
       DAYS: '100'
@@ -313,7 +313,7 @@ tasks:
       - name: days
         desc: how many days to live, default 100 — the same length `chore economy` takes
     vars:
-      REPORT: population-report.txt
+      REPORT: docs/reports/population-report.txt
       DAYS: '100'
     cmds:
       - 'BENCH_DAYS={{.DAYS}} pnpm vitest run src/game/population.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
@@ -328,7 +328,7 @@ tasks:
   sanity:
     desc: Live a village forward four hundred and fifty days and ask whether it is still a village
     vars:
-      REPORT: sanity-report.txt
+      REPORT: docs/reports/sanity-report.txt
     cmds:
       - 'pnpm vitest run src/game/sanity.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
   # The fourth, and the only one that looks at the screen rather than at the arithmetic behind it: a
@@ -344,7 +344,7 @@ tasks:
   playtest:
     desc: Play the game in a browser, and check the screen and the simulation agree
     vars:
-      REPORT: playtest-report.txt
+      REPORT: docs/reports/playtest-report.txt
       PORT: '{{.WEB_PORT}}'
     args:
       - name: port
@@ -473,7 +473,7 @@ tasks:
   ticks:
     desc: Measure how many live agents this machine ticks at ten a second, and what a province costs
     vars:
-      REPORT: tick-report.txt
+      REPORT: docs/reports/tick-report.txt
     cmds:
       - 'pnpm exec tsx tools/ticks.ts {{.CLI_ARGS}}; kept=$?; echo "report written to {{.REPORT}}"; exit $kept'
 

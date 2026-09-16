@@ -33,12 +33,17 @@ import { whatIsDirty, type Dirty } from './fallbackguard';
 /**
  * Files a bench rewrites every time it runs, which are not anybody's afternoon.
  *
- * `sanity-report.txt` is tracked on purpose — a reading somebody can diff between releases — and it
- * is rewritten by every `chore sanity`. A guard that stops a session because the bench it just ran
- * left its own report behind is a guard somebody turns off in a week, which is the failure mode
- * #81 and #98 both name.
+ * Empty, and that is the fix rather than an oversight. Its one entry was `sanity-report.txt`, which
+ * was tracked so somebody could diff a reading between releases — and a tracked generated file
+ * conflicts on every rebase, goes stale, and is then believed. Every report now goes to
+ * `docs/reports/`, which is ignored as a directory, so there is nothing for this list to excuse.
+ *
+ * Kept rather than deleted because the rule it encodes is still right: a guard that stops a session
+ * because the bench it just ran left its own report behind is a guard somebody turns off in a week.
+ * The next tracked file that a bench rewrites belongs here — and the better answer will usually be
+ * to stop tracking it.
  */
-export const WRITTEN_BY_A_BENCH: readonly string[] = ['sanity-report.txt'];
+export const WRITTEN_BY_A_BENCH: readonly string[] = [];
 
 /**
  * How a bench leaves its own report, and the only way one of those files is excused.

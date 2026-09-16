@@ -1,3 +1,4 @@
+import { reportAt } from '../../tools/reports';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { EXCUSED, isCheckable } from '../../tools/excused';
@@ -28,7 +29,7 @@ import { EXCUSED, isCheckable } from '../../tools/excused';
  */
 
 const ROOTS = ['src', 'server'];
-const REPORT = 'unreached-report.txt';
+const REPORT = reportAt('unreached-report.txt');
 
 /** Every source file, and separately every test, because being called by a test is not being used. */
 function files(): { source: Map<string, string>; tests: string[] } {
