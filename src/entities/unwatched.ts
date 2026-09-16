@@ -553,6 +553,17 @@ export const LONG_RUN: Record<string, LongRun> = {
    */
   builder: keepsItsHours,
   constable: keepsItsHours,
+  /*
+   * A smith and an apothecary, on the same line drawn in the same place as the woodcutter's.
+   *
+   * Where they are standing is this file's business, and it is hours like anybody else's: at the
+   * forge or behind the counter through the working day, home by dark. What a week of the *work*
+   * comes to is not this form's business and must not be — whatever a smithy turns out will be
+   * counted once a day out of what the village holds, watched or not, and a form that also yielded
+   * gear would stack the same swords twice and a village would arm faster for being looked at.
+   */
+  smith: keepsItsHours,
+  apothecary: keepsItsHours,
   doctor: keepsItsHours,
   soldier: keepsItsHours,
   /*
