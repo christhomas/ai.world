@@ -36,7 +36,17 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when a hall became a voted public work instead of a seeded building
+ * Last updated deliberately when the world started darkening where two of its surfaces meet
+ * (2026-09-16). Only `chunks` moves, and only its colours: the ground at the foot of a terrace,
+ * the foot of every cliff face, and the ground a prop is rooted in now lose some of their light,
+ * which is item #251. Nothing is drawn from the random stream that was not drawn before — the
+ * contact is worked out from corner heights the chunk already carried and from prop positions
+ * `propsOf` already computed — so `graph`, `hydro`, `structures` and `quests` do not move a digit.
+ * Neither does a single vertex: hashing the four chunks' positions, indices, normals and water
+ * instead of their land colours reproduces the old figure exactly on both seeds, which is how
+ * "the shape of the country is untouched" was checked rather than argued.
+ *
+ * Before that: when a hall became a voted public work instead of a seeded building
  * (2026-09-14). The deterministic hall plot remains levelled, cleared and joined to the square, but
  * begins as an empty building site. Consequently only `structures` (the site's kind) and `chunks`
  * (the absent completed-hall prop) move; graph, water, quests, and every other structure stay put.
@@ -133,12 +143,13 @@ describe('generation fingerprint', () => {
 });
 
 /*
- * Moved on 2026-09-14, on purpose: town halls are now raised after a vote rather than seeded.
+ * Moved on 2026-09-16, on purpose: the ground goes darker where something else touches it.
  *
- * `structures` loses the pre-vote halls and `chunks` loses their stamped footprints. Graph,
- * water, quests, every village and every reserved hall site remain deterministic and unchanged.
+ * `chunks` alone, and only the colours in it. Graph, water, structures and quests are the same
+ * numbers they were, because a contact is read off heights and prop positions that already
+ * existed rather than rolled for.
  */
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: '5256f550', hydro: '57d1f709', structures: '668000d3', chunks: '65b262e0', quests: '829c481b' },
-  2: { graph: '91f6d142', hydro: 'e1df1004', structures: '2d01947e', chunks: '6b1e656b', quests: '10f6f7ad' },
+  1: { graph: '5256f550', hydro: '57d1f709', structures: '668000d3', chunks: 'd3ce299a', quests: '829c481b' },
+  2: { graph: '91f6d142', hydro: 'e1df1004', structures: '2d01947e', chunks: '1476c58e', quests: '10f6f7ad' },
 };

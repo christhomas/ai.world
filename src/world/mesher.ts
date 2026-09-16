@@ -2,6 +2,7 @@ import { WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
 import { BIOMES } from './biomes';
+import { contactField, contactShade } from './contactshade';
 import { TileType, type ChunkData } from './terrain';
 
 /**
@@ -60,6 +61,8 @@ const FALL_OFFSET = 0.02;
 /** Ignore height differences smaller than this when deciding to draw a wall or a fall. */
 const EPS = 1e-3;
 const FALL_EPS = 0.01;
+/** A quad nothing stands over: every corner keeps all of its colour. */
+const FULL_LIGHT = [1, 1, 1, 1] as const;
 
 /**
  * The four sides of a tile. Corner indices: 0 = NW (x,z), 1 = NE (x+1,z), 2 = SE (x+1,z+1), 3 = SW (x,z+1).
@@ -98,15 +101,35 @@ export class MeshBuilder {
 
   /** Emit a quad p0..p3 facing `n`. Winding is fixed up automatically. */
   quad(p0: number[], p1: number[], p2: number[], p3: number[], nx: number, ny: number, nz: number, color: RGB, flow = 0): void {
+    this.face(p0, p1, p2, p3, nx, ny, nz, color, flow, FULL_LIGHT);
+  }
+
+  /**
+   * The same quad, with a light multiplier for each corner in turn.
+   *
+   * Per corner rather than per face because that is the shape a contact has. Where a wall meets a
+   * floor, one edge of the wall is in the crease and the other is in the open, and a face that can
+   * only be one brightness cannot say so — it would go uniformly dark, which reads as a wall
+   * painted a darker colour rather than as a wall with the light shut out of its foot. The corners
+   * of a quad are its own vertices, so neighbouring faces that share an edge still agree along it
+   * as long as they were handed the same number for it, which is what `contactShade` guarantees.
+   */
+  shaded(p0: number[], p1: number[], p2: number[], p3: number[], nx: number, ny: number, nz: number, color: RGB, shade: readonly number[]): void {
+    this.face(p0, p1, p2, p3, nx, ny, nz, color, 0, shade);
+  }
+
+  private face(p0: number[], p1: number[], p2: number[], p3: number[], nx: number, ny: number, nz: number, color: RGB, flow: number, shade: readonly number[]): void {
     const ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2];
     const bx = p2[0] - p0[0], by = p2[1] - p0[1], bz = p2[2] - p0[2];
     const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
     const flip = cx * nx + cy * ny + cz * nz < 0;
     const base = this.vcount;
-    for (const p of [p0, p1, p2, p3]) {
+    const corners = [p0, p1, p2, p3];
+    for (let k = 0; k < 4; k++) {
+      const p = corners[k], s = shade[k];
       this.positions.push(p[0], p[1], p[2]);
       this.normals.push(nx, ny, nz);
-      this.colors.push(color[0], color[1], color[2]);
+      this.colors.push(color[0] * s, color[1] * s, color[2] * s);
       this.flows.push(flow);
     }
     if (flip) this.indices.push(base, base + 3, base + 2, base, base + 2, base + 1);
@@ -294,7 +317,7 @@ function layBlocks(
   land: MeshBuilder, cut: WallCut, seed: number, tx: number, tz: number, face: number,
   ax: number, az: number, bx: number, bz: number,
   topA: number, topB: number, footA: number, footB: number,
-  nx: number, nz: number, colour: RGB,
+  nx: number, nz: number, colour: RGB, shade: readonly number[],
 ): void {
   const tall = Math.max(topA - footA, topB - footB);
   const courses = Math.max(1, Math.round(tall / COURSE));
@@ -303,6 +326,13 @@ function layBlocks(
     const top = topA + (topB - topA) * u;
     const foot = footA + (footB - footA) * u;
     return [ax + (bx - ax) * u, foot + (top - foot) * v, az + (bz - az) * u];
+  };
+  // the face's four corner shades, read at the same (u, v) the block's corners are cut at, so a
+  // wall cut into thirty blocks carries the one gradient its uncut neighbour does
+  const shadeAt = (u: number, v: number): number => {
+    const foot = shade[0] + (shade[1] - shade[0]) * u;
+    const top = shade[3] + (shade[2] - shade[3]) * u;
+    return foot + (top - foot) * v;
   };
   for (let c = 0; c < courses; c++) {
     const v0 = c / courses, v1 = (c + 1) / courses;
@@ -321,9 +351,10 @@ function layBlocks(
       // same wall is the same wall every time it is drawn and no two blocks beside each other
       // agree by accident
       const roll = rand2(seed, tx * 4 + face, tz * 4 + c * 2 + b, TILE_SALT.MASONRY);
-      const shade = 1 + (roll - 0.5) * spread;
-      const block: RGB = [colour[0] * shade, colour[1] * shade, colour[2] * shade];
-      land.quad(at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1), nx, 0, nz, block);
+      const rough = 1 + (roll - 0.5) * spread;
+      const block: RGB = [colour[0] * rough, colour[1] * rough, colour[2] * rough];
+      land.shaded(at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1), nx, 0, nz, block,
+        [shadeAt(u0, v0), shadeAt(u1, v0), shadeAt(u1, v1), shadeAt(u0, v1)]);
     }
   }
 }
@@ -338,6 +369,8 @@ export function buildChunkMesh(chunk: ChunkData, seed: number, cut?: WallCut): C
   const me = [0, 0, 0, 0], nb = [0, 0, 0, 0];
   const foam = hexToLinear(FOAM);
   const river = hexToLinear(RIVER);
+  // what stands over each corner of this chunk, and what is rooted beside it: see `contactshade.ts`
+  const contacts = contactField(chunk, seed);
 
   for (let lz = 0; lz < CS; lz++) {
     for (let lx = 0; lx < CS; lx++) {
@@ -364,7 +397,14 @@ export function buildChunkMesh(chunk: ChunkData, seed: number, cut?: WallCut): C
       // ground stuck on at an angle, which is most of what made the first mountains look wrong.
       const leaning = chunk.sloped[i] === 1 || type === TileType.Road || type === TileType.Bridge;
       const [nx, ny, nz] = leaning ? slopeNormal(me) : [0, 1, 0];
-      land.quad([wx, me[0], wz], [wx, me[3], wz + 1], [wx + 1, me[2], wz + 1], [wx + 1, me[1], wz], nx, ny, nz, top);
+      // corner order follows the quad's own: NW, SW, SE, NE. Each is asked about the height this
+      // surface reaches there, because what darkens a corner is only ever what stands above it.
+      land.shaded([wx, me[0], wz], [wx, me[3], wz + 1], [wx + 1, me[2], wz + 1], [wx + 1, me[1], wz], nx, ny, nz, top, [
+        contactShade(contacts, lx, lz, me[0]),
+        contactShade(contacts, lx, lz + 1, me[3]),
+        contactShade(contacts, lx + 1, lz + 1, me[2]),
+        contactShade(contacts, lx + 1, lz, me[1]),
+      ]);
 
       // cliff walls toward any lower neighbour; edge endpoints use corner heights so ramps stay watertight
       const isBridge = type === TileType.Bridge || type === TileType.Pier;
@@ -379,14 +419,24 @@ export function buildChunkMesh(chunk: ChunkData, seed: number, cut?: WallCut): C
         const small = !isBridge && drop <= WORLD.STEP * LIP_FRACTION;
         const xa = wx + side.a[0], za = wz + side.a[1], xb = wx + side.b[0], zb = wz + side.b[1];
         const footA = Math.min(na, a), footB = Math.min(nbh, b);
+        // the wall's own gradient, and it costs nothing extra to ask for: the top of the face sits
+        // level with the ground above it, which has nothing standing over it, and the foot sits a
+        // drop below, which has the whole terrace standing over it
+        const ca = lx + side.a[0], cza = lz + side.a[1], cb = lx + side.b[0], czb = lz + side.b[1];
+        const wall = [
+          contactShade(contacts, ca, cza, footA),
+          contactShade(contacts, cb, czb, footB),
+          contactShade(contacts, cb, czb, b),
+          contactShade(contacts, ca, cza, a),
+        ];
         // a ramp's lip is a hand's breadth of ground, not a wall: cutting blocks into it would put
         // masonry along the edge of every step
         if (cut && !small) {
           layBlocks(land, cut, seed, ox + lx, oz + lz, SIDES.indexOf(side),
-            xa, za, xb, zb, a, b, footA, footB, side.nx, side.nz, cliff);
+            xa, za, xb, zb, a, b, footA, footB, side.nx, side.nz, cliff, wall);
           continue;
         }
-        land.quad([xa, footA, za], [xb, footB, zb], [xb, b, zb], [xa, a, za], side.nx, 0, side.nz, small ? lip : cliff);
+        land.shaded([xa, footA, za], [xb, footB, zb], [xb, b, zb], [xa, a, za], side.nx, 0, side.nz, small ? lip : cliff, wall);
       }
 
       // --- water surface + waterfalls ---
