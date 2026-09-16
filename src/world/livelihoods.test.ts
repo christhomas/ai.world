@@ -646,3 +646,26 @@ describe('the hall\'s share', () => {
     expect(people[0].purse, 'asking what was owed collected it').toBe(40);
   });
 });
+
+/** A person as they were, so two mornings can be run from one village. */
+const copy = (who: Person): Person => ({ ...who });
+
+describe('what a village pays for its own dinner', () => {
+  it('spends more on the same meals where the cellar is nearly empty', () => {
+    const folk = [person('farmer'), person('miner'), person('seller')];
+    const work = aDaysTrade(folk, 0, 0, { trades: [] });
+    const full = aDaysDinner(folk.map(copy), 36, work);
+    const bare = aDaysDinner(folk.map(copy), 3, work);
+    expect(bare.paid.size).toBeGreaterThan(0);
+    expect(total(bare.paid)).toBeGreaterThan(total(full.paid));
+  });
+
+  it('charges every villager the same price on one morning', () => {
+    const rich = person('miner', 400);
+    const poor = person('farmer', 4);
+    const folk = [rich, poor];
+    const before = { rich: rich.purse, poor: poor.purse };
+    aDaysDinner(folk, 2, aDaysTrade(folk, 0, 0, { trades: [] }));
+    expect(before.rich - rich.purse).toBeCloseTo(before.poor - poor.purse);
+  });
+});

@@ -82,6 +82,28 @@ describe('eating', () => {
     eat([p], 5);
     expect(p.hungry).toBe(0);
   });
+  it('charges the price it is given rather than the constant', () => {
+    const folk = [soul('farmer', 10)];
+    const meal = eat(folk, 5, 2.5);
+    expect(meal.spent).toBe(2.5);
+    expect(folk[0].purse).toBe(7.5);
+  });
+
+  it('turns away somebody who cannot afford today’s price but could afford yesterday’s', () => {
+    const folk = [soul('farmer', 1.5)];
+    const meal = eat(folk, 5, 2.5);
+    expect(meal.fed).toBe(0);
+    expect(meal.hungry).toBe(1);
+    expect(folk[0].purse).toBe(1.5);
+  });
+
+  it('still feeds children for nothing when the price is high', () => {
+    const folk = [soul('', 0)];
+    const meal = eat(folk, 5, 2.5);
+    expect(meal.fed).toBe(1);
+    expect(meal.spent).toBe(0);
+  });
+
 });
 
 describe('what a village grows', () => {

@@ -240,10 +240,15 @@ export interface Meal {
  * difference between eating and not. It also means a village's poor die first, so a place that has
  * been robbed or raided loses the people least able to leave.
  *
+ * The price is handed in rather than read, and that is the whole of item 138's join. A meal costs
+ * what it costs in *this* village today, which `prices.ts` works out from the store; `eat` is not
+ * the place that decides it, because the decision belongs to the morning rather than to the meal.
+ * The default keeps every caller that has not been told about prices yet meaning what it meant.
+ *
  * Mutates `hungry` and `purse` on the people it feeds, and hands back who died so the register can
  * bury them properly rather than having them vanish.
  */
-export function eat(people: readonly Person[], store: number): Meal {
+export function eat(people: readonly Person[], store: number, price: number = FOOD.MEAL): Meal {
   const meal: Meal = { fed: 0, hungry: 0, eaten: 0, spent: 0, starved: [] };
   let left = store;
 
@@ -253,10 +258,10 @@ export function eat(people: readonly Person[], store: number): Meal {
     // every village in the world dies out: children have no trade, so no income, so no way to pay
     // for bread, and they starve at seven days old while the adults around them eat.
     const dependent = !person.trade;
-    const canPay = dependent || person.purse >= FOOD.MEAL;
+    const canPay = dependent || person.purse >= price;
     if (left >= 1 && canPay) {
       left -= 1;
-      if (!dependent) { person.purse -= FOOD.MEAL; meal.spent += FOOD.MEAL; }
+      if (!dependent) { person.purse -= price; meal.spent += price; }
       person.hungry = 0;
       meal.fed++;
       meal.eaten += 1;
