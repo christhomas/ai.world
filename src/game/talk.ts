@@ -5,6 +5,7 @@ import { AWAY, buy, give, holds } from '../world/deeds';
 import { personTill } from './tills';
 import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
+import { askingFor } from './shopprice';
 import { ITEMS, SHOP_DEFS, type ShopDef, itemSummary, sellPrice, sellableAt } from './shops';
 import { WOOD_ITEM } from './items';
 import { paidAtACounter } from './furs';
@@ -505,8 +506,15 @@ function addressMenu(s: Counter, itemId: string): DialogueNode {
 }
 
 /** What they are asking today, which is the price plus whatever they think of you. */
-function asking(s: Counter, item: { price: number }): number {
-  return Math.round(item.price * (1 + (s.ctx.markup ?? 0)));
+
+function asking(s: Counter, item: { price: number; effect?: unknown; slot?: unknown }): number {
+  const register = s.ctx.register ?? null;
+  return askingFor(
+    item,
+    register?.larderOf(s.village) ?? 0,
+    register?.living(s.village) ?? [],
+    s.ctx.markup ?? 0,
+  );
 }
 
 /** What is in the purse, said aloud, because a list of prices is no use on its own. */

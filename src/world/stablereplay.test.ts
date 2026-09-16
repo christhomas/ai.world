@@ -30,20 +30,21 @@ const roomFor = (book: Register, holding: string): number =>
   herdRoomFor(book.worksOf('Ashford'), [holding]);
 
 /*
- * Seed 10 at two hundred days, which is a village whose rails are full and whose farmers can
+ * Seed 11 at two hundred days, which is a village whose rails are full and whose farmers can
  * afford to widen them — `whichFarmerBuilds` refuses on both counts and most villages fail one.
  * Found by scanning rather than chosen: a seed where nothing is ever bought would let every
  * assertion below pass without measuring anything, which is its own kind of failure.
  *
- * Re-scanned when this landed on a main that had moved. It was seed 1234, chosen the same way, and
- * bounded local farm clearings (#126) changed what a village has built by day two hundred — so
- * 1234 stopped buying and four assertions here stopped measuring. A seed picked for a property is
+ * Re-scanned twice now, for the same reason both times. It was seed 1234 until bounded local farm
+ * clearings (#126) changed what a village has built by day two hundred; then seed 10 until local
+ * prices (#230) changed what a farmer can afford to have left over. Each time the seed stopped
+ * buying and four assertions here stopped measuring. A seed picked for a property is
  * a seed that has to be picked again when the property's inputs change, which is the cost of
  * choosing one this way and worth paying: the alternative is a village built by hand that no
  * simulation ever produces.
  */
 const aVillage = (): Register => {
-  const book = new Register(10, 1);
+  const book = new Register(11, 1);
   book.settle('Ashford', 8, ['farmer', 'seller', 'builder', 'woodcutter']);
   for (let day = 2; day <= 200; day++) book.advance(day);
   return book;

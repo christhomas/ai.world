@@ -1,4 +1,5 @@
 import { FOOD, cellarCap } from './food';
+import { priceOfAMeal } from './prices';
 import { aDaysTrade, paidForFood, pitchFor } from './livelihoods';
 import { spentOnLiving } from './prosperity';
 import { ownedBy, type Owner, type Standing } from './holdings';
@@ -71,8 +72,22 @@ export function aDaysIncome(
    * actually in the larder, because `eat` goes richest first: the people who can pay are at the
    * front of the queue, so the pool is the smaller of how many can pay and how much there is.
    */
+  /*
+   * What the cellar will hold, worked out before anybody is asked whether they can pay, because
+   * since item 138 the price depends on it. The morning reads exactly this number and charges
+   * `priceOfAMeal` off it, so a forecast still quoting `FOOD.MEAL` disagreed with the morning by
+   * the dearness of the day — which the economy bench reports as coin appearing and vanishing with
+   * nothing in any book to explain it.
+   *
+   * A caller with no village behind it gets the reference price. `FOOD.MEAL` is what a meal is
+   * worth before a cellar is consulted; assuming a full one would quote a glut on no evidence.
+   */
+  const known = Number.isFinite(store);
+  const larder = known ? Math.min(cellarCap(people), store + day.grown) : Infinity;
+  const price = known ? priceOfAMeal(larder, people) : FOOD.MEAL;
+
   const canPay = people.filter(
-    (p) => p.trade && p.purse + (day.paid.get(ownedBy(p)) ?? 0) >= FOOD.MEAL,
+    (p) => p.trade && p.purse + (day.paid.get(ownedBy(p)) ?? 0) >= price,
   ).length;
   /*
    * A caller with no village behind it says nothing about the store, and that has to mean "assume
@@ -80,9 +95,7 @@ export function aDaysIncome(
    * came out as a surplus of infinity, a pool of infinity, and every share in the village NaN —
    * which is what the test that guards this found within a minute of the surplus going in.
    */
-  const known = Number.isFinite(store);
-  const larder = known ? Math.min(cellarCap(people), store + day.grown) : Infinity;
-  const pool = Math.min(canPay, Math.floor(Math.min(larder, canPay))) * FOOD.MEAL;
+  const pool = Math.min(canPay, Math.floor(Math.min(larder, canPay))) * price;
   // plus what the cellar will not hold, which goes to the next valley rather than on the ground
   const spare = known ? Math.max(0, store + day.grown - larder) : 0;
 
@@ -95,4 +108,20 @@ export function aDaysIncome(
     income.set(ownedBy(one), (income.get(ownedBy(one)) ?? 0) + spentOnLiving(one) + pitchFor(one));
   }
   return income;
+}
+
+/**
+ * What the roll should say a villager will pay for dinner tomorrow morning.
+ *
+ * The same reading `aDaysIncome` makes above, exported so that `records.ts` quotes the number the
+ * forecast used rather than one of its own. A roll whose food line and earnings line disagree is
+ * a roll the economy bench reads as coin appearing from nowhere.
+ */
+export function priceTheRollQuotes(
+  people: readonly Person[], herd: number, pressure: number, store = Infinity,
+  village?: Parameters<typeof aDaysTrade>[3],
+): number {
+  if (!Number.isFinite(store)) return FOOD.MEAL;
+  const grown = aDaysTrade(people, herd, pressure, village).grown;
+  return priceOfAMeal(Math.min(cellarCap(people), store + grown), people);
 }

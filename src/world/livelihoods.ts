@@ -7,6 +7,7 @@ import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
 import { ableToWork } from './wounds';
 import { foodAt } from './fields';
+import { priceOfAMeal } from './prices';
 
 /**
  * The four ways a villager gets a coin, and the coin actually going from one hand to another.
@@ -510,6 +511,8 @@ export interface Dinner {
   starved: Person[];
   /** And what dinner cost, going to whoever's dinner it was — plus what the surplus fetched. */
   paid: Map<Owner, number>;
+  /** What one meal was charged at this morning — a fact about it, not recomputable this evening. */
+  price: number;
 }
 
 /**
@@ -541,7 +544,11 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
    * as a village that has stopped earning as well as one that has stopped eating.
    */
   const spare = Math.max(0, all - food);
-  const meal = eat(people, food);
+  // One price for the morning, read as the store opened and not recomputed as the cellar drains:
+  // `eat` feeds richest-first, so a rising price would charge the poorest most every morning, as a
+  // side effect of an ordering chosen for something else entirely.
+  const price = priceOfAMeal(food, people);
+  const meal = eat(people, food, price);
   const paid = paidForFood(people, meal.spent, work.meat, work.shore, work.fish, work.fields);
   // and the money for it comes from the next valley, because that is where the food went
   for (const [id, much] of paidForFood(
@@ -549,7 +556,7 @@ export function aDaysDinner(people: readonly Person[], store: number, work: Trad
   )) {
     paid.set(id, (paid.get(id) ?? 0) + much);
   }
-  return { food: Math.max(0, food - meal.eaten), sold: spare, starved: meal.starved, paid };
+  return { food: Math.max(0, food - meal.eaten), sold: spare, starved: meal.starved, paid, price };
 }
 
 /**
