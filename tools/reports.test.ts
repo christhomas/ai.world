@@ -61,12 +61,26 @@ describe('where a report goes', () => {
       // tests and guards *name* these paths without writing them, so a mention is not a writer
       return e.isFile() && /\.(ts|cjs|mjs|js)$/.test(e.name) && !/\.test\.[tj]s$/.test(e.name) ? [path] : [];
     });
+    /*
+     * A *write*, not a mention. The first pass matched any quoted `<name>-report.txt` anywhere in a
+     * file and duly flagged `carriers.ts` and `mastery.ts`, which name reports in their doc comments
+     * to say where a figure came from. Prose about a report is not a report being written, and a
+     * rule that cannot tell them apart is a rule that punishes explaining yourself.
+     *
+     * So: the three shapes a report path is actually given in — assigned to a `REPORT` constant,
+     * defaulted into an `OUT`, or handed straight to `writeFileSync` — and each is loose only when
+     * the name goes in bare rather than through `reportAt` or the directory.
+     */
+    const WRITES = [
+      /(?:const|let)\s+REPORT\s*=\s*['"`](\w[\w-]*-report\.txt)['"`]/g,
+      /OUT\s*\|\|\s*['"`](\w[\w-]*-report\.txt)['"`]/g,
+      /writeFileSync\(\s*['"`](\w[\w-]*-report\.txt)['"`]/g,
+    ];
     const loose: string[] = [];
     for (const file of [...sources('src'), ...sources('tools')]) {
       const body = readFileSync(file, 'utf8');
-      // a bare '<name>-report.txt' in quotes, with nothing joining it to the reports directory
-      for (const [, quoted] of body.matchAll(/['"`](\w[\w-]*-report\.txt)['"`]/g)) {
-        if (!new RegExp(`REPORTS|reportAt|${REPORTS}`).test(body)) loose.push(`${file}: ${quoted}`);
+      for (const shape of WRITES) {
+        for (const [, quoted] of body.matchAll(shape)) loose.push(`${file}: ${quoted}`);
       }
     }
     expect([...new Set(loose)], 'a report written straight to the root is a report nobody ignored')
