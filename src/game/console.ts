@@ -72,7 +72,8 @@ export interface Consoled {
    * claim a power where the game has just told you that you had none. The eagle over the range is
    * the near miss — it is a real jump, and it does look like one — but it already has a bird and a
    * line of text explaining itself, and a column of light would say sorcery where the story says
-   * feathers. `docs/worklist.md` has the argument.
+   * feathers. The argument for that is in the old work list, which `git log -p -- docs/worklist.md`
+   * still answers.
    */
   beam: Beam;
   /** Where the hero is standing: the surface, a dungeon floor, or a building. */

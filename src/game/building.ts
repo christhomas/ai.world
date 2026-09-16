@@ -244,7 +244,7 @@ export const CATALOGUE: readonly Buildable[] = [
    * Dearer than the boat and slower, and it has to be: it is a row of piles driven into a seabed
    * and a deck over them, and it is the thing that makes every boat after it possible. Since a
    * coast that is all cliff gets no ferry at all, an island can be cut off entirely — and the
-   * answer the worklist asks for is that a player who wants a harbour pays for one.
+   * answer asked for is that a player who wants a harbour pays for one.
    *
    * It is not `moves`, and that word is doing real work here rather than merely being false. A boat
    * needs a jetty within reach; a jetty is what that means, so asking it of itself would be a rule

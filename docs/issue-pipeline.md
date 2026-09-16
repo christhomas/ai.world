@@ -6,6 +6,26 @@ where this disagrees with a habit, this is what happened rather than what was in
 **Update this file when the process changes.** A pipeline document that is out of date is worse
 than none, because somebody follows it.
 
+## The queue is the issue list, and nothing else
+
+**Anything outstanding is an issue.** Not a file, not a comment, not a note in a session.
+
+There was a `docs/worklist.md` here that held both the queue and the argument behind finished work.
+It is gone, and the reason it had to go is specific to how this repository is worked rather than a
+matter of taste: several sessions and several agents hold worktrees at once, and a file is a
+different file in each of them. On the 16th one set of items existed in three places at the same
+time — uncommitted in a shared checkout, committed in one worktree, and on a branch made to rescue
+them — and the only reason none was lost is that somebody went looking. A worktree cannot hold a
+private version of an issue.
+
+An issue is also reachable from outside a checkout: a pull request closes one, CI can read one, and
+a session that has never cloned the repository can still be told what is outstanding.
+
+The prose that list carried is not gone either, and it is worth knowing where it went: every version
+of it is in git history, so `git show <commit>:docs/worklist.md` still answers a question about why
+something was done the way it was. When an issue needs that much argument, write the argument in the
+issue.
+
 ## The boundary
 
 **Branch, fix, commit to the branch, open the pull request. Stop there.**

@@ -51,7 +51,7 @@ function villagerAt(x: number, z: number): Entity {
  * Send him home and let the world run, the way the manager does: his tree, then his feet.
  *
  * Says whether he got in, and how close to his door he ever came — the second is the number the
- * worklist asked for, because a walk that plateaus short of the door is the fault and a walk that is
+ * one asked for, because a walk that plateaus short of the door is the fault and a walk that is
  * merely slow is not.
  */
 function sendHome(world: TileWorld, e: Entity, seconds: number): { indoors: boolean; closest: number } {
