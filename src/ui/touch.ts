@@ -1,5 +1,6 @@
 import { ICONS, type IconName } from './glyphs';
 import type { Input } from '../core/input';
+import { Twist } from './twist';
 
 /**
  * The game played with thumbs.
@@ -62,12 +63,17 @@ const PANEL_BUTTONS: readonly Button[] = [
    * No map button. The corner map opens the big one when it is pressed, which is the obvious
    * gesture — a picture of where you are is the thing you reach for when you want a bigger picture
    * of where you are — and it buys back a square of a screen that is 390 tall.
+   *
+   * And no camera. The two turn keys were here and were the reason this rail was six cells long,
+   * which is 326 pixels down a screen 390 tall — straight through where a steering thumb rests. The
+   * handoff gives this gutter to the book tabs and says why: *"the walk field excludes this column,
+   * so a steering thumb can never open the pack."* Two of the six were not books. `twist.ts` is
+   * where they went: on a phone a camera is a gesture, which is also what `design/mobile` assumes
+   * by having no camera control in it anywhere.
    */
   { key: 'i', icon: 'pack', label: 'Rucksack' },
   { key: 'j', icon: 'book', label: 'Journal' },
   { key: 'o', icon: 'sliders', label: 'Options' },
-  { key: 'q', icon: 'turnLeft', label: 'Turn the camera left', hold: true },
-  { key: 'e', icon: 'turnRight', label: 'Turn the camera right', hold: true },
 ];
 
 /**
@@ -133,6 +139,8 @@ export class TouchControls {
   private stickY = 0;
   /** The direction keys the stick is holding, so lifting a thumb releases only those. */
   private held: string[] = [];
+  /** Two fingers on the world, as the camera keys they amount to. See `twist.ts`. */
+  private readonly twist = new Twist((k) => this.input.hold(k), (k) => this.input.release(k));
   private on = false;
 
   constructor(private readonly input: Input) {
@@ -146,6 +154,19 @@ export class TouchControls {
     if (forced === true || (forced === null && window.matchMedia('(pointer: coarse)').matches)) this.enable();
     // A machine with a mouse never gets these, but a laptop with a touchscreen should the moment
     // somebody actually touches it — the first finger anywhere is the only honest signal there is.
+    /*
+     * The twist listens on the window rather than on the world, because a gesture that stopped at
+     * the edge of the canvas would stop wherever a readout happens to be drawn — and a readout is
+     * not a wall. What it ignores is the finger already steering: one thumb walking and two more
+     * turning is three fingers, and this is a gesture for two.
+     */
+    const onWorld = (e: PointerEvent) => e.pointerType === 'touch' && e.pointerId !== this.stickPointer;
+    window.addEventListener('pointerdown', (e) => { if (onWorld(e)) this.twist.began(e.pointerId, e.clientX, e.clientY); }, { signal });
+    window.addEventListener('pointermove', (e) => { if (onWorld(e)) this.twist.moved(e.pointerId, e.clientX, e.clientY); }, { signal });
+    const lifted = (e: PointerEvent) => { if (e.pointerType === 'touch') this.twist.ended(e.pointerId); };
+    window.addEventListener('pointerup', lifted, { signal });
+    window.addEventListener('pointercancel', lifted, { signal });
+
     if (forced !== false) {
       window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') this.enable(); }, { signal });
     }
@@ -160,6 +181,7 @@ export class TouchControls {
   /** Stop listening, and take the controls off the page. The world is being put away. */
   dispose(): void {
     this.listening.abort();
+    this.twist.letGo();
     this.releaseStick();
     this.root.remove();
     document.body.classList.remove('touch');
