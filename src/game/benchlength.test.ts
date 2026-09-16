@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { daysAsked, TUNED_FOR } from './benchdays';
+import { daysAsked, TUNED_FOR } from './economy.bench';
 
 /**
  * How long a bench run is, and why it is a question rather than a constant.
