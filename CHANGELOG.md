@@ -14,6 +14,33 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.94.0 — 2026-09-16
+
+marriage, illness, faces that run in families, a shelf that runs out, and distance you can see
+
+- A guard names every generator that was retired, not four of the five (#222) — closes #216
+- A night is only proved by somebody who was outside going in (#223) — closes #211
+- A boat needs water all the way, not at both ends of the run (#224) — closes #212
+- A new country is only a new country if there is something in it (#225) — closes #213
+- A correction is where something is, not evidence of where it is going (#227) — closes #215
+- Restore the edge stack that #152 merged only a sixteenth of (#228) — closes #16
+- Release 0.93.0 (#229)
+- The queue is the issue list; delete the work list (#247)
+- One commit, one set of check runs (#256)
+- Count who was born, not only who was buried (#259) — closes #255
+- Never wait on a check (#269)
+- A village with no man in it has no father to name (#270)
+- The country answers for the patch the hero is in (#271) — closes #214
+- A price is a reading of what a village holds (#272) — closes #230
+- A bench can be asked a longer question than a hundred days (#273) — closes #266
+- A cliff face is pinned as rock, not as dimmer grass (#274) — closes #252
+- A shop's shelf can run out (#275) — closes #231
+- Nothing in a Person said who they married (#276) — closes #242
+- The smithy and the apothecary had nobody in them (#277) — closes #267
+- A stranger's children look like the stranger, for real this time (#278) — closes #243
+- Nobody was ever ill, so a doctor only mattered after violence (#279) — closes #246
+- Far country recedes towards the sky instead of standing at full contrast (#280) — closes #253
+
 ## v0.93.0 — 2026-09-16
 
 the endless country, a hall that hires, and a phone you can actually play on
