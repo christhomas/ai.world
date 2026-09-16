@@ -58,6 +58,10 @@ export function whoTheShrineSent(village: string, day: number, rng: () => number
     knows: [], memories: [], opinions: [],
     // and nothing in their pockets: what the shrine makes is a person, not an estate
     purse: 0, hungry: 0,
+    // nor anything in their hands. They are grown and they have never worked, so they begin where
+    // any other new adult begins and the village's fields feel it until they have learned. See
+    // `mastery.ts` — a shrine raises a person, and it cannot raise a master
+    worked: 0,
   };
 }
 

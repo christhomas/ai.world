@@ -6,6 +6,7 @@ import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
 import { fallIll, shakeItOff } from './ailments';
 import { whatIsPaidBack } from './debts';
+import { aDaysPractice } from './mastery';
 import { raiseWhoIsDue } from './shrine';
 import { restWhoIsFailing } from './oldage';
 import { payAndSweep } from './purses';
@@ -89,6 +90,7 @@ export function baby(seed: number, id: string, name: string, village: string, da
     lives: Math.round(LIFE.SHORTEST_LIFE + rng() * (LIFE.LONGEST_LIFE - LIFE.SHORTEST_LIFE)),
     mother: '', father: '', knows: [], memories: [], opinions: [],
     purse: 0, hungry: 0,                                  // a baby has nothing; a trade is what starts it
+    worked: 0,                                 // and knows nothing: the days start when the trade does
   };
 }
 
@@ -171,6 +173,15 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day:
     }
   }
   payAndSweep(village, trading.paid);
+  /*
+   * And a day at the work is a day of practice for whoever spent one.
+   *
+   * Here rather than inside `aDaysTrade`, and that is not tidiness: `aDaysIncome` runs the same
+   * morning through the same people to write the hall's roll, and a day that aged them on the way
+   * past would have the clerk's forecast quote a day nobody has lived yet. The day is lived exactly
+   * once, and this is where. See `mastery.ts`.
+   */
+  aDaysPractice(village.people, pressure);
   // and the hall's share of what is left, which is the same act as every other coin that moves
   // here: out of the purses it came from, into the one place that is not anybody's
   const tax = taxedForTheHall(village.people);
@@ -345,6 +356,10 @@ function growUp(o: TheDay, name: string, village: Settlement, day: number): Chan
   for (const person of village.people) {
     if (person.trade === '' && grownUp(person, day) && village.trades.length > 0) {
       person.trade = tradeTakenUp(person, village.trades, village, rng);
+      // and knows nothing about it yet. Written wherever a trade is taken up rather than inferred
+      // from an age, because what somebody knew was about the work they were doing: a villager who
+      // changes trade starts again, which is the item's own open question answered. See `mastery.ts`
+      person.worked = 0;
     }
     if (person.knows.length >= LIFE.KNOWS) continue;
 
