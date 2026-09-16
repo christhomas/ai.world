@@ -14,6 +14,16 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.96.0 — 2026-09-16
+
+a country that stopped being a honeycomb, ground that stopped being a checkerboard, rock you can see, and a phone that looks like the design
+
+- The ground is blotched rather than chequered (#303) — closes #300
+- Not every border is a road, so the country stops being a honeycomb (#305) — closes #304
+- Give the rock back what the sun cannot reach it with (#308)
+- Release 0.95.0 (#309)
+- The phone stops looking like a desktop with the numbers turned down (#310)
+
 ## v0.95.0 — 2026-09-16
 
 a world generator you can choose again, the hero on the register, villagers who want something, and the phone in pictures
