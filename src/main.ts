@@ -3,6 +3,7 @@ import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
 import { AutoQuality, everChoseQuality, rememberTheirChoice } from './render/autoquality';
 import { QUALITY, createSceneRig } from './render/scene';
+import { isOn } from './ui/switches';
 import { DropField } from './render/drops';
 import { Remains } from './game/remains';
 import { IsoCamera } from './render/camera';
@@ -100,7 +101,7 @@ export function startGame(
    * would ever be adjusted for anybody.
    */
   const qualityWasChosen = everChoseQuality();
-  const rig = createSceneRig($('gameContainer'));
+  const rig = createSceneRig($('gameContainer'), isOn('composer'));
   rig.setQuality(rig.quality);
   const iso = new IsoCamera();
   const input = new Input(rig.canvas);

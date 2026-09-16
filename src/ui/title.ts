@@ -1,3 +1,4 @@
+import { SWITCHES, isOn, setOn } from './switches';
 import type { SaveStore, SessionSave, WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
 import { takeTheScreen } from './sideways';
@@ -7,6 +8,27 @@ import { cleanWorldName } from '../../server/protocol';
 
 /** Three save slots. Each is a whole session (seed, hero, state). */
 const SLOT_KEYS = ['ai.world/slot/1', 'ai.world/slot/2', 'ai.world/slot/3'];
+
+/**
+ * The things somebody can turn on before a world opens.
+ *
+ * Read and written here rather than anywhere in the game, because a render path cannot be swapped
+ * once a scene is standing: the rig is built from the answer at boot. So the title screen is the
+ * only honest place to ask, and that is why this is the first thing in the project that looks like
+ * a menu.
+ */
+function offerTheSwitches(into: HTMLElement): void {
+  into.innerHTML = SWITCHES.map((one) => `
+    <label class="switch">
+      <input type="checkbox" data-switch="${one.id}"${isOn(one.id) ? ' checked' : ''}>
+      <span class="switch-name">${one.name}</span>
+      <span class="switch-note">${one.note}</span>
+    </label>`).join('');
+  into.addEventListener('change', (e) => {
+    const box = (e.target as HTMLElement).closest('[data-switch]') as HTMLInputElement | null;
+    if (box) setOn(box.dataset.switch ?? '', box.checked);
+  });
+}
 /** Pre-slot saves lived here; migrated into slot 1 on first run. */
 export const LEGACY_KEY = 'ai.world/session';
 
@@ -51,6 +73,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
   const worldNameInput = $('worldNameInput') as HTMLInputElement;
   const worldSeedInput = $('worldSeedInput') as HTMLInputElement;
   const worldError = $('titleWorldError');
+  offerTheSwitches($('titleExtras'));
   root.classList.add('show');
 
   return new Promise<SlotChoice>((resolve) => {

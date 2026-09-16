@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { composerFor, worthAComposer } from './secondrig';
 import { CAMERA, WORLD } from '../core/config';
 import type { ChunkSource } from '../world/tiles';
 import { CoastField } from './coastfield';
@@ -285,7 +286,15 @@ export interface SceneRig {
   setQuality(level: Quality): void;
 }
 
-export function createSceneRig(container: HTMLElement): SceneRig {
+/**
+ * Build the rig, optionally drawing through a composer.
+ *
+ * `asked` is the title-screen switch (`switches.ts`); whether it is honoured is
+ * `worthAComposer`'s, because a machine on `low` quality should not pay for a second full-screen
+ * pass however the preference reads. See `secondrig.ts` for why this is the only thing that
+ * differs between the two paths.
+ */
+export function createSceneRig(container: HTMLElement, asked = false): SceneRig {
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
     // photo mode reads the canvas back after a frame, which needs the buffer kept
@@ -371,6 +380,9 @@ export function createSceneRig(container: HTMLElement): SceneRig {
     return 'high';
   })();
 
+  // the second path, or nothing at all. Built after the quality is known, because `low` refuses it
+  const second = worthAComposer(asked, remembered) ? composerFor(renderer) : null;
+
   return {
     renderer, scene, sun, hemi, ambient, water: waterMat, coast, sunDriven: false,
     quality: remembered,
@@ -439,12 +451,15 @@ export function createSceneRig(container: HTMLElement): SceneRig {
     },
     resize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
+      second?.resize();
     },
     draw(what, camera) {
-      renderer.render(what, camera);
+      if (second) second.draw(what, camera);
+      else renderer.render(what, camera);
     },
     get canvas() { return renderer.domElement; },
     dispose() {
+      second?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

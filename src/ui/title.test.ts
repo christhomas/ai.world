@@ -41,9 +41,19 @@ describe('which world a save is in', () => {
 
 describe('choosing a country before you go into it', () => {
   it('offers no switch for a world kind when only one country remains', () => {
+    /*
+     * This guards the *world kind*, which is the choice that cannot be undone: a world written as
+     * endless and read back as a road world puts every anchor in open sea. It is not a rule against
+     * the title screen having any switch at all — #250 put one there for the render path, under
+     * `titleExtras`, and that one is safe to change on any morning because it decides nothing that
+     * is written down.
+     *
+     * So this asks the narrower question it always meant: no control for which country.
+     */
     const source = readFileSync('src/ui/title.ts', 'utf8');
-    expect(source).not.toContain('titleSwitches');
+    expect(source).not.toContain('worldKind');
     expect(source).not.toContain('role="switch"');
+    expect(source, 'a world kind is not a thing to offer twice').not.toMatch(/endless[^\n]*road|road[^\n]*endless/);
   });
 
   it('names every save as the one country that remains', () => {
