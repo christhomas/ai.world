@@ -216,7 +216,29 @@ const finish = async () => {
    * choose a different path again. Four tiles leaves a horse wholly clear of a cottage before the
    * walk starts, and is the point the on-foot control has already proved usable.
    */
-  const approach = { x: house.x - Math.cos(house.rot) * 4, z: house.z - Math.sin(house.rot) * 4 };
+  const approach = await page.evaluate(({ x, z, rot }) => {
+    /*
+     * And which side of it. The front used to be assumed, and that is the same fault one step
+     * further back: a generated village puts a wall, a fence or a neighbour where it likes, and on
+     * the day the road web was thinned the front of house zero on seed 3 stopped being clear. The
+     * hero was standing in something before the walk began, moved four tenths of a tile in five
+     * seconds, and the check blamed the wall it never reached.
+     *
+     * So: the front if the front is clear, and whichever side is otherwise. Four tiles out and the
+     * two tiles of it nearest the house both have to be walkable, because a horse needs the room
+     * and because a start that is clear and a path that is not is the same bug wearing a hat.
+     */
+    for (const turn of [0, Math.PI, Math.PI / 2, -Math.PI / 2]) {
+      const a = rot + turn;
+      const from = { x: x - Math.cos(a) * 4, z: z - Math.sin(a) * 4 };
+      let clear = true;
+      for (const step of [4, 3.4, 2.8]) {
+        if (window.__solid(x - Math.cos(a) * step, z - Math.sin(a) * step)) { clear = false; break; }
+      }
+      if (clear) return from;
+    }
+    return { x: x - Math.cos(rot) * 4, z: z - Math.sin(rot) * 4 };
+  }, house);
   await go(approach.x, approach.z);
   await face(house.x, house.z);
   await walk('w', 5000);
