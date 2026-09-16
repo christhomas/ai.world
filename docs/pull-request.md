@@ -118,6 +118,33 @@ This repository has squash-merge only enabled. Once a PR is green and `mergeable
 Re-check merge state immediately before merging, not just when you started working the PR — see
 "before anything" above about concurrent activity moving `main` underneath you.
 
+## While the pipeline is going green
+
+**This section applies only if you hold the issue role as well.** If you are the merge session and
+somebody else is working issues, stop here: the sections above are your whole job, and picking up
+feature work would be the boundary going the other way. If you are not sure which you are, ask.
+
+A required check takes minutes. Watching one is the largest waste in this pipeline, because nothing
+about a green tick is improved by being observed, and a session that merges a PR and then waits has
+chosen to do nothing for ten minutes at a time.
+
+So the wait is where the next issue becomes the next pull request. Take the oldest unblocked issue,
+branch, write the failing test, watch it fail, make it pass, open the request. Then come back.
+
+**Every time you come back, ask the queue before you ask the work.** If the oldest request — or the
+one everything else is stacked on — has gone green while you were elsewhere, merge that before you
+touch anything else. A merged request unblocks other people and shortens the queue; one sitting
+behind a finished check is pure latency, and latency compounds when six are waiting on it.
+
+The loop is: **merge what is ready, start what is next, return when the next check lands.** The
+queue grows during the wait rather than the wait being dead time.
+
+Two things this is not. It is not a licence to have six branches half-written at once — one issue in
+hand at a time, taken to a request before the next is started, or you are not pipelining, you are
+context-switching. And it is not a reason to merge something early: a check that has not finished is
+not a check that has passed, and the ordering rule above says merge what is *ready*, not what is
+nearly ready.
+
 ## Releasing
 
 Cutting a release (`docs/releasing.md`) is the natural next step after landing a batch from this
