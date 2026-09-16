@@ -803,8 +803,14 @@ describe('what the hundred days came to', () => {
     report({
       verdict: 'NOTE',
       count: Math.round(intoTheGround),
-      what: `gold that left the world in somebody's pocket, against ${Math.round(spentLiving)} spent on living`,
-      detail: ['A purse goes into the ground with its owner: there is no inheritance anywhere in this world.'],
+      what: `gold that changed hands at funerals, against ${Math.round(spentLiving)} spent on living`,
+      detail: [
+        'A purse is not buried with its owner. `inheritance.ts` hands what somebody held to their',
+        'family in the same village, or shares it among whoever is left where there is nobody of the',
+        'name, so what a place has earned over a century stays in it. This number was the largest',
+        'single drain in the economy until the 10th, and is now the largest single thing a village',
+        'keeps — which is why a village that survives long enough ends up two storeys tall.',
+      ],
     });
 
     // 5. and the one thing here that has to know what money buys
