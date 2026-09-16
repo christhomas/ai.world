@@ -53,7 +53,12 @@ const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?seed=${SEED}`;
 // borrowed playwright can always reach: its bundled chromium is a numbered download that matches
 // the borrowed version and is usually not the one that checkout happens to have on disk.
 const CHANNEL = process.env.CHANNEL ?? 'chrome';
-const OUT = process.env.OUT || 'playtest-report.txt';
+// kept as a literal because this file is CommonJS and `src/core/reports.ts` is an ES module.
+// The one place that decides this is that file; a second spelling of it here is the cost of the
+// two module systems, and `reports.test.ts` fails if they ever disagree.
+const REPORTS_DIR = 'docs/reports';
+require('node:fs').mkdirSync(REPORTS_DIR, { recursive: true });
+const OUT = process.env.OUT || require('node:path').join(REPORTS_DIR, 'playtest-report.txt');
 /*
  * How far a creature may be drawn from where the world has it, on average, before that counts as
  * wrong. Nameable rather than fixed, because it is not purely a fact about the game: the drawn body

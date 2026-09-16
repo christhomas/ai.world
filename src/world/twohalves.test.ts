@@ -1,3 +1,4 @@
+import { reportAt } from '../../tools/reports';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
@@ -63,7 +64,7 @@ import { mountainAt } from './ranges';
  */
 
 /** Where the run leaves its account of itself. Printed by `chore test halves`. */
-const REPORT = 'halves-report.txt';
+const REPORT = reportAt('halves-report.txt');
 const covered: string[] = [];
 
 /** The seeds asked about: one arbitrary, one the whole project has been played on. */

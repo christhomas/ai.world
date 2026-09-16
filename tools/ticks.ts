@@ -1,3 +1,4 @@
+import { reportAt } from './reports';
 import { execSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, loadavg, tmpdir, totalmem } from 'node:os';
@@ -38,7 +39,7 @@ import { WORLD } from '../src/core/config';
  */
 
 /** Where the findings are left, in the manner of the other benches. */
-const REPORT = 'tick-report.txt';
+const REPORT = reportAt('tick-report.txt');
 
 /**
  * The tick the server actually runs at, and therefore the budget.

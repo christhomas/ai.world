@@ -1,3 +1,4 @@
+import { reportAt } from '../../tools/reports';
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PROSPER } from '../world/prosperity';
@@ -44,7 +45,7 @@ import {
  */
 
 /** Where the run leaves its account of itself. Printed by `chore test economy`. */
-const REPORT = 'economy-report.txt';
+const REPORT = reportAt('economy-report.txt');
 
 /** One line of the account: a verdict, how many cases earned it, and what they were. */
 interface Line {

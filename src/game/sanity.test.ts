@@ -1,3 +1,4 @@
+import { reportAt } from '../../tools/reports';
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FOOD, cellarCap } from '../world/food';
@@ -51,7 +52,7 @@ import type { Post } from '../entities/entity';
  */
 
 /** Where the run leaves its account of itself. Printed by `chore sanity`. */
-const REPORT = 'sanity-report.txt';
+const REPORT = reportAt('sanity-report.txt');
 
 /** One line of the account: a verdict, how many cases earned it, and what they were. */
 interface Line {

@@ -169,7 +169,7 @@ jobs:
       - name: Show the reports
         if: always()
         run: |
-          for report in collision-report.txt wire-report.txt halves-report.txt; do
+          for report in docs/reports/collision-report.txt docs/reports/wire-report.txt docs/reports/halves-report.txt; do
             if [ -f "$report" ]; then
               {
                 echo '```'
@@ -188,9 +188,13 @@ jobs:
         with:
           name: benches
           path: |
-            collision-report.txt
-            wire-report.txt
-            halves-report.txt
+            docs/reports/collision-report.txt
+            docs/reports/wire-report.txt
+            docs/reports/halves-report.txt
+            docs/reports/economy-report.txt
+            docs/reports/population-report.txt
+            docs/reports/sanity-report.txt
+            docs/reports/unreached-report.txt
           if-no-files-found: warn
           retention-days: 30
 
@@ -337,10 +341,10 @@ jobs:
       - name: Show the report
         if: always()
         run: |
-          if [ -f playtest-report.txt ]; then
+          if [ -f docs/reports/playtest-report.txt ]; then
             {
               echo '```'
-              cat playtest-report.txt
+              cat docs/reports/playtest-report.txt
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -352,6 +356,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playtest
-          path: playtest-report.txt
+          path: docs/reports/playtest-report.txt
           if-no-files-found: warn
           retention-days: 30

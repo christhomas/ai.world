@@ -1,3 +1,4 @@
+import { reportAt } from '../../tools/reports';
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { LIFE } from '../world/people';
@@ -39,7 +40,7 @@ import {
  */
 
 /** Where the run leaves its account of itself. Printed by `chore population`. */
-const REPORT = 'population-report.txt';
+const REPORT = reportAt('population-report.txt');
 
 interface Line {
   verdict: 'PASS' | 'FAIL' | 'NOTE';

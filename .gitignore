@@ -12,17 +12,13 @@ server/data/
 # the design canvas is seeded from design/*.dc.html and published; the seeded page is a
 # two-megabyte build artefact and belongs in the repository no more than dist/ does
 ai-world-interface.html
-collision-report.txt
-wire-report.txt
-halves-report.txt
-economy-report.txt
-tick-report.txt
-playtest-report.txt
 
 # throwaway scripts for looking at the game — screenshots, one-off probes
 .scratch/
-unreached-report.txt
 
 # the note a killed `chore fallbacks` leaves behind, so the next run knows to tidy up
 .fallbacks-in-flight
-shopwalk-report.txt
+
+# every bench and tool writes its account of a run here, and none of them is tracked: a generated
+# file in git conflicts on every rebase, goes stale, and is then believed. See src/core/reports.ts
+docs/reports/
