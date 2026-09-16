@@ -53,14 +53,25 @@ across, and cut a new release from that. The tags are what make this possible â€
 version is a commit with a name, so "the last one that worked" is a thing you can check out rather
 than a thing you have to remember.
 
-Never move a tag that has been published. The image built from it stays in the registry under that
-number for ever, so a moved tag means a version whose name and contents disagree, and that is the
-one failure this whole arrangement exists to prevent.
+## The two rules that take a cluster down
+
+Everything else on this page is about getting a release out. These two are about not breaking one
+that is already out, and they are the reason the rest of it is shaped as it is.
+
+**Never move a tag that has been published.** The image built from it stays in the registry under
+that number for ever, so a moved tag means a version whose name and contents disagree, and that is
+the one failure this whole arrangement exists to prevent.
+
+**Never re-publish a version whose image build failed â€” cut the next one.** If the build fails after
+the release is published, the chart names a version that exists in git and nowhere else, and a
+cluster reconciling it gets `ImagePullBackOff` until somebody notices. Fixing the build and
+re-publishing the same number is the tempting move and it is the wrong one, for the same reason as
+above: that number has already been seen. Fix the build, cut the *next* version, and let Flux move
+forward onto it rather than backwards onto a number it has already tried.
+
+Both are about the same property: **a published version number is a fact, not a draft.**
 
 ## What can still go wrong
 
-- **The image build fails after the release is published.** Then the chart names a version that
-  exists in git and nowhere else, and a cluster reconciling it gets ImagePullBackOff. Fix the build,
-  and cut the *next* version rather than re-publishing the broken one.
 - **Somebody bumps the chart by hand.** The chart test catches the mismatch, but only when the tests
   run. `chore release` is the way to avoid the question.
