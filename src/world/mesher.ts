@@ -2,6 +2,7 @@ import { WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
 import { TILE_SALT } from '../core/salts';
 import { BIOMES } from './biomes';
+import { groundShade } from './meadow';
 import { contactField, contactShade } from './contactshade';
 import { TileType, type ChunkData } from './terrain';
 
@@ -380,7 +381,8 @@ export function buildChunkMesh(chunk: ChunkData, seed: number, cut?: WallCut): C
       const def = BIOMES[chunk.biome[i]];
       const wx = ox + lx, wz = oz + lz;
 
-      const shade = SHADE_MIN + rand2(seed, wx, wz, TILE_SALT.SHADE) * SHADE_RANGE;
+      // a swell across a field rather than a roll per tile; `meadow.ts` says why
+      const shade = groundShade(seed, wx, wz, SHADE_MIN, SHADE_RANGE);
       let base = topColor(chunk, i, type);
       if (type === TileType.Road) {
         base = roadColor(chunk, i, def, rand2(seed, wx, wz, TILE_SALT.ROAD_WEAR));

@@ -41,6 +41,7 @@ export const SALT = {
   SKY: 0x5c1e,              // which islands have another one floating over them, and its shape
   LOCAL_ROAD: 0x10ad,       // how a road of the endless country bends, and how high it sits
   UNWATCHED: 0xc105,        // where a creature nobody was watching has got to by the time you arrive
+  MEADOW: 0x3ead,           // which of a biome's two greens a patch of open ground is
   PROVINCE: 0x9401,         // what one five-hundred-tile square of country is like to walk into
 } as const;
 

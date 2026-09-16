@@ -1,7 +1,6 @@
-import { rand2 } from '../core/rng';
-import { TILE_SALT } from '../core/salts';
 import { BIOMES } from './biomes';
-import { DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, TileType, isFlatLand, type SampleGrid } from './terrain';
+import { alternateGround } from './meadow';
+import { DESPECKLE_MAJORITY, TileType, isFlatLand, type SampleGrid } from './terrain';
 
 /**
  * Taking the speckle out of a chunk of ground.
@@ -32,7 +31,7 @@ export function despeckle(grid: SampleGrid, gi: number, seed: number): { type: T
   const def = BIOMES[grid.biome[gi]];
   const tx = grid.x0 + (gi % grid.G), tz = grid.z0 + Math.floor(gi / grid.G);
   if (level - grid.base[gi] >= def.highAt) type = TileType.High;
-  else if (type === TileType.High) type = rand2(seed, tx, tz, TILE_SALT.GROUND_VARIANT) < GROUND_ALT_CHANCE ? TileType.GroundAlt : TileType.Ground;
+  else if (type === TileType.High) type = alternateGround(seed, tx, tz) ? TileType.GroundAlt : TileType.Ground;
   return { type, level };
 }
 

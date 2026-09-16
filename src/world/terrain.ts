@@ -2,6 +2,7 @@ import { GRAPH, HYDRO, WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
 import { SALT, TILE_SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
+import { alternateGround } from './meadow';
 import { biomeAt, segDist2, type RoadGraph } from './graph';
 import { BIOMES, Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
@@ -526,7 +527,8 @@ export class TerrainSampler {
     } else if (level - baseLevel >= def.highAt) {
       type = TileType.High;
     } else {
-      type = rand2(this.seed, tx, tz, TILE_SALT.GROUND_VARIANT) < GROUND_ALT_CHANCE ? TileType.GroundAlt : TileType.Ground;
+      // blotched rather than chequered: see `meadow.ts` for why this is not a coin flip
+      type = alternateGround(this.seed, tx, tz) ? TileType.GroundAlt : TileType.Ground;
     }
 
     if (water) {
