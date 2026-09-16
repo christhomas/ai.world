@@ -6,6 +6,10 @@ import { SALT, TILE_SALT, derive } from '../core/salts';
 import { cellKey } from './spatial';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
+import {
+  biomeAt, sectorMix, segDist2,
+  type IslandInfo, type Pie, type RoadEdge, type RoadGraph, type RoadNode, type SectorMix,
+} from './graph';
 
 /**
  * Road network. A space-colonisation tree grown from the hub in continuous 2D:
@@ -15,36 +19,6 @@ import { Biome } from './biomes';
  * and leaves sea everywhere else. Walkable land is then defined as "close to a road".
  */
 
-export interface RoadNode {
-  x: number;
-  z: number;
-  parent: number;   // -1 for the hub
-  depth: number;
-  level: number;    // terrace level the road sits on at this node
-  size: number;     // subtree node count; trunks are big, twigs are 1
-}
-
-export interface RoadEdge {
-  a: number;
-  b: number;
-  width: number;      // land half-width around this road
-  roadWidth: number;  // half-width of the road surface itself
-  loop: boolean;
-}
-
-/**
- * How far a bounded world is grown from its middle, in tiles.
- *
- * The one number in the game that asserts a world has an edge, which is why it sits here rather
- * than among the tunables: importing it is saying "the world I am making is the one that stops",
- * and only the three things entitled to say that do — this generator, the polygon mesh, and the
- * road web laid over it. Nothing that plays on the finished ground may read it. A whale placed on
- * a ring of it, a map padded out to it or a debug line printing it are all the same bug: they
- * work on a world with a middle and mean nothing in a world grown a patch at a time.
- *
- * Every world anybody has saved was grown to this, so it is not a knob any more — turning it
- * moves the ground under every house in every save.
- */
 export const EDGE_OF_THE_WORLD = 480;
 
 /**
@@ -56,44 +30,6 @@ export type RoadConfig = { -readonly [K in keyof typeof GRAPH]: number } & { RAD
 
 /** The road tree as the game grows it: the tuning, taken out to the edge of the world. */
 const BOUNDED: RoadConfig = { ...GRAPH, RADIUS: EDGE_OF_THE_WORLD };
-
-export interface IslandInfo {
-  id: string;
-  seed: number;
-  x: number;
-  z: number;
-  radius: number;
-  biome: Biome;
-  /** Node index of the island's hub (its harbour town). */
-  hub: number;
-  /** First node index belonging to this island (nodes are appended per island). */
-  firstNode: number;
-}
-
-export interface RoadGraph {
-  seed: number;
-  radius: number;
-  nodes: RoadNode[];
-  edges: RoadEdge[];
-  /** Node indices of town centres: each grew its own local road web, like a small hub. */
-  towns: number[];
-  /**
-   * The node the world was grown outward from, if it was grown outward from one.
-   *
-   * Absent in a world with no middle. Everything that reads it is asking the same question — where
-   * does the first village stand, which road must not lean — and a world without an edge has no
-   * answer, rather than having the answer "node nought", which is whichever crossroads happened to
-   * sort first.
-   */
-  hub?: number;
-  /** Islands attached by `attachIslands`; empty for a bare mainland. */
-  islands: IslandInfo[];
-  /** Number of nodes that belong to the mainland (islands are appended after). */
-  mainlandNodes: number;
-  /** Biome order by angular sector, index 0 starting at `sectorOffset` radians. */
-  sectors: Biome[];
-  sectorOffset: number;
-}
 
 interface Pt { x: number; z: number }
 
@@ -503,88 +439,8 @@ export function standingOf(graph: Pie, noise: Simplex2D): Uplands {
   return new Uplands((x, z) => BIOME_BASE[sectorMix(graph, noise, x, z).biome]);
 }
 
-export interface SectorMix {
-  biome: Biome;
-  /** Neighbouring biome bleeding in, and its weight in [0, 0.5]. */
-  other: Biome;
-  t: number;
-}
-
 const TAU = Math.PI * 2;
-/** Island biome extends this far past the island's nominal radius (covers its coast). */
-const ISLAND_BIOME_MARGIN = 40;
-/** Width of the dithered transition between biomes, in tiles. */
-const BLEND_TILES = 10;
 
-/**
- * What the biome pie is made of, which is less than a world.
- *
- * Three fields, because those are the three `sectorMix` reads. Said as a type of its own because
- * the pie has to be drawn before the ground can be, so `roadweb.ts` asks about it while it is
- * still holding a shuffled list of biomes and an angle and has no graph to put them in — and a
- * type that admits that is better than a cast that pretends otherwise.
- */
-export type Pie = Pick<RoadGraph, 'islands' | 'sectors' | 'sectorOffset'>;
-
-/**
- * Sector lookup with blend weights: plains inside the hub clearing, otherwise a noise-warped
- * angular wedge. Near a wedge edge (or the clearing edge) `other`/`t` describe the neighbour
- * bleeding in, so callers can dither tiles or lerp colours instead of drawing a hard line.
- */
-export function sectorMix(graph: Pie, noise: Simplex2D, x: number, z: number): SectorMix {
-  // islands are one biome each, surrounded by sea, so no blending is needed
-  for (const isl of graph.islands) {
-    if (Math.hypot(x - isl.x, z - isl.z) < isl.radius + ISLAND_BIOME_MARGIN) return { biome: isl.biome, other: isl.biome, t: 0 };
-  }
-  const r = Math.hypot(x, z);
-  const K = graph.sectors.length;
-  const warp = noise.fbm(x * 0.008, z * 0.008, 2) * 0.55;
-  const damp = Math.min(1, Math.max(0, (r - GRAPH.HUB_RADIUS) / 60));
-  let a = Math.atan2(z, x) + warp * damp - graph.sectorOffset;
-  a = ((a % TAU) + TAU) % TAU;
-  const f = (a / TAU) * K;
-  const idx = Math.floor(f) % K;
-  const frac = f - Math.floor(f);
-  const sector = graph.sectors[idx];
-
-  // angular band: BLEND_TILES wide regardless of radius
-  const arc = Math.max(1, r) * (TAU / K);
-  const w = Math.min(0.45, BLEND_TILES / arc);
-  let other = sector, t = 0;
-  if (frac < w) { other = graph.sectors[(idx + K - 1) % K]; t = 0.5 * (1 - frac / w); }
-  else if (frac > 1 - w) { other = graph.sectors[(idx + 1) % K]; t = 0.5 * (1 - (1 - frac) / w); }
-
-  // hub clearing ring
-  const R0 = GRAPH.HUB_RADIUS * 1.15;
-  if (r < R0) {
-    const tr = 0.5 * (1 - Math.min(1, (R0 - r) / BLEND_TILES));
-    return { biome: Biome.Plains, other: sector, t: tr };
-  }
-  const tr = 0.5 * (1 - Math.min(1, (r - R0) / BLEND_TILES));
-  if (tr > t) { other = Biome.Plains; t = tr; }
-  return { biome: sector, other, t };
-}
-
-/** Biome for a world position, dithered per tile across blend bands. */
-export function biomeAt(graph: RoadGraph, noise: Simplex2D, x: number, z: number): Biome {
-  const m = sectorMix(graph, noise, x, z);
-  if (m.t <= 0) return m.biome;
-  return rand2(graph.seed, Math.floor(x), Math.floor(z), TILE_SALT.BIOME_DITHER) < m.t ? m.other : m.biome;
-}
-
-/** Squared distance from p to segment ab, plus the parameter t of the closest point. */
-export function segDist2(px: number, pz: number, ax: number, az: number, bx: number, bz: number): [number, number] {
-  const vx = bx - ax, vz = bz - az;
-  const wx = px - ax, wz = pz - az;
-  const vv = vx * vx + vz * vz;
-  let t = vv > 0 ? (wx * vx + wz * vz) / vv : 0;
-  t = t < 0 ? 0 : t > 1 ? 1 : t;
-  const dx = ax + vx * t - px;
-  const dz = az + vz * t - pz;
-  return [dx * dx + dz * dz, t];
-}
-
-/** Island sizing and placement. Distances in tiles. */
 export const ISLANDS = {
   COUNT: 4,
   RADIUS_MIN: 70,

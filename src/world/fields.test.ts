@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FOOD } from './food';
-import { generateRoadGraph } from './graph.test.fixture';
+import { generateRoadGraph } from './roadtree';
 import { aDaysTrade } from './livelihoods';
 import { Register } from './register';
 import { TerrainSampler } from './terrain';

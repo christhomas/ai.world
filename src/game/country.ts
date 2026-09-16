@@ -5,15 +5,17 @@ import type { PropLibrary } from '../render/props';
 import type { SceneRig } from '../render/scene';
 import type { SeasonTintMaterials } from '../render/seasontint';
 import { SkyIslands } from '../render/skyisland';
-import { aroundPatches } from '../world/around';
+import { aroundOf, aroundPatches } from '../world/around';
 import { ChunkManager } from '../world/chunkManager';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
 import { viewOf } from '../world/patchview';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import { PatchCountry } from '../world/patchcountry';
+import { RoadCountry, type Country, type WorldKind } from '../world/countries';
+import { growWorld, islandsFor } from '../world/growworld';
 import { growerFor } from '../world/countryworker';
-import { TileType } from '../world/terrain';
+import { TerrainSampler, TileType } from '../world/terrain';
 import type { ManifestJson } from '../world/manifest';
 import { HighCountry } from './highcountry';
 import { Skyline } from './skyline';
@@ -34,6 +36,12 @@ export interface Growing {
    * two completely different countries and reopening a world as the other kind would put the ground
    * somewhere else under a house, a planted field and every anchor the manifest holds.
    */
+  /**
+   * Which generator grows it. It comes from the save whenever there is one, because the same seed
+   * grows two completely different countries and reopening a world as the other kind would put the
+   * ground somewhere else under a house, a planted field and every anchor the manifest holds.
+   */
+  world: WorldKind;
   savedManifest: ManifestJson | undefined;
   rig: SceneRig;
   props: PropLibrary;
@@ -47,7 +55,7 @@ export interface Growing {
  * saved yesterday keeps the ones it had.
  */
 export function growCountry(ctx: Growing) {
-  const { seed, savedManifest, rig, props, seasonTintMaterials } = ctx;
+  const { seed, world, savedManifest, rig, props, seasonTintMaterials } = ctx;
 
   // chosen when the world was made and written into its save, so it never changes underneath one
   const manifest = new Manifest(seed, savedManifest);
@@ -66,7 +74,7 @@ export function growCountry(ctx: Growing) {
    * otherwise the first `moveTo` of the frame puts it where he actually is, which costs one patch
    * grown and thrown away and is not worth a special case to avoid.
    */
-  const endless = new PatchCountry(seed, 0, 0);
+  const endless = world === 'endless' ? new PatchCountry(seed, 0, 0) : null;
   /*
    * And somebody else to grow the rest of it.
    *
@@ -76,7 +84,7 @@ export function growCountry(ctx: Growing) {
    * gets the five seconds rather than a hole in the world. Everything about the arrangement is
    * aimed at making that rare — ask for the neighbours while there is still ground underfoot.
    */
-  const grower = growerFor(seed, endless);
+  const grower = endless ? growerFor(seed, endless) : null;
   /*
    * And the country itself, through the one call there is. Not "the same call the world makes" —
    * literally the one call, which is the difference between two halves that agree and two halves
@@ -93,8 +101,16 @@ export function growCountry(ctx: Growing) {
    * about a crossing separately: the mountains, the chunk painter, the skyline and the high
    * country all have a `standOn`/`show` of their own that `frame.ts` calls.
    */
-  const view = viewOf(endless);
-  const sampler = endless.sampler;
+  /*
+   * The country, whichever kind of country it is. `countries.ts` is the door: both kinds answer
+   * the same four questions, and everything below this line asks them rather than asking which
+   * kind it got.
+   */
+  const country: Country = endless ?? new RoadCountry(
+    seed, new TerrainSampler(growWorld(seed, islandsFor(manifest, seed))),
+  );
+  const view = viewOf(country);
+  const sampler = country.sampler;
   const graph = sampler.graph;
   /**
    * The world's mountains, whichever kind this world grew: the road-tree world's domes, or the
@@ -119,12 +135,12 @@ export function growCountry(ctx: Growing) {
    * is a console that lists every village in the world on purpose. `world/around.ts` is only for the
    * ones that meant "near me" all along.
    */
-  const around = aroundPatches(endless.store);
+  const around = country.store ? aroundPatches(country.store) : aroundOf(sampler.structures);
   const daycycle = new DayCycle(rig);
   rig.sunDriven = true;
   // handed the patchwork as well, for a world whose chunks are painted patch by patch
   const chunks = new ChunkManager(
-    rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial, endless?.store,
+    rig.scene, sampler, props, rig.water.material, daycycle.glowMaterial, country.store ?? undefined,
     grower ? (patch) => grower.want(patch) : undefined,
   );
   chunks.useSeasonTint(seasonTintMaterials);

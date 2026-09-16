@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AWAKE } from '../entities/entity';
-import { generateRoadGraph } from '../world/graph.test.fixture';
+import { generateRoadGraph } from '../world/roadtree';
 import { StructureKind } from '../world/structures';
 import { TerrainSampler } from '../world/terrain';
 import { DAY_LENGTH } from './state';

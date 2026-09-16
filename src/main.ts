@@ -46,7 +46,7 @@ import { WorldMap } from './ui/worldmap';
 import { DialogueBox } from './ui/dialogue';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
-import { IndexedDbStore, type SaveStore, type SessionSave } from './save/store';
+import { IndexedDbStore, type SaveStore, type SessionSave, type WorldKind } from './save/store';
 import { generateQuests, questLine } from './game/quests';
 import { pubTalk } from './game/pub';
 import { Sound } from './game/audio';
@@ -92,7 +92,7 @@ import type { Screen } from './game/screen';
 import { createAuthority } from './game/authority';
 export function startGame(
   store: SaveStore, slotKey: string, saved: SessionSave | undefined, seed: number,
-  worldName: string | undefined, url: URL,
+  worldName: string | undefined, url: URL, world: WorldKind,
 ): void {
   /**
    * Whether the player has ever picked a quality themselves — asked before anything else, because
@@ -115,7 +115,7 @@ export function startGame(
   const {
     graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, skyline, high,
     eyries, skyIsles, skyRenderer, endless, grower, mountains,
-  } = growCountry({ seed, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
+  } = growCountry({ seed, world, rig, props, seasonTintMaterials, savedManifest: saved?.manifest });
   // the page's half of getting the country: what it kept first, and the world for the rest
   const { streamCountry, onParcel, tally: streamTally } = streamTheCountry({
     chunks, sampler, seed, want: (wanted) => online.wantChunks(wanted),

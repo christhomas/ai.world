@@ -26,25 +26,34 @@ import type { GameStateJson } from '../game/state';
 import type { ManifestJson } from '../world/manifest';
 import type { NemesisSave } from '../game/nemesis';
 import type { RoamingJson } from '../game/roaming';
+import type { WorldKind } from '../world/countries';
 
-/** The only country this build can grow. */
-export type WorldKind = 'endless';
+export type { WorldKind };
 
 /**
- * Resolve the obsolete discriminator at the persistence boundary. Old `road` and `mesh` saves must
- * still open, but their seed is now interpreted by the endless generator because no bounded
- * generator remains in the running game.
+ * The world a save is asking for, as this build can actually grow it.
+ *
+ * A save has to say which country it is in, because the same seed grows two completely different
+ * ones: a world written as endless and read back as a road world would put a house, a sown field
+ * and every anchor in the manifest standing in open sea, and there would be nothing left in the
+ * save to say which of the two it meant.
+ *
+ * **Absent means endless**, and that is a migration rather than a preference. Between #228 and the
+ * seam going back in there was one country and nothing wrote the field at all, so every save made
+ * in those weeks is an endless world with nothing on it that says so. Reading those as road worlds
+ * would move the ground out from under everything in them. Saves older than that said `road` or
+ * `mesh` in as many words and are still read as what they say — except `mesh`, whose generator is
+ * still only reachable from tests, and which opens as a road world for now.
  */
 export function kindOf(asked: string | undefined | null): WorldKind {
-  void asked;
-  return 'endless';
+  return asked === 'road' || asked === 'mesh' ? 'road' : 'endless';
 }
 
 export interface SessionSave {
   seed: number;
   /** Durable server/world-worker key. Absent on saves made before named worlds existed. */
   worldName?: string;
-  /** Obsolete discriminator retained only so older persisted saves can be read and migrated. */
+  /** Which world this is. Absent means endless; see `kindOf`. */
   world?: WorldKind;
   cam: { x: number; z: number; rot: number; zoom: number };
   player?: { x: number; z: number };

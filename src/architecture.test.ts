@@ -63,7 +63,10 @@ const ALLOWED: Record<string, number> = {
   // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,
   // and the fourth is which roaming bands have been fought, for the same reason.
   'save->game': 3,
-  'save->world': 1,
+  // The second is `WorldKind`. A save records which generator grew its country, and the generators
+  // live in `world/` — so the type belongs there and the save imports it, rather than the world
+  // importing its own vocabulary back out of the persistence layer.
+  'save->world': 2,
 };
 
 const files = (dir: string): string[] =>

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { FOOD, cellarCap } from '../world/food';
 import { GROWTH } from '../world/growth';
 import { ROOFS, STANDARD } from '../world/roofs';
-import { generateRoadGraph } from '../world/graph.test.fixture';
+import { generateRoadGraph } from '../world/roadtree';
 import { Register } from '../world/register';
 import { TerrainSampler } from '../world/terrain';
 import { FIELD, fieldOfWork, fieldRoomFor, type FieldWork } from '../world/fields';

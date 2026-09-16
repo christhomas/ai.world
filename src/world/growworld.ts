@@ -1,5 +1,7 @@
 import { samplerIn } from './endless';
 import type { RoadGraph } from './graph';
+import { islandAnchors, planIslands, roadTreeWorld } from './roadtree';
+import type { Anchor, Manifest } from './manifest';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
 
@@ -14,8 +16,44 @@ import type { Within } from './window';
  * kind of bug no amount of care inside a generator can prevent. So the call itself became the
  * thing worth having exactly once.
  *
- * `growworld.test.ts` is what keeps that true.
+ * `growworld.test.ts` is what keeps that true: it reads the source of the game and the server and
+ * fails if anything but this file names the generators.
  */
+
+/**
+ * The country of a seed, when the seed grows one that exists all at once: the roads, the towns and
+ * the islands, and nothing that is drawn.
+ *
+ * `islands` because the seed does not quite settle a road-tree world on its own. Where the islands
+ * hang is planned from the seed, so a world made today has them where `islandAnchors` says — but a
+ * world saved before that code existed has them written down in its manifest, and moving them would
+ * move the ground out from under a house somebody built on one. So the anchors a page is playing
+ * with are handed in rather than worked out here, and they travel with the join. Left out, the
+ * seed's own answer stands, which is what every fresh world gets.
+ */
+export function growWorld(seed: number, islands?: readonly Anchor[]): RoadGraph {
+  return roadTreeWorld(seed, islands ? [...islands] : undefined);
+}
+
+/**
+ * A world's islands: the ones it was saved with, or the ones its seed says it should have.
+ *
+ * Written down the moment they are known, so a world saved today is saved with them and a world
+ * saved yesterday keeps the ones it had. Here rather than in `country.ts` for the reason everything
+ * else here is: where the islands hang is one of the things a country is a function of, so it is
+ * worked out in the one place that grows one.
+ */
+export function islandsFor(manifest: Manifest, seed: number): readonly Anchor[] {
+  const saved = manifest.byKind('island');
+  if (saved.length > 0) return saved;
+  for (const p of planIslands(roadTreeWorld(seed), seed)) manifest.ensure(p.id, 'island', p.x, p.z);
+  return manifest.byKind('island');
+}
+
+/** Where a world's islands hang, for a manifest that has not written them down yet. */
+export function islandsOfSeed(seed: number): Anchor[] {
+  return islandAnchors(roadTreeWorld(seed), seed);
+}
 /**
  * The endless country, one patch of it, and the same rule about there being one caller.
  *

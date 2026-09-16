@@ -44,22 +44,26 @@ function sources(dir: string): string[] {
 }
 
 describe('the one place a world is grown', () => {
-  it('has no bounded generator left in the running game or server', () => {
+  it('names the bounded generator in one place, and that place is this one', () => {
     /*
-     * Every retired name, including the one the guard was written without.
+     * The guard that used to stand here said there was no bounded generator left at all, and it was
+     * true for three weeks: #228 moved the road tree into `graph.test.fixture.ts` and nothing
+     * runtime mentioned it. That was never a retirement. Most of this suite went on growing its
+     * worlds with `generateRoadGraph` the whole time, which is a live generator with no door on it
+     * rather than a dead one — and when the country it had been replaced with turned out to look
+     * worse, there was nothing the game could be asked to grow instead.
      *
-     * `generateRoadGraph` grew the bounded world and now lives in `graph.test.fixture.ts`, where
-     * the suite still uses it to hold decades of assertions about a country with a middle. That is
-     * why it was not in this list: nothing runtime mentions it, so nothing was wrong today. But
-     * "nothing is wrong today" is what the other four names were true of as well, and this guard's
-     * whole job is the day somebody imports one back. A retired generator left out of the pattern
-     * is a retired generator with no guard on it.
+     * So the invariant goes back to the one this file was written for, which is stronger than
+     * absence and always was: the bounded generator is *named* in one place, and everything that
+     * wants a bounded country goes through it. `roadtree.ts` is in the list because it is where the
+     * names are defined. Nothing else may appear.
      */
-    const bounded = /\b(EDGE_OF_THE_WORLD|generateRoadGraph|generateWebGraph|roadTreeWorld|planIslands)\b/;
+    const bounded = /\b(EDGE_OF_THE_WORLD|generateRoadGraph|generateWebGraph|roadTreeWorld|planIslands|islandAnchors)\b/;
     const readers = ['src', 'server']
       .flatMap((dir) => sources(dir))
       .filter((path) => bounded.test(readFileSync(path, 'utf8')));
-    expect(readers).toEqual([]);
+    expect(readers.sort(), 'a second way of reaching the bounded generator has appeared')
+      .toEqual(['src/world/growworld.ts', 'src/world/roadtree.ts']);
   });
 
   it('is the only place that calls a generator', () => {
