@@ -5635,3 +5635,7 @@ than by remembering — and the first thing found was that the gap is not where 
       thirty — the sample was three prey), and `watch.ts` reading as unreachable (the import is
       `./game/watch`, and a grep for `./watch` missed it). Both took under a minute to disprove.
       Verify before believing, and prefer the candidates with volume behind them.
+      **September 14 report.** `chore reachable` is still 43. Its report is deliberately a list of
+      candidates, not defects: table constants and test seams are explained; the remaining named
+      helpers need the delete-or-wire decisions recorded above. No candidate is being silently
+      suppressed — `unreached-report.txt` is the complete current list and the ratchet remains 43.

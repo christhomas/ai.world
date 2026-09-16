@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { whatShipped } from './release';
+import { howTheChecksStand, whatShipped } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -34,6 +34,21 @@ describe('what a release shipped', () => {
 
   it('claims the lot when there was no previous release', () => {
     expect(whatShipped(closed, null)).toEqual([4, 6, 7]);
+  });
+});
+
+describe('GitHub check states', () => {
+  it('waits while no checks exist or any check has not reached a terminal state', () => {
+    expect(howTheChecksStand([])).toBe('waiting');
+    expect(howTheChecksStand([{ state: 'SUCCESS' }, { state: 'IN_PROGRESS' }])).toBe('waiting');
+  });
+
+  it('fails as soon as any check is red, without waiting for its neighbours', () => {
+    expect(howTheChecksStand([{ state: 'FAILURE' }, { state: 'IN_PROGRESS' }])).toBe('failed');
+  });
+
+  it('passes only after every check reaches an accepted terminal state', () => {
+    expect(howTheChecksStand([{ state: 'SUCCESS' }, { state: 'SKIPPING' }, { state: 'NEUTRAL' }])).toBe('passed');
   });
 });
 

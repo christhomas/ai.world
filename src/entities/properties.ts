@@ -144,10 +144,10 @@ function readCreature(f: Fields, id: string): CreatureProperties {
   };
 }
 
-/** What is left on the body, if anything is. */
+/** What is left on the body; an explicit empty group means nothing. */
 function dropOf(f: Fields): { id: string; chance: number } | undefined {
-  const drop = f.maybeGroup('drop');
-  if (!drop) return undefined;
+  const drop = f.group('drop');
+  if (!drop.has('id')) return undefined;
   return { id: drop.text('id'), chance: drop.num('chance') };
 }
 

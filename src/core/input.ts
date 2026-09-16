@@ -35,9 +35,13 @@ export class Input {
     const signal = this.listening.signal;
     document.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
-      if (!e.repeat) {
-        this.keyHandlers.get(k)?.forEach((h) => h());
+      // Text belongs to the field holding the cursor. Keeping this at the one document listener
+      // means a newly bound game key cannot accidentally become a chat shortcut.
+      if (isTextEntry(e.target)) {
+        this.keys.delete(k);
+        return;
       }
+      if (!e.repeat) this.keyHandlers.get(k)?.forEach((h) => h());
       this.keys.add(k);
     }, { signal });
     document.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()), { signal });
@@ -166,6 +170,11 @@ export class Input {
 }
 
 /** How far apart the first two fingers are, in pixels. */
+/** Whether the browser has given the key to a field rather than the world. */
+function isTextEntry(target: EventTarget | null): boolean {
+  return target instanceof Element
+    && (target.matches('input, textarea, select') || target.closest('[contenteditable="true"]') !== null);
+}
 function gapBetween(touches: TouchList): number {
   if (touches.length < 2) return 0;
   return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);

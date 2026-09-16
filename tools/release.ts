@@ -180,18 +180,50 @@ function notesFor(version: string, body: string): string {
   }
 }
 
-/** Wait for every check to finish, for the case where nothing will merge it for us. */
+/** One check's terminal state as GitHub reports it. */
+type Check = { state: string };
+
+/**
+ * Empty and unfinished check sets are waiting: a new request has no rows before Actions schedules
+ * it, and "none failed" is not evidence that a release is ready. A red check decides immediately.
+ */
+export function howTheChecksStand(checks: readonly Check[]): 'waiting' | 'failed' | 'passed' {
+  if (checks.length === 0) return 'waiting';
+  if (checks.some(({ state }) => ['FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STALE'].includes(state))) {
+    return 'failed';
+  }
+  return checks.every(({ state }) => ['SUCCESS', 'SKIPPING', 'NEUTRAL'].includes(state)) ? 'passed' : 'waiting';
+}
+
+/** `gh pr checks` uses a non-zero exit for pending and failed checks; its JSON is still the answer. */
+function runForChecks(branch: string): Check[] {
+  let said: string;
+  try {
+    said = run('gh', ['pr', 'checks', branch, '--json', 'state']);
+  } catch (error: unknown) {
+    if (!error || typeof error !== 'object' || !('stdout' in error)) throw error;
+    const stdout = error.stdout;
+    if (typeof stdout === 'string') said = stdout.trim();
+    else if (Buffer.isBuffer(stdout)) said = stdout.toString('utf8').trim();
+    else throw error;
+  }
+  const parsed: unknown = JSON.parse(said);
+  if (!Array.isArray(parsed) || parsed.some((check) => !check || typeof check !== 'object' || !('state' in check) || typeof check.state !== 'string')) {
+    throw new Error('GitHub did not return check states');
+  }
+  return parsed;
+}
+
+/** Poll rather than delegate waiting to `gh`, so the deadline is checked after every observation. */
 function waitForTheChecks(branch: string): void {
   const until = Date.now() + WAIT_FOR_CI;
-  while (Date.now() < until) {
-    try {
-      run('gh', ['pr', 'checks', branch, '--watch', '--fail-fast']);
-      return;
-    } catch {
-      throw new Error('a check failed — the release is not going out on a red commit');
-    }
+  for (;;) {
+    const stand = howTheChecksStand(runForChecks(branch));
+    if (stand === 'passed') return;
+    if (stand === 'failed') throw new Error('a check failed — the release is not going out on a red commit');
+    if (Date.now() >= until) throw new Error('the checks have not finished in time');
+    execFileSync('sleep', ['15']);
   }
-  throw new Error('the checks have not finished in time');
 }
 
 /**
