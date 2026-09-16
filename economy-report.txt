@@ -1,0 +1,91 @@
+ECONOMY BENCH — PASS — 2026-09-16T16:40:50.825Z
+
+  8 villages on 3 seeds, 100 days each, audited against their own books and
+  nothing else: the roll, the stones and the births, which is what a player pays a clerk to see.
+  PASS and FAIL are faults. NOTE is what the hundred days came to, and is for somebody to
+  decide about rather than for a machine to judge.
+
+  PASS        1966  village-days audited to the coin, 39,518 people-days in them (540 funerals stood aside from, and answered for below)
+  PASS         540  funerals, and 0 gold buried with the dead (1 villages died out entirely, whose money is honestly gone)
+  PASS       49446  people-days on the roll: none aged backwards, none shared a name with anybody
+  PASS         540  deaths, every one of them written down on the day it happened (and 4 people walked to another village)
+  PASS        2381  village-days on which money both came in and went out (394 working lives watched, none unpaid)
+                    On 5 of those evenings a village was worth to the penny what it had been worth the
+                    evening before. That is not money standing still — it is a village at the point where the wage
+                    and the day exactly cancel, which is the thing the last section of this report is about.
+  PASS        2647  gold carried between valleys over 3 runs, against 2268 dug out of the ground
+                    Ashford was paid 1131.58 by the next valley, and has no mine
+                    Oakcross was paid 229.02 by the next valley, and has no mine
+                    Saltcombe was paid 150.4 by the next valley, and has no mine
+                    Thornby paid 88.11 for food it did not grow
+                    Windle paid 263.84 for food it did not grow
+                    Stonedale paid 307.71 for food it did not grow
+                    Blackmarsh paid 1178.45 for food it did not grow
+                    Neither is minted: what one valley was paid, the other paid, which is why the audit at the
+                    top of this report still balances to the coin with carts on the road.
+  PASS           3  raided villages that got poorer while the band was there and made it back afterwards
+                    seed 1: Thornby 878.72 → 699.98 under the band (-20%) → 2863.1 by day 101; Ashford 60% over the same days
+                    seed 7: Thornby 955.89 → 761.53 under the band (-20%) → 1801.33 by day 101; Ashford 68% over the same days
+                    seed 1234: Thornby 1100.15 → 925.9 under the band (-16%) → 3056.18 by day 101; Ashford 62% over the same days
+  PASS           9  villages left alone for a hundred days that neither emptied nor starved nor ended broke
+                    seed 1 Ashford: 30 of 19 souls, 3896.02 gold between them, 24 stones
+                    seed 1 Oakcross: 42 of 26 souls, 5200.66 gold between them, 36 stones
+                    seed 1 Saltcombe: 19 of 16 souls, 2690.29 gold between them, 20 stones
+                    seed 7 Ashford: 30 of 16 souls, 4026.91 gold between them, 24 stones
+                    seed 7 Oakcross: 42 of 25 souls, 5393.14 gold between them, 35 stones
+                    seed 7 Saltcombe: 20 of 12 souls, 2972.28 gold between them, 20 stones
+                    seed 1234 Ashford: 24 of 19 souls, 3101.23 gold between them, 24 stones
+                    seed 1234 Oakcross: 39 of 23 souls, 4556.2 gold between them, 36 stones
+                    seed 1234 Saltcombe: 20 of 16 souls, 2916.44 gold between them, 20 stones
+  PASS           2  villages that raised a second storey out of their own purses, and 6 that raised a bath house
+                    seed 1 Oakcross: never two storeys, but a bath house from day 70
+                    seed 1 Fernreach: never two storeys, but a bath house from day 99
+                    seed 1 Windle: two storeys from day 87
+                    seed 7 Ashford: never two storeys, but a bath house from day 97
+                    seed 7 Oakcross: never two storeys, but a bath house from day 71
+                    seed 7 Blackmarsh: two storeys from day 69
+                    seed 1234 Oakcross: never two storeys, but a bath house from day 101
+                    seed 1234 Fernreach: never two storeys, but a bath house from day 95
+  PASS           3  wooded villages whose farms outgrew byres while bare Stonedale raised no stable
+                    Ashford (seed 7) on day 101: 1 stable rungs, room for 30
+                    Oakcross (seed 7) on day 101: 1 stable rungs, room for 36
+                    Fernreach (seed 1234) on day 101: 2 stable rungs, room for 36
+                    Stonedale (seed 1) on day 101: 0 stable rungs, room for 18
+                    Stonedale (seed 7) on day 101: 0 stable rungs, room for 18
+                    Stonedale (seed 1234) on day 101: 0 stable rungs, room for 18
+  NOTE          14  trades anybody in these villages actually held, and what the roll pays them
+                    seller 11.765384615384615, farmer 9.795973732227168, doctor 6.7859107581784075, innkeeper 6.710721011781294, hunter 6.4204628435335485, climber 4.377777777777777, soldier 4.329089602136061, explorer 4.240625, miner 4.047524176072885, sailor 3.8, fisherman 3.8, builder 3.7881396484375003, woodcutter 3.279770275290823, constable 1.8
+                    seller take the higher rate at 11.765384615384615; the other 13 trades are on 1.8.
+                    It was one trade and one man. The set naming the better-paid trades named shops — shopkeeper,
+                    smith, apothecary, merchant — and four of those five are not jobs anybody in this world can
+                    hold, so the higher rate reached the innkeeper and nobody else, at most one to a village.
+  NOTE           3  villages left alone: what a working purse comes to, and whether it is still moving
+                    Ashford: the middle working villager holds 38.66 — 30.27 at three weeks, 73.86 at fifty days — and has held tonight's figure for 0 days
+                    Oakcross: the middle working villager holds 30.23 — 26.79 at three weeks, 65.07 at fifty days — and has held tonight's figure for 0 days
+                    Saltcombe: the middle working villager holds 30.88 — 29.94 at three weeks, 84.92 at fifty days — and has held tonight's figure for 0 days
+                    It used to come to rest at exactly 6.5 and hold it for the last 87 days of the hundred, in
+                    every one of these villages on every seed. Upkeep was larger than what a day had left after
+                    dinner, so the reserve that stops a man spending himself into starving was also the ceiling
+                    on what he could ever hold.
+  NOTE           3  the only place in the world a coin is minted rather than moved, and how long it lasted
+                    seed 1 Fernreach: 545 gold minted, the last of it on day 101; the village last had a miner on day 101 of 101, and holds 3993.9 of it
+                    seed 7 Fernreach: 743 gold minted, the last of it on day 101; the village last had a miner on day 101 of 101, and holds 3637.65 of it
+                    seed 1234 Fernreach: 980 gold minted, the last of it on day 101; the village last had a miner on day 101 of 101, and holds 4927.42 of it
+                    A carrier is the other way a village gets money it did not have this morning, and it is not a
+                    second mint: what one valley is paid, the next valley paid. See the carrying line above.
+  NOTE      134825  gold that changed hands at funerals, against 40597 spent on living
+                    A purse is not buried with its owner. `inheritance.ts` hands what somebody held to their
+                    family in the same village, or shares it among whoever is left where there is nobody of the
+                    name, so what a place has earned over a century stays in it. This number was the largest
+                    single drain in the economy until the 10th, and is now the largest single thing a village
+                    keeps — which is why a village that survives long enough ends up two storeys tall.
+  NOTE        1966  gold in the richest purse in the world after a hundred days; a second storey wants 210 a head
+                    The best-off village between them holds 5393.14, and the best-off a head holds 1241.56 against
+                    the 210 its houses grow on. A bath house wants 3950 between the whole village.
+                    2 of the 24 villages lived here got their houses up to two storeys, the first of
+                    them on day 69; 6 held enough between them for a bath house, from
+                    day 70: Oakcross (seed 1), Fernreach (seed 1), Ashford (seed 7), Oakcross (seed 7), Oakcross (seed 1234), Fernreach (seed 1234).
+                    It was 340 a head and 3,400 between them, against a best of 33 a head and 528 in the village —
+                    a factor of ten and a factor of six, so neither had ever been reached in the life of the game.
+
+  Written by src/game/economy.test.ts to economy-report.txt. Run it again with: chore test economy

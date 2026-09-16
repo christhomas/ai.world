@@ -15,7 +15,7 @@ import { VoteBook } from './votebook';
 import { doctoredBy, laidUpFor } from './wounds';
 import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
-import { Arrivals, type Arrival } from './arrivals';
+import { Arrivals, swornTrades, type Arrival } from './arrivals';
 import { aCarrierWalks } from './carriers';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
@@ -619,7 +619,7 @@ export class Register {
       const here = this.villages.get(change.village);
       if (!here) return true;              // nobody has settled it; kept for the morning they do
       // A late oath changes later apprenticeships, so replay rather than patching today's village.
-      if (oath.day === this.day) { here.sworn.push(oath); return true; }
+      if (oath.day === this.day) { here.sworn.push(oath); swornTrades(here, here.sworn); return true; }
       this.relive(change.village);
       return true;
     }
@@ -665,7 +665,7 @@ export class Register {
     const people = this.settle(village, settlement.houses, settlement.trades);
     // and whoever walked in, who is not implied by the seed and would otherwise simply be gone
     const now = this.villages.get(village);
-    if (now) this.arrived.putBack(village, now, this.day);
+    if (now) { this.arrived.putBack(village, now, this.day); swornTrades(now, now.sworn); }
     for (const person of people) {
       const held = remembered.get(person.id);
       if (!held) continue;

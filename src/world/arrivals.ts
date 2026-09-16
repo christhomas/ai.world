@@ -1,5 +1,6 @@
 import { LIFE, type Person } from './people';
 import type { Settlement } from './settlement';
+import type { Sworn } from './vacancies';
 
 /**
  * Somebody who walked into a village rather than being born into it.
@@ -99,6 +100,28 @@ export class Arrivals {
   /** Put this village's arrivals back after it has been founded again. See `walkThemIn`. */
   putBack(village: string, here: Settlement, upTo: number): void {
     walkThemIn(village, here, this.byVillage.get(village) ?? [], upTo);
+  }
+}
+
+/**
+ * Give somebody on the roll the trade they swore to at the hall.
+ *
+ * An oath used to *reserve* a trade and nothing else — `vacancies.ts` keeps sworn trades out of the
+ * roll so a village stops apprenticing its own children into work a traveller has taken. That was
+ * the whole of it, because the person swearing was never on the register and there was nobody to
+ * give the trade to.
+ *
+ * Now there is. Without this the oath closes the vacancy, the hero's `trade` stays empty, and
+ * `holdings.ts` never offers him a farm — `canDo` reads `capabilitiesOf(person.trade)`, and nothing
+ * is capable of anything. He would be sworn to a job the world agreed he had and paid nothing for
+ * it, which is the exact complaint #260 was filed about, one layer further in.
+ *
+ * By name, because that is what an oath is keyed on and what an arrival is identified by.
+ */
+export function swornTrades(here: Settlement, oaths: readonly Sworn[]): void {
+  for (const oath of oaths) {
+    const them = here.people.find((p) => p.name === oath.who);
+    if (them && them.trade === '') them.trade = oath.trade;
   }
 }
 

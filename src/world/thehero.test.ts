@@ -65,6 +65,29 @@ describe('a hero the register knows', () => {
     const free = book.directoryOf('Ashford').nobodyDoing[0];
     expect(free, 'no vacancy to swear to').toBeTruthy();
     expect(book.swearIn('Ashford', free, 'Rowan')).not.toBeNull();
+
+    /*
+     * And the half that was missing, which the oath being *accepted* does not prove.
+     *
+     * An oath used to only reserve a trade: `vacancies.ts` keeps sworn trades out of the roll so a
+     * village stops apprenticing its own children into work a traveller has taken, and that was the
+     * whole of it — because the person swearing was never on the register and there was nobody to
+     * give the trade to. Now there is, and without this he is sworn to a job the world agrees he
+     * has while `person.trade` stays empty: paid nothing by `livelihoods.ts`, and offered nothing
+     * by `holdings.ts`, whose `canDo` reads `capabilitiesOf(person.trade)`.
+     */
+    expect(book.living('Ashford').find((p) => p.name === 'Rowan')!.trade).toBe(free);
+  });
+
+  it('keeps the trade it swore to when the village is lived again', () => {
+    const book = village();
+    book.arrive('Ashford', 'Rowan', 'man', 40);
+    const free = book.directoryOf('Ashford').nobodyDoing[0];
+    book.swearIn('Ashford', free, 'Rowan');
+    for (let day = 2; day <= 20; day++) book.advance(day);
+    const villager = book.living('Ashford').find((p) => p.name !== 'Rowan')!;
+    book.apply({ kind: 'died', id: villager.id, day: 12 } as never);
+    expect(book.living('Ashford').find((p) => p.name === 'Rowan')?.trade).toBe(free);
   });
 
   it('is somebody a villager can hold an opinion of, because he has a name on a row', () => {
