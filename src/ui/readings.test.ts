@@ -97,6 +97,36 @@ describe('what the corner of a phone says about the hero', () => {
     expect(rail![1]).toContain('62px');
   });
 
+  it('puts the reflex pair in the corner the card owns, under it', () => {
+    /*
+     * They orbited the big USE button on an arc; when USE moved into the action card the arc
+     * stayed, so three discs hung in the middle of the picture beside a card flush to the corner,
+     * belonging to nothing. The handoff: *"today's build has this backwards — USE owns the corner
+     * and the sword orbits into the middle of the picture."*
+     */
+    const strip = CSS.match(/body\.touch #touchAct\s*\{([^}]*)\}/s);
+    expect(strip, 'the touch reflex strip rule has gone').not.toBeNull();
+    expect(strip![1]).toMatch(/right:\s*var\(--safe-right\)/);
+    expect(strip![1]).toMatch(/bottom:\s*var\(--safe-bottom\)/);
+    expect(strip![1], 'one band, shared with the card above it').toContain('var(--band-action)');
+  });
+
+  it('stacks the card on the strip rather than on the edge', () => {
+    // both measured against the same named height, so neither can drift onto the other
+    expect(CSS).toMatch(/--reflex-row:\s*calc\(62 \* var\(--ui-scale\)\)/);
+    const card = CSS.match(/body\.touch #actionCard\s*\{([^}]*)\}/s);
+    expect(card, 'the card no longer sits on the strip').not.toBeNull();
+    expect(card![1]).toContain('var(--reflex-row)');
+  });
+
+  it('takes the arc off the reflex buttons rather than leaving it to be undone twice', () => {
+    // a transform left on and cancelled somewhere else is the shape of the bug this replaced
+    const orbit = CSS.match(/body\.touch #touchAct \.touch-orbit\s*\{([^}]*)\}/s);
+    expect(orbit, 'the orbit override has gone').not.toBeNull();
+    expect(orbit![1]).toMatch(/transform:\s*none/);
+    expect(orbit![1]).toMatch(/position:\s*static/);
+  });
+
   it('keeps the safe-area inset outside the padding rather than folding it in', () => {
     // a notch is an obstruction, not taste: see the same rule in `geometry.test.ts`
     expect(onAPhone('#status')).toContain('var(--safe-left)');

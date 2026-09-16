@@ -1152,11 +1152,39 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 body:has(#title.show, #dialogue.show, #worldmap.show, #kinpanel.show, #rucksack.show, #journal.show, #players.show, #roster.show, #optionsPanel.show, #photoHint.show, #touchMore.show) #actionCard {
   display: none;
 }
+/*
+ * The reflex pair, in the corner the card owns, underneath it.
+ *
+ * They orbited the big USE button on an arc, and when `USE` moved into the action card the arc
+ * stayed — so three discs hung in the middle of the picture beside a card flush to the corner,
+ * belonging to nothing. The handoff is blunt about it: *"today's build has this backwards — USE
+ * owns the corner and the sword orbits into the middle of the picture."*
+ *
+ * So the pair is a strip at the foot of the same band, and the card stacks on top of it. The strip
+ * never moves and never changes: that is what makes it a reflex, and it is why it is at the bottom
+ * where a thumb rests rather than above verbs that come and go.
+ *
+ * Square, where every other control here is a disc. A disc is right for something a thumb hunts
+ * for; these are the two it never has to, and a square packs a row with no gaps between the edges
+ * the thumb is aiming between.
+ */
 body.touch #touchAct {
-  right: calc(var(--band-action) + var(--safe-right) + var(--touch-gap));
-  bottom: calc(var(--safe-bottom) + var(--touch-edge));
+  right: var(--safe-right);
+  bottom: var(--safe-bottom);
+  width: var(--band-action); height: var(--reflex-row);
+  display: flex; gap: var(--ui-scale); pointer-events: none;
 }
 body.touch #touchAct .touch-do { display: none; }
+/* the swing takes what the other two leave, so it is always the widest thing in the row */
+body.touch #touchAct .touch-orbit {
+  position: static; margin: 0; transform: none; border-radius: 0;
+  width: var(--reflex-row); height: var(--reflex-row); flex: 0 0 auto;
+}
+body.touch #touchAct .touch-swing { flex: 1 1 auto; width: auto; order: 0; }
+body.touch #touchAct .touch-guard { order: 2; }
+body.touch #touchAct .touch-loose { order: 1; }
+/* and the card sits on the strip rather than on the edge, one hairline clear of it */
+body.touch #actionCard { bottom: calc(var(--safe-bottom) + var(--reflex-row) + var(--ui-scale)); }
 @media (max-width: 620px) {
   #actionCard { width: min(var(--band-action), calc(46vw - var(--safe-right))); }
   .action-card-row { padding-inline: calc(9 * var(--ui-scale)); }
@@ -1241,6 +1269,12 @@ body.touch #touchAct .touch-do { display: none; }
    * each of those it has to stay clear.
    */
   --band-bearings: calc(140 * var(--ui-scale));
+  /**
+   * How tall the reflex strip is: sixty-two, which is the handoff's number and is a fingertip and a
+   * half. Named because two things are measured against it — the strip itself, and the action card
+   * that stacks on top of it.
+   */
+  --reflex-row: calc(62 * var(--ui-scale));
 }
 body { touch-action: manipulation; overscroll-behavior: none; }
 #gameContainer { height: 100vh; height: 100dvh; }
