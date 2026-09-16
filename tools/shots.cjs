@@ -36,6 +36,18 @@ const PORT = process.env.PORT || '5173';
  */
 const CHANNEL = process.env.CHANNEL ?? 'chrome';
 const OUT = process.env.OUT || 'docs/screenshots';
+/*
+ * Which way to draw, so the same seed and the same camera can be shot both ways and the judgement
+ * is two pictures rather than a memory. `chore compare` reads them.
+ *
+ *   RIG=composer chore shots -- town      the second path (#250)
+ *   RIG=classic  chore shots -- town      straight to the canvas
+ *   (unset)                               whatever this browser profile remembers
+ *
+ * Set into localStorage before the page loads, because the rig is built from the answer at boot and
+ * a switch flipped afterwards changes nothing until the next world.
+ */
+const RIG = process.env.RIG || '';
 const COUNTS_OUT = process.env.FALLBACK_COUNTS || '';
 const sweep = { visits: [], defaults: [] };
 
@@ -548,6 +560,11 @@ async function playerJoins(browser, seed, villages = 3) {
 /** Take one, and say what happened. */
 async function take(browser, shot) {
   const page = await browser.newPage({ viewport: shot.viewport ?? VIEW });
+  if (RIG) {
+    await page.addInitScript((on) => {
+      try { localStorage.setItem('ai.world/new/composer', on); } catch { /* no storage, no switch */ }
+    }, RIG === 'composer' ? 'on' : 'off');
+  }
   const errs = [];
   page.on('pageerror', (e) => errs.push(e.message));
   /*

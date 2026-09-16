@@ -732,6 +732,25 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
   letter-spacing: calc(2 * var(--ui-scale)); color: var(--accent); text-transform: uppercase;
 }
 
+/*
+ * Things worth trying, offered on the title screen. See `switches.ts`.
+ *
+ * A plain checkbox rather than the `role="switch"` control below it, and that is deliberate: a
+ * guard in `title.test.ts` keeps that pattern out of this screen, because the switch it was written
+ * for chose a world's *kind* — a choice written into the save that cannot be undone afterwards.
+ * These decide nothing that is written down, so they get the quieter control.
+ */
+#titleExtras { margin-top: calc(22 * var(--ui-scale)); display: grid; gap: calc(12 * var(--ui-scale)); }
+#titleExtras .switch {
+  display: grid; grid-template-columns: auto 1fr; gap: 0 calc(10 * var(--ui-scale));
+  align-items: baseline; cursor: pointer; text-align: left;
+}
+#titleExtras .switch input { grid-row: 1 / span 2; accent-color: var(--accent); }
+#titleExtras .switch-name { color: var(--ink); font-size: calc(13 * var(--ui-scale)); }
+/* The note is the whole reason a switch is safe to offer, so it is always shown rather than
+   hidden behind a hover nobody on a phone can perform. */
+#titleExtras .switch-note { color: var(--dim); font-size: calc(11 * var(--ui-scale)); line-height: 1.4; }
+
 .tswitch { display: flex; gap: calc(10 * var(--ui-scale)); align-items: flex-start; cursor: pointer; }
 .tswitch:hover .tswitch-track { border-color: var(--rule); }
 /* The track and its knob: on slides right and lights up, which is the whole of the affordance.
