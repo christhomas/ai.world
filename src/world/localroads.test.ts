@@ -135,13 +135,23 @@ describe('towns that are what they are wherever you ask from', () => {
     expect(compared, 'no towns were compared from more than one side').toBeGreaterThan(0);
   });
 
-  it('are only where roads meet on dry ground', () => {
+  it('are only on dry ground, and only where a road goes', () => {
+    /*
+     * The second half of this used to ask for two roads, because a dead end was refused outright.
+     * That was written when every border was a road and a junction with one was a rarity; once the
+     * web was thinned it became the commonest kind, and refusing it emptied the country. A hamlet
+     * at the end of a lane is a real place. What is still refused is a junction no road reaches at
+     * all, which is a point in an empty field.
+     */
     for (const face of facesIn(world, PATCH)) {
       for (const junction of junctionsOf(world, face)) {
         const town = townAt(world, junction);
         if (!town) continue;
         expect(world.land(town.x, town.z), `${town.name} stands in the sea`).toBe(true);
-        expect(junction.roads, `${town.name} stands at a dead end`).toBeGreaterThanOrEqual(2);
+        expect(junction.roads, `${town.name} stands where no road goes`).toBeGreaterThanOrEqual(1);
+        if (junction.roads < 2) {
+          expect(town.level, `${town.name} is a market town at the end of a lane`).toBe(1);
+        }
       }
     }
   });
