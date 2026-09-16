@@ -602,6 +602,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.94.0 — 2026-09-16
+
+marriage, illness, faces that run in families, a shelf that runs out, and distance you can see
+
 ### v0.93.0 — 2026-09-16
 
 the endless country, a hall that hires, and a phone you can actually play on
@@ -637,10 +641,6 @@ villagers can be hurt, and the doctor has work
 ### v0.91.0 — 2026-09-13
 
 the hall puts work out to contract
-
-### v0.90.0 — 2026-09-13
-
-villages founded at what their roofs hold
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
