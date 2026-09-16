@@ -59,6 +59,17 @@ export function fillTheGaps(o: Births, name: string, village: Settlement, day: n
     if (parents.length < 2) break;            // a village of children does not repopulate itself
 
     const [mother, father] = parentsFrom(parents, rng);
+    /*
+     * Two people who have a child together are married, and the world now says so.
+     *
+     * Written here because this is the one place in the game a pair is chosen at all; it costs no
+     * roll, and it turns a household that was inferred from a surname into one the register states.
+     * A pair who are already married simply stay married. Item #242.
+     */
+    if (father !== mother && !mother.spouse && !father.spouse) {
+      mother.spouse = father.name;
+      father.spouse = mother.name;
+    }
     const id = `${name.replace(/[^A-Za-z]/g, '')}-${day}-${n}`;
     const sex = sexAtBirth(o.seed, id);     // off their id, so a birth costs this stream nothing
     // a child takes their mother's family name, so a village keeps its families legible

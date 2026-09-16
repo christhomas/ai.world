@@ -102,6 +102,18 @@ export interface Person {
   /** Parents by name rather than id: lineage is for talking about, and the dead are not kept. */
   mother: string;
   father: string;
+  /**
+   * Who they married, by name, or nothing.
+   *
+   * A household was inferred from a surname and never stated — `familiesUnder` buckets people by
+   * `surnameOf`, and `inheritance.ts` had to guess, handing an estate to "an adult of their own
+   * surname first, because a household is what actually inherits". This is that guess made into a
+   * fact. Item #242.
+   *
+   * By name for the same reason the parents are: the dead are not kept, and a name cannot dangle
+   * where an id would.
+   */
+  spouse?: string;
   /** Up to five living people they know, by id. Pruned when one of them dies. */
   knows: string[];
   /** The last couple of things that happened around them, newest first. */
@@ -178,7 +190,19 @@ export function parentsFrom(adults: readonly Person[], rng: () => number): [Pers
   const women = adults.filter((p) => p.sex === 'woman');
   const men = adults.filter((p) => p.sex === 'man');
   const mother = oneOf(women, rng());
-  const father = oneOf(men, rng());
+  /*
+   * The second roll is spent whether or not its answer is used, and that is not tidiness.
+   *
+   * A village's whole life is drawn off one stream, so a version that spent one roll where a mother
+   * was already married would re-roll every village in every world from that morning on — two
+   * machines that both know about the marriage would arrive at different places. Draw first, then
+   * decide.
+   */
+  const drawn = oneOf(men, rng());
+  const married = mother?.spouse
+    ? men.find((man) => man.name === mother.spouse) ?? null
+    : null;
+  const father = married ?? drawn;
   /*
    * A village with nobody of one sex left in it has one parent to name, not two.
    *
