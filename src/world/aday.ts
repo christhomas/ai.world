@@ -4,6 +4,7 @@ import { fillTheGaps as whoIsBorn } from './births';
 import { taxedForTheHall } from './hall';
 import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
+import { fallIll, shakeItOff } from './ailments';
 import { raiseWhoIsDue } from './shrine';
 import { payAndSweep } from './purses';
 import { THE_HALL_OWNER, ownedBy, whatTheVillageHolds } from './holdings';
@@ -269,9 +270,22 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
 }
 
 
-/** A day of mending, and the doctor's fee for the morning he set a bone. See `wounds.ts`. */
-function mendThePeople(village: Settlement): Change[] {
+/**
+ * A day of mending, and the doctor's fee for the morning he was called.
+ *
+ * Two things, and they run in this order for a reason: somebody who wakes up ill is ill *today*,
+ * not tomorrow, and somebody whose last day of a fever this is gets up and goes to work. See
+ * `wounds.ts` for a wound and `ailments.ts` for a fever.
+ *
+ * The illness roll comes off `${village}:ill`, a stream of its own — the same thing the shrine
+ * does. A village's life is drawn off one stream and anything added to that stream re-rolls every
+ * village in every world from that morning on.
+ */
+function mendThePeople(o: TheDay, name: string, village: Settlement, day: number): Change[] {
+  payAndSweep(village, fallIll(village.people, streamFor(o.seed, `${name}:ill`, day),
+                              { baths: village.works.includes('bathhouse'), day }));
   payAndSweep(village, mendThem(village.people));
+  shakeItOff(village.people);
   return [];
 }
 
@@ -347,7 +361,7 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
     ...fillTheGaps(o, name, village, day, pressure),
     ...growUp(o, name, village, day),
     ...takeTheKilled(o, village, day),
-    ...mendThePeople(village),
+    ...mendThePeople(o, name, village, day),
     ...raiseWhoIsDue(name, village, day, streamFor(o.seed, name + ':shrine', day)),
   );
   // and who holds what, re-hung after the funerals and the growing-up so that the day's dead and

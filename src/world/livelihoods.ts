@@ -5,7 +5,7 @@ import { ownedBy, BEASTS_PER_FARM, mannedFarms, shareTheTake, type Standing, typ
 import { herdRoomFor } from './stables';
 import { aDayOfCattle, aDaysFishing, coastOf } from './harvest';
 import type { Person } from './people';
-import { ableToWork } from './wounds';
+import { wellEnough } from './ailments';
 import { foodAt } from './fields';
 import { priceOfAMeal } from './prices';
 
@@ -407,7 +407,7 @@ export function aDaysTrade(
   // a man who is laid up does not work, and his trade earns the village nothing while he is: see
   // `wounds.ts`. He still eats and still pays for his dinner, which is what makes a bad week
   // expensive rather than fatal
-  const working = people.filter(ableToWork);
+  const working = people.filter(wellEnough);
   const farmers = working.filter((p) => p.trade === 'farmer');
   // the paddocks are counted off the farms somebody is standing in rather than off the men, which
   // is the same number until a man owns two: `mannedFarms` settles that seam, and it says the
