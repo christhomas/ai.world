@@ -94,8 +94,12 @@ describe('and somebody who actually knows who the parents are', () => {
   const body = (file: string): string => readFileSync(file, 'utf8');
 
   it('asks the register for them', () => {
+    // by name. A string match cannot tell a working lookup from a broken one — this file asserted
+    // `register.find(id)` for three days while that call returned `undefined` for every person in
+    // the world, because `Person.mother` is a name and `find` matches ids. The assertion that has
+    // teeth is in `src/game/whotheycamefrom.test.ts`, which settles a village and asks
     expect(body('src/game/descent.ts'), 'the register is the only thing that knows anybody\'s mother')
-      .toContain('register.find(id)');
+      .toContain('register.living(person.village)');
     expect(body('src/game/talk.ts'), 'and a conversation has to ask for it')
       .toContain('whoTheyCameFrom(');
   });
