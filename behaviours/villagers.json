@@ -1459,5 +1459,63 @@
         }
       }
     ]
+  },
+  "smith": {
+    "note": "At the forge through the working day. A trade with one building and no round to walk: the work comes to him.",
+    "first": [
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.28,
+            "to": 0.78
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "smith"
+          }
+        },
+        "doing": "at the smith"
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        },
+        "doing": "at home"
+      }
+    ]
+  },
+  "apothecary": {
+    "note": "Behind the counter through the working day, and shut by dusk. Nothing he sells is wanted at night.",
+    "first": [
+      {
+        "when": {
+          "ask": "hourBetween",
+          "with": {
+            "from": 0.3,
+            "to": 0.8
+          }
+        },
+        "then": {
+          "do": "goTo",
+          "with": {
+            "post": "apothecary"
+          }
+        },
+        "doing": "at the apothecary"
+      },
+      {
+        "do": "goTo",
+        "with": {
+          "post": "home",
+          "enter": true
+        },
+        "doing": "at home"
+      }
+    ]
   }
 }
