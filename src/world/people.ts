@@ -209,6 +209,30 @@ export interface Person {
    * is told by whatever did it, and an illness is rolled by the morning. See `ailments.ts`.
    */
   ill?: number;
+  /**
+   * Somebody the ordinary end of a life does not come for.
+   *
+   * The hero, and nobody else. It is a fact about a person rather than a branch written out at each
+   * caller, because the places that would have to ask are `outOfDays`, the day's ageing, the dinner
+   * queue and starvation — four files that would otherwise each carry their own idea of who the
+   * player is, and disagree the first time one of them was edited.
+   *
+   * Immortal in the sense the design meant it: he does not die at sixty to ninety days. It does not
+   * mean he is safe. `health.ts` still kills him, wolves still kill him, and what happens next is
+   * the shrine's business rather than this field's. See `shrine.ts`, which has been raising
+   * villagers for `SHRINE_FEE` since long before there was a hero to raise.
+   */
+  deathless?: boolean;
+}
+
+/**
+ * Whether the ordinary end of a life comes for this person.
+ *
+ * A function rather than a field read, so the four places that ask — `outOfDays`, the ageing, the
+ * dinner queue and starvation — are asking one question rather than four that happen to agree.
+ */
+export function deathless(person: Pick<Person, 'deathless'>): boolean {
+  return person.deathless === true;
 }
 
 /**
@@ -327,6 +351,7 @@ export function ageOf(person: Person, day: number): number {
 
 /** Whether a natural life has run out. Wolves are not this function's business. */
 export function outOfDays(person: Person, day: number): boolean {
+  if (deathless(person)) return false;
   return ageOf(person, day) >= person.lives;
 }
 
