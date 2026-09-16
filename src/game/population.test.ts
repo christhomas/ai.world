@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { LIFE } from '../world/people';
 import {
-  DAYS, FOUNDED, LEFT_ALONE, RUNS, VILLAGES, at, coins, who, type Books, type Run,
+  DAYS, FOUNDED, LEFT_ALONE, runs, VILLAGES, at, coins, who, type Books, type Run,
 } from './economy.bench';
 
 /**
@@ -77,7 +77,7 @@ const STRESSED = new Set(VILLAGES.filter((v) => !LEFT_ALONE.includes(v.village))
 
 /** Every village in every run, as one list, so a section reads the world rather than a seed. */
 function everywhere(): Array<{ run: Run; village: string; evenings: Books[] }> {
-  return RUNS.flatMap((run) => [...run.books.entries()].map(([village, evenings]) => ({
+  return runs().flatMap((run) => [...run.books.entries()].map(([village, evenings]) => ({
     run, village, evenings,
   })));
 }
@@ -206,7 +206,7 @@ describe('what a village has room for, against what it holds', () => {
     const full: string[] = [];
     let atCeiling = 0, evenings = 0;
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, standing] of run.standing) {
         const shut = standing.filter((s) => s.souls > 0);
         if (shut.length === 0) continue;
@@ -244,7 +244,7 @@ describe('what a village has room for, against what it holds', () => {
     const never: string[] = [];
     const first: string[] = [];
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, standing] of run.standing) {
         const lived = standing.filter((s) => s.souls > 0);
         if (lived.length === 0) continue;
@@ -277,7 +277,7 @@ describe('what a village has room for, against what it holds', () => {
     const quiet: string[] = [];
     const pressed: string[] = [];
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, standing] of run.standing) {
         const last = standing[standing.length - 1];
         if (!last || last.souls > 0) continue;
@@ -311,7 +311,7 @@ describe('the account of itself', () => {
     const lines = [
       `POPULATION BENCH — ${new Date().toISOString()}`,
       '',
-      `  ${VILLAGES.length} villages on ${RUNS.length} seeds, ${DAYS} days each, read out of their own roll`,
+      `  ${VILLAGES.length} villages on ${runs().length} seeds, ${DAYS} days each, read out of their own roll`,
       '  and births book. Nothing here judges: item #248 is where the decision goes.',
       '',
       ...covered.map((line) => [

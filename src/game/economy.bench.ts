@@ -445,8 +445,23 @@ function stood(register: Register, village: string, day: number): Standing {
   };
 }
 
-/** Every run, lived once and read by everything below. */
-export const RUNS = SEEDS.map((seed) => liveForward(seed));
+/**
+ * Every run, lived once and read by everything below.
+ *
+ * A function rather than a constant, and the difference is the whole of why a page can use this.
+ * `export const RUNS = SEEDS.map(liveForward)` meant that *importing* this module cost three
+ * hundred-day simulations before a line of the importing file ran — fine for a bench file that
+ * wants them immediately, unusable from anything that wants to choose what to ask first. A decision
+ * taken at module-evaluation time cannot be taken again.
+ *
+ * Still lived exactly once, because it is remembered after the first ask. Nothing that reads it
+ * pays twice and nothing that does not read it pays at all.
+ */
+let lived: readonly Run[] | null = null;
+export function runs(): readonly Run[] {
+  lived ??= SEEDS.map((seed) => liveForward(seed));
+  return lived;
+}
 
 /** A village named the way a report has to name one, so a failure can be gone and looked at. */
 export const at = (run: Run, village: string, day: number): string => `${village} (seed ${run.seed}) on day ${day}`;

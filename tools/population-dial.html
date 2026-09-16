@@ -1,0 +1,150 @@
+<!doctype html>
+<!--
+  The population dial: move a number, live twenty-four villages, and watch what it does to them.
+
+  The loop this replaces is a code edit, a hundred-day run, and a diff of two text files. That is
+  slow enough that the questions nobody asks are the ones worth asking — whether a world breeding
+  under replacement recovers or flattens out, whether a cottage is what kills a village or only what
+  the report happens to mention, what a longer life does to a place that has to feed it.
+
+  #248 is the argument this was built for. It says a third of the world's villages die out in a
+  hundred days because a cottage cannot hold a child. Two of twenty-four do, at a hundred days and
+  at three hundred — so the question it was really asking is still open, and it is now a slider
+  rather than a rebuild.
+
+  It runs the game's own bench. `economy.bench.ts` stands the villages up and lives them forward a
+  day at a time; nothing here re-implements a single rule, and nothing here is a model of the
+  simulation. That is the only way a page like this stays true: the moment it has its own arithmetic
+  it starts answering a different question from the one the game is playing.
+
+  What works today is the length of the run, because `liveForward(seed, days)` already takes it.
+  Children per household and the span of a life do not, and the page says so rather than showing a
+  slider that moves a number and changes nothing — they are read from module constants at import by
+  `births.ts` and `people.ts`. `roofLadder(children)` is the shape each of them has to take, and it
+  is the part of this that is finished.
+
+  Two things had to move before even this was possible, and both are in `world/roofs.ts` and
+  `game/economy.bench.ts` rather than here:
+
+  - The roof ladder was frozen at import, built from `LIFE.CHILDREN` when the module loaded, so a
+    slider that moved that number moved nothing at all. It is `roofLadder(children)` now.
+  - `RUNS` lived three hundred days at import, so merely *importing* the bench cost three
+    simulations before this file ran a line. It is `runs()` now, remembered after the first ask.
+
+  Open it at /tools/population-dial.html with the dev server running.
+-->
+<html><head><meta charset="utf-8"><title>population dial</title><style>
+:root{ --ink:#dfe5ff; --dim:#8f9ac4; --panel:#252d44; --edge:#39425f; --deep:#1a2032; --lit:#7fd4a0; --bad:#e2708a; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--deep);color:var(--ink);font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;min-height:100vh}
+aside{width:300px;flex:none;padding:18px;background:var(--panel);border-right:1px solid var(--edge);overflow:auto}
+main{flex:1;padding:18px;overflow:auto}
+h1{font-size:15px;margin:0 0 4px}
+p.note{color:var(--dim);margin:0 0 18px}
+label{display:block;margin:14px 0 2px;color:var(--dim)}
+label b{color:var(--ink);float:right;font-weight:600}
+input[type=range]{width:100%}
+button{margin-top:18px;width:100%;padding:9px;background:var(--lit);color:#0d1420;border:0;border-radius:4px;font:inherit;font-weight:600;cursor:pointer}
+button[disabled]{opacity:.5;cursor:default}
+table{border-collapse:collapse;width:100%;margin-bottom:22px}
+th,td{text-align:right;padding:3px 9px;border-bottom:1px solid var(--edge)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--dim);font-weight:400}
+tr.gone td{color:var(--bad)}
+.big{font-size:22px}
+.was{color:var(--dim);font-size:11px}
+</style></head><body>
+<aside>
+  <h1>population dial</h1>
+  <p class="note">The game's own bench, asked a different question. Nothing here models anything.</p>
+
+  <label>days to live <b id="vDays">100</b>
+    <input type="range" id="days" min="50" max="400" step="50" value="100"></label>
+
+  <button id="run">live the world</button>
+  <p class="note" id="status" style="margin-top:14px"></p>
+
+  <hr style="border:0;border-top:1px solid var(--edge);margin:22px 0">
+  <p class="note"><b>Not wired yet.</b> Children per household, shortest life and longest life are
+  read from module constants at import — `LIFE.CHILDREN`, `LIFE.SHORTEST_LIFE`, `LIFE.LONGEST_LIFE`
+  — by `births.ts` and `people.ts`, so a slider here would move the number and change nothing.
+  Deliberately absent rather than present and lying.</p>
+  <p class="note">`roofLadder(children)` in `world/roofs.ts` is the shape each of them has to take:
+  derived when asked rather than frozen when the module loads. It is done and tested; threading it
+  through `holdsFor` and `foundVillage` is the next step, and then this panel grows three sliders.</p>
+  <p class="note" id="settings"></p>
+</aside>
+<main>
+  <div id="out"><p class="note">Move a dial and press the button. Three seeds, eight villages each; a hundred days takes a few seconds and four hundred takes rather more.</p></div>
+</main>
+
+<script type="module">
+import { LIFE } from '/src/world/people.ts';
+import { liveForward, SEEDS, VILLAGES } from '/src/game/economy.bench.ts';
+import { roofLadder } from '/src/world/roofs.ts';
+
+const $ = (id) => document.getElementById(id);
+const dials = { days: $('days') };
+const show = () => { $('vDays').textContent = dials.days.value; };
+for (const d of Object.values(dials)) d.addEventListener('input', show);
+show();
+// said out loud, so a reading here can be compared against a report without guessing what it ran at
+$('settings').textContent = `Fixed for now: ${LIFE.CHILDREN} children a household, lives of `
+  + `${LIFE.SHORTEST_LIFE} to ${LIFE.LONGEST_LIFE} days, roofs holding `
+  + roofLadder().map((r) => r.holds).join('/') + '.';
+
+/**
+ * What a run comes to, in the words the population report uses.
+ *
+ * Read off the same books the bench writes, so a figure here and a figure in
+ * `docs/reports/population-report.txt` are the same figure arrived at the same way.
+ */
+function readOut(runs, days) {
+  const rows = [];
+  for (const run of runs) {
+    for (const [village, evenings] of run.books) {
+      const last = evenings[evenings.length - 1];
+      const first = evenings[0];
+      rows.push({
+        village, seed: run.seed,
+        founded: first ? first.roll.length : 0,
+        left: last ? last.roll.length : 0,
+        gone: !last || last.roll.length === 0,
+      });
+    }
+  }
+  const gone = rows.filter((r) => r.gone).length;
+  return { rows, gone, days };
+}
+
+let last = null;
+
+$('run').addEventListener('click', async () => {
+  const button = $('run');
+  button.disabled = true;
+  $('status').textContent = 'living…';
+  // a frame, so the button paints as disabled before the main thread is taken for several seconds
+  await new Promise((go) => requestAnimationFrame(go));
+  const days = Number(dials.days.value);
+  const began = performance.now();
+  try {
+    const runs = SEEDS.map((seed) => liveForward(seed, days));
+    last = readOut(runs, days);
+    draw(last, began);
+  } catch (wrong) {
+    $('status').textContent = String(wrong && wrong.message ? wrong.message : wrong);
+  }
+  button.disabled = false;
+});
+
+function draw(read, began) {
+  $('status').textContent = `${read.rows.length} villages, ${read.days} days, ${((performance.now() - began) / 1000).toFixed(1)}s`;
+  const alive = read.rows.length - read.gone;
+  $('out').innerHTML = `
+    <p class="big">${alive} of ${read.rows.length} villages still standing after ${read.days} days</p>
+    <table><thead><tr><th>village</th><th>seed</th><th>founded with</th><th>left</th></tr></thead><tbody>
+    ${read.rows.map((r) => `<tr class="${r.gone ? 'gone' : ''}"><td>${r.village}</td><td>${r.seed}</td><td>${r.founded}</td><td>${r.left}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+</script>
+</body></html>
