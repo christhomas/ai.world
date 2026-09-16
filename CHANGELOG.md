@@ -14,6 +14,85 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.93.0 — 2026-09-16
+
+the endless country, a hall that hires, and a phone you can actually play on
+
+- Release through a pull request, and derive the changelog from them (#45)
+- Woodcutter, and a release that waits for the playtest (#46) — closes #43
+- The shrine's fee leaves the world by name, not by subtraction (#58)
+- A free house is a bed, not a caption (#60) — closes #52
+- Pin the crossing seam, which was described as missing and was not (#61) — closes #51
+- A villager walks into the back of his own house all night (#63) — closes #19
+- The list of what may be done before the world agrees (#64) — closes #55
+- Make the hall a treasury entity with a body (#66) — closes #25
+- CI was overwriting this repository's README with chore's own (#79)
+- The compiler asks who owns it, which the comment has claimed all along (#80) — closes #32
+- Exhaust one side of an obstacle before trying the other (#83)
+- An interrupted sweep cleans itself up on the next run (#89) — closes #67
+- Being put down somewhere lets go of the horse, not only the saddle (#90) — closes #74
+- The played run measured nothing and called it a failure (#91)
+- The corner the comment has claimed all along now exists (#92)
+- A payment is addressed to an owner, and the test is the compiler's (#93)
+- The README's front page said nothing about eleven releases (#95)
+- The release's wait on CI can now actually run out (#96) — closes #76
+- A key cannot be put on the keyboard without saying when it may fire (#97) — closes #68
+- The shop probe walks into the village the hero is standing in (#100) — closes #48
+- Audit exported default parameters (#105) — closes #85
+- Riding has one source of truth (#106) — closes #74
+- Require every creature to declare its drop (#107) — closes #86
+- Report unexplained unreachable exports (#108)
+- Run fallback audits through real browser flows (#109) — closes #84
+- Finish unreachable export triage (#30) (#110) — closes #30
+- Let villages vote to become towns (#111) — closes #27
+- Put constables on hall payroll (#112) — closes #26
+- Show village directory and vacancies at the hall (#113) — closes #49
+- Persist builder work on hall commissions (#114) — closes #33
+- Remove the skinning knife from the opening kit (#116) — closes #47
+- Make shop probes location-correct (#117) — closes #48
+- Separate glass play surfaces from paper reading surfaces (#118) — closes #54
+- Constrain visual themes to five tokens (#119) — closes #73
+- Let farmers fund stable upgrades (#120) — closes #35
+- Create durable named world records (#121) — closes #69
+- Build the Flutter GL client renderer (#122) — closes #22
+- Add the contextual action card (#123) — closes #71
+- Standardize list rows on one geometry (#124) — closes #72
+- Make owned boats boardable at ferry piers (#125)
+- Add bounded local farm clearings (#126) — closes #5
+- Bound fields by local carrying room (#127) — closes #31
+- Let customers join the builder backlog (#129) — closes #44
+- Move the phone's panel controls off the reading band (#130)
+- A vacancy is something somebody can answer, not only read (#131) — closes #3
+- CI notices when setting the job up changes the checkout (#133) — closes #81
+- All twenty-one exports nothing outside their own file mentions (#134) — closes #88
+- A village's woodcutters are paid for the days they worked, not the ticks (#135)
+- A release tags the commit it made, not whatever reached main first (#136) — closes #75
+- An excuse for unreached work expires with the issue it names (#137) — closes #87
+- A release reads back what it wrote, before it pushes it (#138) — closes #98
+- A deed keeps a family in its own house (#139) — closes #53
+- A session can tell whether somebody else's work is in the tree (#140) — closes #101
+- A village is not hiring, which is why its house costs no timber (#147) — closes #36
+- The edge comes out, and what is still in front of it (#152) — closes #185
+- A door in front of the tools (#153) — closes #102
+- The builder runs behind the portal, on a worker that nothing else can reach (#157) — closes #103, #160
+- What is written on a page is written in the page's own ink (#165) — closes #141, #142
+- A stable is commissioned for a morning that will actually be lived (#169) — closes #143
+- A name outlives a bad write, a quiet client, and somebody else's server (#170) — closes #144
+- Document pull request and issue pipelines (#178)
+- The issue pipeline as it is actually run (#183)
+- Let independent farm purchases share a morning (#186) — closes #158
+- Carry the two-player combat fixes onto main (#189) — closes #70
+- Keep phone news beyond the tab rail (#194) — closes #56
+- Choose a native texture for the phone's world (#195) — closes #65
+- Harden Flutter renderer startup and rig fidelity (#196) — closes #145
+- Make contextual action previews accurate and bounded (#197) — closes #146
+- Document stacked PR rebasing after parent merges (#204)
+- Carry the wrapping-row fix onto main (#207) — closes #148
+- Carry the durable parish book onto main (#209) — closes #205
+- An excuse expires with the issue it names: fix the farmbuilds one (#210)
+- There is one list of excuses again, and it has run out of theme (#221) — closes #177
+- Only what the bench wrote is excused, and only while it is unstaged (#226) — closes #219
+
 ## v0.92.6 — 2026-09-13
 
 The watchman a village has been paying for since it bought the tower is now standing on it — and he and the tower agree to the tile about where the tower is.
