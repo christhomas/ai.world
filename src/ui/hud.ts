@@ -191,8 +191,19 @@ export class Hud {
     const share = Math.max(0, Math.min(1, state.hp / max));
     const bar = meter(share);
     const low = share <= LOW_ON_HEALTH ? ' hud-hurt' : '';
+    /*
+     * Two spans rather than one, and the reason is the phone.
+     *
+     * The Ledger II handoff asks for `72` in health green against `/100` in dim ink at nine and a
+     * half pixels, which cannot be said in one element — and a phone is where it matters, because
+     * a twenty-block bar at 844 pixels wide is a third of the glass spent on a reading that two
+     * digits give exactly. So the number carries its own parts and the stylesheet decides which of
+     * them a screen this size shows. The bar stays whole on anything with room for it.
+     */
     this.heartsEl.innerHTML =
-      `<span class="hud-bar${low}">${bar}</span> <span class="hud-hp">${Math.ceil(state.hp)}/${max}</span>`;
+      `<span class="hud-bar${low}">${bar}</span> `
+      + `<span class="hud-hp${low}"><span class="hud-now">${Math.ceil(state.hp)}</span>`
+      + `<span class="hud-max">/${max}</span></span>`;
     const worn = SLOTS.map((slot) => state.worn(slot)).filter((i) => i !== null);
     const lines = [`<div>💰 ${state.inventory.gold} gold</div>`];
     if (worn.length > 0) lines.push(`<div>${worn.map((i) => i!.emoji).join(' ')}</div>`);
@@ -269,17 +280,25 @@ export class Hud {
    * is the whole of it and the number is a percentage, which is the honest reading of a share.
    */
   setBreath(wind: number, warded: number, arm = 1, guarding = false): void {
-    const row = (share: number) => {
+    /*
+     * `said` is the word after the number, and on a phone it is the whole of how you tell these two
+     * readings apart. Stacked in the corner with no bars, health and breath are two identical pairs
+     * of digits — `100/100` twice — and nothing says which is which. The handoff's answer is to name
+     * the second one: `72/100 · 68 BREATH`. The arm and the ward keep their own words for the same
+     * reason, which is that they are only ever on screen when something is wrong with them.
+     */
+    const row = (share: number, said = '/100') => {
       const held = Math.max(0, Math.min(1, share));
       // `breath` so the bar takes the colour of whatever it is in — the blue of a lungful, the
       // green of a rested arm, the orange of one that is spent — rather than the green of health
       return `<span class="hud-bar breath">${meter(held)}</span>`
-        + ` <span class="hud-hp">${Math.round(held * 100)}/100</span>`;
+        + ` <span class="hud-hp breath"><span class="hud-now">${Math.round(held * 100)}</span>`
+        + `<span class="hud-max">${said}</span></span>`;
     };
-    const parts = [row(wind)];
+    const parts = [row(wind, ' BREATH')];
     // the arm shows only when it is worth knowing about. A meter that sits full through every walk
     // across the country is furniture, and the one thing this readout must not become is furniture
-    if (arm < 1 || guarding) parts.push(`<span class="${arm < 0.2 ? 'winded' : 'arm'}">${guarding ? '🛡' : '⚔'} ${row(arm)}</span>`);
+    if (arm < 1 || guarding) parts.push(`<span class="${arm < 0.2 ? 'winded' : 'arm'}">${guarding ? '🛡' : '⚔'} ${row(arm, ' ARM')}</span>`);
     if (warded > 0) parts.push(`<span class="warded">🛡 ${warded.toFixed(1)}s</span>`);
     const html = parts.join(' ');
     if (this.breathEl.innerHTML !== html) this.breathEl.innerHTML = html;
