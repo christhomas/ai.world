@@ -26,6 +26,17 @@ export function postsOf(v: Village, world: TileWorld): Partial<Record<Post, [num
   if (inn) posts.inn = [inn.doorX + 0.5, inn.doorZ + 0.5];
   const shop = v.shops.find((s) => s.type === 'smith') ?? v.shops.find((s) => s.type === 'store') ?? inn;
   if (shop) posts.shop = [shop.doorX + 0.5, shop.doorZ + 0.5];
+  /*
+   * The smithy and the apothecary by name, and not as the generic `shop`.
+   *
+   * `shop` is where somebody goes to buy something and falls back to whatever the village has. A
+   * trade that *needs* a smithy is asking a different question — whether this village has one at
+   * all — and answering it with the store would staff a forge nobody built. Item #232.
+   */
+  const forge = v.shops.find((s) => s.type === 'smith');
+  if (forge) posts.smith = [forge.doorX + 0.5, forge.doorZ + 0.5];
+  const herbs = v.shops.find((s) => s.type === 'apothecary');
+  if (herbs) posts.apothecary = [herbs.doorX + 0.5, herbs.doorZ + 0.5];
   if (v.stalls.length) posts.market = v.stalls[0];
   // the surgery is the house furthest from the market: quiet, and nobody treated in a crowd
   let quietest: [number, number] | null = null;

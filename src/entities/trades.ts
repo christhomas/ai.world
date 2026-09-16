@@ -135,6 +135,21 @@ export const TRADES: Trade[] = [
     id: 'innkeeper', label: 'Innkeeper', weight: 1, needs: ['inn'],
     lines: ['Beds are made, whatever the hour.', 'You look like a person who has walked a long way.'],
   },
+  /*
+   * The two trades whose buildings have stood empty since villages had shops.
+   *
+   * `structures.ts` places a smithy and an apothecary and neither had anybody in it, so the game
+   * sold swords nobody made out of premises nobody worked in. Weight one: a village has one forge
+   * at most, and a place with two smiths and no farmer is not a village.
+   */
+  {
+    id: 'smith', label: 'Smith', weight: 1, needs: ['smith'],
+    lines: ['Mind the sparks.', 'Ore in, edge out. Takes as long as it takes.'],
+  },
+  {
+    id: 'apothecary', label: 'Apothecary', weight: 1, needs: ['apothecary'],
+    lines: ['Chew it, do not swallow it whole.', 'I have something for that. I have something for most things.'],
+  },
 ];
 
 /** Which trades a village can actually support, given what is around it. */

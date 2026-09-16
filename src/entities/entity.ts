@@ -58,7 +58,9 @@ export interface Told {
   at?: { x: number; z: number };
 }
 
-export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods' | 'doctor';
+// `smith` and `apothecary` are the buildings, not the generic `shop`: a village has a store and a
+// smithy and they are different places with different people in them. Item #232.
+export type Post = 'home' | 'work' | 'square' | 'inn' | 'market' | 'shop' | 'field' | 'gate' | 'shore' | 'heights' | 'woods' | 'doctor' | 'smith' | 'apothecary';
 
 /** What creatures need to know about the ground. Implemented by ChunkManager. */
 // What a creature is doing and what a villager is *for* both travel between the halves of the game
