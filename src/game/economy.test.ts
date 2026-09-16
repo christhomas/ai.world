@@ -5,7 +5,7 @@ import { PROSPER } from '../world/prosperity';
 import { taxOn } from '../world/hall';
 import type { Person } from '../world/people';
 import {
-  DAYS, FOUNDED, LEFT_ALONE, RUNS, VILLAGES, at, coins, eachHead, midPurse, who, worth, type Books,
+  DAYS, FOUNDED, LEFT_ALONE, runs, VILLAGES, at, coins, eachHead, midPurse, who, worth, type Books,
 } from './economy.bench';
 
 /**
@@ -96,7 +96,7 @@ describe('the coin in a village, against the books that village keeps', () => {
     let days = 0;
     let audited = 0;
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, evenings] of run.books) {
         for (let n = 1; n < evenings.length; n++) {
           const before = evenings[n - 1], after = evenings[n];
@@ -210,7 +210,7 @@ describe('the coin in a village, against the books that village keeps', () => {
    */
   it('never buries a coin: what somebody held is still in the village afterwards', () => {
     let lost = 0, buried = 0, emptied = 0;
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, evenings] of run.books) {
         for (let n = 1; n < evenings.length; n++) {
           const gone = new Set(evenings[n].stones.filter((stone) => stone.day === evenings[n].day).map((stone) => stone.name));
@@ -275,7 +275,7 @@ describe('the people on the roll, over a hundred days', () => {
     const wrong: string[] = [];
     let watched = 0;
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, evenings] of run.books) {
         const oldest = new Map<string, number>();
         for (const evening of evenings) {
@@ -326,7 +326,7 @@ describe('the roll against the stones', () => {
     const missing: string[] = [];
     let buried = 0, moved = 0;
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, evenings] of run.books) {
         for (let n = 1; n < evenings.length; n++) {
           const before = evenings[n - 1], after = evenings[n];
@@ -380,7 +380,7 @@ describe('the money itself', () => {
     const stuck: string[] = [];
     let flowed = 0, standstill = 0, lives = 0;
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, evenings] of run.books) {
         const quiet = LEFT_ALONE.includes(village);
         /** How long each person has been on the roll with a trade, and the best purse they held. */
@@ -453,7 +453,7 @@ describe('what the next valley paid', () => {
     const mined = new Map<string, number>();
     let crossed = 0;
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, evenings] of run.books) {
         for (const evening of evenings) {
           for (const row of evening.roll) {
@@ -472,7 +472,7 @@ describe('what the next valley paid', () => {
     report({
       verdict: fed.length > 0 ? 'PASS' : 'FAIL',
       count: Math.round(crossed),
-      what: `gold carried between valleys over ${RUNS.length} runs, against ${Math.round([...mined.values()].reduce((sum, much) => sum + much, 0))} dug out of the ground`,
+      what: `gold carried between valleys over ${runs().length} runs, against ${Math.round([...mined.values()].reduce((sum, much) => sum + much, 0))} dug out of the ground`,
       detail: [
         ...fed.slice(0, 4).map(([village, much]) => `${village} was paid ${coins(much)} by the next valley, and has no mine`),
         ...ate.slice(0, 4).map(([village, much]) => `${village} paid ${coins(-much)} for food it did not grow`),
@@ -497,7 +497,7 @@ describe('what a band standing over a village does to it', () => {
     const wrong: string[] = [];
     const said: string[] = [];
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       const control = run.books.get('Ashford')!;
       const raided = VILLAGES.find((v) => v.village === 'Thornby')!.band!;
       const evenings = run.books.get('Thornby')!;
@@ -542,7 +542,7 @@ describe('what a band standing over a village does to it', () => {
 
     report({
       verdict: wrong.length === 0 ? 'PASS' : 'FAIL',
-      count: RUNS.length,
+      count: runs().length,
       what: 'raided villages that got poorer while the band was there and made it back afterwards',
       detail: wrong.length > 0 ? wrong : said,
     });
@@ -563,7 +563,7 @@ describe('a hundred days, at the end of them', () => {
     const wrong: string[] = [];
     const trail: string[] = [];
 
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const [village, evenings] of run.books) {
         const end = evenings[evenings.length - 1];
         const founded = run.founded.get(village)!;
@@ -610,7 +610,7 @@ describe('a hundred days, at the end of them', () => {
 
     report({
       verdict: wrong.length === 0 ? 'PASS' : 'FAIL',
-      count: RUNS.length * LEFT_ALONE.length,
+      count: runs().length * LEFT_ALONE.length,
       what: 'villages left alone for a hundred days that neither emptied nor starved nor ended broke',
       detail: wrong.length > 0 ? wrong : trail,
     });
@@ -639,7 +639,7 @@ interface Built {
  */
 function whatWasBuilt(): Built[] {
   const built: Built[] = [];
-  for (const run of RUNS) {
+  for (const run of runs()) {
     for (const [village, evenings] of run.books) {
       const storey = evenings.find((evening) => evening.roll.length > 0 && eachHead(evening) >= PROSPER.STOREY);
       const luxury = evenings.find((evening) => worth(evening) >= PROSPER.LUXURY);
@@ -745,7 +745,7 @@ describe('what a village does with what it has put by', () => {
      * village builds *something* out of its own money inside a generation. Which particular thing
      * is a balance question and belongs in the account below rather than in a test.
      */
-    const bought = RUNS.reduce((sum, run) => sum + [...run.books.values()]
+    const bought = runs().reduce((sum, run) => sum + [...run.books.values()]
       .filter((evenings) => evenings.some((e) => e.roll.some((row) => row.paid > 0))).length, 0);
     expect(storeys.length + luxuries.length + bought, 'no village built anything at all').toBeGreaterThan(2);
     // and it must stay rare: a bath house in every village is a bath house worth nothing
@@ -768,10 +768,10 @@ describe('what a village does with what it has put by', () => {
 describe('farms climbing the stable ladder', () => {
   it('raises stable rungs over a century with loggers, and none on bare farming ground', () => {
     const wooded = VILLAGES.filter((village) => village.posts.includes('woods')).map((village) => village.village);
-    const grown = RUNS.flatMap((run) => wooded.map((village) => ({
+    const grown = runs().flatMap((run) => wooded.map((village) => ({
       run, village, last: run.standing.get(village)!.at(-1)!,
     }))).filter(({ last }) => last.stables > 0);
-    const bare = RUNS.map((run) => ({ run, last: run.standing.get('Stonedale')!.at(-1)! }));
+    const bare = runs().map((run) => ({ run, last: run.standing.get('Stonedale')!.at(-1)! }));
 
     report({
       verdict: grown.length > 0 && bare.every(({ last }) => last.stables === 0) ? 'PASS' : 'FAIL',
@@ -788,11 +788,11 @@ describe('farms climbing the stable ladder', () => {
 });
 describe('what the hundred days came to', () => {
   it('says so, and writes the account out', () => {
-    const first = RUNS[0];
+    const first = runs()[0];
 
     // 1. the wage table, as the books actually pay it
     const wages = new Map<string, number>();
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const evenings of run.books.values()) {
         for (const evening of evenings) {
           for (const row of evening.roll) {
@@ -845,7 +845,7 @@ describe('what the hundred days came to', () => {
     // 3. the mint, and what happens to it
     const mining = VILLAGES.filter((v) => v.mine).map((v) => v.village);
     const mint: string[] = [];
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const village of mining) {
         const evenings = run.books.get(village)!;
         const paid = [...run.minted.get(village)!].filter(([, gold]) => gold > 0);
@@ -858,7 +858,7 @@ describe('what the hundred days came to', () => {
     }
     report({
       verdict: 'NOTE',
-      count: mining.length * RUNS.length,
+      count: mining.length * runs().length,
       // it was *the* only source until #239 put carts on the road, and the line above this one in
       // the report now says how much crossed a valley instead. It is still the only place a coin is
       // made rather than moved, which is a different and narrower claim
@@ -872,7 +872,7 @@ describe('what the hundred days came to', () => {
 
     // 4. what goes into the ground, against what is spent living
     let intoTheGround = 0, spentLiving = 0;
-    for (const run of RUNS) {
+    for (const run of runs()) {
       for (const evenings of run.books.values()) {
         for (let n = 1; n < evenings.length; n++) {
           const here = new Set(evenings[n].roll.map(who));
@@ -897,7 +897,7 @@ describe('what the hundred days came to', () => {
     });
 
     // 5. and the one thing here that has to know what money buys
-    const ends = RUNS.flatMap((run) => [...run.books.values()].map((evenings) => evenings[evenings.length - 1]));
+    const ends = runs().flatMap((run) => [...run.books.values()].map((evenings) => evenings[evenings.length - 1]));
     const richest = Math.max(...ends.flatMap((end) => end.roll.map((row) => row.purse)));
     const village = Math.max(...ends.map(worth));
     const eachOf = Math.max(...ends.map(eachHead));
@@ -923,7 +923,7 @@ describe('what the hundred days came to', () => {
     const lines = [
       `ECONOMY BENCH — ${failed.length === 0 ? 'PASS' : 'FAIL'} — ${new Date().toISOString()}`,
       '',
-      `  ${VILLAGES.length} villages on ${RUNS.length} seeds, ${DAYS} days each, audited against their own books and`,
+      `  ${VILLAGES.length} villages on ${runs().length} seeds, ${DAYS} days each, audited against their own books and`,
       '  nothing else: the roll, the stones and the births, which is what a player pays a clerk to see.',
       '  PASS and FAIL are faults. NOTE is what the hundred days came to, and is for somebody to',
       '  decide about rather than for a machine to judge.',

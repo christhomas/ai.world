@@ -52,18 +52,34 @@ export interface Roof {
 /**
  * The four sizes, smallest first, which is also the order a village works up through them.
  *
- * The cottage is the interesting one. It holds a couple and no children at all, so a family in a
- * cottage that wants one has to be given more room first — which is the whole of what this is for,
+ * A function of how many children a household has, rather than a table. The cottage is the
+ * interesting one: it holds a couple and no children at all, so a family in a cottage that wants
+ * one has to be given more room first — which is the whole of what this is for,
  * said as a number rather than as a rule somewhere else. The rest of the ladder is that number plus
  * `LIFE.CHILDREN` again each time, so a world where households are bigger is a world where every
  * size of house is bigger, without two numbers anywhere meaning the same thing.
  */
-export const ROOFS: readonly Roof[] = [
-  { id: 'cottage', name: 'a cottage', holds: A_COUPLE },
-  { id: 'house', name: 'a house', holds: A_COUPLE + LIFE.CHILDREN },
-  { id: 'longhouse', name: 'a longhouse', holds: A_COUPLE + LIFE.CHILDREN * 2 },
-  { id: 'greathouse', name: 'a great house', holds: A_COUPLE + LIFE.CHILDREN * 3 },
-];
+export function roofLadder(children: number = LIFE.CHILDREN): readonly Roof[] {
+  const room = Math.max(1, Math.floor(children));
+  return [
+    { id: 'cottage', name: 'a cottage', holds: A_COUPLE },
+    { id: 'house', name: 'a house', holds: A_COUPLE + room },
+    { id: 'longhouse', name: 'a longhouse', holds: A_COUPLE + room * 2 },
+    { id: 'greathouse', name: 'a great house', holds: A_COUPLE + room * 3 },
+  ];
+}
+
+/**
+ * The ladder the game itself is playing with.
+ *
+ * A constant again, because every caller in the running game wants the one the game was tuned at
+ * and threading a parameter through all of them would be a parameter nobody varies. What changed is
+ * that it is now *derived* rather than *frozen*: anything that wants to ask what a world with
+ * roomier houses would look like — `tools/population-dial.html`, and #248's argument about whether
+ * a cottage is what kills a village — asks `roofLadder` for a different one instead of finding that
+ * the answer was decided when the module loaded.
+ */
+export const ROOFS: readonly Roof[] = roofLadder();
 
 /**
  * What a village is laid out with, and what `foundVillage` fills.
