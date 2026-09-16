@@ -13,6 +13,7 @@ import { ballotFor, enactVote, finishVotedHall, foundingRank, recogniseVillage, 
 import { doctoredBy, laidUpFor } from './wounds';
 import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
+import { aCarrierWalks } from './carriers';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
@@ -352,6 +353,16 @@ export class Register {
   private readonly paid = new Map<string, number>();
   /** And what it paid out, per person, on that same day. Cleared every morning. */
   private readonly earned = new Map<string, number>();
+  /**
+   * And what a carrier moved into or out of each purse on that same day. See `carriers.ts`.
+   *
+   * Beside the tax and the hall's wages rather than in the forecast, and for their reason: a cart
+   * coming over the hill is news the evening before cannot have had. Cleared every morning.
+   */
+  private readonly carried = new Map<string, number>();
+
+  /** What the next valley paid this person today, or what they paid it. Nought on most days. */
+  carriedBy(id: string): number { return this.carried.get(id) ?? 0; }
 
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
@@ -445,10 +456,14 @@ export class Register {
 
     while (this.day < end) {
       this.day++;
+      this.carried.clear();
       for (const [name, village] of this.villages) {
         changes.push(...liveADay(this.theDay, name, village, this.day));
         this.applyVotesOn(name, village, this.day);
       }
+      // and one cart goes over the hill, now that every village has worked and eaten. Why it is
+      // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
+      aCarrierWalks(this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.carried);
       changes.push(...this.peopleWalkIn(this.day));
     }
     return changes;

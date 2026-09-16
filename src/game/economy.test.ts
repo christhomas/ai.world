@@ -138,7 +138,16 @@ describe('the coin in a village, against the books that village keeps', () => {
             // and what the hall paid out, on the few days a village buys something: the same rule as
             // the tax, in the other direction. Without it every villager gets richer on one morning
             // for no stated reason, which is the shape of a bug rather than of a building
-            expected += row.earns - row.spends - ate - now.tax + now.paid;
+            /*
+             * And what a carrier moved, which is the one line here about somewhere else.
+             *
+             * Read off today's row rather than yesterday's forecast, the way the tax and the hall's
+             * wages are, because a cart coming over the hill is news the evening before cannot have
+             * had. It is also the only entry in this sum whose other half is in another village's
+             * books: what one valley paid, the next one was paid, and `carriers.ts` is held to that
+             * to the thousandth by its own tests.
+             */
+            expected += row.earns - row.spends - ate - now.tax + now.paid + now.carried;
             observed += now.purse - row.purse;
           }
           /*
@@ -421,6 +430,56 @@ describe('the money itself', () => {
     });
     expect(flowed, 'nobody in any of these villages was ever paid anything').toBeGreaterThan(500);
     expect(stuck, 'a village that has quietly stopped paying anybody').toEqual([]);
+  });
+});
+
+/**
+ * Money that was not in the valley that morning, and did not come out of a hole in the ground.
+ *
+ * The thing #239 was raised about, asked of the books. For the whole life of this world the mine
+ * was the only source of new money in it: Fernreach, one village per seed, and every other village
+ * a closed loop redistributing what it already had. That is the structural reason the constants
+ * here keep rotting — a closed economy with one tap has no natural level to tune against.
+ *
+ * A carrier is the second tap, and it is a tap of a different kind: it mints nothing. What one
+ * valley is paid, the next valley paid, so the world is no richer and a *village* is — which is the
+ * claim worth checking, because it is the one a player can act on. The report says how much crossed
+ * and which way, against what the mine brought up over the same hundred days.
+ */
+describe('what the next valley paid', () => {
+  it('puts money in a village that has no mine, and takes it out of the one that ate', () => {
+    const took = new Map<string, number>();
+    const mined = new Map<string, number>();
+    let crossed = 0;
+
+    for (const run of RUNS) {
+      for (const [village, evenings] of run.books) {
+        for (const evening of evenings) {
+          for (const row of evening.roll) {
+            took.set(village, (took.get(village) ?? 0) + row.carried);
+            if (row.carried > 0) crossed += row.carried;
+          }
+        }
+        for (const gold of run.minted.get(village)?.values() ?? []) {
+          mined.set(village, (mined.get(village) ?? 0) + gold);
+        }
+      }
+    }
+
+    const fed = [...took].filter(([village, much]) => much > 0 && !mined.has(village));
+    const ate = [...took].filter(([, much]) => much < 0);
+    report({
+      verdict: fed.length > 0 ? 'PASS' : 'FAIL',
+      count: Math.round(crossed),
+      what: `gold carried between valleys over ${RUNS.length} runs, against ${Math.round([...mined.values()].reduce((sum, much) => sum + much, 0))} dug out of the ground`,
+      detail: [
+        ...fed.slice(0, 4).map(([village, much]) => `${village} was paid ${coins(much)} by the next valley, and has no mine`),
+        ...ate.slice(0, 4).map(([village, much]) => `${village} paid ${coins(-much)} for food it did not grow`),
+        'Neither is minted: what one valley was paid, the other paid, which is why the audit at the',
+        'top of this report still balances to the coin with carts on the road.',
+      ],
+    });
+    expect(fed.length, 'no village without a mine has ever been paid by anybody outside it').toBeGreaterThan(0);
   });
 });
 
@@ -783,8 +842,15 @@ describe('what the hundred days came to', () => {
     report({
       verdict: 'NOTE',
       count: mining.length * RUNS.length,
-      what: 'the only source of new money in the world, and how long it lasted',
-      detail: mint,
+      // it was *the* only source until #239 put carts on the road, and the line above this one in
+      // the report now says how much crossed a valley instead. It is still the only place a coin is
+      // made rather than moved, which is a different and narrower claim
+      what: 'the only place in the world a coin is minted rather than moved, and how long it lasted',
+      detail: [
+        ...mint,
+        'A carrier is the other way a village gets money it did not have this morning, and it is not a',
+        'second mint: what one valley is paid, the next valley paid. See the carrying line above.',
+      ],
     });
 
     // 4. what goes into the ground, against what is spent living

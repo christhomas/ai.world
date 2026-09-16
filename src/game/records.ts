@@ -80,6 +80,21 @@ export interface RollRow {
    */
   paid: number;
   /**
+   * And what a carrier moved into or out of this purse: what the next valley paid, or was paid.
+   *
+   * The one line in this row that is about somewhere else. A village that sells a cartload of its
+   * glut over the hill is a village holding money that was not in the valley that morning and came
+   * out of no mine, which for the whole life of this game was a thing only a mine could be — see
+   * `carriers.ts`. Negative in the valley that ate it.
+   *
+   * On the row for the reason the tax is on the row, and it is the same reason twice: a book is
+   * kept per person, and it is a *record* of the day rather than a forecast of it. Nobody writing
+   * the roll on Monday evening can know that a cart will come over the hill on Tuesday, so this is
+   * read off the day that happened. A forecast of it would be a guess, and a guess is exactly the
+   * gap `chore test economy` reads as coin appearing from nowhere.
+   */
+  carried: number;
+  /**
    * And what their dinner costs, which is the rest of what a day takes out of a purse.
    *
    * Its own column rather than folded into `spends`, because the two are not the same fact: keep
@@ -232,6 +247,9 @@ export function theRoll(
       spends: spentOnLiving(person) + pitchFor(person),
       tax: register.taxPaidBy(person.id),
       paid: register.hallPaid(person.id),
+      // and what a cart took over the hill, which is money that crossed a valley and so belongs in
+      // no other column here: see `carriers.ts`
+      carried: register.carriedBy(person.id),
       // what dinner actually cost here this morning, not the constant. `FOOD.MEAL` is the price
       // at reference cover since item 138; a village with an empty cellar charges up to three
       // times it, and a roll that still said `FOOD.MEAL` had the books and the purses disagreeing
