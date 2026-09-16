@@ -4,11 +4,8 @@ import { fillTheGaps as whoIsBorn } from './births';
 import { taxedForTheHall } from './hall';
 import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
-<<<<<<< HEAD
 import { fallIll, shakeItOff } from './ailments';
-=======
 import { whatIsPaidBack } from './debts';
->>>>>>> 7e8f98b (What one villager owes another)
 import { raiseWhoIsDue } from './shrine';
 import { payAndSweep } from './purses';
 import { THE_HALL_OWNER, ownedBy, whatTheVillageHolds } from './holdings';
@@ -293,30 +290,24 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
 
 
 /**
-<<<<<<< HEAD
- * A day of mending, and the doctor's fee for the morning he was called.
+ * A day of falling ill, mending, and getting better — and what the doctor was owed for it.
  *
- * Two things, and they run in this order for a reason: somebody who wakes up ill is ill *today*,
- * not tomorrow, and somebody whose last day of a fever this is gets up and goes to work. See
- * `wounds.ts` for a wound and `ailments.ts` for a fever.
+ * Four things, and the order is the argument. Somebody who wakes up ill is ill *today*, not
+ * tomorrow, so `fallIll` comes first; somebody whose last day of a fever this is gets up and goes
+ * to work, so `shakeItOff` comes last. Between them the doctor is paid what the patient has, and
+ * what the patient has not is written down rather than dropped — he does not refuse, so the rest is
+ * a claim against the man and is paid off out of the mornings after.
  *
- * The illness roll comes off `${village}:ill`, a stream of its own — the same thing the shrine
- * does. A village's life is drawn off one stream and anything added to that stream re-rolls every
- * village in every world from that morning on.
+ * See `wounds.ts` for a wound, `ailments.ts` for a fever, and `debts.ts` for why a claim moves no
+ * coin on the day it is made.
+ *
+ * The illness roll comes off `${village}:ill`, a stream of its own, the same thing the shrine does.
+ * A village's life is drawn off one stream and anything added to that stream re-rolls every village
+ * in every world from that morning on.
  */
 function mendThePeople(o: TheDay, name: string, village: Settlement, day: number): Change[] {
   payAndSweep(village, fallIll(village.people, streamFor(o.seed, `${name}:ill`, day),
-                              { baths: village.works.includes('bathhouse'), day }));
-  payAndSweep(village, mendThem(village.people));
-  shakeItOff(village.people);
-=======
- * A day of mending, and the doctor's fee for the morning he set a bone. See `wounds.ts`.
- *
- * What the man could not find is written down rather than dropped: the doctor does not refuse, so
- * the rest of his fee is a claim against the patient and is paid off out of the mornings after.
- * See `debts.ts` for why a claim moves no coin the day it is made. Issue #240.
- */
-function mendThePeople(village: Settlement): Change[] {
+                               { baths: village.works.includes('bathhouse'), day }));
   const { fees, owed } = mendThem(village.people);
   payAndSweep(village, fees);
   for (const debt of owed) {
@@ -326,7 +317,7 @@ function mendThePeople(village: Settlement): Change[] {
     if (already) already.much = Math.round((already.much + debt.much) * 100) / 100;
     else village.debts = [...(village.debts ?? []), debt];
   }
->>>>>>> 7e8f98b (What one villager owes another)
+  shakeItOff(village.people);
   return [];
 }
 
