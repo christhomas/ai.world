@@ -616,7 +616,13 @@ export type ClientMessage =
   | { type: 'warband-challenge'; to: string; swords: number }
   | { type: 'warband-answer'; from: string; yes: boolean; swords: number }
   /** A blow my side landed. `sword` is true when a hired man threw it rather than me. */
-  | { type: 'warband-hit'; damage: number; sword: boolean }
+  /**
+   * `seq` numbers the blow so the world can answer *this* one. The page throws first — `predicted.ts`
+   * settles a swing as `hand` — and keeps what it gave itself until the answer arrives. Optional, so
+   * a page that has not upgraded still lands blows; it simply gets no answer to reconcile against,
+   * which is where every page was before this.
+   */
+  | { type: 'warband-hit'; damage: number; sword: boolean; seq?: number }
   /** How many of my men are still standing, sent only when that number changes. */
   | { type: 'warband-muster'; swords: number }
   /** Called off, or lost: either way the fight is over. */
@@ -768,6 +774,15 @@ export type ServerMessage =
   | { type: 'warband-challenged'; from: string; fromName: string; swords: number }
   | { type: 'warband-begun'; withId: string; withName: string; swords: number }
   | { type: 'warband-struck'; damage: number; sword: boolean; from: string }
+  /**
+   * What became of a blow, to the page that threw it.
+   *
+   * Sent for every numbered `warband-hit`, taken or not. Always, rather than only on a refusal: an
+   * answer that never comes cannot be told from one still in flight, and `Claims` deliberately does
+   * not time anything out — so silence would leave the claim standing for ever and the page would
+   * never learn that the blow it showed was never counted.
+   */
+  | { type: 'warband-blow'; seq: number; stood: boolean }
   | { type: 'warband-muster'; swords: number; from: string }
   /** Over: `winner` is whoever was left standing, or empty when it was called off. */
   | { type: 'warband-over'; winner: string; name: string }

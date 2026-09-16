@@ -81,8 +81,10 @@ describe('what may be done before the world agrees', () => {
     for (const act of claimed) {
       expect(inTheHand(), `${act} is predicted in the code and is not a hand on the list`).toContain(act);
     }
-    // and the two the list is carrying for those files, named here so that quietly dropping one
-    // from `ACTS` is a failure rather than a smaller set agreeing with itself
-    expect([...new Set(claimed)].sort()).toEqual(['chest', 'crop']);
+    // and the three the list is carrying for those files, named here so that quietly dropping one
+    // from `ACTS` is a failure rather than a smaller set agreeing with itself. `swing` joined them
+    // when `multiplayer.ts` stopped taking health off the far side with nothing able to contradict
+    // it — the first act on this list whose prediction anybody else could see
+    expect([...new Set(claimed)].sort()).toEqual(['chest', 'crop', 'swing']);
   });
 });
