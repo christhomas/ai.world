@@ -176,17 +176,39 @@ const finish = async () => {
       return { x: d.bx + 0.5, z: d.bz + 0.5 };
     });
     await page.waitForTimeout(5000);
-    await face(door.x, door.z);
-    let place = (await at()).place;
+    const from = await at();
+    let place = from.place;
     let restedOnArrival = 0;
+    let steps = 0;
     for (let i = 0; i < 14 && place === 'surface'; i++) {
+      /*
+       * Aimed again before every step, not once before the first.
+       *
+       * A hero who catches the frame of the door slides along the wall, and the walk carries on
+       * along whatever line the camera was left on rather than along the line to the leaf. One
+       * press of that is nothing; fourteen of them walk him down the side of the building and past
+       * the corner, which is how this check failed intermittently on a seed it passes on.
+       */
+      await face(door.x, door.z);
       await walk('w', 220);
+      steps = i + 1;
       place = (await at()).place;
       // read the rest at the moment we land, not after several more attempts to get in: five
       // seconds is a short time in a script that walks a step at a time
       if (place !== 'surface') restedOnArrival = await page.evaluate(() => window.__room()?.resting ?? 0);
     }
-    return { door, place, restedOnArrival };
+    /*
+     * And where he actually finished, for the morning this fails again.
+     *
+     * "walking into a door takes you inside — surface" says the outcome and nothing about the
+     * cause: it reads the same whether he never moved, walked past the door, or stood in the leaf
+     * and bounced. Three different faults, one message. So the check carries the distance he
+     * covered and how far he ended from the door he was aimed at.
+     */
+    const now = await at();
+    const moved = Math.hypot(now.x - from.x, now.z - from.z);
+    const short = Math.hypot(now.x - door.x, now.z - door.z);
+    return { door, place, restedOnArrival, why: `${steps} steps, moved ${moved.toFixed(2)}, ${short.toFixed(2)} from the door` };
   };
   // anything with hearts that is not a person and does not fly: something a swing can land on
   // slowest first: a hero can catch a sheep, and cannot catch a deer that has seen him
@@ -428,7 +450,8 @@ const finish = async () => {
 
   // --- doors, both ways ---
   const first_in = await enter();
-  say('walking into a door takes you inside', first_in.place !== 'surface', first_in.place);
+  say('walking into a door takes you inside', first_in.place !== 'surface',
+    first_in.place === 'surface' ? `still outside — ${first_in.why}` : first_in.place);
 
   if (first_in.place !== 'surface') {
     say('and the door rests afterwards', first_in.restedOnArrival > 1, `${first_in.restedOnArrival}s left on arrival`);
