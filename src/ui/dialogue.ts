@@ -1,3 +1,4 @@
+import { Countdown } from './countdown';
 import { FACE, drawFace, faceOf, type Face, type Stage } from './portrait';
 
 /**
@@ -74,6 +75,23 @@ export interface DialogueNode {
   choices?: DialogueChoice[];
   /** Who to draw. Without one the emoji stands in, as it always did. */
   face?: Speaker;
+  /**
+   * What happens if nobody answers, and how long that takes.
+   *
+   * Written for the one menu in this game that contains *leave the world*. A menu that dismisses
+   * itself and has quit in it can close under somebody who was reading it, so the count stops the
+   * moment anything is pressed and never starts again — pressing a key is somebody saying they are
+   * here, and after that the choice is theirs however long they take over it.
+   *
+   * Seconds rather than a wall clock, counted by `update` off the same `dt` the typing uses, so a
+   * tab the browser has stopped drawing does not quietly expire while nobody is looking at it.
+   */
+  expires?: {
+    after: number;
+    /** What the row says while it is counting: `%s` is where the seconds go. */
+    label: string;
+    next: () => DialogueNode | null;
+  };
 }
 
 const CPS = 55;              // characters per second
@@ -89,6 +107,8 @@ export class DialogueBox {
   private readonly choicesEl: HTMLDivElement;
   private readonly hintEl: HTMLDivElement;
   private node: DialogueNode | null = null;
+  /** What a node that expires has left, or nothing counting at all. See `countdown.ts`. */
+  private readonly clock = new Countdown();
   private page = 0;
   private typed = 0;
   private acc = 0;
@@ -150,6 +170,7 @@ export class DialogueBox {
   start(node: DialogueNode, onClose?: () => void): void {
     if (onClose) this.onClose = onClose;
     this.node = node;
+    this.clock.begin(node.expires?.after);
     this.page = 0;
     this.typed = 0;
     this.acc = 0;
@@ -169,6 +190,7 @@ export class DialogueBox {
    * patter twenty times and drop you back at the top of the list on every press.
    */
   nudge(dir: number): void {
+    this.answered();
     if (!this.node?.choices || !this.atChoices()) return;
     const here = this.choice;
     const changed = this.node.choices[here]?.adjust?.(dir);
@@ -179,6 +201,19 @@ export class DialogueBox {
     this.page = changed.pages.length - 1;
     this.typed = changed.pages[this.page].length;
     this.nameEl.textContent = changed.speaker;
+    this.render();
+  }
+
+  /**
+   * Somebody is here, so nothing expires any more.
+   *
+   * Once rather than each time: a count that could restart would be a menu that still closes under
+   * a reader, only later. The panel is redrawn because the row that was counting has words in it
+   * that are no longer true.
+   */
+  private answered(): void {
+    if (!this.clock.counting) return;
+    this.clock.answered();
     this.render();
   }
 
@@ -197,6 +232,7 @@ export class DialogueBox {
   close(): void {
     if (!this.node) return;
     this.node = null;
+    this.clock.answered();
     this.el.classList.remove('show');
     const cb = this.onClose;
     this.onClose = null;
@@ -205,6 +241,15 @@ export class DialogueBox {
 
   update(dt: number): void {
     if (!this.node) return;
+    if (this.node.expires) {
+      const { state, changed } = this.clock.tick(dt);
+      if (state === 'expired') {
+        const next = this.node.expires.next();
+        if (next) this.start(next); else this.close();
+        return;
+      }
+      if (changed) this.render();
+    }
     const full = this.node.pages[this.page].length;
     if (this.typed >= full) { this.stopTalking(); return; }
 
@@ -238,6 +283,7 @@ export class DialogueBox {
 
   advance(): void {
     if (!this.node) return;
+    this.answered();
     const full = this.node.pages[this.page].length;
     if (this.typed < full) { this.typed = full; this.stopTalking(); this.render(); return; }
     if (this.page < this.node.pages.length - 1) {
@@ -250,6 +296,7 @@ export class DialogueBox {
   }
 
   move(dir: number): void {
+    this.answered();
     if (!this.node?.choices || !this.atChoices()) return;
     const n = this.node.choices.length;
     this.choice = (this.choice + dir + n) % n;
@@ -284,6 +331,12 @@ export class DialogueBox {
         const note = c.note ? `<span class="dlg-note">${c.note}</span>` : '';
         return `<div class="dlg-choice list-row${i === this.choice ? ' sel' : ''}" data-choice="${i}">${i === this.choice ? '▶ ' : '  '}${c.label}${note}</div>`;
       });
+      // what happens if nobody answers, said out loud while it is still going to happen. A menu
+      // that closes on its own without having said it was going to is a menu that closed on you.
+      if (this.clock.counting && this.node.expires) {
+        const said = this.node.expires.label.replace('%s', String(this.clock.seconds));
+        items.push(`<div class="dlg-choice dlg-waiting">${said}</div>`);
+      }
       this.choicesEl.innerHTML = items.join('');
       // and keep the highlighted row on screen: the shelf scrolls now, so moving down a long list
       // has to bring the list with it or the selection walks off the bottom and is lost

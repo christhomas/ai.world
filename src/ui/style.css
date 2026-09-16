@@ -555,6 +555,11 @@ body { background: var(--surface); overflow: hidden; font-family: var(--face); }
 #dialogue .dlg-choice.sel { color: var(--ink); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 /* what the row gets you, under the row. Indented past the ▶ so the labels still line up, and it
    wraps where a label may not — a shop note runs to nine words and a phone is 96vw wide. */
+/* the row that is not a choice: what happens if you say nothing, counting down as it says it */
+#dialogue .dlg-waiting {
+  color: color-mix(in srgb, var(--ink) 62%, transparent);
+  font-style: italic; cursor: default; pointer-events: none;
+}
 #dialogue .dlg-note {
   display: block; margin-left: calc(14 * var(--ui-scale));
   font-size: calc(14 * var(--ui-scale)); color: var(--accent); white-space: pre-wrap;

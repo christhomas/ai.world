@@ -126,9 +126,33 @@ function bedMenu(s: Counter): DialogueNode {
     ? 'Upstairs, first on the left. The night is the night — it will pass at its own pace — but you will pass it warm and safe.'
     : 'Upstairs, first on the left. Sleep as long as you like; I will wake you at dawn.';
   return across(s, [settled + upstairs], [
-    { label: 'Sleep', next: () => across(s, [room.take()]) },
+    { label: 'Sleep', next: () => slept(s, room.take()) },
     { label: 'Not tonight', next: () => shopRoot(s) },
   ]);
+}
+
+/** How long the sleep menu waits before deciding for you, in seconds. */
+const BEFORE_DAWN = 30;
+
+/**
+ * The morning after, and the only place this game offers to stop playing.
+ *
+ * Not a save prompt — the room has already been paid for and written down, and `persist` ran inside
+ * `take`. It says *you are safe here, and this is the moment to go if you are going*, which is a
+ * different thing and worth a menu of its own: a bed is the one place a body can be left somewhere
+ * that can be described, and #262 has to put it back exactly there.
+ *
+ * It counts down to *wake up* rather than to *leave*, because a menu that quits the game on its own
+ * would be a menu that quit the game while somebody was reading it. And the count stops the moment
+ * anything is pressed: after that the choice is theirs, however long they take over it.
+ */
+function slept(s: Counter, said: string): DialogueNode {
+  const node = across(s, [said], [
+    { label: 'Up and out', next: () => null },
+    { label: 'Leave the world here', next: () => { s.ctx.room!.leave(); return null; } },
+  ]);
+  node.expires = { after: BEFORE_DAWN, label: 'up and out in %ss', next: () => null };
+  return node;
 }
 
 /**

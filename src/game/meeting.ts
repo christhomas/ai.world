@@ -89,12 +89,21 @@ export interface Meeting {
   indoors: () => Doorway | null;
   flash: (message: string) => void;
   persist: () => void;
+  /**
+   * Put the world away and go back to the title screen.
+   *
+   * Here because a bed is the only place this game offers to stop playing, and a bed is a
+   * conversation. `main.ts` owns what leaving actually costs — the workers, the audio graph, the
+   * last write — and this only asks for it.
+   */
+  toTitle: () => void;
 }
 
 export function createMeeting(ctx: Meeting) {
   const {
     state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue,
     rng, quests, villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist, countryAt, landWood,
+    toTitle,
   } = ctx;
 
   /**
@@ -183,6 +192,14 @@ export function createMeeting(ctx: Meeting) {
       take: () => {
         // and the innkeeper is paid for the bed, which is his trade rather than a toll
         buy(holds(state.inventory), personTill(register, e.person, e.herd.tag), bed);
+        /*
+         * The body is in a bed, and the save says so.
+         *
+         * Written here rather than when somebody presses leave, because on a phone nobody presses
+         * leave: they swipe the app away. The flag has to be what is true when the game is killed
+         * without ceremony, which is what #262 reads it for.
+         */
+        state.lodged = true;
         if (online.connected) {
           // the clock belongs to the world here, so the night passes for everybody or nobody
           state.hp = state.maxHpTotal;
@@ -196,6 +213,7 @@ export function createMeeting(ctx: Meeting) {
         sound.chime();
         return 'You sleep soundly and wake at dawn, fully rested.';
       },
+      leave: toTitle,
     };
     // the post shelf only exists in a shared world, and only knows the names that world has seen
     talkCtx.post = online.connected ? {
