@@ -20,9 +20,8 @@ import { DRY_ENOUGH, bendAt, wanderFactors } from './wander';
 import { stampStructure } from './stamp';
 import {
   BRIDGE_DECK_LIFT, COAST_PROP_FACTOR, DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, HIGH_ROCK_DENSITY,
-  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand,
-  type ChunkData, type Probe, type SampleGrid, type TileSample,
-} from './ground';
+  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand, type ChunkData, type Probe,
+  type SampleGrid, type TileSample } from './ground';
 
 /**
  * What a tile is, said once, next door.
@@ -32,8 +31,7 @@ import {
  */
 export {
   BRIDGE_DECK_LIFT, COAST_PROP_FACTOR, DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, HIGH_ROCK_DENSITY,
-  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand,
-} from './ground';
+  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand } from './ground';
 export type { ChunkData, Probe, SampleGrid, TileSample } from './ground';
 
 /** How wide the cobbles at the middle of the world are, in tiles. */
