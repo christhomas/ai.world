@@ -1,5 +1,6 @@
 import { ICONS, type IconName } from './glyphs';
 import type { Input } from '../core/input';
+import { Twist } from './twist';
 
 /**
  * The game played with thumbs.
@@ -62,12 +63,17 @@ const PANEL_BUTTONS: readonly Button[] = [
    * No map button. The corner map opens the big one when it is pressed, which is the obvious
    * gesture — a picture of where you are is the thing you reach for when you want a bigger picture
    * of where you are — and it buys back a square of a screen that is 390 tall.
+   *
+   * And no camera. The two turn keys were here and were the reason this rail was six cells long,
+   * which is 326 pixels down a screen 390 tall — straight through where a steering thumb rests. The
+   * handoff gives this gutter to the book tabs and says why: *"the walk field excludes this column,
+   * so a steering thumb can never open the pack."* Two of the six were not books. `twist.ts` is
+   * where they went: on a phone a camera is a gesture, which is also what `design/mobile` assumes
+   * by having no camera control in it anywhere.
    */
   { key: 'i', icon: 'pack', label: 'Rucksack' },
   { key: 'j', icon: 'book', label: 'Journal' },
   { key: 'o', icon: 'sliders', label: 'Options' },
-  { key: 'q', icon: 'turnLeft', label: 'Turn the camera left', hold: true },
-  { key: 'e', icon: 'turnRight', label: 'Turn the camera right', hold: true },
 ];
 
 /**
@@ -133,6 +139,8 @@ export class TouchControls {
   private stickY = 0;
   /** The direction keys the stick is holding, so lifting a thumb releases only those. */
   private held: string[] = [];
+  /** Two fingers on the world, as the camera keys they amount to. See `twist.ts`. */
+  private readonly twist = new Twist((k) => this.input.hold(k), (k) => this.input.release(k));
   private on = false;
 
   constructor(private readonly input: Input) {
@@ -146,6 +154,19 @@ export class TouchControls {
     if (forced === true || (forced === null && window.matchMedia('(pointer: coarse)').matches)) this.enable();
     // A machine with a mouse never gets these, but a laptop with a touchscreen should the moment
     // somebody actually touches it — the first finger anywhere is the only honest signal there is.
+    /*
+     * The twist listens on the window rather than on the world, because a gesture that stopped at
+     * the edge of the canvas would stop wherever a readout happens to be drawn — and a readout is
+     * not a wall. What it ignores is the finger already steering: one thumb walking and two more
+     * turning is three fingers, and this is a gesture for two.
+     */
+    const onWorld = (e: PointerEvent) => e.pointerType === 'touch' && e.pointerId !== this.stickPointer;
+    window.addEventListener('pointerdown', (e) => { if (onWorld(e)) this.twist.began(e.pointerId, e.clientX, e.clientY); }, { signal });
+    window.addEventListener('pointermove', (e) => { if (onWorld(e)) this.twist.moved(e.pointerId, e.clientX, e.clientY); }, { signal });
+    const lifted = (e: PointerEvent) => { if (e.pointerType === 'touch') this.twist.ended(e.pointerId); };
+    window.addEventListener('pointerup', lifted, { signal });
+    window.addEventListener('pointercancel', lifted, { signal });
+
     if (forced !== false) {
       window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') this.enable(); }, { signal });
     }
@@ -160,6 +181,7 @@ export class TouchControls {
   /** Stop listening, and take the controls off the page. The world is being put away. */
   dispose(): void {
     this.listening.abort();
+    this.twist.letGo();
     this.releaseStick();
     this.root.remove();
     document.body.classList.remove('touch');
@@ -174,6 +196,20 @@ export class TouchControls {
     this.stickZone.id = 'touchStick';
     this.stickBase.className = 'stick-base';
     this.stickNub.className = 'stick-nub';
+    /*
+     * The ring is also the meters.
+     *
+     * Two arcs round the thumb's own ring, health outside and breath inside, which is the handoff's
+     * answer to a readout nobody looks at: the corner slab is for reading a number, and this is for
+     * seeing a share without taking your eyes off the hero. How full each is comes from two custom
+     * properties `hud.ts` writes on the body, so nothing here has to be told about the game — the
+     * one place that already knows both numbers goes on being the only place that knows them.
+     */
+    this.stickBase.innerHTML = `
+      <svg class="stick-arcs" viewBox="0 0 104 104" aria-hidden="true">
+        <circle class="arc-health" cx="52" cy="52" r="46" />
+        <circle class="arc-breath" cx="52" cy="52" r="37" />
+      </svg>`;
     this.stickBase.appendChild(this.stickNub);
     this.stickZone.appendChild(this.stickBase);
     this.root.appendChild(this.stickZone);
@@ -184,6 +220,8 @@ export class TouchControls {
       this.stickX = e.clientX;
       this.stickY = e.clientY;
       this.stickZone.setPointerCapture(e.pointerId);
+      // where the thumb landed, which is where the ring should have been: `left`/`top` override the
+      // home the stylesheet gives it, and releasing puts them back
       this.stickBase.style.left = `${e.clientX}px`;
       this.stickBase.style.top = `${e.clientY}px`;
       this.stickBase.classList.add('show');
@@ -217,6 +255,10 @@ export class TouchControls {
     this.steer([]);
     this.stickPointer = null;
     this.stickBase.classList.remove('show');
+    // home is where it rests, so the inline position the thumb gave it goes with the thumb
+    this.stickBase.style.left = '';
+    this.stickBase.style.top = '';
+    this.moveNub(0, 0);
   }
 
   private buildPanelRow(): HTMLElement {

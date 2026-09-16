@@ -138,10 +138,26 @@ describe('the two rules the bugs were in', () => {
      * `--band-tabs` is the buttons' width. The rail adds a border on both sides, so beginning the
      * news at the bare band puts its first pixel under the controls. This was measured in a
      * 667×375 touch browser: the buttons ended at x=45 and the chat began at x=44.
+     *
+     * It was written as `--band-tabs` plus two hairlines, which is the narrowest thing that clears
+     * the spine and was therefore a number doing a band's job. `--band-left` is the handoff's own
+     * news indent and is wider than the spine by a gutter rather than by a rounding error, so the
+     * check is now that the news uses it and that it is in fact clear.
      */
-    expect(CSS).toContain(
-      'left: calc(var(--safe-left) + var(--band-tabs) + 2 * var(--ui-scale))',
-    );
+    expect(CSS).toContain('left: calc(var(--safe-left) + var(--band-left))');
+    const width = (edge: string) => Number(band(edge).match(/calc\((\d+)/)![1]);
+    expect(width('left'), 'the news indent has to clear the spine and its borders')
+      .toBeGreaterThan(width('tabs') + 2);
+  });
+
+  it('keeps the news out of the thumb\'s home', () => {
+    /*
+     * The log bottom was 88 pixels up, which was a guess at how much room a thumb and its ring
+     * want and was short of the band by thirty-six — so the oldest line of news sat under the ring
+     * a player was steering with. The band is the measurement; a number that agrees with it by luck
+     * stops agreeing the day either one moves.
+     */
+    expect(CSS).toContain('--log-bottom: calc(var(--safe-bottom) + var(--band-thumb))');
   });
 
   it('adds the safe-area insets outside the bands rather than folding them in', () => {

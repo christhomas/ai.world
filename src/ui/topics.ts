@@ -24,6 +24,7 @@ export const TOPICS: Topic[] = [
     about: 'every key, in one place',
     lines: [
       'WASD or the arrows run · Shift walks · Q and E turn the camera · Scroll zooms',
+      'On a phone: a thumb in the bottom-left walks · two fingers on the world twist the camera',
       'Enter or Space talks, opens and boards · X strikes with whatever is to hand',
       'C guards, held: raise it as they swing to parry, early and you only block',
       'Z looses an arrow · B wards · H blights · U witchlight · V drinks a draught',
