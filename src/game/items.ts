@@ -77,7 +77,46 @@ export interface Item {
   effect?: ItemEffect;
   /** Fish and other things shops buy but do not sell. */
   loot?: boolean;
+  /**
+   * What this is worth out of a village's cellar, in meals. Edibles only; see `mealsIn`.
+   *
+   * Left off means "work it out from what it heals", which is what every edible does today. It is
+   * here so that a thing which is food without healing much — or heals without being food — can say
+   * so rather than being inferred wrongly for ever.
+   */
+  meals?: number;
 }
+
+/**
+ * What an edible is worth in the unit a village counts its cellar in.
+ *
+ * `items.ts` prices an apple at 5 and bread at 8; the sim counts meals and `FOOD.MEAL` is one.
+ * Those are two units for the same substance, and item #231 needs the join: a shelf that takes from
+ * the village's store cannot take *gold* out of a larder. Without it the hero's shelf and the
+ * village's larder count different things, which is the shape of the fault `soldAtMarket` exists to
+ * have ended — a watched hunter and an unwatched one paid out of two economies for the same deer.
+ *
+ * Derived from what it heals rather than from what it costs, because price is about to become a
+ * reading of the village (#230) and a worth that moved with the price would be circular: the cellar
+ * would empty faster in a hungry village for no reason anybody could give.
+ *
+ * Nought for anything that is not food. A sword has no maker until #232 and keeps its infinite
+ * shelf; a bed is a night rather than a meal.
+ */
+export function mealsIn(item: Pick<Item, 'effect'>): number {
+  if (item.effect?.type !== 'heal') return 0;
+  return Math.max(1, Math.round(item.effect.amount / HEALS_PER_MEAL));
+}
+
+/**
+ * How much healing one meal out of a cellar is worth.
+ *
+ * An apple heals ten and is one meal; bread heals twenty and is two. Chosen so the smallest edible
+ * in the game is exactly one meal, because a cellar is counted in whole ones and a half-meal loaf
+ * would either round to nothing — free food — or round up and make apples the cheapest way to empty
+ * a village.
+ */
+const HEALS_PER_MEAL = 10;
 
 /** Shops pay this share of an item's price. */
 /**
