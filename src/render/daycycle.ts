@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { SceneRig } from './scene';
+import { fogReach, type SceneRig } from './scene';
 import { smoothstep } from '../game/state';
 import type { SeasonTint } from '../game/seasons';
 
@@ -168,6 +168,11 @@ export class DayCycle {
     this.tmp.multiply(this.tmp2.setRGB(season.sky[0], season.sky[1], season.sky[2]));
     if (wet > 0) this.tmp.lerp(this.tmp2.setHex(0x6a7480), wet * 0.55 * day);
     (scene.background as THREE.Color).copy(this.tmp);
+    // and the far country goes to the same colour it is standing in front of. One reading rather
+    // than two: a fog lerped on its own curve would seam against the sky at every hour where the
+    // two disagreed, and dusk is exactly where they would
+    if (!scene.fog) scene.fog = new THREE.Fog(this.tmp.getHex(), fogReach().near, fogReach().far);
+    (scene.fog as THREE.Fog).color.copy(this.tmp);
 
     // windows warm up as the light fades
     this.glowMaterial.color.copy(this.tmp2.copy(WINDOW_DAY).lerp(WINDOW_NIGHT, smoothstep(0.3, 0.8, night)));
