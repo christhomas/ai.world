@@ -65,7 +65,19 @@ const origin = `http://localhost:${PORT}`;
 /** The shape of the pictures in the README: wide enough to show a street, short enough to scroll past. */
 const VIEW = { width: 1440, height: 900 };
 /** A phone held upright, for the one shot that is about the touch controls. */
-const PHONE = { width: 420, height: 900 };
+/*
+ * A phone, at the size the design is drawn at.
+ *
+ * 844x390 and landscape, which is what `design/mobile/README.md` states as its reference viewport:
+ * "a landscape phone with the browser chrome gone". It was 420x900 — portrait — so the single phone
+ * picture this repository had was of a shape nobody had designed, and every judgement made from it
+ * was about a layout that does not exist on paper.
+ *
+ * `PHONE_TALL` is kept because a phone held upright is a real thing a player will do, and a layout
+ * that collapses when they turn it is worth seeing. It is not what the design describes.
+ */
+const PHONE = { width: 844, height: 390 };
+const PHONE_TALL = { width: 420, height: 900 };
 /** How long a fresh page is given to raise a world before anything is asked of it. */
 const LOADING = 18000;
 
@@ -414,6 +426,19 @@ const SHOTS = [
       return p.$eval('#note', (el) => el.textContent.trim());
     },
   },
+  /*
+   * The phone, which is a different product and was photographed once.
+   *
+   * There was one picture here — the square, at noon, with the touch controls up — and every other
+   * screen of this game on a phone had never been looked at as an image at all. A panel that reads
+   * well at 900 by 600 can be unusable at 420 wide: the rucksack is a grid, the map is full-screen,
+   * a conversation is a box with a face in it, and all three are laid out against a width this
+   * viewport does not have.
+   *
+   * So: the same screens, at phone size, named so `chore compare` can put two runs beside each
+   * other. That is the difference between "it looks wrong on my phone" and a picture somebody can
+   * point at.
+   */
   {
     name: 'phone', title: 'The game on a phone', viewport: PHONE, touch: true,
     setup: async (p, { village, time, zoom }) => {
@@ -421,6 +446,50 @@ const SHOTS = [
       await village();
       await zoom(13);
       return 'touch controls';
+    },
+  },
+  {
+    name: 'phone-title', title: 'The title screen on a phone', viewport: PHONE, touch: true,
+    page: '/',
+    setup: async () => 'the three slots, before a world is opened',
+  },
+  {
+    // the same square held upright, which is not the designed shape and is the shape a player will
+    // sometimes be in. Worth a picture precisely because nothing has ever been laid out for it
+    name: 'phone-upright', title: 'The square with the phone held upright', viewport: PHONE_TALL, touch: true,
+    setup: async (p, { village, time, zoom }) => {
+      await time(NOON);
+      await village();
+      await zoom(13);
+      return 'portrait, which the design does not describe';
+    },
+  },
+  {
+    name: 'phone-rucksack', title: 'The rucksack on a phone', viewport: PHONE, touch: true,
+    setup: async (p, { village, time, key }) => {
+      await time(NOON);
+      await village();
+      await key('i');
+      return 'open';
+    },
+  },
+  {
+    name: 'phone-map', title: 'The full-screen map on a phone', viewport: PHONE, touch: true,
+    setup: async (p, { village, time, key, wait }) => {
+      await time(NOON);
+      await village();
+      await key('m');
+      await wait(400);
+      return 'open';
+    },
+  },
+  {
+    name: 'phone-night', title: 'A phone after dark, when the HUD has to carry itself', viewport: PHONE, touch: true,
+    setup: async (p, { village, time, zoom }) => {
+      await time(NIGHT);
+      await village();
+      await zoom(13);
+      return 'touch controls, after dark';
     },
   },
   {

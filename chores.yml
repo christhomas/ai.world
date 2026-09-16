@@ -409,6 +409,31 @@ tasks:
         }
         node tools/shots.cjs {{.CLI_ARGS}}
 
+  # The phone, which is a different product from the desktop game and was photographed once.
+  #
+  # A panel that reads well at 900x600 can be unusable at 420 wide — the rucksack is a grid, the map
+  # is full-screen, and both are laid out against a width a phone does not have. This takes the same
+  # screens at phone size so "it looks wrong on my phone" becomes a picture somebody can point at.
+  #
+  #   chore phone                          take them
+  #   cp -r docs/screenshots /tmp/before   keep them
+  #   ...change the layout...
+  #   chore phone && chore compare -- /tmp/before
+  phone:
+    desc: Photograph the game at phone size — the square, the title, the rucksack, the map, and after dark
+    vars:
+      PORT: '{{.WEB_PORT}}'
+    env:
+      PORT: '{{.PORT}}'
+    cmds:
+      - |
+        node -e 'require.resolve("playwright")' 2>/dev/null || {
+          echo "No playwright, which this project deliberately does not depend on. Borrow one:"
+          echo "  NODE_PATH=<a checkout that has playwright> chore phone"
+          exit 1
+        }
+        node tools/shots.cjs phone phone-title phone-rucksack phone-map phone-night
+
   # Whether the pictures changed, which nothing in this repository could say until now. `shots`
   # pins the world, the seed and the camera so a shot can be retaken exactly; this reads two sets
   # and reports what moved. It is the thing that makes "the reference screenshots are unchanged" —

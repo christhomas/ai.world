@@ -359,3 +359,27 @@ jobs:
           path: docs/reports/playtest-report.txt
           if-no-files-found: warn
           retention-days: 30
+
+      # And the phone, which is a different product and nobody could see.
+      #
+      # The browser is already installed for the playtest above, so this is the one place in the
+      # pipeline where phone-sized pictures cost almost nothing. They are an artifact rather than a
+      # gate: what a layout should look like is a judgement, and a threshold on it would be a
+      # threshold on somebody's taste. `chore compare` is there for when two runs want holding
+      # against each other.
+      #
+      # `continue-on-error` on purpose — a screen that will not photograph is worth knowing about
+      # and is not worth failing a pull request nobody expected to be about the phone.
+      - name: Photograph the phone
+        if: always()
+        continue-on-error: true
+        run: chore phone
+
+      - name: Keep the phone
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone
+          path: docs/screenshots/phone*.png
+          if-no-files-found: warn
+          retention-days: 30
