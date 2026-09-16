@@ -9,6 +9,7 @@ import { aroundPatches } from '../world/around';
 import { ChunkManager } from '../world/chunkManager';
 import { Manifest } from '../world/manifest';
 import { rangesAsMassifs } from '../world/ranges';
+import { viewOf } from '../world/patchview';
 import { buildSkyIsland, planSkyIslands } from '../world/skyisland';
 import { PatchCountry } from '../world/patchcountry';
 import { growerFor } from '../world/countryworker';
@@ -82,6 +83,17 @@ export function growCountry(ctx: Growing) {
    * that cannot disagree. `src/world/growworld.ts` says why that distinction cost this project two
    * unplayable worlds.
    */
+  /*
+   * A view rather than a reading, so that walking into the next patch does not leave anybody
+   * holding the last one. `sampler`, `graph`, `structures` and `highPlaces` below are this view's
+   * properties and are answered fresh every time they are asked — see `patchview.ts` for why that
+   * is a smaller thing to get right than a list of consumers to refresh on a crossing.
+   *
+   * `sampler` is still read once here for the things that are handed a sampler at boot and told
+   * about a crossing separately: the mountains, the chunk painter, the skyline and the high
+   * country all have a `standOn`/`show` of their own that `frame.ts` calls.
+   */
+  const view = viewOf(endless);
   const sampler = endless.sampler;
   const graph = sampler.graph;
   /**
@@ -154,7 +166,15 @@ export function growCountry(ctx: Growing) {
   const skyIsles = high.isles;
 
   return {
-    graph, manifest, sampler, structures, around, highPlaces, daycycle, chunks, rock, mountains, skyline,
+    manifest, around, daycycle, chunks, rock, mountains, skyline,
+    /*
+     * Live, not read once. Anything that keeps one of these past the frame it asked in keeps it
+     * across a patch crossing too, which is the fault `patchview.ts` exists to have ended.
+     */
+    get sampler() { return view.sampler; },
+    get graph() { return view.graph; },
+    get structures() { return view.structures; },
+    get highPlaces() { return view.highPlaces; },
     eyries, skyIsles, skyRenderer, high,
     /**
      * The country itself, for a world that has no edge: what to tell when the hero has walked into
