@@ -35,15 +35,25 @@ permissions:
 # A normal branch push and its pull_request event can describe the same commit. Use the
 # branch name for both event types so those two descriptions share one run.
 #
-# Sharing the group is not enough on its own, and the way it failed is worth writing down. Both
-# events fire, the second run cancels the first, and the cancelled one leaves behind check runs
-# named `check`, `flutter` and `playtest` — the three names branch protection requires — with the
-# conclusion `cancelled`. Protection then refuses the merge although the surviving run is green, and
-# the pull request sits BLOCKED with every check reading success in the UI. It cost a release most
-# of an hour. The `only-once` job below is what stops the second run existing at all; this stays as
-# the guard for two pushes in quick succession, which is a real race and one this handles properly.
+# Sharing one group between the two event types was the fault, not the cure, and the way it failed
+# is worth writing down because the pull request page shows nothing wrong.
+#
+# Both events fire for one commit. With a shared group the second run cancels the first, and a
+# cancelled run does not vanish: it leaves check runs named `check`, `flutter` and `playtest` — the
+# three names branch protection requires — with the conclusion `cancelled`. Protection reads that
+# and refuses, while every check in the UI reads green. It cost a release most of an hour.
+#
+# The first attempt at a fix kept the shared group and added the `only-once` job below. It did not
+# work, and could not have: cancellation happens at the run level, so the push run was killed while
+# its gate was still deciding. `only-once` reported success and the three jobs under it reported
+# cancelled anyway.
+#
+# So the group is per event as well as per branch. Two pushes in quick succession still cancel each
+# other, which is what this is for and the case it handles well. A push and its pull_request no
+# longer do, because they are not a race — they are one commit described twice, and `only-once`
+# below is what settles which description answers for it.
 concurrency:
-  group: checks-${{ github.head_ref || github.ref_name }}
+  group: checks-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
