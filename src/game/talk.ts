@@ -98,6 +98,15 @@ export interface Room {
   shared: boolean;
   /** Take the room. Returns what to say about it. */
   take: () => string;
+  /**
+   * Leave the world from here, which is the only clean way out of it.
+   *
+   * A bed is where a body can be left. Everywhere else the hero is standing in a field when the
+   * tab is closed, and #262 has to put him back exactly there; in a bed he is somewhere that can
+   * be described, and the save says so. So the one place the game offers to quit is the one place
+   * quitting is tidy.
+   */
+  leave: () => void;
 }
 
 /** How often a villager brings up Old Nettle unprompted. Rare, so it stays a thing people say. */

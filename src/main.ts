@@ -475,6 +475,7 @@ export function startGame(
   // stopping in front of somebody: everything a person offers, worked out as you speak to them
   const { heroFace, startTalk, talkCtx } = createMeeting({
     state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue, quests, persist,
+    toTitle,
     rng: lineRng,
     countryAt: (x, z) => sampler.biomeOf(x, z),
     villageWelcome: (village) => villageWelcome(village),

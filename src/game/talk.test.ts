@@ -244,7 +244,7 @@ describe('a room at the inn', () => {
     e.shop = shop;
     return e;
   };
-  const context = (room?: { price: number; shared: boolean; take: () => string }) => ({
+  const context = (room?: { price: number; shared: boolean; take: () => string; leave: () => void }) => ({
     state: new GameState(), rng: mulberry32(5), time: 0.5, quests: new Map(),
     onInventoryChange: () => {}, onQuestChange: () => {}, room,
   });
@@ -254,7 +254,7 @@ describe('a room at the inn', () => {
     (node.choices ?? []).find((c) => c.label.includes(text))!.next()!;
 
   it('is offered by an innkeeper and by nobody else', () => {
-    const room = { price: 10, shared: false, take: () => 'slept' };
+    const room = { price: 10, shared: false, take: () => 'slept', leave: () => {} };
     expect(labels(dialogueFor(innkeeper(), context(room)))).toContain('Take a room (10g)');
     expect(labels(dialogueFor(innkeeper('smith'), context(room))).some((l) => l.includes('room'))).toBe(false);
     // and not at all when nothing is offering rooms, as when a keeper is met out of doors
@@ -262,7 +262,7 @@ describe('a room at the inn', () => {
   });
 
   it('will not take money you have not got', () => {
-    const ctx = context({ price: 10, shared: false, take: () => 'slept' });
+    const ctx = context({ price: 10, shared: false, take: () => 'slept', leave: () => {} });
     ctx.state.inventory.gold = 4;
     const bed = pick(dialogueFor(innkeeper(), ctx), 'Take a room');
     expect(bed.pages[0]).toContain('you have 4');
@@ -270,15 +270,15 @@ describe('a room at the inn', () => {
   });
 
   it('says plainly that a shared world\'s night cannot be slept through', () => {
-    const alone = context({ price: 10, shared: false, take: () => 'slept' });
-    const shared = context({ price: 10, shared: true, take: () => 'rested' });
+    const alone = context({ price: 10, shared: false, take: () => 'slept', leave: () => {} });
+    const shared = context({ price: 10, shared: true, take: () => 'rested', leave: () => {} });
     expect(pick(dialogueFor(innkeeper(), alone), 'Take a room').pages[0]).toContain('wake you at dawn');
     expect(pick(dialogueFor(innkeeper(), shared), 'Take a room').pages[0]).toContain('own pace');
   });
 
   it('takes the room when you say so', () => {
     let slept = 0;
-    const ctx = context({ price: 10, shared: false, take: () => { slept++; return 'You sleep soundly.'; } });
+    const ctx = context({ price: 10, shared: false, take: () => { slept++; return 'You sleep soundly.'; }, leave: () => {} });
     const said = pick(pick(dialogueFor(innkeeper(), ctx), 'Take a room'), 'Sleep');
     expect(slept).toBe(1);
     expect(said.pages[0]).toContain('sleep');
