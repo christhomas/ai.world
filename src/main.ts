@@ -251,6 +251,9 @@ export function startGame(
     sky: () => skies.save(),
   });
   register.rememberStablePurchases(houses.stablePurchases());
+  // the days that passed while the game was shut. A shared world keeps stepping without anybody
+  // connected; a single player one freezes, and `awaytime.ts` is the only clock it has
+  if (state.awayFor > 0) state.day += state.awayFor;
   register.advance(state.day);                // a world reopened after a week finds a village changed
   /** Everything Old Nettle's cycle needs to reach into, gathered when it is asked for rather than held. */
   const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name, recall });
