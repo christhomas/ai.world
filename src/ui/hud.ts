@@ -101,8 +101,12 @@ export class Hud {
     const hemi = $<HTMLInputElement>('hemisphereSlider');
     const sunV = $('sunlightValue');
     const hemiV = $('hemisphereValue');
-    sun.value = String(rig.sun.intensity);
-    hemi.value = String(rig.hemi.intensity);
+    // asked of the rig rather than reached for: a `THREE.DirectionalLight` held out here is a
+    // light a second rig could not have, and a rig that lit its scene some other way answers this
+    // the same way. See `SceneRig.brightness`
+    const lit = rig.brightness();
+    sun.value = String(lit.sun);
+    hemi.value = String(lit.hemi);
     /*
      * Both to one decimal, which they were not.
      *
@@ -111,8 +115,8 @@ export class Hud {
      * reading two numbers together expects. Two decimals also buys nothing here: the sky's step is
      * a twentieth, so the second digit is only ever a nought or a five.
      */
-    sunV.textContent = rig.sun.intensity.toFixed(1);
-    hemiV.textContent = rig.hemi.intensity.toFixed(1);
+    sunV.textContent = lit.sun.toFixed(1);
+    hemiV.textContent = lit.hemi.toFixed(1);
     sun.addEventListener('input', () => { sunV.textContent = (+sun.value).toFixed(1); this.onLightChange?.(+sun.value, +hemi.value); });
     hemi.addEventListener('input', () => { hemiV.textContent = (+hemi.value).toFixed(1); this.onLightChange?.(+sun.value, +hemi.value); });
     $('seedValue').textContent = String(seed);
@@ -136,7 +140,7 @@ export class Hud {
 
     // say what is really drawing this: a browser quietly rendering in software looks like a slow
     // computer, and nobody can tell the difference from inside the game
-    const gpu = describeGpu(rig.renderer);
+    const gpu = rig.chip();
     const gpuEl = $('gpuName');
     gpuEl.textContent = gpu.accelerated ? gpu.name : `${gpu.name} — hardware acceleration is off`;
     gpuEl.classList.toggle('software', !gpu.accelerated);

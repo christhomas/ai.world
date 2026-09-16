@@ -403,8 +403,8 @@ export function createFrame(ctx: Framing) {
       hud.setBreath(magic.wind, magic.warded, breath.share, breath.guarding);
       hud.setLink(online.reaching);
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
-      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
-      rig.renderer.render(indoors.scene.scene, iso.camera);
+      hud.setDebug(dt, () => `${fps.toFixed(0)} fps  ${indoors.title}\ndraws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k\nEnter at the door to step outside`);
+      rig.draw(indoors.scene.scene, iso.camera);
       endFrame(dt);
       return;
     }
@@ -434,9 +434,9 @@ export function createFrame(ctx: Framing) {
       sound.update(dt, player.entity.walk > 0.3 && !talking, true);
       hud.setDebug(dt, () =>
         `${fps.toFixed(0)} fps  ${below.poi.name} depths, floor ${below.floor}\n` +
-        `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
+        `draws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k  monsters ${Math.max(0, below.monsters.count - 1)}\n` +
         `rooms ${below.world.map.rooms.length}  doors ${below.world.map.doors.length}  ${below.world.unlocked ? 'unlocked' : 'locked'}  pos ${player.x.toFixed(0)},${player.z.toFixed(0)}`);
-      rig.renderer.render(below.scene.scene, iso.camera);
+      rig.draw(below.scene.scene, iso.camera);
       endFrame(dt);
       return;
     }
@@ -626,7 +626,7 @@ export function createFrame(ctx: Framing) {
     countFrame(dt);
     hud.setDebug(dt, () =>
       `${fps.toFixed(0)} fps  chunks ${chunks.stats.drawn}/${chunks.stats.loaded}  queue ${chunks.stats.pending}\n` +
-      `draws ${rig.renderer.info.render.calls}  tris ${(rig.renderer.info.render.triangles / 1000).toFixed(0)}k  creatures ${entities.count}\n` +
+      `draws ${rig.lastFrame().draws}  tris ${(rig.lastFrame().triangles / 1000).toFixed(0)}k  creatures ${entities.count}\n` +
       // the chunk stands where the world's radius used to. A radius was only ever the size of a
       // world that has an edge; the chunk is the square the ground is actually loaded in, which
       // is a true thing to say about a world grown a patch at a time as well as about a bounded one
@@ -639,7 +639,7 @@ export function createFrame(ctx: Framing) {
       })());
 
     minimap.draw(player.x, player.z, iso.groundCorners(iso.target.y), markers(), !state.can('map'), player.entity.yaw);
-    rig.renderer.render(rig.scene, iso.camera);
+    rig.draw(rig.scene, iso.camera);
     endFrame(dt);
   };
 

@@ -252,7 +252,7 @@ export function bindKeys(ctx: Keys): void {
     if (who === 'typing') return;
     if (who === 'framing') {
       // draw one more frame so the buffer holds exactly what is on screen, then read it back
-      rig.renderer.render(rig.scene, iso.camera);
+      rig.draw(rig.scene, iso.camera);
       const name = screen.takePhoto();
       sound.chime();
       window.setTimeout(() => screen.say(`Saved ${name}`), 50);

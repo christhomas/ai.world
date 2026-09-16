@@ -44,8 +44,14 @@ export interface Panels {
   playerList: PlayerList;
   photo: PhotoMode;
   places: Places;
-  /** For the photograph, which is taken of whatever the renderer last drew. */
-  canvas: THREE.WebGLRenderer;
+  /**
+   * For the photograph, which is taken of whatever was last drawn.
+   *
+   * The canvas rather than the renderer that owns it. It was typed as a `WebGLRenderer` and used
+   * for exactly one thing — `.domElement` — so the name was already telling the truth and the type
+   * was not. A panel has no business knowing how the picture got onto the canvas.
+   */
+  canvas: HTMLCanvasElement;
   seed: number;
   /** What each panel wants to be shown, asked at the moment it is opened rather than held. */
   journalInput: () => JournalInput;
@@ -102,6 +108,6 @@ export function screenOf(p: Panels): Screen {
     nudgeTalk: (by) => p.dialogue.nudge(by),
     centreMap: (x, z) => p.worldMap.centre(x, z),
     zoomMap: (by) => p.worldMap.zoomBy(by),
-    takePhoto: () => p.photo.save(p.canvas.domElement, p.seed),
+    takePhoto: () => p.photo.save(p.canvas, p.seed),
   };
 }

@@ -239,6 +239,47 @@ export interface SceneRig {
    */
   redrawShadows(): void;
   resize(): void;
+  /**
+   * Draw one picture. The one place in this game a frame is submitted from.
+   *
+   * It was four places, all of them in `game/`, each reaching into the rig for its renderer and
+   * calling `.render(scene, camera)` — so there was no seam: nowhere a composer could be put,
+   * nothing to swap at, and no way to answer "what draws this frame" except by grepping for it.
+   *
+   * A second rig that draws through an `EffectComposer` (#250) is now a rig with a different
+   * `draw`, and nothing that asks for a picture has to know which kind it got.
+   */
+  draw(scene: THREE.Scene, camera: THREE.Camera): void;
+  /**
+   * The canvas the picture lands on, for the things that legitimately need the element itself:
+   * hanging input listeners on it, taking it out of the document, and reading it back for a photo.
+   *
+   * Handed out as a canvas rather than as the renderer that owns it, so that none of those three
+   * has an opinion about how the picture got there.
+   */
+  readonly canvas: HTMLCanvasElement;
+  /** Give the graphics context back. The renderer's, and nobody else's business how. */
+  dispose(): void;
+  /**
+   * How bright the three lights are, and setting them — for the debug panel, which is the only
+   * thing that has ever wanted to know.
+   *
+   * By name rather than by handing out the lights, because a `THREE.DirectionalLight` held outside
+   * this layer is a light a second rig cannot have. A rig that lit its scene some other way answers
+   * these two the same way.
+   */
+  brightness(): { sun: number; hemi: number };
+  setBrightness(of: 'sun' | 'hemi', value: number): void;
+  /**
+   * What the last frame cost, for the debug readout — draw calls and triangles.
+   *
+   * Asked rather than read off `renderer.info`, because what a frame costs is a different number
+   * on a rig that draws through a composer, and the readout should not have to know which it is
+   * looking at.
+   */
+  lastFrame(): { draws: number; triangles: number };
+  /** What is drawing this, in the words a person would recognise. See `describeGpu`. */
+  chip(): { name: string; accelerated: boolean };
   /** How hard to work per frame. Saved, so the choice survives a return to the title. */
   quality: Quality;
   setQuality(level: Quality): void;
@@ -398,6 +439,27 @@ export function createSceneRig(container: HTMLElement): SceneRig {
     },
     resize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
+    },
+    draw(what, camera) {
+      renderer.render(what, camera);
+    },
+    get canvas() { return renderer.domElement; },
+    dispose() {
+      renderer.dispose();
+      renderer.domElement.remove();
+    },
+    brightness() {
+      return { sun: sun.intensity, hemi: hemi.intensity };
+    },
+    lastFrame() {
+      return { draws: renderer.info.render.calls, triangles: renderer.info.render.triangles };
+    },
+    chip() {
+      return describeGpu(renderer);
+    },
+    setBrightness(of, value) {
+      if (of === 'sun') sun.intensity = value;
+      else hemi.intensity = value;
     },
   };
 }
