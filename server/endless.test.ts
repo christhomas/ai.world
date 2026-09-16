@@ -135,32 +135,32 @@ describe('and the simulation standing one up', () => {
    * why this asserts the *kind the client asked for* rather than that some ground exists: a road
    * room has villages too, so "there are villages" proved nothing at all.
    */
-  it('opens the country the client asked for, and says so back', () => {
+  it('opens the endless country', () => {
     // ground is off by default so that no test pays two-thirds of a second by accident; this one is
     // about the ground, so it asks for it
     const sim = new Simulation({ vault: new Forgetful(), ground: true });
     const rowan = new Pretend(sim);
     rowan.say({
-      type: 'join', world: 'endless', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
+      type: 'join', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
     });
-    expect(rowan.of('country')[0]?.kind).toBe('endless');
+    expect(rowan.of('country')[0]?.stamp).toBe('');
     const ground = sim.groundOf(7);
     expect(ground).not.toBeNull();
     expect(ground!.villages.length).toBeGreaterThan(0);
   });
 
-  it('and a road room for a client that asks for one, or says nothing at all', () => {
+  it('migrates a retired kind and an old silent client into the endless country', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true });
     const rowan = new Pretend(sim);
     rowan.say({
       type: 'join', world: 'road', seed: 11, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
-    });
-    expect(rowan.of('country')[0]?.kind).toBe('road');
+    } as never);
+    expect(rowan.of('country')[0]?.stamp).toBe('');
 
     // an older build, which says nothing about the country, lands where it always did
     const bryn = new Pretend(sim);
     bryn.say({ type: 'join', seed: 12, name: 'Bryn', version: PROTOCOL_VERSION, day: 2, time: 0.4 } as never);
-    expect(bryn.of('country')[0]?.kind).toBe('road');
+    expect(bryn.of('country')[0]?.stamp).toBe('');
   });
 
   /*
@@ -172,19 +172,17 @@ describe('and the simulation standing one up', () => {
     const sim = new Simulation({ vault: new Forgetful(), ground: true });
     const rowan = new Pretend(sim);
     rowan.say({
-      type: 'join', world: 'endless', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
+      type: 'join', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
     });
     expect(rowan.of('country')[0]?.stamp).toBe('');
   });
 
-  it('still grows a road world exactly as it always did, which is the other half of one door', () => {
+  it('does not revive a whole-country fingerprint for a retired kind', () => {
     const sim = new Simulation({ vault: new Forgetful() });
     const rowan = new Pretend(sim);
     rowan.say({
       type: 'join', world: 'road', seed: 7, name: 'Rowan', version: PROTOCOL_VERSION, day: 2, time: 0.4, x: 20, z: 20,
-    });
-    // a bounded world still has a whole-country fingerprint; an endless one has no whole country to
-    // take one of, and is checked a patch at a time by `twohalves.test.ts` instead
-    expect(rowan.of('country')[0]?.stamp).toBeDefined();
+    } as never);
+    expect(rowan.of('country')[0]).toEqual({ type: 'country', stamp: '' });
   });
 });

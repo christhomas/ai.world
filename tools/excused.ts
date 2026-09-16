@@ -54,6 +54,7 @@ export const EXCUSED = new Map<string, string>([
   ['src/world/catalogue.ts: GROUPS', 'catalogue tests verify the complete item grouping'],
   ['src/world/civics.ts: worksNobodyPlaced', 'civics tests fail when a public work has no placement path'],
   ['src/world/food.ts: grownInADay', 'food and fishing tests own the aggregate-yield invariant; runtime totals broughtIn directly'],
+  ['src/world/polygons.ts: indexFaces', 'polygons tests check it directly; roadweb.test.fixture builds the FaceIndex the retired bounded mesh needs'],
   ['src/world/vocabulary.ts: DEEDS', 'vocabulary tests verify every deed has words'],
   ['src/world/vocabulary.ts: HOLDINGS', 'vocabulary tests verify every holding has words'],
 ]);

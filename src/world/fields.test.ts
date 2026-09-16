@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FOOD } from './food';
-import { growWorld } from './growworld';
+import { generateRoadGraph } from './graph.test.fixture';
 import { aDaysTrade } from './livelihoods';
 import { Register } from './register';
 import { TerrainSampler } from './terrain';
@@ -11,7 +11,7 @@ import type { Village } from './structures';
 import { WORLD } from '../core/config';
 
 function livedFields(seed: number): { register: Register; sampler: TerrainSampler; village: Village } {
-  const sampler = new TerrainSampler(growWorld(seed, 'road'));
+  const sampler = new TerrainSampler(generateRoadGraph(seed));
   const village = sampler.structures.villages.find((place) => place.houses.length >= 6)!;
   const register = new Register(seed);
   const people = register.settle(village.name, village.houses.length, ['farmer', 'builder', 'seller']);

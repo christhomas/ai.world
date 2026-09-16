@@ -27,7 +27,7 @@
  * Everything it needs is an environment variable with a sensible default, so nothing here is
  * pinned to one machine:
  *
- *   PORT=5173  WORLD=road  SEED=3     the address, assembled
+ *   PORT=5173  SEED=3                 the address, assembled
  *   ADDRESS=...                       or the whole address at once, if you want a different shape
  *   CHANNEL=chrome                    which browser; empty means playwright's own chromium
  *   DRIFT=0.35                        how far a creature may be drawn from where the world has it
@@ -47,9 +47,8 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 
 const PORT = process.env.PORT || '5173';
-const WORLD = process.env.WORLD || 'road';
 const SEED = process.env.SEED || '3';
-const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?world=${WORLD}&seed=${SEED}`;
+const ADDRESS = process.env.ADDRESS || `http://localhost:${PORT}/?seed=${SEED}`;
 // Empty means playwright's own chromium. The default is the real Chrome because that is the one a
 // borrowed playwright can always reach: its bundled chromium is a numbered download that matches
 // the borrowed version and is usually not the one that checkout happens to have on disk.
@@ -162,9 +161,14 @@ const finish = async () => {
     const door = await page.evaluate(() => {
       const v = window.__villages[0];
       const d = window.__doors.filter((x) => x.village === v.name)[0];
-      const ox = d.x - d.bx, oz = d.z - d.bz, len = Math.hypot(ox, oz) || 1;
-      window.__teleport(d.x + 0.5 + (ox / len) * 2, d.z + 0.5 + (oz / len) * 2);
-      return { x: d.x + 0.5, z: d.z + 0.5 };
+      /*
+       * The doorway record is already the clear outside tile generated for somebody to stand on
+       * and knock. Starting another two tiles through a live village added traffic and scenery to
+       * a check whose subject is the leaf, not the street leading to it. Stand on the doorstep and
+       * face the centre of the building: that line is square through whichever wall owns the door.
+       */
+      window.__teleport(d.x, d.z);
+      return { x: d.bx + 0.5, z: d.bz + 0.5 };
     });
     await page.waitForTimeout(5000);
     await face(door.x, door.z);
@@ -191,11 +195,24 @@ const finish = async () => {
   }, id);
 
   const w = await page.evaluate(() => window.__world);
-  say('the world is the one the link asked for', w.world === 'road' && w.online === 'online', JSON.stringify(w));
+  say('the running world is the endless country', w.world === 'endless' && w.online === 'online', JSON.stringify(w));
 
   // --- walking into things ---
   const house = await page.evaluate(() => { const v = window.__villages[0]; const h = v.houses[0]; return { x: h.tx + 0.5, z: h.tz + 0.5, rot: h.rot }; });
-  await go(house.x - Math.cos(house.rot) * 4, house.z - Math.sin(house.rot) * 4);
+  /*
+   * One approach, used twice.
+   *
+   * The mounted run used to begin six tiles out while its control on foot began four tiles out.
+   * That is not the same approach through a generated village: on seed 3 the extra two tiles held
+   * other scenery, so Dusty stopped 4.53 tiles from the house and the check blamed its wall. The
+   * wall had never held him there; the test had ridden him into something else.
+   *
+   * Keep the start as a value rather than repeating the arithmetic so neither half can quietly
+   * choose a different path again. Four tiles leaves a horse wholly clear of a cottage before the
+   * walk starts, and is the point the on-foot control has already proved usable.
+   */
+  const approach = { x: house.x - Math.cos(house.rot) * 4, z: house.z - Math.sin(house.rot) * 4 };
+  await go(approach.x, approach.z);
   await face(house.x, house.z);
   await walk('w', 5000);
   const off = Math.hypot((await at()).x - house.x, (await at()).z - house.z);
@@ -258,24 +275,40 @@ const finish = async () => {
    * The mounted case, which is the one that made stepping over things visible in the first place
    * and which this script has never once played.
    *
-   * A horse does not carry the hero, it multiplies his pace — so what changes is the length of a
-   * step, and a step longer than the thing it is walking into is exactly how a wall gets stepped
-   * over. The collision bench walks the arithmetic at a courser's pace already; this is the played
-   * half, at whatever frame rate this machine actually manages, which is where the sweep is
-   * genuinely under load.
+   * A horse multiplies the hero's pace and carries its own longer collision body — so both the
+   * length of the step and the body meeting the wall change. The collision bench walks that
+   * arithmetic at a courser's pace already; this is the played half, at whatever frame rate this
+   * machine actually manages, which is where the sweep is genuinely under load.
    *
    * `__ride` exists because mounting is only reachable through a stable's dialogue: a person does
    * that in ten seconds and a script cannot do it at all.
    */
+  await go(approach.x, approach.z);
+  /*
+   * Mount after `go`: the probe uses the game's teleport command, and teleporting correctly lets
+   * go of a horse rather than carrying it across the country. Mounting first made this test walk
+   * the wall on foot while an abandoned horse stood at the previous check, 8.79 tiles away.
+   */
   const rode = await page.evaluate(() => window.__ride(true));
-  say('the hero can get on a horse', rode && rode.riding === true, JSON.stringify(rode));
-  await go(house.x - Math.cos(house.rot) * 6, house.z - Math.sin(house.rot) * 6);
+  await page.waitForTimeout(150);
+  const carried = await page.evaluate(() => window.__mount());
+  const under = carried?.under;
+  say('the hero can get on a horse', rode && rode.riding === true && carried.horse !== null && typeof under === 'number' && under < 0.1,
+    `${JSON.stringify(rode)}, horse ${typeof under === 'number' ? under.toFixed(2) : 'not'} tiles under rider`);
   await face(house.x, house.z);
   await walk('w', 5000);
   const rider = await at();
+  const horse = await page.evaluate(() => window.__mount());
   const galloped = Math.hypot(rider.x - house.x, rider.z - house.z);
-  say('a house stops a horse at its wall too', galloped > 1.1 && galloped < 3,
-    `closest ${galloped.toFixed(2)} tiles from its middle, riding`);
+  const outside = await page.evaluate(() => {
+    const mount = window.__mount();
+    return {
+      rider: !window.__solid(mount.hero.x, mount.hero.z),
+      horse: mount.horse !== null && !window.__solid(mount.horse.x, mount.horse.z),
+    };
+  });
+  say('a house stops a horse at its wall too', galloped > 1.1 && galloped < 3 && outside.rider && outside.horse,
+    `closest ${galloped.toFixed(2)} tiles from its middle, riding; rider outside ${outside.rider}, horse outside ${outside.horse}, separation ${horse.under}`);
   await page.evaluate(() => window.__ride(false));
 
   // --- a fight ---

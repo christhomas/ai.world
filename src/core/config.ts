@@ -43,9 +43,8 @@ export const WORLD = {
  *
  * How *far* the roads go is deliberately not in here. That number says a world has an edge, which
  * is true of a world grown to a radius and of nothing else, so it lives with the generator that
- * grows one — `EDGE_OF_THE_WORLD` in `world/graph.ts` — and importing it is a statement about
- * which kind of world you are making. Everything else here is a fact about roads, and roads are
- * roads in an endless country too.
+ * once lived beside the generator. Everything here is a local fact about roads and applies in
+ * every square of the country.
  */
 export const GRAPH = {
   ATTRACTOR_SPACING: 16,  // jittered grid spacing for growth targets; smaller = denser roads

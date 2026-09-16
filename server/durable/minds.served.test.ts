@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage, type VillagerSnap } from '../protocol';
 import { startServer, type RunningServer } from '../serve';
+import { growPatch } from '../../src/world/growworld';
+import { boundsOf } from '../../src/world/patchwork';
 
 /**
  * A villager remembers you after the container has come back, which is the whole of #104's
@@ -19,6 +21,37 @@ import { startServer, type RunningServer } from '../serve';
  * same disk, and asks the same villager. Before the change it comes back with nothing.
  */
 const PATIENCE = 20_000;
+
+/**
+ * Somewhere this world actually keeps people, found by asking the world rather than assumed.
+ *
+ * This test used to join and stand still, and it worked because it was written against a country
+ * with a middle: the bounded world put its villages around the origin, so a player who never moved
+ * was standing among them. An endless country has no middle. The origin square of a seed is one
+ * square of open country like any other, and `growPatch(1, '0,0')` puts its nearest village —
+ * Oakreach — **408 tiles** from the origin.
+ *
+ * `IN_SIGHT` is sixty. So the server was perfectly correct and told this player about nothing at
+ * all, not one `creatures` message in fifteen seconds, and `villager()` timed out saying no
+ * villager answered. The failure read like a broken restore and was a hero standing in a field.
+ *
+ * No seed rescues it — the nearest village to the origin is 408 tiles away on seed 1, 115 on seed
+ * 2, 91 on seed 3, 111 on seed 4 and 182 on seed 5, all of them outside sixty. So the player is
+ * walked to a village instead, which is also what a real client does: it sends its own position
+ * out of its own save the moment it has joined, and standing at the origin for ever was never a
+ * thing a player does.
+ *
+ * Scanned rather than chosen: the nearest village of the origin patch, whichever the generator
+ * puts there.
+ */
+function aVillageOf(seed: number): { name: string; x: number; z: number } {
+  const villages = growPatch(seed, boundsOf('0,0')).structures.villages;
+  const nearest = [...villages].sort(
+    (one, two) => Math.hypot(one.x, one.z) - Math.hypot(two.x, two.z))[0];
+  expect(nearest, `seed ${seed} grows no village in its origin square, so nobody can be asked anything`)
+    .toBeDefined();
+  return { name: nearest.name, x: nearest.x, z: nearest.z };
+}
 
 class Player {
   private readonly socket: WebSocket;
@@ -35,11 +68,23 @@ class Player {
     });
   }
 
+  /**
+   * Join, and then stand where the world has somebody to talk to.
+   *
+   * The `move` is not decoration. A client's position is the client's own — the world takes it on
+   * trust from the save — so a socket that joins and says nothing is a hero at nought, nought, and
+   * on an endless country that is a field. See `aVillageOf`.
+   */
   static async join(port: number, name: string, seed: number): Promise<Player> {
     const socket = new WebSocket(`ws://localhost:${port}`);
     await new Promise((open, fail) => { socket.on('open', open); socket.on('error', fail); });
     const player = new Player(socket);
-    player.send({ type: 'join', world: 'road', seed, name, version: PROTOCOL_VERSION, day: 1, time: 0.3 });
+    player.send({ type: 'join', seed, name, version: PROTOCOL_VERSION, day: 1, time: 0.3 });
+    const village = aVillageOf(seed);
+    player.send({
+      type: 'move', x: village.x, z: village.z, yaw: 0, walk: 0,
+      place: 'surface', riding: 'foot', gear: [],
+    });
     return player;
   }
 

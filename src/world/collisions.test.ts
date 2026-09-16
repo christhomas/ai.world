@@ -14,7 +14,7 @@ import { CASTLE, generateCastle } from '../dungeon/castle';
 import { floorThePlanOffers } from '../dungeon/castlefit';
 import { reachable } from '../dungeon/map';
 import { DungeonWorld } from '../dungeon/world';
-import { generateWebGraph } from './roadweb';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { TerrainSampler } from './terrain';
 
 /**

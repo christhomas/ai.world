@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FaceKind, MESH, faceAt, generateMesh, isLand } from './mesh';
+import { FaceKind, MESH, faceAt, isLand } from './mesh';
+import { generateMesh } from './roadweb.test.fixture';
 
 /**
  * The mesh replaces "land is anywhere near a road" with "land is inside a land face". The tests
