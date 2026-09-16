@@ -4289,22 +4289,6 @@ than by remembering — and the first thing found was that the gap is not where 
       is better", and judging that is a walk rather than a test — which is also what **84** asks
       for.
 
-      **The decision, taken on the 14th: the edge comes out.** Asked directly, and the answer was
-      the same one this section opens with — the endless world is the future of the map and the
-      bounded one is to be retired. A draft that proposed the opposite, keeping road as the default
-      and endless as an explicit single-player choice, is thrown away rather than merged; it is
-      recorded here only so nobody spends an afternoon re-deciding it.
-
-      *What that does not settle is when.* This item's own sentence is "last, not first", and the
-      gate it names is a judgement rather than a test: **84** is closed, so the device walk half of
-      it is done, and the shared endless playtest half is **120** and wants a person. Until that
-      happens, removing `EDGE_OF_THE_WORLD` would delete the reference the endless world is checked
-      against before anybody has checked it in company — which is the one way this could go wrong
-      that nobody would notice for a week.
-
-      *What it is not waiting on is size.* Five files mention `EDGE_OF_THE_WORLD` and eight
-      non-test lines read it. The work is the walk, not the deletion.
-
 - [x] **59a. What the generator still owes — nothing, as it turns out.** `samplerIn(seed, within)`
       already answers with roads, water, villages, signposts, caves, wrecks, ferries *and rock*:
       `localrock.ts` stands mountains on the high country and `endless.test.ts` holds two
