@@ -34,7 +34,8 @@ const treeOf = (name: string) => allTrees()[name] ?? null;
  * anybody looks.
  *
  * Everything here calls the function directly rather than through `places.enterDungeon`, which
- * belongs to somebody else this week. The one line that joins the two is in `docs/worklist.md`.
+ * belongs to somebody else this week. The one line that joins the two was in the old work list;
+ * it reads now in `git log -p -- docs/worklist.md`.
  */
 
 const CAVE = { id: 'cave:10,10', name: 'Bat Hollow', x: 10, z: 10 };
