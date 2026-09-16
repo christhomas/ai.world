@@ -294,6 +294,16 @@ tasks:
     cmds:
       - 'pnpm vitest run src/game/economy.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
+  # The same hundred days read for the people rather than for the money. The economy bench can say
+  # that somebody died and cannot say whether anybody was born to replace them, which is the half of
+  # a village that decides whether it is there in a year. Issue #255.
+  population:
+    desc: Read the same hundred days for who was born, who grew up, and what the village had room for
+    vars:
+      REPORT: population-report.txt
+    cmds:
+      - 'pnpm vitest run src/game/population.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
+
   # The fifth bench, and the other half of the one above: four hundred and fifty days of the same
   # villages, judged on whether they are still places anybody would believe in rather than on
   # whether the books add up. The audit passes a village that has lost every farmer it ever had, to
