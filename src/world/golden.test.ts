@@ -36,7 +36,21 @@ export function worldFingerprint(seed: number): Record<string, string> {
 }
 
 /**
- * Last updated deliberately when the world started darkening where two of its surfaces meet
+ * Last updated deliberately when the ground stopped being chequered (2026-09-16). Only `chunks`
+ * moves, on both seeds. Which of a biome's two greens a tile of open ground takes used to be an
+ * independent coin flip per tile — white noise at exactly one tile of wavelength, which is what a
+ * checkerboard is — and is now read off a noise field twelve tiles across, dithered at the join.
+ * The per-tile shade multiplier in `mesher.ts` went the same way, from an independent roll to a
+ * swell five tiles across over the same range. `meadow.ts` says why both.
+ *
+ * `graph`, `hydro`, `structures` and `quests` do not move a digit, and that is the check rather
+ * than the claim: nothing here touches where a road goes, where a river cuts, where anything is
+ * built or what anybody is asked to do. What moves inside `chunks` is the tile types of open
+ * ground, the props that follow from them — `props.ts` branches on `GroundAlt` — and the colours.
+ * The share of ground that is `GroundAlt` is held to what it always was by `meadow.test.ts`, so
+ * this is a change of shape rather than of proportion.
+ *
+ * Before that: when the world started darkening where two of its surfaces meet
  * (2026-09-16). Only `chunks` moves, and only its colours: the ground at the foot of a terrace,
  * the foot of every cliff face, and the ground a prop is rooted in now lose some of their light,
  * which is item #251. Nothing is drawn from the random stream that was not drawn before — the
@@ -150,6 +164,6 @@ describe('generation fingerprint', () => {
  * existed rather than rolled for.
  */
 const GOLDEN: Record<number, Record<string, string>> = {
-  1: { graph: '5256f550', hydro: '57d1f709', structures: '668000d3', chunks: 'd3ce299a', quests: '829c481b' },
-  2: { graph: '91f6d142', hydro: 'e1df1004', structures: '2d01947e', chunks: '1476c58e', quests: '10f6f7ad' },
+  1: { graph: '5256f550', hydro: '57d1f709', structures: '668000d3', chunks: '7b146f80', quests: '829c481b' },
+  2: { graph: '91f6d142', hydro: 'e1df1004', structures: '2d01947e', chunks: '8b24c7a3', quests: '10f6f7ad' },
 };

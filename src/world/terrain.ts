@@ -2,6 +2,7 @@ import { GRAPH, HYDRO, WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
 import { SALT, TILE_SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
+import { alternateGround } from './meadow';
 import { biomeAt, segDist2, type RoadGraph } from './graph';
 import { BIOMES, Biome, PropKind, pickWeighted } from './biomes';
 import { generateHydrology, type Hydrology, type LandProbe } from './rivers';
@@ -19,9 +20,8 @@ import { DRY_ENOUGH, bendAt, wanderFactors } from './wander';
 import { stampStructure } from './stamp';
 import {
   BRIDGE_DECK_LIFT, COAST_PROP_FACTOR, DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, HIGH_ROCK_DENSITY,
-  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand,
-  type ChunkData, type Probe, type SampleGrid, type TileSample,
-} from './ground';
+  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand, type ChunkData, type Probe,
+  type SampleGrid, type TileSample } from './ground';
 
 /**
  * What a tile is, said once, next door.
@@ -31,8 +31,7 @@ import {
  */
 export {
   BRIDGE_DECK_LIFT, COAST_PROP_FACTOR, DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, HIGH_ROCK_DENSITY,
-  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand,
-} from './ground';
+  PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand } from './ground';
 export type { ChunkData, Probe, SampleGrid, TileSample } from './ground';
 
 /** How wide the cobbles at the middle of the world are, in tiles. */
@@ -526,7 +525,8 @@ export class TerrainSampler {
     } else if (level - baseLevel >= def.highAt) {
       type = TileType.High;
     } else {
-      type = rand2(this.seed, tx, tz, TILE_SALT.GROUND_VARIANT) < GROUND_ALT_CHANCE ? TileType.GroundAlt : TileType.Ground;
+      // blotched rather than chequered: see `meadow.ts` for why this is not a coin flip
+      type = alternateGround(this.seed, tx, tz) ? TileType.GroundAlt : TileType.Ground;
     }
 
     if (water) {
