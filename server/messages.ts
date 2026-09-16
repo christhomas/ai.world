@@ -777,9 +777,21 @@ function field(rooms: Rooms, me: Client, room: Room, message: ClientMessage): vo
     }
     case 'warband-hit': {
       const swing = cleanSwing(message);
-      if (!me.warband || !swing) return;
-      rooms.send(me.warband, {
-        type: 'warband-struck', damage: swing.damage, sword: swing.sword, from: me.presence.id,
+      const stood = Boolean(me.warband) && swing !== null;
+      /*
+       * The answer goes back whether or not the blow stood, and that is the change.
+       *
+       * This used to `return` on both of these without a word, and the page that threw the blow had
+       * already taken the health off — item 73's letterbox argument says a swing must not wait, and
+       * it is right, but a prediction with nothing to contradict it is a page telling its player
+       * something that did not happen. Both drops are ordinary: a duel that ended on this side
+       * while the blow was in flight, and a blow that fails `cleanSwing`.
+       */
+      const seq = Number((message as { seq?: unknown }).seq);
+      if (Number.isInteger(seq) && seq > 0) rooms.send(me, { type: 'warband-blow', seq, stood });
+      if (!stood) return;
+      rooms.send(me.warband!, {
+        type: 'warband-struck', damage: swing!.damage, sword: swing!.sword, from: me.presence.id,
       });
       return;
     }

@@ -614,8 +614,8 @@ export class Online {
   }
 
   /** A blow landed by you or by one of your men. */
-  warbandHit(damage: number, sword: boolean): void {
-    if (this.connected) this.send({ type: 'warband-hit', damage, sword });
+  warbandHit(damage: number, sword: boolean, seq?: number): void {
+    if (this.connected) this.send({ type: 'warband-hit', damage, sword, seq });
   }
 
   /** How many of yours are still standing, said only when that changes. */

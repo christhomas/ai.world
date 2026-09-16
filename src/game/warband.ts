@@ -87,6 +87,14 @@ export interface Landing {
   at: string;
   name: string;
   sword: boolean;
+  /**
+   * Hearts this blow actually removed, which is not the damage it was thrown with.
+   *
+   * Kept rather than worked out again, which is `claims.ts`'s rule and is load-bearing here: a
+   * blow against somebody on his last heart takes one and not the six that were swung, because
+   * `land` floors at nought. An undo that recomputed would invent five hearts out of a rounding.
+   */
+  took: number;
   /** Whether that blow put him out of the fight. */
   felled: boolean;
   /** Whether that was the end of the side, which only a player can be. */
@@ -148,12 +156,51 @@ function land(side: Side, damage: number): Landing {
   const hit = Math.max(0, Math.floor(damage));
   const sword = side.swords.find((s) => s.hearts > 0);
   if (sword) {
-    sword.hearts = Math.max(0, sword.hearts - hit);
-    return { at: sword.who, name: sword.name, sword: true, felled: sword.hearts === 0, over: false };
+    const was = sword.hearts;
+    sword.hearts = Math.max(0, was - hit);
+    return {
+      at: sword.who, name: sword.name, sword: true, took: was - sword.hearts,
+      felled: sword.hearts === 0, over: false,
+    };
   }
-  side.hearts = Math.max(0, side.hearts - softened(hit, side.guard));
+  const was = side.hearts;
+  side.hearts = Math.max(0, was - softened(hit, side.guard));
   const done = side.hearts === 0;
-  return { at: side.who, name: side.name, sword: false, felled: done, over: done };
+  return { at: side.who, name: side.name, sword: false, took: was - side.hearts, felled: done, over: done };
+}
+
+/**
+ * Put a blow back, exactly as it fell.
+ *
+ * By the man's own id rather than by who is standing in front, because those stop being the same
+ * person the moment a blow fells somebody: an answer that arrives after the next swing would give
+ * the heart to whoever stepped up. And by `took` rather than by the damage, because the damage is
+ * what was thrown and `took` is what the clamp and the armour let through.
+ *
+ * A blow that took nothing puts nothing back, which covers a swing at somebody already at nought
+ * and keeps this from being a way of healing anybody.
+ *
+ * ## The one case that is not simple arithmetic
+ *
+ * Undoing an *earlier* blow after a later one has already floored somebody would stand him back
+ * up. Answers do not arrive in the order the blows were thrown, so this is ordinary rather than
+ * exotic: two swings, the second fells him, the answer to the first comes back last.
+ *
+ * So a man who is down stays down unless *this* is the blow that put him there, which `felled`
+ * already says. It is the right answer rather than a convenient one — hearts only ever go down in
+ * a fight, and the alternative is a page that resurrects somebody the whole field watched fall.
+ */
+function unland(side: Side, landing: Landing): void {
+  if (landing.took <= 0) return;
+  if (landing.sword) {
+    const sword = side.swords.find((s) => s.who === landing.at);
+    if (!sword || (sword.hearts === 0 && !landing.felled)) return;
+    sword.hearts += landing.took;
+    return;
+  }
+  if (side.who !== landing.at) return;
+  if (side.hearts === 0 && !landing.felled) return;
+  side.hearts = Math.min(side.full, side.hearts + landing.took);
 }
 
 /** A fighter as the reckoning counts him: what he swings, what he wears, and who is with him. */
@@ -352,6 +399,19 @@ export class Warband {
    */
   landed(swing: Swing): Landing | null {
     return this.them ? land(this.them, swing.damage) : null;
+  }
+
+  /**
+   * The world did not take that blow, so neither do we.
+   *
+   * The page throws first — `predicted.ts` says a swing is `hand`, and a swing that waited for a
+   * round trip is the letterbox the whole argument is against. What it never had was this half:
+   * `server/messages.ts` drops a `warband-hit` silently when the duel is already over on its side
+   * or when the blow fails `cleanSwing`, and until now the page went on showing a hit that the
+   * world never counted.
+   */
+  takeBack(landing: Landing): void {
+    if (this.them) unland(this.them, landing);
   }
 
   /** Take the far side's word for how many of them are still up, since only they can know. */

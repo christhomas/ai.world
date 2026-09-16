@@ -98,6 +98,13 @@ export interface OnlineEvents {
   onWarbandBegun: (withId: string, withName: string, swords: number) => void;
   /** A blow landed on your side. Where it goes is yours to say. */
   onWarbandStruck: (damage: number, sword: boolean) => void;
+  /**
+   * What became of a blow this page threw and has already shown landing.
+   *
+   * `stood` false is the world saying it never counted it, and the page puts back exactly what it
+   * gave itself. See `Warband.takeBack` and `claims.ts`.
+   */
+  onWarbandBlow: (seq: number, stood: boolean) => void;
   /** How many of their men are still on their feet. */
   onWarbandMuster: (swords: number) => void;
   /** The fight is over: the winner's id, empty when it was called off. */
@@ -274,6 +281,9 @@ export function heard(o: Listening, message: ServerMessage): void {
       break;
     case 'warband-struck':
       o.events.onWarbandStruck(message.damage, message.sword);
+      break;
+    case 'warband-blow':
+      o.events.onWarbandBlow(message.seq, message.stood);
       break;
     case 'warband-muster':
       o.events.onWarbandMuster(message.swords);

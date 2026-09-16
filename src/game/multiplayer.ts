@@ -33,7 +33,9 @@ import type { Register } from '../world/register';
 import { HIRE, type Hires } from './hire';
 import {
   WARBAND, Warband, fighterOf, reckon, sideOf, strangers, swordsOf, type Fighter,
+  type Landing,
 } from './warband';
+import { Claims } from './claims';
 
 /**
  * Everything that happens because other people are in your world: the connection, the market, the
@@ -306,6 +308,12 @@ export function createMultiplayer(ctx: MultiplayerContext) {
       sound.chime();
       chat.line(`A fight with ${withName} begins. ${warband.readout()}`, 'sys');
     },
+    onWarbandBlow: (seq, stood) => {
+      const given = blows.answered(seq);
+      // `answered` hands it back once, so an answer arriving twice cannot undo a blow twice —
+      // which would put a heart back that had already been returned
+      if (given && !stood) warband.takeBack(given);
+    },
     onWarbandStruck: (damage, sword) => {
       const landing = warband.struck({ damage, sword });
       if (!landing) return;
@@ -492,6 +500,16 @@ export function createMultiplayer(ctx: MultiplayerContext) {
    * far client is not simulated at all: only the blow travels, exactly as the hero's own does.
    */
   let sinceBite = 0;
+  /**
+   * Blows thrown and not yet answered for.
+   *
+   * The page takes the health off the moment a man swings — `predicted.ts` settles that a swing is
+   * `hand`, and a blow that waited for a round trip is the letterbox item 73 is arguing against.
+   * What it had no answer for is the world disagreeing: `server/messages.ts` drops a `warband-hit`
+   * where the duel has already ended on its side or the blow fails `cleanSwing`, and until this
+   * existed the page went on showing a hit that nothing ever counted.
+   */
+  const blows = new Claims<Landing>();
   const swingSwords = (dt: number): void => {
     if (!warband.active) return;
     sinceBite += dt;
@@ -501,8 +519,9 @@ export function createMultiplayer(ctx: MultiplayerContext) {
     if (!them || Math.hypot(them.x - player.x, them.z - player.z) > HIRE.EARSHOT) return;
     for (const man of hires.roster(online.id)) {
       if (!warband.mayStrike(man.who, warband.opponent, hires)) continue;
-      warband.landed({ damage: WARBAND.SWORD_BLOW, sword: true });
-      online.warbandHit(WARBAND.SWORD_BLOW, true);
+      const landing = warband.landed({ damage: WARBAND.SWORD_BLOW, sword: true });
+      if (!landing) continue;
+      online.warbandHit(WARBAND.SWORD_BLOW, true, blows.ask(landing));
     }
   };
 
