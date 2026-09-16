@@ -1,3 +1,5 @@
+import { whatDyingCosts, type Bill } from '../world/reckoning';
+import { AWAY, buy, holds } from '../world/deeds';
 import { learnedFrom, levelFor, saidOf, PROWESS } from './prowess';
 import { HEALTH } from '../world/health';
 import { ITEMS, Inventory, type InventoryJson } from './shops';
@@ -270,6 +272,41 @@ export class GameState {
     this.hp = Math.max(0, this.hp - dealt);
     this.version++;
     return this.hp === 0;
+  }
+
+  /**
+   * The gods put him back together, in the nearest town, whole — and bill him for it.
+   *
+   * Every unplanned exit is this one event: killed by an animal, a rage quit, a dropped connection.
+   * A dropped connection costing what a rage quit costs is a decision rather than an oversight —
+   * the world cannot tell them apart without trusting the page, and a grace window is a thing
+   * players learn to trigger on purpose.
+   *
+   * Purse first, then the gear, dearest thing first; broke and stripped in the square is the floor
+   * and there is never a debt. `reckoning.ts` decides all of it and takes nothing itself, so what
+   * leaves can be written down where an audit sees it — the fee is money that genuinely leaves the
+   * world, which is what `AWAY` is for.
+   *
+   * Waking whole is not generosity: a shrine has never made a wounded person. `whoTheShrineSent`
+   * builds a villager with a full life ahead of them, and this is the same magic reaching the one
+   * person it is asked for repeatedly.
+   */
+  raised(): Bill {
+    const bill = whatDyingCosts(this.inventory.gold, {
+      worn: Object.values(this.equipped)
+        .flatMap((id) => (id && ITEMS[id] ? [{ id, price: ITEMS[id].price }] : [])),
+    });
+    // through `buy` to `AWAY`, never by subtraction. `onepurse2.test.ts` holds this file to it and
+    // caught the bare `-=` on the first run: a coin nobody received is a coin nobody can audit, and
+    // the gods are genuinely nobody — they are not on the register and keep no purse
+    buy(holds(this.inventory), AWAY, bill.fromPurse);
+    for (const id of bill.taken) {
+      const slot = (Object.keys(this.equipped) as EquipSlot[]).find((s) => this.equipped[s] === id);
+      if (slot) delete this.equipped[slot];
+    }
+    this.hp = this.maxHpTotal;
+    this.version++;
+    return bill;
   }
 
   /** Sleep until morning: full heal, next day. */
