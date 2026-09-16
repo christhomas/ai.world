@@ -47,3 +47,26 @@ describe('what a meal costs where it is eaten', () => {
     expect(dearnessOfFood(60, five)).toBeCloseTo(PRICES.CHEAP);
   });
 });
+
+/*
+ * The headline of item 138, asserted rather than implied: one village is not the same shop as the
+ * next. Everything above measures one village against itself as its cellar empties; this measures
+ * two of the same size against each other on the same morning, which is the thing that makes
+ * walking to the next valley worth doing.
+ */
+describe('one village is not the same shop as the next', () => {
+  const five = [soul(), soul(), soul(), soul(), soul()];
+
+  it('charges a hungry village more than a fed one of the same size, on the same morning', () => {
+    const fed = priceOfAMeal(54, five);
+    const hungry = priceOfAMeal(6, five);
+    expect(hungry).toBeGreaterThan(fed);
+    // and by enough to be worth a journey rather than by a rounding error
+    expect(hungry / fed).toBeGreaterThan(1.5);
+  });
+
+  it('is the same price in two villages that hold the same, so the reading is of the place', () => {
+    const other = [soul(), soul(), soul(), soul(), soul()];
+    expect(priceOfAMeal(30, five)).toBeCloseTo(priceOfAMeal(30, other));
+  });
+});

@@ -2,7 +2,7 @@ import type { Burial, Register } from '../world/register';
 import { ownedBy } from '../world/holdings';
 import { spentOnLiving } from '../world/prosperity';
 import { pitchFor } from '../world/livelihoods';
-import { aDaysIncome } from '../world/expected';
+import { aDaysIncome, priceTheRollQuotes } from '../world/expected';
 import { FOOD } from '../world/food';
 
 /**
@@ -183,6 +183,14 @@ export function theRoll(
    */
   // the village as well as its people: a coast is paid for its fish, and a roll that did not know
   // that would under-report every fisherman's day. See `harvest.ts`
+  // what a meal will cost here tomorrow morning, read the same way the morning reads it. The roll
+  // is a forecast — `earns` above is `aDaysIncome` — so the food line has to be forecast too, or
+  // the two halves of the same row disagree and the economy bench reads the gap as coin from
+  // nowhere. `FOOD.MEAL` is the price at reference cover since item 138, not the price everywhere.
+  const dinnerPrice = priceTheRollQuotes(
+    living, register.herdOf(village), register.pressureOn(village),
+    register.larderOf(village), register.madeOf(village),
+  );
   const income = aDaysIncome(
     living, register.herdOf(village), register.pressureOn(village), register.larderOf(village), register.madeOf(village),
   );
@@ -220,7 +228,11 @@ export function theRoll(
       spends: spentOnLiving(person) + pitchFor(person),
       tax: register.taxPaidBy(person.id),
       paid: register.hallPaid(person.id),
-      food: person.trade ? FOOD.MEAL : 0,
+      // what dinner actually cost here this morning, not the constant. `FOOD.MEAL` is the price
+      // at reference cover since item 138; a village with an empty cellar charges up to three
+      // times it, and a roll that still said `FOOD.MEAL` had the books and the purses disagreeing
+      // by the dearness of the day — which the economy bench reports as coin appearing from nowhere
+      food: person.trade ? dinnerPrice : 0,
       hungry: person.hungry,
       mother: person.mother,
       father: person.father,
