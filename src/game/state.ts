@@ -1,3 +1,4 @@
+import { daysAway } from '../world/awaytime';
 import { whatDyingCosts, type Bill } from '../world/reckoning';
 import { AWAY, buy, holds } from '../world/deeds';
 import { learnedFrom, levelFor, saidOf, PROWESS } from './prowess';
@@ -38,6 +39,30 @@ export interface GameStateJson {
    * by this: that is still an item, still in his pocket, and still lifts the fog off everything.
    */
   charted?: string[];
+  /**
+   * When this save was last written, as milliseconds since the epoch.
+   *
+   * The single player world has no clock but this one. A shared world keeps stepping whether or not
+   * anybody is connected, so a player rejoins at the day the world reached; a single player world
+   * freezes at the day it was saved on, and without a stamp there is nothing to say how long ago
+   * that was. See `awaytime.ts`.
+   *
+   * Absent from every save written before this, and those load as a world that has been away for no
+   * time at all — which is exactly what they were until there was a rule about it.
+   */
+  savedAt?: number;
+  /**
+   * Whether the body was in a bed when the game was last put down.
+   *
+   * A flag about *where the body is*, not about sleeping: online, taking a bed deliberately does not
+   * skip the night, because the clock belongs to the world and the night passes for everybody or
+   * nobody. Lodged means "he is somewhere he can be left".
+   *
+   * Written when the bed is taken rather than when anybody clicks leave, and that is the point of
+   * it. On a phone nobody clicks quit — they swipe the app away — so the flag has to be what is
+   * already true when the process is killed without ceremony.
+   */
+  lodged?: boolean;
   quests: Record<string, QuestStatus>;
   discovered: string[];
   /** Ids of opened dungeon chests. */
@@ -124,6 +149,22 @@ export class GameState {
    * no business knowing what the number means.
    */
   standing = 0;
+  /**
+   * Whether the body is in a bed. See `GameStateJson.lodged` for why this is not "asleep".
+   *
+   * Set when the bed is taken and cleared by walking out of the room, so that it is already true
+   * when an app is swiped away — which is how a game on a phone actually ends.
+   */
+  lodged = false;
+
+  /**
+   * World days that passed while the game was shut, worked out once as the save is read.
+   *
+   * Held rather than applied here: a `GameState` is what the player has, and living days is what a
+   * register does. Whatever stands the world up reads this, advances by it, and is done with it.
+   */
+  awayFor = 0;
+
   /** Bumped whenever something the HUD shows changed. */
   version = 0;
 
@@ -395,6 +436,7 @@ export class GameState {
   toJSON(): GameStateJson {
     return {
       hp: this.hp, maxHp: this.maxHp, time: this.time, day: this.day,
+      savedAt: Date.now(), lodged: this.lodged,
       inventory: { ...this.inventory.toJSON(), equipped: { ...this.equipped } },
       explored: [...this.explored],
       charted: [...this.charted],
@@ -424,6 +466,15 @@ export class GameState {
     if (typeof json.maxHp === 'number') g.maxHp = json.maxHp;
     if (typeof json.time === 'number') g.time = json.time;
     if (typeof json.day === 'number') g.day = json.day;
+    g.lodged = json.lodged === true;
+    /*
+     * And the days that passed while nobody was looking.
+     *
+     * Only here, on the way in, because this is the one moment the game knows how long it was shut
+     * for. `awaytime.ts` decides how many days that is; living them is the register's business
+     * through the door it already has.
+     */
+    if (typeof json.savedAt === 'number') g.awayFor = daysAway((Date.now() - json.savedAt) / 1000);
     if (json.inventory) {
       const inv = Inventory.from(json.inventory);
       g.inventory.gold = inv.gold;
