@@ -29,11 +29,13 @@ const ROCK = {
    * the valley is mostly the shaded side of something and a single flat grey reads as a hole in the
    * world. The two are far enough apart that the height ramp does visible work on its own.
    */
-  LOW: 0x6b6862,
-  HIGH: 0x9a978f,
+  LOW: 0x8c877d,
+  HIGH: 0xc0bcb2,
   /** Snow, and the height it starts at as a share of the tallest peak in the world. */
   SNOW: 0xeef2f5,
   SNOWLINE: 0.62,
+  /** How level a face has to be to hold snow at the snow line itself. Nothing at the peak. */
+  SETTLES_AT: 0.35,
   /** How abruptly it turns to snow, as a share of the tallest peak. Short, so a snowline reads. */
   SNOW_FADE: 0.12,
   /**
@@ -56,7 +58,45 @@ const ROCK = {
    * Per face rather than per vertex: a triangle is one surface and should be one colour.
    */
   SHADE: 0.26,
+  /**
+   * How much a face standing up is brightened before the light gets to it.
+   *
+   * The mountain and the ground are both `MeshLambertMaterial`, which is the right answer for the
+   * ground and the wrong one here: a tile faces the sky and takes the whole of the sun, a rock face
+   * at sixty degrees takes half of it, and at midday the massif came out three times darker than
+   * the field at its foot. Physically correct, and it read as a hole cut in the country — a slab of
+   * slate with no facets in it standing next to a bright spring meadow.
+   *
+   * The sky is a light too. A wall sees half of it where a ledge sees all of it, but a wall also
+   * sees none of the sun where a ledge sees all of *that*, so the two do not cancel and rock has to
+   * be given back what the direct light cannot reach it with. Painted into the colour, so it is
+   * there at every hour and from every side, which is the same argument `BEDDING` makes.
+   */
+  UPRIGHT: 0.55,
 } as const;
+
+/**
+ * What the sky gives a face the sun cannot reach, as a share of full brightness.
+ *
+ * A vertical wall gets the whole of it and a level ledge none, which is roughly the shape of the
+ * two lights: a ledge sees the whole sun and half the sky, a wall sees none of the sun and half the
+ * sky, so they do not cancel and rock has to be given back what the direct light misses.
+ */
+export function skyGives(upness: number): number {
+  return (1 - upness) * ROCK.UPRIGHT;
+}
+
+/**
+ * How level a face has to be to hold snow, at a given height up the mountain.
+ *
+ * A summit is a cone, so its faces are the steepest on the whole mountain — and the rule that keeps
+ * walls bare was therefore keeping the one part that should be white grey. The higher it stands the
+ * less flat it has to be: a ledge at the snow line, anything at all at the peak.
+ */
+export function snowNeeds(up: number): number {
+  const above = Math.max(0, Math.min(1, (up - ROCK.SNOWLINE) / (1 - ROCK.SNOWLINE)));
+  return ROCK.SETTLES_AT * (1 - above);
+}
 
 /**
  * The hole kept open in front of the hero, in world units.
@@ -122,7 +162,8 @@ export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THR
     const stone = mix(rockLow, rockHigh, up);
     // snow lies on what is flat enough to hold it: a wall stays bare however high it stands, which
     // is the difference between a mountain and a white triangle
-    const lying = Math.max(0, Math.min(1, (n.y - 0.35) / 0.5));
+    // snow lies on what is flat enough to hold it, and less flat the higher it stands
+    const lying = Math.max(0, Math.min(1, (n.y - snowNeeds(up)) / 0.5));
     const white = Math.max(0, Math.min(1, (up - ROCK.SNOWLINE) / ROCK.SNOW_FADE)) * lying;
     const colour = mix(stone, snow, white);
     // a fixed jitter per triangle: the same mountain has the same face lit the same way every time
@@ -130,7 +171,7 @@ export function buildMountainMesh(ranges: Ranges, material: THREE.Material): THR
     // and the rock's own bedding: flat ledges dull, walls clean, one face in two catching the light
     const bedding = (n.y - 0.5) * -ROCK.BEDDING;
     const facing = (n.x * 0.7 + n.z * 0.7) * ROCK.FACING;
-    const shade = 1 + jitter + bedding + facing;
+    const shade = 1 + jitter + bedding + facing + skyGives(n.y);
 
     for (let v = 0; v < 3; v++) {
       normals[i + v * 3] = n.x; normals[i + v * 3 + 1] = n.y; normals[i + v * 3 + 2] = n.z;
