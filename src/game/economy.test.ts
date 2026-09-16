@@ -713,7 +713,23 @@ describe('what a village does with what it has put by', () => {
     });
 
     expect(wrong, 'a village was rich the week it was founded').toEqual([]);
-    expect(storeys.length, 'a hundred days and not one village put a storey on a house').toBeGreaterThan(2);
+    /*
+     * More than nought, which is what the report line above has always called a pass.
+     *
+     * It was `> 2`, pinned to the three villages that managed it the day it was written — a bound
+     * sitting exactly on its own measurement, which any change at all breaks. Mastery (#244) broke
+     * it: a hand new to a trade falls short of the number until it has learned it, so a village
+     * accumulates a little slower, and one village of the three no longer gets its second storey up
+     * inside a hundred days. Measured, not guessed — three before that change landed and two after.
+     *
+     * That is the designed cost of #244 rather than a fault in it: what a village can now lose is
+     * the difference between a trade being held and a trade being known. So the bound moves to the
+     * thing this is actually for — that a village can get a storey up at all out of its own purse —
+     * which is what the `verdict` on the line above already said, and the two had quietly disagreed.
+     *
+     * If two of twenty-four is too few to be interesting, the answer is to tune mastery, not this.
+     */
+    expect(storeys.length, 'a hundred days and not one village put a storey on a house').toBeGreaterThan(0);
     /*
      * The bath house is not a fixed expectation either way any more, and the reason is the treasury.
      *
