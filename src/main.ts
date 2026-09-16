@@ -103,7 +103,7 @@ export function startGame(
   const rig = createSceneRig($('gameContainer'));
   rig.setQuality(rig.quality);
   const iso = new IsoCamera();
-  const input = new Input(rig.renderer.domElement);
+  const input = new Input(rig.canvas);
   // the on-screen controls speak to the game only through `input`, so a thumb and a key are the
   // same press by the time anything below reads them
   const touch = new TouchControls(input);
@@ -439,8 +439,7 @@ export function startGame(
     props.dispose();
     rig.water.dispose();
     rig.coast.dispose();
-    rig.renderer.dispose();
-    rig.renderer.domElement.remove();
+    rig.dispose();
   };
 
   const toTitle = () => {
@@ -619,7 +618,7 @@ export function startGame(
   const screen = screenOf({
     hud, chat, dialogue, journal, rucksack, worldMap, kinPanel, roster, playerList, photo, places,
     cutaway,
-    canvas: rig.renderer, seed,
+    canvas: rig.canvas, seed,
     journalInput, mapInput,
     companyInput: () => multiplayer.playerListInput,
   });
