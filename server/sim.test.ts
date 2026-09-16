@@ -438,7 +438,16 @@ describe('the simulation holding the ground itself', () => {
     let water: { x: number; z: number } | null = null;
     for (let z = -40; z <= 40 && !water; z++) {
       for (let x = -40; x <= 37; x++) {
-        if (ground.waterAt(x, z) !== null && ground.waterAt(x + 3, z) !== null) {
+        /*
+         * Every tile of the run, not only its two ends.
+         *
+         * `helm()` stops the boat on `heightAt()` along the whole path, so a run whose ends are
+         * water and whose middle is a sandbank is a run the boat never finishes. The assertion
+         * below only asks that the bow moved east, and a boat that moved one tile and struck land
+         * satisfies that — so the search was free to choose the very starting points that make
+         * this test unable to fail. Ask for the whole run and the movement means something.
+         */
+        if ([0, 1, 2, 3].every((dx) => ground.waterAt(x + dx, z) !== null)) {
           water = { x, z };
           break;
         }
