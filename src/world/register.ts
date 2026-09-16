@@ -14,6 +14,7 @@ import { doctoredBy, laidUpFor } from './wounds';
 import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
 import { aCarrierWalks } from './carriers';
+import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
 import { STONES_KEPT } from './settlement';
@@ -116,8 +117,8 @@ export class Register {
       get today() { return book.day; },
       pressureOn: (village, on) => this.pressure.on(village, on),
       killedOn: (id) => this.killed.get(id),
-      taxed: (id, much) => { this.paid.set(id, much); },
-      waged: (id, much) => { this.earned.set(id, much); },
+      taxed: (id, much) => { this.book.tax(id, much); },
+      waged: (id, much) => { this.book.wage(id, much); },
       stableBought: (village, on) => this.stables.on(village, on),
       takeOff: (person, on, cause) => this.remove(person, on, cause),
       fieldToClear: (village, settlement) => this.fieldSurvey?.(village, settlement) ?? null,
@@ -342,27 +343,13 @@ export class Register {
   hallOf(village: string): Hall | null { return this.villages.get(village)?.hall ?? null; }
 
   /**
-   * What the hall took from each purse on the last day that person lived through.
-   *
-   * Per person rather than per village, because the books are kept per person. A village total
-   * cannot be squared against a roll that has lost somebody overnight — every attempt at it turns
-   * into an argument about who was still standing when the money moved — and a row that carries its
-   * own tax needs no such argument. `chore test economy` is the only thing that reads it, and it is
-   * the only thing that ever needed to.
+   * What moved in and out of each purse on the last day that person lived through: the hall's tax,
+   * the hall's wages, and whatever a carrier paid or was paid. Cleared every morning. `daybook.ts`.
    */
-  private readonly paid = new Map<string, number>();
-  /** And what it paid out, per person, on that same day. Cleared every morning. */
-  private readonly earned = new Map<string, number>();
-  /**
-   * And what a carrier moved into or out of each purse on that same day. See `carriers.ts`.
-   *
-   * Beside the tax and the hall's wages rather than in the forecast, and for their reason: a cart
-   * coming over the hill is news the evening before cannot have had. Cleared every morning.
-   */
-  private readonly carried = new Map<string, number>();
+  private readonly book = new DayBook();
 
   /** What the next valley paid this person today, or what they paid it. Nought on most days. */
-  carriedBy(id: string): number { return this.carried.get(id) ?? 0; }
+  carriedBy(id: string): number { return this.book.carriedBy(id); }
 
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
@@ -456,14 +443,14 @@ export class Register {
 
     while (this.day < end) {
       this.day++;
-      this.carried.clear();
+      this.book.clear();
       for (const [name, village] of this.villages) {
         changes.push(...liveADay(this.theDay, name, village, this.day));
         this.applyVotesOn(name, village, this.day);
       }
       // and one cart goes over the hill, now that every village has worked and eaten. Why it is
       // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
-      aCarrierWalks(this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.carried);
+      aCarrierWalks(this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.book.cartsToday);
       changes.push(...this.peopleWalkIn(this.day));
     }
     return changes;
@@ -501,11 +488,11 @@ export class Register {
     return walk ? this.resettle(walk.to, walk.from, day) : [];
   }
 
-  /** What the hall took from one person on the last day they lived through. */
-  taxPaidBy(id: string): number { return this.paid.get(id) ?? 0; }
+  /** What the hall took from one person on the last day they lived through. See `daybook.ts`. */
+  taxPaidBy(id: string): number { return this.book.taxPaidBy(id); }
 
   /** And what it paid them, for work the village bought. Nought on nearly every day. */
-  hallPaid(id: string): number { return this.earned.get(id) ?? 0; }
+  hallPaid(id: string): number { return this.book.hallPaid(id); }
 
   /**
    * Who does what here, and which of this ground's trades nobody is doing.
