@@ -1,4 +1,4 @@
-SANITY BENCH — PASS — 2026-09-16T12:41:31.591Z
+SANITY BENCH — PASS — 2026-09-16T11:51:47.620Z
 
   7 villages on 3 seeds, 450 days each — five or six generations, which is
   long enough for drift to show. Nothing here is added up: the audit in economy-report.txt does that,
@@ -8,24 +8,24 @@ SANITY BENCH — PASS — 2026-09-16T12:41:31.591Z
   PASS          21  villages lived from founding to day 450, and whether anybody is still in them
                     every one of them still standing, and none of them emptied on the way
   PASS           9  untroubled villages inside the beds they have built, and at least 0.5× full
-                    Ashford (seed 1): founded 19, 64 in 64 beds at day 450
+                    Ashford (seed 1): founded 19, 66 in 66 beds at day 450
                     Oakcross (seed 1): founded 26, 94 in 94 beds at day 450
                     Saltcombe (seed 1): founded 16, 50 in 50 beds at day 450
                     Ashford (seed 7): founded 16, 60 in 60 beds at day 450
                     Oakcross (seed 7): founded 25, 94 in 94 beds at day 450
                     Saltcombe (seed 7): founded 12, 50 in 50 beds at day 450
                     Ashford (seed 1234): founded 19, 60 in 60 beds at day 450
-                    Oakcross (seed 1234): founded 23, 92 in 92 beds at day 450
+                    Oakcross (seed 1234): founded 23, 96 in 96 beds at day 450
                     Saltcombe (seed 1234): founded 16, 50 in 50 beds at day 450
   PASS           9  untroubled villages inside the 4× room their ground and their ladder allow
-                    Ashford (seed 1): 64 beds against 96 the ground allows
+                    Ashford (seed 1): 66 beds against 96 the ground allows
                     Oakcross (seed 1): 94 beds against 144 the ground allows
                     Saltcombe (seed 1): 50 beds against 80 the ground allows
                     Ashford (seed 7): 60 beds against 96 the ground allows
                     Oakcross (seed 7): 94 beds against 144 the ground allows
                     Saltcombe (seed 7): 50 beds against 80 the ground allows
                     Ashford (seed 1234): 60 beds against 96 the ground allows
-                    Oakcross (seed 1234): 92 beds against 144 the ground allows
+                    Oakcross (seed 1234): 96 beds against 144 the ground allows
                     Saltcombe (seed 1234): 50 beds against 80 the ground allows
   PASS          21  villages that gained a bed only when something was built to hold it
                     no village's ceiling moved except with its buildings, on any night of the run
@@ -62,46 +62,48 @@ SANITY BENCH — PASS — 2026-09-16T12:41:31.591Z
   PASS          21  villages whose herd stayed inside what their land could carry
                     no village ran a herd its paddocks could not hold for more than 35 days
   PASS          21  villages with somebody for every building standing in them
-                    Ashford (seed 1): 31 buildings, 64 people
-                    Oakcross (seed 1): 22 buildings, 94 people
-                    Thornby (seed 1): 22 buildings, 60 people
-                    Blackmarsh (seed 1): 9 buildings, 36 people
-                    Fernreach (seed 1): 16 buildings, 64 people
+                    Ashford (seed 1): 16 buildings, 66 people
+                    Oakcross (seed 1): 33 buildings, 94 people
+                    Thornby (seed 1): 28 buildings, 60 people
+                    Blackmarsh (seed 1): 9 buildings, 38 people
+                    Fernreach (seed 1): 16 buildings, 62 people
                     Saltcombe (seed 1): 14 buildings, 50 people
                     Stonedale (seed 1): 16 buildings, 60 people
                     Ashford (seed 7): 16 buildings, 60 people
-                    Oakcross (seed 7): 40 buildings, 94 people
-                    Thornby (seed 7): 26 buildings, 62 people
-                    Blackmarsh (seed 7): 11 buildings, 56 people
-                    Fernreach (seed 7): 36 buildings, 60 people
+                    Oakcross (seed 7): 37 buildings, 94 people
+                    Thornby (seed 7): 24 buildings, 60 people
+                    Blackmarsh (seed 7): 13 buildings, 62 people
+                    Fernreach (seed 7): 25 buildings, 62 people
                     Saltcombe (seed 7): 14 buildings, 50 people
-                    Stonedale (seed 7): 16 buildings, 62 people
-                    Ashford (seed 1234): 29 buildings, 60 people
-                    Oakcross (seed 1234): 36 buildings, 92 people
+                    Stonedale (seed 7): 16 buildings, 60 people
+                    Ashford (seed 1234): 27 buildings, 60 people
+                    Oakcross (seed 1234): 18 buildings, 96 people
                     Thornby (seed 1234): 14 buildings, 62 people
-                    Blackmarsh (seed 1234): 15 buildings, 61 people
-                    Fernreach (seed 1234): 31 buildings, 62 people
+                    Blackmarsh (seed 1234): 16 buildings, 60 people
+                    Fernreach (seed 1234): 34 buildings, 60 people
                     Saltcombe (seed 1234): 14 buildings, 50 people
                     Stonedale (seed 1234): 16 buildings, 60 people
   PASS          21  villages that never held more meals than 12 days a head for longer than a funeral takes
                     nothing anywhere banked a year of dinners
-  NOTE           0  villages where one purse holds more than 50% of everything in the place
-                    nobody anywhere is that far ahead of their neighbours
-  PASS      152345  gold sitting in halls nobody can spend from — 22% of every coin in the world
-                    seed 1: 43835.06 in the halls against 172754.46 in the purses — 20% of it banked
-                    seed 7: 53942.94 in the halls against 182681.67 in the purses — 23% of it banked
-                    seed 1234: 54567.26 in the halls against 174005.41 in the purses — 24% of it banked
+  NOTE           1  villages where one purse holds more than 50% of everything in the place
+                    Blackmarsh (seed 1): one purse holds 69% of 5756.07
+                    Somebody has to be the richest, so this is not a fault on its own. It is the shape a village
+                    takes when the money has stopped moving: nothing a villager can buy costs what they have.
+  PASS      181904  gold sitting in halls nobody can spend from — 28% of every coin in the world
+                    seed 1: 58872.03 in the halls against 163472.19 in the purses — 26% of it banked
+                    seed 7: 66833.67 in the halls against 166423.89 in the purses — 29% of it banked
+                    seed 1234: 56197.84 in the halls against 140686.79 in the purses — 29% of it banked
                     A hall is the one place a coin goes and does not come back: a purse buys dinner and is inherited,
                     and a treasury is spent on nothing at all until somebody votes to build something. Anything over
                     34% says the spending half is overdue rather than that the tax is wrong.
-  PASS          21  villages that held 3950 between them at some point, and 21 that stood 210 a head
-                    Ashford (seed 1): a bath house from day 96
-                    Oakcross (seed 1): a bath house from day 67
-                    Thornby (seed 1): a bath house from day 242
-                    Blackmarsh (seed 1): a bath house from day 346
-                    Fernreach (seed 1): a bath house from day 101
-                    Saltcombe (seed 1): a bath house from day 120
+  PASS          21  villages that held 3950 between them at some point, and 20 that stood 210 a head
+                    Ashford (seed 1): a bath house from day 103
+                    Oakcross (seed 1): a bath house from day 69
+                    Thornby (seed 1): a bath house from day 199
+                    Blackmarsh (seed 1): a bath house from day 355
+                    Fernreach (seed 1): a bath house from day 104
+                    Saltcombe (seed 1): a bath house from day 122
                     Stonedale (seed 1): a bath house from day 104
-                    Ashford (seed 7): a bath house from day 93
+                    Ashford (seed 7): a bath house from day 94
 
   Written by src/game/sanity.test.ts to sanity-report.txt. Run it again with: chore sanity

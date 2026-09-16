@@ -149,6 +149,14 @@ export interface Person {
    * feeding.
    */
   hurt?: number;
+  /**
+   * Days laid up ill, counted down by the days the village lives. Absent for anybody well.
+   *
+   * Beside `hurt` and the same shape, because from the village's side they are the same fact: a
+   * person who is not getting up today. Apart from it because they are not the same event — a wound
+   * is told by whatever did it, and an illness is rolled by the morning. See `ailments.ts`.
+   */
+  ill?: number;
 }
 
 /**

@@ -2,7 +2,7 @@ import { costOfAStable, timberForAStable } from './growth';
 import { BYRE, beastsAt, oneSizeUp, stableAt, type Stable } from './stables';
 import { mannedFarms, ownedBy, type Owner } from './holdings';
 import { outOfDays } from './people';
-import { ableToWork } from './wounds';
+import { wellEnough } from './ailments';
 import type { Settlement } from './settlement';
 
 /**
@@ -128,7 +128,7 @@ export interface StableYard {
 export function commissionAStable(
   village: string, settlement: Settlement, yard: StableYard, day: number,
 ): StablePurchase | null {
-  const working = settlement.people.filter((person) => ableToWork(person) && !outOfDays(person, day));
+  const working = settlement.people.filter((person) => wellEnough(person) && !outOfDays(person, day));
   const farms = (mannedFarms(settlement.holdings, working) ?? []).flatMap((farm) =>
     farm.id && farm.worker ? [{ holding: farm.id, worker: farm.worker }] : []);
   if (farms.length === 0) return null;
