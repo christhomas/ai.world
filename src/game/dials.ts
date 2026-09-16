@@ -1,3 +1,5 @@
+import type { Rng } from '../core/rng';
+
 /**
  * The little arithmetic a menu needs, out of the file that was full of it.
  *
@@ -32,3 +34,11 @@ export function stepWithin(n: number, dir: number, count: number): number {
 export function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/**
+ * One line out of a list of them.
+ *
+ * Here rather than in `talk.ts` for the reason the two above are: it knows nothing about a keeper
+ * or a conversation, and both halves of a conversation need it.
+ */
+export const pick = (rng: Rng, list: string[]): string => list[Math.floor(rng() * list.length)];

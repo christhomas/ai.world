@@ -52,7 +52,12 @@ const ALLOWED: Record<string, number> = {
   // rather than inside `talk.ts` because that file is already six hundred lines of counter, and a
   // records desk that a town hall and a watch house are meant to reuse should not have to be dug
   // back out of a shop.
-  'game->ui': 20,
+  //
+  // The twenty-first is `counter.ts`, and it is the same edge `talk.ts` already had rather than a
+  // new one: `talk.ts` reached the seven hundred lines the test below allows and the shop came
+  // out of it whole. Two files draw the same dialogue panel where one did. A number that only
+  // counts imports cannot tell a split from a reach, so the note has to.
+  'game->ui': 21,
   // A save is a picture of the game's state and of what its world had grown, so storage knows
   // those types and nothing else. The third is Old Nettle: where he is up to belongs to the
   // world rather than to the hero, because he is in a cell or he is abroad whoever is playing,
