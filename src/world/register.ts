@@ -10,10 +10,12 @@ import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
 import { type Rank, type TownVote } from './rank';
-import { ballotFor, enactVote, finishVotedHall, foundingRank, recogniseVillage, type Ballot } from './votes';
+import { enactVote, foundingRank, type Ballot } from './votes';
+import { VoteBook } from './votebook';
 import { doctoredBy, laidUpFor } from './wounds';
 import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
+import { Arrivals, swornTrades, type Arrival } from './arrivals';
 import { aCarrierWalks } from './carriers';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
@@ -71,7 +73,7 @@ export class Register {
    */
   private readonly killed = new Map<string, number>();
   /** Votes survive re-living, one told fact for each declaration in each place. */
-  private readonly votes = new Map<string, TownVote>();
+  private readonly votes = new VoteBook();
   /** The days a shrine raised somebody, by village — the copy that survives a re-living. */
   private readonly magicked = new Map<string, number[]>();
   /** Farmer stable commissions, told from the kept timber yard and replayed on their morning. */
@@ -208,7 +210,7 @@ export class Register {
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
-      this.applyVotesOn(village, settlement, day);
+      this.votes.applyOn(village, settlement, day);
     }
     return settlement.people;
   }
@@ -447,7 +449,7 @@ export class Register {
       this.book.clear();
       for (const [name, village] of this.villages) {
         changes.push(...liveADay(this.theDay, name, village, this.day));
-        this.applyVotesOn(name, village, this.day);
+        this.votes.applyOn(name, village, this.day);
       }
       // and one cart goes over the hill, now that every village has worked and eaten. Why it is
       // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
@@ -503,6 +505,25 @@ export class Register {
     return this.swornIn.directory(here?.trades ?? [], here?.people ?? [], village);
   }
 
+  /** Who walked into a village rather than being born in it. See `arrivals.ts`. */
+  private readonly arrived = new Arrivals();
+
+  /**
+   * Somebody walks into a village and stands on its roll: the hero, and for now nobody else.
+   *
+   * The keystone of a player having any place in this economy. An `Owner` is a person or the hall,
+   * `livelihoods.ts` pays over register people, and holdings hang off owners — so until there was a
+   * row there was no trade that could pay him, no farm to hold and no work to post. See
+   * `arrivals.ts`, which owns the rest of it.
+   */
+  arrive(village: string, name: string, sex: Person['sex'], purse: number, day = this.day): Person | null {
+    const here = this.villages.get(village);
+    return here ? this.arrived.walkIn(village, here, { name, sex, purse }, day) : null;
+  }
+
+  /** Everybody who walked in, as told facts, for a save to write down. */
+  arrivals(): Array<Arrival & { village: string }> { return this.arrived.all(); }
+
   /** Take currently vacant work; return the told fact so `apply` remains the single write path. */
   swearIn(village: string, trade: string, who: string, day = this.day): SwornIn | null {
     if (!this.villages.get(village) || who === '') return null;
@@ -541,36 +562,13 @@ export class Register {
   /** What this place has declared itself to be. Roofs permit town and city; only a vote grants them. */
   rankOf(village: string): Rank { return this.villages.get(village)?.rank ?? 'hamlet'; }
 
-  /** The next motion that can be called here, and the residents entitled to cast it. */
-  ballotOf(village: string): Ballot | null {
-    const here = this.villages.get(village);
-    return here ? ballotFor(here) : null;
-  }
+  /** The next motion that can be called here, and who may cast it. See `votebook.ts`. */
+  ballotOf(village: string): Ballot | null { return this.votes.ballot(this.villages.get(village)); }
 
   /** Call the local vote. The caller supplies the player's aye by choosing it in the hall. */
   vote(village: string, day = this.day): TownVote | null {
-    const here = this.villages.get(village);
-    const ballot = here ? ballotFor(here) : null;
-    if (!here || !ballot?.ready) return null;
-    const voted: TownVote = { kind: 'voted', village, rank: ballot.rank, day: Math.floor(day) };
-    if (!enactVote(here, voted)) return null;
-    this.votes.set(this.voteKey(voted), voted);
-    return voted;
+    return this.votes.call(village, this.villages.get(village), day);
   }
-
-  /** Apply votes after the ordinary work of their morning, then move into a finished hall. */
-  private applyVotesOn(village: string, here: Settlement, day: number): void {
-    recogniseVillage(here);
-    const votes = [...this.votes.values()]
-      .filter((vote) => vote.village === village && vote.day === day)
-      .sort((a, b) => a.rank === b.rank ? 0 : a.rank === 'town' ? -1 : 1);
-    for (const vote of votes) {
-      if (!enactVote(here, vote)) this.votes.delete(this.voteKey(vote));
-    }
-    finishVotedHall(here, day);
-  }
-
-  private voteKey(vote: TownVote): string { return `${vote.village}:${vote.rank}`; }
 
   /** Who is standing on this village's tower today, or nobody. See `whoStandsWatch`. */
   watchOf(village: string): string { return this.villages.get(village)?.watch ?? ''; }
@@ -621,26 +619,25 @@ export class Register {
       const here = this.villages.get(change.village);
       if (!here) return true;              // nobody has settled it; kept for the morning they do
       // A late oath changes later apprenticeships, so replay rather than patching today's village.
-      if (oath.day === this.day) { here.sworn.push(oath); return true; }
+      if (oath.day === this.day) { here.sworn.push(oath); swornTrades(here, here.sworn); return true; }
       this.relive(change.village);
       return true;
     }
     if (change.kind === 'voted') {
       const voted = { ...change, day: Math.floor(change.day) };
-      const key = this.voteKey(voted);
-      if (this.votes.has(key) || !Number.isFinite(voted.day) || voted.day > this.day) return false;
+      if (this.votes.has(voted) || !Number.isFinite(voted.day) || voted.day > this.day) return false;
       const here = this.villages.get(voted.village);
       if (here && voted.day === this.day) {
         if (!enactVote(here, voted)) return false;
-        this.votes.set(key, voted);
+        this.votes.keep(voted);
         return true;
       }
-      this.votes.set(key, voted);
+      this.votes.keep(voted);
       if (!here) return true;
       this.relive(voted.village);
       if (this.villages.get(voted.village)?.rank === voted.rank) return true;
       // An invalid historical vote is not allowed to reserve its key. Re-live once more without it.
-      this.votes.delete(key);
+      this.votes.drop(voted);
       this.relive(voted.village);
       return false;
     }
@@ -666,6 +663,9 @@ export class Register {
     }]));
     this.villages.delete(village);
     const people = this.settle(village, settlement.houses, settlement.trades);
+    // and whoever walked in, who is not implied by the seed and would otherwise simply be gone
+    const now = this.villages.get(village);
+    if (now) { this.arrived.putBack(village, now, this.day); swornTrades(now, now.sworn); }
     for (const person of people) {
       const held = remembered.get(person.id);
       if (!held) continue;

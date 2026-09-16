@@ -1,5 +1,5 @@
 import { handOf } from './mastery';
-import type { Person } from './people';
+import { deathless, type Person } from './people';
 
 /**
  * Eating, and not eating.
@@ -263,7 +263,19 @@ export function eat(people: readonly Person[], store: number, price: number = FO
   const meal: Meal = { fed: 0, hungry: 0, eaten: 0, spent: 0, starved: [] };
   let left = store;
 
-  const order = [...people].sort((a, b) => b.purse - a.purse);
+  /*
+   * Everybody the village feeds, which is everybody but the hero.
+   *
+   * He is left out before the sort rather than skipped inside the loop, and the sort is why: it is
+   * richest first, and its own note above says a village's poor die first. A hero carrying four
+   * thousand gold would be at the head of the queue in every village he ever walked into, eating
+   * out of a cellar that has a cap, and the poorest villager would starve for it.
+   *
+   * He is not out of the food economy for it. He buys off the shelf, which #231 made the village's
+   * own store — so what he eats, the village is short of, and it is short of it at a price that
+   * moves. See `prices.ts`.
+   */
+  const order = [...people].filter((p) => !deathless(p)).sort((a, b) => b.purse - a.purse);
   for (const person of order) {
     // A child is fed by whoever is raising them and does not buy their own dinner. Without this
     // every village in the world dies out: children have no trade, so no income, so no way to pay
