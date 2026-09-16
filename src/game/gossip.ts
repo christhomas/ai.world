@@ -85,10 +85,22 @@ function acquaintances(person: Person, register: Register, rng: Rng): string[] {
   return [`If you want a ${friend.trade}, ${friend.name} is your one.`];
 }
 
-/** Their own life, which is mostly their age and their work. */
+/**
+ * Their own life, which is mostly their age and their work.
+ *
+ * The old say so, and that line is the only warning a funeral in this world has ever had. There is
+ * no notice board and no book of the dead: the man you bought bread from on Tuesday is a name in
+ * somebody else's memory on Wednesday, and nothing whatever stood between the two. Now that a life
+ * has a last fortnight — see `LIFE.OLD_AGE` — the man standing in it can tell you he is in it, and
+ * a village has a death it can see coming. Item #245.
+ *
+ * Before the trade line rather than after it, because at that age it is the more interesting of the
+ * two facts and this list is read in order.
+ */
 function aboutThemselves(person: Person, day: number): string[] {
   const stage = stageOf(person, day);
   if (stage === 'child') return ['I am not allowed past the fence yet.'];
+  if (stage === 'elder') return ['I have not many mornings left in me. The work is for younger arms.'];
   if (person.trade === '') return ['I have not settled to anything yet.'];
   return [`${ageOf(person, day)} days I have been at this. Long enough to be tired of it.`];
 }

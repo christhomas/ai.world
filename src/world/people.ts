@@ -27,6 +27,27 @@ export const LIFE = {
   /** A natural life, in days. Long enough to outlive somebody you knew, short enough to notice. */
   SHORTEST_LIFE: 60,
   LONGEST_LIFE: 90,
+  /**
+   * The last days of a life, which are an old age.
+   *
+   * Counted back from the day somebody will die rather than forward from a birthday, and the
+   * difference decides who is ever old at all. A birthday cannot work here: `lives` runs from sixty
+   * days to ninety, so a line drawn at sixty would give the longest lives a third of themselves as
+   * old age and the shortest none whatever — and the man who is only going to see sixty is exactly
+   * the one whose last days one would most want to be unlike his first.
+   *
+   * Nor a share of `lives`, which was the first answer and is wrong for a reason worth writing
+   * down. A founder's `lives` is not the length of a life: `foundVillage` hands somebody an age and
+   * then adds a *whole* natural life to it, because measuring from birth once emptied every village
+   * in the world within a month. So a founder carries a `lives` of a hundred and forty, and a
+   * quarter of that is a five-week old age for him and a fortnight for his grandson.
+   *
+   * Fifteen days, then, for everybody: a quarter of the shortest life this world hands out, and the
+   * span the note that asked for this named. Long enough that a village lives alongside somebody
+   * failing instead of finding him gone one morning, short enough to be the end of a life rather
+   * than a second career. Nothing is rolled for it, so adding the stage moved no village's stream.
+   */
+  OLD_AGE: 15,
   /** Nobody keeps more than this many people in mind. */
   KNOWS: 5,
   /**
@@ -51,7 +72,19 @@ export const LIFE = {
   STRIKES_OUT: 0.1,
 } as const;
 
-export type Stage = 'baby' | 'child' | 'adult';
+/**
+ * Which part of a life somebody is in.
+ *
+ * `elder` is the newest of these and the only one that is not a birthday. A life ran baby, child,
+ * adult and then a funeral, so a man of eighty-eight went down the mine on the morning he died and
+ * a village's output was a head count with no people in it. See `LIFE.OLD_AGE` for where the last
+ * stage begins and `oldage.ts` for what it costs the place. Item #245.
+ *
+ * It is a fourth stage and not a replacement for adulthood: an elder is a grown person who has got
+ * old, which is why almost everything that asks this question wants `grownUp` rather than a
+ * comparison against one name.
+ */
+export type Stage = 'baby' | 'child' | 'adult' | 'elder';
 
 /**
  * Whether somebody is a woman or a man.
@@ -228,12 +261,44 @@ export function parentsFrom(adults: readonly Person[], rng: () => number): [Pers
   return [mother ?? father!, father ?? mother!];
 }
 
-/** Which part of a life somebody is in, on a given day. */
+/**
+ * Which part of a life somebody is in, on a given day.
+ *
+ * The first two lines are birthdays and the third is not, which is the one thing worth knowing
+ * about this function. A child becomes an adult on the same day in every village in every world,
+ * because being grown is a thing the game has rules about; old age arrives when a person is a
+ * fortnight from the end of *their own* life, because the point of the stage is that it is the
+ * last of somebody rather than a number they passed. See `LIFE.OLD_AGE`.
+ *
+ * Read against `lives`, which is a fact about a person the register has always kept and until now
+ * only ever used to decide the morning they were taken off it. Nothing is rolled here, so the
+ * stage cost no village a draw: every valley in every world kept the people it already had.
+ */
 export function stageOf(person: Person, day: number): Stage {
   const age = ageOf(person, day);
   if (age < LIFE.BABY_UNTIL) return 'baby';
   if (age < LIFE.CHILD_UNTIL) return 'child';
-  return 'adult';
+  // and the last fortnight or so of it, counted back from the day they will die, which is an old
+  // age the shortest life has as surely as the longest
+  return age >= person.lives - LIFE.OLD_AGE ? 'elder' : 'adult';
+}
+
+/**
+ * Whether somebody is a grown person, which is a different question from which stage they are in.
+ *
+ * Every site that asked `stageOf(person, day) === 'adult'` meant this, and would have been quietly
+ * wrong the morning old age arrived: an elder would have stopped being able to inherit a farm, to
+ * stand a post, to be counted as a parent under a roof, or to have a grown face drawn on him in a
+ * conversation. Saying it once means the new stage is information the village has rather than a
+ * set of things old people abruptly stop being allowed to do.
+ *
+ * What an elder actually loses is one thing and it is in `oldage.ts`: some mornings the body does
+ * not go out. That is deliberately the only difference, because a rule nobody can see is a rule
+ * that will be rediscovered as a bug.
+ */
+export function grownUp(person: Person, day: number): boolean {
+  const stage = stageOf(person, day);
+  return stage === 'adult' || stage === 'elder';
 }
 
 /** How old, in days. */

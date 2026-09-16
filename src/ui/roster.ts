@@ -162,6 +162,16 @@ function unvisited(known: number, settled: number): string {
 function row(p: Person, day: number, doing: string): string {
   const years = ageOf(p, day);
   const stage = stageOf(p, day);
+  /*
+   * Old age said out loud, because it is the one stage a trade hides.
+   *
+   * The trade column falls back to the stage for anybody who has not taken one, which covers babies
+   * and children and never covers an elder: an old man is a farmer in the register until the day he
+   * is buried. So a village full of grandfathers read exactly like a village full of apprentices,
+   * and the roster is where the player would otherwise first notice that the place had stopped
+   * earning what it used to. Item #245.
+   */
+  const old = stage === 'elder' ? ' <span class="ro-old">old</span>' : '';
   const parents = p.mother || p.father ? `${firstOf(p.mother)} & ${firstOf(p.father)}` : '—';
   const fed = p.hungry === 0 ? '<span class="ro-fed">fed</span>'
     : `<span class="ro-hungry">${p.hungry}d</span>`;
@@ -169,7 +179,7 @@ function row(p: Person, day: number, doing: string): string {
     <td>${p.name}</td>
     <td>${p.village}</td>
     <td>${p.trade || (stage === 'adult' ? '—' : stage)}</td>
-    <td>${years}</td>
+    <td>${years}${old}</td>
     <td>${p.purse}</td>
     <td>${fed}</td>
     <td class="ro-doing">${doing}</td>

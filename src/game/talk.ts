@@ -15,7 +15,7 @@ import type { GameState } from './state';
 import type { Quest } from './quests';
 import { gossipFor } from './gossip';
 import { bookRows, type Enquiry, type Keeper } from './enquiry';
-import { stageOf, type Person } from '../world/people';
+import { grownUp, type Person } from '../world/people';
 import { whoTheyCameFrom } from './descent';
 import type { Register } from '../world/register';
 
@@ -151,9 +151,10 @@ const pick = (rng: Rng, list: string[]): string => list[Math.floor(rng() * list.
 export function faceFor(e: Entity, ctx: { register?: Register; day?: number }): Speaker | undefined {
   const person = e.person !== '' ? ctx.register?.find(e.person) : undefined;
   if (person) {
-    const stage = stageOf(person, ctx.day ?? 1);
+    // a drawn face has two sizes and old age is not one of them: an elder gets the grown one,
+    // which is what `grownUp` is for. See `portrait.ts`
     return {
-      id: person.id, trade: person.trade || e.trade, stage: stage === 'adult' ? 'adult' : 'child',
+      id: person.id, trade: person.trade || e.trade, stage: grownUp(person, ctx.day ?? 1) ? 'adult' : 'child',
       from: whoTheyCameFrom(person, ctx.register, ctx.day ?? 1),
     };
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../core/rng';
 import { Register } from '../world/register';
-import { stageOf } from '../world/people';
+import { ageOf, stageOf } from '../world/people';
 import { gossipFor } from './gossip';
 
 const TRADES = ['farmer', 'hunter', 'seller'];
@@ -83,5 +83,29 @@ describe('what a villager will tell you', () => {
     const register = village(6);
     const child = register.living('Ashford').find((p) => stageOf(p, 1) === 'child')!;
     expect(gossipFor(child, register, 1, mulberry32(1)).small).toContain('I am not allowed past the fence yet.');
+  });
+
+  /*
+   * And an old one say so, which is the only warning a funeral in this world ever gets.
+   *
+   * A village keeps its losses in the heads of the people who knew them and there is no notice
+   * board, so a death has always arrived out of nowhere: the man you bought bread from on Tuesday
+   * is a name in somebody's memory on Wednesday. Now that a life has a last quarter, the man
+   * standing in it can say so, and the player has been told. Item #245.
+   */
+  it('has an old one say their time is nearly up', () => {
+    const register = village(6);
+    /*
+     * Handed his last days rather than found with them, because a village has none on the morning
+     * it is founded. `foundVillage` gives a founder an age and then adds a whole natural life to
+     * it — measuring from birth once emptied every village in the world inside a month — so the
+     * grandparents a new village is laid out with all have sixty days ahead of them, and the first
+     * funeral of old age anywhere is about six weeks off.
+     */
+    const old = register.living('Ashford')[0];
+    old.lives = ageOf(old, 1) + 1;
+    expect(stageOf(old, 1)).toBe('elder');
+    expect(gossipFor(old, register, 1, mulberry32(1)).small.join(' '))
+      .toContain('I have not many mornings left');
   });
 });

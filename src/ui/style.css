@@ -817,6 +817,7 @@ body.touch #titleRail .rail-foot .on-touch { display: inline; }
 .ro-doing { color: var(--accent); }
 .ro-fed { color: var(--accent); }
 .ro-hungry { color: var(--accent); font-weight: bold; }
+.ro-old { color: var(--accent); opacity: 0.75; font-style: italic; }
 .ro-sort { margin-top: calc(8 * var(--ui-scale)); font-size: calc(12 * var(--ui-scale)); color: var(--accent); }
 .ro-sort button {
   background: var(--surface); color: var(--accent); border: 1px solid var(--rule); cursor: pointer;
