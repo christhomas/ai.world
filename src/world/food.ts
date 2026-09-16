@@ -1,3 +1,4 @@
+import { handOf } from './mastery';
 import type { Person } from './people';
 
 /**
@@ -171,13 +172,23 @@ export const FOOD = {
  * Everybody's own garden is in it, children included: a kitchen garden feeds a household rather
  * than a wage-earner. Counting only the working adults leaves a village of two dozen growing
  * sixteen dinners a night, and it dies of arithmetic within the season.
+ *
+ * ## Why only half of it is a trade's
+ *
+ * The garden and the rocks are had rather than worked, so they are the same for everybody and stay
+ * the same however long anybody has been at anything. What the *trade* brings in is the field and
+ * the woods, and those are worth what the hands working them are worth: a farmer who came of age
+ * this morning falls short of `PER_FARMER` until he has learned the job, and a farmer who knows it
+ * makes exactly `PER_FARMER` and never a crumb more. Nothing here got bigger — see `mastery.ts`,
+ * which argues that at length because the shape of it is the part that had to be earned.
  */
 export function broughtIn(person: Person, shore = false, field: number = FOOD.PER_FARMER): number {
   // the rocks first, because they are the one thing here that everybody gets and nobody works at:
-  // a child with a bucket at low water brings back what a soldier would
+  // a child with a bucket at low water brings back what a soldier would, and so does a master
   const gathered = FOOD.PER_HEAD + (shore ? FOOD.PER_SHORE : 0);
-  if (person.trade === 'farmer') return gathered + field;
-  if (person.trade === 'hunter') return gathered + FOOD.PER_HUNTER;
+  const hand = handOf(person);
+  if (person.trade === 'farmer') return gathered + field * hand;
+  if (person.trade === 'hunter') return gathered + FOOD.PER_HUNTER * hand;
   return gathered;
 }
 

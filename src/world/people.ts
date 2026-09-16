@@ -128,6 +128,25 @@ export interface Person {
   sex: Sex;
   /** Empty until they are grown; a trade comes with adulthood. */
   trade: string;
+  /**
+   * Days they have actually spent working at it, which is how good at it they are. See `mastery.ts`.
+   *
+   * Counted rather than worked out from their age, and the difference is two things a village can
+   * lose. Days *since* they took the trade would be `day - born - CHILD_UNTIL` for everybody alive
+   * and would need nothing written down — but it would also say a fortnight under a warband taught
+   * everybody a fortnight's worth, and that three weeks laid up with a broken arm made a man better
+   * at farming than he was when he went down. A day of practice is a day the work happened.
+   *
+   * Absent rather than nought for somebody nobody has counted, the way `hurt` is absent for anybody
+   * well. The two readings are different answers and `handOf` leans on it: nought days is a novice,
+   * and no days at all is somebody whose history was never asked after — a person a test or a tool
+   * stood up — who is taken at the trade's own number.
+   *
+   * Reset to nought by whoever changes what somebody does, which is the honest answer to the open
+   * question the item raised about a villager who changes trade: what you knew was about the work
+   * you were doing, and it does not come with you to a different one.
+   */
+  worked?: number;
   /** The world day they were born. Everything about their age follows from it. */
   born: number;
   /** How many days they have, barring wolves. */
@@ -448,6 +467,17 @@ function born(
     sex: theirs,
     trade: trades.length > 0 ? trades[Math.floor(rng() * trades.length)] : '',
     born: bornOn,                              // negative: they were already here on day one
+    /*
+     * A founder has been at it since the day they grew up, which is however long ago the age this
+     * founding handed them says it was — and nothing is rolled for it, because a founding that
+     * spent one more draw would be a different village on every machine in the world.
+     *
+     * It is what makes a village founded with grandparents in it a village that knows its work on
+     * the first morning, where one founded on its own children has to wait for them. Nought for
+     * anybody not yet grown: the caller clears their trade a line later, and they take their days
+     * from the morning they take the trade.
+     */
+    worked: Math.max(0, -bornOn - LIFE.CHILD_UNTIL),
     lives,
     mother: '',
     father: '',
