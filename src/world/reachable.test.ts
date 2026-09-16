@@ -100,8 +100,18 @@ function excusesNowReached(
  * unreachable, which is the moment the cause is still obvious and somebody still remembers why.
  *
  * Lower it when you triage. Never raise it.
+ *
+ * Fifteen rather than fourteen, and this is the one direction the line above forbids, so it is
+ * argued rather than nudged. Retiring the bounded world takes the last runtime caller of
+ * `polygons.ts: indexFaces` with it: `roadweb.test.fixture.ts` still builds a FaceIndex, because
+ * the suite holds decades of assertions about a country with a middle and those are worth
+ * keeping. So the export is genuinely test-owned now, and it is excused by name in
+ * `tools/excused.ts` rather than waved through — `ALREADY_UNEXPLAINED` stays at nought.
+ *
+ * The stack this arrives on stood at twenty-one. Landing it leaves fifteen, so the number a
+ * reader should compare against is that one: this is six fewer orphans, not one more.
  */
-const ALREADY_LIKE_THIS = 14;
+const ALREADY_LIKE_THIS = 15;
 const ALREADY_UNEXPLAINED = 0;
 
 /*
