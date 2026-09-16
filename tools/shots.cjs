@@ -414,6 +414,19 @@ const SHOTS = [
       return p.$eval('#note', (el) => el.textContent.trim());
     },
   },
+  /*
+   * The phone, which is a different product and was photographed once.
+   *
+   * There was one picture here — the square, at noon, with the touch controls up — and every other
+   * screen of this game on a phone had never been looked at as an image at all. A panel that reads
+   * well at 900 by 600 can be unusable at 420 wide: the rucksack is a grid, the map is full-screen,
+   * a conversation is a box with a face in it, and all three are laid out against a width this
+   * viewport does not have.
+   *
+   * So: the same screens, at phone size, named so `chore compare` can put two runs beside each
+   * other. That is the difference between "it looks wrong on my phone" and a picture somebody can
+   * point at.
+   */
   {
     name: 'phone', title: 'The game on a phone', viewport: PHONE, touch: true,
     setup: async (p, { village, time, zoom }) => {
@@ -421,6 +434,39 @@ const SHOTS = [
       await village();
       await zoom(13);
       return 'touch controls';
+    },
+  },
+  {
+    name: 'phone-title', title: 'The title screen on a phone', viewport: PHONE, touch: true,
+    page: '/',
+    setup: async () => 'the three slots, before a world is opened',
+  },
+  {
+    name: 'phone-rucksack', title: 'The rucksack on a phone', viewport: PHONE, touch: true,
+    setup: async (p, { village, time, key }) => {
+      await time(NOON);
+      await village();
+      await key('i');
+      return 'open';
+    },
+  },
+  {
+    name: 'phone-map', title: 'The full-screen map on a phone', viewport: PHONE, touch: true,
+    setup: async (p, { village, time, key, wait }) => {
+      await time(NOON);
+      await village();
+      await key('m');
+      await wait(400);
+      return 'open';
+    },
+  },
+  {
+    name: 'phone-night', title: 'A phone after dark, when the HUD has to carry itself', viewport: PHONE, touch: true,
+    setup: async (p, { village, time, zoom }) => {
+      await time(NIGHT);
+      await village();
+      await zoom(13);
+      return 'touch controls, after dark';
     },
   },
   {
