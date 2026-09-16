@@ -14,6 +14,30 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.95.0 — 2026-09-16
+
+a world generator you can choose again, the hero on the register, villagers who want something, and the phone in pictures
+
+- A blow the world threw away is taken back (#281)
+- Something darkens where two surfaces meet (#282) — closes #251
+- A cart of food goes from the valley that has too much to the one that has too little (#283)
+- What one villager owes another (#284) — closes #240
+- Release 0.94.0 (#285)
+- A hand learns the work it was raised to (#286) — closes #244
+- There is an old age now, and it costs a village something (#287) — closes #245
+- One place a frame is submitted from (#288)
+- Every report goes to one ignored place (#289)
+- A page that can ask the bench a different question (#290) — closes #257
+- main is red: three failures, and why nothing caught them (#291)
+- The hero is somebody the register knows (#292) — closes #260
+- Dying is an economic event, and the gods bill him for it (#293) — closes #261
+- The world moves while you are gone (#294)
+- Two pictures, and whether they are the same picture (#295)
+- A second rig that draws through a composer, chosen from the title screen (#296) — closes #250
+- The phone, in pictures, on every run (#297)
+- A villager can want something, and only you can be asked (#298) — closes #265
+- A world generator is a thing the game is handed, not a thing it is built out of (#302) — closes #301
+
 ## v0.94.0 — 2026-09-16
 
 marriage, illness, faces that run in families, a shelf that runs out, and distance you can see
