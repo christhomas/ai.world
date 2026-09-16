@@ -250,7 +250,31 @@ export class Wildlife {
         }
         // An easing tail is for arithmetic-sized disagreement. Once it is a whole visible body,
         // preserving the old drawing only lets the next message measure and inherit the same lie.
-        if (out > MAX_EASED_GAP) { body.x = snap.x; body.z = snap.z; }
+        if (out > MAX_EASED_GAP) {
+          body.x = snap.x;
+          body.z = snap.z;
+          /*
+           * And the guess that was wrong about it goes too, which is the other half of the same
+           * thought.
+           *
+           * Moving the body was only the pixel. The entry being replaced is what `told` measures
+           * the next velocity against, so a disagreement this size is read as *speed* — a teleport
+           * of a tile in a tenth of a second is nine tiles a second, clamped to a sprint and
+           * pointed the way the correction went. `update` then carries the body along it for up to
+           * `CARRY_AHEAD` of a second, straight back off the position it was just put on, and the
+           * next snapshot measures that gap and corrects it again.
+           *
+           * Measured before this line existed: a woman corrected one tile east and left for a
+           * third of a second of frames finished at 1.148 — a seventh of a tile past where the
+           * world had her, having been put exactly on it.
+           *
+           * Forgetting it means the next `told` finds nothing to difference against and reports no
+           * velocity, so the body holds the authoritative position until the world speaks again and
+           * gives it a real one. A correction is a fact about where something *is*; it is not
+           * evidence about where it is going.
+           */
+          this.wanted.delete(snap.id);
+        }
       }
       body.state = snap.state;
       body.walk = snap.walk;
