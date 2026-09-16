@@ -1,46 +1,45 @@
-POPULATION BENCH — 2026-09-16T13:05:41.834Z
+POPULATION BENCH — 2026-09-16T15:18:29.209Z
 
   8 villages on 3 seeds, 100 days each, read out of their own roll
   and births book. Nothing here judges: item #248 is where the decision goes.
 
-  NOTE       569  couples that had a child at all, averaging 1.33 children each, of whom 1.02 reached 16
+  NOTE       585  couples that had a child at all, averaging 1.38 children each, of whom 1.03 reached 16
                     Replacement in this world is exactly 2, because nothing kills a child here but hunger.
-                    So the number to read is the second one: 1.02 against 2.
-  NOTE       533  funerals: 499 of old age, 34 of grown people short of sixty, 0 of children
+                    So the number to read is the second one: 1.03 against 2.
+  NOTE       540  funerals: 505 of old age, 35 of grown people short of sixty, 0 of children
                     No child died anywhere in a hundred days, in any village, on any seed.
-  NOTE      1176  village-evenings with every bed full, out of 2329 lived — 50% of the world's nights
+  NOTE      1439  village-evenings with every bed full, out of 2410 lived — 60% of the world's nights
                     Villages that spent more than half their lives with nowhere to put a child:
-                    Ashford (seed 1) on day 101: full on 67% of its evenings (68 of 101)
-                    Oakcross (seed 1) on day 101: full on 70% of its evenings (71 of 101)
-                    Thornby (seed 1) on day 101: full on 53% of its evenings (54 of 101)
-                    Fernreach (seed 1) on day 101: full on 67% of its evenings (68 of 101)
+                    Ashford (seed 1) on day 101: full on 66% of its evenings (67 of 101)
+                    Oakcross (seed 1) on day 101: full on 65% of its evenings (66 of 101)
+                    Thornby (seed 1) on day 101: full on 56% of its evenings (57 of 101)
+                    Fernreach (seed 1) on day 101: full on 68% of its evenings (69 of 101)
                     Saltcombe (seed 1) on day 101: full on 71% of its evenings (72 of 101)
+                    Windle (seed 1) on day 101: full on 77% of its evenings (78 of 101)
                     Stonedale (seed 1) on day 101: full on 57% of its evenings (58 of 101)
-                    Ashford (seed 7) on day 101: full on 68% of its evenings (69 of 101)
+                    Ashford (seed 7) on day 101: full on 59% of its evenings (60 of 101)
                     Oakcross (seed 7) on day 101: full on 77% of its evenings (78 of 101)
-                    Thornby (seed 7) on day 101: full on 51% of its evenings (52 of 101)
+                    Thornby (seed 7) on day 101: full on 55% of its evenings (56 of 101)
                     Fernreach (seed 7) on day 101: full on 56% of its evenings (57 of 101)
-                    Saltcombe (seed 7) on day 101: full on 66% of its evenings (67 of 101)
-                    Stonedale (seed 7) on day 101: full on 53% of its evenings (54 of 101)
+                    Saltcombe (seed 7) on day 101: full on 67% of its evenings (68 of 101)
+                    Windle (seed 7) on day 101: full on 80% of its evenings (81 of 101)
+                    Stonedale (seed 7) on day 101: full on 61% of its evenings (62 of 101)
                     Ashford (seed 1234) on day 101: full on 58% of its evenings (59 of 101)
-                    Oakcross (seed 1234) on day 101: full on 59% of its evenings (60 of 101)
-                    Thornby (seed 1234) on day 101: full on 54% of its evenings (55 of 101)
-                    Fernreach (seed 1234) on day 101: full on 60% of its evenings (61 of 101)
+                    Oakcross (seed 1234) on day 101: full on 60% of its evenings (61 of 101)
+                    Thornby (seed 1234) on day 101: full on 59% of its evenings (60 of 101)
+                    Fernreach (seed 1234) on day 101: full on 61% of its evenings (62 of 101)
                     Saltcombe (seed 1234) on day 101: full on 76% of its evenings (77 of 101)
-  NOTE         8  villages that raised anything at all in a hundred days, against 16 that never did
-                    Ashford (seed 1) on day 98, reaching 7 buildings by day 101
-                    Oakcross (seed 1) on day 83, reaching 11 buildings by day 101
-                    Fernreach (seed 1) on day 94, reaching 7 buildings by day 101
-                    Ashford (seed 7) on day 93, reaching 7 buildings by day 101
-                    Oakcross (seed 7) on day 86, reaching 11 buildings by day 101
-                    Saltcombe (seed 7) on day 101, reaching 6 buildings by day 101
-                    Oakcross (seed 1234) on day 86, reaching 11 buildings by day 101
-                    Fernreach (seed 1234) on day 80, reaching 8 buildings by day 101
-                    Never raised a thing: Thornby (seed 1), Saltcombe (seed 1), Windle (seed 1), Stonedale (seed 1), Blackmarsh (seed 1), Thornby (seed 7), Fernreach (seed 7), Windle (seed 7), Stonedale (seed 7), Blackmarsh (seed 7), Ashford (seed 1234), Thornby (seed 1234), Saltcombe (seed 1234), Windle (seed 1234), Stonedale (seed 1234), Blackmarsh (seed 1234)
-  NOTE         2  villages that died out, 0 of them with nothing done to them at all
+                    Windle (seed 1234) on day 101: full on 81% of its evenings (82 of 101)
+  NOTE         7  villages that raised anything at all in a hundred days, against 17 that never did
+                    Ashford (seed 1) on day 96, reaching 7 buildings by day 101
+                    Oakcross (seed 1) on day 98, reaching 10 buildings by day 101
+                    Fernreach (seed 1) on day 96, reaching 7 buildings by day 101
+                    Ashford (seed 7) on day 82, reaching 8 buildings by day 101
+                    Oakcross (seed 7) on day 88, reaching 11 buildings by day 101
+                    Oakcross (seed 1234) on day 101, reaching 10 buildings by day 101
+                    Fernreach (seed 1234) on day 83, reaching 9 buildings by day 101
+                    Never raised a thing: Thornby (seed 1), Saltcombe (seed 1), Windle (seed 1), Stonedale (seed 1), Blackmarsh (seed 1), Thornby (seed 7), Fernreach (seed 7), Saltcombe (seed 7), Windle (seed 7), Stonedale (seed 7), Blackmarsh (seed 7), Ashford (seed 1234), Thornby (seed 1234), Saltcombe (seed 1234), Windle (seed 1234), Stonedale (seed 1234), Blackmarsh (seed 1234)
+  NOTE         0  villages that died out, 0 of them with nothing done to them at all
                     Every village left alone was still standing on day 101.
-                    Raided, bare, or a hamlet of one house — hard on purpose:
-                    Blackmarsh (seed 7) emptied on day 73; ten days earlier it held 1 of 24 beds with 3.34375 meals in store
-                    Blackmarsh (seed 1234) emptied on day 89; ten days earlier it held 1 of 24 beds with 1 meals in store
 
   Written by src/game/population.test.ts. Run it again with: chore population

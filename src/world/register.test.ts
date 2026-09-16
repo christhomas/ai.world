@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Register } from './register';
-import { LIFE, ageOf, firstNameOf, parentsFrom, sexAtBirth, stageOf, surnameOf, tradeTakenUp, type Person } from './people';
+import { LIFE, ageOf, firstNameOf, parentsFrom, sexAtBirth, grownUp, stageOf, surnameOf, tradeTakenUp, type Person } from './people';
 import { FORTUNE } from './fortunes';
 
 const TRADES = ['farmer', 'hunter', 'seller'];
@@ -201,7 +201,10 @@ describe('the village register', () => {
     register.advance(200);
 
     for (const person of register.everybody()) {
-      const grown = stageOf(person, 200) === 'adult';
+      // `grownUp` rather than `stageOf(...) === 'adult'`, which is what this asked before there was
+      // an old age. #287 put `elder` after `adult`, and an elder holds the trade he has held all
+      // his life — the question here is whether somebody is grown, and that is what `grownUp` is
+      const grown = grownUp(person, 200);
       expect(person.trade === '' ? 'no trade' : 'a trade').toBe(grown ? 'a trade' : 'no trade');
       if (grown) expect(TRADES).toContain(person.trade);
     }
