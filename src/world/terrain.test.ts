@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateRoadGraph } from './graph';
+import { generateRoadGraph } from './graph.test.fixture';
 import { TerrainSampler, TileType } from './terrain';
 import { buildChunkMesh } from './mesher';
 import { WORLD } from '../core/config';

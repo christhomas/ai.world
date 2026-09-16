@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { packChunk, parcelKey, unpackChunk, worldStamp, type Parcel } from './chunkparcel';
 import { propsOf } from './propstream';
-import { generateWebGraph } from './roadweb';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { TerrainSampler } from './terrain';
 
 /**

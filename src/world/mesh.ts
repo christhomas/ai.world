@@ -1,8 +1,4 @@
-import { EDGE_OF_THE_WORLD } from './graph';
-import { mulberry32 } from '../core/rng';
-import { SALT, derive } from '../core/salts';
-import { Simplex2D } from './noise';
-import { faceUnder, indexFaces, scatterPoints, weldPolygons, type FaceIndex } from './polygons';
+import { faceUnder, type FaceIndex } from './polygons';
 
 /**
  * The world as a mesh of polygons.
@@ -257,9 +253,6 @@ export function isLand(mesh: WorldMesh, x: number, z: number): boolean {
   return face !== null && (face.kind === FaceKind.Land || face.kind === FaceKind.Mountain);
 }
 
-/** Land or mountain: ground you can put your foot on, as opposed to sea or lake. */
-const dryKind = (kind: FaceKind): boolean => kind === FaceKind.Land || kind === FaceKind.Mountain;
-
 /**
  * Where `roughen` leaves its answer, each coordinate roughly a half either way.
  *
@@ -321,119 +314,9 @@ function blend(a: number, b: number, c: number, d: number, ex: number, ez: numbe
   return (a + (b - a) * ex) * (1 - ez) + (c + (d - c) * ex) * ez;
 }
 
-/**
- * Grow the world's polygons.
- *
- * The seed decides everything: where the crossroads fall, how the triangles between them are
- * welded into faces, which faces are dry, which of the dry ones stand up as mountains, and which
- * hollows hold a lake.
+/*
+ * `generateMesh` used to grow the world's polygons here. The bounded country it grew retired with
+ * #192; what is left of it is a test-owned invariant for `mesh.test.ts`, `ranges.test.ts` and the
+ * old road web, so the function moved to `roadweb.test.fixture.ts`, the one place that still calls
+ * it outside those tests.
  */
-export function generateMesh(seed: number, radius = EDGE_OF_THE_WORLD): WorldMesh {
-  const grain = new Simplex2D(derive(seed, SALT.MESH ^ 0x9a17));
-  const shape = new Simplex2D(derive(seed, SALT.MESH));
-
-  const { px, pz } = scatterPoints(
-    mulberry32(derive(seed, SALT.MESH)),
-    (x, z) => (grain.fbm(x * MESH.GRAIN, z * MESH.GRAIN, 2) + 1) * 0.5,
-    { reach: radius + MESH.OUTSIDE, near: MESH.NEAR, far: MESH.FAR, tries: MESH.TRIES },
-  );
-  const polygons = weldPolygons(
-    mulberry32(derive(seed, SALT.MESH ^ 0xc1a3)), px, pz,
-    { appetite: MESH.APPETITE, minRoads: MESH.MIN_ROADS, dent: MESH.DENT },
-  );
-
-  const vertices: MeshVertex[] = px.map((x, i) => ({ x, z: pz[i] }));
-  const faces: MeshFace[] = polygons.map((p, id) => ({
-    id, region: -1, cx: p.cx, cz: p.cz, area: p.area, kind: FaceKind.Sea,
-    corners: p.corners, neighbours: p.neighbours,
-  }));
-  // the middling face rather than the average one: a handful of enormous slivers close off the
-  // hull, and an average would let them speak for the whole country
-  const areas = polygons.map((p) => p.area).sort((a, b) => a - b);
-  const middling = areas.length > 0 ? areas[areas.length >> 1] : MESH.NEAR * MESH.NEAR;
-  const mesh: WorldMesh = {
-    seed, radius, vertices, faces, regions: [],
-    // the radius of a hexagon of that area, so the number means what it meant when the world was
-    // a hexagon lattice and everything downstream was tuned against it
-    size: Math.sqrt(middling / 2.598),
-    index: indexFaces(polygons, px, pz, MESH.INDEX_CELL),
-  };
-
-  // What each face is made of. Noise rather than a die, so neighbours agree and the land comes out
-  // in continents instead of confetti; the rim is drowned so the world ends in open sea.
-  for (const face of faces) {
-    const rim = Math.hypot(face.cx, face.cz) / radius;
-    if (rim > MESH.RIM) { face.kind = FaceKind.Sea; continue; }
-    const height = shape.fbm(face.cx * MESH.CONTINENT_SCALE, face.cz * MESH.CONTINENT_SCALE, 4)
-      - Math.max(0, (rim - 0.5) * 1.2);       // fall away towards the rim so coasts are not a circle
-    if (height < MESH.SHORE) { face.kind = FaceKind.Sea; continue; }
-    face.kind = height > MESH.PEAKS ? FaceKind.Mountain : FaceKind.Land;
-  }
-
-  // Lakes, in the hollows that have dry ground all the way round them, so a lake is inland water
-  // and never a bite taken out of a coast. Grown into their neighbours rather than being one face
-  // each, because a world wants tarns and lochs and not one size of pond.
-  const lakeRoll = mulberry32(derive(seed, SALT.MESH ^ 0x5eed));
-  const inland = (face: MeshFace): boolean =>
-    face.kind === FaceKind.Land && face.neighbours.every((n) => n >= 0 && dryKind(faces[n].kind));
-  for (const face of faces) {
-    if (!inland(face) || lakeRoll() >= MESH.LAKE_SHARE) continue;
-    face.kind = FaceKind.Lake;
-    for (const n of face.neighbours) {
-      if (lakeRoll() >= MESH.LAKE_SPREAD || !inland(faces[n])) continue;
-      faces[n].kind = FaceKind.Lake;
-    }
-  }
-
-  // Islands, made by raising the sea rather than by drowning the land. The first attempt cut them
-  // loose from the coast, and doing that safely is impossible: a "neighbour" can be the continent,
-  // and seed 1 lost two fifths of its mainland to make four islands. Lifting a face of open water
-  // that already has water all round it cannot damage anything.
-  const offshore = faces
-    .filter((f) => f.kind === FaceKind.Sea)
-    .filter((f) => {
-      const away = Math.hypot(f.cx, f.cz);
-      // out to very nearly the edge: the genuinely open water, which is where an island belongs,
-      // lies past the line where the map starts drowning itself
-      if (away < radius * MESH.ISLAND_OUT || away > radius * 0.97) return false;
-      return f.neighbours.every((n) => n < 0 || !dryKind(faces[n].kind));
-    })
-    .sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz));
-  for (const island of offshore.slice(0, MESH.ISLANDS)) island.kind = FaceKind.Land;
-
-  // The middle of the world is where the player starts, so it had better be walkable — and walkable
-  // for some way around, because the clearing the hero wakes up in is wider than one small face.
-  const hub = faceAt(mesh, 0, 0);
-  if (hub && hub.kind !== FaceKind.Land) {
-    hub.kind = FaceKind.Land;
-    for (const n of hub.neighbours) {
-      if (n >= 0 && !dryKind(faces[n].kind)) faces[n].kind = FaceKind.Land;
-    }
-  }
-
-  // and finally the territories: everywhere you can walk to without the ground changing under you.
-  // Grown from the kinds rather than the kinds from them, so a region is a real stretch of country
-  // — one mountain range, one lake, one sea — and not a bookkeeping clump.
-  for (const face of faces) {
-    if (face.region >= 0) continue;
-    const id = mesh.regions.length;
-    const mine: number[] = [face.id];
-    face.region = id;
-    for (let head = 0; head < mine.length; head++) {
-      for (const n of faces[mine[head]].neighbours) {
-        if (n < 0 || faces[n].region >= 0 || faces[n].kind !== face.kind) continue;
-        faces[n].region = id;
-        mine.push(n);
-      }
-    }
-    let cx = 0, cz = 0, weight = 0;
-    for (const f of mine) { cx += faces[f].cx * faces[f].area; cz += faces[f].cz * faces[f].area; weight += faces[f].area; }
-    mesh.regions.push({
-      id, kind: face.kind, faces: mine,
-      cx: weight > 0 ? cx / weight : faces[face.id].cx,
-      cz: weight > 0 ? cz / weight : faces[face.id].cz,
-    });
-  }
-
-  return mesh;
-}

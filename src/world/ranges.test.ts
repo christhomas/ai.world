@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FaceKind, generateMesh, type WorldMesh } from './mesh';
+import { FaceKind, type WorldMesh } from './mesh';
+import { generateMesh } from './roadweb.test.fixture';
 import { RANGE, buildRanges, mountainAt, planBowl, reachOfEachPeak, type Ranges } from './ranges';
 import { highlandAt, highlandLift, highlandRidges } from './highland';
 

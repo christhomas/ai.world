@@ -602,6 +602,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.93.0 — 2026-09-16
+
+the endless country, a hall that hires, and a phone you can actually play on
+
 ### v0.92.6 — 2026-09-13
 
 The watchman a village has been paying for since it bought the tower is now standing on it — and he and the tower agree to the tile about where the tower is.
@@ -637,10 +641,6 @@ the hall puts work out to contract
 ### v0.90.0 — 2026-09-13
 
 villages founded at what their roofs hold
-
-### v0.89.0 — 2026-09-13
-
-a frame goes up in a village you are walking through
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

@@ -3,6 +3,7 @@ import { Simulation } from './sim';
 import { Forgetful } from './vault';
 import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
 import type { Wire } from './rooms';
+import { growPatch } from '../src/world/growworld';
 
 /**
  * A village the world is running, at one in the morning.
@@ -43,7 +44,7 @@ class Pretend {
   }
 
   join(seed: number, name: string): this {
-    this.say({ type: 'join', world: 'road', seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4 });
+    this.say({ type: 'join', seed, name, version: PROTOCOL_VERSION, day: 2, time: 0.4 });
     return this;
   }
 
@@ -52,8 +53,9 @@ class Pretend {
   }
 }
 
-/** Seed 3's country has a village near the origin, which is where every ground test here stands. */
-const SEED = 3;
+/** Found by scanning the origin patch, rather than assuming that endless country has a centre. */
+const SEED = 7;
+const VILLAGE = growPatch(SEED, { x0: 0, z0: 0, x1: 512, z1: 512 }).structures.villages[0];
 
 /** A world with ground under it, patient enough not to drop the player for saying nothing. */
 const standUp = () => new Simulation({ vault: new Forgetful(), ground: true, reach: 3, timeout: 10 * 60_000 });
@@ -63,15 +65,16 @@ function whereEverybodyIs(sim: Simulation, seed: number): Map<number, string> {
   const alive = sim.livesIn(seed);
   const out = new Map<number, string>();
   if (!alive) return out;
-  for (const one of alive.listNear(0, 0, 60)) out.set(one.id, `${one.kind}@${one.x.toFixed(2)},${one.z.toFixed(2)}`);
+  for (const one of alive.listNear(VILLAGE.x, VILLAGE.z, 60)) out.set(one.id, `${one.kind}@${one.x.toFixed(2)},${one.z.toFixed(2)}`);
   return out;
 }
 
 describe('a village the world is running', () => {
   it('has somebody in it at all', () => {
+    expect(VILLAGE, 'the scanned patch has no village').toBeDefined();
     const sim = standUp();
     const rowan = new Pretend(sim).join(SEED, 'Rowan');
-    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: VILLAGE.x, z: VILLAGE.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     for (let n = 1; n <= 20; n++) sim.tick(Date.now() + n * 100);
     expect(whereEverybodyIs(sim, SEED).size, 'the world put nobody in the country at all').toBeGreaterThan(0);
   });
@@ -85,7 +88,7 @@ describe('a village the world is running', () => {
      */
     const sim = standUp();
     const rowan = new Pretend(sim).join(SEED, 'Rowan');
-    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: VILLAGE.x, z: VILLAGE.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     for (let n = 1; n <= 20; n++) sim.tick(Date.now() + n * 100);
 
     const before = whereEverybodyIs(sim, SEED);
@@ -113,12 +116,37 @@ describe('the same village at one in the morning', () => {
      */
     const sim = standUp();
     const rowan = new Pretend(sim).join(SEED, 'Rowan');
-    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: VILLAGE.x, z: VILLAGE.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     let at = Date.now();
     for (let n = 1; n <= 20; n++) sim.tick(at + n * 100);
     at += 2000;
-    const atNoon = whereEverybodyIs(sim, SEED).size;
-    expect(atNoon, 'nobody was out at noon either').toBeGreaterThan(0);
+
+    // People only: the cows and ducks keep their own hours and cannot be the daytime precondition.
+    const folk = (): Array<{ kind: string; doing: string; indoors: boolean; posts: string; where: string }> => {
+      const out = [];
+      for (const e of sim.livesIn(SEED)?.all() ?? []) {
+        if (!e.person && e.role !== 'villager' && !e.trade) continue;
+        out.push({
+          kind: e.kind.id ?? '?', doing: e.doing, indoors: e.indoors,
+          posts: Object.keys(e.posts).join(','), where: `${e.x.toFixed(1)},${e.z.toFixed(1)}`,
+        });
+      }
+      return out;
+    };
+    /*
+     * Outdoors at noon, and only outdoors.
+     *
+     * `folk()` is everybody the village holds, and some of them are already inside at midday — a
+     * landlord behind his own bar, somebody sleeping off a night shift. Counting those into the
+     * daytime baseline makes the assertion at the end satisfiable without anybody going anywhere:
+     * the comparison is `outdoors at 1am < baseline`, so a baseline padded with people who were
+     * never outside in the first place passes on a village where nobody moved at all.
+     *
+     * What this test is about is the walk home. So the baseline is the people who have a walk home
+     * to make.
+     */
+    const atNoon = folk().filter((person) => !person.indoors);
+    expect(atNoon.length, 'no villagers were out at noon').toBeGreaterThan(0);
 
     // the small hours, and then long enough for the walk home: a village is a minute across
     const room = sim.rooms.get(SEED);
@@ -131,22 +159,12 @@ describe('the same village at one in the morning', () => {
       if (room!.world.clock.time > 0.12) room!.world.clock.time = 0.02;
     }
 
-    // people only: the cows and the ducks keep their own hours and are not the question
-    const folk = (): Array<{ kind: string; doing: string; indoors: boolean; posts: string; where: string }> => {
-      const out = [];
-      for (const e of sim.livesIn(SEED)?.all() ?? []) {
-        if (!e.person && e.role !== 'villager' && !e.trade) continue;
-        out.push({
-          kind: e.kind.id ?? '?', doing: e.doing, indoors: e.indoors,
-          posts: Object.keys(e.posts).join(','), where: `${e.x.toFixed(1)},${e.z.toFixed(1)}`,
-        });
-      }
-      return out;
-    };
     const people = folk();
     const out = people.filter((p) => !p.indoors);
-    expect(people.length, 'no people in this village at all').toBeGreaterThan(0);
-    expect(out.length, `everybody is still out at 1am: ${JSON.stringify(people)}`).toBeLessThan(people.length);
+    // Going indoors removes a body from Wildlife altogether; one retained with `indoors` set is
+    // also not outside. Compare with the asserted daytime population instead of requiring an
+    // indoor body to remain in the collection whose job is to hold things walking outdoors.
+    expect(out.length, `everybody is still out at 1am: ${JSON.stringify(people)}`).toBeLessThan(atNoon.length);
   });
 });
 
@@ -163,14 +181,14 @@ describe('a village whose ground the world has not kept', () => {
      */
     const sim = new Simulation({ vault: new Forgetful(), ground: true, reach: 1, timeout: 10 * 60_000 });
     const rowan = new Pretend(sim).join(SEED, 'Rowan');
-    rowan.say({ type: 'move', x: 0, z: 0, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
+    rowan.say({ type: 'move', x: VILLAGE.x, z: VILLAGE.z, yaw: 0, walk: 0, place: 'surface', riding: 'foot', gear: [] });
     let at = Date.now();
     for (let n = 1; n <= 20; n++) sim.tick(at + n * 100);
     at += 2000;
 
     const where = () => {
       const out = new Map<number, string>();
-      for (const one of sim.livesIn(SEED)?.listNear(0, 0, 26) ?? []) out.set(one.id, `${one.x.toFixed(2)},${one.z.toFixed(2)}`);
+      for (const one of sim.livesIn(SEED)?.listNear(VILLAGE.x, VILLAGE.z, 26) ?? []) out.set(one.id, `${one.x.toFixed(2)},${one.z.toFixed(2)}`);
       return out;
     };
     const before = where();

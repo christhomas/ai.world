@@ -198,7 +198,7 @@ describe('what a villager believes about the mine', () => {
 
 describe('quests', () => {
   it('generates one quest per village deterministically and the elder flow pays out', async () => {
-    const { generateRoadGraph } = await import('../world/graph');
+    const { generateRoadGraph } = await import('../world/graph.test.fixture');
     const { TerrainSampler } = await import('../world/terrain');
     const { generateQuests } = await import('./quests');
     const sampler = new TerrainSampler(generateRoadGraph(3));

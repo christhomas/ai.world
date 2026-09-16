@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Biome } from '../world/biomes';
-import { generateRoadGraph } from '../world/graph';
+import { generateRoadGraph } from '../world/graph.test.fixture';
 import { TerrainSampler } from '../world/terrain';
 import { StructureKind, type Structure, type Village } from '../world/structures';
 import { JAIL, Jail, clockAt, fineFor, hoursLeftIn, toldOnWaking, windOn } from './jail';

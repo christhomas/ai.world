@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SKY, buildSkyIsland, onSkyIsland, planSkyIslands, skyIndex } from './skyisland';
-import { attachIslands, generateRoadGraph, planIslands } from './graph';
-import { generateWebGraph } from './roadweb';
+import { attachIslands, generateRoadGraph, planIslands } from './graph.test.fixture';
+import { generateWebGraph } from './roadweb.test.fixture';
 import { Manifest } from './manifest';
 import { TerrainSampler } from './terrain';
 import { WORLD } from '../core/config';

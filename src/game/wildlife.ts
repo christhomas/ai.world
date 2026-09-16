@@ -78,6 +78,16 @@ export interface Drift {
 const CATCH_UP = 9;
 
 /**
+ * The largest positional correction worth easing, in tiles.
+ *
+ * Half a tile is visible but still larger than the ordinary gap between snapshots in a run. Past
+ * it the screen and the world disagree by about a whole animal: carrying that debt through later
+ * snapshots makes every subsequent position a lie. A large correction is therefore a fact, like a
+ * collision or teleport, and is accepted immediately; the small, frequent movements remain eased.
+ */
+const MAX_EASED_GAP = 0.5;
+
+/**
  * How far ahead of the last snapshot a creature may be carried, in seconds.
  *
  * Long enough to cover the gap between snapshots, which is what the lag actually is, and no longer:
@@ -237,6 +247,33 @@ export class Wildlife {
           this.wrongClose.n++;
           this.wrongClose.total += out;
           if (out > this.wrongClose.worst) { this.wrongClose.worst = out; this.wrongClose.worstIs = body.kind.id; }
+        }
+        // An easing tail is for arithmetic-sized disagreement. Once it is a whole visible body,
+        // preserving the old drawing only lets the next message measure and inherit the same lie.
+        if (out > MAX_EASED_GAP) {
+          body.x = snap.x;
+          body.z = snap.z;
+          /*
+           * And the guess that was wrong about it goes too, which is the other half of the same
+           * thought.
+           *
+           * Moving the body was only the pixel. The entry being replaced is what `told` measures
+           * the next velocity against, so a disagreement this size is read as *speed* — a teleport
+           * of a tile in a tenth of a second is nine tiles a second, clamped to a sprint and
+           * pointed the way the correction went. `update` then carries the body along it for up to
+           * `CARRY_AHEAD` of a second, straight back off the position it was just put on, and the
+           * next snapshot measures that gap and corrects it again.
+           *
+           * Measured before this line existed: a woman corrected one tile east and left for a
+           * third of a second of frames finished at 1.148 — a seventh of a tile past where the
+           * world had her, having been put exactly on it.
+           *
+           * Forgetting it means the next `told` finds nothing to difference against and reports no
+           * velocity, so the body holds the authoritative position until the world speaks again and
+           * gives it a real one. A correction is a fact about where something *is*; it is not
+           * evidence about where it is going.
+           */
+          this.wanted.delete(snap.id);
         }
       }
       body.state = snap.state;

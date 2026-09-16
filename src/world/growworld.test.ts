@@ -1,11 +1,9 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { generateRoadGraph, islandAnchors } from './graph';
-import { countryStamp, growPatch, growWorld, whyCountriesDiffer } from './growworld';
+import { countryStamp, growPatch, whyCountriesDiffer } from './growworld';
 import { PATCH, boundsOf } from './patchwork';
 import { partsOf, rebuildPatch } from './endless';
-import { TerrainSampler } from './terrain';
 
 /*
  * One square of country, named and fingerprinted.
@@ -46,6 +44,24 @@ function sources(dir: string): string[] {
 }
 
 describe('the one place a world is grown', () => {
+  it('has no bounded generator left in the running game or server', () => {
+    /*
+     * Every retired name, including the one the guard was written without.
+     *
+     * `generateRoadGraph` grew the bounded world and now lives in `graph.test.fixture.ts`, where
+     * the suite still uses it to hold decades of assertions about a country with a middle. That is
+     * why it was not in this list: nothing runtime mentions it, so nothing was wrong today. But
+     * "nothing is wrong today" is what the other four names were true of as well, and this guard's
+     * whole job is the day somebody imports one back. A retired generator left out of the pattern
+     * is a retired generator with no guard on it.
+     */
+    const bounded = /\b(EDGE_OF_THE_WORLD|generateRoadGraph|generateWebGraph|roadTreeWorld|planIslands)\b/;
+    const readers = ['src', 'server']
+      .flatMap((dir) => sources(dir))
+      .filter((path) => bounded.test(readFileSync(path, 'utf8')));
+    expect(readers).toEqual([]);
+  });
+
   it('is the only place that calls a generator', () => {
     /*
      * Calls rather than mentions. `graph.ts` and `roadweb.ts` each define one of these and would
@@ -78,44 +94,6 @@ describe('the one place a world is grown', () => {
     expect(countryStamp(next.graph)).not.toBe(countryStamp(once.graph));
   });
 
-  it('grows one country per seed, and a different one for the next seed', () => {
-    // there is one kind of world now — see `WorldKind` — so what is left to check is that the seed
-    // is what decides a country, which is the promise everything else in this file rests on
-    expect(countryStamp(growWorld(1, 'road'))).not.toBe(countryStamp(growWorld(2, 'road')));
-    expect('mesh' in growWorld(1, 'road'), 'the road world came back with a mesh it cannot have').toBe(false);
-  });
-
-  it('grows the same country twice, which is the whole of what a stamp is worth', () => {
-    expect(countryStamp(growWorld(7, 'road'))).toBe(countryStamp(growWorld(7, 'road')));
-  });
-
-  it('grows a different country when the islands are somewhere else', () => {
-    /*
-     * The reason the islands travel with the join.
-     *
-     * Where they hang is planned from the seed for any world made by this code, so leaving them out
-     * gives the right answer today — but a world saved before that code existed has them written
-     * into its own manifest, and the seed cannot tell you where they went. A page playing such a
-     * save and a world grown from the seed alone are two different countries, and this is what that
-     * looks like: the same seed, the same kind, different villages.
-     */
-    const seed = 3;
-    const own = islandAnchors(generateRoadGraph(seed), seed);
-    expect(own.length, 'this seed has no islands, so it cannot show what moving one does').toBeGreaterThan(0);
-    const moved = own.map((a, i) => (i === 0 ? { ...a, x: a.x + 40, z: a.z - 40 } : a));
-
-    expect(countryStamp(growWorld(seed, 'road', own)), 'the seed\'s own islands are not what the seed grows')
-      .toBe(countryStamp(growWorld(seed, 'road')));
-    expect(countryStamp(growWorld(seed, 'road', moved)), 'moving an island did not move the country')
-      .not.toBe(countryStamp(growWorld(seed, 'road')));
-
-    // and the same thing said in villages, which is how a player would have found it out: standing
-    // in a named square with somebody else's field under his feet
-    const names = (islands: typeof own): string =>
-      new TerrainSampler(growWorld(seed, 'road', islands)).structures.villages
-        .map((v) => `${v.name}@${v.x.toFixed(0)},${v.z.toFixed(0)}`).join(' ');
-    expect(names(moved)).not.toBe(names(own));
-  });
 });
 
 /**
@@ -180,31 +158,23 @@ describe('the fingerprint of one square of endless country', () => {
  */
 describe('why two halves are not in the same country', () => {
   it('says nothing at all when they agree', () => {
-    expect(whyCountriesDiffer('abcd1234', 'abcd1234', 'road', 'road')).toBeNull();
+    expect(whyCountriesDiffer('abcd1234', 'abcd1234')).toBeNull();
   });
 
   it('says nothing when the world said nothing, rather than guessing at a quarrel', () => {
     // a world that grows no ground sends an empty stamp, and one older than the kind field sends no
     // kind. Silence is not disagreement
-    expect(whyCountriesDiffer('abcd1234', '', 'road')).toBeNull();
-    expect(whyCountriesDiffer('abcd1234', 'abcd1234', 'endless')).toBeNull();
-  });
-
-  it('names the two kinds when they differ, and does not mention the hashes at all', () => {
-    const said = whyCountriesDiffer('3b564cc4', '1d825025', 'endless', 'road');
-    expect(said).toContain('endless');
-    expect(said).toContain('road');
-    expect(said, 'a player was shown two hex numbers again').not.toContain('3b564cc4');
+    expect(whyCountriesDiffer('abcd1234', '')).toBeNull();
   });
 
   it('and falls back to the hashes when the kinds match and the countries do not', () => {
-    const said = whyCountriesDiffer('3b564cc4', '1d825025', 'road', 'road');
+    const said = whyCountriesDiffer('3b564cc4', '1d825025');
     expect(said).toContain('3b564cc4');
     expect(said).toContain('1d825025');
   });
 
   it('still catches a drift when the world is too old to say what kind it grew', () => {
     // the case the field being optional has to keep working: no kind, two stamps, a real difference
-    expect(whyCountriesDiffer('aaaa', 'bbbb', 'road')).toContain('bbbb');
+    expect(whyCountriesDiffer('aaaa', 'bbbb')).toContain('bbbb');
   });
 });

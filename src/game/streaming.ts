@@ -34,7 +34,6 @@ export interface StreamingCtx {
   chunks: ChunkManager;
   sampler: TerrainSampler;
   seed: number;
-  world: string;
   /**
    * Ask the world for these chunks.
    *
@@ -67,7 +66,7 @@ export function streamTheCountry(ctx: StreamingCtx): Streaming {
    * few hundred kilobytes against never being able to fix the shape of anything small.
    */
   const kept = new ChunkStore(
-    browserKeep(), ctx.seed, ctx.world,
+    browserKeep(), ctx.seed, 'endless',
     `${GAME.version}:${worldStamp(ctx.sampler.generateChunk(0, 0))}`,
   );
   void kept.sweep();

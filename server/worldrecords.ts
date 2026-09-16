@@ -1,6 +1,4 @@
-import type { WorldKind } from '../src/save/store';
-import type { Anchor } from '../src/world/manifest';
-import { cleanIslands, cleanWorldName, worldKey, type WorldRecord } from './protocol';
+import { cleanWorldName, worldKey, type WorldRecord } from './protocol';
 import type { Vault } from './vault';
 
 /** Why a name could not be attached to the country a client presented. */
@@ -67,42 +65,15 @@ export class WorldRecords {
    * authoritative: a client presenting different facts is refused, never silently moved into the
    * country somebody else named.
    */
-  claim(name: unknown, seed: number, kind: WorldKind, manifest: Anchor[] | undefined): WorldRecord {
+  claim(name: unknown, seed: number): WorldRecord {
     const shown = cleanWorldName(name);
     const key = worldKey(name);
     if (!shown || !key) throw new WorldRecordConflict('World names use letters, numbers, spaces, _ or -, and must be 48 characters or fewer.');
 
     const root = seed >>> 0;
-    /*
-     * A join that said nothing about its islands is different from one that said it has none.
-     *
-     * The protocol's `islands` is optional, so both used to arrive here as an empty list — and the
-     * first joiner to omit it froze the name with an empty manifest. Every later join that *did*
-     * state its islands then read as a different world and was refused, for ever. One quiet client
-     * poisoned the name.
-     *
-     * So `undefined` means unstated. A record whose manifest is empty is a record nobody has stated
-     * one for yet, and the first join that does fills it in; after that the existing manifest is
-     * authoritative and a join stating a different one is refused exactly as before.
-     *
-     * The narrowness is the point: a client can fill an *unstated* manifest and can never change a
-     * stated one, which is the case this is protecting — and a client able to fill it was equally
-     * able to create the name in the first place.
-     */
-    const stated = manifest === undefined ? null : cleanIslands(manifest);
-    const islands = stated ?? [];
     const existing = this.records.get(key);
     if (existing) {
-      if (existing.seed !== root || existing.kind !== kind) {
-        throw new WorldRecordConflict(`“${shown}” already names a different world.`);
-      }
-      if (existing.manifest.length === 0 && stated !== null && stated.length > 0) {
-        if (this.unreadable !== null) throw this.cannotWrite();
-        existing.manifest = stated.map((anchor) => ({ ...anchor }));
-        this.save();
-        return copy(existing);
-      }
-      if (stated !== null && !sameManifest(existing.manifest, stated)) {
+      if (existing.seed !== root) {
         throw new WorldRecordConflict(`“${shown}” already names a different world.`);
       }
       return copy(existing);
@@ -121,7 +92,7 @@ export class WorldRecords {
      */
     if (this.unreadable !== null) throw this.cannotWrite();
 
-    const record: WorldRecord = { name: shown, seed: root, kind, manifest: islands };
+    const record: WorldRecord = { name: shown, seed: root };
     this.records.set(key, record);
     this.seeds.set(root, key);
     this.save();
@@ -134,20 +105,14 @@ export class WorldRecords {
 
   private restore(value: unknown): void {
     if (!value || typeof value !== 'object') return;
-    const raw = value as Partial<WorldRecord>;
+    const raw = value as { name?: unknown; seed?: unknown; kind?: unknown; manifest?: unknown };
     const name = cleanWorldName(raw.name);
     const key = worldKey(raw.name);
     const seed = Number(raw.seed);
-    const kind: WorldKind | null = raw.kind === 'road' || raw.kind === 'endless' ? raw.kind : null;
-    if (!name || !key || !Number.isFinite(seed) || !kind || this.records.has(key)) return;
+    if (!name || !key || !Number.isFinite(seed) || this.records.has(key)) return;
     const root = seed >>> 0;
     if (this.seeds.has(root)) return;
-    const record: WorldRecord = {
-      name,
-      seed: root,
-      kind,
-      manifest: cleanIslands(Array.isArray(raw.manifest) ? raw.manifest : []),
-    };
+    const record: WorldRecord = { name, seed: root };
     this.records.set(key, record);
     this.seeds.set(root, key);
   }
@@ -165,10 +130,4 @@ export class WorldRecords {
   }
 }
 
-function copy(record: WorldRecord): WorldRecord {
-  return { ...record, manifest: record.manifest.map((anchor) => ({ ...anchor })) };
-}
-
-function sameManifest(a: readonly Anchor[], b: readonly Anchor[]): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
+function copy(record: WorldRecord): WorldRecord { return { ...record }; }

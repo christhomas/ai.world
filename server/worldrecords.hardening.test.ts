@@ -18,7 +18,6 @@ const held = (start: Record<string, string> = {}): Vault & { kept: Map<string, s
   return { kept, read: (name) => kept.get(name) ?? null, write: (name, text) => { kept.set(name, text); } };
 };
 const AT = 'data/world-records.json';
-const anchor = (x: number) => ({ id: `isle-${x}`, kind: 'island' as const, x, z: 0, seed: x, parent: null, version: 1 });
 
 describe('a registry that could not be read', () => {
   /*
@@ -30,7 +29,7 @@ describe('a registry that could not be read', () => {
     const vault = held({ [AT]: '[{"name":"Ashford","seed":1,"kind":"road","manifest":[]},' });
     const records = new WorldRecords('data', vault);
     expect(records.damaged, 'it knows it could not read it').not.toBeNull();
-    expect(() => records.claim('Somewhere Else', 2, 'road', []))
+    expect(() => records.claim('Somewhere Else', 2))
       .toThrow(WorldRecordConflict);
     expect(vault.kept.get(AT), 'the file is exactly as it was found')
       .toBe('[{"name":"Ashford","seed":1,"kind":"road","manifest":[]},');
@@ -39,13 +38,13 @@ describe('a registry that could not be read', () => {
   it('says why, so somebody can go and look', () => {
     const records = new WorldRecords('data', held({ [AT]: '{"not":"a list"}' }));
     expect(records.damaged).toContain('not a list');
-    expect(() => records.claim('Ashford', 1, 'road', [])).toThrow(/could not be read/);
+    expect(() => records.claim('Ashford', 1)).toThrow(/could not be read/);
   });
 
   it('is not confused with a registry that was never written', () => {
     const records = new WorldRecords('data', held());
     expect(records.damaged, 'an empty server is not a damaged one').toBeNull();
-    expect(() => records.claim('Ashford', 1, 'road', [])).not.toThrow();
+    expect(() => records.claim('Ashford', 1)).not.toThrow();
   });
 
   it('reads a good one and goes on working', () => {
@@ -101,55 +100,5 @@ describe('writing the registry', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
-});
-
-/**
- * A join that said nothing about its islands, which used to freeze a name empty for ever.
- */
-describe('a name claimed before anybody stated its islands', () => {
-  it('is filled in by the first join that states them', () => {
-    const records = new WorldRecords('data', held());
-    records.claim('Ashford', 1, 'road', undefined);
-    expect(records.find('ashford')?.manifest).toEqual([]);
-
-    const after = records.claim('Ashford', 1, 'road', [anchor(10)]);
-    expect(after.manifest, 'the first join to say so is believed').toHaveLength(1);
-    expect(records.find('ashford')?.manifest).toHaveLength(1);
-  });
-
-  it('is not refused for the join that states them, which is the fault', () => {
-    const records = new WorldRecords('data', held());
-    records.claim('Ashford', 1, 'road', undefined);
-    expect(() => records.claim('Ashford', 1, 'road', [anchor(10)]),
-      'one quiet client must not poison a name for everybody after it').not.toThrow();
-  });
-
-  /*
-   * And once stated it is authoritative, which is the protection this must not undo.
-   */
-  it('refuses a different manifest once one has been stated', () => {
-    const records = new WorldRecords('data', held());
-    records.claim('Ashford', 1, 'road', [anchor(10)]);
-    expect(() => records.claim('Ashford', 1, 'road', [anchor(99)])).toThrow(WorldRecordConflict);
-  });
-
-  it('lets a join that says nothing in take the manifest already recorded', () => {
-    const records = new WorldRecords('data', held());
-    records.claim('Ashford', 1, 'road', [anchor(10)]);
-    expect(records.claim('Ashford', 1, 'road', undefined).manifest).toHaveLength(1);
-  });
-
-  it('still refuses a different seed or a different kind', () => {
-    const records = new WorldRecords('data', held());
-    records.claim('Ashford', 1, 'road', undefined);
-    expect(() => records.claim('Ashford', 2, 'road', undefined)).toThrow(WorldRecordConflict);
-    expect(() => records.claim('Ashford', 1, 'endless', undefined)).toThrow(WorldRecordConflict);
-  });
-
-  it('will not fill one in when the registry could not be read', () => {
-    const vault = held({ [AT]: JSON.stringify([{ name: 'Ashford', seed: 1, kind: 'road', manifest: [] }]).slice(0, -3) });
-    const records = new WorldRecords('data', vault);
-    expect(() => records.claim('Ashford', 1, 'road', [anchor(10)])).toThrow(/could not be read/);
   });
 });

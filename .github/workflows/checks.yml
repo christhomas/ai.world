@@ -34,12 +34,64 @@ permissions:
 
 # A normal branch push and its pull_request event can describe the same commit. Use the
 # branch name for both event types so those two descriptions share one run.
+#
+# Sharing one group between the two event types was the fault, not the cure, and the way it failed
+# is worth writing down because the pull request page shows nothing wrong.
+#
+# Both events fire for one commit. With a shared group the second run cancels the first, and a
+# cancelled run does not vanish: it leaves check runs named `check`, `flutter` and `playtest` — the
+# three names branch protection requires — with the conclusion `cancelled`. Protection reads that
+# and refuses, while every check in the UI reads green. It cost a release most of an hour.
+#
+# The first attempt at a fix kept the shared group and added the `only-once` job below. It did not
+# work, and could not have: cancellation happens at the run level, so the push run was killed while
+# its gate was still deciding. `only-once` reported success and the three jobs under it reported
+# cancelled anyway.
+#
+# So the group is per event as well as per branch. Two pushes in quick succession still cancel each
+# other, which is what this is for and the case it handles well. A push and its pull_request no
+# longer do, because they are not a race — they are one commit described twice, and `only-once`
+# below is what settles which description answers for it.
 concurrency:
-  group: checks-${{ github.head_ref || github.ref_name }}
+  group: checks-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
+  # Whether this run is the one that should report, so that one commit gets one set of check runs.
+  #
+  # `push` fires for every branch, and `pull_request` fires for the same commit the moment that
+  # branch has a request open. Both are wanted — the push trigger is what keeps a stacked pull
+  # request's checks attached to its commit when advancing a base emits no `synchronize` — but only
+  # one of them should answer for the commit, and a cancelled duplicate is worse than no duplicate
+  # because protection reads its conclusion rather than ignoring it.
+  #
+  # So the push run stands down when a pull request already covers this commit. It asks GitHub
+  # rather than guessing: `commits/<sha>/pulls` lists the open requests whose head is this commit.
+  # A branch nobody has opened a request for gets its answer from the push run exactly as before.
+  only-once:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != 'push' ]; then
+            echo 'run=yes' >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          open=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+                   --jq '[.[] | select(.state == "open")] | length' 2>/dev/null || echo 0)
+          if [ "${open:-0}" -gt 0 ]; then
+            echo "a pull request already covers ${{ github.sha }} — standing down"
+            echo 'run=no' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=yes' >> "$GITHUB_OUTPUT"
+          fi
+
   check:
+    needs: only-once
+    if: needs.only-once.outputs.run == 'yes'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -150,6 +202,8 @@ jobs:
   # proves the narrow seam on both hosts: identical Dart parcel/rig buffers, Metal on iOS and GLES3
   # on Android. One macOS runner can compile both without pretending an iOS build works on Linux.
   flutter:
+    needs: only-once
+    if: needs.only-once.outputs.run == 'yes'
     runs-on: macos-15
     timeout-minutes: 30
     defaults:
@@ -179,6 +233,8 @@ jobs:
       - run: flutter build ios --simulator --debug
 
   playtest:
+    needs: only-once
+    if: needs.only-once.outputs.run == 'yes'
     runs-on: ubuntu-latest
     # A browser that hangs should cost a quarter of an hour, not the six hours a job is allowed by
     # default. The run itself is a minute and a half on a laptop.
@@ -266,21 +322,16 @@ jobs:
       # person runs, which is the whole point — a pipeline nobody can reproduce is a pipeline whose
       # failures get argued about instead of fixed.
       #
-      # DRIFT is looser here than the 0.35 a desk holds, and the reason is worth stating rather than
-      # hiding: the drawn body is carried forward by the page between snapshots, so the gap when the
-      # next one lands is partly a count of the frames the page got. A software rasteriser on two
-      # shared cores gets few. The same build on one laptop read 0.11 idle, 0.46 with the cores busy
-      # and 0.62 with them fought over — a measurement of the machine, not of the game.
-      #
-      # 1.5 rather than some number chosen to be green, because 1.5 means something: a swing reaches
-      # two tiles, so a creature drawn further than that from where the world has it is one a blow
-      # cannot land on however it looks, and this stays under that. It is a ceiling, not a target.
-      # Every run prints what it actually got into the summary and the artefact, so once a few runs
-      # have shown what this hardware really does, the line can be pulled in from evidence. Leaving
-      # it at 0.35 and re-running until it went green would be worse than not running it at all.
+      # The same 0.35 tiles a desk holds. This used to be 1.5 in CI because a software rasteriser on
+      # two shared cores can process several creature messages before it draws another frame, and
+      # every one inherited the same growing interpolation debt. #190 puts a source-side boundary
+      # on that debt: ordinary movement still eases, while a disagreement larger than a visible
+      # body is accepted as a correction rather than carried through later snapshots. The unit case
+      # queues a full second of server ticks with no frame between them and holds their measured mean
+      # to this number; the browser job is the other half, proving the real renderer agrees.
       - name: Play the game
         env:
-          DRIFT: '1.5'
+          DRIFT: '0.35'
         run: chore playtest
 
       - name: Show the report
