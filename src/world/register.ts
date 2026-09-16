@@ -3,7 +3,8 @@ import { addMeals, cellarFor, setStore, takeMeals } from './larder';
 import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
-import { directoryOf, takeTheOath, type Sworn } from './vacancies';
+import { type Sworn } from './vacancies';
+import { OathBook } from './oathbook';
 import type { SwornIn } from '../../server/protocol';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
@@ -86,7 +87,7 @@ export class Register {
   */
   private readonly deeded = new Map<string, Deed[]>();
   /** Told oaths survive re-living because a seed cannot predict who walked in. */
-  private readonly swornIn = new Map<string, Sworn[]>();
+  private readonly swornIn = new OathBook();
   /** The last whole day the register has caught up to. */
   /** Physical ground is supplied by the country; the register only records its deterministic answer. */
   private fieldSurvey: ((village: string, settlement: Settlement) => FieldClearing | null) | null = null;
@@ -199,7 +200,7 @@ export class Register {
       deeds: [...(this.deeded.get(village) ?? [])],
       // nor has anybody walked in off the road and taken work here. An oath survives a re-founding
       // the way a raising does, and the day reads this copy; see `swearIn`
-      sworn: [...(this.swornIn.get(village) ?? [])],
+      sworn: this.swornIn.of(village),
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -488,23 +489,18 @@ export class Register {
     return walk ? this.resettle(walk.to, walk.from, day) : [];
   }
 
-  /** What the hall took from one person on the last day they lived through. See `daybook.ts`. */
+  /** What the hall took from, and paid to, one person on their last day. See `daybook.ts`. */
   taxPaidBy(id: string): number { return this.book.taxPaidBy(id); }
-
-  /** And what it paid them, for work the village bought. Nought on nearly every day. */
   hallPaid(id: string): number { return this.book.hallPaid(id); }
 
   /**
    * Who does what here, and which of this ground's trades nobody is doing.
    *
-   * The register is where the answer lives because the register is who is alive — see
-   * `directoryOf`, which decides it and knows nothing about villages. This only hands it the two
-   * lists it needs. Item 24a's directory, and the thing a vacancy has to be readable from before a
-   * player can answer one.
+   * The register answers because the register is who is alive. Item 24a. See `oathbook.ts`.
    */
   directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[] } {
     const here = this.villages.get(village);
-    return directoryOf(here?.trades ?? [], here?.people ?? [], this.swornIn.get(village) ?? []);
+    return this.swornIn.directory(here?.trades ?? [], here?.people ?? [], village);
   }
 
   /** Take currently vacant work; return the told fact so `apply` remains the single write path. */
@@ -516,10 +512,7 @@ export class Register {
   }
 
   /** Every oath this register holds, as told facts, for a save to write down. See `apply`. */
-  oaths(): SwornIn[] {
-    return [...this.swornIn].flatMap(([village, held]) => held.map((one) =>
-      ({ kind: 'sworn' as const, village, trade: one.trade, who: one.who, day: one.day })));
-  }
+  oaths(): SwornIn[] { return this.swornIn.all(); }
 
   /**
    * Who lives in which house here, deeds and all. Item 111.
@@ -623,10 +616,8 @@ export class Register {
     // Oaths are dated and keyed so the ordinary wire-plus-save duplicate writes only once.
     if (change.kind === 'sworn') {
       if (Math.floor(change.day) > this.day) return false;
-      const held = this.swornIn.get(change.village) ?? [];
-      const oath = takeTheOath(held, change.trade, change.who, change.day);
+      const oath = this.swornIn.take(change.village, change.trade, change.who, change.day);
       if (!oath) return false;
-      this.swornIn.set(change.village, [...held, oath]);
       const here = this.villages.get(change.village);
       if (!here) return true;              // nobody has settled it; kept for the morning they do
       // A late oath changes later apprenticeships, so replay rather than patching today's village.
