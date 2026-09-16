@@ -365,7 +365,15 @@ describe('what comes of it', () => {
     const struggled = runTo(register, new Rescues(), () => register.fortune(trouble.village) === 'struggling', 60);
 
     expect(struggled).toBeGreaterThan(1);
-    expect(register.living(trouble.village).length).toBeLessThan(founded * FORTUNE.STRUGGLING);
+    /*
+     * Fewer than it was founded with, and shrinking — which is what "waiting is never the answer"
+     * means. It used to read `founded * FORTUNE.STRUGGLING`, and that was measuring against the
+     * wrong number: `fortuneOf` divides by what the village's *roofs* hold, not by the founding
+     * roll, so the two agreed only by coincidence. Correcting `parentsFrom` moved the trajectory
+     * enough to part them, and the coincidence was the thing that broke rather than the rule.
+     */
+    expect(register.living(trouble.village).length).toBeLessThan(founded);
+    expect(register.fortune(trouble.village)).toBe('struggling');
   });
 
   it('empties the place if nobody comes, and the map keeps the name', () => {
