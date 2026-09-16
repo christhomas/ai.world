@@ -49,3 +49,27 @@ export function daysAway(seconds: number): number {
   if (!Number.isFinite(seconds) || seconds <= 0) return 0;
   return Math.floor(seconds / AWAY_TIME.A_DAY);
 }
+
+/**
+ * How many of those days this world should actually live through on the way in.
+ *
+ * The whole of the difference between the two kinds of world, and the one way this feature can do
+ * real damage rather than merely nothing.
+ *
+ * A world of one froze when the tab closed: nothing moved, so the days it missed have to be invented
+ * here and lived. A **shared** world did not freeze. `server/sim.ts` steps it whether or not anybody
+ * is connected, so those days have already been lived — by the world, once, properly, with everybody
+ * else's doings in them. Living them again on the way in would age every village twice: two harvests
+ * for one summer, two winters' funerals, children born to parents the server has already buried.
+ *
+ * The test is the *link* rather than `online.connected`, and that distinction is the reason this is
+ * a function with a comment rather than a condition inline. Playing alone still connects — to a
+ * private worker, started fresh with the day this save hands it — so `connected` is true in both
+ * cases and says nothing about whose clock has been running. `?server=` is what says somebody
+ * else's has.
+ */
+export function daysToLive(awayFor: number, sharedClock: boolean): number {
+  if (sharedClock) return 0;
+  if (!Number.isFinite(awayFor) || awayFor <= 0) return 0;
+  return Math.floor(awayFor);
+}
