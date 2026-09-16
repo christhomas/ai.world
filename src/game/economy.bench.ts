@@ -20,8 +20,17 @@ import { Timber } from './timber';
  * village wrote down.
  */
 
-/** How long a village is lived for. A hundred days is longer than anybody in one of them lives. */
-export const DAYS = 100;
+import { daysAsked } from './benchdays';
+
+/**
+ * How long a village is lived for, which is now a question rather than a constant.
+ *
+ * A hundred days by default, so every existing invocation means what it meant. `BENCH_DAYS` asks
+ * for another length — `chore economy 400` — because a hundred days is barely more than one
+ * lifetime and a world breeding under replacement has not yet shown what that does to it. See
+ * `benchdays.ts` for why it comes through the environment and not through an argument.
+ */
+export const DAYS = daysAsked();
 
 /** The day every village is founded on, which is the register's own. */
 export const FOUNDED = 1;

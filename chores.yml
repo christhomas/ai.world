@@ -288,21 +288,35 @@ tasks:
       - 'pnpm tsx tools/fallbacks.ts {{.CLI_ARGS}}'
 
   economy:
-    desc: Live a village forward a hundred days and hold its own books to it
+    desc: Live a village forward and hold its own books to it — a hundred days, or as many as asked
+    args:
+      - name: days
+        desc: how many days to live, default 100. A lifetime is 60 to 90, so ask for more to see past one
     vars:
       REPORT: economy-report.txt
+      # A default here rather than on the argument, which is what makes `chore economy` with no
+      # length keep meaning exactly what it meant before this was askable at all.
+      DAYS: '100'
     cmds:
-      - 'pnpm vitest run src/game/economy.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
+      # The length goes through the environment because `RUNS` is a module constant every bench
+      # imports; see `src/game/benchdays.ts`. Bounds tuned at a hundred days report rather than fail
+      # at any other length, because a bench that goes red for being asked a longer question is a
+      # bench somebody turns off.
+      - 'BENCH_DAYS={{.DAYS}} pnpm vitest run src/game/economy.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
   # The same hundred days read for the people rather than for the money. The economy bench can say
   # that somebody died and cannot say whether anybody was born to replace them, which is the half of
   # a village that decides whether it is there in a year. Issue #255.
   population:
-    desc: Read the same hundred days for who was born, who grew up, and what the village had room for
+    desc: Read the same days for who was born, who grew up, and what the village had room for
+    args:
+      - name: days
+        desc: how many days to live, default 100 — the same length `chore economy` takes
     vars:
       REPORT: population-report.txt
+      DAYS: '100'
     cmds:
-      - 'pnpm vitest run src/game/population.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
+      - 'BENCH_DAYS={{.DAYS}} pnpm vitest run src/game/population.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
   # The fifth bench, and the other half of the one above: four hundred and fifty days of the same
   # villages, judged on whether they are still places anybody would believe in rather than on
