@@ -438,7 +438,16 @@ describe('the simulation holding the ground itself', () => {
     let water: { x: number; z: number } | null = null;
     for (let z = -40; z <= 40 && !water; z++) {
       for (let x = -40; x <= 37; x++) {
-        if (ground.waterAt(x, z) !== null && ground.waterAt(x + 3, z) !== null) {
+        /*
+         * Every tile of the run, not only its two ends.
+         *
+         * `helm()` stops the boat on `heightAt()` along the whole path, so a run whose ends are
+         * water and whose middle is a sandbank is a run the boat never finishes. The assertion
+         * below only asks that the bow moved east, and a boat that moved one tile and struck land
+         * satisfies that — so the search was free to choose the very starting points that make
+         * this test unable to fail. Ask for the whole run and the movement means something.
+         */
+        if ([0, 1, 2, 3].every((dx) => ground.waterAt(x + dx, z) !== null)) {
           water = { x, z };
           break;
         }
@@ -618,6 +627,16 @@ describe('telling players what is alive near them', () => {
     const after = updates.at(-1)!;
     expect(updates.flatMap((message) => message.gone).length,
       'the country they left is taken off their screen').toBeGreaterThan(0);
+    /*
+     * Somebody has to be there for the distances to be about anything.
+     *
+     * `every` is `true` of an empty array, so the claim below — that nothing on their screen is
+     * still back where they came from — is satisfied by a screen with nothing on it at all. That
+     * is the failure this test would be most likely to see: a teleport four thousand tiles out
+     * that lands somewhere the world has not grown any creatures into. The vacuous pass reads
+     * exactly like a correct one.
+     */
+    expect(after.near.length, 'the new country introduced no nearby creatures').toBeGreaterThan(0);
     expect(after.near.every((creature) => Math.hypot(creature.x, creature.z) > 3_000),
       'the new country was confused with the one left behind').toBe(true);
   });
