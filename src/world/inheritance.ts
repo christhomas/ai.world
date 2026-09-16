@@ -1,3 +1,5 @@
+import { whatTheEstateSettles } from './debts';
+import { ownedBy } from './holdings';
 import { remember, stageOf, surnameOf, type Person } from './people';
 import type { Settlement } from './register';
 
@@ -24,11 +26,35 @@ import type { Settlement } from './register';
  *
  * Called from `remove`, which is the single place every death in this world goes through — age,
  * hunger and violence alike — so there is no way to die that skips it.
+ *
+ * ## And what he owed
+ *
+ * The question this file could not answer until #240, because there was nothing in the world to
+ * ask: it handed on what somebody held and said nothing whatever about what they owed. His debts
+ * are paid out of his estate first, in the order he ran them up, and whatever it will not stretch
+ * to dies with him — see `whatTheEstateSettles`, where the argument is. It is money that stays in
+ * the village either way, so the rule above is untouched: the sum of every purse here is the same
+ * either side of a funeral. It has merely stopped being the heir's alone.
+ *
+ * `left` is still the whole of what came out of his purse rather than only the heir's share, and
+ * that is deliberate. The parish stone answers "what did this death do to the village's money",
+ * which `chore test economy` reads to prove nothing was buried with him — and a creditor standing
+ * in the churchyard is as much in the village as an heir is.
  */
 export function handOnWhatTheyHad(person: Person, village: Settlement, day: number): { left: number; to: string } {
-  const estate = Math.round(person.purse * 100) / 100;
-  if (estate <= 0 || village.people.length === 0) return { left: Math.max(0, estate), to: '' };
+  const owing = Math.round(person.purse * 100) / 100;
+  if (owing <= 0 || village.people.length === 0) return { left: Math.max(0, owing), to: '' };
   person.purse = 0;
+
+  // his creditors before his family, out of what he left and no further
+  const paid = whatTheEstateSettles(village.debts ?? [], ownedBy(person), owing, village.people);
+  village.debts = paid.left;
+  for (const creditor of village.people) {
+    const much = paid.owed.get(ownedBy(creditor));
+    if (much) creditor.purse += much;
+  }
+  const estate = paid.over;
+  if (estate <= 0) return { left: owing, to: '' };
 
   const name = surnameOf(person);
   const family = name ? village.people.filter((p) => surnameOf(p) === name) : [];
@@ -47,7 +73,7 @@ export function handOnWhatTheyHad(person: Person, village: Settlement, day: numb
   if (heir) {
     heir.purse += estate;
     remember(heir, { what: 'inherited', who: person.name, day });
-    return { left: estate, to: heir.name };
+    return { left: owing, to: heir.name };
   }
 
   // nobody of the name is left, so the village has it. Rounded down a share at a time with the
@@ -58,5 +84,5 @@ export function handOnWhatTheyHad(person: Person, village: Settlement, day: numb
   let over = estate;
   for (const survivor of village.people) { survivor.purse += share; over -= share; }
   village.people[0].purse += Math.max(0, Math.round(over * 100) / 100);
-  return { left: estate, to: '' };
+  return { left: owing, to: '' };
 }

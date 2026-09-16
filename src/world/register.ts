@@ -10,7 +10,8 @@ import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
 import { type Rank, type TownVote } from './rank';
 import { ballotFor, enactVote, finishVotedHall, foundingRank, recogniseVillage, type Ballot } from './votes';
-import { doctoredBy, laidUpFor, mendThem } from './wounds';
+import { doctoredBy, laidUpFor } from './wounds';
+import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
@@ -320,6 +321,15 @@ export class Register {
 
   /** Put meals back on it, and hand back how many it had room for. See `larder.ts`. */
   addToLarder(village: string, meals: number): number { return addMeals(this.villages.get(village), meals); }
+
+  /**
+   * What the people of a village owe one another this morning. See `debts.ts`.
+   *
+   * A read rather than a door. Nothing tells the register about a debt — a claim falls out of a
+   * wound and a purse, both of which a re-lived village reproduces for itself — so this exists for
+   * the books, which have to forecast a morning that settles some of it.
+   */
+  owedIn(village: string): readonly Debt[] { return this.villages.get(village)?.debts ?? []; }
 
   /**
    * What the hall holds, which is the village's own money and nobody's purse.

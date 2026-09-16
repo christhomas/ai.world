@@ -191,8 +191,12 @@ export function theRoll(
     living, register.herdOf(village), register.pressureOn(village),
     register.larderOf(village), register.madeOf(village),
   );
+  // and what this village owes itself, because a morning pays some of it back in the same book it
+  // pays its wages out of. A roll that did not know would have a doctor's arrears arriving in his
+  // purse with nothing in any book to explain it. See `debts.ts`
   const income = aDaysIncome(
     living, register.herdOf(village), register.pressureOn(village), register.larderOf(village), register.madeOf(village),
+    register.owedIn(village),
   );
   const trades = commonest(grown.map((p) => p.trade), 3);
   const gist = [

@@ -5,6 +5,7 @@ import { taxedForTheHall } from './hall';
 import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
 import { fallIll, shakeItOff } from './ailments';
+import { whatIsPaidBack } from './debts';
 import { raiseWhoIsDue } from './shrine';
 import { payAndSweep } from './purses';
 import { THE_HALL_OWNER, ownedBy, whatTheVillageHolds } from './holdings';
@@ -150,6 +151,24 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day:
   // anybody in it: see `harvest.ts`, where the herd and the boats sit side by side
   const trading = aDaysTrade(village.people, village.herd, pressure, village);
   village.herd = trading.herd;
+  /*
+   * And what anybody can pay back this morning of what they owe, settled in the same breath as the
+   * day's wages. See `debts.ts`.
+   *
+   * Merged into the day's own book rather than paid in a step of its own, and that is the load-
+   * bearing part. `aDaysTrade` has already read every purse — a man's keep and a seller's pitch
+   * are both measured against the purse he woke up with — so a movement settled *before* it would
+   * have the morning charging a keep the evening's roll never quoted, and the economy bench reads
+   * a gap like that as coin appearing from nowhere. Paid alongside the wages, both books are
+   * written off the same purses and `aDaysIncome` forecasts the whole of it by doing exactly this.
+   */
+  if (village.debts?.length) {
+    const settled = whatIsPaidBack(village.debts, village.people);
+    village.debts = settled.left;
+    for (const [id, much] of settled.owed) {
+      trading.paid.set(id, Math.round(((trading.paid.get(id) ?? 0) + much) * 100) / 100);
+    }
+  }
   payAndSweep(village, trading.paid);
   // and the hall's share of what is left, which is the same act as every other coin that moves
   // here: out of the purses it came from, into the one place that is not anybody's
@@ -271,20 +290,33 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
 
 
 /**
- * A day of mending, and the doctor's fee for the morning he was called.
+ * A day of falling ill, mending, and getting better — and what the doctor was owed for it.
  *
- * Two things, and they run in this order for a reason: somebody who wakes up ill is ill *today*,
- * not tomorrow, and somebody whose last day of a fever this is gets up and goes to work. See
- * `wounds.ts` for a wound and `ailments.ts` for a fever.
+ * Four things, and the order is the argument. Somebody who wakes up ill is ill *today*, not
+ * tomorrow, so `fallIll` comes first; somebody whose last day of a fever this is gets up and goes
+ * to work, so `shakeItOff` comes last. Between them the doctor is paid what the patient has, and
+ * what the patient has not is written down rather than dropped — he does not refuse, so the rest is
+ * a claim against the man and is paid off out of the mornings after.
  *
- * The illness roll comes off `${village}:ill`, a stream of its own — the same thing the shrine
- * does. A village's life is drawn off one stream and anything added to that stream re-rolls every
- * village in every world from that morning on.
+ * See `wounds.ts` for a wound, `ailments.ts` for a fever, and `debts.ts` for why a claim moves no
+ * coin on the day it is made.
+ *
+ * The illness roll comes off `${village}:ill`, a stream of its own, the same thing the shrine does.
+ * A village's life is drawn off one stream and anything added to that stream re-rolls every village
+ * in every world from that morning on.
  */
 function mendThePeople(o: TheDay, name: string, village: Settlement, day: number): Change[] {
   payAndSweep(village, fallIll(village.people, streamFor(o.seed, `${name}:ill`, day),
-                              { baths: village.works.includes('bathhouse'), day }));
-  payAndSweep(village, mendThem(village.people));
+                               { baths: village.works.includes('bathhouse'), day }));
+  const { fees, owed } = mendThem(village.people);
+  payAndSweep(village, fees);
+  for (const debt of owed) {
+    // one claim per pair rather than one per bad afternoon: a man who breaks the same arm twice
+    // owes his doctor a sum of money, not a filing cabinet
+    const already = village.debts?.find((one) => one.who === debt.who && one.to === debt.to);
+    if (already) already.much = Math.round((already.much + debt.much) * 100) / 100;
+    else village.debts = [...(village.debts ?? []), debt];
+  }
   shakeItOff(village.people);
   return [];
 }

@@ -1,3 +1,4 @@
+import { whatWasNotPaid, type Debt } from './debts';
 import { ownedBy, type Owner } from './holdings';
 import type { Person } from './people';
 
@@ -93,10 +94,25 @@ export function ableToWork(person: Person): boolean {
  * somebody needed doing at the moment they needed it*. A seller's takings and an innkeeper's beds
  * are paid by everybody every day whether or not anybody wanted anything; this is paid by the man
  * with the broken arm, to the man who set it.
+ *
+ * ## And what he was not paid
+ *
+ * `FEE` has always been described as *"a day of anybody's keep, and he does not refuse"*, and for
+ * as long as there have been wounds the second half of that was true and unpaid for. The doctor
+ * set the bone whether or not the man could cover it, took whatever happened to be in his pocket,
+ * and the rest of the fee simply stopped existing — no purse was short of it, no book mentioned
+ * it, and the only way to notice was to read this line. It is the plainest case of the thing
+ * `debts.ts` exists for: work done, payment clamped at nought, transaction silently not happening.
+ *
+ * So the shortfall comes back as a claim. What is taken there and then is unchanged — a man with
+ * one gold hands over his one gold, because the doctor is standing in front of him — and the four
+ * fifths of the fee he could not find are written down instead of dropped, to be paid off out of
+ * mornings when he has something to spare. Issue #240.
  */
-export function mendThem(people: readonly Person[]): Map<Owner, number> {
+export function mendThem(people: readonly Person[]): { fees: Map<Owner, number>; owed: Debt[] } {
   const doctor = doctoredBy(people);
   const fees = new Map<Owner, number>();
+  const owed: Debt[] = [];
   for (const person of people) {
     const hurt = person.hurt ?? 0;
     if (hurt <= 0) continue;
@@ -108,8 +124,10 @@ export function mendThem(people: readonly Person[]): Map<Owner, number> {
         fees.set(ownedBy(person), -paid);
         fees.set(ownedBy(doctor), (fees.get(ownedBy(doctor)) ?? 0) + paid);
       }
+      const short = whatWasNotPaid(ownedBy(person), ownedBy(doctor), WOUND.FEE, paid);
+      if (short) owed.push(short);
     }
     person.hurt = hurt > 1 ? hurt - 1 : undefined;
   }
-  return fees;
+  return { fees, owed };
 }

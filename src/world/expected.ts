@@ -1,3 +1,4 @@
+import { whatIsPaidBack, type Debt } from './debts';
 import { FOOD, cellarCap } from './food';
 import { priceOfAMeal } from './prices';
 import { aDaysTrade, paidForFood, pitchFor } from './livelihoods';
@@ -52,8 +53,21 @@ export function aDaysIncome(
    * reads that row, so the money would arrive in purses with nothing in any book to explain it.
    */
   village?: Parameters<typeof aDaysTrade>[3],
+  /**
+   * And what the people here owe one another, because a morning settles some of it.
+   *
+   * A day pays a debt down in the same book it pays its wages out of — see `aDaysWork` — so a
+   * forecast that did not know about the claims would have the coin arriving in the doctor's purse
+   * with nothing in any book to explain it, which is the exact shape of failure the economy bench
+   * reports. Read the same way the morning reads it: off the purses as they stood the evening
+   * before, which is what makes the forecast exact rather than close.
+   */
+  debts: readonly Debt[] = [],
 ): Map<Owner, number> {
   const day = aDaysTrade(people, herd, pressure, village);
+  for (const [id, much] of whatIsPaidBack(debts, people).owed) {
+    day.paid.set(id, Math.round(((day.paid.get(id) ?? 0) + much) * 100) / 100);
+  }
   const income = new Map(day.paid);
 
   /*
