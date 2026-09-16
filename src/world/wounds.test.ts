@@ -60,21 +60,42 @@ describe('a village with somebody laid up', () => {
   it('pays the doctor for setting the bone, once, and not for the lying still afterwards', () => {
     const doctor = villager('doc', 'doctor');
     const hurt = villager('a', 'farmer', { hurt: laidUpFor(1, doctor) });
-    const first = mendThem([doctor, hurt]);
+    const first = mendThem([doctor, hurt]).fees;
     expect(first.get(ownerFromSave('doc'))).toBe(WOUND.FEE);
     expect(first.get(ownerFromSave('a'))).toBe(-WOUND.FEE);
-    expect(mendThem([doctor, hurt]).size, 'billed again for lying in bed').toBe(0);
+    expect(mendThem([doctor, hurt]).fees.size, 'billed again for lying in bed').toBe(0);
   });
 
   it('never charges a man for setting his own arm', () => {
     const doctor = villager('doc', 'doctor', { hurt: laidUpFor(1, villager('x', 'doctor')) });
-    expect(mendThem([doctor]).size).toBe(0);
+    expect(mendThem([doctor]).fees.size).toBe(0);
   });
 
-  it('takes only what somebody has, because nobody in this world goes into debt', () => {
+  it('takes what somebody has towards it there and then', () => {
     const doctor = villager('doc', 'doctor');
     const pauper = villager('a', 'farmer', { hurt: laidUpFor(1, doctor), purse: 1 });
-    expect(mendThem([doctor, pauper]).get(ownerFromSave('doc'))).toBe(1);
+    expect(mendThem([doctor, pauper]).fees.get(ownerFromSave('doc'))).toBe(1);
+  });
+
+  /*
+   * The line this file has always carried — *"a day of anybody's keep, and he does not refuse"* —
+   * against the line that was actually written. The doctor set the bone whether or not the man
+   * could pay, took whatever was in his pocket, and the rest of the fee stopped existing: no
+   * purse was short of it, no book mentioned it, and the doctor was quietly worse off for having
+   * done his job. It is a claim now. Issue #240.
+   */
+  it('writes down the rest of the fee, because the doctor does not refuse', () => {
+    const doctor = villager('doc', 'doctor');
+    const pauper = villager('a', 'farmer', { hurt: laidUpFor(1, doctor), purse: 1 });
+    const { fees, owed } = mendThem([doctor, pauper]);
+    expect(fees.get(ownerFromSave('a'))).toBe(-1);
+    expect(owed).toEqual([{ who: ownerFromSave('a'), to: ownerFromSave('doc'), much: WOUND.FEE - 1 }]);
+  });
+
+  it('owes nothing at all when the man could cover it', () => {
+    const doctor = villager('doc', 'doctor');
+    const hurt = villager('a', 'farmer', { hurt: laidUpFor(1, doctor) });
+    expect(mendThem([doctor, hurt]).owed).toEqual([]);
   });
 
   it('knows whether anybody there can set a bone at all', () => {

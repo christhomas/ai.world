@@ -4,7 +4,11 @@ import { fillTheGaps as whoIsBorn } from './births';
 import { taxedForTheHall } from './hall';
 import { whatTheVillageSpends } from './growth';
 import { mendThem } from './wounds';
+<<<<<<< HEAD
 import { fallIll, shakeItOff } from './ailments';
+=======
+import { whatIsPaidBack } from './debts';
+>>>>>>> 7e8f98b (What one villager owes another)
 import { raiseWhoIsDue } from './shrine';
 import { payAndSweep } from './purses';
 import { THE_HALL_OWNER, ownedBy, whatTheVillageHolds } from './holdings';
@@ -150,6 +154,24 @@ export function aDaysWork(o: TheDay, village: Settlement, pressure: number, day:
   // anybody in it: see `harvest.ts`, where the herd and the boats sit side by side
   const trading = aDaysTrade(village.people, village.herd, pressure, village);
   village.herd = trading.herd;
+  /*
+   * And what anybody can pay back this morning of what they owe, settled in the same breath as the
+   * day's wages. See `debts.ts`.
+   *
+   * Merged into the day's own book rather than paid in a step of its own, and that is the load-
+   * bearing part. `aDaysTrade` has already read every purse — a man's keep and a seller's pitch
+   * are both measured against the purse he woke up with — so a movement settled *before* it would
+   * have the morning charging a keep the evening's roll never quoted, and the economy bench reads
+   * a gap like that as coin appearing from nowhere. Paid alongside the wages, both books are
+   * written off the same purses and `aDaysIncome` forecasts the whole of it by doing exactly this.
+   */
+  if (village.debts?.length) {
+    const settled = whatIsPaidBack(village.debts, village.people);
+    village.debts = settled.left;
+    for (const [id, much] of settled.owed) {
+      trading.paid.set(id, Math.round(((trading.paid.get(id) ?? 0) + much) * 100) / 100);
+    }
+  }
   payAndSweep(village, trading.paid);
   // and the hall's share of what is left, which is the same act as every other coin that moves
   // here: out of the purses it came from, into the one place that is not anybody's
@@ -271,6 +293,7 @@ function takeTheKilled(o: TheDay, village: Settlement, day: number): Change[] {
 
 
 /**
+<<<<<<< HEAD
  * A day of mending, and the doctor's fee for the morning he was called.
  *
  * Two things, and they run in this order for a reason: somebody who wakes up ill is ill *today*,
@@ -286,6 +309,24 @@ function mendThePeople(o: TheDay, name: string, village: Settlement, day: number
                               { baths: village.works.includes('bathhouse'), day }));
   payAndSweep(village, mendThem(village.people));
   shakeItOff(village.people);
+=======
+ * A day of mending, and the doctor's fee for the morning he set a bone. See `wounds.ts`.
+ *
+ * What the man could not find is written down rather than dropped: the doctor does not refuse, so
+ * the rest of his fee is a claim against the patient and is paid off out of the mornings after.
+ * See `debts.ts` for why a claim moves no coin the day it is made. Issue #240.
+ */
+function mendThePeople(village: Settlement): Change[] {
+  const { fees, owed } = mendThem(village.people);
+  payAndSweep(village, fees);
+  for (const debt of owed) {
+    // one claim per pair rather than one per bad afternoon: a man who breaks the same arm twice
+    // owes his doctor a sum of money, not a filing cabinet
+    const already = village.debts?.find((one) => one.who === debt.who && one.to === debt.to);
+    if (already) already.much = Math.round((already.much + debt.much) * 100) / 100;
+    else village.debts = [...(village.debts ?? []), debt];
+  }
+>>>>>>> 7e8f98b (What one villager owes another)
   return [];
 }
 

@@ -1,3 +1,4 @@
+import type { Debt } from './debts';
 import type { Sworn } from './vacancies';
 import type { Deed } from './homes';
 import type { Holding, Owner } from './holdings';
@@ -66,7 +67,14 @@ export interface Burial {
    * depends on which of three ways they died. A number that is written down cannot be guessed at.
    */
   left: number;
-  /** Whoever it went to, or the village itself when there was nobody of the name left. */
+  /**
+   * Whoever it went to, or the village itself when there was nobody of the name left.
+   *
+   * Since #240 there is a third reading of an empty name: his creditors had the whole of it and
+   * there was nothing behind them to hand on. `left` is what came out of his purse either way,
+   * which is the number the audit above is about — a debt paid at a funeral is money that stayed
+   * in the village, it simply went to the man who was owed rather than to the man of the name.
+   */
   to: string;
 }
 
@@ -151,6 +159,20 @@ export interface Settlement {
    * is a different thing from empty and is what the register sees on day one. See `holdings.ts`.
    */
   holdings?: Holding[];
+  /**
+   * What the people here owe one another, and nothing about what they own. See `debts.ts`.
+   *
+   * Derived rather than told, which is why it sits beside the holdings instead of beside the
+   * raisings and the votes. A claim in this world falls out of a piece of work and a purse — the
+   * doctor who set a bone the man could not pay for — and both of those a re-living reproduces on
+   * its own, so there is nothing here for the register to be told and nothing for two copies of it
+   * to disagree about.
+   *
+   * Optional for the same reason `holdings` is: a village is founded before anybody in it has had
+   * the chance to owe anybody anything, and absent means "nothing has happened yet" rather than
+   * "worked out and empty".
+   */
+  debts?: Debt[];
   /** The day the last of them died, for a place that has been emptied. */
   emptied?: number;
   /**
