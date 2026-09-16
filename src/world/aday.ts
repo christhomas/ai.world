@@ -7,13 +7,14 @@ import { mendThem } from './wounds';
 import { fallIll, shakeItOff } from './ailments';
 import { whatIsPaidBack } from './debts';
 import { raiseWhoIsDue } from './shrine';
+import { restWhoIsFailing } from './oldage';
 import { payAndSweep } from './purses';
 import { THE_HALL_OWNER, ownedBy, whatTheVillageHolds } from './holdings';
 import { handOnWhatTheyHad } from './inheritance';
 import { mulberry32 } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { STONES_KEPT, type Change, type Settlement } from './settlement';
-import { LIFE, outOfDays, remember, stageOf, tradeTakenUp, type Person, type Sex } from './people';
+import { LIFE, grownUp, outOfDays, remember, tradeTakenUp, type Person, type Sex } from './people';
 import { whoIsPaidToRaiseIt } from './founding';
 import type { StablePurchase } from './farmbuilds';
 import type { FieldClearing } from './fieldbuilds';
@@ -342,7 +343,7 @@ function growUp(o: TheDay, name: string, village: Settlement, day: number): Chan
   const rng = streamFor(o.seed, name, day);
 
   for (const person of village.people) {
-    if (person.trade === '' && stageOf(person, day) === 'adult' && village.trades.length > 0) {
+    if (person.trade === '' && grownUp(person, day) && village.trades.length > 0) {
       person.trade = tradeTakenUp(person, village.trades, village, rng);
     }
     if (person.knows.length >= LIFE.KNOWS) continue;
@@ -396,6 +397,16 @@ export function liveADay(o: TheDay, name: string, village: Settlement, day: numb
     ...mendThePeople(o, name, village, day),
     ...raiseWhoIsDue(name, village, day, streamFor(o.seed, name + ':shrine', day)),
   );
+  /*
+   * And whoever the years caught tonight, put to bed before the books are shut. See `oldage.ts`.
+   *
+   * Last, and after the mending rather than before it, because the roll a village writes this
+   * evening is a forecast of tomorrow morning: a man who was well when it was written and could
+   * not get up when the morning came would be a wage the books promised and no purse ever saw.
+   * Nobody's news, the way growing up is nobody's news — the village finds out when he does not
+   * come out, and the player finds out from the roster.
+   */
+  restWhoIsFailing(village.people, day, streamFor(o.seed, name + ':elders', day));
   // and who holds what, re-hung after the funerals and the growing-up so that the day's dead and
   // the day's new adults are both settled before a farm changes hands. See `holdings.ts`
   village.holdings = whatTheVillageHolds(name, village, day);

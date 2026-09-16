@@ -1,4 +1,4 @@
-import { stageOf, type Person } from '../world/people';
+import { grownUp, type Person } from '../world/people';
 import type { Register } from '../world/register';
 
 /**
@@ -75,7 +75,7 @@ export function whoTheyCameFrom(
     const them = name !== '' ? here.find((p) => p.name === name && p.id !== person.id) : undefined;
     if (!them) return undefined;
     return {
-      id: them.id, trade: them.trade, stage: stageOf(them, day) === 'adult' ? 'adult' : 'child',
+      id: them.id, trade: them.trade, stage: grownUp(them, day) ? 'adult' : 'child',
       from: whoTheyCameFrom(them, register, day, back - 1),
     };
   };

@@ -1,6 +1,6 @@
 import { FOOD } from './food';
 import { householdsOf } from './homes';
-import { LIFE, stageOf, surnameOf, type Person } from './people';
+import { LIFE, grownUp, surnameOf, type Person } from './people';
 
 /**
  * Roofs, in sizes, and what a family can do under one.
@@ -259,7 +259,7 @@ export function whoCouldHaveAChild(
   for (const family of familiesUnder(people, roofsOf(laidOut, built))) {
     if (family.people.length >= family.holds) continue;
     if (!fed(family)) continue;
-    out.push(...family.people.filter((person) => stageOf(person, day) === 'adult'));
+    out.push(...family.people.filter((person) => grownUp(person, day)));
   }
   return out;
 }

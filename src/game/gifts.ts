@@ -1,5 +1,5 @@
 import { Biome } from '../world/biomes';
-import { remember, stageOf, type Memory, type Person, type Remembering } from '../world/people';
+import { grownUp, remember, type Memory, type Person, type Remembering } from '../world/people';
 import { SEED_TO_CROP } from './farming';
 import { isFur } from './furs';
 import { ITEMS, type Item } from './items';
@@ -179,7 +179,7 @@ function fitness(item: Item, person: Person, biome: Biome, day: number): number 
   if (nature === 'food') want += GIFT.ANYONE;
   if (WANTS[person.trade] === nature) want += GIFT.TRADE;
   if (SHORT_OF[biome] === nature) want += GIFT.PLACE;
-  if (nature === 'food' && stageOf(person, day) !== 'adult') want += GIFT.CHILD;
+  if (nature === 'food' && !grownUp(person, day)) want += GIFT.CHILD;
   return want;
 }
 

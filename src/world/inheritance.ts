@@ -1,6 +1,6 @@
 import { whatTheEstateSettles } from './debts';
 import { ownedBy } from './holdings';
-import { remember, stageOf, surnameOf, type Person } from './people';
+import { grownUp, remember, surnameOf, type Person } from './people';
 import type { Settlement } from './register';
 
 /**
@@ -58,7 +58,7 @@ export function handOnWhatTheyHad(person: Person, village: Settlement, day: numb
 
   const name = surnameOf(person);
   const family = name ? village.people.filter((p) => surnameOf(p) === name) : [];
-  const grown = family.filter((p) => stageOf(p, day) === 'adult');
+  const grown = family.filter((p) => grownUp(p, day));
   /*
    * The widow or widower first, then the household.
    *

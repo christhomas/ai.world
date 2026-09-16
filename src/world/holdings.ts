@@ -1,4 +1,4 @@
-import { stageOf, surnameOf, type Person } from './people';
+import { grownUp, surnameOf, type Person } from './people';
 import { PROSPER } from './prosperity';
 
 /**
@@ -345,7 +345,7 @@ function passedOn(holding: Holding, people: readonly Person[], day: number): Hol
   if (people.some((person) => person.id === holding.owner)) return holding;
   const family = holding.house === ''
     ? [] : people.filter((person) => surnameOf(person) === holding.house);
-  const heir = family.find((person) => stageOf(person, day) === 'adult') ?? family[0] ?? null;
+  const heir = family.find((person) => grownUp(person, day)) ?? family[0] ?? null;
   if (heir) return { ...holding, owner: ownedBy(heir) };
   return { ...holding, owner: THE_HALL_OWNER, house: '' };
 }

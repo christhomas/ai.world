@@ -1,5 +1,5 @@
 import { THE_HALL, isTheHall, canDo, ownedBy, ownerFromSave, type Capability, type Owner } from './holdings';
-import { stageOf, type Person } from './people';
+import { grownUp, type Person } from './people';
 
 /**
  * Work somebody is engaged to do that is not their own, and the money that moves for it.
@@ -203,7 +203,7 @@ export function postsToday(
   const byId = (one: Person, two: Person): number => (one.id < two.id ? -1 : 1);
   // grown, because a nine-year-old on a gate with a dragon overhead is not a thing a village does.
   // `Infinity` is "whatever they are now": a caller with no day in its hand is asking about today
-  const grown = people.filter((person) => day === Infinity || stageOf(person, day) === 'adult');
+  const grown = people.filter((person) => day === Infinity || grownUp(person, day));
   const spare = [
     ...grown.filter((person) => person.trade === 'soldier').sort(byId),
     ...grown.filter((person) => person.trade === '').sort(byId),

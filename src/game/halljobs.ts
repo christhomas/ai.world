@@ -1,6 +1,6 @@
 import { THE_HALL_OWNER } from '../world/holdings';
 import { POST, crewsToday, type Post } from '../world/postings';
-import { stageOf, type Person } from '../world/people';
+import { grownUp, type Person } from '../world/people';
 import { purseOf } from '../world/deeds';
 import { PROSPER } from '../world/prosperity';
 import { buildable, isFinished, type Commission, type Houses } from './building';
@@ -43,7 +43,7 @@ export function workTheHallJobs(
   const worked: HallJobDay[] = [];
   for (const [village, jobs] of waiting) {
     const people = living(village).filter((person) =>
-      stageOf(person, day) === 'adult' && person.purse <= PROSPER.MOST - POST.BUILDER);
+      grownUp(person, day) && person.purse <= PROSPER.MOST - POST.BUILDER);
     const peopleById = new Map(people.map((person) => [person.id, person]));
     const crews = crewsToday(people, jobs.map((job) => ({ id: job.id, funder: THE_HALL_OWNER })), already);
     const jobsById = new Map(jobs.map((job) => [job.id, job]));
