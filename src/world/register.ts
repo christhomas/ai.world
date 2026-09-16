@@ -1,4 +1,5 @@
 import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './aday';
+import { cellarCap } from './food';
 import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
@@ -307,6 +308,63 @@ export class Register {
   }
 
   larderOf(village: string): number { return this.villages.get(village)?.food ?? 0; }
+
+  /** What this village's cellar holds when it is full, which is what its people need for a while. */
+  cellarOf(village: string): number {
+    const here = this.villages.get(village);
+    return here ? cellarCap(here.people) : 0;
+  }
+
+  /**
+   * Set the store directly. Tests and the console; nothing in a played day calls it.
+   *
+   * A day's food is grown, eaten and sold by `aDaysDinner`, and a village whose store could be
+   * written from anywhere would be a village whose books nobody could add up.
+   */
+  setLarder(village: string, food: number): void {
+    const here = this.villages.get(village);
+    if (here) here.food = Math.max(0, Math.min(this.cellarOf(village), food));
+  }
+
+  /**
+   * Take meals off a village's shelf, and hand back how many there actually were.
+   *
+   * The hero buying bread is the village being one loaf shorter, which is the whole of item #231:
+   * a shelf that cannot run out is a map with a shape the player can read and never change. Hands
+   * back what was taken rather than what was asked for, so the caller charges for what it got — the
+   * same rule `deeds.ts` keeps about coins, and for the same reason.
+   *
+   * Never more than there is, and never a negative ask: both would mint a meal out of nothing, and
+   * a meal out of nothing is a coin out of nothing one trade later.
+   */
+  takeFromLarder(village: string, meals: number): number {
+    const here = this.villages.get(village);
+    if (!here || !(meals > 0)) return 0;
+    const took = Math.min(Math.floor(meals), Math.max(0, here.food));
+    here.food -= took;
+    return took;
+  }
+
+  /**
+   * Put meals back on it, and hand back how many it had room for.
+   *
+   * Selling to a village is the other half of the loop, and the reason it self-limits: the village
+   * he keeps buying from runs short and dear, the one he keeps selling to grows full and cheap. No
+   * rule anywhere has to say he may not do this too much.
+   *
+   * Capped at what the cellar holds, because a store has a size. Food over the cap is not kept
+   * anywhere — the village's own surplus already goes to the next valley in `aDaysDinner` rather
+   * than onto the floor, and a shelf that swallowed an unbounded amount would be a place to hide
+   * meals from the audit.
+   */
+  addToLarder(village: string, meals: number): number {
+    const here = this.villages.get(village);
+    if (!here || !(meals > 0)) return 0;
+    const room = Math.max(0, this.cellarOf(village) - here.food);
+    const put = Math.min(Math.floor(meals), room);
+    here.food += put;
+    return put;
+  }
 
   /**
    * What the hall holds, which is the village's own money and nobody's purse.
