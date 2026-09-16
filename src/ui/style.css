@@ -1313,19 +1313,72 @@ body.touch #touch {
  * a circle, and this ring is a picture of how far it may go. Everything else here is square
  * because the world is cut squares; this is square to nobody's thumb.
  */
+/*
+ * The ring, at rest and under the thumb.
+ *
+ * It was drawn only where a thumb landed and was invisible until one did, on the argument that a
+ * fixed stick is a stick you have to look for. Half right: *where* it draws is the thumb's business,
+ * but a control that is not there until you touch it is a control nobody finds. The handoff says
+ * both — *"the ring is drawn where the thumb lands; the home position is only where it rests"* — so
+ * it rests at its home, and the first touch moves it.
+ */
 #touchStick .stick-base {
   display: none; position: fixed; border-radius: 50%;
-  width: calc(132 * var(--ui-scale)); height: calc(132 * var(--ui-scale));
-  margin: calc(-66 * var(--ui-scale)) 0 0 calc(-66 * var(--ui-scale)); border: var(--ui-scale) solid var(--rule);
+  /*
+   * Home, which is the thumb band said in full: 24 in from the left edge and 20 up from the bottom,
+   * a box 104 across. No centring margins here — the box is placed by its own corner, because a
+   * resting position is a place rather than a point a finger is at.
+   */
+  left: calc(var(--safe-left) + 24 * var(--ui-scale));
+  bottom: calc(var(--safe-bottom) + 20 * var(--ui-scale));
+  top: auto; margin: 0;
+  width: calc(104 * var(--ui-scale)); height: calc(104 * var(--ui-scale));
+  border: var(--ui-scale) solid var(--rule);
   /* faded at the rim, so the ring reads as a well the nub sits in rather than as a lid over the
      ground the player is about to walk across */
   background: radial-gradient(circle, color-mix(in srgb, var(--surface) 50%, transparent) 45%, color-mix(in srgb, var(--surface) 10%, transparent) 100%);
   pointer-events: none;
 }
-#touchStick .stick-base.show { display: block; }
+body.touch #touchStick .stick-base { display: block; opacity: 0.5; }
+/*
+ * A thumb is on it. Now it is a point rather than a place, so it takes the centring margins and
+ * gives up the corner it was resting in — `top` and `left` are written inline by `touch.ts` and
+ * `bottom: auto` is what lets them win.
+ */
+body.touch #touchStick .stick-base.show {
+  bottom: auto; opacity: 1;
+  margin: calc(-52 * var(--ui-scale)) 0 0 calc(-52 * var(--ui-scale));
+}
+/*
+ * The two arcs, which are the meters.
+ *
+ * Health outside and breath inside, each drawn from the top and filled clockwise by the share
+ * `hud.ts` writes onto the body. `pathLength` makes the arithmetic honest: a circle is a hundred
+ * units long whatever its radius, so the dash is the share and nothing has to know about π.
+ *
+ * The corner slab is for reading a number and this is for seeing a share without taking your eyes
+ * off the hero, which is why the same two readings are worth drawing twice.
+ */
+#touchStick .stick-arcs {
+  position: absolute; inset: calc(-4 * var(--ui-scale)); width: auto; height: auto;
+  transform: rotate(-90deg); overflow: visible; pointer-events: none;
+}
+#touchStick .stick-arcs circle {
+  fill: none; pathLength: 100;
+  stroke-dasharray: calc(var(--hud-share, 1) * 100) 100;
+  transition: stroke-dasharray 120ms linear;
+}
+#touchStick .arc-health {
+  stroke: var(--accent); stroke-width: calc(5 * var(--ui-scale));
+  --hud-share: var(--hp-share, 1);
+}
+#touchStick .arc-breath {
+  stroke: var(--ink); stroke-width: calc(3 * var(--ui-scale)); opacity: 0.75;
+  --hud-share: var(--breath-share, 1);
+}
 #touchStick .stick-nub {
   position: absolute; left: 50%; top: 50%; border-radius: 50%;
-  width: calc(56 * var(--ui-scale)); height: calc(56 * var(--ui-scale));
+  width: calc(40 * var(--ui-scale)); height: calc(40 * var(--ui-scale));
   background: color-mix(in srgb, var(--rule) 50%, transparent); border: var(--ui-scale) solid color-mix(in srgb, var(--rule) 75%, transparent);
   box-shadow: var(--ui-lift); transform: translate(-50%, -50%);
 }
@@ -1840,7 +1893,8 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
      either on its own. The console still has the lot. */
   :root { --log-height: 62px; }
   #chatPanel:not(.console) #chatLog > div:nth-last-child(n+3) { display: none; }
-  :root { --log-bottom: calc(var(--safe-bottom) + 76px); }
+  /* and the same band on a short screen: 76 put the last line of news through the thumb's ring */
+  :root { --log-bottom: calc(var(--safe-bottom) + var(--band-thumb)); }
   #dialogue {
     bottom: var(--safe-bottom);
     width: calc(100vw - var(--safe-left) - var(--safe-right));

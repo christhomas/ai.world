@@ -127,6 +127,57 @@ describe('what the corner of a phone says about the hero', () => {
     expect(orbit![1]).toMatch(/position:\s*static/);
   });
 
+  it('rests the ring at its home instead of hiding it until a thumb lands', () => {
+    /*
+     * It was drawn only where a thumb landed and was invisible until one did, on the argument that
+     * a fixed stick is a stick you have to look for. Half right: *where* it draws is the thumb's
+     * business, but a control that is not there until you touch it is a control nobody finds. The
+     * handoff says both — *"the ring is drawn where the thumb lands; the home position is only
+     * where it rests."*
+     */
+    const resting = CSS.match(/body\.touch #touchStick \.stick-base\s*\{([^}]*)\}/s);
+    expect(resting, 'the resting ring rule has gone').not.toBeNull();
+    expect(resting![1]).toMatch(/display:\s*block/);
+    const base = CSS.match(/#touchStick \.stick-base\s*\{([^}]*)\}/s)![1];
+    expect(base, 'a resting position is a place, not a point a finger is at').toMatch(/margin:\s*0/);
+    expect(base).toMatch(/bottom:\s*calc\(var\(--safe-bottom\)/);
+  });
+
+  it('takes the centring margins only when a thumb is actually on it', () => {
+    // `top`/`left` are written inline by `touch.ts`; `bottom: auto` is what lets them win
+    const held = CSS.match(/body\.touch #touchStick \.stick-base\.show\s*\{([^}]*)\}/s);
+    expect(held, 'the held-ring rule has gone').not.toBeNull();
+    expect(held![1]).toMatch(/bottom:\s*auto/);
+    expect(held![1]).toMatch(/margin:\s*calc\(-52/);
+  });
+
+  it('draws the two meters as arcs round it, fed by what hud.ts already knows', () => {
+    /*
+     * A custom property on the body rather than a call into the touch layer: the one place that
+     * knows these numbers goes on being the only place that knows them, and a screen with no ring
+     * on it reads nothing. `pathLength` keeps the arithmetic honest — a circle is a hundred units
+     * long whatever its radius, so the dash is the share and nothing has to know about π.
+     */
+    expect(HUD).toContain("setProperty('--hp-share'");
+    expect(HUD).toContain("setProperty('--breath-share'");
+    const arcs = CSS.match(/#touchStick \.stick-arcs circle\s*\{([^}]*)\}/s);
+    expect(arcs, 'the arc rule has gone').not.toBeNull();
+    expect(arcs![1]).toContain('pathLength: 100');
+    expect(arcs![1]).toContain('var(--hud-share, 1)');
+  });
+
+  it('keeps the news above the thumb, at every size a phone comes in', () => {
+    /*
+     * There are two `--log-bottom` rules below the breakpoint and both were numbers: 88 in one and
+     * 76 in the other, against a thumb band of 124. Fixing one left the other, and a screen a
+     * little shorter than the first put the last line of news back through the ring.
+     */
+    const below = CSS.slice(CSS.indexOf('@media (max-width: 820px), (max-height: 560px)'));
+    const logs = [...below.matchAll(/--log-bottom:\s*([^;]+);/g)].map((one) => one[1]);
+    expect(logs.length, 'there should still be a phone rule for this').toBeGreaterThan(0);
+    for (const one of logs) expect(one, `${one} is a guess at the thumb band`).toContain('var(--band-thumb)');
+  });
+
   it('keeps the safe-area inset outside the padding rather than folding it in', () => {
     // a notch is an obstruction, not taste: see the same rule in `geometry.test.ts`
     expect(onAPhone('#status')).toContain('var(--safe-left)');

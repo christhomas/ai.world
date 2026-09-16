@@ -189,6 +189,10 @@ export class Hud {
      */
     const max = Math.max(1, state.maxHpTotal);
     const share = Math.max(0, Math.min(1, state.hp / max));
+    // and the same share on the body, for the ring round the thumb — see `#touchStick .stick-arcs`.
+    // A custom property rather than a call into the touch layer: the one place that knows this
+    // number goes on being the only place that knows it, and a phone with no ring reads nothing.
+    document.body.style.setProperty('--hp-share', String(share));
     const bar = meter(share);
     const low = share <= LOW_ON_HEALTH ? ' hud-hurt' : '';
     /*
@@ -295,6 +299,7 @@ export class Hud {
         + ` <span class="hud-hp breath"><span class="hud-now">${Math.round(held * 100)}</span>`
         + `<span class="hud-max">${said}</span></span>`;
     };
+    document.body.style.setProperty('--breath-share', String(Math.max(0, Math.min(1, wind))));
     const parts = [row(wind, ' BREATH')];
     // the arm shows only when it is worth knowing about. A meter that sits full through every walk
     // across the country is furniture, and the one thing this readout must not become is furniture

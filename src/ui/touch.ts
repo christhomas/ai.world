@@ -196,6 +196,20 @@ export class TouchControls {
     this.stickZone.id = 'touchStick';
     this.stickBase.className = 'stick-base';
     this.stickNub.className = 'stick-nub';
+    /*
+     * The ring is also the meters.
+     *
+     * Two arcs round the thumb's own ring, health outside and breath inside, which is the handoff's
+     * answer to a readout nobody looks at: the corner slab is for reading a number, and this is for
+     * seeing a share without taking your eyes off the hero. How full each is comes from two custom
+     * properties `hud.ts` writes on the body, so nothing here has to be told about the game — the
+     * one place that already knows both numbers goes on being the only place that knows them.
+     */
+    this.stickBase.innerHTML = `
+      <svg class="stick-arcs" viewBox="0 0 104 104" aria-hidden="true">
+        <circle class="arc-health" cx="52" cy="52" r="46" />
+        <circle class="arc-breath" cx="52" cy="52" r="37" />
+      </svg>`;
     this.stickBase.appendChild(this.stickNub);
     this.stickZone.appendChild(this.stickBase);
     this.root.appendChild(this.stickZone);
@@ -206,6 +220,8 @@ export class TouchControls {
       this.stickX = e.clientX;
       this.stickY = e.clientY;
       this.stickZone.setPointerCapture(e.pointerId);
+      // where the thumb landed, which is where the ring should have been: `left`/`top` override the
+      // home the stylesheet gives it, and releasing puts them back
       this.stickBase.style.left = `${e.clientX}px`;
       this.stickBase.style.top = `${e.clientY}px`;
       this.stickBase.classList.add('show');
@@ -239,6 +255,10 @@ export class TouchControls {
     this.steer([]);
     this.stickPointer = null;
     this.stickBase.classList.remove('show');
+    // home is where it rests, so the inline position the thumb gave it goes with the thumb
+    this.stickBase.style.left = '';
+    this.stickBase.style.top = '';
+    this.moveNub(0, 0);
   }
 
   private buildPanelRow(): HTMLElement {
