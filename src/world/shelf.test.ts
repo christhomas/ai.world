@@ -83,3 +83,30 @@ describe('putting food back on a village shelf', () => {
     expect(book.larderOf('Ashford')).toBe(20);
   });
 });
+
+/*
+ * And the same door from the shop's side: buying food is the village being a loaf shorter.
+ *
+ * Kept here rather than in `talk.test.ts` because what is being asserted is the *village's* books,
+ * not the dialogue. The shop is one caller of a shelf that would still have to balance if somebody
+ * wrote a second one.
+ */
+describe('a hero buying off the shelf', () => {
+  it('leaves the village short by what he took', () => {
+    const book = village(20);
+    const before = book.larderOf('Ashford');
+    const took = book.takeFromLarder('Ashford', 2);
+    expect(took).toBe(2);
+    expect(book.larderOf('Ashford')).toBe(before - 2);
+  });
+
+  it('cannot be sold a loaf a village has not got, and the refusal costs it nothing', () => {
+    const book = village(1);
+    // asking for two out of a cellar of one takes the one; a caller that cannot use a part
+    // puts it back, which must leave the village exactly as it was
+    const got = book.takeFromLarder('Ashford', 2);
+    expect(got).toBe(1);
+    book.addToLarder('Ashford', got);
+    expect(book.larderOf('Ashford')).toBe(1);
+  });
+});

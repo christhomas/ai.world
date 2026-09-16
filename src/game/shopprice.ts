@@ -1,4 +1,5 @@
 import { dearnessOfFood } from '../world/prices';
+import { mealsIn } from './items';
 import type { Person } from '../world/people';
 
 /**
@@ -24,4 +25,34 @@ export function askingFor(
   const edible = item.effect !== undefined && item.slot === undefined;
   const local = edible && people.length > 0 ? item.price * dearnessOfFood(larder, people) : item.price;
   return Math.round(local * (1 + markup));
+}
+
+/**
+ * Take what this purchase costs the village off its shelf, or say it cannot be had.
+ *
+ * Item #231. A shelf that cannot run out is a map the hero can read and never change, which is
+ * worse once #230 has given the map a shape: prices would differ between villages and nothing he
+ * did could move them.
+ *
+ * Asked **before** the money moves, and that order is the whole of it — a purchase that took the
+ * coin and then found no bread would be exactly the direction this economy is audited against.
+ *
+ * A partial take is put straight back, so a refusal costs the village nothing. Handing back a
+ * boolean rather than the meals is deliberate: a caller that knew how many it got would be tempted
+ * to sell a part of a loaf.
+ *
+ * Gear is untouched and true here by construction — `mealsIn` is nought for anything that is not
+ * food, so a sword keeps its infinite shelf until it has a maker in #232.
+ */
+export function offTheShelf(
+  register: { takeFromLarder(v: string, m: number): number; addToLarder(v: string, m: number): number } | null,
+  village: string,
+  item: { effect?: unknown },
+): boolean {
+  const wanted = mealsIn(item as Parameters<typeof mealsIn>[0]);
+  if (wanted <= 0 || !register) return true;
+  const got = register.takeFromLarder(village, wanted);
+  if (got >= wanted) return true;
+  if (got > 0) register.addToLarder(village, got);
+  return false;
 }
