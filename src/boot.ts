@@ -1,6 +1,6 @@
 import { IndexedDbStore } from './save/store';
 import { serverOf } from './game/joining';
-import type { SessionSave } from './save/store';
+import { kindOf, type SessionSave, type WorldKind } from './save/store';
 import type { WorldRecord } from '../server/protocol';
 import { keepSideways, thisBrowser, whenTurned } from './ui/sideways';
 import { LEGACY_KEY, showTitle } from './ui/title';
@@ -34,10 +34,20 @@ export async function boot(): Promise<void> {
   const urlSeed = url.searchParams.get('seed');
   const named = await namedWorldFromLink(url);
 
-  let slotKey: string, saved: SessionSave | undefined, seed: number;
+  let slotKey: string, saved: SessionSave | undefined, seed: number, world: WorldKind;
   let worldName: string | undefined;
   if (named) {
     seed = named.seed;
+    /*
+     * A shared world is whatever the server grows, and the server grows one kind.
+     *
+     * `WorldRecord` carried the kind until #228 took it off, and this is deliberately not putting
+     * it back yet: the choice restored here is the page's, for a world it walks alone in. Letting a
+     * page pick a country the server is not growing is the exact fault `growworld.ts` was written
+     * about — two halves in two countries — and it is worth a wire change of its own rather than a
+     * line in this one.
+     */
+    world = 'endless';
     worldName = named.name;
     /*
      * Scoped by the server as well as the name, because a name is only unique on the server that
@@ -53,7 +63,7 @@ export async function boot(): Promise<void> {
     const localAnchors = saved?.manifest?.anchors.filter((anchor) => anchor.kind !== 'island') ?? [];
     saved = {
       ...(saved ?? { seed, cam: { x: 0, z: 0, rot: 0, zoom: 1 } }),
-      seed, worldName,
+      seed, world, worldName,
       manifest: { rootSeed: seed, anchors: localAnchors },
     };
   } else if (urlSeed !== null && /^\d+$/.test(urlSeed)) {
@@ -62,15 +72,28 @@ export async function boot(): Promise<void> {
     slotKey = LEGACY_KEY;
     saved = await store.load<SessionSave>(LEGACY_KEY);
     if (saved?.seed !== seed) saved = undefined;
+    world = worldFromLink(url) ?? kindOf(saved?.world);
     worldName = saved?.worldName;
   } else {
     $('loading').style.display = 'none';
     const choice = await showTitle(store);
-    slotKey = choice.key; saved = choice.save; seed = choice.seed;
+    slotKey = choice.key; saved = choice.save; seed = choice.seed; world = choice.world;
     worldName = choice.worldName;
     $('loading').style.display = 'block';
   }
-  startGame(store, slotKey, saved, seed, worldName, url);
+  startGame(store, slotKey, saved, seed, worldName, url, world);
+}
+
+/**
+ * `?world=endless` or `?world=road` on a link, for growing a scratch world of a given kind.
+ *
+ * A link can ask, and a save cannot be overruled by one: `boot` takes the link's answer only when
+ * there is no save to contradict it. That is what stops a shared link opening somebody's own world
+ * as the wrong country and moving the ground out from under everything they have built.
+ */
+function worldFromLink(url: URL): WorldKind | null {
+  const asked = url.searchParams.get('world');
+  return asked === 'road' || asked === 'endless' ? kindOf(asked) : null;
 }
 
 /** Resolve a named invite before any country is grown. */

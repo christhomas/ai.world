@@ -11,7 +11,7 @@ import { Biome } from '../world/biomes';
 import { FORTUNE } from '../world/fortunes';
 import { Register } from '../world/register';
 import { TerrainSampler } from '../world/terrain';
-import { generateRoadGraph } from '../world/graph.test.fixture';
+import { generateRoadGraph } from '../world/roadtree';
 import { StructureKind, type Poi, type Shop, type Site, type Structures, type Village } from '../world/structures';
 
 const TRADES = ['farmer', 'hunter', 'seller'];

@@ -1,5 +1,5 @@
 import { rangesAsMassifs } from './ranges';
-import type { PatchCountry } from './patchcountry';
+import type { Country } from './countries';
 import type { TerrainSampler } from './terrain';
 import type { Massif } from './mountains';
 
@@ -36,7 +36,7 @@ export interface PatchView {
   readonly highPlaces: readonly Massif[];
 }
 
-export function viewOf(endless: PatchCountry): PatchView {
+export function viewOf(country: Country): PatchView {
   /*
    * Keyed by the sampler and not by the patch name, so that regrowing a patch is a new answer.
    * A `WeakMap` because the key is the only thing keeping the entry interesting: when a patch is
@@ -46,11 +46,11 @@ export function viewOf(endless: PatchCountry): PatchView {
   const massifs = new WeakMap<TerrainSampler, readonly Massif[]>();
 
   return {
-    get sampler(): TerrainSampler { return endless.sampler; },
-    get graph(): TerrainSampler['graph'] { return endless.sampler.graph; },
-    get structures(): TerrainSampler['structures'] { return endless.sampler.structures; },
+    get sampler(): TerrainSampler { return country.sampler; },
+    get graph(): TerrainSampler['graph'] { return country.sampler.graph; },
+    get structures(): TerrainSampler['structures'] { return country.sampler.structures; },
     get highPlaces(): readonly Massif[] {
-      const now = endless.sampler;
+      const now = country.sampler;
       const known = massifs.get(now);
       if (known) return known;
       const worked = now.ranges ? rangesAsMassifs(now.ranges, now.mesh) : now.massifs;

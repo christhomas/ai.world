@@ -1,3 +1,4 @@
+import type { Country, WorldKind } from './countries';
 import { PATCH, Patchwork, patchOf } from './patchwork';
 import type { TerrainSampler } from './terrain';
 import type { Within } from './window';
@@ -36,7 +37,10 @@ import type { Within } from './window';
  * round whoever is furthest along, or round each room. One object, two callers, neither of which is
  * the other's business.
  */
-export class PatchCountry {
+export class PatchCountry implements Country {
+  /** Which generator grew this. See `countries.ts`, which is the door both kinds come through. */
+  readonly kind: WorldKind = 'endless';
+
   private readonly patches: Patchwork;
   private standing: string;
   private current: TerrainSampler;

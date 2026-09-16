@@ -2,7 +2,7 @@ import { mulberry32, shuffle } from '../core/rng';
 import { SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
 import { Biome } from './biomes';
-import { EDGE_OF_THE_WORLD, standingOf } from './graph.test.fixture';
+import { EDGE_OF_THE_WORLD, standingOf } from './roadtree';
 import { type IslandInfo, type RoadEdge, type RoadGraph, type RoadNode } from './graph';
 import { scatterPoints, weldPolygons, indexFaces } from './polygons';
 import {

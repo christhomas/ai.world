@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateRoadGraph } from './graph.test.fixture';
+import { generateRoadGraph } from './roadtree';
 import { TerrainSampler } from './terrain';
 import { footprintLevel } from './footprint';
 import { StructureKind } from './structures';

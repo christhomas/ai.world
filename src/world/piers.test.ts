@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD } from '../core/config';
 import { CLIFF_ABOVE } from './piers';
-import { roadTreeWorld } from './graph.test.fixture';
+import { roadTreeWorld } from './roadtree';
 import { TerrainSampler, TileType } from './terrain';
 
 /**

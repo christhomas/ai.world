@@ -29,6 +29,25 @@ export interface Switch {
 
 export const SWITCHES: readonly Switch[] = [
   {
+    id: 'endless',
+    name: 'Endless country',
+    /*
+     * On by default, which is where #228 left the game and where its saves are. Turning it off
+     * grows the road tree instead: an island with a coast, which is the country this game looked
+     * best in and the one every picture in the README was taken in. Worth being able to stand in
+     * both, because the argument between them is about how a country looks, and that is not an
+     * argument anybody wins from a diff.
+     *
+     * Unlike the switch below it, this one decides something that is written down: the kind goes
+     * into the save, because the same seed grows two completely different countries and reopening
+     * a world as the other kind would put every anchor in the manifest in open sea. So it is read
+     * once, when a *new* world is made, and a world that exists is whatever it says it is.
+     */
+    note: 'No edge, and no end. Turn it off for an island with a coast. '
+      + 'Only decides new worlds — one that exists keeps the country it was made in.',
+    fallback: true,
+  },
+  {
     id: 'composer',
     name: 'New picture',
     note: 'Draws the world a different way. Edges should look the same or slightly cleaner, and '

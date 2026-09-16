@@ -1,5 +1,5 @@
 import { SWITCHES, isOn, setOn } from './switches';
-import type { SaveStore, SessionSave, WorldKind } from '../save/store';
+import { kindOf, type SaveStore, type SessionSave, type WorldKind } from '../save/store';
 import { randomSeed } from '../core/rng';
 import { takeTheScreen } from './sideways';
 import { paintTitleSky } from './titlesky';
@@ -29,6 +29,16 @@ function offerTheSwitches(into: HTMLElement): void {
     if (box) setOn(box.dataset.switch ?? '', box.checked);
   });
 }
+/**
+ * What the switches add up to, read at the moment a world is actually made.
+ *
+ * At the moment rather than when the screen was drawn: somebody flips a switch and then picks a
+ * slot, and the world they get has to be the one the switch was showing when they pressed it.
+ */
+function chosenWorld(): WorldKind {
+  return isOn('endless') ? 'endless' : 'road';
+}
+
 /** Pre-slot saves lived here; migrated into slot 1 on first run. */
 export const LEGACY_KEY = 'ai.world/session';
 
@@ -38,12 +48,20 @@ export interface SlotChoice {
   seed: number;
   /** The sayable name chosen for a new world, or kept with a continued one. */
   worldName?: string;
+  /** Which world to grow. Taken from the save when continuing one, and from the switch when not. */
+  world: WorldKind;
 }
 
-/** How every saved world describes itself now that there is one country. */
+/**
+ * How a saved world describes itself in its slot.
+ *
+ * It matters again now that there are two kinds: the same seed grows a completely different country
+ * as an endless one, so a slot that did not say which it was would be a slot you could not tell
+ * apart from its neighbour until you were standing in it. Saves with nothing written on them are
+ * endless, for the reason `kindOf` gives.
+ */
 export function nameOf(world: WorldKind | undefined): string {
-  void world;
-  return 'endless country';
+  return world === 'road' ? 'open country' : 'endless country';
 }
 /** Saved names are data even if storage was edited by hand. */
 const HTML_ESCAPE: Record<string, string> = {
@@ -130,7 +148,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
       if (act === 'continue' && saves[i]) {
         // Every part of a continued world's identity comes from its save. Older saves simply have
         // no name yet and continue by seed, which is their intact migration path.
-        finish({ key, save: saves[i], seed: saves[i]!.seed, worldName: saves[i]!.worldName });
+        finish({ key, save: saves[i], seed: saves[i]!.seed, worldName: saves[i]!.worldName, world: kindOf(saves[i]!.world) });
         return;
       }
       const worldName = cleanWorldName(worldNameInput.value);
@@ -146,7 +164,7 @@ export async function showTitle(store: SaveStore): Promise<SlotChoice> {
         return;
       }
       worldError.textContent = '';
-      finish({ key, save: undefined, seed: askedSeed ? Number(askedSeed) >>> 0 : randomSeed(), worldName });
+      finish({ key, save: undefined, seed: askedSeed ? Number(askedSeed) >>> 0 : randomSeed(), worldName, world: chosenWorld() });
     };
     list.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]');

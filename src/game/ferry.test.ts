@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FERRY, fareFor, ferryStateAt, makeFerryLines, type FerryLine } from './ferry';
 import { TerrainSampler } from '../world/terrain';
-import { generateRoadGraph } from '../world/graph.test.fixture';
+import { generateRoadGraph } from '../world/roadtree';
 import { BOAT, Sailing } from './sailing';
 import { travelInteractions } from './interact/travel';
 

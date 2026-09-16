@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateRoadGraph } from './graph.test.fixture';
+import { generateRoadGraph } from './roadtree';
 
 describe('generateRoadGraph', () => {
   it('is deterministic per seed', () => {

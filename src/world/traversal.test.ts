@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateRoadGraph } from './graph.test.fixture';
+import { generateRoadGraph } from './roadtree';
 import { TerrainSampler, TileType } from './terrain';
 import { KINDS } from '../entities/animals';
 import { STEP_LIMIT } from '../entities/entity';

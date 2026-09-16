@@ -236,6 +236,6 @@ export function highlandAt(
 /*
  * `Uplands` used to live here, averaging this file's own `standsAt` opinion into a smoothed climb.
  * The bounded country it smoothed for retired with #192; what is left of it is a test-owned
- * invariant, so the class moved to `graph.test.fixture.ts`, the one place that still asks it.
+ * invariant, so the class moved to `roadtree.ts`, the one place that still asks it.
  */
 
