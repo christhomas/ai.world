@@ -29,6 +29,7 @@ import type { Site } from './scattercells';
  */
 
 /** Salts, so the four questions asked of a junction cannot be the same number. */
+const OF_A_ROAD = 0x6b2e;
 const OF_A_TOWN = 0x4a71;
 const OF_A_NAME = 0x9c2d;
 const OF_A_SIZE = 0x33bd;
@@ -109,10 +110,88 @@ export function roadBetween(world: Land, face: Face, otherId: string): Road | nu
   };
 }
 
+/**
+ * How many of its borders a face keeps as roads, out of the five or six it has.
+ *
+ * Two, and it is the number the whole of this rests on. Every face keeps at least this many, so
+ * nothing anywhere can be cut off — no traversal, no spanning tree, no global question asked. And
+ * a border survives if *either* of its two faces kept it, so with six neighbours each about
+ * five-ninths of borders remain: enough gone that the country stops being a lattice, enough left
+ * that it is still a network.
+ */
+const ROADS_KEPT = 2;
+
+/**
+ * How much a face wants one of its borders, which is what it keeps the top two of.
+ *
+ * Mostly a hash of the border's own name, so it is settled and local and the same from both sides.
+ * The rest is what is on the other side: a neighbour that claimed less room stands in denser
+ * country, and roads run towards where people are rather than out into the empty. That is not
+ * circular — a claim is settled by the scatter, long before anything knows where a town will be.
+ */
+function wantOf(world: Land, face: Face, road: Road, otherClaim: number): number {
+  const of = derive(world.seed, OF_A_ROAD);
+  const [a, b] = road.between;
+  const hash = rand2(of, hashOfName(a), hashOfName(b), OF_A_ROAD);
+  const room = (otherClaim - world.dials.near) / Math.max(1e-6, world.dials.far - world.dials.near);
+  void face;
+  return hash * 0.7 + (1 - Math.min(1, Math.max(0, room))) * 0.3;
+}
+
+const worldsKeeps = new WeakMap<Land, Map<string, Set<string>>>();
+
+/**
+ * The borders this face keeps, by name.
+ *
+ * Remembered per world for the reason the crossroads are: every border is asked about from both
+ * sides, so without this each answer would rebuild the other face's whole ranking.
+ */
+function keptBy(world: Land, face: Face): Set<string> {
+  let known = worldsKeeps.get(world);
+  if (!known) { known = new Map(); worldsKeeps.set(world, known); }
+  const before = known.get(face.id);
+  if (before) return before;
+
+  const ranked: Array<{ key: string; want: number }> = [];
+  for (const id of face.neighbours) {
+    const road = roadBetween(world, face, id);
+    if (!road) continue;                       // a border a road could not run along anyway
+    const other = siteOf(world, id, face);
+    ranked.push({ key: road.between.join('|'), want: wantOf(world, face, road, other?.claim ?? world.dials.far) });
+  }
+  // by want, then by name, so a tie is broken the same way on both sides of every border
+  ranked.sort((one, two) => (two.want - one.want) || (one.key < two.key ? -1 : 1));
+  const kept = new Set(ranked.slice(0, ROADS_KEPT).map((one) => one.key));
+  known.set(face.id, kept);
+  return kept;
+}
+
+/**
+ * Is the border between these two faces a road, once the country has been thinned?
+ *
+ * `roadBetween` above answers whether a road *could* run here — both sides dry, ground the whole
+ * way along. This answers whether one does, which is a different question and the one the game
+ * should have been asking. Every border being a road is what made the map read as a honeycomb: the
+ * faces are a Poisson-disc scatter, the Voronoi diagram of a Poisson-disc scatter is a field of
+ * near-regular hexagons, and the complete dual of that is a comb.
+ *
+ * Kept by either side, which is what keeps it symmetric. A road built from the east is still the
+ * road built from the west, because both compute the same union of the same two sets.
+ */
+export function roadOnBorder(world: Land, face: Face, otherId: string): Road | null {
+  const road = roadBetween(world, face, otherId);
+  if (!road) return null;
+  const key = road.between.join('|');
+  if (keptBy(world, face).has(key)) return road;
+  const other = siteOf(world, otherId, face);
+  if (!other) return null;
+  return keptBy(world, faceOf(world, other)).has(key) ? road : null;
+}
+
 /** Every road out of one face. */
 export function roadsOf(world: Land, face: Face): Road[] {
   return face.neighbours
-    .map((id) => roadBetween(world, face, id))
+    .map((id) => roadOnBorder(world, face, id))
     .filter((road): road is Road => road !== null);
 }
 
@@ -227,7 +306,7 @@ function workOutJunctions(world: Land, face: Face): Junction[] {
       let roads = 0;
       for (const [one, two] of [[me.id, a.id], [me.id, b.id], [a.id, b.id]] as const) {
         const from = byId.get(one);
-        if (from && roadBetween(world, faceOf(world, from), two)) roads++;
+        if (from && roadOnBorder(world, faceOf(world, from), two)) roads++;
       }
       out.push({ id: [me.id, a.id, b.id].sort().join('|'), x: at.x, z: at.z, roads });
     }
@@ -272,6 +351,23 @@ function circumcentre(a: Corner, b: Corner, c: Corner): Corner | null {
 }
 
 /**
+ * How likely anybody settled at a junction, and how much more likely each road there makes it.
+ *
+ * Both moved when the web was thinned, and they had to. They were written for a country where every
+ * border was a road, so nearly every junction had three and the numbers were tuned against that:
+ * `0.18 + 0.09 * roads` with dead ends refused outright. Once roughly half the borders stopped
+ * being roads the same numbers gave a third as many villages, which is not a quieter country — it
+ * is the same country with most of its content taken out.
+ *
+ * So: a lane's end can be settled now, because a hamlet at the end of a track is a real place and
+ * refusing it was only ever a way of saying "not at a junction with one road", which used to be
+ * rare and is now common. The rest is arithmetic to hold the density where it was, measured rather
+ * than guessed.
+ */
+const SETTLED_AT = 0.30;
+const PER_ROAD = 0.10;
+
+/**
  * The town at a junction, if there is one.
  *
  * Decided by the junction's own name and what meets there: a hash for whether anybody settled, the
@@ -281,12 +377,12 @@ function circumcentre(a: Corner, b: Corner, c: Corner): Corner | null {
  */
 export function townAt(world: Land, junction: Junction): Town | null {
   if (!world.land(junction.x, junction.z)) return null;
-  if (junction.roads < 2) return null;                          // nobody settles a dead end
+  if (junction.roads < 1) return null;                          // nobody settles where no road goes
 
   const of = derive(world.seed, OF_A_TOWN);
   const settled = rand2(of, hashOfName(junction.id), junction.roads, OF_A_TOWN);
   // the more roads meet, the likelier a town: a crossing is a reason for a market
-  if (settled > 0.18 + 0.09 * junction.roads) return null;
+  if (settled > SETTLED_AT + PER_ROAD * junction.roads) return null;
 
   const size = rand2(of, hashOfName(junction.id), junction.roads, OF_A_SIZE);
   return {
@@ -294,7 +390,7 @@ export function townAt(world: Land, junction: Junction): Town | null {
     name: nameOf(world.seed, junction.id),
     x: junction.x,
     z: junction.z,
-    level: junction.roads >= 4 && size > 0.5 ? 3 : junction.roads >= 3 ? 2 : 1,
+    level: junction.roads >= 3 && size > 0.5 ? 3 : junction.roads >= 2 ? 2 : 1,
   };
 }
 
