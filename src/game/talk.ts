@@ -5,7 +5,7 @@ import { AWAY, buy, give, holds } from '../world/deeds';
 import { personTill } from './tills';
 import { isDaytime, type Entity } from '../entities/entity';
 import type { DialogueChoice, DialogueNode, Speaker } from '../ui/dialogue';
-import { askingFor } from './shopprice';
+import { askingFor, offTheShelf } from './shopprice';
 import { ITEMS, SHOP_DEFS, type ShopDef, itemSummary, sellPrice, sellableAt } from './shops';
 import { WOOD_ITEM } from './items';
 import { paidAtACounter } from './furs';
@@ -565,6 +565,14 @@ function buyOne(s: Counter, id: string): DialogueNode {
   }
   if (ctx.state.inventory.gold < price) {
     return across(s, [`That's ${price} gold, friend. You've only got ${ctx.state.inventory.gold}.`], [
+      { label: 'Back', next: () => buyMenu(s) },
+      { label: 'Leave', next: () => null },
+    ]);
+  }
+  // food comes off the village's own shelf, and if it is not there it is not for sale. Asked
+  // before the money moves; see `offTheShelf` in `shopprice.ts` for why that order matters
+  if (!offTheShelf(ctx.register ?? null, s.village, item)) {
+    return across(s, [`We're out of that, friend. ${s.village} has none to spare today.`], [
       { label: 'Back', next: () => buyMenu(s) },
       { label: 'Leave', next: () => null },
     ]);

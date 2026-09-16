@@ -1,4 +1,5 @@
 import { baby, liveADay, streamFor, takeOffTheRegister, type TheDay } from './aday';
+import { addMeals, cellarFor, setStore, takeMeals } from './larder';
 import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
@@ -307,6 +308,18 @@ export class Register {
   }
 
   larderOf(village: string): number { return this.villages.get(village)?.food ?? 0; }
+
+  /** What this village's cellar holds when it is full, which is what its people need for a while. */
+  cellarOf(village: string): number { return cellarFor(this.villages.get(village)); }
+
+  /** Set the store directly. Tests and the console; nothing in a played day calls it. See `larder.ts`. */
+  setLarder(village: string, food: number): void { setStore(this.villages.get(village), food); }
+
+  /** Take meals off a village's shelf, and hand back how many there actually were. See `larder.ts`. */
+  takeFromLarder(village: string, meals: number): number { return takeMeals(this.villages.get(village), meals); }
+
+  /** Put meals back on it, and hand back how many it had room for. See `larder.ts`. */
+  addToLarder(village: string, meals: number): number { return addMeals(this.villages.get(village), meals); }
 
   /**
    * What the hall holds, which is the village's own money and nobody's purse.
