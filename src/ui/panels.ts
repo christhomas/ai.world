@@ -66,14 +66,26 @@ export function screenOf(p: Panels): Screen {
      *
      * Typing beats everything, because a player writing a message must be able to write the letter
      * `m` without the map opening. A conversation beats a panel for the same reason a person in
-     * front of you beats a book. And both maps count as reading — the world's, and a village's
-     * descent — because a key that walks the hero while a full-screen panel is up is a hero walking
-     * into a wall you cannot see.
+     * front of you beats a book. And every reading surface counts as reading, because a key that
+     * walks the hero while a panel is up is a hero walking into a wall you cannot see.
+     *
+     * **The pack, the journal, Options and the player list were missing from that list**, and what
+     * it cost was not subtle: with a pack open, `n` left the world for the title screen, `x` swung
+     * the sword at whatever was in front of a hero nobody could see, and every spell key cast. The
+     * design handoff calls this out as the reported bug — *"keys leaking from panels into the
+     * world"* — and names the fix, which is that exactly one thing owns the input at a time and it
+     * is decided in one place. This is that place; it was simply not being told about four of the
+     * panels.
+     *
+     * The doors stay open on purpose. `i`, `j`, `o` and `m` are bound `unless talking` rather than
+     * `free`, so the key that opened a panel still closes it — a reading surface you cannot get out
+     * of the way you got into would be a worse bug than the one this fixes.
      */
     busy: () => (p.chat.isTyping ? 'typing'
       : p.dialogue.isOpen ? 'talking'
       : p.photo.active ? 'framing'
-      : p.worldMap.isOpen || p.kinPanel.isOpen || p.roster.isOpen ? 'reading'
+      : p.worldMap.isOpen || p.kinPanel.isOpen || p.roster.isOpen
+        || p.rucksack.isOpen || p.journal.isOpen || p.playerList.isOpen || p.hud.optionsOpen ? 'reading'
       : null),
     say: (line) => p.hud.flash(line),
     toggleJournal: () => p.journal.toggle(p.journalInput),
