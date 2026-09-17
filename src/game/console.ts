@@ -1,7 +1,7 @@
 import { CommandBus, describeResult } from '../core/commandbus';
 import type { EntityManager } from '../entities/manager';
 import type { Player } from '../entities/player';
-import type { Beam } from '../render/beam';
+import { A_PASSAGE, type Beam } from '../render/beam';
 import type { IsoCamera } from '../render/camera';
 import type { Chat } from '../ui/chat';
 import { noSuchTopic, topicFor, topicIndex } from '../ui/topics';
@@ -194,7 +194,7 @@ export function openConsole(ctx: Consoled) {
    * and the game holding an invisible man in the dark with the console reporting success. Refused
    * with a sentence instead, which also says what to do about it.
    */
-  const jumpTo = (x: number, z: number): { x: number; z: number } => {
+  const jumpTo = (x: number, z: number, watched = false): { x: number; z: number } => {
     /*
      * A jump that is asked for from indoors walks out of the door first.
      *
@@ -231,10 +231,29 @@ export function openConsole(ctx: Consoled) {
     if (!room && placeName() !== 'surface') {
       throw new Error(`there is nowhere to stand at ${Math.round(x)}, ${Math.round(z)} in here`);
     }
+    /*
+     * The passage, which is either a picture or an instant depending on who asked.
+     *
+     * `watched` is the game's own teleport — somebody typed it, or a shrine did it — and takes the
+     * full ten seconds: apart here, nowhere for a beat, together there. The hero moves on this line
+     * either way, so `placeName`, the register, the world's copy of him and anything that walks up
+     * to him all have the right answer the whole time; what is deferred is only the *camera*, which
+     * stays to watch him leave and is brought along by `lookHere` when the beat ends.
+     *
+     * Unwatched is what it always did, and is what the probes use. A tool that teleports a hundred
+     * times in a playtest cannot wait a quarter of an hour to do it, and the argument that used to
+     * be written on `SCATTER` — that a teleport is the move you make most often — is true of a tool
+     * and was never true of the thing itself. Both doors are this one function, so a probe still
+     * walks out of buildings and still lands where somebody can stand.
+     */
+    if (watched) chat.dismiss();
     beam.leaves(player.entity);
-    player.teleport(onto.x, onto.z);
-    beam.arrives(player.entity);
-    iso.target.set(onto.x, 0.5, onto.z);
+    player.teleport(onto.x, onto.z, !watched);
+    beam.arrives(player.entity, watched ? () => {
+      player.lookHere();
+      iso.target.set(onto.x, 0.5, onto.z);
+    } : null);
+    if (!watched) iso.target.set(onto.x, 0.5, onto.z);
     /*
      * And it hands back where he *actually* is, which is not always where he was sent.
      *
@@ -282,13 +301,26 @@ export function openConsole(ctx: Consoled) {
      * second is the picture. See `render/beam.ts`.
      */
     teleport: (x, z) => {
+      const landed = jumpTo(x, z, true);
+      online.stood(landed.x, landed.z, 'teleport');
+      /*
+       * And it says how long it will be, because the console has just shut itself.
+       *
+       * A player who types a teleport and watches the panel vanish and the hero come apart wants
+       * one line telling them the screen is not broken. It lands in the log, which `dismiss` leaves
+       * standing on purpose.
+       */
+      return { x: Math.round(landed.x), z: Math.round(landed.z), away: A_PASSAGE };
+    },
+    /** The same jump with no picture, for the probes. See the note in `jumpTo`. */
+    warpTo: (x, z) => {
       const landed = jumpTo(x, z);
       online.stood(landed.x, landed.z, 'teleport');
     },
     teleportTo: (place) => {
       const found = namedPlace(place);
       if (!found) throw new Error(`nowhere called ${place} — try: places`);
-      const landed = jumpTo(found.x, found.z);
+      const landed = jumpTo(found.x, found.z, true);
       // the world moves its own hero to match: a teleport is the one jump nothing else can see.
       // Where he landed, not where he was sent — see the note at the foot of `jumpTo`
       online.stood(landed.x, landed.z, 'teleport');

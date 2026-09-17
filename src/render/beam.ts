@@ -44,32 +44,60 @@ import type { EntityRenderer } from '../entities/pool';
 /**
  * How long a hero takes to come apart, or to come back together, in seconds.
  *
- * The shortest thing that still reads as an event. This is the move a player makes most often
- * while exploring, so anything approaching a second becomes an irritation by the tenth use and
- * people stop teleporting; much under a fifth of a second and there is nothing to see at all —
- * at sixty frames that is a dozen of them, which is a flicker rather than a departure.
- */
-const SCATTER = 0.34;
-
-/**
- * How long the light stands, in seconds.
+ * This was 0.34, and the note here argued for it: a teleport is the move a player makes most often
+ * while exploring, so anything approaching a second becomes an irritation by the tenth use. That
+ * reasoning was about the console's `teleport`, which is a tool, and it optimised away the thing
+ * itself — Chris, on the effect nobody had ever actually seen:
  *
- * Half again as long as the blocks, so the last thing left is the light going out rather than a
- * column blinking off with the man still half assembled in it. Longer than this and a teleport
- * ends with the player stood inside a pillar waiting for it to clear before they can see where
- * they have arrived.
+ * > *it looks cool, but its too fast*
+ *
+ * Which is the right complaint. A transporter is not a convenience, it is an event: a man comes
+ * apart, he is gone for a moment, and he puts himself back together somewhere else. At a third of
+ * a second all three of those happen inside one blink and at once, so what was drawn was a flicker.
+ *
+ * Four seconds either side. Long enough to watch the blocks actually travel, short enough that the
+ * whole passage is ten seconds rather than a cutscene. Tools keep the old instant jump — see
+ * `jumpTo` in `game/console.ts` — so nothing that teleports a hundred times waits an hour.
  */
-const LIGHT = 0.52;
+export const SCATTER = 4.2;
 
 /**
- * The share of its life the column spends standing up, before it starts to fade.
+ * How long he is nowhere, in seconds.
+ *
+ * The beat between coming apart and coming back. Without it the two halves overlap and it reads as
+ * a cut rather than a journey — and this is the moment the picture is *about*, because it is the
+ * only part where the man is genuinely not anywhere. The destination's light is already standing
+ * through it, which is what says where he has gone.
+ */
+export const AWAY = 1.6;
+
+/**
+ * How long the light goes on standing after the blocks have finished, in seconds.
+ *
+ * So the last thing left is the light going out rather than a column blinking off with the man
+ * still half assembled in it.
+ */
+const LIGHT_TAIL = 0.6;
+
+/**
+ * How long the column takes to stand up, in seconds.
  *
  * It grows out of the ground rather than appearing at full height, because "a column of light
  * standing up into the sky" is a thing happening rather than a thing there — and a shaft that is
- * simply present for half a second reads as a rendering fault. A quarter is fast enough that it is
- * up before the blocks have gone anywhere.
+ * simply present reads as a rendering fault. A time rather than a share of its life, which is what
+ * it used to be: with a column that now stands for five seconds a quarter of its life would be a
+ * shaft taking well over a second to grow, and the rise is the snappy part.
  */
-const STANDS_UP = 0.25;
+const STANDS_UP_IN = 0.55;
+
+/**
+ * And how long it takes to go out, in seconds.
+ *
+ * Also a time rather than a share, and for the mirror of the same reason: fading over everything
+ * that is not the rise would leave the column dim for most of a five-second stand, when what is
+ * wanted is a light that holds while the blocks are moving and then goes.
+ */
+const FADES_IN = 0.9;
 
 /**
  * How far up the column reaches, in tiles.
@@ -116,6 +144,14 @@ const CORE_OPACITY = 0.30;
  */
 const TURN = 0.5;
 
+/**
+ * How long a whole passage takes, in seconds: apart, nowhere, together.
+ *
+ * Named rather than left to be added up, because it is the number the thing was asked for in and
+ * the one anybody will want to change. Ten seconds.
+ */
+export const A_PASSAGE = SCATTER + AWAY + SCATTER;
+
 /** Columns that can stand at once. Two is one teleport; four is two of them overlapping. */
 const AT_ONCE = 4;
 
@@ -126,6 +162,14 @@ interface Column {
   core: THREE.Mesh;
   /** Seconds of light left. Nought means this one is free to be used again. */
   left: number;
+  /**
+   * How long this one was lit for, in seconds.
+   *
+   * Per column rather than one constant, because the two ends of a passage are not the same
+   * length: the departure stands while he comes apart, and the arrival is already standing through
+   * the beat where he is nowhere and goes on until he is whole.
+   */
+  life: number;
   /**
    * The creature it belongs to, so an arrival's light settles with him.
    *
@@ -146,6 +190,18 @@ export class Beam {
   /** And the hero himself, putting himself back together wherever he arrived. */
   private arriving: Entity | null = null;
   private arrivingLeft = 0;
+  /**
+   * Seconds he still has to spend being nowhere, before he starts gathering himself.
+   *
+   * This is what makes the passage a sequence rather than two effects at once. He is already *at*
+   * the destination by the time this runs — everything that asks where he is gets the answer it
+   * will have when it finishes, which is what keeps the rest of the game out of this — but he is
+   * held fully apart, so nothing of him is drawn there until the copy at the old place has
+   * finished coming apart and the beat has passed.
+   */
+  private arrivingWait = 0;
+  /** What to do at the moment he is no longer at the old place: move the camera, usually. */
+  private whenAway: (() => void) | null = null;
 
   /**
    * @param scene where the light stands. The overworld, which is where teleporting is worth
@@ -170,7 +226,7 @@ export class Beam {
       group.add(shaft, core);
       group.visible = false;
       scene.add(group);
-      this.columns.push({ group, shaft, core, left: 0, over: null });
+      this.columns.push({ group, shaft, core, left: 0, life: 1, over: null });
     }
   }
 
@@ -198,7 +254,7 @@ export class Beam {
    */
   leaves(hero: Entity): void {
     this.clearGhost();
-    this.stand(hero.x, hero.y, hero.z, null);
+    this.stand(hero.x, hero.y, hero.z, null, SCATTER + LIGHT_TAIL);
     const herd = new Herd(hero.kind, hero.x, hero.z, hero.x, hero.z, 0);
     const ghost = new Entity(hero.kind, hero.x, hero.z, herd, 'beam', mulberry32(1));
     ghost.y = hero.y;
@@ -221,12 +277,29 @@ export class Beam {
    * means the pool draws nothing of him at all for the first frame — so the effect must be ticked
    * from somewhere the frame cannot return early past, or a hero would be left invisible.
    */
-  arrives(hero: Entity): void {
+  arrives(hero: Entity, whenAway: (() => void) | null = null): void {
     this.arriving = hero;
     this.arrivingLeft = SCATTER;
+    // he waits out whatever is left of his own departure, and then the beat where he is nowhere
+    this.arrivingWait = this.ghost ? this.ghostLeft + AWAY : 0;
+    this.whenAway = whenAway;
     hero.apart = 1;
     this.carried.visible = false;
-    this.stand(hero.x, hero.y, hero.z, hero);
+    this.stand(hero.x, hero.y, hero.z, hero, this.arrivingWait + SCATTER + LIGHT_TAIL);
+    if (this.arrivingWait <= 0) this.away();
+  }
+
+  /**
+   * The moment the old place stops being where he is.
+   *
+   * Called once a passage, when the copy has finished coming apart. The camera goes here rather
+   * than at the moment he moves, which is what lets a player watch themselves leave: the hero's
+   * position changed several seconds ago and the view stayed behind to watch the light.
+   */
+  private away(): void {
+    const told = this.whenAway;
+    this.whenAway = null;
+    told?.();
   }
 
   /** Called once a frame, wherever the hero is standing and whatever else the game is doing. */
@@ -237,9 +310,10 @@ export class Beam {
   }
 
   /** Put a column of light at a place, taking whichever of them is free or the oldest if none is. */
-  private stand(x: number, y: number, z: number, over: Entity | null): void {
+  private stand(x: number, y: number, z: number, over: Entity | null, life: number): void {
     const column = this.columns.find((c) => c.left <= 0) ?? this.columns[0];
-    column.left = LIGHT;
+    column.left = life;
+    column.life = life;
     column.over = over;
     column.group.position.set(x, y, z);
     column.group.rotation.y = 0;
@@ -255,17 +329,18 @@ export class Beam {
         column.over = null;
         continue;
       }
-      const through = 1 - column.left / LIGHT;
+      const lived = column.life - column.left;
       if (column.over) column.group.position.set(column.over.x, column.over.y, column.over.z);
-      const grown = Math.min(1, through / STANDS_UP);
+      const grown = Math.min(1, lived / STANDS_UP_IN);
       for (const mesh of [column.shaft, column.core]) {
         mesh.scale.y = HEIGHT * grown;
         mesh.position.y = mesh.scale.y / 2;
       }
-      column.group.rotation.y = through * TURN;
-      // it holds its brightness while it is still rising and fades over what is left, so the shaft
-      // is at its strongest at the moment the blocks are actually moving
-      const gone = Math.max(0, (through - STANDS_UP) / (1 - STANDS_UP));
+      column.group.rotation.y = (lived / column.life) * TURN;
+      // it holds its brightness while the blocks are moving and goes out at the end, rather than
+      // dimming the whole way down — a column that is fading for five seconds is a column nobody
+      // believes is lit
+      const gone = Math.max(0, 1 - column.left / FADES_IN);
       (column.shaft.material as THREE.MeshBasicMaterial).opacity = SHAFT_OPACITY * (1 - gone);
       (column.core.material as THREE.MeshBasicMaterial).opacity = CORE_OPACITY * (1 - gone);
     }
@@ -288,6 +363,12 @@ export class Beam {
   private ageArrival(dt: number): void {
     const hero = this.arriving;
     if (!hero) return;
+    if (this.arrivingWait > 0) {
+      this.arrivingWait -= dt;
+      hero.apart = 1;                       // nowhere, and nothing of him drawn at either end
+      if (this.arrivingWait <= 0) this.away();
+      return;
+    }
     this.arrivingLeft -= dt;
     if (this.arrivingLeft <= 0) { this.settle(); return; }
     const left = this.arrivingLeft / SCATTER;
@@ -304,6 +385,10 @@ export class Beam {
   private settle(): void {
     if (this.arriving) this.arriving.apart = 0;
     this.arriving = null;
+    this.arrivingWait = 0;
+    // whoever was waiting for the view to follow gets it now rather than never, so a passage cut
+    // short by a dispose or a second teleport does not leave the camera behind for good
+    this.away();
     this.carried.visible = true;
   }
 

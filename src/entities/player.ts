@@ -185,7 +185,15 @@ export class Player {
     return true;
   }
 
-  teleport(x: number, z: number): void {
+  /**
+   * Put him somewhere else.
+   *
+   * @param andLook whether the camera goes with him *now*. False for a teleport being watched — the
+   * hero moves immediately, so everything that asks where he is gets the right answer, and the view
+   * stays behind to watch him come apart at the place he has just left. Whoever passed false owns
+   * calling `lookHere` when the beat is over; see `render/beam.ts` and `jumpTo`.
+   */
+  teleport(x: number, z: number, andLook = true): void {
     this.entity.x = x; this.entity.z = z;
     this.placed = false;
     this.riding = false;
@@ -203,8 +211,11 @@ export class Player {
      * `whatCarriesHim`.
      */
     this.entity.mounted = null;
-    this.warped = true;
+    this.warped = andLook;
   }
+
+  /** Bring the camera to wherever he is now, for a move that deliberately left it behind. */
+  lookHere(): void { this.warped = true; }
 
   /**
    * Set by a teleport and cleared by the next update, which takes the camera along.

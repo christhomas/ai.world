@@ -523,7 +523,8 @@ export function installProbes(ctx: Probed): void {
       return { village: v.name, houses: v.houses.length, stock: stable?.stock.map((b) => b.id) ?? null };
     });
   debug.__player = player;
-  debug.__teleport = (x, z) => commandWorld.teleport(x, z);
+  // the quick door: a playtest teleports a hundred times and the shown one takes ten seconds each
+  debug.__teleport = (x, z) => commandWorld.warpTo(x, z);
   // the console's way in: `cmd('teleport 322 53')`, and `cmd('help')` for the rest
   (debug as { cmd?: (line: string) => unknown }).cmd = (line) => commands.run(line, 'console');
   // and the way in from outside the browser altogether: a line posted to the dev server arrives
