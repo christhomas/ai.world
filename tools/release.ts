@@ -149,9 +149,16 @@ function alreadyTold(numbers: readonly number[]): Set<number> {
  * The tag's own commit date, rather than anything local: the issues are closed on GitHub's clock,
  * and comparing two clocks is how an issue ends up stamped twice or not at all.
  */
-function whenTheLastOneWent(): string | null {
+function whenTheLastOneWent(notThisOne?: string): string | null {
   const tags = run('git', ['tag', '--list', 'v*', '--sort=-creatordate']).split('\n').filter(Boolean);
-  const previous = tags[0];
+  /*
+   * And never this release's own tag, which a resumed run may already have made.
+   *
+   * The window is "everything closed since the release before this one". A run killed between the
+   * tag and the publish has `vX.Y.Z` sitting locally, so the newest tag is this release — and the
+   * window it gives back is empty, which silently leaves every issue it shipped unstamped.
+   */
+  const previous = tags.find((tag) => tag !== `v${notThisOne}`);
   if (!previous) return null;
   return run('git', ['log', '-1', '--format=%cI', previous]);
 }
@@ -533,42 +540,259 @@ function writeTheReadme(): void {
 }
 
 
+/**
+ * Where a release got to, which is read from the world rather than remembered.
+ *
+ * A release is a line of side effects and it used to keep no record of how far along it was. Each
+ * step is idempotent in isolation — a tag that exists, a release that exists — but nothing asked
+ * which ones were already taken, so a run killed half way through could not be finished by running
+ * it again: it read `chart/Chart.yaml` off disk, saw the version that had already been written, and
+ * tried to cut the *next* one over the top of an unfinished one. Both times that happened it took
+ * somebody who knows this file's internals to work out where it had stopped and do the rest by
+ * hand. See #344, and #341 before it.
+ *
+ * Nothing here is stored. Every field is a question asked of git or of GitHub, because a record
+ * this tool wrote about itself is one more thing that can be killed half written.
+ */
+export interface Stands {
+  version: string;
+  /** the release commit exists somewhere — on this machine, or on the remote, or both */
+  committed: boolean;
+  /** and the remote has it, which is what a pull request can be opened against */
+  pushed: boolean;
+  /** the pull request's number, if one was ever opened for this branch */
+  request: number | null;
+  /** the commit the squash became, if it merged */
+  merged: string | null;
+  /** `vX.Y.Z` is on the remote */
+  tagged: boolean;
+  /** and GitHub has a release for it, which is the thing that builds the image */
+  published: boolean;
+}
+
+/** The parts of a release, in the only order they can happen in. */
+export type Step = 'commit' | 'push' | 'request' | 'merge' | 'tag' | 'publish' | 'stamp';
+
+/**
+ * What a release has left to do.
+ *
+ * A line rather than a set, and that is the point: the first step that has not been taken and
+ * everything after it. Asking each step separately and skipping the ones that answer yes would let
+ * a release tag a commit whose pull request never merged, because a tag can be pushed at any time
+ * and only the order says it should not be.
+ *
+ * `stamp` is always last and always run. Writing the version onto the issues it shipped is the one
+ * part that reads what it already wrote — `alreadyTold` — so a second run cannot say it twice, and
+ * a release finished by hand halfway is exactly the case where the stamping was never reached.
+ */
+export function whatIsLeft(stands: Stands): Step[] {
+  const line: Array<[Step, boolean]> = [
+    ['commit', stands.committed],
+    ['push', stands.pushed],
+    ['request', stands.request !== null],
+    ['merge', stands.merged !== null],
+    ['tag', stands.tagged],
+    ['publish', stands.published],
+  ];
+  const from = line.findIndex(([, done]) => !done);
+  return [...(from < 0 ? [] : line.slice(from).map(([step]) => step)), 'stamp'];
+}
+
+/** Newest version first, by number rather than by the string, so 0.10.0 sorts above 0.9.0. */
+function newestFirst(a: string, b: string): number {
+  const [x, y] = [a.split('.').map(Number), b.split('.').map(Number)];
+  return (y[0] - x[0]) || (y[1] - x[1]) || (y[2] - x[2]);
+}
+
+/**
+ * The release that was started and never finished, if there is one.
+ *
+ * A release branch is never deleted here, so the branches are the whole history of what has been
+ * cut and their presence alone says nothing. What says something is the newest of them having no
+ * published release: a release is only ever cut from a clean `main`, so the newest branch is the
+ * one this repository was last trying to ship, and everything below it went out before it.
+ *
+ * Deliberately the newest rather than every unpublished one. An old branch with no release behind a
+ * newer one that has shipped is history, not a job — going back to finish it now would tag a
+ * version the world has already moved past.
+ */
+export function theUnfinishedOne(
+  started: readonly string[],
+  published: ReadonlySet<string>,
+): string | null {
+  const newest = [...started].sort(newestFirst)[0];
+  return newest !== undefined && !published.has(newest) ? newest : null;
+}
+
+/**
+ * Whether a dirty tree is the wreckage of a killed release rather than somebody's afternoon.
+ *
+ * A release writes five files before it commits anything, so a run killed in that window leaves
+ * `main` dirty and the next run refusing to start — with a message about uncommitted changes that
+ * says nothing about what actually happened. Those exact five files and nothing else is a shape
+ * only this tool makes.
+ *
+ * Anything else is somebody's work and is never touched: an added file, a rename, a sixth path, one
+ * of the five *plus* a sixth. The test is that every dirty path is one this release writes, and the
+ * porcelain line for a rename carries an arrow that no filename in the list can match, so those
+ * fall out on their own rather than by being special-cased.
+ */
+export function isTheWreckage(porcelain: string, writes: readonly string[]): boolean {
+  const paths = porcelain.split('\n').filter(Boolean).map((line) => line.slice(3).trim());
+  return paths.length > 0 && paths.every((path) => writes.includes(path));
+}
+
+/** The versions GitHub has actually published a release for, which is what "finished" means here. */
+function published(): Set<string> {
+  const releases = rest<Array<{ tag_name: string }>>([`repos/${REPO}/releases?per_page=100`]) ?? [];
+  return new Set(releases.map((one) => one.tag_name.replace(/^v/, '')));
+}
+
+/** Every version this repository has ever started cutting, read off the release branches. */
+function started(): string[] {
+  const heads = run('git', ['ls-remote', '--heads', 'origin', 'refs/heads/release/v*']);
+  const local = run('git', ['branch', '--list', 'release/v*', '--format=%(refname:short)']);
+  const names = [...heads.split('\n'), ...local.split('\n')]
+    .map((line) => line.match(/release\/v(\d+\.\d+\.\d+)$/)?.[1])
+    .filter((one): one is string => one !== undefined);
+  return [...new Set(names)];
+}
+
+/** The pull request opened for a release branch, whether it is still open or long merged. */
+function requestFor(branch: string): { number: number; merged: string | null } | null {
+  const owner = REPO.split('/')[0];
+  const rows = rest<Array<{ number: number; merge_commit_sha: string | null; merged_at: string | null }>>(
+    [`repos/${REPO}/pulls?head=${owner}:${branch}&state=all&per_page=100`],
+  ) ?? [];
+  const one = rows.sort((a, b) => b.number - a.number)[0];
+  if (!one) return null;
+  return { number: one.number, merged: one.merged_at ? one.merge_commit_sha : null };
+}
+
+/** Everything the world knows about a release, asked in one place so the answer is one moment. */
+function standsAt(version: string): Stands {
+  const branch = `release/v${version}`;
+  const onOrigin = run('git', ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`]) !== '';
+  // `git branch --list` rather than `rev-parse --verify`, which exits non-zero for a branch that
+  // is simply not there — an answer, not a failure, and `run` cannot tell the two apart.
+  const here = run('git', ['branch', '--list', branch, '--format=%(refname:short)']) !== '';
+  const request = onOrigin ? requestFor(branch) : null;
+  return {
+    version,
+    committed: onOrigin || here,
+    pushed: onOrigin,
+    request: request?.number ?? null,
+    merged: request?.merged ?? null,
+    tagged: run('git', ['ls-remote', '--tags', 'origin', `refs/tags/v${version}`]) !== '',
+    published: published().has(version),
+  };
+}
+
+/**
+ * Cutting a release, or finishing the one that was cut and killed.
+ *
+ * It looks before it writes. Every step names its own artefact — a branch, a request, a merge
+ * commit, a tag, a published release — so the world can be asked which ones exist and the run picks
+ * up from the first one that does not. A release killed at any point is finished by running the
+ * same command again, which is the whole of #344.
+ */
 function main(): void {
   const asked = process.argv[2];
-  if (!asked) throw new Error('usage: release <version|major|minor|patch> ["what is in it"]');
   const note = process.argv[3] ?? '';
 
   const standing = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (standing !== 'main') throw new Error(`releases are cut from main, and this is ${standing}`);
-  if (run('git', ['status', '--porcelain'])) {
+
+  /*
+   * The tags and the release branches, before anything is asked about them.
+   *
+   * Everything below reads the remote's answer for what exists — a machine that has not fetched
+   * since the killed run would otherwise be told a tag is missing that is sitting on the remote,
+   * and push it again.
+   */
+  run('git', ['fetch', 'origin', '--tags', '--prune']);
+
+  /*
+   * A tree left dirty by a killed release is put back, and anything else is still refused.
+   *
+   * A release writes five files before it commits, so a run cut down in that window leaves `main`
+   * dirty — and the next run refused to start, with a message about uncommitted changes that said
+   * nothing about what had happened. Those five files and nothing else is a shape only this tool
+   * makes; a sixth path, an added file or a rename is somebody's work and is never touched.
+   */
+  const dirty = run('git', ['status', '--porcelain']);
+  if (dirty && isTheWreckage(dirty, FILES_A_RELEASE_WRITES)) {
+    run('git', ['checkout', '--', ...FILES_A_RELEASE_WRITES]);
+    say('a killed release had written its files and not committed them — put back');
+  } else if (dirty) {
     throw new Error('there are uncommitted changes — a release has to name a commit that exists');
   }
 
+  /*
+   * And what this run is actually for, which is not always what was asked.
+   *
+   * An unfinished release is finished rather than built on. Cutting the next version over the top
+   * of one whose image was never built leaves a chart pinning a version that exists in git and
+   * nowhere else, which is a cluster that cannot start — and it is what the old tool did every
+   * time, because it read the version off a file the killed run had already written.
+   */
+  const unfinished = theUnfinishedOne(started(), published());
   const chart = readFileSync('chart/Chart.yaml', 'utf8');
   const now = chart.match(/^version: (.+)$/m)?.[1]?.trim() ?? '0.0.0';
-  const version = nextVersion(asked, now);
-  if (version === now) throw new Error(`the chart is already ${now}`);
-  say(`releasing ${now} → ${version}`);
-
-  // asked before the new tag exists, or the window this release covers would be empty
-  const since = whenTheLastOneWent();
-
-  say('running the tests, because a release is the wrong place to find out');
-  execFileSync('pnpm', ['test', '--run'], { stdio: 'inherit' });
-
-  for (const { file, find, write } of WRITTEN) {
-    const text = readFileSync(file, 'utf8');
-    if (!find.test(text)) throw new Error(`${file} does not say what version it is in the way this expects`);
-    writeFileSync(file, text.replace(find, write(version)));
+  if (unfinished !== null && asked !== undefined && /^\d+\.\d+\.\d+$/.test(asked) && asked !== unfinished) {
+    throw new Error(
+      `v${unfinished} was started and never finished, so ${asked} cannot be cut yet. `
+      + `Run the release again with no version, or with ${unfinished}, to finish that one first.`,
+    );
   }
-  say('chart, appVersion, the HelmRelease pin and the package all moved');
+  if (unfinished === null && !asked) {
+    throw new Error('usage: release <version|major|minor|patch> ["what is in it"]');
+  }
+  const version = unfinished ?? nextVersion(asked as string, now);
+  if (unfinished === null && version === now) throw new Error(`the chart is already ${now}`);
 
+  const stands = standsAt(version);
+  const left = whatIsLeft(stands);
+  if (unfinished !== null) {
+    say(`finishing v${version}, which was started and not finished — ${left.join(', ')} left to do`);
+  } else {
+    say(`releasing ${now} → ${version}`);
+  }
+
+  /*
+   * Which release the issues belong to, asked before this one is tagged and never of this one.
+   *
+   * The window is "everything closed since the previous release went out". On a resumed run the
+   * tag being finished may already exist locally, and reading the newest tag would then hand back
+   * this release's own moment — an empty window, and every issue it shipped left unstamped.
+   */
+  const since = whenTheLastOneWent(version);
+
+  const branch = `release/v${version}`;
   const body = note || `Version ${version}.`;
-  // before the commit, because the guard reads the tagged commit and refuses an undocumented tag
-  writeTheChangelog(version, body, since);
-  writeTheReadme();
-  say(`${CHANGELOG} and the README's ten now say what ${version} was`);
-  readWhatWasWritten();
+
+  if (left.includes('commit')) {
+    say('running the tests, because a release is the wrong place to find out');
+    execFileSync('pnpm', ['test', '--run'], { stdio: 'inherit' });
+
+    for (const { file, find, write } of WRITTEN) {
+      const text = readFileSync(file, 'utf8');
+      if (!find.test(text)) throw new Error(`${file} does not say what version it is in the way this expects`);
+      writeFileSync(file, text.replace(find, write(version)));
+    }
+    say('chart, appVersion, the HelmRelease pin and the package all moved');
+
+    // before the commit, because the guard reads the tagged commit and refuses an undocumented tag
+    writeTheChangelog(version, body, since);
+    writeTheReadme();
+    say(`${CHANGELOG} and the README's ten now say what ${version} was`);
+    readWhatWasWritten();
+
+    run('git', ['switch', '-c', branch]);
+    run('git', ['add', ...FILES_A_RELEASE_WRITES]);
+    run('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', `Release ${version}\n\n${body}`]);
+  }
+
   /*
    * And out through a pull request, because `main` is protected and should be.
    *
@@ -583,49 +807,55 @@ function main(): void {
    * squashed in the same breath. `chore release` is still one command. What changed is that every
    * release now leaves a reviewable pull request behind it rather than an unexplained commit.
    */
-  const branch = `release/v${version}`;
-  run('git', ['switch', '-c', branch]);
-  run('git', ['add', ...FILES_A_RELEASE_WRITES]);
-  run('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', `Release ${version}\n\n${body}`]);
-  run('git', ['push', '-u', 'origin', branch]);
-  const request = restWith<{ number: number }>(
-    [`repos/${REPO}/pulls`, '-X', 'POST'],
-    { title: `Release ${version}`, head: branch, base: 'main', body, draft: false },
-  );
-  if (!request?.number) throw new Error(`the release request for ${branch} was not opened`);
-  /*
-   * And then it waits, which is the part worth understanding rather than working around.
-   *
-   * `main` requires the `playtest` check — a real browser walking through a door and looking at the
-   * furniture from inside, which catches the faults a unit test cannot see. The tests have already
-   * run locally by this point, so this is not the same work twice: it is the one check that cannot
-   * be run on a laptop, on the exact commit that is about to become a release.
-   *
-   * It used to ask for `--auto` and let GitHub merge it the moment the checks were green, falling
-   * back to waiting and merging by hand. REST has no auto-merge, so what is left is the fallback —
-   * which is the path that ran in this repository anyway, and is the one with a deadline on it.
-   */
-  say('waiting for the checks — the playtest is a browser, and it takes a few minutes');
-  waitForTheChecks(branch);
-  const head = run('git', ['rev-parse', branch]);
-  /*
-   * The head is named on the merge, so nothing else can land on this branch between the checks
-   * going green and the squash. GitHub refuses the merge rather than releasing something nobody
-   * checked.
-   */
-  const squashed = restWith<{ merged: boolean; sha: string }>(
-    [`repos/${REPO}/pulls/${request.number}/merge`, '-X', 'PUT'],
-    { merge_method: 'squash', sha: head },
-  );
-  if (!squashed?.merged) throw new Error(`the release request #${request.number} did not merge`);
-  say('released through a pull request and squashed onto main');
+  if (left.includes('push')) {
+    run('git', ['switch', branch]);
+    run('git', ['push', '-u', 'origin', branch]);
+  }
 
-  /*
-   * A squash creates a new commit, and the merge itself names it. That is the commit to tag, rather
-   * than whichever unrelated change reached main before this process fetched it — and the tree
-   * check below makes it prove it carries the chart version this release just wrote.
-   */
-  const releaseCommit = squashed.sha;
+  let request = stands.request;
+  if (left.includes('request')) {
+    const opened = restWith<{ number: number }>(
+      [`repos/${REPO}/pulls`, '-X', 'POST'],
+      { title: `Release ${version}`, head: branch, base: 'main', body, draft: false },
+    );
+    if (!opened?.number) throw new Error(`the release request for ${branch} was not opened`);
+    request = opened.number;
+  }
+
+  let releaseCommit = stands.merged;
+  if (left.includes('merge')) {
+    /*
+     * And then it waits, which is the part worth understanding rather than working around.
+     *
+     * `main` requires the `playtest` check — a real browser walking through a door and looking at
+     * the furniture from inside, which catches the faults a unit test cannot see. The tests have
+     * already run locally by this point, so this is not the same work twice: it is the one check
+     * that cannot be run on a laptop, on the exact commit that is about to become a release.
+     */
+    say('waiting for the checks — the playtest is a browser, and it takes a few minutes');
+    waitForTheChecks(branch);
+    /*
+     * The head is named on the merge, so nothing else can land on this branch between the checks
+     * going green and the squash. GitHub refuses the merge rather than releasing something nobody
+     * checked. Read from the remote rather than from here, because a run resumed on another machine
+     * — or after the branch was thrown away — has no local copy of it.
+     */
+    run('git', ['fetch', 'origin', branch]);
+    const head = run('git', ['rev-parse', 'FETCH_HEAD']);
+    const squashed = restWith<{ merged: boolean; sha: string }>(
+      [`repos/${REPO}/pulls/${request}/merge`, '-X', 'PUT'],
+      { merge_method: 'squash', sha: head },
+    );
+    if (!squashed?.merged) throw new Error(`the release request #${request} did not merge`);
+    say('released through a pull request and squashed onto main');
+    /*
+     * A squash creates a new commit, and the merge itself names it. That is the commit to tag,
+     * rather than whichever unrelated change reached main before this process fetched it — and the
+     * tree check below makes it prove it carries the chart version this release just wrote.
+     */
+    releaseCommit = squashed.sha;
+  }
+  if (releaseCommit === null) throw new Error(`the release request for ${branch} has no merge commit`);
 
   run('git', ['switch', 'main']);
   run('git', ['fetch', 'origin', 'main']);
@@ -648,16 +878,24 @@ function main(): void {
   if (chartVersionOf(run('git', ['show', `${releaseCommit}:chart/Chart.yaml`])) !== version) {
     throw new Error(`merge commit ${releaseCommit} does not carry chart version ${version}`);
   }
-  run('git', ['tag', '-a', `v${version}`, releaseCommit, '-m', `v${version}`]);
-  run('git', ['push', 'origin', `v${version}`]);
-  say(`tagged v${version} on release commit ${releaseCommit}`);
 
-  // The release is what builds the image the chart now names. Without it the cluster reconciles
-  // against a version that exists in git and nowhere else.
-  restWith([`repos/${REPO}/releases`, '-X', 'POST'],
-           { tag_name: `v${version}`, name: `v${version}`, body: notesFor(version, body) });
-  say(`published the release — the image workflow is building ghcr.io/christhomas/ai-world:${version}`);
-  say('watch it with: gh run watch $(gh run list --workflow=image.yml --limit 1 --json databaseId -q \'.[0].databaseId\')');
+  if (left.includes('tag')) {
+    // the local tag may already be there from a run killed between making it and pushing it
+    if (run('git', ['tag', '--list', `v${version}`]) === '') {
+      run('git', ['tag', '-a', `v${version}`, releaseCommit, '-m', `v${version}`]);
+    }
+    run('git', ['push', 'origin', `v${version}`]);
+    say(`tagged v${version} on release commit ${releaseCommit}`);
+  }
+
+  if (left.includes('publish')) {
+    // The release is what builds the image the chart now names. Without it the cluster reconciles
+    // against a version that exists in git and nowhere else.
+    restWith([`repos/${REPO}/releases`, '-X', 'POST'],
+             { tag_name: `v${version}`, name: `v${version}`, body: notesFor(version, body) });
+    say(`published the release — the image workflow is building ghcr.io/christhomas/ai-world:${version}`);
+    say('watch it with: gh run watch $(gh run list --workflow=image.yml --limit 1 --json databaseId -q \'.[0].databaseId\')');
+  }
 
   const closed = (rest<Array<{ number: number; closed_at: string; pull_request?: unknown }>>(
     [`repos/${REPO}/issues?state=closed&per_page=100&sort=updated`],
@@ -665,6 +903,10 @@ function main(): void {
     .map((one) => ({ number: one.number, closedAt: one.closed_at }));
   const window = whatShipped(closed, since);
   stampTheIssues(version, whatShipped(closed, since, alreadyTold(window)));
+
+  if (unfinished !== null) {
+    say(`v${version} is finished. The next version is a release of its own — run this again for it.`);
+  }
 }
 
 // importable, so the window above can be tested without cutting a release to find out

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { FILES_A_RELEASE_WRITES, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, theReleaseCommit, whatEachSaid, whatShipped } from './release';
+import { FILES_A_RELEASE_WRITES, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, isTheWreckage, theReleaseCommit, theUnfinishedOne, whatEachSaid, whatIsLeft, whatShipped, type Stands } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -417,5 +417,162 @@ describe('reading REST where GraphQL used to answer', () => {
     it('does not count the same issue twice', () => {
       expect(closesWhat('Closes #5. Fixes #5.')).toEqual([5]);
     });
+  });
+});
+
+/**
+ * Finishing a release that was killed, which is #344 and has now happened twice.
+ *
+ * v0.99.0 died at `gh pr create` on a rate limit; v0.99.1 died an hour later, between the merge and
+ * the tag, because the machine ran out of memory. Both left the same wreckage — a bumped chart, a
+ * release branch, no tag and therefore no image — and both times running the tool again made it
+ * worse rather than better: it read the version off the file the killed run had already written and
+ * tried to cut the *next* one, leaving the half-finished release behind for ever.
+ *
+ * What is held here is the arithmetic of picking up. The side effects are not a thing a test can
+ * have — they push branches and cut tags — but which steps are left, and which release a run is
+ * for, are answers rather than actions.
+ */
+describe('a release that was killed part way', () => {
+  const at = (done: Partial<Stands>): Stands => ({
+    version: '0.99.1', committed: false, pushed: false, request: null,
+    merged: null, tagged: false, published: false, ...done,
+  });
+
+  it('has everything to do when nothing has been done', () => {
+    expect(whatIsLeft(at({})))
+      .toEqual(['commit', 'push', 'request', 'merge', 'tag', 'publish', 'stamp']);
+  });
+
+  /* v0.99.0: the branch was pushed and `gh pr create` died on the GraphQL quota. */
+  it('opens the request that was never opened, and does not commit again', () => {
+    expect(whatIsLeft(at({ committed: true, pushed: true })))
+      .toEqual(['request', 'merge', 'tag', 'publish', 'stamp']);
+  });
+
+  /* v0.99.1: merged onto main, and killed before the tag. */
+  it('tags a merge that already happened rather than merging it twice', () => {
+    expect(whatIsLeft(at({ committed: true, pushed: true, request: 343, merged: '0924fedd' })))
+      .toEqual(['tag', 'publish', 'stamp']);
+  });
+
+  it('publishes a tag that is already pushed, because the image is what was missing', () => {
+    expect(whatIsLeft(at({ committed: true, pushed: true, request: 343, merged: '0924fedd', tagged: true })))
+      .toEqual(['publish', 'stamp']);
+  });
+
+  /*
+   * The line, and why it is a line. Asking each step on its own and skipping the ones that answer
+   * yes would let a run push a tag for a request that never merged — a tag can be made at any time,
+   * and only the order says it should not be.
+   */
+  it('takes the first step that is missing and everything after it, in order', () => {
+    expect(whatIsLeft(at({ committed: true, pushed: true, tagged: true, published: true })))
+      .toEqual(['request', 'merge', 'tag', 'publish', 'stamp']);
+  });
+
+  /*
+   * And the stamping, which is last and is always run. It is the one part that reads what it has
+   * already written — `alreadyTold` — so it cannot say a thing twice, and a release finished by
+   * hand half way is exactly the run that never reached it.
+   */
+  it('stamps the issues even when every other part of it is done', () => {
+    expect(whatIsLeft(at({
+      committed: true, pushed: true, request: 343, merged: '0924fedd', tagged: true, published: true,
+    }))).toEqual(['stamp']);
+  });
+});
+
+/**
+ * Which release a run is for, when the branches say more than one was started.
+ *
+ * A release branch is never deleted here, so the branches are the whole history of what has been
+ * cut and their presence alone says nothing. A *published* release is what finished means: it is
+ * the thing that builds the image, and the chart pinning a version with no image is the failure
+ * this is all about.
+ */
+describe('the release that was started and never finished', () => {
+  const published = (...versions: string[]): Set<string> => new Set(versions);
+
+  it('is nothing when the newest one that was cut went out', () => {
+    expect(theUnfinishedOne(['0.98.0', '0.99.0', '0.99.1'], published('0.98.0', '0.99.0', '0.99.1')))
+      .toBeNull();
+  });
+
+  it('is the newest branch when no release was ever published for it', () => {
+    expect(theUnfinishedOne(['0.98.0', '0.99.0', '0.99.1'], published('0.98.0', '0.99.0')))
+      .toBe('0.99.1');
+  });
+
+  /*
+   * An old branch with nothing behind it, under a newer release that shipped, is history rather
+   * than a job. Going back to finish it would tag a version the world has already moved past.
+   */
+  it('leaves an old unpublished branch alone once something newer has shipped', () => {
+    expect(theUnfinishedOne(['0.98.0', '0.99.0'], published('0.99.0'))).toBeNull();
+  });
+
+  it('reads the versions as numbers, so 0.10.0 is newer than 0.9.0', () => {
+    expect(theUnfinishedOne(['0.9.0', '0.10.0'], published('0.9.0'))).toBe('0.10.0');
+    expect(theUnfinishedOne(['0.9.0', '0.10.0'], published('0.10.0'))).toBeNull();
+  });
+
+  it('is nothing at all in a repository that has never cut one', () => {
+    expect(theUnfinishedOne([], published())).toBeNull();
+  });
+});
+
+/**
+ * And the narrowest window of all: killed after the files were written and before the commit.
+ *
+ * That leaves `main` dirty, and the old tool refused to start with a message about uncommitted
+ * changes that said nothing about what had happened. Those five files and nothing else is a shape
+ * only this tool makes — anything else is somebody's afternoon and is never touched.
+ */
+describe('a tree left dirty by a killed release', () => {
+  const porcelain = (...lines: string[]): string => lines.join('\n');
+
+  it('is recognised when every changed file is one a release writes', () => {
+    expect(isTheWreckage(porcelain(
+      ' M chart/Chart.yaml', ' M package.json', ' M CHANGELOG.md', ' M README.md',
+    ), FILES_A_RELEASE_WRITES)).toBe(true);
+  });
+
+  it('is recognised when it got only as far as the first file', () => {
+    expect(isTheWreckage(' M chart/Chart.yaml', FILES_A_RELEASE_WRITES)).toBe(true);
+  });
+
+  it('is not the wreckage when one other file has been touched as well', () => {
+    expect(isTheWreckage(porcelain(' M chart/Chart.yaml', ' M src/main.ts'), FILES_A_RELEASE_WRITES))
+      .toBe(false);
+  });
+
+  it('is not the wreckage when something was added rather than changed', () => {
+    expect(isTheWreckage('?? notes.txt', FILES_A_RELEASE_WRITES)).toBe(false);
+  });
+
+  it('is not the wreckage when one of the five was renamed away', () => {
+    expect(isTheWreckage('R  README.md -> docs/README.md', FILES_A_RELEASE_WRITES)).toBe(false);
+  });
+
+  it('is nothing to put back when the tree is clean', () => {
+    expect(isTheWreckage('', FILES_A_RELEASE_WRITES)).toBe(false);
+  });
+});
+
+/**
+ * And the refusal, read off the source for the same reason as the order above: a release is not a
+ * thing a test can run, but what it will not do is written down in one place.
+ */
+describe('a release asked to cut a new version over an unfinished one', () => {
+  const here = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const source = readFileSync(join(here, 'tools/release.ts'), 'utf8');
+
+  it('refuses, and says which one is unfinished', () => {
+    expect(source).toContain('was started and never finished, so ${asked} cannot be cut yet');
+  });
+
+  it('finishes the unfinished one rather than reading the version off a file it wrote', () => {
+    expect(source).toContain('const version = unfinished ?? nextVersion(asked as string, now);');
   });
 });
