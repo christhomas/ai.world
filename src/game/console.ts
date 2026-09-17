@@ -196,26 +196,45 @@ export function openConsole(ctx: Consoled) {
    */
   const jumpTo = (x: number, z: number): void => {
     /*
-     * Only asked of a world with edges, and that limit is the point rather than an oversight.
+     * A jump that is asked for from indoors walks out of the door first.
      *
-     * Out of doors, ground that has not arrived reads exactly like ground that does not exist —
-     * `heightAt` is null for a chunk nobody has streamed yet — so asking this question on the
-     * surface refuses perfectly good jumps to anywhere the player has not already been. Which is
-     * what it did: the playtest teleports across the county before the county is built, and this
-     * turned that into an error the moment it landed. The surface settles a hero when the ground
-     * turns up, as it always has.
+     * It used to refuse — *"you are inside the Bakker house, and there is no 46, 84 in here"* —
+     * which was right about the fact and wrong about what to do with it. A hero standing in a
+     * kitchen who is told to go to a hillside means *go to the hillside*; being indoors is a thing
+     * to deal with on the way rather than a reason to stay. Refusing also made every check that
+     * happened to end indoors poison the next one, which is what it actually cost.
      *
-     * A dungeon floor, an interior and a keep are all made before you are in them and never grow,
-     * so there the question has an answer and the answer is worth having.
+     * Asked of the interior first, because a point that *is* in here is a move across this room
+     * and leaving would be absurd. Only a point that is not in this world at all sends him out.
      */
     const here = placeName();
     if (here !== 'surface' && !player.groundNear(x, z)) {
-      throw new Error(`you are inside ${here}, and there is no ${Math.round(x)}, ${Math.round(z)} in here — climb out first`);
+      if (places.indoors) places.leaveBuilding();
+      else if (places.underground) places.exitDungeon();
+    }
+    /*
+     * And it lands somewhere a hero can stand.
+     *
+     * `spaceNear` has known where the nearest clear tile is the whole time — `groundNear` ran that
+     * exact search and threw the answer away to return a boolean. A jump to a tile with a tree on
+     * it used to put the hero in the tree and leave the collider to shove him out sideways a frame
+     * at a time, which reads as the world pushing him about.
+     *
+     * Out of doors a refusal is still wrong, and for the old reason: ground that has not been
+     * streamed reads exactly like ground that does not exist, so a jump across the county before
+     * the county is built finds nothing and is perfectly good. The surface settles a hero when the
+     * ground turns up, as it always has. Indoors the floor is made before you are in it, so
+     * nothing found there means nothing there.
+     */
+    const room = player.roomAt(x, z);
+    const onto = room ?? { x, z };
+    if (!room && placeName() !== 'surface') {
+      throw new Error(`there is nowhere to stand at ${Math.round(x)}, ${Math.round(z)} in here`);
     }
     beam.leaves(player.entity);
-    player.teleport(x, z);
+    player.teleport(onto.x, onto.z);
     beam.arrives(player.entity);
-    iso.target.set(x, 0.5, z);
+    iso.target.set(onto.x, 0.5, onto.z);
   };
 
   const namedPlace = (like: string): { name: string; kind: string; x: number; z: number } | null => {

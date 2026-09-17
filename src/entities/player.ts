@@ -140,7 +140,22 @@ export class Player {
    * A jump that cannot land is better refused with a sentence than taken.
    */
   groundNear(x: number, z: number): boolean {
-    return spaceNear(this.world, this.entity.kind, x, z) !== null;
+    return this.roomAt(x, z) !== null;
+  }
+
+  /**
+   * Somewhere near here a hero can actually stand, or nothing at all.
+   *
+   * The same search `groundNear` has always run, handing back what it found instead of throwing it
+   * away. A jump asked for a tile with a tree on it used to land the hero in the tree and leave the
+   * collider to shove him out sideways, one frame at a time, which reads as the world pushing him
+   * about; the ring has known where the nearest clear tile is the whole time.
+   *
+   * `spaceNear` is `walking.ts`'s and answers both halves of the question — is this ground, and is
+   * anything standing on it — which is exactly the pair a landing wants.
+   */
+  roomAt(x: number, z: number): { x: number; z: number } | null {
+    return spaceNear(this.world, this.entity.kind, x, z);
   }
 
   /**
