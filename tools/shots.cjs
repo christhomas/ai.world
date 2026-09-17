@@ -40,6 +40,20 @@ const PORT = process.env.PORT || '5173';
  * and `BROWSER=/path/to/one` covers the machine that has neither.
  */
 const CHANNEL = process.env.CHANNEL ?? 'chrome';
+
+/**
+ * How long anything here is allowed to take, in milliseconds.
+ *
+ * Playwright's own thirty seconds, and a minute for a world to raise itself, are right for the
+ * machine this was written on and are not a property of the game. On a small ARM box with no GPU —
+ * where chromium falls back to a software rasteriser — a dev-mode page takes half a minute to load
+ * and a world a good two more to become driveable, and every one of those numbers is exceeded
+ * before anything has gone wrong. The run then fails with a timeout that reads like a broken game.
+ *
+ * So the budget is one number and it can be raised: `PATIENCE=500000 chore shots mountain`. The
+ * default is what it always was, so nothing changes for anybody already able to run this.
+ */
+const PATIENCE = Number(process.env.PATIENCE || 0);
 const OUT = process.env.OUT || 'docs/screenshots';
 /*
  * Which way to draw, so the same seed and the same camera can be shot both ways and the judgement
@@ -290,7 +304,19 @@ const SHOTS = [
      * range"*. The framing here is a starting point and wants an eye on it: `away` and the zoom are
      * the two numbers to move.
      */
-    name: 'mountain', title: 'The rock, from the country at its foot', settle: 3500,
+    /*
+     * And the endless country, because the road tree has no mountains to photograph.
+     *
+     * Every shot here defaults to `world: 'road'`, and this one inherited that and could therefore
+     * never fire: a road-tree world is not `shaped`, so its high ground is `massifs` — and
+     * `planMassifs` puts none on seed 3. `ranges` is null there by construction. So the search
+     * below found nothing, said "nothing to photograph in this world today", and went on saying it
+     * for as long as the shot has existed. There has never been a `mountain.png`.
+     *
+     * The massif #307 is about is the polygon country's, which is where `ranges.peaks` comes from
+     * and where Stonecrown Highlands stands. That is the world this has to be taken in.
+     */
+    name: 'mountain', title: 'The rock, from the country at its foot', world: 'endless', settle: 3500,
     setup: async (p, { time, zoom, stand, face, ask }) => {
       await time(NOON);
       const peak = await ask(() => {
@@ -681,8 +707,9 @@ process.on('exit', stopWorld);
  */
 async function playerJoins(browser, seed, villages = 3) {
   const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
+  if (PATIENCE) page.setDefaultTimeout(PATIENCE);
   await page.goto(`${origin}/?seed=${seed}&server=ws://localhost:${WORLD_PORT}`, { waitUntil: 'load' });
-  await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: 60000 });
+  await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE) });
   await page.waitForTimeout(LOADING);
   // the address is in the box already — `?server=` fills it — and pressing connect is what leaves
   // the world in this tab for the one on the server
@@ -708,6 +735,7 @@ async function playerJoins(browser, seed, villages = 3) {
 /** Take one, and say what happened. */
 async function take(browser, shot) {
   const page = await browser.newPage({ viewport: shot.viewport ?? VIEW });
+  if (PATIENCE) page.setDefaultTimeout(PATIENCE);
   if (RIG) {
     await page.addInitScript((on) => {
       try { localStorage.setItem('ai.world/new/composer', on); } catch { /* no storage, no switch */ }
@@ -754,7 +782,7 @@ async function take(browser, shot) {
     if (shot.join) { await startWorld(); playing = await playerJoins(browser, seed, 1); }
     const joining = shot.join ? `&server=ws://localhost:${WORLD_PORT}` : '';
     await page.goto(`${origin}/?world=${world}&seed=${seed}${shot.touch ? '&touch=1' : ''}${joining}`, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: 60000 });
+    await page.waitForFunction(() => typeof window.__teleport === 'function', null, { timeout: Math.max(60000, PATIENCE) });
     await page.waitForTimeout(shot.loading ?? LOADING);
     if (shot.join) {
       // `?server=` only fills the box. The button is what leaves the world in this tab for the one
