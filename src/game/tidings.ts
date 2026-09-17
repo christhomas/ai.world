@@ -1,3 +1,4 @@
+import type { Ore } from './ore';
 import { hashString, mulberry32 } from '../core/rng';
 import { give, purseOf } from '../world/deeds';
 import { postsToday, turnedAway, type Held, type Post } from '../world/postings';
@@ -43,6 +44,8 @@ export interface Telling {
   roaming: Roaming;
   nemesis: Nemesis;
   mines: Mines;
+  /** And what each village has kept out of them for its own forge. See `ore.ts`. */
+  ore: Ore;
   online: Online;
   remains: Remains;
   sound: Sound;
@@ -68,7 +71,7 @@ export interface Telling {
 
 export function createTidings(ctx: Telling) {
   const {
-    seed, state, player, places, structures, around, sampler, register, roaming, nemesis, mines, online,
+    seed, state, player, places, structures, around, sampler, register, roaming, nemesis, mines, ore, online,
     remains, sound, director, claimed, villageLuxury, discovered, realm, builderDay, villageNights,
     say, flash, persist,
   } = ctx;
@@ -310,7 +313,17 @@ export function createTidings(ctx: Telling) {
      * their dinner and their upkeep the way anybody else's money does — which is the whole reason
      * to mint it there rather than crediting a village a number nobody spends.
      */
-    for (const dug of mines.advance(state.day, minesWorked(), (v) => register.living(v))) {
+    /*
+     * Which villages keep stone back, which is the ones with somewhere to work it.
+     *
+     * A fact about the ground rather than about the day, so it is worked out once per catch-up
+     * rather than per mine per morning — `structures.villages` does not change while a day is
+     * being lived.
+     */
+    const forges = new Set(structures.villages.filter((v) => v.shops?.some((shop) => shop.type === 'smith')).map((v) => v.name));
+    for (const dug of mines.advance(state.day, minesWorked(), (v) => register.living(v), (v) => forges.has(v))) {
+      // the stone goes on the heap by the adit, which is what a smith will work from
+      if (dug.ore > 0) ore.land(dug.village, dug.ore);
       if (dug.lost) {
         // what he had on him was minted this morning and is now on the floor where he fell, which
         // is the only reason anybody would go down a mine that has just killed somebody

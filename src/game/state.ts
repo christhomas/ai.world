@@ -1,3 +1,4 @@
+import type { OreJson } from './ore';
 import { daysAway } from '../world/awaytime';
 import { whatDyingCosts, type Bill } from '../world/reckoning';
 import { AWAY, buy, holds } from '../world/deeds';
@@ -78,6 +79,13 @@ export interface GameStateJson {
    * have already been lived. Written by main.ts at save time the way `gifts` and `jail` are.
    */
   mines?: MinesJson;
+  /**
+   * What each village has kept by its forge, in pieces of ore.
+   *
+   * Beside the mines because that is where it came from. Absent on a save from before there were
+   * forges, which reads as every heap empty — correct, because none of them had been filled.
+   */
+  ore?: OreJson;
   /** Where the hero stands between good and evil, as one number. */
   standing?: number;
   practice?: number;

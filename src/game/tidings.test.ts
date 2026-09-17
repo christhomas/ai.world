@@ -1,3 +1,4 @@
+import { Ore } from './ore';
 import { describe, expect, it } from 'vitest';
 import { aroundOf } from '../world/around';
 import { Register } from '../world/register';
@@ -83,6 +84,7 @@ function telling(around: Around = {}) {
   };
 
   const ctx: Telling = {
+    ore: new Ore(),
     seed: 1,
     state,
     player: { x: 0, z: 0 } as unknown as Player,
