@@ -258,6 +258,80 @@ const SHOTS = [
     },
   },
   {
+    /*
+     * The mountain, from its own foot.
+     *
+     * #307 asked for this by name — *"`tools/` has no mountain shot and should get one, since every
+     * argument about this is an argument about how it looks"* — and it is right that it should: the
+     * whole of that item is four claims about a picture (it is too dark, its facets have no
+     * contrast, there is no snow on it, it meets the ground at a seam) and none of them can be
+     * settled by reading a constant.
+     *
+     * Stood at the foot and looking up, rather than on top of it. All four complaints are about the
+     * flank and the line where the rock meets the country, and from the summit there is no country
+     * in the picture to compare it against.
+     *
+     * The massif is found rather than named: a shot with coordinates in it would photograph a
+     * hillside on the next seed, and `__sampler` carries whichever kind of high ground this world
+     * grew — `ranges.peaks` for the endless country, `massifs` for a world that plans them.
+     *
+     * Two things this turned up on the day it was written, both worth knowing before anybody argues
+     * about the numbers in `render/mountains.ts`:
+     *
+     * The **road world has no mountains at all**. `sampler.ranges` is null and `sampler.massifs` is
+     * empty, so `highPlaces` in `country.ts` is empty and there is nothing to photograph. This shot
+     * returns null there, which is the supported "not today" — but it means every picture in #307
+     * is a picture of the endless country whether or not it says so.
+     *
+     * And on seed 3 the tallest peak within nine hundred tiles of the middle lifts about nineteen
+     * terraces, which is under ten world units — high ground with a snow line on it rather than the
+     * grey slab the issue's own picture shows. Which is the player's complaint in #307 almost word
+     * for word: *"dimensionally small… almost like a pointy hill rather than a sprawling mountain
+     * range"*. The framing here is a starting point and wants an eye on it: `away` and the zoom are
+     * the two numbers to move.
+     */
+    name: 'mountain', title: 'The rock, from the country at its foot', settle: 3500,
+    setup: async (p, { time, zoom, stand, face, ask }) => {
+      await time(NOON);
+      const peak = await ask(() => {
+        const sampler = window.__sampler;
+        const ranges = sampler?.ranges;
+        const highs = ranges
+          ? ranges.peaks.map((one) => ({ x: one.x, z: one.z, height: one.lift }))
+          : (sampler?.massifs ?? []).map((one) => ({ x: one.x, z: one.z, height: one.height }));
+        // the tallest within a walk of the middle: the tallest anywhere may be a patch away in the
+        // endless country, and a shot of country that has to be grown first is a shot of fog
+        const near = highs.filter((one) => Math.hypot(one.x, one.z) < 900);
+        return near.sort((a, b) => b.height - a.height)[0] ?? null;
+      });
+      if (!peak) return null;                    // a seed with no mountain near the middle: not today
+      /*
+       * A hundred and fifty tiles off, on whichever side of it is dry.
+       *
+       * Far enough out to be standing on ordinary country — the seam where rock meets ground is
+       * half of what this photographs — and close enough that the rock fills the frame rather than
+       * sitting on the horizon. The side is looked for rather than chosen: the first version walked
+       * back along the line to the origin and put the hero in the sea, because a peak nearer the
+       * middle than the standing distance is a peak you walk *past* doing that.
+       */
+      const away = 70;
+      const sides = [[1, 1], [-1, 1], [1, -1], [-1, -1], [1, 0], [0, 1], [-1, 0], [0, -1]];
+      const spot = await ask(([peak, away, sides]) => {
+        for (const [dx, dz] of sides) {
+          const len = Math.hypot(dx, dz) || 1;
+          const x = peak.x + (dx / len) * away, z = peak.z + (dz / len) * away;
+          if (window.__solid && window.__solid(x, z)) return { x, z };
+        }
+        return null;
+      }, [peak, away, sides]);
+      if (!spot) return null;                    // a mountain standing in the sea: not this one
+      await stand(spot.x, spot.z, 6000);
+      await zoom(26);
+      await face(peak.x, peak.z);
+      return `${away} tiles from a peak ${Math.round(Math.hypot(peak.x, peak.z))} out`;
+    },
+  },
+  {
     name: 'health', title: 'What is left of a wolf, and of you', settle: 2000,
     setup: async (p, { village, time, zoom, ask, key, stand, face, wait }) => {
       /*
