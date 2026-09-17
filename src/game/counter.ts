@@ -204,13 +204,15 @@ function addressMenu(s: Counter, itemId: string): DialogueNode {
 
 /** What they are asking today, which is the price plus whatever they think of you. */
 
-function asking(s: Counter, item: { price: number; effect?: unknown; slot?: unknown }): number {
+function asking(s: Counter, item: { price: number; effect?: unknown; slot?: unknown; id?: string }): number {
   const register = s.ctx.register ?? null;
   return askingFor(
     item,
     register?.larderOf(s.village) ?? 0,
     register?.living(s.village) ?? [],
     s.ctx.markup ?? 0,
+    // and what this village's own shelf does to it, for the things this village makes
+    item.id ? s.ctx.forge?.dearness(s.village, item.id) ?? 1 : 1,
   );
 }
 
@@ -268,7 +270,7 @@ function buyOne(s: Counter, id: string): DialogueNode {
   }
   // food comes off the village's own shelf, and if it is not there it is not for sale. Asked
   // before the money moves; see `offTheShelf` in `shopprice.ts` for why that order matters
-  if (!offTheShelf(ctx.register ?? null, s.village, item)) {
+  if (!offTheShelf(ctx.register ?? null, s.village, item, ctx.forge ?? null)) {
     return across(s, [`We're out of that, friend. ${s.village} has none to spare today.`], [
       { label: 'Back', next: () => buyMenu(s) },
       { label: 'Leave', next: () => null },

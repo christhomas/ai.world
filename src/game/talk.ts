@@ -38,6 +38,14 @@ export interface TalkCtx {
   markup?: number;
   /** Being patched up, which only a doctor can offer. */
   mending?: Mending;
+  /**
+   * The village's own shelf of gear, for what its smith has made.
+   *
+   * A sword a village forged comes off this and runs out; a steel sword somebody carried here has
+   * the catalogue's infinite shelf, exactly as everything did before there was a maker. See
+   * `forge.ts`.
+   */
+  forge?: { take(village: string, id: string): boolean; dearness(village: string, id: string): number };
   /** What country this counter stands in: a fur is worth more in one with no wolves. See `furs.ts`. */
   country?: () => Biome;
   /**

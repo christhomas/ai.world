@@ -1,4 +1,5 @@
 import type { OreJson } from './ore';
+import type { ForgeJson } from './forge';
 import { daysAway } from '../world/awaytime';
 import { whatDyingCosts, type Bill } from '../world/reckoning';
 import { AWAY, buy, holds } from '../world/deeds';
@@ -86,6 +87,8 @@ export interface GameStateJson {
    * forges, which reads as every heap empty — correct, because none of them had been filled.
    */
   ore?: OreJson;
+  /** And what each village's smith has made out of it, by item. Absent before there were forges. */
+  forge?: ForgeJson;
   /** Where the hero stands between good and evil, as one number. */
   standing?: number;
   practice?: number;

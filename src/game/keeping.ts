@@ -1,3 +1,4 @@
+import { Forge } from './forge';
 import { Ore } from './ore';
 import type { Manifest } from '../world/manifest';
 import type { SaveStore, SessionSave } from '../save/store';
@@ -106,6 +107,8 @@ export function openTheSave(ctx: Keeping) {
    * beside is the only version of this that does not mint matter.
    */
   const ore = Ore.from(saved?.state?.ore, state.day);
+  /** And what each village's smith has made out of it, on a shelf that can run out. See `forge.ts`. */
+  const forge = Forge.from(saved?.state?.forge);
   const plots = new Plots(saved?.state?.plots);
   /** The builder you are holding, and every house you have had put up. */
   const houses = Houses.from(saved?.state?.houses, state.day);
@@ -118,7 +121,7 @@ export function openTheSave(ctx: Keeping) {
       worldName,
       cam: cam(),
       player: at(),
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save(), ore: ore.toJSON() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save(), ore: ore.toJSON(), forge: forge.toJSON() },
       manifest: manifest.toJSON(),
       nemesis: nemesis.toJSON(),
       roaming: roaming.save(),
@@ -127,7 +130,7 @@ export function openTheSave(ctx: Keeping) {
   };
 
   return {
-    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore,
+    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
     plots, houses, sailing, mount, persist,
   };
 }

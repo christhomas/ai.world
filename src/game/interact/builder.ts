@@ -62,6 +62,11 @@ function woodcuttersFor(people: readonly { trade: string }[]): number {
   return people.filter((person) => person.trade === 'woodcutter').length;
 }
 
+/** And the men at the forge, counted the same way and for the same reason. */
+function smithsFor(people: readonly { trade: string }[]): number {
+  return people.filter((person) => person.trade === 'smith').length;
+}
+
 /**
  * Where to go and stand to say where it goes, in the builder's own words.
  *
@@ -266,7 +271,7 @@ function launchHer(ctx: Surroundings, job: Commission, day: number): void {
 export function builderInteractions(ctx: Surroundings) {
   const {
     player, state, structures, sampler, chunks, houses, grudges, register, dialogue, hud, sound,
-    persist, seed,
+    persist, seed, ore, forge,
   } = ctx;
   /** The world day with its fraction, which is what a thing being built actually measures. */
   const today = (): number => buildingDay(ctx);
@@ -626,6 +631,23 @@ export function builderInteractions(ctx: Surroundings) {
     for (const village of register.settled()) {
       const before = houses.yard.at(village);
       houses.yard.felledThrough(village, woodcuttersFor(register.living(village)), day);
+      /*
+       * And the forge, which is the other end of the same morning.
+       *
+       * Here for the reason the felling is here: this is the one callback that already runs once a
+       * day per village and already holds the register, the yard and the heap. A smith works
+       * whether or not anybody walks in — that is what stocks the shelf of a village nobody has
+       * visited, and it is the whole difference between a forge and a shop.
+       *
+       * The draw is handed in rather than done first, so a morning short of ore or timber spends
+       * neither: `workThrough` asks for the materials only once it knows what it is making.
+       */
+      const folk = register.living(village);
+      if (forge.workThrough(seed, village, day, smithsFor(folk), { ore: ore.at(village), timber: houses.yard.at(village) },
+        (wantsOre, wantsTimber) => {
+          if (ore.shortBy(village, wantsOre) > 0 || houses.yard.shortBy(village, wantsTimber) > 0) return false;
+          return ore.draw(village, wantsOre) && houses.yard.draw(village, wantsTimber);
+        })) yardChanged = true;
       const stable = register.commissionStable(village, houses.yard);
       if (stable) houses.rememberStablePurchase(stable);
       if (stable || houses.yard.at(village) !== before) yardChanged = true;

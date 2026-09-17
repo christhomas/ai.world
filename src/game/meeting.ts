@@ -1,3 +1,4 @@
+import type { Forge } from './forge';
 import { turnToFace, type Entity } from '../entities/entity';
 import { buy, holds } from '../world/deeds';
 import { heroOf } from '../world/health';
@@ -88,6 +89,8 @@ export interface Meeting {
    */
   indoors: () => Doorway | null;
   flash: (message: string) => void;
+  /** What each village's smith has made, on a shelf that can run out. See `forge.ts`. */
+  forge: Forge;
   persist: () => void;
   /**
    * Put the world away and go back to the title screen.
@@ -103,7 +106,7 @@ export function createMeeting(ctx: Meeting) {
   const {
     state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue,
     rng, quests, villageWelcome, wordOfHim, saidOfMine, indoors, flash, persist, countryAt, landWood,
-    toTitle,
+    toTitle, forge,
   } = ctx;
 
   /**
@@ -185,6 +188,9 @@ export function createMeeting(ctx: Meeting) {
           : `You sit in the corner until somebody has time for you. It is ${state.clock().split('·')[1].trim()} by the time you are out, and you are whole again.`;
       },
     };
+    // the village's own shelf of gear, so a sword a smith made here can run out and a sword
+    // somebody carried here cannot. See `forge.ts`.
+    talkCtx.forge = forge;
     // a bed for the night, and in a shared world the night that cannot be skipped
     talkCtx.room = {
       price: bed,

@@ -1,3 +1,5 @@
+import type { Ore } from '../ore';
+import type { Forge } from '../forge';
 import type { ChunkManager } from '../../world/chunkManager';
 import type { EntityManager } from '../../entities/manager';
 import type { EntityRenderer } from '../../entities/pool';
@@ -108,6 +110,10 @@ export interface Surroundings {
   plots: Plots;
   /** The builder you are holding, and every house you have had put up. */
   houses: Houses;
+  /** The stone each village keeps by its adit, which its smith works from. See `ore.ts`. */
+  ore: Ore;
+  /** And what he has made out of it, on a shelf that can run out. See `forge.ts`. */
+  forge: Forge;
   /**
    * What each village holds against you, which owing a builder for a finished house adds to. Kept
    * apart from the good and evil scale for the same reason a dead cow is: not paying for a house
