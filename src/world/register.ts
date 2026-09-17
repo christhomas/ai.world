@@ -4,18 +4,17 @@ import { holdsFor } from './roofs';
 import { LIVELIHOOD, aDaysDinner, aDaysTrade, type Trading } from './livelihoods';
 import { fillTheGaps } from './births';
 import { type Sworn } from './vacancies';
-import { OathBook } from './oathbook';
 import type { SwornIn } from '../../server/protocol';
 import { mayorOf, taxedForTheHall } from './hall';
 import { Pressings } from './pressing';
 import { whatTheVillageSpends } from './growth';
 import { type Rank, type TownVote } from './rank';
-import { enactVote, foundingRank, type Ballot } from './votes';
-import { VoteBook } from './votebook';
+import { foundingRank, type Ballot } from './votes';
 import { doctoredBy, laidUpFor } from './wounds';
 import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
 import { Arrivals, swornTrades, type Arrival } from './arrivals';
+import { Tellings, type Telling } from './telling';
 import { aCarrierWalks } from './carriers';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
@@ -65,15 +64,11 @@ export class Register {
   }
 
   /**
-   * Who was killed, and on which day. A violent death is the one thing about a village that
-   * cannot be worked out from the seed, so it is kept — and kept by day, because *when* somebody
-   * died decides how many children the village had afterwards. A death that arrives late is
-   * written in here and the village lived again from the beginning, which is cheap and exactly
-   * right, rather than being bolted on to today and quietly disagreeing with everyone else.
+   * The killings, the declarations and the oaths: everything true of a village and derivable from
+   * nothing. One book because they are one idea, and they are replayed through one door. See
+   * `telling.ts`, which also holds what writing one into a living country does.
    */
-  private readonly killed = new Map<string, number>();
-  /** Votes survive re-living, one told fact for each declaration in each place. */
-  private readonly votes = new VoteBook();
+  private readonly telling = new Tellings();
   /** The days a shrine raised somebody, by village — the copy that survives a re-living. */
   private readonly magicked = new Map<string, number[]>();
   /** Farmer stable commissions, told from the kept timber yard and replayed on their morning. */
@@ -88,8 +83,6 @@ export class Register {
    * on the morning this starts being kept — see `deedsAfter`.
   */
   private readonly deeded = new Map<string, Deed[]>();
-  /** Told oaths survive re-living because a seed cannot predict who walked in. */
-  private readonly swornIn = new OathBook();
   /** The last whole day the register has caught up to. */
   /** Physical ground is supplied by the country; the register only records its deterministic answer. */
   private fieldSurvey: ((village: string, settlement: Settlement) => FieldClearing | null) | null = null;
@@ -119,7 +112,7 @@ export class Register {
       seed: this.seed,
       get today() { return book.day; },
       pressureOn: (village, on) => this.pressure.on(village, on),
-      killedOn: (id) => this.killed.get(id),
+      killedOn: (id) => this.telling.killedOn(id),
       taxed: (id, much) => { this.book.tax(id, much); },
       waged: (id, much) => { this.book.wage(id, much); },
       stableBought: (village, on) => this.stables.on(village, on),
@@ -202,7 +195,7 @@ export class Register {
       deeds: [...(this.deeded.get(village) ?? [])],
       // nor has anybody walked in off the road and taken work here. An oath survives a re-founding
       // the way a raising does, and the day reads this copy; see `swearIn`
-      sworn: this.swornIn.of(village),
+      sworn: this.telling.oathsOf(village),
       // a few head to build a herd out of, so a new village has something in its paddock on the
       // morning it is founded rather than an empty yard and a month to wait
       herd: farmers * LIVELIHOOD.FIRST_HERD,
@@ -210,7 +203,7 @@ export class Register {
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
-      this.votes.applyOn(village, settlement, day);
+      this.telling.votedOn(village, settlement, day);
     }
     return settlement.people;
   }
@@ -449,7 +442,7 @@ export class Register {
       this.book.clear();
       for (const [name, village] of this.villages) {
         changes.push(...liveADay(this.theDay, name, village, this.day));
-        this.votes.applyOn(name, village, this.day);
+        this.telling.votedOn(name, village, this.day);
       }
       // and one cart goes over the hill, now that every village has worked and eaten. Why it is
       // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
@@ -502,7 +495,7 @@ export class Register {
    */
   directoryOf(village: string): { holding: Map<string, string[]>; nobodyDoing: string[]; sworn: Sworn[] } {
     const here = this.villages.get(village);
-    return this.swornIn.directory(here?.trades ?? [], here?.people ?? [], village);
+    return this.telling.directory(here?.trades ?? [], here?.people ?? [], village);
   }
 
   /** Who walked into a village rather than being born in it. See `arrivals.ts`. */
@@ -532,9 +525,6 @@ export class Register {
     return this.apply(told) ? told : null;
   }
 
-  /** Every oath this register holds, as told facts, for a save to write down. See `apply`. */
-  oaths(): SwornIn[] { return this.swornIn.all(); }
-
   /**
    * Who lives in which house here, deeds and all. Item 111.
    *
@@ -563,11 +553,11 @@ export class Register {
   rankOf(village: string): Rank { return this.villages.get(village)?.rank ?? 'hamlet'; }
 
   /** The next motion that can be called here, and who may cast it. See `votebook.ts`. */
-  ballotOf(village: string): Ballot | null { return this.votes.ballot(this.villages.get(village)); }
+  ballotOf(village: string): Ballot | null { return this.telling.ballot(this.villages.get(village)); }
 
   /** Call the local vote. The caller supplies the player's aye by choosing it in the hall. */
   vote(village: string, day = this.day): TownVote | null {
-    return this.votes.call(village, this.villages.get(village), day);
+    return this.telling.call(village, this.villages.get(village), day);
   }
 
   /** Who is standing on this village's tower today, or nobody. See `whoStandsWatch`. */
@@ -605,51 +595,24 @@ export class Register {
   bury(id: string, day = this.day): Change | null {
     const person = this.find(id);
     if (!person) return null;
-    this.killed.set(id, Math.floor(day));
+    this.telling.killedNow(id, Math.floor(day));
     return this.remove(person, Math.floor(day), 'violence');
   }
 
-  /** Apply a told death or vote, preserving facts that cannot be reconstructed by re-living. */
-  apply(change: Change | TownVote | SwornIn): boolean {
-    // Oaths are dated and keyed so the ordinary wire-plus-save duplicate writes only once.
-    if (change.kind === 'sworn') {
-      if (Math.floor(change.day) > this.day) return false;
-      const oath = this.swornIn.take(change.village, change.trade, change.who, change.day);
-      if (!oath) return false;
-      const here = this.villages.get(change.village);
-      if (!here) return true;              // nobody has settled it; kept for the morning they do
-      // A late oath changes later apprenticeships, so replay rather than patching today's village.
-      if (oath.day === this.day) { here.sworn.push(oath); swornTrades(here, here.sworn); return true; }
-      this.relive(change.village);
-      return true;
-    }
-    if (change.kind === 'voted') {
-      const voted = { ...change, day: Math.floor(change.day) };
-      if (this.votes.has(voted) || !Number.isFinite(voted.day) || voted.day > this.day) return false;
-      const here = this.villages.get(voted.village);
-      if (here && voted.day === this.day) {
-        if (!enactVote(here, voted)) return false;
-        this.votes.keep(voted);
-        return true;
-      }
-      this.votes.keep(voted);
-      if (!here) return true;
-      this.relive(voted.village);
-      if (this.villages.get(voted.village)?.rank === voted.rank) return true;
-      // An invalid historical vote is not allowed to reserve its key. Re-live once more without it.
-      this.votes.drop(voted);
-      this.relive(voted.village);
-      return false;
-    }
-    if (change.kind !== 'died' || this.killed.has(change.id)) return false;
-    this.killed.set(change.id, change.day);
-
-    const here = this.find(change.id);
-    if (here && change.day >= this.day) { this.remove(here, change.day, 'violence'); return true; }
-
-    const village = change.village || here?.village || '';
-    if (this.villages.has(village)) this.relive(village);
-    return true;
+  /**
+   * Apply a told death, declaration or oath. See `telling.ts` — this is the country it writes into.
+   *
+   * The register lends the book five things and nothing else: what day it is, how to look a village
+   * or a person up, how to take somebody off the roll, and how to found a place again.
+   */
+  apply(change: Telling): boolean {
+    return this.telling.apply(change, {
+      today: this.day,
+      at: (village) => this.villages.get(village),
+      relive: (village) => { this.relive(village); },
+      find: (id) => this.find(id),
+      takeOff: (person, day) => this.remove(person, day, 'violence'),
+    });
   }
 
   /** Found a village again without erasing wounds, memories or opinions learned from players. */
