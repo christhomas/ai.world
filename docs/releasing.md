@@ -14,7 +14,9 @@ chore release minor "..."      # or major, or patch
 
 ## What it does, in order
 
-1. **Refuses to start** on a dirty tree or off `main`. A release names a commit; there has to be one.
+1. **Refuses to start** off `main`, or on a dirty tree that is somebody's work. A release names a
+   commit; there has to be one. A tree dirtied by a *killed release* — those five files and nothing
+   else — is put back rather than refused, because that is wreckage rather than work.
 2. **Runs the tests.** A release is the wrong place to find out.
 3. **Moves all three version numbers together** — the chart's `version`, its `appVersion`, and the
    pin in `deploy/flux/helmrelease.yaml` — and `package.json`'s, which the title screen and console
@@ -39,6 +41,36 @@ chore release minor "..."      # or major, or patch
 
 Flux on the cluster is watching `main`. It reads the chart from the same commit, sees the new
 version, and installs it — so publishing the release is the deploy, and nothing else has to happen.
+
+## When a release is killed part way through
+
+`chore release` is a line of side effects, and a machine that dies half way along it used to leave a
+mess only somebody who knows the tool's internals could clear up: a bumped chart, a release branch,
+maybe a merge onto `main`, and **no tag, no release and therefore no image**. That is a chart
+pinning a version whose image was never built, which is a cluster that cannot start. It happened
+twice — once on a GraphQL rate limit, once on a machine running out of memory — and both times
+running the command again made it worse, because it read the already-bumped version off
+`chart/Chart.yaml` and tried to cut the *next* one over the top.
+
+It resumes now. Run the same command again:
+
+```
+chore release          # finish whatever was started and not finished
+```
+
+It asks the world rather than remembering anything: is there a `release/vX.Y.Z` branch, a pull
+request for it, a merge commit, a tag, a published release? Each step names its own artefact, so the
+run picks up from the first one that is missing and does the rest in order. A release killed at any
+point leaves the repository, after the next run, in the state a clean run would have.
+
+Two things follow from that, and both are deliberate:
+
+- **It will not cut a new version while an unfinished one exists.** `chore release 1.0.0` with
+  v0.99.1 half cut refuses and says which one is unfinished. Finish that one first; then cut the
+  next.
+- **Finished means published.** A release with a tag but no GitHub release is unfinished, because
+  the release is what builds the image. A release whose *image build* failed after publishing is
+  **not** unfinished — see the rule below: cut the next version, never re-publish that one.
 
 ## Rolling back
 
