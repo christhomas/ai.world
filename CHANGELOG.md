@@ -14,6 +14,15 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.98.0 — 2026-09-17
+
+A teleport tells the world where it landed rather than where it was sent, a seed can be measured before it is handed out, and the mountain has a shot of its own
+
+- Measure what a seed is worth, and choose nothing (#331)
+- A shot of the mountain, which every argument about it needs (#332)
+- Release 0.97.0 (#333)
+- A teleport tells the world where it landed, not where it was sent (#334) — closes #329
+
 ## v0.97.0 — 2026-09-17
 
 A save remembers which country it is, told facts get their own book, the hero walks into a village, and the shot tool can photograph either generator
