@@ -485,7 +485,7 @@ export function createFrame(ctx: Framing) {
     if (endless && grower) for (const patch of endless.wants(player.entity.x, player.entity.z)) grower.want(patch);
     if (endless && endless.moveTo(player.entity.x, player.entity.z)) {
       const now = endless.sampler;
-      mountains.show(now.ranges);
+      mountains.show(null);   // EXPERIMENT
       chunks.standOn(now.ranges);
       skyline.standingBefore(now.ranges);
       // and what stands on and above that rock: the eagles' crags and the islands in the sky, both

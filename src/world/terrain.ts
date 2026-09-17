@@ -36,6 +36,17 @@ export type { ChunkData, Probe, SampleGrid, TileSample } from './ground';
 
 /** How wide the cobbles at the middle of the world are, in tiles. */
 const HUB_PLAZA = 5;
+
+/**
+ * How high mountain country has to stand before it is drawn as rock rather than as terraces.
+ *
+ * Nought in the road tree, where any massif at all is a mountain and the ground around it is not.
+ * In a country with a shape the *whole* map has some height to it, so drawing every tile of it as a
+ * leaning face would turn gentle farmland into a slope with no steps in it — and the terraces are
+ * what this world looks like. Six terraces is three world units, which is well past anything a road
+ * climbs and comfortably into country nobody builds on.
+ */
+const FACE_AT = 6;
 /**
  * How high the country has to stand before it stops being whatever it was, in terraces.
  *
@@ -511,8 +522,18 @@ export class TerrainSampler {
     if (rise < 0) rise = 0;
     // and whatever the mountains put here, which is nought over most of the world and a great deal
     // in a few places. It is nought along a road at any height, so a pass stays a pass.
-    const lift = upliftAt(px, pz, this.massifs, d);
-    rise += lift;
+    /*
+     * How much of this tile's height is mountain, which the two worlds answer differently.
+     *
+     * In the road tree a mountain is a massif standing on the ground, so it is *added* to the rise.
+     * In a country with a shape the mountain **is** the ground — `country` above already carries it,
+     * folded into the base — so adding it again would build the same mountain twice.
+     *
+     * Either way the number means the same thing below: how steep and how high this tile is because
+     * of a mountain, which is what decides whether it is drawn as a leaning face or as terraces.
+     */
+    const lift = this.shaped ? country : upliftAt(px, pz, this.massifs, d);
+    if (!this.shaped) rise += lift;
     let level = Math.min(WORLD.MAX_LEVEL, baseLevel + rise);
 
     const COAST = 2.2;
@@ -560,14 +581,23 @@ export class TerrainSampler {
     // A mountain is drawn from the smooth field instead, so its faces are leaning surfaces rather
     // than a hundred half-unit steps. Only the drawing changes: `height` above is still the tile,
     // and still what anybody walking into the face has to climb, so a wall stays a wall.
-    if (lift <= 0) {
+    if (lift <= FACE_AT) {
       out.corners[0] = out.corners[1] = out.corners[2] = out.corners[3] = out.height;
     } else {
+      /*
+       * The same field the height came from, read at the tile's four corners.
+       *
+       * Which field that is depends on the world, and it has to be the one that made the height or
+       * the face leans away from the ground it is part of.
+       */
+      const at = this.shaped
+        ? (x: number, z: number): number => this.highlandAt(x, z)
+        : (x: number, z: number): number => upliftRawAt(x, z, this.massifs, d);
       const settled = out.height - lift * STEP;
-      out.corners[0] = settled + upliftRawAt(tx, tz, this.massifs, d) * STEP;
-      out.corners[1] = settled + upliftRawAt(tx + 1, tz, this.massifs, d) * STEP;
-      out.corners[2] = settled + upliftRawAt(tx + 1, tz + 1, this.massifs, d) * STEP;
-      out.corners[3] = settled + upliftRawAt(tx, tz + 1, this.massifs, d) * STEP;
+      out.corners[0] = settled + at(tx, tz) * STEP;
+      out.corners[1] = settled + at(tx + 1, tz) * STEP;
+      out.corners[2] = settled + at(tx + 1, tz + 1) * STEP;
+      out.corners[3] = settled + at(tx, tz + 1) * STEP;
       // the tile *is* its corners now, so nothing draws a step in the middle of a mountain face.
       // Still far too steep to climb — a face runs several terraces to the tile against a stride
       // of one — so what this changes is how it looks and not where anybody can go.

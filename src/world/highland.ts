@@ -36,9 +36,9 @@ export const HIGHLAND = {
    * plain and the country behind it fourteen. That is the climb: by the time you are among the
    * peaks you have already walked up something.
    */
-  PER_STEP: 21,
+  PER_STEP: 38,
   /** However deep the country, the ground itself never rises past this, in terraces. */
-  MOST: 56,
+  MOST: 96,
   /**
    * How far the ground round a mountain face is raised, as a share of the face's own reach.
    *
@@ -47,7 +47,7 @@ export const HIGHLAND = {
    * rising all the way in. Narrower and a range is a plateau with a cliff round it, which is the
    * mistake this replaced — mountains standing up out of a flat plain like nothing else in nature.
    */
-  REACH: 2.5,
+  REACH: 3.0,
   /**
    * How much of that reach is spent climbing, as against being high country already.
    *
@@ -73,6 +73,25 @@ export const HIGHLAND = {
    */
   RIDGE_SCALE: 320,
   RIDGE_OCTAVES: 4,
+  /**
+   * How much of the shape is carved at the size of the whole range, as against at a fixed size.
+   *
+   * The component that was missing, and the reason a big range came out as a plateau. `RIDGE_SCALE`
+   * is three hundred tiles whatever the range is: on the old small mountains that was most of one
+   * and gave it its spurs, and on a range twelve hundred tiles across it is *texture on a table
+   * top*. The envelope is flat over its middle by `SHOULDER`, so with nothing carving at the
+   * range's own size the middle stays flat however much detail is written on it.
+   *
+   * So a second ridged field is read at a wavelength proportional to the range itself, and the two
+   * are summed. That is the whole of the idea: one component cannot make a complex shape, and the
+   * one that decides whether a range has peaks is the one as big as the range.
+   *
+   * Six tenths of the reach, so a range carries two or three summits rather than one dome or a
+   * field of bumps.
+   */
+  RANGE_SCALE: 0.6,
+  /** How the two are weighed against each other. The big one leads; the fixed one is the detail. */
+  RANGE_SHARE: 0.62,
 } as const;
 
 /**
@@ -180,6 +199,13 @@ export function highlandAt(
   country: ReadonlyArray<Highland>, ridges: Simplex2D, x: number, z: number,
 ): number {
   let most = 0;
+  /*
+   * And how big the range that won is, because the shape has to be carved at its size.
+   *
+   * Kept beside the maximum rather than worked out again: the envelope and the carving have to be
+   * about the *same* range or a spur runs across a neighbour's shoulder.
+   */
+  let widest = 0;
   for (const hill of country) {
     const away = Math.hypot(hill.x - x, hill.z - z);
     if (away >= hill.reach) continue;
@@ -187,11 +213,23 @@ export function highlandAt(
     const inward = (hill.reach - away) / (hill.reach * HIGHLAND.SHOULDER);
     const share = Math.max(0, Math.min(1, inward));
     const eased = share * share * (3 - 2 * share);
-    most = Math.max(most, hill.lift * eased);
+    const stands = hill.lift * eased;
+    if (stands > most) { most = stands; widest = hill.reach; }
   }
   if (most <= 0) return 0;
-  // the noise already knows how to fold itself into crests; this only says at what size
-  const ridge = ridges.ridged(x / HIGHLAND.RIDGE_SCALE, z / HIGHLAND.RIDGE_SCALE, HIGHLAND.RIDGE_OCTAVES);
+  /*
+   * Two components summed, which is what turns a plateau into a range.
+   *
+   * The first is carved at the size of the range itself and decides where its summits and its
+   * valleys are. The second is the fixed-size one this always had, and is now what it was always
+   * good at: the spurs and hollows of a hillside. Each is a ridged field, which already folds
+   * itself into crests across four octaves of its own — so what is being added here is not detail,
+   * it is the one scale that was missing.
+   */
+  const wide = Math.max(1, widest * HIGHLAND.RANGE_SCALE);
+  const atRange = ridges.ridged(x / wide, z / wide, 2);
+  const atHill = ridges.ridged(x / HIGHLAND.RIDGE_SCALE, z / HIGHLAND.RIDGE_SCALE, HIGHLAND.RIDGE_OCTAVES);
+  const ridge = atRange * HIGHLAND.RANGE_SHARE + atHill * (1 - HIGHLAND.RANGE_SHARE);
   return most * (1 - HIGHLAND.RIDGED + HIGHLAND.RIDGED * ridge);
 }
 

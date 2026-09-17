@@ -160,7 +160,7 @@ export function growCountry(ctx: Growing) {
    * twice it does nothing, so the endless world can call it on every crossing without asking first.
    */
   const mountains = new Mountains(rig.scene, rock.material);
-  mountains.show(sampler.ranges);
+  mountains.show(null);   // EXPERIMENT: is the ground alone a mountain?
   // and the camera's own answer to them: it stands further back near a range, because a peak is
   // taller than the picture is and would otherwise be cut off by the top of its own frustum
   const skyline = new Skyline(sampler.ranges);
