@@ -2,6 +2,7 @@ import { GRAPH, HYDRO, WORLD } from '../core/config';
 import { rand2 } from '../core/rng';
 import { SALT, TILE_SALT, derive } from '../core/salts';
 import { Simplex2D } from './noise';
+import { chunkOf } from './chunking';
 import { alternateGround } from './meadow';
 import { biomeAt, segDist2, type RoadGraph } from './graph';
 import { BIOMES, Biome, PropKind, pickWeighted } from './biomes';
@@ -17,7 +18,6 @@ import { CellIndex } from './spatial';
 import { indexRoads, indexStructures, indexWater, type RiverSeg, type Within } from './window';
 import { generateStructures, structureBounds, StructureKind, type Settling, type Structure, type Structures } from './structures';
 import { DRY_ENOUGH, bendAt, wanderFactors } from './wander';
-import { stampStructure } from './stamp';
 import {
   BRIDGE_DECK_LIFT, COAST_PROP_FACTOR, DESPECKLE_MAJORITY, GROUND_ALT_CHANCE, HIGH_ROCK_DENSITY,
   PROP_HEADROOM, ROAD_SHOULDER, TileType, isFlatLand, type ChunkData, type Probe,
@@ -576,123 +576,42 @@ export class TerrainSampler {
     }
   }
 
-  generateChunk(cx: number, cz: number): ChunkData {
-    const CS = WORLD.CHUNK_SIZE;
-    const size = CS + 2;
-    const n = size * size;
-    const chunk: ChunkData = {
-      cx, cz, size,
-      height: new Float32Array(n),
-      type: new Uint8Array(n),
-      biome: new Uint8Array(n),
-      prop: new Uint8Array(n),
-      propRot: new Float32Array(n).fill(Number.NaN),
-      shore: new Float32Array(n),
-      corners: new Float32Array(n * 4),
-      sloped: new Uint8Array(n),
-      water: new Float32Array(n),
-      empty: true,
-    };
-    const grid = this.sampleGrid(cx, cz);
-    if (!grid) return chunk;
-
-    let drawn = 0;
-    for (let lz = 0; lz < size; lz++) {
-      for (let lx = 0; lx < size; lx++) {
-        // output tile (lx,lz) is grid tile (lx+1, lz+1): the grid carries one extra ring for the filter
-        const gi = (lz + 1) * grid.G + (lx + 1);
-        const idx = lz * size + lx;
-        if (grid.type[gi] === TileType.Skip) continue;
-        drawn++;
-        const { type, level } = despeckle(grid, gi, this.seed);
-        chunk.type[idx] = type;
-        chunk.biome[idx] = grid.biome[gi];
-        chunk.water[idx] = grid.water[gi];
-        chunk.shore[idx] = grid.shore[gi];
-        if (type === TileType.Road || type === TileType.Bridge) {
-          chunk.height[idx] = grid.height[gi];
-          chunk.corners.set(grid.corners.subarray(gi * 4, gi * 4 + 4), idx * 4);
-          continue;
-        }
-        if (grid.sloped[gi] === 1) {
-          // a mountain face is taken exactly as it was cut, corners and all. The de-speckle filter
-          // works in whole terraces and has nothing to say about a surface that has none.
-          chunk.sloped[idx] = 1;
-          chunk.height[idx] = grid.height[gi];
-          chunk.corners.set(grid.corners.subarray(gi * 4, gi * 4 + 4), idx * 4);
-        } else {
-          chunk.height[idx] = level * WORLD.STEP;
-          chunk.corners.fill(level * WORLD.STEP, idx * 4, idx * 4 + 4);
-        }
-        if (type !== TileType.Seabed) chunk.prop[idx] = rollProp(grid, gi, type, this.seed, this.ranges);
-      }
-    }
-
-    chunk.empty = drawn === 0;
-    if (!chunk.empty) this.stampStructures(chunk, cx * CS - 1, cz * CS - 1);
-    return chunk;
-  }
-
   /**
-   * Raw samples for the chunk plus a two-tile apron, so every output tile (including the mesher's
-   * one-tile apron) has all eight neighbours available for the de-speckle filter. Null if the whole
-   * area is open sea.
-   */
-  private sampleGrid(cx: number, cz: number): SampleGrid | null {
-    const CS = WORLD.CHUNK_SIZE;
-    const G = CS + 4;
-    const x0 = cx * CS - 2, z0 = cz * CS - 2;
-    const cands = this.edgeIndex.query(x0, z0, x0 + G, z0 + G);
-    if (cands.length === 0) return null;
-    const riverCands = this.riverIndex.query(x0, z0, x0 + G, z0 + G);
-    const n = G * G;
-    const grid: SampleGrid = {
-      G, x0, z0,
-      type: new Uint8Array(n), biome: new Uint8Array(n), bank: new Uint8Array(n),
-      level: new Float32Array(n), height: new Float32Array(n), water: new Float32Array(n), shore: new Float32Array(n),
-      roadDist: new Float32Array(n), roadWidth: new Float32Array(n), base: new Int16Array(n),
-      corners: new Float32Array(n * 4), sloped: new Uint8Array(n),
-    };
-    const s = this.newSample();
-    for (let gz = 0; gz < G; gz++) {
-      for (let gx = 0; gx < G; gx++) {
-        const gi = gz * G + gx;
-        this.sampleTile(x0 + gx, z0 + gz, s, cands, riverCands);
-        grid.type[gi] = s.type;
-        if (s.type === TileType.Skip) continue;
-        grid.biome[gi] = s.biome; grid.bank[gi] = s.bank ? 1 : 0;
-        grid.level[gi] = s.level; grid.height[gi] = s.height; grid.water[gi] = s.water; grid.shore[gi] = s.shore;
-        grid.roadDist[gi] = s.roadDist; grid.roadWidth[gi] = s.roadWidth; grid.base[gi] = s.base;
-        grid.corners.set(s.corners, gi * 4);
-        grid.sloped[gi] = s.sloped ? 1 : 0;
-      }
-    }
-    return grid;
-  }
-
-  /**
-   * Which of this world's villages a building belongs to, by standing in it.
+   * One square of country, built.
    *
-   * This looks like a question for `world/around.ts` and is not, which is worth saying because the
-   * next person to read it will reach for the seam. A sampler answers for its own square of
-   * country: in a patchwork the house being stamped was founded by *this* sampler, out of towns
-   * this sampler placed, so the list below is already the bounded one. Asking the patchwork would
-   * have a patch reaching up into the thing that holds it to find out about itself.
+   * The building itself moved to `chunking.ts` when this file reached the seven hundred lines
+   * `architecture.test.ts` allows — twice in one evening, and the second time I nearly paid for it
+   * in whitespace again. It is a good seam rather than a convenient one: a sampler answers about a
+   * *point*, and assembling a square out of many points is a different job with a different shape.
+   * What is left here is the door, so every caller is unchanged.
    */
-  private villageHolding(s: Structure): string {
-    for (const v of this.structures.villages) {
-      if (Math.hypot(v.x - s.tx, v.z - s.tz) <= v.radius) return v.name;
-    }
-    return '';
+  generateChunk(cx: number, cz: number): ChunkData {
+    return chunkOf(this, cx, cz);
   }
 
-  private stampStructures(chunk: ChunkData, ox: number, oz: number): void {
-    if (!this.structIndex) return;
-    for (const si of this.structIndex.query(ox, oz, ox + chunk.size, oz + chunk.size)) {
-      const s = this.structures.all[si];
-      // a house is as tall as the village it stands in has managed to become
-      stampStructure(chunk, ox, oz, s, this.storeys.get(this.villageHolding(s)) ?? 1);
-    }
+  /**
+   * The roads and rivers a box has to be sampled against.
+   *
+   * One question rather than two indexes handed out, because the indexes are this class's own
+   * business — and because the two are not independent. No roads at all means open sea, the square
+   * is not worth sampling, and the rivers need not be asked either: that early-out is most of what
+   * makes an ocean cheap, and it would be lost if the caller had to ask twice and decide for
+   * itself.
+   */
+  near(x0: number, z0: number, x1: number, z1: number): { roads: number[]; rivers: number[] } {
+    const roads = this.edgeIndex.query(x0, z0, x1, z1);
+    return { roads, rivers: roads.length === 0 ? [] : this.riverIndex.query(x0, z0, x1, z1) };
+  }
+
+  /**
+   * What is built on a box, which is asked at a different moment and so is its own question.
+   *
+   * After the grid, and only for a square that turned out to have ground on it. Nothing built is
+   * the ordinary answer everywhere outside a village, where no roads at all is a statement about
+   * the whole square.
+   */
+  builtOn(x0: number, z0: number, x1: number, z1: number): number[] {
+    return this.structIndex ? this.structIndex.query(x0, z0, x1, z1) : [];
   }
 }
 
