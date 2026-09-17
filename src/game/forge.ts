@@ -1,4 +1,4 @@
-import { FORGES, aSmithsDay, dearnessOfGear } from './smithing';
+import { FORGES, SMITHING, aSmithsDay, dearnessOfGear } from './smithing';
 
 /**
  * What each village has on its shelf, made by its own smith.
@@ -17,10 +17,14 @@ export class Forge {
   private readonly shelves = new Map<string, Map<string, number>>();
   /** The last day each village's smith has been accounted for, so a morning is worked once. */
   private readonly workedOn = new Map<string, number>();
+  /** Villages whose standing shelf has been counted, so it is counted once. */
+  private readonly opened = new Set<string>();
 
   constructor(json?: ForgeJson) {
     for (const [village, shelf] of Object.entries(json ?? {})) {
       this.shelves.set(village, new Map(Object.entries(shelf)));
+      // a shelf that was saved has plainly been opened, whatever is left on it
+      this.opened.add(village);
     }
   }
 
@@ -81,6 +85,23 @@ export class Forge {
     const last = this.workedOn.get(village);
     if (last !== undefined && today <= last) return false;
     this.workedOn.set(village, today);
+    /*
+     * What the forge had already made before anybody looked.
+     *
+     * A smithy that has stood in a village for years has things on its shelf, and starting every
+     * one in the world empty would mean no smith anywhere had anything to sell until a player had
+     * waited a morning for each item. The same argument `TIMBER.STANDING` makes about a stack by
+     * the sawpit — and nothing at all where there is no smith, which is the distinction the trade
+     * exists to make.
+     */
+    if (!this.opened.has(village)) {
+      this.opened.add(village);
+      if (smiths > 0) {
+        for (const one of FORGES) {
+          for (let n = 0; n < SMITHING.STANDING; n++) this.made(village, one.id);
+        }
+      }
+    }
     const work = aSmithsDay(seed, village, today, smiths, held, (id) => this.at(village, id));
     if (!work) return false;
     if (!draw(work.made.ore, work.made.timber)) return false;

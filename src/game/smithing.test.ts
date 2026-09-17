@@ -115,6 +115,34 @@ describe('a shelf that runs out', () => {
     expect(forge.dearness(ASHFORD, 'steelsword')).toBe(1);
   });
 
+  it('gives a smithy that has stood for years something to sell on the first afternoon', () => {
+    /*
+     * The thing that would have read as a bug. Without it every smith in the country is empty of
+     * the three things he makes until a player has waited a morning for each — and a shop with
+     * nothing in it is indistinguishable from a broken shop.
+     */
+    const forge = new Forge();
+    forge.workThrough(7, ASHFORD, 1, 1, RICH, () => true);
+    for (const one of FORGES) {
+      expect(forge.at(ASHFORD, one.id), `${one.id} on the shelf`).toBeGreaterThanOrEqual(SMITHING.STANDING);
+    }
+  });
+
+  it('gives a smithy with nobody in it nothing at all', () => {
+    // the distinction the trade exists to make: a building is not a smith
+    const forge = new Forge();
+    forge.workThrough(7, ASHFORD, 1, 0, RICH, () => true);
+    expect(FORGES.reduce((sum, one) => sum + forge.at(ASHFORD, one.id), 0)).toBe(0);
+  });
+
+  it('counts the standing shelf once, however many mornings are lived', () => {
+    const forge = new Forge();
+    for (let day = 1; day <= 3; day++) forge.workThrough(7, ASHFORD, day, 1, RICH, () => true);
+    const total = FORGES.reduce((sum, one) => sum + forge.at(ASHFORD, one.id), 0);
+    // the standing shelf plus at most one thing per morning, never the standing shelf three times
+    expect(total).toBeLessThanOrEqual(SMITHING.STANDING * FORGES.length + 3);
+  });
+
   it('round-trips through a save', () => {
     const forge = new Forge();
     forge.made(ASHFORD, 'helm');

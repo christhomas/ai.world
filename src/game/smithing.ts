@@ -65,6 +65,19 @@ export const SMITHING = {
    */
   KEEPS: 4,
   /**
+   * What a forge already has on the shelf the first time anybody asks.
+   *
+   * Two of each, which is the same argument `TIMBER.STANDING` makes about a stack by the sawpit: a
+   * smithy that has stood in a village for years has made things, and a shelf that started empty
+   * would mean no smith anywhere had anything to sell until a player had waited a morning for each
+   * item — a rule that reads as a bug rather than as a limit.
+   *
+   * Under `KEEPS` rather than at it, so the forge still has work to do on the first morning and a
+   * village that is visited early sees its shelf fill. Nothing at all for a village with a smithy
+   * building and no smith in it, which is the distinction the trade exists to make.
+   */
+  STANDING: 2,
+  /**
    * What the last one on the shelf costs against the first, as a multiplier.
    *
    * The same shape as food's `PRICES.DEAR`, and a gentler number: a village down to its last sword
