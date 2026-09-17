@@ -12,6 +12,7 @@ import { Handover } from './handover';
 import { OtherPlayers } from '../render/others';
 import { PlayerList } from '../ui/players';
 import { compassDir } from '../world/structures';
+import { toldAsChange } from '../world/telling';
 import { $ } from '../ui/dom';
 import type * as THREE from 'three';
 import { damageEntity, type Entity } from '../entities/entity';
@@ -459,7 +460,7 @@ export function createMultiplayer(ctx: MultiplayerContext) {
         break;
       case 'died':
         // the village loses them, and the people who knew them are left holding the memory
-        register.apply({ kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence' });
+        register.apply(toldAsChange(delta));
         break;
       /*
        * Somebody has taken work a village had nobody for. Applied on every page rather than only on

@@ -12,6 +12,7 @@ import { Patchwork } from '../src/world/patchwork';
 import { propFootprints } from '../src/entities/props';
 import { packChunk } from '../src/world/chunkparcel';
 import { blocking } from '../src/world/footprints';
+import { isTold, replayTold } from '../src/world/telling';
 import { BLOCKS_WALKING } from '../src/world/biomes';
 import { Wildlife, type Standing } from './wildlife';
 import type { Entity } from '../src/entities/entity';
@@ -246,13 +247,8 @@ export class Simulation {
     room?.world.keepsTheRegister(folk.register);
     // Catch the authoritative register up with both kinds of village fact before anybody is put in
     // a street: deaths and declarations are replayed on their recorded mornings.
-    for (const delta of room?.world.log ?? []) {
-      if (delta.kind === 'died') {
-        folk.register.apply({
-          kind: 'died', id: delta.who, name: '', village: delta.village, day: delta.day, cause: 'violence',
-        });
-      } else if (delta.kind === 'voted' || delta.kind === 'sworn') folk.register.apply(delta);
-    }
+    const log = room?.world.log ?? [];
+    replayTold(log.filter(isTold), (change) => folk.register.apply(change));
     /*
      * And what the people of this world hold, which the seed cannot grow back.
      *

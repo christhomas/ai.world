@@ -177,6 +177,17 @@ export type WorldDelta =
     };
 
 /** One lot on a market stall: a stack of the same item at one asking price. */
+/**
+ * The told facts: the three deltas that are true of a village and derivable from nothing.
+ *
+ * Named because two places have to pick exactly these three out of a log and replay them into a
+ * register — the server standing a room up, and a page catching up over the wire — and both used to
+ * spell out the list themselves. Everything else in `WorldDelta` is about a chest, a crop or a mine:
+ * things whose record belongs to the hero or to an anchor. These three belong to the *people*, and
+ * `src/world/telling.ts` is the one door they go in through.
+ */
+export type Told = Extract<WorldDelta, { kind: 'died' | 'voted' | 'sworn' }>;
+
 export interface StallItem {
   id: string;
   /** Gold for one of them. */
