@@ -1,7 +1,7 @@
 import { OathBook } from './oathbook';
 import { VoteBook } from './votebook';
 import { enactVote, type Ballot } from './votes';
-import { swornTrades } from './arrivals';
+import { Arrivals, swornTrades, type Arrival } from './arrivals';
 import type { Sworn } from './vacancies';
 import type { SwornIn, Told } from '../../server/protocol';
 import type { TownVote } from './rank';
@@ -20,6 +20,8 @@ import type { Person } from './people';
  *   hall, and nothing about a seed predicts who that was.
  * - A traveller **swore** to a vacancy. There is no `Person` to point at: the hall writes down the
  *   name it was given, because the person who gave it is not on the roll.
+ * - Somebody **walked in**. A hero over the hill on the fourteenth morning, who the seed had no
+ *   reason to expect and who a village founded again would simply arrive without.
  *
  * Each is dated, and the date is the load-bearing part. *When* somebody died decides how many
  * children the village had afterwards, so a death that arrives late is written down here and the
@@ -36,10 +38,19 @@ import type { Person } from './people';
  * register is who is alive. This is what has been done to them.
  */
 
-/** A fact that has to be told, because nothing can work it out again, as the register wants it. */
-export type Telling = Change | TownVote | SwornIn;
+/**
+ * A fact that has to be told, because nothing can work it out again, as the register wants it.
+ *
+ * An arrival is the one told fact whose wire shape the register wants unchanged — there is no
+ * `Person` to translate a name into, which is the whole of what an arrival is for — so it travels
+ * as itself. See `toldAsChange`.
+ */
+export type Telling = Change | TownVote | SwornIn | Extract<Told, { kind: 'arrived' }>;
 
 export type { Told };
+
+/** Somebody walked into a village, as both halves of the world say it. */
+export type Arrived = Extract<Told, { kind: 'arrived' }>;
 
 /**
  * What a told fact borrows from the register to be written into a living country.
@@ -71,12 +82,23 @@ export class Tellings {
   private readonly votes = new VoteBook();
   /** Told oaths, which survive a re-living because a seed cannot predict who walked in. */
   private readonly sworn = new OathBook();
+  /** And who walked in, which is the fact the oath is about. See `arrivals.ts`. */
+  private readonly arrived = new Arrivals();
 
   /** The day this person was killed, or nothing, which is what a living day asks. */
   killedOn(id: string): number | undefined { return this.killed.get(id); }
 
   /** The oaths a village is holding, as its own record wants them. */
   oathsOf(village: string): Sworn[] { return this.sworn.of(village); }
+
+  /** Put this village's arrivals back after it has been founded again. See `walkThemIn`. */
+  putArrivalsBack(village: string, here: Settlement, upTo: number): void {
+    this.arrived.putBack(village, here, upTo);
+  }
+
+  /** Everybody who walked in anywhere, for whatever has to hand the list on. */
+  arrivals(): Array<Arrival & { village: string }> { return this.arrived.all(); }
+
 
   /** Who holds what here, and what nobody is doing. See `oathbook.ts`. */
   directory(trades: readonly string[], people: readonly Person[], village: string) {
@@ -116,6 +138,19 @@ export class Tellings {
       on.relive(change.village);
       return true;
     }
+    if (change.kind === 'arrived') {
+      /*
+       * A village nobody has settled cannot have somebody stood on its roll, and unlike an oath
+       * this cannot be kept for the morning somebody does: `walkIn` needs the settlement to push a
+       * row onto. It is not a loss — the page asks as the hero walks in, and the hero walking in is
+       * what settles a village in the first place.
+       */
+      const here = on.at(change.village);
+      if (!here || Math.floor(change.day) > on.today) return false;
+      return this.arrived.walkIn(
+        change.village, here, { name: change.who, sex: change.sex, purse: change.purse }, change.day,
+      ) !== null;
+    }
     if (change.kind === 'voted') {
       const voted = { ...change, day: Math.floor(change.day) };
       if (this.votes.has(voted) || !Number.isFinite(voted.day) || voted.day > on.today) return false;
@@ -151,7 +186,8 @@ export class Tellings {
 
 /** Whether a delta is one of the three: the narrowing a room's log needs to reach `replayTold`. */
 export function isTold(delta: { kind: string }): delta is Told {
-  return delta.kind === 'died' || delta.kind === 'voted' || delta.kind === 'sworn';
+  return delta.kind === 'died' || delta.kind === 'voted'
+    || delta.kind === 'sworn' || delta.kind === 'arrived';
 }
 
 /**

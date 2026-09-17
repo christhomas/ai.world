@@ -13,8 +13,8 @@ import { foundingRank, type Ballot } from './votes';
 import { doctoredBy, laidUpFor } from './wounds';
 import type { Debt } from './debts';
 import { walkOver, whoWalksIn } from './movingon';
-import { Arrivals, swornTrades, type Arrival } from './arrivals';
-import { Tellings, type Telling } from './telling';
+import { swornTrades, type Arrival } from './arrivals';
+import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks } from './carriers';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
@@ -499,7 +499,7 @@ export class Register {
   }
 
   /** Who walked into a village rather than being born in it. See `arrivals.ts`. */
-  private readonly arrived = new Arrivals();
+
 
   /**
    * Somebody walks into a village and stands on its roll: the hero, and for now nobody else.
@@ -509,13 +509,13 @@ export class Register {
    * row there was no trade that could pay him, no farm to hold and no work to post. See
    * `arrivals.ts`, which owns the rest of it.
    */
-  arrive(village: string, name: string, sex: Person['sex'], purse: number, day = this.day): Person | null {
-    const here = this.villages.get(village);
-    return here ? this.arrived.walkIn(village, here, { name, sex, purse }, day) : null;
+  arrive(village: string, name: string, sex: Person['sex'], purse: number, day = this.day): Arrived | null {
+    const told: Arrived = { kind: 'arrived', village, who: name, sex, purse, day: Math.floor(day) };
+    return this.apply(told) ? told : null;
   }
 
   /** Everybody who walked in, as told facts, for a save to write down. */
-  arrivals(): Array<Arrival & { village: string }> { return this.arrived.all(); }
+  arrivals(): Array<Arrival & { village: string }> { return this.telling.arrivals(); }
 
   /** Take currently vacant work; return the told fact so `apply` remains the single write path. */
   swearIn(village: string, trade: string, who: string, day = this.day): SwornIn | null {
@@ -628,7 +628,7 @@ export class Register {
     const people = this.settle(village, settlement.houses, settlement.trades);
     // and whoever walked in, who is not implied by the seed and would otherwise simply be gone
     const now = this.villages.get(village);
-    if (now) { this.arrived.putBack(village, now, this.day); swornTrades(now, now.sworn); }
+    if (now) { this.telling.putArrivalsBack(village, now, this.day); swornTrades(now, now.sworn); }
     for (const person of people) {
       const held = remembered.get(person.id);
       if (!held) continue;

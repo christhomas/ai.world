@@ -494,6 +494,11 @@ export class Online {
     if (this.connected) this.send({ type: 'swear', village, trade });
   }
 
+  /** Stand on the roll of the village the hero has walked into. Asked, like an oath. */
+  arrive(village: string): void {
+    if (this.connected) this.send({ type: 'arrive', village });
+  }
+
   /**
    * Something happened that one of the world's villagers will not forget.
    *

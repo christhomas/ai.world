@@ -116,6 +116,28 @@ export type WorldDelta =
    */
   | SwornIn
   /**
+   * Somebody walked into a village and stood on its roll.
+   *
+   * The fourth told fact, and the one that makes the other three worth anything to a player: a hero
+   * who is not a `Person` cannot be paid a livelihood, cannot hold a farm and cannot be given the
+   * trade he swore to, because all three of those are written against people the register knows.
+   * See `src/world/arrivals.ts`, which has said so since it was written.
+   *
+   * Travels for the reason an oath travels: nothing about a seed predicts that somebody walked over
+   * a hill on the fourteenth morning, and a village re-lived from its founding would simply arrive
+   * without them. `who` is the name rather than an id for the same reason an oath's is — there is no
+   * `Person` to point at until this fact has been applied, which is what makes it the fact it is.
+   *
+   * One per village. A hero is on the roll of every village he has walked into, and that is the
+   * honest reading of it: he is somebody they have met. What he is *paid* is decided by the trade he
+   * swore to, which is one village's at a time.
+   *
+   * `purse` is on the delta and not on the `arrive` message, and the difference is the point: what
+   * somebody walks in carrying is a fact about the world's books rather than a claim a page gets to
+   * make about itself. The world fills it in, exactly as it fills in the name from the roster.
+   */
+  | { kind: 'arrived'; village: string; who: string; sex: 'man' | 'woman'; purse: number; day: number }
+  /**
    * Something living in a mine has been killed, and how many.
    *
    * Counted rather than named because the dungeon behind an anchor is regrown from its seed every
@@ -178,15 +200,15 @@ export type WorldDelta =
 
 /** One lot on a market stall: a stack of the same item at one asking price. */
 /**
- * The told facts: the three deltas that are true of a village and derivable from nothing.
+ * The told facts: the deltas that are true of a village and derivable from nothing.
  *
- * Named because two places have to pick exactly these three out of a log and replay them into a
- * register — the server standing a room up, and a page catching up over the wire — and both used to
- * spell out the list themselves. Everything else in `WorldDelta` is about a chest, a crop or a mine:
- * things whose record belongs to the hero or to an anchor. These three belong to the *people*, and
+ * Named because two places have to pick exactly these out of a log and replay them into a register —
+ * the server standing a room up, and a page catching up over the wire — and both used to spell out
+ * the list themselves. Everything else in `WorldDelta` is about a chest, a crop or a mine: things
+ * whose record belongs to the hero or to an anchor. These belong to the *people*, and
  * `src/world/telling.ts` is the one door they go in through.
  */
-export type Told = Extract<WorldDelta, { kind: 'died' | 'voted' | 'sworn' }>;
+export type Told = Extract<WorldDelta, { kind: 'died' | 'voted' | 'sworn' | 'arrived' }>;
 
 export interface StallItem {
   id: string;
@@ -434,6 +456,15 @@ export type ClientMessage =
    * into somebody else's village. The trade is named and the world decides whether it is vacant.
    */
   | { type: 'swear'; village: string; trade: string }
+  /**
+   * Stand on the roll of the village the hero is in.
+   *
+   * Asked rather than reported, like a vote and an oath: the roll belongs to the world's register,
+   * and the name written into it is the one the roster knows this player by rather than whatever
+   * the message claims. A page that reported this would be writing itself into somebody else's book
+   * under any name it liked.
+   */
+  | { type: 'arrive'; village: string }
   /**
    * A blow landed on a creature the world owns.
    *
@@ -949,13 +980,17 @@ export function deltaAt(delta: WorldDelta): { x: number; z: number } | null {
  * a chest somebody else opened is drawn open on your screen — and a joining player still receives
  * them in the log. What is gone is a client's ability to write one.
  *
+ * `arrived` is here for the reason it has its own `arrive` message at all: the fact it writes is a
+ * name onto a village's roll, and a page that could announce one could put any name into any book —
+ * including somebody else's, in a village it has never been near.
+ *
  * `key` is here because it is a chest's second half rather than a thing of its own: the treasure
  * room unlocks because a particular chest held the key, and the world says so when it says what was
  * inside. `sow` is deliberately *not* here yet, and the difference is worth stating — reaping and
  * opening hand something over, and sowing spends a seed to claim a tile. When every way a page can
  * sow is a hero standing in a field (the debug console can sow across the map), it joins them.
  */
-const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap', 'voted', 'sworn']);
+const ANNOUNCED_BY_THE_WORLD: ReadonlySet<WorldDelta['kind']> = new Set(['chest', 'key', 'reap', 'voted', 'sworn', 'arrived']);
 
 /** Whether a client may report this change itself, or must ask the world for it instead. */
 export function mayReport(delta: WorldDelta): boolean {
@@ -975,6 +1010,9 @@ export function deltaKey(delta: WorldDelta): string {
     // one entry per trade in a village, so two travellers cannot both hold the same post and a
     // second oath for the same work replaces rather than doubles
     case 'sworn': return `sworn:${delta.village}:${delta.trade}`;
+    // one entry per person per village: walking out and back in again is not a second arrival, and
+    // a name is the identity here exactly as it is for an oath
+    case 'arrived': return `arrived:${delta.village}:${delta.who}`;
     // one entry per mine, and the newest wins: both of these carry a whole state rather than a
     // change to one, so replacing is exactly right and adding would double-count
     case 'cleared': return `cleared:${delta.mine}`;
