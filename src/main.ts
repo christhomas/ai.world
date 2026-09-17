@@ -243,7 +243,7 @@ export function startGame(
   );
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
-    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore,
+    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
     plots, houses, sailing, mount, persist,
   } = openTheSave({
     store, slotKey, seed, worldName, saved, structures, manifest,
@@ -477,7 +477,7 @@ export function startGame(
   // stopping in front of somebody: everything a person offers, worked out as you speak to them
   const { heroFace, startTalk, talkCtx } = createMeeting({
     state, player, register, grudges, jail, standing, gifts, online, handover, sound, dialogue, quests, persist,
-    toTitle,
+    toTitle, forge,
     rng: lineRng,
     countryAt: (x, z) => sampler.biomeOf(x, z),
     villageWelcome: (village) => villageWelcome(village),
@@ -517,7 +517,7 @@ export function startGame(
   if (saved?.sky) skies.restore(saved.sky);
 
   const interactions = createInteractions({
-    player, state, discovered, eyries, skies,
+    player, state, discovered, eyries, skies, ore, forge,
     luxuryOf: (v) => villageLuxury.get(v) ?? 'none',
     saidOfMine,
     structures, around, sampler, chunks, manifest, entities, entityRenderer, places, seed,

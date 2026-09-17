@@ -162,7 +162,24 @@ const finish = async () => {
   const go = async (x, z, wait = 5000) => { await page.evaluate(([x, z]) => window.__teleport(x, z), [x, z]); await page.waitForTimeout(wait); };
   const walk = async (key, ms) => { await page.keyboard.down(key); await page.waitForTimeout(ms); await page.keyboard.up(key); await page.waitForTimeout(180); };
   const face = async (tx, tz) => { await page.evaluate(([tx, tz]) => { const p = window.__player; window.__iso.rotation = Math.atan2(tz - p.z, tx - p.x) + Math.PI; }, [tx, tz]); await page.waitForTimeout(150); };
+  /**
+   * Back out onto the grass, wherever the last check left him.
+   *
+   * `__teleport` refuses while the hero is indoors — *"you are inside The Bakker house in Blackby,
+   * and there is no 46, 84 in here — climb out first"* — and it is right to: a hero moved bodily
+   * out of a room he is standing in is exactly the class of bug the doorway checks exist for. So
+   * the script leaves the way a player does, by walking through the door it came in by.
+   *
+   * It is here rather than at the end of whichever check wanders indoors because *any* of them
+   * can: chasing a goat past an open door is enough. Asking once, before the one step that cannot
+   * work indoors, costs a page evaluation and removes the whole family of failures.
+   */
+  const backOutside = async () => {
+    for (let i = 0; i < 8 && (await at()).place !== 'surface'; i++) await walk('w', 260);
+    return (await at()).place === 'surface';
+  };
   const enter = async () => {
+    await backOutside();
     const door = await page.evaluate(() => {
       const v = window.__villages[0];
       const d = window.__doors.filter((x) => x.village === v.name)[0];
