@@ -194,7 +194,7 @@ export function openConsole(ctx: Consoled) {
    * and the game holding an invisible man in the dark with the console reporting success. Refused
    * with a sentence instead, which also says what to do about it.
    */
-  const jumpTo = (x: number, z: number): void => {
+  const jumpTo = (x: number, z: number): { x: number; z: number } => {
     /*
      * A jump that is asked for from indoors walks out of the door first.
      *
@@ -235,6 +235,17 @@ export function openConsole(ctx: Consoled) {
     player.teleport(onto.x, onto.z);
     beam.arrives(player.entity);
     iso.target.set(onto.x, 0.5, onto.z);
+    /*
+     * And it hands back where he *actually* is, which is not always where he was sent.
+     *
+     * `onto` is the ring's answer and `x, z` is the request, and they differ whenever the asked-for
+     * tile had a tree on it or had not been streamed yet. Both callers below tell the world where
+     * he now stands, and both used to tell it the request — so the page held him at `onto`, the
+     * world held him at `x, z`, and the next `youAre` dragged him to the world's copy. A teleport
+     * that lands in two places and picks one by timing is how a jump into a village square becomes
+     * a jump into the field beside it. See #329.
+     */
+    return onto;
   };
 
   const namedPlace = (like: string): { name: string; kind: string; x: number; z: number } | null => {
@@ -271,16 +282,17 @@ export function openConsole(ctx: Consoled) {
      * second is the picture. See `render/beam.ts`.
      */
     teleport: (x, z) => {
-      jumpTo(x, z);
-      online.stood(x, z, 'teleport');
+      const landed = jumpTo(x, z);
+      online.stood(landed.x, landed.z, 'teleport');
     },
     teleportTo: (place) => {
       const found = namedPlace(place);
       if (!found) throw new Error(`nowhere called ${place} — try: places`);
-      jumpTo(found.x, found.z);
-      // the world moves its own hero to match: a teleport is the one jump nothing else can see
-      online.stood(found.x, found.z, 'teleport');
-      return { name: found.name, x: Math.round(found.x), z: Math.round(found.z), kind: found.kind };
+      const landed = jumpTo(found.x, found.z);
+      // the world moves its own hero to match: a teleport is the one jump nothing else can see.
+      // Where he landed, not where he was sent — see the note at the foot of `jumpTo`
+      online.stood(landed.x, landed.z, 'teleport');
+      return { name: found.name, x: Math.round(landed.x), z: Math.round(landed.z), kind: found.kind };
     },
     places: (like) => namedPlaces(like).map((p) => ({ name: p.name, kind: p.kind, country: p.country, x: Math.round(p.x), z: Math.round(p.z) })),
     // The villages, in the order somebody standing here cares about them. Distance and heading

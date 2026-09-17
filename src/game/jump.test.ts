@@ -52,6 +52,22 @@ describe('a jump lands somewhere a hero can stand', () => {
     expect(PLAYER).toMatch(/groundNear[\s\S]{0,120}this\.roomAt\(x, z\) !== null/);
   });
 
+  it('tells the world where he landed, not where he was sent', () => {
+    /*
+     * The two are not the same whenever the asked-for tile had a tree on it or had not streamed in
+     * yet, and telling the world the request left the page holding him at one and the world holding
+     * him at the other — with the next `youAre` dragging him to the world's copy. #329: a jump into
+     * a village square landing in the field beside it, differently on every cold page.
+     */
+    expect(jumpTo(), 'the jump has to hand its answer back').toContain('return onto;');
+    expect(CONSOLE).toContain('const landed = jumpTo(x, z);');
+    expect(CONSOLE).toContain('const landed = jumpTo(found.x, found.z);');
+    expect(CONSOLE, 'the request is no longer what is reported')
+      .not.toContain("online.stood(x, z, 'teleport')");
+    expect(CONSOLE, 'both teleports report the landing')
+      .toContain("online.stood(landed.x, landed.z, 'teleport')");
+  });
+
   it('still refuses nothing out of doors, because unstreamed ground is not missing ground', () => {
     /*
      * The limit that must survive. Out of doors, ground that has not arrived reads exactly like
