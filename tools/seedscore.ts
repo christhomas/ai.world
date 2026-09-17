@@ -28,6 +28,10 @@
  *
  * - **land** — the share of sampled points that are dry. A world of open sea is the clearest bad
  *   seed there is, and the cheapest to spot.
+ * - **whole** — how much of that land is in one piece. Two thousand seeds turned up no archipelago
+ *   at all by `land` alone: the thinnest world in the sample is forty-five per cent land with three
+ *   villages on it. One continent at that share is a fine world and forty islands at that share is
+ *   not, and `land` reads the same for both — so this is the measure that can tell them apart.
  * - **villages** — how many the patch plants. Nought is a plain with nobody on it.
  * - **spread** — how far apart the two furthest-apart villages are, in tiles. Villages huddled in
  *   one corner of the patch is a different world from villages spread across it, and the count
@@ -53,6 +57,13 @@ export interface Reading {
   seed: number;
   /** Share of sampled points that are dry land, 0 to 1. */
   land: number;
+  /**
+   * Share of the dry land that is in one piece, 0 to 1.
+   *
+   * One continent at forty-five per cent land is a fine world; forty islands at forty-five per
+   * cent is not, and `land` reads the same for both. This is what separates them.
+   */
+  whole: number;
   villages: number;
   /** Tiles between the two furthest-apart villages, or 0 for fewer than two. */
   spread: number;
@@ -81,15 +92,18 @@ const HOME = boundsOf(patchOf(0, 0));
 
 export function readSeed(seed: number): Reading {
   const sampler = growPatch(seed, HOME);
-  let dry = 0, samples = 0;
+  const land: boolean[] = [];
+  let dry = 0;
   for (let i = 0; i < GRID; i++) {
     for (let j = 0; j < GRID; j++) {
       const x = HOME.x0 + ((i + 0.5) / GRID) * (HOME.x1 - HOME.x0);
       const z = HOME.z0 + ((j + 0.5) / GRID) * (HOME.z1 - HOME.z0);
-      samples++;
-      if (sampler.probe(x, z).land) dry++;
+      const isLand = sampler.probe(x, z).land;
+      land[i * GRID + j] = isLand;
+      if (isLand) dry++;
     }
   }
+  const samples = GRID * GRID;
   const villages = sampler.structures.villages;
   let spread = 0;
   for (let i = 0; i < villages.length; i++) {
@@ -98,7 +112,48 @@ export function readSeed(seed: number): Reading {
     }
   }
   const home = villages.reduce((near, v) => Math.min(near, Math.hypot(v.x, v.z)), Infinity);
-  return { seed, land: dry / samples, villages: villages.length, spread, home };
+  return { seed, land: dry / samples, whole: biggestPiece(land), villages: villages.length, spread, home };
+}
+
+/**
+ * How much of the dry land is in one piece: the largest connected run of it, as a share of all of it.
+ *
+ * A flood fill over the sample grid, four-connected. Four rather than eight on purpose — two
+ * islands touching at a corner are two islands to anybody walking, and a measure that joined them
+ * would call an archipelago a continent, which is the exact mistake this exists to catch.
+ *
+ * One for a world with no land at all, because a world with nothing to stand on is not an
+ * archipelago problem and should not be reported as one. `land` already says that world is empty.
+ */
+export function biggestPiece(land: readonly boolean[], side = GRID): number {
+  const all = land.reduce((many, one) => many + (one ? 1 : 0), 0);
+  if (all === 0) return 1;
+  const seen = new Uint8Array(land.length);
+  let biggest = 0;
+  for (let at = 0; at < land.length; at++) {
+    if (!land[at] || seen[at]) continue;
+    let size = 0;
+    const edge = [at];
+    seen[at] = 1;
+    for (let i = 0; i < edge.length; i++) {
+      const here = edge[i];
+      size++;
+      const x = Math.floor(here / side), y = here % side;
+      const round = [
+        x > 0 ? here - side : -1,
+        x < side - 1 ? here + side : -1,
+        y > 0 ? here - 1 : -1,
+        y < side - 1 ? here + 1 : -1,
+      ];
+      for (const next of round) {
+        if (next < 0 || seen[next] || !land[next]) continue;
+        seen[next] = 1;
+        edge.push(next);
+      }
+    }
+    biggest = Math.max(biggest, size);
+  }
+  return biggest / all;
 }
 
 /** The value at a place in a sorted list, so a spread can be described without a mean hiding it. */
@@ -128,6 +183,7 @@ export function report(readings: readonly Reading[]): string {
     '',
     `${''.padEnd(10)} ${'lowest'.padStart(9)} ${'5%'.padStart(9)} ${'25%'.padStart(9)} ${'half'.padStart(9)} ${'75%'.padStart(9)} ${'95%'.padStart(9)} ${'highest'.padStart(9)}`,
     column('land', readings.map((r) => r.land), 3),
+    column('whole', readings.map((r) => r.whole), 3),
     column('villages', readings.map((r) => r.villages), 0),
     column('spread', readings.map((r) => r.spread), 0),
     column('home', readings.map((r) => r.home), 0),
