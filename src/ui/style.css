@@ -1822,6 +1822,72 @@ body.touch #optionsPanel input[type="range"] { height: var(--touch-target); }
 }
 
 /* ---------------------------------------------------------------------------
+   A PHONE HELD UPRIGHT
+
+   The block above is every phone, and the one below it is every *short* screen —
+   `max-height: 560px`, which is a phone on its side. Between them is a shape
+   neither describes: a phone held upright, 420 wide and 900 tall. It matches the
+   first (it is narrow) and not the second (it is not short), so it takes the
+   landscape rules for the two readouts whose bands are written in pixels, and
+   those pixels were measured against a screen twice as wide.
+
+   Both faults are visible in one screenshot, and #1 is where they are recorded.
+   --------------------------------------------------------------------------- */
+@media (max-width: 820px) and (min-height: 561px) {
+  /*
+   * The place name takes the width this screen has rather than the other one's.
+   *
+   * `left: 112px; right: 132px` are the widths of the status slab and the corner map — true
+   * numbers, measured against a landscape phone 844 wide. On one 420 wide they leave a hundred and
+   * seventy-six pixels, and `Crossroads Town` does not fit in that at this tracking: it wrapped to
+   * two lines with the first running into the corner map's edge. A banner that breaks a village's
+   * name in half is worse than a smaller banner.
+   *
+   * So it hangs off the left, under the status slab, and stops clear of the map — the band that is
+   * actually free at this width. Left rather than centred, because a centred line in a band that
+   * narrow reads as a mistake the moment a name is long, and cut off rather than wrapped, because
+   * a name with its tail missing is still a name.
+   */
+  #areaName {
+    /* below the status slab, not behind it: both are z-index 100 and the slab is opaque, so a
+       banner sharing its band loses its first few letters to it rather than overlapping visibly */
+    top: calc(var(--safe-top) + 52px);
+    left: var(--safe-left); right: calc(var(--safe-right) + 140px);
+    text-align: left; text-indent: 0; padding-left: 12px;
+    letter-spacing: calc(4 * var(--ui-scale));
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* and the accent rule goes with it rather than staying centred on a band it has left */
+  #areaName::after { left: 12px; transform: none; width: calc(120 * var(--ui-scale)); }
+
+  /*
+   * And the bearings leave the foot of the screen, because at this width it is not theirs.
+   *
+   * The band they were given is the strip between the thumb's ring and the action cluster, and on a
+   * landscape phone that is most of the screen. Held upright it is eighty-five pixels: the ring
+   * still wants its hundred and forty on the left and the three buttons still want theirs on the
+   * right, and what is left between them will not hold `→ CROSSROADS TOWN · E 0` at any size worth
+   * reading. Clipping it there only trades a line under three buttons for a line with both its ends
+   * missing.
+   *
+   * So they go where there *is* room: under the place name, in the same band, which is the one part
+   * of an upright screen nothing else has claimed. A heading and the way to it, one above the other,
+   * which is what they are.
+   */
+  #compass {
+    /* clear of the tab spine, which starts 62 down the left edge: `--band-left` is that column
+       plus its gutter, said once, and is what the news band already measures itself against */
+    top: calc(var(--safe-top) + 80px); bottom: auto;
+    left: calc(var(--safe-left) + var(--band-left)); right: calc(var(--safe-right) + 140px);
+    margin-inline: 0; width: auto; max-width: none;
+    justify-content: flex-start; padding: 4px 12px calc(4px);
+    background: none; border-top: none;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
    The title screen on a short window, which is what a phone held sideways is.
 
    The rail layout holds: it is the same shape at every size, which is the point
