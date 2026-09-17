@@ -389,6 +389,9 @@ tasks:
         echo
       - 'pnpm vite --port {{.PORT}}'
 
+  # WORLD=endless and SEED=7 take the same shot in another country, or on another seed, without
+  # editing the spec: there are two generators behind one seam and judging them means the same
+  # camera twice. See tools/shots.cjs.
   shots:
     desc: Retake the README's screenshots, or the ones named
     vars:

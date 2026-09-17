@@ -15,6 +15,11 @@
  *   chore shots -- town night   # or only the ones named
  *   chore shots -- --list       # what there is to take
  *
+ * And two overrides, for judging a country rather than photographing one:
+ *
+ *   WORLD=endless chore shots -- town   # the same shot in the other generator
+ *   SEED=7 chore shots -- town          # or on another seed
+ *
  * It borrows playwright exactly the way `playtest.cjs` does and for the same reason — a browser
  * toolchain has no business in a world-server image — and it starts a page server if nothing is
  * already answering, leaving one it did not start alone.
@@ -651,7 +656,14 @@ async function take(browser, shot) {
       localStorage.removeItem('ai.world/quality-auto');
     } catch { /* private browsing: the picture is a little plainer, and that is all */ }
   });
-  const world = shot.world ?? 'road', seed = shot.seed ?? 3;
+  /*
+   * `WORLD=endless chore shots -- town` takes the same shot in the other country.
+   *
+   * There are two generators behind one seam and they do not look alike, which is the whole of
+   * #299. Judging that means the same shot, the same seed and the same camera, twice — and without
+   * this the only way to get the second picture was to edit the spec, take it, and edit it back.
+   */
+  const world = process.env.WORLD || shot.world || 'road', seed = process.env.SEED || shot.seed || 3;
   let playing = null;
   if (shot.page) {
     // a tool rather than the game: no world to raise, so nothing to wait on but the page itself

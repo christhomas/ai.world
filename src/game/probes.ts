@@ -276,7 +276,14 @@ export function installProbes(ctx: Probed): void {
    */
   // read rather than called, because half of these are functions and half are not, and the one you
   // reach for while something is badly wrong should not also ask you to remember which
-  Object.defineProperty(debug, '__world', { configurable: true, get: () => ({ seed, world: 'endless', online: online.status }) });
+  Object.defineProperty(debug, '__world', {
+    configurable: true,
+    // `endless` is the patchwork, and having one is what being the endless country *is*: see
+    // `country.ts`, where the road tree is the `??` branch of the same line. Hardcoded to 'endless'
+    // between #228 and the seam going back in, which meant the one probe written to answer "which
+    // world am I actually in" answered it the same way in both of them.
+    get: () => ({ seed, world: endless ? 'endless' : 'road', online: online.status }),
+  });
   /*
    * How far the drawn world is behind the real one.
    *
