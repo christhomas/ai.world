@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.99.0 — 2026-09-17
+
+A teleport is a passage you can watch: the console gets out of the way and the beam takes ten seconds, out and back
+
 ## v0.98.0 — 2026-09-17
 
 A teleport tells the world where it landed rather than where it was sent, a seed can be measured before it is handed out, and the mountain has a shot of its own
