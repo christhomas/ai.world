@@ -43,6 +43,11 @@
  * a job is a builder's book as much as the job is.
  */
 
+import { Yard, type YardJson } from './yards';
+
+/** A yard on disk. The shape is `yards.ts`'s and is unchanged: an old save reads as it did. */
+export type TimberJson = YardJson;
+
 export const TIMBER = {
   /**
    * Logs one woodcutter lands in a day.
@@ -76,163 +81,49 @@ export const TIMBER = {
   HOLDS: 240,
 } as const;
 
-/** What a village's yard holds, and how it got there. */
 /**
- * A yard on disk: the stack that is standing, and the wood that was carried in to it.
+ * The timber a village has by it.
  *
- * Two records rather than one, because they are two different kinds of number. The first goes up
- * and down and is a *stock*; the second only ever goes up and is a *history*, and a history is what
- * the wright works from — a village that put up a house would otherwise forget the week somebody
- * spent hauling timber into it, which is the one thing it ought to remember.
+ * A `Yard` with a woodcutter's numbers on it. Everything about *being a stack* — the history beside
+ * the stock, the standing week, the ceiling, a day's felling accounted through a morning that may
+ * have been missed — moved to `yards.ts` when ore needed the same machinery for a smith, because
+ * the argument above was always about stacks rather than about wood. What is left here is the wood.
  *
- * The bare `Record<string, number>` is the shape this was saved in before the second record
- * existed, and it is still read: a yard from that day is a stack nobody is recorded as having
- * brought, which is exactly what it was.
+ * The names are the wood's too, and deliberately: `felledThrough` reads as something a woodcutter
+ * does, and half this repository's benches and comments quote it. A general mechanism does not have
+ * to make every caller speak generally.
  */
-export type TimberJson = Record<string, number> | {
-  yards: Record<string, number>;
-  brought: Record<string, number>;
-  /** Last world day each yard received its own woodcutters' felling. */
-  felled?: Record<string, number>;
-};
-
 export class Timber {
-  private readonly yards = new Map<string, number>();
-  /** Cumulative logs carried in and sold here, which no building ever takes back down. */
-  private readonly carriedIn = new Map<string, number>();
-  /** The last day accounted for each village's own felling. */
-  private readonly felledOn = new Map<string, number>();
-  /** Villages whose standing stack has already been counted, so it is counted once. */
-  private readonly opened = new Set<string>();
+  private readonly stack: Yard;
 
-  /**
-   * @param on the world day this save was written, for a yard that predates the day being kept.
-   *
-   * A save made before `felled` existed has stock and no record of when it was last cut, and the
-   * only honest baseline is the day the save itself was on: the woodcutters had worked up to then
-   * and not past it. Without it the first morning back fell through to `today - 1` and credited a
-   * single day however long the game had been shut — a fortnight away earned an afternoon's timber.
-   *
-   * Left out, an old save reads as it did. `Mines.from` takes the day for the same reason.
-   */
   constructor(json?: TimberJson, on?: number) {
-    const saved = json && isSavedYard(json) ? json : null;
-    const stacks = saved?.yards ?? json;
-    const baseline = Number.isFinite(on) ? Math.floor(on as number) : null;
-    for (const [village, logs] of Object.entries(stacks ?? {})) {
-      this.yards.set(village, logs);
-      this.opened.add(village);
-      // a yard that arrived with no day of its own was last cut on the day the save was written
-      if (baseline !== null) this.felledOn.set(village, baseline);
-    }
-    for (const [village, logs] of Object.entries(saved?.brought ?? {})) this.carriedIn.set(village, logs);
-    // and a save that does carry the days is believed over the baseline, which is only a fallback
-    for (const [village, day] of Object.entries(saved?.felled ?? {})) this.felledOn.set(village, day);
+    this.stack = new Yard(TIMBER, json, on);
   }
 
   static from(json?: TimberJson, on?: number): Timber { return new Timber(json, on); }
 
   /** Logs in this village's yard. Nothing, for a village nobody has looked at or cut for. */
-  at(village: string): number {
-    return this.yards.get(village) ?? 0;
-  }
+  at(village: string): number { return this.stack.at(village); }
 
-  /**
-   * Everything ever carried into this village and sold, which is what the wright is paying back.
-   *
-   * Deliberately not the yard: the yard is a stack and this is a history, and the difference is a
-   * village that has built a house since. Deliberately not the felling either — a woodcutter lives
-   * here, and counting his week would hand a cart to a player who stood still for it.
-   */
-  sold(village: string): number {
-    return this.carriedIn.get(village) ?? 0;
-  }
+  /** Everything ever carried into this village and sold, which is what the wright is paying back. */
+  sold(village: string): number { return this.stack.sold(village); }
 
-  /**
-   * Wood a player carried in and sold here: it joins the stack, and it is remembered.
-   *
-   * The tally counts what was *sold*, not what fitted. A seller whose logs meet a full yard has
-   * still been paid for them by a market that wanted them, and refusing to credit the surplus would
-   * make the wright's memory depend on how much building the village happened to be doing.
-   */
-  brought(village: string, logs: number): void {
-    if (logs <= 0) return;
-    this.carriedIn.set(village, this.sold(village) + logs);
-    this.land(village, logs);
-  }
+  /** Wood a player carried in and sold here: it joins the stack, and it is remembered. */
+  brought(village: string, logs: number): void { this.stack.brought(village, logs); }
 
-  /**
-   * Wood landed at a village: cut by its own woodcutters, or carried in and sold over a counter.
-   *
-   * One way in for both, because they are the same act from the yard's point of view — a stack of
-   * timber does not know who brought it. Capped, and the surplus is simply not landed rather than
-   * being refused: a woodcutter who finds the yard full spends the day doing something else, and a
-   * player selling into a full yard has still sold his wood, which the market has already paid for.
-   */
-  land(village: string, logs: number): void {
-    if (logs <= 0) return;
-    this.yards.set(village, Math.min(TIMBER.HOLDS, this.at(village) + logs));
-  }
+  /** Wood landed at a village: cut by its own woodcutters, or carried in and sold over a counter. */
+  land(village: string, logs: number): void { this.stack.land(village, logs); }
 
-  /**
-   * Felling accounted through a particular world day.
-   *
-   * The regular game path uses this rather than assuming it was called once per rendered midnight:
-   * a day skipped by a clock correction or a reopened save is still a day the woodcutters worked,
-   * and the same day cannot be landed twice. The first visit keeps the existing week's standing
-   * stock, then counts the day it was first observed.
-   *
-   * **`day` is the morning being lived, not the day the game is on.** The scheduler hands
-   * `builderDay` each missed morning in turn; passing it the last of them made the first call
-   * account the whole interval and every call after it a same-day no-op, so a fortnight away
-   * earned an afternoon's timber — and earned it at whatever the village's staffing was on the
-   * morning it came back rather than on each of the mornings it was away.
-   */
+  /** Felling accounted through a particular world day. `day` is the morning being lived. */
   felledThrough(village: string, woodcutters: number, day: number): void {
-    const today = Math.floor(day);
-    if (!Number.isFinite(today)) return;
-    if (!this.opened.has(village)) {
-      this.opened.add(village);
-      this.land(village, woodcutters * TIMBER.A_DAY * TIMBER.STANDING);
-      this.felledOn.set(village, today - 1);
-    }
-    const last = this.felledOn.get(village) ?? today - 1;
-    if (today <= last) return;
-    this.land(village, (today - last) * woodcutters * TIMBER.A_DAY);
-    this.felledOn.set(village, today);
+    this.stack.workedThrough(village, woodcutters, day);
   }
 
-  /**
-   * The builder takes what a job wants, or takes nothing and says so.
-   *
-   * All of it or none of it: half the timber for a house is a house nobody can start, and a yard
-   * quietly emptied by a job that was then refused would be a village that lost its wood to a
-   * conversation. The caller asks before it commits, and this is the committing.
-   */
-  draw(village: string, logs: number): boolean {
-    if (logs <= 0) return true;
-    const held = this.at(village);
-    if (held < logs) return false;
-    this.yards.set(village, held - logs);
-    return true;
-  }
+  /** The builder takes what a job wants, or takes nothing and says so. */
+  draw(village: string, logs: number): boolean { return this.stack.draw(village, logs); }
 
   /** What the yard is short of for a job of this size, or nought when it can be started. */
-  shortBy(village: string, logs: number): number {
-    return Math.max(0, logs - this.at(village));
-  }
+  shortBy(village: string, logs: number): number { return this.stack.shortBy(village, logs); }
 
-  toJSON(): TimberJson {
-    return {
-      yards: Object.fromEntries(this.yards),
-      brought: Object.fromEntries(this.carriedIn),
-      felled: Object.fromEntries(this.felledOn),
-    };
-  }
-}
-
-function isSavedYard(json: TimberJson): json is Exclude<TimberJson, Record<string, number>> {
-  return 'yards' in json
-    && typeof json.yards === 'object' && json.yards !== null
-    && 'brought' in json && typeof json.brought === 'object' && json.brought !== null;
+  toJSON(): TimberJson { return this.stack.toJSON(); }
 }
