@@ -356,6 +356,14 @@ export class Hud {
   setLoading(text: string): void { this.loadingEl.textContent = text; this.loadingEl.style.display = 'block'; }
 
   toggleOptions(): void { this.options.classList.toggle('show'); }
+
+  /**
+   * Whether Options is up, which is a question about who owns the keyboard.
+   *
+   * A panel that takes the screen has to say so, or every key the world binds goes on firing
+   * behind it — see `screenOf` in `panels.ts`, which is the one place that decides.
+   */
+  get optionsOpen(): boolean { return this.options.classList.contains('show'); }
   closeOptions(): void { this.options.classList.remove('show'); }
 
 }
