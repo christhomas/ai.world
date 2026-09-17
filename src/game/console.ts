@@ -246,14 +246,27 @@ export function openConsole(ctx: Consoled) {
      * and was never true of the thing itself. Both doors are this one function, so a probe still
      * walks out of buildings and still lands where somebody can stand.
      */
-    if (watched) chat.dismiss();
+    if (!watched) {
+      /*
+       * No picture at all, which is what `warpTo` has claimed to be since it was written.
+       *
+       * It did not do it. The beam was played either way and only the *camera* was held back, so a
+       * probe's jump still took the full ten seconds — with the hero fully apart, and therefore not
+       * drawn, for the first six of them. The playtest never noticed because it waits five seconds
+       * and then asks where he is rather than whether he can be seen; `chore shots` did, by
+       * photographing a column of light with an invisible man in it.
+       */
+      player.teleport(onto.x, onto.z);
+      iso.target.set(onto.x, 0.5, onto.z);
+      return onto;
+    }
+    chat.dismiss();
     beam.leaves(player.entity);
-    player.teleport(onto.x, onto.z, !watched);
-    beam.arrives(player.entity, watched ? () => {
+    player.teleport(onto.x, onto.z, false);
+    beam.arrives(player.entity, () => {
       player.lookHere();
       iso.target.set(onto.x, 0.5, onto.z);
-    } : null);
-    if (!watched) iso.target.set(onto.x, 0.5, onto.z);
+    });
     /*
      * And it hands back where he *actually* is, which is not always where he was sent.
      *
