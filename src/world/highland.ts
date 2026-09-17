@@ -47,7 +47,7 @@ export const HIGHLAND = {
    * rising all the way in. Narrower and a range is a plateau with a cliff round it, which is the
    * mistake this replaced — mountains standing up out of a flat plain like nothing else in nature.
    */
-  REACH: 3.0,
+  REACH: 2.5,
   /**
    * How much of that reach is spent climbing, as against being high country already.
    *
