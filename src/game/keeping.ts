@@ -1,7 +1,7 @@
 import { Forge } from './forge';
 import { Ore } from './ore';
 import type { Manifest } from '../world/manifest';
-import type { SaveStore, SessionSave } from '../save/store';
+import type { SaveStore, SessionSave, WorldKind } from '../save/store';
 import { Houses } from './building';
 import { Plots } from './farming';
 import { Gifts } from './gifts';
@@ -36,6 +36,16 @@ export interface Keeping {
   /** Which slot on the title screen this world belongs to. */
   slotKey: string;
   seed: number;
+  /**
+   * Which country this is, which has to be written down because the same seed grows two.
+   *
+   * The save is the only place that knows. A link may ask for a kind and the title screen may
+   * offer one, but both of those are answered once, at the moment a world opens; the next time it
+   * is opened there is no link and no switch, only the slot. A slot that does not say reads as
+   * endless — see `kindOf` — so a road world that failed to write this came back as open sea
+   * under every house in it.
+   */
+  world: WorldKind;
   worldName?: string;
   saved: SessionSave | undefined;
   structures: Structures;
@@ -52,7 +62,7 @@ export interface Keeping {
 }
 
 export function openTheSave(ctx: Keeping) {
-  const { store, slotKey, seed, worldName, saved, structures, manifest, rng, cam, at, sky } = ctx;
+  const { store, slotKey, seed, world, worldName, saved, structures, manifest, rng, cam, at, sky } = ctx;
 
   const state = GameState.from(saved?.state ?? (saved ? { discovered: saved.discovered, inventory: saved.inventory } : undefined));
   /**
@@ -118,6 +128,7 @@ export function openTheSave(ctx: Keeping) {
   const persist = (): void => {
     void store.save<SessionSave>(slotKey, {
       seed,
+      world,
       worldName,
       cam: cam(),
       player: at(),
