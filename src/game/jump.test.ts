@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+
+import { openConsole, type Consoled } from './console';
 
 /**
  * Where a teleport puts somebody, which used to be "nowhere" twice over.
@@ -19,6 +21,35 @@ const jumpTo = (): string => {
   const at = CONSOLE.indexOf('const jumpTo = ');
   expect(at, 'jumpTo has moved or gone').toBeGreaterThan(0);
   return CONSOLE.slice(at, CONSOLE.indexOf('\n  };', at));
+};
+
+/**
+ * Enough of a world to take a teleport, and nothing else.
+ *
+ * A jump out of doors onto clear ground touches six things — the hero, the camera, the light, the
+ * chat, the world's copy of him and where he is standing — so those six are the ones that are real
+ * here and the rest of `Consoled` is never reached. The point is to watch the beam rather than to
+ * read the source that calls it.
+ */
+const aWorld = () => {
+  const beam = { leaves: vi.fn(), arrives: vi.fn() };
+  const player = {
+    x: 0, z: 0,
+    entity: {},
+    groundNear: vi.fn(() => true),
+    roomAt: vi.fn((x: number, z: number) => ({ x, z })),
+    teleport: vi.fn(),
+    lookHere: vi.fn(),
+  };
+  const iso = { target: { set: vi.fn() } };
+  const chat = { dismiss: vi.fn(), line: vi.fn() };
+  const online = { stood: vi.fn() };
+  const ctx = {
+    player, iso, chat, online, beam,
+    placeName: () => 'surface',
+    areaLabel: () => 'nowhere in particular',
+  } as unknown as Consoled;
+  return { world: openConsole(ctx).commandWorld, beam, player, iso, chat, online };
 };
 
 describe('a jump asked for from indoors', () => {
@@ -61,12 +92,32 @@ describe('a jump lands somewhere a hero can stand', () => {
      * — and therefore not drawn — for the first six. The playtest missed it because it waits five
      * seconds and then asks where he is rather than whether he can be seen. `chore shots` caught it
      * by photographing a column of light with an invisible man in it.
+     *
+     * Driven rather than read, because the fault was never a word in a file: a helper called from
+     * the quick path would reach the beam without the source of `jumpTo` ever saying `beam.`.
      */
-    const body = jumpTo();
-    const unwatched = body.slice(body.indexOf('if (!watched) {'), body.indexOf('chat.dismiss()'));
-    expect(unwatched, 'the quick path moves him').toContain('player.teleport(onto.x, onto.z)');
-    expect(unwatched, 'and takes the camera with it').toContain('iso.target.set(onto.x, 0.5, onto.z)');
-    expect(unwatched, 'and leaves before any of the beam').not.toContain('beam.');
+    const { world, beam, player, iso, online } = aWorld();
+    world.warpTo(46, 84);
+
+    expect(beam.leaves, 'nothing leaves').not.toHaveBeenCalled();
+    expect(beam.arrives, 'and nothing arrives').not.toHaveBeenCalled();
+    // and it is a jump all the same: he is moved, the camera is with him, the world is told
+    expect(player.teleport).toHaveBeenCalledWith(46, 84);
+    expect(iso.target.set).toHaveBeenCalledWith(46, 0.5, 84);
+    expect(online.stood).toHaveBeenCalledWith(46, 84, 'teleport');
+  });
+
+  it('plays the whole passage for a jump somebody is watching', () => {
+    /*
+     * The other half of the same rule, and the reason the one above cannot be satisfied by a beam
+     * that has simply stopped working: the watched teleport is still a passage with a light in it.
+     */
+    const { world, beam, chat } = aWorld();
+    world.teleport(46, 84);
+
+    expect(chat.dismiss, 'the console gets out of the way').toHaveBeenCalled();
+    expect(beam.leaves).toHaveBeenCalled();
+    expect(beam.arrives).toHaveBeenCalled();
   });
 
   it('tells the world where he landed, not where he was sent', () => {
