@@ -246,7 +246,7 @@ export function startGame(
     state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore, forge,
     plots, houses, sailing, mount, persist,
   } = openTheSave({
-    store, slotKey, seed, worldName, saved, structures, manifest,
+    store, slotKey, seed, world, worldName, saved, structures, manifest,
     rng: lineRng,
     cam: () => ({ x: iso.target.x, z: iso.target.z, rot: iso.rotation, zoom: iso.zoom }),
     at: () => ({ x: player.x, z: player.z }),
