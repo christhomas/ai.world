@@ -602,6 +602,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.99.1 — 2026-09-17
+
+A release stops spending a quota it does not need: every call to GitHub goes through REST
+
 ### v0.99.0 — 2026-09-17
 
 A teleport is a passage you can watch: the console gets out of the way and the beam takes ten seconds, out and back
@@ -637,10 +641,6 @@ The watchman a village has been paying for since it bought the tower is now stan
 ### v0.92.5 — 2026-09-13
 
 A village's treasury finally shows on the ground: the well it dug is on the square, the watchtower it bought is on the rim, the bath house is on a plot. Three of the six were bought and none of them ever appeared.
-
-### v0.92.4 — 2026-09-13
-
-The fish-folk are in a wreck for its cargo: a loaded hull is thick with them and a picked-over one is quiet, so the danger reads the payout before you dive. Wood sold over a shop counter reaches the village yard, and the wright sells the cart the item has always promised.
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

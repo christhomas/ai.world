@@ -14,6 +14,10 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.99.1 — 2026-09-17
+
+A release stops spending a quota it does not need: every call to GitHub goes through REST
+
 ## v0.99.0 — 2026-09-17
 
 A teleport is a passage you can watch: the console gets out of the way and the beam takes ten seconds, out and back
