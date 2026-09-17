@@ -3,10 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import {
-  FILES_A_RELEASE_WRITES, chartVersionOf, howTheChecksStand, theReleaseCommit,
-  whatEachSaid, whatShipped,
-} from './release';
+import { FILES_A_RELEASE_WRITES, chartVersionOf, checksAsStates, closesWhat, howTheChecksStand, theReleaseCommit, whatEachSaid, whatShipped } from './release';
 
 /**
  * Which issues a release gets to claim.
@@ -354,5 +351,71 @@ describe('what a commit says its chart version is', () => {
 
   it('answers nothing for a chart with no version, rather than something wrong', () => {
     expect(chartVersionOf('name: ai-world\n')).toBeNull();
+  });
+});
+
+/**
+ * The two readings that stand between a release and a quota it cannot spend.
+ *
+ * #341: every call this file made was GraphQL, which exhausts before REST on any day that has also
+ * opened pull requests — and it died *after* committing and pushing, leaving four bumped files and
+ * a branch with no request behind them. What follows is the arithmetic of the two REST answers that
+ * are shaped differently from the GraphQL ones they replace.
+ */
+describe('reading REST where GraphQL used to answer', () => {
+  describe('what the checks on a commit say', () => {
+    it('calls a run that has not finished pending, whatever it looks like it will be', () => {
+      expect(checksAsStates([{ name: 'check', status: 'in_progress', conclusion: null }]))
+        .toEqual([{ name: 'check', state: 'PENDING' }]);
+      expect(checksAsStates([{ name: 'check', status: 'queued', conclusion: 'success' }]))
+        .toEqual([{ name: 'check', state: 'PENDING' }]);
+    });
+
+    it('speaks the words howTheChecksStand reads', () => {
+      const runs = [
+        { name: 'check', status: 'completed', conclusion: 'success' },
+        { name: 'flutter', status: 'completed', conclusion: 'skipped' },
+      ];
+      expect(howTheChecksStand(checksAsStates(runs))).toBe('passed');
+    });
+
+    it('keeps both runs of a name rather than folding them together', () => {
+      /*
+       * The one that bit, cutting v0.99.0. A push triggers one run of a required check and opening
+       * the request triggers another; protection waits for every run, so a release that saw the
+       * green one and merged was refused with "Required status check \"check\" is in progress".
+       */
+      const twice = [
+        { name: 'check', status: 'completed', conclusion: 'success' },
+        { name: 'check', status: 'in_progress', conclusion: null },
+      ];
+      expect(checksAsStates(twice)).toHaveLength(2);
+      expect(howTheChecksStand(checksAsStates(twice)), 'one of them is still going').toBe('waiting');
+    });
+
+    it('is still red the moment any run is', () => {
+      expect(howTheChecksStand(checksAsStates([
+        { name: 'check', status: 'completed', conclusion: 'success' },
+        { name: 'playtest', status: 'completed', conclusion: 'failure' },
+      ]))).toBe('failed');
+    });
+
+    it('waits on a commit nothing has started on yet', () => {
+      expect(howTheChecksStand(checksAsStates([]))).toBe('waiting');
+    });
+  });
+
+  describe('which issues a request says it closes', () => {
+    it('reads every keyword GitHub acts on, in any case', () => {
+      expect(closesWhat('Closes #12 and fixes #7.\n\nResolved #9')).toEqual([7, 9, 12]);
+    });
+
+    it('says nothing for a request that closes nothing', () => {
+      expect(closesWhat('A tidy-up. See #40 for why.')).toEqual([]);
+    });
+
+    it('does not count the same issue twice', () => {
+      expect(closesWhat('Closes #5. Fixes #5.')).toEqual([5]);
+    });
   });
 });

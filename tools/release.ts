@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 /**
@@ -136,9 +137,8 @@ export function whatShipped(
 function alreadyTold(numbers: readonly number[]): Set<number> {
   const told = new Set<number>();
   for (const issue of numbers) {
-    const said = run('gh', ['issue', 'view', String(issue), '--json', 'comments',
-                            '-q', '.comments[].body']);
-    if (/Shipped in \[v/.test(said)) told.add(issue);
+    const comments = rest<Array<{ body: string }>>([`repos/${REPO}/issues/${issue}/comments`, '--paginate']);
+    if ((comments ?? []).some((one) => /Shipped in \[v/.test(one.body ?? ''))) told.add(issue);
   }
   return told;
 }
@@ -167,7 +167,8 @@ function whenTheLastOneWent(): string | null {
 function stampTheIssues(version: string, shipped: number[]): void {
   for (const issue of shipped) {
     try {
-      run('gh', ['issue', 'comment', String(issue), '--body', `Shipped in [v${version}](https://github.com/christhomas/ai.world/releases/tag/v${version}).`]);
+      restWith([`repos/${REPO}/issues/${issue}/comments`, '-X', 'POST'],
+               { body: `Shipped in [v${version}](https://github.com/${REPO}/releases/tag/v${version}).` });
     } catch {
       say(`could not comment on #${issue} — the release is out regardless`);
     }
@@ -222,6 +223,64 @@ function notesFor(version: string, body: string): string {
   }
 }
 
+
+/**
+ * Every call to GitHub in this file goes through REST, and that is not a style preference.
+ *
+ * `gh pr` and `gh issue` are GraphQL, and GitHub counts GraphQL against a quota of its own, separate
+ * from REST's. A session that has spent a day opening and merging pull requests — which is exactly
+ * the session that has something to release — exhausts it, and then this file died at `gh pr
+ * create` with `GraphQL: API rate limit already exceeded` while REST had five thousand of five
+ * thousand requests left. It died *after* committing the version bump and pushing the branch, which
+ * is the worst place to stop: four files bumped, a branch on the remote, no tag, no release, and
+ * therefore no image for the chart that now names one. See #341, and v0.99.0, which had to be
+ * finished by hand through these same endpoints.
+ *
+ * So: `gh api`, which is REST, everywhere.
+ */
+const REPO = 'christhomas/ai.world';
+
+/** A REST call that returns parsed JSON, or a thrown error carrying what GitHub said. */
+function rest<T>(args: string[], timeout?: number): T {
+  return JSON.parse(ask('gh', ['api', ...args], timeout) || 'null') as T;
+}
+
+/**
+ * A REST call whose body is JSON, written to a file rather than handed to the shell.
+ *
+ * `-f body=…` puts the text through a shell, and a release note with backticks in it — which is
+ * every release note in this project, because they name files — runs those as command
+ * substitution. It mangled a comment before anybody noticed. A file cannot be misread.
+ */
+function restWith<T>(args: string[], body: unknown): T {
+  const to = `${tmpdir()}/ai-world-release-${process.pid}.json`;
+  writeFileSync(to, JSON.stringify(body));
+  try {
+    return JSON.parse(run('gh', ['api', ...args, '--input', to]) || 'null') as T;
+  } finally {
+    rmSync(to, { force: true });
+  }
+}
+
+/**
+ * What the checks on a commit say, in the words `howTheChecksStand` reads.
+ *
+ * REST answers per *run* rather than per name, and a pull request routinely carries two runs of the
+ * same required check — one triggered by the push and one by the request being opened. Both are
+ * kept rather than folded together, which is the point: branch protection waits for every run, so a
+ * release that looked at the first `check` and saw green would try to merge and be refused with
+ * *"Required status check \"check\" is in progress"*. That happened cutting v0.99.0.
+ */
+export function checksAsStates(
+  runs: ReadonlyArray<{ name: string; status: string; conclusion: string | null }>,
+): Array<{ name: string; state: string }> {
+  return runs.map((one) => ({
+    name: one.name,
+    // a run that has not finished is pending whatever it may be about to conclude
+    state: one.status === 'completed' ? (one.conclusion ?? 'NEUTRAL').toUpperCase() : 'PENDING',
+  }));
+}
+
 /** Wait for every check to finish, for the case where nothing will merge it for us. */
 /**
  * A check that has finished and is not a complaint. A job a workflow decided to skip is not a red
@@ -272,8 +331,10 @@ function waitForTheChecks(branch: string): void {
       throw new Error('the checks have not finished in time. Nothing is broken and nothing is tagged:'
         + ` look at what is holding them up, then run the same release again.`);
     }
-    const said = ask('gh', ['pr', 'checks', branch, '--json', 'name,state'], remaining);
-    const stand = howTheChecksStand(said ? JSON.parse(said) as Array<{ name: string; state: string }> : []);
+    const runs = rest<{ check_runs?: Array<{ name: string; status: string; conclusion: string | null }> }>(
+      [`repos/${REPO}/commits/${branch}/check-runs`, '--paginate'], remaining,
+    );
+    const stand = howTheChecksStand(checksAsStates(runs?.check_runs ?? []));
     if (stand === 'passed') return;
     if (stand === 'failed') throw new Error('a check failed — the release is not going out on a red commit');
     if (Date.now() >= until) {
@@ -284,26 +345,13 @@ function waitForTheChecks(branch: string): void {
   }
 }
 
-/**
- * Wait until the pull request is actually in, or say why it never will be.
+/*
+ * `waitForTheMerge` used to live here, polling `gh pr view` until the request said MERGED.
  *
- * A release that tagged a commit main had not taken would be a version that exists on one machine,
- * which is the whole class of fault this file was written to make impossible.
+ * It was there because the merge was asked for with `--auto` and happened later, on GitHub's own
+ * clock — so the tag had nothing to go on until something said it had. The REST merge answers with
+ * the squash commit in the same call, so there is no gap to wait across and nothing left to poll.
  */
-function waitForTheMerge(branch: string): void {
-  const until = Date.now() + WAIT_FOR_CI;
-  for (;;) {
-    const seen = JSON.parse(run('gh', ['pr', 'view', branch, '--json', 'state,mergedAt'])) as
-      { state: string; mergedAt: string | null };
-    if (seen.state === 'MERGED') return;
-    if (seen.state === 'CLOSED') throw new Error(`the release request was closed without merging`);
-    if (Date.now() > until) {
-      throw new Error('the checks have not finished. The request is open and will merge itself when'
-        + ` they pass — then: git fetch origin main && git tag -a v… && git push origin v…`);
-    }
-    execFileSync('sleep', ['15']);
-  }
-}
 
 /** How long to wait on the checks before saying so. The playtest is a browser and is the slow one. */
 const WAIT_FOR_CI = 20 * 60 * 1000;
@@ -333,22 +381,35 @@ function today(): string {
 function whatWentIn(since: string | null): string[] {
   if (!since) return [];
   try {
-    const merged = run('gh', ['pr', 'list', '--state', 'merged', '--base', 'main', '--limit', '100',
-                              '--json', 'number,title,mergedAt,closingIssuesReferences']);
-    const rows = JSON.parse(merged || '[]') as Array<{
-      number: number; title: string; mergedAt: string;
-      closingIssuesReferences?: Array<{ number: number }>;
-    }>;
+    const rows = rest<Array<{ number: number; title: string; merged_at: string | null; body: string | null }>>(
+      [`repos/${REPO}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100`],
+    ) ?? [];
     return rows
-      .filter((pr) => Date.parse(pr.mergedAt) > Date.parse(since))
+      .filter((pr) => pr.merged_at !== null && Date.parse(pr.merged_at) > Date.parse(since))
       .sort((a, b) => a.number - b.number)
       .map((pr) => {
-        const closed = (pr.closingIssuesReferences ?? []).map((i) => `#${i.number}`).join(', ');
+        const closed = closesWhat(pr.body ?? '').map((n) => `#${n}`).join(', ');
         return `- ${pr.title} (#${pr.number})${closed ? ` — closes ${closed}` : ''}`;
       });
   } catch {
     return [];
   }
+}
+
+/**
+ * Which issues a pull request says it closes, read out of what it wrote.
+ *
+ * GraphQL has `closingIssuesReferences` and REST has nothing like it, so this reads the body for the
+ * keywords GitHub itself acts on. Slightly less than GraphQL knew — it also counted references made
+ * in commit messages — and enough for a changelog line, which is all this feeds. A line that named
+ * one issue fewer is a smaller loss than a release that cannot be cut at all; see #341.
+ */
+export function closesWhat(body: string): number[] {
+  const found = new Set<number>();
+  for (const [, n] of body.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi)) {
+    found.add(Number(n));
+  }
+  return [...found].sort((a, b) => a - b);
 }
 
 /** Put this version at the top of `CHANGELOG.md`, under the preamble and above the last one. */
@@ -527,8 +588,11 @@ function main(): void {
   run('git', ['add', ...FILES_A_RELEASE_WRITES]);
   run('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', `Release ${version}\n\n${body}`]);
   run('git', ['push', '-u', 'origin', branch]);
-  run('gh', ['pr', 'create', '--base', 'main', '--head', branch,
-             '--title', `Release ${version}`, '--body', body]);
+  const request = restWith<{ number: number }>(
+    [`repos/${REPO}/pulls`, '-X', 'POST'],
+    { title: `Release ${version}`, head: branch, base: 'main', body, draft: false },
+  );
+  if (!request?.number) throw new Error(`the release request for ${branch} was not opened`);
   /*
    * And then it waits, which is the part worth understanding rather than working around.
    *
@@ -537,29 +601,31 @@ function main(): void {
    * run locally by this point, so this is not the same work twice: it is the one check that cannot
    * be run on a laptop, on the exact commit that is about to become a release.
    *
-   * `--auto` rather than a poll of our own: GitHub merges it the moment the checks are green, and
-   * nothing here has to decide what "green" means. Then this waits for the merge to actually have
-   * happened, because the tag goes on what main became and there is nothing to tag until it does.
+   * It used to ask for `--auto` and let GitHub merge it the moment the checks were green, falling
+   * back to waiting and merging by hand. REST has no auto-merge, so what is left is the fallback —
+   * which is the path that ran in this repository anyway, and is the one with a deadline on it.
    */
-  try {
-    run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch', '--auto']);
-  } catch {
-    // auto-merge is a repository setting and not every clone's repository has it turned on. Saying
-    // so and waiting is better than requiring somebody to go and find a checkbox before releasing
-    say('auto-merge is off for this repository; waiting on the checks and merging by hand');
-    waitForTheChecks(branch);
-    run('gh', ['pr', 'merge', branch, '--squash', '--delete-branch']);
-  }
   say('waiting for the checks — the playtest is a browser, and it takes a few minutes');
-  waitForTheMerge(branch);
+  waitForTheChecks(branch);
+  const head = run('git', ['rev-parse', branch]);
+  /*
+   * The head is named on the merge, so nothing else can land on this branch between the checks
+   * going green and the squash. GitHub refuses the merge rather than releasing something nobody
+   * checked.
+   */
+  const squashed = restWith<{ merged: boolean; sha: string }>(
+    [`repos/${REPO}/pulls/${request.number}/merge`, '-X', 'PUT'],
+    { merge_method: 'squash', sha: head },
+  );
+  if (!squashed?.merged) throw new Error(`the release request #${request.number} did not merge`);
   say('released through a pull request and squashed onto main');
 
   /*
-   * A squash creates a new commit. Name that exact commit through the pull request, not whichever
-   * unrelated change reached main before this process fetched it. The tree check makes the target
-   * prove it carries the chart version this release just wrote.
+   * A squash creates a new commit, and the merge itself names it. That is the commit to tag, rather
+   * than whichever unrelated change reached main before this process fetched it — and the tree
+   * check below makes it prove it carries the chart version this release just wrote.
    */
-  const releaseCommit = theReleaseCommit(run('gh', ['pr', 'view', branch, '--json', 'mergeCommit']), branch);
+  const releaseCommit = squashed.sha;
 
   run('git', ['switch', 'main']);
   run('git', ['fetch', 'origin', 'main']);
@@ -588,12 +654,15 @@ function main(): void {
 
   // The release is what builds the image the chart now names. Without it the cluster reconciles
   // against a version that exists in git and nowhere else.
-  run('gh', ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes', notesFor(version, body)]);
+  restWith([`repos/${REPO}/releases`, '-X', 'POST'],
+           { tag_name: `v${version}`, name: `v${version}`, body: notesFor(version, body) });
   say(`published the release — the image workflow is building ghcr.io/christhomas/ai-world:${version}`);
   say('watch it with: gh run watch $(gh run list --workflow=image.yml --limit 1 --json databaseId -q \'.[0].databaseId\')');
 
-  const closed = JSON.parse(run('gh', ['issue', 'list', '--state', 'closed', '--limit', '100', '--json', 'number,closedAt'])) as
-    Array<{ number: number; closedAt: string }>;
+  const closed = (rest<Array<{ number: number; closed_at: string; pull_request?: unknown }>>(
+    [`repos/${REPO}/issues?state=closed&per_page=100&sort=updated`],
+  ) ?? []).filter((one) => !one.pull_request)
+    .map((one) => ({ number: one.number, closedAt: one.closed_at }));
   const window = whatShipped(closed, since);
   stampTheIssues(version, whatShipped(closed, since, alreadyTold(window)));
 }
