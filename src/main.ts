@@ -243,7 +243,7 @@ export function startGame(
   );
   // --- the save, opened out: everything the seed could not have worked out for itself ---
   const {
-    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines,
+    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore,
     plots, houses, sailing, mount, persist,
   } = openTheSave({
     store, slotKey, seed, worldName, saved, structures, manifest,
@@ -594,7 +594,7 @@ export function startGame(
   const villageLuxury = new Map<string, Luxury>();
   // and everything the country did overnight, which is most of what makes it a country
   const tidings = createTidings({
-    seed, state, player, places, structures, around, sampler, register, roaming, nemesis, mines, online,
+    seed, state, player, places, structures, around, sampler, register, roaming, nemesis, mines, ore, online,
     remains, sound, director, claimed, villageLuxury, discovered, realm, persist,
     builderDay: (day, already) => interactions.builderDay(day, already),
     villageNights: () => interactions.villageNights(),

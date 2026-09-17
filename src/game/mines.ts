@@ -1,3 +1,4 @@
+import { keptBack } from './ore';
 import { remember, type Person, type Remembering } from '../world/people';
 import {
   MINING, dayUnderground, freshMine, perilAfter, restOvernight, saidOfMine, toldOfMine, type Mine,
@@ -148,6 +149,14 @@ export interface Digging {
   day: number;
   /** Gold brought up, already shared out among the people who went down. */
   gold: number;
+  /**
+   * Stone kept back for the village's own forge, in pieces, and never anywhere without one.
+   *
+   * Not added to the shift — taken out of it. `gold` above is already what the crew came home with
+   * *after* this was set aside, so the day at the face is worth what it was worth and the books
+   * balance. See `ore.ts` for why that is the only honest way to have a smith at all.
+   */
+  ore: number;
   /** Somebody was frightened badly enough that the village heard about it. */
   scared: boolean;
   /**
@@ -168,6 +177,13 @@ export interface MineJson {
   dread: number;
   /** How many of the things living in it have been killed. */
   cleared: number;
+  /**
+   * Worth of stone set aside for a forge but not yet a whole piece of ore. See `ore.ts`.
+   *
+   * Written only where there is any, so a world with no forge in it saves exactly the shape it
+   * always did — and absent on a save from before forges, which reads as nothing set aside.
+   */
+  kept?: number;
 }
 
 export interface MinesJson {
@@ -340,13 +356,14 @@ export class Mines {
    */
   advance(
     today: number, workings: readonly Working[], folkOf: (village: string) => readonly Person[],
+    keepsOre: (village: string) => boolean = () => false,
   ): Digging[] {
     const out: Digging[] = [];
     const end = Math.floor(today);
 
     while (this.day < end) {
       this.day++;
-      for (const working of workings) out.push(...this.workADay(working, this.day, folkOf));
+      for (const working of workings) out.push(...this.workADay(working, this.day, folkOf, keepsOre));
     }
     return out;
   }
@@ -354,18 +371,32 @@ export class Mines {
   /** One village, one mine, one day: what came up, who did not, and who heard about it. */
   private workADay(
     working: Working, day: number, folkOf: (village: string) => readonly Person[],
+    keepsOre: (village: string) => boolean,
   ): Digging[] {
     const crew = crewOf(working.village, folkOf);
     const mine = this.mines.get(working.mine) ?? freshMine(working.mine);
     // one stream per mine, so two mines in the same world never have the same day
     const shift = dayUnderground(this.seed ^ hashOf(working.mine), day, mine, crew.length, this.perilOf(working.mine));
-    this.mines.set(working.mine, restOvernight(mine, shift));
-    if (shift.gold === 0 && !shift.scared) return [];
+    /*
+     * A village with a forge takes some of the day as stone rather than as nuggets.
+     *
+     * Charged to the seam rather than to the crew: `restOvernight` works the mine out by what the
+     * stone was worth, so a mine yields what a mine yields and a village with a forge simply gets
+     * part of it in a form a smith can use. A village with no smithy takes none, because there is
+     * nobody to take it for — which is what makes a smith a *place* rather than a shop everybody
+     * has. See `ore.ts`.
+     */
+    const kept = keepsOre(working.village)
+      ? keptBack(shift.gold, mine.kept ?? 0)
+      : { ore: 0, carry: mine.kept ?? 0, spent: 0 };
+    this.mines.set(working.mine, { ...restOvernight(mine, shift, kept.spent), kept: kept.carry });
+    const gold = shift.gold;
+    if (gold === 0 && kept.ore === 0 && !shift.scared) return [];
 
     // the takings are shared out among the people who actually went down, which is what puts real
     // money on the register rather than a stipend standing in for one. Shared to the coin: a
     // rounded share each leaves dust, and dust in a mint is money the world invented
-    let left = shift.gold;
+    let left = gold;
     for (let n = 0; n < crew.length; n++) {
       const share = Math.round(left / (crew.length - n));
       crew[n].purse += share;
@@ -376,7 +407,7 @@ export class Mines {
     if (shift.scared) this.tellThem(working, day, folkOf);
     return [{
       village: working.village, mine: working.mine, name: working.name, x: working.x, z: working.z,
-      day, gold: shift.gold, scared: shift.scared, lost, dropped: shift.dropped,
+      day, gold, ore: kept.ore, scared: shift.scared, lost, dropped: shift.dropped,
     }];
   }
 
@@ -405,7 +436,12 @@ export class Mines {
   save(): MinesJson {
     const mines: MineJson[] = [];
     for (const [id, mine] of this.mines) {
-      mines.push({ id, worked: mine.worked, dread: mine.dread, cleared: this.cleared.get(id) ?? 0 });
+      // `kept` only where there is any, so a world with no forge in it saves exactly as it did
+      const kept = mine.kept ?? 0;
+      mines.push({
+        id, worked: mine.worked, dread: mine.dread, cleared: this.cleared.get(id) ?? 0,
+        ...(kept > 0 ? { kept } : {}),
+      });
     }
     // a mine nobody has worked but somebody has fought through is still worth keeping: it is a
     // cleared-out cave waiting for its village to be told about it
@@ -419,7 +455,7 @@ export class Mines {
   static from(seed: number, json: Partial<MinesJson> | undefined, day = 1): Mines {
     const mines = new Mines(seed, json?.day ?? day);
     for (const held of json?.mines ?? []) {
-      mines.mines.set(held.id, { id: held.id, worked: held.worked, dread: held.dread });
+      mines.mines.set(held.id, { id: held.id, worked: held.worked, dread: held.dread, kept: held.kept ?? 0 });
       if (held.cleared > 0) mines.cleared.set(held.id, held.cleared);
     }
     return mines;

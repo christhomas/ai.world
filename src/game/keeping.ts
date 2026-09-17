@@ -1,3 +1,4 @@
+import { Ore } from './ore';
 import type { Manifest } from '../world/manifest';
 import type { SaveStore, SessionSave } from '../save/store';
 import { Houses } from './building';
@@ -96,6 +97,15 @@ export function openTheSave(ctx: Keeping) {
    * world rather than about the hero, true whoever happens to be playing.
    */
   const mines = Mines.from(seed, saved?.state?.mines, state.day);
+  /**
+   * And what each village kept out of it for its own forge.
+   *
+   * Beside the mines rather than beside the builder's timber, because this is where the stone
+   * comes from: a heap by the adit, filled by the same shifts that fill the miners' purses and
+   * charged to the same seam. `ore.ts` says why taking it out of the mine rather than adding it
+   * beside is the only version of this that does not mint matter.
+   */
+  const ore = Ore.from(saved?.state?.ore, state.day);
   const plots = new Plots(saved?.state?.plots);
   /** The builder you are holding, and every house you have had put up. */
   const houses = Houses.from(saved?.state?.houses, state.day);
@@ -108,7 +118,7 @@ export function openTheSave(ctx: Keeping) {
       worldName,
       cam: cam(),
       player: at(),
-      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save() },
+      state: { ...state.toJSON(), horse: mount.toJSON(), plots: plots.toJSON(), houses: houses.toJSON(), boat: sailing.toJSON(), gifts: gifts.save(), jail: jail.toJSON(), rescues: rescues.save(), grudges: grudges.save(), mines: mines.save(), ore: ore.toJSON() },
       manifest: manifest.toJSON(),
       nemesis: nemesis.toJSON(),
       roaming: roaming.save(),
@@ -117,7 +127,7 @@ export function openTheSave(ctx: Keeping) {
   };
 
   return {
-    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines,
+    state, standing, magic, jail, gifts, rescues, grudges, nemesis, roaming, mines, ore,
     plots, houses, sailing, mount, persist,
   };
 }

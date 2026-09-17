@@ -94,10 +94,22 @@ export interface Mine {
    * safe is still feared until somebody goes back and says otherwise.
    */
   dread: number;
+  /**
+   * Worth of stone set aside for the forge but not yet a whole piece of ore. See `ore.ts`.
+   *
+   * A day at a fresh face is worth twenty-six and a piece of ore thirty-four, so the share a forge
+   * takes is less than a piece on any single day and flooring it gives nought for ever. Carried
+   * here rather than recomputed, because it is a running total of days and there is nowhere else
+   * that remembers a mine between them.
+   *
+   * Absent on a mine saved before there were forges, which reads as nothing set aside — correct,
+   * because nothing was.
+   */
+  kept?: number;
 }
 
 export function freshMine(id: string): Mine {
-  return { id, worked: 0, dread: 0 };
+  return { id, worked: 0, dread: 0, kept: 0 };
 }
 
 /** What is left in a mine, as a share of what it held. */
@@ -159,13 +171,20 @@ export function dayUnderground(
 }
 
 /** A mine, a day older: what was taken is a little further back, and fear fades if nothing happens. */
-export function restOvernight(mine: Mine, today: DayUnderground): Mine {
-  const worked = Math.max(0, mine.worked + today.gold + today.dropped - MINING.RECOVERS);
+export function restOvernight(mine: Mine, today: DayUnderground, spentOnOre = 0): Mine {
+  /*
+   * The stone a forge took is charged to the seam exactly as the gold is.
+   *
+   * That is what keeps this honest: a mine yields what a mine yields, and a village with a forge
+   * gets some of it as stone rather than as nuggets and works the place out sooner. Nothing is
+   * minted, and a village with no forge is untouched because `spentOnOre` is nought there.
+   */
+  const worked = Math.max(0, mine.worked + today.gold + today.dropped + spentOnOre - MINING.RECOVERS);
   let dread = mine.dread;
   if (today.lost) dread = Math.min(1, dread + MINING.DREAD_A_DEATH);
   else if (today.scared) dread = Math.min(1, dread + MINING.DREAD_A_FRIGHT);
   else dread = Math.max(0, dread - MINING.DREAD_FADES);
-  return { id: mine.id, worked, dread };
+  return { id: mine.id, worked, dread, kept: mine.kept ?? 0 };
 }
 
 /**
