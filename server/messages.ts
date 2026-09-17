@@ -58,6 +58,9 @@ export function handle(rooms: Rooms, me: Client, room: Room, message: ClientMess
     case 'swear':
       takeTheWork(rooms, me, room, message);
       return;
+    case 'arrive':
+      walkIntoTheVillage(rooms, me, room, message);
+      return;
     case 'sow':
       seedSown({
         sown: room.world.sownAt(String(message.tile).slice(0, LIMITS.THING_ID)),
@@ -526,6 +529,43 @@ function takeTheWork(
   room.world.apply(oath);
   // the caller did not apply this optimistically, so the accepted fact goes back to everybody
   rooms.broadcast(me.seed, { type: 'delta', delta: oath, from: me.presence.id });
+}
+
+/**
+ * Somebody walks into a village and stands on its roll.
+ *
+ * The same shape as an oath and for the same reason, one step earlier: the roll is the server's
+ * register, and the name written into it is the roster's rather than the message's. A page may not
+ * choose what it is called in another village's book, nor what it is said to have walked in with.
+ *
+ * Refused silently for a village the world has not settled, which is not a loss: what settles a
+ * village is somebody being near enough to it for the country to be grown, and that is the same
+ * moment this is asked.
+ */
+function walkIntoTheVillage(
+  rooms: Rooms, me: Client, room: Room, message: Extract<ClientMessage, { type: 'arrive' }>,
+): void {
+  if (me.standingIn !== 'surface') return;
+  const world = rooms.worldOf(me.seed, 'surface');
+  const village = String(message.village).slice(0, LIMITS.THING_ID);
+  /*
+   * Two fields the world fills in rather than the message, and neither is finished.
+   *
+   * The purse is nought, deliberately: what a hero's purse holds is the other half of #260 — the
+   * register's purse becoming the only purse — and a page claiming its own gold into somebody
+   * else's books is exactly what this message is shaped to prevent. Until that lands he walks in
+   * with empty pockets as far as the village's books are concerned, which understates him and
+   * costs nothing, where the other way round would mint money.
+   *
+   * The sex is `man` because `Presence` does not carry one. It decides how the row is addressed and
+   * nothing else — no livelihood, no inheritance and no wage reads it — so it is wrong for some
+   * players rather than broken for any, and it is fixed by putting it on the roster rather than
+   * here.
+   */
+  const came = world?.register?.arrive(village, me.presence.name, 'man', 0, room.world.clock.day);
+  if (!came) return;
+  room.world.apply(came);
+  rooms.broadcast(me.seed, { type: 'delta', delta: came, from: me.presence.id });
 }
 
 /** Call a civic vote from the hall the authoritative hero is actually standing beside. */

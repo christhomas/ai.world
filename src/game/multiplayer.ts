@@ -471,6 +471,16 @@ export function createMultiplayer(ctx: MultiplayerContext) {
           hud.flash(`${delta.who} takes up ${delta.trade} work in ${delta.village}.`);
         }
         break;
+      /*
+       * Somebody stands on a village's roll. Applied on every page, like an oath: the hall's
+       * directory, the errand a villager has for the deathless and who may hold a farm all read the
+       * roll, and two windows disagreeing about who is on it is two windows in two villages.
+       */
+      case 'arrived':
+        if (register.apply(delta) && !catchingUp && delta.who === online.name) {
+          hud.flash(`${delta.village} writes you into its roll.`);
+        }
+        break;
       case 'voted':
         // The world sends an accepted vote back to its caller too, so nobody spends the treasury
         // optimistically and then disagrees with the authority.

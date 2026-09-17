@@ -57,6 +57,7 @@ import { Player } from './entities/player';
 import { SALT, derive } from './core/salts';
 import { Register } from './world/register';
 import { whichFieldClears } from './world/fieldbuilds';
+import { walksIn } from './game/arriving';
 import { type Kindness } from './game/gifts';
 import { type Realm } from './game/nemesis';
 import { Director } from './game/director';
@@ -613,6 +614,7 @@ export function startGame(
     rankOf: (village) => register.rankOf(village),
     cameraTarget: () => iso.target,
     discover,
+    walkedInto: walksIn(register, online),
   });
 
   /*

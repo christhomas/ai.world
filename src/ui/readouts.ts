@@ -85,6 +85,16 @@ export interface ReadoutContext {
    */
   bound: () => { name: string; x: number; z: number } | null;
   discover: (name: string) => void;
+  /**
+   * The hero is standing inside this village.
+   *
+   * Beside `discover` and not folded into it, because they are different questions about the same
+   * moment: naming a place is a fact about what the *player* knows, and being on its roll is a fact
+   * about what the *village* knows. A hero can have seen a town from a hill — the map says so — and
+   * still never have walked into it. Called on every update that finds him inside one; whoever is
+   * handed this is what decides that the second one is not news. See `arrivals.ts`.
+   */
+  walkedInto: (name: string) => void;
 }
 
 /** How far these readouts are willing to look for something. Distances in tiles. */
@@ -105,7 +115,7 @@ export function createReadouts(ctx: ReadoutContext) {
   const {
     player, state, structures, around, sampler, discovered, questList, ferries, sailing, places,
     rucksack, hud, clock, compass: compassBar, companyMarkers, fogged, cameraTarget, discover, bound,
-    rankOf, action,
+    walkedInto, rankOf, action,
   } = ctx;
   let areaLabel = 'The Crossroads';
   const actionPreview = createActionPreview(action.at);
@@ -199,6 +209,7 @@ export function createReadouts(ctx: ReadoutContext) {
      * saying is that this one is *more* than that.
      */
     if (v) {
+      walkedInto(v.name);
       const grown = rankOf(v.name);
       return grown === 'hamlet' || grown === 'village' ? v.name : `${v.name}, a ${grown}`;
     }

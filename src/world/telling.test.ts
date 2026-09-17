@@ -62,6 +62,26 @@ describe('replaying what a world was told', () => {
     expect(back.rankOf('Testing')).toBe('town');
   });
 
+  it('puts an arrival back, so the hero is still somebody the village knows', () => {
+    const log: Told[] = [{ kind: 'arrived', village: 'Ashford', who: 'Rowan', sex: 'man', purse: 40, day: 40 }];
+    const back = caughtUp(log, (r) => r.settle('Ashford', 1, HAMLET), 40);
+
+    expect(back.living('Ashford').map((p) => p.name)).toContain('Rowan');
+    expect(back.living('Ashford').find((p) => p.name === 'Rowan')!.purse).toBe(40);
+  });
+
+  it('keeps the hero on the roll when the village is lived again around him', () => {
+    const register = new Register(11);
+    register.settle('Ashford', 1, HAMLET);
+    register.advance(40);
+    expect(register.arrive('Ashford', 'Rowan', 'man', 40)).not.toBeNull();
+    // a told killing founds the village again from the morning it happened; he has to come back too
+    const villager = register.living('Ashford').find((p) => p.name !== 'Rowan')!;
+    register.apply({ kind: 'died', id: villager.id, name: '', village: 'Ashford', day: 20, cause: 'violence' });
+
+    expect(register.living('Ashford').map((p) => p.name)).toContain('Rowan');
+  });
+
   it('applies the same fact twice without applying it twice', () => {
     const log: Told[] = [{ kind: 'sworn', village: 'Ashford', trade: 'doctor', who: 'Wanderer', day: 40 }];
     const back = caughtUp([...log, ...log], (r) => r.settle('Ashford', 1, HAMLET), 40);
@@ -76,8 +96,9 @@ describe('replaying what a world was told', () => {
       { kind: 'sow', tile: '1,1', crop: 'wheat', day: 2 },
       { kind: 'voted', village: 'Ashford', rank: 'town', day: 4 },
       { kind: 'sworn', village: 'Ashford', trade: 'doctor', who: 'Wanderer', day: 5 },
+      { kind: 'arrived', village: 'Ashford', who: 'Rowan', sex: 'man', purse: 0, day: 6 },
     ];
 
-    expect(log.filter(isTold).map((one) => one.kind)).toEqual(['died', 'voted', 'sworn']);
+    expect(log.filter(isTold).map((one) => one.kind)).toEqual(['died', 'voted', 'sworn', 'arrived']);
   });
 });

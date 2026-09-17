@@ -44,19 +44,25 @@ const village = (): Register => {
   return book;
 };
 
+/**
+ * `arrive` hands back the told fact rather than the row, the way `swearIn` does — see `telling.ts`
+ * for why every told fact goes in through one door. The row is read off the roll, which is also
+ * where everything else in the game reads it.
+ */
+const onTheRoll = (book: Register, name = 'Rowan') =>
+  book.living('Ashford').find((p) => p.name === name)!;
+
 describe('a hero the register knows', () => {
   it('stands on the roll of the village he is in', () => {
     const book = village();
-    const hero = book.arrive('Ashford', 'Rowan', 'man', 40);
-    expect(hero).not.toBeNull();
+    expect(book.arrive('Ashford', 'Rowan', 'man', 40)).not.toBeNull();
     expect(book.living('Ashford').map((p) => p.name)).toContain('Rowan');
   });
 
   it('has one purse, which is the register\'s', () => {
     const book = village();
-    const hero = book.arrive('Ashford', 'Rowan', 'man', 40)!;
-    expect(hero.purse).toBe(40);
-    expect(book.living('Ashford').find((p) => p.name === 'Rowan')!.purse).toBe(40);
+    book.arrive('Ashford', 'Rowan', 'man', 40);
+    expect(onTheRoll(book).purse).toBe(40);
   });
 
   it('can swear an oath the register counts, which is what a trade is', () => {
@@ -92,7 +98,8 @@ describe('a hero the register knows', () => {
 
   it('is somebody a villager can hold an opinion of, because he has a name on a row', () => {
     const book = village();
-    const hero = book.arrive('Ashford', 'Rowan', 'man', 40)!;
+    book.arrive('Ashford', 'Rowan', 'man', 40);
+    const hero = onTheRoll(book);
     expect(hero.knows).toEqual([]);
     expect(hero.memories).toEqual([]);
     expect(hero.opinions).toEqual([]);
