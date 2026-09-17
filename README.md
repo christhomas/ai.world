@@ -602,6 +602,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.97.0 — 2026-09-17
+
+A save remembers which country it is, told facts get their own book, the hero walks into a village, and the shot tool can photograph either generator
+
 ### v0.96.0 — 2026-09-16
 
 a country that stopped being a honeycomb, ground that stopped being a checkerboard, rock you can see, and a phone that looks like the design
@@ -637,10 +641,6 @@ every value on a creature is stated by the creature
 ### v0.92.2 — 2026-09-13
 
 every creature states every value it has
-
-### v0.92.1 — 2026-09-13
-
-paying the hall is paying somebody
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured

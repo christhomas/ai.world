@@ -14,6 +14,24 @@ Versions are `major.minor.patch` on the chart, the image, the package and the ta
 built is a cluster that cannot start.
 
 
+## v0.97.0 — 2026-09-17
+
+A save remembers which country it is, told facts get their own book, the hero walks into a village, and the shot tool can photograph either generator
+
+- A bed is the only clean way out of the world, and now it says so (#311)
+- Aim at the door before every step, and say where he actually stopped (#313)
+- A shared world's days are not mine to live again (#314)
+- Building a square is a different job from answering about a point (#315) — closes #306
+- A stack of something is one mechanism, and wood was only the first of them (#317)
+- A village with a forge keeps stone back, and the seam pays for it (#318)
+- A smith's day, and the first gear in this world that somebody made (#319) — closes #232
+- With your pack open, n left the world (#320)
+- A teleport walks out of the door, and lands where somebody can stand (#321)
+- A save writes down which country it is, so reopening it does not move the ground (#326)
+- The told facts keep their own book, and the wire stops converting them twice (#327)
+- The shot tool can take the same picture in the other country (#328)
+- The hero walks into a village, and the village writes him down (#330)
+
 ## v0.96.0 — 2026-09-16
 
 a country that stopped being a honeycomb, ground that stopped being a checkerboard, rock you can see, and a phone that looks like the design
