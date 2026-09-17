@@ -87,6 +87,16 @@ export class Chat {
     this.open(true);
   }
 
+  /**
+   * Put the console away without hiding the log.
+   *
+   * For whoever is about to draw something worth looking at. A teleport is typed, so at the moment
+   * the beam fires the panel is open and focused over the part of the picture the hero is standing
+   * in — see `render/beam.ts`. `hide` is the wrong door for that: it drops the log as well, and the
+   * log is where the answer to what was typed appears.
+   */
+  dismiss(): void { this.close(); }
+
   private close(): void {
     this.typing = false;
     this.asConsole = false;

@@ -17,7 +17,16 @@ import { helpText } from '../core/commandbus';
 
 /** The few things the game must be able to do for a command to mean anything. */
 export interface CommandWorld {
-  teleport(x: number, z: number): void;
+  teleport(x: number, z: number): unknown;
+  /**
+   * The same jump with no picture, for probes and playtests.
+   *
+   * `teleport` takes ten seconds now — it is the transporter rather than a tool — and a check that
+   * teleports a hundred times cannot wait a quarter of an hour. Same function underneath, so a
+   * probe still walks out of a building first and still lands where a body can stand; only the
+   * beam and the camera's patience differ. See `jumpTo` in `console.ts`.
+   */
+  warpTo(x: number, z: number): void;
   /** Somewhere with a name: a village, or anything else the map has a word for. */
   teleportTo(place: string): unknown;
   /**

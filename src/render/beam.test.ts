@@ -4,7 +4,7 @@ import { KINDS } from '../entities/animals';
 import { Entity, Herd } from '../entities/entity';
 import { EntityRenderer } from '../entities/pool';
 import { mulberry32 } from '../core/rng';
-import { Beam } from './beam';
+import { A_PASSAGE, AWAY, Beam, SCATTER } from './beam';
 
 /**
  * The beam a teleport leaves behind.
@@ -59,26 +59,76 @@ describe('teleporting, as something you can watch', () => {
     const who = hero();
     renderer.add(who);
 
+    // arriving with nobody having left: no beat to wait out, so he gathers straight away
     beam.arrives(who);
     expect(who.apart, 'he arrives in pieces').toBe(1);
     beam.update(1 / 60);
     expect(who.apart, 'and starts gathering himself at once').toBeLessThan(1);
 
-    seconds(beam, 1);
-    expect(who.apart, 'whole again, and quickly').toBe(0);
+    seconds(beam, SCATTER + 0.1);
+    expect(who.apart, 'whole again').toBe(0);
   });
 
-  it('is over inside half a second, because it happens every time you go anywhere', () => {
+  it('is a passage of about ten seconds rather than a flicker', () => {
     const { renderer, beam } = stand();
     const who = hero();
     renderer.add(who);
     beam.leaves(who);
     beam.arrives(who);
-    // the whole point of the effect is that nobody waits for it: a teleport across the county is
-    // still a keypress and an arrival, with a picture in between rather than a pause
-    seconds(beam, 0.5);
-    expect(who.apart).toBe(0);
+
+    /*
+     * This test used to say the opposite — *"is over inside half a second, because it happens every
+     * time you go anywhere"* — and that was the console's teleport talking, which is a tool. The
+     * thing itself is an event, and at a third of a second nobody had ever seen it. Chris:
+     *
+     * > it looks cool, but its too fast
+     */
+    expect(A_PASSAGE).toBeGreaterThan(9);
+    expect(A_PASSAGE).toBeLessThan(11);
+
+    seconds(beam, 1);
+    expect(who.apart, 'a second in he is still coming apart at the old place').toBe(1);
+    seconds(beam, A_PASSAGE);
+    expect(who.apart, 'and whole at the far end of it').toBe(0);
     expect(renderer.count, 'and the copy left behind is gone with it').toBe(1);
+  });
+
+  it('holds him fully apart until the copy has gone and the beat has passed', () => {
+    const { renderer, beam } = stand();
+    const who = hero();
+    renderer.add(who);
+    beam.leaves(who);
+    beam.arrives(who);
+
+    // the whole of the departure and the beat after it: nothing of him is drawn at either end
+    seconds(beam, SCATTER + AWAY - 0.2);
+    expect(who.apart, 'nowhere, the whole way').toBe(1);
+
+    beam.update(1 / 60);
+    seconds(beam, 0.5);
+    expect(who.apart, 'and only then does he start to gather').toBeLessThan(1);
+    expect(who.apart, 'but he is not there yet either').toBeGreaterThan(0);
+
+    seconds(beam, SCATTER);
+    expect(who.apart, 'whole at the end').toBe(0);
+  });
+
+  it('brings the camera along when he stops being at the old place, and only then', () => {
+    const { renderer, beam } = stand();
+    const who = hero();
+    renderer.add(who);
+    let looked = 0;
+    beam.leaves(who);
+    beam.arrives(who, () => { looked++; });
+
+    seconds(beam, SCATTER - 0.2);
+    expect(looked, 'the view stays to watch him leave').toBe(0);
+
+    seconds(beam, AWAY + 0.3);
+    expect(looked, 'and follows him once the beat is over').toBe(1);
+
+    seconds(beam, A_PASSAGE);
+    expect(looked, 'once, not once a frame').toBe(1);
   });
 
   it('leaves a copy of the hero behind to come apart where he was standing', () => {
@@ -94,7 +144,7 @@ describe('teleporting, as something you can watch', () => {
     // he has already gone; the copy is what is standing in the light
     who.x = 400; who.z = 400;
     beam.update(1 / 60);
-    seconds(beam, 0.5);
+    seconds(beam, SCATTER + 0.1);
     expect(renderer.count, 'and then only him').toBe(1);
   });
 
