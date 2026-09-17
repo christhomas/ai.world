@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { AWAY_TIME, daysAway } from './awaytime';
+import { AWAY_TIME, daysAway, daysToLive } from './awaytime';
 import { DAY_LENGTH } from '../../server/protocol';
 
 /**
@@ -93,5 +94,40 @@ describe('a save that remembers when it was written', () => {
     state.lodged = true;
     expect(GameState.from(state.toJSON()).lodged).toBe(true);
     expect(GameState.from(new GameState().toJSON()).lodged, 'nobody is lodged by default').toBe(false);
+  });
+});
+
+describe('whose clock has been running', () => {
+  it('lives the days a world of one froze through', () => {
+    expect(daysToLive(6, false)).toBe(6);
+  });
+
+  it('lives none of them in a world somebody else has been stepping', () => {
+    /*
+     * The one way this feature can do real damage rather than merely nothing. `server/sim.ts` steps
+     * a shared world whether or not anybody is connected, so those days have already been lived —
+     * once, properly, with everybody else's doings in them. Living them again on the way in would
+     * age every village twice: two harvests for one summer, two winters of funerals, children born
+     * to parents the server has already buried.
+     */
+    expect(daysToLive(6, true)).toBe(0);
+    expect(daysToLive(365, true)).toBe(0);
+  });
+
+  it('refuses a negative however it arrived', () => {
+    // a machine whose clock was corrected while the game was shut, which is the field case
+    expect(daysToLive(-4, false)).toBe(0);
+    expect(daysToLive(Number.NaN, false)).toBe(0);
+  });
+
+  it('is asked of the link rather than of the connection', () => {
+    /*
+     * Playing alone connects too — to a private worker, started fresh with the day this save hands
+     * it — so `online.connected` is true either way and says nothing about whose clock ran. Read
+     * from the source, because the distinction is invisible in the types and was the whole fault.
+     */
+    const main = readFileSync(new URL('../main.ts', import.meta.url), 'utf8');
+    expect(main).toContain("daysToLive(state.awayFor, url.searchParams.has('server'))");
+    expect(main, 'the connection is not what decides this').not.toMatch(/daysToLive\([^)]*online\.connected/);
   });
 });

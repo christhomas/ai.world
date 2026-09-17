@@ -1,3 +1,4 @@
+import { daysToLive } from './world/awaytime';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { mulberry32 } from './core/rng';
@@ -252,9 +253,10 @@ export function startGame(
     sky: () => skies.save(),
   });
   register.rememberStablePurchases(houses.stablePurchases());
-  // the days that passed while the game was shut. A shared world keeps stepping without anybody
-  // connected; a single player one freezes, and `awaytime.ts` is the only clock it has
-  if (state.awayFor > 0) state.day += state.awayFor;
+  // the days that passed while the game was shut, which only a world of one has to invent. Asked of
+  // the link rather than of `online.connected`, and `daysToLive` says why both of those are so
+  const catchUp = daysToLive(state.awayFor, url.searchParams.has('server'));
+  if (catchUp > 0) state.day += catchUp;
   register.advance(state.day);                // a world reopened after a week finds a village changed
   /** Everything Old Nettle's cycle needs to reach into, gathered when it is asked for rather than held. */
   const realm = (): Realm => ({ register, jail, villages: structures.villages, hero: online.name, recall });
