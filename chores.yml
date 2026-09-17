@@ -221,6 +221,16 @@ tasks:
       # bench's own exit code is what the task exits with, so a pipeline naming this task stops.
       - 'pnpm vitest run src/world/collisions.test.ts; kept=$?; cat {{.REPORT}} || true; echo "report written to {{.REPORT}}"; exit $kept'
 
+  # What a seed is worth, measured over as many of them as you ask for. Chooses nothing: #323 says
+  # the cut goes where the tail plainly is, and nobody can see that until the spread is on a page.
+  seeds:
+    desc: Measure the home patch of many seeds, and print the spread
+    args:
+      - name: many
+        desc: how many seeds to measure; 200 if not said
+    cmds:
+      - 'pnpm tsx tools/seedscore.ts {{.CLI_ARGS}}'
+
   # The other bench: every message the two halves can send each other, and whether anybody is
   # listening. A message nobody handles type-checks, goes up the wire, and does nothing — which is
   # what "I wake in the village and get dragged back to the wolf" was. See `server/wire.test.ts`.
