@@ -39,7 +39,9 @@ describe('a jump lands somewhere a hero can stand', () => {
   it('takes the spot the ring found rather than the one it was asked for', () => {
     const body = jumpTo();
     expect(body).toContain('player.roomAt(x, z)');
-    expect(body).toContain('player.teleport(onto.x, onto.z, !watched)');
+    // both paths move him to what the ring found, watched or not; they differ only in the picture
+    expect(body).toContain('player.teleport(onto.x, onto.z)');
+    expect(body).toContain('player.teleport(onto.x, onto.z, false)');
     expect(body, 'and the camera follows it there').toContain('iso.target.set(onto.x, 0.5, onto.z)');
   });
 
@@ -50,6 +52,21 @@ describe('a jump lands somewhere a hero can stand', () => {
      */
     expect(PLAYER).toContain('roomAt(x: number, z: number): { x: number; z: number } | null');
     expect(PLAYER).toMatch(/groundNear[\s\S]{0,120}this\.roomAt\(x, z\) !== null/);
+  });
+
+  it('plays no beam at all for a jump nobody is watching', () => {
+    /*
+     * `warpTo` said "the same jump with no picture" and played the picture anyway: only the camera
+     * was held back, so a probe's teleport still ran the full ten seconds with the hero fully apart
+     * — and therefore not drawn — for the first six. The playtest missed it because it waits five
+     * seconds and then asks where he is rather than whether he can be seen. `chore shots` caught it
+     * by photographing a column of light with an invisible man in it.
+     */
+    const body = jumpTo();
+    const unwatched = body.slice(body.indexOf('if (!watched) {'), body.indexOf('chat.dismiss()'));
+    expect(unwatched, 'the quick path moves him').toContain('player.teleport(onto.x, onto.z)');
+    expect(unwatched, 'and takes the camera with it').toContain('iso.target.set(onto.x, 0.5, onto.z)');
+    expect(unwatched, 'and leaves before any of the beam').not.toContain('beam.');
   });
 
   it('tells the world where he landed, not where he was sent', () => {
