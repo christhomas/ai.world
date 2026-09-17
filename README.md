@@ -602,6 +602,10 @@ Three readability passes are written up in `docs/human-code-report-2026-09-03.md
 
 The ten most recent releases. Every one since `v0.1.0` is in [CHANGELOG.md](CHANGELOG.md).
 
+### v0.98.0 — 2026-09-17
+
+A teleport tells the world where it landed rather than where it was sent, a seed can be measured before it is handed out, and the mountain has a shot of its own
+
 ### v0.97.0 — 2026-09-17
 
 A save remembers which country it is, told facts get their own book, the hero walks into a village, and the shot tool can photograph either generator
@@ -637,10 +641,6 @@ The fish-folk are in a wreck for its cargo: a loaded hull is thick with them and
 ### v0.92.3 — 2026-09-13
 
 every value on a creature is stated by the creature
-
-### v0.92.2 — 2026-09-13
-
-every creature states every value it has
 ## Built with
 
 - **Three.js** for rendering: an orthographic isometric camera, PCF shadows, vertex-coloured
