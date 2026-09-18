@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { askClaude } from './tools/askclaude.ts';
 import { commandChannel } from './tools/commandchannel.ts';
+import { longerClock } from './tools/clock.ts';
 
 /**
  * What the game is called, what version it is, and when it was built.
@@ -24,26 +25,6 @@ const BUILD = {
  * on your own network serves it at the root, and says so by setting BASE=/ when it builds. Dev is
  * always the root.
  */
-/**
- * The clock a test is held to, in milliseconds: two minutes, or longer where somebody asked.
- *
- * `Math.max(120_000, Number(asked) || 0)` was the first go and it had one hole. Every *finite*
- * wrong answer falls through it correctly — a word is `NaN`, `NaN || 0` is nought, and the floor
- * takes over — but `Number('Infinity')` is `Infinity`, which is larger than the floor and therefore
- * survives it. Vitest documents nought as the way to switch a timeout off and has no contract for
- * infinity, so that one bad input is the one that reaches it.
- *
- * #353 made exactly this call for `PATIENCE` in `shots.cjs`: a knob for a clock takes a finite
- * number above nought or it is not an answer. Same knob, same kind of clock, same rule.
- */
-export function longerClock(asked: string | undefined): number {
-  const ms = Number(asked);
-  return Number.isFinite(ms) && ms > TWO_MINUTES ? ms : TWO_MINUTES;
-}
-
-/** What a test is given when nobody has said otherwise, and the floor nothing may go under. */
-const TWO_MINUTES = 120_000;
-
 export default defineConfig(({ command }) => ({
   /**
    * The development door for commands: post one to /__command and every open tab runs it. The
@@ -159,6 +140,18 @@ export default defineConfig(({ command }) => ({
      * is the same idea for the same reason, and #350 is where that argument is written out.
      */
     testTimeout: longerClock(process.env.TEST_TIMEOUT),
+    /*
+     * And the hooks, which are where a slow machine actually died.
+     *
+     * Vitest's default is ten seconds and this was never set, so `TEST_TIMEOUT` lengthened the test
+     * bodies and left setup and teardown on the old clock. Four files here stand up a real HTTP and
+     * WebSocket server in a hook and close it in another; closing two of them ran past ten seconds
+     * and the run died with `Hook timed out in 10000ms` — after 3563 of 3566 tests had passed.
+     *
+     * A hook that opens a world is doing the work a test that opens a world does, so it gets the
+     * same budget rather than a second knob for anybody to know about.
+     */
+    hookTimeout: longerClock(process.env.TEST_TIMEOUT),
     /*
      * Half the machine, unless somebody says otherwise — and there is a good reason to.
      *

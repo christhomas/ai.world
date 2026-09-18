@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { PROTOCOL_VERSION, type ServerMessage } from './protocol';
 import { startServer, type RunningServer } from './serve';
+import { atTheSamePace } from '../tools/clock';
 
 /**
  * The server is deployed behind something that terminates TLS — Fly's edge, nginx, Caddy — so a
@@ -31,7 +32,7 @@ import { startServer, type RunningServer } from './serve';
  * because something else is busy is worse than no test, because it teaches everybody to ignore it.
  * What it still catches is the thing it was written for: a proxied upgrade that never completes.
  */
-const PATIENCE = 20_000;
+const PATIENCE = atTheSamePace(20_000);
 
 /** The forwarded headers a real proxy adds. The server ignores both; a proxy still sends them. */
 const FORWARDED = ['X-Forwarded-Proto: https', 'X-Forwarded-For: 203.0.113.9'];
