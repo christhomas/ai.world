@@ -16,7 +16,7 @@ import { walkOver, whoWalksIn } from './movingon';
 import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks } from './carriers';
-import { standPostsIn, theDaysPosts, type Post } from './postings';
+import { standPostsIn, theDaysPosts, whoWouldStand, type Post } from './postings';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
@@ -359,6 +359,12 @@ export class Register {
 
   /** Who is standing what, so a man on a gate is not also offered a day of the hall's work. */
   postsOn(village: string): readonly Post[] { return this.posted.get(village) ?? []; }
+
+  /** Who would be standing a post on this morning, for whoever must not double-book a man. #360 */
+  whoIsSpokenFor(day: number): ReadonlyMap<string, readonly Post[]> {
+    const morning = Math.floor(day);
+    return whoWouldStand(this.villages, (v) => this.pressure.on(v, morning), morning);
+  }
 
   /** What every village stood this morning, which is what a page reads back after a day turns. */
   postsStanding(): ReadonlyMap<string, readonly Post[]> { return this.posted; }

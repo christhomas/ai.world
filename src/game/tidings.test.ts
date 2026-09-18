@@ -439,3 +439,70 @@ describe('a village with nothing leaning on it', () => {
     expect(net, 'a wage was minted or burnt').toBeCloseTo(0, 6);
   });
 });
+
+/**
+ * The hall does not hire a man who is already on somebody's gate — #360.
+ *
+ * `workTheHallJobs` takes the day's posts and leaves those men out, because a day is a day and
+ * nobody works two. The page used to hand it the posts of the morning *before*: it read them off
+ * the register and then told it to live the day, and every morning of a catch-up but the last got
+ * `undefined`. So on any morning that was not the last one, a man standing a yard could be paid a
+ * second time for the hall's work.
+ *
+ * Asking the register for the morning being worked is safe because `postsToday` moves nothing —
+ * the paying still happens once, where the day is lived.
+ */
+describe('a man already spoken for', () => {
+  it('is known about on every morning of a catch-up, not only the last', () => {
+    const register = new Register(7);
+    register.settle(VILLAGE, 6, ['farmer', 'seller', 'builder']);
+    register.advance(4);
+    for (const person of register.living(VILLAGE)) person.purse = 500;
+
+    const houses = new Houses();
+    houses.takeOn(VILLAGE, BUILD.PRICE, deposit());
+    houses.place(20, 20, 1);
+
+    /** Which mornings were told who was already posted, and which were told nothing. */
+    const told = new Map<number, number | null>();
+    const shifts: Array<{ day: number; who: string }> = [];
+    const morning = (day: number, already?: ReadonlyMap<string, readonly Post[]>): void => {
+      const busy = already === undefined ? null : [...already.values()].flat();
+      told.set(day, busy === null ? null : busy.length);
+      for (const shift of workTheHallJobs(houses, day, () => register.living(VILLAGE), busy ?? [])) {
+        shifts.push({ day, who: shift.who });
+      }
+    };
+    const { tidings, state } = telling({ register, builderDay: morning, pressings: [] });
+
+    state.day = 9;                    // five mornings at once, which is where the gap was
+    tidings.theDaysNews();
+
+    expect(told.size, 'no mornings were worked at all').toBeGreaterThan(1);
+    const blind = [...told].filter(([, many]) => many === null).map(([day]) => day);
+    expect(blind, `mornings ${blind.join(', ')} were told nothing about who was posted`).toEqual([]);
+  });
+
+  /*
+   * And the reading is about the morning it names. The advice used to come off the register's
+   * *last* stood posts, so on a catch-up it described a day already gone — which is the shape of
+   * the fault rather than its size, since a death or a change in pressure moves a post between
+   * days.
+   */
+  it('is asked about the morning being worked', () => {
+    const register = new Register(7);
+    register.settle(VILLAGE, 6, ['farmer', 'seller', 'builder']);
+    register.advance(4);
+    for (const person of register.living(VILLAGE)) person.purse = 500;
+
+    const asked: number[] = [];
+    const morning = (day: number, already?: ReadonlyMap<string, readonly Post[]>): void => {
+      if (already !== undefined) asked.push(day);
+    };
+    const { tidings, state } = telling({ register, builderDay: morning, pressings: [] });
+    state.day = 8;
+    tidings.theDaysNews();
+
+    expect(asked, 'every morning worked should have been given its own posts').toEqual([5, 6, 7, 8]);
+  });
+});

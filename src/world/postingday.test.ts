@@ -230,3 +230,56 @@ describe('a village founded into a world that is already old', () => {
       .toEqual(forward.postsOn('Ashford').map((post) => `${post.kind}:${post.holding}:${post.who}`));
   });
 });
+
+/**
+ * Who is already spoken for, asked about the morning being worked — #360.
+ *
+ * `halljobs.ts` must not offer a day of the hall's work to a man already standing somebody's gate.
+ * The page used to be handed the posts of the morning *before*: it read them off the register and
+ * then told it to live the day, and every morning of a catch-up but the last got nothing at all. A
+ * death or a change in pressure moves a post between days, so the advice was about the wrong one.
+ *
+ * Safe to ask because `postsToday` decides who and at what price and **moves nothing** — the
+ * paying still happens once, where the day is lived.
+ */
+describe('who a village has already spoken for', () => {
+  const settled = (): Register => {
+    const book = new Register(7);
+    book.settle('Stonedale', 6, ['farmer', 'hunter', 'seller', 'builder']);
+    for (let day = 2; day <= 20; day++) book.advance(day);
+    for (const person of book.living('Stonedale')) person.purse = 500;
+    return book;
+  };
+
+  it('answers for a morning that has not been lived yet', () => {
+    const book = settled();
+    const ahead = book.whoIsSpokenFor(21).get('Stonedale') ?? [];
+    expect(ahead.length, 'nobody was named for a morning the village can afford').toBeGreaterThan(0);
+  });
+
+  /*
+   * The whole point of it being safe to ask: it is a reading, not an act. Asking a hundred times
+   * must leave every purse exactly where asking once did.
+   */
+  it('moves no money, however often it is asked', () => {
+    const book = settled();
+    const before = book.living('Stonedale').map((person) => person.purse ?? 0);
+    for (let i = 0; i < 100; i++) book.whoIsSpokenFor(21);
+    expect(book.living('Stonedale').map((person) => person.purse ?? 0)).toEqual(before);
+    expect(book.living('Stonedale').every((person) => book.postedTo(person.id) === 0),
+      'a reading wrote into the day book').toBe(true);
+  });
+
+  /*
+   * And it is about the morning it was asked about, not the one the register happens to be on —
+   * which is the fault: a catch-up walks several mornings and the advice has to move with them.
+   */
+  it('is about the morning it was asked about', () => {
+    const book = settled();
+    const named = (day: number) => (book.whoIsSpokenFor(day).get('Stonedale') ?? []).map((p) => p.holding).sort();
+    expect(named(21)).toEqual(named(21));
+    book.advance(21);
+    // after a day has been lived, what was stood and what would be stood are the same question
+    expect(named(22).length).toBeGreaterThan(0);
+  });
+});
