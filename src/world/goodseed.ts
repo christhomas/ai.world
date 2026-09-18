@@ -1,4 +1,5 @@
 import { readSeed, type Reading } from './seedscore';
+import type { CountryReply, CountryRequest } from './countrymessages';
 
 /**
  * Drawing a world somebody would want to play, rather than the first number that came up.
@@ -130,4 +131,60 @@ export function aWorldWorthOpening(
     if (worthPlaying(read(seed))) return { seed, drawn, worth: true };
   }
   return { seed: first, drawn: Math.max(1, tries), worth: false };
+}
+
+/**
+ * The same decision, for a reader that answers later.
+ *
+ * Measuring a seed grows a whole patch, which is seconds rather than milliseconds — so the title
+ * screen asks a worker and waits rather than doing it on the thread it draws on. See #358, and
+ * `country.worker.ts`, which answers because a measurement *is* a patch grown and thrown away.
+ *
+ * A twin rather than one function, and the duplication is deliberate: the sync one is what the
+ * tests and the tools use and it has no reason to become a promise. What must not drift is the
+ * *rule* — how many times, and what to do when the tries run out — so `goodseed.test.ts` runs the
+ * two over the same readings and holds them to the same answer. If they ever disagree, that test is
+ * the one that says so.
+ */
+export async function aWorldWorthOpeningAsync(
+  draw: () => number,
+  read: (seed: number) => Promise<Reading>,
+  tries = TRIES,
+): Promise<Drawn> {
+  let first = 0;
+  for (let drawn = 1; drawn <= Math.max(1, tries); drawn++) {
+    const seed = draw();
+    if (drawn === 1) first = seed;
+    if (worthPlaying(await read(seed))) return { seed, drawn, worth: true };
+  }
+  return { seed: first, drawn: Math.max(1, tries), worth: false };
+}
+
+/**
+ * A reader backed by the country worker, and the worker it is backed by.
+ *
+ * Its own function so the title screen holds a reader rather than a worker: what it wants is "read
+ * me this seed", and the port, the listener and the tidying up are this file's business. `close`
+ * because a title screen that opened a worker per drawn seed would leave one behind for every world
+ * anybody looked at.
+ *
+ * One at a time, which is what the decision needs: `aWorldWorthOpeningAsync` asks for the next seed
+ * only after the last has come back, so there is never more than one measurement in flight and no
+ * queue to keep.
+ */
+export function seedsReadOffThread(): { read: (seed: number) => Promise<Reading>; close: () => void } {
+  const worker = new Worker(new URL('../workers/country.worker.ts', import.meta.url), { type: 'module' });
+  return {
+    read: (seed) => new Promise<Reading>((answer) => {
+      const hear = (e: MessageEvent<CountryReply>): void => {
+        // the worker answers two questions; this one asked for a measurement of this seed
+        if (e.data.type !== 'measured' || e.data.seed !== seed) return;
+        worker.removeEventListener('message', hear);
+        answer(e.data.reading);
+      };
+      worker.addEventListener('message', hear);
+      worker.postMessage({ type: 'measure', seed } satisfies CountryRequest);
+    }),
+    close: () => worker.terminate(),
+  };
 }

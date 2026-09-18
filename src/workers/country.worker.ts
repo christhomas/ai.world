@@ -1,6 +1,7 @@
 import { partsOf } from '../world/endless';
 import { growPatch } from '../world/growworld';
 import { boundsOf } from '../world/patchwork';
+import { readSeed } from '../world/seedscore';
 import type { CountryRequest, CountryReply } from '../world/countrymessages';
 
 /**
@@ -31,8 +32,19 @@ const post = (msg: CountryReply) => (self as unknown as Worker).postMessage(msg)
 
 self.onmessage = (e: MessageEvent<CountryRequest>) => {
   const msg = e.data;
-  if (msg.type !== 'grow') return;
   const started = Date.now();
+  /*
+   * Measuring a seed is growing its home patch and then throwing the patch away.
+   *
+   * Which is why it is answered here rather than anywhere else: it is this worker's own work with
+   * the expensive half discarded. The title screen used to do it on the thread it draws on and
+   * froze for as long as it took — seconds, and four times that for a seed drawn badly. See #358.
+   */
+  if (msg.type === 'measure') {
+    post({ type: 'measured', seed: msg.seed, reading: readSeed(msg.seed), took: Date.now() - started });
+    return;
+  }
+  if (msg.type !== 'grow') return;
   const sampler = growPatch(msg.seed, boundsOf(msg.patch));
   post({ type: 'grown', patch: msg.patch, parts: partsOf(sampler), took: Date.now() - started });
 };

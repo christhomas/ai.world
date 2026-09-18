@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TRIES, WORTH, aWorldWorthOpening, whatIsWrongWith, worthPlaying } from './goodseed';
+import { TRIES, WORTH, aWorldWorthOpening, aWorldWorthOpeningAsync, whatIsWrongWith, worthPlaying } from './goodseed';
 import type { Reading } from './seedscore';
 
 /**
@@ -136,5 +136,58 @@ describe('drawing until one is worth opening', () => {
   it('draws few enough times that a rejection stays cheap', () => {
     expect(TRIES).toBeGreaterThanOrEqual(2);
     expect(TRIES).toBeLessThanOrEqual(8);
+  });
+});
+
+/**
+ * The two decisions, held to one answer.
+ *
+ * `aWorldWorthOpeningAsync` exists because measuring a seed grows a patch and the title screen
+ * cannot do that on the thread it draws on — see #358. It is a twin rather than a shared function,
+ * deliberately: the sync one is what the tools and the rest of these tests use and has no reason to
+ * become a promise. What must not drift is the *rule*, so this runs both over the same readings.
+ *
+ * If these ever disagree, one of the two has had the settling rule changed without the other.
+ */
+describe('the same decision, whether the reading comes back now or later', () => {
+  const handing = (...seeds: number[]) => {
+    let at = 0;
+    return () => seeds[Math.min(at++, seeds.length - 1)];
+  };
+  const goodFor = (...seeds: number[]) => (seed: number): Reading =>
+    (seeds.includes(seed) ? good({ seed }) : good({ seed, villages: 0 }));
+
+  const cases: Array<{ what: string; seeds: number[]; good: number[]; tries?: number }> = [
+    { what: 'the first is worth opening', seeds: [11, 22], good: [11, 22] },
+    { what: 'the third is the first worth opening', seeds: [11, 22, 33], good: [33] },
+    { what: 'none is worth opening and the tries run out', seeds: [11, 22, 33], good: [], tries: 3 },
+    { what: 'there is only one try', seeds: [7], good: [], tries: 1 },
+    { what: 'there are no tries at all', seeds: [7], good: [], tries: 0 },
+  ];
+
+  for (const one of cases) {
+    it(`agrees when ${one.what}`, async () => {
+      const now = aWorldWorthOpening(handing(...one.seeds), goodFor(...one.good), one.tries);
+      const later = await aWorldWorthOpeningAsync(
+        handing(...one.seeds), async (seed) => goodFor(...one.good)(seed), one.tries,
+      );
+      expect(later).toEqual(now);
+    });
+  }
+
+  it('asks for one seed at a time and waits for each answer', async () => {
+    /*
+     * The thing the worker arrangement needs and the sync one gets for free. A decision that asked
+     * for all four at once would need a queue on the other side and would grow patches nobody was
+     * going to use, which is the cost this whole change is about.
+     */
+    let inFlight = 0, most = 0;
+    await aWorldWorthOpeningAsync(handing(11, 22, 33, 44), async (seed) => {
+      most = Math.max(most, ++inFlight);
+      await Promise.resolve();
+      inFlight--;
+      return good({ seed, villages: 0 });
+    });
+    expect(most, 'never more than one measurement at a time').toBe(1);
   });
 });
