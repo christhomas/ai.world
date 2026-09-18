@@ -368,7 +368,18 @@ export function theDaysPosts(
  * A carrier cannot be in here and says so: a cart is settled between *two* villages, so a village
  * being caught up on its own has no road. A post is between two people in one village, so it can
  * be — and therefore must be, or the catch-up arrives with a hall that is short by every wage that
- * was ever swept into it.
+ * was ever swept into it. That is not hypothetical: standing posts in one path and not the other
+ * put seed 7's hall at 635.76 against 635.85 on day 120, which is the shape of a divergence rather
+ * than the size of one.
+ *
+ * ## Which reading of the pressure, which is a day apart
+ *
+ * Callers hand in `pressure.on(village, day)` and not `pressureOn(village)`. A pressing is *told*
+ * on the day somebody looked at the bands and *felt* on the morning after — `on` is
+ * `told + 1 === day`, which is the reader `liveADay` already uses for everything else a band costs
+ * a village. `pressureOn` is `now`, the same-day reading, and it is what a carrier wants because a
+ * cart is settled in the evening of the day it walked. A man is put on a gate in the morning
+ * against what is standing over the place that morning.
  */
 export function standPostsIn(
   village: Settlement,

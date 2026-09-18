@@ -204,19 +204,8 @@ export class Register {
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
-      /*
-       * And its posts, for the same morning, because this is the *other* way a village lives a day.
-       *
-       * `relived.test.ts` holds these two paths to the same answer — a page that was there walks a
-       * village forward through `advance`, and a page that learns about a death afterwards throws
-       * the village away and catches it up here. Standing posts in one and not the other left the
-       * hall short by every wage that had ever been swept into it: 635.76 against 635.85 on seed 7,
-       * which is the shape of a divergence rather than the size of one.
-       *
-       * The carrier is deliberately not here and says why in its own file: a cart is settled between
-       * two villages, and a village being caught up on its own has no road. A post is between two
-       * people in one village, so it travels with the village.
-       */
+      // and its posts, because this is the *other* way a village lives a day; `relived.test.ts`
+      // holds the two to one answer. See `standPostsIn` for why the carrier cannot come with it
       standPostsIn(settlement, this.pressure.on(village, day), day, this.book);
       this.telling.votedOn(village, settlement, day);
     }
@@ -365,13 +354,7 @@ export class Register {
   /** And what a post paid them, or cost them, on the last day they lived through. */
   postedTo(id: string): number { return this.book.postedTo(id); }
 
-  /**
-   * Who is standing what this morning, for whoever has to know a man is already spoken for.
-   *
-   * `halljobs.ts` is the caller that matters: a man on somebody's gate must not also be offered a
-   * day of the hall's work, and until the posting moved in here the page worked that out for
-   * itself and handed it down. Now the day that stood them is the day that says so.
-   */
+  /** Who is standing what, so a man on a gate is not also offered a day of the hall's work. */
   postsOn(village: string): readonly Post[] { return this.posted.get(village) ?? []; }
 
   /** What every village stood this morning, which is what a page reads back after a day turns. */
@@ -477,24 +460,9 @@ export class Register {
         changes.push(...liveADay(this.theDay, name, village, this.day));
         this.telling.votedOn(name, village, this.day);
       }
-      /*
-       * The men on the gates and in the yards, stood and paid on the morning they worked.
-       *
-       * Here rather than on the page, which is where it used to be: `tidings.ts` computed and paid
-       * them inside its loop over the warbands, so it happened because a frame was drawn. A
-       * holding earned its owner nothing on any day nobody was looking at it, which is #264 — and
-       * the register's forward clock is the one thing in this world that runs while nobody is.
-       */
-      /*
-       * `pressure.on` rather than `pressureOn`, and the difference is a day.
-       *
-       * A pressing is *told* on the day somebody looked at the bands and is *felt* on the morning
-       * after — `on(village, day)` is `told + 1 === day`, which is the reader `liveADay` already
-       * uses for everything else a band costs a village. `pressureOn` is `now`, the same-day
-       * reading, and it is what a carrier wants because a cart is settled in the evening of the day
-       * it walked. A man is put on a gate in the morning against what is standing over the place
-       * that morning, so this is the one a day being lived asks with.
-       */
+      // the men on the gates and in the yards, paid on the morning they worked rather than on a
+      // frame somebody drew, which is #264. `pressure.on` and not `pressureOn`: a pressing is told
+      // one day and felt the next. `postings.ts` has both arguments
       this.posted = theDaysPosts(this.villages, (v) => this.pressure.on(v, this.day), this.day, this.book);
       // and one cart goes over the hill, now that every village has worked and eaten. Why it is
       // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
