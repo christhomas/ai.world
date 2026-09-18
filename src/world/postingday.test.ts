@@ -193,3 +193,40 @@ describe('a village left to itself', () => {
     expect(after, 'ten unwatched days minted a fortune').toBeLessThan(before * 4);
   });
 });
+
+/**
+ * And a village that came to exist the other way still says what it stood.
+ *
+ * `standPostsIn` is called from two places — `advance`, which walks a village forward a day at a
+ * time, and the catch-up inside `settle`, which founds one and lives it to today in one go. Both
+ * pay. Only the first used to *publish*, and `posted` is a map keyed by village name, so the gap
+ * had two shapes: a village founded late answered `[]` to `postsOn` until the next morning, and a
+ * village re-lived kept the entry belonging to the village it replaced.
+ *
+ * The second is the one with teeth. `tidings.ts` asks `postsOn` what the men on the gates turned
+ * back, so a dragon could be counted against posts belonging to a village that no longer exists.
+ */
+describe('a village founded into a world that is already old', () => {
+  const settledAt = (day: number): Register => {
+    const book = new Register(7, day);
+    book.settle('Ashford', 6, ['farmer', 'hunter', 'seller', 'builder']);
+    return book;
+  };
+
+  it('says what it stood on the morning it caught up to', () => {
+    const book = settledAt(120);
+    expect(book.postsOn('Ashford'), 'it lived a hundred and twenty days and admits to nothing')
+      .not.toEqual([]);
+  });
+
+  it('stands the same posts either way it came to exist', () => {
+    const forward = new Register(7, 1);
+    forward.settle('Ashford', 6, ['farmer', 'hunter', 'seller', 'builder']);
+    for (let day = 2; day <= 120; day++) forward.advance(day);
+
+    const atOnce = settledAt(120);
+
+    expect(atOnce.postsOn('Ashford').map((post) => `${post.kind}:${post.holding}:${post.who}`))
+      .toEqual(forward.postsOn('Ashford').map((post) => `${post.kind}:${post.holding}:${post.who}`));
+  });
+});
