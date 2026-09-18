@@ -16,6 +16,7 @@ import { walkOver, whoWalksIn } from './movingon';
 import { swornTrades, type Arrival } from './arrivals';
 import { Tellings, type Telling, type Arrived } from './telling';
 import { aCarrierWalks } from './carriers';
+import { standPostsIn, theDaysPosts, type Post } from './postings';
 import { DayBook } from './daybook';
 import { raiseWhoIsDue } from './shrine';
 import type { Burial, Change, Hall, Settlement } from './settlement';
@@ -203,6 +204,9 @@ export class Register {
     this.villages.set(village, settlement);
     for (let day = FOUNDED_ON + 1; day <= this.day; day++) {
       liveADay(this.theDay, village, settlement, day);
+      // and its posts, because this is the *other* way a village lives a day; `relived.test.ts`
+      // holds the two to one answer. See `standPostsIn` for why the carrier cannot come with it
+      standPostsIn(settlement, this.pressure.on(village, day), day, this.book);
       this.telling.votedOn(village, settlement, day);
     }
     return settlement.people;
@@ -347,6 +351,18 @@ export class Register {
   /** What the next valley paid this person today, or what they paid it. Nought on most days. */
   carriedBy(id: string): number { return this.book.carriedBy(id); }
 
+  /** And what a post paid them, or cost them, on the last day they lived through. */
+  postedTo(id: string): number { return this.book.postedTo(id); }
+
+  /** Who is standing what, so a man on a gate is not also offered a day of the hall's work. */
+  postsOn(village: string): readonly Post[] { return this.posted.get(village) ?? []; }
+
+  /** What every village stood this morning, which is what a page reads back after a day turns. */
+  postsStanding(): ReadonlyMap<string, readonly Post[]> { return this.posted; }
+
+  /** Who stood what on the last day lived. Replaced whole each morning, like the book. */
+  private posted: Map<string, readonly Post[]> = new Map();
+
   /** How a village is doing, which is a subtraction rather than a system. */
   fortune(village: string): Fortune {
     const here = this.villages.get(village);
@@ -444,6 +460,10 @@ export class Register {
         changes.push(...liveADay(this.theDay, name, village, this.day));
         this.telling.votedOn(name, village, this.day);
       }
+      // the men on the gates and in the yards, paid on the morning they worked rather than on a
+      // frame somebody drew, which is #264. `pressure.on` and not `pressureOn`: a pressing is told
+      // one day and felt the next. `postings.ts` has both arguments
+      this.posted = theDaysPosts(this.villages, (v) => this.pressure.on(v, this.day), this.day, this.book);
       // and one cart goes over the hill, now that every village has worked and eaten. Why it is
       // the evening and not the morning is the whole of `carriers.ts`'s seam; see it there
       aCarrierWalks(this.villages, (v) => this.standing.get(v), (v) => this.pressureOn(v), this.book.cartsToday);

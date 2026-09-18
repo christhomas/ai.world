@@ -1,7 +1,6 @@
 import type { Ore } from './ore';
 import { hashString, mulberry32 } from '../core/rng';
-import { give, purseOf } from '../world/deeds';
-import { postsToday, turnedAway, type Held, type Post } from '../world/postings';
+import { turnedAway, type Post } from '../world/postings';
 import type { Player } from '../entities/player';
 import type { Register } from '../world/register';
 import { luxuryFor, storeysFor, type Luxury } from '../world/prosperity';
@@ -183,65 +182,25 @@ export function createTidings(ctx: Telling) {
     /** The worst thing leaning on each village today, which is what the register is told. */
     const worst = new Map<string, number>();
     /**
-     * And who is standing over its cattle, hired once for the day rather than once per band.
+     * And who is standing over its cattle, which the page no longer works out for itself.
      *
-     * Kept beside `worst` and for exactly the same reason. `pressings` comes back one entry per
-     * band per village, so a place with two over it would post its guards twice and pay them twice
-     * — the same shape of fault as the chat saying everything twice, one loop further in. They are
-     * posted against the worst of what is overhead, which is what a farmer would be looking at when
-     * he decided to pay anybody.
-     */
-    const standing = new Map<string, readonly Post[]>();
-    /**
-     * Who a village employs this morning, and the coin actually changing hands for it.
+     * It used to: `postsToday` was called here, once per day's turn, inside the loop over the
+     * warbands, and the wages were handed over here too. That made a man's holding earn only on
+     * days somebody was looking at it, because a frame being drawn was what paid him. The posting
+     * lives in the register's own day now, beside the carrier — see `postings.ts` and #264.
      *
-     * `postsToday` decides who and at what price and moves nothing; the coin itself goes through
-     * `deeds`, which is the one vocabulary in this world where money leaving a purse and arriving
-     * in another is a single act. Nothing is minted and nothing is burnt, and a village's own total
-     * is exactly what it was — which is why the books balance over this without a column.
+     * What is still wanted here is the *answer*, because `builderDay` must not offer a day of the
+     * hall's work to a man already standing somebody's gate. So it is read back rather than
+     * recomputed: one day, one set of posts, decided where the day is lived.
      */
-    const postAndPay = (village: string, pressure: number): void => {
-      // `madeOf` hands back the settlement itself and its declared shape is narrower than what it
-      // actually carries. Widening that return type is the one register edit this wants.
-      const holds = (register.madeOf(village).holdings ?? []) as readonly Held[];
-      const posts = postsToday(register.living(village), holds, pressure, state.day);
-      standing.set(village, posts);
-      const purses = new Map(register.living(village).map((p) => [p.id, p]));
-      for (const post of posts) {
-        const payer = purses.get(post.funder), man = purses.get(post.who);
-        if (payer && man) give(purseOf(payer), purseOf(man), post.wage);
-      }
-    };
+    const standing = (): ReadonlyMap<string, readonly Post[]> => register.postsStanding();
     // a band camped on a village's doorstep costs it people, and the same people on every client
     // and what each village has grown into, because a band leans harder on a place worth leaning
     // on: a town has more in its granary than a hamlet. See `worthPressing`
-    for (const press of roaming.pressings(
+    const pressings = roaming.pressings(
       structures.villages, state.day, (v) => register.rankOf(v), (v) => register.herdOf(v),
-    )) {
-      /*
-       * The men on the gates, and what they cost the farmers who put them there.
-       *
-       * The first wage in this economy that moves *inside* a valley. Every other one is invented
-       * somewhere beyond it — a seam, a shoal, a road, a traveller's bed — and this is a farmer
-       * paying a neighbour, out of his own purse, for a service he actually needed on a morning he
-       * could have chosen to save the money on. It is the same decision the player makes about a
-       * warband, made by somebody who lives there.
-       *
-       * `postsToday` decides who and at what price and moves nothing; the coin itself goes through
-       * `deeds`, which is the one vocabulary in this world where money leaving a purse and arriving
-       * in another is a single act. Nothing is minted and nothing is burnt, and a village's own
-       * total is exactly what it was — which is why the books balance over this without a column.
-       */
-      if (!standing.has(press.village)) postAndPay(press.village, press.pressure);
-      /*
-       * And what a dragon takes instead of people: the herd the farmers' whole living is made of,
-       * so a village it passes over gets poorer in a way anybody living there could explain — less
-       * whatever the men on the gates turned back, which is what their wages bought.
-       */
-      const saved = turnedAway(standing.get(press.village) ?? [], press.cattle);
-      const losing = Math.max(0, press.cattle - saved);
-      const carried = losing > 0 ? register.cattleLost(press.village, losing) : 0;
-      if (carried > 0) online.report({ kind: 'herd', village: press.village, head: register.herdOf(press.village) });
+    );
+    for (const press of pressings) {
       const pick = mulberry32(press.band.seed ^ hashString(press.village) ^ state.day);
       const living = [...register.living(press.village)];
       for (let n = 0; n < press.toll && living.length > 0; n++) {
@@ -278,26 +237,6 @@ export function createTidings(ctx: Telling) {
       }
     }
     /*
-     * And the villages nothing is leaning on, which on most mornings is all of them.
-     *
-     * `postsToday` was reached only from inside the loop above, so a village with no band near it
-     * never posted anybody at all — `pressings` yields nothing for a place no band is standing over,
-     * and no pressing meant no call. Right for the guard, whose wage is nought at peace and who is
-     * the whole reason the call was in there. Wrong for the crew: whether a house gets built has
-     * nothing to do with what is overhead, so a peaceful village with a yard, work on its books and
-     * a builder standing in it employed nobody, for ever.
-     *
-     * `postsToday`'s own comment had already made this argument about the gate one level in —
-     * *"how hard something is leaning on the village has nothing to do with whether a house gets
-     * built"* — and fixed the inner one. This is the outer one, a file up.
-     *
-     * At pressure nought, which is what a village with nothing overhead is: `wageForAGuard(0)` is
-     * nought, so no gate is manned and no farmer is charged, and the building gets done. See #355.
-     */
-    for (const village of register.settled()) {
-      if (!standing.has(village)) postAndPay(village, 0);
-    }
-    /*
      * Work and age one morning at a time. A clock jump must not post every missed shift against one
      * frozen roster: somebody buried on Tuesday cannot keep drawing wages on Wednesday, and their
      * replacement can take the yard the next morning. Work comes first because that is the ordinary
@@ -308,12 +247,28 @@ export function createTidings(ctx: Telling) {
     let mornings = 0;
     while (register.today < today) {
       const day = register.today + 1;
-      builderDay(day, day === today ? standing : undefined);
+      builderDay(day, day === today ? standing() : undefined);
       changes.push(...register.advance(day));
       mornings++;
     }
     // A commission may have been placed after today's register work; it still gets this morning.
-    if (mornings === 0) builderDay(today, standing);
+    if (mornings === 0) builderDay(today, standing());
+    /*
+     * And what a dragon takes instead of people, now that the gates have been manned.
+     *
+     * After the day is lived rather than before it, and the order is the point. The herd the
+     * farmers' whole living is made of comes down, less whatever the men on the gates turned
+     * back — so the men have to be standing before the beasts are counted. They are posted in the
+     * village's own day now (`postings.ts`, #264) rather than here, and a village's day happens in
+     * `register.advance` above, so reading the posts before it would be asking who was on the gate
+     * before anybody had been put there. It read yesterday's, which on the first morning is none.
+     */
+    for (const press of pressings) {
+      const saved = turnedAway(register.postsOn(press.village), press.cattle);
+      const losing = Math.max(0, press.cattle - saved);
+      const carried = losing > 0 ? register.cattleLost(press.village, losing) : 0;
+      if (carried > 0) online.report({ kind: 'herd', village: press.village, head: register.herdOf(press.village) });
+    }
     for (const change of [...changes, ...villageNights()]) {
       if (change.kind === 'died' && discovered.has(change.village)) {
         say(`Word from ${change.village}: ${change.name} has died.`);

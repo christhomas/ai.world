@@ -148,7 +148,16 @@ describe('the coin in a village, against the books that village keeps', () => {
              * books: what one valley paid, the next one was paid, and `carriers.ts` is held to that
              * to the thousandth by its own tests.
              */
-            expected += row.earns - row.spends - ate - now.tax + now.paid + now.carried;
+            /*
+             * And what a post was worth, which is the one line here about a neighbour.
+             *
+             * Positive for the man who stood somebody's gate and negative for the man who paid him,
+             * so the two cancel inside a village and the sum over the roll is nought — which is
+             * what makes it invisible in a village total and exactly why it has to be per person.
+             * It reached no book at all until the posting moved off the page and into the day; see
+             * #264 and `postings.ts`.
+             */
+            expected += row.earns - row.spends - ate - now.tax + now.paid + now.carried + now.posted;
             observed += now.purse - row.purse;
           }
           /*

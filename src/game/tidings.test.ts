@@ -374,54 +374,68 @@ describe('a guard on the gate', () => {
  * `theDaysNews` with no pressings at all, which is the ordinary morning in this world.
  */
 describe('a village with nothing leaning on it', () => {
-  /** A village whose builder has founded himself a yard, and no band anywhere near it. */
+  /** A village whose builders have founded themselves yards, and no band anywhere near it. */
   const peaceful = () => {
     const register = new Register(7);
     register.settle(VILLAGE, 6, TRADES.concat('builder'));
     for (let day = 2; day <= 20; day++) register.advance(day);
     /*
-     * And enough in the yard owner's purse to lay out a day's wage, which twenty days of this
-     * village does not make: `POST.LAYS_OUT` is a fifth, `POST.BUILDER` is twelve, so an owner
-     * needs sixty before he can hire anybody and a builder here has thirty. That is a fact about
-     * how poor a young village is and it is not what this is about — a yard that cannot afford a
-     * builder is the *right* answer, and it would hide the wrong one.
+     * And enough in a yard owner's purse to lay out a day's wage, which twenty days of this village
+     * does not make: `POST.LAYS_OUT` is a fifth and `POST.BUILDER` is twelve, so an owner needs
+     * sixty and a builder here has thirty. A yard that cannot afford a builder is the *right*
+     * answer and it would hide the wrong one.
      */
     for (const person of register.living(VILLAGE)) person.purse = 500;
-    const posted: Array<ReadonlyMap<string, readonly Post[]> | undefined> = [];
-    const kit = telling({
-      register, pressings: [], builderDay: (_day, already) => { posted.push(already); },
-    });
-    return { ...kit, posted };
+    const kit = telling({ register, pressings: [] });
+    // and a day to live with money in its purses: posts are stood when a day is *lived* now
+    kit.state.day = 21;
+    return kit;
   };
 
-  it('still works out who it employs this morning', () => {
-    const { tidings, posted, register } = peaceful();
+  it('stands its posts on a morning nothing is leaning on it', () => {
+    const { tidings, register } = peaceful();
     expect((register.madeOf(VILLAGE).holdings ?? []).some((one) => one.kind === 'yard'),
       'this village was supposed to have a yard in it').toBe(true);
 
     tidings.theDaysNews();
 
-    const standing = posted.find((one) => one !== undefined);
-    expect(standing, 'the day turned without working out any posts at all').toBeDefined();
-    expect([...standing!.keys()], 'the peaceful village was never asked').toContain(VILLAGE);
+    expect(register.postsOn(VILLAGE), 'the peaceful village was never asked').not.toEqual([]);
   });
 
-  it('puts its builder on the yard, which is the work that has nothing to do with warbands', () => {
-    const { tidings, posted } = peaceful();
+  it('puts its builders on the yards, which is work that has nothing to do with warbands', () => {
+    const { tidings, register } = peaceful();
     tidings.theDaysNews();
-    const posts = [...(posted.find((one) => one !== undefined) ?? new Map()).values()].flat();
-    expect(posts.map((post) => post.kind)).toContain('crew');
+    expect(register.postsOn(VILLAGE).map((post) => post.kind)).toContain('crew');
   });
 
   /*
    * And the half that must not change with it. A gate is manned against something overhead, and
    * `wageForAGuard(0)` is nought — so a village at peace posts no guard and charges no farmer for
-   * one, which is the rule the original placement of this call was protecting.
+   * one, which is the rule the old placement of this call was protecting.
    */
   it('mans no gate, because there is nothing to man it against', () => {
-    const { tidings, posted } = peaceful();
+    const { tidings, register } = peaceful();
     tidings.theDaysNews();
-    const posts = [...(posted.find((one) => one !== undefined) ?? new Map()).values()].flat();
-    expect(posts.map((post) => post.kind)).not.toContain('guard');
+    expect(register.postsOn(VILLAGE).map((post) => post.kind)).not.toContain('guard');
+  });
+
+  /*
+   * And the wages move between purses without any being made or lost.
+   *
+   * This village's builders turn out to hire *each other* — five yards in a ring, so every man is
+   * both a payer and a payee and every purse nets to nought. That is a real property and not a
+   * defect, and it is the reason this holds the sum over the roll rather than one man's row: the
+   * conservation is what the economy bench squares, and one man's twelve gold in a ring proves
+   * nothing. A wage reaching one particular man is `postings.test.ts`'s job, on a village built to
+   * have exactly one hiring in it.
+   */
+  it('moves the wages between purses without minting any', () => {
+    const { tidings, register } = peaceful();
+    tidings.theDaysNews();
+    const hired = register.postsOn(VILLAGE).filter((post) => post.who !== post.funder);
+    expect(hired.length, 'nobody here is working anybody else\'s yard').toBeGreaterThan(0);
+    const net = register.living(VILLAGE)
+      .reduce((sum, person) => sum + register.postedTo(person.id), 0);
+    expect(net, 'a wage was minted or burnt').toBeCloseTo(0, 6);
   });
 });
